@@ -36,11 +36,19 @@ export async function initComponents(): Promise<AppComponents> {
   const metrics = await createMetricsComponent(metricDeclarations, { config })
   const logs = await createLogComponent({ metrics, config })
 
+  // This is an internal treasury API (bearer-token guarded). Allowlist specific origins rather than
+  // reflecting any Origin with credentials. Configure via CORS_ALLOWED_ORIGINS (comma-separated);
+  // defaults to local dev only.
+  const corsOrigin = ((await config.getString('CORS_ALLOWED_ORIGINS')) ?? 'http://localhost:5173,http://localhost:5174')
+    .split(',')
+    .map(o => o.trim())
+    .filter(Boolean)
+
   const server = await createServerComponent<GlobalContext>(
     { config, logs },
     {
       cors: {
-        origin: true,
+        origin: corsOrigin,
         methods: ['GET', 'POST', 'OPTIONS'],
         allowedHeaders: ['Cache-Control', 'Content-Type', 'Origin', 'Accept', 'Authorization'],
         credentials: true,

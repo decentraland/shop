@@ -60,6 +60,9 @@ export function Cart() {
     try {
       // 1) Resolve each listing + authorize it: the server reserves the dollars and signs a one-time
       //    credit per item. We collect them, then spend them all in a single transaction.
+      //    Authorized SEQUENTIALLY on purpose (not Promise.all): each authorize reserves against the
+      //    running USD balance, so ordering is what makes the insufficient-credits guard correct —
+      //    parallel calls would all read the pre-reservation balance and could over-authorize.
       setStatus('Preparing your order…')
       const purchases: CreditPurchase[] = []
       for (const item of items) {

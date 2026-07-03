@@ -59,7 +59,10 @@ describe('when reading chain state', () => {
   describe('and reading a healthy oracle price', () => {
     it('should return the answer', async () => {
       const provider = createProviderStub({
-        latestRoundData: { answer: BigNumber.from('26960000'), updatedAt: BigNumber.from(1_700_000_000) }
+        latestRoundData: {
+          answer: BigNumber.from('26960000'),
+          updatedAt: BigNumber.from(Math.floor(Date.now() / 1000))
+        }
       })
       const reader = createChainReaderComponent({
         provider,
@@ -68,6 +71,21 @@ describe('when reading chain state', () => {
       })
       const price = await reader.getOraclePrice()
       expect(price.toString()).toBe('26960000')
+    })
+  })
+
+  describe('and the oracle price is stale', () => {
+    it('should throw when the round is older than the max age', async () => {
+      const threeHoursAgo = Math.floor(Date.now() / 1000) - 3 * 3600
+      const provider = createProviderStub({
+        latestRoundData: { answer: BigNumber.from('26960000'), updatedAt: BigNumber.from(threeHoursAgo) }
+      })
+      const reader = createChainReaderComponent({
+        provider,
+        treasuryConfig: createTreasuryConfigMock(),
+        logs: createLogsMock()
+      })
+      await expect(reader.getOraclePrice()).rejects.toThrow(/stale/)
     })
   })
 

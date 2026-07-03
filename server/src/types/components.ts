@@ -45,6 +45,8 @@ export interface IChainReaderComponent {
   getManaBalance: (address: string) => Promise<BigNumber>
   /** USDC balance (6dp base units) of an address. */
   getUsdcBalance: (address: string) => Promise<BigNumber>
+  /** USDC allowance (6dp base units) `owner` has granted `spender`. */
+  getUsdcAllowance: (owner: string, spender: string) => Promise<BigNumber>
   /** Current MANA/USD price from the oracle, in oracle base units (8dp). */
   getOraclePrice: () => Promise<BigNumber>
 }

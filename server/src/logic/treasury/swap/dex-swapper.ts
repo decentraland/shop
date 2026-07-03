@@ -1,4 +1,4 @@
-import { BigNumber } from 'ethers'
+import { BigNumber, utils } from 'ethers'
 import { IFetchComponent, ILoggerComponent } from '@well-known-components/interfaces'
 
 import {
@@ -9,6 +9,8 @@ import {
   SwapResult
 } from '../../../types/components'
 import { applySlippageFloor, usdcToMana } from '../math'
+
+const erc20Interface = new utils.Interface(['function approve(address spender, uint256 amount) returns (bool)'])
 
 /**
  * Production USDC -> MANA swap via a DEX aggregator (0x / 1inch / Uniswap v3 router).
@@ -50,6 +52,7 @@ export function createDexSwapper({
       throw new Error('DEX aggregator URL is not configured (DEX_AGGREGATOR_URL)')
     }
 
+    const taker = await signer.getAddress()
     const oraclePrice = await chainReader.getOraclePrice()
     const idealManaOut = usdcToMana(usdcAmount, oraclePrice)
     const minManaOut = applySlippageFloor(idealManaOut, cfg.slippageBps)
@@ -62,7 +65,7 @@ export function createDexSwapper({
       buyToken: cfg.addresses.mana,
       sellAmount: usdcAmount,
       slippageBps: cfg.slippageBps,
-      taker: await signer.getAddress()
+      taker
     })
 
     if (quote.buyAmount.lt(minManaOut)) {
@@ -71,8 +74,19 @@ export function createDexSwapper({
       )
     }
 
-    // 2. Approve allowanceTarget if the aggregator needs to pull USDC (idempotent — a real
-    //    impl checks current allowance first). Left as an explicit prod step.
+    // 2. Ensure the aggregator's allowanceTarget can pull USDC — without this the swap reverts.
+    //    Approve only when the current allowance is insufficient (idempotent across runs).
+    const allowance = await chainReader.getUsdcAllowance(taker, quote.allowanceTarget)
+    if (allowance.lt(usdcAmount)) {
+      const approveData = erc20Interface.encodeFunctionData('approve', [quote.allowanceTarget, usdcAmount])
+      const { hash: approveHash } = await signer.sendTransaction({ to: cfg.addresses.usdc, data: approveData })
+      logger.info('Approved USDC to aggregator allowanceTarget', {
+        allowanceTarget: quote.allowanceTarget,
+        usdcAmount: usdcAmount.toString(),
+        txHash: approveHash
+      })
+    }
+
     // 3. Broadcast the aggregator calldata through the treasury signer.
     const { hash } = await signer.sendTransaction({
       to: quote.to,
