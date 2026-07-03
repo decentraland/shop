@@ -1,0 +1,70 @@
+name: Bootstrap npm publish (one-time)
+
+# ONE-TIME manual publish to CREATE the @dcl/shop package on npm.
+#
+# npm Trusted Publishing (OIDC), which build-release.yml uses, cannot publish a package that does not
+# exist yet — the trusted publisher can only be configured on an already-published package. So the very
+# first version must go up with a token. Whoever has npm publish rights on the @dcl org:
+#   1. Create an npm Granular/Automation access token with publish rights for the @dcl scope.
+#   2. Add it to this repo as the `NPM_TOKEN` secret (Settings → Secrets and variables → Actions).
+#   3. Run this workflow (Actions → "Bootstrap npm publish" → Run workflow), version e.g. 0.1.0.
+# After it succeeds:
+#   4. On npmjs.com → @dcl/shop → Settings → Trusted Publisher → GitHub Actions, point it at this repo
+#      + build-release.yml (environment field is case-sensitive). From then on CI publishes via OIDC.
+#   5. Delete the NPM_TOKEN secret and (optionally) this workflow file.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (creates @dcl/shop at this version)'
+        required: true
+        default: '0.1.0'
+
+permissions:
+  contents: read
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.x
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Enable npm 11.x via corepack
+        run: |
+          corepack enable npm
+          corepack install -g npm@11
+          npm --version
+
+      - name: Set version
+        run: npm version "${{ github.event.inputs.version }}" --no-git-tag-version --allow-same-version
+
+      - name: Install
+        run: npm ci
+        env:
+          HUSKY: 0
+
+      - name: Build
+        run: npm run build
+        env:
+          # Same CDN base + zone backends as build-release.yml, so the bootstrapped version is servable.
+          DEPLOY_CDN: 'true'
+          VITE_CHAIN_ID: '80002'
+          VITE_MARKETPLACE_SERVER_URL: 'https://marketplace-api.decentraland.zone'
+          VITE_NFT_API_URL: 'https://marketplace-api.decentraland.zone'
+          VITE_BUILDER_SERVER_URL: 'https://builder-api.decentraland.zone'
+          VITE_PEER_URL: 'https://peer.decentraland.zone'
+          VITE_RPC_URL: 'https://rpc.decentraland.org/amoy'
+
+      - name: Publish to npm
+        working-directory: app/dist
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
