@@ -6,16 +6,21 @@ on:
     branches:
       - main
 
+# Least-privilege by default; each job widens only what it needs.
+permissions: {}
+
 jobs:
   app:
     name: app — build + test + e2e
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     defaults:
       run:
         working-directory: app
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 22.x
           cache: npm
@@ -32,12 +37,14 @@ jobs:
   server:
     name: server — typecheck + tests
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     defaults:
       run:
         working-directory: server
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: 22.x
           cache: yarn
