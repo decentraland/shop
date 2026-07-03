@@ -54,7 +54,10 @@ export function getOnChainTrade(trade: Trade, buyer: string) {
       uses: trade.checks.uses,
       expiration: toChainSeconds(trade.checks.expiration),
       effective: toChainSeconds(trade.checks.effective),
-      salt: trade.checks.salt,
+      // Salts are stored un-padded (variable length) but signed + encoded as bytes32 — pad to 32,
+      // exactly like decentraland-dapps' getOnChainTrade. Without this, any non-32-byte salt (e.g.
+      // legacy listings) throws "incorrect data length" in the ABI encoder.
+      salt: hexZeroPad(trade.checks.salt, 32),
       contractSignatureIndex: trade.checks.contractSignatureIndex,
       signerSignatureIndex: trade.checks.signerSignatureIndex,
       // "0x" is truthy but NOT a valid bytes32 → normalize empty/"0x" to the 32-byte zero root.
