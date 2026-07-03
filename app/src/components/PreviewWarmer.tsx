@@ -10,8 +10,13 @@ export function PreviewWarmer() {
 
   useEffect(() => {
     // Defer to browser idle so warming never competes with the initial page render.
-    const id = window.requestIdleCallback(() => setWarm(true), { timeout: 3000 })
-    return () => window.cancelIdleCallback(id)
+    // requestIdleCallback is missing on Safari/custom-WebKit — fall back to a timer there.
+    if (typeof window.requestIdleCallback === 'function') {
+      const id = window.requestIdleCallback(() => setWarm(true), { timeout: 3000 })
+      return () => window.cancelIdleCallback(id)
+    }
+    const id = window.setTimeout(() => setWarm(true), 1500)
+    return () => window.clearTimeout(id)
   }, [])
 
   if (!warm) return null
