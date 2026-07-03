@@ -32,8 +32,8 @@ type RawCollectionItem = {
 function toCredits(price?: string | null): number {
   if (!price) return 0
   try {
-    // Floor so the displayed price never exceeds what checkout charges (matches lib/api.ts).
-    return Math.floor(Number(ethers.utils.formatEther(price)) * 10)
+    // Whole credits, rounded UP to match the charge (Model B — kept in sync with lib/api.ts's toCredits).
+    return Math.ceil(Number(ethers.utils.formatEther(price)) * 10)
   } catch {
     return 0
   }
@@ -78,6 +78,19 @@ export async function fetchCollectionItems(
   })
   const res = await fetch(`${config.nftApiUrl}/v1/items?${qs.toString()}`)
   if (!res.ok) throw new Error(`fetchCollectionItems ${res.status}`)
+  const { data } = (await res.json()) as { data: RawCollectionItem[] }
+  return (data ?? []).map(toCatalogItem)
+}
+
+// Every catalog item made by one creator (their storefront). Same source/shape as the collection
+// fetch, filtered by `creator` (the classic /v1/items API supports it — no shop-catalog change needed).
+export async function fetchCreatorItems(
+  creator: string,
+  { first = 60 }: { first?: number } = {}
+): Promise<CatalogItem[]> {
+  const qs = new URLSearchParams({ creator, first: String(first), includeSocialEmotes: 'false' })
+  const res = await fetch(`${config.nftApiUrl}/v1/items?${qs.toString()}`)
+  if (!res.ok) throw new Error(`fetchCreatorItems ${res.status}`)
   const { data } = (await res.json()) as { data: RawCollectionItem[] }
   return (data ?? []).map(toCatalogItem)
 }

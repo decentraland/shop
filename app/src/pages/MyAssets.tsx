@@ -10,6 +10,8 @@ import { cancelListing } from '~/lib/buy'
 import { toast } from '~/store/toast'
 import { SellModal } from '~/components/SellModal'
 import { PrimaryListModal } from '~/components/PrimaryListModal'
+import { CURRENCY } from '~/lib/currency'
+import { track } from '~/lib/analytics'
 import '~/styles/my-listings.css'
 
 // Owned NFT (secondary) → the CatalogItem shape ItemDetail seeds its preview from (carries tokenId).
@@ -223,7 +225,7 @@ export function MyAssets() {
                   {asset.isOnSale ? (
                     <>
                       <div className="asset-card__listed">
-                        <span className="asset-card__price">◈ {asset.listingPrice}</span>
+                        <span className="asset-card__price">{CURRENCY.symbol} {asset.listingPrice}</span>
                         <span className="badge">On sale</span>
                       </div>
                       <button
@@ -242,6 +244,10 @@ export function MyAssets() {
                       className="btn btn--sm"
                       onClick={e => {
                         e.stopPropagation()
+                        track('Shop Started Listing', {
+                          listing_type: 'secondary',
+                          item_id: asset.itemId ?? asset.tokenId ?? null
+                        })
                         setSelling(asset)
                       }}
                     >
@@ -262,7 +268,7 @@ export function MyAssets() {
         <div className="myassets__section-head">
           <h2 className="myassets__section-title">Your creations</h2>
           <p className="myassets__section-sub">
-            Items you made. Put them on sale in the Shop — set a price in credits and buyers pay with credits.
+            Items you made. Put them on sale in the Shop — set a price in {CURRENCY.name} and buyers pay with {CURRENCY.name}.
           </p>
         </div>
 
@@ -302,7 +308,7 @@ export function MyAssets() {
                       </div>
                       <div className="publish-card__name" title={item.name}>{item.name}</div>
                       <div className="publish-card__listed">
-                        <span className="publish-card__price">◈ {saleFor(item)?.priceCredits ?? 0}</span>
+                        <span className="publish-card__price">{CURRENCY.symbol} {saleFor(item)?.priceCredits ?? 0}</span>
                         <span className="badge">On sale</span>
                       </div>
                       <button
@@ -353,6 +359,7 @@ export function MyAssets() {
                         className="btn btn--sm btn--purple publish-card__cta"
                         onClick={e => {
                           e.stopPropagation()
+                          track('Shop Started Listing', { listing_type: 'primary', item_id: item.blockchainItemId })
                           setPublishing(item)
                         }}
                       >

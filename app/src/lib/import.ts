@@ -1,10 +1,9 @@
-import { ethers } from 'ethers'
 import { ChainId, Network } from '@dcl/schemas'
-import { ContractName, getContract } from 'decentraland-transactions'
 import { config } from '~/config'
 import type { Session } from '~/lib/auth'
 import { fetchTrade, postTrade } from '~/lib/api'
 import { cancelListing } from '~/lib/buy'
+import { manaWeiToCredits, readManaUsdRate } from '~/lib/mana-rate'
 import {
   createPrimaryUsdPeggedListing,
   createUsdPeggedListing,
@@ -17,7 +16,6 @@ import {
 // (mirrors the migrate-listings tool). Re-listing reuses the same signing path as selling.
 
 const SIX_MONTHS_MS = 1000 * 60 * 60 * 24 * 182
-const USD_WEI_PER_CREDIT = 10n ** 17n // 1 credit = $0.10 = 1e17 USD wei
 
 // Server shape (GET /v3/catalog/importable).
 export type ImportListing = {
@@ -40,37 +38,6 @@ export type ImportListing = {
 // With the auto-converted (rounded-up) suggested price in credits.
 export type ImportItem = ImportListing & { suggestedCredits: number }
 
-// Read the MANA/USD oracle once (off the marketplace contract, like buy.ts). Inverse of buy.ts:
-// here we go MANA→USD.
-async function readManaUsdRate(chainId: number): Promise<{ rate: bigint; decimals: number }> {
-  const market = getContract(ContractName.OffChainMarketplaceV2, chainId)
-  const provider = new ethers.providers.JsonRpcProvider(config.rpcUrl)
-  const mkt = new ethers.Contract(market.address, ['function manaUsdAggregator() view returns (address)'], provider)
-  const aggAddr: string = await mkt.manaUsdAggregator()
-  const agg = new ethers.Contract(
-    aggAddr,
-    ['function decimals() view returns (uint8)', 'function latestRoundData() view returns (uint80,int256,uint256,uint256,uint80)'],
-    provider
-  )
-  const decimals: number = await agg.decimals()
-  const rd = await agg.latestRoundData()
-  return { rate: BigInt(rd[1].toString()), decimals: Number(decimals) }
-}
-
-// MANA wei → credits, rounded UP, floored at 1 credit. usdWei = manaWei * rate / 10^decimals.
-function toCreditsRoundedUp(manaWei: string, rate: bigint, decimals: number): number {
-  let usdWei: bigint
-  try {
-    usdWei = (BigInt(manaWei) * rate) / 10n ** BigInt(decimals)
-  } catch {
-    return 1
-  }
-  const whole = usdWei / USD_WEI_PER_CREDIT
-  const credits = usdWei % USD_WEI_PER_CREDIT > 0n ? whole + 1n : whole
-  const n = Number(credits)
-  return n < 1 ? 1 : n
-}
-
 /** The seller's importable listings, split into creations (primary) + owned (secondary). */
 export async function fetchImportable(seller: string): Promise<{ creations: ImportItem[]; owned: ImportItem[] }> {
   const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/importable?seller=${seller.toLowerCase()}`)
@@ -80,8 +47,9 @@ export async function fetchImportable(seller: string): Promise<{ creations: Impo
   if (listings.length === 0) return { creations: [], owned: [] }
 
   const chainId = listings[0].chainId || config.chainId
-  const { rate, decimals } = await readManaUsdRate(chainId)
-  const items: ImportItem[] = listings.map(l => ({ ...l, suggestedCredits: toCreditsRoundedUp(l.manaWei, rate, decimals) }))
+  const rate = await readManaUsdRate(chainId)
+  // Fall back to 1 for a malformed manaWei — this is only a suggested starting price the creator edits.
+  const items: ImportItem[] = listings.map(l => ({ ...l, suggestedCredits: manaWeiToCredits(l.manaWei, rate) ?? 1 }))
 
   return {
     creations: items.filter(i => i.listingType === 'primary'),

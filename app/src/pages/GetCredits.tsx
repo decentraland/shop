@@ -3,6 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { CircularProgress } from 'decentraland-ui2'
 import { useWallet } from '~/store/wallet'
+import { config } from '~/config'
+import { CurrencyIcon } from '~/components/CurrencyIcon'
+import { CURRENCY, formatAmount } from '~/lib/currency'
+import { track, errorCode } from '~/lib/analytics'
 import {
   CREDIT_PACKS,
   createPackCheckout,
@@ -10,6 +14,9 @@ import {
   type CheckoutSession,
   type CreditPack
 } from '~/lib/payments'
+
+// Live Stripe when a shop-server is configured; otherwise the built-in mock (dev).
+const CREDITS_PROVIDER = config.shopServerUrl ? 'stripe' : 'mock'
 
 // Lazily loaded so the real Stripe SDK is only pulled in when a live key/backend exists;
 // the mock demo path never downloads it.
@@ -21,8 +28,8 @@ function friendlyError(e: unknown): string {
   const err = e as { message?: string; name?: string }
   if (err?.name === 'AbortError') return 'You cancelled the request.'
   const msg = (err?.message ?? '').toLowerCase()
-  if (msg.includes('sign in')) return 'Sign in to get credits.'
-  if (msg.includes('timed out')) return 'This is taking longer than usual — your credits will appear shortly.'
+  if (msg.includes('sign in')) return `Sign in to get ${CURRENCY.name}.`
+  if (msg.includes('timed out')) return `This is taking longer than usual — your ${CURRENCY.name} will appear shortly.`
   return "Couldn't complete your purchase — please try again."
 }
 
@@ -49,11 +56,13 @@ export function GetCredits() {
       setError(null)
       setSelected(pack)
       setPhase('paying')
+      track('Shop Started Buy Credits', { pack_usd: pack.usd, credits: pack.credits, provider: CREDITS_PROVIDER })
       try {
         const cs = await createPackCheckout(pack.id, { address: session.address, identity: session.identity })
         setCheckout(cs)
       } catch (e) {
         console.error(e)
+        track('Shop Buy Credits Failed', { step: 'checkout', error_code: errorCode(e), pack_usd: pack.usd })
         setError(friendlyError(e))
         setPhase('error')
       }
@@ -76,13 +85,21 @@ export function GetCredits() {
       if (result.status === 'credited') {
         setGranted(result.creditsGranted ?? selected?.credits ?? 0)
         setPhase('success')
+        track('Shop Completed Buy Credits', {
+          order_id: checkout.orderId,
+          pack_usd: selected?.usd ?? null,
+          credits: result.creditsGranted ?? selected?.credits ?? 0,
+          provider: CREDITS_PROVIDER
+        })
         void qc.invalidateQueries({ queryKey: ['usd-balance'] })
       } else {
-        setError(result.error ?? "Couldn't add your credits — please try again.")
+        track('Shop Buy Credits Failed', { step: 'grant', error_code: 'grant_failed', pack_usd: selected?.usd ?? null })
+        setError(result.error ?? `Couldn't add your ${CURRENCY.name} — please try again.`)
         setPhase('error')
       }
     } catch (e) {
       console.error(e)
+      track('Shop Buy Credits Failed', { step: 'grant', error_code: errorCode(e), pack_usd: selected?.usd ?? null })
       setError(friendlyError(e))
       setPhase('error')
     }
@@ -100,8 +117,8 @@ export function GetCredits() {
   return (
     <div className="getcredits">
       <header className="getcredits__head">
-        <h1 className="getcredits__title">Get credits</h1>
-        <p className="muted">Add credits to your account to shop. Pay with any card.</p>
+        <h1 className="getcredits__title">Get {CURRENCY.name}</h1>
+        <p className="muted">Add {CURRENCY.name} to your account to shop. Pay with any card.</p>
       </header>
 
       {phase === 'select' && <PackGrid onSelect={startCheckout} />}
@@ -113,7 +130,7 @@ export function GetCredits() {
       {phase === 'processing' && (
         <div className="getcredits__status" role="status" aria-live="polite">
           <CircularProgress size={40} />
-          <p className="getcredits__status-title">Adding your credits…</p>
+          <p className="getcredits__status-title">Adding your {CURRENCY.name}…</p>
           <p className="muted">Payment received. Just a moment while we top up your balance.</p>
         </div>
       )}
@@ -123,14 +140,14 @@ export function GetCredits() {
           <div className="getcredits__confetti" aria-hidden>🎉</div>
           <p className="getcredits__status-title">You&rsquo;re all set!</p>
           <p className="muted">
-            <strong>◈ {granted}</strong> credits added to your account.
+            <strong>{CURRENCY.symbol} {granted}</strong> {CURRENCY.name} added to your account.
           </p>
           <div className="getcredits__status-actions">
             <button className="btn" onClick={() => navigate('/cart')}>
               Back to cart
             </button>
             <button className="btn btn--ghost" onClick={reset}>
-              Get more credits
+              Get more {CURRENCY.name}
             </button>
           </div>
         </div>
@@ -160,15 +177,15 @@ function PackGrid({ onSelect }: { onSelect: (pack: CreditPack) => void }) {
           type="button"
           className={`pack${pack.bestValue ? ' pack--best' : ''}`}
           onClick={() => onSelect(pack)}
-          aria-label={`Get ${pack.credits} credits for $${pack.usd}`}
+          aria-label={`Get ${formatAmount(pack.credits)} for $${pack.usd}`}
         >
           {pack.bestValue && <span className="pack__ribbon">Best value</span>}
           <span className="pack__credits">
-            <span className="ico ico-credits pack__credits-ico" aria-hidden />{pack.credits}
+            <CurrencyIcon className="pack__credits-ico" />{pack.credits}
           </span>
-          <span className="pack__label">credits</span>
+          <span className="pack__label">{CURRENCY.name}</span>
           <span className="pack__price">${pack.usd}</span>
-          <span className="pack__cta">Get credits</span>
+          <span className="pack__cta">Get {CURRENCY.name}</span>
         </button>
       ))}
     </div>
@@ -194,7 +211,7 @@ function PayStep({
         </button>
         <div className="pay__summary-row">
           <span>You&rsquo;ll get</span>
-          <strong>◈ {pack.credits} credits</strong>
+          <strong>{CURRENCY.symbol} {formatAmount(pack.credits)}</strong>
         </div>
         <div className="pay__summary-row pay__summary-row--total">
           <span>You pay</span>

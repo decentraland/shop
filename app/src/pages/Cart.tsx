@@ -10,6 +10,8 @@ import { fetchTradeForItem, fetchTrade, fetchListings, usdWeiToCents } from '~/l
 import { buyManyWithCredits, type CreditPurchase } from '~/lib/buy'
 import { buyManyGasless, waitForSettlement, GaslessUnavailableError } from '~/lib/buy-gasless'
 import { gaslessEnabled } from '~/lib/gasless-config'
+import { CURRENCY } from '~/lib/currency'
+import { track, purchaseItemsProps, errorCode, isUserRejection, creditsToUsd } from '~/lib/analytics'
 
 function friendlyError(e: unknown): string {
   const err = e as { code?: number; message?: string }
@@ -17,7 +19,7 @@ function friendlyError(e: unknown): string {
   if (err.code === 4001 || msg.includes('reject') || msg.includes('denied') || msg.includes('cancel')) {
     return 'You cancelled the request.'
   }
-  if (msg.includes('insufficient')) return "You don't have enough credits — get more first."
+  if (msg.includes('insufficient')) return `You don't have enough ${CURRENCY.name} — get more first.`
   if (msg.includes('no active listing')) return err.message as string
   return "Couldn't complete checkout — please try again."
 }
@@ -55,8 +57,16 @@ export function Cart() {
     }
     setError(null)
     setBusy(true)
+    track('Shop Started Checkout', {
+      cart_size: items.length,
+      cart_value_credits: total,
+      cart_value_usd: creditsToUsd(total),
+      has_sufficient_credits: (balance?.credits ?? 0) >= total
+    })
     const purchased = items.slice() // snapshot for the success page
     const reservedSalts: string[] = [] // ephemeral credit ids to release if anything below fails
+    let step: 'authorize' | 'submit' = 'authorize'
+    let usedGasless = false
     try {
       // 1) Resolve each listing + authorize it: the server reserves the dollars and signs a one-time
       //    credit per item. We collect them, then spend them all in a single transaction.
@@ -81,24 +91,39 @@ export function Cart() {
       // 2) One confirmation: spend every credit via a single useCredits(accept([...])). When gasless
       //    is on, the buyer confirms off-chain and a relayer covers the fee (auto-fallback if down).
       setStatus('Confirming your purchase…')
+      step = 'submit'
+      let hashes: string[] = []
       if (gaslessEnabled()) {
         try {
-          const hashes = await buyManyGasless({ purchases, buyer: session.address, signer: session.signer })
+          hashes = await buyManyGasless({ purchases, buyer: session.address, signer: session.signer })
           await Promise.all(hashes.map(h => waitForSettlement(h)))
+          usedGasless = true
         } catch (gaslessErr) {
           if (!(gaslessErr instanceof GaslessUnavailableError)) throw gaslessErr
-          await buyManyWithCredits({ purchases, buyer: session.address, signer: session.signer })
+          hashes = await buyManyWithCredits({ purchases, buyer: session.address, signer: session.signer })
         }
       } else {
-        await buyManyWithCredits({ purchases, buyer: session.address, signer: session.signer })
+        hashes = await buyManyWithCredits({ purchases, buyer: session.address, signer: session.signer })
       }
 
       clear()
       setStatus('Purchased! 🎉')
+      track('Shop Completed Purchase', {
+        ...purchaseItemsProps(purchased),
+        payment_type: 'credits',
+        no_crypto_step: usedGasless,
+        transaction_hash: hashes[0] ?? null
+      })
       void qc.invalidateQueries({ queryKey: ['usd-balance'] })
-      navigate('/success', { state: { items: purchased } })
+      navigate('/success', { state: { items: purchased, txHash: hashes[0] } })
     } catch (e) {
       console.error('[checkout] failed', e)
+      track(isUserRejection(e) ? 'Shop Purchase Cancelled' : 'Shop Purchase Failed', {
+        step,
+        error_code: errorCode(e),
+        value_usd: creditsToUsd(total),
+        cart_size: items.length
+      })
       // Release any dollars we reserved so the balance isn't stuck until the TTL (~15 min).
       if (reservedSalts.length) {
         try {
@@ -120,13 +145,13 @@ export function Cart() {
     setError(null)
     setBusy(true)
     try {
-      setStatus('Adding test credits…')
+      setStatus(`Adding test ${CURRENCY.name}…`)
       await devMintUsd(session.address, 1000) // $10 = 100 credits
-      setStatus('Test credits added.')
+      setStatus(`Test ${CURRENCY.name} added.`)
       void qc.invalidateQueries({ queryKey: ['usd-balance'] })
     } catch (e) {
       console.error(e)
-      setError('Could not add test credits (is the credits service running with dev mint enabled?)')
+      setError(`Could not add test ${CURRENCY.name} (is the credits service running with dev mint enabled?)`)
       setStatus(null)
     } finally {
       setBusy(false)
@@ -156,7 +181,7 @@ export function Cart() {
               <div className="cart__name">{item.name}</div>
               <div className="muted">{item.creator ? `By ${item.creator}` : ''}</div>
             </div>
-            <div className="cart__price">◈ {item.priceCredits}</div>
+            <div className="cart__price">{CURRENCY.symbol} {item.priceCredits}</div>
             <button className="link" onClick={() => remove(item.id)} disabled={busy}>Remove</button>
           </div>
         ))}
@@ -164,13 +189,13 @@ export function Cart() {
 
       <div className="cart__foot">
         <div className="cart__total">
-          <div>Total <strong>◈ {total}</strong></div>
-          {session ? <div className="muted cart__balance">Your balance: ◈ {balance?.credits ?? 0}</div> : null}
+          <div>Total <strong>{CURRENCY.symbol} {total}</strong></div>
+          {session ? <div className="muted cart__balance">Your balance: {CURRENCY.symbol} {balance?.credits ?? 0}</div> : null}
         </div>
         <div className="cart__actions">
-          <Link className="btn btn--ghost" to="/credits">Get credits</Link>
+          <Link className="btn btn--ghost" to="/credits">Get {CURRENCY.name}</Link>
           {import.meta.env.DEV ? (
-            <button className="btn btn--ghost" onClick={getTestCredits} disabled={busy || !session}>Get test credits (dev)</button>
+            <button className="btn btn--ghost" onClick={getTestCredits} disabled={busy || !session}>Get test {CURRENCY.name} (dev)</button>
           ) : null}
           <button className="btn btn--ghost" onClick={clear} disabled={busy}>Clear</button>
           <button className="btn btn--purple" onClick={checkout} disabled={busy}>Checkout</button>
@@ -188,8 +213,8 @@ export function Cart() {
               <div className="cart-upsell__card" key={i.id}>
                 <div className="cart-upsell__thumb">{i.thumbnail ? <img src={i.thumbnail} alt={i.name} /> : null}</div>
                 <div className="cart-upsell__name" title={i.name}>{i.name}</div>
-                <div className="cart-upsell__price">◈ {i.priceCredits}</div>
-                <button className="btn btn--sm cart-upsell__add" onClick={() => add(i)} disabled={busy}>
+                <div className="cart-upsell__price">{CURRENCY.symbol} {i.priceCredits}</div>
+                <button className="btn btn--sm cart-upsell__add" onClick={() => add(i, 'upsell')} disabled={busy}>
                   Add
                 </button>
               </div>

@@ -4,14 +4,26 @@ import { PreviewEmote, PreviewType } from '@dcl/schemas'
 import { useWallet } from '~/store/wallet'
 import { config } from '~/config'
 import { SuccessAnimation } from '~/components/SuccessAnimation'
+import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import type { CatalogItem } from '~/lib/api'
 
-// Where "Use it in-world" jumps to. Testnet → .zone; the wearable is already in the wallet's
-// wardrobe, so the user equips it from the backpack once in-world.
-const PLAY_URL = 'https://play.decentraland.zone'
+// Modern in-world entry: the launcher deep-link handled by decentraland.org/jump (zone on testnet).
+// The old play.decentraland.* web client is deprecated. The item is already in the wardrobe.
+const JUMP_URL = config.chainId === 80002 ? 'https://decentraland.zone/jump' : 'https://decentraland.org/jump'
+// Block explorer for the settlement tx — shown ONLY to self-custody wallets (they understand
+// explorers); managed/thirdweb users just get the in-app "View order". See lib/wallet-kind.ts.
+const EXPLORER_TX = config.chainId === 80002 ? 'https://amoy.polygonscan.com/tx/' : 'https://polygonscan.com/tx/'
+
+// Wearable item URN so the preview can EQUIP it on the avatar (try-on mode via profile + urns),
+// instead of just showing the user's current avatar (which wouldn't include the fresh purchase).
+function itemUrn(item: CatalogItem): string | null {
+  if (!item.itemId) return null
+  const net = config.chainId === 80002 ? 'amoy' : 'matic'
+  return `urn:decentraland:${net}:collections-v2:${item.contractAddress.toLowerCase()}:${item.itemId}`
+}
 
 export function Success() {
-  const { state } = useLocation() as { state?: { items?: CatalogItem[] } }
+  const { state } = useLocation() as { state?: { items?: CatalogItem[]; txHash?: string } }
   const navigate = useNavigate()
   const { session } = useWallet()
 
@@ -20,23 +32,41 @@ export function Success() {
   if (items.length === 0) return <Navigate to="/assets" replace />
 
   const hero = items[0]
-  // Mount the item on the CONNECTED user's avatar (like the marketplace): profile = their address.
+  // Mount on the CONNECTED user's avatar (falls back to the default body when there's no profile).
   const profile = session?.address ?? 'default'
+  const isEmote = hero.category === 'emote'
+  // Equip the purchased wearable(s) on the avatar. Emotes aren't "worn" → fall back to the item render.
+  const urns = isEmote ? [] : items.map(itemUrn).filter((u): u is string => !!u)
+  const txHash = state?.txHash
+  // Self-custody users additionally get a link to the on-chain tx; managed users never see it.
+  const showExplorer = !!txHash && showsWalletConfirmations(session?.providerType)
 
   return (
     <div className="success">
       <div className="success__preview">
-        <WearablePreview
-          key={hero.id}
-          contractAddress={hero.contractAddress}
-          tokenId={hero.tokenId ?? undefined}
-          itemId={hero.tokenId ? undefined : hero.itemId ?? undefined}
-          profile={profile}
-          type={PreviewType.AVATAR}
-          emote={PreviewEmote.FASHION}
-          background="ecebed"
-          dev={config.chainId === 80002}
-        />
+        {urns.length > 0 ? (
+          <WearablePreview
+            key={hero.id}
+            profile={profile}
+            urns={urns}
+            type={PreviewType.AVATAR}
+            emote={PreviewEmote.FASHION}
+            background="ecebed"
+            dev={config.chainId === 80002}
+          />
+        ) : (
+          <WearablePreview
+            key={hero.id}
+            contractAddress={hero.contractAddress}
+            tokenId={hero.tokenId ?? undefined}
+            itemId={hero.tokenId ? undefined : hero.itemId ?? undefined}
+            profile={profile}
+            type={isEmote ? undefined : PreviewType.AVATAR}
+            emote={isEmote ? undefined : PreviewEmote.FASHION}
+            background="ecebed"
+            dev={config.chainId === 80002}
+          />
+        )}
       </div>
 
       <div className="success__panel">
@@ -57,8 +87,19 @@ export function Success() {
           </>
         )}
 
+        <div className="success__links">
+          <button className="success__receipt" onClick={() => navigate('/my-purchases')}>
+            View order
+          </button>
+          {showExplorer ? (
+            <a className="success__receipt" href={`${EXPLORER_TX}${txHash}`} target="_blank" rel="noreferrer">
+              View transaction ↗
+            </a>
+          ) : null}
+        </div>
+
         <div className="success__actions">
-          <a className="btn btn--purple" href={PLAY_URL} target="_blank" rel="noreferrer">
+          <a className="btn btn--purple" href={JUMP_URL} target="_blank" rel="noreferrer">
             Use it in-world
           </a>
           <button className="btn btn--ghost" onClick={() => navigate('/assets')}>

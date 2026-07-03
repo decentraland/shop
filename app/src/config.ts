@@ -22,5 +22,8 @@ export const config = {
   shopServerUrl: import.meta.env.VITE_SHOP_SERVER_URL ?? '',
   // Stripe TEST-mode publishable key (pk_test_…). Empty in dev → the get-credits flow uses the
   // built-in mock (no real Stripe widget). NEVER put a secret key (sk_…) in the frontend.
-  stripePublishableKey: import.meta.env.VITE_STRIPE_PK ?? ''
+  stripePublishableKey: import.meta.env.VITE_STRIPE_PK ?? '',
+  // Segment write key for the behavioral funnel (see design/SHOP_TRACKING_SPEC.md). Empty in dev →
+  // analytics no-ops (events log to console), so local runs never send data.
+  segmentWriteKey: import.meta.env.VITE_SEGMENT_WRITE_KEY ?? ''
 }

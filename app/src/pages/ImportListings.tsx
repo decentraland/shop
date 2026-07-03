@@ -5,6 +5,7 @@ import { useWallet } from '~/store/wallet'
 import { fetchImportable, type ImportItem } from '~/lib/import'
 import { toast } from '~/store/toast'
 import { MigrateModal, type MigrateEntry } from '~/components/MigrateModal'
+import { CURRENCY } from '~/lib/currency'
 import '~/styles/import.css'
 
 const SECTIONS = [
@@ -110,12 +111,12 @@ export function ImportListings() {
         <span className="imp__eyebrow">Import to the Shop</span>
         <h1 className="imp__title">Bring your listings <span className="imp__grad">into the Shop</span></h1>
         <p className="imp__lede">
-          These items are already for sale elsewhere. We suggested a price in credits for each —
+          These items are already for sale elsewhere. We suggested a price in {CURRENCY.name} for each —
           matched to today's rate and rounded up. Adjust anything, then list them.
         </p>
       </header>
 
-      <div className="imp__ratebar"><span className="imp__diamond">◈</span> 1 credit = $0.10 · prices rounded up</div>
+      <div className="imp__ratebar"><span className="imp__diamond">{CURRENCY.symbol}</span> 1 {CURRENCY.nameSingular} = $0.10 · prices rounded up</div>
 
       {isLoading ? (
         <div className="imp__list">
@@ -151,13 +152,13 @@ export function ImportListings() {
                       </div>
                       <div className="imp-price">
                         <div className="imp-price__field">
-                          <span className="imp-price__diamond" aria-hidden>◈</span>
+                          <span className="imp-price__diamond" aria-hidden>{CURRENCY.symbol}</span>
                           <input
                             className="imp-price__input"
                             inputMode="numeric"
                             value={credits.toLocaleString()}
                             onChange={e => setPrice(item.oldTradeId, e.target.value)}
-                            aria-label={`Price in credits for ${item.name}`}
+                            aria-label={`Price in ${CURRENCY.name} for ${item.name}`}
                           />
                         </div>
                         <div className="imp-price__sub">
@@ -167,7 +168,7 @@ export function ImportListings() {
                               className="imp-price__reset"
                               onClick={() => setPrices(p => ({ ...p, [item.oldTradeId]: item.suggestedCredits }))}
                             >
-                              Reset to ◈{item.suggestedCredits.toLocaleString()}
+                              Reset to {CURRENCY.symbol}{item.suggestedCredits.toLocaleString()}
                             </button>
                           ) : null}
                         </div>
@@ -193,7 +194,7 @@ export function ImportListings() {
       <div className="imp-dock">
         <div className="imp-dock__inner">
           <div className="imp-dock__summary">
-            <div className="imp-dock__total"><span className="imp__diamond">◈</span> {total.toLocaleString()}</div>
+            <div className="imp-dock__total"><span className="imp__diamond">{CURRENCY.symbol}</span> {total.toLocaleString()}</div>
             <div className="imp-dock__sub">
               {selectedItems.length} item{selectedItems.length === 1 ? '' : 's'} selected · ${(total * 0.1).toFixed(2)}
             </div>

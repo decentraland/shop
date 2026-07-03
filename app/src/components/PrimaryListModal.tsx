@@ -8,6 +8,9 @@ import { postTrade } from '~/lib/api'
 import { createPrimaryUsdPeggedListing, ensureMinter, isMarketplaceMinter } from '~/lib/trades'
 import { toast } from '~/store/toast'
 import { config } from '~/config'
+import { CURRENCY } from '~/lib/currency'
+import { showsWalletConfirmations } from '~/lib/wallet-kind'
+import { track, errorCode } from '~/lib/analytics'
 
 const SIX_MONTHS_MS = 1000 * 60 * 60 * 24 * 182
 
@@ -31,7 +34,7 @@ export function PrimaryListModal({
 }) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
-  const [price, setPrice] = useState('1')
+  const [price, setPrice] = useState('10') // whole credits
   const [status, setStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -41,6 +44,9 @@ export function PrimaryListModal({
   const [listedCredits, setListedCredits] = useState<number | null>(null)
 
   const chainId = config.chainId as ChainId
+  // Self-custody wallets pop approvals/confirmations; managed wallets (Magic, thirdweb) don't — gate
+  // the wallet-flow wording so managed users never see MetaMask-style "two confirmations" copy.
+  const showsConfirmations = showsWalletConfirmations(session.providerType)
 
   useEffect(() => {
     let cancelled = false
@@ -60,8 +66,8 @@ export function PrimaryListModal({
   async function publish() {
     setError(null)
     const value = Number(price)
-    if (!value || value <= 0) {
-      setError('Enter a valid price')
+    if (!Number.isInteger(value) || value <= 0) {
+      setError('Enter a whole number of credits')
       return
     }
     setBusy(true)
@@ -83,7 +89,7 @@ export function PrimaryListModal({
           network: Network.MATIC,
           chainId
         },
-        usdPrice: value,
+        usdPrice: value / 10, // credits → USD (1 credit = $0.10)
         uses: item.remainingSupply,
         expiresAtMs: Date.now() + SIX_MONTHS_MS
       })
@@ -92,12 +98,21 @@ export function PrimaryListModal({
       await postTrade(trade, session.identity)
 
       setStatus(null)
-      setListedCredits(Math.round(value * 10)) // 1 credit = $0.10
+      setListedCredits(value) // already whole credits
+      track('Shop Listed Item', {
+        item_id: item.blockchainItemId,
+        contract_address: item.contractAddress,
+        price_credits: value,
+        price_usd: value / 10,
+        listing_type: 'primary',
+        is_primary: true
+      })
       toast.success(`“${item.name}” is now on sale!`)
       queryClient.invalidateQueries({ queryKey: ['publishable-items'] })
       queryClient.invalidateQueries({ queryKey: ['collection-sale-state'] })
     } catch (e) {
       console.error(e)
+      track('Shop Listing Failed', { listing_type: 'primary', error_code: errorCode(e) })
       setError(friendlyError(e))
       setStatus(null)
     } finally {
@@ -122,7 +137,7 @@ export function PrimaryListModal({
           {item.thumbnail ? <img className="modal__img" src={item.thumbnail} alt={item.name} /> : null}
           <p className="modal-success__name">{item.name}</p>
           <p className="muted small">
-            Listed for <strong>◈ {listedCredits}</strong> · {item.remainingSupply.toLocaleString()} available
+            Listed for <strong>{CURRENCY.symbol} {listedCredits}</strong> · {item.remainingSupply.toLocaleString()} available
           </p>
           <div className="modal__actions">
             <button className="btn btn--ghost" onClick={onClose}>
@@ -148,25 +163,36 @@ export function PrimaryListModal({
         </p>
 
         <label className="field">
-          <span>Price (USD)</span>
+          <span>Price ({CURRENCY.name})</span>
           <input
             type="number"
-            min="0"
-            step="0.01"
+            min="1"
+            step="1"
             value={price}
             onChange={e => setPrice(e.target.value)}
             disabled={busy}
           />
         </label>
-        <p className="muted small">Priced in USD. Buyers pay with credits.</p>
+        <p className="muted small">Priced in whole {CURRENCY.name} (1 {CURRENCY.nameSingular} = $0.10).</p>
 
         {enabled === false && !busy ? (
-          <p className="muted small primary-note">
-            First time selling from “{item.collectionName}”? It needs a one-time approval, then you’ll confirm the
-            listing — two quick confirmations. After this, listing more items from this collection is a single step.
-          </p>
+          showsConfirmations ? (
+            <p className="muted small primary-note">
+              First time selling from “{item.collectionName}”? It needs a one-time approval, then you’ll confirm the
+              listing — two quick confirmations. After this, listing more items from this collection is a single step.
+            </p>
+          ) : (
+            <p className="muted small primary-note">
+              First time selling from “{item.collectionName}”? Setting it up takes a moment — after that, listing
+              more items from this collection is instant.
+            </p>
+          )
         ) : enabled === true && !busy ? (
-          <p className="muted small primary-note">This collection is ready — publishing is a single confirmation.</p>
+          showsConfirmations ? (
+            <p className="muted small primary-note">This collection is ready — publishing is a single confirmation.</p>
+          ) : (
+            <p className="muted small primary-note">This collection is ready — publishing is instant.</p>
+          )
         ) : null}
 
         {status ? <p className="muted">{status}</p> : null}

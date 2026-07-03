@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useWallet } from '~/store/wallet'
 import { fetchUserPurchases, type PurchaseRecord } from '~/lib/credits'
 import { fetchTradeDisplay } from '~/lib/api'
+import { CURRENCY } from '~/lib/currency'
 
 function formatDate(ms: number): string {
   try {
@@ -27,9 +28,11 @@ function PurchaseRow({ purchase }: { purchase: PurchaseRecord }) {
 
   const name = display?.name ?? 'Item'
   const thumbnail = display?.thumbnail ?? ''
-  const to = display?.contractAddress
-    ? `/item/${display.contractAddress}/${display.tokenId ?? display.itemId ?? ''}`
-    : undefined
+  // Only link when we can build a resolvable detail URL: BOTH a contract AND an id segment.
+  // Legacy/market purchases often resolve to a contract with no tokenId/itemId — linking those
+  // produced a dead `/item/<contract>/` (empty segment) that rendered nothing. No id → plain row.
+  const seg = display?.tokenId ?? display?.itemId ?? ''
+  const to = display?.contractAddress && seg ? `/item/${display.contractAddress}/${seg}` : undefined
 
   const body = (
     <>
@@ -39,7 +42,7 @@ function PurchaseRow({ purchase }: { purchase: PurchaseRecord }) {
         <div className="muted purchase__date">{formatDate(purchase.createdAt)}</div>
       </div>
       <StatusBadge status={purchase.status} />
-      <div className="purchase__price">◈ {purchase.credits}</div>
+      <div className="purchase__price">{CURRENCY.symbol} {purchase.credits}</div>
     </>
   )
 

@@ -6,6 +6,7 @@ import { useCart } from '~/store/cart'
 import { useFavorites } from '~/store/favorites'
 import { CreatorBadge } from '~/components/CreatorBadge'
 import { rarityColor, readableText } from '~/lib/rarity'
+import { CurrencyIcon } from '~/components/CurrencyIcon'
 import type { CatalogItem } from '~/lib/api'
 
 const HOVER_DELAY_MS = 120
@@ -21,7 +22,19 @@ function genderGlyph(gender: CatalogItem['gender']): string {
   return ''
 }
 
-export function AssetCard({ item }: { item: CatalogItem }) {
+// Card variants:
+// - default (native, USD-pegged): fixed credit price + Add to cart.
+// - 'market' (legacy, MANA-priced): the credit price FLUCTUATES with the market rate, so it renders
+//   an "≈" indicative price + a "Market price" chip and swaps Add-to-cart for Buy now (direct
+//   checkout — legacy items are never added to the Zustand cart). `marketPriceCredits` is the
+//   converted (rounded-up) price and `onBuyNow` opens the Buy Now checkout.
+type AssetCardProps =
+  | { item: CatalogItem; mode?: 'shop' }
+  | { item: CatalogItem; mode: 'market'; marketPriceCredits: number | null; onBuyNow: (item: CatalogItem) => void }
+
+export function AssetCard(props: AssetCardProps) {
+  const { item } = props
+  const isMarket = props.mode === 'market'
   const [hovered, setHovered] = useState(false)
   const [previewReady, setPreviewReady] = useState(false)
   const timer = useRef<ReturnType<typeof setTimeout>>()
@@ -37,7 +50,9 @@ export function AssetCard({ item }: { item: CatalogItem }) {
   // Secondary listings carry tokenId; catalog items carry itemId — use whichever is present so the
   // /item/:contractAddress/:tokenId route segment is always populated.
   const routeSeg = item.tokenId ?? item.itemId
-  const canOpen = !!item.contractAddress && !!routeSeg
+  // Market (legacy) cards don't open the item-detail page — those listings aren't in the USD-pegged
+  // shop feed the detail page reads, so Buy now is the only action. Keeps the tab self-contained.
+  const canOpen = !isMarket && !!item.contractAddress && !!routeSeg
 
   function openDetail() {
     if (!canOpen) return
@@ -117,28 +132,48 @@ export function AssetCard({ item }: { item: CatalogItem }) {
       <div className="card__body">
         <div className="card__name" title={item.name}>{item.name}</div>
         {item.creator ? (
-          <CreatorBadge address={item.creator} className="card__creator" />
+          <CreatorBadge address={item.creator} className="card__creator" linkToProfile />
         ) : (
           <div className="card__creator">&nbsp;</div>
         )}
 
-        {/* On hover the price/chips row is replaced by the add-to-cart (Figma: secondary dark button,
-            below the image — never overlapping it). */}
+        {/* On hover the price/chips row is replaced by the primary action (Figma: secondary dark
+            button, below the image — never overlapping it). Native cards add to cart; Market (legacy)
+            cards Buy now directly (the fluctuating price is locked at checkout). */}
         {hovered ? (
-          <button
-            className={`card__cart${inCart ? ' is-in' : ''}`}
-            onClick={e => { e.stopPropagation(); add(item) }}
-            disabled={inCart}
-          >
-            <span className="ico ico-cart-solid card__cart-ico" aria-hidden />
-            {inCart ? 'IN CART' : 'ADD TO CART'}
-          </button>
+          isMarket && props.mode === 'market' ? (
+            <button
+              className="card__cart"
+              onClick={e => { e.stopPropagation(); props.onBuyNow(item) }}
+              disabled={props.marketPriceCredits == null}
+            >
+              {props.marketPriceCredits == null ? 'UNAVAILABLE' : 'BUY NOW'}
+            </button>
+          ) : (
+            <button
+              className={`card__cart${inCart ? ' is-in' : ''}`}
+              onClick={e => { e.stopPropagation(); add(item, 'grid') }}
+              disabled={inCart}
+            >
+              <span className="ico ico-cart-solid card__cart-ico" aria-hidden />
+              {inCart ? 'IN CART' : 'ADD TO CART'}
+            </button>
+          )
         ) : (
           <div className="card__meta">
-            <div className="card__price">
-              <span className="ico ico-credits card__diamond" aria-hidden />
-              {item.priceCredits}
-            </div>
+            {isMarket && props.mode === 'market' ? (
+              <div className="card__price card__price--market">
+                <span className="card__approx" aria-hidden>≈</span>
+                <CurrencyIcon className="card__diamond" />
+                {props.marketPriceCredits == null ? '—' : props.marketPriceCredits}
+                <span className="chip card__market-chip">Market price</span>
+              </div>
+            ) : (
+              <div className="card__price">
+                <CurrencyIcon className="card__diamond" />
+                {item.priceCredits}
+              </div>
+            )}
             <div className="card__chips">
               <span
                 className="chip chip--rarity"

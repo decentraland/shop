@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Rarity } from '@dcl/schemas'
@@ -10,11 +10,14 @@ import { fetchShopListingForItem, fetchTrade, fetchTradeForItem, usdWeiToCents, 
 import { buyWithCredits } from '~/lib/buy'
 import { buyGasless, waitForSettlement, GaslessUnavailableError } from '~/lib/buy-gasless'
 import { gaslessEnabled } from '~/lib/gasless-config'
-import { authorizeUsdCredit } from '~/lib/credits'
+import { authorizeUsdCredit, cancelUsdIntents } from '~/lib/credits'
 import { fetchCollectionItems } from '~/lib/collections'
 import { ItemPreview } from '~/components/ItemPreview'
 import { CollectionCarousel } from '~/components/CollectionCarousel'
 import { CreatorBadge } from '~/components/CreatorBadge'
+import { CurrencyIcon } from '~/components/CurrencyIcon'
+import { CURRENCY } from '~/lib/currency'
+import { track, itemProps, purchaseItemsProps, errorCode, isUserRejection, creditsToUsd } from '~/lib/analytics'
 import './item-detail.css'
 
 function isValidRarity(r: string): r is Rarity {
@@ -34,7 +37,7 @@ function friendlyError(e: unknown): string {
   if (err.code === 4001 || msg.includes('reject') || msg.includes('denied') || msg.includes('cancel')) {
     return 'You cancelled the request.'
   }
-  if (msg.includes('insufficient')) return "You don't have enough credits — get more first."
+  if (msg.includes('insufficient')) return `You don't have enough ${CURRENCY.name} — get more first.`
   if (msg.includes('no active listing') || msg.includes('not for sale')) return 'This item is not for sale right now.'
   return "Couldn't complete checkout — please try again."
 }
@@ -77,7 +80,7 @@ export function ItemDetail() {
   const [error, setError] = useState<string | null>(null)
 
   // Sibling items of the same collection (the "more from this collection" carousel).
-  const { data: siblings = [] } = useQuery({
+  const { data: siblings = [], isFetched: siblingsFetched } = useQuery({
     queryKey: ['collection-items', current.contractAddress],
     enabled: !!current.contractAddress,
     queryFn: () => fetchCollectionItems(current.contractAddress, { first: 20 })
@@ -86,7 +89,7 @@ export function ItemDetail() {
   // Deep-link / refresh: the route segment is the itemId for primary listings. Hydrate the item
   // (name, price, tradeId) straight from the shop feed so it resolves correctly (a primary itemId is
   // NOT a tokenId — the sibling fallback below would otherwise mis-match).
-  const { data: deepLinkItem } = useQuery({
+  const { data: deepLinkItem, isLoading: deepLinkLoading } = useQuery({
     queryKey: ['shop-item', current.contractAddress, tokenId],
     enabled: !state?.item && !!current.contractAddress && !!tokenId,
     queryFn: () => fetchShopListingForItem(current.contractAddress, tokenId as string)
@@ -155,18 +158,31 @@ export function ItemDetail() {
     setError(null)
   }, [current.id])
 
+  // KR5 denominator: fire 'Shop Viewed Item' once per hydrated item (deduped across re-renders and the
+  // in-place carousel swaps), after the trade resolves so `for_sale` is accurate.
+  const viewedRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!current.name || resolvingTrade || viewedRef.current === current.id) return
+    viewedRef.current = current.id
+    track('Shop Viewed Item', { ...itemProps(current), for_sale: forSale })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current.id, current.name, resolvingTrade, forSale])
+
   function selectSibling(item: CatalogItem) {
     setCurrent(item)
     // Keep the address bar in sync so refresh/share resolves the shown item. tokenId may be absent for
-    // catalog items — fall back to itemId in the path so the route still matches.
-    const seg = item.tokenId ?? item.itemId ?? ''
-    navigate(`/item/${item.contractAddress}/${seg}`, { replace: true, state: { item } })
+    // catalog items — fall back to itemId. Only sync the URL when a valid segment exists (the item
+    // still shows in place via setCurrent) so we never push a dead /item/<contract>/ URL.
+    const seg = item.tokenId ?? item.itemId
+    if (item.contractAddress && seg) {
+      navigate(`/item/${item.contractAddress}/${seg}`, { replace: true, state: { item } })
+    }
     if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   function handleAddToCart() {
     if (!forSale || inCart) return
-    add(cartItem)
+    add(cartItem, 'item_detail')
   }
 
   async function handleBuyNow() {
@@ -177,6 +193,9 @@ export function ItemDetail() {
     }
     setError(null)
     setBusy(true)
+    let reservedCreditId: string | undefined
+    let step: 'authorize' | 'submit' = 'authorize'
+    let usedGasless = false
     try {
       setStatus(`Buying ${current.name || 'item'}…`)
       const trade = await fetchTrade(buyableTradeId)
@@ -184,21 +203,39 @@ export function ItemDetail() {
       const priceAsset = trade.received?.[0] as { amount?: string } | undefined
       const usdCents = usdWeiToCents(priceAsset?.amount)
       const { credit, maxCreditedValue } = await authorizeUsdCredit(session.identity, usdCents, buyableTradeId)
+      reservedCreditId = credit.id
+      step = 'submit'
       const buyArgs = { trade, buyer: session.address, signer: session.signer, credits: [credit], maxCreditedValue }
+      let txHash: string | undefined
       if (gaslessEnabled()) {
         try {
-          const txHash = await buyGasless(buyArgs) // buyer confirms off-chain; relayer covers the fee
+          txHash = await buyGasless(buyArgs) // buyer confirms off-chain; relayer covers the fee
           await waitForSettlement(txHash)
+          usedGasless = true
         } catch (gaslessErr) {
           if (!(gaslessErr instanceof GaslessUnavailableError)) throw gaslessErr
-          await buyWithCredits(buyArgs) // fallback: buyer submits
+          txHash = await buyWithCredits(buyArgs) // fallback: buyer submits
         }
       } else {
-        await buyWithCredits(buyArgs)
+        txHash = await buyWithCredits(buyArgs)
       }
-      navigate('/success', { state: { items: [cartItem] } })
+      reservedCreditId = undefined // consumed by the buy
+      track('Shop Completed Purchase', {
+        ...purchaseItemsProps([cartItem]),
+        payment_type: 'credits',
+        no_crypto_step: usedGasless,
+        transaction_hash: txHash ?? null
+      })
+      navigate('/success', { state: { items: [cartItem], txHash } })
     } catch (e) {
       console.error('[detail] buy now failed:', e)
+      // Release the reserved dollars so the balance isn't stuck until the TTL (matches Cart/MarketCheckout).
+      if (reservedCreditId) void cancelUsdIntents(session.identity, [reservedCreditId]).catch(() => {})
+      track(isUserRejection(e) ? 'Shop Purchase Cancelled' : 'Shop Purchase Failed', {
+        step,
+        error_code: errorCode(e),
+        value_usd: creditsToUsd(cartItem.priceCredits)
+      })
       setError(friendlyError(e))
       setStatus(null)
     } finally {
@@ -212,6 +249,21 @@ export function ItemDetail() {
   const collectionTitle = 'More from this collection'
 
   const addLabel = !forSale ? 'Not for sale' : inCart ? 'In cart' : resolvingTrade ? 'Checking…' : 'Add to cart'
+
+  // Nothing hydrated the item (bad/stale deep link, or an item that isn't in the shop feed — e.g. a
+  // legacy/market piece). Once every resolution path has settled and there's still no name, show a
+  // graceful not-found instead of a permanent "Loading…" blank.
+  const stillResolving = deepLinkLoading || (!!current.contractAddress && !siblingsFetched)
+  if (!current.name && !stillResolving) {
+    return (
+      <div className="item-detail item-detail--notfound">
+        <span className="ico ico-cart item-detail__notfound-ico" aria-hidden />
+        <h1 className="item-detail__notfound-title">This item isn’t available</h1>
+        <p className="muted">It may have been delisted or moved. Browse the shop for something else.</p>
+        <button className="btn btn--purple" onClick={() => navigate('/assets')}>Browse the shop</button>
+      </div>
+    )
+  }
 
   return (
     <div className="item-detail">
@@ -242,7 +294,9 @@ export function ItemDetail() {
             </button>
           </div>
 
-          {current.creator ? <CreatorBadge address={current.creator} className="item-detail__creator" /> : null}
+          {current.creator ? (
+            <CreatorBadge address={current.creator} className="item-detail__creator" linkToProfile />
+          ) : null}
 
           <div className="item-detail__chips">
             <span className="chip chip--rarity">{current.rarity}</span>
@@ -255,14 +309,14 @@ export function ItemDetail() {
               <div className="item-detail__price-label">Price</div>
               {forSale ? (
                 <div className="item-detail__price">
-                  <span className="ico ico-credits item-detail__diamond" aria-hidden />
+                  <CurrencyIcon className="item-detail__diamond" />
                   <span className="item-detail__price-value">{current.priceCredits}</span>
                 </div>
               ) : (
                 <div className="item-detail__price item-detail__price--none">Not for sale</div>
               )}
               {session ? (
-                <div className="item-detail__balance muted">Your balance: ◈ {balance?.credits ?? 0}</div>
+                <div className="item-detail__balance muted">Your balance: {CURRENCY.symbol} {balance?.credits ?? 0}</div>
               ) : null}
             </div>
 
@@ -297,6 +351,7 @@ export function ItemDetail() {
         items={carouselItems}
         activeId={current.id}
         onSelect={selectSibling}
+        onViewAll={current.contractAddress ? () => navigate(`/collection/${current.contractAddress}`) : undefined}
       />
     </div>
   )

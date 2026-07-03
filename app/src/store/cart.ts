@@ -1,23 +1,47 @@
 import { create } from 'zustand'
 import type { CatalogItem } from '~/lib/api'
+import { track, creditsToUsd } from '~/lib/analytics'
+
+// Where an add-to-cart happened (funnel attribution — see design/SHOP_TRACKING_SPEC.md §5.3).
+export type AddToCartSource = 'grid' | 'item_detail' | 'carousel' | 'upsell'
 
 type CartState = {
   items: CatalogItem[]
   /** Whether the cart popover is showing (auto-opens on add for feedback). */
   open: boolean
-  add: (item: CatalogItem) => void
+  add: (item: CatalogItem, source?: AddToCartSource) => void
   remove: (id: string) => void
   clear: () => void
   setOpen: (open: boolean) => void
 }
 
-export const useCart = create<CartState>(set => ({
+const cartValueUsd = (items: CatalogItem[]): number => creditsToUsd(items.reduce((n, i) => n + i.priceCredits, 0))
+
+export const useCart = create<CartState>((set, get) => ({
   items: [],
   open: false,
   // Adding always opens the popover (feedback), even if the item was already in the cart.
-  add: item =>
-    set(s => (s.items.some(i => i.id === item.id) ? { open: true } : { items: [...s.items, item], open: true })),
-  remove: id => set(s => ({ items: s.items.filter(i => i.id !== id) })),
+  add: (item, source = 'grid') => {
+    const already = get().items.some(i => i.id === item.id)
+    set(s => (already ? { open: true } : { items: [...s.items, item], open: true }))
+    if (already) return
+    const items = get().items
+    track('Shop Added To Cart', {
+      item_id: item.itemId ?? null,
+      contract_address: item.contractAddress,
+      price_credits: item.priceCredits,
+      price_usd: creditsToUsd(item.priceCredits),
+      is_primary: !item.tokenId,
+      source,
+      cart_size: items.length,
+      cart_value_usd: cartValueUsd(items)
+    })
+  },
+  remove: id => {
+    const item = get().items.find(i => i.id === id)
+    set(s => ({ items: s.items.filter(i => i.id !== id) }))
+    if (item) track('Shop Removed From Cart', { item_id: item.itemId ?? null, cart_size: get().items.length })
+  },
   clear: () => set({ items: [] }),
   setOpen: open => set({ open })
 }))

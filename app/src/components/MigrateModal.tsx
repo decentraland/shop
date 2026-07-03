@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { Session } from '~/lib/auth'
 import { importListing, type ImportItem } from '~/lib/import'
+import { CURRENCY } from '~/lib/currency'
+import { showsWalletConfirmations } from '~/lib/wallet-kind'
+import { track } from '~/lib/analytics'
 
 export type MigrateEntry = { item: ImportItem; priceCredits: number }
 type Status = 'pending' | 'active' | 'done' | 'skipped' | 'failed'
@@ -20,6 +23,7 @@ export function MigrateModal({
   onDone: () => void
 }) {
   const navigate = useNavigate()
+  const showsConfirmations = showsWalletConfirmations(session.providerType)
   const [statuses, setStatuses] = useState<Status[]>(() => queue.map(() => 'pending'))
   const [phase, setPhase] = useState<'running' | 'finished'>('running')
   const started = useRef(false)
@@ -35,6 +39,12 @@ export function MigrateModal({
         setStatuses(s => s.map((v, idx) => (idx === i ? 'active' : v)))
         try {
           await importListing(queue[i].item, queue[i].priceCredits, session)
+          track('Shop Migrated Listing', {
+            item_id: queue[i].item.itemId ?? queue[i].item.oldTradeId ?? null,
+            contract_address: queue[i].item.contractAddress,
+            new_price_credits: queue[i].priceCredits,
+            new_price_usd: queue[i].priceCredits / 10
+          })
           if (!cancelled) setStatuses(s => s.map((v, idx) => (idx === i ? 'done' : v)))
         } catch (e) {
           const err = e as { code?: number; message?: string }
@@ -69,7 +79,7 @@ export function MigrateModal({
           <h2 className="modal__title">{listedCount > 0 ? "You're in the Shop! 🎉" : 'Nothing listed'}</h2>
           <p className="muted" style={{ margin: 0 }}>
             {listedCount > 0
-              ? `${listedCount} ${listedCount === 1 ? 'item is' : 'items are'} now for sale with credits.`
+              ? `${listedCount} ${listedCount === 1 ? 'item is' : 'items are'} now for sale with ${CURRENCY.name}.`
               : 'No items were listed.'}
             {skipped > 0 ? ` ${skipped} skipped — you can try those again anytime.` : ''}
           </p>
@@ -98,7 +108,8 @@ export function MigrateModal({
       <div className="modal migrate" role="dialog" aria-modal="true" aria-live="polite">
         <h2 className="modal__title">Listing your items</h2>
         <p className="muted small" style={{ margin: '0 0 4px' }}>
-          Confirm each item to add it to the Shop. {activeIndex >= 0 ? `${activeIndex + 1} of ${queue.length}` : ''}
+          {showsConfirmations ? 'Confirm each item to add it to the Shop.' : 'Adding your items to the Shop.'}{' '}
+          {activeIndex >= 0 ? `${activeIndex + 1} of ${queue.length}` : ''}
         </p>
 
         <div className="migrate__progress"><div className="migrate__bar" style={{ width: `${progress}%` }} /></div>
@@ -110,10 +121,10 @@ export function MigrateModal({
                 {entry.item.thumbnail ? <img src={entry.item.thumbnail} alt="" /> : null}
               </span>
               <span className="migrate__name" title={entry.item.name}>{entry.item.name || 'Item'}</span>
-              <span className="migrate__price">◈ {entry.priceCredits.toLocaleString()}</span>
+              <span className="migrate__price">{CURRENCY.symbol} {entry.priceCredits.toLocaleString()}</span>
               <span className="migrate__status">
                 {statuses[i] === 'active' ? (
-                  <><span className="spinner migrate__spin" aria-hidden /> Confirm…</>
+                  <><span className="spinner migrate__spin" aria-hidden /> {showsConfirmations ? 'Confirm…' : 'Adding…'}</>
                 ) : statuses[i] === 'done' ? (
                   <span className="migrate__tick">✓</span>
                 ) : statuses[i] === 'skipped' ? (
@@ -128,7 +139,11 @@ export function MigrateModal({
           ))}
         </ul>
 
-        <p className="muted small migrate__hint">A quick confirmation pops up for each item. Keep this open.</p>
+        <p className="muted small migrate__hint">
+          {showsConfirmations
+            ? 'A quick confirmation pops up for each item. Keep this open.'
+            : 'This only takes a moment — keep this open.'}
+        </p>
       </div>
     </div>
   )

@@ -211,6 +211,24 @@
   font-weight: 600;
   color: var(--text);
 }
+.collection-carousel__head-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.collection-carousel__viewall {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.collection-carousel__viewall:hover {
+  text-decoration: underline;
+}
 .collection-carousel__arrows {
   display: flex;
   gap: 10px;
@@ -336,3 +354,17 @@
 .collection-carousel__add:hover { transform: scale(1.08); }
 .collection-carousel__add:disabled { background: var(--muted-2); cursor: default; box-shadow: none; }
 .collection-carousel__add .ico { width: 18px; height: 18px; }
+
+/* Not-found / unresolvable item (bad deep link, delisted, or not in the shop feed) */
+.item-detail--notfound {
+  min-height: 46vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 14px;
+}
+.item-detail__notfound-ico { width: 44px; height: 44px; opacity: 0.4; }
+.item-detail__notfound-title { font-size: 22px; }
+.item-detail--notfound .btn { margin-top: 6px; }
