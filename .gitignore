@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Builds
+dist/
+build/
+*.tsbuildinfo
+
+# Tests / coverage
+coverage/
+
+# Env — commit only *.env.example (real/local configs are ignored, incl. dev secrets)
+.env
+.env.local
+.env.*.local
+.env.default
+
+# Tool run output
+tools/*/out/
+
+# Editor / OS
+.DS_Store
+*.log
+npm-debug.log*
+.idea/
+.vscode/
