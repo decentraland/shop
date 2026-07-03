@@ -51,6 +51,7 @@ export function NavBar() {
         <nav className="subnav__tabs">
           <NavLink to="/overview">Overview</NavLink>
           <NavLink to="/assets">Assets</NavLink>
+          <NavLink to="/market">Market</NavLink>
           <NavLink to="/my-assets">My Assets</NavLink>
           <NavLink to="/my-favorites">My Favorites</NavLink>
           {session ? <NavLink to="/my-purchases">My Purchases</NavLink> : null}

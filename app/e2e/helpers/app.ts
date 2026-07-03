@@ -21,6 +21,7 @@ export type Fixtures = {
   credits: unknown
   importable: unknown
   shopListings: unknown
+  legacyListings: unknown
   ownedNfts: unknown
   builderCollections: unknown
   builderItems: unknown
@@ -34,6 +35,7 @@ function defaults(): Fixtures {
     credits: fx.creditsResponse,
     importable: fx.importable,
     shopListings: fx.shopListings,
+    legacyListings: fx.legacyListings,
     ownedNfts: fx.ownedNfts,
     builderCollections: fx.builderCollections,
     builderItems: fx.builderItems,
@@ -120,6 +122,18 @@ function route(req: HTTPRequest, F: Fixtures) {
       if (rarity) items = items.filter(i => rarity.split(',').includes(i.rarity))
       if (category) items = items.filter(i => i.category === category)
       if (u.searchParams.get('sortBy') === 'cheapest') items.sort((a, b) => a.priceCredits - b.priceCredits)
+      return json(req, { data: items, total: items.length })
+    }
+    if (path === '/v3/catalog/legacy') {
+      // Legacy (classic MANA-priced) liquidity for the Market tab. Honor the same server-side filters.
+      let items = [...((F.legacyListings as { data: any[] }).data ?? [])]
+      const search = u.searchParams.get('search')?.toLowerCase()
+      const rarity = u.searchParams.get('rarity')
+      const category = u.searchParams.get('category')
+      if (search) items = items.filter(i => String(i.name).toLowerCase().includes(search))
+      if (rarity) items = items.filter(i => rarity.split(',').includes(i.rarity))
+      if (category) items = items.filter(i => i.category === category)
+      if (u.searchParams.get('sortBy') === 'cheapest') items.sort((a, b) => Number(BigInt(a.manaWei) - BigInt(b.manaWei)))
       return json(req, { data: items, total: items.length })
     }
     if (path === '/v1/nfts') return json(req, F.ownedNfts)

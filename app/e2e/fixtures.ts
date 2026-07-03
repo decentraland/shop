@@ -139,6 +139,48 @@ export const shopListings = {
   total: 2
 }
 
+// --- Legacy catalog (v3/catalog/legacy → Market grid): OLD classic MANA-priced liquidity ---
+// Same items as the importable set, in the /v3/catalog/legacy response shape (tradeId + manaWei).
+export const legacyListings = {
+  data: [
+    {
+      tradeId: 'legacy-trade-1',
+      listingType: 'primary',
+      contractAddress: COLLECTION,
+      itemId: '0',
+      name: 'Retro Cap',
+      thumbnail: '',
+      rarity: 'epic',
+      category: 'wearable',
+      wearableCategory: 'hat',
+      creator: TEST_ADDRESS,
+      manaWei: MANA_WEI_PER, // 100 MANA → ~$27 → ~100 credits at the mock rate
+      available: 100,
+      network: 'MATIC',
+      chainId: 80002,
+      createdAt: 1_700_000_000
+    },
+    {
+      tradeId: 'legacy-trade-2',
+      listingType: 'primary',
+      contractAddress: COLLECTION,
+      itemId: '1',
+      name: 'Vintage Jacket',
+      thumbnail: '',
+      rarity: 'legendary',
+      category: 'wearable',
+      wearableCategory: 'upper_body',
+      creator: TEST_ADDRESS,
+      manaWei: '50000000000000000000', // 50 MANA
+      available: 10,
+      network: 'MATIC',
+      chainId: 80002,
+      createdAt: 1_700_000_100
+    }
+  ],
+  total: 2
+}
+
 // --- Credits balance (credits-server /users/:addr/credits) ---
 export const creditsResponse = {
   credits: [],
@@ -178,6 +220,40 @@ export const buyTrade = {
       contractAddress: MANA_AMOY,
       value: '13500000000000000000',
       amount: '13500000000000000000',
+      beneficiary: '0x' + 'aa'.repeat(20),
+      extra: '0x'
+    }
+  ]
+}
+
+// A full signed Trade for the legacy Buy Now path (what fetchTrade('legacy-trade-1') returns). A
+// USD-pegged primary item order priced $27 (270 credits) on the real Amoy marketplace.
+export const legacyTrade = {
+  id: 'legacy-trade-1',
+  signer: '0x' + 'aa'.repeat(20),
+  signature: '0x' + 'ab'.repeat(65),
+  network: 'MATIC',
+  chainId: 80002,
+  type: 'public_item_order',
+  contract: OFFCHAIN_MARKETPLACE_AMOY,
+  checks: {
+    uses: 100,
+    expiration: Date.now() + 86_400_000,
+    effective: Date.now() - 60_000,
+    salt: '0x' + '00'.repeat(32),
+    contractSignatureIndex: 0,
+    signerSignatureIndex: 0,
+    allowedRoot: '0x',
+    allowedProof: [],
+    externalChecks: []
+  },
+  sent: [{ assetType: 4, contractAddress: COLLECTION, value: '0', itemId: '0', extra: '0x' }],
+  received: [
+    {
+      assetType: 2,
+      contractAddress: MANA_AMOY,
+      value: '27000000000000000000',
+      amount: '27000000000000000000',
       beneficiary: '0x' + 'aa'.repeat(20),
       extra: '0x'
     }
