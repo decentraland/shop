@@ -185,18 +185,19 @@ export function ItemDetail() {
       const usdCents = usdWeiToCents(priceAsset?.amount)
       const { credit, maxCreditedValue } = await authorizeUsdCredit(session.identity, usdCents, buyableTradeId)
       const buyArgs = { trade, buyer: session.address, signer: session.signer, credits: [credit], maxCreditedValue }
+      let txHash: string | undefined
       if (gaslessEnabled()) {
         try {
-          const txHash = await buyGasless(buyArgs) // buyer confirms off-chain; relayer covers the fee
+          txHash = await buyGasless(buyArgs) // buyer confirms off-chain; relayer covers the fee
           await waitForSettlement(txHash)
         } catch (gaslessErr) {
           if (!(gaslessErr instanceof GaslessUnavailableError)) throw gaslessErr
-          await buyWithCredits(buyArgs) // fallback: buyer submits
+          txHash = await buyWithCredits(buyArgs) // fallback: buyer submits
         }
       } else {
-        await buyWithCredits(buyArgs)
+        txHash = await buyWithCredits(buyArgs)
       }
-      navigate('/success', { state: { items: [cartItem] } })
+      navigate('/success', { state: { items: [cartItem], txHash } })
     } catch (e) {
       console.error('[detail] buy now failed:', e)
       setError(friendlyError(e))

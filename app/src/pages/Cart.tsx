@@ -81,22 +81,23 @@ export function Cart() {
       // 2) One confirmation: spend every credit via a single useCredits(accept([...])). When gasless
       //    is on, the buyer confirms off-chain and a relayer covers the fee (auto-fallback if down).
       setStatus('Confirming your purchase…')
+      let hashes: string[] = []
       if (gaslessEnabled()) {
         try {
-          const hashes = await buyManyGasless({ purchases, buyer: session.address, signer: session.signer })
+          hashes = await buyManyGasless({ purchases, buyer: session.address, signer: session.signer })
           await Promise.all(hashes.map(h => waitForSettlement(h)))
         } catch (gaslessErr) {
           if (!(gaslessErr instanceof GaslessUnavailableError)) throw gaslessErr
-          await buyManyWithCredits({ purchases, buyer: session.address, signer: session.signer })
+          hashes = await buyManyWithCredits({ purchases, buyer: session.address, signer: session.signer })
         }
       } else {
-        await buyManyWithCredits({ purchases, buyer: session.address, signer: session.signer })
+        hashes = await buyManyWithCredits({ purchases, buyer: session.address, signer: session.signer })
       }
 
       clear()
       setStatus('Purchased! 🎉')
       void qc.invalidateQueries({ queryKey: ['usd-balance'] })
-      navigate('/success', { state: { items: purchased } })
+      navigate('/success', { state: { items: purchased, txHash: hashes[0] } })
     } catch (e) {
       console.error('[checkout] failed', e)
       // Release any dollars we reserved so the balance isn't stuck until the TTL (~15 min).

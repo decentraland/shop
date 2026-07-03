@@ -149,19 +149,20 @@ export function MarketCheckout({
         credits: [locked.credit],
         maxCreditedValue: locked.maxCreditedValue
       }
+      let txHash: string | undefined
       if (gaslessEnabled()) {
         try {
-          const txHash = await buyGasless(buyArgs) // buyer confirms off-chain; relayer covers the fee
+          txHash = await buyGasless(buyArgs) // buyer confirms off-chain; relayer covers the fee
           await waitForSettlement(txHash)
         } catch (gaslessErr) {
           if (!(gaslessErr instanceof GaslessUnavailableError)) throw gaslessErr
-          await buyWithCredits(buyArgs) // fallback: buyer submits + pays gas
+          txHash = await buyWithCredits(buyArgs) // fallback: buyer submits + pays gas
         }
       } else {
-        await buyWithCredits(buyArgs)
+        txHash = await buyWithCredits(buyArgs)
       }
       void qc.invalidateQueries({ queryKey: ['usd-balance'] })
-      navigate('/success', { state: { items: [toCatalogItem(listing)] } })
+      navigate('/success', { state: { items: [toCatalogItem(listing)], txHash } })
     } catch (e) {
       console.error('[market] buy now failed', e)
       // Release the reserved dollars so the balance isn't stuck until the TTL.
