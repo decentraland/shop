@@ -1,0 +1,305 @@
+import { useEffect, useMemo, useState } from 'react'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
+import { Rarity } from '@dcl/schemas'
+import { config } from '~/config'
+import { useCart } from '~/store/cart'
+import { useWallet } from '~/store/wallet'
+import { useBalance } from '~/hooks/useBalance'
+import { fetchShopListingForItem, fetchTrade, fetchTradeForItem, usdWeiToCents, type CatalogItem } from '~/lib/api'
+import { buyWithCredits } from '~/lib/buy'
+import { buyGasless, waitForSettlement, GaslessUnavailableError } from '~/lib/buy-gasless'
+import { gaslessEnabled } from '~/lib/gasless-config'
+import { authorizeUsdCredit } from '~/lib/credits'
+import { fetchCollectionItems } from '~/lib/collections'
+import { ItemPreview } from '~/components/ItemPreview'
+import { CollectionCarousel } from '~/components/CollectionCarousel'
+import { CreatorBadge } from '~/components/CreatorBadge'
+import './item-detail.css'
+
+function isValidRarity(r: string): r is Rarity {
+  return (Object.values(Rarity) as string[]).includes(r)
+}
+
+function genderLabel(gender: CatalogItem['gender']): string | null {
+  if (gender === 'male') return 'Male'
+  if (gender === 'female') return 'Female'
+  if (gender === 'unisex') return 'Unisex'
+  return null
+}
+
+function friendlyError(e: unknown): string {
+  const err = e as { code?: number; message?: string }
+  const msg = (err.message ?? '').toLowerCase()
+  if (err.code === 4001 || msg.includes('reject') || msg.includes('denied') || msg.includes('cancel')) {
+    return 'You cancelled the request.'
+  }
+  if (msg.includes('insufficient')) return "You don't have enough credits — get more first."
+  if (msg.includes('no active listing') || msg.includes('not for sale')) return 'This item is not for sale right now.'
+  return "Couldn't complete checkout — please try again."
+}
+
+export function ItemDetail() {
+  const { contractAddress, tokenId } = useParams<{ contractAddress: string; tokenId: string }>()
+  const { state } = useLocation() as { state?: { item?: CatalogItem; tradeId?: string } }
+  const navigate = useNavigate()
+
+  const add = useCart(s => s.add)
+  const cartItems = useCart(s => s.items)
+  const { session } = useWallet()
+  const { data: balance } = useBalance(session)
+
+  // The currently-displayed item. Seeded from router state (fast path from the grid); swapped in place
+  // when a carousel sibling is tapped (no full reload). Falls back to a stub for deep links/refresh
+  // (name/thumbnail/price then fill in from the collection fetch below).
+  const [current, setCurrent] = useState<CatalogItem>(() => {
+    if (state?.item) return { ...state.item, tradeId: state.tradeId ?? state.item.tradeId }
+    return {
+      id: `${contractAddress}-${tokenId}`,
+      name: '',
+      creator: '',
+      contractAddress: contractAddress ?? '',
+      itemId: null,
+      category: 'wearable',
+      rarity: 'common',
+      network: 'MATIC',
+      chainId: config.chainId,
+      thumbnail: '',
+      priceCredits: 0,
+      gender: null,
+      tokenId: tokenId ?? undefined,
+      tradeId: state?.tradeId
+    }
+  })
+
+  const [busy, setBusy] = useState(false)
+  const [status, setStatus] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  // Sibling items of the same collection (the "more from this collection" carousel).
+  const { data: siblings = [] } = useQuery({
+    queryKey: ['collection-items', current.contractAddress],
+    enabled: !!current.contractAddress,
+    queryFn: () => fetchCollectionItems(current.contractAddress, { first: 20 })
+  })
+
+  // Deep-link / refresh: the route segment is the itemId for primary listings. Hydrate the item
+  // (name, price, tradeId) straight from the shop feed so it resolves correctly (a primary itemId is
+  // NOT a tokenId — the sibling fallback below would otherwise mis-match).
+  const { data: deepLinkItem } = useQuery({
+    queryKey: ['shop-item', current.contractAddress, tokenId],
+    enabled: !state?.item && !!current.contractAddress && !!tokenId,
+    queryFn: () => fetchShopListingForItem(current.contractAddress, tokenId as string)
+  })
+  useEffect(() => {
+    if (deepLinkItem) setCurrent(prev => (prev.tradeId ? prev : { ...deepLinkItem }))
+  }, [deepLinkItem])
+
+  // Fallback backfill: if still unhydrated (e.g. not currently on sale), fill from the matching
+  // sibling once the collection resolves.
+  useEffect(() => {
+    if (current.name || siblings.length === 0) return
+    const match =
+      (tokenId && siblings.find(s => s.tokenId === tokenId || s.itemId === tokenId)) ||
+      siblings.find(s => s.contractAddress === current.contractAddress)
+    if (match) setCurrent(prev => ({ ...match, tradeId: prev.tradeId ?? match.tradeId }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [siblings])
+
+  // Carousel = OTHER items from the collection: drop the currently-viewed item + dedupe.
+  const carouselItems = useMemo(() => {
+    const seen = new Set<string>()
+    const out: CatalogItem[] = []
+    for (const s of siblings) {
+      if (s.id === current.id) continue
+      if (current.itemId && s.itemId === current.itemId) continue
+      if (current.tokenId && s.tokenId === current.tokenId) continue
+      const key = `${s.contractAddress}-${s.itemId ?? s.tokenId ?? s.id}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      out.push(s)
+    }
+    return out
+  }, [siblings, current.id, current.itemId, current.tokenId])
+
+  // Resolve a buyable trade for the current item (needed for BUY NOW + a valid cart entry). Secondary
+  // listings carry their tradeId directly; catalog items resolve the cheapest open listing by itemId.
+  const {
+    data: resolvedTradeId,
+    isLoading: resolvingTrade
+  } = useQuery({
+    queryKey: ['detail-trade', current.id, current.tradeId, current.contractAddress, current.itemId],
+    enabled: !!current.contractAddress,
+    queryFn: async (): Promise<string | null> => {
+      if (current.tradeId) return current.tradeId
+      if (current.itemId) {
+        const trade = await fetchTradeForItem(current.contractAddress, current.itemId)
+        return trade?.id ?? null
+      }
+      return null
+    }
+  })
+
+  const buyableTradeId = current.tradeId ?? resolvedTradeId ?? undefined
+  const forSale = !!buyableTradeId
+  // The exact CatalogItem shape checkout expects (tradeId + tokenId), identical to fetchListings output.
+  const cartItem: CatalogItem = useMemo(
+    () => ({ ...current, tradeId: buyableTradeId, id: buyableTradeId ?? current.id }),
+    [current, buyableTradeId]
+  )
+  const inCart = cartItems.some(i => i.id === cartItem.id)
+
+  // Reset transient status whenever the hero item changes.
+  useEffect(() => {
+    setStatus(null)
+    setError(null)
+  }, [current.id])
+
+  function selectSibling(item: CatalogItem) {
+    setCurrent(item)
+    // Keep the address bar in sync so refresh/share resolves the shown item. tokenId may be absent for
+    // catalog items — fall back to itemId in the path so the route still matches.
+    const seg = item.tokenId ?? item.itemId ?? ''
+    navigate(`/item/${item.contractAddress}/${seg}`, { replace: true, state: { item } })
+    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  function handleAddToCart() {
+    if (!forSale || inCart) return
+    add(cartItem)
+  }
+
+  async function handleBuyNow() {
+    if (!forSale || !buyableTradeId) return
+    if (!session) {
+      setError('Log in to check out.')
+      return
+    }
+    setError(null)
+    setBusy(true)
+    try {
+      setStatus(`Buying ${current.name || 'item'}…`)
+      const trade = await fetchTrade(buyableTradeId)
+      if (!trade) throw new Error('not for sale')
+      const priceAsset = trade.received?.[0] as { amount?: string } | undefined
+      const usdCents = usdWeiToCents(priceAsset?.amount)
+      const { credit, maxCreditedValue } = await authorizeUsdCredit(session.identity, usdCents, buyableTradeId)
+      const buyArgs = { trade, buyer: session.address, signer: session.signer, credits: [credit], maxCreditedValue }
+      if (gaslessEnabled()) {
+        try {
+          const txHash = await buyGasless(buyArgs) // buyer confirms off-chain; relayer covers the fee
+          await waitForSettlement(txHash)
+        } catch (gaslessErr) {
+          if (!(gaslessErr instanceof GaslessUnavailableError)) throw gaslessErr
+          await buyWithCredits(buyArgs) // fallback: buyer submits
+        }
+      } else {
+        await buyWithCredits(buyArgs)
+      }
+      navigate('/success', { state: { items: [cartItem] } })
+    } catch (e) {
+      console.error('[detail] buy now failed:', e)
+      setError(friendlyError(e))
+      setStatus(null)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const rarity: Rarity = isValidRarity(current.rarity) ? current.rarity : Rarity.COMMON
+  const [glowLight] = Rarity.getGradient(rarity)
+  const gender = genderLabel(current.gender)
+  const collectionTitle = 'More from this collection'
+
+  const addLabel = !forSale ? 'Not for sale' : inCart ? 'In cart' : resolvingTrade ? 'Checking…' : 'Add to cart'
+
+  return (
+    <div className="item-detail">
+      <nav className="item-detail__crumbs" aria-label="Breadcrumb">
+        <button className="item-detail__crumb-link" onClick={() => navigate('/assets')}>
+          Collectibles
+        </button>
+        <span className="item-detail__crumb-sep">/</span>
+        <span className="item-detail__crumb-current">{current.name || 'Item'}</span>
+      </nav>
+
+      <div className="item-detail__main">
+        <div
+          className="item-detail__preview"
+          style={{
+            // Subtle rarity glow on the light surface (not a full-saturation fill).
+            background: `radial-gradient(circle at 50% 38%, ${glowLight}33 0%, var(--media) 68%)`
+          }}
+        >
+          <ItemPreview item={current} />
+        </div>
+
+        <div className="item-detail__info">
+          <div className="item-detail__info-head">
+            <h1 className="item-detail__title">{current.name || 'Loading…'}</h1>
+            <button className="item-detail__fav" aria-label="Add to favorites">
+              <span className="ico ico-heart" aria-hidden />
+            </button>
+          </div>
+
+          {current.creator ? <CreatorBadge address={current.creator} className="item-detail__creator" /> : null}
+
+          <div className="item-detail__chips">
+            <span className="chip chip--rarity">{current.rarity}</span>
+            <span className="chip">{current.category === 'emote' ? 'Emote' : 'Wearable'}</span>
+            {gender ? <span className="chip">{gender}</span> : null}
+          </div>
+
+          <div className="item-detail__card">
+            <div className="item-detail__price-block">
+              <div className="item-detail__price-label">Price</div>
+              {forSale ? (
+                <div className="item-detail__price">
+                  <span className="ico ico-credits item-detail__diamond" aria-hidden />
+                  <span className="item-detail__price-value">{current.priceCredits}</span>
+                </div>
+              ) : (
+                <div className="item-detail__price item-detail__price--none">Not for sale</div>
+              )}
+              {session ? (
+                <div className="item-detail__balance muted">Your balance: ◈ {balance?.credits ?? 0}</div>
+              ) : null}
+            </div>
+
+            <div className="item-detail__ctas">
+              {forSale ? (
+                <button
+                  className="btn btn--purple item-detail__cta"
+                  onClick={handleBuyNow}
+                  disabled={busy || resolvingTrade}
+                >
+                  {busy ? 'Working…' : 'Buy now'}
+                </button>
+              ) : null}
+              <button
+                className="item-detail__addcart"
+                onClick={handleAddToCart}
+                disabled={!forSale || inCart || resolvingTrade || busy}
+              >
+                <span className="ico ico-cart-solid item-detail__addcart-ico" aria-hidden />
+                {addLabel}
+              </button>
+            </div>
+
+            {status ? <p className="muted item-detail__status">{status}</p> : null}
+            {error ? <p className="error item-detail__status">{error}</p> : null}
+          </div>
+        </div>
+      </div>
+
+      <CollectionCarousel
+        title={collectionTitle}
+        items={carouselItems}
+        activeId={current.id}
+        onSelect={selectSibling}
+      />
+    </div>
+  )
+}
+
+export default ItemDetail

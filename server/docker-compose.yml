@@ -1,0 +1,16 @@
+services:
+  postgres:
+    container_name: 'shop_treasury_db'
+    image: 'postgres:17'
+    restart: always
+    user: postgres
+    volumes:
+      - shop_treasury_postgres_volume:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=pass1234
+      - POSTGRES_DB=shop_treasury
+    ports:
+      - '5460:5432'
+volumes:
+  shop_treasury_postgres_volume:

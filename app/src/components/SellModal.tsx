@@ -1,0 +1,127 @@
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
+import { ChainId, Network } from '@dcl/schemas'
+import type { Session } from '~/lib/auth'
+import type { MyAsset } from '~/lib/api'
+import { postTrade } from '~/lib/api'
+import { createUsdPeggedListing, ensureApproval } from '~/lib/trades'
+import { toast } from '~/store/toast'
+
+const SIX_MONTHS_MS = 1000 * 60 * 60 * 24 * 182
+
+function friendlyError(e: unknown): string {
+  const err = e as { code?: number; message?: string }
+  const msg = (err.message ?? '').toLowerCase()
+  if (err.code === 4001 || msg.includes('reject') || msg.includes('denied') || msg.includes('cancel')) {
+    return 'You cancelled the request.'
+  }
+  return "Couldn't list your item — please try again."
+}
+
+export function SellModal({ asset, session, onClose }: { asset: MyAsset; session: Session; onClose: () => void }) {
+  const queryClient = useQueryClient()
+  const navigate = useNavigate()
+  const [price, setPrice] = useState('1')
+  const [status, setStatus] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [listedCredits, setListedCredits] = useState<number | null>(null)
+
+  async function list() {
+    setError(null)
+    const value = Number(price)
+    if (!value || value <= 0) {
+      setError('Enter a valid price')
+      return
+    }
+    setBusy(true)
+    try {
+      setStatus('Getting your item ready…')
+      await ensureApproval({ signer: session.signer, contractAddress: asset.contractAddress, chainId: asset.chainId as ChainId })
+
+      setStatus('Listing your item…')
+      const trade = await createUsdPeggedListing({
+        signer: session.signer,
+        nft: {
+          contractAddress: asset.contractAddress,
+          tokenId: asset.tokenId,
+          network: asset.network as Network,
+          chainId: asset.chainId as ChainId
+        },
+        usdPrice: value,
+        expiresAtMs: Date.now() + SIX_MONTHS_MS
+      })
+
+      setStatus('Publishing…')
+      await postTrade(trade, session.identity)
+
+      setStatus(null)
+      setListedCredits(Math.round(value * 10)) // 1 credit = $0.10
+      toast.success(`“${asset.name}” is now on sale!`)
+      queryClient.invalidateQueries({ queryKey: ['my-assets', session.address] })
+    } catch (e) {
+      console.error(e)
+      setError(friendlyError(e))
+      setStatus(null)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  function viewInShop() {
+    onClose()
+    navigate(`/item/${asset.contractAddress}/${asset.tokenId}`)
+  }
+
+  if (listedCredits !== null) {
+    return (
+      <div className="modal-backdrop" onClick={onClose} role="presentation">
+        <div className="modal modal--success" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
+          <div className="modal-success__check" aria-hidden>✓</div>
+          <h2 className="modal__title">It’s on sale! 🎉</h2>
+          {asset.image ? <img className="modal__img" src={asset.image} alt={asset.name} /> : null}
+          <p className="modal-success__name">{asset.name}</p>
+          <p className="muted small">
+            Listed for <strong>◈ {listedCredits}</strong>
+          </p>
+          <div className="modal__actions">
+            <button className="btn btn--ghost" onClick={onClose}>
+              Done
+            </button>
+            <button className="btn btn--purple" onClick={viewInShop}>
+              View in Shop
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={onClose} role="presentation">
+      <div className="modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
+        <h2 className="modal__title">List “{asset.name}”</h2>
+        {asset.image ? <img className="modal__img" src={asset.image} alt={asset.name} /> : null}
+
+        <label className="field">
+          <span>Price (USD)</span>
+          <input type="number" min="0" step="0.01" value={price} onChange={e => setPrice(e.target.value)} disabled={busy} />
+        </label>
+        <p className="muted small">Priced in USD. Buyers pay with credits.</p>
+
+        {status ? <p className="muted">{status}</p> : null}
+        {error ? <p className="error">{error}</p> : null}
+
+        <div className="modal__actions">
+          <button className="btn btn--ghost" onClick={onClose} disabled={busy}>
+            Cancel
+          </button>
+          <button className="btn" onClick={list} disabled={busy}>
+            {busy ? 'Working…' : 'List for sale'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
