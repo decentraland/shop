@@ -105,6 +105,9 @@ export function MarketCheckout({
         const trade = await fetchTrade(listing.tradeId)
         if (!trade) throw new Error('not found')
         const usdCents = manaWeiToUsdCents(listing.manaWei, rate)
+        // Guard against a malformed manaWei / bad rate sizing a $0 authorize (manaWeiToUsdCents
+        // returns 0 on parse failure) — never lock a free purchase.
+        if (!Number.isFinite(usdCents) || usdCents <= 0) throw new Error('price unavailable')
         const { credit, maxCreditedValue, usdCents: lockedCents } = await authorizeUsdCredit(
           session.identity,
           usdCents,

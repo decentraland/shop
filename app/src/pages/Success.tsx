@@ -9,8 +9,6 @@ import type { CatalogItem } from '~/lib/api'
 // Modern in-world entry: the launcher deep-link handled by decentraland.org/jump (zone on testnet).
 // The old play.decentraland.* web client is deprecated. The item is already in the wardrobe.
 const JUMP_URL = config.chainId === 80002 ? 'https://decentraland.zone/jump' : 'https://decentraland.org/jump'
-// Block explorer for the settlement tx (Amoy on testnet, polygon on prod).
-const EXPLORER_TX = config.chainId === 80002 ? 'https://amoy.polygonscan.com/tx/' : 'https://polygonscan.com/tx/'
 
 // Wearable item URN so the preview can EQUIP it on the avatar (try-on mode via profile + urns),
 // instead of just showing the user's current avatar (which wouldn't include the fresh purchase).
@@ -35,7 +33,6 @@ export function Success() {
   const isEmote = hero.category === 'emote'
   // Equip the purchased wearable(s) on the avatar. Emotes aren't "worn" → fall back to the item render.
   const urns = isEmote ? [] : items.map(itemUrn).filter((u): u is string => !!u)
-  const txHash = state?.txHash
 
   return (
     <div className="success">
@@ -83,11 +80,9 @@ export function Success() {
           </>
         )}
 
-        {txHash ? (
-          <a className="success__receipt" href={`${EXPLORER_TX}${txHash}`} target="_blank" rel="noreferrer">
-            View receipt ↗
-          </a>
-        ) : null}
+        <button className="success__receipt" onClick={() => navigate('/my-purchases')}>
+          View order
+        </button>
 
         <div className="success__actions">
           <a className="btn btn--purple" href={JUMP_URL} target="_blank" rel="noreferrer">
