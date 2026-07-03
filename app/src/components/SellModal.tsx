@@ -8,6 +8,7 @@ import { postTrade } from '~/lib/api'
 import { createUsdPeggedListing, ensureApproval } from '~/lib/trades'
 import { toast } from '~/store/toast'
 import { CURRENCY } from '~/lib/currency'
+import { track, errorCode } from '~/lib/analytics'
 
 const SIX_MONTHS_MS = 1000 * 60 * 60 * 24 * 182
 
@@ -59,10 +60,19 @@ export function SellModal({ asset, session, onClose }: { asset: MyAsset; session
 
       setStatus(null)
       setListedCredits(value) // already whole credits
+      track('Shop Listed Item', {
+        item_id: asset.itemId ?? asset.tokenId ?? null,
+        contract_address: asset.contractAddress,
+        price_credits: value,
+        price_usd: value / 10,
+        listing_type: 'secondary',
+        is_primary: false
+      })
       toast.success(`“${asset.name}” is now on sale!`)
       queryClient.invalidateQueries({ queryKey: ['my-assets', session.address] })
     } catch (e) {
       console.error(e)
+      track('Shop Listing Failed', { listing_type: 'secondary', error_code: errorCode(e) })
       setError(friendlyError(e))
       setStatus(null)
     } finally {

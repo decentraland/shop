@@ -1,10 +1,25 @@
-import { lazy, Suspense } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { lazy, Suspense, useEffect } from 'react'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { NavBar } from '~/components/NavBar'
 import { Toaster } from '~/components/Toaster'
 import { PreviewWarmer } from '~/components/PreviewWarmer'
 import { useAccountWatcher } from '~/hooks/useAccountWatcher'
+import { initAnalytics, trackPage } from '~/lib/analytics'
 import { Overview } from '~/pages/Overview'
+
+// Route path → funnel page name (see design/SHOP_TRACKING_SPEC.md §5.2).
+const PAGE_NAMES: Record<string, string> = {
+  '/overview': 'overview',
+  '/assets': 'assets',
+  '/market': 'market',
+  '/my-assets': 'my_assets',
+  '/my-favorites': 'favorites',
+  '/my-purchases': 'my_purchases',
+  '/import': 'import',
+  '/cart': 'cart',
+  '/credits': 'credits',
+  '/success': 'success'
+}
 
 // Overview (home) stays eager for the fastest first paint; every other route is code-split so it
 // stays out of the initial bundle and loads on navigation (see vite manualChunks + LazyWearablePreview).
@@ -31,6 +46,17 @@ function PageFallback() {
 export function App() {
   // Reload when the injected wallet switches/disconnects accounts (see the hook for the rationale).
   useAccountWatcher()
+  const location = useLocation()
+
+  // Load Segment once (no-op without a write key), then emit a page view on each route change.
+  useEffect(() => {
+    initAnalytics()
+  }, [])
+  useEffect(() => {
+    const path = location.pathname
+    const page = PAGE_NAMES[path] ?? (path.startsWith('/item/') ? 'item' : 'other')
+    trackPage(page)
+  }, [location.pathname])
 
   return (
     <>

@@ -11,6 +11,7 @@ import { buyManyWithCredits, type CreditPurchase } from '~/lib/buy'
 import { buyManyGasless, waitForSettlement, GaslessUnavailableError } from '~/lib/buy-gasless'
 import { gaslessEnabled } from '~/lib/gasless-config'
 import { CURRENCY } from '~/lib/currency'
+import { track, purchaseItemsProps, errorCode, isUserRejection, creditsToUsd } from '~/lib/analytics'
 
 function friendlyError(e: unknown): string {
   const err = e as { code?: number; message?: string }
@@ -56,8 +57,16 @@ export function Cart() {
     }
     setError(null)
     setBusy(true)
+    track('Shop Started Checkout', {
+      cart_size: items.length,
+      cart_value_credits: total,
+      cart_value_usd: creditsToUsd(total),
+      has_sufficient_credits: (balance?.credits ?? 0) >= total
+    })
     const purchased = items.slice() // snapshot for the success page
     const reservedSalts: string[] = [] // ephemeral credit ids to release if anything below fails
+    let step: 'authorize' | 'submit' = 'authorize'
+    let usedGasless = false
     try {
       // 1) Resolve each listing + authorize it: the server reserves the dollars and signs a one-time
       //    credit per item. We collect them, then spend them all in a single transaction.
@@ -82,11 +91,13 @@ export function Cart() {
       // 2) One confirmation: spend every credit via a single useCredits(accept([...])). When gasless
       //    is on, the buyer confirms off-chain and a relayer covers the fee (auto-fallback if down).
       setStatus('Confirming your purchase…')
+      step = 'submit'
       let hashes: string[] = []
       if (gaslessEnabled()) {
         try {
           hashes = await buyManyGasless({ purchases, buyer: session.address, signer: session.signer })
           await Promise.all(hashes.map(h => waitForSettlement(h)))
+          usedGasless = true
         } catch (gaslessErr) {
           if (!(gaslessErr instanceof GaslessUnavailableError)) throw gaslessErr
           hashes = await buyManyWithCredits({ purchases, buyer: session.address, signer: session.signer })
@@ -97,10 +108,22 @@ export function Cart() {
 
       clear()
       setStatus('Purchased! 🎉')
+      track('Shop Completed Purchase', {
+        ...purchaseItemsProps(purchased),
+        payment_type: 'credits',
+        no_crypto_step: usedGasless,
+        transaction_hash: hashes[0] ?? null
+      })
       void qc.invalidateQueries({ queryKey: ['usd-balance'] })
       navigate('/success', { state: { items: purchased, txHash: hashes[0] } })
     } catch (e) {
       console.error('[checkout] failed', e)
+      track(isUserRejection(e) ? 'Shop Purchase Cancelled' : 'Shop Purchase Failed', {
+        step,
+        error_code: errorCode(e),
+        value_usd: creditsToUsd(total),
+        cart_size: items.length
+      })
       // Release any dollars we reserved so the balance isn't stuck until the TTL (~15 min).
       if (reservedSalts.length) {
         try {
@@ -191,7 +214,7 @@ export function Cart() {
                 <div className="cart-upsell__thumb">{i.thumbnail ? <img src={i.thumbnail} alt={i.name} /> : null}</div>
                 <div className="cart-upsell__name" title={i.name}>{i.name}</div>
                 <div className="cart-upsell__price">{CURRENCY.symbol} {i.priceCredits}</div>
-                <button className="btn btn--sm cart-upsell__add" onClick={() => add(i)} disabled={busy}>
+                <button className="btn btn--sm cart-upsell__add" onClick={() => add(i, 'upsell')} disabled={busy}>
                   Add
                 </button>
               </div>

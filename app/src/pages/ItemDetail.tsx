@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Rarity } from '@dcl/schemas'
@@ -17,6 +17,7 @@ import { CollectionCarousel } from '~/components/CollectionCarousel'
 import { CreatorBadge } from '~/components/CreatorBadge'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { CURRENCY } from '~/lib/currency'
+import { track, itemProps, purchaseItemsProps, errorCode, isUserRejection, creditsToUsd } from '~/lib/analytics'
 import './item-detail.css'
 
 function isValidRarity(r: string): r is Rarity {
@@ -157,6 +158,16 @@ export function ItemDetail() {
     setError(null)
   }, [current.id])
 
+  // KR5 denominator: fire 'Shop Viewed Item' once per hydrated item (deduped across re-renders and the
+  // in-place carousel swaps), after the trade resolves so `for_sale` is accurate.
+  const viewedRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!current.name || resolvingTrade || viewedRef.current === current.id) return
+    viewedRef.current = current.id
+    track('Shop Viewed Item', { ...itemProps(current), for_sale: forSale })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current.id, current.name, resolvingTrade, forSale])
+
   function selectSibling(item: CatalogItem) {
     setCurrent(item)
     // Keep the address bar in sync so refresh/share resolves the shown item. tokenId may be absent for
@@ -171,7 +182,7 @@ export function ItemDetail() {
 
   function handleAddToCart() {
     if (!forSale || inCart) return
-    add(cartItem)
+    add(cartItem, 'item_detail')
   }
 
   async function handleBuyNow() {
@@ -183,6 +194,8 @@ export function ItemDetail() {
     setError(null)
     setBusy(true)
     let reservedCreditId: string | undefined
+    let step: 'authorize' | 'submit' = 'authorize'
+    let usedGasless = false
     try {
       setStatus(`Buying ${current.name || 'item'}…`)
       const trade = await fetchTrade(buyableTradeId)
@@ -191,12 +204,14 @@ export function ItemDetail() {
       const usdCents = usdWeiToCents(priceAsset?.amount)
       const { credit, maxCreditedValue } = await authorizeUsdCredit(session.identity, usdCents, buyableTradeId)
       reservedCreditId = credit.id
+      step = 'submit'
       const buyArgs = { trade, buyer: session.address, signer: session.signer, credits: [credit], maxCreditedValue }
       let txHash: string | undefined
       if (gaslessEnabled()) {
         try {
           txHash = await buyGasless(buyArgs) // buyer confirms off-chain; relayer covers the fee
           await waitForSettlement(txHash)
+          usedGasless = true
         } catch (gaslessErr) {
           if (!(gaslessErr instanceof GaslessUnavailableError)) throw gaslessErr
           txHash = await buyWithCredits(buyArgs) // fallback: buyer submits
@@ -205,11 +220,22 @@ export function ItemDetail() {
         txHash = await buyWithCredits(buyArgs)
       }
       reservedCreditId = undefined // consumed by the buy
+      track('Shop Completed Purchase', {
+        ...purchaseItemsProps([cartItem]),
+        payment_type: 'credits',
+        no_crypto_step: usedGasless,
+        transaction_hash: txHash ?? null
+      })
       navigate('/success', { state: { items: [cartItem], txHash } })
     } catch (e) {
       console.error('[detail] buy now failed:', e)
       // Release the reserved dollars so the balance isn't stuck until the TTL (matches Cart/MarketCheckout).
       if (reservedCreditId) void cancelUsdIntents(session.identity, [reservedCreditId]).catch(() => {})
+      track(isUserRejection(e) ? 'Shop Purchase Cancelled' : 'Shop Purchase Failed', {
+        step,
+        error_code: errorCode(e),
+        value_usd: creditsToUsd(cartItem.priceCredits)
+      })
       setError(friendlyError(e))
       setStatus(null)
     } finally {

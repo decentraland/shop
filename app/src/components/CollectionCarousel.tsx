@@ -33,7 +33,7 @@ export function CollectionCarousel({
   if (items.length === 0) return null
 
   function quickAdd(item: CatalogItem) {
-    add(item)
+    add(item, 'carousel')
     toast.success(`“${item.name}” added to your cart.`)
   }
 

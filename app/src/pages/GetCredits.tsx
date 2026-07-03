@@ -3,8 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { CircularProgress } from 'decentraland-ui2'
 import { useWallet } from '~/store/wallet'
+import { config } from '~/config'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { CURRENCY, formatAmount } from '~/lib/currency'
+import { track, errorCode } from '~/lib/analytics'
 import {
   CREDIT_PACKS,
   createPackCheckout,
@@ -12,6 +14,9 @@ import {
   type CheckoutSession,
   type CreditPack
 } from '~/lib/payments'
+
+// Live Stripe when a shop-server is configured; otherwise the built-in mock (dev).
+const CREDITS_PROVIDER = config.shopServerUrl ? 'stripe' : 'mock'
 
 // Lazily loaded so the real Stripe SDK is only pulled in when a live key/backend exists;
 // the mock demo path never downloads it.
@@ -51,11 +56,13 @@ export function GetCredits() {
       setError(null)
       setSelected(pack)
       setPhase('paying')
+      track('Shop Started Buy Credits', { pack_usd: pack.usd, credits: pack.credits, provider: CREDITS_PROVIDER })
       try {
         const cs = await createPackCheckout(pack.id, { address: session.address, identity: session.identity })
         setCheckout(cs)
       } catch (e) {
         console.error(e)
+        track('Shop Buy Credits Failed', { step: 'checkout', error_code: errorCode(e), pack_usd: pack.usd })
         setError(friendlyError(e))
         setPhase('error')
       }
@@ -78,13 +85,21 @@ export function GetCredits() {
       if (result.status === 'credited') {
         setGranted(result.creditsGranted ?? selected?.credits ?? 0)
         setPhase('success')
+        track('Shop Completed Buy Credits', {
+          order_id: checkout.orderId,
+          pack_usd: selected?.usd ?? null,
+          credits: result.creditsGranted ?? selected?.credits ?? 0,
+          provider: CREDITS_PROVIDER
+        })
         void qc.invalidateQueries({ queryKey: ['usd-balance'] })
       } else {
+        track('Shop Buy Credits Failed', { step: 'grant', error_code: 'grant_failed', pack_usd: selected?.usd ?? null })
         setError(result.error ?? `Couldn't add your ${CURRENCY.name} — please try again.`)
         setPhase('error')
       }
     } catch (e) {
       console.error(e)
+      track('Shop Buy Credits Failed', { step: 'grant', error_code: errorCode(e), pack_usd: selected?.usd ?? null })
       setError(friendlyError(e))
       setPhase('error')
     }

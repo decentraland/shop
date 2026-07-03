@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { fetchListings, type ShopSort } from '~/lib/api'
 import { AssetCard } from '~/components/AssetCard'
 import { CURRENCY } from '~/lib/currency'
+import { track } from '~/lib/analytics'
 
 const CATEGORIES = [
   { key: 'wearable', label: 'Wearables', sub: ['Head', 'Upper Body', 'Handwear', 'Lower Body', 'Feet', 'Accessories', 'Skins'] },
@@ -69,6 +70,38 @@ export function Assets() {
   })
 
   const items = data?.items ?? []
+  const resultCount = data?.total ?? items.length
+
+  // Funnel: fire 'Shop Searched'/'Shop Applied Filter' once per change, AFTER results resolve so
+  // result_count is accurate (see design/SHOP_TRACKING_SPEC.md §5.2). Refs dedupe + skip the initial load.
+  const lastSearched = useRef<string | null>(null)
+  useEffect(() => {
+    if (isLoading || !q || lastSearched.current === q) return
+    lastSearched.current = q
+    track('Shop Searched', { query: q, result_count: resultCount })
+  }, [q, isLoading, resultCount])
+
+  const lastFilterSig = useRef<string>('__init__')
+  useEffect(() => {
+    if (isLoading) return
+    const sig = JSON.stringify({ category, subCategory, rarities, min, max, sort })
+    if (lastFilterSig.current === '__init__' || lastFilterSig.current === sig) {
+      lastFilterSig.current = sig
+      return
+    }
+    lastFilterSig.current = sig
+    track('Shop Applied Filter', {
+      filters: {
+        category,
+        sub_category: subCategory,
+        rarities,
+        min_price_credits: min ?? null,
+        max_price_credits: max ?? null,
+        sort
+      },
+      result_count: resultCount
+    })
+  }, [category, subCategory, rarities, min, max, sort, isLoading, resultCount])
 
   function pickCategory(key: string) {
     setCategory(key)

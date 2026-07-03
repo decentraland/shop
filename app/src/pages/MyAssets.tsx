@@ -11,6 +11,7 @@ import { toast } from '~/store/toast'
 import { SellModal } from '~/components/SellModal'
 import { PrimaryListModal } from '~/components/PrimaryListModal'
 import { CURRENCY } from '~/lib/currency'
+import { track } from '~/lib/analytics'
 import '~/styles/my-listings.css'
 
 // Owned NFT (secondary) → the CatalogItem shape ItemDetail seeds its preview from (carries tokenId).
@@ -243,6 +244,10 @@ export function MyAssets() {
                       className="btn btn--sm"
                       onClick={e => {
                         e.stopPropagation()
+                        track('Shop Started Listing', {
+                          listing_type: 'secondary',
+                          item_id: asset.itemId ?? asset.tokenId ?? null
+                        })
                         setSelling(asset)
                       }}
                     >
@@ -354,6 +359,7 @@ export function MyAssets() {
                         className="btn btn--sm btn--purple publish-card__cta"
                         onClick={e => {
                           e.stopPropagation()
+                          track('Shop Started Listing', { listing_type: 'primary', item_id: item.blockchainItemId })
                           setPublishing(item)
                         }}
                       >

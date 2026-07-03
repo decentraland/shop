@@ -8,6 +8,7 @@ import { fetchTrade, type CatalogItem, type LegacyListing } from '~/lib/api'
 import { manaWeiToUsdCents, type ManaRate } from '~/lib/mana-rate'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { CURRENCY, formatAmount } from '~/lib/currency'
+import { track, errorCode, isUserRejection } from '~/lib/analytics'
 import { authorizeUsdCredit, cancelUsdIntents } from '~/lib/credits'
 import { buyWithCredits } from '~/lib/buy'
 import { buyGasless, waitForSettlement, GaslessUnavailableError } from '~/lib/buy-gasless'
@@ -128,6 +129,11 @@ export function MarketCheckout({
       } catch (e) {
         if (cancelled) return
         console.error('[market] authorize failed', e)
+        track(isUserRejection(e) ? 'Shop Purchase Cancelled' : 'Shop Purchase Failed', {
+          step: 'authorize',
+          error_code: errorCode(e),
+          value_usd: Math.round(manaWeiToUsdCents(listing.manaWei, rate)) / 100
+        })
         setPhase('error')
         setError(friendlyError(e))
       }
@@ -156,6 +162,7 @@ export function MarketCheckout({
     }
     setPhase('working')
     setError(null)
+    let usedGasless = false
     try {
       setStatus('Confirming your purchase…')
       const buyArgs = {
@@ -170,6 +177,7 @@ export function MarketCheckout({
         try {
           txHash = await buyGasless(buyArgs) // buyer confirms off-chain; relayer covers the fee
           await waitForSettlement(txHash)
+          usedGasless = true
         } catch (gaslessErr) {
           if (!(gaslessErr instanceof GaslessUnavailableError)) throw gaslessErr
           txHash = await buyWithCredits(buyArgs) // fallback: buyer submits + pays gas
@@ -178,6 +186,23 @@ export function MarketCheckout({
         txHash = await buyWithCredits(buyArgs)
       }
       reservedCreditIdRef.current = null // consumed by the buy
+      track('Shop Completed Purchase', {
+        items: [
+          {
+            item_id: listing.itemId ?? null,
+            contract_address: listing.contractAddress,
+            token_id: null,
+            price_usd: locked.usdCents / 100
+          }
+        ],
+        value_credits: locked.credits,
+        value_usd: locked.usdCents / 100,
+        purchase_type: 'item', // legacy Market = primary public_item_order liquidity
+        is_primary: true,
+        payment_type: 'credits',
+        no_crypto_step: usedGasless,
+        transaction_hash: txHash ?? null
+      })
       void qc.invalidateQueries({ queryKey: ['usd-balance'] })
       navigate('/success', { state: { items: [toCatalogItem(listing)], txHash } })
     } catch (e) {
@@ -185,6 +210,11 @@ export function MarketCheckout({
       // Release the reserved dollars so the balance isn't stuck until the TTL.
       void cancelUsdIntents(session.identity, [locked.credit.id]).catch(() => {})
       reservedCreditIdRef.current = null
+      track(isUserRejection(e) ? 'Shop Purchase Cancelled' : 'Shop Purchase Failed', {
+        step: 'submit',
+        error_code: errorCode(e),
+        value_usd: locked.usdCents / 100
+      })
       void qc.invalidateQueries({ queryKey: ['usd-balance'] })
       const msg = friendlyError(e)
       setError(msg)

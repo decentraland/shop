@@ -10,6 +10,7 @@ import { toast } from '~/store/toast'
 import { config } from '~/config'
 import { CURRENCY } from '~/lib/currency'
 import { showsWalletConfirmations } from '~/lib/wallet-kind'
+import { track, errorCode } from '~/lib/analytics'
 
 const SIX_MONTHS_MS = 1000 * 60 * 60 * 24 * 182
 
@@ -98,11 +99,20 @@ export function PrimaryListModal({
 
       setStatus(null)
       setListedCredits(value) // already whole credits
+      track('Shop Listed Item', {
+        item_id: item.blockchainItemId,
+        contract_address: item.contractAddress,
+        price_credits: value,
+        price_usd: value / 10,
+        listing_type: 'primary',
+        is_primary: true
+      })
       toast.success(`“${item.name}” is now on sale!`)
       queryClient.invalidateQueries({ queryKey: ['publishable-items'] })
       queryClient.invalidateQueries({ queryKey: ['collection-sale-state'] })
     } catch (e) {
       console.error(e)
+      track('Shop Listing Failed', { listing_type: 'primary', error_code: errorCode(e) })
       setError(friendlyError(e))
       setStatus(null)
     } finally {

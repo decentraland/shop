@@ -152,7 +152,7 @@ export function AssetCard(props: AssetCardProps) {
           ) : (
             <button
               className={`card__cart${inCart ? ' is-in' : ''}`}
-              onClick={e => { e.stopPropagation(); add(item) }}
+              onClick={e => { e.stopPropagation(); add(item, 'grid') }}
               disabled={inCart}
             >
               <span className="ico ico-cart-solid card__cart-ico" aria-hidden />

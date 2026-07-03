@@ -4,6 +4,7 @@ import type { Session } from '~/lib/auth'
 import { importListing, type ImportItem } from '~/lib/import'
 import { CURRENCY } from '~/lib/currency'
 import { showsWalletConfirmations } from '~/lib/wallet-kind'
+import { track } from '~/lib/analytics'
 
 export type MigrateEntry = { item: ImportItem; priceCredits: number }
 type Status = 'pending' | 'active' | 'done' | 'skipped' | 'failed'
@@ -38,6 +39,12 @@ export function MigrateModal({
         setStatuses(s => s.map((v, idx) => (idx === i ? 'active' : v)))
         try {
           await importListing(queue[i].item, queue[i].priceCredits, session)
+          track('Shop Migrated Listing', {
+            item_id: queue[i].item.itemId ?? queue[i].item.oldTradeId ?? null,
+            contract_address: queue[i].item.contractAddress,
+            new_price_credits: queue[i].priceCredits,
+            new_price_usd: queue[i].priceCredits / 10
+          })
           if (!cancelled) setStatuses(s => s.map((v, idx) => (idx === i ? 'done' : v)))
         } catch (e) {
           const err = e as { code?: number; message?: string }
