@@ -219,17 +219,21 @@
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  border: 1px solid var(--line-strong);
+  border: 0;
   background: #fff;
   color: var(--text);
   font-size: 22px;
   line-height: 1;
   display: grid;
   place-items: center;
+  box-shadow: 0 6px 16px rgba(22, 21, 24, .16);
+  transition: transform .12s ease, box-shadow .12s ease;
 }
 .collection-carousel__arrow:hover {
-  background: var(--media);
+  transform: scale(1.06);
+  box-shadow: 0 8px 20px rgba(22, 21, 24, .2);
 }
+@media (prefers-reduced-motion: reduce) { .collection-carousel__arrow { transition: none; } }
 
 .collection-carousel__track {
   display: flex;

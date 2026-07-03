@@ -7,6 +7,12 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+    <!-- Warm the 3D item-preview pipeline so hover-to-preview feels instant: open connections to the
+         wearable-preview app + the content server it pulls assets from (both zone/dev and org/prod). -->
+    <link rel="preconnect" href="https://wearable-preview.decentraland.zone" />
+    <link rel="preconnect" href="https://wearable-preview.decentraland.org" />
+    <link rel="preconnect" href="https://peer.decentraland.zone" crossorigin />
+    <link rel="preconnect" href="https://peer.decentraland.org" crossorigin />
   </head>
   <body>
     <div id="root"></div>
