@@ -244,6 +244,78 @@ export async function fetchListings(
   return { items: listings.map(shopListingToItem), total }
 }
 
+// ---------------------------------------------------------------------------
+// Legacy catalog (v3) — the OLD classic MANA-priced liquidity. Surfaced in the Market tab so the
+// Shop is full at launch. These listings are priced in MANA (not USD-pegged) so their CREDIT price
+// FLUCTUATES with the market rate — the Market UI shows an "≈" (indicative) price and buys them via
+// Buy Now (direct checkout), never the cart. Same query params as fetchListings.
+// ---------------------------------------------------------------------------
+
+export type LegacyListing = {
+  tradeId: string
+  listingType: 'primary'
+  contractAddress: string
+  itemId: string
+  name: string
+  thumbnail: string
+  rarity: string
+  category: string
+  wearableCategory: string | null
+  creator: string
+  manaWei: string // 18-decimal MANA price → converted to (fluctuating) credits in the UI
+  available: number
+  network: string
+  chainId: number
+  createdAt: number
+}
+
+type LegacyListingRaw = Partial<LegacyListing> & {
+  tradeId: string
+  contractAddress: string
+  manaWei: string
+}
+
+function toLegacyListing(l: LegacyListingRaw): LegacyListing {
+  return {
+    tradeId: l.tradeId,
+    listingType: 'primary',
+    contractAddress: l.contractAddress,
+    itemId: l.itemId ?? '',
+    name: l.name ?? '',
+    thumbnail: l.thumbnail ?? '',
+    rarity: l.rarity ?? 'common',
+    category: l.category ?? 'wearable',
+    wearableCategory: l.wearableCategory ?? null,
+    creator: l.creator ?? '',
+    manaWei: l.manaWei,
+    available: l.available ?? 0,
+    network: l.network ?? 'MATIC',
+    chainId: l.chainId ?? config.chainId,
+    createdAt: l.createdAt ?? 0
+  }
+}
+
+// Legacy (classic MANA-priced) listings for the Market grid. Same server-side filtering/sort/search
+// as fetchListings, but against /v3/catalog/legacy. Prices are returned in MANA wei — the caller
+// converts to (fluctuating) credits with the live market rate (see lib/mana-rate).
+export async function fetchLegacyListings(
+  { first = 100, ...filters }: ShopListingFilters = {}
+): Promise<{ items: LegacyListing[]; total: number }> {
+  const qs = new URLSearchParams()
+  if (filters.category === 'wearable' || filters.category === 'emote') qs.set('category', filters.category)
+  qs.set('first', String(first))
+  if (filters.skip != null) qs.set('skip', String(filters.skip))
+  if (filters.rarities?.length) qs.set('rarity', filters.rarities.join(','))
+  if (filters.wearableCategories?.length) qs.set('wearableCategory', filters.wearableCategories.join(','))
+  if (filters.search) qs.set('search', filters.search)
+  if (filters.sortBy) qs.set('sortBy', filters.sortBy)
+  const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/legacy?${qs.toString()}`)
+  if (!res.ok) throw new Error(`fetchLegacyListings ${res.status}`)
+  const json = (await res.json()) as { data?: LegacyListingRaw[]; total?: number }
+  const data = json.data ?? []
+  return { items: data.map(toLegacyListing), total: json.total ?? data.length }
+}
+
 export type MyAsset = {
   id: string
   contractAddress: string
