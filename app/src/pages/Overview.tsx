@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { fetchListings, type CatalogItem } from '~/lib/api'
 import { AssetCard } from '~/components/AssetCard'
 import { FollowedCreatorsRow } from '~/components/FollowedCreatorsRow'
+import { RecentlyViewed } from '~/components/RecentlyViewed'
 
 function Row({ title, items, loading }: { title: string; items: CatalogItem[]; loading: boolean }) {
   return (
@@ -35,6 +36,7 @@ export function Overview() {
       </section>
 
       <FollowedCreatorsRow />
+      <RecentlyViewed />
 
       {isLoading || items.length > 0 ? (
         <>

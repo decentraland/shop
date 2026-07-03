@@ -18,6 +18,7 @@ import { CreatorBadge } from '~/components/CreatorBadge'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { CURRENCY } from '~/lib/currency'
 import { track, itemProps, purchaseItemsProps, errorCode, isUserRejection, creditsToUsd } from '~/lib/analytics'
+import { recordViewed } from '~/lib/recently-viewed'
 import './item-detail.css'
 
 function isValidRarity(r: string): r is Rarity {
@@ -165,6 +166,7 @@ export function ItemDetail() {
     if (!current.name || resolvingTrade || viewedRef.current === current.id) return
     viewedRef.current = current.id
     track('Shop Viewed Item', { ...itemProps(current), for_sale: forSale })
+    recordViewed(current)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current.id, current.name, resolvingTrade, forSale])
 
