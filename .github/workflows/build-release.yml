@@ -70,6 +70,8 @@ jobs:
         working-directory: app
         run: npm run build
         env:
+          # Serve assets from the versioned CDN path (cdn.decentraland.org/@dcl/shop/<version>/).
+          DEPLOY_CDN: 'true'
           # Point the built app at the zone (testnet) backends. Vite bakes VITE_* at build time.
           # NOTE: the Shop needs marketplace-server's /v3 endpoints + credits-server's USD credits
           # deployed to zone to be fully functional; until then the team sees the UI shell.

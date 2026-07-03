@@ -5,6 +5,8 @@ node_modules/
 dist/
 build/
 *.tsbuildinfo
+# Compiled from vite.config.ts by `tsc -b` — vite loads the .ts directly, the .js is a stray artifact.
+app/vite.config.js
 
 # Tests / coverage
 coverage/
