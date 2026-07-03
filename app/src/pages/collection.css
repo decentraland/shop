@@ -1,0 +1,42 @@
+/* Collection page (Group C — discovery). Reuses the shared .grid + .card tokens from index.css. */
+.collection-page {
+  max-width: 1721px;
+  margin: 0 auto;
+}
+
+.collection-page__crumbs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 18px;
+}
+.collection-page__crumb-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--muted);
+  cursor: pointer;
+}
+.collection-page__crumb-link:hover {
+  color: var(--text);
+}
+.collection-page__crumb-current {
+  color: var(--text);
+}
+
+.collection-page__head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 22px;
+}
+.collection-page__title {
+  font-size: 28px;
+  margin: 0;
+}
+.collection-page__count {
+  margin-left: auto;
+}

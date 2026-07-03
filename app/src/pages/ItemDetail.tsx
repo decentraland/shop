@@ -349,6 +349,7 @@ export function ItemDetail() {
         items={carouselItems}
         activeId={current.id}
         onSelect={selectSibling}
+        onViewAll={current.contractAddress ? () => navigate(`/collection/${current.contractAddress}`) : undefined}
       />
     </div>
   )

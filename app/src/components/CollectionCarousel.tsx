@@ -19,12 +19,15 @@ export function CollectionCarousel({
   title,
   items,
   activeId,
-  onSelect
+  onSelect,
+  onViewAll
 }: {
   title: string
   items: CatalogItem[]
   activeId?: string
   onSelect: (item: CatalogItem) => void
+  /** When set, shows a "View all" link (→ the full collection page). */
+  onViewAll?: () => void
 }) {
   const trackRef = useRef<HTMLDivElement>(null)
   const add = useCart(s => s.add)
@@ -47,7 +50,13 @@ export function CollectionCarousel({
     <section className="collection-carousel">
       <div className="collection-carousel__head">
         <h2 className="collection-carousel__title">{title}</h2>
-        <div className="collection-carousel__arrows">
+        <div className="collection-carousel__head-right">
+          {onViewAll ? (
+            <button className="collection-carousel__viewall" onClick={onViewAll}>
+              View all
+            </button>
+          ) : null}
+          <div className="collection-carousel__arrows">
           <button
             className="collection-carousel__arrow"
             onClick={() => scrollBy(-1)}
@@ -62,6 +71,7 @@ export function CollectionCarousel({
           >
             ›
           </button>
+          </div>
         </div>
       </div>
 

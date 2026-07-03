@@ -211,6 +211,24 @@
   font-weight: 600;
   color: var(--text);
 }
+.collection-carousel__head-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.collection-carousel__viewall {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.collection-carousel__viewall:hover {
+  text-decoration: underline;
+}
 .collection-carousel__arrows {
   display: flex;
   gap: 10px;

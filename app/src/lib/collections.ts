@@ -32,8 +32,8 @@ type RawCollectionItem = {
 function toCredits(price?: string | null): number {
   if (!price) return 0
   try {
-    // Floor so the displayed price never exceeds what checkout charges (matches lib/api.ts).
-    return Math.floor(Number(ethers.utils.formatEther(price)) * 10)
+    // Whole credits, rounded UP to match the charge (Model B — kept in sync with lib/api.ts's toCredits).
+    return Math.ceil(Number(ethers.utils.formatEther(price)) * 10)
   } catch {
     return 0
   }

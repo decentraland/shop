@@ -26,6 +26,7 @@ const PAGE_NAMES: Record<string, string> = {
 const Assets = lazy(() => import('~/pages/Assets').then(m => ({ default: m.Assets })))
 const Market = lazy(() => import('~/pages/Market').then(m => ({ default: m.Market })))
 const ItemDetail = lazy(() => import('~/pages/ItemDetail').then(m => ({ default: m.ItemDetail })))
+const Collection = lazy(() => import('~/pages/Collection').then(m => ({ default: m.Collection })))
 const MyAssets = lazy(() => import('~/pages/MyAssets').then(m => ({ default: m.MyAssets })))
 const MyFavorites = lazy(() => import('~/pages/MyFavorites').then(m => ({ default: m.MyFavorites })))
 const MyPurchases = lazy(() => import('~/pages/MyPurchases').then(m => ({ default: m.MyPurchases })))
@@ -54,7 +55,9 @@ export function App() {
   }, [])
   useEffect(() => {
     const path = location.pathname
-    const page = PAGE_NAMES[path] ?? (path.startsWith('/item/') ? 'item' : 'other')
+    const page =
+      PAGE_NAMES[path] ??
+      (path.startsWith('/item/') ? 'item' : path.startsWith('/collection/') ? 'collection' : 'other')
     trackPage(page)
   }, [location.pathname])
 
@@ -71,6 +74,7 @@ export function App() {
             <Route path="/assets" element={<Assets />} />
             <Route path="/market" element={<Market />} />
             <Route path="/item/:contractAddress/:tokenId" element={<ItemDetail />} />
+            <Route path="/collection/:contractAddress" element={<Collection />} />
             <Route path="/my-assets" element={<MyAssets />} />
             <Route path="/my-favorites" element={<MyFavorites />} />
             <Route path="/my-purchases" element={<MyPurchases />} />
