@@ -46,6 +46,25 @@ export default defineConfig({
       { find: /^@0xsquid\/sdk$/, replacement: fileURLToPath(new URL('./src/stubs/squid.ts', import.meta.url)) }
     ]
   },
+  build: {
+    chunkSizeWarningLimit: 900,
+    rollupOptions: {
+      output: {
+        // Split the heaviest vendors into their own cacheable chunks so they download in parallel
+        // with (and stay cached across) the app code, instead of one ~2MB entry blob. Routes are
+        // additionally lazy-loaded in App.tsx, and WearablePreview via LazyWearablePreview.
+        manualChunks(id: string) {
+          if (!id.includes('node_modules')) return undefined
+          if (/[\\/]node_modules[\\/](react|react-dom|react-router|react-router-dom|scheduler)[\\/]/.test(id)) return 'react'
+          if (/[\\/]node_modules[\\/](ethers|@ethersproject)[\\/]/.test(id)) return 'ethers'
+          // Let rollup split @mui/@emotion/decentraland-ui2 naturally: the heavy MUI lives in the
+          // (dynamic) wallet-modal + lazy-route chunks, so forcing it all into one eager chunk would
+          // drag the whole thing in for any tiny eager use.
+          return undefined
+        }
+      }
+    }
+  },
   server: {
     port: 5173,
     // Proxy the auth app so sign-in works on localhost (same-origin → shared identity storage).
@@ -59,6 +78,4 @@ export default defineConfig({
       }
     }
   }
-  // TODO (perf): decentraland-ui2 makes the main chunk large (~1.9MB). Code-split via
-  // build.rollupOptions.output.manualChunks (split ui2 / connect / wallets) + lazy-load WearablePreview.
 })

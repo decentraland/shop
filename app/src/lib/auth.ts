@@ -1,5 +1,4 @@
 import { ethers } from 'ethers'
-import { connection } from 'decentraland-connect'
 import { ChainId, ProviderType } from '@dcl/schemas'
 import { Authenticator, type AuthIdentity } from '@dcl/crypto'
 import { localStorageGetIdentity, localStorageStoreIdentity } from '@dcl/single-sign-on-client'
@@ -7,6 +6,13 @@ import { config } from '~/config'
 
 // ~31 days, same as the legacy marketplace webapp.
 const IDENTITY_EXPIRATION_MINUTES = 31 * 24 * 60
+
+// decentraland-connect drags in the whole wallet-modal stack (@reown/appkit, coinbase, magic, ...),
+// which pulls @mui/@emotion. Load it on demand so none of that lands in the initial bundle — it's
+// only needed to (re)connect, sign in, or sign out, all of which are already async.
+async function getConnection() {
+  return (await import('decentraland-connect')).connection
+}
 
 export type Session = {
   address: string
@@ -49,6 +55,7 @@ async function toSession(res: {
 }
 
 export async function login(providerType: ProviderType = ProviderType.INJECTED): Promise<Session> {
+  const connection = await getConnection()
   const res = await connection.connect(providerType, config.chainId as ChainId)
   return toSession(res)
 }
@@ -61,6 +68,7 @@ export function signInRedirect(): void {
 
 export async function restoreSession(): Promise<Session | null> {
   try {
+    const connection = await getConnection()
     const res = await connection.tryPreviousConnection()
     if (!res.account || !localStorageGetIdentity(res.account.toLowerCase())) return null
     return await toSession(res)
@@ -71,6 +79,7 @@ export async function restoreSession(): Promise<Session | null> {
 
 export async function logout(): Promise<void> {
   try {
+    const connection = await getConnection()
     await connection.disconnect()
   } catch {
     // ignore

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
-import { Navbar } from 'decentraland-ui2'
+import { TopNav } from '~/components/TopNav'
 import { useWallet } from '~/store/wallet'
 import { useProfile } from '~/hooks/useProfile'
 import { useBalance } from '~/hooks/useBalance'
@@ -35,7 +35,7 @@ export function NavBar() {
 
   return (
     <>
-      <Navbar
+      <TopNav
         activePage="shop"
         isSignedIn={!!session}
         isSigningIn={connecting}

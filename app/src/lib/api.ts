@@ -1,7 +1,6 @@
 import { ethers } from 'ethers'
 import type { AuthIdentity } from '@dcl/crypto'
 import { TradeAssetType, type Trade, type TradeCreation } from '@dcl/schemas'
-import { TradeService } from 'decentraland-dapps/dist/modules/trades/TradeService'
 import { config } from '~/config'
 
 const NFT_V1 = `${config.nftApiUrl}/v1`
@@ -320,6 +319,9 @@ const API_SIGNER = 'dcl:marketplace'
 // Posts an already-signed TradeCreation. Reuses decentraland-dapps' TradeService only for the
 // authenticated POST (auth-chain headers, intent dcl:create-trade) — the signing is ours.
 export async function postTrade(trade: TradeCreation, identity: AuthIdentity) {
+  // Loaded on demand (only when creating a listing) — decentraland-dapps drags in ui2/@mui via its
+  // lib barrel, so keeping it dynamic keeps that weight out of the browse/initial bundle.
+  const { TradeService } = await import('decentraland-dapps/dist/modules/trades/TradeService')
   const service = new TradeService(API_SIGNER, config.marketplaceServerUrl, () => identity)
   return service.addTrade(trade)
 }
