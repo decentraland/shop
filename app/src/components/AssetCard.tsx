@@ -5,9 +5,13 @@ import { config } from '~/config'
 import { useCart } from '~/store/cart'
 import { useFavorites } from '~/store/favorites'
 import { CreatorBadge } from '~/components/CreatorBadge'
+import { rarityColor, readableText } from '~/lib/rarity'
 import type { CatalogItem } from '~/lib/api'
 
 const HOVER_DELAY_MS = 120
+// Keep the preview shimmer on briefly after onLoad so the iframe's own cross-origin spinner never
+// flashes ("shimmer then spinner" double-load fix, mirrors the reskin).
+const PREVIEW_GRACE_MS = 600
 
 function genderGlyph(gender: CatalogItem['gender']): string {
   if (gender === 'male') return '♂'
@@ -20,6 +24,7 @@ export function AssetCard({ item }: { item: CatalogItem }) {
   const [hovered, setHovered] = useState(false)
   const [previewReady, setPreviewReady] = useState(false)
   const timer = useRef<ReturnType<typeof setTimeout>>()
+  const graceTimer = useRef<ReturnType<typeof setTimeout>>()
 
   const add = useCart(s => s.add)
   const inCart = useCart(s => s.items.some(i => i.id === item.id))
@@ -40,13 +45,19 @@ export function AssetCard({ item }: { item: CatalogItem }) {
 
   function onEnter() {
     if (timer.current) clearTimeout(timer.current)
+    if (graceTimer.current) clearTimeout(graceTimer.current)
     setPreviewReady(false)
     timer.current = setTimeout(() => setHovered(true), HOVER_DELAY_MS)
   }
   function onLeave() {
     if (timer.current) clearTimeout(timer.current)
+    if (graceTimer.current) clearTimeout(graceTimer.current)
     setHovered(false)
     setPreviewReady(false)
+  }
+  function onPreviewLoad() {
+    if (graceTimer.current) clearTimeout(graceTimer.current)
+    graceTimer.current = setTimeout(() => setPreviewReady(true), PREVIEW_GRACE_MS)
   }
 
   const gender = genderGlyph(item.gender)
@@ -82,7 +93,7 @@ export function AssetCard({ item }: { item: CatalogItem }) {
         ) : null}
         {hovered && canPreview ? (
           <div className="card__preview">
-            {!previewReady ? <span className="spinner card__preview-spin" aria-hidden /> : null}
+            {!previewReady ? <span className="card__preview-skel" aria-hidden /> : null}
             <WearablePreview
               contractAddress={item.contractAddress}
               itemId={item.itemId ?? undefined}
@@ -90,10 +101,20 @@ export function AssetCard({ item }: { item: CatalogItem }) {
               dev={config.chainId === 80002}
               disableBackground
               disableFadeEffect
-              onLoad={() => setPreviewReady(true)}
+              onLoad={onPreviewLoad}
             />
           </div>
         ) : null}
+
+        {/* Add-to-cart lives over the media and slides up on hover (see .card__cart). */}
+        <button
+          className={`card__cart${inCart ? ' is-in' : ''}`}
+          onClick={e => { e.stopPropagation(); add(item) }}
+          disabled={inCart}
+        >
+          <span className="ico ico-cart-solid card__cart-ico" aria-hidden />
+          {inCart ? 'IN CART' : 'ADD TO CART'}
+        </button>
       </div>
 
       <div className="card__body">
@@ -104,26 +125,24 @@ export function AssetCard({ item }: { item: CatalogItem }) {
           <div className="card__creator">&nbsp;</div>
         )}
 
-        {hovered ? (
-          <button className="card__cart" onClick={e => { e.stopPropagation(); add(item) }} disabled={inCart}>
-            <span className="ico ico-cart-solid card__cart-ico" aria-hidden />
-            {inCart ? 'IN CART' : 'ADD TO CART'}
-          </button>
-        ) : (
-          <div className="card__meta">
-            <div className="card__price">
-              <span className="ico ico-credits card__diamond" aria-hidden />
-              {item.priceCredits}
-            </div>
-            <div className="card__chips">
-              <span className="chip chip--rarity">{item.rarity}</span>
-              {item.category === 'wearable' ? (
-                <span className="chip chip--icon"><span className="ico ico-eyewear" aria-hidden /></span>
-              ) : null}
-              {gender ? <span className="chip chip--icon">{gender}</span> : null}
-            </div>
+        <div className="card__meta">
+          <div className="card__price">
+            <span className="ico ico-credits card__diamond" aria-hidden />
+            {item.priceCredits}
           </div>
-        )}
+          <div className="card__chips">
+            <span
+              className="chip chip--rarity"
+              style={{ background: rarityColor(item.rarity), color: readableText(rarityColor(item.rarity)) }}
+            >
+              {item.rarity}
+            </span>
+            {item.category === 'wearable' ? (
+              <span className="chip chip--icon"><span className="ico ico-eyewear" aria-hidden /></span>
+            ) : null}
+            {gender ? <span className="chip chip--icon">{gender}</span> : null}
+          </div>
+        </div>
       </div>
     </article>
   )
