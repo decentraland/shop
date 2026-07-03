@@ -33,7 +33,7 @@ export function PrimaryListModal({
 }) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
-  const [price, setPrice] = useState('1')
+  const [price, setPrice] = useState('10') // whole credits
   const [status, setStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -65,8 +65,8 @@ export function PrimaryListModal({
   async function publish() {
     setError(null)
     const value = Number(price)
-    if (!value || value <= 0) {
-      setError('Enter a valid price')
+    if (!Number.isInteger(value) || value <= 0) {
+      setError('Enter a whole number of credits')
       return
     }
     setBusy(true)
@@ -88,7 +88,7 @@ export function PrimaryListModal({
           network: Network.MATIC,
           chainId
         },
-        usdPrice: value,
+        usdPrice: value / 10, // credits → USD (1 credit = $0.10)
         uses: item.remainingSupply,
         expiresAtMs: Date.now() + SIX_MONTHS_MS
       })
@@ -97,7 +97,7 @@ export function PrimaryListModal({
       await postTrade(trade, session.identity)
 
       setStatus(null)
-      setListedCredits(Math.round(value * 10)) // 1 credit = $0.10
+      setListedCredits(value) // already whole credits
       toast.success(`“${item.name}” is now on sale!`)
       queryClient.invalidateQueries({ queryKey: ['publishable-items'] })
       queryClient.invalidateQueries({ queryKey: ['collection-sale-state'] })
@@ -153,17 +153,17 @@ export function PrimaryListModal({
         </p>
 
         <label className="field">
-          <span>Price (USD)</span>
+          <span>Price ({CURRENCY.name})</span>
           <input
             type="number"
-            min="0"
-            step="0.01"
+            min="1"
+            step="1"
             value={price}
             onChange={e => setPrice(e.target.value)}
             disabled={busy}
           />
         </label>
-        <p className="muted small">Priced in USD. Buyers pay with {CURRENCY.name}.</p>
+        <p className="muted small">Priced in whole {CURRENCY.name} (1 {CURRENCY.nameSingular} = $0.10).</p>
 
         {enabled === false && !busy ? (
           showsConfirmations ? (

@@ -93,10 +93,11 @@ describe('when a connected user lists one of their assets', () => {
     const dialog = await screen.findByRole('dialog')
     const price = within(dialog).getByLabelText(/price/i)
     await user.clear(price)
-    await user.type(price, '5')
+    await user.type(price, '50') // 50 whole credits = $5.00
     await user.click(within(dialog).getByRole('button', { name: /list for sale/i }))
 
     expect(await within(dialog).findByText(/on sale!/i)).toBeInTheDocument()
+    expect(within(dialog).getByText(/50/)).toBeInTheDocument() // listed for ◈ 50
     expect(ensureApproval).toHaveBeenCalledTimes(1)
     expect(createUsdPeggedListing).toHaveBeenCalledWith(
       expect.objectContaining({

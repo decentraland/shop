@@ -23,7 +23,7 @@ function friendlyError(e: unknown): string {
 export function SellModal({ asset, session, onClose }: { asset: MyAsset; session: Session; onClose: () => void }) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
-  const [price, setPrice] = useState('1')
+  const [price, setPrice] = useState('10') // whole credits
   const [status, setStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -32,8 +32,8 @@ export function SellModal({ asset, session, onClose }: { asset: MyAsset; session
   async function list() {
     setError(null)
     const value = Number(price)
-    if (!value || value <= 0) {
-      setError('Enter a valid price')
+    if (!Number.isInteger(value) || value <= 0) {
+      setError('Enter a whole number of credits')
       return
     }
     setBusy(true)
@@ -50,7 +50,7 @@ export function SellModal({ asset, session, onClose }: { asset: MyAsset; session
           network: asset.network as Network,
           chainId: asset.chainId as ChainId
         },
-        usdPrice: value,
+        usdPrice: value / 10, // credits → USD (1 credit = $0.10)
         expiresAtMs: Date.now() + SIX_MONTHS_MS
       })
 
@@ -58,7 +58,7 @@ export function SellModal({ asset, session, onClose }: { asset: MyAsset; session
       await postTrade(trade, session.identity)
 
       setStatus(null)
-      setListedCredits(Math.round(value * 10)) // 1 credit = $0.10
+      setListedCredits(value) // already whole credits
       toast.success(`“${asset.name}” is now on sale!`)
       queryClient.invalidateQueries({ queryKey: ['my-assets', session.address] })
     } catch (e) {
@@ -106,10 +106,10 @@ export function SellModal({ asset, session, onClose }: { asset: MyAsset; session
         {asset.image ? <img className="modal__img" src={asset.image} alt={asset.name} /> : null}
 
         <label className="field">
-          <span>Price (USD)</span>
-          <input type="number" min="0" step="0.01" value={price} onChange={e => setPrice(e.target.value)} disabled={busy} />
+          <span>Price ({CURRENCY.name})</span>
+          <input type="number" min="1" step="1" value={price} onChange={e => setPrice(e.target.value)} disabled={busy} />
         </label>
-        <p className="muted small">Priced in USD. Buyers pay with {CURRENCY.name}.</p>
+        <p className="muted small">Priced in whole {CURRENCY.name} (1 {CURRENCY.nameSingular} = $0.10).</p>
 
         {status ? <p className="muted">{status}</p> : null}
         {error ? <p className="error">{error}</p> : null}

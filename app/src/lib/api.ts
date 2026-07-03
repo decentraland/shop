@@ -50,10 +50,13 @@ type RawCatalogItem = {
 
 // USD-pegged listing price (USD wei, 1e18 = $1) → fixed credits (1 credit = $0.10), so $1 = 10 credits.
 // Floor (not round) so the displayed price never exceeds what checkout actually charges.
+// USD-pegged price (USD wei) → whole credits (1 credit = $0.10), rounded UP so the shown price
+// matches what the buyer is charged (the server rounds the charge up to a whole credit too — see
+// design/DECISIONS.md "Model B"). Credits are always whole.
 function toCredits(price?: string | null): number {
   if (!price) return 0
   try {
-    return Math.floor(Number(ethers.utils.formatEther(price)) * 10)
+    return Math.ceil(Number(ethers.utils.formatEther(price)) * 10)
   } catch {
     return 0
   }
