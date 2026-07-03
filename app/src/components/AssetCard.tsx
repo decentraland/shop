@@ -92,18 +92,23 @@ export function AssetCard({ item }: { item: CatalogItem }) {
           />
         ) : null}
         {hovered && canPreview ? (
-          <div className="card__preview">
-            {!previewReady ? <span className="card__preview-skel" aria-hidden /> : null}
-            <WearablePreview
-              contractAddress={item.contractAddress}
-              itemId={item.itemId ?? undefined}
-              profile="default"
-              dev={config.chainId === 80002}
-              disableBackground
-              disableFadeEffect
-              onLoad={onPreviewLoad}
-            />
-          </div>
+          <>
+            <div className={`card__preview${previewReady ? ' is-ready' : ''}`}>
+              {!previewReady ? <span className="card__preview-skel" aria-hidden /> : null}
+              <WearablePreview
+                contractAddress={item.contractAddress}
+                itemId={item.itemId ?? undefined}
+                profile="default"
+                dev={config.chainId === 80002}
+                disableBackground
+                disableFadeEffect
+                onLoad={onPreviewLoad}
+              />
+            </div>
+            {/* Transparent shield over the preview: it becomes the hover target so the cross-origin
+                iframe never shows its internal content-URL tooltip. Clicks bubble up to open detail. */}
+            <span className="card__preview-shield" aria-hidden />
+          </>
         ) : null}
 
         {/* Add-to-cart lives over the media and slides up on hover (see .card__cart). */}

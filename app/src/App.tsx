@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { NavBar } from '~/components/NavBar'
 import { Toaster } from '~/components/Toaster'
+import { PreviewWarmer } from '~/components/PreviewWarmer'
 import { Overview } from '~/pages/Overview'
 import { Assets } from '~/pages/Assets'
 import { MyAssets } from '~/pages/MyAssets'
@@ -16,6 +17,7 @@ export function App() {
   return (
     <>
       <Toaster />
+      <PreviewWarmer />
       <NavBar />
       <main className="page">
         <Routes>
