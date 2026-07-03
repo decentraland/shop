@@ -10,7 +10,7 @@ import { fetchShopListingForItem, fetchTrade, fetchTradeForItem, usdWeiToCents, 
 import { buyWithCredits } from '~/lib/buy'
 import { buyGasless, waitForSettlement, GaslessUnavailableError } from '~/lib/buy-gasless'
 import { gaslessEnabled } from '~/lib/gasless-config'
-import { authorizeUsdCredit } from '~/lib/credits'
+import { authorizeUsdCredit, cancelUsdIntents } from '~/lib/credits'
 import { fetchCollectionItems } from '~/lib/collections'
 import { ItemPreview } from '~/components/ItemPreview'
 import { CollectionCarousel } from '~/components/CollectionCarousel'
@@ -182,6 +182,7 @@ export function ItemDetail() {
     }
     setError(null)
     setBusy(true)
+    let reservedCreditId: string | undefined
     try {
       setStatus(`Buying ${current.name || 'item'}…`)
       const trade = await fetchTrade(buyableTradeId)
@@ -189,6 +190,7 @@ export function ItemDetail() {
       const priceAsset = trade.received?.[0] as { amount?: string } | undefined
       const usdCents = usdWeiToCents(priceAsset?.amount)
       const { credit, maxCreditedValue } = await authorizeUsdCredit(session.identity, usdCents, buyableTradeId)
+      reservedCreditId = credit.id
       const buyArgs = { trade, buyer: session.address, signer: session.signer, credits: [credit], maxCreditedValue }
       let txHash: string | undefined
       if (gaslessEnabled()) {
@@ -202,9 +204,12 @@ export function ItemDetail() {
       } else {
         txHash = await buyWithCredits(buyArgs)
       }
+      reservedCreditId = undefined // consumed by the buy
       navigate('/success', { state: { items: [cartItem], txHash } })
     } catch (e) {
       console.error('[detail] buy now failed:', e)
+      // Release the reserved dollars so the balance isn't stuck until the TTL (matches Cart/MarketCheckout).
+      if (reservedCreditId) void cancelUsdIntents(session.identity, [reservedCreditId]).catch(() => {})
       setError(friendlyError(e))
       setStatus(null)
     } finally {

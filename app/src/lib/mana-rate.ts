@@ -44,13 +44,14 @@ export function manaWeiToUsdWei(manaWei: string, { rate, decimals }: ManaRate): 
 }
 
 // MANA wei → credits (1 credit = $0.10), rounded UP so the shown price never sits BELOW what
-// checkout charges at the display rate, floored at 1 credit. BigInt throughout to avoid float drift.
-export function manaWeiToCredits(manaWei: string, rate: ManaRate): number {
+// checkout charges at the display rate, floored at 1 credit. Returns null on a malformed manaWei so
+// the UI can show "price unavailable" instead of a fake "1 credit". BigInt throughout (no float drift).
+export function manaWeiToCredits(manaWei: string, rate: ManaRate): number | null {
   let usdWei: bigint
   try {
     usdWei = manaWeiToUsdWei(manaWei, rate)
   } catch {
-    return 1
+    return null
   }
   const whole = usdWei / USD_WEI_PER_CREDIT
   const credits = usdWei % USD_WEI_PER_CREDIT > 0n ? whole + 1n : whole

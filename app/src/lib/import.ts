@@ -48,7 +48,8 @@ export async function fetchImportable(seller: string): Promise<{ creations: Impo
 
   const chainId = listings[0].chainId || config.chainId
   const rate = await readManaUsdRate(chainId)
-  const items: ImportItem[] = listings.map(l => ({ ...l, suggestedCredits: manaWeiToCredits(l.manaWei, rate) }))
+  // Fall back to 1 for a malformed manaWei — this is only a suggested starting price the creator edits.
+  const items: ImportItem[] = listings.map(l => ({ ...l, suggestedCredits: manaWeiToCredits(l.manaWei, rate) ?? 1 }))
 
   return {
     creations: items.filter(i => i.listingType === 'primary'),

@@ -13,8 +13,7 @@ import { ProviderType } from '@dcl/schemas'
  * jargon, so this is an ALLOWLIST: anything not explicitly self-custody is treated as managed. That
  * way a new provider can't accidentally leak MetaMask-style wording.
  *
- * Rule: never hardcode wallet-specific copy inline — gate it through `showsWalletConfirmations`
- * (or the `useShowsWalletConfirmations` hook).
+ * Rule: never hardcode wallet-specific copy inline — gate it through `showsWalletConfirmations`.
  */
 const SELF_CUSTODY_PROVIDERS: ReadonlySet<ProviderType> = new Set([
   ProviderType.INJECTED,
