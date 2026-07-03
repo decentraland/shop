@@ -9,6 +9,7 @@ import { createPrimaryUsdPeggedListing, ensureMinter, isMarketplaceMinter } from
 import { toast } from '~/store/toast'
 import { config } from '~/config'
 import { CURRENCY } from '~/lib/currency'
+import { showsWalletConfirmations } from '~/lib/wallet-kind'
 
 const SIX_MONTHS_MS = 1000 * 60 * 60 * 24 * 182
 
@@ -42,6 +43,9 @@ export function PrimaryListModal({
   const [listedCredits, setListedCredits] = useState<number | null>(null)
 
   const chainId = config.chainId as ChainId
+  // Self-custody wallets pop approvals/confirmations; managed wallets (Magic, thirdweb) don't — gate
+  // the wallet-flow wording so managed users never see MetaMask-style "two confirmations" copy.
+  const showsConfirmations = showsWalletConfirmations(session.providerType)
 
   useEffect(() => {
     let cancelled = false
@@ -162,12 +166,23 @@ export function PrimaryListModal({
         <p className="muted small">Priced in USD. Buyers pay with {CURRENCY.name}.</p>
 
         {enabled === false && !busy ? (
-          <p className="muted small primary-note">
-            First time selling from “{item.collectionName}”? It needs a one-time approval, then you’ll confirm the
-            listing — two quick confirmations. After this, listing more items from this collection is a single step.
-          </p>
+          showsConfirmations ? (
+            <p className="muted small primary-note">
+              First time selling from “{item.collectionName}”? It needs a one-time approval, then you’ll confirm the
+              listing — two quick confirmations. After this, listing more items from this collection is a single step.
+            </p>
+          ) : (
+            <p className="muted small primary-note">
+              First time selling from “{item.collectionName}”? Setting it up takes a moment — after that, listing
+              more items from this collection is instant.
+            </p>
+          )
         ) : enabled === true && !busy ? (
-          <p className="muted small primary-note">This collection is ready — publishing is a single confirmation.</p>
+          showsConfirmations ? (
+            <p className="muted small primary-note">This collection is ready — publishing is a single confirmation.</p>
+          ) : (
+            <p className="muted small primary-note">This collection is ready — publishing is instant.</p>
+          )
         ) : null}
 
         {status ? <p className="muted">{status}</p> : null}

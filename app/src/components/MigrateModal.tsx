@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import type { Session } from '~/lib/auth'
 import { importListing, type ImportItem } from '~/lib/import'
 import { CURRENCY } from '~/lib/currency'
+import { showsWalletConfirmations } from '~/lib/wallet-kind'
 
 export type MigrateEntry = { item: ImportItem; priceCredits: number }
 type Status = 'pending' | 'active' | 'done' | 'skipped' | 'failed'
@@ -21,6 +22,7 @@ export function MigrateModal({
   onDone: () => void
 }) {
   const navigate = useNavigate()
+  const showsConfirmations = showsWalletConfirmations(session.providerType)
   const [statuses, setStatuses] = useState<Status[]>(() => queue.map(() => 'pending'))
   const [phase, setPhase] = useState<'running' | 'finished'>('running')
   const started = useRef(false)
@@ -99,7 +101,8 @@ export function MigrateModal({
       <div className="modal migrate" role="dialog" aria-modal="true" aria-live="polite">
         <h2 className="modal__title">Listing your items</h2>
         <p className="muted small" style={{ margin: '0 0 4px' }}>
-          Confirm each item to add it to the Shop. {activeIndex >= 0 ? `${activeIndex + 1} of ${queue.length}` : ''}
+          {showsConfirmations ? 'Confirm each item to add it to the Shop.' : 'Adding your items to the Shop.'}{' '}
+          {activeIndex >= 0 ? `${activeIndex + 1} of ${queue.length}` : ''}
         </p>
 
         <div className="migrate__progress"><div className="migrate__bar" style={{ width: `${progress}%` }} /></div>
@@ -114,7 +117,7 @@ export function MigrateModal({
               <span className="migrate__price">{CURRENCY.symbol} {entry.priceCredits.toLocaleString()}</span>
               <span className="migrate__status">
                 {statuses[i] === 'active' ? (
-                  <><span className="spinner migrate__spin" aria-hidden /> Confirm…</>
+                  <><span className="spinner migrate__spin" aria-hidden /> {showsConfirmations ? 'Confirm…' : 'Adding…'}</>
                 ) : statuses[i] === 'done' ? (
                   <span className="migrate__tick">✓</span>
                 ) : statuses[i] === 'skipped' ? (
@@ -129,7 +132,11 @@ export function MigrateModal({
           ))}
         </ul>
 
-        <p className="muted small migrate__hint">A quick confirmation pops up for each item. Keep this open.</p>
+        <p className="muted small migrate__hint">
+          {showsConfirmations
+            ? 'A quick confirmation pops up for each item. Keep this open.'
+            : 'This only takes a moment — keep this open.'}
+        </p>
       </div>
     </div>
   )
