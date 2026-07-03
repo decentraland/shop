@@ -7,6 +7,7 @@ import type { MyAsset } from '~/lib/api'
 import { postTrade } from '~/lib/api'
 import { createUsdPeggedListing, ensureApproval } from '~/lib/trades'
 import { toast } from '~/store/toast'
+import { CURRENCY } from '~/lib/currency'
 
 const SIX_MONTHS_MS = 1000 * 60 * 60 * 24 * 182
 
@@ -83,7 +84,7 @@ export function SellModal({ asset, session, onClose }: { asset: MyAsset; session
           {asset.image ? <img className="modal__img" src={asset.image} alt={asset.name} /> : null}
           <p className="modal-success__name">{asset.name}</p>
           <p className="muted small">
-            Listed for <strong>◈ {listedCredits}</strong>
+            Listed for <strong>{CURRENCY.symbol} {listedCredits}</strong>
           </p>
           <div className="modal__actions">
             <button className="btn btn--ghost" onClick={onClose}>
@@ -108,7 +109,7 @@ export function SellModal({ asset, session, onClose }: { asset: MyAsset; session
           <span>Price (USD)</span>
           <input type="number" min="0" step="0.01" value={price} onChange={e => setPrice(e.target.value)} disabled={busy} />
         </label>
-        <p className="muted small">Priced in USD. Buyers pay with credits.</p>
+        <p className="muted small">Priced in USD. Buyers pay with {CURRENCY.name}.</p>
 
         {status ? <p className="muted">{status}</p> : null}
         {error ? <p className="error">{error}</p> : null}

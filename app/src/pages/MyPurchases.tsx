@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useWallet } from '~/store/wallet'
 import { fetchUserPurchases, type PurchaseRecord } from '~/lib/credits'
 import { fetchTradeDisplay } from '~/lib/api'
+import { CURRENCY } from '~/lib/currency'
 
 function formatDate(ms: number): string {
   try {
@@ -39,7 +40,7 @@ function PurchaseRow({ purchase }: { purchase: PurchaseRecord }) {
         <div className="muted purchase__date">{formatDate(purchase.createdAt)}</div>
       </div>
       <StatusBadge status={purchase.status} />
-      <div className="purchase__price">◈ {purchase.credits}</div>
+      <div className="purchase__price">{CURRENCY.symbol} {purchase.credits}</div>
     </>
   )
 

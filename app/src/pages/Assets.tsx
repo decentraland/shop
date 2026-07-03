@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { fetchListings, type ShopSort } from '~/lib/api'
 import { AssetCard } from '~/components/AssetCard'
+import { CURRENCY } from '~/lib/currency'
 
 const CATEGORIES = [
   { key: 'wearable', label: 'Wearables', sub: ['Head', 'Upper Body', 'Handwear', 'Lower Body', 'Feet', 'Accessories', 'Skins'] },
@@ -164,7 +165,7 @@ export function Assets() {
                   <span>–</span>
                   <input type="number" min="0" placeholder="Max" value={priceMax} onChange={e => setPriceMax(e.target.value)} />
                 </div>
-                <p className="filter-pop__hint">Price in credits</p>
+                <p className="filter-pop__hint">Price in {CURRENCY.name}</p>
               </div>
             ) : null}
           </div>

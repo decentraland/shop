@@ -8,6 +8,7 @@ import { postTrade } from '~/lib/api'
 import { createPrimaryUsdPeggedListing, ensureMinter, isMarketplaceMinter } from '~/lib/trades'
 import { toast } from '~/store/toast'
 import { config } from '~/config'
+import { CURRENCY } from '~/lib/currency'
 
 const SIX_MONTHS_MS = 1000 * 60 * 60 * 24 * 182
 
@@ -122,7 +123,7 @@ export function PrimaryListModal({
           {item.thumbnail ? <img className="modal__img" src={item.thumbnail} alt={item.name} /> : null}
           <p className="modal-success__name">{item.name}</p>
           <p className="muted small">
-            Listed for <strong>◈ {listedCredits}</strong> · {item.remainingSupply.toLocaleString()} available
+            Listed for <strong>{CURRENCY.symbol} {listedCredits}</strong> · {item.remainingSupply.toLocaleString()} available
           </p>
           <div className="modal__actions">
             <button className="btn btn--ghost" onClick={onClose}>
@@ -158,7 +159,7 @@ export function PrimaryListModal({
             disabled={busy}
           />
         </label>
-        <p className="muted small">Priced in USD. Buyers pay with credits.</p>
+        <p className="muted small">Priced in USD. Buyers pay with {CURRENCY.name}.</p>
 
         {enabled === false && !busy ? (
           <p className="muted small primary-note">

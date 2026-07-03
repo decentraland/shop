@@ -15,6 +15,8 @@ import { fetchCollectionItems } from '~/lib/collections'
 import { ItemPreview } from '~/components/ItemPreview'
 import { CollectionCarousel } from '~/components/CollectionCarousel'
 import { CreatorBadge } from '~/components/CreatorBadge'
+import { CurrencyIcon } from '~/components/CurrencyIcon'
+import { CURRENCY } from '~/lib/currency'
 import './item-detail.css'
 
 function isValidRarity(r: string): r is Rarity {
@@ -34,7 +36,7 @@ function friendlyError(e: unknown): string {
   if (err.code === 4001 || msg.includes('reject') || msg.includes('denied') || msg.includes('cancel')) {
     return 'You cancelled the request.'
   }
-  if (msg.includes('insufficient')) return "You don't have enough credits — get more first."
+  if (msg.includes('insufficient')) return `You don't have enough ${CURRENCY.name} — get more first.`
   if (msg.includes('no active listing') || msg.includes('not for sale')) return 'This item is not for sale right now.'
   return "Couldn't complete checkout — please try again."
 }
@@ -256,14 +258,14 @@ export function ItemDetail() {
               <div className="item-detail__price-label">Price</div>
               {forSale ? (
                 <div className="item-detail__price">
-                  <span className="ico ico-credits item-detail__diamond" aria-hidden />
+                  <CurrencyIcon className="item-detail__diamond" />
                   <span className="item-detail__price-value">{current.priceCredits}</span>
                 </div>
               ) : (
                 <div className="item-detail__price item-detail__price--none">Not for sale</div>
               )}
               {session ? (
-                <div className="item-detail__balance muted">Your balance: ◈ {balance?.credits ?? 0}</div>
+                <div className="item-detail__balance muted">Your balance: {CURRENCY.symbol} {balance?.credits ?? 0}</div>
               ) : null}
             </div>
 

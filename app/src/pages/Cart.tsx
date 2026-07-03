@@ -10,6 +10,7 @@ import { fetchTradeForItem, fetchTrade, fetchListings, usdWeiToCents } from '~/l
 import { buyManyWithCredits, type CreditPurchase } from '~/lib/buy'
 import { buyManyGasless, waitForSettlement, GaslessUnavailableError } from '~/lib/buy-gasless'
 import { gaslessEnabled } from '~/lib/gasless-config'
+import { CURRENCY } from '~/lib/currency'
 
 function friendlyError(e: unknown): string {
   const err = e as { code?: number; message?: string }
@@ -17,7 +18,7 @@ function friendlyError(e: unknown): string {
   if (err.code === 4001 || msg.includes('reject') || msg.includes('denied') || msg.includes('cancel')) {
     return 'You cancelled the request.'
   }
-  if (msg.includes('insufficient')) return "You don't have enough credits — get more first."
+  if (msg.includes('insufficient')) return `You don't have enough ${CURRENCY.name} — get more first.`
   if (msg.includes('no active listing')) return err.message as string
   return "Couldn't complete checkout — please try again."
 }
@@ -121,13 +122,13 @@ export function Cart() {
     setError(null)
     setBusy(true)
     try {
-      setStatus('Adding test credits…')
+      setStatus(`Adding test ${CURRENCY.name}…`)
       await devMintUsd(session.address, 1000) // $10 = 100 credits
-      setStatus('Test credits added.')
+      setStatus(`Test ${CURRENCY.name} added.`)
       void qc.invalidateQueries({ queryKey: ['usd-balance'] })
     } catch (e) {
       console.error(e)
-      setError('Could not add test credits (is the credits service running with dev mint enabled?)')
+      setError(`Could not add test ${CURRENCY.name} (is the credits service running with dev mint enabled?)`)
       setStatus(null)
     } finally {
       setBusy(false)
@@ -157,7 +158,7 @@ export function Cart() {
               <div className="cart__name">{item.name}</div>
               <div className="muted">{item.creator ? `By ${item.creator}` : ''}</div>
             </div>
-            <div className="cart__price">◈ {item.priceCredits}</div>
+            <div className="cart__price">{CURRENCY.symbol} {item.priceCredits}</div>
             <button className="link" onClick={() => remove(item.id)} disabled={busy}>Remove</button>
           </div>
         ))}
@@ -165,13 +166,13 @@ export function Cart() {
 
       <div className="cart__foot">
         <div className="cart__total">
-          <div>Total <strong>◈ {total}</strong></div>
-          {session ? <div className="muted cart__balance">Your balance: ◈ {balance?.credits ?? 0}</div> : null}
+          <div>Total <strong>{CURRENCY.symbol} {total}</strong></div>
+          {session ? <div className="muted cart__balance">Your balance: {CURRENCY.symbol} {balance?.credits ?? 0}</div> : null}
         </div>
         <div className="cart__actions">
-          <Link className="btn btn--ghost" to="/credits">Get credits</Link>
+          <Link className="btn btn--ghost" to="/credits">Get {CURRENCY.name}</Link>
           {import.meta.env.DEV ? (
-            <button className="btn btn--ghost" onClick={getTestCredits} disabled={busy || !session}>Get test credits (dev)</button>
+            <button className="btn btn--ghost" onClick={getTestCredits} disabled={busy || !session}>Get test {CURRENCY.name} (dev)</button>
           ) : null}
           <button className="btn btn--ghost" onClick={clear} disabled={busy}>Clear</button>
           <button className="btn btn--purple" onClick={checkout} disabled={busy}>Checkout</button>
@@ -189,7 +190,7 @@ export function Cart() {
               <div className="cart-upsell__card" key={i.id}>
                 <div className="cart-upsell__thumb">{i.thumbnail ? <img src={i.thumbnail} alt={i.name} /> : null}</div>
                 <div className="cart-upsell__name" title={i.name}>{i.name}</div>
-                <div className="cart-upsell__price">◈ {i.priceCredits}</div>
+                <div className="cart-upsell__price">{CURRENCY.symbol} {i.priceCredits}</div>
                 <button className="btn btn--sm cart-upsell__add" onClick={() => add(i)} disabled={busy}>
                   Add
                 </button>

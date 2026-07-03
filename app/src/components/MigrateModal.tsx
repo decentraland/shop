@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { Session } from '~/lib/auth'
 import { importListing, type ImportItem } from '~/lib/import'
+import { CURRENCY } from '~/lib/currency'
 
 export type MigrateEntry = { item: ImportItem; priceCredits: number }
 type Status = 'pending' | 'active' | 'done' | 'skipped' | 'failed'
@@ -69,7 +70,7 @@ export function MigrateModal({
           <h2 className="modal__title">{listedCount > 0 ? "You're in the Shop! 🎉" : 'Nothing listed'}</h2>
           <p className="muted" style={{ margin: 0 }}>
             {listedCount > 0
-              ? `${listedCount} ${listedCount === 1 ? 'item is' : 'items are'} now for sale with credits.`
+              ? `${listedCount} ${listedCount === 1 ? 'item is' : 'items are'} now for sale with ${CURRENCY.name}.`
               : 'No items were listed.'}
             {skipped > 0 ? ` ${skipped} skipped — you can try those again anytime.` : ''}
           </p>
@@ -110,7 +111,7 @@ export function MigrateModal({
                 {entry.item.thumbnail ? <img src={entry.item.thumbnail} alt="" /> : null}
               </span>
               <span className="migrate__name" title={entry.item.name}>{entry.item.name || 'Item'}</span>
-              <span className="migrate__price">◈ {entry.priceCredits.toLocaleString()}</span>
+              <span className="migrate__price">{CURRENCY.symbol} {entry.priceCredits.toLocaleString()}</span>
               <span className="migrate__status">
                 {statuses[i] === 'active' ? (
                   <><span className="spinner migrate__spin" aria-hidden /> Confirm…</>
