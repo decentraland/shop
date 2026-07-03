@@ -1,0 +1,12 @@
+<svg preserveAspectRatio="none" width="100%" height="100%" overflow="visible" style="display: block;" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="mdi:ethereum">
+<rect width="16" height="16" rx="8" fill="url(#paint0_linear_0_1668)"/>
+<path id="Vector" d="M7.58334 1.99997L4 8.01999L7.58334 10.17L11.1667 8.01999L7.58334 1.99997ZM4 8.73665L7.58334 13.7533L11.1667 8.73665L7.58334 10.8867L4 8.73665Z" fill="var(--fill-0, #FCFCFC)"/>
+</g>
+<defs>
+<linearGradient id="paint0_linear_0_1668" x1="8" y1="0" x2="8" y2="16" gradientUnits="userSpaceOnUse">
+<stop stop-color="#0E0E0E"/>
+<stop offset="1" stop-color="#787878"/>
+</linearGradient>
+</defs>
+</svg>

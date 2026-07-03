@@ -1,0 +1,25 @@
+{
+  "name": "@dcl/shop-migrate-listings",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Convert classic MANA (ERC20) marketplace listings into USD-pegged (credit-buyable) Shop listings.",
+  "bin": {
+    "migrate-listings": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "npm run build && node dist/cli.js",
+    "dry-run": "npm run build && node dist/cli.js --dry-run"
+  },
+  "dependencies": {
+    "@dcl/schemas": "^26.0.0",
+    "decentraland-transactions": "^3.0.3",
+    "ethers": "^5.6.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.4"
+  }
+}
