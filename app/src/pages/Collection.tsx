@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { fetchCollectionItems } from '~/lib/collections'
 import { AssetCard } from '~/components/AssetCard'
 import { CreatorBadge } from '~/components/CreatorBadge'
+import { AddAllToCart } from '~/components/AddAllToCart'
 import './collection.css'
 
 // A full-collection storefront: every item of one collection in a grid (discovery — drives more
@@ -40,6 +41,8 @@ export function Collection() {
           {isLoading ? '…' : `${items.length.toLocaleString()} item${items.length === 1 ? '' : 's'}`}
         </span>
       </header>
+
+      {!isLoading && items.length > 0 ? <AddAllToCart items={items} source="collection" /> : null}
 
       {error ? <p className="error">{(error as Error).message}</p> : null}
 
