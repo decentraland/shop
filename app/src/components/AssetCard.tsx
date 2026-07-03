@@ -9,9 +9,10 @@ import { rarityColor, readableText } from '~/lib/rarity'
 import type { CatalogItem } from '~/lib/api'
 
 const HOVER_DELAY_MS = 120
-// Keep the preview shimmer on briefly after onLoad so the iframe's own cross-origin spinner never
-// flashes ("shimmer then spinner" double-load fix, mirrors the reskin).
-const PREVIEW_GRACE_MS = 600
+// WearablePreview's onLoad fires on the iframe's LOAD message = scene actually rendered (not just the
+// app booting). We keep the flat thumbnail up the whole time and only crossfade to the 3D once ready,
+// so there's never an empty frame. A short grace guarantees the first painted frame before we swap.
+const PREVIEW_GRACE_MS = 250
 
 function genderGlyph(gender: CatalogItem['gender']): string {
   if (gender === 'male') return '♂'
@@ -81,8 +82,8 @@ export function AssetCard({ item }: { item: CatalogItem }) {
         >
           <span className="ico ico-heart" aria-hidden />
         </button>
-        {/* Thumbnail is the placeholder; it stays while the 3D loads (no empty frame), then fades
-            out once the preview is ready so the transparent 3D doesn't sit on top of the flat photo. */}
+        {/* Flat thumbnail stays visible the whole time the 3D loads (no empty frame); it only fades
+            out once the preview is ready, crossfading into the 3D. */}
         {item.thumbnail ? (
           <img
             className={`card__img${hovered && previewReady ? ' card__img--hidden' : ''}`}
@@ -94,7 +95,6 @@ export function AssetCard({ item }: { item: CatalogItem }) {
         {hovered && canPreview ? (
           <>
             <div className={`card__preview${previewReady ? ' is-ready' : ''}`}>
-              {!previewReady ? <span className="card__preview-skel" aria-hidden /> : null}
               <WearablePreview
                 contractAddress={item.contractAddress}
                 itemId={item.itemId ?? undefined}
@@ -108,18 +108,10 @@ export function AssetCard({ item }: { item: CatalogItem }) {
             {/* Transparent shield over the preview: it becomes the hover target so the cross-origin
                 iframe never shows its internal content-URL tooltip. Clicks bubble up to open detail. */}
             <span className="card__preview-shield" aria-hidden />
+            {/* Slim loading bar while the 3D boots — the thumbnail stays put underneath. */}
+            {!previewReady ? <span className="card__loadbar" aria-hidden /> : null}
           </>
         ) : null}
-
-        {/* Add-to-cart lives over the media and slides up on hover (see .card__cart). */}
-        <button
-          className={`card__cart${inCart ? ' is-in' : ''}`}
-          onClick={e => { e.stopPropagation(); add(item) }}
-          disabled={inCart}
-        >
-          <span className="ico ico-cart-solid card__cart-ico" aria-hidden />
-          {inCart ? 'IN CART' : 'ADD TO CART'}
-        </button>
       </div>
 
       <div className="card__body">
@@ -130,24 +122,37 @@ export function AssetCard({ item }: { item: CatalogItem }) {
           <div className="card__creator">&nbsp;</div>
         )}
 
-        <div className="card__meta">
-          <div className="card__price">
-            <span className="ico ico-credits card__diamond" aria-hidden />
-            {item.priceCredits}
+        {/* On hover the price/chips row is replaced by the add-to-cart (Figma: secondary dark button,
+            below the image — never overlapping it). */}
+        {hovered ? (
+          <button
+            className={`card__cart${inCart ? ' is-in' : ''}`}
+            onClick={e => { e.stopPropagation(); add(item) }}
+            disabled={inCart}
+          >
+            <span className="ico ico-cart-solid card__cart-ico" aria-hidden />
+            {inCart ? 'IN CART' : 'ADD TO CART'}
+          </button>
+        ) : (
+          <div className="card__meta">
+            <div className="card__price">
+              <span className="ico ico-credits card__diamond" aria-hidden />
+              {item.priceCredits}
+            </div>
+            <div className="card__chips">
+              <span
+                className="chip chip--rarity"
+                style={{ background: rarityColor(item.rarity), color: readableText(rarityColor(item.rarity)) }}
+              >
+                {item.rarity}
+              </span>
+              {item.category === 'wearable' ? (
+                <span className="chip chip--icon"><span className="ico ico-eyewear" aria-hidden /></span>
+              ) : null}
+              {gender ? <span className="chip chip--icon">{gender}</span> : null}
+            </div>
           </div>
-          <div className="card__chips">
-            <span
-              className="chip chip--rarity"
-              style={{ background: rarityColor(item.rarity), color: readableText(rarityColor(item.rarity)) }}
-            >
-              {item.rarity}
-            </span>
-            {item.category === 'wearable' ? (
-              <span className="chip chip--icon"><span className="ico ico-eyewear" aria-hidden /></span>
-            ) : null}
-            {gender ? <span className="chip chip--icon">{gender}</span> : null}
-          </div>
-        </div>
+        )}
       </div>
     </article>
   )

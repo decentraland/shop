@@ -224,14 +224,18 @@ h1, h2 { margin: 0; }
 /* Transparent shield above the iframe: intercepts hover so the cross-origin preview never surfaces
    its internal content-URL tooltip. Sits below the fav + add-to-cart buttons so those stay usable. */
 .card__preview-shield { position: absolute; inset: 0; z-index: 2; cursor: pointer; }
-/* Shimmer over the 3D preview while it boots (masks the iframe's own spinner). A short grace timer
-   in AssetCard keeps it on ~600ms after onLoad so the cross-origin spinner never flashes. */
-.card__preview-skel {
-  position: absolute; inset: 0; z-index: 1; pointer-events: none;
-  background: linear-gradient(100deg, #efeef2 30%, #e2e0e7 50%, #efeef2 70%);
-  background-size: 200% 100%; animation: shimmer 1.4s infinite linear;
+/* Slim indeterminate loading bar pinned to the bottom of the media while the 3D boots. The flat
+   thumbnail stays fully visible underneath — no shimmer covering it, no empty frame. */
+.card__loadbar {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 3px; z-index: 3; overflow: hidden;
+  background: rgba(105, 31, 169, .12); pointer-events: none;
 }
-@media (prefers-reduced-motion: reduce) { .card__preview-skel { animation: none; } }
+.card__loadbar::before {
+  content: ''; position: absolute; top: 0; left: 0; height: 100%; width: 40%;
+  background: var(--accent); border-radius: 3px; animation: loadbar 1.1s infinite ease-in-out;
+}
+@keyframes loadbar { 0% { transform: translateX(-110%); } 100% { transform: translateX(360%); } }
+@media (prefers-reduced-motion: reduce) { .card__loadbar::before { animation: none; width: 100%; opacity: .5; } }
 .card__fav {
   position: absolute; top: 10px; right: 10px; z-index: 4;
   width: 32px; height: 32px; border-radius: 50%; border: 0; background: rgba(255, 255, 255, .85);
@@ -251,22 +255,17 @@ h1, h2 { margin: 0; }
 .chip--rarity { background: var(--rarity-bg); color: var(--rarity); text-transform: uppercase; letter-spacing: .02em; }
 .chip--icon { padding: 3px 6px; font-size: 13px; }
 .chip--icon .ico { width: 14px; height: 14px; color: #444; }
-/* Add-to-cart slides up from the bottom of the media on hover (reskin). Amethyst gradient primary;
-   solid purple on hover; stays solid + visible once the item is in the cart. */
+/* Add-to-cart (Figma node 790-63037: secondary dark button). Lives in the body below the image,
+   shown on hover in place of the price/chips row — never over the image. */
 .card__cart {
-  position: absolute; left: 10px; right: 10px; bottom: 10px; z-index: 3;
-  display: flex; align-items: center; justify-content: center; gap: 8px;
-  background: var(--amethyst); color: var(--soft-white); border: 0; border-radius: var(--radius-btn); height: 40px;
+  margin-top: 4px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;
+  background: var(--black-btn); color: var(--soft-white); border: 0; border-radius: var(--radius-btn); height: 40px;
   font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: .046em;
-  transform: translateY(calc(100% + 16px)); opacity: 0;
-  transition: transform .18s ease, opacity .18s ease, background .15s ease;
+  transition: background .15s ease;
 }
-.card:hover .card__cart, .card--hover .card__cart { transform: translateY(0); opacity: 1; }
-.card__cart:hover:not(:disabled) { background: var(--accent); }
-.card__cart.is-in, .card__cart:disabled { background: var(--accent); opacity: 1; cursor: default; }
+.card__cart:hover:not(:disabled) { background: #43404a; }
+.card__cart.is-in, .card__cart:disabled { background: #43404a; opacity: 1; cursor: default; }
 .card__cart-ico { width: 20px; height: 20px; }
-@media (prefers-reduced-motion: reduce) { .card__cart { transform: none; transition: opacity .18s ease, background .15s ease; } }
-@media (hover: none) { .card__cart { position: static; left: auto; right: auto; bottom: auto; transform: none; opacity: 1; margin-top: 8px; } }
 
 /* Merchandising price treatment (bundles / discounts): strikethrough "was" + green "Save X%". */
 .price-was { color: var(--muted); text-decoration: line-through; font-weight: 600; }
