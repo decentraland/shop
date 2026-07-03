@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { WearablePreview } from 'decentraland-ui2/dist/components/WearablePreview'
+import { WearablePreview } from '~/components/LazyWearablePreview'
 import { config } from '~/config'
 import { useCart } from '~/store/cart'
 import { useFavorites } from '~/store/favorites'

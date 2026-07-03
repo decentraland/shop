@@ -1,5 +1,5 @@
 import { useLocation, useNavigate, Navigate } from 'react-router-dom'
-import { WearablePreview } from 'decentraland-ui2/dist/components/WearablePreview'
+import { WearablePreview } from '~/components/LazyWearablePreview'
 import { PreviewEmote, PreviewType } from '@dcl/schemas'
 import { useWallet } from '~/store/wallet'
 import { config } from '~/config'

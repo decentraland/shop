@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { WearablePreview } from 'decentraland-ui2/dist/components/WearablePreview'
+import { WearablePreview } from '~/components/LazyWearablePreview'
 import { config } from '~/config'
 
 // Warms the 3D item-preview pipeline: once the browser is idle it mounts a single hidden
