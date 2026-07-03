@@ -294,7 +294,9 @@ export function ItemDetail() {
             </button>
           </div>
 
-          {current.creator ? <CreatorBadge address={current.creator} className="item-detail__creator" /> : null}
+          {current.creator ? (
+            <CreatorBadge address={current.creator} className="item-detail__creator" linkToProfile />
+          ) : null}
 
           <div className="item-detail__chips">
             <span className="chip chip--rarity">{current.rarity}</span>

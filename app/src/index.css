@@ -627,6 +627,8 @@ a.purchase:hover { box-shadow: 0 8px 22px rgba(20, 20, 30, .10); transform: tran
 
 /* Creator badge (avatar + profile name, address fallback) */
 .creator { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; min-width: 0; }
+.creator--link { background: none; border: 0; padding: 0; margin: 0; font: inherit; cursor: pointer; max-width: 100%; }
+.creator--link:hover .creator__name { color: var(--text); text-decoration: underline; }
 .creator__ava { width: 18px; height: 18px; border-radius: 50%; object-fit: cover; flex: none; background: var(--media); }
 .creator__ava--ph { background: linear-gradient(135deg, var(--rarity-bg), var(--media)); }
 .creator__name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

@@ -132,7 +132,7 @@ export function AssetCard(props: AssetCardProps) {
       <div className="card__body">
         <div className="card__name" title={item.name}>{item.name}</div>
         {item.creator ? (
-          <CreatorBadge address={item.creator} className="card__creator" />
+          <CreatorBadge address={item.creator} className="card__creator" linkToProfile />
         ) : (
           <div className="card__creator">&nbsp;</div>
         )}
