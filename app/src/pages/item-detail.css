@@ -336,3 +336,17 @@
 .collection-carousel__add:hover { transform: scale(1.08); }
 .collection-carousel__add:disabled { background: var(--muted-2); cursor: default; box-shadow: none; }
 .collection-carousel__add .ico { width: 18px; height: 18px; }
+
+/* Not-found / unresolvable item (bad deep link, delisted, or not in the shop feed) */
+.item-detail--notfound {
+  min-height: 46vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 14px;
+}
+.item-detail__notfound-ico { width: 44px; height: 44px; opacity: 0.4; }
+.item-detail__notfound-title { font-size: 22px; }
+.item-detail--notfound .btn { margin-top: 6px; }

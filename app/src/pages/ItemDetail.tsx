@@ -79,7 +79,7 @@ export function ItemDetail() {
   const [error, setError] = useState<string | null>(null)
 
   // Sibling items of the same collection (the "more from this collection" carousel).
-  const { data: siblings = [] } = useQuery({
+  const { data: siblings = [], isFetched: siblingsFetched } = useQuery({
     queryKey: ['collection-items', current.contractAddress],
     enabled: !!current.contractAddress,
     queryFn: () => fetchCollectionItems(current.contractAddress, { first: 20 })
@@ -88,7 +88,7 @@ export function ItemDetail() {
   // Deep-link / refresh: the route segment is the itemId for primary listings. Hydrate the item
   // (name, price, tradeId) straight from the shop feed so it resolves correctly (a primary itemId is
   // NOT a tokenId — the sibling fallback below would otherwise mis-match).
-  const { data: deepLinkItem } = useQuery({
+  const { data: deepLinkItem, isLoading: deepLinkLoading } = useQuery({
     queryKey: ['shop-item', current.contractAddress, tokenId],
     enabled: !state?.item && !!current.contractAddress && !!tokenId,
     queryFn: () => fetchShopListingForItem(current.contractAddress, tokenId as string)
@@ -215,6 +215,21 @@ export function ItemDetail() {
   const collectionTitle = 'More from this collection'
 
   const addLabel = !forSale ? 'Not for sale' : inCart ? 'In cart' : resolvingTrade ? 'Checking…' : 'Add to cart'
+
+  // Nothing hydrated the item (bad/stale deep link, or an item that isn't in the shop feed — e.g. a
+  // legacy/market piece). Once every resolution path has settled and there's still no name, show a
+  // graceful not-found instead of a permanent "Loading…" blank.
+  const stillResolving = deepLinkLoading || (!!current.contractAddress && !siblingsFetched)
+  if (!current.name && !stillResolving) {
+    return (
+      <div className="item-detail item-detail--notfound">
+        <span className="ico ico-cart item-detail__notfound-ico" aria-hidden />
+        <h1 className="item-detail__notfound-title">This item isn’t available</h1>
+        <p className="muted">It may have been delisted or moved. Browse the shop for something else.</p>
+        <button className="btn btn--purple" onClick={() => navigate('/assets')}>Browse the shop</button>
+      </div>
+    )
+  }
 
   return (
     <div className="item-detail">
