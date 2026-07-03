@@ -1,0 +1,23 @@
+name: Set rollout by path
+
+# Fires after the CDN deploy (GitLab) reports success for an auto-deploy (push to main / release),
+# then rolls the new version out on zone. Mirrors landing-site's rollout flow.
+on: [deployment_status]
+
+jobs:
+  set-rollout:
+    if: ${{ github.event.deployment.task == 'upload-to-cdn' && github.event.deployment_status.state == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set Rollout - Development (zone)
+        uses: decentraland/set-rollout-action@26ead404b6944fd0ce0d087cc59fd817607454d6 # v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ github.event.deployment.ref }}
+          sha: ${{ github.event.deployment.sha }}
+          packageName: ${{ github.event.deployment.payload.packageName }}
+          packageVersion: ${{ github.event.deployment.payload.packageVersion }}
+          deploymentPath: 'sites'
+          deploymentEnvironment: 'zone'
+          deploymentName: '_site'
+          percentage: 100

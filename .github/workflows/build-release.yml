@@ -1,0 +1,125 @@
+name: Build and release
+
+on:
+  push:
+    branches:
+      - main
+  release:
+    types:
+      - created
+  # Manual branch/environment deploy.
+  workflow_dispatch:
+    inputs:
+      deploymentEnvironment:
+        type: choice
+        description: 'Deployment environment'
+        required: true
+        default: 'zone'
+        options:
+          - zone
+      rolloutPercentage:
+        description: 'Rollout percentage'
+        required: true
+        default: '100'
+
+# The frontend lives in app/. We publish the built app/ as the @dcl/shop npm package; the DCL CDN
+# serves it and the `shop` site in the definitions repo maps it to a domain (see definitions PR).
+#
+# OUT-OF-BAND setup required before this can actually deploy (infra team):
+#   1. npm Trusted Publisher entry for `@dcl/shop` → this repo's `build-release.yml`
+#      (https://www.npmjs.com/package/@dcl/shop/access).
+#   2. Repo secrets GITLAB_CDN_DEPLOYER_TOKEN + GITLAB_CDN_DEPLOYER_URL (CDN deploy).
+#   3. The `shop` site entry merged in decentraland/definitions.
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    outputs:
+      version: ${{ steps.publish.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js 22.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+
+      - name: Enable npm 11.x via corepack
+        # npm Trusted Publishing requires npm CLI >= 11.5.1.
+        run: |
+          corepack enable npm
+          corepack install -g npm@11
+          npm --version
+
+      - name: Set package.json version
+        uses: decentraland/oddish-action@0074f2d535c43b5c83f136525304a6277166d77f # master @ feat/support-npm-trusted-publishing
+        with:
+          cwd: './app'
+          deterministic-snapshot: true
+          only-update-versions: true
+
+      - name: Install
+        working-directory: app
+        run: npm ci
+        env:
+          HUSKY: 0
+
+      - name: Build
+        working-directory: app
+        run: npm run build
+
+      - name: Publish
+        id: publish
+        # Auth via npm Trusted Publishers (OIDC) — `id-token: write` is granted on this job.
+        uses: decentraland/oddish-action@0074f2d535c43b5c83f136525304a6277166d77f # master @ feat/support-npm-trusted-publishing
+        with:
+          cwd: './app/dist'
+          deterministic-snapshot: true
+          provenance: true
+          registry-url: 'https://registry.npmjs.org'
+          access: public
+          custom-tag: ${{ github.event_name == 'workflow_dispatch' && 'manual' || '' }}
+          branch-to-custom-tag: ${{ github.event_name == 'workflow_dispatch' && github.ref_name || '' }}
+          gitlab-token: ${{ secrets.GITLAB_CDN_DEPLOYER_TOKEN }}
+          gitlab-pipeline-url: ${{ secrets.GITLAB_CDN_DEPLOYER_URL }}
+
+  rollout:
+    # Only for manual branch deploys. Auto-deploys (push/release) trigger set-rollout.yml via the
+    # GitLab `deployment_status` event.
+    if: github.event_name == 'workflow_dispatch'
+    needs: build-and-publish
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for CDN propagation
+        env:
+          PACKAGE_NAME: '@dcl/shop'
+          PACKAGE_VERSION: ${{ needs.build-and-publish.outputs.version }}
+        run: |
+          URL="https://cdn.decentraland.org/${PACKAGE_NAME}/${PACKAGE_VERSION}"
+          echo "Polling ${URL} until the CDN serves the package..."
+          for attempt in $(seq 1 60); do
+            status=$(curl -s -o /dev/null -w '%{http_code}' -I "${URL}" || echo "000")
+            if [ "${status}" -ge 200 ] && [ "${status}" -lt 400 ]; then
+              echo "Package available in CDN (status ${status}) after attempt ${attempt}"
+              exit 0
+            fi
+            echo "Attempt ${attempt}: status ${status}, retrying in 15s..."
+            sleep 15
+          done
+          echo "Timed out waiting for ${URL}"
+          exit 1
+
+      - name: Set Rollout
+        uses: decentraland/set-rollout-action@26ead404b6944fd0ce0d087cc59fd817607454d6 # v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ github.ref }}
+          sha: ${{ github.sha }}
+          packageName: '@dcl/shop'
+          packageVersion: ${{ needs.build-and-publish.outputs.version }}
+          deploymentPath: 'sites'
+          deploymentEnvironment: ${{ github.event.inputs.deploymentEnvironment }}
+          deploymentName: '_site'
+          percentage: ${{ github.event.inputs.rolloutPercentage }}
