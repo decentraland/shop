@@ -470,7 +470,8 @@ h1, h2 { margin: 0; }
 .success__title { font-size: clamp(30px, 4vw, 42px); font-weight: 800; letter-spacing: -.02em; margin: 20px 0 8px; }
 .success__sub { font-size: 18px; color: #4b4b57; margin: 0 0 22px; }
 .success__list { margin: 0 0 22px; padding-left: 18px; color: #4b4b57; line-height: 1.7; }
-.success__receipt { display: inline-block; margin: 0 0 20px; color: var(--accent); font-weight: 600; font-size: 14px; background: none; border: 0; padding: 0; cursor: pointer; }
+.success__links { display: flex; gap: 18px; justify-content: center; margin: 0 0 20px; }
+.success__receipt { display: inline-block; margin: 0; color: var(--accent); font-weight: 600; font-size: 14px; background: none; border: 0; padding: 0; cursor: pointer; text-decoration: none; }
 
 .notfound { min-height: 52vh; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 14px; }
 .notfound__ico { width: 44px; height: 44px; opacity: 0.4; }

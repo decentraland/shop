@@ -4,11 +4,15 @@ import { PreviewEmote, PreviewType } from '@dcl/schemas'
 import { useWallet } from '~/store/wallet'
 import { config } from '~/config'
 import { SuccessAnimation } from '~/components/SuccessAnimation'
+import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import type { CatalogItem } from '~/lib/api'
 
 // Modern in-world entry: the launcher deep-link handled by decentraland.org/jump (zone on testnet).
 // The old play.decentraland.* web client is deprecated. The item is already in the wardrobe.
 const JUMP_URL = config.chainId === 80002 ? 'https://decentraland.zone/jump' : 'https://decentraland.org/jump'
+// Block explorer for the settlement tx — shown ONLY to self-custody wallets (they understand
+// explorers); managed/thirdweb users just get the in-app "View order". See lib/wallet-kind.ts.
+const EXPLORER_TX = config.chainId === 80002 ? 'https://amoy.polygonscan.com/tx/' : 'https://polygonscan.com/tx/'
 
 // Wearable item URN so the preview can EQUIP it on the avatar (try-on mode via profile + urns),
 // instead of just showing the user's current avatar (which wouldn't include the fresh purchase).
@@ -33,6 +37,9 @@ export function Success() {
   const isEmote = hero.category === 'emote'
   // Equip the purchased wearable(s) on the avatar. Emotes aren't "worn" → fall back to the item render.
   const urns = isEmote ? [] : items.map(itemUrn).filter((u): u is string => !!u)
+  const txHash = state?.txHash
+  // Self-custody users additionally get a link to the on-chain tx; managed users never see it.
+  const showExplorer = !!txHash && showsWalletConfirmations(session?.providerType)
 
   return (
     <div className="success">
@@ -80,9 +87,16 @@ export function Success() {
           </>
         )}
 
-        <button className="success__receipt" onClick={() => navigate('/my-purchases')}>
-          View order
-        </button>
+        <div className="success__links">
+          <button className="success__receipt" onClick={() => navigate('/my-purchases')}>
+            View order
+          </button>
+          {showExplorer ? (
+            <a className="success__receipt" href={`${EXPLORER_TX}${txHash}`} target="_blank" rel="noreferrer">
+              View transaction ↗
+            </a>
+          ) : null}
+        </div>
 
         <div className="success__actions">
           <a className="btn btn--purple" href={JUMP_URL} target="_blank" rel="noreferrer">
