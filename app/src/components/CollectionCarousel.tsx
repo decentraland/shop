@@ -1,6 +1,7 @@
 import { useRef } from 'react'
 import { useCart } from '~/store/cart'
 import { toast } from '~/store/toast'
+import { CurrencyIcon } from '~/components/CurrencyIcon'
 import type { CatalogItem } from '~/lib/api'
 
 function genderGlyph(gender: CatalogItem['gender']): string {
@@ -116,7 +117,7 @@ export function CollectionCarousel({
                 <div className="collection-carousel__meta">
                   {listed ? (
                     <span className="collection-carousel__price">
-                      <span className="ico ico-credits collection-carousel__diamond" aria-hidden />
+                      <CurrencyIcon className="collection-carousel__diamond" />
                       {item.priceCredits}
                     </span>
                   ) : (

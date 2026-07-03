@@ -6,6 +6,7 @@ import { useCart } from '~/store/cart'
 import { useFavorites } from '~/store/favorites'
 import { CreatorBadge } from '~/components/CreatorBadge'
 import { rarityColor, readableText } from '~/lib/rarity'
+import { CurrencyIcon } from '~/components/CurrencyIcon'
 import type { CatalogItem } from '~/lib/api'
 
 const HOVER_DELAY_MS = 120
@@ -163,13 +164,13 @@ export function AssetCard(props: AssetCardProps) {
             {isMarket && props.mode === 'market' ? (
               <div className="card__price card__price--market">
                 <span className="card__approx" aria-hidden>≈</span>
-                <span className="ico ico-credits card__diamond" aria-hidden />
+                <CurrencyIcon className="card__diamond" />
                 {props.marketPriceCredits == null ? '—' : props.marketPriceCredits}
                 <span className="chip card__market-chip">Market price</span>
               </div>
             ) : (
               <div className="card__price">
-                <span className="ico ico-credits card__diamond" aria-hidden />
+                <CurrencyIcon className="card__diamond" />
                 {item.priceCredits}
               </div>
             )}

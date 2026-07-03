@@ -6,6 +6,8 @@ import { useProfile } from '~/hooks/useProfile'
 import { useBalance } from '~/hooks/useBalance'
 import { useCart } from '~/store/cart'
 import { CartPopover } from '~/components/CartPopover'
+import { CurrencyIcon } from '~/components/CurrencyIcon'
+import { CURRENCY } from '~/lib/currency'
 
 export function NavBar() {
   const { session, connecting, signIn, disconnect, restore } = useWallet()
@@ -71,14 +73,14 @@ export function NavBar() {
           />
         </div>
         {session ? (
-          <span className="subnav__balance" title="Your credits">
-            <span className="ico ico-credits subnav__balance-ico" aria-hidden />
+          <span className="subnav__balance" title={`Your ${CURRENCY.name}`}>
+            <CurrencyIcon className="subnav__balance-ico" />
             {balance?.credits ?? 0}
           </span>
         ) : null}
         <NavLink to="/credits" className="subnav__credits">
-          <span className="ico ico-credits subnav__credits-ico" aria-hidden />
-          Get credits
+          <CurrencyIcon className="subnav__credits-ico" />
+          Get {CURRENCY.name}
         </NavLink>
         <div className="subnav__cart-wrap">
           <NavLink to="/cart" className="subnav__cart" aria-label="Cart">

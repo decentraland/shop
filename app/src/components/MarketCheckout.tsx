@@ -6,6 +6,8 @@ import { useWallet } from '~/store/wallet'
 import { useBalance } from '~/hooks/useBalance'
 import { fetchTrade, type CatalogItem, type LegacyListing } from '~/lib/api'
 import { manaWeiToUsdCents, type ManaRate } from '~/lib/mana-rate'
+import { CurrencyIcon } from '~/components/CurrencyIcon'
+import { CURRENCY, formatAmount } from '~/lib/currency'
 import { authorizeUsdCredit, cancelUsdIntents } from '~/lib/credits'
 import { buyWithCredits } from '~/lib/buy'
 import { buyGasless, waitForSettlement, GaslessUnavailableError } from '~/lib/buy-gasless'
@@ -17,7 +19,7 @@ function friendlyError(e: unknown): string {
   if (err.code === 4001 || msg.includes('reject') || msg.includes('denied') || msg.includes('cancel')) {
     return 'You cancelled the request.'
   }
-  if (msg.includes('insufficient')) return 'Not enough credits — get more first.'
+  if (msg.includes('insufficient')) return `Not enough ${CURRENCY.name} — get more first.`
   if (msg.includes('not found') || msg.includes('no active listing') || msg.includes('404')) {
     return 'This item was just sold or removed. Refreshing the market…'
   }
@@ -200,8 +202,8 @@ export function MarketCheckout({
             <>
               <div className="mkt-modal__price-label">Final price</div>
               <div className="mkt-modal__price-value">
-                <span className="ico ico-credits mkt-modal__diamond" aria-hidden />
-                {locked.credits} credits
+                <CurrencyIcon className="mkt-modal__diamond" />
+                {formatAmount(locked.credits)}
               </div>
               <div className="mkt-modal__price-sub muted">Locked for this purchase · ${(locked.usdCents / 100).toFixed(2)}</div>
             </>
@@ -210,23 +212,23 @@ export function MarketCheckout({
               <div className="mkt-modal__price-label">Today&rsquo;s price</div>
               <div className="mkt-modal__price-value mkt-modal__price-value--approx">
                 <span className="mkt-modal__approx" aria-hidden>≈</span>
-                <span className="ico ico-credits mkt-modal__diamond" aria-hidden />
-                {approxCredits} credits
+                <CurrencyIcon className="mkt-modal__diamond" />
+                {formatAmount(approxCredits)}
               </div>
               <div className="mkt-modal__price-sub muted">{status || 'Locking today’s price…'}</div>
             </>
           )}
         </div>
 
-        {session ? <div className="mkt-modal__balance muted">Your balance: ◈ {balance?.credits ?? 0}</div> : null}
-        {needsMoreCredits ? <p className="muted mkt-modal__note">You&rsquo;ll need a few more credits to buy this.</p> : null}
+        {session ? <div className="mkt-modal__balance muted">Your balance: {CURRENCY.symbol} {balance?.credits ?? 0}</div> : null}
+        {needsMoreCredits ? <p className="muted mkt-modal__note">You&rsquo;ll need a few more {CURRENCY.name} to buy this.</p> : null}
         {status && phase === 'working' ? <p className="muted mkt-modal__note">{status}</p> : null}
         {error ? <p className="error mkt-modal__note">{error}</p> : null}
 
         <div className="mkt-modal__actions">
           <button className="btn btn--ghost" onClick={cancel} disabled={busy}>Cancel</button>
           <button className="btn btn--purple" onClick={confirm} disabled={busy || !locked}>
-            {busy ? 'Working…' : needsMoreCredits ? 'Get credits' : 'Confirm purchase'}
+            {busy ? 'Working…' : needsMoreCredits ? `Get ${CURRENCY.name}` : 'Confirm purchase'}
           </button>
         </div>
       </div>
