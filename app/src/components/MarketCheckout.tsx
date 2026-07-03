@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Trade } from '@dcl/schemas'
@@ -86,6 +86,10 @@ export function MarketCheckout({
     credits: number
     usdCents: number
   } | null>(null)
+  // The reserved USD intent that still needs releasing if we leave without buying. Set on lock,
+  // cleared when released (cancel/error/insufficient) or consumed (buy). The unmount cleanup releases
+  // it so navigating away after the price locks doesn't orphan the reservation until the TTL.
+  const reservedCreditIdRef = useRef<string | null>(null)
 
   // Indicative (pre-authorize) price to show while we lock the real one.
   const approxCredits = Math.ceil(manaWeiToUsdCents(listing.manaWei, rate) / 10)
@@ -113,6 +117,7 @@ export function MarketCheckout({
           void cancelUsdIntents(session.identity, [credit.id]).catch(() => {})
           return
         }
+        reservedCreditIdRef.current = credit.id
         setLocked({ trade, credit, maxCreditedValue, usdCents: lockedCents, credits: Math.ceil(lockedCents / 10) })
         setStatus('')
       } catch (e) {
@@ -124,6 +129,11 @@ export function MarketCheckout({
     })()
     return () => {
       cancelled = true
+      // Release a locked-but-unspent reservation if the user navigates away without buying/cancelling.
+      if (reservedCreditIdRef.current && session) {
+        void cancelUsdIntents(session.identity, [reservedCreditIdRef.current]).catch(() => {})
+        reservedCreditIdRef.current = null
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -135,6 +145,7 @@ export function MarketCheckout({
     // Not enough balance for the locked amount → send them to top up (Get credits).
     if (needsMoreCredits) {
       void cancelUsdIntents(session.identity, [locked.credit.id]).catch(() => {})
+      reservedCreditIdRef.current = null
       navigate('/credits')
       return
     }
@@ -160,12 +171,14 @@ export function MarketCheckout({
       } else {
         await buyWithCredits(buyArgs)
       }
+      reservedCreditIdRef.current = null // consumed by the buy
       void qc.invalidateQueries({ queryKey: ['usd-balance'] })
       navigate('/success', { state: { items: [toCatalogItem(listing)] } })
     } catch (e) {
       console.error('[market] buy now failed', e)
       // Release the reserved dollars so the balance isn't stuck until the TTL.
       void cancelUsdIntents(session.identity, [locked.credit.id]).catch(() => {})
+      reservedCreditIdRef.current = null
       void qc.invalidateQueries({ queryKey: ['usd-balance'] })
       const msg = friendlyError(e)
       setError(msg)
@@ -177,6 +190,7 @@ export function MarketCheckout({
   function cancel() {
     // Release any reservation we made before the user backed out.
     if (session && locked) void cancelUsdIntents(session.identity, [locked.credit.id]).catch(() => {})
+    reservedCreditIdRef.current = null
     onClose()
   }
 
