@@ -160,9 +160,12 @@ export function ItemDetail() {
   function selectSibling(item: CatalogItem) {
     setCurrent(item)
     // Keep the address bar in sync so refresh/share resolves the shown item. tokenId may be absent for
-    // catalog items — fall back to itemId in the path so the route still matches.
-    const seg = item.tokenId ?? item.itemId ?? ''
-    navigate(`/item/${item.contractAddress}/${seg}`, { replace: true, state: { item } })
+    // catalog items — fall back to itemId. Only sync the URL when a valid segment exists (the item
+    // still shows in place via setCurrent) so we never push a dead /item/<contract>/ URL.
+    const seg = item.tokenId ?? item.itemId
+    if (item.contractAddress && seg) {
+      navigate(`/item/${item.contractAddress}/${seg}`, { replace: true, state: { item } })
+    }
     if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 

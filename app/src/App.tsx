@@ -18,6 +18,7 @@ const ImportListings = lazy(() => import('~/pages/ImportListings').then(m => ({ 
 const Cart = lazy(() => import('~/pages/Cart').then(m => ({ default: m.Cart })))
 const GetCredits = lazy(() => import('~/pages/GetCredits').then(m => ({ default: m.GetCredits })))
 const Success = lazy(() => import('~/pages/Success').then(m => ({ default: m.Success })))
+const NotFound = lazy(() => import('~/pages/NotFound').then(m => ({ default: m.NotFound })))
 
 function PageFallback() {
   return (
@@ -51,6 +52,7 @@ export function App() {
             <Route path="/cart" element={<Cart />} />
             <Route path="/credits" element={<GetCredits />} />
             <Route path="/success" element={<Success />} />
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </Suspense>
       </main>
