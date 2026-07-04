@@ -67,14 +67,43 @@ function json(req: HTTPRequest, obj: unknown, status = 200) {
   return req.respond({ status, headers: { 'content-type': 'application/json', ...CORS }, body: JSON.stringify(obj) })
 }
 
-function route(req: HTTPRequest, F: Fixtures) {
+// A forced error response, keyed by URL pathname (opt-in per run via launchApp({ errors })).
+type ErrorMap = Record<string, { status: number; body?: unknown }>
+
+// Map a shop listing (fixtures shape) → a RawCollectionItem the /v1/items catalog endpoint returns
+// (the shape lib/collections.ts's toCatalogItem reads). `price` is USD wei (1e18 = $1); derive it
+// from priceCredits (1 credit = $0.10) so items stay buyable with a positive credit price.
+function toCatalogRow(l: any) {
+  const priceWei = String(BigInt(Math.max(1, Math.round(l.priceCredits ?? 1))) * 10n ** 17n) // credits × $0.10 in wei
+  return {
+    id: `${l.contractAddress}-${l.itemId ?? l.tokenId ?? '0'}`,
+    name: l.name,
+    creator: l.creator,
+    contractAddress: l.contractAddress,
+    itemId: l.itemId ?? l.tokenId ?? '0',
+    category: l.category,
+    rarity: l.rarity,
+    network: l.network,
+    chainId: l.chainId,
+    thumbnail: l.thumbnail ?? '',
+    price: priceWei
+  }
+}
+
+function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
   const u = new URL(req.url())
   const method = req.method()
   const path = u.pathname
 
   // Same-origin app assets (vite) + inline data: URIs → let through.
   if (u.port === '5273' || req.url().startsWith('data:')) return req.continue()
+  // CORS preflight must always succeed (204) — even for a forced-error path below — so the browser
+  // actually issues the real request (otherwise a preflight failure masks the intended error as a
+  // generic "Failed to fetch"). The error is returned WITH CORS headers on the real request.
   if (method === 'OPTIONS') return req.respond({ status: 204, headers: CORS })
+  // Forced error injection (opt-in): before the normal per-port handling, respond with the mapped
+  // status+body (json() attaches CORS headers, so the error reaches the app instead of being blocked).
+  if (errors[path]) return json(req, errors[path].body ?? { error: 'forced' }, errors[path].status)
   // Web fonts → empty stylesheet (no external hit; system font falls back, same as the app).
   if (u.hostname.includes('fonts.google') || u.hostname.includes('gstatic')) {
     return req.respond({ status: 200, headers: { 'content-type': 'text/css', ...CORS }, body: '' })
@@ -136,6 +165,16 @@ function route(req: HTTPRequest, F: Fixtures) {
       if (u.searchParams.get('sortBy') === 'cheapest') items.sort((a, b) => Number(BigInt(a.manaWei) - BigInt(b.manaWei)))
       return json(req, { data: items, total: items.length })
     }
+    // Collection + Creator pages (lib/collections.ts → fetchCollectionItems/fetchCreatorItems).
+    // Returns the collection's CATALOG items, filtered by the contractAddress / creator query param.
+    if (path === '/v1/items') {
+      const ca = u.searchParams.get('contractAddress')
+      const creator = u.searchParams.get('creator')
+      let rows = ((F.shopListings as { data: any[] }).data ?? []).map(toCatalogRow)
+      if (ca) rows = rows.filter(r => String(r.contractAddress).toLowerCase() === ca.toLowerCase())
+      if (creator) rows = rows.filter(r => String(r.creator).toLowerCase() === creator.toLowerCase())
+      return json(req, { data: rows })
+    }
     if (path === '/v1/nfts') return json(req, F.ownedNfts)
     if (path === '/v1/trades' && method === 'POST') return json(req, { ok: true, data: { id: 'new-trade' } }, 201)
     if (/\/v1\/trades\/.+/.test(path)) return json(req, { ok: true, data: F.trade })
@@ -166,17 +205,28 @@ function route(req: HTTPRequest, F: Fixtures) {
 
 export type App = { browser: Browser; page: Page; close: () => Promise<void> }
 
-/** Launch a headless page with the mock wallet + all network mocked, navigated to `path`. */
-export async function launchApp(opts: { path?: string; fixtures?: Partial<Fixtures> } = {}): Promise<App> {
+/**
+ * Launch a headless page with the mock wallet + all network mocked, navigated to `path`.
+ * Options (all default-off so existing specs are unaffected):
+ * - signedOut: skip the session init script so the app renders signed-out (no wallet, no identity).
+ * - errors: per-run forced error responses keyed by URL pathname (e.g. { '/credits/authorize': { status: 402 } }).
+ */
+export async function launchApp(
+  opts: { path?: string; fixtures?: Partial<Fixtures>; signedOut?: boolean; errors?: ErrorMap } = {}
+): Promise<App> {
   const F = { ...defaults(), ...opts.fixtures }
-  const sess = await session()
+  const errors = opts.errors ?? {}
   const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] })
   const page = await browser.newPage()
-  await page.evaluateOnNewDocument(sessionInitScript(sess))
+  // Only inject the signed-in session (localStorage identity + mock window.ethereum) when NOT signedOut.
+  if (!opts.signedOut) {
+    const sess = await session()
+    await page.evaluateOnNewDocument(sessionInitScript(sess))
+  }
   await page.setRequestInterception(true)
   page.on('request', req => {
     try {
-      route(req, F)
+      route(req, F, errors)
     } catch (e) {
       if (!req.response()) req.respond({ status: 500, headers: CORS, body: String(e) }).catch(() => {})
     }
