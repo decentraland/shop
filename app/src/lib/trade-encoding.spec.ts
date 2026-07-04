@@ -87,7 +87,7 @@ describe('when porting a trade to its on-chain shape', () => {
   it('falls back to the buyer when a received asset has no beneficiary', () => {
     const trade = fakeTrade({
       received: [{ assetType: TradeAssetType.USD_PEGGED_MANA, contractAddress: MANA, value: '1', amount: '1', extra: '0x' }]
-    } as Partial<Trade>)
+    } as unknown as Partial<Trade>)
     const onchain = getOnChainTrade(trade, BUYER)
     expect(onchain.received[0].beneficiary).toBe(BUYER)
   })
@@ -105,27 +105,27 @@ describe('when porting a trade to its on-chain shape', () => {
   it('flattens allowedProof to an empty array', () => {
     const trade = fakeTrade({
       checks: { ...fakeTrade().checks, allowedProof: [B32('1'), B32('2')] }
-    } as Partial<Trade>)
+    } as unknown as Partial<Trade>)
     const onchain = getOnChainTrade(trade, BUYER)
     expect(onchain.checks.allowedProof).toEqual([])
   })
 
   it('pads a short salt to 32 bytes', () => {
-    const trade = fakeTrade({ checks: { ...fakeTrade().checks, salt: '0x01' } } as Partial<Trade>)
+    const trade = fakeTrade({ checks: { ...fakeTrade().checks, salt: '0x01' } } as unknown as Partial<Trade>)
     const onchain = getOnChainTrade(trade, BUYER)
     expect(onchain.checks.salt).toBe(ethers.utils.hexZeroPad('0x01', 32))
     expect(onchain.checks.salt).toHaveLength(66)
   })
 
   it('normalizes an empty allowedRoot to the 32-byte zero root', () => {
-    const trade = fakeTrade({ checks: { ...fakeTrade().checks, allowedRoot: '0x' } } as Partial<Trade>)
+    const trade = fakeTrade({ checks: { ...fakeTrade().checks, allowedRoot: '0x' } } as unknown as Partial<Trade>)
     const onchain = getOnChainTrade(trade, BUYER)
     expect(onchain.checks.allowedRoot).toBe(ZERO32)
   })
 
   it('keeps a real allowedRoot untouched', () => {
     const root = B32('b')
-    const trade = fakeTrade({ checks: { ...fakeTrade().checks, allowedRoot: root } } as Partial<Trade>)
+    const trade = fakeTrade({ checks: { ...fakeTrade().checks, allowedRoot: root } } as unknown as Partial<Trade>)
     const onchain = getOnChainTrade(trade, BUYER)
     expect(onchain.checks.allowedRoot).toBe(root)
   })
@@ -133,7 +133,7 @@ describe('when porting a trade to its on-chain shape', () => {
   it('converts millisecond expiration/effective to seconds', () => {
     const trade = fakeTrade({
       checks: { ...fakeTrade().checks, expiration: 2_000_000_000_000, effective: 1_500_000_000_000 }
-    } as Partial<Trade>)
+    } as unknown as Partial<Trade>)
     const onchain = getOnChainTrade(trade, BUYER)
     expect(onchain.checks.expiration).toBe(2_000_000_000)
     expect(onchain.checks.effective).toBe(1_500_000_000)
@@ -151,7 +151,7 @@ describe('when porting a trade to its on-chain shape', () => {
       received: [
         { assetType: TradeAssetType.USD_PEGGED_MANA, contractAddress: MANA, value: '1', amount: '1', beneficiary: SELLER }
       ]
-    } as Partial<Trade>)
+    } as unknown as Partial<Trade>)
     const onchain = getOnChainTrade(trade, BUYER)
     expect(onchain.sent[0].extra).toBe('0x')
     expect(onchain.received[0].extra).toBe('0x')
@@ -159,13 +159,13 @@ describe('when porting a trade to its on-chain shape', () => {
 
   it('maps external checks through, preserving their fields', () => {
     const check = { contractAddress: ADDR('66'), selector: '0xdeadbeef', value: '0x01', required: true }
-    const trade = fakeTrade({ checks: { ...fakeTrade().checks, externalChecks: [check] } } as Partial<Trade>)
+    const trade = fakeTrade({ checks: { ...fakeTrade().checks, externalChecks: [check] } } as unknown as Partial<Trade>)
     const onchain = getOnChainTrade(trade, BUYER)
     expect(onchain.checks.externalChecks).toEqual([check])
   })
 
   it('treats a missing externalChecks list as empty', () => {
-    const trade = fakeTrade({ checks: { ...fakeTrade().checks, externalChecks: undefined } } as Partial<Trade>)
+    const trade = fakeTrade({ checks: { ...fakeTrade().checks, externalChecks: undefined } } as unknown as Partial<Trade>)
     const onchain = getOnChainTrade(trade, BUYER)
     expect(onchain.checks.externalChecks).toEqual([])
   })
