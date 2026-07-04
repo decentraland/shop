@@ -12,6 +12,7 @@ import { buyManyGasless, waitForSettlement, GaslessUnavailableError } from '~/li
 import { gaslessEnabled } from '~/lib/gasless-config'
 import { CURRENCY } from '~/lib/currency'
 import { track, purchaseItemsProps, errorCode, isUserRejection, creditsToUsd } from '~/lib/analytics'
+import { captureError } from '~/lib/monitoring'
 
 function friendlyError(e: unknown): string {
   const err = e as { code?: number; message?: string }
@@ -117,7 +118,7 @@ export function Cart() {
       void qc.invalidateQueries({ queryKey: ['usd-balance'] })
       navigate('/success', { state: { items: purchased, txHash: hashes[0] } })
     } catch (e) {
-      console.error('[checkout] failed', e)
+      if (!isUserRejection(e)) captureError(e, { flow: 'cart_checkout', step, cart_size: items.length })
       track(isUserRejection(e) ? 'Shop Purchase Cancelled' : 'Shop Purchase Failed', {
         step,
         error_code: errorCode(e),
@@ -129,7 +130,7 @@ export function Cart() {
         try {
           await cancelUsdIntents(session.identity, reservedSalts)
         } catch (relErr) {
-          console.error('[checkout] release failed', relErr)
+          captureError(relErr, { flow: 'cart_checkout', step: 'release' })
         }
         void qc.invalidateQueries({ queryKey: ['usd-balance'] })
       }
@@ -150,7 +151,7 @@ export function Cart() {
       setStatus(`Test ${CURRENCY.name} added.`)
       void qc.invalidateQueries({ queryKey: ['usd-balance'] })
     } catch (e) {
-      console.error(e)
+      captureError(e, { flow: 'get_test_credits' })
       setError(`Could not add test ${CURRENCY.name} (is the credits service running with dev mint enabled?)`)
       setStatus(null)
     } finally {

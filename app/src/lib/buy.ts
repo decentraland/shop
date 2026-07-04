@@ -57,7 +57,9 @@ export async function cancelListing(opts: { trade: Trade; signer: ethers.Signer 
   // beneficiary is irrelevant to the cancel hash (sent assets are signed without one); pass the seller.
   const onChainTrade = getOnChainTrade(trade, seller)
   const contract = new ethers.Contract(marketplace.address, marketplace.abi, signer)
-  const tx = await contract.cancelSignature(onChainTrade, amoyGasOverrides(trade.chainId))
+  // cancelSignature takes a Trade[] (mirrors accept([...]) — see TradeService.cancel, which calls
+  // it with [tradeToCancel]). Passing a single trade fails to ABI-encode as tuple[] and reverts.
+  const tx = await contract.cancelSignature([onChainTrade], amoyGasOverrides(trade.chainId))
   const receipt = await tx.wait()
   return receipt.transactionHash
 }

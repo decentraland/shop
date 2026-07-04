@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { logout, restoreSession, signInRedirect, type Session } from '~/lib/auth'
 import { track, identify, signInMethod, markAddressSeen } from '~/lib/analytics'
+import { captureError } from '~/lib/monitoring'
 
 // Set right before the auth redirect so on return we can tell a fresh sign-in from a silent restore.
 const SIGNING_IN_FLAG = 'shop:signing_in'
@@ -29,12 +30,22 @@ export const useWallet = create<WalletState>(set => ({
   },
   disconnect: async () => {
     track('Shop Signed Out')
-    await logout()
+    try {
+      await logout()
+    } catch (e) {
+      captureError(e, { flow: 'wallet', step: 'disconnect' })
+    }
     set({ session: null })
   },
   // Silent restore on load (reads connection + stored identity, no popup).
   restore: async () => {
-    const session = await restoreSession()
+    let session: Session | null
+    try {
+      session = await restoreSession()
+    } catch (e) {
+      captureError(e, { flow: 'wallet', step: 'restore' })
+      return
+    }
     if (!session) return
     set({ session })
     identify(session.address, { sign_in_method: signInMethod(session.providerType) })

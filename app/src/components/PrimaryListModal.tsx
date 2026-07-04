@@ -11,6 +11,7 @@ import { config } from '~/config'
 import { CURRENCY } from '~/lib/currency'
 import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import { track, errorCode } from '~/lib/analytics'
+import { captureError } from '~/lib/monitoring'
 
 const SIX_MONTHS_MS = 1000 * 60 * 60 * 24 * 182
 
@@ -111,7 +112,7 @@ export function PrimaryListModal({
       queryClient.invalidateQueries({ queryKey: ['publishable-items'] })
       queryClient.invalidateQueries({ queryKey: ['collection-sale-state'] })
     } catch (e) {
-      console.error(e)
+      captureError(e, { flow: 'list_primary' })
       track('Shop Listing Failed', { listing_type: 'primary', error_code: errorCode(e) })
       setError(friendlyError(e))
       setStatus(null)

@@ -5,6 +5,7 @@ import { importListing, type ImportItem } from '~/lib/import'
 import { CURRENCY } from '~/lib/currency'
 import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import { track } from '~/lib/analytics'
+import { captureError } from '~/lib/monitoring'
 
 export type MigrateEntry = { item: ImportItem; priceCredits: number }
 type Status = 'pending' | 'active' | 'done' | 'skipped' | 'failed'
@@ -49,6 +50,7 @@ export function MigrateModal({
         } catch (e) {
           const err = e as { code?: number; message?: string }
           const rejected = err.code === 4001 || /reject|denied|cancel/i.test(err.message ?? '')
+          if (!rejected) captureError(e, { flow: 'import_listing', itemId: queue[i].item.itemId ?? queue[i].item.oldTradeId })
           if (!cancelled) setStatuses(s => s.map((v, idx) => (idx === i ? (rejected ? 'skipped' : 'failed') : v)))
         }
       }

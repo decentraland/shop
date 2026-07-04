@@ -60,6 +60,32 @@ export const ownedNfts = {
   total: 1
 }
 
+// --- Owned NFT that is ALREADY on sale (secondary) → "Remove listing" path ---
+// Same token as `ownedNfts`, but with an open `order` carrying a `tradeId` + USD-pegged price.
+// fetchMyAssets maps `order != null` → isOnSale, and `order.tradeId` → the trade to cancel. A spec
+// opts in by passing this as `ownedNfts` (plus `trade: buyTrade`, whose id matches the order's).
+// USD wei ($13.50, 1e18 = $1) → 135 credits shown in the "On sale" badge.
+export const ownedNftsOnSale = {
+  data: [
+    {
+      nft: {
+        id: `${COLLECTION}-42`,
+        contractAddress: COLLECTION,
+        tokenId: '42',
+        itemId: '0',
+        name: 'Galaxy Hat #42',
+        category: 'wearable',
+        image: 'https://peer.decentraland.zone/lambdas/collections/contents/urn:x/thumbnail',
+        network: 'MATIC',
+        chainId: 80002,
+        data: { wearable: { rarity: 'epic' } }
+      },
+      order: { price: '13500000000000000000', tradeId: 'trade-2' }
+    }
+  ],
+  total: 1
+}
+
 // --- Importable (old classic MANA listings → /v3/catalog/importable) ---
 export const importable = {
   data: [
