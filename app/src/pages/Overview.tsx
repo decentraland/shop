@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { fetchListings, type CatalogItem } from '~/lib/api'
 import { AssetCard } from '~/components/AssetCard'
+import { FollowedCreatorsRow } from '~/components/FollowedCreatorsRow'
 
 function Row({ title, items, loading }: { title: string; items: CatalogItem[]; loading: boolean }) {
   return (
@@ -32,6 +33,8 @@ export function Overview() {
           <Link className="btn btn--purple" to="/assets">EXPLORE COLLECTION</Link>
         </div>
       </section>
+
+      <FollowedCreatorsRow />
 
       {isLoading || items.length > 0 ? (
         <>
