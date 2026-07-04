@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import * as Sentry from '@sentry/react'
 import { NavBar } from '~/components/NavBar'
 import { Toaster } from '~/components/Toaster'
 import { PreviewWarmer } from '~/components/PreviewWarmer'
@@ -45,6 +46,20 @@ function PageFallback() {
   )
 }
 
+// Shown if a page throws during render. Keep it generic — never surface the raw error (PII rule).
+// The error itself is reported to Sentry by the surrounding Sentry.ErrorBoundary.
+function CrashFallback() {
+  return (
+    <div className="overview__empty">
+      <p className="overview__empty-title">Something went wrong</p>
+      <p className="muted">This page hit an unexpected error. Try reloading.</p>
+      <button className="btn btn--purple" onClick={() => window.location.reload()}>
+        Reload
+      </button>
+    </div>
+  )
+}
+
 export function App() {
   // Reload when the injected wallet switches/disconnects accounts (see the hook for the rationale).
   useAccountWatcher()
@@ -74,8 +89,9 @@ export function App() {
       <PreviewWarmer />
       <NavBar />
       <main className="page">
-        <Suspense fallback={<PageFallback />}>
-          <Routes>
+        <Sentry.ErrorBoundary fallback={<CrashFallback />}>
+          <Suspense fallback={<PageFallback />}>
+            <Routes>
             <Route path="/" element={<Navigate to="/overview" replace />} />
             <Route path="/overview" element={<Overview />} />
             <Route path="/assets" element={<Assets />} />
@@ -92,7 +108,8 @@ export function App() {
             <Route path="/success" element={<Success />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
-        </Suspense>
+          </Suspense>
+        </Sentry.ErrorBoundary>
       </main>
     </>
   )

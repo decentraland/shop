@@ -20,6 +20,7 @@
     "@dcl/ui-env": "2.0.0",
     "@emotion/react": "^11.11.4",
     "@emotion/styled": "^11.11.5",
+    "@sentry/react": "7.120.3",
     "@stripe/react-stripe-js": "^2.9.0",
     "@stripe/stripe-js": "^4.10.0",
     "@tanstack/react-query": "^5.59.0",
@@ -34,6 +35,7 @@
     "zustand": "^4.5.0"
   },
   "devDependencies": {
+    "@sentry/vite-plugin": "2.22.6",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.5.0",
     "@testing-library/react": "^16.0.1",
