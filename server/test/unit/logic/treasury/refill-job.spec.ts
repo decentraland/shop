@@ -70,4 +70,61 @@ describe('when running the refill job', () => {
       await (job as any)[STOP_COMPONENT]()
     })
   })
+
+  describe('and a previous cycle is still in flight', () => {
+    it('should skip the overlapping tick instead of running concurrently', async () => {
+      // First cycle never resolves within the test window -> `running` stays true.
+      let resolveFirst: (() => void) | undefined
+      refill.runOnce.mockImplementation(
+        () => new Promise((res) => (resolveFirst = () => res({ plan: {} as any, executed: false })))
+      )
+      const job = createRefillJobComponent({ refill, logs: createLogsMock(), intervalMs: 1000 })
+      await (job as any)[START_COMPONENT]()
+
+      jest.advanceTimersByTime(1000) // tick 1: runOnce starts and stays pending
+      await Promise.resolve()
+      jest.advanceTimersByTime(1000) // tick 2: previous still running -> skipped
+      await Promise.resolve()
+
+      expect(refill.runOnce).toHaveBeenCalledTimes(1)
+
+      resolveFirst?.()
+      await Promise.resolve()
+      await (job as any)[STOP_COMPONENT]()
+    })
+  })
+
+  describe('and a cycle executes a refill', () => {
+    it('should log the executed cycle with its ledger entry id', async () => {
+      refill.runOnce.mockResolvedValue({ plan: {} as any, executed: true, ledgerEntryId: 'entry-1' })
+      const logs = createLogsMock()
+      const logger = logs.getLogger('refill-job')
+      const job = createRefillJobComponent({ refill, logs, intervalMs: 1000 })
+      await (job as any)[START_COMPONENT]()
+
+      jest.advanceTimersByTime(1000)
+      await Promise.resolve()
+      await Promise.resolve()
+
+      expect(logger.info).toHaveBeenCalledWith('Refill cycle executed', { ledgerEntryId: 'entry-1' })
+
+      await (job as any)[STOP_COMPONENT]()
+    })
+
+    it('should fall back to "unknown" when an executed cycle has no ledger entry id', async () => {
+      refill.runOnce.mockResolvedValue({ plan: {} as any, executed: true })
+      const logs = createLogsMock()
+      const logger = logs.getLogger('refill-job')
+      const job = createRefillJobComponent({ refill, logs, intervalMs: 1000 })
+      await (job as any)[START_COMPONENT]()
+
+      jest.advanceTimersByTime(1000)
+      await Promise.resolve()
+      await Promise.resolve()
+
+      expect(logger.info).toHaveBeenCalledWith('Refill cycle executed', { ledgerEntryId: 'unknown' })
+
+      await (job as any)[STOP_COMPONENT]()
+    })
+  })
 })
