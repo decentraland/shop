@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { fetchCreatorItems } from '~/lib/collections'
 import { AssetCard } from '~/components/AssetCard'
 import { CreatorBadge } from '~/components/CreatorBadge'
+import { FollowButton } from '~/components/FollowButton'
 import './collection.css'
 
 // A creator's storefront: every item they made, in a grid. Discovery that feeds the North Star
@@ -33,6 +34,7 @@ export function Creator() {
 
       <header className="collection-page__head">
         {address ? <CreatorBadge address={address} className="collection-page__title-creator" /> : null}
+        {address ? <FollowButton address={address} /> : null}
         <span className="muted collection-page__count">
           {isLoading ? '…' : `${items.length.toLocaleString()} item${items.length === 1 ? '' : 's'}`}
         </span>
