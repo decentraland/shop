@@ -3,7 +3,7 @@ import type { CatalogItem } from '~/lib/api'
 import { track, creditsToUsd } from '~/lib/analytics'
 
 // Where an add-to-cart happened (funnel attribution — see design/SHOP_TRACKING_SPEC.md §5.3).
-export type AddToCartSource = 'grid' | 'item_detail' | 'carousel' | 'upsell'
+export type AddToCartSource = 'grid' | 'item_detail' | 'carousel' | 'upsell' | 'collection' | 'creator'
 
 type CartState = {
   items: CatalogItem[]

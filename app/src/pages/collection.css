@@ -40,3 +40,28 @@
 .collection-page__count {
   margin-left: auto;
 }
+
+/* "Buy the set" bar — total + add-all-to-cart (AOV lever) */
+.addall {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  margin-bottom: 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--media);
+}
+.addall__summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  color: var(--text);
+}
+.addall__diamond {
+  width: 16px;
+  height: 16px;
+}
