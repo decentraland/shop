@@ -84,7 +84,7 @@ export function ItemDetail() {
   const { data: siblings = [], isFetched: siblingsFetched } = useQuery({
     queryKey: ['collection-items', current.contractAddress],
     enabled: !!current.contractAddress,
-    queryFn: () => fetchCollectionItems(current.contractAddress, { first: 20 })
+    queryFn: () => fetchCollectionItems(current.contractAddress, { first: 20 }).then(r => r.items)
   })
 
   // Deep-link / refresh: the route segment is the itemId for primary listings. Hydrate the item

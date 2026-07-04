@@ -91,17 +91,31 @@ export type PurchaseRecord = {
   manaSettledWei: string | null
 }
 
-// The buyer's purchase history. Defaults to confirmed purchases; `all` also returns pending/expired.
+// The buyer's purchase history (paginated). Defaults to confirmed purchases; `all` also returns
+// pending/expired. Returns `{ items, total }`; `total` comes from the server, with a fallback for an
+// older server that doesn't send it (assume there's another page whenever we got a full one).
 export async function fetchUserPurchases(
   address: string,
   identity: AuthIdentity,
-  opts?: { all?: boolean }
-): Promise<PurchaseRecord[]> {
-  const url = `${config.creditsServerUrl}/users/${address.toLowerCase()}/purchases${opts?.all ? '?status=all' : ''}`
+  opts?: { all?: boolean; first?: number; skip?: number }
+): Promise<{ items: PurchaseRecord[]; total: number }> {
+  const qs = new URLSearchParams()
+  if (opts?.all) qs.set('status', 'all')
+  if (opts?.first != null) qs.set('limit', String(opts.first))
+  if (opts?.skip != null) qs.set('offset', String(opts.skip))
+  const q = qs.toString()
+  const url = `${config.creditsServerUrl}/users/${address.toLowerCase()}/purchases${q ? `?${q}` : ''}`
   const res = await signedFetch(url, { method: 'GET', identity, metadata: {} })
   if (!res.ok) throw new Error(`fetchUserPurchases ${res.status}: ${await res.text()}`)
-  const json = (await res.json()) as { purchases?: PurchaseRecord[] }
-  return json.purchases ?? []
+  const json = (await res.json()) as { purchases?: PurchaseRecord[]; total?: number }
+  const items = json.purchases ?? []
+  const skip = opts?.skip ?? 0
+  const first = opts?.first ?? items.length
+  const total =
+    typeof json.total === 'number'
+      ? json.total
+      : skip + items.length + (first > 0 && items.length >= first ? 1 : 0)
+  return { items, total }
 }
 
 // Releases reserved dollars from PENDING intents (by ephemeral credit id / salt) when a client-side

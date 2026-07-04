@@ -1,10 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { fetchListings, type ShopSort } from '~/lib/api'
 import { AssetCard } from '~/components/AssetCard'
+import { SkeletonCards } from '~/components/SkeletonCards'
+import { LoadMore } from '~/components/LoadMore'
+import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
 import { CURRENCY } from '~/lib/currency'
 import { track } from '~/lib/analytics'
+
+// Items fetched per page (infinite scroll pages by cumulative offset — see useInfiniteGrid).
+const PAGE_SIZE = 48
 
 const CATEGORIES = [
   { key: 'wearable', label: 'Wearables', sub: ['Head', 'Upper Body', 'Handwear', 'Lower Body', 'Feet', 'Accessories', 'Skins'] },
@@ -59,18 +64,14 @@ export function Assets() {
     minPriceCredits: min,
     maxPriceCredits: max,
     search: q || undefined,
-    sortBy,
-    first: 200
+    sortBy
   }
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['listings', filters],
-    queryFn: () => fetchListings(filters),
-    placeholderData: keepPreviousData
-  })
-
-  const items = data?.items ?? []
-  const resultCount = data?.total ?? items.length
+  const { items, total, isLoading, error, hasNextPage, isFetchingNextPage, fetchNextPage } = useInfiniteGrid(
+    ['listings', filters],
+    skip => fetchListings({ ...filters, first: PAGE_SIZE, skip })
+  )
+  const resultCount = total
 
   // Funnel: fire 'Shop Searched'/'Shop Applied Filter' once per change, AFTER results resolve so
   // result_count is accurate (see design/SHOP_TRACKING_SPEC.md §5.2). Refs dedupe + skip the initial load.
@@ -208,7 +209,7 @@ export function Assets() {
 
         <div className="filterbar__right">
           <span className="filterbar__count">
-            {isLoading ? '…' : `${items.length.toLocaleString()} item${items.length === 1 ? '' : 's'}`}
+            {isLoading ? '…' : `${total.toLocaleString()} item${total === 1 ? '' : 's'}`}
             {q ? ` for “${q}”` : ''}
           </span>
           <div className="filterbar__item">
@@ -232,13 +233,20 @@ export function Assets() {
         </div>
       </div>
 
-      {error ? <p className="error">{(error as Error).message}</p> : null}
+      {error ? <p className="error">{error.message}</p> : null}
 
       <div className="grid">
-        {isLoading
-          ? Array.from({ length: 15 }).map((_, i) => <div className="card card--skeleton" key={i} />)
-          : items.map(item => <AssetCard key={item.id} item={item} />)}
+        {isLoading ? (
+          <SkeletonCards count={15} />
+        ) : (
+          <>
+            {items.map(item => <AssetCard key={item.id} item={item} />)}
+            {isFetchingNextPage ? <SkeletonCards count={6} /> : null}
+          </>
+        )}
       </div>
+
+      <LoadMore hasNextPage={hasNextPage} isFetching={isFetchingNextPage} onLoadMore={() => fetchNextPage()} />
 
       {!isLoading && items.length === 0 ? (
         <p className="muted">No items match your filters.</p>

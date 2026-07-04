@@ -216,6 +216,10 @@ h1, h2 { margin: 0; }
 }
 .asset-card--skeleton { min-height: 260px; border-radius: 12px; }
 @keyframes shimmer { to { background-position: -200% 0; } }
+
+/* Infinite-scroll "load more" trigger (sentinel + fallback button), centered under a grid. */
+.load-more { display: flex; justify-content: center; padding: 28px 0 8px; }
+.load-more .btn { min-width: 160px; }
 .spinner { width: 30px; height: 30px; margin-top: 14px; border-radius: 50%; border: 3px solid var(--line); border-top-color: var(--accent); animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .card--skeleton, .asset-card--skeleton { animation: none; } .spinner { animation-duration: 2s; } }

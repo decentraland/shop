@@ -10,9 +10,13 @@ import { cancelListing } from '~/lib/buy'
 import { toast } from '~/store/toast'
 import { SellModal } from '~/components/SellModal'
 import { PrimaryListModal } from '~/components/PrimaryListModal'
+import { LoadMore } from '~/components/LoadMore'
+import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
 import { CURRENCY } from '~/lib/currency'
 import { track } from '~/lib/analytics'
 import '~/styles/my-listings.css'
+
+const PAGE_SIZE = 48
 
 // Owned NFT (secondary) → the CatalogItem shape ItemDetail seeds its preview from (carries tokenId).
 function assetToItem(a: MyAsset): CatalogItem {
@@ -97,11 +101,18 @@ export function MyAssets() {
   }, [restore])
 
   const address = session?.address
-  const { data, isLoading, error: queryError } = useQuery({
-    queryKey: ['my-assets', address],
-    queryFn: () => fetchMyAssets(address as string),
-    enabled: !!address
-  })
+  const {
+    items: ownedAssets,
+    isLoading,
+    error: queryError,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage
+  } = useInfiniteGrid(
+    ['my-assets', address],
+    skip => fetchMyAssets(address as string, { first: PAGE_SIZE, skip }).then(r => ({ items: r.assets, total: r.total })),
+    { enabled: !!address }
+  )
 
   // Old (classic) listings the seller could import into the Shop → surfaces the import banner.
   const { data: importable } = useQuery({
@@ -206,7 +217,7 @@ export function MyAssets() {
         <div className="asset-grid">
           {isLoading
             ? Array.from({ length: 8 }).map((_, i) => <div className="asset-card asset-card--skeleton" key={`sk-${i}`} />)
-            : data?.assets.map(asset => (
+            : ownedAssets.map(asset => (
                 <article
                   className="asset-card asset-card--link"
                   key={asset.id}
@@ -256,9 +267,14 @@ export function MyAssets() {
                   )}
                 </article>
               ))}
+          {isFetchingNextPage
+            ? Array.from({ length: 4 }).map((_, i) => <div className="asset-card asset-card--skeleton" key={`msk-${i}`} />)
+            : null}
         </div>
 
-        {!isLoading && data && data.assets.length === 0 ? (
+        <LoadMore hasNextPage={hasNextPage} isFetching={isFetchingNextPage} onLoadMore={() => fetchNextPage()} />
+
+        {!isLoading && ownedAssets.length === 0 ? (
           <p className="muted">No items in your inventory yet.</p>
         ) : null}
       </div>
