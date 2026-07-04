@@ -101,7 +101,7 @@ describe('when fetching a collection carousel', () => {
   it('should map each raw item into a catalog item', async () => {
     mockFetchOk([rawItem()])
 
-    const items = await fetchCollectionItems('0xcollection')
+    const { items } = await fetchCollectionItems('0xcollection')
 
     expect(items).toHaveLength(1)
     expect(items[0]).toEqual({
@@ -125,7 +125,7 @@ describe('when fetching a collection carousel', () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({}) })
     vi.stubGlobal('fetch', fetchMock)
 
-    const items = await fetchCollectionItems('0xcollection')
+    const { items } = await fetchCollectionItems('0xcollection')
 
     expect(items).toEqual([])
   })
@@ -163,7 +163,7 @@ describe('when fetching a creator storefront', () => {
   it('should map returned raw items into catalog items', async () => {
     mockFetchOk([rawItem({ id: 'a' }), rawItem({ id: 'b' })])
 
-    const items = await fetchCreatorItems('0xartist')
+    const { items } = await fetchCreatorItems('0xartist')
 
     expect(items.map(i => i.id)).toEqual(['a', 'b'])
   })
@@ -180,7 +180,7 @@ describe('when mapping the price to whole credits', () => {
     // 1.23 USD → 12.3 credits → ceil → 13.
     mockFetchOk([rawItem({ price: '1230000000000000000' })])
 
-    const items = await fetchCollectionItems('0xcollection')
+    const { items } = await fetchCollectionItems('0xcollection')
 
     expect(items[0].priceCredits).toBe(13)
   })
@@ -188,7 +188,7 @@ describe('when mapping the price to whole credits', () => {
   it('and there is no price it should fall back to minPrice', async () => {
     mockFetchOk([rawItem({ price: null, minPrice: ONE_USD })])
 
-    const items = await fetchCollectionItems('0xcollection')
+    const { items } = await fetchCollectionItems('0xcollection')
 
     expect(items[0].priceCredits).toBe(10)
   })
@@ -196,7 +196,7 @@ describe('when mapping the price to whole credits', () => {
   it('and neither price nor minPrice is present it should be zero credits', async () => {
     mockFetchOk([rawItem({ price: null, minPrice: null })])
 
-    const items = await fetchCollectionItems('0xcollection')
+    const { items } = await fetchCollectionItems('0xcollection')
 
     expect(items[0].priceCredits).toBe(0)
   })
@@ -204,7 +204,7 @@ describe('when mapping the price to whole credits', () => {
   it('and the price is not a valid number it should be zero credits', async () => {
     mockFetchOk([rawItem({ price: 'not-a-number' })])
 
-    const items = await fetchCollectionItems('0xcollection')
+    const { items } = await fetchCollectionItems('0xcollection')
 
     expect(items[0].priceCredits).toBe(0)
   })
@@ -214,7 +214,7 @@ describe('when deriving gender from body shapes', () => {
   it('should be unisex when both male and female shapes are present', async () => {
     mockFetchOk([rawItem({ data: { wearable: { bodyShapes: ['urn:BaseMale', 'urn:BaseFemale'] } } })])
 
-    const items = await fetchCollectionItems('0xcollection')
+    const { items } = await fetchCollectionItems('0xcollection')
 
     expect(items[0].gender).toBe('unisex')
   })
@@ -222,7 +222,7 @@ describe('when deriving gender from body shapes', () => {
   it('should be female when only a female shape is present', async () => {
     mockFetchOk([rawItem({ data: { wearable: { bodyShapes: ['urn:BaseFemale'] } } })])
 
-    const items = await fetchCollectionItems('0xcollection')
+    const { items } = await fetchCollectionItems('0xcollection')
 
     expect(items[0].gender).toBe('female')
   })
@@ -230,7 +230,7 @@ describe('when deriving gender from body shapes', () => {
   it('and there are no body shapes it should be null', async () => {
     mockFetchOk([rawItem({ data: { wearable: { bodyShapes: [] } } })])
 
-    const items = await fetchCollectionItems('0xcollection')
+    const { items } = await fetchCollectionItems('0xcollection')
 
     expect(items[0].gender).toBeNull()
   })
@@ -238,7 +238,7 @@ describe('when deriving gender from body shapes', () => {
   it('and there is no wearable data it should be null', async () => {
     mockFetchOk([rawItem({ data: { emote: { category: 'dance' } } })])
 
-    const items = await fetchCollectionItems('0xcollection')
+    const { items } = await fetchCollectionItems('0xcollection')
 
     expect(items[0].gender).toBeNull()
   })
@@ -248,7 +248,7 @@ describe('when mapping optional catalog fields', () => {
   it('should use the emote category when there is no wearable category', async () => {
     mockFetchOk([rawItem({ data: { emote: { category: 'dance' } } })])
 
-    const items = await fetchCollectionItems('0xcollection')
+    const { items } = await fetchCollectionItems('0xcollection')
 
     expect(items[0].wearableCategory).toBe('dance')
   })
@@ -258,7 +258,7 @@ describe('when mapping optional catalog fields', () => {
       rawItem({ creator: undefined, itemId: null, rarity: undefined, thumbnail: undefined })
     ])
 
-    const items = await fetchCollectionItems('0xcollection')
+    const { items } = await fetchCollectionItems('0xcollection')
 
     expect(items[0].creator).toBe('')
     expect(items[0].itemId).toBeNull()

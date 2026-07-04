@@ -67,30 +67,35 @@ function toCatalogItem(r: RawCollectionItem): CatalogItem {
   }
 }
 
+export type CollectionItemsPage = { items: CatalogItem[]; total: number }
+
 export async function fetchCollectionItems(
   contractAddress: string,
-  { first = 20 }: { first?: number } = {}
-): Promise<CatalogItem[]> {
+  { first = 20, skip = 0 }: { first?: number; skip?: number } = {}
+): Promise<CollectionItemsPage> {
   const qs = new URLSearchParams({
     contractAddress,
     first: String(first),
+    skip: String(skip),
     includeSocialEmotes: 'false'
   })
   const res = await fetch(`${config.nftApiUrl}/v1/items?${qs.toString()}`)
   if (!res.ok) throw new Error(`fetchCollectionItems ${res.status}`)
-  const { data } = (await res.json()) as { data: RawCollectionItem[] }
-  return (data ?? []).map(toCatalogItem)
+  const { data, total } = (await res.json()) as { data: RawCollectionItem[]; total?: number }
+  const items = (data ?? []).map(toCatalogItem)
+  return { items, total: total ?? skip + items.length }
 }
 
 // Every catalog item made by one creator (their storefront). Same source/shape as the collection
 // fetch, filtered by `creator` (the classic /v1/items API supports it — no shop-catalog change needed).
 export async function fetchCreatorItems(
   creator: string,
-  { first = 60 }: { first?: number } = {}
-): Promise<CatalogItem[]> {
-  const qs = new URLSearchParams({ creator, first: String(first), includeSocialEmotes: 'false' })
+  { first = 60, skip = 0 }: { first?: number; skip?: number } = {}
+): Promise<CollectionItemsPage> {
+  const qs = new URLSearchParams({ creator, first: String(first), skip: String(skip), includeSocialEmotes: 'false' })
   const res = await fetch(`${config.nftApiUrl}/v1/items?${qs.toString()}`)
   if (!res.ok) throw new Error(`fetchCreatorItems ${res.status}`)
-  const { data } = (await res.json()) as { data: RawCollectionItem[] }
-  return (data ?? []).map(toCatalogItem)
+  const { data, total } = (await res.json()) as { data: RawCollectionItem[]; total?: number }
+  const items = (data ?? []).map(toCatalogItem)
+  return { items, total: total ?? skip + items.length }
 }

@@ -23,7 +23,11 @@ export function FollowedCreatorsRow() {
     enabled: creators.length > 0,
     queryFn: async () => {
       const lists = await Promise.all(
-        creators.map(c => fetchCreatorItems(c, { first: PER_CREATOR }).catch(() => [] as CatalogItem[]))
+        creators.map(c =>
+          fetchCreatorItems(c, { first: PER_CREATOR })
+            .then(r => r.items)
+            .catch(() => [] as CatalogItem[])
+        )
       )
       return interleave(lists)
         .filter(i => i.priceCredits > 0) // buyable only

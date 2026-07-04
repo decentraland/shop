@@ -1,11 +1,16 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import { fetchLegacyListings, type LegacyListing, type ShopSort, type CatalogItem } from '~/lib/api'
 import { manaWeiToCredits } from '~/lib/mana-rate'
 import { useManaRate } from '~/hooks/useManaRate'
 import { AssetCard } from '~/components/AssetCard'
+import { SkeletonCards } from '~/components/SkeletonCards'
+import { LoadMore } from '~/components/LoadMore'
 import { MarketCheckout } from '~/components/MarketCheckout'
+import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
+
+const PAGE_SIZE = 48
 
 // Mirrors Assets.tsx — the same horizontal filter bar + grid. The differences are all "market":
 // it reads /v3/catalog/legacy (classic MANA-priced liquidity), shows FLUCTUATING credit prices, and
@@ -77,21 +82,22 @@ export function Market() {
     rarities: rarities.length ? rarities : undefined,
     wearableCategories,
     search: q || undefined,
-    sortBy,
-    first: 200
+    sortBy
   }
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['legacy-listings', filters],
-    queryFn: () => fetchLegacyListings(filters),
-    placeholderData: keepPreviousData
-  })
+  const {
+    items: listings,
+    total,
+    isLoading,
+    error,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage
+  } = useInfiniteGrid(['legacy-listings', filters], skip => fetchLegacyListings({ ...filters, first: PAGE_SIZE, skip }))
 
   // The live market rate powers the fluctuating credit prices. If the oracle is stale/down we still
   // list the items but disable Buy now with a notice (rather than pricing off a bad rate).
   const { data: rate, isError: rateError } = useManaRate()
-
-  const listings = useMemo(() => data?.items ?? [], [data])
   const priceOf = (l: LegacyListing): number | null => (rate ? manaWeiToCredits(l.manaWei, rate) : null)
 
   function pickCategory(key: string) {
@@ -197,7 +203,7 @@ export function Market() {
 
         <div className="filterbar__right">
           <span className="filterbar__count">
-            {isLoading ? '…' : `${listings.length.toLocaleString()} item${listings.length === 1 ? '' : 's'}`}
+            {isLoading ? '…' : `${total.toLocaleString()} item${total === 1 ? '' : 's'}`}
             {q ? ` for “${q}”` : ''}
           </span>
           <div className="filterbar__item">
@@ -221,12 +227,14 @@ export function Market() {
         </div>
       </div>
 
-      {error ? <p className="error">{(error as Error).message}</p> : null}
+      {error ? <p className="error">{error.message}</p> : null}
 
       <div className="grid">
-        {isLoading
-          ? Array.from({ length: 15 }).map((_, i) => <div className="card card--skeleton" key={i} />)
-          : listings.map(l => (
+        {isLoading ? (
+          <SkeletonCards count={15} />
+        ) : (
+          <>
+            {listings.map(l => (
               <AssetCard
                 key={l.tradeId}
                 item={toCardItem(l)}
@@ -235,7 +243,12 @@ export function Market() {
                 onBuyNow={openCheckout}
               />
             ))}
+            {isFetchingNextPage ? <SkeletonCards count={6} /> : null}
+          </>
+        )}
       </div>
+
+      <LoadMore hasNextPage={hasNextPage} isFetching={isFetchingNextPage} onLoadMore={() => fetchNextPage()} />
 
       {!isLoading && listings.length === 0 ? (
         <p className="muted">No items match your filters.</p>
