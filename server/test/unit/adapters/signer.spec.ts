@@ -1,4 +1,4 @@
-import { Wallet } from 'ethers'
+import { BigNumber, Wallet } from 'ethers'
 
 import { createTreasurySignerComponent } from '../../../src/adapters/signer/component'
 import { SignerMode } from '../../../src/logic/config/types'
@@ -89,6 +89,50 @@ describe('when selecting the treasury signer', () => {
       const sent = await signer.sendTransaction({ to: '0xabc' })
       expect(sent.hash).toBe('0xkmshash')
       expect(fakeKmsSigner.sendTransaction).toHaveBeenCalled()
+    })
+  })
+
+  describe('and KMS mode is requested with a short key id and no region override', () => {
+    it('should still construct (key id masked in logs, region defaulted)', async () => {
+      const fakeKmsSigner = {
+        getAddress: jest.fn().mockResolvedValue('0x00000000000000000000000000000000kmsshort'),
+        sendTransaction: jest.fn().mockResolvedValue({ hash: '0xshort' })
+      } as any
+      const signer = await createTreasurySignerComponent({
+        // KMS_KEY_ID <= 8 chars exercises the '***' masking branch; AWS_REGION omitted -> default.
+        config: createConfigMock({ KMS_KEY_ID: 'short' }),
+        logs: createLogsMock(),
+        provider: fakeProvider,
+        treasuryConfig: createTreasuryConfigMock({ signerMode: SignerMode.KMS }),
+        kmsSignerFactory: () => fakeKmsSigner
+      })
+      expect(await signer.getAddress()).toBe('0x00000000000000000000000000000000kmsshort')
+    })
+  })
+
+  describe('and the dev signer broadcasts a transaction', () => {
+    it('should send { to, data, value } via the wallet and return the tx hash', async () => {
+      // Stub the wallet broadcast so no network is hit; the dev signer only forwards to it.
+      const spy = jest.spyOn(Wallet.prototype, 'sendTransaction').mockResolvedValue({ hash: '0xdevbroadcast' } as any)
+      try {
+        const signer = await createTreasurySignerComponent({
+          config: createConfigMock({
+            NODE_ENV: 'development',
+            ALLOW_DEV_SIGNER: 'true',
+            DEV_TREASURY_PRIVATE_KEY: DEV_KEY
+          }),
+          logs: createLogsMock(),
+          provider: fakeProvider,
+          treasuryConfig: createTreasuryConfigMock({ signerMode: SignerMode.DEV })
+        })
+
+        const sent = await signer.sendTransaction({ to: '0xdead', data: '0xbeef', value: BigNumber.from(1) })
+
+        expect(sent.hash).toBe('0xdevbroadcast')
+        expect(spy).toHaveBeenCalledWith(expect.objectContaining({ to: '0xdead', data: '0xbeef' }))
+      } finally {
+        spy.mockRestore()
+      }
     })
   })
 })

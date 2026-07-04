@@ -1,14 +1,10 @@
 import { BigNumber } from 'ethers'
 
 import { createDexSwapper } from '../../../../src/logic/treasury/swap/dex-swapper'
+import { AMOY_ADDRESSES } from '../../../../src/logic/config/chains'
 import { usdcToMana, applySlippageFloor } from '../../../../src/logic/treasury/math'
 import { IChainReaderComponent, ITreasurySignerComponent } from '../../../../src/types/components'
-import {
-  createChainReaderMock,
-  createLogsMock,
-  createSignerMock,
-  createTreasuryConfigMock
-} from '../../../mocks'
+import { createChainReaderMock, createLogsMock, createSignerMock, createTreasuryConfigMock } from '../../../mocks'
 
 const PRICE_1USD = BigNumber.from('100000000')
 const ONE_USDC = BigNumber.from('1000000')
@@ -94,6 +90,57 @@ describe('when swapping via the DEX aggregator', () => {
       const swapper = buildSwapper()
       await expect(swapper.swapUsdcForMana(BigNumber.from(0))).rejects.toThrow(/positive USDC amount/)
       expect(fetchMock.fetch).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('and the DEX aggregator URL is not configured', () => {
+    it('should throw before fetching a quote', async () => {
+      const swapper = createDexSwapper({
+        chainReader,
+        treasuryConfig: createTreasuryConfigMock({ slippageBps: 300, dexAggregatorUrl: undefined }),
+        signer,
+        fetch: fetchMock as any,
+        logs: createLogsMock()
+      })
+      await expect(swapper.swapUsdcForMana(ONE_USDC)).rejects.toThrow(/DEX aggregator URL is not configured/)
+      expect(fetchMock.fetch).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('and the USDC allowance is insufficient', () => {
+    // A valid checksummable address is required because approve() calldata is abi-encoded.
+    const ALLOWANCE_TARGET = '0x1111111111111111111111111111111111111111'
+
+    beforeEach(() => {
+      // Zero allowance forces an on-chain approve before the swap can pull USDC.
+      chainReader = createChainReaderMock({
+        getOraclePrice: jest.fn().mockResolvedValue(PRICE_1USD),
+        getUsdcAllowance: jest.fn().mockResolvedValue(BigNumber.from(0))
+      })
+      fetchMock.fetch.mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          buyAmount: usdcToMana(ONE_USDC, PRICE_1USD).toString(),
+          to: '0xaggregator',
+          data: '0xswapcalldata',
+          value: '0',
+          allowanceTarget: ALLOWANCE_TARGET
+        })
+      })
+    })
+
+    it('should approve the USDC token for the allowanceTarget before broadcasting the swap', async () => {
+      const swapper = buildSwapper()
+      await swapper.swapUsdcForMana(ONE_USDC)
+
+      expect(signer.sendTransaction).toHaveBeenCalledTimes(2)
+      const [approveCall, swapCall] = signer.sendTransaction.mock.calls.map((c) => c[0])
+      // First tx = ERC-20 approve(spender, amount) to the USDC token contract.
+      expect(approveCall.to).toBe(AMOY_ADDRESSES.usdc)
+      expect(approveCall.data?.startsWith('0x095ea7b3')).toBe(true) // approve(address,uint256) selector
+      // Second tx = the aggregator swap calldata.
+      expect(swapCall.to).toBe('0xaggregator')
     })
   })
 })
