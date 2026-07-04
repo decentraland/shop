@@ -1,0 +1,15 @@
+{
+  "ENVIRONMENT": "staging",
+  "CHAIN_ID": "80002",
+  "MARKETPLACE_SERVER_URL": "https://marketplace-api.decentraland.zone",
+  "NFT_API_URL": "https://marketplace-api.decentraland.zone",
+  "AUTH_URL": "/auth",
+  "RPC_URL": "https://rpc.decentraland.org/amoy",
+  "CREDITS_SERVER_URL": "https://credits.decentraland.zone",
+  "BUILDER_SERVER_URL": "https://builder-api.decentraland.zone",
+  "PEER_URL": "https://peer.decentraland.zone",
+  "SHOP_SERVER_URL": "",
+  "STRIPE_PUBLISHABLE_KEY": "",
+  "SEGMENT_WRITE_KEY": "",
+  "SENTRY_DSN": ""
+}

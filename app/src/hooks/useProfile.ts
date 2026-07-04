@@ -1,7 +1,8 @@
 import { useQuery } from '@tanstack/react-query'
+import { config } from '~/config'
 
-// Catalyst lambdas profile endpoint. .zone for testnet, .org for prod.
-const PEER_URL = import.meta.env.VITE_PEER_URL ?? 'https://peer.decentraland.zone'
+// Catalyst lambdas profile endpoint (per-env — .zone testnet / .org prod — via src/config).
+const PEER_URL = config.peerUrl
 
 export type ProfileAvatar = {
   name?: string

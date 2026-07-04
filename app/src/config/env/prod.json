@@ -1,0 +1,15 @@
+{
+  "ENVIRONMENT": "production",
+  "CHAIN_ID": "137",
+  "MARKETPLACE_SERVER_URL": "https://marketplace-api.decentraland.org",
+  "NFT_API_URL": "https://marketplace-api.decentraland.org",
+  "AUTH_URL": "/auth",
+  "RPC_URL": "https://rpc.decentraland.org/polygon",
+  "CREDITS_SERVER_URL": "https://credits.decentraland.org",
+  "BUILDER_SERVER_URL": "https://builder-api.decentraland.org",
+  "PEER_URL": "https://peer.decentraland.org",
+  "SHOP_SERVER_URL": "",
+  "STRIPE_PUBLISHABLE_KEY": "",
+  "SEGMENT_WRITE_KEY": "",
+  "SENTRY_DSN": ""
+}
