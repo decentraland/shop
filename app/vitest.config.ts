@@ -16,6 +16,18 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: './src/test/setup.ts',
-    css: false
+    css: false,
+    coverage: {
+      provider: 'v8',
+      reporter: ['text-summary', 'html'],
+      include: ['src/**'],
+      exclude: ['src/**/*.spec.*', 'src/test/**', 'src/main.tsx', 'src/vite-env.d.ts', 'src/**/*.d.ts'],
+      // Lock in the logic layer (lib/store). Pages/components are exercised by the e2e suite,
+      // so we don't gate on their unit coverage here.
+      thresholds: {
+        'src/lib/**': { statements: 90, branches: 88, functions: 90, lines: 90 },
+        'src/store/**': { statements: 95, branches: 90, functions: 78, lines: 95 }
+      }
+    }
   }
 })
