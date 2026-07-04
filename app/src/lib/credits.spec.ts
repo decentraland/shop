@@ -124,7 +124,7 @@ describe('when fetching the buyer purchase history', () => {
 
     const result = await fetchUserPurchases('0xABC', IDENTITY)
 
-    expect(result).toBe(purchases)
+    expect(result.items).toEqual(purchases)
     expect(signedFetch.mock.calls[0][0]).toBe('https://credits.example/users/0xabc/purchases')
   })
 
@@ -136,10 +136,32 @@ describe('when fetching the buyer purchase history', () => {
     expect(signedFetch.mock.calls[0][0]).toBe('https://credits.example/users/0xabc/purchases?status=all')
   })
 
-  it('and the payload omits purchases it should default to an empty array', async () => {
+  it('should forward limit/offset and return the server total', async () => {
+    const purchases = [{ id: 'p1', tradeId: null, usdCents: 100, credits: 10, status: 'SETTLED', createdAt: 1, manaSettledWei: null }]
+    signedFetch.mockResolvedValueOnce(ok({ purchases, total: 42 }))
+
+    const result = await fetchUserPurchases('0xabc', IDENTITY, { all: true, first: 24, skip: 24 })
+
+    expect(result.total).toBe(42)
+    const url = new URL(signedFetch.mock.calls[0][0] as string)
+    expect(url.searchParams.get('status')).toBe('all')
+    expect(url.searchParams.get('limit')).toBe('24')
+    expect(url.searchParams.get('offset')).toBe('24')
+  })
+
+  it('and the server omits total it should assume another page when the page is full', async () => {
+    const page = Array.from({ length: 24 }, (_, i) => ({ id: `p${i}` }))
+    signedFetch.mockResolvedValueOnce(ok({ purchases: page })) // old server, no total
+
+    const result = await fetchUserPurchases('0xabc', IDENTITY, { first: 24, skip: 0 })
+
+    expect(result.total).toBeGreaterThan(24) // nudged so paging continues to the next page
+  })
+
+  it('and the payload omits purchases it should default to empty with zero total', async () => {
     signedFetch.mockResolvedValueOnce(ok({}))
 
-    await expect(fetchUserPurchases('0xabc', IDENTITY)).resolves.toEqual([])
+    await expect(fetchUserPurchases('0xabc', IDENTITY)).resolves.toEqual({ items: [], total: 0 })
   })
 
   it('and the server responds non-ok it should throw', async () => {

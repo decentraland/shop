@@ -3,7 +3,11 @@ import { useQuery } from '@tanstack/react-query'
 import { useWallet } from '~/store/wallet'
 import { fetchUserPurchases, type PurchaseRecord } from '~/lib/credits'
 import { fetchTradeDisplay } from '~/lib/api'
+import { LoadMore } from '~/components/LoadMore'
+import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
 import { CURRENCY } from '~/lib/currency'
+
+const PAGE_SIZE = 24
 
 function formatDate(ms: number): string {
   try {
@@ -55,11 +59,11 @@ function PurchaseRow({ purchase }: { purchase: PurchaseRecord }) {
 
 export function MyPurchases() {
   const { session } = useWallet()
-  const { data, isLoading } = useQuery({
-    queryKey: ['purchases', session?.address],
-    queryFn: () => fetchUserPurchases(session!.address, session!.identity, { all: true }),
-    enabled: !!session
-  })
+  const { items, isLoading, hasNextPage, isFetchingNextPage, fetchNextPage } = useInfiniteGrid(
+    ['purchases', session?.address],
+    skip => fetchUserPurchases(session!.address, session!.identity, { all: true, first: PAGE_SIZE, skip }),
+    { enabled: !!session }
+  )
 
   if (!session) {
     return (
@@ -72,7 +76,7 @@ export function MyPurchases() {
   }
 
   // Hide released/cancelled (EXPIRED) intents — those never became purchases.
-  const purchases = (data ?? []).filter(p => p.status !== 'EXPIRED')
+  const purchases = items.filter(p => p.status !== 'EXPIRED')
 
   if (!isLoading && purchases.length === 0) {
     return (
@@ -94,10 +98,18 @@ export function MyPurchases() {
         ) : null}
       </div>
       <div className="purchases__list">
-        {isLoading
-          ? Array.from({ length: 4 }).map((_, i) => <div className="purchase purchase--skeleton" key={i} />)
-          : purchases.map(p => <PurchaseRow key={p.id} purchase={p} />)}
+        {isLoading ? (
+          Array.from({ length: 4 }).map((_, i) => <div className="purchase purchase--skeleton" key={i} />)
+        ) : (
+          <>
+            {purchases.map(p => <PurchaseRow key={p.id} purchase={p} />)}
+            {isFetchingNextPage
+              ? Array.from({ length: 2 }).map((_, i) => <div className="purchase purchase--skeleton" key={`m-${i}`} />)
+              : null}
+          </>
+        )}
       </div>
+      <LoadMore hasNextPage={hasNextPage} isFetching={isFetchingNextPage} onLoadMore={() => fetchNextPage()} />
     </section>
   )
 }
