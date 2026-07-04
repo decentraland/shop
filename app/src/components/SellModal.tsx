@@ -9,6 +9,7 @@ import { createUsdPeggedListing, ensureApproval } from '~/lib/trades'
 import { toast } from '~/store/toast'
 import { CURRENCY } from '~/lib/currency'
 import { track, errorCode } from '~/lib/analytics'
+import { captureError } from '~/lib/monitoring'
 
 const SIX_MONTHS_MS = 1000 * 60 * 60 * 24 * 182
 
@@ -71,7 +72,7 @@ export function SellModal({ asset, session, onClose }: { asset: MyAsset; session
       toast.success(`“${asset.name}” is now on sale!`)
       queryClient.invalidateQueries({ queryKey: ['my-assets', session.address] })
     } catch (e) {
-      console.error(e)
+      captureError(e, { flow: 'list_secondary' })
       track('Shop Listing Failed', { listing_type: 'secondary', error_code: errorCode(e) })
       setError(friendlyError(e))
       setStatus(null)

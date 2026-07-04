@@ -7,6 +7,7 @@ import { fetchCollectionSaleState, fetchMyAssets, fetchTrade, type CatalogItem, 
 import { fetchImportable } from '~/lib/import'
 import { fetchPublishableItems, type PublishableItem } from '~/lib/builder'
 import { cancelListing } from '~/lib/buy'
+import { captureError } from '~/lib/monitoring'
 import { toast } from '~/store/toast'
 import { SellModal } from '~/components/SellModal'
 import { PrimaryListModal } from '~/components/PrimaryListModal'
@@ -86,11 +87,9 @@ export function MyAssets() {
     } catch (e) {
       const err = e as { code?: number; message?: string }
       const msg = (err.message ?? '').toLowerCase()
-      setCancelError(
-        err.code === 4001 || msg.includes('reject') || msg.includes('denied')
-          ? 'You cancelled the request.'
-          : "Couldn't remove the listing — please try again."
-      )
+      const rejected = err.code === 4001 || msg.includes('reject') || msg.includes('denied')
+      if (!rejected) captureError(e, { flow: 'remove-listing', tradeId })
+      setCancelError(rejected ? 'You cancelled the request.' : "Couldn't remove the listing — please try again.")
     } finally {
       setCancelling(null)
     }

@@ -19,6 +19,7 @@ import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { CURRENCY } from '~/lib/currency'
 import { track, itemProps, purchaseItemsProps, errorCode, isUserRejection, creditsToUsd } from '~/lib/analytics'
 import { recordViewed } from '~/lib/recently-viewed'
+import { captureError } from '~/lib/monitoring'
 import './item-detail.css'
 
 function isValidRarity(r: string): r is Rarity {
@@ -230,7 +231,7 @@ export function ItemDetail() {
       })
       navigate('/success', { state: { items: [cartItem], txHash } })
     } catch (e) {
-      console.error('[detail] buy now failed:', e)
+      if (!isUserRejection(e)) captureError(e, { flow: 'buy', step, gasless: usedGasless })
       // Release the reserved dollars so the balance isn't stuck until the TTL (matches Cart/MarketCheckout).
       if (reservedCreditId) void cancelUsdIntents(session.identity, [reservedCreditId]).catch(() => {})
       track(isUserRejection(e) ? 'Shop Purchase Cancelled' : 'Shop Purchase Failed', {

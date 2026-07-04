@@ -7,6 +7,7 @@ import { config } from '~/config'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { CURRENCY, formatAmount } from '~/lib/currency'
 import { track, errorCode } from '~/lib/analytics'
+import { captureError } from '~/lib/monitoring'
 import {
   CREDIT_PACKS,
   createPackCheckout,
@@ -61,7 +62,7 @@ export function GetCredits() {
         const cs = await createPackCheckout(pack.id, { address: session.address, identity: session.identity })
         setCheckout(cs)
       } catch (e) {
-        console.error(e)
+        captureError(e, { flow: 'get_credits', step: 'checkout', provider: CREDITS_PROVIDER })
         track('Shop Buy Credits Failed', { step: 'checkout', error_code: errorCode(e), pack_usd: pack.usd })
         setError(friendlyError(e))
         setPhase('error')
@@ -98,7 +99,7 @@ export function GetCredits() {
         setPhase('error')
       }
     } catch (e) {
-      console.error(e)
+      captureError(e, { flow: 'get_credits', step: 'grant', order_id: checkout.orderId })
       track('Shop Buy Credits Failed', { step: 'grant', error_code: errorCode(e), pack_usd: selected?.usd ?? null })
       setError(friendlyError(e))
       setPhase('error')
