@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { nodePolyfills } from 'vite-plugin-node-polyfills'
+import { sentryVitePlugin } from '@sentry/vite-plugin'
 import { fileURLToPath, URL } from 'node:url'
 import { readFileSync, writeFileSync } from 'node:fs'
 
@@ -14,6 +15,10 @@ const pkg = JSON.parse(readFileSync(fileURLToPath(new URL('./package.json', impo
 // deploy build must reference assets there. Gated on DEPLOY_CDN (set only by the deploy workflows) so
 // local dev + the e2e dev server + the CI build-check keep serving from the root.
 const base = process.env.DEPLOY_CDN === 'true' ? `https://cdn.decentraland.org/${pkg.name}/${pkg.version}/` : '/'
+
+// Upload source maps to Sentry only when an auth token is present (release builds). Local dev + the
+// CI build-check have no token → no maps emitted, build behaves exactly as before.
+const sentryUpload = Boolean(process.env.SENTRY_AUTH_TOKEN)
 
 // The app package.json is `private` and vite doesn't copy it, so emit a publishable package.json into
 // dist. That's the manifest npm/oddish publishes; the CDN serves this package at <name>/<version>/.
@@ -36,7 +41,23 @@ function emitPackageJson() {
 
 export default defineConfig({
   base,
-  plugins: [react(), nodePolyfills({ globals: { Buffer: true, global: true, process: true } }), emitPackageJson()],
+  plugins: [
+    react(),
+    nodePolyfills({ globals: { Buffer: true, global: true, process: true } }),
+    emitPackageJson(),
+    ...(sentryUpload
+      ? [
+          sentryVitePlugin({
+            org: process.env.SENTRY_ORG,
+            project: process.env.SENTRY_PROJECT,
+            authToken: process.env.SENTRY_AUTH_TOKEN,
+            release: { name: process.env.VITE_SENTRY_RELEASE ?? `shop@${pkg.version}` },
+            // Don't ship .map files to the CDN — upload then delete them.
+            sourcemaps: { filesToDeleteAfterUpload: ['./dist/**/*.map'] }
+          })
+        ]
+      : [])
+  ],
   resolve: {
     alias: [
       { find: '~', replacement: fileURLToPath(new URL('./src', import.meta.url)) },
@@ -47,6 +68,8 @@ export default defineConfig({
     ]
   },
   build: {
+    // Emit source maps only for release builds that upload them to Sentry (deleted after upload).
+    sourcemap: sentryUpload,
     chunkSizeWarningLimit: 900,
     rollupOptions: {
       output: {

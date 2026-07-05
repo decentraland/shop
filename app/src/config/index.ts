@@ -40,5 +40,14 @@ export const config = {
   peerUrl: env.VITE_PEER_URL ?? base.get('PEER_URL'),
   shopServerUrl: env.VITE_SHOP_SERVER_URL ?? base.get('SHOP_SERVER_URL'),
   stripePublishableKey: env.VITE_STRIPE_PK ?? base.get('STRIPE_PUBLISHABLE_KEY'),
-  segmentWriteKey: env.VITE_SEGMENT_WRITE_KEY ?? base.get('SEGMENT_WRITE_KEY')
+  segmentWriteKey: env.VITE_SEGMENT_WRITE_KEY ?? base.get('SEGMENT_WRITE_KEY'),
+  // Sentry error monitoring. Empty DSN → monitoring no-ops (errors only hit the console). The DSN is a
+  // public ingest key (ships in the bundle), NEVER a secret — it lives in the per-env JSONs like the
+  // other client-safe values. Environment/release are derived (no per-env JSON key needed).
+  sentryDsn: env.VITE_SENTRY_DSN ?? base.get('SENTRY_DSN'),
+  sentryEnvironment:
+    env.VITE_SENTRY_ENVIRONMENT ??
+    (Number(env.VITE_CHAIN_ID ?? base.get('CHAIN_ID')) === 80002 ? 'dev' : 'prod'),
+  // Release tag — MUST match the source-map upload's release (vite plugin / CI). e.g. "shop@1.2.3".
+  sentryRelease: env.VITE_SENTRY_RELEASE ?? `shop@${env.VITE_APP_VERSION ?? '0.0.0-dev'}`
 }
