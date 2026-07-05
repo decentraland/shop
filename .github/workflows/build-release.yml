@@ -72,18 +72,9 @@ jobs:
         env:
           # Serve assets from the versioned CDN path (cdn.decentraland.org/@dcl/shop/<version>/).
           DEPLOY_CDN: 'true'
-          # Point the built app at the zone (testnet) backends. Vite bakes VITE_* at build time.
-          # NOTE: the Shop needs marketplace-server's /v3 endpoints + credits-server's USD credits
-          # deployed to zone to be fully functional; until then the team sees the UI shell.
-          VITE_CHAIN_ID: '80002'
-          VITE_MARKETPLACE_SERVER_URL: 'https://marketplace-api.decentraland.zone'
-          VITE_NFT_API_URL: 'https://marketplace-api.decentraland.zone'
-          VITE_BUILDER_SERVER_URL: 'https://builder-api.decentraland.zone'
-          VITE_PEER_URL: 'https://peer.decentraland.zone'
-          VITE_RPC_URL: 'https://rpc.decentraland.org/amoy'
-          # Credits + Stripe hosts: set once those services are deployed to zone.
-          # VITE_CREDITS_SERVER_URL: 'https://credits.decentraland.zone'
-          # VITE_STRIPE_PK: ''  # empty → get-credits stays mocked
+          # No VITE_* env config here: the build is env-agnostic. Per-environment config lives in
+          # src/config/env/{dev,stg,prod}.json and is selected at RUNTIME by hostname (see src/config).
+          # The SAME published artifact serves zone (dev/stg) and org (prod).
 
       - name: Publish
         id: publish

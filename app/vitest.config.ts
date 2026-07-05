@@ -17,6 +17,9 @@ export default defineConfig({
     globals: true,
     setupFiles: './src/test/setup.ts',
     css: false,
+    // @dcl/ui-env ships extensionless internal imports (dist/index.js → './config') that Vitest's
+    // resolver can't follow; inlining it routes the dep through Vite's resolver, which can.
+    server: { deps: { inline: ['@dcl/ui-env'] } },
     coverage: {
       provider: 'v8',
       reporter: ['text-summary', 'html'],
