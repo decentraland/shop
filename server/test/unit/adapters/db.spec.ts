@@ -129,3 +129,56 @@ describe('when fetching recent entries', () => {
     expect(entries[0].metadata).toEqual({ swapTxHash: '0xswap' })
   })
 })
+
+describe('when counting refills since a timestamp', () => {
+  it('should return the parsed count from the query', async () => {
+    pg.query.mockResolvedValueOnce({ rows: [{ count: '7' }], rowCount: 1 } as any)
+    const count = await db.getRefillCountSince(1700000000000)
+    expect(count).toBe(7)
+  })
+
+  it('should default to 0 when no rows come back', async () => {
+    pg.query.mockResolvedValueOnce({ rows: [], rowCount: 0 } as any)
+    const count = await db.getRefillCountSince(1700000000000)
+    expect(count).toBe(0)
+  })
+})
+
+describe('when running under the refill advisory lock', () => {
+  it('should run the body and release the lock when acquired', async () => {
+    const client = {
+      query: jest
+        .fn()
+        .mockResolvedValueOnce({ rows: [{ locked: true }] }) // pg_try_advisory_lock
+        .mockResolvedValueOnce({ rows: [] }), // pg_advisory_unlock
+      release: jest.fn()
+    }
+    ;(pg.getPool as jest.Mock).mockReturnValue({ connect: jest.fn().mockResolvedValue(client) })
+
+    const fn = jest.fn().mockResolvedValue('done')
+    const result = await db.tryRunWithRefillLock(fn)
+
+    expect(result).toEqual({ acquired: true, result: 'done' })
+    expect(fn).toHaveBeenCalledTimes(1)
+    // lock acquired + released, and the client returned to the pool.
+    expect(client.query).toHaveBeenCalledTimes(2)
+    expect(client.release).toHaveBeenCalledTimes(1)
+  })
+
+  it('should not run the body when the lock is already held elsewhere', async () => {
+    const client = {
+      query: jest.fn().mockResolvedValueOnce({ rows: [{ locked: false }] }),
+      release: jest.fn()
+    }
+    ;(pg.getPool as jest.Mock).mockReturnValue({ connect: jest.fn().mockResolvedValue(client) })
+
+    const fn = jest.fn()
+    const result = await db.tryRunWithRefillLock(fn)
+
+    expect(result).toEqual({ acquired: false })
+    expect(fn).not.toHaveBeenCalled()
+    // No unlock is issued (we never locked), but the client is still released.
+    expect(client.query).toHaveBeenCalledTimes(1)
+    expect(client.release).toHaveBeenCalledTimes(1)
+  })
+})

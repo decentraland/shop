@@ -36,12 +36,14 @@ export async function createKmsTreasurySigner({
   config,
   logs,
   provider,
-  kmsSignerFactory
+  kmsSignerFactory,
+  confirmations = 1
 }: {
   config: IConfigComponent
   logs: ILoggerComponent
   provider: providers.Provider
   kmsSignerFactory?: KmsSignerFactory
+  confirmations?: number
 }): Promise<ITreasurySignerComponent> {
   const logger = logs.getLogger('kms-treasury-signer')
   const keyId = await config.requireString('KMS_KEY_ID')
@@ -70,7 +72,13 @@ export async function createKmsTreasurySigner({
       data: tx.data,
       value: tx.value
     })
-    logger.info('KMS signer broadcast transaction', { hash: sent.hash, to: tx.to })
+    // Confirm the tx mined without reverting before returning, so the refill flow never records
+    // the ledger from — or fires a dependent leg on — an unconfirmed/reverted tx.
+    const receipt = await sent.wait(confirmations)
+    if (receipt.status === 0) {
+      throw new Error(`KMS signer transaction reverted: ${sent.hash}`)
+    }
+    logger.info('KMS signer transaction confirmed', { hash: sent.hash, to: tx.to, block: receipt.blockNumber })
     return { hash: sent.hash }
   }
 

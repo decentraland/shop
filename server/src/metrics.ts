@@ -15,6 +15,16 @@ export const metricDeclarations = {
     type: 'counter' as const,
     labelNames: []
   },
+  treasury_refill_circuit_open_total: {
+    help: 'Total number of refills halted by the rate circuit breaker',
+    type: 'counter' as const,
+    labelNames: []
+  },
+  treasury_refill_skipped_locked_total: {
+    help: 'Total number of refills skipped because another instance held the advisory lock',
+    type: 'counter' as const,
+    labelNames: []
+  },
   treasury_mana_acquired_total: {
     help: 'Total MANA acquired via USDC->MANA swaps (ether units)',
     type: 'counter' as const,

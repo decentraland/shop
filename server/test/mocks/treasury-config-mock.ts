@@ -17,6 +17,8 @@ export function createTreasuryConfigMock(overrides: Partial<TreasuryConfig> = {}
     slippageBps: 300,
     oracleSpreadBufferBps: 50,
     dexAggregatorUrl: undefined,
+    refillMaxPerWindow: 20,
+    refillWindowSeconds: 3600,
     ...overrides
   }
   return { get: () => resolved }

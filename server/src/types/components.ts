@@ -205,6 +205,14 @@ export interface IDbComponent {
   getLedgerSummary: () => Promise<LedgerSummary>
   /** Most recent entries, newest first, for the status endpoint. */
   getRecentEntries: (limit: number) => Promise<LedgerEntry[]>
+  /** Number of REFILL entries recorded at/after `sinceMs`. Backs the refill rate circuit breaker. */
+  getRefillCountSince: (sinceMs: number) => Promise<number>
+  /**
+   * Runs `fn` while holding a cross-process Postgres advisory lock so only one instance can execute
+   * a refill at a time (the in-memory job guard only covers a single process). If the lock is already
+   * held by another instance, `fn` is NOT run and `{ acquired: false }` is returned.
+   */
+  tryRunWithRefillLock: <T>(fn: () => Promise<T>) => Promise<{ acquired: true; result: T } | { acquired: false }>
 }
 
 export type NewLedgerEntry = {

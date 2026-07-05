@@ -16,11 +16,13 @@ import { ITreasurySignerComponent, TreasuryTransactionRequest } from '../../type
 export async function createDevTreasurySigner({
   config,
   logs,
-  provider
+  provider,
+  confirmations = 1
 }: {
   config: IConfigComponent
   logs: ILoggerComponent
   provider: providers.Provider
+  confirmations?: number
 }): Promise<ITreasurySignerComponent> {
   const logger = logs.getLogger('dev-treasury-signer')
   const privateKey = await config.requireString('DEV_TREASURY_PRIVATE_KEY')
@@ -40,7 +42,13 @@ export async function createDevTreasurySigner({
       data: tx.data,
       value: tx.value
     })
-    logger.info('Dev signer broadcast transaction', { hash: sent.hash, to: tx.to })
+    // Wait for the tx to mine and confirm it did not revert BEFORE returning, so the refill flow
+    // never records the ledger from — or fires a dependent leg on — an unconfirmed/reverted tx.
+    const receipt = await sent.wait(confirmations)
+    if (receipt.status === 0) {
+      throw new Error(`Dev signer transaction reverted: ${sent.hash}`)
+    }
+    logger.info('Dev signer transaction confirmed', { hash: sent.hash, to: tx.to, block: receipt.blockNumber })
     return { hash: sent.hash }
   }
 

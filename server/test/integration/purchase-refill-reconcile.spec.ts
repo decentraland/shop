@@ -72,7 +72,10 @@ function createInMemoryDb(): IDbComponent {
         entryCount: rows.length
       }
     },
-    getRecentEntries: async (limit) => rows.slice(-limit).reverse()
+    getRecentEntries: async (limit) => rows.slice(-limit).reverse(),
+    getRefillCountSince: async (sinceMs) =>
+      rows.filter((r) => r.type === LedgerEntryType.REFILL && r.createdAt >= sinceMs).length,
+    tryRunWithRefillLock: async (fn) => ({ acquired: true, result: await fn() })
   }
 }
 
@@ -103,7 +106,7 @@ describe('the purchase -> refill -> reconcile loop', () => {
 
     const swapper = createMockSwapper({ chainReader, treasuryConfig, logs })
     const reconcile = createReconcileComponent({ db, chainReader, signer, treasuryConfig, logs, metrics })
-    const refill = createRefillComponent({ chainReader, swapper, signer, reconcile, treasuryConfig, logs, metrics })
+    const refill = createRefillComponent({ chainReader, swapper, signer, reconcile, db, treasuryConfig, logs, metrics })
 
     // 1. A pack purchase deposits $100 USDC into the treasury.
     await reconcile.recordUsdcDeposit({ usdcAmount: usdcDollarsToBase(100), reference: 'pi_pack_100' })
@@ -154,7 +157,7 @@ describe('the purchase -> refill -> reconcile loop', () => {
     const db = createInMemoryDb()
     const swapper = createMockSwapper({ chainReader, treasuryConfig, logs })
     const reconcile = createReconcileComponent({ db, chainReader, signer, treasuryConfig, logs, metrics })
-    const refill = createRefillComponent({ chainReader, swapper, signer, reconcile, treasuryConfig, logs, metrics })
+    const refill = createRefillComponent({ chainReader, swapper, signer, reconcile, db, treasuryConfig, logs, metrics })
 
     await reconcile.recordUsdcDeposit({ usdcAmount: usdcDollarsToBase(500), reference: 'pi_500' })
     const outcome = await refill.runOnce()

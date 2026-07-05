@@ -84,7 +84,7 @@ export async function initComponents(): Promise<AppComponents> {
 
   const swapper = createSwapperComponent({ chainReader, treasuryConfig, signer, fetch, logs })
   const reconcile = createReconcileComponent({ db, chainReader, signer, treasuryConfig, logs, metrics })
-  const refill = createRefillComponent({ chainReader, swapper, signer, reconcile, treasuryConfig, logs, metrics })
+  const refill = createRefillComponent({ chainReader, swapper, signer, reconcile, db, treasuryConfig, logs, metrics })
 
   const refillIntervalMs = (await config.getNumber('REFILL_INTERVAL_MS')) ?? 30_000
   const refillJob = createRefillJobComponent({ refill, logs, intervalMs: refillIntervalMs })

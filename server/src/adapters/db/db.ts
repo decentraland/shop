@@ -130,9 +130,48 @@ export async function createDbAdapter({ pg }: { pg: IPgComponent }): Promise<IDb
     return result.rows.map(mapRow)
   }
 
+  async function getRefillCountSince(sinceMs: number): Promise<number> {
+    const result = await pg.query<{ count: string }>(SQL`
+      SELECT COUNT(*)::text AS count
+      FROM treasury_ledger
+      WHERE type = ${LedgerEntryType.REFILL} AND created_at >= ${sinceMs}
+    `)
+    return Number(result.rows[0]?.count ?? '0')
+  }
+
+  async function tryRunWithRefillLock<T>(
+    fn: () => Promise<T>
+  ): Promise<{ acquired: true; result: T } | { acquired: false }> {
+    // Session-level advisory lock (not xact) so it is held across the refill's multiple awaits/txs.
+    // Must acquire + release on the SAME connection, so grab a dedicated client from the pool.
+    const client = await pg.getPool().connect()
+    try {
+      const lockRes = await client.query<{ locked: boolean }>('SELECT pg_try_advisory_lock($1) AS locked', [
+        REFILL_ADVISORY_LOCK_KEY
+      ])
+      if (!lockRes.rows[0]?.locked) {
+        return { acquired: false }
+      }
+      try {
+        const result = await fn()
+        return { acquired: true, result }
+      } finally {
+        await client.query('SELECT pg_advisory_unlock($1)', [REFILL_ADVISORY_LOCK_KEY])
+      }
+    } finally {
+      client.release()
+    }
+  }
+
   return {
     insertLedgerEntry,
     getLedgerSummary,
-    getRecentEntries
+    getRecentEntries,
+    getRefillCountSince,
+    tryRunWithRefillLock
   }
 }
+
+// Arbitrary but fixed 64-bit key identifying the treasury-refill advisory lock. Any other process
+// using pg_advisory_lock must not reuse it.
+const REFILL_ADVISORY_LOCK_KEY = 4736251009

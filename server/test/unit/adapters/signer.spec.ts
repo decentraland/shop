@@ -76,7 +76,10 @@ describe('when selecting the treasury signer', () => {
     it('should construct the KMS signer and expose its address', async () => {
       const fakeKmsSigner = {
         getAddress: jest.fn().mockResolvedValue('0x000000000000000000000000000000000000kms1'),
-        sendTransaction: jest.fn().mockResolvedValue({ hash: '0xkmshash' })
+        sendTransaction: jest.fn().mockResolvedValue({
+          hash: '0xkmshash',
+          wait: jest.fn().mockResolvedValue({ status: 1, blockNumber: 1 })
+        })
       } as any
       const signer = await createTreasurySignerComponent({
         config: createConfigMock({ KMS_KEY_ID: 'arn:aws:kms:us-east-1:0:key/example', AWS_REGION: 'us-east-1' }),
@@ -113,7 +116,10 @@ describe('when selecting the treasury signer', () => {
   describe('and the dev signer broadcasts a transaction', () => {
     it('should send { to, data, value } via the wallet and return the tx hash', async () => {
       // Stub the wallet broadcast so no network is hit; the dev signer only forwards to it.
-      const spy = jest.spyOn(Wallet.prototype, 'sendTransaction').mockResolvedValue({ hash: '0xdevbroadcast' } as any)
+      const spy = jest.spyOn(Wallet.prototype, 'sendTransaction').mockResolvedValue({
+        hash: '0xdevbroadcast',
+        wait: jest.fn().mockResolvedValue({ status: 1, blockNumber: 1 })
+      } as any)
       try {
         const signer = await createTreasurySignerComponent({
           config: createConfigMock({

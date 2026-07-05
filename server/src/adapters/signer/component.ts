@@ -31,12 +31,20 @@ export async function createTreasurySignerComponent({
 }): Promise<ITreasurySignerComponent> {
   const { signerMode } = treasuryConfig.get()
 
+  // Every value-moving tx is awaited to this many confirmations and its receipt status checked
+  // before the signer returns, so callers never build the ledger from an unconfirmed/reverted tx
+  // and sequential legs (approve → swap → transfer) can't race. Default 1. Must be a positive
+  // integer: ethers' `wait(0)` can resolve a null receipt, which would break the status check on
+  // every tx — so a non-positive/non-integer value falls back to 1 rather than silently breaking.
+  const rawConfirmations = await config.getNumber('TREASURY_TX_CONFIRMATIONS')
+  const confirmations = Number.isInteger(rawConfirmations) && (rawConfirmations as number) > 0 ? rawConfirmations : 1
+
   if (signerMode === SignerMode.DEV) {
     await assertDevSignerAllowed(config)
-    return createDevTreasurySigner({ config, logs, provider })
+    return createDevTreasurySigner({ config, logs, provider, confirmations })
   }
 
-  return createKmsTreasurySigner({ config, logs, provider, kmsSignerFactory })
+  return createKmsTreasurySigner({ config, logs, provider, kmsSignerFactory, confirmations })
 }
 
 /**

@@ -75,7 +75,8 @@ export function createDexSwapper({
     }
 
     // 2. Ensure the aggregator's allowanceTarget can pull USDC — without this the swap reverts.
-    //    Approve only when the current allowance is insufficient (idempotent across runs).
+    //    Approve only when the current allowance is insufficient (idempotent across runs). The
+    //    signer awaits the approve receipt, so the allowance is on-chain before the swap runs.
     const allowance = await chainReader.getUsdcAllowance(taker, quote.allowanceTarget)
     if (allowance.lt(usdcAmount)) {
       const approveData = erc20Interface.encodeFunctionData('approve', [quote.allowanceTarget, usdcAmount])
@@ -87,19 +88,30 @@ export function createDexSwapper({
       })
     }
 
-    // 3. Broadcast the aggregator calldata through the treasury signer.
+    // 3. Broadcast the aggregator calldata through the treasury signer, measuring the treasury's
+    //    MANA balance before and after so the reported fill is the ACTUAL on-chain delta, not the
+    //    quote's estimate. The signer awaits the receipt, so the after-balance reflects the swap.
+    //    ASSUMES the treasury wallet is quiescent for the swap's duration (refills are serialized by
+    //    the advisory lock upstream; no other process moves this wallet's MANA). A concurrent inflow
+    //    would over-report the fill and a concurrent outflow under-report it. FOLLOW-UP for full
+    //    robustness: parse the swap receipt's ERC20 Transfer(to=taker) log instead of a balance diff.
+    const manaBefore = await chainReader.getManaBalance(taker)
     const { hash } = await signer.sendTransaction({
       to: quote.to,
       data: quote.data,
       value: quote.value
     })
+    const manaAfter = await chainReader.getManaBalance(taker)
+    const manaReceived = manaAfter.sub(manaBefore)
 
-    // 4. In production, read the actual MANA received from the receipt logs / balance
-    //    delta and assert >= minManaOut. The quote's buyAmount is the guaranteed minimum,
-    //    so we conservatively report it here.
-    const manaReceived = quote.buyAmount
-    if (manaReceived.lt(minManaOut)) {
-      throw new Error(`Swap under-delivered: ${manaReceived.toString()} < floor ${minManaOut.toString()}`)
+    // 4. Assert the ACTUAL fill cleared the independent oracle slippage floor. This is the real
+    //    guard (the pre-swap quote check can only see the aggregator's own estimate): a swap that
+    //    partially filled, was front-run, or under-delivered is rejected here so the refill fails
+    //    loudly instead of booking an inflated MANA amount.
+    if (manaReceived.lte(0) || manaReceived.lt(minManaOut)) {
+      throw new Error(
+        `Swap under-delivered: actual fill ${manaReceived.toString()} < floor ${minManaOut.toString()}`
+      )
     }
 
     logger.info('Executed USDC->MANA swap via aggregator', {

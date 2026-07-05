@@ -6,6 +6,7 @@ import { applyBufferBps, manaEtherToBase, manaToUsdc } from '../../../../src/log
 import { createRefillComponent } from '../../../../src/logic/treasury/refill/component'
 import {
   IChainReaderComponent,
+  IDbComponent,
   IReconcileComponent,
   IRefillComponent,
   ISwapperComponent,
@@ -13,6 +14,7 @@ import {
 } from '../../../../src/types/components'
 import {
   createChainReaderMock,
+  createDbMock,
   createLogsMock,
   createMetricsMock,
   createReconcileMock,
@@ -31,6 +33,7 @@ let chainReader: jest.Mocked<IChainReaderComponent>
 let swapper: jest.Mocked<ISwapperComponent>
 let signer: jest.Mocked<ITreasurySignerComponent>
 let reconcile: jest.Mocked<IReconcileComponent>
+let db: jest.Mocked<IDbComponent>
 let refill: IRefillComponent
 
 function buildRefill(configOverrides = {}) {
@@ -47,6 +50,7 @@ function buildRefill(configOverrides = {}) {
     swapper,
     signer,
     reconcile,
+    db,
     treasuryConfig,
     logs: createLogsMock(),
     metrics: createMetricsMock()
@@ -58,6 +62,7 @@ beforeEach(() => {
   swapper = createSwapperMock()
   signer = createSignerMock()
   reconcile = createReconcileMock()
+  db = createDbMock()
 })
 
 describe('when the CreditsManager balance is healthy', () => {
@@ -170,5 +175,46 @@ describe('when using the just-in-time strategy with no pending demand', () => {
   it('should not refill because runOnce supplies no demand', async () => {
     const outcome = await refill.runOnce()
     expect(outcome.executed).toBe(false)
+  })
+})
+
+describe('when the refill rate circuit breaker is open', () => {
+  beforeEach(() => {
+    chainReader.getManaBalance.mockResolvedValue(manaEtherToBase(100))
+    swapper.swapUsdcForMana.mockResolvedValue({
+      usdcSpent: manaToUsdc(manaEtherToBase(900), PRICE_1USD),
+      manaReceived: manaEtherToBase(900),
+      oraclePrice: PRICE_1USD,
+      txHash: null
+    })
+    // Already at the per-window cap (default 20 in the config mock).
+    db.getRefillCountSince.mockResolvedValue(20)
+    refill = buildRefill()
+  })
+
+  it('should halt: not swap, not transfer, not record, and surface circuit-breaker-open', async () => {
+    const outcome = await refill.runOnce()
+    expect(outcome.executed).toBe(false)
+    expect(outcome.error).toBe('circuit-breaker-open')
+    expect(swapper.swapUsdcForMana).not.toHaveBeenCalled()
+    expect(signer.sendTransaction).not.toHaveBeenCalled()
+    expect(reconcile.recordRefill).not.toHaveBeenCalled()
+  })
+})
+
+describe('when another instance holds the refill advisory lock', () => {
+  beforeEach(() => {
+    chainReader.getManaBalance.mockResolvedValue(manaEtherToBase(100))
+    // Lock not acquired -> the body never runs.
+    db.tryRunWithRefillLock.mockResolvedValue({ acquired: false })
+    refill = buildRefill()
+  })
+
+  it('should skip the refill without swapping or transferring', async () => {
+    const outcome = await refill.runOnce()
+    expect(outcome.executed).toBe(false)
+    expect(outcome.error).toBe('refill-locked')
+    expect(swapper.swapUsdcForMana).not.toHaveBeenCalled()
+    expect(signer.sendTransaction).not.toHaveBeenCalled()
   })
 })

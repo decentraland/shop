@@ -76,4 +76,16 @@ export type TreasuryConfig = {
 
   /** DEX aggregator base URL (0x / 1inch style). Only used in SwapMode.DEX. */
   dexAggregatorUrl?: string
+
+  /**
+   * Circuit breaker: the maximum number of refills allowed within `refillWindowSeconds` (a rolling
+   * window). A healthy working-balance treasury refills a handful of times per hour; a runaway
+   * (crash-loop, bug, repeated failure) refills far more. When the count in the window reaches this,
+   * the tick is skipped and a metric fires (treat it as a page). This RATE-LIMITS burn per window; it
+   * is not a hard latch, so it auto-resumes as old refills age out (a persisted, ops-reset latch is a
+   * follow-up). A last-resort backstop on top of the per-tick guard + cross-instance advisory lock.
+   */
+  refillMaxPerWindow: number
+  /** Rolling window (seconds) the refill circuit breaker counts refills over. */
+  refillWindowSeconds: number
 }

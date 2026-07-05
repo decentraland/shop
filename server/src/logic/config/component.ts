@@ -43,8 +43,18 @@ export async function createTreasuryConfigComponent({
   const slippageBps = (await config.getNumber('SWAP_SLIPPAGE_BPS')) ?? 300
   const oracleSpreadBufferBps = (await config.getNumber('SWAP_ORACLE_SPREAD_BUFFER_BPS')) ?? 50
   const dexAggregatorUrl = await config.getString('DEX_AGGREGATOR_URL')
+  const refillMaxPerWindow = (await config.getNumber('REFILL_MAX_PER_WINDOW')) ?? 20
+  const refillWindowSeconds = (await config.getNumber('REFILL_WINDOW_SECONDS')) ?? 3600
 
-  validateInvariants({ targetManaBalance, refillThresholdMana, minRefillMana, slippageBps, oracleSpreadBufferBps })
+  validateInvariants({
+    targetManaBalance,
+    refillThresholdMana,
+    minRefillMana,
+    slippageBps,
+    oracleSpreadBufferBps,
+    refillMaxPerWindow,
+    refillWindowSeconds
+  })
 
   if (swapMode === SwapMode.DEX && !dexAggregatorUrl) {
     throw new Error('SWAP_MODE=dex requires DEX_AGGREGATOR_URL to be set')
@@ -61,7 +71,9 @@ export async function createTreasuryConfigComponent({
     minRefillMana,
     slippageBps,
     oracleSpreadBufferBps,
-    dexAggregatorUrl
+    dexAggregatorUrl,
+    refillMaxPerWindow,
+    refillWindowSeconds
   }
 
   return {
@@ -117,6 +129,8 @@ function validateInvariants(cfg: {
   minRefillMana: number
   slippageBps: number
   oracleSpreadBufferBps: number
+  refillMaxPerWindow: number
+  refillWindowSeconds: number
 }): void {
   if (cfg.targetManaBalance <= 0) {
     throw new Error(`REFILL_TARGET_MANA must be > 0, got ${cfg.targetManaBalance}`)
@@ -134,6 +148,12 @@ function validateInvariants(cfg: {
   }
   if (cfg.oracleSpreadBufferBps < 0) {
     throw new Error(`SWAP_ORACLE_SPREAD_BUFFER_BPS must be >= 0, got ${cfg.oracleSpreadBufferBps}`)
+  }
+  if (!Number.isInteger(cfg.refillMaxPerWindow) || cfg.refillMaxPerWindow <= 0) {
+    throw new Error(`REFILL_MAX_PER_WINDOW must be a positive integer, got ${cfg.refillMaxPerWindow}`)
+  }
+  if (!Number.isInteger(cfg.refillWindowSeconds) || cfg.refillWindowSeconds <= 0) {
+    throw new Error(`REFILL_WINDOW_SECONDS must be a positive integer, got ${cfg.refillWindowSeconds}`)
   }
 }
 

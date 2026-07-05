@@ -3,6 +3,7 @@ import { ILoggerComponent, IMetricsComponent } from '@well-known-components/inte
 
 import {
   IChainReaderComponent,
+  IDbComponent,
   IReconcileComponent,
   IRefillComponent,
   ISwapperComponent,
@@ -42,6 +43,7 @@ export function createRefillComponent({
   swapper,
   signer,
   reconcile,
+  db,
   treasuryConfig,
   logs,
   metrics
@@ -50,6 +52,7 @@ export function createRefillComponent({
   swapper: ISwapperComponent
   signer: ITreasurySignerComponent
   reconcile: IReconcileComponent
+  db: IDbComponent
   treasuryConfig: ITreasuryConfigComponent
   logs: ILoggerComponent
   metrics: IMetricsComponent<keyof typeof metricDeclarations>
@@ -81,6 +84,47 @@ export function createRefillComponent({
     if (!plan.shouldRefill) {
       logger.debug('No refill needed', { reason: plan.reason })
       return { plan, executed: false }
+    }
+
+    // Serialize the actual money movement across processes: at most one instance refills at a time.
+    // The in-memory job guard covers a single process; this NON-BLOCKING advisory lock covers
+    // HA/rolling deploys — a second instance that can't get the lock skips this tick (it does not
+    // queue) rather than both instances passing the balance check and double swap + transfer.
+    const locked = await db.tryRunWithRefillLock(() => executeRefill())
+    if (!locked.acquired) {
+      metrics.increment('treasury_refill_skipped_locked_total', {})
+      logger.info('Refill skipped: another instance holds the refill lock', { reason: plan.reason })
+      return { plan, executed: false, error: 'refill-locked' }
+    }
+    return locked.result
+  }
+
+  async function executeRefill(): Promise<RefillOutcome> {
+    // Re-plan INSIDE the lock: another instance holding the lock may have just refilled between our
+    // outer planRefill() and acquiring the lock, so re-read the balance and bail if the top-up is no
+    // longer needed (prevents a stale double-refill on the just-completed top-up).
+    const plan = await planRefill()
+    if (!plan.shouldRefill) {
+      logger.info('Refill no longer needed after acquiring lock', { reason: plan.reason })
+      return { plan, executed: false }
+    }
+
+    // Circuit breaker: RATE-LIMIT refills to at most `refillMaxPerWindow` per rolling window. A
+    // healthy working-balance treasury refills a handful of times per hour; hitting this cap means a
+    // runaway (crash-loop / bug / repeated failure), so this tick is skipped and a metric fires for
+    // alerting. NOTE: this is a rolling-window RATE limit, not a latch — it caps burn *per window*,
+    // not the cumulative total, and auto-resumes as old refills age out. Treat the metric as a page;
+    // a hard latch (persisted, ops-reset) is a follow-up. Last-resort backstop on top of the lock.
+    const windowStartMs = Date.now() - cfg.refillWindowSeconds * 1000
+    const recentRefills = await db.getRefillCountSince(windowStartMs)
+    if (recentRefills >= cfg.refillMaxPerWindow) {
+      metrics.increment('treasury_refill_circuit_open_total', {})
+      logger.error('Refill circuit breaker OPEN — halting refills (possible runaway)', {
+        recentRefills,
+        maxPerWindow: cfg.refillMaxPerWindow,
+        windowSeconds: cfg.refillWindowSeconds
+      })
+      return { plan, executed: false, error: 'circuit-breaker-open' }
     }
 
     logger.info('Refill needed', {

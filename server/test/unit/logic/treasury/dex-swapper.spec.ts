@@ -48,9 +48,14 @@ describe('when swapping via the DEX aggregator', () => {
     beforeEach(() => {
       // Quote exactly at the ideal oracle amount, which is above the slippage floor.
       mockQuote(usdcToMana(ONE_USDC, PRICE_1USD))
+      // The reported fill is the ACTUAL treasury MANA balance delta, not the quote: 0 before,
+      // the ideal amount after the swap.
+      chainReader.getManaBalance
+        .mockResolvedValueOnce(BigNumber.from(0))
+        .mockResolvedValueOnce(usdcToMana(ONE_USDC, PRICE_1USD))
     })
 
-    it('should broadcast the aggregator calldata via the signer and return the fill', async () => {
+    it('should broadcast the aggregator calldata via the signer and return the actual fill delta', async () => {
       const swapper = buildSwapper()
       const result = await swapper.swapUsdcForMana(ONE_USDC)
       expect(signer.sendTransaction).toHaveBeenCalledWith(
@@ -58,6 +63,22 @@ describe('when swapping via the DEX aggregator', () => {
       )
       expect(result.txHash).toBe('0xdexhash')
       expect(result.manaReceived.toString()).toBe(usdcToMana(ONE_USDC, PRICE_1USD).toString())
+    })
+  })
+
+  describe('and the quote clears the floor but the ACTUAL on-chain fill under-delivers', () => {
+    beforeEach(() => {
+      // Quote is healthy (at ideal), so the pre-swap check passes and the swap broadcasts...
+      mockQuote(usdcToMana(ONE_USDC, PRICE_1USD))
+      // ...but the real balance delta comes in 5% under ideal — below the 3% floor.
+      chainReader.getManaBalance
+        .mockResolvedValueOnce(BigNumber.from(0))
+        .mockResolvedValueOnce(applySlippageFloor(usdcToMana(ONE_USDC, PRICE_1USD), 500))
+    })
+
+    it('should throw on the post-swap delta check so the refill never books an inflated fill', async () => {
+      const swapper = buildSwapper()
+      await expect(swapper.swapUsdcForMana(ONE_USDC)).rejects.toThrow(/under-delivered: actual fill/)
     })
   })
 
@@ -117,6 +138,10 @@ describe('when swapping via the DEX aggregator', () => {
         getOraclePrice: jest.fn().mockResolvedValue(PRICE_1USD),
         getUsdcAllowance: jest.fn().mockResolvedValue(BigNumber.from(0))
       })
+      // Balance delta around the swap: 0 before, ideal fill after (clears the floor).
+      chainReader.getManaBalance
+        .mockResolvedValueOnce(BigNumber.from(0))
+        .mockResolvedValueOnce(usdcToMana(ONE_USDC, PRICE_1USD))
       fetchMock.fetch.mockResolvedValue({
         ok: true,
         status: 200,

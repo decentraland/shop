@@ -27,6 +27,12 @@ export function createDbMock(overrides: Partial<jest.Mocked<IDbComponent>> = {})
     })),
     getLedgerSummary: jest.fn().mockResolvedValue(emptySummary),
     getRecentEntries: jest.fn().mockResolvedValue([]),
+    getRefillCountSince: jest.fn().mockResolvedValue(0),
+    // By default the lock is acquired and the body runs, so refill tests exercise the refill flow.
+    tryRunWithRefillLock: jest.fn().mockImplementation(async (fn: () => Promise<unknown>) => ({
+      acquired: true,
+      result: await fn()
+    })),
     ...overrides
   } as jest.Mocked<IDbComponent>
 }
