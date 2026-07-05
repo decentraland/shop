@@ -4,8 +4,8 @@ import type { ethers as Ethers } from 'ethers'
 
 // Capture every CreditsManager.useCredits(args) call so we can assert on batching.
 const useCreditsCalls: Array<Record<string, any>> = []
-// Capture cancelSignature(onChainTrade, overrides) calls to assert the cancel path.
-const cancelCalls: Array<{ onChainTrade: Record<string, any>; overrides: Record<string, any> }> = []
+// Capture cancelSignature(trades[], overrides) calls to assert the cancel path.
+const cancelCalls: Array<{ trades: Record<string, any>[]; overrides: Record<string, any> }> = []
 
 // The mocked marketplace/aggregator name+chain resolution, tweakable per-test.
 let contractName = 'DecentralandMarketplacePolygon'
@@ -45,8 +45,8 @@ vi.mock('ethers', async importOriginal => {
       useCreditsCalls.push(args)
       return { wait: async () => ({ transactionHash: '0xhash' }) }
     }
-    async cancelSignature(onChainTrade: Record<string, any>, overrides: Record<string, any>) {
-      cancelCalls.push({ onChainTrade, overrides })
+    async cancelSignature(trades: Record<string, any>[], overrides: Record<string, any>) {
+      cancelCalls.push({ trades, overrides })
       return { wait: async () => ({ transactionHash: '0xcancelhash' }) }
     }
     async manaUsdAggregator() {
@@ -290,8 +290,11 @@ describe('when cancelling a listing', () => {
   it('passes the signer address (lowercased) as the on-chain trade beneficiary', async () => {
     await cancelListing({ trade: fakeTrade('0xmarket'), signer: cancelSigner })
 
-    // getOnChainTrade sets sent[].beneficiary to the (lowercased) seller address.
-    expect(cancelCalls[0].onChainTrade.sent[0].beneficiary).toBe(SELLER)
-    expect(cancelCalls[0].onChainTrade.signer).toBe(SELLER)
+    // cancelSignature takes a Trade[] (tuple[]); getOnChainTrade sets sent[].beneficiary to the
+    // (lowercased) seller address.
+    expect(Array.isArray(cancelCalls[0].trades)).toBe(true)
+    expect(cancelCalls[0].trades).toHaveLength(1)
+    expect(cancelCalls[0].trades[0].sent[0].beneficiary).toBe(SELLER)
+    expect(cancelCalls[0].trades[0].signer).toBe(SELLER)
   })
 })
