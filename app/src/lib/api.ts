@@ -27,6 +27,11 @@ export type CatalogItem = {
   // Checkout uses `tradeId` directly instead of resolving by itemId.
   tradeId?: string
   tokenId?: string
+  // Flash sale (see lib/sale.ts). Present only when the listing is a live, discounted, time-boxed
+  // trade. `compareAtCredits` is the pre-sale price to strike through; `saleEndsAt` is epoch MS (the
+  // mapper converts the trade's expiration seconds once). Both absent for a regular listing.
+  compareAtCredits?: number
+  saleEndsAt?: number
 }
 
 type RawCatalogItem = {
@@ -174,6 +179,11 @@ type ShopListingRaw = {
   available: number
   network: string
   chainId: number
+  // Flash sale, when the shop catalog resolves this listing as on-sale: the pre-sale price (whole
+  // credits) to compare against + the sale end as a unix expiration in SECONDS (the trade's
+  // Checks.expiration). Absent for regular listings. See marketplace-server shop-catalog.
+  compareAtCredits?: number | null
+  saleEndsAt?: number | null
 }
 
 function shopListingToItem(l: ShopListingRaw): CatalogItem {
@@ -192,7 +202,12 @@ function shopListingToItem(l: ShopListingRaw): CatalogItem {
     chainId: l.chainId,
     thumbnail: l.thumbnail,
     priceCredits: l.priceCredits,
-    gender: null
+    gender: null,
+    // Only surface a compare-at that's actually above the sale price (the badge/strikethrough guard
+    // against a stale or equal value). saleEndsAt arrives as unix seconds → ms for the UI.
+    compareAtCredits:
+      l.compareAtCredits != null && l.compareAtCredits > l.priceCredits ? l.compareAtCredits : undefined,
+    saleEndsAt: l.saleEndsAt != null ? l.saleEndsAt * 1000 : undefined
   }
 }
 

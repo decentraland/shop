@@ -347,6 +347,44 @@ describe('when fetching the shop browse listings', () => {
     fetchMock.mockResolvedValueOnce(httpError(404))
     await expect(fetchListings()).rejects.toThrow('fetchShopListings 404')
   })
+
+  it('should map flash-sale fields: compare-at passthrough + expiration seconds → ms', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonOk({
+        total: 1,
+        data: [
+          {
+            tradeId: 's', listingType: 'primary', contractAddress: '0x1', itemId: '1', tokenId: null,
+            name: 'S', thumbnail: '', rarity: 'common', category: 'wearable', wearableCategory: null,
+            creator: '0xa', priceCredits: 7, available: 1, network: 'MATIC', chainId: 80002,
+            compareAtCredits: 10, saleEndsAt: 1_700_000_000
+          }
+        ]
+      })
+    )
+    const { items } = await fetchListings()
+    expect(items[0].compareAtCredits).toBe(10)
+    expect(items[0].saleEndsAt).toBe(1_700_000_000 * 1000)
+  })
+
+  it('should drop a compare-at that does not beat the sale price (no phantom discount)', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonOk({
+        total: 1,
+        data: [
+          {
+            tradeId: 's', listingType: 'primary', contractAddress: '0x1', itemId: '1', tokenId: null,
+            name: 'S', thumbnail: '', rarity: 'common', category: 'wearable', wearableCategory: null,
+            creator: '0xa', priceCredits: 10, available: 1, network: 'MATIC', chainId: 80002,
+            compareAtCredits: 10, saleEndsAt: null
+          }
+        ]
+      })
+    )
+    const { items } = await fetchListings()
+    expect(items[0].compareAtCredits).toBeUndefined()
+    expect(items[0].saleEndsAt).toBeUndefined()
+  })
 })
 
 describe('when fetching the legacy MANA-priced listings', () => {
