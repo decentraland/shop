@@ -12,10 +12,12 @@ creators and sellers keep the existing on-chain marketplace guarantees.
 | Path | What it is |
 |------|------------|
 | `app/` | The storefront — Vite + React + TypeScript. Browse, buy with credits, sell, import listings. |
-| `server/` | The treasury service (@well-known-components) — keeps the credits pool funded (USDC → MANA refill + reconciliation). |
 | `tools/migrate-listings/` | CLI that converts a seller's classic MANA-priced listings into credit-priced ones. |
 | `design/` | Specs and design docs (credits model, buy/sell integration, Stripe, gasless, e2e, etc.). |
 | `VISION.md`, `ROADMAP.md`, `CONVENTIONS.md` | Product vision, roadmap, and code conventions. |
+
+> The **treasury service** (USDC → MANA refill + reconciliation) now lives in its own repo:
+> [`decentraland/shop-server`](https://github.com/decentraland/shop-server), with its own deploy pipeline.
 
 ## Getting started (app)
 
