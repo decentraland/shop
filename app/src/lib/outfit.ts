@@ -19,6 +19,24 @@ export function slotOf(item: Pick<CatalogItem, 'category' | 'wearableCategory' |
   return item.wearableCategory ?? `unknown:${item.id}`
 }
 
+// A body region for the compact slot icon (see the slot-*.svg set). Groups the many wearable
+// sub-categories into head / upper / lower / feet / hands, with a generic fallback.
+export type SlotRegion = 'head' | 'upper' | 'lower' | 'feet' | 'hands' | 'item'
+const HEAD_CATEGORIES = new Set([
+  'hat', 'helmet', 'mask', 'tiara', 'top_head', 'hair', 'facial_hair', 'eyewear', 'earring', 'eyes', 'eyebrows', 'mouth'
+])
+export function slotRegion(item: Pick<CatalogItem, 'category' | 'wearableCategory'>): SlotRegion {
+  if (!isWearable(item)) return 'item'
+  const c = item.wearableCategory
+  if (!c) return 'item'
+  if (HEAD_CATEGORIES.has(c)) return 'head'
+  if (c === 'upper_body') return 'upper'
+  if (c === 'lower_body') return 'lower'
+  if (c === 'feet') return 'feet'
+  if (c === 'hands' || c === 'hands_wear') return 'hands'
+  return 'item'
+}
+
 // The default equipped set for a fresh fitting-room open: one wearable per slot (first wins), emotes
 // excluded. Returns the ids to equip. Keeps the outfit conflict-free from the start.
 export function defaultWorn(items: CatalogItem[]): Set<string> {

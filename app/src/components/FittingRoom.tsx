@@ -9,7 +9,7 @@ import { config } from '~/config'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { CURRENCY } from '~/lib/currency'
 import { track } from '~/lib/analytics'
-import { isWearable, slotOf, defaultWorn, toggleWorn, conflictingIds, wornUrns } from '~/lib/outfit'
+import { isWearable, slotOf, slotRegion, defaultWorn, toggleWorn, conflictingIds, wornUrns } from '~/lib/outfit'
 
 // Turn a wearable sub-category into a human label ("upper_body" → "Upper body").
 function slotLabel(slot: string | null): string {
@@ -29,8 +29,10 @@ export function FittingRoom() {
 
   const address = useWallet(s => s.session?.address)
   // Only mount on the real avatar when it actually has published wearables — otherwise 'default' body
-  // (mirrors ItemPreview; a real address with no avatar renders empty).
-  const { data: avatar } = useProfile(address)
+  // (mirrors ItemPreview; a real address with no avatar renders empty). Wait for the profile lookup to
+  // settle before mounting so the preview loads ONCE with the final profile (no default→address reload).
+  const { data: avatar, isFetched: profileFetched } = useProfile(address)
+  const profileResolved = !address || profileFetched
   const profile = address && avatar ? address : 'default'
 
   const [worn, setWorn] = useState<Set<string>>(() => defaultWorn(items))
@@ -54,6 +56,13 @@ export function FittingRoom() {
   const conflicts = useMemo(() => conflictingIds(items), [items])
   const urns = useMemo(() => wornUrns(items, worn), [items, worn])
   const total = items.reduce((sum, i) => sum + i.priceCredits, 0)
+
+  // The WearablePreview iframe rebuilds its src (and reloads) whenever the equipped urns change, so
+  // mask each reload with the loading overlay instead of letting the avatar flash to empty and back.
+  const outfitSig = urns.join(',')
+  useEffect(() => {
+    setPreviewReady(false)
+  }, [outfitSig, profile])
 
   // Fire the funnel event once per open (deduped across re-renders).
   const trackedRef = useRef(false)
@@ -91,11 +100,14 @@ export function FittingRoom() {
         <button className="fitting__close" onClick={() => setOpen(false)} aria-label="Close">×</button>
 
         <div className="fitting__stage">
-          {urns.length > 0 ? (
+          {!profileResolved ? (
+            <div className="fitting__loading" aria-hidden><span className="fitting__spinner" /></div>
+          ) : urns.length > 0 ? (
             <>
-              {/* Key on the outfit signature so the preview always reflects the equipped set. */}
+              {/* Stable key (profile) so toggling an item updates the SAME iframe (one reload, masked by
+                  the overlay) instead of remounting it — which was the multi-flash on every change. */}
               <WearablePreview
-                key={`${profile}|${urns.join(',')}`}
+                key={profile}
                 profile={profile}
                 urns={urns}
                 type={PreviewType.AVATAR}
@@ -141,12 +153,24 @@ export function FittingRoom() {
                   <div className="fitting-row__info">
                     <div className="fitting-row__name" title={item.name}>{item.name}</div>
                     <div className="fitting-row__meta">
-                      <span className="fitting-row__slot">{wearable ? slotLabel(slotOf(item)) : 'Emote'}</span>
-                      {conflicted ? <span className="fitting-row__conflict" title="Only one item per slot can be worn">shares a slot</span> : null}
+                      <span
+                        className={`ico ico-slot-${wearable ? slotRegion(item) : 'item'} fitting-row__slot-ico`}
+                        title={wearable ? slotLabel(slotOf(item)) : 'Emote'}
+                        role="img"
+                        aria-label={wearable ? slotLabel(slotOf(item)) : 'Emote'}
+                      />
+                      {conflicted ? <span className="fitting-row__conflict" title="Only one item per slot can be worn">1 per slot</span> : null}
                     </div>
                   </div>
                   <div className="fitting-row__price"><CurrencyIcon className="fitting-row__diamond" />{item.priceCredits}</div>
-                  <button className="fitting-row__remove" onClick={() => remove(item.id)} aria-label={`Remove ${item.name} from cart`}>Remove</button>
+                  <button
+                    className="fitting-row__remove"
+                    onClick={() => remove(item.id)}
+                    aria-label={`Remove ${item.name} from cart`}
+                    title="Remove"
+                  >
+                    <span className="ico ico-trash" aria-hidden />
+                  </button>
                 </div>
               )
             })}

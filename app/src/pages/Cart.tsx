@@ -14,6 +14,8 @@ import { CURRENCY } from '~/lib/currency'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { track, purchaseItemsProps, errorCode, isUserRejection, creditsToUsd } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
+import { AssetCard } from '~/components/AssetCard'
+import { CreatorBadge } from '~/components/CreatorBadge'
 
 function friendlyError(e: unknown): string {
   const err = e as { code?: number; message?: string }
@@ -35,7 +37,6 @@ export function Cart() {
   const items = useCart(s => s.items)
   const remove = useCart(s => s.remove)
   const clear = useCart(s => s.clear)
-  const add = useCart(s => s.add)
   const setFittingOpen = useCart(s => s.setFittingOpen)
   const { session } = useWallet()
 
@@ -185,17 +186,25 @@ export function Cart() {
             <div className="cart__thumb">{item.thumbnail ? <img src={item.thumbnail} alt={item.name} /> : null}</div>
             <div className="cart__info">
               <div className="cart__name">{item.name}</div>
-              <div className="muted">{item.creator ? `By ${item.creator}` : ''}</div>
+              {item.creator ? <CreatorBadge address={item.creator} className="cart__creator" linkToProfile /> : null}
             </div>
             <div className="cart__price"><CurrencyIcon className="ccy-mark" /> {item.priceCredits}</div>
-            <button className="link" onClick={() => remove(item.id)} disabled={busy}>Remove</button>
+            <button
+              className="cart__remove"
+              onClick={() => remove(item.id)}
+              disabled={busy}
+              aria-label={`Remove ${item.name}`}
+              title="Remove"
+            >
+              <span className="ico ico-trash" aria-hidden />
+            </button>
           </div>
         ))}
       </div>
 
       <div className="cart__foot">
         <div className="cart__total">
-          <div>Total <strong><CurrencyIcon className="ccy-mark" /> {total}</strong></div>
+          <div className="cart__total-line">Total <strong><CurrencyIcon className="ccy-mark" /> {total}</strong></div>
           {session ? <div className="muted cart__balance">Your balance: <CurrencyIcon className="ccy-mark" /> {balance?.credits ?? 0}</div> : null}
         </div>
         <div className="cart__actions">
@@ -203,33 +212,28 @@ export function Cart() {
             <button className="btn btn--ghost" onClick={() => setFittingOpen(true)} disabled={busy}>Try on outfit</button>
           ) : null}
           <Link className="btn btn--ghost" to="/credits">Get {CURRENCY.name}</Link>
-          {import.meta.env.DEV ? (
-            <button className="btn btn--ghost" onClick={getTestCredits} disabled={busy || !session}>Get test {CURRENCY.name} (dev)</button>
-          ) : null}
-          <button className="btn btn--ghost" onClick={clear} disabled={busy}>Clear</button>
-          <button className="btn btn--purple" onClick={checkout} disabled={busy}>Checkout</button>
+          <button className="btn btn--purple cart__checkout" onClick={checkout} disabled={busy}>Checkout</button>
         </div>
+      </div>
+
+      {/* Utility actions kept subtle so they don't compete with Checkout. */}
+      <div className="cart__utils">
+        <button className="link" onClick={clear} disabled={busy}>Clear cart</button>
+        {import.meta.env.DEV ? (
+          <button className="link" onClick={getTestCredits} disabled={busy || !session}>Get test {CURRENCY.name} (dev)</button>
+        ) : null}
       </div>
 
       {status ? <p className="muted" style={{ marginTop: 12 }}>{status}</p> : null}
       {error ? <p className="error" style={{ marginTop: 12 }}>{error}</p> : null}
 
       {upsell.length > 0 ? (
-        <div className="cart-upsell">
-          <h2 className="cart-upsell__title">You might also like</h2>
-          <div className="cart-upsell__row">
-            {upsell.map(i => (
-              <div className="cart-upsell__card" key={i.id}>
-                <div className="cart-upsell__thumb">{i.thumbnail ? <img src={i.thumbnail} alt={i.name} /> : null}</div>
-                <div className="cart-upsell__name" title={i.name}>{i.name}</div>
-                <div className="cart-upsell__price"><CurrencyIcon className="ccy-mark" /> {i.priceCredits}</div>
-                <button className="btn btn--sm cart-upsell__add" onClick={() => add(i, 'upsell')} disabled={busy}>
-                  Add
-                </button>
-              </div>
-            ))}
+        <section className="row cart-upsell">
+          <div className="row__head"><h2 className="row__title">You might also like</h2></div>
+          <div className="row__track">
+            {upsell.map(i => <AssetCard key={i.id} item={i} />)}
           </div>
-        </div>
+        </section>
       ) : null}
     </div>
   )
