@@ -10,8 +10,7 @@
     "searchAria": "Buscar en la tienda",
     "yourBalance": "Tus {currency}",
     "getCredits": "Conseguir {currency}",
-    "cart": "Carrito",
-    "language": "Idioma"
+    "cart": "Carrito"
   },
   "notFound": {
     "title": "Página no encontrada",

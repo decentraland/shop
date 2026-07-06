@@ -10,8 +10,7 @@
     "searchAria": "Search the shop",
     "yourBalance": "Your {currency}",
     "getCredits": "Get {currency}",
-    "cart": "Cart",
-    "language": "Language"
+    "cart": "Cart"
   },
   "notFound": {
     "title": "Page not found",

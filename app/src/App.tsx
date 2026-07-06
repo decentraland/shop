@@ -114,7 +114,11 @@ export function App() {
           </Suspense>
         </Sentry.ErrorBoundary>
       </main>
-      <ShopFooter />
+      {/* Footer is non-critical + pulls the UI2/MUI theme — isolate it so a footer error can never
+          white-screen the app (it lives outside the main ErrorBoundary). */}
+      <Sentry.ErrorBoundary fallback={<></>}>
+        <ShopFooter />
+      </Sentry.ErrorBoundary>
     </>
   )
 }
