@@ -261,7 +261,7 @@ export function MyAssets() {
                         setSelling(asset)
                       }}
                     >
-                      List for sale
+                      Put on sale
                     </button>
                   )}
                 </article>
@@ -274,7 +274,7 @@ export function MyAssets() {
         <LoadMore hasNextPage={hasNextPage} isFetching={isFetchingNextPage} onLoadMore={() => fetchNextPage()} />
 
         {!isLoading && ownedAssets.length === 0 ? (
-          <p className="muted">No items in your inventory yet.</p>
+          <p className="muted">No items in your wardrobe yet.</p>
         ) : null}
       </div>
 

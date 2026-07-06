@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Rarity } from '@dcl/schemas'
 import { config } from '~/config'
 import { useCart } from '~/store/cart'
+import { useFavorites } from '~/store/favorites'
 import { useWallet } from '~/store/wallet'
 import { useBalance } from '~/hooks/useBalance'
 import { fetchShopListingForItem, fetchTrade, fetchTradeForItem, usdWeiToCents, type CatalogItem } from '~/lib/api'
@@ -51,6 +52,7 @@ export function ItemDetail() {
 
   const add = useCart(s => s.add)
   const cartItems = useCart(s => s.items)
+  const toggleFav = useFavorites(s => s.toggle)
   const { session } = useWallet()
   const { data: balance } = useBalance(session)
 
@@ -153,6 +155,7 @@ export function ItemDetail() {
     [current, buyableTradeId]
   )
   const inCart = cartItems.some(i => i.id === cartItem.id)
+  const faved = useFavorites(s => !!s.items[current.id])
 
   // Reset transient status whenever the hero item changes.
   useEffect(() => {
@@ -191,7 +194,7 @@ export function ItemDetail() {
   async function handleBuyNow() {
     if (!forSale || !buyableTradeId) return
     if (!session) {
-      setError('Log in to check out.')
+      setError('Sign in to check out.')
       return
     }
     setError(null)
@@ -292,7 +295,12 @@ export function ItemDetail() {
         <div className="item-detail__info">
           <div className="item-detail__info-head">
             <h1 className="item-detail__title">{current.name || 'Loading…'}</h1>
-            <button className="item-detail__fav" aria-label="Add to favorites">
+            <button
+              className={`item-detail__fav${faved ? ' is-on' : ''}`}
+              onClick={() => toggleFav(current)}
+              aria-pressed={faved}
+              aria-label={faved ? 'Remove from favorites' : 'Add to favorites'}
+            >
               <span className="ico ico-heart" aria-hidden />
             </button>
           </div>
@@ -330,7 +338,7 @@ export function ItemDetail() {
                   onClick={handleBuyNow}
                   disabled={busy || resolvingTrade}
                 >
-                  {busy ? 'Working…' : 'Buy now'}
+                  {busy ? 'Buying…' : 'Buy now'}
                 </button>
               ) : null}
               <button

@@ -14,7 +14,7 @@ const PAGE_SIZE = 48
 const CATEGORIES = [
   { key: 'wearable', label: 'Wearables', sub: ['Head', 'Upper Body', 'Handwear', 'Lower Body', 'Feet', 'Accessories', 'Skins'] },
   { key: 'emote', label: 'Emotes', sub: [] },
-  { key: 'ens', label: 'NAMEs', sub: [] },
+  { key: 'ens', label: 'Names', sub: [] },
   { key: 'parcel', label: 'Lands', sub: [] }
 ]
 
@@ -195,9 +195,9 @@ export function Assets() {
             {open === 'price' ? (
               <div className="filter-pop filter-pop--price">
                 <div className="filter-pop__price-row">
-                  <input type="number" min="0" placeholder="Min" value={priceMin} onChange={e => setPriceMin(e.target.value)} />
+                  <input type="number" min="0" aria-label="Minimum price" placeholder="Min" value={priceMin} onChange={e => setPriceMin(e.target.value)} />
                   <span>–</span>
-                  <input type="number" min="0" placeholder="Max" value={priceMax} onChange={e => setPriceMax(e.target.value)} />
+                  <input type="number" min="0" aria-label="Maximum price" placeholder="Max" value={priceMax} onChange={e => setPriceMax(e.target.value)} />
                 </div>
                 <p className="filter-pop__hint">Price in {CURRENCY.name}</p>
               </div>

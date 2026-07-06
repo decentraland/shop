@@ -62,7 +62,8 @@ export function NavBar() {
           <span className="ico ico-search subnav__search-ico" aria-hidden />
           <input
             value={q}
-            placeholder="Search item, creator, collection, name..."
+            aria-label="Search the shop"
+            placeholder="Search items, creators, collections…"
             onChange={e => onSearchChange(e.target.value)}
             onKeyDown={e => {
               if (e.key === 'Enter') {

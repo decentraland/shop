@@ -126,7 +126,7 @@ export function PrimaryListModal({
     navigate(`/item/${item.contractAddress}/${item.blockchainItemId}`)
   }
 
-  const cta = busy ? 'Working…' : enabled === false ? 'Enable & publish' : 'Publish for sale'
+  const cta = busy ? 'Listing…' : enabled === false ? 'Enable & put on sale' : 'Put on sale'
 
   // ---- Success view ----------------------------------------------------------------------------
   if (listedCredits !== null) {

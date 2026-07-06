@@ -102,7 +102,7 @@ export function MarketCheckout({
     let cancelled = false
     if (!session) {
       setPhase('error')
-      setError('Log in to check out.')
+      setError('Sign in to check out.')
       return
     }
     ;(async () => {
@@ -275,7 +275,7 @@ export function MarketCheckout({
         <div className="mkt-modal__actions">
           <button className="btn btn--ghost" onClick={cancel} disabled={busy}>Cancel</button>
           <button className="btn btn--purple" onClick={confirm} disabled={busy || !locked}>
-            {busy ? 'Working…' : needsMoreCredits ? `Get ${CURRENCY.name}` : 'Confirm purchase'}
+            {busy ? 'Buying…' : needsMoreCredits ? `Get ${CURRENCY.name}` : 'Confirm purchase'}
           </button>
         </div>
       </div>

@@ -10,7 +10,7 @@ function Row({ title, items, loading }: { title: string; items: CatalogItem[]; l
     <section className="row">
       <div className="row__head">
         <h2 className="row__title">{title}</h2>
-        <Link className="row__viewall" to="/assets">VIEW ALL <span className="ico ico-viewall" aria-hidden /></Link>
+        <Link className="row__viewall" to="/assets">View all <span className="ico ico-viewall" aria-hidden /></Link>
       </div>
       <div className="row__track">
         {loading
