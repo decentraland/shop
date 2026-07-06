@@ -1,0 +1,20 @@
+{
+  "nav": {
+    "overview": "Inicio",
+    "collectibles": "Coleccionables",
+    "market": "Mercado",
+    "myAssets": "Mis artículos",
+    "myFavorites": "Mis favoritos",
+    "myPurchases": "Mis compras",
+    "searchPlaceholder": "Buscá artículos, creadores, colecciones…",
+    "searchAria": "Buscar en la tienda",
+    "yourBalance": "Tus {currency}",
+    "getCredits": "Conseguir {currency}",
+    "cart": "Carrito"
+  },
+  "notFound": {
+    "title": "Página no encontrada",
+    "body": "La página que buscás no está acá. Volvamos a la tienda.",
+    "cta": "Ver coleccionables"
+  }
+}

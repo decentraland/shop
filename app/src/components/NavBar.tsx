@@ -8,6 +8,7 @@ import { useCart } from '~/store/cart'
 import { CartPopover } from '~/components/CartPopover'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { CURRENCY } from '~/lib/currency'
+import { t } from '~/intl/i18n'
 
 export function NavBar() {
   const { session, connecting, signIn, disconnect, restore } = useWallet()
@@ -51,19 +52,19 @@ export function NavBar() {
       {/* Shop sub-nav (sections + search + cart) — the row under the global DCL navbar. */}
       <div className="subnav">
         <nav className="subnav__tabs">
-          <NavLink to="/overview">Overview</NavLink>
-          <NavLink to="/assets">Collectibles</NavLink>
-          <NavLink to="/market">Market</NavLink>
-          <NavLink to="/my-assets">My Assets</NavLink>
-          <NavLink to="/my-favorites">My Favorites</NavLink>
-          {session ? <NavLink to="/my-purchases">My Purchases</NavLink> : null}
+          <NavLink to="/overview">{t('nav.overview')}</NavLink>
+          <NavLink to="/assets">{t('nav.collectibles')}</NavLink>
+          <NavLink to="/market">{t('nav.market')}</NavLink>
+          <NavLink to="/my-assets">{t('nav.myAssets')}</NavLink>
+          <NavLink to="/my-favorites">{t('nav.myFavorites')}</NavLink>
+          {session ? <NavLink to="/my-purchases">{t('nav.myPurchases')}</NavLink> : null}
         </nav>
         <div className="subnav__search">
           <span className="ico ico-search subnav__search-ico" aria-hidden />
           <input
             value={q}
-            aria-label="Search the shop"
-            placeholder="Search items, creators, collections…"
+            aria-label={t('nav.searchAria')}
+            placeholder={t('nav.searchPlaceholder')}
             onChange={e => onSearchChange(e.target.value)}
             onKeyDown={e => {
               if (e.key === 'Enter') {
@@ -74,17 +75,17 @@ export function NavBar() {
           />
         </div>
         {session ? (
-          <span className="subnav__balance" title={`Your ${CURRENCY.name}`}>
+          <span className="subnav__balance" title={t('nav.yourBalance', { currency: CURRENCY.name })}>
             <CurrencyIcon className="subnav__balance-ico" />
             {balance?.credits ?? 0}
           </span>
         ) : null}
         <NavLink to="/credits" className="subnav__credits">
           <CurrencyIcon className="subnav__credits-ico" />
-          Get {CURRENCY.name}
+          {t('nav.getCredits', { currency: CURRENCY.name })}
         </NavLink>
         <div className="subnav__cart-wrap">
-          <NavLink to="/cart" className="subnav__cart" aria-label="Cart">
+          <NavLink to="/cart" className="subnav__cart" aria-label={t('nav.cart')}>
             <span className="ico ico-cart" aria-hidden />
             {cartCount > 0 ? <span className="subnav__cart-badge">{cartCount}</span> : null}
           </NavLink>

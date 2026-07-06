@@ -4,6 +4,7 @@ import * as Sentry from '@sentry/react'
 import { NavBar } from '~/components/NavBar'
 import { Toaster } from '~/components/Toaster'
 import { FittingRoom } from '~/components/FittingRoom'
+import { ShopFooter } from '~/components/ShopFooter'
 import { PreviewWarmer } from '~/components/PreviewWarmer'
 import { useAccountWatcher } from '~/hooks/useAccountWatcher'
 import { initAnalytics, trackPage } from '~/lib/analytics'
@@ -113,6 +114,11 @@ export function App() {
           </Suspense>
         </Sentry.ErrorBoundary>
       </main>
+      {/* Footer is non-critical + pulls the UI2/MUI theme — isolate it so a footer error can never
+          white-screen the app (it lives outside the main ErrorBoundary). */}
+      <Sentry.ErrorBoundary fallback={<></>}>
+        <ShopFooter />
+      </Sentry.ErrorBoundary>
     </>
   )
 }

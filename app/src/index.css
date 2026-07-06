@@ -86,6 +86,8 @@ h1, h2 { margin: 0; }
 .subnav__search input { border: 0; outline: 0; width: 100%; font-size: 15px; background: transparent; color: var(--text); }
 .subnav__search input::placeholder { color: var(--muted); }
 .subnav__search-ico { color: var(--muted); }
+/* The UI2 footer ships at its own (larger) scale; zoom it down to sit right in the compact shop. */
+.shop-footer { zoom: 0.8; }
 .subnav__cart {
   position: relative; display: grid; place-items: center;
   width: 40px; height: 40px; background: var(--media); border-radius: var(--radius-btn); color: var(--text-2);
@@ -586,7 +588,8 @@ h1, h2 { margin: 0; }
 .overview__empty { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; padding: 80px 20px; }
 .overview__empty-title { font-size: 22px; font-weight: 700; margin: 0; }
 .overview__empty .btn { margin-top: 10px; text-decoration: none; }
-.cart--empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; padding: 90px 20px; min-height: 50vh; }
+/* Empty state spans the full page (not the 920px cart column) so it's centered on screen, not left-of-center. */
+.cart--empty { max-width: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; padding: 90px 20px; min-height: 50vh; }
 .cart-empty__ico { width: 44px; height: 44px; color: var(--muted-2); }
 .cart-empty__title { font-size: 22px; font-weight: 700; margin: 6px 0 0; }
 .cart--empty .btn { margin-top: 12px; text-decoration: none; }
