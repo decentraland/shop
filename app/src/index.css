@@ -30,6 +30,10 @@
 * { box-sizing: border-box; }
 body { margin: 0; padding-top: 92px; background: var(--bg); color: var(--text); font-family: var(--sans); -webkit-font-smoothing: antialiased; }
 @media (max-width: 768px) { body { padding-top: 64px; } }
+/* Sticky footer: fill the viewport (minus the fixed top navbar) as a flex column so short pages push
+   the footer to the bottom instead of leaving it floating mid-screen. */
+#root { display: flex; flex-direction: column; min-height: calc(100vh - 92px); }
+@media (max-width: 768px) { #root { min-height: calc(100vh - 64px); } }
 a { color: inherit; text-decoration: none; }
 button { font-family: inherit; cursor: pointer; }
 h1, h2 { margin: 0; }
@@ -99,7 +103,7 @@ h1, h2 { margin: 0; }
 }
 
 /* ---------------- Page ---------------- */
-.page { padding: 28px 40px 80px; max-width: 1760px; margin: 0 auto; }
+.page { padding: 28px 40px 80px; max-width: 1760px; margin: 0 auto; width: 100%; flex: 1 0 auto; }
 .placeholder { color: var(--muted); font-size: 18px; padding: 40px 0; }
 /* Suspense fallback while a lazy-loaded route chunk downloads. */
 .page-loading { display: grid; place-items: center; min-height: 46vh; }
