@@ -52,7 +52,7 @@ export function NavBar() {
       <div className="subnav">
         <nav className="subnav__tabs">
           <NavLink to="/overview">Overview</NavLink>
-          <NavLink to="/assets">Assets</NavLink>
+          <NavLink to="/assets">Collectibles</NavLink>
           <NavLink to="/market">Market</NavLink>
           <NavLink to="/my-assets">My Assets</NavLink>
           <NavLink to="/my-favorites">My Favorites</NavLink>

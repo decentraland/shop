@@ -47,7 +47,7 @@ export function Overview() {
         <div className="overview__empty">
           <p className="overview__empty-title">New drops are on the way</p>
           <p className="muted">There are no items on sale right now — check back soon.</p>
-          <Link className="btn btn--purple" to="/assets">Browse the shop</Link>
+          <Link className="btn btn--purple" to="/assets">Browse Collectibles</Link>
         </div>
       )}
     </div>

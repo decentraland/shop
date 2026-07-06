@@ -14,6 +14,7 @@ import { PrimaryListModal } from '~/components/PrimaryListModal'
 import { LoadMore } from '~/components/LoadMore'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
 import { CURRENCY } from '~/lib/currency'
+import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { track } from '~/lib/analytics'
 import '~/styles/my-listings.css'
 
@@ -235,7 +236,7 @@ export function MyAssets() {
                   {asset.isOnSale ? (
                     <>
                       <div className="asset-card__listed">
-                        <span className="asset-card__price">{CURRENCY.symbol} {asset.listingPrice}</span>
+                        <span className="asset-card__price"><CurrencyIcon className="ccy-mark" /> {asset.listingPrice}</span>
                         <span className="badge">On sale</span>
                       </div>
                       <button
@@ -323,7 +324,7 @@ export function MyAssets() {
                       </div>
                       <div className="publish-card__name" title={item.name}>{item.name}</div>
                       <div className="publish-card__listed">
-                        <span className="publish-card__price">{CURRENCY.symbol} {saleFor(item)?.priceCredits ?? 0}</span>
+                        <span className="publish-card__price"><CurrencyIcon className="ccy-mark" /> {saleFor(item)?.priceCredits ?? 0}</span>
                         <span className="badge">On sale</span>
                       </div>
                       <button

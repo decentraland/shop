@@ -13,7 +13,7 @@ describe('unmatched / malformed routes', () => {
     app = await launchApp({ path: '/this-route-does-not-exist' })
     const { page } = app
     await waitForText(page, 'Page not found')
-    await waitForText(page, 'Browse the shop')
+    await waitForText(page, 'Browse Collectibles')
     // The blank-page bug is gone: there's real content, not an empty <main>.
     expect(await page.evaluate(() => document.querySelector('.notfound') !== null)).toBe(true)
   })

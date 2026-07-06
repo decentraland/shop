@@ -265,8 +265,8 @@ export function ItemDetail() {
       <div className="item-detail item-detail--notfound">
         <span className="ico ico-cart item-detail__notfound-ico" aria-hidden />
         <h1 className="item-detail__notfound-title">This item isn’t available</h1>
-        <p className="muted">It may have been delisted or moved. Browse the shop for something else.</p>
-        <button className="btn btn--purple" onClick={() => navigate('/assets')}>Browse the shop</button>
+        <p className="muted">It may have been delisted or moved. Browse Collectibles for something else.</p>
+        <button className="btn btn--purple" onClick={() => navigate('/assets')}>Browse Collectibles</button>
       </div>
     )
   }
@@ -327,7 +327,7 @@ export function ItemDetail() {
                 <div className="item-detail__price item-detail__price--none">Not for sale</div>
               )}
               {session ? (
-                <div className="item-detail__balance muted">Your balance: {CURRENCY.symbol} {balance?.credits ?? 0}</div>
+                <div className="item-detail__balance muted">Your balance: <CurrencyIcon className="ccy-mark" /> {balance?.credits ?? 0}</div>
               ) : null}
             </div>
 

@@ -9,6 +9,7 @@ import { createPrimaryUsdPeggedListing, ensureMinter, isMarketplaceMinter } from
 import { toast } from '~/store/toast'
 import { config } from '~/config'
 import { CURRENCY } from '~/lib/currency'
+import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import { track, errorCode } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
@@ -138,7 +139,7 @@ export function PrimaryListModal({
           {item.thumbnail ? <img className="modal__img" src={item.thumbnail} alt={item.name} /> : null}
           <p className="modal-success__name">{item.name}</p>
           <p className="muted small">
-            Listed for <strong>{CURRENCY.symbol} {listedCredits}</strong> · {item.remainingSupply.toLocaleString()} available
+            Listed for <strong><CurrencyIcon className="ccy-mark" /> {listedCredits}</strong> · {item.remainingSupply.toLocaleString()} available
           </p>
           <div className="modal__actions">
             <button className="btn btn--ghost" onClick={onClose}>

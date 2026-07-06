@@ -11,6 +11,7 @@ import { buyManyWithCredits, type CreditPurchase } from '~/lib/buy'
 import { buyManyGasless, waitForSettlement, GaslessUnavailableError } from '~/lib/buy-gasless'
 import { gaslessEnabled } from '~/lib/gasless-config'
 import { CURRENCY } from '~/lib/currency'
+import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { track, purchaseItemsProps, errorCode, isUserRejection, creditsToUsd } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
 
@@ -165,7 +166,7 @@ export function Cart() {
         <span className="ico ico-cart cart-empty__ico" aria-hidden />
         <p className="cart-empty__title">Your cart is empty</p>
         <p className="muted">Find something you love and it&rsquo;ll show up here.</p>
-        <Link className="btn btn--purple" to="/assets">Browse the shop</Link>
+        <Link className="btn btn--purple" to="/assets">Browse Collectibles</Link>
       </div>
     )
   }
@@ -182,7 +183,7 @@ export function Cart() {
               <div className="cart__name">{item.name}</div>
               <div className="muted">{item.creator ? `By ${item.creator}` : ''}</div>
             </div>
-            <div className="cart__price">{CURRENCY.symbol} {item.priceCredits}</div>
+            <div className="cart__price"><CurrencyIcon className="ccy-mark" /> {item.priceCredits}</div>
             <button className="link" onClick={() => remove(item.id)} disabled={busy}>Remove</button>
           </div>
         ))}
@@ -190,8 +191,8 @@ export function Cart() {
 
       <div className="cart__foot">
         <div className="cart__total">
-          <div>Total <strong>{CURRENCY.symbol} {total}</strong></div>
-          {session ? <div className="muted cart__balance">Your balance: {CURRENCY.symbol} {balance?.credits ?? 0}</div> : null}
+          <div>Total <strong><CurrencyIcon className="ccy-mark" /> {total}</strong></div>
+          {session ? <div className="muted cart__balance">Your balance: <CurrencyIcon className="ccy-mark" /> {balance?.credits ?? 0}</div> : null}
         </div>
         <div className="cart__actions">
           <Link className="btn btn--ghost" to="/credits">Get {CURRENCY.name}</Link>
@@ -214,7 +215,7 @@ export function Cart() {
               <div className="cart-upsell__card" key={i.id}>
                 <div className="cart-upsell__thumb">{i.thumbnail ? <img src={i.thumbnail} alt={i.name} /> : null}</div>
                 <div className="cart-upsell__name" title={i.name}>{i.name}</div>
-                <div className="cart-upsell__price">{CURRENCY.symbol} {i.priceCredits}</div>
+                <div className="cart-upsell__price"><CurrencyIcon className="ccy-mark" /> {i.priceCredits}</div>
                 <button className="btn btn--sm cart-upsell__add" onClick={() => add(i, 'upsell')} disabled={busy}>
                   Add
                 </button>
