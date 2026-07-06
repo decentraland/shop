@@ -2,6 +2,9 @@
 // helpers/session.ts (ethers.Wallet('0x11..').address).
 export const TEST_ADDRESS = '0x19e7e376e7c213b7e7e7e46cc70a5dd086daff2a'
 export const COLLECTION = '0xc0113c1100000000000000000000000000000001'
+// A creator that is NOT the signed-in test wallet — browse/detail listings are other people's items,
+// so the self-purchase guard (own primary → can't add to cart) doesn't fire on the buy-flow e2e.
+export const CREATOR_ADDRESS = '0x' + 'cc'.repeat(20)
 export const MANA_WEI_PER = '100000000000000000000' // 100 MANA (→ ~$27 → 270 credits)
 
 // --- Builder (creator's publishable collection items → "Your creations") ---
@@ -138,7 +141,7 @@ export const shopListings = {
       rarity: 'epic',
       category: 'wearable',
       wearableCategory: 'hat',
-      creator: TEST_ADDRESS,
+      creator: CREATOR_ADDRESS,
       priceCredits: 270,
       available: 100,
       network: 'MATIC',
@@ -155,7 +158,7 @@ export const shopListings = {
       rarity: 'legendary',
       category: 'wearable',
       wearableCategory: 'upper_body',
-      creator: TEST_ADDRESS,
+      creator: CREATOR_ADDRESS,
       priceCredits: 135,
       available: 1,
       network: 'MATIC',
