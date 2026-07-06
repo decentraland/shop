@@ -173,7 +173,7 @@ h1, h2 { margin: 0; }
 .assets__bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
 .assets__count { color: var(--muted); font-weight: 600; }
 .sortby { background: #fff; border: 1px solid var(--line-strong); border-radius: var(--radius-btn); padding: 10px 16px; font-weight: 700; text-transform: uppercase; font-size: 13px; letter-spacing: .03em; }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 16px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(201px, 1fr)); gap: 16px; }
 
 /* ---------------- Browse: horizontal filter bar (replaces the sidebar) ---------------- */
 .browse { position: relative; }
@@ -229,10 +229,11 @@ h1, h2 { margin: 0; }
 .card {
   background: #fff; border-radius: var(--radius-card); overflow: hidden;
   border: 1px solid var(--line);
-  display: flex; flex-direction: column; transition: box-shadow .15s ease, transform .15s ease;
+  display: flex; flex-direction: column; transition: border-color .15s ease, box-shadow .15s ease;
 }
-/* Reskin hover-lift: a clean rise + soft neutral shadow (no colored ring). */
-.card--hover { box-shadow: 0 12px 28px rgba(22, 21, 24, .10); transform: translateY(-3px); }
+/* Figma hover (node 696:34662): 2px cerise border + soft violet glow, no layout shift (the extra ring
+   is a box-shadow, not a wider border). */
+.card--hover { border-color: var(--dcl-red); box-shadow: 0 0 0 1px var(--dcl-red), 0 0 5px 1px var(--brand-violet); }
 .card--skeleton, .asset-card--skeleton {
   min-height: 300px; border: 1px solid var(--line); border-radius: var(--radius-card);
   background: linear-gradient(100deg, #efeef2 30%, #e2e0e7 50%, #efeef2 70%);
@@ -281,9 +282,10 @@ h1, h2 { margin: 0; }
 .card__fav .ico-heart { width: 18px; height: 18px; }
 .card__fav.is-on { color: var(--dcl-red); }
 
-.card__body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 4px; }
-.card__name { font-weight: 600; font-size: 15px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.card__creator { color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+.card__body { padding: 8px; display: flex; flex-direction: column; gap: 12px; }
+.card__desc { display: flex; flex-direction: column; }
+.card__name { font-weight: 600; font-size: 14px; line-height: 1.57; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card__creator { color: var(--muted); font-size: 10px; margin-bottom: 0; }
 .card__meta { display: flex; flex-direction: column; gap: 8px; }
 .card__price { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 16px; color: var(--text-2); }
 .card__diamond { width: 15px; height: 15px; color: var(--text-2); }
@@ -764,7 +766,8 @@ a.purchase:hover { box-shadow: 0 8px 22px rgba(20, 20, 30, .10); transform: tran
 }
 
 /* ---------------- Category filter panel (Figma "Categories Dropdown" 696:34701) ---------------- */
-.catfilter { display: flex; flex-direction: column; gap: 2px; width: 265px; }
+/* Gray rounded container behind the category list (Figma node 696:34700). Rows are 265px + 8px pad. */
+.catfilter { display: flex; flex-direction: column; gap: 2px; width: 281px; background: #ecebed; border-radius: 16px; padding: 8px; }
 .catfilter__group { display: flex; flex-direction: column; gap: 2px; }
 /* Animate expand/collapse to content height via grid-template-rows 0fr↔1fr (transition-able). */
 .catfilter__subs { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .22s ease; }
@@ -777,8 +780,9 @@ a.purchase:hover { box-shadow: 0 8px 22px rgba(20, 20, 30, .10); transform: tran
   width: 100%; text-align: left; cursor: pointer;
 }
 .catfilter__cat-label { font-family: var(--sans); font-weight: 600; font-size: 16px; line-height: 1.5; color: #161518; }
-.catfilter__cat:hover, .catfilter__sub:hover { background: rgba(0, 0, 0, .03); }
-.catfilter__cat.is-expanded, .catfilter__sub.is-active { background: #ecebed; }
+/* On the gray container an #ecebed highlight would vanish → use white so selected/hover stays visible. */
+.catfilter__cat:hover, .catfilter__sub:hover { background: rgba(255, 255, 255, .55); }
+.catfilter__cat.is-expanded, .catfilter__sub.is-active { background: #fff; }
 .catfilter__chev { width: 24px; height: 24px; color: #161518; flex: none; transition: transform .15s ease; }
 .catfilter__chev.is-up { transform: rotate(180deg); }
 .catfilter__sub-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
@@ -788,6 +792,6 @@ a.purchase:hover { box-shadow: 0 8px 22px rgba(20, 20, 30, .10); transform: tran
 
 /* Assets browse: category sidebar (Figma) + main column (filter bar + grid). */
 .browse--sidebar { display: flex; gap: 32px; align-items: flex-start; }
-.browse__sidebar { flex: none; width: 265px; }
+.browse__sidebar { flex: none; width: 281px; }
 .browse__main { flex: 1; min-width: 0; }
 @media (max-width: 900px) { .browse--sidebar { flex-direction: column; } .browse__sidebar { width: 100%; } }

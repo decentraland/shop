@@ -149,12 +149,14 @@ export function AssetCard(props: AssetCardProps) {
       </div>
 
       <div className="card__body">
-        <div className="card__name" title={item.name}>{item.name}</div>
-        {item.creator ? (
-          <CreatorBadge address={item.creator} className="card__creator" linkToProfile />
-        ) : (
-          <div className="card__creator">&nbsp;</div>
-        )}
+        <div className="card__desc">
+          <div className="card__name" title={item.name}>{item.name}</div>
+          {item.creator ? (
+            <CreatorBadge address={item.creator} className="card__creator" linkToProfile />
+          ) : (
+            <div className="card__creator">&nbsp;</div>
+          )}
+        </div>
 
         {/* On hover the price/chips row is replaced by the primary action (Figma: secondary dark
             button, below the image — never overlapping it). Native cards add to cart; Market (legacy)
