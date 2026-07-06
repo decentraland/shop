@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { PreviewEmote, PreviewType } from '@dcl/schemas'
 import { WearablePreview } from '~/components/LazyWearablePreview'
 import { config } from '~/config'
 import { useCart } from '~/store/cart'
@@ -133,6 +134,10 @@ export function AssetCard(props: AssetCardProps) {
                 contractAddress={item.contractAddress}
                 itemId={item.itemId ?? undefined}
                 profile="default"
+                // Load straight into the fashion pose (like ItemPreview) so the avatar doesn't flash a
+                // default arms-out T-pose for a beat before settling. Emotes play their own animation.
+                type={item.category === 'emote' ? undefined : PreviewType.AVATAR}
+                emote={item.category === 'emote' ? undefined : PreviewEmote.FASHION}
                 dev={config.chainId === 80002}
                 disableBackground
                 disableFadeEffect

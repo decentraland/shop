@@ -73,6 +73,8 @@ beforeEach(() => {
   manaWeiToCredits.mockReturnValue(7)
   createPrimaryUsdPeggedListing.mockResolvedValue({ type: 'primary-trade' })
   createUsdPeggedListing.mockResolvedValue({ type: 'secondary-trade' })
+  // Migrating cancels the old listing by default, so importListing fetches it first.
+  fetchTrade.mockResolvedValue({ id: 'old-trade' })
 })
 
 describe('when fetching a seller\'s importable listings', () => {
@@ -201,27 +203,58 @@ describe('when importing a secondary (owned) listing', () => {
   })
 })
 
-describe('when cancelOld is requested', () => {
-  it('should fetch the old trade and cancel it', async () => {
+describe('when migrating (taking the old listing down first)', () => {
+  it('should fetch and cancel the old listing before posting the new trade', async () => {
     fetchTrade.mockResolvedValue({ id: 'old-1' })
 
-    await importListing(item({ oldTradeId: 'old-1' }), 10, session, { cancelOld: true })
+    await importListing(item({ oldTradeId: 'old-1' }), 10, session)
 
     expect(fetchTrade).toHaveBeenCalledWith('old-1')
     expect(cancelListing).toHaveBeenCalledWith({ trade: { id: 'old-1' }, signer: session.signer })
+    // Cancel MUST run before the re-list, or the marketplace 409s ("already an open order").
+    expect(cancelListing.mock.invocationCallOrder[0]).toBeLessThan(postTrade.mock.invocationCallOrder[0])
   })
 
-  it('and the old trade cannot be fetched it should skip cancelling without throwing', async () => {
+  it('and the old trade cannot be fetched it should skip cancelling and still re-list', async () => {
     fetchTrade.mockRejectedValue(new Error('gone'))
 
-    await expect(importListing(item(), 10, session, { cancelOld: true })).resolves.toBeUndefined()
+    await expect(importListing(item(), 10, session)).resolves.toBeUndefined()
     expect(cancelListing).not.toHaveBeenCalled()
+    expect(postTrade).toHaveBeenCalledTimes(1)
   })
 
-  it('and cancelOld is not set it should never touch the old listing', async () => {
-    await importListing(item(), 10, session)
+  it('and cancelOld is false it should leave the old listing untouched', async () => {
+    await importListing(item(), 10, session, { cancelOld: false })
 
     expect(fetchTrade).not.toHaveBeenCalled()
     expect(cancelListing).not.toHaveBeenCalled()
+    expect(postTrade).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('when the marketplace has not yet cleared the old order', () => {
+  it('should retry the post until the "already an open order" conflict clears', async () => {
+    vi.useFakeTimers()
+    try {
+      postTrade
+        .mockRejectedValueOnce(new Error('There is already an open order for this NFT'))
+        .mockRejectedValueOnce(new Error('There is already an open order for this NFT'))
+        .mockResolvedValueOnce(undefined)
+
+      const p = importListing(item(), 10, session)
+      await vi.runAllTimersAsync()
+      await expect(p).resolves.toBeUndefined()
+
+      expect(postTrade).toHaveBeenCalledTimes(3)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('should rethrow other errors immediately without retrying', async () => {
+    postTrade.mockRejectedValue(new Error('nope'))
+
+    await expect(importListing(item(), 10, session)).rejects.toThrow('nope')
+    expect(postTrade).toHaveBeenCalledTimes(1)
   })
 })

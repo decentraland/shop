@@ -57,12 +57,36 @@ export async function fetchImportable(seller: string): Promise<{ creations: Impo
   }
 }
 
+// After the old listing is cancelled on-chain, the marketplace only clears the NFT/item's "on sale"
+// flag once the indexer catches up — so the very first re-list can still be rejected with
+// "already an open order" for a few seconds. Retry ONLY the POST (never re-sign) on that specific
+// conflict, backing off until the cancel is indexed. ~37s total before we give up.
+const CLEAR_RETRY_DELAYS_MS = [3000, 3000, 4000, 5000, 6000, 8000, 8000]
+
+async function postListingWithRetry(
+  trade: Parameters<typeof postTrade>[0],
+  identity: Parameters<typeof postTrade>[1]
+): Promise<void> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await postTrade(trade, identity)
+      return
+    } catch (e) {
+      const stillOnSale = /already an open order/i.test((e as Error)?.message ?? '')
+      if (!stillOnSale || attempt >= CLEAR_RETRY_DELAYS_MS.length) throw e
+      await new Promise(r => setTimeout(r, CLEAR_RETRY_DELAYS_MS[attempt]))
+    }
+  }
+}
+
 /**
- * List ONE old item into the Shop at `priceCredits`. Reuses the exact selling path:
+ * List ONE old item into the Shop at `priceCredits`. Migrating REPLACES the seller's old classic
+ * (MANA) listing — the marketplace refuses a second open order for the same NFT/item, so we take the
+ * old one DOWN FIRST (on-chain cancel), then re-list. Reuses the exact selling path:
  * - primary (a creation): ensure the Shop can mint the collection, then sign + post a USD item order.
  * - secondary (owned): ensure the Shop can transfer it, then sign + post a USD nft order.
  * The first item of a collection may need a one-time approval; later items skip it.
- * `cancelOld` (default off) additionally takes the old classic listing down (an extra confirmation).
+ * `cancelOld` defaults on; callers opt out only when the old listing is known to be gone already.
  */
 export async function importListing(
   item: ImportItem,
@@ -74,6 +98,13 @@ export async function importListing(
   const chainId = item.chainId as ChainId
   const network = item.network as Network
 
+  // Take the old MANA listing down first — otherwise POST /v1/trades 409s ("already an open order
+  // for this NFT"). Best-effort: if the trade can't be fetched it's already gone, so skip the cancel.
+  if (opts.cancelOld !== false) {
+    const old = await fetchTrade(item.oldTradeId).catch(() => null)
+    if (old) await cancelListing({ trade: old, signer: session.signer })
+  }
+
   if (item.listingType === 'primary') {
     await ensureMinter({ signer: session.signer, contractAddress: item.contractAddress, chainId })
     const trade = await createPrimaryUsdPeggedListing({
@@ -83,7 +114,7 @@ export async function importListing(
       uses: item.available,
       expiresAtMs: Date.now() + SIX_MONTHS_MS
     })
-    await postTrade(trade, session.identity)
+    await postListingWithRetry(trade, session.identity)
   } else {
     await ensureApproval({ signer: session.signer, contractAddress: item.contractAddress, chainId })
     const trade = await createUsdPeggedListing({
@@ -92,11 +123,6 @@ export async function importListing(
       usdPrice,
       expiresAtMs: Date.now() + SIX_MONTHS_MS
     })
-    await postTrade(trade, session.identity)
-  }
-
-  if (opts.cancelOld) {
-    const old = await fetchTrade(item.oldTradeId).catch(() => null)
-    if (old) await cancelListing({ trade: old, signer: session.signer })
+    await postListingWithRetry(trade, session.identity)
   }
 }

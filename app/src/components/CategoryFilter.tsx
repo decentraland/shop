@@ -2,10 +2,12 @@ import { useState } from 'react'
 
 // Category filter panel (Figma "Categories Dropdown", node 696:34701). Top categories with an
 // animated accordion; Wearables expands into icon'd sub-categories. Wired to the Assets category/
-// subCategory state. Sub-sub expansion (the deeper chevrons on Head/Accessories) is design-only for
-// now — the shop feed has no sub-sub categories yet.
+// subCategory state. Only Wearables carries a chevron: it's the only category with sub-content in the
+// shop feed today. Emotes (no subs) and the wearable sub-categories select directly — no dead chevron
+// that expands into an empty panel. (The Figma's sub-sub chevrons on Head/Accessories are design-only
+// until the feed has sub-sub categories.)
 
-type Sub = { key: string; label: string; icon: string; expandable?: boolean }
+type Sub = { key: string; label: string; icon: string }
 type Top = { key: string; label: string; expandable?: boolean; subs?: Sub[] }
 
 const CATEGORIES: Top[] = [
@@ -15,16 +17,16 @@ const CATEGORIES: Top[] = [
     label: 'Wearables',
     expandable: true,
     subs: [
-      { key: 'Head', label: 'Head', icon: 'cat-head', expandable: true },
+      { key: 'Head', label: 'Head', icon: 'cat-head' },
       { key: 'Upper Body', label: 'Upper Body', icon: 'cat-upper' },
       { key: 'Handwear', label: 'Handwear', icon: 'cat-handwear' },
       { key: 'Lower Body', label: 'Lower Body', icon: 'cat-lower' },
       { key: 'Feet', label: 'Feet', icon: 'cat-feet' },
-      { key: 'Accessories', label: 'Accessories', icon: 'cat-accessories', expandable: true },
+      { key: 'Accessories', label: 'Accessories', icon: 'cat-accessories' },
       { key: 'Skins', label: 'Skins', icon: 'cat-skins' }
     ]
   },
-  { key: 'emote', label: 'Emotes', expandable: true }
+  { key: 'emote', label: 'Emotes' }
 ]
 
 export function CategoryFilter({
@@ -87,7 +89,6 @@ export function CategoryFilter({
                         <span className={`ico ico-${sub.icon} catfilter__sub-ico`} aria-hidden />
                         <span className="catfilter__sub-label">{sub.label}</span>
                       </span>
-                      {sub.expandable ? <span className="ico ico-chevron catfilter__chev catfilter__chev--sub" aria-hidden /> : null}
                     </button>
                   ))}
                 </div>

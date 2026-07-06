@@ -136,7 +136,7 @@ export function Assets() {
           {/* Rarity */}
           <div className="filterbar__item">
             <button className={`filterbar__trigger${open === 'rarity' ? ' is-open' : ''}${rarities.length ? ' is-active' : ''}`} onClick={() => toggle('rarity')}>
-              Rarity {rarities.length ? <span className="filterbar__badge">{rarities.length}</span> : null} <span className="filterbar__chev" aria-hidden>▾</span>
+              Rarity {rarities.length ? <span className="filterbar__badge">{rarities.length}</span> : null} <span className={`ico ico-chevron filterbar__chev${open === 'rarity' ? ' is-up' : ''}`} aria-hidden />
             </button>
             {open === 'rarity' ? (
               <div className="filter-pop filter-pop--rarity">
@@ -153,7 +153,7 @@ export function Assets() {
           {/* Price */}
           <div className="filterbar__item">
             <button className={`filterbar__trigger${open === 'price' ? ' is-open' : ''}${priceActive ? ' is-active' : ''}`} onClick={() => toggle('price')}>
-              {priceLabel} <span className="filterbar__chev" aria-hidden>▾</span>
+              {priceLabel} <span className={`ico ico-chevron filterbar__chev${open === 'price' ? ' is-up' : ''}`} aria-hidden />
             </button>
             {open === 'price' ? (
               <div className="filter-pop filter-pop--price">
@@ -177,7 +177,7 @@ export function Assets() {
           </span>
           <div className="filterbar__item">
             <button className={`filterbar__sort${open === 'sort' ? ' is-open' : ''}`} onClick={() => toggle('sort')}>
-              Sort by: {currentSort.label} <span className="filterbar__chev" aria-hidden>▾</span>
+              Sort by: {currentSort.label} <span className={`ico ico-chevron filterbar__chev${open === 'sort' ? ' is-up' : ''}`} aria-hidden />
             </button>
             {open === 'sort' ? (
               <div className="filter-pop filter-pop--sort">

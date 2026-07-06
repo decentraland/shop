@@ -193,7 +193,8 @@ h1, h2 { margin: 0; }
 }
 .filterbar__trigger:hover, .filterbar__sort:hover { background: #f5f4f7; color: #3f3c47; }
 .filterbar__trigger.is-open, .filterbar__trigger.is-active, .filterbar__sort.is-open { color: #3f3c47; }
-.filterbar__chev { font-size: 11px; }
+.filterbar__chev { width: 14px; height: 14px; opacity: .85; transition: transform .15s ease; }
+.filterbar__chev.is-up { transform: rotate(180deg); }
 .filterbar__badge { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 11px; font-weight: 700; }
 .filterbar__clear { background: none; border: 0; color: var(--accent); font-weight: 600; font-size: 13px; padding: 8px 6px; }
 .filterbar__count { color: var(--muted); font-weight: 600; font-size: 14px; white-space: nowrap; }

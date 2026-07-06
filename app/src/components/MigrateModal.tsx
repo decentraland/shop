@@ -111,7 +111,9 @@ export function MigrateModal({
       <div className="modal migrate" role="dialog" aria-modal="true" aria-live="polite">
         <h2 className="modal__title">Listing your items</h2>
         <p className="muted small" style={{ margin: '0 0 4px' }}>
-          {showsConfirmations ? 'Confirm each item to add it to the Shop.' : 'Adding your items to the Shop.'}{' '}
+          {showsConfirmations
+            ? 'We take down each old listing and re-list it for credits — confirm each step.'
+            : 'Moving your items to the Shop.'}{' '}
           {activeIndex >= 0 ? `${activeIndex + 1} of ${queue.length}` : ''}
         </p>
 
@@ -144,7 +146,7 @@ export function MigrateModal({
 
         <p className="muted small migrate__hint">
           {showsConfirmations
-            ? 'A quick confirmation pops up for each item. Keep this open.'
+            ? 'A couple of quick confirmations pop up per item (take down + re-list). Keep this open.'
             : 'This only takes a moment — keep this open.'}
         </p>
       </div>
