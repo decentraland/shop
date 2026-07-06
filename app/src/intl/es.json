@@ -16,5 +16,12 @@
     "title": "Página no encontrada",
     "body": "La página que buscás no está acá. Volvamos a la tienda.",
     "cta": "Ver coleccionables"
+  },
+  "cart": {
+    "empty": {
+      "title": "Tu carrito está vacío",
+      "body": "Encontrá algo que te guste y va a aparecer acá.",
+      "cta": "Ver coleccionables"
+    }
   }
 }
