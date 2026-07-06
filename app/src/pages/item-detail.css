@@ -251,6 +251,15 @@
   margin: 0;
   font-size: 13px;
 }
+/* "This is your item" note shown in place of the buy CTAs on your own listing. */
+.item-detail__own-note {
+  margin: 0;
+  font-size: 14px;
+}
+.item-detail__own-note a {
+  color: var(--accent);
+  font-weight: 600;
+}
 
 /* ---------------- Collection carousel ---------------- */
 .collection-carousel {

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Rarity } from '@dcl/schemas'
 import { config } from '~/config'
@@ -22,6 +22,7 @@ import { isSaleActive, saleDiscountPct } from '~/lib/sale'
 import { CURRENCY } from '~/lib/currency'
 import { track, itemProps, purchaseItemsProps, errorCode, isUserRejection, creditsToUsd } from '~/lib/analytics'
 import { recordViewed } from '~/lib/recently-viewed'
+import { isOwnListing, isOwnTrade } from '~/lib/ownership'
 import { captureError } from '~/lib/monitoring'
 import './item-detail.css'
 
@@ -189,7 +190,7 @@ export function ItemDetail() {
   }
 
   function handleAddToCart() {
-    if (!forSale || inCart) return
+    if (!forSale || inCart || own) return
     add(cartItem, 'item_detail')
   }
 
@@ -208,6 +209,12 @@ export function ItemDetail() {
       setStatus(`Buying ${current.name || 'item'}…`)
       const trade = await fetchTrade(buyableTradeId)
       if (!trade) throw new Error('not for sale')
+      if (isOwnTrade(trade, session.address)) {
+        setError("You can't buy your own listing.")
+        setStatus(null)
+        setBusy(false)
+        return
+      }
       const priceAsset = trade.received?.[0] as { amount?: string } | undefined
       const usdCents = usdWeiToCents(priceAsset?.amount)
       const { credit, maxCreditedValue } = await authorizeUsdCredit(session.identity, usdCents, buyableTradeId)
@@ -262,6 +269,10 @@ export function ItemDetail() {
       saleEndsAt: current.saleEndsAt
     })
   const collectionTitle = 'More from this collection'
+
+  // Your own (primary) listing — you can't buy it (see lib/ownership.ts). Secondary self-listings are
+  // caught authoritatively at buy time by isOwnTrade.
+  const own = isOwnListing(current, session?.address)
 
   const addLabel = !forSale ? 'Not for sale' : inCart ? 'In cart' : resolvingTrade ? 'Checking…' : 'Add to cart'
 
@@ -360,6 +371,12 @@ export function ItemDetail() {
             </div>
 
             <div className="item-detail__ctas">
+              {own ? (
+                <p className="item-detail__own-note muted">
+                  This is your item — manage it in <Link to="/my-assets">My Assets</Link>.
+                </p>
+              ) : (
+              <>
               {forSale ? (
                 <button
                   className="btn btn--purple item-detail__cta"
@@ -377,6 +394,8 @@ export function ItemDetail() {
                 <span className="ico ico-cart-solid item-detail__addcart-ico" aria-hidden />
                 {addLabel}
               </button>
+              </>
+              )}
             </div>
 
             {status ? <p className="muted item-detail__status">{status}</p> : null}

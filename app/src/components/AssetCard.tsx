@@ -4,6 +4,8 @@ import { WearablePreview } from '~/components/LazyWearablePreview'
 import { config } from '~/config'
 import { useCart } from '~/store/cart'
 import { useFavorites } from '~/store/favorites'
+import { useWallet } from '~/store/wallet'
+import { isOwnListing } from '~/lib/ownership'
 import { CreatorBadge } from '~/components/CreatorBadge'
 import { rarityColor, readableText } from '~/lib/rarity'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
@@ -44,6 +46,9 @@ export function AssetCard(props: AssetCardProps) {
 
   const add = useCart(s => s.add)
   const inCart = useCart(s => s.items.some(i => i.id === item.id))
+  const address = useWallet(s => s.session?.address)
+  // Your own (primary) listing — can't add it to the cart (see lib/ownership.ts).
+  const own = isOwnListing(item, address)
   const toggleFav = useFavorites(s => s.toggle)
   const faved = useFavorites(s => !!s.items[item.id])
   const navigate = useNavigate()
@@ -166,11 +171,11 @@ export function AssetCard(props: AssetCardProps) {
           ) : (
             <button
               className={`card__cart${inCart ? ' is-in' : ''}`}
-              onClick={e => { e.stopPropagation(); add(item, 'grid') }}
-              disabled={inCart}
+              onClick={e => { e.stopPropagation(); if (!own) add(item, 'grid') }}
+              disabled={inCart || own}
             >
-              <span className="ico ico-cart-solid card__cart-ico" aria-hidden />
-              {inCart ? 'In cart' : 'Add to cart'}
+              {own ? null : <span className="ico ico-cart-solid card__cart-ico" aria-hidden />}
+              {own ? 'Your item' : inCart ? 'In cart' : 'Add to cart'}
             </button>
           )
         ) : (
