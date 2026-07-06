@@ -11,13 +11,18 @@ export function ShopFooter() {
   const locale = useLocale(s => s.locale)
   const setLocale = useLocale(s => s.setLocale)
   return (
-    <Suspense fallback={null}>
-      <ShopFooterInner
-        locale={locale}
-        onChange={code => {
-          if ((LOCALES as readonly string[]).includes(code)) setLocale(code as Locale)
-        }}
-      />
-    </Suspense>
+    // The UI2 footer is scaled to its own (larger) design system. It mixes rem text with px spacing,
+    // so a parent font-size can't shrink it — `zoom` scales the whole thing down to match the shop's
+    // compact scale. See .shop-footer in index.css.
+    <div className="shop-footer">
+      <Suspense fallback={null}>
+        <ShopFooterInner
+          locale={locale}
+          onChange={code => {
+            if ((LOCALES as readonly string[]).includes(code)) setLocale(code as Locale)
+          }}
+        />
+      </Suspense>
+    </div>
   )
 }

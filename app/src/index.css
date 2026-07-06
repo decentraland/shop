@@ -86,6 +86,8 @@ h1, h2 { margin: 0; }
 .subnav__search input { border: 0; outline: 0; width: 100%; font-size: 15px; background: transparent; color: var(--text); }
 .subnav__search input::placeholder { color: var(--muted); }
 .subnav__search-ico { color: var(--muted); }
+/* The UI2 footer ships at its own (larger) scale; zoom it down to sit right in the compact shop. */
+.shop-footer { zoom: 0.8; }
 .subnav__cart {
   position: relative; display: grid; place-items: center;
   width: 40px; height: 40px; background: var(--media); border-radius: var(--radius-btn); color: var(--text-2);
