@@ -765,7 +765,12 @@ a.purchase:hover { box-shadow: 0 8px 22px rgba(20, 20, 30, .10); transform: tran
 
 /* ---------------- Category filter panel (Figma "Categories Dropdown" 696:34701) ---------------- */
 .catfilter { display: flex; flex-direction: column; gap: 2px; width: 265px; }
-.catfilter__group { display: contents; }
+.catfilter__group { display: flex; flex-direction: column; gap: 2px; }
+/* Animate expand/collapse to content height via grid-template-rows 0fr↔1fr (transition-able). */
+.catfilter__subs { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .22s ease; }
+.catfilter__subs.is-open { grid-template-rows: 1fr; }
+.catfilter__subs-inner { overflow: hidden; min-height: 0; display: flex; flex-direction: column; gap: 2px; }
+@media (prefers-reduced-motion: reduce) { .catfilter__subs { transition: none; } }
 .catfilter__cat, .catfilter__sub {
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
   height: 40px; padding: 8px 16px; border: 0; border-radius: 12px; background: none;
