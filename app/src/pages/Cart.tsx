@@ -16,6 +16,7 @@ import { track, purchaseItemsProps, errorCode, isUserRejection, creditsToUsd } f
 import { captureError } from '~/lib/monitoring'
 import { AssetCard } from '~/components/AssetCard'
 import { CreatorBadge } from '~/components/CreatorBadge'
+import { isOwnTrade } from '~/lib/ownership'
 
 function friendlyError(e: unknown): string {
   const err = e as { code?: number; message?: string }
@@ -24,7 +25,7 @@ function friendlyError(e: unknown): string {
     return 'You cancelled the request.'
   }
   if (msg.includes('insufficient')) return `You don't have enough ${CURRENCY.name} — get more first.`
-  if (msg.includes('no active listing')) return err.message as string
+  if (msg.includes('no active listing') || msg.includes('your own listing')) return err.message as string
   return "Couldn't complete checkout — please try again."
 }
 
@@ -88,6 +89,7 @@ export function Cart() {
           ? await fetchTrade(item.tradeId)
           : await fetchTradeForItem(item.contractAddress, item.itemId ?? '')
         if (!trade) throw new Error(`No active listing for ${item.name}.`)
+        if (isOwnTrade(trade, session.address)) throw new Error(`You can't buy your own listing: ${item.name}.`)
 
         const usdCents = usdCentsFromTrade(trade)
         const { credit, maxCreditedValue } = await authorizeUsdCredit(session.identity, usdCents, item.tradeId)

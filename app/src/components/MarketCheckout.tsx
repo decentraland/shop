@@ -13,6 +13,7 @@ import { authorizeUsdCredit, cancelUsdIntents } from '~/lib/credits'
 import { buyWithCredits } from '~/lib/buy'
 import { buyGasless, waitForSettlement, GaslessUnavailableError } from '~/lib/buy-gasless'
 import { gaslessEnabled } from '~/lib/gasless-config'
+import { isOwnTrade } from '~/lib/ownership'
 
 function friendlyError(e: unknown): string {
   const err = e as { code?: number; message?: string }
@@ -24,6 +25,7 @@ function friendlyError(e: unknown): string {
   if (msg.includes('not found') || msg.includes('no active listing') || msg.includes('404')) {
     return 'This item was just sold or removed. Refreshing the market…'
   }
+  if (msg.includes('your own listing')) return "You can't buy your own listing."
   return "Couldn't complete checkout — please try again."
 }
 
@@ -109,6 +111,7 @@ export function MarketCheckout({
       try {
         const trade = await fetchTrade(listing.tradeId)
         if (!trade) throw new Error('not found')
+        if (isOwnTrade(trade, session.address)) throw new Error("You can't buy your own listing.")
         const usdCents = manaWeiToUsdCents(listing.manaWei, rate)
         // Guard against a malformed manaWei / bad rate sizing a $0 authorize (manaWeiToUsdCents
         // returns 0 on parse failure) — never lock a free purchase.
