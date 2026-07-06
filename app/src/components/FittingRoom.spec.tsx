@@ -83,7 +83,7 @@ describe('FittingRoom', () => {
 
   it('flags same-slot items with a conflict hint', () => {
     open([hatA, hatB, top])
-    expect(screen.getAllByText(/shares a slot/i)).toHaveLength(2) // both hats
+    expect(screen.getAllByText(/1 per slot/i)).toHaveLength(2) // both hats
   })
 
   it('disables the toggle for an emote (can\'t be worn)', () => {
