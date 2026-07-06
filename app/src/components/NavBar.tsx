@@ -6,7 +6,6 @@ import { useProfile } from '~/hooks/useProfile'
 import { useBalance } from '~/hooks/useBalance'
 import { useCart } from '~/store/cart'
 import { CartPopover } from '~/components/CartPopover'
-import { LanguageSwitcher } from '~/components/LanguageSwitcher'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { CURRENCY } from '~/lib/currency'
 import { t } from '~/intl/i18n'
@@ -85,7 +84,6 @@ export function NavBar() {
           <CurrencyIcon className="subnav__credits-ico" />
           {t('nav.getCredits', { currency: CURRENCY.name })}
         </NavLink>
-        <LanguageSwitcher />
         <div className="subnav__cart-wrap">
           <NavLink to="/cart" className="subnav__cart" aria-label={t('nav.cart')}>
             <span className="ico ico-cart" aria-hidden />

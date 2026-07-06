@@ -4,6 +4,7 @@ import * as Sentry from '@sentry/react'
 import { NavBar } from '~/components/NavBar'
 import { Toaster } from '~/components/Toaster'
 import { FittingRoom } from '~/components/FittingRoom'
+import { ShopFooter } from '~/components/ShopFooter'
 import { PreviewWarmer } from '~/components/PreviewWarmer'
 import { useAccountWatcher } from '~/hooks/useAccountWatcher'
 import { initAnalytics, trackPage } from '~/lib/analytics'
@@ -113,6 +114,7 @@ export function App() {
           </Suspense>
         </Sentry.ErrorBoundary>
       </main>
+      <ShopFooter />
     </>
   )
 }
