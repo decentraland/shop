@@ -53,6 +53,7 @@ h1, h2 { margin: 0; }
 .ico-credits { -webkit-mask-image: url('./assets/icons/credits.svg'); mask-image: url('./assets/icons/credits.svg'); }
 .ico-search { -webkit-mask-image: url('./assets/icons/search.svg'); mask-image: url('./assets/icons/search.svg'); }
 .ico-eyewear { -webkit-mask-image: url('./assets/icons/category-eyewear.svg'); mask-image: url('./assets/icons/category-eyewear.svg'); }
+.ico-clock { -webkit-mask-image: url('./assets/icons/clock.svg'); mask-image: url('./assets/icons/clock.svg'); }
 .ico-viewall { -webkit-mask-image: url('./assets/icons/view-all-arrow.svg'); mask-image: url('./assets/icons/view-all-arrow.svg'); width: 18px; height: 18px; }
 
 /* ---------------- Sub-nav (shop sections; under the ui2 Navbar) ---------------- */
@@ -286,6 +287,29 @@ h1, h2 { margin: 0; }
   display: inline-flex; align-items: center; background: rgba(26, 143, 76, .12); color: #1a8f4c;
   font-weight: 700; font-size: 12px; border-radius: 6px; padding: 2px 8px; white-space: nowrap;
 }
+
+/* ---------------- Flash sale (time-boxed discounted listing — see lib/sale.ts) ---------------- */
+/* Corner ribbon on the card image (fav sits top-right, so this anchors top-left). */
+.card__sale-badge {
+  position: absolute; top: 10px; left: 10px; z-index: 4;
+  display: inline-flex; align-items: center;
+  background: var(--dcl-red); color: #fff;
+  font-weight: 800; font-size: 11px; letter-spacing: .03em; text-transform: uppercase;
+  border-radius: 6px; padding: 4px 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .25);
+}
+/* Price row when on sale: emphasized "now" + struck-through "was" + a countdown pill. */
+.card__price--sale { flex-wrap: wrap; gap: 6px 10px; }
+.card__price-now { display: inline-flex; align-items: center; gap: 6px; color: var(--dcl-red); font-weight: 700; }
+.card__price-now .card__diamond { color: var(--dcl-red); }
+.card__price-was { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); text-decoration: line-through; font-weight: 600; font-size: 14px; }
+.card__diamond--was { width: 13px; height: 13px; color: var(--muted); }
+.card__countdown, .sale-countdown {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: var(--rarity-bg); color: var(--accent);
+  font-size: 11px; font-weight: 700; border-radius: 6px; padding: 2px 8px; white-space: nowrap;
+}
+.sale-countdown__ico { width: 13px; height: 13px; }
 
 /* ---------------- Market tab (legacy, fluctuating-price liquidity) ---------------- */
 /* Header banner: prices follow the live market. Amethyst-tinted (reskin theme), web2-friendly copy. */

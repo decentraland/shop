@@ -152,6 +152,60 @@
   font-size: 18px;
   color: var(--muted);
 }
+/* Flash sale (see lib/sale.ts): emphasized "now" + struck-through "was" + a badge + countdown. */
+.item-detail__price--sale {
+  flex-wrap: wrap;
+  gap: 10px 14px;
+}
+.item-detail__price--sale .item-detail__price,
+.item-detail__price--sale .item-detail__price-value {
+  color: var(--dcl-red);
+}
+.item-detail__price--sale .item-detail__diamond {
+  color: var(--dcl-red);
+}
+.item-detail__price-was {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  text-decoration: line-through;
+  font-weight: 600;
+  font-size: 20px;
+}
+.item-detail__diamond--was {
+  width: 18px;
+  height: 18px;
+  color: var(--muted);
+}
+.item-detail__sale-badge {
+  display: inline-flex;
+  align-items: center;
+  background: var(--dcl-red);
+  color: #fff;
+  font-weight: 800;
+  font-size: 13px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  border-radius: 6px;
+  padding: 4px 10px;
+}
+.item-detail__countdown {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--rarity-bg);
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 700;
+  border-radius: 6px;
+  padding: 4px 10px;
+  white-space: nowrap;
+}
+.item-detail__countdown .sale-countdown__ico {
+  width: 14px;
+  height: 14px;
+}
 .item-detail__balance {
   font-size: 13px;
 }

@@ -7,6 +7,8 @@ import { useFavorites } from '~/store/favorites'
 import { CreatorBadge } from '~/components/CreatorBadge'
 import { rarityColor, readableText } from '~/lib/rarity'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
+import { SaleCountdown } from '~/components/SaleCountdown'
+import { isSaleActive, saleDiscountPct } from '~/lib/sale'
 import type { CatalogItem } from '~/lib/api'
 
 const HOVER_DELAY_MS = 120
@@ -78,6 +80,13 @@ export function AssetCard(props: AssetCardProps) {
 
   const gender = genderGlyph(item.gender)
 
+  // Flash sale only applies to native (fixed-price) listings — a market card's credit price
+  // fluctuates, so a strike-through compare-at would be meaningless there.
+  const onSale =
+    !isMarket &&
+    isSaleActive({ priceCredits: item.priceCredits, compareAtCredits: item.compareAtCredits, saleEndsAt: item.saleEndsAt })
+  const discountPct = onSale ? saleDiscountPct(item.compareAtCredits!, item.priceCredits) : 0
+
   return (
     <article
       className={`card${hovered ? ' card--hover' : ''}`}
@@ -90,6 +99,11 @@ export function AssetCard(props: AssetCardProps) {
       onKeyDown={canOpen ? e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDetail() } } : undefined}
     >
       <div className="card__media">
+        {onSale ? (
+          <span className="card__sale-badge">
+            SALE{discountPct > 0 ? ` -${discountPct}%` : ''}
+          </span>
+        ) : null}
         <button
           className={`card__fav${faved ? ' is-on' : ''}`}
           onClick={e => { e.stopPropagation(); toggleFav(item) }}
@@ -167,6 +181,18 @@ export function AssetCard(props: AssetCardProps) {
                 <CurrencyIcon className="card__diamond" />
                 {props.marketPriceCredits == null ? '—' : props.marketPriceCredits}
                 <span className="chip card__market-chip">Market price</span>
+              </div>
+            ) : onSale ? (
+              <div className="card__price card__price--sale">
+                <span className="card__price-now">
+                  <CurrencyIcon className="card__diamond" />
+                  {item.priceCredits}
+                </span>
+                <span className="card__price-was">
+                  <CurrencyIcon className="card__diamond card__diamond--was" />
+                  {item.compareAtCredits}
+                </span>
+                <SaleCountdown endsAt={item.saleEndsAt} className="card__countdown" />
               </div>
             ) : (
               <div className="card__price">

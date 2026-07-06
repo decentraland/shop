@@ -16,6 +16,8 @@ import { ItemPreview } from '~/components/ItemPreview'
 import { CollectionCarousel } from '~/components/CollectionCarousel'
 import { CreatorBadge } from '~/components/CreatorBadge'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
+import { SaleCountdown } from '~/components/SaleCountdown'
+import { isSaleActive, saleDiscountPct } from '~/lib/sale'
 import { CURRENCY } from '~/lib/currency'
 import { track, itemProps, purchaseItemsProps, errorCode, isUserRejection, creditsToUsd } from '~/lib/analytics'
 import { recordViewed } from '~/lib/recently-viewed'
@@ -249,6 +251,13 @@ export function ItemDetail() {
   const rarity: Rarity = isValidRarity(current.rarity) ? current.rarity : Rarity.COMMON
   const [glowLight] = Rarity.getGradient(rarity)
   const gender = genderLabel(current.gender)
+  const onSale =
+    forSale &&
+    isSaleActive({
+      priceCredits: current.priceCredits,
+      compareAtCredits: current.compareAtCredits,
+      saleEndsAt: current.saleEndsAt
+    })
   const collectionTitle = 'More from this collection'
 
   const addLabel = !forSale ? 'Not for sale' : inCart ? 'In cart' : resolvingTrade ? 'Checking…' : 'Add to cart'
@@ -311,10 +320,29 @@ export function ItemDetail() {
             <div className="item-detail__price-block">
               <div className="item-detail__price-label">Price</div>
               {forSale ? (
-                <div className="item-detail__price">
-                  <CurrencyIcon className="item-detail__diamond" />
-                  <span className="item-detail__price-value">{current.priceCredits}</span>
-                </div>
+                onSale ? (
+                  <div className="item-detail__price item-detail__price--sale">
+                    <span className="item-detail__price">
+                      <CurrencyIcon className="item-detail__diamond" />
+                      <span className="item-detail__price-value">{current.priceCredits}</span>
+                    </span>
+                    <span className="item-detail__price-was">
+                      <CurrencyIcon className="item-detail__diamond item-detail__diamond--was" />
+                      {current.compareAtCredits}
+                    </span>
+                    {saleDiscountPct(current.compareAtCredits!, current.priceCredits) > 0 ? (
+                      <span className="item-detail__sale-badge">
+                        SALE -{saleDiscountPct(current.compareAtCredits!, current.priceCredits)}%
+                      </span>
+                    ) : null}
+                    <SaleCountdown endsAt={current.saleEndsAt} className="item-detail__countdown" />
+                  </div>
+                ) : (
+                  <div className="item-detail__price">
+                    <CurrencyIcon className="item-detail__diamond" />
+                    <span className="item-detail__price-value">{current.priceCredits}</span>
+                  </div>
+                )
               ) : (
                 <div className="item-detail__price item-detail__price--none">Not for sale</div>
               )}
