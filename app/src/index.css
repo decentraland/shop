@@ -68,6 +68,14 @@ h1, h2 { margin: 0; }
 .ico-cat-feet { -webkit-mask-image: url('./assets/icons/cat-feet.svg'); mask-image: url('./assets/icons/cat-feet.svg'); }
 .ico-cat-accessories { -webkit-mask-image: url('./assets/icons/cat-accessories.svg'); mask-image: url('./assets/icons/cat-accessories.svg'); }
 .ico-cat-skins { -webkit-mask-image: url('./assets/icons/cat-skins.svg'); mask-image: url('./assets/icons/cat-skins.svg'); }
+.ico-emote-dance { -webkit-mask-image: url('./assets/icons/emote-dance.svg'); mask-image: url('./assets/icons/emote-dance.svg'); }
+.ico-emote-stunt { -webkit-mask-image: url('./assets/icons/emote-stunt.svg'); mask-image: url('./assets/icons/emote-stunt.svg'); }
+.ico-emote-greetings { -webkit-mask-image: url('./assets/icons/emote-greetings.svg'); mask-image: url('./assets/icons/emote-greetings.svg'); }
+.ico-emote-fun { -webkit-mask-image: url('./assets/icons/emote-fun.svg'); mask-image: url('./assets/icons/emote-fun.svg'); }
+.ico-emote-poses { -webkit-mask-image: url('./assets/icons/emote-poses.svg'); mask-image: url('./assets/icons/emote-poses.svg'); }
+.ico-emote-reactions { -webkit-mask-image: url('./assets/icons/emote-reactions.svg'); mask-image: url('./assets/icons/emote-reactions.svg'); }
+.ico-emote-horror { -webkit-mask-image: url('./assets/icons/emote-horror.svg'); mask-image: url('./assets/icons/emote-horror.svg'); }
+.ico-emote-misc { -webkit-mask-image: url('./assets/icons/emote-misc.svg'); mask-image: url('./assets/icons/emote-misc.svg'); }
 .ico-trash { -webkit-mask-image: url('./assets/icons/trash.svg'); mask-image: url('./assets/icons/trash.svg'); }
 .ico-slot-head { -webkit-mask-image: url('./assets/icons/slot-head.svg'); mask-image: url('./assets/icons/slot-head.svg'); }
 .ico-slot-upper { -webkit-mask-image: url('./assets/icons/slot-upper.svg'); mask-image: url('./assets/icons/slot-upper.svg'); }

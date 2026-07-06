@@ -12,7 +12,9 @@ import { track } from '~/lib/analytics'
 // Items fetched per page (infinite scroll pages by cumulative offset — see useInfiniteGrid).
 const PAGE_SIZE = 48
 
-// Sidebar sub-labels → the on-chain wearable categories they cover.
+// Sidebar sub-labels → the on-chain categories they cover. Wearable sub-labels map to wearable
+// categories; emote sub-labels map to emote categories. Both go out on the same `wearableCategory`
+// query param — the server filters on a coalesced wearable/emote category column (see /v3/catalog/shop).
 const SUBCAT_MAP: Record<string, string[]> = {
   Head: ['head', 'hat', 'hair', 'facial_hair', 'eyes', 'eyebrows', 'mouth', 'mask', 'helmet', 'tiara', 'top_head'],
   'Upper Body': ['upper_body'],
@@ -20,7 +22,15 @@ const SUBCAT_MAP: Record<string, string[]> = {
   'Lower Body': ['lower_body'],
   Feet: ['feet'],
   Accessories: ['earring', 'eyewear'],
-  Skins: ['skin']
+  Skins: ['skin'],
+  Dance: ['dance'],
+  Stunt: ['stunt'],
+  Greetings: ['greetings'],
+  Fun: ['fun'],
+  Poses: ['poses'],
+  Reactions: ['reactions'],
+  Horror: ['horror'],
+  Miscellaneous: ['miscellaneous']
 }
 
 const RARITIES = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic', 'unique', 'exotic']
