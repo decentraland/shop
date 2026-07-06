@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { launchApp, type App } from './helpers/app'
 import { waitForText } from './helpers/dom'
-import { TEST_ADDRESS } from './fixtures'
+import { CREATOR_ADDRESS } from './fixtures'
 
 let app: App | undefined
 afterEach(async () => {
@@ -12,8 +12,9 @@ afterEach(async () => {
 describe('creator storefront', () => {
   it('lists every item made by the creator from /v1/items?creator=', async () => {
     // Creator page reads fetchCreatorItems → GET /v1/items?creator=<address> (mocked from the
-    // shopListings fixture, whose items are all created by TEST_ADDRESS).
-    app = await launchApp({ path: `/creator/${TEST_ADDRESS}` })
+    // shopListings fixture, whose items are all created by CREATOR_ADDRESS — a wallet that is NOT the
+    // signed-in test user, so the self-purchase guard doesn't hide them).
+    app = await launchApp({ path: `/creator/${CREATOR_ADDRESS}` })
     const { page } = app
 
     await waitForText(page, 'Galaxy Hat')
