@@ -9,6 +9,7 @@ export function CartPopover() {
   const items = useCart(s => s.items)
   const open = useCart(s => s.open)
   const setOpen = useCart(s => s.setOpen)
+  const setFittingOpen = useCart(s => s.setFittingOpen)
   const ref = useRef<HTMLDivElement>(null)
 
   const total = items.reduce((sum, i) => sum + i.priceCredits, 0)
@@ -47,9 +48,14 @@ export function CartPopover() {
         <span className="cart-pop__total">
           {items.length} item{items.length > 1 ? 's' : ''} · <strong>{CURRENCY.symbol} {total}</strong>
         </span>
-        <Link className="btn btn--purple btn--sm" to="/cart" onClick={() => setOpen(false)}>
-          Checkout
-        </Link>
+        <div className="cart-pop__actions">
+          <button className="btn btn--ghost btn--sm" onClick={() => setFittingOpen(true)}>
+            Try on
+          </button>
+          <Link className="btn btn--purple btn--sm" to="/cart" onClick={() => setOpen(false)}>
+            Checkout
+          </Link>
+        </div>
       </div>
     </div>
   )

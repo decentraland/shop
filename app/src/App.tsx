@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import * as Sentry from '@sentry/react'
 import { NavBar } from '~/components/NavBar'
 import { Toaster } from '~/components/Toaster'
+import { FittingRoom } from '~/components/FittingRoom'
 import { PreviewWarmer } from '~/components/PreviewWarmer'
 import { useAccountWatcher } from '~/hooks/useAccountWatcher'
 import { initAnalytics, trackPage } from '~/lib/analytics'
@@ -87,6 +88,7 @@ export function App() {
     <>
       <Toaster />
       <PreviewWarmer />
+      <FittingRoom />
       <NavBar />
       <main className="page">
         <Sentry.ErrorBoundary fallback={<CrashFallback />}>
