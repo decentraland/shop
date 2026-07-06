@@ -35,7 +35,11 @@ export function Cart() {
   const remove = useCart(s => s.remove)
   const clear = useCart(s => s.clear)
   const add = useCart(s => s.add)
+  const setFittingOpen = useCart(s => s.setFittingOpen)
   const { session } = useWallet()
+
+  // Try-on is only meaningful for wearables (emotes aren't "worn").
+  const hasWearable = items.some(i => i.category !== 'emote')
 
   // Last-minute upsell: more credit-buyable listings not already in the cart.
   const { data: suggested } = useQuery({ queryKey: ['upsell-listings'], queryFn: () => fetchListings({ first: 40 }), staleTime: 60_000 })
@@ -194,6 +198,9 @@ export function Cart() {
           {session ? <div className="muted cart__balance">Your balance: {CURRENCY.symbol} {balance?.credits ?? 0}</div> : null}
         </div>
         <div className="cart__actions">
+          {hasWearable ? (
+            <button className="btn btn--ghost" onClick={() => setFittingOpen(true)} disabled={busy}>Try on outfit</button>
+          ) : null}
           <Link className="btn btn--ghost" to="/credits">Get {CURRENCY.name}</Link>
           {import.meta.env.DEV ? (
             <button className="btn btn--ghost" onClick={getTestCredits} disabled={busy || !session}>Get test {CURRENCY.name} (dev)</button>

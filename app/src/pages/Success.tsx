@@ -5,6 +5,7 @@ import { useWallet } from '~/store/wallet'
 import { config } from '~/config'
 import { SuccessAnimation } from '~/components/SuccessAnimation'
 import { showsWalletConfirmations } from '~/lib/wallet-kind'
+import { itemUrn } from '~/lib/urn'
 import type { CatalogItem } from '~/lib/api'
 
 // Modern in-world entry: the launcher deep-link handled by decentraland.org/jump (zone on testnet).
@@ -13,14 +14,6 @@ const JUMP_URL = config.chainId === 80002 ? 'https://decentraland.zone/jump' : '
 // Block explorer for the settlement tx — shown ONLY to self-custody wallets (they understand
 // explorers); managed/thirdweb users just get the in-app "View order". See lib/wallet-kind.ts.
 const EXPLORER_TX = config.chainId === 80002 ? 'https://amoy.polygonscan.com/tx/' : 'https://polygonscan.com/tx/'
-
-// Wearable item URN so the preview can EQUIP it on the avatar (try-on mode via profile + urns),
-// instead of just showing the user's current avatar (which wouldn't include the fresh purchase).
-function itemUrn(item: CatalogItem): string | null {
-  if (!item.itemId) return null
-  const net = config.chainId === 80002 ? 'amoy' : 'matic'
-  return `urn:decentraland:${net}:collections-v2:${item.contractAddress.toLowerCase()}:${item.itemId}`
-}
 
 export function Success() {
   const { state } = useLocation() as { state?: { items?: CatalogItem[]; txHash?: string } }

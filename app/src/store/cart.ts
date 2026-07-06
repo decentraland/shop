@@ -9,10 +9,13 @@ type CartState = {
   items: CatalogItem[]
   /** Whether the cart popover is showing (auto-opens on add for feedback). */
   open: boolean
+  /** Whether the fitting-room (try-on) modal is showing. */
+  fittingOpen: boolean
   add: (item: CatalogItem, source?: AddToCartSource) => void
   remove: (id: string) => void
   clear: () => void
   setOpen: (open: boolean) => void
+  setFittingOpen: (open: boolean) => void
 }
 
 const cartValueUsd = (items: CatalogItem[]): number => creditsToUsd(items.reduce((n, i) => n + i.priceCredits, 0))
@@ -20,6 +23,7 @@ const cartValueUsd = (items: CatalogItem[]): number => creditsToUsd(items.reduce
 export const useCart = create<CartState>((set, get) => ({
   items: [],
   open: false,
+  fittingOpen: false,
   // Adding always opens the popover (feedback), even if the item was already in the cart.
   add: (item, source = 'grid') => {
     const already = get().items.some(i => i.id === item.id)
@@ -43,5 +47,7 @@ export const useCart = create<CartState>((set, get) => ({
     if (item) track('Shop Removed From Cart', { item_id: item.itemId ?? null, cart_size: get().items.length })
   },
   clear: () => set({ items: [] }),
-  setOpen: open => set({ open })
+  setOpen: open => set({ open }),
+  // Opening the fitting room closes the transient popover so they don't stack.
+  setFittingOpen: fittingOpen => set(fittingOpen ? { fittingOpen, open: false } : { fittingOpen })
 }))
