@@ -10,8 +10,13 @@ function ToastItem({ t }: { t: Toast }) {
     return () => clearTimeout(id)
   }, [t.id, dismiss])
 
+  // Errors are announced assertively (role="alert"); success/info stay polite (role="status").
   return (
-    <div className={`toast toast--${t.kind}`} role="status" onClick={() => dismiss(t.id)}>
+    <div
+      className={`toast toast--${t.kind}`}
+      role={t.kind === 'error' ? 'alert' : 'status'}
+      onClick={() => dismiss(t.id)}
+    >
       <span className="toast__icon" aria-hidden>{ICON[t.kind]}</span>
       <span className="toast__msg">{t.message}</span>
     </div>

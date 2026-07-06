@@ -46,6 +46,8 @@ h1, h2 { margin: 0; }
   -webkit-mask-size: contain; mask-size: contain;
 }
 .ico-heart { -webkit-mask-image: url('./assets/icons/heart.svg'); mask-image: url('./assets/icons/heart.svg'); }
+/* Currency mark sized to the surrounding text — used everywhere the credits symbol appears inline. */
+.ccy-mark { width: 1em; height: 1em; vertical-align: -0.125em; }
 .ico-cart { -webkit-mask-image: url('./assets/icons/cart.svg'); mask-image: url('./assets/icons/cart.svg'); }
 .ico-cart-solid { -webkit-mask-image: url('./assets/icons/cart-solid.svg'); mask-image: url('./assets/icons/cart-solid.svg'); }
 /* TODO: credits.svg is a placeholder we hand-authored during the MVP (a DCL-style diamond), not the

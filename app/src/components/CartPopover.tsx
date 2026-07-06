@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { useCart } from '~/store/cart'
-import { CURRENCY } from '~/lib/currency'
+import { CurrencyIcon } from '~/components/CurrencyIcon'
 
 // Dropdown that pops from the cart icon when an item is added — immediate feedback + quick checkout.
 // Auto-dismisses after a few seconds or on outside-click.
@@ -40,13 +40,13 @@ export function CartPopover() {
           <div className="cart-pop__row" key={i.id}>
             <div className="cart-pop__thumb">{i.thumbnail ? <img src={i.thumbnail} alt={i.name} /> : null}</div>
             <div className="cart-pop__name" title={i.name}>{i.name}</div>
-            <div className="cart-pop__price">{CURRENCY.symbol} {i.priceCredits}</div>
+            <div className="cart-pop__price"><CurrencyIcon className="ccy-mark" /> {i.priceCredits}</div>
           </div>
         ))}
       </div>
       <div className="cart-pop__foot">
         <span className="cart-pop__total">
-          {items.length} item{items.length > 1 ? 's' : ''} · <strong>{CURRENCY.symbol} {total}</strong>
+          {items.length} item{items.length > 1 ? 's' : ''} · <strong><CurrencyIcon className="ccy-mark" /> {total}</strong>
         </span>
         <div className="cart-pop__actions">
           <button className="btn btn--ghost btn--sm" onClick={() => setFittingOpen(true)}>

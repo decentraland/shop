@@ -141,7 +141,7 @@ export function GetCredits() {
           <div className="getcredits__confetti" aria-hidden>🎉</div>
           <p className="getcredits__status-title">You&rsquo;re all set!</p>
           <p className="muted">
-            <strong>{CURRENCY.symbol} {granted}</strong> {CURRENCY.name} added to your account.
+            <strong><CurrencyIcon className="ccy-mark" /> {granted}</strong> {CURRENCY.name} added to your account.
           </p>
           <div className="getcredits__status-actions">
             <button className="btn" onClick={() => navigate('/cart')}>
@@ -212,7 +212,7 @@ function PayStep({
         </button>
         <div className="pay__summary-row">
           <span>You&rsquo;ll get</span>
-          <strong>{CURRENCY.symbol} {formatAmount(pack.credits)}</strong>
+          <strong><CurrencyIcon className="ccy-mark" /> {formatAmount(pack.credits)}</strong>
         </div>
         <div className="pay__summary-row pay__summary-row--total">
           <span>You pay</span>

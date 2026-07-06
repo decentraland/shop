@@ -161,7 +161,7 @@ export function AssetCard(props: AssetCardProps) {
               onClick={e => { e.stopPropagation(); props.onBuyNow(item) }}
               disabled={props.marketPriceCredits == null}
             >
-              {props.marketPriceCredits == null ? 'UNAVAILABLE' : 'BUY NOW'}
+              {props.marketPriceCredits == null ? 'Unavailable' : 'Buy now'}
             </button>
           ) : (
             <button
@@ -170,7 +170,7 @@ export function AssetCard(props: AssetCardProps) {
               disabled={inCart}
             >
               <span className="ico ico-cart-solid card__cart-ico" aria-hidden />
-              {inCart ? 'IN CART' : 'ADD TO CART'}
+              {inCart ? 'In cart' : 'Add to cart'}
             </button>
           )
         ) : (

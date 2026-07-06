@@ -8,7 +8,7 @@ export function NotFound() {
       <span className="ico ico-cart notfound__ico" aria-hidden />
       <h1 className="notfound__title">Page not found</h1>
       <p className="muted">The page you&rsquo;re looking for isn&rsquo;t here. Let&rsquo;s get you back to the shop.</p>
-      <Link className="btn btn--purple" to="/assets">Browse the shop</Link>
+      <Link className="btn btn--purple" to="/assets">Browse Collectibles</Link>
     </div>
   )
 }

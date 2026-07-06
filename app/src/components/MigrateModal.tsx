@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import type { Session } from '~/lib/auth'
 import { importListing, type ImportItem } from '~/lib/import'
 import { CURRENCY } from '~/lib/currency'
+import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import { track } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
@@ -123,7 +124,7 @@ export function MigrateModal({
                 {entry.item.thumbnail ? <img src={entry.item.thumbnail} alt="" /> : null}
               </span>
               <span className="migrate__name" title={entry.item.name}>{entry.item.name || 'Item'}</span>
-              <span className="migrate__price">{CURRENCY.symbol} {entry.priceCredits.toLocaleString()}</span>
+              <span className="migrate__price"><CurrencyIcon className="ccy-mark" /> {entry.priceCredits.toLocaleString()}</span>
               <span className="migrate__status">
                 {statuses[i] === 'active' ? (
                   <><span className="spinner migrate__spin" aria-hidden /> {showsConfirmations ? 'Confirm…' : 'Adding…'}</>

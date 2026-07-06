@@ -8,6 +8,7 @@ import { postTrade } from '~/lib/api'
 import { createUsdPeggedListing, ensureApproval } from '~/lib/trades'
 import { toast } from '~/store/toast'
 import { CURRENCY } from '~/lib/currency'
+import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { track, errorCode } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
 
@@ -95,7 +96,7 @@ export function SellModal({ asset, session, onClose }: { asset: MyAsset; session
           {asset.image ? <img className="modal__img" src={asset.image} alt={asset.name} /> : null}
           <p className="modal-success__name">{asset.name}</p>
           <p className="muted small">
-            Listed for <strong>{CURRENCY.symbol} {listedCredits}</strong>
+            Listed for <strong><CurrencyIcon className="ccy-mark" /> {listedCredits}</strong>
           </p>
           <div className="modal__actions">
             <button className="btn btn--ghost" onClick={onClose}>
@@ -130,7 +131,7 @@ export function SellModal({ asset, session, onClose }: { asset: MyAsset; session
             Cancel
           </button>
           <button className="btn" onClick={list} disabled={busy}>
-            {busy ? 'Working…' : 'List for sale'}
+            {busy ? 'Listing…' : 'Put on sale'}
           </button>
         </div>
       </div>

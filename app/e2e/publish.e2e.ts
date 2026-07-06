@@ -21,8 +21,8 @@ describe('publish a created item (primary)', () => {
     // Open the publish modal.
     expect(await clickByText(page, 'button', /put on sale/i)).toBe(true)
 
-    // The modal resolves "already enabled" (mocked) → the CTA becomes "Publish for sale". Publish.
-    await clickWhenEnabled(page, '.modal button', /publish/i)
+    // The modal resolves "already enabled" (mocked) → the CTA becomes "Put on sale". Publish.
+    await clickWhenEnabled(page, '.modal button', /put on sale/i)
 
     // Success view.
     await waitForText(page, 'on sale!')

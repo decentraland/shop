@@ -6,6 +6,7 @@ import { fetchImportable, type ImportItem } from '~/lib/import'
 import { toast } from '~/store/toast'
 import { MigrateModal, type MigrateEntry } from '~/components/MigrateModal'
 import { CURRENCY } from '~/lib/currency'
+import { CurrencyIcon } from '~/components/CurrencyIcon'
 import '~/styles/import.css'
 
 const SECTIONS = [
@@ -116,7 +117,7 @@ export function ImportListings() {
         </p>
       </header>
 
-      <div className="imp__ratebar"><span className="imp__diamond">{CURRENCY.symbol}</span> 1 {CURRENCY.nameSingular} = $0.10 · prices rounded up</div>
+      <div className="imp__ratebar"><CurrencyIcon className="ccy-mark imp__diamond" /> 1 {CURRENCY.nameSingular} = $0.10 · prices rounded up</div>
 
       {isLoading ? (
         <div className="imp__list">
@@ -152,7 +153,7 @@ export function ImportListings() {
                       </div>
                       <div className="imp-price">
                         <div className="imp-price__field">
-                          <span className="imp-price__diamond" aria-hidden>{CURRENCY.symbol}</span>
+                          <CurrencyIcon className="ccy-mark imp-price__diamond" />
                           <input
                             className="imp-price__input"
                             inputMode="numeric"
@@ -168,7 +169,7 @@ export function ImportListings() {
                               className="imp-price__reset"
                               onClick={() => setPrices(p => ({ ...p, [item.oldTradeId]: item.suggestedCredits }))}
                             >
-                              Reset to {CURRENCY.symbol}{item.suggestedCredits.toLocaleString()}
+                              Reset to <CurrencyIcon className="ccy-mark" />{item.suggestedCredits.toLocaleString()}
                             </button>
                           ) : null}
                         </div>
@@ -194,7 +195,7 @@ export function ImportListings() {
       <div className="imp-dock">
         <div className="imp-dock__inner">
           <div className="imp-dock__summary">
-            <div className="imp-dock__total"><span className="imp__diamond">{CURRENCY.symbol}</span> {total.toLocaleString()}</div>
+            <div className="imp-dock__total"><CurrencyIcon className="ccy-mark imp__diamond" /> {total.toLocaleString()}</div>
             <div className="imp-dock__sub">
               {selectedItems.length} item{selectedItems.length === 1 ? '' : 's'} selected · ${(total * 0.1).toFixed(2)}
             </div>

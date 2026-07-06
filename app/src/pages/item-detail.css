@@ -93,6 +93,8 @@
   place-items: center;
   color: var(--text);
 }
+.item-detail__fav { cursor: pointer; transition: color .12s ease, border-color .12s ease; }
+.item-detail__fav.is-on { color: var(--dcl-red); border-color: var(--dcl-red); }
 .item-detail__fav .ico-heart {
   width: 18px;
   height: 18px;

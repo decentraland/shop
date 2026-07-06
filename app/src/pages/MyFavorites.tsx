@@ -18,7 +18,7 @@ export function MyFavorites() {
         <span className="ico ico-heart favorites-empty__ico" aria-hidden />
         <p className="favorites-empty__title">No favorites yet</p>
         <p className="muted">Tap the heart on any item to save it here.</p>
-        <Link className="btn btn--purple" to="/assets">Browse the shop</Link>
+        <Link className="btn btn--purple" to="/assets">Browse Collectibles</Link>
       </div>
     )
   }

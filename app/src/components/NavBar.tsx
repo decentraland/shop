@@ -52,7 +52,7 @@ export function NavBar() {
       <div className="subnav">
         <nav className="subnav__tabs">
           <NavLink to="/overview">Overview</NavLink>
-          <NavLink to="/assets">Assets</NavLink>
+          <NavLink to="/assets">Collectibles</NavLink>
           <NavLink to="/market">Market</NavLink>
           <NavLink to="/my-assets">My Assets</NavLink>
           <NavLink to="/my-favorites">My Favorites</NavLink>
@@ -62,7 +62,8 @@ export function NavBar() {
           <span className="ico ico-search subnav__search-ico" aria-hidden />
           <input
             value={q}
-            placeholder="Search item, creator, collection, name..."
+            aria-label="Search the shop"
+            placeholder="Search items, creators, collections…"
             onChange={e => onSearchChange(e.target.value)}
             onKeyDown={e => {
               if (e.key === 'Enter') {

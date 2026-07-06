@@ -5,7 +5,7 @@ import { fetchUserPurchases, type PurchaseRecord } from '~/lib/credits'
 import { fetchTradeDisplay } from '~/lib/api'
 import { LoadMore } from '~/components/LoadMore'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
-import { CURRENCY } from '~/lib/currency'
+import { CurrencyIcon } from '~/components/CurrencyIcon'
 
 const PAGE_SIZE = 24
 
@@ -46,7 +46,7 @@ function PurchaseRow({ purchase }: { purchase: PurchaseRecord }) {
         <div className="muted purchase__date">{formatDate(purchase.createdAt)}</div>
       </div>
       <StatusBadge status={purchase.status} />
-      <div className="purchase__price">{CURRENCY.symbol} {purchase.credits}</div>
+      <div className="purchase__price"><CurrencyIcon className="ccy-mark" /> {purchase.credits}</div>
     </>
   )
 
@@ -84,7 +84,7 @@ export function MyPurchases() {
         <span className="ico ico-cart purchases-empty__ico" aria-hidden />
         <p className="purchases-empty__title">No purchases yet</p>
         <p className="muted">When you buy something it&rsquo;ll appear here.</p>
-        <Link className="btn btn--purple" to="/assets">Browse the shop</Link>
+        <Link className="btn btn--purple" to="/assets">Browse Collectibles</Link>
       </div>
     )
   }

@@ -24,7 +24,7 @@ export function AddAllToCart({ items, source }: { items: CatalogItem[]; source: 
   return (
     <div className="addall">
       <span className="addall__summary">
-        {buyable.length} buyable · <CurrencyIcon className="addall__diamond" /> {total.toLocaleString()}
+        {buyable.length} for sale · <CurrencyIcon className="addall__diamond" /> {total.toLocaleString()}
       </span>
       <button className="btn btn--purple btn--sm addall__cta" onClick={addAll} disabled={toAdd.length === 0}>
         {toAdd.length === 0 ? 'All in cart' : `Add all (${toAdd.length}) to cart`}

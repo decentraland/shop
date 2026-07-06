@@ -21,9 +21,9 @@ describe('signed-out buyer', () => {
     // Signed-out there's no balance chip (only rendered when a session exists).
     expect(await page.evaluate(() => document.querySelector('.subnav__balance') !== null)).toBe(false)
 
-    // Clicking Buy now is gated: handleBuyNow bails with "Log in to check out." and never navigates.
+    // Clicking Buy now is gated: handleBuyNow bails with "Sign in to check out." and never navigates.
     expect(await clickByText(page, 'button', /buy now/i)).toBe(true)
-    await waitForText(page, 'Log in to check out')
+    await waitForText(page, 'Sign in to check out')
 
     expect(await page.evaluate(() => window.location.pathname)).toBe(`/item/${COLLECTION}/1`)
     expect(await page.evaluate(() => window.location.pathname === '/success')).toBe(false)
