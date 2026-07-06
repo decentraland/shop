@@ -24,8 +24,7 @@ const CATEGORIES: Top[] = [
       { key: 'Skins', label: 'Skins', icon: 'cat-skins' }
     ]
   },
-  { key: 'emote', label: 'Emotes', expandable: true },
-  { key: 'ens', label: 'NAMEs', expandable: true }
+  { key: 'emote', label: 'Emotes', expandable: true }
 ]
 
 export function CategoryFilter({
