@@ -7,16 +7,17 @@ on:
   release:
     types:
       - created
-  # Manual branch/environment deploy.
+  # Manual branch/domain deploy.
   workflow_dispatch:
     inputs:
-      deploymentEnvironment:
+      deploymentDomain:
         type: choice
-        description: 'Deployment environment'
+        description: 'Deployment domain (TLD)'
         required: true
-        default: 'zone'
+        default: '.zone'
         options:
-          - zone
+          - .zone
+          - .today
       rolloutPercentage:
         description: 'Rollout percentage'
         required: true
@@ -118,14 +119,14 @@ jobs:
           exit 1
 
       - name: Set Rollout
-        uses: decentraland/set-rollout-action@26ead404b6944fd0ce0d087cc59fd817607454d6 # v2
+        # Subdomain site → rollout keyed by `deploymentDomain` (needs set-rollout-action@main, pinned by SHA).
+        uses: decentraland/set-rollout-action@66bf36716f8034c0fd01b7539efb3a206de8f500 # main
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           ref: ${{ github.ref }}
           sha: ${{ github.sha }}
           packageName: '@dcl/shop'
           packageVersion: ${{ needs.build-and-publish.outputs.version }}
-          deploymentPath: 'sites'
-          deploymentEnvironment: ${{ github.event.inputs.deploymentEnvironment }}
+          deploymentDomain: shop.decentraland${{ github.event.inputs.deploymentDomain }}
           deploymentName: '_site'
           percentage: ${{ github.event.inputs.rolloutPercentage }}

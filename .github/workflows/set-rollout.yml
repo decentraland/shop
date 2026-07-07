@@ -1,7 +1,9 @@
-name: Set rollout by path
+name: Set rollout
 
 # Fires after the CDN deploy (GitLab) reports success for an auto-deploy (push to main / release),
-# then rolls the new version out on zone. Mirrors landing-site's rollout flow.
+# then rolls the new version out. The Shop is a SUBDOMAIN site (shop.decentraland.zone / .today), so
+# the rollout is keyed by `deploymentDomain` (the full host) — NOT `deploymentPath`/`deploymentEnvironment`,
+# which are for by-path sites like the marketplace. Mirrors wearable-preview (the subdomain-root analog).
 on: [deployment_status]
 
 jobs:
@@ -9,15 +11,27 @@ jobs:
     if: ${{ github.event.deployment.task == 'upload-to-cdn' && github.event.deployment_status.state == 'success' }}
     runs-on: ubuntu-latest
     steps:
-      - name: Set Rollout - Development (zone)
-        uses: decentraland/set-rollout-action@26ead404b6944fd0ce0d087cc59fd817607454d6 # v2
+      - name: Set Rollout - zone
+        # @main (pinned by SHA): earlier tags don't support `deploymentDomain`, only `deploymentPath`.
+        uses: decentraland/set-rollout-action@66bf36716f8034c0fd01b7539efb3a206de8f500 # main
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           ref: ${{ github.event.deployment.ref }}
           sha: ${{ github.event.deployment.sha }}
           packageName: ${{ github.event.deployment.payload.packageName }}
           packageVersion: ${{ github.event.deployment.payload.packageVersion }}
-          deploymentPath: 'sites'
-          deploymentEnvironment: 'zone'
+          deploymentDomain: 'shop.decentraland.zone'
+          deploymentName: '_site'
+          percentage: 100
+
+      - name: Set Rollout - today
+        uses: decentraland/set-rollout-action@66bf36716f8034c0fd01b7539efb3a206de8f500 # main
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ github.event.deployment.ref }}
+          sha: ${{ github.event.deployment.sha }}
+          packageName: ${{ github.event.deployment.payload.packageName }}
+          packageVersion: ${{ github.event.deployment.payload.packageVersion }}
+          deploymentDomain: 'shop.decentraland.today'
           deploymentName: '_site'
           percentage: 100
