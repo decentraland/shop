@@ -80,7 +80,7 @@ h1, h2 { margin: 0; }
 }
 .subnav__tabs a.active { color: var(--text); border-bottom-color: var(--text); }
 .subnav__search {
-  margin-left: auto; flex: 0 1 496px; display: flex; align-items: center; gap: 10px;
+  position: relative; margin-left: auto; flex: 0 1 496px; display: flex; align-items: center; gap: 10px;
   background: rgba(0, 0, 0, .05); border: 1px solid var(--line-strong); border-radius: var(--radius-pill); padding: 0 16px; height: 40px;
 }
 .subnav__search input { border: 0; outline: 0; width: 100%; font-size: 15px; background: transparent; color: var(--text); }
@@ -573,6 +573,43 @@ h1, h2 { margin: 0; }
 .cart-pop__price { font-size: 13px; font-weight: 700; }
 .cart-pop__foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
 .cart-pop__total { font-size: 13px; color: var(--muted); }
+
+/* ---------------- Search autocomplete ---------------- */
+.subnav__search-clear {
+  display: grid; place-items: center; width: 20px; height: 20px; flex: 0 0 auto;
+  border: 0; border-radius: 50%; background: rgba(0, 0, 0, .08); color: var(--muted);
+  font-size: 15px; line-height: 1; cursor: pointer;
+}
+.subnav__search-clear:hover { background: rgba(0, 0, 0, .16); color: var(--text); }
+/* Anchored to .subnav__search (position: relative), left-aligned under the input. */
+.search-pop {
+  position: absolute; top: calc(100% + 8px); left: 0; right: 0; z-index: 60;
+  background: #fff; border: 1px solid var(--line); border-radius: var(--radius-card, 12px);
+  box-shadow: 0 14px 36px rgba(20, 20, 30, .18); padding: 8px; animation: cart-pop-in .16s ease;
+}
+.search-pop__section-head { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px 4px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.search-pop__clear { background: none; border: 0; color: var(--accent); font-weight: 600; font-size: 12px; cursor: pointer; }
+.search-pop__list { list-style: none; margin: 0; padding: 0; max-height: 340px; overflow-y: auto; }
+.search-pop__row {
+  width: 100%; display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 10px; align-items: center;
+  background: none; border: 0; padding: 8px 10px; border-radius: 10px; text-align: left; cursor: pointer;
+}
+.search-pop__row:hover { background: #f5f4f7; }
+.search-pop__thumb { width: 40px; height: 40px; border-radius: 8px; background: var(--media); overflow: hidden; }
+.search-pop__thumb img { width: 100%; height: 100%; object-fit: cover; }
+/* min-width: 0 lets the 1fr track actually shrink so the name ellipsizes instead of pushing into the price. */
+.search-pop__name { min-width: 0; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.search-pop__price { font-size: 13px; font-weight: 700; white-space: nowrap; }
+.search-pop__seeall { width: 100%; margin-top: 4px; padding: 10px; border: 0; border-top: 1px solid var(--line); background: none; color: var(--accent); font-weight: 700; font-size: 13px; text-align: center; cursor: pointer; }
+.search-pop__seeall:hover { background: #f5f4f7; }
+.search-pop__empty { padding: 16px 10px; color: var(--muted); font-size: 14px; text-align: center; }
+.search-pop__recent { display: flex; align-items: center; }
+.search-pop__recent-btn { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; background: none; border: 0; padding: 9px 10px; border-radius: 10px; text-align: left; font-size: 14px; color: var(--text); cursor: pointer; overflow: hidden; }
+.search-pop__recent-btn:hover { background: #f5f4f7; }
+.search-pop__recent-ico { width: 16px; height: 16px; color: var(--muted); flex: 0 0 auto; }
+.search-pop__recent-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.search-pop__recent-remove { flex: 0 0 auto; background: none; border: 0; color: var(--muted); font-size: 16px; line-height: 1; padding: 6px 10px; cursor: pointer; }
+.search-pop__recent-remove:hover { color: var(--text); }
 
 .cart-upsell { margin-top: 44px; }
 .cart-upsell__title { font-size: 18px; font-weight: 700; margin-bottom: 14px; }

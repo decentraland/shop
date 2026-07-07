@@ -6,11 +6,21 @@
     "myAssets": "My Assets",
     "myFavorites": "My Favorites",
     "myPurchases": "My Purchases",
-    "searchPlaceholder": "Search items, creators, collections…",
+    "searchPlaceholder": "Search items…",
     "searchAria": "Search the shop",
     "yourBalance": "Your {currency}",
     "getCredits": "Get {currency}",
     "cart": "Cart"
+  },
+  "search": {
+    "suggestions": "Search suggestions",
+    "recent": "Recent searches",
+    "clearRecent": "Clear",
+    "removeRecent": "Remove “{query}” from recent searches",
+    "searching": "Searching…",
+    "noResults": "No items match “{query}”",
+    "seeAll": "See all {count} results",
+    "clear": "Clear search"
   },
   "notFound": {
     "title": "Page not found",
