@@ -14,11 +14,16 @@ const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, refetchOnWindowFocus: false } }
 })
 
+// The Shop is served by-path at <domain>/shop in every deployed env (decentraland.zone/today/org),
+// so the router mounts under /shop. Local dev + e2e run at the root, so no basename there.
+const isLocalHost = ['localhost', '127.0.0.1'].includes(window.location.hostname)
+const routerBasename = isLocalHost ? undefined : '/shop'
+
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
       <I18nProvider>
-        <BrowserRouter>
+        <BrowserRouter basename={routerBasename}>
           <App />
         </BrowserRouter>
       </I18nProvider>
