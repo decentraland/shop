@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { PreviewEmote, PreviewType } from '@dcl/schemas'
 import { WearablePreview } from '~/components/LazyWearablePreview'
 import { config } from '~/config'
 import { useCart } from '~/store/cart'
@@ -133,6 +134,10 @@ export function AssetCard(props: AssetCardProps) {
                 contractAddress={item.contractAddress}
                 itemId={item.itemId ?? undefined}
                 profile="default"
+                // Load straight into the fashion pose (like ItemPreview) so the avatar doesn't flash a
+                // default arms-out T-pose for a beat before settling. Emotes play their own animation.
+                type={item.category === 'emote' ? undefined : PreviewType.AVATAR}
+                emote={item.category === 'emote' ? undefined : PreviewEmote.FASHION}
                 dev={config.chainId === 80002}
                 disableBackground
                 disableFadeEffect
@@ -149,12 +154,14 @@ export function AssetCard(props: AssetCardProps) {
       </div>
 
       <div className="card__body">
-        <div className="card__name" title={item.name}>{item.name}</div>
-        {item.creator ? (
-          <CreatorBadge address={item.creator} className="card__creator" linkToProfile />
-        ) : (
-          <div className="card__creator">&nbsp;</div>
-        )}
+        <div className="card__desc">
+          <div className="card__name" title={item.name}>{item.name}</div>
+          {item.creator ? (
+            <CreatorBadge address={item.creator} className="card__creator" linkToProfile />
+          ) : (
+            <div className="card__creator">&nbsp;</div>
+          )}
+        </div>
 
         {/* On hover the price/chips row is replaced by the primary action (Figma: secondary dark
             button, below the image — never overlapping it). Native cards add to cart; Market (legacy)

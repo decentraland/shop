@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { fetchListings, type ShopSort } from '~/lib/api'
 import { AssetCard } from '~/components/AssetCard'
+import { CategoryFilter } from '~/components/CategoryFilter'
 import { SkeletonCards } from '~/components/SkeletonCards'
 import { LoadMore } from '~/components/LoadMore'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
@@ -11,14 +12,9 @@ import { track } from '~/lib/analytics'
 // Items fetched per page (infinite scroll pages by cumulative offset — see useInfiniteGrid).
 const PAGE_SIZE = 48
 
-const CATEGORIES = [
-  { key: 'wearable', label: 'Wearables', sub: ['Head', 'Upper Body', 'Handwear', 'Lower Body', 'Feet', 'Accessories', 'Skins'] },
-  { key: 'emote', label: 'Emotes', sub: [] },
-  { key: 'ens', label: 'Names', sub: [] },
-  { key: 'parcel', label: 'Lands', sub: [] }
-]
-
-// Sidebar sub-labels → the on-chain wearable categories they cover.
+// Sidebar sub-labels → the on-chain categories they cover. Wearable sub-labels map to wearable
+// categories; emote sub-labels map to emote categories. Both go out on the same `wearableCategory`
+// query param — the server filters on a coalesced wearable/emote category column (see /v3/catalog/shop).
 const SUBCAT_MAP: Record<string, string[]> = {
   Head: ['head', 'hat', 'hair', 'facial_hair', 'eyes', 'eyebrows', 'mouth', 'mask', 'helmet', 'tiara', 'top_head'],
   'Upper Body': ['upper_body'],
@@ -26,7 +22,15 @@ const SUBCAT_MAP: Record<string, string[]> = {
   'Lower Body': ['lower_body'],
   Feet: ['feet'],
   Accessories: ['earring', 'eyewear'],
-  Skins: ['skin']
+  Skins: ['skin'],
+  Dance: ['dance'],
+  Stunt: ['stunt'],
+  Greetings: ['greetings'],
+  Fun: ['fun'],
+  Poses: ['poses'],
+  Reactions: ['reactions'],
+  Horror: ['horror'],
+  Miscellaneous: ['miscellaneous']
 }
 
 const RARITIES = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic', 'unique', 'exotic']
@@ -124,56 +128,25 @@ export function Assets() {
   }
 
   const currentSort = SORTS.find(s => s.key === sort) ?? SORTS[0]
-  const currentCat = CATEGORIES.find(c => c.key === category) ?? CATEGORIES[0]
-  const sectionLabel = subCategory ? `${currentCat.label} · ${subCategory}` : currentCat.label
   const priceActive = !!(min || max)
   const priceLabel = priceActive ? `${priceMin || '0'}–${priceMax || '∞'}` : 'Price'
   const anyActive = category !== 'wearable' || !!subCategory || rarities.length > 0 || priceActive
 
   return (
-    <div className="browse">
+    <div className="browse browse--sidebar">
       {open ? <div className="filterbar__scrim" onClick={() => setOpen(null)} aria-hidden /> : null}
 
+      <aside className="browse__sidebar">
+        <CategoryFilter category={category} subCategory={subCategory} onCategory={pickCategory} onSub={setSubCategory} />
+      </aside>
+
+      <div className="browse__main">
       <div className="filterbar">
         <div className="filterbar__filters">
-          {/* Section (category + subcategory) */}
-          <div className="filterbar__item">
-            <button className={`filterbar__trigger${open === 'section' ? ' is-open' : ''}${subCategory || category !== 'wearable' ? ' is-active' : ''}`} onClick={() => toggle('section')}>
-              {sectionLabel} <span className="filterbar__chev" aria-hidden>▾</span>
-            </button>
-            {open === 'section' ? (
-              <div className="filter-pop filter-pop--section">
-                <ul className="filter-pop__cats">
-                  {CATEGORIES.map(c => (
-                    <li key={c.key}>
-                      <button className={`filter-pop__cat${category === c.key ? ' is-active' : ''}`} onClick={() => pickCategory(c.key)}>
-                        {c.label}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-                {currentCat.sub.length ? (
-                  <ul className="filter-pop__subs">
-                    <li>
-                      <button className={`filter-pop__sub${!subCategory ? ' is-active' : ''}`} onClick={() => { setSubCategory(null); setOpen(null) }}>All {currentCat.label}</button>
-                    </li>
-                    {currentCat.sub.map(s => (
-                      <li key={s}>
-                        <button className={`filter-pop__sub${subCategory === s ? ' is-active' : ''}`} onClick={() => { setSubCategory(prev => (prev === s ? null : s)); setOpen(null) }}>
-                          {s}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-              </div>
-            ) : null}
-          </div>
-
           {/* Rarity */}
           <div className="filterbar__item">
             <button className={`filterbar__trigger${open === 'rarity' ? ' is-open' : ''}${rarities.length ? ' is-active' : ''}`} onClick={() => toggle('rarity')}>
-              Rarity {rarities.length ? <span className="filterbar__badge">{rarities.length}</span> : null} <span className="filterbar__chev" aria-hidden>▾</span>
+              Rarity {rarities.length ? <span className="filterbar__badge">{rarities.length}</span> : null} <span className={`ico ico-chevron filterbar__chev${open === 'rarity' ? ' is-up' : ''}`} aria-hidden />
             </button>
             {open === 'rarity' ? (
               <div className="filter-pop filter-pop--rarity">
@@ -190,7 +163,7 @@ export function Assets() {
           {/* Price */}
           <div className="filterbar__item">
             <button className={`filterbar__trigger${open === 'price' ? ' is-open' : ''}${priceActive ? ' is-active' : ''}`} onClick={() => toggle('price')}>
-              {priceLabel} <span className="filterbar__chev" aria-hidden>▾</span>
+              {priceLabel} <span className={`ico ico-chevron filterbar__chev${open === 'price' ? ' is-up' : ''}`} aria-hidden />
             </button>
             {open === 'price' ? (
               <div className="filter-pop filter-pop--price">
@@ -214,7 +187,7 @@ export function Assets() {
           </span>
           <div className="filterbar__item">
             <button className={`filterbar__sort${open === 'sort' ? ' is-open' : ''}`} onClick={() => toggle('sort')}>
-              Sort by: {currentSort.label} <span className="filterbar__chev" aria-hidden>▾</span>
+              Sort by: {currentSort.label} <span className={`ico ico-chevron filterbar__chev${open === 'sort' ? ' is-up' : ''}`} aria-hidden />
             </button>
             {open === 'sort' ? (
               <div className="filter-pop filter-pop--sort">
@@ -251,6 +224,7 @@ export function Assets() {
       {!isLoading && items.length === 0 ? (
         <p className="muted">No items match your filters.</p>
       ) : null}
+      </div>
     </div>
   )
 }

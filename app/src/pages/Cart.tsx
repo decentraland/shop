@@ -12,6 +12,7 @@ import { buyManyGasless, waitForSettlement, GaslessUnavailableError } from '~/li
 import { gaslessEnabled } from '~/lib/gasless-config'
 import { CURRENCY } from '~/lib/currency'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
+import { t } from '~/intl/i18n'
 import { track, purchaseItemsProps, errorCode, isUserRejection, creditsToUsd } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
 import { AssetCard } from '~/components/AssetCard'
@@ -171,9 +172,9 @@ export function Cart() {
     return (
       <div className="cart cart--empty">
         <span className="ico ico-cart cart-empty__ico" aria-hidden />
-        <p className="cart-empty__title">Your cart is empty</p>
-        <p className="muted">Find something you love and it&rsquo;ll show up here.</p>
-        <Link className="btn btn--purple" to="/assets">Browse Collectibles</Link>
+        <p className="cart-empty__title">{t('cart.empty.title')}</p>
+        <p className="muted">{t('cart.empty.body')}</p>
+        <Link className="btn btn--purple" to="/assets">{t('cart.empty.cta')}</Link>
       </div>
     )
   }
