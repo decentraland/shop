@@ -1,16 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { BodyShape } from '@dcl/schemas'
 import type { CatalogItem } from '~/lib/api'
-import {
-  itemShapes,
-  avatarShape,
-  isCompatible,
-  resolvePreview,
-  dominantShape,
-  shapeLabel,
-  BASE_MALE,
-  BASE_FEMALE
-} from '~/lib/bodyShape'
+import { itemShapes, avatarShape, isCompatible, dominantShape, shapeLabel, BASE_MALE, BASE_FEMALE } from '~/lib/bodyShape'
 
 const w = (gender: CatalogItem['gender']): Pick<CatalogItem, 'gender' | 'category'> => ({ gender, category: 'wearable' })
 const emote: Pick<CatalogItem, 'gender' | 'category'> = { gender: null, category: 'emote' }
@@ -37,12 +28,6 @@ describe('bodyShape helpers', () => {
     expect(isCompatible(w('unisex'), BASE_MALE)).toBe(true)
     expect(isCompatible(w('female'), null)).toBe(true) // no avatar → treat as compatible
     expect(isCompatible(emote, BASE_MALE)).toBe(true)
-  })
-
-  it('resolvePreview: connected profile when compatible, else a mannequin of a supported shape', () => {
-    expect(resolvePreview(w('female'), BASE_FEMALE)).toEqual({ onAvatar: true, bodyShape: undefined })
-    expect(resolvePreview(w('female'), BASE_MALE)).toEqual({ onAvatar: false, bodyShape: BASE_FEMALE })
-    expect(resolvePreview(w('male'), BASE_FEMALE)).toEqual({ onAvatar: false, bodyShape: BASE_MALE })
   })
 
   it('dominantShape: majority of gendered items (ties → male); null when none are gendered', () => {

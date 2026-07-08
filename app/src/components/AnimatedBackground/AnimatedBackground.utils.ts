@@ -27,7 +27,9 @@ export function createProgram(gl: WebGLRenderingContext, vs: WebGLShader, fs: We
   return program
 }
 
-export function loadTexture(gl: WebGLRenderingContext, url: string): WebGLTexture | null {
+// `isDisposed` lets the caller skip the (stale) GL upload if the component unmounted before the image
+// decoded — WebGL ignores ops on deleted objects, but this avoids the wasted work entirely.
+export function loadTexture(gl: WebGLRenderingContext, url: string, isDisposed?: () => boolean): WebGLTexture | null {
   const texture = gl.createTexture()
   if (!texture) return null
   gl.bindTexture(gl.TEXTURE_2D, texture)
@@ -38,6 +40,7 @@ export function loadTexture(gl: WebGLRenderingContext, url: string): WebGLTextur
   const image = new Image()
   image.crossOrigin = 'anonymous'
   image.onload = () => {
+    if (isDisposed?.()) return
     gl.bindTexture(gl.TEXTURE_2D, texture)
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true)
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image)

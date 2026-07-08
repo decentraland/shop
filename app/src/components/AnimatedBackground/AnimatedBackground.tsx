@@ -24,10 +24,18 @@ export default function AnimatedBackground() {
 
     const vs = createShader(gl, gl.VERTEX_SHADER, VERTEX_SHADER)
     const fs = createShader(gl, gl.FRAGMENT_SHADER, FRAGMENT_SHADER)
-    if (!vs || !fs) return
+    if (!vs || !fs) {
+      if (vs) gl.deleteShader(vs)
+      if (fs) gl.deleteShader(fs)
+      return
+    }
 
     const program = createProgram(gl, vs, fs)
-    if (!program) return
+    if (!program) {
+      gl.deleteShader(vs)
+      gl.deleteShader(fs)
+      return
+    }
 
     const positionLoc = gl.getAttribLocation(program, 'a_position')
     const timeLoc = gl.getUniformLocation(program, 'u_time')
@@ -38,7 +46,9 @@ export default function AnimatedBackground() {
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]), gl.STATIC_DRAW)
 
-    const overlayTexture = loadTexture(gl, overlayTextureUrl)
+    // If we unmount before the texture image decodes, skip its (now stale) GL upload.
+    let disposed = false
+    const overlayTexture = loadTexture(gl, overlayTextureUrl, () => disposed)
 
     const resize = () => {
       const dpr = window.devicePixelRatio || 1
@@ -73,10 +83,21 @@ export default function AnimatedBackground() {
       animFrameRef.current = requestAnimationFrame(render)
     }
 
+    // If the GPU reclaims the context (mobile memory pressure), stop the now no-op loop and reveal the
+    // static fallback (behind the canvas) instead of spinning rAF forever.
+    const onContextLost = (e: Event) => {
+      e.preventDefault()
+      cancelAnimationFrame(animFrameRef.current)
+      canvas.style.opacity = '0'
+    }
+    canvas.addEventListener('webglcontextlost', onContextLost, false)
+
     animFrameRef.current = requestAnimationFrame(render)
 
     return () => {
+      disposed = true
       cancelAnimationFrame(animFrameRef.current)
+      canvas.removeEventListener('webglcontextlost', onContextLost)
       gl.deleteProgram(program)
       gl.deleteShader(vs)
       gl.deleteShader(fs)

@@ -58,14 +58,3 @@ export function dominantShape(items: ItemLike[]): BodyShapeUrn | null {
   if (male === 0 && female === 0) return null
   return female > male ? BASE_FEMALE : BASE_MALE
 }
-
-// How to preview an item on the "avatar" view:
-// - compatible (or no avatar) → use the connected profile.
-// - incompatible → a default mannequin of a supported shape (builder pattern), never invisible.
-export function resolvePreview(
-  item: ItemLike,
-  shape: BodyShapeUrn | null
-): { onAvatar: true; bodyShape: undefined } | { onAvatar: false; bodyShape: BodyShapeUrn } {
-  if (isCompatible(item, shape)) return { onAvatar: true, bodyShape: undefined }
-  return { onAvatar: false, bodyShape: itemShapes(item)[0] }
-}

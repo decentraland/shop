@@ -13,8 +13,8 @@ import { config } from '~/config'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { CURRENCY } from '~/lib/currency'
 import { track } from '~/lib/analytics'
-import { isWearable, slotOf, slotRegion, defaultWorn, toggleWorn, conflictingIds, wornUrns, compatibleWith } from '~/lib/outfit'
-import { avatarShape, dominantShape, itemShapes, shapeLabel, BASE_MALE } from '~/lib/bodyShape'
+import { isWearable, slotOf, slotRegion, defaultWorn, toggleWorn, conflictingIds, wornUrns } from '~/lib/outfit'
+import { avatarShape, dominantShape, itemShapes, shapeLabel, isCompatible, BASE_MALE } from '~/lib/bodyShape'
 
 // Turn a wearable sub-category into a human label ("upper_body" → "Upper body").
 function slotLabel(slot: string | null): string {
@@ -155,7 +155,7 @@ export function FittingRoom() {
             {items.map(item => {
               const wearable = isWearable(item)
               // Wearable the target body can't wear → it can't be equipped (would render invisible); flag it.
-              const incompatible = wearable && !compatibleWith(item, target)
+              const incompatible = wearable && !isCompatible(item, target)
               const on = worn.has(item.id)
               const conflicted = conflicts.has(item.id)
               return (
