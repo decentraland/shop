@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { WearablePreview } from '~/components/LazyWearablePreview'
+import { EmoteControls } from '~/components/LazyEmoteControls'
 import { PreviewEmote, PreviewType } from '@dcl/schemas'
 import { config } from '~/config'
 import { useWallet } from '~/store/wallet'
@@ -83,7 +84,11 @@ export function ItemPreview({ item }: { item: CatalogItem }) {
             Item
           </button>
         </div>
-      ) : null}
+      ) : (
+        <div className="item-preview__emote-controls">
+          <EmoteControls wearablePreviewId="shop-item-preview" hideFrameInput />
+        </div>
+      )}
     </>
   )
 }
