@@ -13,7 +13,8 @@ import { config } from '~/config'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { CURRENCY } from '~/lib/currency'
 import { track } from '~/lib/analytics'
-import { isWearable, slotOf, slotRegion, defaultWorn, toggleWorn, conflictingIds, wornUrns } from '~/lib/outfit'
+import { isWearable, slotOf, slotRegion, defaultWorn, toggleWorn, conflictingIds, wornUrns, compatibleWith } from '~/lib/outfit'
+import { avatarShape, dominantShape, itemShapes, shapeLabel, BASE_MALE } from '~/lib/bodyShape'
 
 // Turn a wearable sub-category into a human label ("upper_body" → "Upper body").
 function slotLabel(slot: string | null): string {
@@ -37,16 +38,22 @@ export function FittingRoom() {
   // settle before mounting so the preview loads ONCE with the final profile (no default→address reload).
   const { data: avatar, isFetched: profileFetched } = useProfile(address)
   const profileResolved = !address || profileFetched
-  const profile = address && avatar ? address : 'default'
+  const hasAvatar = !!address && !!avatar
+  const profile = hasAvatar ? address! : 'default'
 
-  const [worn, setWorn] = useState<Set<string>>(() => defaultWorn(items))
+  // The body shape we dress: the connected avatar's shape if any, else the cart's majority shape, else
+  // male. Items the target body can't wear are skipped (they'd render invisible) and flagged in the list.
+  const target = avatarShape(avatar) ?? dominantShape(items) ?? BASE_MALE
+
+  const [worn, setWorn] = useState<Set<string>>(() => defaultWorn(items, target))
   const [previewReady, setPreviewReady] = useState(false)
 
-  // (Re)seed the equipped set to a conflict-free default each time the room opens.
+  // (Re)seed the equipped set to a conflict-free, shape-compatible default when the room opens or the
+  // target shape settles (e.g. the avatar profile resolves after opening).
   useEffect(() => {
-    if (open) setWorn(defaultWorn(items))
+    if (open) setWorn(defaultWorn(items, target))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open])
+  }, [open, target])
 
   // Prune worn ids that leave the cart (removed while the room is open).
   useEffect(() => {
@@ -58,7 +65,7 @@ export function FittingRoom() {
   }, [items])
 
   const conflicts = useMemo(() => conflictingIds(items), [items])
-  const urns = useMemo(() => wornUrns(items, worn), [items, worn])
+  const urns = useMemo(() => wornUrns(items, worn, target), [items, worn, target])
   const total = items.reduce((sum, i) => sum + i.priceCredits, 0)
 
   // The WearablePreview iframe rebuilds its src (and reloads) whenever the equipped urns change, so
@@ -117,6 +124,9 @@ export function FittingRoom() {
               <WearablePreview
                 key={profile}
                 profile={profile}
+                // No connected avatar → dress a default mannequin of the target shape so gendered items
+                // still render. With a real avatar, its own shape is the target, so no override needed.
+                bodyShape={hasAvatar ? undefined : target}
                 urns={urns}
                 type={PreviewType.AVATAR}
                 emote={PreviewEmote.FASHION}
@@ -144,15 +154,17 @@ export function FittingRoom() {
           <div className="fitting__items">
             {items.map(item => {
               const wearable = isWearable(item)
+              // Wearable the target body can't wear → it can't be equipped (would render invisible); flag it.
+              const incompatible = wearable && !compatibleWith(item, target)
               const on = worn.has(item.id)
               const conflicted = conflicts.has(item.id)
               return (
-                <div className={`fitting-row${on ? ' is-on' : ''}`} key={item.id}>
+                <div className={`fitting-row${on ? ' is-on' : ''}${incompatible ? ' is-incompatible' : ''}`} key={item.id}>
                   <label className="fitting-row__toggle">
                     <input
                       type="checkbox"
                       checked={on}
-                      disabled={!wearable}
+                      disabled={!wearable || incompatible}
                       onChange={() => setWorn(prev => toggleWorn(prev, item, items))}
                     />
                     <span className="fitting-row__box" aria-hidden />
@@ -167,7 +179,15 @@ export function FittingRoom() {
                         role="img"
                         aria-label={wearable ? slotLabel(slotOf(item)) : 'Emote'}
                       />
-                      {conflicted ? <span className="fitting-row__conflict" title="Only one item per slot can be worn">1 per slot</span> : null}
+                      {conflicted && !incompatible ? <span className="fitting-row__conflict" title="Only one item per slot can be worn">1 per slot</span> : null}
+                      {incompatible ? (
+                        <span
+                          className="fitting-row__incompat"
+                          title={`This item is made for the ${shapeLabel(itemShapes(item)[0])} body shape`}
+                        >
+                          {shapeLabel(itemShapes(item)[0])} only
+                        </span>
+                      ) : null}
                     </div>
                   </div>
                   <div className="fitting-row__price"><CurrencyIcon className="fitting-row__diamond" />{item.priceCredits}</div>

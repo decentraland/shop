@@ -154,14 +154,20 @@ h1, h2 { margin: 0; }
 .hero__title { color: #fff; font-size: clamp(28px, 4vw, 36px); font-weight: 700; text-transform: uppercase; line-height: 1.235; margin-bottom: 22px; }
 
 /* ---------------- Rows (carousels) ---------------- */
-.row { margin-bottom: 52px; }
-.row__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+/* ⚠️ Card rails + the hover glow: cards have an OUTWARD hover glow (box-shadow — see .card--hover). An
+   `overflow-x: auto` scroller ALSO clips overflow-y, so any rail must reserve room for that glow or it
+   gets cropped flat (top/bottom). .row__track reserves it with vertical PADDING — not a negative vertical
+   margin, which would tuck the glow behind the previous row and re-clip it (that was the "still cut off in
+   the cart / Featured" bug). Only the horizontal margin is negative, so the side glow bleeds into the
+   page's 40px padding. The head/row bottom margins are trimmed by the padding so the vertical rhythm is
+   unchanged. EVERY horizontal rail of <AssetCard> already uses .row__track (Overview, Cart upsell,
+   Recently viewed, Followed creators) — any NEW one MUST reuse it (or copy this padding) or the glow
+   will be cut off again. */
+.row { margin-bottom: 40px; }
+.row__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .row__title { font-size: 20px; font-weight: 600; color: var(--text); }
 .row__viewall { display: inline-flex; align-items: center; gap: 4px; color: var(--accent); font-weight: 600; font-size: 15px; letter-spacing: .046em; text-transform: uppercase; }
-/* padding + equal negative margin = breathing room INSIDE the scroll viewport for each card's hover
-   glow (an overflow-x scroller also clips overflow-y, which was cropping the glow) without shifting the
-   row's alignment against its title/siblings. */
-.row__track { display: flex; gap: 16px; overflow-x: auto; padding: 10px 8px; margin: -10px -8px; scroll-snap-type: x proximity; }
+.row__track { display: flex; gap: 16px; overflow-x: auto; padding: 12px 10px; margin: 0 -10px; scroll-snap-type: x proximity; }
 .row__track > * { flex: 0 0 220px; scroll-snap-align: start; }
 
 /* ---------------- Assets (sidebar + grid) ---------------- */
@@ -248,7 +254,7 @@ h1, h2 { margin: 0; }
    bloom (not a hard violet line); it needs room in scroll containers — see .row__track. */
 .card--hover {
   border-color: var(--dcl-red);
-  box-shadow: 0 0 0 1px var(--dcl-red), 0 0 9px 1px rgba(165, 36, 179, .55);
+  box-shadow: 0 0 0 1px var(--dcl-red), 0 0 8px 1px rgba(165, 36, 179, .55);
 }
 .card--skeleton, .asset-card--skeleton {
   min-height: 300px; border: 1px solid var(--line); border-radius: var(--radius-card);
@@ -768,6 +774,9 @@ a.purchase:hover { box-shadow: 0 8px 22px rgba(20, 20, 30, .10); transform: tran
 .fitting-row__meta { display: flex; align-items: center; gap: 6px; margin-top: 3px; }
 .fitting-row__slot-ico { width: 16px; height: 16px; color: var(--muted); }
 .fitting-row__conflict { font-size: 10px; font-weight: 700; color: var(--accent); background: rgba(105, 31, 169, .12); border-radius: 5px; padding: 1px 6px; text-transform: uppercase; letter-spacing: .02em; white-space: nowrap; }
+/* Item the current body shape can't wear: dim the row, disable its toggle (see FittingRoom), badge the shape. */
+.fitting-row.is-incompatible { opacity: .5; }
+.fitting-row__incompat { font-size: 10px; font-weight: 700; color: #9a6100; background: rgba(214, 158, 46, .18); border-radius: 5px; padding: 1px 6px; text-transform: uppercase; letter-spacing: .02em; white-space: nowrap; }
 .fitting-row__price { display: inline-flex; align-items: center; gap: 4px; font-weight: 700; font-size: 14px; color: var(--text-2); flex: none; }
 .fitting-row__diamond { width: 13px; height: 13px; color: var(--text-2); }
 .fitting-row__remove { flex: none; border: 0; background: none; color: var(--muted-2); cursor: pointer; padding: 6px; border-radius: 8px; display: grid; place-items: center; transition: color .12s ease, background .12s ease; }
