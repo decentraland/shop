@@ -122,6 +122,16 @@ export function GetCredits() {
         <p className="muted">Add {CURRENCY.name} to your account to shop. Pay with any card.</p>
       </header>
 
+      {!session ? (
+        <div className="getcredits__status" role="status">
+          <p className="getcredits__status-title">Sign in to get {CURRENCY.name}</p>
+          <p className="muted">Connect your account to buy {CURRENCY.name} and start shopping.</p>
+          <div className="getcredits__status-actions">
+            <button className="btn btn--purple" onClick={signIn}>Sign in</button>
+          </div>
+        </div>
+      ) : (
+      <>
       {phase === 'select' && <PackGrid onSelect={startCheckout} />}
 
       {phase === 'paying' && selected && (
@@ -164,6 +174,8 @@ export function GetCredits() {
             </button>
           </div>
         </div>
+      )}
+      </>
       )}
     </div>
   )
