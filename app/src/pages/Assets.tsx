@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { fetchListings, type ShopSort } from '~/lib/api'
+import { fetchListings } from '~/lib/api'
 import { AssetCard } from '~/components/AssetCard'
 import { CategoryFilter } from '~/components/CategoryFilter'
+import { FilterBar, FilterPanel, SORTS } from '~/components/FilterBar'
 import { SkeletonCards } from '~/components/SkeletonCards'
 import { LoadMore } from '~/components/LoadMore'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
@@ -33,17 +34,6 @@ const SUBCAT_MAP: Record<string, string[]> = {
   Miscellaneous: ['miscellaneous']
 }
 
-const RARITIES = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic', 'unique', 'exotic']
-
-const SORTS: { key: string; label: string; server: ShopSort }[] = [
-  { key: 'newest', label: 'Newest', server: 'newest' },
-  { key: 'price-asc', label: 'Price: Low to High', server: 'cheapest' },
-  { key: 'price-desc', label: 'Price: High to Low', server: 'most_expensive' },
-  { key: 'name', label: 'Name (A–Z)', server: 'name' }
-]
-
-type OpenPanel = null | 'section' | 'rarity' | 'price' | 'sort'
-
 export function Assets() {
   const [searchParams] = useSearchParams()
   const q = (searchParams.get('q') ?? '').trim().toLowerCase()
@@ -54,7 +44,6 @@ export function Assets() {
   const [priceMin, setPriceMin] = useState('')
   const [priceMax, setPriceMax] = useState('')
   const [sort, setSort] = useState('newest')
-  const [open, setOpen] = useState<OpenPanel>(null)
 
   // Build the server filter set — /v3/catalog/shop does the filtering + sort + search.
   const min = priceMin && !Number.isNaN(Number(priceMin)) ? Number(priceMin) : undefined
@@ -121,51 +110,31 @@ export function Assets() {
     setRarities([])
     setPriceMin('')
     setPriceMax('')
-    setOpen(null)
-  }
-  function toggle(panel: OpenPanel) {
-    setOpen(o => (o === panel ? null : panel))
   }
 
-  const currentSort = SORTS.find(s => s.key === sort) ?? SORTS[0]
   const priceActive = !!(min || max)
   const priceLabel = priceActive ? `${priceMin || '0'}–${priceMax || '∞'}` : 'Price'
   const anyActive = category !== 'wearable' || !!subCategory || rarities.length > 0 || priceActive
 
   return (
     <div className="browse browse--sidebar">
-      {open ? <div className="filterbar__scrim" onClick={() => setOpen(null)} aria-hidden /> : null}
-
       <aside className="browse__sidebar">
         <CategoryFilter category={category} subCategory={subCategory} onCategory={pickCategory} onSub={setSubCategory} />
       </aside>
 
       <div className="browse__main">
-      <div className="filterbar">
-        <div className="filterbar__filters">
-          {/* Rarity */}
-          <div className="filterbar__item">
-            <button className={`filterbar__trigger${open === 'rarity' ? ' is-open' : ''}${rarities.length ? ' is-active' : ''}`} onClick={() => toggle('rarity')}>
-              Rarity {rarities.length ? <span className="filterbar__badge">{rarities.length}</span> : null} <span className={`ico ico-chevron filterbar__chev${open === 'rarity' ? ' is-up' : ''}`} aria-hidden />
-            </button>
-            {open === 'rarity' ? (
-              <div className="filter-pop filter-pop--rarity">
-                {RARITIES.map(r => (
-                  <label key={r} className="filter-pop__check">
-                    <input type="checkbox" checked={rarities.includes(r)} onChange={() => toggleRarity(r)} />
-                    <span>{r}</span>
-                  </label>
-                ))}
-              </div>
-            ) : null}
-          </div>
-
-          {/* Price */}
-          <div className="filterbar__item">
-            <button className={`filterbar__trigger${open === 'price' ? ' is-open' : ''}${priceActive ? ' is-active' : ''}`} onClick={() => toggle('price')}>
-              {priceLabel} <span className={`ico ico-chevron filterbar__chev${open === 'price' ? ' is-up' : ''}`} aria-hidden />
-            </button>
-            {open === 'price' ? (
+        <FilterBar
+          rarities={rarities}
+          onToggleRarity={toggleRarity}
+          sort={sort}
+          onSort={setSort}
+          total={total}
+          loading={isLoading}
+          query={q}
+          anyActive={anyActive}
+          onClear={reset}
+          renderTrailing={panel => (
+            <FilterPanel panelKey="price" label={priceLabel} active={priceActive} panel={panel}>
               <div className="filter-pop filter-pop--price">
                 <div className="filter-pop__price-row">
                   <input type="number" min="0" aria-label="Minimum price" placeholder="Min" value={priceMin} onChange={e => setPriceMin(e.target.value)} />
@@ -174,56 +143,28 @@ export function Assets() {
                 </div>
                 <p className="filter-pop__hint">Price in {CURRENCY.name}</p>
               </div>
-            ) : null}
-          </div>
+            </FilterPanel>
+          )}
+        />
 
-          {anyActive ? <button className="filterbar__clear" onClick={reset}>Clear all</button> : null}
+        {error ? <p className="error">{error.message}</p> : null}
+
+        <div className="grid">
+          {isLoading ? (
+            <SkeletonCards count={15} />
+          ) : (
+            <>
+              {items.map(item => <AssetCard key={item.id} item={item} />)}
+              {isFetchingNextPage ? <SkeletonCards count={6} /> : null}
+            </>
+          )}
         </div>
 
-        <div className="filterbar__right">
-          <span className="filterbar__count">
-            {isLoading ? '…' : `${total.toLocaleString()} item${total === 1 ? '' : 's'}`}
-            {q ? ` for “${q}”` : ''}
-          </span>
-          <div className="filterbar__item">
-            <button className={`filterbar__sort${open === 'sort' ? ' is-open' : ''}`} onClick={() => toggle('sort')}>
-              Sort by: {currentSort.label} <span className={`ico ico-chevron filterbar__chev${open === 'sort' ? ' is-up' : ''}`} aria-hidden />
-            </button>
-            {open === 'sort' ? (
-              <div className="filter-pop filter-pop--sort">
-                {SORTS.map(s => (
-                  <button
-                    key={s.key}
-                    className={`filter-pop__sort${s.key === sort ? ' is-active' : ''}`}
-                    onClick={() => { setSort(s.key); setOpen(null) }}
-                  >
-                    {s.label}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-          </div>
-        </div>
-      </div>
+        <LoadMore hasNextPage={hasNextPage} isFetching={isFetchingNextPage} onLoadMore={() => fetchNextPage()} />
 
-      {error ? <p className="error">{error.message}</p> : null}
-
-      <div className="grid">
-        {isLoading ? (
-          <SkeletonCards count={15} />
-        ) : (
-          <>
-            {items.map(item => <AssetCard key={item.id} item={item} />)}
-            {isFetchingNextPage ? <SkeletonCards count={6} /> : null}
-          </>
-        )}
-      </div>
-
-      <LoadMore hasNextPage={hasNextPage} isFetching={isFetchingNextPage} onLoadMore={() => fetchNextPage()} />
-
-      {!isLoading && items.length === 0 ? (
-        <p className="muted">No items match your filters.</p>
-      ) : null}
+        {!isLoading && items.length === 0 ? (
+          <p className="muted">No items match your filters.</p>
+        ) : null}
       </div>
     </div>
   )
