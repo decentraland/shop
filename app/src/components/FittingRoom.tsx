@@ -1,7 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { PreviewEmote, PreviewType } from '@dcl/schemas'
 import { WearablePreview } from '~/components/LazyWearablePreview'
+
+// Lazy so the WebGL backdrop (+ its shader and pattern texture) only loads when the room opens —
+// it never touches the main bundle.
+const AnimatedBackground = lazy(() => import('~/components/AnimatedBackground/AnimatedBackground'))
 import { useCart } from '~/store/cart'
 import { useWallet } from '~/store/wallet'
 import { useProfile } from '~/hooks/useProfile'
@@ -100,6 +104,10 @@ export function FittingRoom() {
         <button className="fitting__close" onClick={() => setOpen(false)} aria-label="Close">×</button>
 
         <div className="fitting__stage">
+          {/* Animated purple vignette behind the avatar (transparent WearablePreview sits on top). */}
+          <Suspense fallback={null}>
+            <AnimatedBackground />
+          </Suspense>
           {!profileResolved ? (
             <div className="fitting__loading" aria-hidden><span className="fitting__spinner" /></div>
           ) : urns.length > 0 ? (
@@ -112,7 +120,7 @@ export function FittingRoom() {
                 urns={urns}
                 type={PreviewType.AVATAR}
                 emote={PreviewEmote.FASHION}
-                background="ecebed"
+                disableBackground
                 disableFadeEffect
                 dev={config.chainId === 80002}
                 onLoad={() => setPreviewReady(true)}
