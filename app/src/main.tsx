@@ -14,10 +14,11 @@ const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, refetchOnWindowFocus: false } }
 })
 
-// The Shop is served by-path at <domain>/shop in every deployed env (decentraland.zone/today/org),
-// so the router mounts under /shop. Local dev + e2e run at the root, so no basename there.
-const isLocalHost = ['localhost', '127.0.0.1'].includes(window.location.hostname)
-const routerBasename = isLocalHost ? undefined : '/shop'
+// The Shop is served by-path at <domain>/shop only on the known deployed hosts
+// (decentraland.zone/today/org). Everything else — local dev, e2e, preview deploys,
+// Docker QA, IP access — runs at the root, so match those hosts positively (mirrors the
+// marketplace) instead of a negative localhost check that would wrongly apply /shop elsewhere.
+const routerBasename = /^decentraland\.(zone|today|org)$/.test(window.location.hostname) ? '/shop' : undefined
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
