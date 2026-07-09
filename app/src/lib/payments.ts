@@ -93,10 +93,12 @@ export type OrderStatus = {
 // simulated card form instead of the real Stripe widget.
 export const MOCK_CLIENT_SECRET_PREFIX = 'mock_cs_'
 
-/** Are we running against the mock (no real Stripe/shop-server) ? */
+/** Are we running against the mock (no real Stripe) ? */
 export function isMockPayments(): boolean {
-  // Real mode requires BOTH a publishable key and a shop-server base url configured.
-  return !config.stripePublishableKey || !config.shopServerUrl
+  // Real mode needs the Stripe publishable key. The checkout/webhook endpoints live on the
+  // credits-server (always configured — see payments-stripe paymentsBaseUrl() + STRIPE_SPEC §1), so
+  // the key is the only client-side switch; the server independently gates on STRIPE_ENABLED.
+  return !config.stripePublishableKey
 }
 
 // ---------------------------------------------------------------------------

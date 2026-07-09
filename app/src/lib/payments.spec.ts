@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { AuthIdentity } from '@dcl/crypto'
 
-// Config is mutated per-test to drive isMockPayments(): real mode needs BOTH a stripe key AND a
-// shop-server url. Default (empty both) → mock mode, which keeps the mock-path tests below honest.
+// Config is mutated per-test to drive isMockPayments(): real mode needs the Stripe publishable key
+// (the checkout/webhook endpoints live on the always-configured credits-server). Default (empty) →
+// mock mode, which keeps the mock-path tests below honest.
 const { config } = vi.hoisted(() => ({ config: { stripePublishableKey: '', shopServerUrl: '' } }))
 vi.mock('~/config', () => ({ config }))
 
@@ -101,12 +102,12 @@ describe('when deciding mock vs real payments from config', () => {
     expect(isMockPayments()).toBe(true)
   })
 
-  it('should run in mock mode when only the stripe key is set', () => {
+  it('should run in real mode when the stripe publishable key is set (endpoints are on credits-server)', () => {
     config.stripePublishableKey = 'pk_test_123'
-    expect(isMockPayments()).toBe(true)
+    expect(isMockPayments()).toBe(false)
   })
 
-  it('should run in mock mode when only the shop-server url is set', () => {
+  it('should stay in mock mode when only the shop-server url is set (no stripe key)', () => {
     config.shopServerUrl = 'https://shop.example'
     expect(isMockPayments()).toBe(true)
   })
