@@ -94,6 +94,22 @@
   padding: 6px 12px; border-radius: 999px;
 }
 
+/* Loader overlay while the profile settles / the preview iframe loads — masks the load so it never
+   flickers raw. Overrides the greedy `> *` sizing; sits above the iframe (z-index 1) but below the
+   controls (z-index 2). Background stays transparent so the rarity glow shows through. */
+.item-detail__preview > .item-preview__loading {
+  position: absolute; inset: 0; z-index: 1;
+  display: flex; align-items: center; justify-content: center;
+  width: 100%; height: 100%; background: transparent;
+}
+.item-preview__spinner {
+  width: 34px; height: 34px; border-radius: 50%;
+  border: 3px solid var(--line); border-top-color: var(--accent);
+  animation: item-preview-spin .8s linear infinite;
+}
+@keyframes item-preview-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .item-preview__spinner { animation-duration: 2.4s; } }
+
 /* Item description (PDP) — clamped to a few lines with a read-more/less toggle. */
 .item-detail__description { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
 .item-detail__desc-text {
@@ -361,7 +377,12 @@
   display: flex;
   gap: 16px;
   overflow-x: auto;
-  padding-bottom: 8px;
+  /* Reserve room for the cards' outward hover/active glow (box-shadow ring): an overflow-x scroller
+     also clips overflow-y, so without vertical padding the ring crops flat top/bottom. Same fix as
+     .row__track (index.css) — vertical padding for the glow, negative horizontal margin so the side
+     glow bleeds into the page padding and the row stays aligned. */
+  padding: 12px 10px;
+  margin: 0 -10px;
   scroll-snap-type: x proximity;
 }
 .collection-carousel__card {

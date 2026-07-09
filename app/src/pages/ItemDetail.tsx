@@ -319,7 +319,16 @@ export function ItemDetail() {
             background: `radial-gradient(circle at 50% 38%, ${glowLight}33 0%, var(--media) 68%)`
           }}
         >
-          <ItemPreview item={current} />
+          {/* Mount the preview only once the item's identity is resolved (deep-link/refresh hydrate a
+              stub first) so the 3D iframe mounts ONCE with the right item — no stub→hydrated remount /
+              double-load. Show the same loader meanwhile. */}
+          {current.name ? (
+            <ItemPreview item={current} />
+          ) : (
+            <div className="item-preview__loading" aria-busy="true" aria-label="Loading preview">
+              <span className="item-preview__spinner" aria-hidden />
+            </div>
+          )}
         </div>
 
         <div className="item-detail__info">
