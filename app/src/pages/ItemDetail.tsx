@@ -7,7 +7,7 @@ import { useCart } from '~/store/cart'
 import { useFavorites } from '~/store/favorites'
 import { useWallet } from '~/store/wallet'
 import { useBalance } from '~/hooks/useBalance'
-import { fetchShopListingForItem, fetchTrade, fetchTradeForItem, usdWeiToCents, type CatalogItem } from '~/lib/api'
+import { fetchShopListingForItem, fetchTrade, fetchTradeForItem, fetchItemDescription, usdWeiToCents, type CatalogItem } from '~/lib/api'
 import { buyWithCredits } from '~/lib/buy'
 import { buyGasless, waitForSettlement, GaslessUnavailableError } from '~/lib/buy-gasless'
 import { gaslessEnabled } from '~/lib/gasless-config'
@@ -104,6 +104,16 @@ export function ItemDetail() {
   useEffect(() => {
     if (deepLinkItem) setCurrent(prev => (prev.tradeId ? prev : { ...deepLinkItem }))
   }, [deepLinkItem])
+
+  // Item long description — not in the shop feed, so read from the v2 catalog by contract + itemId.
+  // Collapsed to a few lines by default with a read-more toggle.
+  const [descExpanded, setDescExpanded] = useState(false)
+  const { data: description = '' } = useQuery({
+    queryKey: ['item-desc', current.contractAddress, current.itemId],
+    enabled: !!current.contractAddress && !!current.itemId,
+    staleTime: 5 * 60_000,
+    queryFn: () => fetchItemDescription(current.contractAddress, current.itemId as string)
+  })
 
   // Fallback backfill: if still unhydrated (e.g. not currently on sale), fill from the matching
   // sibling once the collection resolves.
@@ -334,6 +344,17 @@ export function ItemDetail() {
             <span className="chip">{current.category === 'emote' ? 'Emote' : 'Wearable'}</span>
             {gender ? <span className="chip">{gender}</span> : null}
           </div>
+
+          {description ? (
+            <div className="item-detail__description">
+              <p className={`item-detail__desc-text${descExpanded ? ' is-expanded' : ''}`}>{description}</p>
+              {description.length > 140 ? (
+                <button className="link item-detail__desc-toggle" onClick={() => setDescExpanded(v => !v)}>
+                  {descExpanded ? 'Show less' : 'Read more'}
+                </button>
+              ) : null}
+            </div>
+          ) : null}
 
           <div className="item-detail__card">
             <div className="item-detail__price-block">
