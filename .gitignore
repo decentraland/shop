@@ -26,3 +26,8 @@ tools/*/out/
 npm-debug.log*
 .idea/
 .vscode/
+
+# Internal design / vision / analysis docs — never public.
+design/
+/VISION.md
+/ROADMAP.md
