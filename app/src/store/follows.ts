@@ -4,13 +4,19 @@ import { track } from '~/lib/analytics'
 // Client-side creator follows — a lightweight "wishlist for creators", persisted in
 // localStorage (no backend, like recently-viewed). Powers the Follow button on a creator's
 // page and the "From creators you follow" row on the overview. Addresses are stored
-// lowercased and deduped, newest-followed first.
-const STORAGE_KEY = 'shop:followed-creators:v1'
+// lowercased and deduped, newest-followed first. NAMESPACED per signed-in account (base key when
+// anonymous) so a shared device / account switch never shows one account's follows to another;
+// the wallet store calls reloadFor() on every session boundary to swap buckets.
+const BASE_KEY = 'shop:followed-creators:v1'
 const CAP = 200
+
+// The account whose bucket is currently loaded (null = anonymous).
+let account: string | null = null
+const keyFor = (addr: string | null): string => (addr ? `${BASE_KEY}:${addr.toLowerCase()}` : BASE_KEY)
 
 function load(): string[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw = localStorage.getItem(keyFor(account))
     if (!raw) return []
     const parsed = JSON.parse(raw)
     return Array.isArray(parsed) ? parsed.filter((a): a is string => typeof a === 'string') : []
@@ -21,7 +27,7 @@ function load(): string[] {
 
 function persist(list: string[]): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(list))
+    localStorage.setItem(keyFor(account), JSON.stringify(list))
   } catch {
     // best-effort (private mode / quota) — following still works for the session
   }
@@ -33,6 +39,9 @@ type FollowState = {
   follow: (address: string) => void
   unfollow: (address: string) => void
   toggle: (address: string) => void
+  // Swap to a different account's bucket (or the anonymous bucket when addr is null). Called by the
+  // wallet store so follows never leak across accounts on a shared device.
+  reloadFor: (address: string | null) => void
 }
 
 export const useFollows = create<FollowState>((set, get) => ({
@@ -54,5 +63,9 @@ export const useFollows = create<FollowState>((set, get) => ({
     set({ followed: next })
     track('Shop Unfollowed Creator', { creator_address: a, following_count: next.length })
   },
-  toggle: address => (get().isFollowing(address) ? get().unfollow(address) : get().follow(address))
+  toggle: address => (get().isFollowing(address) ? get().unfollow(address) : get().follow(address)),
+  reloadFor: address => {
+    account = address ? address.toLowerCase() : null
+    set({ followed: load() })
+  }
 }))

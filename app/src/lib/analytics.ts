@@ -17,6 +17,7 @@ type SegmentApi = {
   track: (event: string, props?: Props) => void
   identify: (id: string, traits?: Props) => void
   page: (name?: string, props?: Props) => void
+  reset?: () => void
   load?: (writeKey: string) => void
   invoked?: boolean
 }
@@ -62,6 +63,14 @@ export function identify(address: string, traits: Props = {}): void {
   const a = segment()
   if (a) a.identify(address.toLowerCase(), traits)
   else if (import.meta.env.DEV) console.debug('[analytics] identify', address, traits)
+}
+
+// Drops the current identity + anonymousId association so events after sign-out (and the next
+// account's sign-in) aren't attributed to the previous account. Called on disconnect.
+export function reset(): void {
+  const a = segment()
+  if (a?.reset) a.reset()
+  else if (import.meta.env.DEV) console.debug('[analytics] reset')
 }
 
 export function trackPage(page: string): void {

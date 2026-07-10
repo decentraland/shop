@@ -18,11 +18,12 @@ const makeItem = (id: string, overrides: Partial<CatalogItem> = {}): CatalogItem
   ...overrides
 })
 
-// The store is a module-level zustand singleton persisted to localStorage; reset both so each
-// test starts from a clean slate regardless of ordering.
+// The store is a module-level zustand singleton persisted to localStorage; clear storage and swap
+// back to the anonymous bucket so each test starts from a clean slate regardless of ordering (the
+// scoped `account` is module-level and would otherwise leak between tests).
 beforeEach(() => {
-  useFavorites.setState({ items: {} })
   localStorage.clear()
+  useFavorites.getState().reloadFor(null)
 })
 
 describe('when toggling a favorite that is not yet stored', () => {
@@ -121,8 +122,8 @@ describe('when favorites change', () => {
     const raw = localStorage.getItem('shop-favorites')
     expect(raw).toBeTruthy()
     const persisted = JSON.parse(raw as string)
-    expect(persisted.state.items.a.id).toBe('a')
-    expect(persisted.state.items.a.name).toBe('Item a')
+    expect(persisted.a.id).toBe('a')
+    expect(persisted.a.name).toBe('Item a')
   })
 
   it('should reflect a removal in the persisted snapshot', () => {
@@ -130,6 +131,39 @@ describe('when favorites change', () => {
     useFavorites.getState().toggle(item)
     useFavorites.getState().remove('a')
     const persisted = JSON.parse(localStorage.getItem('shop-favorites') as string)
-    expect(persisted.state.items).toEqual({})
+    expect(persisted).toEqual({})
+  })
+})
+
+describe('when the signed-in account changes (reloadFor)', () => {
+  it('scopes each account to its own localStorage bucket and never leaks across accounts', () => {
+    const a = makeItem('a')
+    const b = makeItem('b')
+
+    // Account A favorites an item → stored under a namespaced key, not the anonymous one.
+    useFavorites.getState().reloadFor('0xAAA')
+    useFavorites.getState().toggle(a)
+    expect(useFavorites.getState().items).toEqual({ a })
+    expect(localStorage.getItem('shop-favorites:0xaaa')).toBeTruthy()
+
+    // Switching to account B must NOT see A's favorites.
+    useFavorites.getState().reloadFor('0xBBB')
+    expect(useFavorites.getState().items).toEqual({})
+    useFavorites.getState().toggle(b)
+    expect(useFavorites.getState().items).toEqual({ b })
+
+    // Coming back to A restores A's favorites (persisted per account).
+    useFavorites.getState().reloadFor('0xAAA')
+    expect(useFavorites.getState().items).toEqual({ a })
+
+    // Signing out (anonymous bucket) shows neither account's favorites.
+    useFavorites.getState().reloadFor(null)
+    expect(useFavorites.getState().items).toEqual({})
+  })
+
+  it('hydrates the anonymous bucket from a legacy zustand-persist envelope', () => {
+    localStorage.setItem('shop-favorites', JSON.stringify({ state: { items: { a: makeItem('a') } }, version: 0 }))
+    useFavorites.getState().reloadFor(null)
+    expect(useFavorites.getState().items.a?.id).toBe('a')
   })
 })
