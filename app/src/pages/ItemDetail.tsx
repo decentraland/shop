@@ -18,7 +18,8 @@ import { CollectionCarousel } from '~/components/CollectionCarousel'
 import { CreatorBadge } from '~/components/CreatorBadge'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { SaleCountdown } from '~/components/SaleCountdown'
-import { isSaleActive, saleDiscountPct } from '~/lib/sale'
+import { saleDiscountPct } from '~/lib/sale'
+import { useSaleActive } from '~/hooks/useSaleActive'
 import { CURRENCY } from '~/lib/currency'
 import { track, itemProps, purchaseItemsProps, errorCode, isUserRejection, creditsToUsd } from '~/lib/analytics'
 import { recordViewed } from '~/lib/recently-viewed'
@@ -162,6 +163,13 @@ export function ItemDetail() {
 
   const buyableTradeId = current.tradeId ?? resolvedTradeId ?? undefined
   const forSale = !!buyableTradeId
+  // Live sale-active flag (collapses the badge/strikethrough/discount the moment the window closes).
+  // Kept up here with the other hooks so it's never called after an early return.
+  const saleActive = useSaleActive({
+    priceCredits: current.priceCredits,
+    compareAtCredits: current.compareAtCredits,
+    saleEndsAt: current.saleEndsAt
+  })
   // The exact CatalogItem shape checkout expects (tradeId + tokenId), identical to fetchListings output.
   const cartItem: CatalogItem = useMemo(
     () => ({ ...current, tradeId: buyableTradeId, id: buyableTradeId ?? current.id }),
@@ -271,13 +279,7 @@ export function ItemDetail() {
   const rarity: Rarity = isValidRarity(current.rarity) ? current.rarity : Rarity.COMMON
   const [glowLight] = Rarity.getGradient(rarity)
   const gender = genderLabel(current.gender)
-  const onSale =
-    forSale &&
-    isSaleActive({
-      priceCredits: current.priceCredits,
-      compareAtCredits: current.compareAtCredits,
-      saleEndsAt: current.saleEndsAt
-    })
+  const onSale = forSale && saleActive
   const collectionTitle = 'More from this collection'
 
   // Your own (primary) listing — you can't buy it (see lib/ownership.ts). Secondary self-listings are

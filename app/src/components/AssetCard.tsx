@@ -11,7 +11,8 @@ import { CreatorBadge } from '~/components/CreatorBadge'
 import { rarityColor, readableText } from '~/lib/rarity'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { SaleCountdown } from '~/components/SaleCountdown'
-import { isSaleActive, saleDiscountPct } from '~/lib/sale'
+import { saleDiscountPct } from '~/lib/sale'
+import { useSaleActive } from '~/hooks/useSaleActive'
 import type { CatalogItem } from '~/lib/api'
 
 const HOVER_DELAY_MS = 120
@@ -88,9 +89,12 @@ export function AssetCard(props: AssetCardProps) {
 
   // Flash sale only applies to native (fixed-price) listings — a market card's credit price
   // fluctuates, so a strike-through compare-at would be meaningless there.
-  const onSale =
-    !isMarket &&
-    isSaleActive({ priceCredits: item.priceCredits, compareAtCredits: item.compareAtCredits, saleEndsAt: item.saleEndsAt })
+  const saleActive = useSaleActive({
+    priceCredits: item.priceCredits,
+    compareAtCredits: item.compareAtCredits,
+    saleEndsAt: item.saleEndsAt
+  })
+  const onSale = !isMarket && saleActive
   const discountPct = onSale ? saleDiscountPct(item.compareAtCredits!, item.priceCredits) : 0
 
   return (
