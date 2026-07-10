@@ -9,7 +9,7 @@ import { useWallet } from '~/store/wallet'
 import { useBalance } from '~/hooks/useBalance'
 import { fetchShopListingForItem, fetchTrade, fetchTradeForItem, fetchItemDescription, usdWeiToCents, type CatalogItem } from '~/lib/api'
 import { buyWithCredits } from '~/lib/buy'
-import { buyGasless, waitForSettlement, GaslessUnavailableError } from '~/lib/buy-gasless'
+import { buyGasless, waitForSettlement, GaslessUnavailableError, SettlementPendingError } from '~/lib/buy-gasless'
 import { gaslessEnabled } from '~/lib/gasless-config'
 import { authorizeUsdCredit, cancelUsdIntents } from '~/lib/credits'
 import { fetchCollectionItems } from '~/lib/collections'
@@ -238,8 +238,15 @@ export function ItemDetail() {
           await waitForSettlement(txHash)
           usedGasless = true
         } catch (gaslessErr) {
-          if (!(gaslessErr instanceof GaslessUnavailableError)) throw gaslessErr
-          txHash = await buyWithCredits(buyArgs) // fallback: buyer submits
+          if (gaslessErr instanceof SettlementPendingError) {
+            // Broadcast but not yet confirmed — do NOT release the reservation; the credits-server
+            // reconciles it against the indexed CreditUsed event. Optimistic success.
+            usedGasless = true
+          } else if (gaslessErr instanceof GaslessUnavailableError) {
+            txHash = await buyWithCredits(buyArgs) // fallback: buyer submits
+          } else {
+            throw gaslessErr
+          }
         }
       } else {
         txHash = await buyWithCredits(buyArgs)

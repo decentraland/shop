@@ -34,6 +34,18 @@ export class GaslessUnavailableError extends Error {
   }
 }
 
+// Thrown when the relayer has ALREADY BROADCAST the meta-tx but it hasn't confirmed within the wait
+// window (RPC timeout / still pending). This is NOT a failure: the tx may still mine, so the caller
+// MUST keep the reserved USD intent (never cancelUsdIntents) — the credits-server reconciles it
+// against the indexed CreditUsed event. Releasing here would let the buyer keep the credits AND get
+// the item once the tx lands (double-spend). Carries the txHash for the optimistic success path.
+export class SettlementPendingError extends Error {
+  constructor(readonly txHash: string) {
+    super('Purchase not yet confirmed')
+    this.name = 'SettlementPendingError'
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Meta-transaction: build EIP-712, get the buyer's off-chain signature, relay.
 // The useCredits calldata is built by the shared lib/trade-encoding (byte-identical to lib/buy.ts).
@@ -123,10 +135,27 @@ async function relay(chainId: number, buyer: string, functionData: string, signe
 // Wait for the relayed tx to land (status===1) via the read-only RPC. Gives the UI immediate
 // confirmation; the credits-server intent (salt) still flips PENDING→SETTLED asynchronously once
 // the squid indexes CreditUsed — the caller invalidates the balance query after this resolves.
+//
+// Outcomes the caller must distinguish (the relayer has already broadcast by now):
+// - confirmed (status 1)  → resolves.
+// - reverted  (status 0)  → throws Error: the credits were NOT consumed on-chain, so releasing the
+//   reserved USD is safe and correct.
+// - timeout / no receipt  → throws SettlementPendingError: the tx may still mine, so the caller must
+//   KEEP the reservation and let the reconciler settle it — releasing risks a double-spend.
 export async function waitForSettlement(txHash: string, opts?: { timeoutMs?: number }): Promise<void> {
   const provider = readProvider()
-  const receipt = await provider.waitForTransaction(txHash, 1, opts?.timeoutMs ?? 120_000)
-  if (!receipt || receipt.status !== 1) throw new Error('Purchase did not confirm')
+  let receipt: ethers.providers.TransactionReceipt | null
+  try {
+    receipt = await provider.waitForTransaction(txHash, 1, opts?.timeoutMs ?? 120_000)
+  } catch {
+    // waitForTransaction rejects on its timeout (and can throw on a transient RPC hiccup): still in
+    // flight, not a failure.
+    throw new SettlementPendingError(txHash)
+  }
+  // No receipt within the window → same as a timeout: possibly still pending.
+  if (!receipt) throw new SettlementPendingError(txHash)
+  // Mined but reverted → definitive failure; safe to release the reservation.
+  if (receipt.status === 0) throw new Error('Purchase reverted')
 }
 
 /**
