@@ -271,7 +271,10 @@ describe('when buying a single listing with credits', () => {
 
 describe('when cancelling a listing', () => {
   const getAddress = vi.fn(async () => SELLER.toUpperCase())
-  const cancelSigner = { getAddress } as unknown as Ethers.Signer
+  // cancelListing calls ensureChain(signer.provider, trade.chainId) before the tx; a provider already
+  // on the trade's chain makes it a no-op (the switch path is covered in cancel-listing.spec).
+  const provider = { getNetwork: async () => ({ chainId: 80002 }) }
+  const cancelSigner = { getAddress, provider } as unknown as Ethers.Signer
 
   beforeEach(() => {
     cancelCalls.length = 0

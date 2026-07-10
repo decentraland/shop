@@ -2,6 +2,7 @@ import { ethers } from 'ethers'
 import { TradeAssetType, type Trade } from '@dcl/schemas'
 import { ContractName, getContract, getContractName } from 'decentraland-transactions'
 import { config } from '~/config'
+import { ensureChain } from '~/lib/trades'
 import {
   amoyGasOverrides,
   buildUseCreditsArgs,
@@ -53,6 +54,10 @@ async function sendUseCredits(chainId: number, args: unknown, signer: ethers.Sig
 export async function cancelListing(opts: { trade: Trade; signer: ethers.Signer }): Promise<string> {
   const { trade, signer } = opts
   const seller = (await signer.getAddress()).toLowerCase()
+  // cancelSignature is a REAL transaction, so it must run on the trade's chain — a restored session
+  // can leave the wallet on whatever network it last used. Switch just-in-time (mirrors ensureApproval);
+  // the off-chain listing signature itself is never gated on chain (see CONVENTIONS.md).
+  await ensureChain(signer.provider as ethers.providers.Web3Provider, trade.chainId)
   const marketplace = getContract(getContractName(trade.contract), trade.chainId)
   // beneficiary is irrelevant to the cancel hash (sent assets are signed without one); pass the seller.
   const onChainTrade = getOnChainTrade(trade, seller)
