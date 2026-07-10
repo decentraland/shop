@@ -4,6 +4,7 @@ import {
   track,
   trackPage,
   identify,
+  reset,
   signInMethod,
   markAddressSeen,
   creditsToUsd,
@@ -63,6 +64,16 @@ describe('analytics wrapper', () => {
     ;(window as unknown as { analytics?: unknown }).analytics = { track: spy, identify: vi.fn(), page: vi.fn() }
     track('Shop Viewed Page', { page: 'overview' })
     expect(spy.mock.calls[0][1]).toMatchObject({ address: null, is_signed_in: false })
+  })
+
+  it('reset drops the Segment identity when loaded, and never throws when it is not', () => {
+    const spy = vi.fn()
+    ;(window as unknown as { analytics?: unknown }).analytics = { track: vi.fn(), identify: vi.fn(), page: vi.fn(), reset: spy }
+    reset()
+    expect(spy).toHaveBeenCalledTimes(1)
+
+    ;(window as unknown as { analytics?: unknown }).analytics = undefined
+    expect(() => reset()).not.toThrow()
   })
 
   it('creditsToUsd: 1 credit = $0.10', () => {
