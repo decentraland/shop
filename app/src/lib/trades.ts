@@ -129,7 +129,7 @@ const AMOY_ADD_PARAMS = {
 }
 
 // Silently move the wallet to the asset's chain — only needed before an actual on-chain tx.
-async function ensureChain(provider: ethers.providers.Web3Provider, chainId: number): Promise<void> {
+export async function ensureChain(provider: ethers.providers.Web3Provider, chainId: number): Promise<void> {
   const net = await provider.getNetwork()
   if (net.chainId === chainId) return
   const hexChain = ethers.utils.hexValue(chainId)

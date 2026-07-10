@@ -13,6 +13,16 @@ vi.mock('decentraland-transactions', () => ({
 
 vi.mock('~/config', () => ({ config: { chainId: 80002, rpcUrl: 'http://localhost' } }))
 
+// cancelListing must switch the wallet to the trade's chain before the (real) cancel tx. Capture the
+// call so we can assert the chain-switch happens — and with the right provider + chainId.
+const ensureChainCalls: Array<{ provider: unknown; chainId: number }> = []
+vi.mock('~/lib/trades', () => ({
+  ensureChain: (provider: unknown, chainId: number) => {
+    ensureChainCalls.push({ provider, chainId })
+    return Promise.resolve()
+  }
+}))
+
 // Sentinel getOnChainTrade so the assertion is about the ARITY (array wrapping), not encoding internals.
 vi.mock('~/lib/trade-encoding', () => ({
   getOnChainTrade: (trade: unknown) => ({ __onchain: true, from: trade }),
@@ -38,11 +48,15 @@ vi.mock('ethers', async importOriginal => {
 // eslint-disable-next-line import/first
 import { cancelListing } from '~/lib/buy'
 
-const signer = { getAddress: async () => '0xSELLER0000000000000000000000000000000000' } as never
+const signer = {
+  getAddress: async () => '0xSELLER0000000000000000000000000000000000',
+  provider: { __web3: true }
+} as never
 const trade = { contract: '0xmarket', chainId: 80002 } as unknown as Trade
 
 beforeEach(() => {
   cancelCalls.length = 0
+  ensureChainCalls.length = 0
 })
 
 describe('cancelListing', () => {
@@ -56,5 +70,12 @@ describe('cancelListing', () => {
     expect(Array.isArray(firstArg)).toBe(true)
     expect(firstArg as unknown[]).toHaveLength(1)
     expect((firstArg as Array<{ __onchain?: boolean }>)[0]).toMatchObject({ __onchain: true })
+  })
+
+  it('switches the wallet to the trade chain before sending the cancel tx', async () => {
+    await cancelListing({ trade, signer })
+
+    // A real tx: the wallet must be on the trade's chain first (a restored session may be elsewhere).
+    expect(ensureChainCalls).toEqual([{ provider: { __web3: true }, chainId: 80002 }])
   })
 })
