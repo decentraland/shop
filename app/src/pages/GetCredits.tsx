@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { CircularProgress } from 'decentraland-ui2'
 import { useWallet } from '~/store/wallet'
-import { config } from '~/config'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { CURRENCY, formatAmount } from '~/lib/currency'
 import { track, errorCode } from '~/lib/analytics'
@@ -12,12 +11,14 @@ import {
   CREDIT_PACKS,
   createPackCheckout,
   pollCreditGrant,
+  isMockPayments,
   type CheckoutSession,
   type CreditPack
 } from '~/lib/payments'
 
-// Live Stripe when the publishable key is configured; otherwise the built-in mock (dev).
-const CREDITS_PROVIDER = config.stripePublishableKey ? 'stripe' : 'mock'
+// Live Stripe when real payments are configured; otherwise the built-in mock (dev). Single source of
+// truth via isMockPayments() (which gates on the publishable key) — don't reimplement the gate here.
+const CREDITS_PROVIDER = isMockPayments() ? 'mock' : 'stripe'
 
 // Lazily loaded so the real Stripe SDK is only pulled in when a live key/backend exists;
 // the mock demo path never downloads it.

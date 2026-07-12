@@ -19,8 +19,10 @@ export type ManaRate = { rate: bigint; decimals: number }
 const USD_WEI_PER_CREDIT = 10n ** 17n // 1 credit = $0.10 = 1e17 USD wei
 
 // Max age of the oracle round before we treat it as stale. The MANA/USD aggregator's heartbeat is on
-// the order of a day, so 24h catches a genuinely stuck feed without tripping on normal update gaps.
-const MAX_STALENESS_SECONDS = 86400
+// the order of a day (~24h); we add a ~1h buffer over that so a slightly-fast client clock or a round
+// that lands right at the heartbeat doesn't briefly (and wrongly) disable Buy Now. Still catches a
+// genuinely stuck feed.
+const MAX_STALENESS_SECONDS = 90000
 
 // Read the MANA/USD Chainlink-style aggregator off the marketplace contract (decoupled from the
 // wallet's network via the read-only RPC). Throws if the oracle is unreachable/stale/incomplete so

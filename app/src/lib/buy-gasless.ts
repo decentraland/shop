@@ -40,9 +40,14 @@ export class GaslessUnavailableError extends Error {
 // against the indexed CreditUsed event. Releasing here would let the buyer keep the credits AND get
 // the item once the tx lands (double-spend). Carries the txHash for the optimistic success path.
 export class SettlementPendingError extends Error {
-  constructor(readonly txHash: string) {
+  // `cause` set manually (not via the Error options arg) so we don't depend on the ES2022 lib target.
+  constructor(
+    readonly txHash: string,
+    options?: { cause?: unknown }
+  ) {
     super('Purchase not yet confirmed')
     this.name = 'SettlementPendingError'
+    if (options && 'cause' in options) (this as { cause?: unknown }).cause = options.cause
   }
 }
 
@@ -147,10 +152,10 @@ export async function waitForSettlement(txHash: string, opts?: { timeoutMs?: num
   let receipt: ethers.providers.TransactionReceipt | null
   try {
     receipt = await provider.waitForTransaction(txHash, 1, opts?.timeoutMs ?? 120_000)
-  } catch {
+  } catch (err) {
     // waitForTransaction rejects on its timeout (and can throw on a transient RPC hiccup): still in
-    // flight, not a failure.
-    throw new SettlementPendingError(txHash)
+    // flight, not a failure. Preserve the original error as `cause` for observability.
+    throw new SettlementPendingError(txHash, { cause: err })
   }
   // No receipt within the window → same as a timeout: possibly still pending.
   if (!receipt) throw new SettlementPendingError(txHash)

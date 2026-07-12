@@ -23,7 +23,7 @@ export type CartReview = {
   unavailable: CatalogItem[] // no live listing (sold / cancelled / never resolved)
   own: CatalogItem[] // the buyer's own listing — can't buy
   liveTotalCredits: number // sum of the buyable lines' live credit prices
-  priceChanged: boolean // a live price differs from what the cart showed, or rows were dropped
+  orderChanged: boolean // a live price differs from what the cart showed, or rows were dropped
 }
 
 // Resolves an item to its current on-chain-signed trade, or null when there's no live listing.
@@ -77,10 +77,10 @@ export async function reviewCart(
   }
 
   const liveTotalCredits = buyable.reduce((sum, line) => sum + line.priceCredits, 0)
-  const priceChanged =
+  const orderChanged =
     unavailable.length > 0 ||
     own.length > 0 ||
     buyable.some(line => line.priceCredits !== line.item.priceCredits)
 
-  return { buyable, unavailable, own, liveTotalCredits, priceChanged }
+  return { buyable, unavailable, own, liveTotalCredits, orderChanged }
 }
