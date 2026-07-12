@@ -211,7 +211,7 @@ export function MyAssets() {
           <p className="myassets__section-sub">Wearables &amp; emotes you&rsquo;ve bought — resell them in the Shop.</p>
         </div>
 
-        {queryError ? <p className="error">{(queryError as Error).message}</p> : null}
+        {queryError ? <p className="error">Couldn&rsquo;t load your items — please try again.</p> : null}
         {cancelError ? <p className="error">{cancelError}</p> : null}
 
         <div className="asset-grid">

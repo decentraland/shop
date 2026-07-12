@@ -147,7 +147,7 @@ export function Assets() {
           )}
         />
 
-        {error ? <p className="error">{error.message}</p> : null}
+        {error ? <p className="error">Couldn&rsquo;t load items — please try again.</p> : null}
 
         <div className="grid">
           {isLoading ? (
