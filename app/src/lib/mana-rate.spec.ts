@@ -5,6 +5,11 @@ import type { ManaRate } from '~/lib/mana-rate'
 let aggAddr = '0xaggregator'
 let aggDecimals = 8
 let aggAnswer = '50000000' // int256 latestRoundData answer (rate)
+// Round metadata. `aggUpdatedAt = null` → the aggregator reports "now" (fresh); set a number to force
+// a specific epoch-seconds updatedAt (e.g. an old one → stale). roundId/answeredInRound drive completeness.
+let aggUpdatedAt: number | null = null
+let aggRoundId = 1
+let aggAnsweredInRound = 1
 
 vi.mock('decentraland-transactions', () => ({
   ContractName: { OffChainMarketplaceV2: 'OffChainMarketplaceV2' },
@@ -31,8 +36,9 @@ vi.mock('ethers', async importOriginal => {
       return aggDecimals
     }
     async latestRoundData() {
-      // [roundId, answer, startedAt, updatedAt, answeredInRound]; only answer (index 1) is read.
-      return [0, actual.ethers.BigNumber.from(aggAnswer), 0, 0, 0]
+      // [roundId, answer, startedAt, updatedAt, answeredInRound].
+      const updatedAt = aggUpdatedAt ?? Math.floor(Date.now() / 1000)
+      return [aggRoundId, actual.ethers.BigNumber.from(aggAnswer), 0, updatedAt, aggAnsweredInRound]
     }
   }
   class MockJsonRpcProvider {
@@ -61,6 +67,9 @@ describe('when reading the MANA/USD rate off the marketplace oracle', () => {
     aggAddr = '0xaggregator'
     aggDecimals = 8
     aggAnswer = '50000000'
+    aggUpdatedAt = null // fresh by default
+    aggRoundId = 1
+    aggAnsweredInRound = 1
   })
 
   it('should return the aggregator answer and decimals as a ManaRate', async () => {
@@ -87,6 +96,31 @@ describe('when reading the MANA/USD rate off the marketplace oracle', () => {
 
   it('should accept an explicit chainId argument', async () => {
     const result = await readManaUsdRate(137)
+    expect(result).toEqual({ rate: 50000000n, decimals: 8 })
+  })
+
+  it('and the round has not updated within the heartbeat it should throw stale', async () => {
+    // Updated two days ago (> 24h max staleness) → a stuck feed we must not price off.
+    aggUpdatedAt = Math.floor(Date.now() / 1000) - 2 * 86400
+    await expect(readManaUsdRate()).rejects.toThrow(/stale/)
+  })
+
+  it('and updatedAt is zero (never set) it should throw stale', async () => {
+    aggUpdatedAt = 0
+    await expect(readManaUsdRate()).rejects.toThrow(/stale/)
+  })
+
+  it('and the answer was carried over from an earlier round it should throw incomplete', async () => {
+    aggRoundId = 10
+    aggAnsweredInRound = 9 // answeredInRound < roundId → not fresh for this round
+    await expect(readManaUsdRate()).rejects.toThrow(/incomplete/)
+  })
+
+  it('should accept a fresh, complete round', async () => {
+    aggUpdatedAt = Math.floor(Date.now() / 1000) - 60 // a minute ago, well within the heartbeat
+    aggRoundId = 5
+    aggAnsweredInRound = 5
+    const result = await readManaUsdRate()
     expect(result).toEqual({ rate: 50000000n, decimals: 8 })
   })
 })
