@@ -16,8 +16,8 @@ import {
   type CreditPack
 } from '~/lib/payments'
 
-// Live Stripe when a shop-server is configured; otherwise the built-in mock (dev).
-const CREDITS_PROVIDER = config.shopServerUrl ? 'stripe' : 'mock'
+// Live Stripe when the publishable key is configured; otherwise the built-in mock (dev).
+const CREDITS_PROVIDER = config.stripePublishableKey ? 'stripe' : 'mock'
 
 // Lazily loaded so the real Stripe SDK is only pulled in when a live key/backend exists;
 // the mock demo path never downloads it.
