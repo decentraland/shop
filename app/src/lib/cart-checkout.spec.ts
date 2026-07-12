@@ -88,6 +88,27 @@ describe('reviewCart', () => {
     expect(review.priceChanged).toBe(true)
   })
 
+  it('never throws for a malformed trade with an empty received array (classified unavailable)', async () => {
+    const emptyReceived = { signer: '0xseller', received: [] } as unknown as Trade
+    const review = await reviewCart([item('a', 20), item('b', 10)], BUYER, resolverFrom({ a: emptyReceived, b: trade(1) }))
+
+    expect(review.unavailable.map(i => i.id)).toEqual(['a'])
+    expect(review.buyable.map(l => l.item.id)).toEqual(['b'])
+  })
+
+  it('classifies a zero/malformed-price trade as unavailable (never buyable at 0 credits)', async () => {
+    const zero = { signer: '0xseller', received: [{ amount: '0' }] } as unknown as Trade
+    const review = await reviewCart([item('a', 20)], BUYER, resolverFrom({ a: zero }))
+
+    expect(review.buyable).toEqual([])
+    expect(review.unavailable.map(i => i.id)).toEqual(['a'])
+  })
+
+  it('returns an empty, unchanged review for an empty cart', async () => {
+    const review = await reviewCart([], BUYER, resolverFrom({}))
+    expect(review).toEqual({ buyable: [], unavailable: [], own: [], liveTotalCredits: 0, priceChanged: false })
+  })
+
   it('centsToCredits rounds up to whole credits', () => {
     expect(centsToCredits(200)).toBe(20)
     expect(centsToCredits(201)).toBe(21)

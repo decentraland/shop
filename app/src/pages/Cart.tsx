@@ -210,6 +210,10 @@ export function Cart() {
 
   async function confirmPurchase() {
     if (!review) return
+    if (!session) {
+      setError('Sign in to check out.')
+      return
+    }
     setError(null)
     setBusy(true)
     try {

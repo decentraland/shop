@@ -50,22 +50,30 @@ export async function reviewCart(
   const own: CatalogItem[] = []
 
   for (const item of items) {
-    let trade: Trade | null
+    // The whole per-item body is guarded: ANY failure (resolve error, a malformed trade with an empty
+    // `received`, a bad amount) classifies the row as unavailable rather than throwing out of
+    // reviewCart — one bad row must never abort the basket.
     try {
-      trade = await resolve(item)
+      const trade = await resolve(item)
+      if (!trade) {
+        unavailable.push(item)
+        continue
+      }
+      if (isOwnTrade(trade, buyerAddress)) {
+        own.push(item)
+        continue
+      }
+      const usdCents = usdWeiToCents((trade.received[0] as { amount?: string } | undefined)?.amount)
+      // A zero/NaN price (empty received, missing/bad amount) is not a real live listing — never let it
+      // enter the basket priced at 0, which would authorize a $0 credit and revert on-chain.
+      if (!Number.isFinite(usdCents) || usdCents <= 0) {
+        unavailable.push(item)
+        continue
+      }
+      buyable.push({ item, trade, usdCents, priceCredits: centsToCredits(usdCents) })
     } catch {
-      trade = null
-    }
-    if (!trade) {
       unavailable.push(item)
-      continue
     }
-    if (isOwnTrade(trade, buyerAddress)) {
-      own.push(item)
-      continue
-    }
-    const usdCents = usdWeiToCents((trade.received[0] as { amount?: string }).amount)
-    buyable.push({ item, trade, usdCents, priceCredits: centsToCredits(usdCents) })
   }
 
   const liveTotalCredits = buyable.reduce((sum, line) => sum + line.priceCredits, 0)
