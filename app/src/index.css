@@ -316,13 +316,23 @@ h1, h2 { margin: 0; }
 .chip--rarity { background: var(--rarity-bg); color: var(--rarity); text-transform: uppercase; letter-spacing: .02em; }
 .chip--icon { padding: 3px 6px; font-size: 13px; }
 .chip--icon .ico { width: 14px; height: 14px; color: #444; }
-/* Add-to-cart (Figma node 790-63037: secondary dark button). Lives in the body below the image,
-   shown on hover in place of the price/chips row — never over the image. */
+/* Add-to-cart / Buy now (Figma node 790-63037: secondary dark button). Lives in the body below the
+   image, never over it. On hover-capable devices it's hidden at rest (the price/chips row shows) and
+   revealed on hover OR keyboard focus, swapping out the price row; where hover isn't available (touch)
+   it's always shown so the item stays buyable without a mouse. Always in the DOM (keyboard-reachable). */
 .card__cart {
-  margin-top: 4px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;
+  margin-top: 4px; width: 100%; display: none; align-items: center; justify-content: center; gap: 8px;
   background: var(--black-btn); color: var(--soft-white); border: 0; border-radius: var(--radius-btn); height: 40px;
   font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: .046em;
   transition: background .15s ease;
+}
+.card:hover .card__cart,
+.card__body:focus-within .card__cart { display: flex; }
+.card:hover .card__meta,
+.card__body:focus-within .card__meta { display: none; }
+@media (hover: none) {
+  /* Touch: no hover to reveal on, so keep the action visible (alongside the price row). */
+  .card__cart { display: flex; }
 }
 .card__cart:hover:not(:disabled) { background: #43404a; }
 .card__cart.is-in, .card__cart:disabled { background: #43404a; opacity: 1; cursor: default; }
