@@ -8,7 +8,7 @@ import { useBalance } from '~/hooks/useBalance'
 import { authorizeUsdCredit, cancelUsdIntents, devMintUsd } from '~/lib/credits'
 import { fetchTradeForItem, fetchTrade, fetchListings, usdWeiToCents } from '~/lib/api'
 import { buyManyWithCredits, type CreditPurchase } from '~/lib/buy'
-import { buyManyGasless, waitForSettlement, GaslessUnavailableError } from '~/lib/buy-gasless'
+import { buyManyGasless, waitForSettlement, GaslessUnavailableError, SettlementPendingError } from '~/lib/buy-gasless'
 import { gaslessEnabled } from '~/lib/gasless-config'
 import { CURRENCY } from '~/lib/currency'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
@@ -106,7 +106,16 @@ export function Cart() {
       if (gaslessEnabled()) {
         try {
           hashes = await buyManyGasless({ purchases, buyer: session.address, signer: session.signer })
-          await Promise.all(hashes.map(h => waitForSettlement(h)))
+          // Once buyManyGasless returns, every group's meta-tx is BROADCAST. A group that's only
+          // pending (unconfirmed within the window) may still land, so we must NOT release the
+          // reservations — the credits-server reconciles those against the indexed CreditUsed event.
+          // Release (rethrow) ONLY when every failure is a hard revert and none is still pending;
+          // otherwise fall through to the optimistic success path.
+          const settled = await Promise.allSettled(hashes.map(h => waitForSettlement(h)))
+          const failures = settled.flatMap(r => (r.status === 'rejected' ? [r.reason] : []))
+          if (failures.length && !failures.some(r => r instanceof SettlementPendingError)) {
+            throw failures[0]
+          }
           usedGasless = true
         } catch (gaslessErr) {
           if (!(gaslessErr instanceof GaslessUnavailableError)) throw gaslessErr

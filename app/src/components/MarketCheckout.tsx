@@ -11,7 +11,7 @@ import { CURRENCY, formatAmount } from '~/lib/currency'
 import { track, errorCode, isUserRejection } from '~/lib/analytics'
 import { authorizeUsdCredit, cancelUsdIntents } from '~/lib/credits'
 import { buyWithCredits } from '~/lib/buy'
-import { buyGasless, waitForSettlement, GaslessUnavailableError } from '~/lib/buy-gasless'
+import { buyGasless, waitForSettlement, GaslessUnavailableError, SettlementPendingError } from '~/lib/buy-gasless'
 import { gaslessEnabled } from '~/lib/gasless-config'
 import { isOwnTrade } from '~/lib/ownership'
 
@@ -182,8 +182,14 @@ export function MarketCheckout({
           await waitForSettlement(txHash)
           usedGasless = true
         } catch (gaslessErr) {
-          if (!(gaslessErr instanceof GaslessUnavailableError)) throw gaslessErr
-          txHash = await buyWithCredits(buyArgs) // fallback: buyer submits + pays gas
+          if (gaslessErr instanceof SettlementPendingError) {
+            // Broadcast but not yet confirmed — keep the reservation; the reconciler settles it.
+            usedGasless = true
+          } else if (gaslessErr instanceof GaslessUnavailableError) {
+            txHash = await buyWithCredits(buyArgs) // fallback: buyer submits + pays gas
+          } else {
+            throw gaslessErr
+          }
         }
       } else {
         txHash = await buyWithCredits(buyArgs)

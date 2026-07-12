@@ -72,6 +72,7 @@ vi.mock('ethers', async importOriginal => {
 // eslint-disable-next-line import/first
 import {
   GaslessUnavailableError,
+  SettlementPendingError,
   buyGasless,
   buyManyGasless,
   waitForSettlement
@@ -366,14 +367,35 @@ describe('when waiting for settlement of a relayed tx', () => {
     expect(waitForTransactionMock).toHaveBeenCalledWith('0xhash', 1, 5_000)
   })
 
-  it('throws when the receipt reports a failed status', async () => {
+  it('throws a plain Error (safe to release) when the receipt reports a reverted status', async () => {
     waitForTransactionMock.mockResolvedValueOnce({ status: 0 })
-    await expect(waitForSettlement('0xhash')).rejects.toThrow('Purchase did not confirm')
+    const err = await waitForSettlement('0xhash').catch(e => e)
+    expect(err).toBeInstanceOf(Error)
+    expect(err).not.toBeInstanceOf(SettlementPendingError)
+    expect(err.message).toMatch(/reverted/)
   })
 
-  it('throws when no receipt is returned', async () => {
+  it('throws SettlementPendingError (do NOT release) when no receipt lands within the window', async () => {
     waitForTransactionMock.mockResolvedValueOnce(null)
-    await expect(waitForSettlement('0xhash')).rejects.toThrow('Purchase did not confirm')
+    const err = await waitForSettlement('0xhash').catch(e => e)
+    expect(err).toBeInstanceOf(SettlementPendingError)
+    expect(err.txHash).toBe('0xhash')
+  })
+
+  it('throws SettlementPendingError when waitForTransaction rejects on timeout (tx still in flight)', async () => {
+    waitForTransactionMock.mockRejectedValueOnce(new Error('timeout exceeded'))
+    const err = await waitForSettlement('0xhash').catch(e => e)
+    expect(err).toBeInstanceOf(SettlementPendingError)
+    expect(err.txHash).toBe('0xhash')
+  })
+})
+
+describe('SettlementPendingError', () => {
+  it('carries the broadcast txHash and is distinct from a hard failure', () => {
+    const err = new SettlementPendingError('0xabc')
+    expect(err.txHash).toBe('0xabc')
+    expect(err.name).toBe('SettlementPendingError')
+    expect(err).toBeInstanceOf(Error)
   })
 })
 
