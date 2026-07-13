@@ -26,6 +26,10 @@
     "items": "Items",
     "byCreator": "By {name}"
   },
+  "collection": {
+    "breadcrumb": "Collectibles",
+    "fallbackTitle": "Collection"
+  },
   "notFound": {
     "title": "Page not found",
     "body": "The page you’re looking for isn’t here. Let’s get you back to the shop.",

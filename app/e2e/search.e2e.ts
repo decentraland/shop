@@ -99,6 +99,25 @@ describe('search bar', () => {
     await waitForText(page, 'Galaxy Hat')
   })
 
+  it('keeps the suggestions dropdown wide and on-screen on a mobile viewport', async () => {
+    app = await launchApp({ path: '/overview' })
+    const { page } = app
+    await page.setViewport({ width: 375, height: 720 })
+
+    await page.waitForSelector(SEARCH)
+    await page.type(SEARCH, 'Nebula')
+    await page.waitForSelector('.search-pop')
+
+    // The search field flex-shrinks on mobile; the panel must break out of it (near full-width) and
+    // must not spill past the right edge of the viewport (no horizontal clipping).
+    const { width, right } = await page.evaluate(() => {
+      const r = document.querySelector('.search-pop')!.getBoundingClientRect()
+      return { width: r.width, right: r.right }
+    })
+    expect(width).toBeGreaterThan(300)
+    expect(right).toBeLessThanOrEqual(375)
+  })
+
   it('reflects the URL query in the input on a deep link', async () => {
     // Landing directly on a filtered URL must pre-fill the search box (previously it stayed blank).
     app = await launchApp({ path: '/assets?q=Nebula' })

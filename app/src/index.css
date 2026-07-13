@@ -636,6 +636,15 @@ h1, h2 { margin: 0; }
      as one, rather than each list scrolling independently. */
   max-height: min(70vh, 560px); overflow-y: auto;
 }
+/* On mobile the search field flex-shrinks, so a panel anchored to its box (left/right: 0) would
+   render very narrow. Keep it absolute (vertical anchor under the input stays), but pin the right
+   edge to the input and grow the width leftward to span the viewport minus small side gutters. */
+@media (max-width: 768px) {
+  .search-pop {
+    left: auto; right: 0; width: calc(100vw - 24px);
+    max-height: min(70vh, 480px);
+  }
+}
 .search-pop__section-head { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px 4px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
 .search-pop__clear { background: none; border: 0; color: var(--accent); font-weight: 600; font-size: 12px; cursor: pointer; }
 .search-pop__list { list-style: none; margin: 0; padding: 0; }

@@ -26,6 +26,10 @@
     "items": "Artículos",
     "byCreator": "Por {name}"
   },
+  "collection": {
+    "breadcrumb": "Coleccionables",
+    "fallbackTitle": "Colección"
+  },
   "notFound": {
     "title": "Página no encontrada",
     "body": "La página que buscás no está acá. Volvamos a la tienda.",

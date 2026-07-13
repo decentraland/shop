@@ -1,7 +1,7 @@
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { fetchCollectionItems } from '~/lib/collections'
-import { fetchCollection } from '~/lib/search'
+import { t } from '~/intl/i18n'
+import { fetchCollection, fetchCollectionItems } from '~/lib/collections'
 import { AssetCard } from '~/components/AssetCard'
 import { CreatorBadge } from '~/components/CreatorBadge'
 import { AddAllToCart } from '~/components/AddAllToCart'
@@ -33,7 +33,7 @@ export function Collection() {
     staleTime: 5 * 60_000,
   })
 
-  const title = collection?.name || 'Collection'
+  const title = collection?.name || t('collection.fallbackTitle')
   // Prefer the collection's own creator; fall back to an item's creator until the metadata loads.
   const creator = collection?.creator || items[0]?.creator
 
@@ -41,7 +41,7 @@ export function Collection() {
     <div className="collection-page">
       <nav className="collection-page__crumbs" aria-label="Breadcrumb">
         <button className="collection-page__crumb-link" onClick={() => navigate('/assets')}>
-          Collectibles
+          {t('collection.breadcrumb')}
         </button>
         <span className="collection-page__crumb-sep">/</span>
         <span className="collection-page__crumb-current">{title}</span>

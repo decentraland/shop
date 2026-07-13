@@ -1,4 +1,5 @@
 import { config } from '~/config'
+import { fetchProfile } from '~/lib/profile'
 
 // ---------------------------------------------------------------------------
 // Multi-entity search for the search-bar suggestions dropdown.
@@ -47,21 +48,8 @@ export async function fetchCollectionSuggestions(search: string, first = 4): Pro
     .map(c => ({ contractAddress: c.contractAddress, name: c.name, creator: c.creator ?? '' }))
 }
 
-// A single collection's metadata (name + creator) by contract address. Item records don't carry the
-// collection name — it lives only on the collections entity — so the Collection page resolves it
-// here (mirrors the marketplace's collectionAPI.fetchOne). Null if the collection isn't found.
-export async function fetchCollection(contractAddress: string): Promise<CollectionHit | null> {
-  const qs = new URLSearchParams({ contractAddress, first: '1' })
-  const res = await fetch(`${config.nftApiUrl}/v1/collections?${qs.toString()}`)
-  if (!res.ok) throw new Error(`fetchCollection ${res.status}`)
-  const { data } = (await res.json()) as { data?: RawCollection[] }
-  const c = data?.[0]
-  return c && c.contractAddress ? { contractAddress: c.contractAddress, name: c.name ?? '', creator: c.creator ?? '' } : null
-}
-
 type EnsNft = { nft?: { name?: string; owner?: string } }
 type Account = { address: string; collections?: number }
-type ProfileAvatar = { name?: string; avatar?: { snapshots?: { face256?: string } } }
 
 // The DCL names that match the query → their owner addresses, paired with the matched name (used as
 // the creator's display name). First name wins per owner (names come back best-match first).
@@ -93,13 +81,6 @@ async function fetchSellerCounts(addresses: string[]): Promise<Map<string, numbe
     if ((a.collections ?? 0) > 0) counts.set(a.address.toLowerCase(), a.collections ?? 0)
   }
   return counts
-}
-
-async function fetchProfile(address: string): Promise<ProfileAvatar | undefined> {
-  const res = await fetch(`${config.peerUrl}/lambdas/profiles/${address.toLowerCase()}`)
-  if (!res.ok) return undefined
-  const profile = (await res.json()) as { avatars?: ProfileAvatar[] }
-  return profile?.avatars?.[0]
 }
 
 // Creators matching the query by DCL name: name-search → owners → seller gate → profile resolve.
