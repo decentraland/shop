@@ -1,15 +1,20 @@
 import { useCart, type AddToCartSource } from '~/store/cart'
+import { useWallet } from '~/store/wallet'
+import { isOwnListing } from '~/lib/ownership'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { toast } from '~/store/toast'
 import type { CatalogItem } from '~/lib/api'
 
 // "Buy the set" bar for collection/creator pages: the total of the listed items + one-tap
-// "add all to cart" (basket-building → lifts AOV). Only counts buyable (listed) items and skips
-// any already in the cart. Checkout resolves each item's trade the same as a single add.
+// "add all to cart" (basket-building → lifts AOV). Only counts buyable (listed) items, skips any
+// already in the cart, and — like the single cards — excludes YOUR OWN listings (you can't buy them;
+// they'd otherwise poison the whole-cart checkout). Checkout resolves each item's trade the same as a
+// single add.
 export function AddAllToCart({ items, source }: { items: CatalogItem[]; source: AddToCartSource }) {
   const add = useCart(s => s.add)
   const cartIds = useCart(s => s.items.map(i => i.id))
-  const buyable = items.filter(i => i.priceCredits > 0)
+  const address = useWallet(s => s.session?.address)
+  const buyable = items.filter(i => i.priceCredits > 0 && !isOwnListing(i, address))
   if (buyable.length === 0) return null
 
   const inCart = new Set(cartIds)
