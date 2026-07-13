@@ -44,7 +44,7 @@ export function Collection() {
 
       {!isLoading && items.length > 0 ? <AddAllToCart items={items} source="collection" /> : null}
 
-      {error ? <p className="error">{error.message}</p> : null}
+      {error ? <p className="error">Couldn&rsquo;t load this collection — please try again.</p> : null}
 
       <div className="grid">
         {isLoading ? (

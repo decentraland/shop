@@ -41,7 +41,7 @@ export function Overview() {
       {isLoading || items.length > 0 ? (
         <>
           <Row title="Featured" items={items.slice(0, 12)} loading={isLoading} />
-          {items.length > 6 ? <Row title="New Creations" items={items.slice(6, 18)} loading={false} /> : null}
+          {items.length > 12 ? <Row title="New Creations" items={items.slice(12, 24)} loading={false} /> : null}
         </>
       ) : (
         <div className="overview__empty">

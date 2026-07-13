@@ -175,7 +175,7 @@ export function Market() {
         )}
       />
 
-      {error ? <p className="error">{error.message}</p> : null}
+      {error ? <p className="error">Couldn&rsquo;t load the market — please try again.</p> : null}
 
       <div className="grid">
         {isLoading ? (

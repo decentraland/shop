@@ -43,7 +43,7 @@ export function Creator() {
 
       {!isLoading && items.length > 0 ? <AddAllToCart items={items} source="creator" /> : null}
 
-      {error ? <p className="error">{error.message}</p> : null}
+      {error ? <p className="error">Couldn&rsquo;t load this creator — please try again.</p> : null}
 
       <div className="grid">
         {isLoading ? (
