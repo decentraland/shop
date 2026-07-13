@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { PreviewEmote, PreviewType } from '@dcl/schemas'
 import { WearablePreview } from '~/components/LazyWearablePreview'
 import { config } from '~/config'
@@ -53,7 +53,6 @@ export function AssetCard(props: AssetCardProps) {
   const own = isOwnListing(item, address)
   const toggleFav = useFavorites(s => s.toggle)
   const faved = useFavorites(s => !!s.items[item.id])
-  const navigate = useNavigate()
 
   const canPreview = !!item.contractAddress && !!item.itemId
   // Secondary listings carry tokenId; catalog items carry itemId — use whichever is present so the
@@ -62,11 +61,7 @@ export function AssetCard(props: AssetCardProps) {
   // Market (legacy) cards don't open the item-detail page — those listings aren't in the USD-pegged
   // shop feed the detail page reads, so Buy now is the only action. Keeps the tab self-contained.
   const canOpen = !isMarket && !!item.contractAddress && !!routeSeg
-
-  function openDetail() {
-    if (!canOpen) return
-    navigate(`/item/${item.contractAddress}/${routeSeg}`, { state: { item, tradeId: item.tradeId } })
-  }
+  const detailPath = `/item/${item.contractAddress}/${routeSeg}`
 
   function onEnter() {
     if (timer.current) clearTimeout(timer.current)
@@ -103,11 +98,14 @@ export function AssetCard(props: AssetCardProps) {
       style={canOpen ? { cursor: 'pointer' } : undefined}
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}
-      onClick={openDetail}
-      role={canOpen ? 'link' : undefined}
-      tabIndex={canOpen ? 0 : undefined}
-      onKeyDown={canOpen ? e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDetail() } } : undefined}
     >
+      {/* Whole-card navigation as a SINGLE overlaid link (keyboard + screen-reader reachable), instead
+          of an interactive <article role="link"> that wraps the fav/cart/creator buttons — nesting
+          interactive controls inside a link is invalid and breaks SR/tab order. The overlay sits below
+          those controls via z-index (see .card__link in index.css) so they stay independently operable. */}
+      {canOpen ? (
+        <Link className="card__link" to={detailPath} state={{ item, tradeId: item.tradeId }} aria-label={item.name} />
+      ) : null}
       <div className="card__media">
         {onSale ? (
           <span className="card__sale-badge">

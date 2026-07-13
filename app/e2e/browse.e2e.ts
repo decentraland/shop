@@ -17,6 +17,21 @@ describe('browse the shop', () => {
     expect(await page.evaluate(() => document.body.innerText.includes('270'))).toBe(true) // credits price
   })
 
+  it('opens the item detail by clicking a card (whole-card overlay link)', async () => {
+    app = await launchApp({ path: '/assets' })
+    const { page } = app
+    await waitForText(page, 'Galaxy Hat')
+
+    // Clicking the favourite button must NOT navigate (nested control stays independent of the link).
+    await page.click('.card .card__fav')
+    expect(await page.evaluate(() => window.location.pathname)).toBe('/assets')
+
+    // Clicking the card's overlay link navigates to that item's detail page.
+    await page.click('.card .card__link')
+    await page.waitForFunction(() => window.location.pathname.startsWith('/item/'), { timeout: 20000 })
+    expect(await page.evaluate(() => window.location.pathname.startsWith('/item/'))).toBe(true)
+  })
+
   it('filters by rarity (server-side)', async () => {
     app = await launchApp({ path: '/assets' })
     const { page } = app
