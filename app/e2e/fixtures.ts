@@ -210,6 +210,73 @@ export const legacyListings = {
   total: 2
 }
 
+// --- Unified catalog (v3/catalog/unified → the ONE browse grid): native + legacy in one feed ---
+// Native rows (source 'native', manaWei null) render Add to cart at their fixed priceCredits; legacy
+// rows (source 'legacy' + manaWei) render an "≈" live-rate price + Buy Now. Reuses the shop natives
+// (Galaxy Hat / Nebula Jacket) and adds legacy liquidity (Retro Cap) so both card types are present.
+export const unifiedListings = {
+  data: [
+    {
+      tradeId: 'trade-1',
+      listingType: 'primary',
+      contractAddress: COLLECTION,
+      itemId: '0',
+      tokenId: null,
+      name: 'Galaxy Hat',
+      thumbnail: '',
+      rarity: 'epic',
+      category: 'wearable',
+      wearableCategory: 'hat',
+      creator: CREATOR_ADDRESS,
+      priceCredits: 270,
+      available: 100,
+      network: 'MATIC',
+      chainId: 80002,
+      source: 'native',
+      manaWei: null
+    },
+    {
+      tradeId: 'trade-2',
+      listingType: 'secondary',
+      contractAddress: COLLECTION,
+      itemId: '1',
+      tokenId: '7',
+      name: 'Nebula Jacket',
+      thumbnail: '',
+      rarity: 'legendary',
+      category: 'wearable',
+      wearableCategory: 'upper_body',
+      creator: CREATOR_ADDRESS,
+      priceCredits: 135,
+      available: 1,
+      network: 'MATIC',
+      chainId: 80002,
+      source: 'native',
+      manaWei: null
+    },
+    {
+      tradeId: 'legacy-trade-1',
+      listingType: 'primary',
+      contractAddress: COLLECTION,
+      itemId: '0',
+      tokenId: null,
+      name: 'Retro Cap',
+      thumbnail: '',
+      rarity: 'epic',
+      category: 'wearable',
+      wearableCategory: 'hat',
+      creator: CREATOR_ADDRESS,
+      priceCredits: 100, // server snapshot; the UI DISPLAYS the live-rate value instead
+      available: 100,
+      network: 'MATIC',
+      chainId: 80002,
+      source: 'legacy',
+      manaWei: MANA_WEI_PER // 100 MANA → ~$27 → ~100 credits at the mock rate
+    }
+  ],
+  total: 3
+}
+
 // --- Credits balance (credits-server /users/:addr/credits) ---
 export const creditsResponse = {
   credits: [],

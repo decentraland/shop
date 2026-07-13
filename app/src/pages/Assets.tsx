@@ -1,11 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { fetchListings } from '~/lib/api'
+import { useQueryClient } from '@tanstack/react-query'
+import { fetchUnified, type CatalogItem, type LegacyListing, type UnifiedListing } from '~/lib/api'
+import { manaWeiToCredits } from '~/lib/mana-rate'
+import { useManaRate } from '~/hooks/useManaRate'
 import { AssetCard } from '~/components/AssetCard'
 import { CategoryFilter } from '~/components/CategoryFilter'
 import { FilterBar, FilterPanel, SORTS } from '~/components/FilterBar'
 import { SkeletonCards } from '~/components/SkeletonCards'
 import { LoadMore } from '~/components/LoadMore'
+import { MarketCheckout } from '~/components/MarketCheckout'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
 import { CURRENCY } from '~/lib/currency'
 import { track } from '~/lib/analytics'
@@ -15,7 +19,7 @@ const PAGE_SIZE = 48
 
 // Sidebar sub-labels → the on-chain categories they cover. Wearable sub-labels map to wearable
 // categories; emote sub-labels map to emote categories. Both go out on the same `wearableCategory`
-// query param — the server filters on a coalesced wearable/emote category column (see /v3/catalog/shop).
+// query param — the server filters on a coalesced wearable/emote category column (see /v3/catalog/unified).
 const SUBCAT_MAP: Record<string, string[]> = {
   Head: ['head', 'hat', 'hair', 'facial_hair', 'eyes', 'eyebrows', 'mouth', 'mask', 'helmet', 'tiara', 'top_head'],
   'Upper Body': ['upper_body'],
@@ -34,9 +38,33 @@ const SUBCAT_MAP: Record<string, string[]> = {
   Miscellaneous: ['miscellaneous']
 }
 
+// A legacy row from the unified feed → the LegacyListing shape MarketCheckout (Buy Now) expects. The
+// unified item is a superset of CatalogItem carrying `manaWei` (present for legacy), so the projection
+// is light — `available`/`createdAt` aren't used by the checkout money flow.
+function toLegacyListing(item: UnifiedListing): LegacyListing {
+  return {
+    tradeId: item.tradeId ?? item.id,
+    listingType: 'primary',
+    contractAddress: item.contractAddress,
+    itemId: item.itemId ?? '',
+    name: item.name,
+    thumbnail: item.thumbnail,
+    rarity: item.rarity,
+    category: item.category,
+    wearableCategory: item.wearableCategory ?? null,
+    creator: item.creator,
+    manaWei: item.manaWei ?? '0',
+    available: 1,
+    network: item.network,
+    chainId: item.chainId,
+    createdAt: 0
+  }
+}
+
 export function Assets() {
   const [searchParams] = useSearchParams()
   const q = (searchParams.get('q') ?? '').trim().toLowerCase()
+  const qc = useQueryClient()
 
   const [category, setCategory] = useState('wearable')
   const [subCategory, setSubCategory] = useState<string | null>(null)
@@ -44,8 +72,9 @@ export function Assets() {
   const [priceMin, setPriceMin] = useState('')
   const [priceMax, setPriceMax] = useState('')
   const [sort, setSort] = useState('newest')
+  const [checkout, setCheckout] = useState<LegacyListing | null>(null)
 
-  // Build the server filter set — /v3/catalog/shop does the filtering + sort + search.
+  // Build the server filter set — /v3/catalog/unified does the filtering + sort + search.
   const min = priceMin && !Number.isNaN(Number(priceMin)) ? Number(priceMin) : undefined
   const max = priceMax && !Number.isNaN(Number(priceMax)) ? Number(priceMax) : undefined
   const wearableCategories = subCategory ? SUBCAT_MAP[subCategory] : undefined
@@ -61,10 +90,17 @@ export function Assets() {
   }
 
   const { items, total, isLoading, error, hasNextPage, isFetchingNextPage, fetchNextPage } = useInfiniteGrid(
-    ['listings', filters],
-    skip => fetchListings({ ...filters, first: PAGE_SIZE, skip })
+    ['unified-listings', filters],
+    skip => fetchUnified({ ...filters, first: PAGE_SIZE, skip })
   )
   const resultCount = total
+
+  // The live market rate powers the legacy cards' fluctuating "≈" credit prices. If the oracle is
+  // stale/down we still list the items but disable Buy Now with a notice (rather than pricing off a
+  // bad rate) — native (fixed-price) cards are unaffected. Mirrors the old Market tab.
+  const { data: rate, isError: rateError } = useManaRate()
+  const priceOf = (item: UnifiedListing): number | null =>
+    rate && item.manaWei ? manaWeiToCredits(item.manaWei, rate) : null
 
   // Funnel: fire 'Shop Searched'/'Shop Applied Filter' once per change, AFTER results resolve so
   // result_count is accurate (see design/SHOP_TRACKING_SPEC.md §5.2). Refs dedupe + skip the initial load.
@@ -111,6 +147,13 @@ export function Assets() {
     setPriceMin('')
     setPriceMax('')
   }
+  function openCheckout(card: CatalogItem) {
+    const item = items.find(i => i.id === card.id)
+    if (item && item.source === 'legacy' && item.manaWei) setCheckout(toLegacyListing(item))
+  }
+  function refreshGrid() {
+    void qc.invalidateQueries({ queryKey: ['unified-listings'] })
+  }
 
   const priceActive = !!(min || max)
   const priceLabel = priceActive ? `${priceMin || '0'}–${priceMax || '∞'}` : 'Price'
@@ -147,6 +190,15 @@ export function Assets() {
           )}
         />
 
+        {/* Legacy (market-priced) cards follow the live rate; if the oracle is down, Buy Now is paused.
+            Only warn when the current results actually contain a market-priced item, so users browsing
+            only fixed-price items aren't shown an irrelevant notice. */}
+        {rateError && items.some(i => i.source === 'legacy') ? (
+          <p className="market-banner market-banner--warn">
+            Some market prices are temporarily unavailable — buying those items is paused for a moment. Please try again shortly.
+          </p>
+        ) : null}
+
         {error ? <p className="error">Couldn&rsquo;t load items — please try again.</p> : null}
 
         <div className="grid">
@@ -154,7 +206,19 @@ export function Assets() {
             <SkeletonCards count={15} />
           ) : (
             <>
-              {items.map(item => <AssetCard key={item.id} item={item} />)}
+              {items.map(item =>
+                item.source === 'legacy' ? (
+                  <AssetCard
+                    key={item.id}
+                    item={item}
+                    mode="market"
+                    marketPriceCredits={priceOf(item)}
+                    onBuyNow={openCheckout}
+                  />
+                ) : (
+                  <AssetCard key={item.id} item={item} />
+                )
+              )}
               {isFetchingNextPage ? <SkeletonCards count={6} /> : null}
             </>
           )}
@@ -166,6 +230,15 @@ export function Assets() {
           <p className="muted">No items match your filters.</p>
         ) : null}
       </div>
+
+      {checkout && rate ? (
+        <MarketCheckout
+          listing={checkout}
+          rate={rate}
+          onClose={() => setCheckout(null)}
+          onSold={() => { setCheckout(null); refreshGrid() }}
+        />
+      ) : null}
     </div>
   )
 }

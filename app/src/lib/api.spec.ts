@@ -32,7 +32,7 @@ import {
   fetchCollectionSaleState,
   fetchShopListingForItem,
   fetchListings,
-  fetchLegacyListings,
+  fetchUnified,
   fetchMyAssets,
   fetchTrade,
   fetchTradeDisplay,
@@ -387,66 +387,112 @@ describe('when fetching the shop browse listings', () => {
   })
 })
 
-describe('when fetching the legacy MANA-priced listings', () => {
-  it('should map raw legacy rows and default the missing fields', async () => {
-    fetchMock.mockResolvedValueOnce(
-      jsonOk({
-        total: 1,
-        data: [{ tradeId: 'lt', contractAddress: '0xleg', manaWei: '2000000000000000000' }]
-      })
-    )
-    const { items, total } = await fetchLegacyListings()
-    expect(total).toBe(1)
-    expect(items[0]).toEqual({
-      tradeId: 'lt',
-      listingType: 'primary',
-      contractAddress: '0xleg',
-      itemId: '',
-      name: '',
-      thumbnail: '',
-      rarity: 'common',
-      category: 'wearable',
-      wearableCategory: null,
-      creator: '',
-      manaWei: '2000000000000000000',
-      available: 0,
-      network: 'MATIC',
-      chainId: 80002, // from mocked config.chainId
-      createdAt: 0
+describe('when fetching the unified browse listings', () => {
+  // A native row (USD-pegged, credit-buyable) + a legacy row (MANA-priced) in one response.
+  const nativeRow = {
+    tradeId: 'u-native',
+    listingType: 'primary',
+    contractAddress: '0x1',
+    itemId: '1',
+    tokenId: null,
+    name: 'Native Hat',
+    thumbnail: '',
+    rarity: 'epic',
+    category: 'wearable',
+    wearableCategory: 'hat',
+    creator: '0xa',
+    priceCredits: 270,
+    available: 100,
+    network: 'MATIC',
+    chainId: 80002,
+    source: 'native',
+    manaWei: null
+  }
+  const legacyRow = {
+    tradeId: 'u-legacy',
+    listingType: 'primary',
+    contractAddress: '0x2',
+    itemId: '2',
+    tokenId: null,
+    name: 'Legacy Cap',
+    thumbnail: '',
+    rarity: 'legendary',
+    category: 'wearable',
+    wearableCategory: 'hat',
+    creator: '0xb',
+    priceCredits: 100,
+    available: 1,
+    network: 'MATIC',
+    chainId: 80002,
+    source: 'legacy',
+    manaWei: '100000000000000000000'
+  }
+
+  it('should hit the v3 unified endpoint and map native + legacy rows carrying source and manaWei', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ total: 2, data: [nativeRow, legacyRow] }))
+    const { items, total } = await fetchUnified()
+    expect(total).toBe(2)
+    expect(lastUrl()).toContain('https://market.test/v3/catalog/unified?')
+
+    // Native row → source 'native', no manaWei, fixed credit price, carries the tradeId.
+    expect(items[0]).toMatchObject({
+      id: 'u-native',
+      tradeId: 'u-native',
+      name: 'Native Hat',
+      source: 'native',
+      manaWei: null,
+      priceCredits: 270
+    })
+
+    // Legacy row → source 'legacy' + the raw manaWei (the UI converts it live).
+    expect(items[1]).toMatchObject({
+      id: 'u-legacy',
+      tradeId: 'u-legacy',
+      name: 'Legacy Cap',
+      source: 'legacy',
+      manaWei: '100000000000000000000'
     })
   })
 
-  it('should hit the v3 legacy endpoint with category, rarity, search and sort filters', async () => {
+  it('should serialise every supported filter into the query string', async () => {
     fetchMock.mockResolvedValueOnce(jsonOk({ total: 0, data: [] }))
-    await fetchLegacyListings({
-      category: 'emote',
-      skip: 5,
-      rarities: ['mythic'],
-      wearableCategories: ['eyes'],
-      search: 'wave',
-      sortBy: 'name'
+    await fetchUnified({
+      category: 'wearable',
+      first: 12,
+      skip: 24,
+      rarities: ['epic', 'legendary'],
+      wearableCategories: ['hat', 'hair'],
+      minPriceCredits: 1,
+      maxPriceCredits: 100,
+      search: 'dragon',
+      sortBy: 'cheapest'
     })
     const url = lastUrl()
-    expect(url).toContain('https://market.test/v3/catalog/legacy?')
-    expect(url).toContain('category=emote')
-    expect(url).toContain('skip=5')
-    expect(url).toContain('rarity=mythic')
-    expect(url).toContain('wearableCategory=eyes')
-    expect(url).toContain('search=wave')
-    expect(url).toContain('sortBy=name')
+    expect(url).toContain('category=wearable')
+    expect(url).toContain('first=12')
+    expect(url).toContain('skip=24')
+    expect(url).toContain('rarity=epic%2Clegendary')
+    expect(url).toContain('wearableCategory=hat%2Chair')
+    expect(url).toContain('minPriceCredits=1')
+    expect(url).toContain('maxPriceCredits=100')
+    expect(url).toContain('search=dragon')
+    expect(url).toContain('sortBy=cheapest')
   })
 
-  it('should fall back total to data.length when omitted', async () => {
+  it('should default first to 100 and normalise a missing manaWei to null', async () => {
     fetchMock.mockResolvedValueOnce(
-      jsonOk({ data: [{ tradeId: 'x', contractAddress: '0x', manaWei: '1' }] })
+      jsonOk({ data: [{ ...legacyRow, manaWei: undefined, source: 'native' }] })
     )
-    const { total } = await fetchLegacyListings()
+    const { items, total } = await fetchUnified()
+    expect(lastUrl()).toContain('first=100')
+    expect(items[0].manaWei).toBeNull()
+    // total falls back to data.length when omitted.
     expect(total).toBe(1)
   })
 
-  it('should throw when the legacy request fails', async () => {
+  it('should throw when the unified request fails', async () => {
     fetchMock.mockResolvedValueOnce(httpError(502))
-    await expect(fetchLegacyListings()).rejects.toThrow('fetchLegacyListings 502')
+    await expect(fetchUnified()).rejects.toThrow('fetchUnified 502')
   })
 })
 

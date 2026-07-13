@@ -9,29 +9,25 @@ afterEach(async () => {
   app = undefined
 })
 
-describe('market tab (legacy, fluctuating-price liquidity)', () => {
-  it('lists legacy items with an ≈ market price', async () => {
+describe('legacy (fluctuating-price) liquidity in the unified browse', () => {
+  it('keeps /market as an alias that lands on the unified browse grid', async () => {
     app = await launchApp({ path: '/market' })
     const { page } = app
 
+    // /market redirects to the unified browse (old links must not 404).
+    await page.waitForFunction(() => window.location.pathname === '/assets', { timeout: 20000 })
+    expect(await page.evaluate(() => window.location.pathname)).toBe('/assets')
     await waitForText(page, 'Retro Cap')
-    await waitForText(page, 'Vintage Jacket')
-    // Header banner: web2-friendly, follows the live market.
-    await waitForText(page, 'follow the live market')
-    // Fluctuating price is shown as INDICATIVE (leading ≈) with a "Market price" chip.
-    expect(await page.evaluate(() => document.body.innerText.includes('≈'))).toBe(true)
-    await waitForText(page, 'Market price')
   })
 
   it('buys a legacy item via Buy now → success (not the cart)', async () => {
     // fetchTrade('legacy-trade-1') → legacyTrade; authorize + useCredits are mocked (see helpers).
-    app = await launchApp({ path: '/market', fixtures: { trade: legacyTrade } })
+    app = await launchApp({ path: '/assets', fixtures: { trade: legacyTrade } })
     const { page } = app
 
     await waitForText(page, 'Retro Cap')
 
-    // Hover the first card so its Buy now button renders (cards swap price→action on hover).
-    await page.hover('.card')
+    // The legacy card's Buy now (native cards render Add to cart) — enabled once the live rate loads.
     await clickWhenEnabled(page, '.card__cart', /buy now/i)
 
     // The Buy Now modal opens and locks the price ("Final price" + Confirm purchase).

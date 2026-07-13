@@ -10,16 +10,16 @@ afterEach(async () => {
 
 describe('browse when the catalog fetch fails', () => {
   it('surfaces a friendly error (not the raw fetch message) instead of the grid', async () => {
-    // Force /v3/catalog/shop → 500. fetchListings throws → Assets renders <p class="error"> with a
-    // generic web2 message — never the raw "fetchShopListings 500". See src/pages/Assets.tsx.
-    app = await launchApp({ path: '/assets', errors: { '/v3/catalog/shop': { status: 500 } } })
+    // Force /v3/catalog/unified → 500. fetchUnified throws → Assets renders <p class="error"> with a
+    // generic web2 message — never the raw "fetchUnified 500". See src/pages/Assets.tsx.
+    app = await launchApp({ path: '/assets', errors: { '/v3/catalog/unified': { status: 500 } } })
     const { page } = app
 
     await page.waitForSelector('.error', { timeout: 20000 })
     await waitForText(page, 'load items')
 
     // The raw fetch error must NOT leak to the user (web2 convention).
-    expect(await bodyText(page)).not.toContain('fetchShopListings')
+    expect(await bodyText(page)).not.toContain('fetchUnified')
 
     // The grid never populated with real cards.
     expect(await page.evaluate(() => document.querySelectorAll('.card:not(.card--skeleton)').length)).toBe(0)
