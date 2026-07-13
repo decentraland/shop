@@ -18,9 +18,13 @@
     "clearRecent": "Limpiar",
     "removeRecent": "Quitar «{query}» de las búsquedas recientes",
     "searching": "Buscando…",
-    "noResults": "Ningún artículo coincide con «{query}»",
+    "noResults": "Ningún resultado coincide con «{query}»",
     "seeAll": "Ver los {count} resultados",
-    "clear": "Limpiar búsqueda"
+    "clear": "Limpiar búsqueda",
+    "creators": "Creadores",
+    "collections": "Colecciones",
+    "items": "Artículos",
+    "byCreator": "Por {name}"
   },
   "notFound": {
     "title": "Página no encontrada",

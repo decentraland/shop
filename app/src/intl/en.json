@@ -18,9 +18,13 @@
     "clearRecent": "Clear",
     "removeRecent": "Remove “{query}” from recent searches",
     "searching": "Searching…",
-    "noResults": "No items match “{query}”",
+    "noResults": "No results match “{query}”",
     "seeAll": "See all {count} results",
-    "clear": "Clear search"
+    "clear": "Clear search",
+    "creators": "Creators",
+    "collections": "Collections",
+    "items": "Items",
+    "byCreator": "By {name}"
   },
   "notFound": {
     "title": "Page not found",

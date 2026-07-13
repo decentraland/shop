@@ -41,6 +41,51 @@ describe('search bar', () => {
     await waitForText(page, 'Nebula Jacket')
   })
 
+  it('surfaces creator and collection suggestions alongside items', async () => {
+    app = await launchApp({ path: '/overview' })
+    const { page } = app
+
+    await page.waitForSelector(SEARCH)
+    await page.type(SEARCH, 'Galaxy')
+
+    await page.waitForSelector('.search-pop')
+    // Item (name match), collection (/v1/collections?search=), and creator (DCL-name → owner →
+    // seller → profile) all surface in the one stacked list.
+    await waitForText(page, 'Galaxy Hat')
+    await waitForText(page, 'Galaxy Collection')
+    await waitForText(page, 'Galaxy Studio')
+  })
+
+  it('opens the collection page when a collection suggestion is clicked', async () => {
+    app = await launchApp({ path: '/overview' })
+    const { page } = app
+
+    await page.waitForSelector(SEARCH)
+    await page.type(SEARCH, 'Galaxy')
+    await page.waitForSelector('.search-pop__row--collection')
+
+    // The collection row shows a mosaic of the collection's item thumbnails (à la marketplace),
+    // not the fallback icon — one cell per item (2 here: epic + legendary).
+    await page.waitForFunction(
+      () => document.querySelectorAll('.search-pop__row--collection .search-pop__mosaic-cell').length === 2
+    )
+
+    expect(await clickByText(page, '.search-pop__row--collection', /galaxy collection/i)).toBe(true)
+    await page.waitForFunction(() => /\/collection\//.test(location.pathname))
+  })
+
+  it('opens the creator page when a creator suggestion is clicked', async () => {
+    app = await launchApp({ path: '/overview' })
+    const { page } = app
+
+    await page.waitForSelector(SEARCH)
+    await page.type(SEARCH, 'Galaxy')
+    await page.waitForSelector('.search-pop__row--creator')
+
+    expect(await clickByText(page, '.search-pop__row--creator', /galaxy studio/i)).toBe(true)
+    await page.waitForFunction(() => /\/creator\//.test(location.pathname))
+  })
+
   it('runs a full search on Enter and lands on /assets?q=', async () => {
     app = await launchApp({ path: '/overview' })
     const { page } = app

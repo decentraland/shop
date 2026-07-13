@@ -17,6 +17,7 @@ import {
 } from '~/lib/recent-searches'
 import { track } from '~/lib/analytics'
 import type { CatalogItem } from '~/lib/api'
+import type { CollectionHit, CreatorHit } from '~/lib/search'
 import { t } from '~/intl/i18n'
 import CloseIcon from '@mui/icons-material/CloseRounded'
 
@@ -82,6 +83,7 @@ export function NavBar() {
     if (q.trim()) recordSearch(q.trim())
     track('Shop Search Suggestion Clicked', {
       query: q.trim(),
+      type: 'item',
       item_id: item.id,
     })
     // Secondary listings carry tokenId; catalog items carry itemId — mirror AssetCard's route segment.
@@ -93,6 +95,28 @@ export function NavBar() {
     } else {
       runSearch(q)
     }
+  }
+
+  function onSelectCollection(collection: CollectionHit) {
+    setOpen(false)
+    if (q.trim()) recordSearch(q.trim())
+    track('Shop Search Suggestion Clicked', {
+      query: q.trim(),
+      type: 'collection',
+      contract_address: collection.contractAddress,
+    })
+    navigate(`/collection/${collection.contractAddress}`)
+  }
+
+  function onSelectCreator(creator: CreatorHit) {
+    setOpen(false)
+    if (q.trim()) recordSearch(q.trim())
+    track('Shop Search Suggestion Clicked', {
+      query: q.trim(),
+      type: 'creator',
+      creator_address: creator.address,
+    })
+    navigate(`/creator/${creator.address}`)
   }
 
   function onSearchChange(value: string) {
@@ -183,6 +207,8 @@ export function NavBar() {
               query={debounced}
               recent={recent}
               onSelectItem={onSelectItem}
+              onSelectCollection={onSelectCollection}
+              onSelectCreator={onSelectCreator}
               onRunSearch={runSearch}
               onRemoveRecent={removeRecent}
               onClearRecent={clearRecent}

@@ -21,6 +21,9 @@ export type Fixtures = {
   credits: unknown
   importable: unknown
   shopListings: unknown
+  collections: unknown
+  creatorNames: unknown
+  accounts: unknown
   legacyListings: unknown
   ownedNfts: unknown
   builderCollections: unknown
@@ -35,6 +38,9 @@ function defaults(): Fixtures {
     credits: fx.creditsResponse,
     importable: fx.importable,
     shopListings: fx.shopListings,
+    collections: fx.collections,
+    creatorNames: fx.creatorNames,
+    accounts: fx.accounts,
     legacyListings: fx.legacyListings,
     ownedNfts: fx.ownedNfts,
     builderCollections: fx.builderCollections,
@@ -165,6 +171,14 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
       if (u.searchParams.get('sortBy') === 'cheapest') items.sort((a, b) => Number(BigInt(a.manaWei) - BigInt(b.manaWei)))
       return json(req, { data: items, total: items.length })
     }
+    // Search dropdown "Collections" section (lib/search.ts → fetchCollectionSuggestions).
+    // Honor the ?search= filter (name substring) so the search spec is meaningful.
+    if (path === '/v1/collections') {
+      let rows = ((F.collections as { data: any[] }).data ?? [])
+      const search = u.searchParams.get('search')?.toLowerCase()
+      if (search) rows = rows.filter(c => String(c.name).toLowerCase().includes(search))
+      return json(req, { data: rows, total: rows.length })
+    }
     // Collection + Creator pages (lib/collections.ts → fetchCollectionItems/fetchCreatorItems).
     // Returns the collection's CATALOG items, filtered by the contractAddress / creator query param.
     if (path === '/v1/items') {
@@ -175,7 +189,23 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
       if (creator) rows = rows.filter(r => String(r.creator).toLowerCase() === creator.toLowerCase())
       return json(req, { data: rows })
     }
-    if (path === '/v1/nfts') return json(req, F.ownedNfts)
+    if (path === '/v1/nfts') {
+      // Creator search step 1 (lib/search.ts → fetchNameOwners): DCL names matching ?search=.
+      if (u.searchParams.get('category') === 'ens') {
+        let names = ((F.creatorNames as { data: any[] }).data ?? [])
+        const search = u.searchParams.get('search')?.toLowerCase()
+        if (search) names = names.filter(n => String(n.nft.name).toLowerCase().includes(search))
+        return json(req, { data: names, total: names.length })
+      }
+      return json(req, F.ownedNfts)
+    }
+    // Creator search step 2 (lib/search.ts → fetchSellerCounts): collection counts per address.
+    if (path === '/v1/accounts') {
+      const wanted = u.searchParams.getAll('address').map(a => a.toLowerCase())
+      let rows = ((F.accounts as { data: any[] }).data ?? [])
+      if (wanted.length) rows = rows.filter(a => wanted.includes(String(a.address).toLowerCase()))
+      return json(req, { data: rows, total: rows.length })
+    }
     if (path === '/v1/trades' && method === 'POST') return json(req, { ok: true, data: { id: 'new-trade' } }, 201)
     if (/\/v1\/trades\/.+/.test(path)) return json(req, { ok: true, data: F.trade })
     if (path === '/v1/orders') return json(req, { data: [], total: 0 })
@@ -193,7 +223,16 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
 
   // peer lambdas (profiles)
   if (u.hostname.includes('peer.decentraland')) {
-    if (path.includes('/lambdas/profiles')) return json(req, method === 'POST' ? [F.profile] : F.profile)
+    if (path.includes('/lambdas/profiles')) {
+      // The fixture creator (author of the shop listings + the matched DCL name) resolves to a
+      // "Galaxy Studio" profile — used for the "By {creator}" sublines and the Creators row name.
+      // Every other address (incl. the signed-in user) gets the default F.profile.
+      const isCreator = path.toLowerCase().includes(fx.CREATOR_ADDRESS.toLowerCase())
+      const body = isCreator
+        ? { avatars: [{ name: 'Galaxy Studio', userId: fx.CREATOR_ADDRESS, avatar: { snapshots: { face256: '' } } }] }
+        : F.profile
+      return json(req, method === 'POST' ? [body] : body)
+    }
     return req.respond({ status: 200, headers: { 'content-type': 'image/png', ...CORS }, body: PNG })
   }
 
