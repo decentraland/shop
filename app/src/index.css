@@ -245,10 +245,15 @@ h1, h2 { margin: 0; }
 
 /* ---------------- Card ---------------- */
 .card {
+  position: relative;
   background: #fff; border-radius: var(--radius-card); overflow: hidden;
   border: 1px solid var(--line);
   display: flex; flex-direction: column; transition: border-color .15s ease, box-shadow .15s ease;
 }
+/* Whole-card navigation link: a transparent overlay spanning the card. It sits ABOVE the media
+   (incl. the hover preview shield) so a click anywhere navigates, but BELOW the fav/cart/creator
+   controls (z-index 4) so those stay independently clickable. See AssetCard's stretched-link. */
+.card__link { position: absolute; inset: 0; z-index: 3; }
 /* Figma hover (node 696:34662): 2px cerise border + soft violet glow. No layout shift — the 2nd cerise
    px is a box-shadow ring, not a wider border. The glow is a translucent halo so it reads as a soft
    bloom (not a hard violet line); it needs room in scroll containers — see .row__track. */
@@ -287,7 +292,7 @@ h1, h2 { margin: 0; }
 /* Slim indeterminate loading bar pinned to the bottom of the media while the 3D boots. The flat
    thumbnail stays fully visible underneath — no shimmer covering it, no empty frame. */
 .card__loadbar {
-  position: absolute; left: 0; right: 0; bottom: 0; height: 3px; z-index: 3; overflow: hidden;
+  position: absolute; left: 0; right: 0; bottom: 0; height: 3px; z-index: 3; overflow: hidden; pointer-events: none;
   background: rgba(105, 31, 169, .12); pointer-events: none;
 }
 .card__loadbar::before {
@@ -307,7 +312,8 @@ h1, h2 { margin: 0; }
 .card__body { padding: 8px; display: flex; flex-direction: column; gap: 12px; }
 .card__desc { display: flex; flex-direction: column; }
 .card__name { font-weight: 600; font-size: 14px; line-height: 1.57; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.card__creator { color: var(--muted); font-size: 10px; margin-bottom: 0; }
+/* position/z-index so the creator link sits ABOVE the whole-card overlay and stays clickable. */
+.card__creator { position: relative; z-index: 4; color: var(--muted); font-size: 10px; margin-bottom: 0; }
 .card__meta { display: flex; flex-direction: column; gap: 8px; }
 .card__price { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 16px; color: var(--text-2); }
 .card__diamond { width: 15px; height: 15px; color: var(--text-2); }
@@ -321,6 +327,7 @@ h1, h2 { margin: 0; }
    revealed on hover OR keyboard focus, swapping out the price row; where hover isn't available (touch)
    it's always shown so the item stays buyable without a mouse. Always in the DOM (keyboard-reachable). */
 .card__cart {
+  position: relative; z-index: 4; /* above the whole-card overlay link so the action stays clickable */
   margin-top: 4px; width: 100%; display: none; align-items: center; justify-content: center; gap: 8px;
   background: var(--black-btn); color: var(--soft-white); border: 0; border-radius: var(--radius-btn); height: 40px;
   font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: .046em;
