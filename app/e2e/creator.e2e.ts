@@ -14,7 +14,7 @@ describe('creator storefront', () => {
     // Creator page reads fetchCreatorItems → GET /v1/items?creator=<address> (mocked from the
     // shopListings fixture, whose items are all created by CREATOR_ADDRESS — a wallet that is NOT the
     // signed-in test user, so the self-purchase guard doesn't hide them).
-    app = await launchApp({ path: `/creator/${CREATOR_ADDRESS}` })
+    app = await launchApp({ path: `/assets/creator/${CREATOR_ADDRESS}` })
     const { page } = app
 
     await waitForText(page, 'Galaxy Hat')
@@ -26,7 +26,7 @@ describe('creator storefront', () => {
 
   it('shows the empty state for a creator with no items', async () => {
     // A different address the fixture has no items for → empty-state copy.
-    app = await launchApp({ path: '/creator/0x0000000000000000000000000000000000000abc' })
+    app = await launchApp({ path: '/assets/creator/0x0000000000000000000000000000000000000abc' })
     const { page } = app
 
     await waitForText(page, 'This creator has no items to show yet')

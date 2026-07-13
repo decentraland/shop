@@ -79,7 +79,7 @@ export function App() {
         ? 'item'
         : path.startsWith('/collection/')
           ? 'collection'
-          : path.startsWith('/creator/')
+          : path.startsWith('/assets/creator/')
             ? 'creator'
             : 'other')
     trackPage(page)
@@ -101,7 +101,7 @@ export function App() {
             <Route path="/market" element={<Market />} />
             <Route path="/item/:contractAddress/:tokenId" element={<ItemDetail />} />
             <Route path="/collection/:contractAddress" element={<Collection />} />
-            <Route path="/creator/:address" element={<Creator />} />
+            <Route path="/assets/creator/:address" element={<Creator />} />
             <Route path="/my-assets" element={<MyAssets />} />
             <Route path="/my-favorites" element={<MyFavorites />} />
             <Route path="/my-purchases" element={<MyPurchases />} />
