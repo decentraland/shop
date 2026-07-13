@@ -40,6 +40,8 @@ Internally, listings are **chain-agnostic**: creating a listing is an off-chain 
 
 Feature behavior is specified in `design/*.md` before/alongside implementation. Before changing a flow, read the matching spec — e.g. `BUY_WITH_CREDITS_SPEC.md`, `SELL_INTEGRATION_SPEC.md`, `FLASH_SALES_SPEC.md`, `FITTING_ROOM_SPEC.md`, `I18N_SPEC.md`, `STRIPE_SPEC.md`, `CREDITS_CANONICAL_MODEL.md`, `SHOP_TRACKING_SPEC.md`, `E2E_TESTS.md`. Analytics event names/props are governed by the tracking spec — keep them in sync.
 
+The spec for all of Decentraland's public APIs is available at https://docs.decentraland.org/apis — consult it when integrating with or debugging any Decentraland API.
+
 ## Code style
 
 - Prettier: config in `.prettierrc`. Match the surrounding style.
