@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 vi.mock('~/config', () => ({ config: { nftApiUrl: 'http://nft.test', peerUrl: 'http://peer.test' } }))
 
 // eslint-disable-next-line import/first
-import { fetchCollectionSuggestions, fetchCreatorSuggestions } from '~/lib/search'
+import { fetchCollection, fetchCollectionSuggestions, fetchCreatorSuggestions } from '~/lib/search'
 
 // A fetch stub that routes by URL: collections / ens-names / accounts / per-address profiles.
 function mockFetch(routes: {
@@ -86,6 +86,39 @@ describe('when fetching collection suggestions', () => {
     mockFetch({ collectionsStatus: 503 })
 
     await expect(fetchCollectionSuggestions('dragon')).rejects.toThrow('fetchCollectionSuggestions 503')
+  })
+})
+
+describe('when fetching a single collection by contract', () => {
+  it('should query /v1/collections by contractAddress and return name + creator', async () => {
+    const fetchMock = mockFetch({
+      collections: [{ contractAddress: '0xabc', name: 'Black Dragon', creator: '0xartist' }]
+    })
+
+    const hit = await fetchCollection('0xabc')
+
+    const url = new URL(fetchMock.mock.calls[0][0] as string)
+    expect(url.origin + url.pathname).toBe('http://nft.test/v1/collections')
+    expect(url.searchParams.get('contractAddress')).toBe('0xabc')
+    expect(hit).toEqual({ contractAddress: '0xabc', name: 'Black Dragon', creator: '0xartist' })
+  })
+
+  it('should return null when the collection is not found', async () => {
+    mockFetch({ collections: [] })
+
+    expect(await fetchCollection('0xnope')).toBeNull()
+  })
+
+  it('should default a missing name/creator to empty strings', async () => {
+    mockFetch({ collections: [{ contractAddress: '0xabc' }] })
+
+    expect(await fetchCollection('0xabc')).toEqual({ contractAddress: '0xabc', name: '', creator: '' })
+  })
+
+  it('and the response is not ok it should throw with the status', async () => {
+    mockFetch({ collectionsStatus: 500 })
+
+    await expect(fetchCollection('0xabc')).rejects.toThrow('fetchCollection 500')
   })
 })
 

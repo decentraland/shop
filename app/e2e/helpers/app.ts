@@ -171,11 +171,13 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
       if (u.searchParams.get('sortBy') === 'cheapest') items.sort((a, b) => Number(BigInt(a.manaWei) - BigInt(b.manaWei)))
       return json(req, { data: items, total: items.length })
     }
-    // Search dropdown "Collections" section (lib/search.ts → fetchCollectionSuggestions).
-    // Honor the ?search= filter (name substring) so the search spec is meaningful.
+    // Collections entity: search dropdown "Collections" section (fetchCollectionSuggestions, ?search=)
+    // + the Collection page name lookup (fetchCollection, ?contractAddress=). Honor both filters.
     if (path === '/v1/collections') {
       let rows = ((F.collections as { data: any[] }).data ?? [])
       const search = u.searchParams.get('search')?.toLowerCase()
+      const ca = u.searchParams.get('contractAddress')?.toLowerCase()
+      if (ca) rows = rows.filter(c => String(c.contractAddress).toLowerCase() === ca)
       if (search) rows = rows.filter(c => String(c.name).toLowerCase().includes(search))
       return json(req, { data: rows, total: rows.length })
     }

@@ -16,7 +16,9 @@ describe('collection storefront', () => {
     app = await launchApp({ path: `/collection/${COLLECTION}` })
     const { page } = app
 
-    await waitForText(page, 'Collection')
+    // Title comes from the collections entity (fetchCollection → /v1/collections?contractAddress=),
+    // not the item records, which carry no collection name.
+    await waitForText(page, 'Galaxy Collection')
     await waitForText(page, 'Galaxy Hat')
     await waitForText(page, 'Nebula Jacket')
 
