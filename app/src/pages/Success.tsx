@@ -2,9 +2,11 @@ import { useLocation, useNavigate, Navigate } from 'react-router-dom'
 import { WearablePreview } from '~/components/LazyWearablePreview'
 import { PreviewEmote, PreviewType } from '@dcl/schemas'
 import { useWallet } from '~/store/wallet'
+import { useProfile } from '~/hooks/useProfile'
 import { config } from '~/config'
 import { SuccessAnimation } from '~/components/SuccessAnimation'
 import { showsWalletConfirmations } from '~/lib/wallet-kind'
+import { avatarShape, dominantShape, isCompatible, BASE_MALE } from '~/lib/bodyShape'
 import { itemUrn } from '~/lib/urn'
 import type { CatalogItem } from '~/lib/api'
 
@@ -19,17 +21,36 @@ export function Success() {
   const { state } = useLocation() as { state?: { items?: CatalogItem[]; txHash?: string } }
   const navigate = useNavigate()
   const { session } = useWallet()
+  // Read the connected avatar's profile up here (before any early return) so its body shape can decide
+  // whether the purchased wearables render on the real avatar or on a compatible mannequin.
+  const { data: avatar } = useProfile(session?.address)
 
   const items = state?.items ?? []
   // Direct hit / refresh with no purchase context → send home.
   if (items.length === 0) return <Navigate to="/assets" replace />
 
   const hero = items[0]
-  // Mount on the CONNECTED user's avatar (falls back to the default body when there's no profile).
-  const profile = session?.address ?? 'default'
-  const isEmote = hero.category === 'emote'
-  // Equip the purchased wearable(s) on the avatar. Emotes aren't "worn" → fall back to the item render.
-  const urns = isEmote ? [] : items.map(itemUrn).filter((u): u is string => !!u)
+  // Partition the purchase: wearables go on the avatar; an emote can't be "worn" (rendered on its own).
+  // Deriving from the WHOLE set (not just items[0]) fixes a mixed cart that used to drop the wearables
+  // or feed an emote URN into the wearable slots.
+  const wearables = items.filter(i => i.category !== 'emote')
+  const emote = items.find(i => i.category === 'emote') ?? null
+  const urns = wearables.map(itemUrn).filter((u): u is string => !!u)
+
+  // Body-shape compatibility (mirrors the fitting room / builder): a gendered wearable renders INVISIBLE
+  // on an avatar whose shape it doesn't support. Mount on the connected avatar only when it can wear
+  // everything purchased; otherwise dress a default mannequin of a shape the items DO support.
+  const shape = avatarShape(avatar)
+  const avatarFits = !!shape && wearables.every(w => isCompatible(w, shape))
+  const target = dominantShape(wearables) ?? shape ?? BASE_MALE
+  const useAvatar = !!session?.address && avatarFits
+  const previewProfile = useAvatar ? (session!.address as string) : 'default'
+  const previewBodyShape = useAvatar ? undefined : target
+
+  // No wearables (emote-only purchase, or a wearable missing a URN) → render that single item directly.
+  const single = emote ?? hero
+  const singleIsEmote = single.category === 'emote'
+
   const txHash = state?.txHash
   // Self-custody users additionally get a link to the on-chain tx; managed users never see it.
   const showExplorer = !!txHash && showsWalletConfirmations(session?.providerType)
@@ -40,7 +61,8 @@ export function Success() {
         {urns.length > 0 ? (
           <WearablePreview
             key={hero.id}
-            profile={profile}
+            profile={previewProfile}
+            bodyShape={previewBodyShape}
             urns={urns}
             type={PreviewType.AVATAR}
             emote={PreviewEmote.FASHION}
@@ -49,13 +71,14 @@ export function Success() {
           />
         ) : (
           <WearablePreview
-            key={hero.id}
-            contractAddress={hero.contractAddress}
-            tokenId={hero.tokenId ?? undefined}
-            itemId={hero.tokenId ? undefined : hero.itemId ?? undefined}
-            profile={profile}
-            type={isEmote ? undefined : PreviewType.AVATAR}
-            emote={isEmote ? undefined : PreviewEmote.FASHION}
+            key={single.id}
+            contractAddress={single.contractAddress}
+            tokenId={single.tokenId ?? undefined}
+            itemId={single.tokenId ? undefined : single.itemId ?? undefined}
+            profile={previewProfile}
+            bodyShape={singleIsEmote ? undefined : previewBodyShape}
+            type={singleIsEmote ? undefined : PreviewType.AVATAR}
+            emote={singleIsEmote ? undefined : PreviewEmote.FASHION}
             background="ecebed"
             dev={config.chainId === 80002}
           />
