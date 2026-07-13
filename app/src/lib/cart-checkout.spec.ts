@@ -43,7 +43,7 @@ describe('reviewCart', () => {
     expect(review.unavailable).toEqual([])
     expect(review.own).toEqual([])
     expect(review.liveTotalCredits).toBe(25)
-    expect(review.priceChanged).toBe(false)
+    expect(review.orderChanged).toBe(false)
   })
 
   it('flags a price change when a live price differs from the shown price', async () => {
@@ -53,7 +53,7 @@ describe('reviewCart', () => {
     expect(review.buyable[0].priceCredits).toBe(30)
     expect(review.buyable[0].usdCents).toBe(300)
     expect(review.liveTotalCredits).toBe(30)
-    expect(review.priceChanged).toBe(true)
+    expect(review.orderChanged).toBe(true)
   })
 
   it('classifies an item with no live listing as unavailable (never throws)', async () => {
@@ -62,7 +62,7 @@ describe('reviewCart', () => {
     expect(review.buyable).toEqual([])
     expect(review.unavailable.map(i => i.id)).toEqual(['a', 'b'])
     expect(review.liveTotalCredits).toBe(0)
-    expect(review.priceChanged).toBe(true)
+    expect(review.orderChanged).toBe(true)
   })
 
   it("classifies the buyer's own listing as own (not buyable)", async () => {
@@ -70,7 +70,7 @@ describe('reviewCart', () => {
 
     expect(review.buyable).toEqual([])
     expect(review.own.map(i => i.id)).toEqual(['a'])
-    expect(review.priceChanged).toBe(true)
+    expect(review.orderChanged).toBe(true)
   })
 
   it('handles a mixed basket: only buyable rows count toward the live total', async () => {
@@ -85,7 +85,7 @@ describe('reviewCart', () => {
     expect(review.unavailable.map(i => i.id)).toEqual(['b'])
     expect(review.own.map(i => i.id)).toEqual(['c'])
     expect(review.liveTotalCredits).toBe(20)
-    expect(review.priceChanged).toBe(true)
+    expect(review.orderChanged).toBe(true)
   })
 
   it('never throws for a malformed trade with an empty received array (classified unavailable)', async () => {
@@ -106,7 +106,7 @@ describe('reviewCart', () => {
 
   it('returns an empty, unchanged review for an empty cart', async () => {
     const review = await reviewCart([], BUYER, resolverFrom({}))
-    expect(review).toEqual({ buyable: [], unavailable: [], own: [], liveTotalCredits: 0, priceChanged: false })
+    expect(review).toEqual({ buyable: [], unavailable: [], own: [], liveTotalCredits: 0, orderChanged: false })
   })
 
   it('centsToCredits rounds up to whole credits', () => {

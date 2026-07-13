@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCart } from '~/store/cart'
@@ -28,6 +28,10 @@ function friendlyError(e: unknown): string {
   if (msg.includes('no active listing') || msg.includes('your own listing')) return err.message as string
   return "Couldn't complete checkout — please try again."
 }
+
+// How long a pending review stays valid before we re-resolve on Confirm. Past this, live prices may
+// have drifted (or listings sold), so we re-review instead of charging a stale total.
+const REVIEW_TTL_MS = 120_000
 
 // One-line summary of the rows we pruned so the buyer knows why the cart shrank.
 function dropNotice(review: CartReview): string {
@@ -60,6 +64,8 @@ export function Cart() {
   // A resolved order awaiting explicit confirmation because prices or availability changed since the
   // items were added (mirrors MarketCheckout's lock-then-confirm). null = no pending confirmation.
   const [review, setReview] = useState<CartReview | null>(null)
+  // When the pending review was resolved, so Confirm can detect a stale one and re-resolve.
+  const reviewedAtRef = useRef(0)
 
   const shownTotal = items.reduce((sum, i) => sum + i.priceCredits, 0)
   // While a review is pending the total reflects the live (re-resolved) prices of what's still buyable.
@@ -116,6 +122,10 @@ export function Cart() {
           if (failures.length && !failures.some(r => r instanceof SettlementPendingError)) {
             throw failures[0]
           }
+          // TODO(cart-hardening): a mixed batch (one group reverted + one still pending) keeps the
+          // reverted group's reservation locked until the credits-server TTL, since we can't map a
+          // per-group failure back to its items without buyManyGasless returning per-group results.
+          // Bounded (no double-spend, no loss); revisit with per-group settlement tracking.
           usedGasless = true
         } catch (gaslessErr) {
           if (!(gaslessErr instanceof GaslessUnavailableError)) throw gaslessErr
@@ -193,8 +203,9 @@ export function Cart() {
       }
       // Anything changed (a re-price, or rows dropped) → show the reconciled order and require an
       // explicit second confirmation so the buyer is never silently charged a different total.
-      if (rev.priceChanged) {
+      if (rev.orderChanged) {
         setReview(rev)
+        reviewedAtRef.current = Date.now()
         setStatus(null)
         return
       }
@@ -212,6 +223,14 @@ export function Cart() {
     if (!review) return
     if (!session) {
       setError('Sign in to check out.')
+      return
+    }
+    // A review left sitting too long may be pricing off stale trades (a sale ended, a listing sold).
+    // Re-resolve instead of charging it: checkout() re-reviews and, if it still differs, re-prompts.
+    if (Date.now() - reviewedAtRef.current > REVIEW_TTL_MS) {
+      setReview(null)
+      setNotice(null)
+      await checkout()
       return
     }
     setError(null)
