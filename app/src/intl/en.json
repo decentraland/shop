@@ -30,5 +30,12 @@
     "title": "Page not found",
     "body": "The page you’re looking for isn’t here. Let’s get you back to the shop.",
     "cta": "Browse Collectibles"
+  },
+  "cart": {
+    "empty": {
+      "title": "Your cart is empty",
+      "body": "Find something you love and it’ll show up here.",
+      "cta": "Browse Collectibles"
+    }
   }
 }

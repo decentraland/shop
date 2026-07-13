@@ -1,5 +1,6 @@
 import type { CatalogItem } from '~/lib/api'
 import { itemUrn } from '~/lib/urn'
+import { isCompatible, type BodyShapeUrn } from '~/lib/bodyShape'
 
 // Fitting-room logic — pure, so combinations + conflicts are testable without a 3D preview.
 //
@@ -39,12 +40,15 @@ export function slotRegion(item: Pick<CatalogItem, 'category' | 'wearableCategor
 
 // The default equipped set for a fresh fitting-room open: one wearable per slot (first wins), emotes
 // excluded. Returns the ids to equip. Keeps the outfit conflict-free from the start.
-export function defaultWorn(items: CatalogItem[]): Set<string> {
+export function defaultWorn(items: CatalogItem[], target: BodyShapeUrn | null = null): Set<string> {
   const worn = new Set<string>()
   const takenSlots = new Set<string>()
   for (const item of items) {
     const slot = slotOf(item)
     if (slot == null || takenSlots.has(slot)) continue
+    // Don't auto-equip an item the target body can't wear (it'd render invisible). It stays selectable
+    // only if it becomes compatible; the UI marks it as "not for this body shape".
+    if (!isCompatible(item, target)) continue
     takenSlots.add(slot)
     worn.add(item.id)
   }
@@ -89,10 +93,12 @@ export function conflictingIds(items: CatalogItem[]): Set<string> {
 }
 
 // The wearable URNs for the currently-equipped items, in cart order, for WearablePreview's `urns`.
-export function wornUrns(items: CatalogItem[], worn: Set<string>): string[] {
+export function wornUrns(items: CatalogItem[], worn: Set<string>, target: BodyShapeUrn | null = null): string[] {
   const urns: string[] = []
   for (const item of items) {
     if (!worn.has(item.id) || !isWearable(item)) continue
+    // Safety net: never send an incompatible urn to the preview (it wouldn't render on the target body).
+    if (!isCompatible(item, target)) continue
     const urn = itemUrn(item)
     if (urn) urns.push(urn)
   }

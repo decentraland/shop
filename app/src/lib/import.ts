@@ -57,12 +57,51 @@ export async function fetchImportable(seller: string): Promise<{ creations: Impo
   }
 }
 
+// After the old listing is cancelled on-chain, the marketplace only clears the NFT/item's "on sale"
+// flag once the indexer catches up — so the very first re-list can still be rejected with
+// "already an open order" for a few seconds. Retry ONLY the POST (never re-sign) on that specific
+// conflict, backing off until the cancel is indexed. ~37s total before we give up.
+const CLEAR_RETRY_DELAYS_MS = [3000, 3000, 4000, 5000, 6000, 8000, 8000]
+
+async function postListingWithRetry(
+  trade: Parameters<typeof postTrade>[0],
+  identity: Parameters<typeof postTrade>[1]
+): Promise<void> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await postTrade(trade, identity)
+      return
+    } catch (e) {
+      const stillOnSale = /already an open order/i.test((e as Error)?.message ?? '')
+      if (!stillOnSale || attempt >= CLEAR_RETRY_DELAYS_MS.length) throw e
+      await new Promise(r => setTimeout(r, CLEAR_RETRY_DELAYS_MS[attempt]))
+    }
+  }
+}
+
 /**
- * List ONE old item into the Shop at `priceCredits`. Reuses the exact selling path:
+ * Thrown when the old classic listing was already taken down but posting the new Shop listing failed.
+ * The item now has NO listing and won't reappear in Import (which reads the OLD listings), so the UI
+ * must send the seller to re-list it from My Assets — never a generic "try again" that points back at
+ * a listing that no longer exists. Carries the underlying error for logging.
+ */
+export class RelistFailedError extends Error {
+  readonly original: unknown
+  constructor(original: unknown) {
+    super('Your old listing was removed, but re-listing in the Shop failed — re-list it from My Assets.')
+    this.name = 'RelistFailedError'
+    this.original = original
+  }
+}
+
+/**
+ * List ONE old item into the Shop at `priceCredits`. Migrating REPLACES the seller's old classic
+ * (MANA) listing — the marketplace refuses a second open order for the same NFT/item, so we take the
+ * old one DOWN FIRST (on-chain cancel), then re-list. Reuses the exact selling path:
  * - primary (a creation): ensure the Shop can mint the collection, then sign + post a USD item order.
  * - secondary (owned): ensure the Shop can transfer it, then sign + post a USD nft order.
  * The first item of a collection may need a one-time approval; later items skip it.
- * `cancelOld` (default off) additionally takes the old classic listing down (an extra confirmation).
+ * `cancelOld` defaults on; callers opt out only when the old listing is known to be gone already.
  */
 export async function importListing(
   item: ImportItem,
@@ -74,29 +113,43 @@ export async function importListing(
   const chainId = item.chainId as ChainId
   const network = item.network as Network
 
-  if (item.listingType === 'primary') {
-    await ensureMinter({ signer: session.signer, contractAddress: item.contractAddress, chainId })
-    const trade = await createPrimaryUsdPeggedListing({
-      signer: session.signer,
-      item: { contractAddress: item.contractAddress, itemId: item.itemId ?? '', network, chainId },
-      usdPrice,
-      uses: item.available,
-      expiresAtMs: Date.now() + SIX_MONTHS_MS
-    })
-    await postTrade(trade, session.identity)
-  } else {
-    await ensureApproval({ signer: session.signer, contractAddress: item.contractAddress, chainId })
-    const trade = await createUsdPeggedListing({
-      signer: session.signer,
-      nft: { contractAddress: item.contractAddress, tokenId: item.tokenId ?? '', network, chainId },
-      usdPrice,
-      expiresAtMs: Date.now() + SIX_MONTHS_MS
-    })
-    await postTrade(trade, session.identity)
+  // Take the old MANA listing down first — otherwise POST /v1/trades 409s ("already an open order
+  // for this NFT"). Best-effort: if the trade can't be fetched it's already gone, so skip the cancel.
+  let removedOld = false
+  if (opts.cancelOld !== false) {
+    const old = await fetchTrade(item.oldTradeId).catch(() => null)
+    if (old) {
+      await cancelListing({ trade: old, signer: session.signer })
+      removedOld = true
+    }
   }
 
-  if (opts.cancelOld) {
-    const old = await fetchTrade(item.oldTradeId).catch(() => null)
-    if (old) await cancelListing({ trade: old, signer: session.signer })
+  try {
+    if (item.listingType === 'primary') {
+      await ensureMinter({ signer: session.signer, contractAddress: item.contractAddress, chainId })
+      const trade = await createPrimaryUsdPeggedListing({
+        signer: session.signer,
+        item: { contractAddress: item.contractAddress, itemId: item.itemId ?? '', network, chainId },
+        usdPrice,
+        uses: item.available,
+        expiresAtMs: Date.now() + SIX_MONTHS_MS
+      })
+      await postListingWithRetry(trade, session.identity)
+    } else {
+      await ensureApproval({ signer: session.signer, contractAddress: item.contractAddress, chainId })
+      const trade = await createUsdPeggedListing({
+        signer: session.signer,
+        nft: { contractAddress: item.contractAddress, tokenId: item.tokenId ?? '', network, chainId },
+        usdPrice,
+        expiresAtMs: Date.now() + SIX_MONTHS_MS
+      })
+      await postListingWithRetry(trade, session.identity)
+    }
+  } catch (e) {
+    // If we already took the old listing down, the item is now UNLISTED (the new one never posted).
+    // Flag it distinctly so the caller can send the seller to re-list from My Assets; a retry should
+    // pass cancelOld:false (there's nothing left to cancel).
+    if (removedOld) throw new RelistFailedError(e)
+    throw e
   }
 }

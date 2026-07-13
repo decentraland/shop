@@ -18,9 +18,15 @@ export type ManaRate = { rate: bigint; decimals: number }
 
 const USD_WEI_PER_CREDIT = 10n ** 17n // 1 credit = $0.10 = 1e17 USD wei
 
+// Max age of the oracle round before we treat it as stale. The MANA/USD aggregator's heartbeat is on
+// the order of a day (~24h); we add a ~1h buffer over that so a slightly-fast client clock or a round
+// that lands right at the heartbeat doesn't briefly (and wrongly) disable Buy Now. Still catches a
+// genuinely stuck feed.
+const MAX_STALENESS_SECONDS = 90000
+
 // Read the MANA/USD Chainlink-style aggregator off the marketplace contract (decoupled from the
-// wallet's network via the read-only RPC). Throws if the oracle is unreachable/stale so callers can
-// disable Buy Now with a message instead of pricing off a bad rate.
+// wallet's network via the read-only RPC). Throws if the oracle is unreachable/stale/incomplete so
+// callers can disable Buy Now with a message instead of pricing off a bad rate.
 export async function readManaUsdRate(chainId: number = config.chainId): Promise<ManaRate> {
   const market = getContract(ContractName.OffChainMarketplaceV2, chainId)
   const provider = new ethers.providers.JsonRpcProvider(config.rpcUrl)
@@ -32,9 +38,20 @@ export async function readManaUsdRate(chainId: number = config.chainId): Promise
     provider
   )
   const decimals: number = await agg.decimals()
+  // latestRoundData = [roundId, answer, startedAt, updatedAt, answeredInRound].
   const rd = await agg.latestRoundData()
   const rate = BigInt(rd[1].toString())
   if (rate <= 0n) throw new Error('mana rate unavailable')
+  // Completeness: an answer carried over from an earlier round (answeredInRound < roundId) is not
+  // fresh data for this round — reject it rather than price off a partial update.
+  if (BigInt(rd[4].toString()) < BigInt(rd[0].toString())) throw new Error('mana rate incomplete')
+  // Staleness: a stuck-but-positive feed would otherwise pass the rate > 0 check. Reject a round that
+  // hasn't updated within the heartbeat so the Buy Now gate actually fires (see doc comment above).
+  const updatedAt = Number(rd[3].toString())
+  const ageSeconds = Math.floor(Date.now() / 1000) - updatedAt
+  if (!Number.isFinite(updatedAt) || updatedAt <= 0 || ageSeconds > MAX_STALENESS_SECONDS) {
+    throw new Error('mana rate stale')
+  }
   return { rate, decimals: Number(decimals) }
 }
 

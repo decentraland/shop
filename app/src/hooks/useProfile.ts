@@ -6,7 +6,9 @@ const PEER_URL = config.peerUrl
 
 export type ProfileAvatar = {
   name?: string
-  avatar?: { snapshots?: { face256?: string; body?: string } }
+  // `bodyShape` is a BaseMale/BaseFemale URN in the Catalyst payload — used to detect whether an item
+  // is compatible with the connected avatar's shape (see lib/bodyShape.ts).
+  avatar?: { bodyShape?: string; snapshots?: { face256?: string; body?: string } }
 }
 
 export function useProfile(address?: string) {

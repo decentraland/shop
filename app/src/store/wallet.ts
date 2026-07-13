@@ -1,7 +1,9 @@
 import { create } from 'zustand'
 import { logout, restoreSession, signInRedirect, type Session } from '~/lib/auth'
-import { track, identify, signInMethod, markAddressSeen } from '~/lib/analytics'
+import { track, identify, signInMethod, markAddressSeen, reset as resetAnalytics } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
+import { useFavorites } from '~/store/favorites'
+import { useFollows } from '~/store/follows'
 
 // Set right before the auth redirect so on return we can tell a fresh sign-in from a silent restore.
 const SIGNING_IN_FLAG = 'shop:signing_in'
@@ -35,6 +37,12 @@ export const useWallet = create<WalletState>(set => ({
     } catch (e) {
       captureError(e, { flow: 'wallet', step: 'disconnect' })
     }
+    // Drop the previous account's client-side identity + state so a different account on this
+    // device never inherits it: clear the Segment identity and swap favorites/follows to the
+    // anonymous bucket.
+    resetAnalytics()
+    useFavorites.getState().reloadFor(null)
+    useFollows.getState().reloadFor(null)
     set({ session: null })
   },
   // Silent restore on load (reads connection + stored identity, no popup).
@@ -48,6 +56,9 @@ export const useWallet = create<WalletState>(set => ({
     }
     if (!session) return
     set({ session })
+    // Load THIS account's client-side favorites/follows (namespaced per account).
+    useFavorites.getState().reloadFor(session.address)
+    useFollows.getState().reloadFor(session.address)
     identify(session.address, { sign_in_method: signInMethod(session.providerType) })
     // Only emit the funnel event for an actual sign-in, not every silent restore.
     let fresh = false

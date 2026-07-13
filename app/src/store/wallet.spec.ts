@@ -15,15 +15,24 @@ vi.mock('~/lib/auth', () => ({
 
 const track = vi.fn()
 const identify = vi.fn()
+const reset = vi.fn()
 const signInMethod = vi.fn((_providerType?: unknown) => 'wallet')
 const markAddressSeen = vi.fn((_address: string) => true)
 
 vi.mock('~/lib/analytics', () => ({
   track: (...args: unknown[]) => track(...args),
   identify: (...args: unknown[]) => identify(...args),
+  reset: () => reset(),
   signInMethod: (providerType?: unknown) => signInMethod(providerType),
   markAddressSeen: (address: string) => markAddressSeen(address)
 }))
+
+// Favorites/follows are namespaced per account; the wallet store swaps their buckets on every
+// session boundary. Mock both so we can assert the reloadFor wiring without touching localStorage.
+const favReloadFor = vi.fn()
+const followReloadFor = vi.fn()
+vi.mock('~/store/favorites', () => ({ useFavorites: { getState: () => ({ reloadFor: favReloadFor }) } }))
+vi.mock('~/store/follows', () => ({ useFollows: { getState: () => ({ reloadFor: followReloadFor }) } }))
 
 // eslint-disable-next-line import/first
 import { useWallet } from '~/store/wallet'
@@ -74,6 +83,16 @@ describe('wallet store', () => {
       expect(logout).toHaveBeenCalledTimes(1)
       expect(useWallet.getState().session).toBeNull()
     })
+
+    it('resets the analytics identity and clears favorites/follows so the next account starts clean', async () => {
+      useWallet.setState({ session: session() })
+
+      await useWallet.getState().disconnect()
+
+      expect(reset).toHaveBeenCalledTimes(1)
+      expect(favReloadFor).toHaveBeenCalledWith(null)
+      expect(followReloadFor).toHaveBeenCalledWith(null)
+    })
   })
 
   describe('restore', () => {
@@ -85,6 +104,8 @@ describe('wallet store', () => {
       expect(useWallet.getState().session).toBeNull()
       expect(identify).not.toHaveBeenCalled()
       expect(track).not.toHaveBeenCalled()
+      expect(favReloadFor).not.toHaveBeenCalled()
+      expect(followReloadFor).not.toHaveBeenCalled()
     })
 
     it('stores the session and identifies on a silent restore, without emitting the sign-in event', async () => {
@@ -96,6 +117,9 @@ describe('wallet store', () => {
 
       expect(useWallet.getState().session).toBe(s)
       expect(identify).toHaveBeenCalledWith('0xABC', { sign_in_method: 'magic' })
+      // this account's favorites/follows buckets are loaded on restore
+      expect(favReloadFor).toHaveBeenCalledWith('0xABC')
+      expect(followReloadFor).toHaveBeenCalledWith('0xABC')
       // no flag set → this is a restore, not a fresh sign-in
       expect(track).not.toHaveBeenCalled()
     })

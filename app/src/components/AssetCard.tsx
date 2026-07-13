@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { PreviewEmote, PreviewType } from '@dcl/schemas'
 import { WearablePreview } from '~/components/LazyWearablePreview'
 import { config } from '~/config'
 import { useCart } from '~/store/cart'
@@ -10,7 +11,8 @@ import { CreatorBadge } from '~/components/CreatorBadge'
 import { rarityColor, readableText } from '~/lib/rarity'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { SaleCountdown } from '~/components/SaleCountdown'
-import { isSaleActive, saleDiscountPct } from '~/lib/sale'
+import { saleDiscountPct } from '~/lib/sale'
+import { useSaleActive } from '~/hooks/useSaleActive'
 import type { CatalogItem } from '~/lib/api'
 
 const HOVER_DELAY_MS = 120
@@ -87,9 +89,12 @@ export function AssetCard(props: AssetCardProps) {
 
   // Flash sale only applies to native (fixed-price) listings — a market card's credit price
   // fluctuates, so a strike-through compare-at would be meaningless there.
-  const onSale =
-    !isMarket &&
-    isSaleActive({ priceCredits: item.priceCredits, compareAtCredits: item.compareAtCredits, saleEndsAt: item.saleEndsAt })
+  const saleActive = useSaleActive({
+    priceCredits: item.priceCredits,
+    compareAtCredits: item.compareAtCredits,
+    saleEndsAt: item.saleEndsAt
+  })
+  const onSale = !isMarket && saleActive
   const discountPct = onSale ? saleDiscountPct(item.compareAtCredits!, item.priceCredits) : 0
 
   return (
@@ -133,6 +138,10 @@ export function AssetCard(props: AssetCardProps) {
                 contractAddress={item.contractAddress}
                 itemId={item.itemId ?? undefined}
                 profile="default"
+                // Load straight into the fashion pose (like ItemPreview) so the avatar doesn't flash a
+                // default arms-out T-pose for a beat before settling. Emotes play their own animation.
+                type={item.category === 'emote' ? undefined : PreviewType.AVATAR}
+                emote={item.category === 'emote' ? undefined : PreviewEmote.FASHION}
                 dev={config.chainId === 80002}
                 disableBackground
                 disableFadeEffect
@@ -149,75 +158,76 @@ export function AssetCard(props: AssetCardProps) {
       </div>
 
       <div className="card__body">
-        <div className="card__name" title={item.name}>{item.name}</div>
-        {item.creator ? (
-          <CreatorBadge address={item.creator} className="card__creator" linkToProfile />
-        ) : (
-          <div className="card__creator">&nbsp;</div>
-        )}
-
-        {/* On hover the price/chips row is replaced by the primary action (Figma: secondary dark
-            button, below the image — never overlapping it). Native cards add to cart; Market (legacy)
-            cards Buy now directly (the fluctuating price is locked at checkout). */}
-        {hovered ? (
-          isMarket && props.mode === 'market' ? (
-            <button
-              className="card__cart"
-              onClick={e => { e.stopPropagation(); props.onBuyNow(item) }}
-              disabled={props.marketPriceCredits == null}
-            >
-              {props.marketPriceCredits == null ? 'Unavailable' : 'Buy now'}
-            </button>
+        <div className="card__desc">
+          <div className="card__name" title={item.name}>{item.name}</div>
+          {item.creator ? (
+            <CreatorBadge address={item.creator} className="card__creator" linkToProfile />
           ) : (
-            <button
-              className={`card__cart${inCart ? ' is-in' : ''}`}
-              onClick={e => { e.stopPropagation(); if (!own) add(item, 'grid') }}
-              disabled={inCart || own}
-            >
-              {own ? null : <span className="ico ico-cart-solid card__cart-ico" aria-hidden />}
-              {own ? 'Your item' : inCart ? 'In cart' : 'Add to cart'}
-            </button>
-          )
-        ) : (
-          <div className="card__meta">
-            {isMarket && props.mode === 'market' ? (
-              <div className="card__price card__price--market">
-                <span className="card__approx" aria-hidden>≈</span>
-                <CurrencyIcon className="card__diamond" />
-                {props.marketPriceCredits == null ? '—' : props.marketPriceCredits}
-                <span className="chip card__market-chip">Market price</span>
-              </div>
-            ) : onSale ? (
-              <div className="card__price card__price--sale">
-                <span className="card__price-now">
-                  <CurrencyIcon className="card__diamond" />
-                  {item.priceCredits}
-                </span>
-                <span className="card__price-was">
-                  <CurrencyIcon className="card__diamond card__diamond--was" />
-                  {item.compareAtCredits}
-                </span>
-                <SaleCountdown endsAt={item.saleEndsAt} className="card__countdown" />
-              </div>
-            ) : (
-              <div className="card__price">
+            <div className="card__creator">&nbsp;</div>
+          )}
+        </div>
+
+        {/* The price/chips row is always rendered; on hover-capable devices the primary action is
+            revealed in its place on hover OR keyboard focus, and it's always shown where hover isn't
+            available (touch) — so items stay buyable without a mouse (see .card__cart in index.css).
+            Both stay in the DOM so the action button is keyboard-reachable and touch-tappable.
+            Native cards add to cart; Market (legacy) cards Buy now directly (price locked at checkout). */}
+        <div className="card__meta">
+          {isMarket && props.mode === 'market' ? (
+            <div className="card__price card__price--market">
+              <span className="card__approx" aria-hidden>≈</span>
+              <CurrencyIcon className="card__diamond" />
+              {props.marketPriceCredits == null ? '—' : props.marketPriceCredits}
+              <span className="chip card__market-chip">Market price</span>
+            </div>
+          ) : onSale ? (
+            <div className="card__price card__price--sale">
+              <span className="card__price-now">
                 <CurrencyIcon className="card__diamond" />
                 {item.priceCredits}
-              </div>
-            )}
-            <div className="card__chips">
-              <span
-                className="chip chip--rarity"
-                style={{ background: rarityColor(item.rarity), color: readableText(rarityColor(item.rarity)) }}
-              >
-                {item.rarity}
               </span>
-              {item.category === 'wearable' ? (
-                <span className="chip chip--icon"><span className="ico ico-eyewear" aria-hidden /></span>
-              ) : null}
-              {gender ? <span className="chip chip--icon">{gender}</span> : null}
+              <span className="card__price-was">
+                <CurrencyIcon className="card__diamond card__diamond--was" />
+                {item.compareAtCredits}
+              </span>
+              <SaleCountdown endsAt={item.saleEndsAt} className="card__countdown" />
             </div>
+          ) : (
+            <div className="card__price">
+              <CurrencyIcon className="card__diamond" />
+              {item.priceCredits}
+            </div>
+          )}
+          <div className="card__chips">
+            <span
+              className="chip chip--rarity"
+              style={{ background: rarityColor(item.rarity), color: readableText(rarityColor(item.rarity)) }}
+            >
+              {item.rarity}
+            </span>
+            {item.category === 'wearable' ? (
+              <span className="chip chip--icon"><span className="ico ico-eyewear" aria-hidden /></span>
+            ) : null}
+            {gender ? <span className="chip chip--icon">{gender}</span> : null}
           </div>
+        </div>
+        {isMarket && props.mode === 'market' ? (
+          <button
+            className="card__cart"
+            onClick={e => { e.stopPropagation(); props.onBuyNow(item) }}
+            disabled={props.marketPriceCredits == null}
+          >
+            {props.marketPriceCredits == null ? 'Unavailable' : 'Buy now'}
+          </button>
+        ) : (
+          <button
+            className={`card__cart${inCart ? ' is-in' : ''}`}
+            onClick={e => { e.stopPropagation(); if (!own) add(item, 'grid') }}
+            disabled={inCart || own}
+          >
+            {own ? null : <span className="ico ico-cart-solid card__cart-ico" aria-hidden />}
+            {own ? 'Your item' : inCart ? 'In cart' : 'Add to cart'}
+          </button>
         )}
       </div>
     </article>

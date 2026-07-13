@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { fetchListings, type ShopSort } from '~/lib/api'
+import { fetchListings } from '~/lib/api'
 import { AssetCard } from '~/components/AssetCard'
+import { CategoryFilter } from '~/components/CategoryFilter'
+import { FilterBar, FilterPanel, SORTS } from '~/components/FilterBar'
 import { SkeletonCards } from '~/components/SkeletonCards'
 import { LoadMore } from '~/components/LoadMore'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
@@ -11,14 +13,9 @@ import { track } from '~/lib/analytics'
 // Items fetched per page (infinite scroll pages by cumulative offset — see useInfiniteGrid).
 const PAGE_SIZE = 48
 
-const CATEGORIES = [
-  { key: 'wearable', label: 'Wearables', sub: ['Head', 'Upper Body', 'Handwear', 'Lower Body', 'Feet', 'Accessories', 'Skins'] },
-  { key: 'emote', label: 'Emotes', sub: [] },
-  { key: 'ens', label: 'Names', sub: [] },
-  { key: 'parcel', label: 'Lands', sub: [] }
-]
-
-// Sidebar sub-labels → the on-chain wearable categories they cover.
+// Sidebar sub-labels → the on-chain categories they cover. Wearable sub-labels map to wearable
+// categories; emote sub-labels map to emote categories. Both go out on the same `wearableCategory`
+// query param — the server filters on a coalesced wearable/emote category column (see /v3/catalog/shop).
 const SUBCAT_MAP: Record<string, string[]> = {
   Head: ['head', 'hat', 'hair', 'facial_hair', 'eyes', 'eyebrows', 'mouth', 'mask', 'helmet', 'tiara', 'top_head'],
   'Upper Body': ['upper_body'],
@@ -26,19 +23,16 @@ const SUBCAT_MAP: Record<string, string[]> = {
   'Lower Body': ['lower_body'],
   Feet: ['feet'],
   Accessories: ['earring', 'eyewear'],
-  Skins: ['skin']
+  Skins: ['skin'],
+  Dance: ['dance'],
+  Stunt: ['stunt'],
+  Greetings: ['greetings'],
+  Fun: ['fun'],
+  Poses: ['poses'],
+  Reactions: ['reactions'],
+  Horror: ['horror'],
+  Miscellaneous: ['miscellaneous']
 }
-
-const RARITIES = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic', 'unique', 'exotic']
-
-const SORTS: { key: string; label: string; server: ShopSort }[] = [
-  { key: 'newest', label: 'Newest', server: 'newest' },
-  { key: 'price-asc', label: 'Price: Low to High', server: 'cheapest' },
-  { key: 'price-desc', label: 'Price: High to Low', server: 'most_expensive' },
-  { key: 'name', label: 'Name (A–Z)', server: 'name' }
-]
-
-type OpenPanel = null | 'section' | 'rarity' | 'price' | 'sort'
 
 export function Assets() {
   const [searchParams] = useSearchParams()
@@ -50,7 +44,6 @@ export function Assets() {
   const [priceMin, setPriceMin] = useState('')
   const [priceMax, setPriceMax] = useState('')
   const [sort, setSort] = useState('newest')
-  const [open, setOpen] = useState<OpenPanel>(null)
 
   // Build the server filter set — /v3/catalog/shop does the filtering + sort + search.
   const min = priceMin && !Number.isNaN(Number(priceMin)) ? Number(priceMin) : undefined
@@ -117,82 +110,31 @@ export function Assets() {
     setRarities([])
     setPriceMin('')
     setPriceMax('')
-    setOpen(null)
-  }
-  function toggle(panel: OpenPanel) {
-    setOpen(o => (o === panel ? null : panel))
   }
 
-  const currentSort = SORTS.find(s => s.key === sort) ?? SORTS[0]
-  const currentCat = CATEGORIES.find(c => c.key === category) ?? CATEGORIES[0]
-  const sectionLabel = subCategory ? `${currentCat.label} · ${subCategory}` : currentCat.label
   const priceActive = !!(min || max)
   const priceLabel = priceActive ? `${priceMin || '0'}–${priceMax || '∞'}` : 'Price'
   const anyActive = category !== 'wearable' || !!subCategory || rarities.length > 0 || priceActive
 
   return (
-    <div className="browse">
-      {open ? <div className="filterbar__scrim" onClick={() => setOpen(null)} aria-hidden /> : null}
+    <div className="browse browse--sidebar">
+      <aside className="browse__sidebar">
+        <CategoryFilter category={category} subCategory={subCategory} onCategory={pickCategory} onSub={setSubCategory} />
+      </aside>
 
-      <div className="filterbar">
-        <div className="filterbar__filters">
-          {/* Section (category + subcategory) */}
-          <div className="filterbar__item">
-            <button className={`filterbar__trigger${open === 'section' ? ' is-open' : ''}${subCategory || category !== 'wearable' ? ' is-active' : ''}`} onClick={() => toggle('section')}>
-              {sectionLabel} <span className="filterbar__chev" aria-hidden>▾</span>
-            </button>
-            {open === 'section' ? (
-              <div className="filter-pop filter-pop--section">
-                <ul className="filter-pop__cats">
-                  {CATEGORIES.map(c => (
-                    <li key={c.key}>
-                      <button className={`filter-pop__cat${category === c.key ? ' is-active' : ''}`} onClick={() => pickCategory(c.key)}>
-                        {c.label}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-                {currentCat.sub.length ? (
-                  <ul className="filter-pop__subs">
-                    <li>
-                      <button className={`filter-pop__sub${!subCategory ? ' is-active' : ''}`} onClick={() => { setSubCategory(null); setOpen(null) }}>All {currentCat.label}</button>
-                    </li>
-                    {currentCat.sub.map(s => (
-                      <li key={s}>
-                        <button className={`filter-pop__sub${subCategory === s ? ' is-active' : ''}`} onClick={() => { setSubCategory(prev => (prev === s ? null : s)); setOpen(null) }}>
-                          {s}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-              </div>
-            ) : null}
-          </div>
-
-          {/* Rarity */}
-          <div className="filterbar__item">
-            <button className={`filterbar__trigger${open === 'rarity' ? ' is-open' : ''}${rarities.length ? ' is-active' : ''}`} onClick={() => toggle('rarity')}>
-              Rarity {rarities.length ? <span className="filterbar__badge">{rarities.length}</span> : null} <span className="filterbar__chev" aria-hidden>▾</span>
-            </button>
-            {open === 'rarity' ? (
-              <div className="filter-pop filter-pop--rarity">
-                {RARITIES.map(r => (
-                  <label key={r} className="filter-pop__check">
-                    <input type="checkbox" checked={rarities.includes(r)} onChange={() => toggleRarity(r)} />
-                    <span>{r}</span>
-                  </label>
-                ))}
-              </div>
-            ) : null}
-          </div>
-
-          {/* Price */}
-          <div className="filterbar__item">
-            <button className={`filterbar__trigger${open === 'price' ? ' is-open' : ''}${priceActive ? ' is-active' : ''}`} onClick={() => toggle('price')}>
-              {priceLabel} <span className="filterbar__chev" aria-hidden>▾</span>
-            </button>
-            {open === 'price' ? (
+      <div className="browse__main">
+        <FilterBar
+          rarities={rarities}
+          onToggleRarity={toggleRarity}
+          sort={sort}
+          onSort={setSort}
+          total={total}
+          loading={isLoading}
+          query={q}
+          anyActive={anyActive}
+          onClear={reset}
+          renderTrailing={panel => (
+            <FilterPanel panelKey="price" label={priceLabel} active={priceActive} panel={panel}>
               <div className="filter-pop filter-pop--price">
                 <div className="filter-pop__price-row">
                   <input type="number" min="0" aria-label="Minimum price" placeholder="Min" value={priceMin} onChange={e => setPriceMin(e.target.value)} />
@@ -201,56 +143,29 @@ export function Assets() {
                 </div>
                 <p className="filter-pop__hint">Price in {CURRENCY.name}</p>
               </div>
-            ) : null}
-          </div>
+            </FilterPanel>
+          )}
+        />
 
-          {anyActive ? <button className="filterbar__clear" onClick={reset}>Clear all</button> : null}
+        {error ? <p className="error">Couldn&rsquo;t load items — please try again.</p> : null}
+
+        <div className="grid">
+          {isLoading ? (
+            <SkeletonCards count={15} />
+          ) : (
+            <>
+              {items.map(item => <AssetCard key={item.id} item={item} />)}
+              {isFetchingNextPage ? <SkeletonCards count={6} /> : null}
+            </>
+          )}
         </div>
 
-        <div className="filterbar__right">
-          <span className="filterbar__count">
-            {isLoading ? '…' : `${total.toLocaleString()} item${total === 1 ? '' : 's'}`}
-            {q ? ` for “${q}”` : ''}
-          </span>
-          <div className="filterbar__item">
-            <button className={`filterbar__sort${open === 'sort' ? ' is-open' : ''}`} onClick={() => toggle('sort')}>
-              Sort by: {currentSort.label} <span className="filterbar__chev" aria-hidden>▾</span>
-            </button>
-            {open === 'sort' ? (
-              <div className="filter-pop filter-pop--sort">
-                {SORTS.map(s => (
-                  <button
-                    key={s.key}
-                    className={`filter-pop__sort${s.key === sort ? ' is-active' : ''}`}
-                    onClick={() => { setSort(s.key); setOpen(null) }}
-                  >
-                    {s.label}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-          </div>
-        </div>
+        <LoadMore hasNextPage={hasNextPage} isFetching={isFetchingNextPage} onLoadMore={() => fetchNextPage()} />
+
+        {!isLoading && items.length === 0 ? (
+          <p className="muted">No items match your filters.</p>
+        ) : null}
       </div>
-
-      {error ? <p className="error">{error.message}</p> : null}
-
-      <div className="grid">
-        {isLoading ? (
-          <SkeletonCards count={15} />
-        ) : (
-          <>
-            {items.map(item => <AssetCard key={item.id} item={item} />)}
-            {isFetchingNextPage ? <SkeletonCards count={6} /> : null}
-          </>
-        )}
-      </div>
-
-      <LoadMore hasNextPage={hasNextPage} isFetching={isFetchingNextPage} onLoadMore={() => fetchNextPage()} />
-
-      {!isLoading && items.length === 0 ? (
-        <p className="muted">No items match your filters.</p>
-      ) : null}
     </div>
   )
 }

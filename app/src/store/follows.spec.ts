@@ -72,4 +72,24 @@ describe('follows store', () => {
     const useFollows = await freshStore()
     expect(useFollows.getState().followed).toEqual([])
   })
+
+  it('scopes follows per account and never leaks across accounts (reloadFor)', async () => {
+    const useFollows = await freshStore()
+
+    // Account A follows a creator → stored under a namespaced key, not the anonymous one.
+    useFollows.getState().reloadFor('0xAAA')
+    useFollows.getState().follow('0xcreator1')
+    expect(useFollows.getState().followed).toEqual(['0xcreator1'])
+    expect(JSON.parse(localStorage.getItem(`${STORAGE_KEY}:0xaaa`)!)).toEqual(['0xcreator1'])
+
+    // Switching to account B must NOT see A's follows.
+    useFollows.getState().reloadFor('0xBBB')
+    expect(useFollows.getState().followed).toEqual([])
+
+    // Back to A restores A's follows; signing out shows the anonymous (empty) bucket.
+    useFollows.getState().reloadFor('0xAAA')
+    expect(useFollows.getState().followed).toEqual(['0xcreator1'])
+    useFollows.getState().reloadFor(null)
+    expect(useFollows.getState().followed).toEqual([])
+  })
 })

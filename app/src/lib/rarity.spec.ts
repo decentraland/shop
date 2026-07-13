@@ -38,10 +38,10 @@ describe('when resolving the color for a rarity', () => {
     expect(new Set(colors).size).toBe(colors.length)
   })
 
-  it('and the rarity is unknown it returns whatever the schema lookup yields', () => {
-    // Rarity.getColor is a plain map lookup, so an unknown key resolves to undefined
-    // without throwing; the function passes that through.
-    expect(rarityColor('not-a-real-rarity')).toBeUndefined()
+  it('and the rarity is unknown it returns the fallback grey (never undefined → would crash readableText)', () => {
+    // Rarity.getColor is a plain map lookup: an unknown key resolves to undefined without throwing.
+    // rarityColor must coalesce that to the fallback so downstream readableText(color) is safe.
+    expect(rarityColor('not-a-real-rarity')).toBe(FALLBACK)
   })
 })
 
@@ -89,6 +89,11 @@ describe('when picking readable text for a background color', () => {
     expect(readableText('#fff')).toBe('#161518')
     expect(readableText('#')).toBe('#161518')
     expect(readableText('')).toBe('#161518')
+  })
+
+  it('should tolerate a non-string color (defensive) and fall back to dark text', () => {
+    expect(readableText(undefined as unknown as string)).toBe('#161518')
+    expect(readableText(null as unknown as string)).toBe('#161518')
   })
 
   it('should switch text color right around the luminance threshold', () => {

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
@@ -14,8 +14,10 @@ const session = {
 }
 
 const signIn = vi.fn()
+// Mutable so a test can render the logged-out state (session = null).
+let currentSession: typeof session | null = session
 vi.mock('~/store/wallet', () => ({
-  useWallet: () => ({ session, connecting: false, error: null, signIn, restore: vi.fn(), disconnect: vi.fn() })
+  useWallet: () => ({ session: currentSession, connecting: false, error: null, signIn, restore: vi.fn(), disconnect: vi.fn() })
 }))
 
 // decentraland-ui2 pulls heavy ESM transitive deps (@dcl/hooks) that don't resolve under
@@ -84,5 +86,28 @@ describe('when a signed-in user opens the get-credits page', () => {
 
     // Back on the pack grid.
     expect(screen.getByRole('button', { name: /500 credits for \$50/i })).toBeInTheDocument()
+  })
+})
+
+describe('when a signed-out user opens the get-credits page', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    currentSession = null
+  })
+  afterEach(() => {
+    currentSession = session
+  })
+
+  it('should prompt to sign in instead of showing the packs, and sign in on click', async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    // No purchasable packs while logged out.
+    expect(screen.queryByRole('button', { name: /50 credits for \$5/i })).not.toBeInTheDocument()
+
+    // A sign-in CTA is shown and triggers the login redirect.
+    const signInBtn = screen.getByRole('button', { name: /^sign in$/i })
+    await user.click(signInBtn)
+    expect(signIn).toHaveBeenCalledTimes(1)
   })
 })

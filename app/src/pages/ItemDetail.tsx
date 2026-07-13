@@ -7,9 +7,9 @@ import { useCart } from '~/store/cart'
 import { useFavorites } from '~/store/favorites'
 import { useWallet } from '~/store/wallet'
 import { useBalance } from '~/hooks/useBalance'
-import { fetchShopListingForItem, fetchTrade, fetchTradeForItem, usdWeiToCents, type CatalogItem } from '~/lib/api'
+import { fetchShopListingForItem, fetchTrade, fetchTradeForItem, fetchItemDescription, usdWeiToCents, type CatalogItem } from '~/lib/api'
 import { buyWithCredits } from '~/lib/buy'
-import { buyGasless, waitForSettlement, GaslessUnavailableError } from '~/lib/buy-gasless'
+import { buyGasless, waitForSettlement, GaslessUnavailableError, SettlementPendingError } from '~/lib/buy-gasless'
 import { gaslessEnabled } from '~/lib/gasless-config'
 import { authorizeUsdCredit, cancelUsdIntents } from '~/lib/credits'
 import { fetchCollectionItems } from '~/lib/collections'
@@ -18,7 +18,8 @@ import { CollectionCarousel } from '~/components/CollectionCarousel'
 import { CreatorBadge } from '~/components/CreatorBadge'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { SaleCountdown } from '~/components/SaleCountdown'
-import { isSaleActive, saleDiscountPct } from '~/lib/sale'
+import { saleDiscountPct } from '~/lib/sale'
+import { useSaleActive } from '~/hooks/useSaleActive'
 import { CURRENCY } from '~/lib/currency'
 import { track, itemProps, purchaseItemsProps, errorCode, isUserRejection, creditsToUsd } from '~/lib/analytics'
 import { recordViewed } from '~/lib/recently-viewed'
@@ -105,6 +106,16 @@ export function ItemDetail() {
     if (deepLinkItem) setCurrent(prev => (prev.tradeId ? prev : { ...deepLinkItem }))
   }, [deepLinkItem])
 
+  // Item long description — not in the shop feed, so read from the v2 catalog by contract + itemId.
+  // Collapsed to a few lines by default with a read-more toggle.
+  const [descExpanded, setDescExpanded] = useState(false)
+  const { data: description = '' } = useQuery({
+    queryKey: ['item-desc', current.contractAddress, current.itemId],
+    enabled: !!current.contractAddress && !!current.itemId,
+    staleTime: 5 * 60_000,
+    queryFn: () => fetchItemDescription(current.contractAddress, current.itemId as string)
+  })
+
   // Fallback backfill: if still unhydrated (e.g. not currently on sale), fill from the matching
   // sibling once the collection resolves.
   useEffect(() => {
@@ -152,6 +163,13 @@ export function ItemDetail() {
 
   const buyableTradeId = current.tradeId ?? resolvedTradeId ?? undefined
   const forSale = !!buyableTradeId
+  // Live sale-active flag (collapses the badge/strikethrough/discount the moment the window closes).
+  // Kept up here with the other hooks so it's never called after an early return.
+  const saleActive = useSaleActive({
+    priceCredits: current.priceCredits,
+    compareAtCredits: current.compareAtCredits,
+    saleEndsAt: current.saleEndsAt
+  })
   // The exact CatalogItem shape checkout expects (tradeId + tokenId), identical to fetchListings output.
   const cartItem: CatalogItem = useMemo(
     () => ({ ...current, tradeId: buyableTradeId, id: buyableTradeId ?? current.id }),
@@ -228,8 +246,15 @@ export function ItemDetail() {
           await waitForSettlement(txHash)
           usedGasless = true
         } catch (gaslessErr) {
-          if (!(gaslessErr instanceof GaslessUnavailableError)) throw gaslessErr
-          txHash = await buyWithCredits(buyArgs) // fallback: buyer submits
+          if (gaslessErr instanceof SettlementPendingError) {
+            // Broadcast but not yet confirmed — do NOT release the reservation; the credits-server
+            // reconciles it against the indexed CreditUsed event. Optimistic success.
+            usedGasless = true
+          } else if (gaslessErr instanceof GaslessUnavailableError) {
+            txHash = await buyWithCredits(buyArgs) // fallback: buyer submits
+          } else {
+            throw gaslessErr
+          }
         }
       } else {
         txHash = await buyWithCredits(buyArgs)
@@ -261,13 +286,7 @@ export function ItemDetail() {
   const rarity: Rarity = isValidRarity(current.rarity) ? current.rarity : Rarity.COMMON
   const [glowLight] = Rarity.getGradient(rarity)
   const gender = genderLabel(current.gender)
-  const onSale =
-    forSale &&
-    isSaleActive({
-      priceCredits: current.priceCredits,
-      compareAtCredits: current.compareAtCredits,
-      saleEndsAt: current.saleEndsAt
-    })
+  const onSale = forSale && saleActive
   const collectionTitle = 'More from this collection'
 
   // Your own (primary) listing — you can't buy it (see lib/ownership.ts). Secondary self-listings are
@@ -309,7 +328,16 @@ export function ItemDetail() {
             background: `radial-gradient(circle at 50% 38%, ${glowLight}33 0%, var(--media) 68%)`
           }}
         >
-          <ItemPreview item={current} />
+          {/* Mount the preview only once the item's identity is resolved (deep-link/refresh hydrate a
+              stub first) so the 3D iframe mounts ONCE with the right item — no stub→hydrated remount /
+              double-load. Show the same loader meanwhile. */}
+          {current.name ? (
+            <ItemPreview item={current} />
+          ) : (
+            <div className="item-preview__loading" aria-busy="true" aria-label="Loading preview">
+              <span className="item-preview__spinner" aria-hidden />
+            </div>
+          )}
         </div>
 
         <div className="item-detail__info">
@@ -334,6 +362,17 @@ export function ItemDetail() {
             <span className="chip">{current.category === 'emote' ? 'Emote' : 'Wearable'}</span>
             {gender ? <span className="chip">{gender}</span> : null}
           </div>
+
+          {description ? (
+            <div className="item-detail__description">
+              <p className={`item-detail__desc-text${descExpanded ? ' is-expanded' : ''}`}>{description}</p>
+              {description.length > 140 ? (
+                <button className="link item-detail__desc-toggle" onClick={() => setDescExpanded(v => !v)}>
+                  {descExpanded ? 'Show less' : 'Read more'}
+                </button>
+              ) : null}
+            </div>
+          ) : null}
 
           <div className="item-detail__card">
             <div className="item-detail__price-block">

@@ -48,8 +48,8 @@ type RawCatalogItem = {
   price?: string | null
   minPrice?: string | null
   data?: {
-    wearable?: { category?: string; bodyShapes?: string[] }
-    emote?: { category?: string }
+    wearable?: { category?: string; bodyShapes?: string[]; description?: string }
+    emote?: { category?: string; description?: string }
   }
 }
 
@@ -124,6 +124,21 @@ export async function fetchCatalog(
   if (!res.ok) throw new Error(`Failed to fetch catalog (${res.status})`)
   const { data, total } = (await res.json()) as { data: RawCatalogItem[]; total: number }
   return { items: data.map(toCatalogItem), total: total ?? data.length }
+}
+
+// The item's long description for the detail page. It isn't in the shop feed (ShopListingRaw), so read
+// it from the v2 catalog by contract + itemId. Returns '' when the item has none / on any error.
+export async function fetchItemDescription(contractAddress: string, itemId: string): Promise<string> {
+  const qs = new URLSearchParams({ contractAddresses: contractAddress, itemId, first: '1' })
+  try {
+    const res = await fetch(`${config.nftApiUrl}/v2/catalog?${qs.toString()}`)
+    if (!res.ok) return ''
+    const { data } = (await res.json()) as { data?: RawCatalogItem[] }
+    const d = data?.[0]?.data
+    return (d?.wearable?.description ?? d?.emote?.description ?? '').trim()
+  } catch {
+    return ''
+  }
 }
 
 // Per-item sale state for a creator's collection, from the v3 shop feed. Keyed by itemId, carries the

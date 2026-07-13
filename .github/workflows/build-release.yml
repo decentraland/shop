@@ -17,6 +17,7 @@ on:
         default: 'zone'
         options:
           - zone
+          - today
       rolloutPercentage:
         description: 'Rollout percentage'
         required: true
@@ -118,6 +119,7 @@ jobs:
           exit 1
 
       - name: Set Rollout
+        # By-path site (decentraland.<tld>/shop) → rollout keyed by deploymentPath + deploymentEnvironment.
         uses: decentraland/set-rollout-action@26ead404b6944fd0ce0d087cc59fd817607454d6 # v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -125,7 +127,7 @@ jobs:
           sha: ${{ github.sha }}
           packageName: '@dcl/shop'
           packageVersion: ${{ needs.build-and-publish.outputs.version }}
-          deploymentPath: 'sites'
+          deploymentPath: 'shop'
           deploymentEnvironment: ${{ github.event.inputs.deploymentEnvironment }}
           deploymentName: '_site'
           percentage: ${{ github.event.inputs.rolloutPercentage }}

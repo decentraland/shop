@@ -30,6 +30,10 @@
 * { box-sizing: border-box; }
 body { margin: 0; padding-top: 92px; background: var(--bg); color: var(--text); font-family: var(--sans); -webkit-font-smoothing: antialiased; }
 @media (max-width: 768px) { body { padding-top: 64px; } }
+/* Sticky footer: fill the viewport (minus the fixed top navbar) as a flex column so short pages push
+   the footer to the bottom instead of leaving it floating mid-screen. */
+#root { display: flex; flex-direction: column; min-height: calc(100vh - 92px); }
+@media (max-width: 768px) { #root { min-height: calc(100vh - 64px); } }
 a { color: inherit; text-decoration: none; }
 button { font-family: inherit; cursor: pointer; }
 h1, h2 { margin: 0; }
@@ -56,6 +60,22 @@ h1, h2 { margin: 0; }
 .ico-search { -webkit-mask-image: url('./assets/icons/search.svg'); mask-image: url('./assets/icons/search.svg'); }
 .ico-eyewear { -webkit-mask-image: url('./assets/icons/category-eyewear.svg'); mask-image: url('./assets/icons/category-eyewear.svg'); }
 .ico-clock { -webkit-mask-image: url('./assets/icons/clock.svg'); mask-image: url('./assets/icons/clock.svg'); }
+.ico-chevron { -webkit-mask-image: url('./assets/icons/chevron-down.svg'); mask-image: url('./assets/icons/chevron-down.svg'); }
+.ico-cat-head { -webkit-mask-image: url('./assets/icons/cat-head.svg'); mask-image: url('./assets/icons/cat-head.svg'); }
+.ico-cat-upper { -webkit-mask-image: url('./assets/icons/cat-upper.svg'); mask-image: url('./assets/icons/cat-upper.svg'); }
+.ico-cat-handwear { -webkit-mask-image: url('./assets/icons/cat-handwear.svg'); mask-image: url('./assets/icons/cat-handwear.svg'); }
+.ico-cat-lower { -webkit-mask-image: url('./assets/icons/cat-lower.svg'); mask-image: url('./assets/icons/cat-lower.svg'); }
+.ico-cat-feet { -webkit-mask-image: url('./assets/icons/cat-feet.svg'); mask-image: url('./assets/icons/cat-feet.svg'); }
+.ico-cat-accessories { -webkit-mask-image: url('./assets/icons/cat-accessories.svg'); mask-image: url('./assets/icons/cat-accessories.svg'); }
+.ico-cat-skins { -webkit-mask-image: url('./assets/icons/cat-skins.svg'); mask-image: url('./assets/icons/cat-skins.svg'); }
+.ico-emote-dance { -webkit-mask-image: url('./assets/icons/emote-dance.svg'); mask-image: url('./assets/icons/emote-dance.svg'); }
+.ico-emote-stunt { -webkit-mask-image: url('./assets/icons/emote-stunt.svg'); mask-image: url('./assets/icons/emote-stunt.svg'); }
+.ico-emote-greetings { -webkit-mask-image: url('./assets/icons/emote-greetings.svg'); mask-image: url('./assets/icons/emote-greetings.svg'); }
+.ico-emote-fun { -webkit-mask-image: url('./assets/icons/emote-fun.svg'); mask-image: url('./assets/icons/emote-fun.svg'); }
+.ico-emote-poses { -webkit-mask-image: url('./assets/icons/emote-poses.svg'); mask-image: url('./assets/icons/emote-poses.svg'); }
+.ico-emote-reactions { -webkit-mask-image: url('./assets/icons/emote-reactions.svg'); mask-image: url('./assets/icons/emote-reactions.svg'); }
+.ico-emote-horror { -webkit-mask-image: url('./assets/icons/emote-horror.svg'); mask-image: url('./assets/icons/emote-horror.svg'); }
+.ico-emote-misc { -webkit-mask-image: url('./assets/icons/emote-misc.svg'); mask-image: url('./assets/icons/emote-misc.svg'); }
 .ico-trash { -webkit-mask-image: url('./assets/icons/trash.svg'); mask-image: url('./assets/icons/trash.svg'); }
 .ico-slot-head { -webkit-mask-image: url('./assets/icons/slot-head.svg'); mask-image: url('./assets/icons/slot-head.svg'); }
 .ico-slot-upper { -webkit-mask-image: url('./assets/icons/slot-upper.svg'); mask-image: url('./assets/icons/slot-upper.svg'); }
@@ -99,7 +119,7 @@ h1, h2 { margin: 0; }
 }
 
 /* ---------------- Page ---------------- */
-.page { padding: 28px 40px 80px; max-width: 1760px; margin: 0 auto; }
+.page { padding: 28px 40px 80px; max-width: 1760px; margin: 0 auto; width: 100%; flex: 1 0 auto; }
 .placeholder { color: var(--muted); font-size: 18px; padding: 40px 0; }
 /* Suspense fallback while a lazy-loaded route chunk downloads. */
 .page-loading { display: grid; place-items: center; min-height: 46vh; }
@@ -134,11 +154,20 @@ h1, h2 { margin: 0; }
 .hero__title { color: #fff; font-size: clamp(28px, 4vw, 36px); font-weight: 700; text-transform: uppercase; line-height: 1.235; margin-bottom: 22px; }
 
 /* ---------------- Rows (carousels) ---------------- */
-.row { margin-bottom: 52px; }
-.row__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+/* ⚠️ Card rails + the hover glow: cards have an OUTWARD hover glow (box-shadow — see .card--hover). An
+   `overflow-x: auto` scroller ALSO clips overflow-y, so any rail must reserve room for that glow or it
+   gets cropped flat (top/bottom). .row__track reserves it with vertical PADDING — not a negative vertical
+   margin, which would tuck the glow behind the previous row and re-clip it (that was the "still cut off in
+   the cart / Featured" bug). Only the horizontal margin is negative, so the side glow bleeds into the
+   page's 40px padding. The head/row bottom margins are trimmed by the padding so the vertical rhythm is
+   unchanged. EVERY horizontal rail of <AssetCard> already uses .row__track (Overview, Cart upsell,
+   Recently viewed, Followed creators) — any NEW one MUST reuse it (or copy this padding) or the glow
+   will be cut off again. */
+.row { margin-bottom: 40px; }
+.row__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .row__title { font-size: 20px; font-weight: 600; color: var(--text); }
 .row__viewall { display: inline-flex; align-items: center; gap: 4px; color: var(--accent); font-weight: 600; font-size: 15px; letter-spacing: .046em; text-transform: uppercase; }
-.row__track { display: flex; gap: 16px; overflow-x: auto; padding-bottom: 8px; scroll-snap-type: x proximity; }
+.row__track { display: flex; gap: 16px; overflow-x: auto; padding: 12px 10px; margin: 0 -10px; scroll-snap-type: x proximity; }
 .row__track > * { flex: 0 0 220px; scroll-snap-align: start; }
 
 /* ---------------- Assets (sidebar + grid) ---------------- */
@@ -161,7 +190,7 @@ h1, h2 { margin: 0; }
 .assets__bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
 .assets__count { color: var(--muted); font-weight: 600; }
 .sortby { background: #fff; border: 1px solid var(--line-strong); border-radius: var(--radius-btn); padding: 10px 16px; font-weight: 700; text-transform: uppercase; font-size: 13px; letter-spacing: .03em; }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 16px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(201px, 1fr)); gap: 16px; }
 
 /* ---------------- Browse: horizontal filter bar (replaces the sidebar) ---------------- */
 .browse { position: relative; }
@@ -181,7 +210,8 @@ h1, h2 { margin: 0; }
 }
 .filterbar__trigger:hover, .filterbar__sort:hover { background: #f5f4f7; color: #3f3c47; }
 .filterbar__trigger.is-open, .filterbar__trigger.is-active, .filterbar__sort.is-open { color: #3f3c47; }
-.filterbar__chev { font-size: 11px; }
+.filterbar__chev { width: 14px; height: 14px; opacity: .85; transition: transform .15s ease; }
+.filterbar__chev.is-up { transform: rotate(180deg); }
 .filterbar__badge { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 11px; font-weight: 700; }
 .filterbar__clear { background: none; border: 0; color: var(--accent); font-weight: 600; font-size: 13px; padding: 8px 6px; }
 .filterbar__count { color: var(--muted); font-weight: 600; font-size: 14px; white-space: nowrap; }
@@ -217,10 +247,15 @@ h1, h2 { margin: 0; }
 .card {
   background: #fff; border-radius: var(--radius-card); overflow: hidden;
   border: 1px solid var(--line);
-  display: flex; flex-direction: column; transition: box-shadow .15s ease, transform .15s ease;
+  display: flex; flex-direction: column; transition: border-color .15s ease, box-shadow .15s ease;
 }
-/* Reskin hover-lift: a clean rise + soft neutral shadow (no colored ring). */
-.card--hover { box-shadow: 0 12px 28px rgba(22, 21, 24, .10); transform: translateY(-3px); }
+/* Figma hover (node 696:34662): 2px cerise border + soft violet glow. No layout shift — the 2nd cerise
+   px is a box-shadow ring, not a wider border. The glow is a translucent halo so it reads as a soft
+   bloom (not a hard violet line); it needs room in scroll containers — see .row__track. */
+.card--hover {
+  border-color: var(--dcl-red);
+  box-shadow: 0 0 0 1px var(--dcl-red), 0 0 8px 1px rgba(165, 36, 179, .55);
+}
 .card--skeleton, .asset-card--skeleton {
   min-height: 300px; border: 1px solid var(--line); border-radius: var(--radius-card);
   background: linear-gradient(100deg, #efeef2 30%, #e2e0e7 50%, #efeef2 70%);
@@ -269,9 +304,10 @@ h1, h2 { margin: 0; }
 .card__fav .ico-heart { width: 18px; height: 18px; }
 .card__fav.is-on { color: var(--dcl-red); }
 
-.card__body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 4px; }
-.card__name { font-weight: 600; font-size: 15px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.card__creator { color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+.card__body { padding: 8px; display: flex; flex-direction: column; gap: 12px; }
+.card__desc { display: flex; flex-direction: column; }
+.card__name { font-weight: 600; font-size: 14px; line-height: 1.57; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card__creator { color: var(--muted); font-size: 10px; margin-bottom: 0; }
 .card__meta { display: flex; flex-direction: column; gap: 8px; }
 .card__price { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 16px; color: var(--text-2); }
 .card__diamond { width: 15px; height: 15px; color: var(--text-2); }
@@ -280,13 +316,23 @@ h1, h2 { margin: 0; }
 .chip--rarity { background: var(--rarity-bg); color: var(--rarity); text-transform: uppercase; letter-spacing: .02em; }
 .chip--icon { padding: 3px 6px; font-size: 13px; }
 .chip--icon .ico { width: 14px; height: 14px; color: #444; }
-/* Add-to-cart (Figma node 790-63037: secondary dark button). Lives in the body below the image,
-   shown on hover in place of the price/chips row — never over the image. */
+/* Add-to-cart / Buy now (Figma node 790-63037: secondary dark button). Lives in the body below the
+   image, never over it. On hover-capable devices it's hidden at rest (the price/chips row shows) and
+   revealed on hover OR keyboard focus, swapping out the price row; where hover isn't available (touch)
+   it's always shown so the item stays buyable without a mouse. Always in the DOM (keyboard-reachable). */
 .card__cart {
-  margin-top: 4px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;
+  margin-top: 4px; width: 100%; display: none; align-items: center; justify-content: center; gap: 8px;
   background: var(--black-btn); color: var(--soft-white); border: 0; border-radius: var(--radius-btn); height: 40px;
   font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: .046em;
   transition: background .15s ease;
+}
+.card:hover .card__cart,
+.card__body:focus-within .card__cart { display: flex; }
+.card:hover .card__meta,
+.card__body:focus-within .card__meta { display: none; }
+@media (hover: none) {
+  /* Touch: no hover to reveal on, so keep the action visible (alongside the price row). */
+  .card__cart { display: flex; }
 }
 .card__cart:hover:not(:disabled) { background: #43404a; }
 .card__cart.is-in, .card__cart:disabled { background: #43404a; opacity: 1; cursor: default; }
@@ -756,11 +802,17 @@ a.purchase:hover { box-shadow: 0 8px 22px rgba(20, 20, 30, .10); transform: tran
   background: rgba(255, 255, 255, .9); color: var(--text); font-size: 22px; line-height: 1; cursor: pointer;
   display: grid; place-items: center; box-shadow: 0 1px 4px rgba(0, 0, 0, .15);
 }
-.fitting__stage { position: relative; flex: 1; min-width: 0; background: #ecebed; }
-.fitting__stage iframe { width: 100%; height: 100%; border: 0; display: block; }
-.fitting__empty-stage { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; text-align: center; padding: 20px; }
-.fitting__loading { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; }
-.fitting__spinner { width: 34px; height: 34px; border-radius: 50%; border: 3px solid rgba(0, 0, 0, .12); border-top-color: var(--accent); animation: spin .8s linear infinite; }
+/* Violet gradient = the AnimatedBackground's resting look; also the graceful fallback shown while the
+   WebGL backdrop's lazy chunk / texture loads (no grey flash) or if WebGL is unavailable. */
+.fitting__stage { position: relative; flex: 1; min-width: 0; background: radial-gradient(circle at 50% 45%, #bf00ff 0%, #510884 78%); }
+/* The avatar iframe is transparent (disableBackground) and sits ABOVE the absolute AnimatedBackground —
+   positioned + z-index so it wins the paint order (an unpositioned block would be painted under the
+   positioned backdrop). Spinner/empty state layer above it too. */
+.fitting__stage iframe { position: relative; z-index: 1; width: 100%; height: 100%; border: 0; display: block; }
+.fitting__empty-stage { position: absolute; inset: 0; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; text-align: center; padding: 20px; color: #fff; }
+.fitting__empty-stage .muted { color: rgba(255, 255, 255, .75); }
+.fitting__loading { position: absolute; inset: 0; z-index: 2; display: grid; place-items: center; pointer-events: none; }
+.fitting__spinner { width: 34px; height: 34px; border-radius: 50%; border: 3px solid rgba(255, 255, 255, .3); border-top-color: #fff; animation: spin .8s linear infinite; }
 
 .fitting__side { width: 380px; flex: none; display: flex; flex-direction: column; border-left: 1px solid var(--line); }
 .fitting__head { padding: 20px 20px 12px; }
@@ -787,6 +839,9 @@ a.purchase:hover { box-shadow: 0 8px 22px rgba(20, 20, 30, .10); transform: tran
 .fitting-row__meta { display: flex; align-items: center; gap: 6px; margin-top: 3px; }
 .fitting-row__slot-ico { width: 16px; height: 16px; color: var(--muted); }
 .fitting-row__conflict { font-size: 10px; font-weight: 700; color: var(--accent); background: rgba(105, 31, 169, .12); border-radius: 5px; padding: 1px 6px; text-transform: uppercase; letter-spacing: .02em; white-space: nowrap; }
+/* Item the current body shape can't wear: dim the row, disable its toggle (see FittingRoom), badge the shape. */
+.fitting-row.is-incompatible { opacity: .5; }
+.fitting-row__incompat { font-size: 10px; font-weight: 700; color: #9a6100; background: rgba(214, 158, 46, .18); border-radius: 5px; padding: 1px 6px; text-transform: uppercase; letter-spacing: .02em; white-space: nowrap; }
 .fitting-row__price { display: inline-flex; align-items: center; gap: 4px; font-weight: 700; font-size: 14px; color: var(--text-2); flex: none; }
 .fitting-row__diamond { width: 13px; height: 13px; color: var(--text-2); }
 .fitting-row__remove { flex: none; border: 0; background: none; color: var(--muted-2); cursor: pointer; padding: 6px; border-radius: 8px; display: grid; place-items: center; transition: color .12s ease, background .12s ease; }
@@ -805,3 +860,34 @@ a.purchase:hover { box-shadow: 0 8px 22px rgba(20, 20, 30, .10); transform: tran
   .fitting__stage { height: 44vh; flex: none; }
   .fitting__side { width: 100%; border-left: 0; border-top: 1px solid var(--line); min-height: 0; }
 }
+
+/* ---------------- Category filter panel (Figma "Categories Dropdown" 696:34701) ---------------- */
+/* Gray rounded container behind the category list (Figma node 696:34700). Rows are 265px + 8px pad. */
+.catfilter { display: flex; flex-direction: column; gap: 2px; width: 281px; background: #ecebed; border-radius: 16px; padding: 8px; }
+.catfilter__group { display: flex; flex-direction: column; gap: 2px; }
+/* Animate expand/collapse to content height via grid-template-rows 0fr↔1fr (transition-able). */
+.catfilter__subs { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .22s ease; }
+.catfilter__subs.is-open { grid-template-rows: 1fr; }
+.catfilter__subs-inner { overflow: hidden; min-height: 0; display: flex; flex-direction: column; gap: 2px; }
+@media (prefers-reduced-motion: reduce) { .catfilter__subs { transition: none; } }
+.catfilter__cat, .catfilter__sub {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  height: 40px; padding: 8px 16px; border: 0; border-radius: 12px; background: none;
+  width: 100%; text-align: left; cursor: pointer;
+}
+.catfilter__cat-label { font-family: var(--sans); font-weight: 600; font-size: 16px; line-height: 1.5; color: #161518; }
+/* On the gray container an #ecebed highlight would vanish → use white so selected/hover stays visible. */
+.catfilter__cat:hover, .catfilter__sub:hover { background: rgba(255, 255, 255, .55); }
+.catfilter__cat.is-expanded, .catfilter__sub.is-active { background: #fff; }
+.catfilter__chev { width: 24px; height: 24px; color: #161518; flex: none; transition: transform .15s ease; }
+.catfilter__chev.is-up { transform: rotate(180deg); }
+.catfilter__sub-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.catfilter__sub-ico { width: 24px; height: 24px; color: #43404a; flex: none; }
+.catfilter__sub-label { font-family: var(--sans); font-weight: 400; font-size: 16px; line-height: 1.5; color: #43404a; }
+.catfilter__chev--sub { color: #43404a; }
+
+/* Assets browse: category sidebar (Figma) + main column (filter bar + grid). */
+.browse--sidebar { display: flex; gap: 32px; align-items: flex-start; }
+.browse__sidebar { flex: none; width: 281px; }
+.browse__main { flex: 1; min-width: 0; }
+@media (max-width: 900px) { .browse--sidebar { flex-direction: column; } .browse__sidebar { width: 100%; } }

@@ -63,6 +63,61 @@
   border: 0;
   display: block;
 }
+/* "On avatar / Item" toggle over the preview (wearables only). The higher-specificity selector undoes
+   the greedy `> *` sizing above so the pill keeps its intrinsic size. */
+.item-detail__preview > .item-preview__toggle {
+  position: absolute; top: 14px; left: 50%; transform: translateX(-50%); z-index: 2;
+  width: auto; height: auto; display: inline-flex; gap: 2px; padding: 3px;
+  background: rgba(255, 255, 255, .92); border: 1px solid var(--line); border-radius: 999px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .12);
+}
+.item-preview__toggle button {
+  border: 0; background: none; cursor: pointer; padding: 6px 16px; border-radius: 999px;
+  font-weight: 600; font-size: 13px; color: var(--muted); transition: background .12s ease, color .12s ease;
+}
+.item-preview__toggle button.is-active { background: var(--text); color: #fff; }
+.item-preview__toggle button:not(.is-active):hover { color: var(--text); }
+/* Emote play/pause + sound + scrub controls, pinned to the bottom of the preview (emotes only). The
+   higher-specificity selector undoes the greedy `> *` sizing. */
+.item-detail__preview > .item-preview__emote-controls {
+  position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); z-index: 2;
+  width: auto; height: auto; max-width: 92%; display: flex; align-items: center;
+  background: rgba(255, 255, 255, .92); border: 1px solid var(--line); border-radius: 12px;
+  padding: 6px 10px; box-shadow: 0 1px 4px rgba(0, 0, 0, .12);
+}
+
+/* Body-shape incompatibility note (pill at the bottom of the preview). Overrides the greedy `> *`. */
+.item-detail__preview > .item-preview__note {
+  position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); z-index: 2;
+  width: auto; height: auto; max-width: 88%; margin: 0; text-align: center;
+  background: rgba(22, 21, 24, .78); color: #fff; font-size: 12px; font-weight: 500;
+  padding: 6px 12px; border-radius: 999px;
+}
+
+/* Loader overlay while the profile settles / the preview iframe loads — masks the load so it never
+   flickers raw. Overrides the greedy `> *` sizing; sits above the iframe (z-index 1) but below the
+   controls (z-index 2). Background stays transparent so the rarity glow shows through. */
+.item-detail__preview > .item-preview__loading {
+  position: absolute; inset: 0; z-index: 1;
+  display: flex; align-items: center; justify-content: center;
+  width: 100%; height: 100%; background: transparent;
+}
+.item-preview__spinner {
+  width: 34px; height: 34px; border-radius: 50%;
+  border: 3px solid var(--line); border-top-color: var(--accent);
+  animation: item-preview-spin .8s linear infinite;
+}
+@keyframes item-preview-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .item-preview__spinner { animation-duration: 2.4s; } }
+
+/* Item description (PDP) — clamped to a few lines with a read-more/less toggle. */
+.item-detail__description { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.item-detail__desc-text {
+  margin: 0; color: var(--text-2); font-size: 14px; line-height: 1.55;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden;
+}
+.item-detail__desc-text.is-expanded { -webkit-line-clamp: unset; overflow: visible; }
+.item-detail__desc-toggle { font-size: 13px; align-self: flex-start; }
 
 /* Info column */
 .item-detail__info {
@@ -322,7 +377,12 @@
   display: flex;
   gap: 16px;
   overflow-x: auto;
-  padding-bottom: 8px;
+  /* Reserve room for the cards' outward hover/active glow (box-shadow ring): an overflow-x scroller
+     also clips overflow-y, so without vertical padding the ring crops flat top/bottom. Same fix as
+     .row__track (index.css) — vertical padding for the glow, negative horizontal margin so the side
+     glow bleeds into the page padding and the row stays aligned. */
+  padding: 12px 10px;
+  margin: 0 -10px;
   scroll-snap-type: x proximity;
 }
 .collection-carousel__card {
