@@ -36,7 +36,7 @@ vi.mock('~/lib/trades', () => ({
 }))
 
 // eslint-disable-next-line import/first
-import { fetchImportable, importListing, type ImportItem, type ImportListing } from '~/lib/import'
+import { fetchImportable, importListing, RelistFailedError, type ImportItem, type ImportListing } from '~/lib/import'
 
 const listing = (over: Partial<ImportListing> = {}): ImportListing => ({
   oldTradeId: 'old-1',
@@ -230,6 +230,24 @@ describe('when migrating (taking the old listing down first)', () => {
     expect(cancelListing).not.toHaveBeenCalled()
     expect(postTrade).toHaveBeenCalledTimes(1)
   })
+
+  it('throws RelistFailedError when re-listing fails AFTER the old listing was taken down', async () => {
+    fetchTrade.mockResolvedValue({ id: 'old-1' })
+    postTrade.mockRejectedValue(new Error('network down')) // not a "still on sale" conflict → no retry
+
+    await expect(importListing(item({ oldTradeId: 'old-1' }), 10, session)).rejects.toBeInstanceOf(RelistFailedError)
+    // The old listing WAS cancelled, so the item is now unlisted (won't reappear in Import).
+    expect(cancelListing).toHaveBeenCalledTimes(1)
+  })
+
+  it('rethrows the original error when re-listing fails and nothing was cancelled', async () => {
+    postTrade.mockRejectedValue(new Error('network down'))
+
+    const err = await importListing(item(), 10, session, { cancelOld: false }).catch(e => e)
+    expect(err).not.toBeInstanceOf(RelistFailedError)
+    expect((err as Error).message).toBe('network down')
+    expect(cancelListing).not.toHaveBeenCalled()
+  })
 })
 
 describe('when the marketplace has not yet cleared the old order', () => {
@@ -254,7 +272,9 @@ describe('when the marketplace has not yet cleared the old order', () => {
   it('should rethrow other errors immediately without retrying', async () => {
     postTrade.mockRejectedValue(new Error('nope'))
 
-    await expect(importListing(item(), 10, session)).rejects.toThrow('nope')
+    // cancelOld:false so the raw error isn't wrapped in RelistFailedError (nothing was taken down);
+    // this isolates the retry policy — a non-conflict error is thrown after a single POST attempt.
+    await expect(importListing(item(), 10, session, { cancelOld: false })).rejects.toThrow('nope')
     expect(postTrade).toHaveBeenCalledTimes(1)
   })
 })
