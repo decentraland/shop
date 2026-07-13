@@ -82,20 +82,17 @@ export function CollectionCarousel({
           const listed = item.priceCredits > 0
           const inCart = cartIds.includes(item.id)
           return (
-            <article
-              key={item.id}
-              className={`collection-carousel__card${isActive ? ' is-active' : ''}`}
-              onClick={() => onSelect(item)}
-              role="button"
-              tabIndex={0}
-              aria-current={isActive || undefined}
-              onKeyDown={e => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault()
-                  onSelect(item)
-                }
-              }}
-            >
+            <article key={item.id} className={`collection-carousel__card${isActive ? ' is-active' : ''}`}>
+              {/* Single overlaid button for "view this item" (keyboard + screen-reader reachable),
+                  instead of an <article role="button"> wrapping the add-to-cart button — nesting
+                  interactive controls is invalid + breaks SR/tab order. It sits UNDER the add button
+                  (z-index) so that stays independently clickable. */}
+              <button
+                className="collection-carousel__select"
+                aria-label={`View ${item.name}`}
+                aria-current={isActive || undefined}
+                onClick={() => onSelect(item)}
+              />
               <div className="collection-carousel__media">
                 {item.thumbnail ? (
                   <img
