@@ -1,5 +1,5 @@
 {
-  "printWidth": 100,
+  "printWidth": 120,
   "semi": false,
   "singleQuote": true,
   "overrides": [
@@ -10,11 +10,11 @@
       }
     }
   ],
-  "trailingComma": "all",
+  "trailingComma": "es5",
   "bracketSpacing": true,
   "arrowParens": "avoid",
   "proseWrap": "never",
   "htmlWhitespaceSensitivity": "strict",
   "endOfLine": "lf",
-  "singleAttributePerLine": true
+  "singleAttributePerLine": false
 }
