@@ -733,7 +733,9 @@ a.purchase:hover { box-shadow: 0 8px 22px rgba(20, 20, 30, .10); transform: tran
 .creator--link { background: none; border: 0; padding: 0; margin: 0; font: inherit; cursor: pointer; max-width: 100%; }
 .creator--link:hover .creator__name { color: var(--text); text-decoration: underline; }
 .creator__ava { width: 18px; height: 18px; border-radius: 50%; object-fit: cover; flex: none; background: var(--media); }
-.creator__ava--ph { background: linear-gradient(135deg, var(--rarity-bg), var(--media)); }
+/* Lettered fallback avatar (no profile face, or the face url failed to load): the creator's initial on
+   a deterministic color. See CreatorBadge.tsx. */
+.creator__ava--letter { display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: 11px; font-weight: 700; line-height: 1; text-transform: uppercase; }
 .creator__name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .card__creator.creator { margin-bottom: 6px; }
 
