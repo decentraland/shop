@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { Session } from '~/lib/auth'
-import { importListing, type ImportItem } from '~/lib/import'
+import { importListing, RelistFailedError, type ImportItem } from '~/lib/import'
 import { CURRENCY } from '~/lib/currency'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { showsWalletConfirmations } from '~/lib/wallet-kind'
@@ -9,7 +9,9 @@ import { track } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
 
 export type MigrateEntry = { item: ImportItem; priceCredits: number }
-type Status = 'pending' | 'active' | 'done' | 'skipped' | 'failed'
+// 'unlisted' = the old listing was taken down but re-listing failed → the item now has NO listing and
+// must be re-listed from My Assets (distinct from 'skipped', which leaves the old listing intact).
+type Status = 'pending' | 'active' | 'done' | 'skipped' | 'failed' | 'unlisted'
 
 // Lists a queue of old items into the Shop one at a time (each needs one confirmation). Shows live
 // progress, then a congrats. Closing refreshes the pages behind it (via onDone).
@@ -49,10 +51,17 @@ export function MigrateModal({
           })
           if (!cancelled) setStatuses(s => s.map((v, idx) => (idx === i ? 'done' : v)))
         } catch (e) {
-          const err = e as { code?: number; message?: string }
-          const rejected = err.code === 4001 || /reject|denied|cancel/i.test(err.message ?? '')
-          if (!rejected) captureError(e, { flow: 'import_listing', itemId: queue[i].item.itemId ?? queue[i].item.oldTradeId })
-          if (!cancelled) setStatuses(s => s.map((v, idx) => (idx === i ? (rejected ? 'skipped' : 'failed') : v)))
+          if (e instanceof RelistFailedError) {
+            // Old listing already removed but re-listing failed → the item is now unlisted (not a plain
+            // skip). Always capture it; the summary points the seller to re-list from My Assets.
+            captureError(e, { flow: 'import_listing', step: 'relist', itemId: queue[i].item.itemId ?? queue[i].item.oldTradeId })
+            if (!cancelled) setStatuses(s => s.map((v, idx) => (idx === i ? 'unlisted' : v)))
+          } else {
+            const err = e as { code?: number; message?: string }
+            const rejected = err.code === 4001 || /reject|denied|cancel/i.test(err.message ?? '')
+            if (!rejected) captureError(e, { flow: 'import_listing', itemId: queue[i].item.itemId ?? queue[i].item.oldTradeId })
+            if (!cancelled) setStatuses(s => s.map((v, idx) => (idx === i ? (rejected ? 'skipped' : 'failed') : v)))
+          }
         }
       }
       if (!cancelled) setPhase('finished')
@@ -75,6 +84,7 @@ export function MigrateModal({
 
   if (phase === 'finished') {
     const skipped = statuses.filter(s => s === 'skipped' || s === 'failed').length
+    const unlisted = statuses.filter(s => s === 'unlisted').length
     return (
       <div className="modal-backdrop" role="presentation">
         <div className="modal modal--success" role="dialog" aria-modal="true">
@@ -85,10 +95,24 @@ export function MigrateModal({
               ? `${listedCount} ${listedCount === 1 ? 'item is' : 'items are'} now for sale with ${CURRENCY.name}.`
               : 'No items were listed.'}
             {skipped > 0 ? ` ${skipped} skipped — you can try those again anytime.` : ''}
+            {unlisted > 0
+              ? ` ${unlisted} ${unlisted === 1 ? 'item was' : 'items were'} taken off the old marketplace but couldn't be re-listed — re-list ${unlisted === 1 ? 'it' : 'them'} from My Assets.`
+              : ''}
           </p>
           <div className="modal__actions">
             <button className="btn btn--ghost" onClick={finish}>Done</button>
-            {listedCount > 0 ? (
+            {unlisted > 0 ? (
+              <button
+                className="btn btn--purple"
+                onClick={() => {
+                  onDone()
+                  onClose()
+                  navigate('/my-assets')
+                }}
+              >
+                Go to My Assets
+              </button>
+            ) : listedCount > 0 ? (
               <button
                 className="btn btn--purple"
                 onClick={() => {
@@ -136,6 +160,10 @@ export function MigrateModal({
                   <span className="migrate__skip">Skipped</span>
                 ) : statuses[i] === 'failed' ? (
                   <span className="migrate__skip">Failed</span>
+                ) : statuses[i] === 'unlisted' ? (
+                  <span className="migrate__skip" title="Removed from the old marketplace but not re-listed — re-list it from My Assets.">
+                    Not listed
+                  </span>
                 ) : (
                   <span className="migrate__wait">Waiting</span>
                 )}
