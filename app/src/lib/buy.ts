@@ -38,6 +38,20 @@ async function tradeManaPriceWei(trade: Trade): Promise<string> {
 }
 
 async function sendUseCredits(chainId: number, args: unknown, signer: ethers.Signer): Promise<string> {
+  // useCredits is a REAL transaction, so it MUST run on the trade's chain. A restored session (or a
+  // user who was last on another network) can leave the wallet on a different chain — without pinning
+  // it first the wallet submits useCredits on its active network (e.g. Sepolia), where the
+  // CreditsManager address has NO code: the call succeeds as a no-op, so a "successful" receipt comes
+  // back but NO credits are consumed and NO item is bought. Switch just-in-time (mirrors cancelListing
+  // and ensureApproval — the only other on-chain steps in the buy flow).
+  const web3 = signer.provider as ethers.providers.Web3Provider
+  await ensureChain(web3, chainId)
+  // Belt-and-suspenders: never submit on the wrong chain even if the wallet ignored/failed the switch
+  // silently. Re-read the active network and abort instead of sending useCredits into the void.
+  const active = await web3.getNetwork()
+  if (active.chainId !== chainId) {
+    throw new Error(`Wrong network: wallet is on chain ${active.chainId}, expected ${chainId}. Switch networks and try again.`)
+  }
   const cm = getContract(ContractName.CreditsManager, chainId)
   const contract = new ethers.Contract(cm.address, cm.abi, signer)
   const tx = await contract.useCredits(args, amoyGasOverrides(chainId))

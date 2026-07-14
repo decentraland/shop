@@ -21,7 +21,9 @@ describe('legacy (fluctuating-price) liquidity in the unified browse', () => {
   })
 
   it('buys a legacy item via Buy now → success (not the cart)', async () => {
-    // fetchTrade('legacy-trade-1') → legacyTrade; authorize + useCredits are mocked (see helpers).
+    // fetchTrade('legacy-trade-1') → legacyTrade; authorize is mocked, and the gasless useCredits
+    // meta-tx is signed by the mock wallet + relayed through the mocked transactions-api (see helpers).
+    // /assets is the unified browse (market folds into it); the legacy card renders Buy now there.
     app = await launchApp({ path: '/assets', fixtures: { trade: legacyTrade } })
     const { page } = app
 

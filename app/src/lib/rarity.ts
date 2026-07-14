@@ -15,6 +15,22 @@ export function rarityColor(rarity?: string | null): string {
   }
 }
 
+// Per-rarity radial gradient (light center → dark edge), matching how the marketplace renders an
+// item's image background. Falls back to a neutral grey wash for unknown rarities.
+const FALLBACK_GRADIENT = 'radial-gradient(#c0bdc6, #a09ba8)'
+
+export function rarityGradient(rarity?: string | null): string {
+  try {
+    const [light, dark] = Rarity.getGradient((rarity ?? 'common').toLowerCase() as Rarity)
+    // An unknown rarity yields [undefined, undefined] (no throw) — fall back rather than emit a
+    // broken `radial-gradient(undefined, undefined)`.
+    if (!light || !dark) return FALLBACK_GRADIENT
+    return `radial-gradient(${light}, ${dark})`
+  } catch {
+    return FALLBACK_GRADIENT
+  }
+}
+
 // Pick black or white text for a solid background by perceived luminance (same threshold the reskin
 // uses): light chip -> dark text, dark chip -> white text. Tolerates a non-string (defends against a
 // missing color upstream) by falling back to dark text rather than throwing.

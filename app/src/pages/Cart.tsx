@@ -275,70 +275,79 @@ export function Cart() {
     <div className="cart">
       <h1>Cart ({items.length})</h1>
 
-      <div className="cart__list">
-        {items.map(item => {
-          const line = lineById.get(item.id)
-          const livePrice = line ? line.priceCredits : item.priceCredits
-          const changed = !!line && line.priceCredits !== item.priceCredits
-          return (
-            <div className="cart__row" key={item.id}>
-              <div className="cart__thumb">{item.thumbnail ? <img src={item.thumbnail} alt={item.name} /> : null}</div>
-              <div className="cart__info">
-                <div className="cart__name">{item.name}</div>
-                {item.creator ? <CreatorBadge address={item.creator} className="cart__creator" linkToProfile /> : null}
-              </div>
-              <div className="cart__price">
-                <CurrencyIcon className="ccy-mark" /> {livePrice}
-                {changed ? (
-                  <span className="muted" style={{ marginLeft: 6, textDecoration: 'line-through' }}>{item.priceCredits}</span>
-                ) : null}
-              </div>
-              <button
-                className="cart__remove"
-                onClick={() => editCart(() => remove(item.id))}
-                disabled={busy}
-                aria-label={`Remove ${item.name}`}
-                title="Remove"
-              >
-                <span className="ico ico-trash" aria-hidden />
-              </button>
+      <div className="cart__body">
+        <div className="cart__main">
+          <div className="cart__list">
+            {items.map(item => {
+              const line = lineById.get(item.id)
+              const livePrice = line ? line.priceCredits : item.priceCredits
+              const changed = !!line && line.priceCredits !== item.priceCredits
+              return (
+                <div className="cart__row" key={item.id}>
+                  <div className="cart__thumb">{item.thumbnail ? <img src={item.thumbnail} alt={item.name} /> : null}</div>
+                  <div className="cart__info">
+                    <div className="cart__name">{item.name}</div>
+                    {item.creator ? <CreatorBadge address={item.creator} className="cart__creator" linkToProfile /> : null}
+                  </div>
+                  <div className="cart__price">
+                    <CurrencyIcon className="ccy-mark" /> {livePrice}
+                    {changed ? (
+                      <span className="muted" style={{ marginLeft: 6, textDecoration: 'line-through' }}>{item.priceCredits}</span>
+                    ) : null}
+                  </div>
+                  <button
+                    className="cart__remove"
+                    onClick={() => editCart(() => remove(item.id))}
+                    disabled={busy}
+                    aria-label={`Remove ${item.name}`}
+                    title="Remove"
+                  >
+                    <span className="ico ico-trash" aria-hidden />
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Utility actions kept subtle so they don't compete with Checkout. */}
+          <div className="cart__utils">
+            <button className="link" onClick={() => editCart(clear)} disabled={busy}>Clear cart</button>
+            {import.meta.env.DEV ? (
+              <button className="link" onClick={getTestCredits} disabled={busy || !session}>Get test {CURRENCY.name} (dev)</button>
+            ) : null}
+          </div>
+        </div>
+
+        <aside className="cart__summary">
+          <h2 className="cart__summary-title">Order summary</h2>
+          <div className="cart__total">
+            <div className="cart__total-line">
+              <span>Total</span>
+              <strong><CurrencyIcon className="ccy-mark" /> {total}</strong>
             </div>
-          )
-        })}
-      </div>
+            {session ? <div className="muted cart__balance">Your balance: <CurrencyIcon className="ccy-mark" /> {balance?.credits ?? 0}</div> : null}
+          </div>
 
-      <div className="cart__foot">
-        <div className="cart__total">
-          <div className="cart__total-line">Total <strong><CurrencyIcon className="ccy-mark" /> {total}</strong></div>
-          {session ? <div className="muted cart__balance">Your balance: <CurrencyIcon className="ccy-mark" /> {balance?.credits ?? 0}</div> : null}
-        </div>
-        <div className="cart__actions">
-          {hasWearable ? (
-            <button className="btn btn--ghost" onClick={() => setFittingOpen(true)} disabled={busy}>Try on outfit</button>
+          <div className="cart__actions">
+            <button className="btn btn--purple cart__checkout" onClick={review ? confirmPurchase : checkout} disabled={busy}>
+              {busy ? 'Working…' : review ? 'Confirm purchase' : 'Checkout'}
+            </button>
+            <Link className="btn btn--ghost" to="/credits">Get {CURRENCY.name}</Link>
+            {hasWearable ? (
+              <button className="btn btn--ghost" onClick={() => setFittingOpen(true)} disabled={busy}>Try on outfit</button>
+            ) : null}
+          </div>
+
+          {review ? (
+            <p className="muted cart__msg">
+              Prices or availability changed since you added these — review the updated total and confirm to buy.
+            </p>
           ) : null}
-          <Link className="btn btn--ghost" to="/credits">Get {CURRENCY.name}</Link>
-          <button className="btn btn--purple cart__checkout" onClick={review ? confirmPurchase : checkout} disabled={busy}>
-            {busy ? 'Working…' : review ? 'Confirm purchase' : 'Checkout'}
-          </button>
-        </div>
+          {notice ? <p className="muted cart__msg">{notice}</p> : null}
+          {status ? <p className="muted cart__msg">{status}</p> : null}
+          {error ? <p className="error cart__msg">{error}</p> : null}
+        </aside>
       </div>
-
-      {/* Utility actions kept subtle so they don't compete with Checkout. */}
-      <div className="cart__utils">
-        <button className="link" onClick={() => editCart(clear)} disabled={busy}>Clear cart</button>
-        {import.meta.env.DEV ? (
-          <button className="link" onClick={getTestCredits} disabled={busy || !session}>Get test {CURRENCY.name} (dev)</button>
-        ) : null}
-      </div>
-
-      {review ? (
-        <p className="muted" style={{ marginTop: 12 }}>
-          Prices or availability changed since you added these — review the updated total and confirm to buy.
-        </p>
-      ) : null}
-      {notice ? <p className="muted" style={{ marginTop: 12 }}>{notice}</p> : null}
-      {status ? <p className="muted" style={{ marginTop: 12 }}>{status}</p> : null}
-      {error ? <p className="error" style={{ marginTop: 12 }}>{error}</p> : null}
 
       {upsell.length > 0 ? (
         <section className="row cart-upsell">
