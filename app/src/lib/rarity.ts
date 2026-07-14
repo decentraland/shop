@@ -15,6 +15,18 @@ export function rarityColor(rarity?: string | null): string {
   }
 }
 
+// The marketplace rarity chip is a TINTED chip: the rarity's own color at low alpha for the
+// background + the full color for the text (e.g. legendary → rgba(161,75,243,.3) bg / #a14bf3 text).
+// Falls back to the neutral color when the hex can't be parsed.
+export function rarityTint(rarity?: string | null, alpha = 0.3): string {
+  const h = rarityColor(rarity).replace('#', '')
+  if (h.length < 6) return `rgba(160, 155, 168, ${alpha})`
+  const r = parseInt(h.slice(0, 2), 16)
+  const g = parseInt(h.slice(2, 4), 16)
+  const b = parseInt(h.slice(4, 6), 16)
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+}
+
 // Pick black or white text for a solid background by perceived luminance (same threshold the reskin
 // uses): light chip -> dark text, dark chip -> white text. Tolerates a non-string (defends against a
 // missing color upstream) by falling back to dark text rather than throwing.

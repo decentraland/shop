@@ -57,8 +57,8 @@ describe('browse the shop', () => {
     const { page } = app
     await waitForText(page, 'Galaxy Hat')
 
-    // Open the Rarity popover in the horizontal filter bar, then check "legendary".
-    expect(await clickByText(page, '.filterbar__trigger', /rarity/i)).toBe(true)
+    // Open the Rarity popover in the main-area toolbar pill, then check "legendary".
+    expect(await clickByText(page, '.filterbar__sort', /rarity/i)).toBe(true)
     await page.waitForSelector('.filter-pop--rarity', { timeout: 5000 })
     expect(await clickByText(page, '.filter-pop__check', /^legendary$/i)).toBe(true)
     // Only the legendary item (Nebula Jacket) remains; the epic one drops out.

@@ -8,7 +8,7 @@ import { useFavorites } from '~/store/favorites'
 import { useWallet } from '~/store/wallet'
 import { isOwnListing } from '~/lib/ownership'
 import { CreatorBadge } from '~/components/CreatorBadge'
-import { rarityColor, readableText } from '~/lib/rarity'
+import { rarityColor, rarityTint } from '~/lib/rarity'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { SaleCountdown } from '~/components/SaleCountdown'
 import { saleDiscountPct } from '~/lib/sale'
@@ -156,21 +156,22 @@ export function AssetCard(props: AssetCardProps) {
       </div>
 
       <div className="card__body">
-        <div className="card__desc">
-          <div className="card__name" title={item.name}>{item.name}</div>
-          {item.creator ? (
-            <CreatorBadge address={item.creator} className="card__creator" linkToProfile />
-          ) : (
-            <div className="card__creator">&nbsp;</div>
-          )}
-        </div>
-
-        {/* The price/chips row is always rendered; on hover-capable devices the primary action is
-            revealed in its place on hover OR keyboard focus, and it's always shown where hover isn't
-            available (touch) — so items stay buyable without a mouse (see .card__cart in index.css).
-            Both stay in the DOM so the action button is keyboard-reachable and touch-tappable.
+        {/* Top row: name/creator on the left, price on the right (matching the Figma card). The
+            name/creator stay put; on hover-capable devices the price + chips are swapped for the
+            primary action on hover OR keyboard focus, and where hover isn't available (touch) the
+            action is always shown so items stay buyable without a mouse (see .card__cart in index.css).
+            Everything stays in the DOM so the action button is keyboard-reachable and touch-tappable.
             Native cards add to cart; Market (legacy) cards Buy now directly (price locked at checkout). */}
-        <div className="card__meta">
+        <div className="card__row">
+          <div className="card__desc">
+            <div className="card__name" title={item.name}>{item.name}</div>
+            {item.creator ? (
+              <CreatorBadge address={item.creator} className="card__creator" linkToProfile />
+            ) : (
+              <div className="card__creator">&nbsp;</div>
+            )}
+          </div>
+
           {isMarket && props.mode === 'market' ? (
             <div className="card__price card__price--market">
               <span className="card__approx" aria-hidden>≈</span>
@@ -196,18 +197,19 @@ export function AssetCard(props: AssetCardProps) {
               {item.priceCredits}
             </div>
           )}
-          <div className="card__chips">
-            <span
-              className="chip chip--rarity"
-              style={{ background: rarityColor(item.rarity), color: readableText(rarityColor(item.rarity)) }}
-            >
-              {item.rarity}
-            </span>
-            {item.category === 'wearable' ? (
-              <span className="chip chip--icon"><span className="ico ico-eyewear" aria-hidden /></span>
-            ) : null}
-            {gender ? <span className="chip chip--icon">{gender}</span> : null}
-          </div>
+        </div>
+
+        <div className="card__chips">
+          <span
+            className="chip chip--rarity"
+            style={{ background: rarityTint(item.rarity), color: rarityColor(item.rarity) }}
+          >
+            {item.rarity}
+          </span>
+          {item.category === 'wearable' ? (
+            <span className="chip chip--icon"><span className="ico ico-eyewear" aria-hidden /></span>
+          ) : null}
+          {gender ? <span className="chip chip--icon">{gender}</span> : null}
         </div>
         {isMarket && props.mode === 'market' ? (
           <button

@@ -1,11 +1,10 @@
 import { ReactNode, useState } from 'react'
 import type { ShopSort } from '~/lib/api'
 
-// Shared horizontal filter bar for the browse grids (Assets + Market). Owns the single-open-panel
-// state (only one popover at a time) + the click-away scrim, and renders the filters both pages share:
-// Rarity, Sort, the result count, and Clear. Page-specific filters plug in via render slots —
-// `renderLeading` (Market's Section dropdown) and `renderTrailing` (Assets' Price range) — both wired
-// to the same panel controller so they share the single-open behavior and styling.
+// Main-area toolbar for the unified browse grid: the result count on the left + the Rarity and
+// Sort By dropdown "pills" on the right (Figma "Marketplace-UX-Improvements"). Owns the
+// single-open-panel state (only one popover at a time) + the click-away scrim. Category + Price
+// filters live in the page sidebar (see Assets.tsx) — this toolbar carries only Rarity + Sort.
 
 export const RARITIES = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic', 'unique', 'exotic']
 
@@ -70,11 +69,7 @@ export function FilterBar({
   sortOptions = SORTS,
   total,
   loading,
-  query,
-  anyActive,
-  onClear,
-  renderLeading,
-  renderTrailing
+  query
 }: {
   rarities: string[]
   onToggleRarity: (rarity: string) => void
@@ -85,12 +80,6 @@ export function FilterBar({
   total: number
   loading: boolean
   query?: string
-  anyActive: boolean
-  onClear: () => void
-  /** Rendered before Rarity (Market: Section). */
-  renderLeading?: (panel: PanelController) => ReactNode
-  /** Rendered after Rarity (Assets: Price). */
-  renderTrailing?: (panel: PanelController) => ReactNode
 }) {
   const [open, setOpen] = useState<string | null>(null)
   const panel: PanelController = {
@@ -98,20 +87,23 @@ export function FilterBar({
     toggle: key => setOpen(current => (current === key ? null : key)),
     close: () => setOpen(null)
   }
-  const currentSort = sortOptions.find(s => s.key === sort) ?? sortOptions[0]
 
   return (
     <>
       {open ? <div className="filterbar__scrim" onClick={panel.close} aria-hidden /> : null}
-      <div className="filterbar">
-        <div className="filterbar__filters">
-          {renderLeading?.(panel)}
+      <div className="browse__toolbar">
+        <span className="browse__count">
+          {loading ? '…' : `${total.toLocaleString()} Item${total === 1 ? '' : 's'}`}
+          {query ? ` for “${query}”` : ''}
+        </span>
 
+        <div className="browse__dropdowns">
           <FilterPanel
             panelKey="rarity"
             label="Rarity"
             active={rarities.length > 0}
             badge={rarities.length || undefined}
+            align="right"
             panel={panel}
           >
             <div className="filter-pop filter-pop--rarity">
@@ -124,27 +116,7 @@ export function FilterBar({
             </div>
           </FilterPanel>
 
-          {renderTrailing?.(panel)}
-
-          {anyActive ? (
-            <button
-              className="filterbar__clear"
-              onClick={() => {
-                onClear()
-                panel.close()
-              }}
-            >
-              Clear all
-            </button>
-          ) : null}
-        </div>
-
-        <div className="filterbar__right">
-          <span className="filterbar__count">
-            {loading ? '…' : `${total.toLocaleString()} item${total === 1 ? '' : 's'}`}
-            {query ? ` for “${query}”` : ''}
-          </span>
-          <FilterPanel panelKey="sort" label={`Sort by: ${currentSort.label}`} align="right" panel={panel}>
+          <FilterPanel panelKey="sort" label="Sort By" align="right" panel={panel}>
             <div className="filter-pop filter-pop--sort">
               {sortOptions.map(s => (
                 <button
