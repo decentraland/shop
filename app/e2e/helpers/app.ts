@@ -21,6 +21,9 @@ export type Fixtures = {
   credits: unknown
   importable: unknown
   shopListings: unknown
+  collections: unknown
+  creatorNames: unknown
+  accounts: unknown
   legacyListings: unknown
   unifiedListings: unknown
   ownedNfts: unknown
@@ -36,6 +39,9 @@ function defaults(): Fixtures {
     credits: fx.creditsResponse,
     importable: fx.importable,
     shopListings: fx.shopListings,
+    collections: fx.collections,
+    creatorNames: fx.creatorNames,
+    accounts: fx.accounts,
     legacyListings: fx.legacyListings,
     unifiedListings: fx.unifiedListings,
     ownedNfts: fx.ownedNfts,
@@ -72,11 +78,12 @@ function json(req: HTTPRequest, obj: unknown, status = 200) {
 // A forced error response, keyed by URL pathname (opt-in per run via launchApp({ errors })).
 type ErrorMap = Record<string, { status: number; body?: unknown }>
 
-// Map a shop listing (fixtures shape) → a RawCollectionItem the /v1/items catalog endpoint returns
-// (the shape lib/collections.ts's toCatalogItem reads). `price` is USD wei (1e18 = $1); derive it
-// from priceCredits (1 credit = $0.10) so items stay buyable with a positive credit price.
+// Map a shop listing (fixtures shape) → a catalog item the /v3/catalog/items endpoint returns
+// (the shape lib/collections.ts's toCatalogItem reads). The server computes `priceCredits` per item;
+// `price` (USD wei, 1e18 = $1) is kept for shape parity with /v1/items.
 function toCatalogRow(l: any) {
-  const priceWei = String(BigInt(Math.max(1, Math.round(l.priceCredits ?? 1))) * 10n ** 17n) // credits × $0.10 in wei
+  const priceCredits = Math.max(1, Math.round(l.priceCredits ?? 1))
+  const priceWei = String(BigInt(priceCredits) * 10n ** 17n) // credits × $0.10 in wei
   return {
     id: `${l.contractAddress}-${l.itemId ?? l.tokenId ?? '0'}`,
     name: l.name,
@@ -88,7 +95,8 @@ function toCatalogRow(l: any) {
     network: l.network,
     chainId: l.chainId,
     thumbnail: l.thumbnail ?? '',
-    price: priceWei
+    price: priceWei,
+    priceCredits
   }
 }
 
@@ -114,6 +122,12 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
   // JSON-RPC read provider.
   if (u.hostname.includes('rpc-amoy') || u.hostname.includes('rpc.decentraland')) {
     return req.respond({ status: 200, headers: { 'content-type': 'application/json', ...CORS }, body: handleRpc(req.postData() || '{}') })
+  }
+  // Meta-transaction relayer (transactions-server): gasless checkout POSTs the signed useCredits
+  // meta-tx here; the RPC mock then returns a status-1 receipt for the returned hash. Gasless is the
+  // default checkout path, so the credit-buy flows exercise this.
+  if (u.hostname.includes('transactions-api') && path.endsWith('/transactions')) {
+    return json(req, { ok: true, txHash: '0x' + 'ab'.repeat(32) })
   }
   // WearablePreview iframe → blank page (don't hit the external preview app).
   if (u.hostname.includes('wearable-preview')) {
@@ -182,9 +196,20 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
       }
       return json(req, { data: items, total: items.length })
     }
+    // Collections entity: search dropdown "Collections" section (fetchCollectionSuggestions, ?search=)
+    // + the Collection page name lookup (fetchCollection, ?contractAddress=). Honor both filters.
+    if (path === '/v1/collections') {
+      let rows = ((F.collections as { data: any[] }).data ?? [])
+      const search = u.searchParams.get('search')?.toLowerCase()
+      const ca = u.searchParams.get('contractAddress')?.toLowerCase()
+      if (ca) rows = rows.filter(c => String(c.contractAddress).toLowerCase() === ca)
+      if (search) rows = rows.filter(c => String(c.name).toLowerCase().includes(search))
+      return json(req, { data: rows, total: rows.length })
+    }
     // Collection + Creator pages (lib/collections.ts → fetchCollectionItems/fetchCreatorItems).
-    // Returns the collection's CATALOG items, filtered by the contractAddress / creator query param.
-    if (path === '/v1/items') {
+    // Returns the collection's CATALOG items with server-computed priceCredits, filtered by the
+    // contractAddress / creator query param.
+    if (path === '/v3/catalog/items' || path === '/v1/items') {
       const ca = u.searchParams.get('contractAddress')
       const creator = u.searchParams.get('creator')
       let rows = ((F.shopListings as { data: any[] }).data ?? []).map(toCatalogRow)
@@ -192,7 +217,23 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
       if (creator) rows = rows.filter(r => String(r.creator).toLowerCase() === creator.toLowerCase())
       return json(req, { data: rows })
     }
-    if (path === '/v1/nfts') return json(req, F.ownedNfts)
+    if (path === '/v1/nfts') {
+      // Creator search step 1 (lib/search.ts → fetchNameOwners): DCL names matching ?search=.
+      if (u.searchParams.get('category') === 'ens') {
+        let names = ((F.creatorNames as { data: any[] }).data ?? [])
+        const search = u.searchParams.get('search')?.toLowerCase()
+        if (search) names = names.filter(n => String(n.nft.name).toLowerCase().includes(search))
+        return json(req, { data: names, total: names.length })
+      }
+      return json(req, F.ownedNfts)
+    }
+    // Creator search step 2 (lib/search.ts → fetchSellerCounts): collection counts per address.
+    if (path === '/v1/accounts') {
+      const wanted = u.searchParams.getAll('address').map(a => a.toLowerCase())
+      let rows = ((F.accounts as { data: any[] }).data ?? [])
+      if (wanted.length) rows = rows.filter(a => wanted.includes(String(a.address).toLowerCase()))
+      return json(req, { data: rows, total: rows.length })
+    }
     if (path === '/v1/trades' && method === 'POST') return json(req, { ok: true, data: { id: 'new-trade' } }, 201)
     if (/\/v1\/trades\/.+/.test(path)) return json(req, { ok: true, data: F.trade })
     if (path === '/v1/orders') return json(req, { data: [], total: 0 })
@@ -210,7 +251,16 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
 
   // peer lambdas (profiles)
   if (u.hostname.includes('peer.decentraland')) {
-    if (path.includes('/lambdas/profiles')) return json(req, method === 'POST' ? [F.profile] : F.profile)
+    if (path.includes('/lambdas/profiles')) {
+      // The fixture creator (author of the shop listings + the matched DCL name) resolves to a
+      // "Galaxy Studio" profile — used for the "By {creator}" sublines and the Creators row name.
+      // Every other address (incl. the signed-in user) gets the default F.profile.
+      const isCreator = path.toLowerCase().includes(fx.CREATOR_ADDRESS.toLowerCase())
+      const body = isCreator
+        ? { avatars: [{ name: 'Galaxy Studio', userId: fx.CREATOR_ADDRESS, avatar: { snapshots: { face256: '' } } }] }
+        : F.profile
+      return json(req, method === 'POST' ? [body] : body)
+    }
     return req.respond({ status: 200, headers: { 'content-type': 'image/png', ...CORS }, body: PNG })
   }
 

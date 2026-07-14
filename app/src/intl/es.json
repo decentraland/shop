@@ -5,11 +5,29 @@
     "myAssets": "Mis artículos",
     "myFavorites": "Mis favoritos",
     "myPurchases": "Mis compras",
-    "searchPlaceholder": "Buscá artículos, creadores, colecciones…",
+    "searchPlaceholder": "Buscá artículos…",
     "searchAria": "Buscar en la tienda",
     "yourBalance": "Tus {currency}",
     "getCredits": "Conseguir {currency}",
     "cart": "Carrito"
+  },
+  "search": {
+    "suggestions": "Sugerencias de búsqueda",
+    "recent": "Búsquedas recientes",
+    "clearRecent": "Limpiar",
+    "removeRecent": "Quitar «{query}» de las búsquedas recientes",
+    "searching": "Buscando…",
+    "noResults": "Ningún resultado coincide con «{query}»",
+    "seeAll": "Ver los {count} resultados",
+    "clear": "Limpiar búsqueda",
+    "creators": "Creadores",
+    "collections": "Colecciones",
+    "items": "Artículos",
+    "byCreator": "Por {name}"
+  },
+  "collection": {
+    "breadcrumb": "Coleccionables",
+    "fallbackTitle": "Colección"
   },
   "notFound": {
     "title": "Página no encontrada",
