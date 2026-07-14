@@ -9,6 +9,7 @@ import { useWallet } from '~/store/wallet'
 import { isOwnListing } from '~/lib/ownership'
 import { CreatorBadge } from '~/components/CreatorBadge'
 import { rarityColor, rarityTint } from '~/lib/rarity'
+import { categoryIcon, genderIcon } from '~/lib/itemIcons'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { SaleCountdown } from '~/components/SaleCountdown'
 import { saleDiscountPct } from '~/lib/sale'
@@ -20,13 +21,6 @@ const HOVER_DELAY_MS = 120
 // app booting). We keep the flat thumbnail up the whole time and only crossfade to the 3D once ready,
 // so there's never an empty frame. A short grace guarantees the first painted frame before we swap.
 const PREVIEW_GRACE_MS = 250
-
-function genderGlyph(gender: CatalogItem['gender']): string {
-  if (gender === 'male') return '♂'
-  if (gender === 'female') return '♀'
-  if (gender === 'unisex') return '⚥'
-  return ''
-}
 
 // Card variants:
 // - default (native, USD-pegged): fixed credit price + Add to cart.
@@ -80,7 +74,8 @@ export function AssetCard(props: AssetCardProps) {
     graceTimer.current = setTimeout(() => setPreviewReady(true), PREVIEW_GRACE_MS)
   }
 
-  const gender = genderGlyph(item.gender)
+  const catIco = categoryIcon(item)
+  const genderIco = genderIcon(item.gender)
 
   // Flash sale only applies to native (fixed-price) listings — a market card's credit price
   // fluctuates, so a strike-through compare-at would be meaningless there.
@@ -206,10 +201,12 @@ export function AssetCard(props: AssetCardProps) {
           >
             {item.rarity}
           </span>
-          {item.category === 'wearable' ? (
-            <span className="chip chip--icon"><span className="ico ico-eyewear" aria-hidden /></span>
+          {catIco ? (
+            <span className="chip chip--icon"><span className={`ico ico-${catIco}`} aria-hidden /></span>
           ) : null}
-          {gender ? <span className="chip chip--icon">{gender}</span> : null}
+          {genderIco ? (
+            <span className="chip chip--icon"><span className={`ico ico-${genderIco}`} aria-hidden /></span>
+          ) : null}
         </div>
         {isMarket && props.mode === 'market' ? (
           <button

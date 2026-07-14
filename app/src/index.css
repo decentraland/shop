@@ -59,6 +59,9 @@ h1, h2 { margin: 0; }
 .ico-credits { -webkit-mask-image: url('./assets/icons/credits.svg'); mask-image: url('./assets/icons/credits.svg'); }
 .ico-search { -webkit-mask-image: url('./assets/icons/search.svg'); mask-image: url('./assets/icons/search.svg'); }
 .ico-eyewear { -webkit-mask-image: url('./assets/icons/category-eyewear.svg'); mask-image: url('./assets/icons/category-eyewear.svg'); }
+.ico-gender-male { -webkit-mask-image: url('./assets/icons/gender-male.svg'); mask-image: url('./assets/icons/gender-male.svg'); }
+.ico-gender-female { -webkit-mask-image: url('./assets/icons/gender-female.svg'); mask-image: url('./assets/icons/gender-female.svg'); }
+.ico-gender-unisex { -webkit-mask-image: url('./assets/icons/gender-unisex.svg'); mask-image: url('./assets/icons/gender-unisex.svg'); }
 .ico-clock { -webkit-mask-image: url('./assets/icons/clock.svg'); mask-image: url('./assets/icons/clock.svg'); }
 .ico-chevron { -webkit-mask-image: url('./assets/icons/chevron-down.svg'); mask-image: url('./assets/icons/chevron-down.svg'); }
 .ico-cat-head { -webkit-mask-image: url('./assets/icons/cat-head.svg'); mask-image: url('./assets/icons/cat-head.svg'); }
@@ -209,9 +212,11 @@ h1, h2 { margin: 0; }
   background: #fff; border: 0.5px solid var(--muted-2); border-radius: 8px;
   height: 40px; padding: 4px 4px 4px 12px; min-width: 120px;
   color: var(--text-2); font-weight: 500; font-size: 12px; white-space: nowrap;
+  text-transform: uppercase;
 }
 .filterbar__sort:hover { background: #f5f4f7; }
-.filterbar__sort.is-open { border-color: var(--text-2); }
+/* Figma "Open" state (node 898:119672): the pill fills with gray-5 while its popover is open. */
+.filterbar__sort.is-open { background: var(--chip); border-color: var(--muted-2); }
 .filterbar__chev { width: 24px; height: 24px; color: var(--text-2); flex: none; transition: transform .15s ease; }
 .filterbar__chev.is-up { transform: rotate(180deg); }
 .filterbar__badge { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 11px; font-weight: 700; }
@@ -243,7 +248,18 @@ h1, h2 { margin: 0; }
 .filter-pop__price-row input:focus { outline: 0; border-color: var(--accent); }
 .filter-pop__price-row input::-webkit-outer-spin-button, .filter-pop__price-row input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .filter-pop__hint { margin: 8px 2px 0; color: var(--muted); font-size: 12px; }
-.filter-pop--sort { right: 0; left: auto; min-width: 220px; }
+/* Sort By popover (Figma node 898:119636): white sheet, 8px radius, soft 25px drop shadow, ~174px wide,
+   full-width option rows 40px tall. No inner padding — rows run edge to edge like the design. */
+.filter-pop--sort {
+  right: 0; left: auto; min-width: 174px; padding: 4px 0;
+  border: 0; border-radius: 8px; box-shadow: 0 4px 25px 5px rgba(0, 0, 0, .25);
+}
+.filter-pop--sort .filter-pop__sort {
+  height: 40px; display: flex; align-items: center; padding: 0 8px; border-radius: 0;
+  font-size: 14px; color: #43404a;
+}
+.filter-pop--sort .filter-pop__sort:hover { background: var(--chip); }
+.filter-pop--sort .filter-pop__sort.is-active { color: var(--accent); font-weight: 600; background: transparent; }
 
 /* ---------------- Card ---------------- */
 .card {
@@ -278,8 +294,11 @@ h1, h2 { margin: 0; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .card--skeleton, .asset-card--skeleton { animation: none; } .spinner { animation-duration: 2s; } }
 
-/* Figma card is 281×300 with a 96px info area → the media is landscape (281×204), not square. */
-.card__media { position: relative; aspect-ratio: 281 / 204; background: var(--media); overflow: hidden; }
+/* Deterministic card sizing (Figma 281×300 = media 281×204 + info 96). The media is sized purely by its
+   281:204 aspect-ratio off the (grid-driven) width, and the info below is a FIXED 96px. Total height is
+   therefore fully determined by width — the chips↔button hover swap happens inside the fixed 96px body,
+   so nothing (media or card) ever resizes on hover. */
+.card__media { position: relative; flex: none; aspect-ratio: 281 / 204; background: var(--media); overflow: hidden; }
 .card__img { width: 100%; height: 100%; object-fit: contain; display: block; transition: opacity .25s ease; }
 .card__img--hidden { opacity: 0; }
 /* pointer-events:none so the preview iframe doesn't swallow clicks — the whole card stays clickable
@@ -315,7 +334,7 @@ h1, h2 { margin: 0; }
 /* Info area (Figma): fixed 96px (media 281×204 + info 96 = card 281×300). A top row (name/creator +
    price) + a bottom row (chips at rest / the action button on hover). The FIXED height + space-between
    means the chips↔button swap on hover never changes the card size (no layout shift). */
-.card__body { padding: 8px; display: flex; flex-direction: column; justify-content: space-between; min-height: 96px; gap: 8px; }
+.card__body { height: 96px; padding: 8px; display: flex; flex-direction: column; justify-content: space-between; flex: none; }
 .card__row { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
 .card__desc { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .card__name { font-weight: 600; font-size: 14px; line-height: 1.57; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
