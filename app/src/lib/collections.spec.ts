@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
-vi.mock('~/config', () => ({ config: { nftApiUrl: 'http://nft.test' } }))
+vi.mock('~/config', () => ({ config: { marketplaceServerUrl: 'http://mps.test', nftApiUrl: 'http://nft.test' } }))
 
 // eslint-disable-next-line import/first
 import { fetchCollection, fetchCollectionItems, fetchCreatorItems } from '~/lib/collections'
@@ -16,16 +16,13 @@ type RawItem = {
   network: string
   chainId: number
   thumbnail?: string
-  price?: string | null
-  minPrice?: string | null
+  // Server-computed whole credits (asset-aware). The client no longer converts.
+  priceCredits?: number
   data?: {
     wearable?: { category?: string; bodyShapes?: string[] }
     emote?: { category?: string }
   }
 }
-
-// 1e18 USD wei = $1 = 10 credits (Model B: ceil to whole credits).
-const ONE_USD = '1000000000000000000'
 
 function rawItem(overrides: Partial<RawItem> = {}): RawItem {
   return {
@@ -39,7 +36,7 @@ function rawItem(overrides: Partial<RawItem> = {}): RawItem {
     network: 'MATIC',
     chainId: 137,
     thumbnail: 'http://img.test/hat.png',
-    price: ONE_USD,
+    priceCredits: 10,
     data: { wearable: { category: 'hat', bodyShapes: ['urn:BaseMale'] } },
     ...overrides
   }
@@ -76,14 +73,14 @@ afterEach(() => {
 })
 
 describe('when fetching a collection carousel', () => {
-  it('should call the /v1/items endpoint with the collection contract, default first and social-emotes excluded', async () => {
+  it('should call the /v3/catalog/items endpoint with the collection contract, default first and social-emotes excluded', async () => {
     const fetchMock = mockFetchOk([rawItem()])
 
     await fetchCollectionItems('0xcollection')
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
     const url = new URL(fetchMock.mock.calls[0][0] as string)
-    expect(url.origin + url.pathname).toBe('http://nft.test/v1/items')
+    expect(url.origin + url.pathname).toBe('http://mps.test/v3/catalog/items')
     expect(url.searchParams.get('contractAddress')).toBe('0xcollection')
     expect(url.searchParams.get('first')).toBe('20')
     expect(url.searchParams.get('includeSocialEmotes')).toBe('false')
@@ -138,13 +135,13 @@ describe('when fetching a collection carousel', () => {
 })
 
 describe('when fetching a creator storefront', () => {
-  it('should call the /v1/items endpoint with the creator, default first and social-emotes excluded', async () => {
+  it('should call the /v3/catalog/items endpoint with the creator, default first and social-emotes excluded', async () => {
     const fetchMock = mockFetchOk([])
 
     await fetchCreatorItems('0xartist')
 
     const url = new URL(fetchMock.mock.calls[0][0] as string)
-    expect(url.origin + url.pathname).toBe('http://nft.test/v1/items')
+    expect(url.origin + url.pathname).toBe('http://mps.test/v3/catalog/items')
     expect(url.searchParams.get('creator')).toBe('0xartist')
     expect(url.searchParams.get('first')).toBe('60')
     expect(url.searchParams.get('includeSocialEmotes')).toBe('false')
@@ -206,34 +203,17 @@ describe('when fetching a single collection by contract', () => {
   })
 })
 
-describe('when mapping the price to whole credits', () => {
-  it('should round up to keep credits whole (Model B)', async () => {
-    // 1.23 USD → 12.3 credits → ceil → 13.
-    mockFetchOk([rawItem({ price: '1230000000000000000' })])
+describe('when consuming the server-computed credit price', () => {
+  it('should pass through the server priceCredits verbatim (no client conversion)', async () => {
+    mockFetchOk([rawItem({ priceCredits: 13 })])
 
     const { items } = await fetchCollectionItems('0xcollection')
 
     expect(items[0].priceCredits).toBe(13)
   })
 
-  it('and there is no price it should fall back to minPrice', async () => {
-    mockFetchOk([rawItem({ price: null, minPrice: ONE_USD })])
-
-    const { items } = await fetchCollectionItems('0xcollection')
-
-    expect(items[0].priceCredits).toBe(10)
-  })
-
-  it('and neither price nor minPrice is present it should be zero credits', async () => {
-    mockFetchOk([rawItem({ price: null, minPrice: null })])
-
-    const { items } = await fetchCollectionItems('0xcollection')
-
-    expect(items[0].priceCredits).toBe(0)
-  })
-
-  it('and the price is not a valid number it should be zero credits', async () => {
-    mockFetchOk([rawItem({ price: 'not-a-number' })])
+  it('and the item is not for sale (priceCredits absent) it should be zero credits', async () => {
+    mockFetchOk([rawItem({ priceCredits: undefined })])
 
     const { items } = await fetchCollectionItems('0xcollection')
 
@@ -285,9 +265,7 @@ describe('when mapping optional catalog fields', () => {
   })
 
   it('should apply defaults for missing creator, itemId, rarity and thumbnail', async () => {
-    mockFetchOk([
-      rawItem({ creator: undefined, itemId: null, rarity: undefined, thumbnail: undefined })
-    ])
+    mockFetchOk([rawItem({ creator: undefined, itemId: null, rarity: undefined, thumbnail: undefined })])
 
     const { items } = await fetchCollectionItems('0xcollection')
 

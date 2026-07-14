@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useProfile } from '~/hooks/useProfile'
 
@@ -7,6 +8,20 @@ import { useProfile } from '~/hooks/useProfile'
 // propagation so it works inside a clickable card without also opening the item.
 function shortAddress(addr: string): string {
   return /^0x[a-fA-F0-9]{40}$/.test(addr) ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : addr
+}
+
+// Deterministic, readable color derived from the address so each creator keeps a stable hue across
+// the app (mid lightness so the white initial stays legible).
+function colorForAddress(addr: string): string {
+  let hash = 0
+  for (let i = 0; i < addr.length; i++) hash = (hash * 31 + addr.charCodeAt(i)) >>> 0
+  return `hsl(${hash % 360}, 52%, 45%)`
+}
+
+// The letter shown in the fallback avatar: the profile name's initial, else the first character of the
+// address (skipping the 0x prefix). Always uppercase.
+function initialFor(name: string | undefined, address: string): string {
+  return (name?.trim()?.[0] || address.replace(/^0x/i, '')[0] || '?').toUpperCase()
 }
 
 export function CreatorBadge({
@@ -20,16 +35,30 @@ export function CreatorBadge({
 }) {
   const navigate = useNavigate()
   const { data } = useProfile(address)
+  const face = data?.avatar?.snapshots?.face256
+  // Some profiles have no face snapshot, or one whose URL 404s (not deployed) — in both cases fall back
+  // to a lettered avatar instead of a broken image. `broken` tracks a failed load; reset it when the
+  // face url changes because list rows reuse component instances across different creators.
+  const [broken, setBroken] = useState(false)
+  useEffect(() => setBroken(false), [face])
+
   if (!address) return null
   const name = data?.name || shortAddress(address)
-  const face = data?.avatar?.snapshots?.face256
+  const showImage = !!face && !broken
+  const ava = showImage ? (
+    <img className="creator__ava" src={face} alt="" loading="lazy" onError={() => setBroken(true)} />
+  ) : (
+    <span
+      className="creator__ava creator__ava--letter"
+      style={{ backgroundColor: colorForAddress(address) }}
+      aria-hidden
+    >
+      {initialFor(data?.name, address)}
+    </span>
+  )
   const inner = (
     <>
-      {face ? (
-        <img className="creator__ava" src={face} alt="" loading="lazy" />
-      ) : (
-        <span className="creator__ava creator__ava--ph" aria-hidden />
-      )}
+      {ava}
       <span className="creator__name">By {name}</span>
     </>
   )

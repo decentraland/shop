@@ -93,12 +93,37 @@ export type OrderStatus = {
 // simulated card form instead of the real Stripe widget.
 export const MOCK_CLIENT_SECRET_PREFIX = 'mock_cs_'
 
+/**
+ * Chain ids for the test networks where the mock / free-mint payment flow may run. Mock is allowed ONLY
+ * on these; any other chain — a mainnet, an unknown id, or a malformed NaN — is treated as real-money
+ * (fail-closed), so a new chain or a bad config defaults to "blocked", never "free credits".
+ */
+const MOCK_ALLOWED_CHAIN_IDS = new Set<number>([
+  80002, // Polygon Amoy (dev / staging)
+  11155111, // Sepolia
+  1337, // local ganache
+  31337 // local hardhat
+])
+
 /** Are we running against the mock (no real Stripe) ? */
 export function isMockPayments(): boolean {
   // Real mode needs the Stripe publishable key. The checkout/webhook endpoints live on the
-  // credits-server (always configured — see payments-stripe paymentsBaseUrl() + STRIPE_SPEC §1), so
-  // the key is the only client-side switch; the server independently gates on STRIPE_ENABLED.
-  return !config.stripePublishableKey
+  // credits-server (always configured), so the key is the only client-side switch; the server
+  // independently gates on STRIPE_ENABLED.
+  const mock = !config.stripePublishableKey
+  // Safety net: mock mode fabricates the checkout and tops up credits for free via /dev/mint-usd, so it
+  // must be impossible on a real-money deployment. Allow it only on a known test network; a missing key
+  // on a mainnet / unknown chain is a critical misconfiguration — fail hard (surfaced to the error
+  // boundary) rather than silently faking a purchase. The credits-server independently refuses dev-mint
+  // outside non-production envs, so this is defense in depth.
+  if (mock && !MOCK_ALLOWED_CHAIN_IDS.has(config.chainId)) {
+    throw new Error(
+      `Stripe publishable key is missing on chainId=${config.chainId}, which is not a recognized test ` +
+        `network. Refusing to fall back to mock payments in a real-money environment — configure ` +
+        `STRIPE_PUBLISHABLE_KEY.`
+    )
+  }
+  return mock
 }
 
 // ---------------------------------------------------------------------------
@@ -135,7 +160,11 @@ export async function pollCreditGrant(
 ): Promise<OrderStatus> {
   const { intervalMs, timeoutMs, signal, identity } = opts
 
-  if (orderId.startsWith(MOCK_CLIENT_SECRET_PREFIX) || isMockPayments()) {
+  // Evaluate the money-safety gate FIRST: a mock-prefixed order id must not let the flow skip the
+  // real-money throw in isMockPayments() (which fails hard when the Stripe key is missing on a
+  // non-test chain). A mock order id still takes the mock path when config is legitimately real.
+  const mock = isMockPayments()
+  if (mock || orderId.startsWith(MOCK_CLIENT_SECRET_PREFIX)) {
     return mockPollCreditGrant(orderId, opts)
   }
 

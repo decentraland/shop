@@ -76,11 +76,12 @@ function json(req: HTTPRequest, obj: unknown, status = 200) {
 // A forced error response, keyed by URL pathname (opt-in per run via launchApp({ errors })).
 type ErrorMap = Record<string, { status: number; body?: unknown }>
 
-// Map a shop listing (fixtures shape) → a RawCollectionItem the /v1/items catalog endpoint returns
-// (the shape lib/collections.ts's toCatalogItem reads). `price` is USD wei (1e18 = $1); derive it
-// from priceCredits (1 credit = $0.10) so items stay buyable with a positive credit price.
+// Map a shop listing (fixtures shape) → a catalog item the /v3/catalog/items endpoint returns
+// (the shape lib/collections.ts's toCatalogItem reads). The server computes `priceCredits` per item;
+// `price` (USD wei, 1e18 = $1) is kept for shape parity with /v1/items.
 function toCatalogRow(l: any) {
-  const priceWei = String(BigInt(Math.max(1, Math.round(l.priceCredits ?? 1))) * 10n ** 17n) // credits × $0.10 in wei
+  const priceCredits = Math.max(1, Math.round(l.priceCredits ?? 1))
+  const priceWei = String(BigInt(priceCredits) * 10n ** 17n) // credits × $0.10 in wei
   return {
     id: `${l.contractAddress}-${l.itemId ?? l.tokenId ?? '0'}`,
     name: l.name,
@@ -92,7 +93,8 @@ function toCatalogRow(l: any) {
     network: l.network,
     chainId: l.chainId,
     thumbnail: l.thumbnail ?? '',
-    price: priceWei
+    price: priceWei,
+    priceCredits
   }
 }
 
@@ -118,6 +120,12 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
   // JSON-RPC read provider.
   if (u.hostname.includes('rpc-amoy') || u.hostname.includes('rpc.decentraland')) {
     return req.respond({ status: 200, headers: { 'content-type': 'application/json', ...CORS }, body: handleRpc(req.postData() || '{}') })
+  }
+  // Meta-transaction relayer (transactions-server): gasless checkout POSTs the signed useCredits
+  // meta-tx here; the RPC mock then returns a status-1 receipt for the returned hash. Gasless is the
+  // default checkout path, so the credit-buy flows exercise this.
+  if (u.hostname.includes('transactions-api') && path.endsWith('/transactions')) {
+    return json(req, { ok: true, txHash: '0x' + 'ab'.repeat(32) })
   }
   // WearablePreview iframe → blank page (don't hit the external preview app).
   if (u.hostname.includes('wearable-preview')) {
@@ -182,8 +190,9 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
       return json(req, { data: rows, total: rows.length })
     }
     // Collection + Creator pages (lib/collections.ts → fetchCollectionItems/fetchCreatorItems).
-    // Returns the collection's CATALOG items, filtered by the contractAddress / creator query param.
-    if (path === '/v1/items') {
+    // Returns the collection's CATALOG items with server-computed priceCredits, filtered by the
+    // contractAddress / creator query param.
+    if (path === '/v3/catalog/items' || path === '/v1/items') {
       const ca = u.searchParams.get('contractAddress')
       const creator = u.searchParams.get('creator')
       let rows = ((F.shopListings as { data: any[] }).data ?? []).map(toCatalogRow)

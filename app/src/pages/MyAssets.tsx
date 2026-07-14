@@ -218,19 +218,14 @@ export function MyAssets() {
           {isLoading
             ? Array.from({ length: 8 }).map((_, i) => <div className="asset-card asset-card--skeleton" key={`sk-${i}`} />)
             : ownedAssets.map(asset => (
-                <article
-                  className="asset-card asset-card--link"
-                  key={asset.id}
-                  onClick={() => openDetail(assetToItem(asset))}
-                  role="link"
-                  tabIndex={0}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault()
-                      openDetail(assetToItem(asset))
-                    }
-                  }}
-                >
+                <article className="asset-card asset-card--link" key={asset.id}>
+                  {/* Whole-card open as a single overlaid button (keyboard + SR reachable), under the
+                      row's action button (z-index) so nested controls aren't inside a clickable link. */}
+                  <button
+                    className="card-link-overlay"
+                    aria-label={`View ${asset.name}`}
+                    onClick={() => openDetail(assetToItem(asset))}
+                  />
                   <div className="asset-card__img">{asset.image ? <img src={asset.image} alt={asset.name} /> : null}</div>
                   <div className="asset-card__name" title={asset.name}>{asset.name}</div>
                   {asset.isOnSale ? (
@@ -306,19 +301,12 @@ export function MyAssets() {
                 <h3 className="creations-collection__name">On sale</h3>
                 <div className="publish-grid">
                   {onSaleItems.map(item => (
-                    <article
-                      className="publish-card publish-card--link"
-                      key={`${item.contractAddress}-${item.blockchainItemId}`}
-                      onClick={() => openDetail(publishableToItem(item))}
-                      role="link"
-                      tabIndex={0}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault()
-                          openDetail(publishableToItem(item))
-                        }
-                      }}
-                    >
+                    <article className="publish-card publish-card--link" key={`${item.contractAddress}-${item.blockchainItemId}`}>
+                      <button
+                        className="card-link-overlay"
+                        aria-label={`View ${item.name}`}
+                        onClick={() => openDetail(publishableToItem(item))}
+                      />
                       <div className="publish-card__img">
                         {item.thumbnail ? <img src={item.thumbnail} alt={item.name} /> : null}
                       </div>
@@ -350,19 +338,12 @@ export function MyAssets() {
                 <h3 className="creations-collection__name">{group.name}</h3>
                 <div className="publish-grid">
                   {group.items.map(item => (
-                    <article
-                      className="publish-card publish-card--link"
-                      key={`${item.contractAddress}-${item.blockchainItemId}`}
-                      onClick={() => openDetail(publishableToItem(item))}
-                      role="link"
-                      tabIndex={0}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault()
-                          openDetail(publishableToItem(item))
-                        }
-                      }}
-                    >
+                    <article className="publish-card publish-card--link" key={`${item.contractAddress}-${item.blockchainItemId}`}>
+                      <button
+                        className="card-link-overlay"
+                        aria-label={`View ${item.name}`}
+                        onClick={() => openDetail(publishableToItem(item))}
+                      />
                       <div className="publish-card__img">
                         {item.thumbnail ? <img src={item.thumbnail} alt={item.name} /> : null}
                       </div>

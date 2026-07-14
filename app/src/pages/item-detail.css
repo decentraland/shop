@@ -386,6 +386,7 @@
   scroll-snap-type: x proximity;
 }
 .collection-carousel__card {
+  position: relative;
   flex: 0 0 220px;
   scroll-snap-align: start;
   text-align: left;
@@ -459,7 +460,19 @@
 
 /* Quick add-to-cart on each carousel card (card itself stays clickable → swaps hero). */
 .collection-carousel__card { cursor: pointer; }
-.collection-carousel__card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* Whole-card "view item" overlay: transparent button spanning the card, under the add-to-cart
+   button (z-index 2) so that control stays clickable. Focus ring lives here now (the card itself is
+   no longer focusable). */
+.collection-carousel__select {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+.collection-carousel__select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .collection-carousel__add {
   position: absolute;
   bottom: 10px;

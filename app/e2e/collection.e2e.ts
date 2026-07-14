@@ -10,8 +10,8 @@ afterEach(async () => {
 })
 
 describe('collection storefront', () => {
-  it('lists every item of the collection from /v1/items', async () => {
-    // Collection page reads fetchCollectionItems → GET /v1/items?contractAddress=<collection>
+  it('lists every item of the collection from /v3/catalog/items', async () => {
+    // Collection page reads fetchCollectionItems → GET /v3/catalog/items?contractAddress=<collection>
     // (mocked from the shopListings fixture in helpers/app.ts).
     app = await launchApp({ path: `/collection/${COLLECTION}` })
     const { page } = app
