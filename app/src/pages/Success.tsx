@@ -10,47 +10,72 @@ import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import { avatarShape, dominantShape, isCompatible, BASE_MALE } from '~/lib/bodyShape'
 import { itemUrn } from '~/lib/urn'
 import { waitForSettlement, SettlementPendingError } from '~/lib/buy-gasless'
+import { fetchOwnsItem } from '~/lib/api'
 import type { CatalogItem } from '~/lib/api'
 
-// Settlement of the purchase tx, watched on this page so we NEVER claim "It's yours!" before the item
-// actually exists on-chain (the buy flow may navigate here optimistically — broadcast but not yet
-// confirmed — so the truth lives here). 'confirmed' = receipt status 1; 'failed' = reverted on-chain;
-// 'pending' = still waiting; 'timed-out' = we stopped polling but the tx MAY still land (never claim
-// success, but don't claim failure either — the item could still arrive).
-type Settlement = 'pending' | 'confirmed' | 'failed' | 'timed-out'
+// Settlement of the purchase, watched on this page so we NEVER claim "It's yours!" before the item is
+// actually the buyer's AND queryable. Two gates:
+//   1. the tx receipt (mined, status 1) — not reverted;
+//   2. the indexer reflecting ownership — because My Assets reads the SAME index, and a confirmed tx
+//      leads the index by however long the squid takes; declaring success on the receipt alone lands
+//      the user on an empty My Assets.
+// States: 'pending' = tx not yet mined; 'indexing' = mined, waiting for the index to show ownership;
+// 'confirmed' = owned + indexed; 'failed' = reverted; 'timed-out' = mined but we stopped waiting (the
+// item is bought and will appear shortly — never a false success, never a false failure).
+type Settlement = 'pending' | 'indexing' | 'confirmed' | 'failed' | 'timed-out'
 
-// Poll the settlement of `txHash`, resolving to the terminal state. waitForSettlement resolves on a
-// confirmed receipt, throws Error on a revert, and throws SettlementPendingError on each timeout — so
-// we loop through the pending timeouts and only stop on a definitive outcome (or after the cap).
-function useSettlement(txHash: string | undefined): Settlement {
+type OwnershipCheck = { owner: string; contractAddress: string; itemId: string }
+
+const delay = (ms: number) => new Promise<void>(r => setTimeout(r, ms))
+
+function useSettlement(txHash: string | undefined, ownership: OwnershipCheck | null): Settlement {
   // No hash to verify (shouldn't happen for a credit buy) → don't block the page.
   const [state, setState] = useState<Settlement>(txHash ? 'pending' : 'confirmed')
+  const ownerKey = ownership ? `${ownership.owner}-${ownership.contractAddress}-${ownership.itemId}` : ''
   useEffect(() => {
     if (!txHash) return
     let cancelled = false
     ;(async () => {
-      // ~5 min of polling (20 × 15s). Amoy confirms in seconds; the cap only matters if the read RPC
-      // is badly lagged, in which case we keep showing "processing" rather than a false success.
+      // Gate 1: wait for the tx receipt. ~5 min of polling (20 × 15s); a reverted tx fails fast.
+      let mined = false
       for (let attempt = 0; attempt < 20 && !cancelled; attempt++) {
         try {
           await waitForSettlement(txHash, { timeoutMs: 15_000 })
-          if (!cancelled) setState('confirmed')
-          return
+          mined = true
+          break
         } catch (e) {
           if (e instanceof SettlementPendingError) continue // still in flight → keep waiting
           if (!cancelled) setState('failed') // reverted on-chain: no asset was delivered
           return
         }
       }
-      // Every attempt timed out (e.g. the read RPC was down for the whole window). The tx may still
-      // land, so DON'T claim failure — surface a "still processing, check back" state instead of
-      // leaving the user stuck on the spinner forever.
+      if (cancelled) return
+      if (!mined) {
+        setState('timed-out') // read RPC lagged the whole window — tx may still land
+        return
+      }
+      // Gate 2: the tx is mined. If we can't check ownership (managed wallet / missing itemId), confirm
+      // on the receipt alone. Otherwise poll the indexer so "It's yours!" implies it's in My Assets.
+      if (!ownership) {
+        setState('confirmed')
+        return
+      }
+      setState('indexing')
+      for (let attempt = 0; attempt < 40 && !cancelled; attempt++) {
+        if (await fetchOwnsItem(ownership.owner, ownership.contractAddress, ownership.itemId)) {
+          if (!cancelled) setState('confirmed')
+          return
+        }
+        await delay(3000) // 40 × 3s = ~2 min
+      }
+      // Bought + mined, but the indexer hasn't caught up within the window. Not a failure — surface a
+      // "will appear shortly" state instead of a false "It's yours!" over an empty wardrobe.
       if (!cancelled) setState('timed-out')
     })()
     return () => {
       cancelled = true
     }
-  }, [txHash])
+  }, [txHash, ownerKey])
   return state
 }
 
@@ -70,10 +95,19 @@ export function Success() {
   const { data: avatar } = useProfile(session?.address)
 
   const txHash = state?.txHash
-  // Watch the on-chain settlement (called before any early return to keep hook order stable).
-  const settlement = useSettlement(txHash)
+  const purchasedItems = state?.items ?? []
+  // Gate "It's yours!" on the indexer showing ownership of the first purchased item (all items in a
+  // basket settle in the same tx, so one being indexed means the batch is). Only when we have an
+  // address + a mint itemId to query by; otherwise fall back to receipt-only confirmation.
+  const first = purchasedItems[0]
+  const ownership: OwnershipCheck | null =
+    session?.address && first?.contractAddress && first?.itemId
+      ? { owner: session.address, contractAddress: first.contractAddress, itemId: first.itemId }
+      : null
+  // Watch settlement + indexing (called before any early return to keep hook order stable).
+  const settlement = useSettlement(txHash, ownership)
 
-  const items = state?.items ?? []
+  const items = purchasedItems
   // Direct hit / refresh with no purchase context → send home.
   if (items.length === 0) return <Navigate to="/assets" replace />
 
@@ -133,13 +167,25 @@ export function Success() {
       </div>
 
       <div className="success__panel">
-        {settlement === 'pending' ? (
+        {settlement === 'pending' || settlement === 'indexing' ? (
           <>
             <span className="spinner success__spinner" aria-hidden />
-            <h1 className="success__title">Processing your purchase…</h1>
+            <h1 className="success__title">
+              {settlement === 'indexing' ? 'Finalizing your purchase…' : 'Processing your purchase…'}
+            </h1>
             <p className="success__sub">
-              Confirming {items.length === 1 ? <strong>{hero.name}</strong> : `${items.length} items`} on-chain.
-              This usually takes a few seconds — keep this tab open.
+              {settlement === 'indexing' ? (
+                <>
+                  Payment confirmed — adding{' '}
+                  {items.length === 1 ? <strong>{hero.name}</strong> : `${items.length} items`} to your wardrobe.
+                  Almost there.
+                </>
+              ) : (
+                <>
+                  Confirming {items.length === 1 ? <strong>{hero.name}</strong> : `${items.length} items`} on-chain.
+                  This usually takes a few seconds — keep this tab open.
+                </>
+              )}
             </p>
             {showExplorer ? (
               <div className="success__links">

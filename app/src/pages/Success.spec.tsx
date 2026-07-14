@@ -12,11 +12,13 @@ vi.mock('~/components/SuccessAnimation', () => ({ SuccessAnimation: () => <div d
 
 // Real SettlementPendingError class (the hook branches on `instanceof`) + a mockable waitForSettlement.
 // vi.hoisted so both exist before the hoisted vi.mock factory runs, and are usable in the tests.
-const { waitForSettlement, SettlementPendingError } = vi.hoisted(() => {
+const { waitForSettlement, SettlementPendingError, fetchOwnsItem } = vi.hoisted(() => {
   class SettlementPendingError extends Error {}
-  return { waitForSettlement: vi.fn(), SettlementPendingError }
+  return { waitForSettlement: vi.fn(), SettlementPendingError, fetchOwnsItem: vi.fn() }
 })
 vi.mock('~/lib/buy-gasless', () => ({ waitForSettlement, SettlementPendingError }))
+// Partial mock: keep the real module (types + other exports) but stub the ownership check.
+vi.mock('~/lib/api', async orig => ({ ...(await orig<Record<string, unknown>>()), fetchOwnsItem }))
 
 // eslint-disable-next-line import/first
 import { Success } from '~/pages/Success'
@@ -53,6 +55,8 @@ function renderSuccess(txHash: string | undefined = '0xdeadbeef') {
 describe('Success settlement gating', () => {
   beforeEach(() => {
     waitForSettlement.mockReset()
+    fetchOwnsItem.mockReset()
+    fetchOwnsItem.mockResolvedValue(true) // default: indexer already reflects ownership
   })
 
   it('shows a processing state (never "It\'s yours!") while the tx is unconfirmed', async () => {
@@ -63,12 +67,22 @@ describe('Success settlement gating', () => {
     expect(screen.queryByText(/it.s yours/i)).toBeNull()
   })
 
-  it('flips to "It\'s yours!" once the tx confirms', async () => {
+  it('flips to "It\'s yours!" only once the tx confirms AND the indexer shows ownership', async () => {
     waitForSettlement.mockResolvedValue(undefined) // confirmed receipt
+    fetchOwnsItem.mockResolvedValue(true) // owned + indexed
     renderSuccess()
 
     await waitFor(() => expect(screen.getByText(/it.s yours/i)).toBeTruthy())
     expect(screen.getByText(/is now in your wardrobe/i)).toBeTruthy()
+  })
+
+  it('shows a finalizing state (never "It\'s yours!") while the tx is mined but not yet indexed', async () => {
+    waitForSettlement.mockResolvedValue(undefined) // receipt confirmed
+    fetchOwnsItem.mockResolvedValue(false) // indexer hasn't caught up
+    renderSuccess()
+
+    expect(await screen.findByText(/finalizing your purchase/i)).toBeTruthy()
+    expect(screen.queryByText(/it.s yours/i)).toBeNull()
   })
 
   it('shows a failure state (no wardrobe claim) when the tx reverts', async () => {
