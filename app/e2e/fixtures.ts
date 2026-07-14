@@ -137,7 +137,7 @@ export const shopListings = {
       itemId: '0',
       tokenId: null,
       name: 'Galaxy Hat',
-      thumbnail: '',
+      thumbnail: 'https://img.test/galaxy-hat.png',
       rarity: 'epic',
       category: 'wearable',
       wearableCategory: 'hat',
@@ -166,6 +166,27 @@ export const shopListings = {
     }
   ],
   total: 2
+}
+
+// --- Collections search (/v1/collections?search=) → search dropdown "Collections" section ---
+// The dropdown also derives its "Creators" section from these collections' `creator` addresses.
+export const collections = {
+  data: [
+    { contractAddress: COLLECTION, name: 'Galaxy Collection', creator: CREATOR_ADDRESS }
+  ],
+  total: 1
+}
+
+// --- Creator search (search dropdown "Creators" section, lib/search.ts) ---
+// Step 1: DCL names matching the query (/v1/nfts?category=ens&search=) → owner address.
+export const creatorNames = {
+  data: [{ nft: { name: 'GalaxyStudio', owner: CREATOR_ADDRESS } }],
+  total: 1
+}
+// Step 2: which owners are actual sellers (/v1/accounts) — CREATOR_ADDRESS has collections.
+export const accounts = {
+  data: [{ address: CREATOR_ADDRESS, collections: 3 }],
+  total: 1
 }
 
 // --- Legacy catalog (v3/catalog/legacy → Market grid): OLD classic MANA-priced liquidity ---

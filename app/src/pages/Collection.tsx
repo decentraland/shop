@@ -1,5 +1,7 @@
 import { useNavigate, useParams } from 'react-router-dom'
-import { fetchCollectionItems } from '~/lib/collections'
+import { useQuery } from '@tanstack/react-query'
+import { t } from '~/intl/i18n'
+import { fetchCollection, fetchCollectionItems } from '~/lib/collections'
 import { AssetCard } from '~/components/AssetCard'
 import { CreatorBadge } from '~/components/CreatorBadge'
 import { AddAllToCart } from '~/components/AddAllToCart'
@@ -22,20 +24,31 @@ export function Collection() {
     { enabled: !!contractAddress }
   )
 
-  const creator = items[0]?.creator
+  // Item records don't carry the collection name (it lives on the collections entity), so resolve it
+  // separately — mirrors the marketplace's collectionAPI.fetchOne. Falls back to "Collection".
+  const { data: collection } = useQuery({
+    queryKey: ['collection-meta', contractAddress],
+    queryFn: () => fetchCollection(contractAddress as string),
+    enabled: !!contractAddress,
+    staleTime: 5 * 60_000,
+  })
+
+  const title = collection?.name || t('collection.fallbackTitle')
+  // Prefer the collection's own creator; fall back to an item's creator until the metadata loads.
+  const creator = collection?.creator || items[0]?.creator
 
   return (
     <div className="collection-page">
       <nav className="collection-page__crumbs" aria-label="Breadcrumb">
         <button className="collection-page__crumb-link" onClick={() => navigate('/assets')}>
-          Collectibles
+          {t('collection.breadcrumb')}
         </button>
         <span className="collection-page__crumb-sep">/</span>
-        <span className="collection-page__crumb-current">Collection</span>
+        <span className="collection-page__crumb-current">{title}</span>
       </nav>
 
       <header className="collection-page__head">
-        <h1 className="collection-page__title">Collection</h1>
+        <h1 className="collection-page__title">{title}</h1>
         {creator ? <CreatorBadge address={creator} className="collection-page__creator" /> : null}
         <span className="muted collection-page__count">
           {isLoading ? '…' : `${total.toLocaleString()} item${total === 1 ? '' : 's'}`}

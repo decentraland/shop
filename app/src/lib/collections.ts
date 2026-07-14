@@ -87,3 +87,21 @@ export async function fetchCreatorItems(
   const items = (data ?? []).map(toCatalogItem)
   return { items, total: total ?? skip + items.length }
 }
+
+type RawCollection = { contractAddress: string; name?: string; creator?: string }
+
+export type CollectionMeta = { contractAddress: string; name: string; creator: string }
+
+// A single collection's metadata (name + creator) by contract address. Item records don't carry the
+// collection name — it lives only on the collections entity — so the Collection page resolves it
+// here (mirrors the marketplace's collectionAPI.fetchOne). Null if the collection isn't found.
+export async function fetchCollection(contractAddress: string): Promise<CollectionMeta | null> {
+  const qs = new URLSearchParams({ contractAddress, first: '1' })
+  const res = await fetch(`${config.nftApiUrl}/v1/collections?${qs.toString()}`)
+  if (!res.ok) throw new Error(`fetchCollection ${res.status}`)
+  const { data } = (await res.json()) as { data?: RawCollection[] }
+  const c = data?.[0]
+  return c && c.contractAddress
+    ? { contractAddress: c.contractAddress, name: c.name ?? '', creator: c.creator ?? '' }
+    : null
+}

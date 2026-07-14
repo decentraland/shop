@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
-vi.mock('~/config', () => ({ config: { marketplaceServerUrl: 'http://mps.test' } }))
+vi.mock('~/config', () => ({ config: { marketplaceServerUrl: 'http://mps.test', nftApiUrl: 'http://nft.test' } }))
 
 // eslint-disable-next-line import/first
-import { fetchCollectionItems, fetchCreatorItems } from '~/lib/collections'
+import { fetchCollection, fetchCollectionItems, fetchCreatorItems } from '~/lib/collections'
 
 type RawItem = {
   id: string
@@ -169,6 +169,37 @@ describe('when fetching a creator storefront', () => {
     mockFetchNotOk(404)
 
     await expect(fetchCreatorItems('0xartist')).rejects.toThrow('fetchCreatorItems 404')
+  })
+})
+
+describe('when fetching a single collection by contract', () => {
+  it('should query /v1/collections by contractAddress and return name + creator', async () => {
+    const fetchMock = mockFetchOk([{ contractAddress: '0xabc', name: 'Black Dragon', creator: '0xartist' }])
+
+    const meta = await fetchCollection('0xabc')
+
+    const url = new URL(fetchMock.mock.calls[0][0] as string)
+    expect(url.origin + url.pathname).toBe('http://nft.test/v1/collections')
+    expect(url.searchParams.get('contractAddress')).toBe('0xabc')
+    expect(meta).toEqual({ contractAddress: '0xabc', name: 'Black Dragon', creator: '0xartist' })
+  })
+
+  it('should return null when the collection is not found', async () => {
+    mockFetchOk([])
+
+    expect(await fetchCollection('0xnope')).toBeNull()
+  })
+
+  it('should default a missing name/creator to empty strings', async () => {
+    mockFetchOk([{ contractAddress: '0xabc' }])
+
+    expect(await fetchCollection('0xabc')).toEqual({ contractAddress: '0xabc', name: '', creator: '' })
+  })
+
+  it('and the response is not ok it should throw with the status', async () => {
+    mockFetchNotOk(500)
+
+    await expect(fetchCollection('0xabc')).rejects.toThrow('fetchCollection 500')
   })
 })
 
