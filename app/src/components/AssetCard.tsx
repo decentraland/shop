@@ -1,10 +1,8 @@
 import { useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { PreviewEmote, PreviewType } from '@dcl/schemas'
-import { WearablePreview } from '~/components/LazyWearablePreview'
-import { config } from '~/config'
 import { useCart } from '~/store/cart'
 import { useFavorites } from '~/store/favorites'
+import { useHoverPreview } from '~/store/hoverPreview'
 import { useWallet } from '~/store/wallet'
 import { isOwnListing } from '~/lib/ownership'
 import { CreatorBadge } from '~/components/CreatorBadge'
@@ -17,10 +15,6 @@ import { useSaleActive } from '~/hooks/useSaleActive'
 import type { CatalogItem } from '~/lib/api'
 
 const HOVER_DELAY_MS = 120
-// WearablePreview's onLoad fires on the iframe's LOAD message = scene actually rendered (not just the
-// app booting). We keep the flat thumbnail up the whole time and only crossfade to the 3D once ready,
-// so there's never an empty frame. A short grace guarantees the first painted frame before we swap.
-const PREVIEW_GRACE_MS = 250
 
 // Card variants:
 // - default (native, USD-pegged): fixed credit price + Add to cart.
@@ -36,9 +30,8 @@ export function AssetCard(props: AssetCardProps) {
   const { item } = props
   const isMarket = props.mode === 'market'
   const [hovered, setHovered] = useState(false)
-  const [previewReady, setPreviewReady] = useState(false)
   const timer = useRef<ReturnType<typeof setTimeout>>()
-  const graceTimer = useRef<ReturnType<typeof setTimeout>>()
+  const mediaRef = useRef<HTMLDivElement>(null)
 
   const add = useCart(s => s.add)
   const inCart = useCart(s => s.items.some(i => i.id === item.id))
@@ -47,6 +40,13 @@ export function AssetCard(props: AssetCardProps) {
   const own = isOwnListing(item, address)
   const toggleFav = useFavorites(s => s.toggle)
   const faved = useFavorites(s => !!s.items[item.id])
+  // The single shared 3D preview (see HoverPreviewLayer): on hover this card asks it to load this item
+  // and overlay this card's media. `isPreviewing`/`previewReady` reflect whether THIS card is the one
+  // currently driving that shared instance.
+  const showPreview = useHoverPreview(s => s.show)
+  const hidePreview = useHoverPreview(s => s.hide)
+  const isPreviewing = useHoverPreview(s => s.item?.id === item.id)
+  const previewReady = useHoverPreview(s => (s.item?.id === item.id ? s.ready : false))
 
   const canPreview = !!item.contractAddress && !!item.itemId
   // Secondary listings carry tokenId; catalog items carry itemId — use whichever is present so the
@@ -59,19 +59,17 @@ export function AssetCard(props: AssetCardProps) {
 
   function onEnter() {
     if (timer.current) clearTimeout(timer.current)
-    if (graceTimer.current) clearTimeout(graceTimer.current)
-    setPreviewReady(false)
-    timer.current = setTimeout(() => setHovered(true), HOVER_DELAY_MS)
+    timer.current = setTimeout(() => {
+      setHovered(true)
+      if (canPreview && mediaRef.current) showPreview(item, mediaRef.current)
+    }, HOVER_DELAY_MS)
   }
   function onLeave() {
     if (timer.current) clearTimeout(timer.current)
-    if (graceTimer.current) clearTimeout(graceTimer.current)
     setHovered(false)
-    setPreviewReady(false)
-  }
-  function onPreviewLoad() {
-    if (graceTimer.current) clearTimeout(graceTimer.current)
-    graceTimer.current = setTimeout(() => setPreviewReady(true), PREVIEW_GRACE_MS)
+    // Only release the shared preview if WE'RE the ones holding it (avoid stealing it from a card the
+    // mouse has already moved onto).
+    if (useHoverPreview.getState().item?.id === item.id) hidePreview()
   }
 
   const catIco = categoryIcon(item)
@@ -101,7 +99,9 @@ export function AssetCard(props: AssetCardProps) {
       {canOpen ? (
         <Link className="card__link" to={detailPath} state={{ item, tradeId: item.tradeId }} aria-label={item.name} />
       ) : null}
-      <div className="card__media">
+      {/* The shared 3D preview (HoverPreviewLayer) overlays this element on hover; mediaRef gives it the
+          rect to position over. */}
+      <div className="card__media" ref={mediaRef}>
         {onSale ? (
           <span className="card__sale-badge">
             SALE{discountPct > 0 ? ` -${discountPct}%` : ''}
@@ -114,40 +114,18 @@ export function AssetCard(props: AssetCardProps) {
         >
           <span className="ico ico-heart" aria-hidden />
         </button>
-        {/* Flat thumbnail stays visible the whole time the 3D loads (no empty frame); it only fades
-            out once the preview is ready, crossfading into the 3D. */}
+        {/* Flat thumbnail stays visible the whole time the 3D loads (no empty frame); it only fades out
+            once the shared preview has this item's scene ready, crossfading into the 3D. */}
         {item.thumbnail ? (
           <img
-            className={`card__img${hovered && previewReady ? ' card__img--hidden' : ''}`}
+            className={`card__img${isPreviewing && previewReady ? ' card__img--hidden' : ''}`}
             src={item.thumbnail}
             alt={item.name}
             loading="lazy"
           />
         ) : null}
-        {hovered && canPreview ? (
-          <>
-            <div className={`card__preview${previewReady ? ' is-ready' : ''}`}>
-              <WearablePreview
-                contractAddress={item.contractAddress}
-                itemId={item.itemId ?? undefined}
-                profile="default"
-                // Load straight into the fashion pose (like ItemPreview) so the avatar doesn't flash a
-                // default arms-out T-pose for a beat before settling. Emotes play their own animation.
-                type={item.category === 'emote' ? undefined : PreviewType.AVATAR}
-                emote={item.category === 'emote' ? undefined : PreviewEmote.FASHION}
-                dev={config.chainId === 80002}
-                disableBackground
-                disableFadeEffect
-                onLoad={onPreviewLoad}
-              />
-            </div>
-            {/* Transparent shield over the preview: it becomes the hover target so the cross-origin
-                iframe never shows its internal content-URL tooltip. Clicks bubble up to open detail. */}
-            <span className="card__preview-shield" aria-hidden />
-            {/* Slim loading bar while the 3D boots — the thumbnail stays put underneath. */}
-            {!previewReady ? <span className="card__loadbar" aria-hidden /> : null}
-          </>
-        ) : null}
+        {/* Slim loading bar while the shared 3D swaps in this item — the thumbnail stays put underneath. */}
+        {hovered && canPreview && !previewReady ? <span className="card__loadbar" aria-hidden /> : null}
       </div>
 
       <div className="card__body">

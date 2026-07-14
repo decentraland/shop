@@ -5,7 +5,7 @@ import { NavBar } from '~/components/NavBar'
 import { Toaster } from '~/components/Toaster'
 import { FittingRoom } from '~/components/FittingRoom'
 import { ShopFooter } from '~/components/ShopFooter'
-import { PreviewWarmer } from '~/components/PreviewWarmer'
+import { HoverPreviewLayer } from '~/components/HoverPreviewLayer'
 import { useAccountWatcher } from '~/hooks/useAccountWatcher'
 import { initAnalytics, trackPage } from '~/lib/analytics'
 import { Overview } from '~/pages/Overview'
@@ -86,7 +86,7 @@ export function App() {
   return (
     <>
       <Toaster />
-      <PreviewWarmer />
+      <HoverPreviewLayer />
       <FittingRoom />
       <NavBar />
       <main className="page">
