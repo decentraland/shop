@@ -11,8 +11,9 @@ afterEach(async () => {
 
 describe('buy an item with credits', () => {
   it('goes item detail → Buy now → success', async () => {
-    // Deep-link the secondary item (Nebula Jacket, itemId 1). authorize is mocked; the useCredits
-    // "tx" is submitted through the mock wallet (eth_sendTransaction → canned hash → success receipt).
+    // Deep-link the secondary item (Nebula Jacket, itemId 1). authorize is mocked; gasless is the
+    // default, so the buyer signs the useCredits meta-tx (mock wallet) and it's POSTed to the mocked
+    // relayer → canned hash → success receipt.
     app = await launchApp({ path: `/item/${COLLECTION}/1`, fixtures: { trade: buyTrade } })
     const { page } = app
 

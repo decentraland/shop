@@ -24,7 +24,8 @@ describe('market tab (legacy, fluctuating-price liquidity)', () => {
   })
 
   it('buys a legacy item via Buy now → success (not the cart)', async () => {
-    // fetchTrade('legacy-trade-1') → legacyTrade; authorize + useCredits are mocked (see helpers).
+    // fetchTrade('legacy-trade-1') → legacyTrade; authorize is mocked, and the gasless useCredits
+    // meta-tx is signed by the mock wallet + relayed through the mocked transactions-api (see helpers).
     app = await launchApp({ path: '/market', fixtures: { trade: legacyTrade } })
     const { page } = app
 
