@@ -59,6 +59,9 @@ h1, h2 { margin: 0; }
 .ico-credits { -webkit-mask-image: url('./assets/icons/credits.svg'); mask-image: url('./assets/icons/credits.svg'); }
 .ico-search { -webkit-mask-image: url('./assets/icons/search.svg'); mask-image: url('./assets/icons/search.svg'); }
 .ico-eyewear { -webkit-mask-image: url('./assets/icons/category-eyewear.svg'); mask-image: url('./assets/icons/category-eyewear.svg'); }
+.ico-gender-male { -webkit-mask-image: url('./assets/icons/gender-male.svg'); mask-image: url('./assets/icons/gender-male.svg'); }
+.ico-gender-female { -webkit-mask-image: url('./assets/icons/gender-female.svg'); mask-image: url('./assets/icons/gender-female.svg'); }
+.ico-gender-unisex { -webkit-mask-image: url('./assets/icons/gender-unisex.svg'); mask-image: url('./assets/icons/gender-unisex.svg'); }
 .ico-clock { -webkit-mask-image: url('./assets/icons/clock.svg'); mask-image: url('./assets/icons/clock.svg'); }
 .ico-chevron { -webkit-mask-image: url('./assets/icons/chevron-down.svg'); mask-image: url('./assets/icons/chevron-down.svg'); }
 .ico-cat-head { -webkit-mask-image: url('./assets/icons/cat-head.svg'); mask-image: url('./assets/icons/cat-head.svg'); }
@@ -190,32 +193,36 @@ h1, h2 { margin: 0; }
 .assets__bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
 .assets__count { color: var(--muted); font-weight: 600; }
 .sortby { background: #fff; border: 1px solid var(--line-strong); border-radius: var(--radius-btn); padding: 10px 16px; font-weight: 700; text-transform: uppercase; font-size: 13px; letter-spacing: .03em; }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(201px, 1fr)); gap: 16px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 16px; }
 
-/* ---------------- Browse: horizontal filter bar (replaces the sidebar) ---------------- */
+/* ---------------- Browse: main-area toolbar (count + Rarity/Sort pills) ---------------- */
 .browse { position: relative; }
-.filterbar {
-  position: sticky; top: 158px; z-index: 35;
+.browse__toolbar {
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
-  background: #fff; padding: 12px 0 14px; margin-bottom: 10px;
-  box-shadow: 0 10px 12px -12px rgba(22, 21, 24, .16);
+  margin-bottom: 20px;
 }
-@media (max-width: 768px) { .filterbar { top: 130px; flex-wrap: wrap; } }
-.filterbar__filters, .filterbar__right { display: flex; align-items: center; gap: 8px; }
+@media (max-width: 768px) { .browse__toolbar { flex-wrap: wrap; } }
+/* Item count (Figma typography/body2): Inter Regular 14px, line-height 1.43, gray-2. */
+.browse__count { color: var(--muted); font-weight: 400; font-size: 14px; line-height: 1.43; white-space: nowrap; }
+.browse__dropdowns { display: flex; align-items: center; gap: 8px; }
 .filterbar__item { position: relative; }
-.filterbar__trigger, .filterbar__sort {
-  display: inline-flex; align-items: center; gap: 6px;
-  background: none; border: 0; padding: 8px 10px; border-radius: 8px;
-  color: #6b6873; font-weight: 600; font-size: 14px; white-space: nowrap;
+/* Dropdown pill (Rarity, Sort By): white, 0.5px hairline, chevron on the right. */
+.filterbar__sort {
+  display: inline-flex; align-items: center; justify-content: space-between; gap: 6px;
+  background: #fff; border: 0.5px solid var(--muted-2); border-radius: 8px;
+  height: 40px; padding: 4px 4px 4px 12px; min-width: 120px;
+  color: var(--text-2); font-weight: 500; font-size: 12px; white-space: nowrap;
+  text-transform: uppercase;
 }
-.filterbar__trigger:hover, .filterbar__sort:hover { background: #f5f4f7; color: #3f3c47; }
-.filterbar__trigger.is-open, .filterbar__trigger.is-active, .filterbar__sort.is-open { color: #3f3c47; }
-.filterbar__chev { width: 14px; height: 14px; opacity: .85; transition: transform .15s ease; }
+.filterbar__sort:hover { background: #f5f4f7; }
+/* Figma "Open" state (node 898:119672): the pill fills with gray-5 while its popover is open. */
+.filterbar__sort.is-open { background: var(--chip); border-color: var(--muted-2); }
+.filterbar__chev { width: 24px; height: 24px; color: var(--text-2); flex: none; transition: transform .15s ease; }
 .filterbar__chev.is-up { transform: rotate(180deg); }
 .filterbar__badge { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 11px; font-weight: 700; }
-.filterbar__clear { background: none; border: 0; color: var(--accent); font-weight: 600; font-size: 13px; padding: 8px 6px; }
-.filterbar__count { color: var(--muted); font-weight: 600; font-size: 14px; white-space: nowrap; }
 .filterbar__scrim { position: fixed; inset: 0; z-index: 34; }
+/* Both pills sit on the right, so their popovers anchor to the right edge (avoids overflowing off-screen). */
+.browse__dropdowns .filter-pop { right: 0; left: auto; }
 
 .filter-pop {
   position: absolute; top: calc(100% + 8px); left: 0; z-index: 36;
@@ -241,7 +248,18 @@ h1, h2 { margin: 0; }
 .filter-pop__price-row input:focus { outline: 0; border-color: var(--accent); }
 .filter-pop__price-row input::-webkit-outer-spin-button, .filter-pop__price-row input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .filter-pop__hint { margin: 8px 2px 0; color: var(--muted); font-size: 12px; }
-.filter-pop--sort { right: 0; left: auto; min-width: 220px; }
+/* Sort By popover (Figma node 898:119636): white sheet, 8px radius, soft 25px drop shadow, ~174px wide,
+   full-width option rows 40px tall. No inner padding — rows run edge to edge like the design. */
+.filter-pop--sort {
+  right: 0; left: auto; min-width: 174px; padding: 4px 0;
+  border: 0; border-radius: 8px; box-shadow: 0 4px 25px 5px rgba(0, 0, 0, .25);
+}
+.filter-pop--sort .filter-pop__sort {
+  height: 40px; display: flex; align-items: center; padding: 0 8px; border-radius: 0;
+  font-size: 14px; color: #43404a;
+}
+.filter-pop--sort .filter-pop__sort:hover { background: var(--chip); }
+.filter-pop--sort .filter-pop__sort.is-active { color: var(--accent); font-weight: 600; background: transparent; }
 
 /* ---------------- Card ---------------- */
 .card {
@@ -276,19 +294,18 @@ h1, h2 { margin: 0; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .card--skeleton, .asset-card--skeleton { animation: none; } .spinner { animation-duration: 2s; } }
 
-.card__media { position: relative; aspect-ratio: 1 / 1; background: var(--media); overflow: hidden; }
+/* Deterministic card sizing (Figma 281×300 = media 281×204 + info 96). The media is sized purely by its
+   281:204 aspect-ratio off the (grid-driven) width, and the info below is a FIXED 96px. Total height is
+   therefore fully determined by width — the chips↔button hover swap happens inside the fixed 96px body,
+   so nothing (media or card) ever resizes on hover. */
+.card__media { position: relative; flex: none; aspect-ratio: 281 / 204; background: var(--media); overflow: hidden; }
 .card__img { width: 100%; height: 100%; object-fit: contain; display: block; transition: opacity .25s ease; }
 .card__img--hidden { opacity: 0; }
-/* pointer-events:none so the preview iframe doesn't swallow clicks — the whole card stays clickable
-   (navigates to detail); the fav + add-to-cart buttons sit outside it and still work. */
-.card__preview { position: absolute; inset: 0; pointer-events: none; }
-/* Crossfade the 3D preview in over the static thumbnail once it's ready (set by .is-ready). */
-.card__preview iframe { width: 100%; height: 100%; border: 0; display: block; opacity: 0; transition: opacity .3s ease; }
-.card__preview.is-ready iframe { opacity: 1; }
-@media (prefers-reduced-motion: reduce) { .card__preview iframe { transition: none; } }
-/* Transparent shield above the iframe: intercepts hover so the cross-origin preview never surfaces
-   its internal content-URL tooltip. Sits below the fav + add-to-cart buttons so those stay usable. */
-.card__preview-shield { position: absolute; inset: 0; z-index: 2; cursor: pointer; }
+/* The ONE shared 3D hover preview (HoverPreviewLayer): a fixed overlay positioned over the hovered
+   card's media. pointer-events:none so hover/clicks pass through to the card underneath (hover stays
+   active, the whole-card link still navigates, and the cross-origin iframe never surfaces its internal
+   content-URL tooltip). */
+.hover-preview iframe { width: 100%; height: 100%; border: 0; display: block; background: transparent; }
 /* Slim indeterminate loading bar pinned to the bottom of the media while the 3D boots. The flat
    thumbnail stays fully visible underneath — no shimmer covering it, no empty frame. */
 .card__loadbar {
@@ -302,41 +319,50 @@ h1, h2 { margin: 0; }
 @keyframes loadbar { 0% { transform: translateX(-110%); } 100% { transform: translateX(360%); } }
 @media (prefers-reduced-motion: reduce) { .card__loadbar::before { animation: none; width: 100%; opacity: .5; } }
 .card__fav {
-  position: absolute; top: 10px; right: 10px; z-index: 4;
+  position: absolute; top: 8px; right: 8px; z-index: 4;
   width: 32px; height: 32px; border-radius: 50%; border: 0; background: rgba(255, 255, 255, .85);
   display: grid; place-items: center; color: var(--text);
 }
-.card__fav .ico-heart { width: 18px; height: 18px; }
+.card__fav .ico-heart { width: 20px; height: 20px; }
 .card__fav.is-on { color: var(--dcl-red); }
 
-.card__body { padding: 8px; display: flex; flex-direction: column; gap: 12px; }
-.card__desc { display: flex; flex-direction: column; }
+/* Info area (Figma): fixed 96px (media 281×204 + info 96 = card 281×300). A top row (name/creator +
+   price) + a bottom row (chips at rest / the action button on hover). The FIXED height + space-between
+   means the chips↔button swap on hover never changes the card size (no layout shift). */
+.card__body { height: 96px; padding: 8px; display: flex; flex-direction: column; justify-content: space-between; flex: none; }
+.card__row { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.card__desc { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .card__name { font-weight: 600; font-size: 14px; line-height: 1.57; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* position/z-index so the creator link sits ABOVE the whole-card overlay and stays clickable. */
 .card__creator { position: relative; z-index: 4; color: var(--muted); font-size: 10px; margin-bottom: 0; }
-.card__meta { display: flex; flex-direction: column; gap: 8px; }
-.card__price { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 16px; color: var(--text-2); }
+.card__price { display: flex; align-items: center; gap: 4px; flex: none; font-weight: 600; font-size: 17px; color: var(--text-2); }
 .card__diamond { width: 15px; height: 15px; color: var(--text-2); }
-.card__chips { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.card__chips { display: flex; align-items: flex-end; gap: 4px; flex-wrap: wrap; }
 .chip { display: inline-flex; align-items: center; font-size: 11px; font-weight: 700; border-radius: var(--radius-chip); padding: 3px 8px; background: var(--chip); color: #555; }
 .chip--rarity { background: var(--rarity-bg); color: var(--rarity); text-transform: uppercase; letter-spacing: .02em; }
 .chip--icon { padding: 3px 6px; font-size: 13px; }
 .chip--icon .ico { width: 14px; height: 14px; color: #444; }
+/* Marketplace-style chips on the browse card: smaller than the shared .chip default. A uniform fixed
+   height keeps the rarity, category and gender chips exactly the same height (content centered). */
+.card__chips .chip { height: 18px; font-size: 8.56px; font-weight: 600; padding: 0 6.5px; letter-spacing: .02em; }
+.card__chips .chip--icon { padding: 0 5px; }
+.card__chips .chip--icon .ico { width: 14.6px; height: 14.6px; }
 /* Add-to-cart / Buy now (Figma node 790-63037: secondary dark button). Lives in the body below the
    image, never over it. On hover-capable devices it's hidden at rest (the price/chips row shows) and
    revealed on hover OR keyboard focus, swapping out the price row; where hover isn't available (touch)
    it's always shown so the item stays buyable without a mouse. Always in the DOM (keyboard-reachable). */
 .card__cart {
   position: relative; z-index: 4; /* above the whole-card overlay link so the action stays clickable */
-  margin-top: 4px; width: 100%; display: none; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; display: none; align-items: center; justify-content: center; gap: 8px;
   background: var(--black-btn); color: var(--soft-white); border: 0; border-radius: var(--radius-btn); height: 40px;
   font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: .046em;
   transition: background .15s ease;
 }
 .card:hover .card__cart,
 .card__body:focus-within .card__cart { display: flex; }
-.card:hover .card__meta,
-.card__body:focus-within .card__meta { display: none; }
+/* Swap the price + chips for the action on hover/focus; the name/creator stay put. */
+.card:hover .card__price, .card:hover .card__chips,
+.card__body:focus-within .card__price, .card__body:focus-within .card__chips { display: none; }
 @media (hover: none) {
   /* Touch: no hover to reveal on, so keep the action visible (alongside the price row). */
   .card__cart { display: flex; }
@@ -386,8 +412,10 @@ h1, h2 { margin: 0; }
 .market-banner__ico { font-size: 15px; }
 .market-banner--warn { background: rgba(211, 51, 51, .1); color: var(--err); }
 
-/* Fluctuating (indicative) price on a market card: leading "≈" + a small "Market price" chip. */
-.card__price--market { flex-wrap: wrap; gap: 8px; }
+/* Fluctuating (indicative) price on a market (legacy) card: leading "≈" + a small "Market price"
+   chip. In the name/price top row it's capped + right-aligned so the chip wraps under the price
+   instead of squeezing the item name to nothing. */
+.card__price--market { flex-wrap: wrap; justify-content: flex-end; gap: 4px 8px; max-width: 55%; }
 .card__approx { font-weight: 700; color: var(--muted); }
 .card__market-chip {
   background: var(--rarity-bg); color: var(--accent);
@@ -892,33 +920,84 @@ a.purchase:hover { box-shadow: 0 8px 22px rgba(20, 20, 30, .10); transform: tran
   .fitting__side { width: 100%; border-left: 0; border-top: 1px solid var(--line); min-height: 0; }
 }
 
-/* ---------------- Category filter panel (Figma "Categories Dropdown" 696:34701) ---------------- */
-/* Gray rounded container behind the category list (Figma node 696:34700). Rows are 265px + 8px pad. */
-.catfilter { display: flex; flex-direction: column; gap: 2px; width: 281px; background: #ecebed; border-radius: 16px; padding: 8px; }
+/* ---------------- Sidebar: category filter + price range (Figma "Marketplace-UX-Improvements") ---- */
+/* Section label above each sidebar group: Inter 12px, UPPERCASE, tracked, soft-black. */
+.sidebar__section-label {
+  font-family: var(--sans); font-weight: 400; font-size: 12px; letter-spacing: 1px;
+  text-transform: uppercase; color: var(--text); margin: 0 4px 12px;
+}
+.sidebar__divider { height: 1px; background: var(--media); margin: 20px 0; }
+
+/* Category list — a plain white column (no gray container): 40px rows, semibold 14px, chevron to open
+   sub-categories. Animate expand/collapse to content height via grid-template-rows 0fr↔1fr. */
+.catfilter { display: flex; flex-direction: column; gap: 2px; }
 .catfilter__group { display: flex; flex-direction: column; gap: 2px; }
-/* Animate expand/collapse to content height via grid-template-rows 0fr↔1fr (transition-able). */
 .catfilter__subs { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .22s ease; }
 .catfilter__subs.is-open { grid-template-rows: 1fr; }
 .catfilter__subs-inner { overflow: hidden; min-height: 0; display: flex; flex-direction: column; gap: 2px; }
 @media (prefers-reduced-motion: reduce) { .catfilter__subs { transition: none; } }
 .catfilter__cat, .catfilter__sub {
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
-  height: 40px; padding: 8px 16px; border: 0; border-radius: 12px; background: none;
+  height: 40px; padding: 4px 8px; border: 0; border-radius: 8px; background: none;
   width: 100%; text-align: left; cursor: pointer;
 }
-.catfilter__cat-label { font-family: var(--sans); font-weight: 600; font-size: 16px; line-height: 1.5; color: #161518; }
-/* On the gray container an #ecebed highlight would vanish → use white so selected/hover stays visible. */
-.catfilter__cat:hover, .catfilter__sub:hover { background: rgba(255, 255, 255, .55); }
-.catfilter__cat.is-expanded, .catfilter__sub.is-active { background: #fff; }
-.catfilter__chev { width: 24px; height: 24px; color: #161518; flex: none; transition: transform .15s ease; }
+.catfilter__cat-label { font-family: var(--sans); font-weight: 600; font-size: 14px; line-height: 1.57; color: var(--text); }
+.catfilter__cat:hover, .catfilter__sub:hover { background: #f5f4f7; }
+.catfilter__cat.is-selected, .catfilter__cat.is-expanded { background: var(--media); }
+.catfilter__sub.is-active { background: var(--rarity-bg); }
+.catfilter__sub.is-active .catfilter__sub-label { color: var(--rarity); font-weight: 600; }
+.catfilter__chev { width: 24px; height: 24px; color: var(--text); flex: none; transition: transform .15s ease; }
 .catfilter__chev.is-up { transform: rotate(180deg); }
 .catfilter__sub-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.catfilter__sub-ico { width: 24px; height: 24px; color: #43404a; flex: none; }
-.catfilter__sub-label { font-family: var(--sans); font-weight: 400; font-size: 16px; line-height: 1.5; color: #43404a; }
-.catfilter__chev--sub { color: #43404a; }
+.catfilter__sub-ico { width: 20px; height: 20px; color: #43404a; flex: none; }
+.catfilter__sub-label { font-family: var(--sans); font-weight: 400; font-size: 14px; line-height: 1.57; color: #43404a; }
 
-/* Assets browse: category sidebar (Figma) + main column (filter bar + grid). */
+/* Price range: Min/Max boxes (0.5px black border, credits coin prefix) + a dual-handle slider +
+   the range read-out. The slider is two overlapping <input type=range> so both handles are draggable;
+   the purple fill between them is positioned from the --min-pct/--max-pct set inline. */
+/* padding 0 4px lines the Min box + slider + range read-out up with the "PRICE" label (also inset 4px). */
+.price-filter { display: flex; flex-direction: column; gap: 16px; padding: 0 4px; }
+.price-filter__inputs { display: flex; align-items: flex-end; gap: 8px; }
+.price-filter__field { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
+.price-filter__field-label { font-family: var(--sans); font-weight: 400; font-size: 12px; color: var(--muted); }
+.price-filter__box {
+  display: flex; align-items: center; gap: 6px; height: 42px; padding: 8px;
+  border: 0.5px solid #000; border-radius: 8px; background: #fff;
+}
+.price-filter__box:focus-within { border-color: var(--rarity); }
+.price-filter__coin { width: 15px; height: 15px; color: var(--rarity); flex: none; }
+.price-filter__box input {
+  width: 100%; min-width: 0; border: 0; background: none; padding: 0;
+  font-family: var(--sans); font-size: 13px; color: var(--text);
+}
+.price-filter__box input:focus { outline: 0; }
+.price-filter__box input::-webkit-outer-spin-button, .price-filter__box input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.price-filter__to { padding-bottom: 12px; color: var(--muted); font-size: 13px; }
+
+/* Dual-range slider. Both inputs stack in the same 20px-tall box; their tracks are transparent so the
+   shared .price-filter__track (rail) + .price-filter__fill (selected span) show through. pointer-events
+   are re-enabled only on the thumbs so both handles stay grabbable. */
+.price-filter__slider { position: relative; height: 20px; }
+.price-filter__track { position: absolute; top: 50%; left: 0; right: 0; height: 3px; transform: translateY(-50%); background: var(--media); border-radius: 3px; }
+.price-filter__fill { position: absolute; top: 50%; height: 3px; transform: translateY(-50%); left: var(--min-pct, 0%); right: calc(100% - var(--max-pct, 100%)); background: var(--rarity); border-radius: 3px; }
+.price-filter__slider input[type='range'] {
+  position: absolute; top: 0; left: 0; width: 100%; height: 20px; margin: 0;
+  -webkit-appearance: none; appearance: none; background: none; pointer-events: none;
+}
+.price-filter__slider input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; pointer-events: auto;
+  width: 16px; height: 16px; border-radius: 50%; background: #fff; border: 2px solid var(--rarity);
+  box-shadow: 0 1px 3px rgba(22, 21, 24, .25); cursor: pointer;
+}
+.price-filter__slider input[type='range']::-moz-range-thumb {
+  pointer-events: auto; width: 16px; height: 16px; border-radius: 50%; background: #fff;
+  border: 2px solid var(--rarity); box-shadow: 0 1px 3px rgba(22, 21, 24, .25); cursor: pointer;
+}
+.price-filter__range { display: flex; align-items: center; justify-content: space-between; }
+.price-filter__range-val { display: inline-flex; align-items: center; gap: 4px; font-family: var(--sans); font-size: 13px; color: var(--text); }
+
+/* Assets browse: sidebar (265px) + main column (toolbar + grid). */
 .browse--sidebar { display: flex; gap: 32px; align-items: flex-start; }
-.browse__sidebar { flex: none; width: 281px; }
+.browse__sidebar { flex: none; width: 265px; }
 .browse__main { flex: 1; min-width: 0; }
 @media (max-width: 900px) { .browse--sidebar { flex-direction: column; } .browse__sidebar { width: 100%; } }

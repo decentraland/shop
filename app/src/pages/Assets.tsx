@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { fetchUnified, type CatalogItem, type LegacyListing, type UnifiedListing } from '~/lib/api'
@@ -6,16 +6,22 @@ import { manaWeiToCredits } from '~/lib/mana-rate'
 import { useManaRate } from '~/hooks/useManaRate'
 import { AssetCard } from '~/components/AssetCard'
 import { CategoryFilter } from '~/components/CategoryFilter'
-import { FilterBar, FilterPanel, SORTS } from '~/components/FilterBar'
+import { FilterBar, SORTS } from '~/components/FilterBar'
 import { SkeletonCards } from '~/components/SkeletonCards'
 import { LoadMore } from '~/components/LoadMore'
 import { MarketCheckout } from '~/components/MarketCheckout'
+import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
-import { CURRENCY } from '~/lib/currency'
 import { track } from '~/lib/analytics'
 
 // Items fetched per page (infinite scroll pages by cumulative offset — see useInfiniteGrid).
 const PAGE_SIZE = 48
+
+// Upper bound for the sidebar price range slider (in credits). The Min/Max text inputs stay free-form
+// (an exact price above this is still typable); the slider is the coarse control, so the bound is a
+// UX choice — comfortably above typical listing prices — NOT the placeholder Figma showed (4,000,000),
+// which would make each pixel worth thousands of credits and the slider useless.
+const PRICE_SLIDER_MAX = 100_000
 
 // Sidebar sub-labels → the on-chain categories they cover. Wearable sub-labels map to wearable
 // categories; emote sub-labels map to emote categories. Both go out on the same `wearableCategory`
@@ -144,13 +150,6 @@ export function Assets() {
   function toggleRarity(r: string) {
     setRarities(rs => (rs.includes(r) ? rs.filter(x => x !== r) : [...rs, r]))
   }
-  function reset() {
-    setCategory('wearable')
-    setSubCategory(null)
-    setRarities([])
-    setPriceMin('')
-    setPriceMax('')
-  }
   function openCheckout(card: CatalogItem) {
     const item = items.find(i => i.id === card.id)
     if (item && item.source === 'legacy' && item.manaWei) setCheckout(toLegacyListing(item))
@@ -159,14 +158,99 @@ export function Assets() {
     void qc.invalidateQueries({ queryKey: ['unified-listings'] })
   }
 
-  const priceActive = !!(min || max)
-  const priceLabel = priceActive ? `${priceMin || '0'}–${priceMax || '∞'}` : 'Price'
-  const anyActive = category !== 'wearable' || !!subCategory || rarities.length > 0 || priceActive
+  // Dual-handle price range slider (sidebar). The two overlaid range inputs drive the SAME priceMin/
+  // priceMax state as the text inputs, so typing and dragging stay in sync. Values are clamped so the
+  // handles can't cross; an empty bound means "unbounded" (min → 0 shown, max → the slider ceiling).
+  const sliderMin = min != null ? Math.min(min, PRICE_SLIDER_MAX) : 0
+  const sliderMax = max != null ? Math.min(max, PRICE_SLIDER_MAX) : PRICE_SLIDER_MAX
+  const minPct = (sliderMin / PRICE_SLIDER_MAX) * 100
+  const maxPct = (sliderMax / PRICE_SLIDER_MAX) * 100
+  function onSlideMin(v: number) {
+    const n = Math.min(v, sliderMax)
+    setPriceMin(n <= 0 ? '' : String(n))
+  }
+  function onSlideMax(v: number) {
+    const n = Math.max(v, sliderMin)
+    setPriceMax(n >= PRICE_SLIDER_MAX ? '' : String(n))
+  }
 
   return (
     <div className="browse browse--sidebar">
       <aside className="browse__sidebar">
+        <div className="sidebar__section-label">Category</div>
         <CategoryFilter category={category} subCategory={subCategory} onCategory={pickCategory} onSub={setSubCategory} />
+
+        <div className="sidebar__divider" />
+
+        <div className="sidebar__section-label">Price</div>
+        <div className="price-filter">
+          <div className="price-filter__inputs">
+            <label className="price-filter__field">
+              <span className="price-filter__field-label">Min</span>
+              <span className="price-filter__box">
+                <CurrencyIcon className="price-filter__coin" />
+                <input
+                  type="number"
+                  min="0"
+                  aria-label="Minimum price"
+                  placeholder="0"
+                  value={priceMin}
+                  onChange={e => setPriceMin(e.target.value)}
+                />
+              </span>
+            </label>
+            <span className="price-filter__to">to</span>
+            <label className="price-filter__field">
+              <span className="price-filter__field-label">Max</span>
+              <span className="price-filter__box">
+                <CurrencyIcon className="price-filter__coin" />
+                <input
+                  type="number"
+                  min="0"
+                  aria-label="Maximum price"
+                  placeholder="0"
+                  value={priceMax}
+                  onChange={e => setPriceMax(e.target.value)}
+                />
+              </span>
+            </label>
+          </div>
+
+          <div
+            className="price-filter__slider"
+            style={{ '--min-pct': `${minPct}%`, '--max-pct': `${maxPct}%` } as CSSProperties}
+          >
+            <div className="price-filter__track" aria-hidden />
+            <div className="price-filter__fill" aria-hidden />
+            <input
+              type="range"
+              min={0}
+              max={PRICE_SLIDER_MAX}
+              value={sliderMin}
+              aria-label="Minimum price slider"
+              onChange={e => onSlideMin(Number(e.target.value))}
+            />
+            <input
+              type="range"
+              min={0}
+              max={PRICE_SLIDER_MAX}
+              value={sliderMax}
+              aria-label="Maximum price slider"
+              onChange={e => onSlideMax(Number(e.target.value))}
+            />
+          </div>
+
+          <div className="price-filter__range">
+            <span className="price-filter__range-val">
+              <CurrencyIcon className="price-filter__coin" />
+              {sliderMin.toLocaleString()}
+            </span>
+            <span className="price-filter__range-val">
+              <CurrencyIcon className="price-filter__coin" />
+              {sliderMax.toLocaleString()}
+            </span>
+          </div>
+        </div>
       </aside>
 
       <div className="browse__main">
@@ -178,20 +262,6 @@ export function Assets() {
           total={total}
           loading={isLoading}
           query={q}
-          anyActive={anyActive}
-          onClear={reset}
-          renderTrailing={panel => (
-            <FilterPanel panelKey="price" label={priceLabel} active={priceActive} panel={panel}>
-              <div className="filter-pop filter-pop--price">
-                <div className="filter-pop__price-row">
-                  <input type="number" min="0" aria-label="Minimum price" placeholder="Min" value={priceMin} onChange={e => setPriceMin(e.target.value)} />
-                  <span>–</span>
-                  <input type="number" min="0" aria-label="Maximum price" placeholder="Max" value={priceMax} onChange={e => setPriceMax(e.target.value)} />
-                </div>
-                <p className="filter-pop__hint">Price in {CURRENCY.name}</p>
-              </div>
-            </FilterPanel>
-          )}
         />
 
         {/* Legacy (market-priced) cards follow the live rate; if the oracle is down, Buy Now is paused.

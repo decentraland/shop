@@ -1,14 +1,13 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { PreviewEmote, PreviewType } from '@dcl/schemas'
-import { WearablePreview } from '~/components/LazyWearablePreview'
-import { config } from '~/config'
 import { useCart } from '~/store/cart'
 import { useFavorites } from '~/store/favorites'
+import { useHoverPreview } from '~/store/hoverPreview'
 import { useWallet } from '~/store/wallet'
 import { isOwnListing } from '~/lib/ownership'
 import { CreatorBadge } from '~/components/CreatorBadge'
-import { rarityColor, readableText } from '~/lib/rarity'
+import { rarityInk, rarityTint } from '~/lib/rarity'
+import { categoryIcon, genderIcon } from '~/lib/itemIcons'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { SaleCountdown } from '~/components/SaleCountdown'
 import { saleDiscountPct } from '~/lib/sale'
@@ -16,17 +15,6 @@ import { useSaleActive } from '~/hooks/useSaleActive'
 import type { CatalogItem } from '~/lib/api'
 
 const HOVER_DELAY_MS = 120
-// WearablePreview's onLoad fires on the iframe's LOAD message = scene actually rendered (not just the
-// app booting). We keep the flat thumbnail up the whole time and only crossfade to the 3D once ready,
-// so there's never an empty frame. A short grace guarantees the first painted frame before we swap.
-const PREVIEW_GRACE_MS = 250
-
-function genderGlyph(gender: CatalogItem['gender']): string {
-  if (gender === 'male') return '♂'
-  if (gender === 'female') return '♀'
-  if (gender === 'unisex') return '⚥'
-  return ''
-}
 
 // Card variants:
 // - default (native, USD-pegged): fixed credit price + Add to cart.
@@ -42,9 +30,8 @@ export function AssetCard(props: AssetCardProps) {
   const { item } = props
   const isMarket = props.mode === 'market'
   const [hovered, setHovered] = useState(false)
-  const [previewReady, setPreviewReady] = useState(false)
   const timer = useRef<ReturnType<typeof setTimeout>>()
-  const graceTimer = useRef<ReturnType<typeof setTimeout>>()
+  const mediaRef = useRef<HTMLDivElement>(null)
 
   const add = useCart(s => s.add)
   const inCart = useCart(s => s.items.some(i => i.id === item.id))
@@ -53,6 +40,13 @@ export function AssetCard(props: AssetCardProps) {
   const own = isOwnListing(item, address)
   const toggleFav = useFavorites(s => s.toggle)
   const faved = useFavorites(s => !!s.items[item.id])
+  // The single shared 3D preview (see HoverPreviewLayer): on hover this card asks it to load this item
+  // and overlay this card's media. `isPreviewing`/`previewReady` reflect whether THIS card is the one
+  // currently driving that shared instance.
+  const showPreview = useHoverPreview(s => s.show)
+  const hidePreview = useHoverPreview(s => s.hide)
+  const isPreviewing = useHoverPreview(s => s.item?.id === item.id)
+  const previewReady = useHoverPreview(s => (s.item?.id === item.id ? s.ready : false))
 
   const canPreview = !!item.contractAddress && !!item.itemId
   // Secondary listings carry tokenId; catalog items carry itemId — use whichever is present so the
@@ -65,22 +59,31 @@ export function AssetCard(props: AssetCardProps) {
 
   function onEnter() {
     if (timer.current) clearTimeout(timer.current)
-    if (graceTimer.current) clearTimeout(graceTimer.current)
-    setPreviewReady(false)
-    timer.current = setTimeout(() => setHovered(true), HOVER_DELAY_MS)
+    timer.current = setTimeout(() => {
+      setHovered(true)
+      if (canPreview && mediaRef.current) showPreview(item, mediaRef.current)
+    }, HOVER_DELAY_MS)
   }
   function onLeave() {
     if (timer.current) clearTimeout(timer.current)
-    if (graceTimer.current) clearTimeout(graceTimer.current)
     setHovered(false)
-    setPreviewReady(false)
-  }
-  function onPreviewLoad() {
-    if (graceTimer.current) clearTimeout(graceTimer.current)
-    graceTimer.current = setTimeout(() => setPreviewReady(true), PREVIEW_GRACE_MS)
+    // Only release the shared preview if WE'RE the ones holding it (avoid stealing it from a card the
+    // mouse has already moved onto).
+    if (useHoverPreview.getState().item?.id === item.id) hidePreview()
   }
 
-  const gender = genderGlyph(item.gender)
+  // Release the shared preview if this card unmounts WHILE it's the active one (a filter change or
+  // navigation removes the card without firing onLeave) — otherwise the store keeps a stale item +
+  // detached anchor node alive and the layer's scroll/resize listeners keep measuring it.
+  useEffect(() => {
+    return () => {
+      if (timer.current) clearTimeout(timer.current)
+      if (useHoverPreview.getState().item?.id === item.id) hidePreview()
+    }
+  }, [item.id, hidePreview])
+
+  const catIco = categoryIcon(item)
+  const genderIco = genderIcon(item.gender)
 
   // Flash sale only applies to native (fixed-price) listings — a market card's credit price
   // fluctuates, so a strike-through compare-at would be meaningless there.
@@ -106,7 +109,9 @@ export function AssetCard(props: AssetCardProps) {
       {canOpen ? (
         <Link className="card__link" to={detailPath} state={{ item, tradeId: item.tradeId }} aria-label={item.name} />
       ) : null}
-      <div className="card__media">
+      {/* The shared 3D preview (HoverPreviewLayer) overlays this element on hover; mediaRef gives it the
+          rect to position over. */}
+      <div className="card__media" ref={mediaRef}>
         {onSale ? (
           <span className="card__sale-badge">
             SALE{discountPct > 0 ? ` -${discountPct}%` : ''}
@@ -119,58 +124,37 @@ export function AssetCard(props: AssetCardProps) {
         >
           <span className="ico ico-heart" aria-hidden />
         </button>
-        {/* Flat thumbnail stays visible the whole time the 3D loads (no empty frame); it only fades
-            out once the preview is ready, crossfading into the 3D. */}
+        {/* Flat thumbnail stays visible the whole time the 3D loads (no empty frame); it only fades out
+            once the shared preview has this item's scene ready, crossfading into the 3D. */}
         {item.thumbnail ? (
           <img
-            className={`card__img${hovered && previewReady ? ' card__img--hidden' : ''}`}
+            className={`card__img${isPreviewing && previewReady ? ' card__img--hidden' : ''}`}
             src={item.thumbnail}
             alt={item.name}
             loading="lazy"
           />
         ) : null}
-        {hovered && canPreview ? (
-          <>
-            <div className={`card__preview${previewReady ? ' is-ready' : ''}`}>
-              <WearablePreview
-                contractAddress={item.contractAddress}
-                itemId={item.itemId ?? undefined}
-                profile="default"
-                // Load straight into the fashion pose (like ItemPreview) so the avatar doesn't flash a
-                // default arms-out T-pose for a beat before settling. Emotes play their own animation.
-                type={item.category === 'emote' ? undefined : PreviewType.AVATAR}
-                emote={item.category === 'emote' ? undefined : PreviewEmote.FASHION}
-                dev={config.chainId === 80002}
-                disableBackground
-                disableFadeEffect
-                onLoad={onPreviewLoad}
-              />
-            </div>
-            {/* Transparent shield over the preview: it becomes the hover target so the cross-origin
-                iframe never shows its internal content-URL tooltip. Clicks bubble up to open detail. */}
-            <span className="card__preview-shield" aria-hidden />
-            {/* Slim loading bar while the 3D boots — the thumbnail stays put underneath. */}
-            {!previewReady ? <span className="card__loadbar" aria-hidden /> : null}
-          </>
-        ) : null}
+        {/* Slim loading bar while the shared 3D swaps in this item — the thumbnail stays put underneath. */}
+        {hovered && canPreview && !previewReady ? <span className="card__loadbar" aria-hidden /> : null}
       </div>
 
       <div className="card__body">
-        <div className="card__desc">
-          <div className="card__name" title={item.name}>{item.name}</div>
-          {item.creator ? (
-            <CreatorBadge address={item.creator} className="card__creator" linkToProfile />
-          ) : (
-            <div className="card__creator">&nbsp;</div>
-          )}
-        </div>
-
-        {/* The price/chips row is always rendered; on hover-capable devices the primary action is
-            revealed in its place on hover OR keyboard focus, and it's always shown where hover isn't
-            available (touch) — so items stay buyable without a mouse (see .card__cart in index.css).
-            Both stay in the DOM so the action button is keyboard-reachable and touch-tappable.
+        {/* Top row: name/creator on the left, price on the right (matching the Figma card). The
+            name/creator stay put; on hover-capable devices the price + chips are swapped for the
+            primary action on hover OR keyboard focus, and where hover isn't available (touch) the
+            action is always shown so items stay buyable without a mouse (see .card__cart in index.css).
+            Everything stays in the DOM so the action button is keyboard-reachable and touch-tappable.
             Native cards add to cart; Market (legacy) cards Buy now directly (price locked at checkout). */}
-        <div className="card__meta">
+        <div className="card__row">
+          <div className="card__desc">
+            <div className="card__name" title={item.name}>{item.name}</div>
+            {item.creator ? (
+              <CreatorBadge address={item.creator} className="card__creator" linkToProfile />
+            ) : (
+              <div className="card__creator">&nbsp;</div>
+            )}
+          </div>
+
           {isMarket && props.mode === 'market' ? (
             <div className="card__price card__price--market">
               <span className="card__approx" aria-hidden>≈</span>
@@ -196,18 +180,21 @@ export function AssetCard(props: AssetCardProps) {
               {item.priceCredits}
             </div>
           )}
-          <div className="card__chips">
-            <span
-              className="chip chip--rarity"
-              style={{ background: rarityColor(item.rarity), color: readableText(rarityColor(item.rarity)) }}
-            >
-              {item.rarity}
-            </span>
-            {item.category === 'wearable' ? (
-              <span className="chip chip--icon"><span className="ico ico-eyewear" aria-hidden /></span>
-            ) : null}
-            {gender ? <span className="chip chip--icon">{gender}</span> : null}
-          </div>
+        </div>
+
+        <div className="card__chips">
+          <span
+            className="chip chip--rarity"
+            style={{ background: rarityTint(item.rarity), color: rarityInk(item.rarity) }}
+          >
+            {item.rarity}
+          </span>
+          {catIco ? (
+            <span className="chip chip--icon"><span className={`ico ico-${catIco}`} aria-hidden /></span>
+          ) : null}
+          {genderIco ? (
+            <span className="chip chip--icon"><span className={`ico ico-${genderIco}`} aria-hidden /></span>
+          ) : null}
         </div>
         {isMarket && props.mode === 'market' ? (
           <button

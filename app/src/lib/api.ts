@@ -189,6 +189,7 @@ type ShopListingRaw = {
   rarity: string
   category: string
   wearableCategory: string | null
+  gender?: 'male' | 'female' | 'unisex' | null
   creator: string
   priceCredits: number
   available: number
@@ -217,7 +218,7 @@ function shopListingToItem(l: ShopListingRaw): CatalogItem {
     chainId: l.chainId,
     thumbnail: l.thumbnail,
     priceCredits: l.priceCredits,
-    gender: null,
+    gender: l.gender ?? null,
     // Only surface a compare-at that's actually above the sale price (the badge/strikethrough guard
     // against a stale or equal value). saleEndsAt arrives as unix seconds → ms for the UI.
     compareAtCredits:
