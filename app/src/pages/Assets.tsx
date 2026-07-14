@@ -44,6 +44,8 @@ const SUBCAT_MAP: Record<string, string[]> = {
 function toLegacyListing(item: UnifiedListing): LegacyListing {
   return {
     tradeId: item.tradeId ?? item.id,
+    // Legacy items in the unified feed are always primary listings (the feed's legacy branch is
+    // primary-only), so this is accurate, not a placeholder.
     listingType: 'primary',
     contractAddress: item.contractAddress,
     itemId: item.itemId ?? '',
@@ -53,6 +55,8 @@ function toLegacyListing(item: UnifiedListing): LegacyListing {
     category: item.category,
     wearableCategory: item.wearableCategory ?? null,
     creator: item.creator,
+    // openCheckout only calls this for a legacy item with a truthy manaWei, so the `'0'` fallback is
+    // never really hit — it just satisfies the string type (and MarketCheckout rejects usdCents <= 0).
     manaWei: item.manaWei ?? '0',
     available: 1,
     network: item.network,
