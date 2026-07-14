@@ -25,28 +25,22 @@ afterEach(() => {
 })
 
 describe('when VITE_GASLESS_CHECKOUT toggles the feature flag', () => {
-  it('should enable gasless for the literal "1"', async () => {
-    const mod = await loadFresh({ VITE_GASLESS_CHECKOUT: '1' })
+  it('should default to ENABLED when the flag is unset', async () => {
+    const mod = await loadFresh({})
     expect(mod.gaslessConfig.enabled).toBe(true)
     expect(mod.gaslessEnabled()).toBe(true)
   })
 
-  it('should enable gasless for "true" regardless of case', async () => {
-    for (const value of ['true', 'TRUE', 'True', 'tRuE']) {
+  it('should stay enabled for explicit on-ish values', async () => {
+    for (const value of ['1', 'true', 'TRUE', 'True', 'yes', 'on', '2']) {
       const mod = await loadFresh({ VITE_GASLESS_CHECKOUT: value })
       expect(mod.gaslessConfig.enabled).toBe(true)
       expect(mod.gaslessEnabled()).toBe(true)
     }
   })
 
-  it('should stay disabled when the flag is unset (empty string)', async () => {
-    const mod = await loadFresh({})
-    expect(mod.gaslessConfig.enabled).toBe(false)
-    expect(mod.gaslessEnabled()).toBe(false)
-  })
-
-  it('and the flag is any other truthy-looking string it should still be disabled', async () => {
-    for (const value of ['0', 'false', 'yes', 'on', 'enabled', '2', ' 1', '1 ']) {
+  it('should disable gasless only for an explicit "0" / "false" (any case, trimmed)', async () => {
+    for (const value of ['0', 'false', 'FALSE', 'False', ' false ', ' 0 ']) {
       const mod = await loadFresh({ VITE_GASLESS_CHECKOUT: value })
       expect(mod.gaslessConfig.enabled).toBe(false)
       expect(mod.gaslessEnabled()).toBe(false)
@@ -70,7 +64,7 @@ describe('when resolving the relayer URL', () => {
 
   it('should keep the configured relayer URL independent of whether gasless is enabled', async () => {
     const mod = await loadFresh({
-      VITE_GASLESS_CHECKOUT: '',
+      VITE_GASLESS_CHECKOUT: '0',
       VITE_RELAYER_URL: 'https://relayer.example.com/v1'
     })
     expect(mod.gaslessConfig.enabled).toBe(false)
@@ -83,7 +77,7 @@ describe('when reading gaslessEnabled() as a predicate', () => {
     const on = await loadFresh({ VITE_GASLESS_CHECKOUT: 'true' })
     expect(on.gaslessEnabled()).toBe(on.gaslessConfig.enabled)
 
-    const off = await loadFresh({ VITE_GASLESS_CHECKOUT: 'nope' })
+    const off = await loadFresh({ VITE_GASLESS_CHECKOUT: '0' })
     expect(off.gaslessEnabled()).toBe(off.gaslessConfig.enabled)
   })
 })

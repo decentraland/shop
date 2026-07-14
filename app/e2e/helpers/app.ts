@@ -115,6 +115,12 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
   if (u.hostname.includes('rpc-amoy') || u.hostname.includes('rpc.decentraland')) {
     return req.respond({ status: 200, headers: { 'content-type': 'application/json', ...CORS }, body: handleRpc(req.postData() || '{}') })
   }
+  // Meta-transaction relayer (transactions-server): gasless checkout POSTs the signed useCredits
+  // meta-tx here; the RPC mock then returns a status-1 receipt for the returned hash. Gasless is the
+  // default checkout path, so the credit-buy flows exercise this.
+  if (u.hostname.includes('transactions-api') && path.endsWith('/transactions')) {
+    return json(req, { ok: true, txHash: '0x' + 'ab'.repeat(32) })
+  }
   // WearablePreview iframe → blank page (don't hit the external preview app).
   if (u.hostname.includes('wearable-preview')) {
     return req.respond({ status: 200, headers: { 'content-type': 'text/html', ...CORS }, body: '<!doctype html><title>preview</title>' })
