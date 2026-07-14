@@ -14,9 +14,10 @@ import type { CatalogItem } from '~/lib/api'
 
 // Settlement of the purchase tx, watched on this page so we NEVER claim "It's yours!" before the item
 // actually exists on-chain (the buy flow may navigate here optimistically — broadcast but not yet
-// confirmed — so the truth lives here). 'confirmed' when the receipt is status 1, 'failed' on a
-// revert, 'pending' while we're still waiting.
-type Settlement = 'pending' | 'confirmed' | 'failed'
+// confirmed — so the truth lives here). 'confirmed' = receipt status 1; 'failed' = reverted on-chain;
+// 'pending' = still waiting; 'timed-out' = we stopped polling but the tx MAY still land (never claim
+// success, but don't claim failure either — the item could still arrive).
+type Settlement = 'pending' | 'confirmed' | 'failed' | 'timed-out'
 
 // Poll the settlement of `txHash`, resolving to the terminal state. waitForSettlement resolves on a
 // confirmed receipt, throws Error on a revert, and throws SettlementPendingError on each timeout — so
@@ -41,6 +42,10 @@ function useSettlement(txHash: string | undefined): Settlement {
           return
         }
       }
+      // Every attempt timed out (e.g. the read RPC was down for the whole window). The tx may still
+      // land, so DON'T claim failure — surface a "still processing, check back" state instead of
+      // leaving the user stuck on the spinner forever.
+      if (!cancelled) setState('timed-out')
     })()
     return () => {
       cancelled = true
@@ -143,6 +148,30 @@ export function Success() {
                 </a>
               </div>
             ) : null}
+          </>
+        ) : settlement === 'timed-out' ? (
+          <>
+            <h1 className="success__title">Still processing…</h1>
+            <p className="success__sub">
+              This is taking longer than usual to confirm. Your purchase may still complete — check{' '}
+              <button className="link" onClick={() => navigate('/my-purchases')}>My Purchases</button> in a
+              few minutes to see the final status. No need to buy again.
+            </p>
+            <div className="success__links">
+              {showExplorer ? (
+                <a className="success__receipt" href={`${EXPLORER_TX}${txHash}`} target="_blank" rel="noreferrer">
+                  View transaction ↗
+                </a>
+              ) : null}
+            </div>
+            <div className="success__actions">
+              <button className="btn btn--purple" onClick={() => navigate('/my-purchases')}>
+                View my purchases
+              </button>
+              <button className="btn btn--ghost" onClick={() => navigate('/assets')}>
+                Keep shopping
+              </button>
+            </div>
           </>
         ) : settlement === 'failed' ? (
           <>
