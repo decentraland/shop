@@ -199,7 +199,8 @@ h1, h2 { margin: 0; }
   margin-bottom: 20px;
 }
 @media (max-width: 768px) { .browse__toolbar { flex-wrap: wrap; } }
-.browse__count { color: var(--text); font-weight: 600; font-size: 14px; white-space: nowrap; }
+/* Item count (Figma typography/body2): Inter Regular 14px, line-height 1.43, gray-2. */
+.browse__count { color: var(--muted); font-weight: 400; font-size: 14px; line-height: 1.43; white-space: nowrap; }
 .browse__dropdowns { display: flex; align-items: center; gap: 8px; }
 .filterbar__item { position: relative; }
 /* Dropdown pill (Rarity, Sort By): white, 0.5px hairline, chevron on the right. */
@@ -277,7 +278,8 @@ h1, h2 { margin: 0; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .card--skeleton, .asset-card--skeleton { animation: none; } .spinner { animation-duration: 2s; } }
 
-.card__media { position: relative; aspect-ratio: 1 / 1; background: var(--media); overflow: hidden; }
+/* Figma card is 281×300 with a 96px info area → the media is landscape (281×204), not square. */
+.card__media { position: relative; aspect-ratio: 281 / 204; background: var(--media); overflow: hidden; }
 .card__img { width: 100%; height: 100%; object-fit: contain; display: block; transition: opacity .25s ease; }
 .card__img--hidden { opacity: 0; }
 /* pointer-events:none so the preview iframe doesn't swallow clicks — the whole card stays clickable
@@ -310,8 +312,10 @@ h1, h2 { margin: 0; }
 .card__fav .ico-heart { width: 20px; height: 20px; }
 .card__fav.is-on { color: var(--dcl-red); }
 
-/* Info area (Figma): a top row (name/creator left, price right) + a chips row below. */
-.card__body { padding: 8px; display: flex; flex-direction: column; gap: 12px; }
+/* Info area (Figma): fixed 96px (media 281×204 + info 96 = card 281×300). A top row (name/creator +
+   price) + a bottom row (chips at rest / the action button on hover). The FIXED height + space-between
+   means the chips↔button swap on hover never changes the card size (no layout shift). */
+.card__body { padding: 8px; display: flex; flex-direction: column; justify-content: space-between; min-height: 96px; gap: 8px; }
 .card__row { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
 .card__desc { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .card__name { font-weight: 600; font-size: 14px; line-height: 1.57; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -324,9 +328,10 @@ h1, h2 { margin: 0; }
 .chip--rarity { background: var(--rarity-bg); color: var(--rarity); text-transform: uppercase; letter-spacing: .02em; }
 .chip--icon { padding: 3px 6px; font-size: 13px; }
 .chip--icon .ico { width: 14px; height: 14px; color: #444; }
-/* Marketplace-style chips on the browse card: smaller than the shared .chip default. */
-.card__chips .chip { font-size: 8.56px; font-weight: 600; padding: 1.6px 6.5px; letter-spacing: .02em; }
-.card__chips .chip--icon { font-size: 13px; padding: 1.6px 6.5px; }
+/* Marketplace-style chips on the browse card: smaller than the shared .chip default. A uniform fixed
+   height keeps the rarity, category and gender chips exactly the same height (content centered). */
+.card__chips .chip { height: 18px; font-size: 8.56px; font-weight: 600; padding: 0 6.5px; letter-spacing: .02em; }
+.card__chips .chip--icon { padding: 0 5px; }
 .card__chips .chip--icon .ico { width: 14.6px; height: 14.6px; }
 /* Add-to-cart / Buy now (Figma node 790-63037: secondary dark button). Lives in the body below the
    image, never over it. On hover-capable devices it's hidden at rest (the price/chips row shows) and
@@ -334,7 +339,7 @@ h1, h2 { margin: 0; }
    it's always shown so the item stays buyable without a mouse. Always in the DOM (keyboard-reachable). */
 .card__cart {
   position: relative; z-index: 4; /* above the whole-card overlay link so the action stays clickable */
-  margin-top: 4px; width: 100%; display: none; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; display: none; align-items: center; justify-content: center; gap: 8px;
   background: var(--black-btn); color: var(--soft-white); border: 0; border-radius: var(--radius-btn); height: 40px;
   font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: .046em;
   transition: background .15s ease;
@@ -826,7 +831,7 @@ a.purchase:hover { box-shadow: 0 8px 22px rgba(20, 20, 30, .10); transform: tran
 /* Section label above each sidebar group: Inter 12px, UPPERCASE, tracked, soft-black. */
 .sidebar__section-label {
   font-family: var(--sans); font-weight: 400; font-size: 12px; letter-spacing: 1px;
-  text-transform: uppercase; color: var(--text); margin: 0 4px 8px;
+  text-transform: uppercase; color: var(--text); margin: 0 4px 12px;
 }
 .sidebar__divider { height: 1px; background: var(--media); margin: 20px 0; }
 
@@ -857,7 +862,8 @@ a.purchase:hover { box-shadow: 0 8px 22px rgba(20, 20, 30, .10); transform: tran
 /* Price range: Min/Max boxes (0.5px black border, credits coin prefix) + a dual-handle slider +
    the range read-out. The slider is two overlapping <input type=range> so both handles are draggable;
    the purple fill between them is positioned from the --min-pct/--max-pct set inline. */
-.price-filter { display: flex; flex-direction: column; gap: 16px; }
+/* padding 0 4px lines the Min box + slider + range read-out up with the "PRICE" label (also inset 4px). */
+.price-filter { display: flex; flex-direction: column; gap: 16px; padding: 0 4px; }
 .price-filter__inputs { display: flex; align-items: flex-end; gap: 8px; }
 .price-filter__field { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
 .price-filter__field-label { font-family: var(--sans); font-weight: 400; font-size: 12px; color: var(--muted); }
