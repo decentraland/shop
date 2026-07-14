@@ -1,4 +1,5 @@
 import { useFollows } from '~/store/follows'
+import { t } from '~/intl/i18n'
 
 // Follow / Following toggle for a creator. Client-side only (localStorage) — see store/follows.
 // Reuses the shared button styles: outlined when not following, ghost once followed.
@@ -13,10 +14,10 @@ export function FollowButton({ address, className = '' }: { address: string; cla
       type="button"
       className={`btn btn--sm ${following ? 'btn--ghost' : 'btn--outline'} ${className}`.trim()}
       aria-pressed={following}
-      title={following ? 'Unfollow creator' : 'Follow creator'}
+      title={following ? t('creator.unfollowTitle') : t('creator.followTitle')}
       onClick={() => toggle(address)}
     >
-      {following ? 'Following' : 'Follow'}
+      {following ? t('creator.following') : t('creator.follow')}
     </button>
   )
 }

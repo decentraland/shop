@@ -1,0 +1,122 @@
+/* ---------------- Card ---------------- */
+/* The 2px border is a gradient painted in the border box via background-clip: the white fill clips to
+   padding-box and the border layer shows through the 2px border ring. Base border is a 2px transparent
+   layer over the same white fill so the hover swap to the cerise gradient causes NO layout shift — a
+   solid `border` can't hold a gradient, and box-shadow can't either. `border-color` transitions don't
+   apply to gradient backgrounds, so we transition `background` + `box-shadow`. */
+.card {
+  background:
+    linear-gradient(#fff, #fff) padding-box,
+    linear-gradient(var(--line), var(--line)) border-box;
+  border: 2px solid transparent; border-radius: var(--radius-card); overflow: hidden;
+  display: flex; flex-direction: column; transition: background .15s ease, box-shadow .15s ease;
+}
+/* Figma hover (node 696:34662): 2px cerise gradient border (DCL/Gradients/Cerise, #FF2D55 → #C640CD,
+   outer) + a soft violet glow (Brand/Violet #A524B3, X0 Y0 Blur8 Spread0). The glow needs room in
+   scroll containers — see .row__track. */
+.card--hover {
+  background:
+    linear-gradient(#fff, #fff) padding-box,
+    var(--cerise) border-box;
+  box-shadow: 0 0 8px 0 var(--brand-violet);
+}
+
+.card__media { position: relative; aspect-ratio: 1 / 1; background: var(--media); overflow: hidden; }
+.card__img { width: 100%; height: 100%; object-fit: contain; display: block; transition: opacity .25s ease; }
+.card__img--hidden { opacity: 0; }
+/* pointer-events:none so the preview iframe doesn't swallow clicks — the whole card stays clickable
+   (navigates to detail); the fav + add-to-cart buttons sit outside it and still work. */
+.card__preview { position: absolute; inset: 0; pointer-events: none; }
+/* Crossfade the 3D preview in over the static thumbnail once it's ready (set by .is-ready). */
+.card__preview iframe { width: 100%; height: 100%; border: 0; display: block; opacity: 0; transition: opacity .3s ease; }
+.card__preview.is-ready iframe { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .card__preview iframe { transition: none; } }
+/* Transparent shield above the iframe: intercepts hover so the cross-origin preview never surfaces
+   its internal content-URL tooltip. Sits below the fav + add-to-cart buttons so those stay usable. */
+.card__preview-shield { position: absolute; inset: 0; z-index: 2; cursor: pointer; }
+/* Slim indeterminate loading bar pinned to the bottom of the media while the 3D boots. The flat
+   thumbnail stays fully visible underneath — no shimmer covering it, no empty frame. */
+.card__loadbar {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 3px; z-index: 3; overflow: hidden;
+  background: rgba(105, 31, 169, .12); pointer-events: none;
+}
+.card__loadbar::before {
+  content: ''; position: absolute; top: 0; left: 0; height: 100%; width: 40%;
+  background: var(--accent); border-radius: 3px; animation: loadbar 1.1s infinite ease-in-out;
+}
+@keyframes loadbar { 0% { transform: translateX(-110%); } 100% { transform: translateX(360%); } }
+@media (prefers-reduced-motion: reduce) { .card__loadbar::before { animation: none; width: 100%; opacity: .5; } }
+.card__fav {
+  position: absolute; top: 10px; right: 10px; z-index: 4;
+  width: 32px; height: 32px; border-radius: 50%; border: 0; background: rgba(255, 255, 255, .85);
+  display: grid; place-items: center; color: var(--text);
+}
+.card__fav .ico-heart { width: 18px; height: 18px; }
+.card__fav.is-on { color: var(--dcl-red); }
+
+.card__body { padding: 8px; display: flex; flex-direction: column; gap: 12px; }
+.card__desc { display: flex; flex-direction: column; }
+.card__name { font-weight: 600; font-size: 14px; line-height: 1.57; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card__creator { color: var(--muted); font-size: 10px; margin-bottom: 0; }
+.card__creator.creator { margin-bottom: 6px; }
+.card__meta { display: flex; flex-direction: column; gap: 8px; }
+.card__price { display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 16px; color: var(--text-2); }
+.card__diamond { width: 15px; height: 15px; color: var(--text-2); }
+.card__chips { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+/* Add-to-cart / Buy now (Figma node 790-63037: secondary dark button). Lives in the body below the
+   image, never over it. On hover-capable devices it's hidden at rest (the price/chips row shows) and
+   revealed on hover OR keyboard focus, swapping out the price row; where hover isn't available (touch)
+   it's always shown so the item stays buyable without a mouse. Always in the DOM (keyboard-reachable). */
+.card__cart {
+  margin-top: 4px; width: 100%; display: none; align-items: center; justify-content: center; gap: 8px;
+  background: var(--black-btn); color: var(--soft-white); border: 0; border-radius: var(--radius-btn); height: 40px;
+  font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: .046em;
+  transition: background .15s ease;
+}
+.card:hover .card__cart,
+.card__body:focus-within .card__cart { display: flex; }
+.card:hover .card__meta,
+.card__body:focus-within .card__meta { display: none; }
+@media (hover: none) {
+  /* Touch: no hover to reveal on, so keep the action visible (alongside the price row). */
+  .card__cart { display: flex; }
+}
+.card__cart:hover:not(:disabled) { background: #43404a; }
+.card__cart.is-in, .card__cart:disabled { background: #43404a; opacity: 1; cursor: default; }
+.card__cart-ico { width: 20px; height: 20px; }
+
+/* ---------------- Flash sale (time-boxed discounted listing — see lib/sale.ts) ---------------- */
+/* Corner ribbon on the card image (fav sits top-right, so this anchors top-left). */
+.card__sale-badge {
+  position: absolute; top: 10px; left: 10px; z-index: 4;
+  display: inline-flex; align-items: center;
+  background: var(--dcl-red); color: #fff;
+  font-weight: 800; font-size: 11px; letter-spacing: .03em; text-transform: uppercase;
+  border-radius: 6px; padding: 4px 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .25);
+}
+/* Price row when on sale: emphasized "now" + struck-through "was" + a countdown pill. */
+.card__price--sale { flex-wrap: wrap; gap: 6px 10px; }
+.card__price-now { display: inline-flex; align-items: center; gap: 6px; color: var(--dcl-red); font-weight: 700; }
+.card__price-now .card__diamond { color: var(--dcl-red); }
+.card__price-was { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); text-decoration: line-through; font-weight: 600; font-size: 14px; }
+.card__diamond--was { width: 13px; height: 13px; color: var(--muted); }
+.card__countdown {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: var(--rarity-bg); color: var(--accent);
+  font-size: 11px; font-weight: 700; border-radius: 6px; padding: 2px 8px; white-space: nowrap;
+}
+
+/* ---------------- Market tab (legacy, fluctuating-price liquidity) ---------------- */
+/* Fluctuating (indicative) price on a market card: leading "≈" + a small "Market price" chip. */
+.card__price--market { flex-wrap: wrap; gap: 8px; }
+.card__approx { font-weight: 700; color: var(--muted); }
+.card__market-chip {
+  background: var(--rarity-bg); color: var(--accent);
+  font-size: 10px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase;
+}
+
+/* hover preview loader */
+/* Center via inset+margin (NOT transform) so the `spin` keyframe's transform:rotate spins in place
+   instead of fighting the centering and "falling". */
+.card__preview-spin { position: absolute; inset: 0; margin: auto; z-index: 2; }

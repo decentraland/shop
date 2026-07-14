@@ -1,66 +1,210 @@
-import { useNavigate, useParams } from 'react-router-dom'
-import { fetchCreatorItems } from '~/lib/collections'
+import { useState } from 'react'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { fetchListings } from '~/lib/api'
 import { AssetCard } from '~/components/AssetCard'
-import { CreatorBadge } from '~/components/CreatorBadge'
-import { FollowButton } from '~/components/FollowButton'
+import { CreatorHero } from '~/components/CreatorHero'
+import { CategoryFilter } from '~/components/CategoryFilter'
+import { FilterBar, FilterPanel, SORTS } from '~/components/FilterBar'
 import { AddAllToCart } from '~/components/AddAllToCart'
 import { SkeletonCards } from '~/components/SkeletonCards'
 import { LoadMore } from '~/components/LoadMore'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
+import { useProfile } from '~/hooks/useProfile'
+import { CURRENCY } from '~/lib/currency'
+import { t } from '~/intl/i18n'
 import './collection.css'
 
 const PAGE_SIZE = 48
 
-// A creator's storefront: every item they made, in a grid. Discovery that feeds the North Star
-// (help buyers find + buy more from a creator). Uses /v1/items?creator= — no backend change.
+// Sidebar sub-labels → on-chain categories (kept in sync with Assets — the same server filter param).
+const SUBCAT_MAP: Record<string, string[]> = {
+  Head: ['head', 'hat', 'hair', 'facial_hair', 'eyes', 'eyebrows', 'mouth', 'mask', 'helmet', 'tiara', 'top_head'],
+  'Upper Body': ['upper_body'],
+  Handwear: ['hands_wear'],
+  'Lower Body': ['lower_body'],
+  Feet: ['feet'],
+  Accessories: ['earring', 'eyewear'],
+  Skins: ['skin'],
+  Dance: ['dance'],
+  Stunt: ['stunt'],
+  Greetings: ['greetings'],
+  Fun: ['fun'],
+  Poses: ['poses'],
+  Reactions: ['reactions'],
+  Horror: ['horror'],
+  Miscellaneous: ['miscellaneous']
+}
+
+function shortAddress(addr: string): string {
+  return /^0x[a-fA-F0-9]{40}$/.test(addr) ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : addr
+}
+
+// A creator's storefront: their credit-buyable listings, browsable with the same category/rarity/
+// price/sort controls as the main Shop grid — scoped to this creator via /v3/catalog/shop?creator=.
+// A cover-image hero (CreatorHero) sits on top. Prices are true shop credits (not the MANA the old
+// /v1/items feed returned), because this now reads the curated USD-pegged shop catalog.
 export function Creator() {
   const { address } = useParams<{ address: string }>()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const collectionsMode = searchParams.has('collections')
+  const { data: profile } = useProfile(address)
+  const name = profile?.name || (address ? shortAddress(address) : t('creator.fallbackName'))
+
+  const [category, setCategory] = useState('wearable')
+  const [subCategory, setSubCategory] = useState<string | null>(null)
+  const [rarities, setRarities] = useState<string[]>([])
+  const [priceMin, setPriceMin] = useState('')
+  const [priceMax, setPriceMax] = useState('')
+  const [sort, setSort] = useState('newest')
+
+  const min = priceMin && !Number.isNaN(Number(priceMin)) ? Number(priceMin) : undefined
+  const max = priceMax && !Number.isNaN(Number(priceMax)) ? Number(priceMax) : undefined
+  const wearableCategories = subCategory ? SUBCAT_MAP[subCategory] : undefined
+  const sortBy = (SORTS.find(s => s.key === sort) ?? SORTS[0]).server
+  const filters = {
+    creator: address,
+    category,
+    rarities: rarities.length ? rarities : undefined,
+    wearableCategories,
+    minPriceCredits: min,
+    maxPriceCredits: max,
+    sortBy
+  }
 
   const { items, total, isLoading, error, hasNextPage, isFetchingNextPage, fetchNextPage } = useInfiniteGrid(
-    ['creator-page', address],
-    skip => fetchCreatorItems(address as string, { first: PAGE_SIZE, skip }),
+    ['creator-listings', filters],
+    skip => fetchListings({ ...filters, first: PAGE_SIZE, skip }),
     { enabled: !!address }
   )
+
+  function pickCategory(key: string) {
+    setCategory(key)
+    setSubCategory(null)
+    if (collectionsMode) clearCollections()
+  }
+  // "Collections" is a URL-driven mode (adds a valueless `&collections`), mutually exclusive with the
+  // category filter. Toggle it on/off while preserving any other query params. Built by hand (not via
+  // setSearchParams) so the flag stays bare `?collections`, not `?collections=`.
+  function clearCollections() {
+    const rest = new URLSearchParams(searchParams)
+    rest.delete('collections')
+    const s = rest.toString()
+    navigate({ search: s ? `?${s}` : '' }, { replace: true })
+  }
+  function toggleCollections() {
+    if (collectionsMode) {
+      clearCollections()
+      return
+    }
+    const rest = new URLSearchParams(searchParams)
+    rest.delete('collections')
+    const s = rest.toString()
+    navigate({ search: s ? `?${s}&collections` : '?collections' }, { replace: true })
+  }
+  function toggleRarity(r: string) {
+    setRarities(rs => (rs.includes(r) ? rs.filter(x => x !== r) : [...rs, r]))
+  }
+  function reset() {
+    setCategory('wearable')
+    setSubCategory(null)
+    setRarities([])
+    setPriceMin('')
+    setPriceMax('')
+  }
+
+  const priceActive = !!(min || max)
+  const priceLabel = priceActive ? `${priceMin || '0'}–${priceMax || '∞'}` : 'Price'
+  const anyActive = category !== 'wearable' || !!subCategory || rarities.length > 0 || priceActive
 
   return (
     <div className="collection-page">
       <nav className="collection-page__crumbs" aria-label="Breadcrumb">
         <button className="collection-page__crumb-link" onClick={() => navigate('/assets')}>
-          Collectibles
+          {t('creator.breadcrumb')}
         </button>
         <span className="collection-page__crumb-sep">/</span>
-        <span className="collection-page__crumb-current">Creator</span>
+        <span className="collection-page__crumb-current">{name}</span>
       </nav>
 
-      <header className="collection-page__head">
-        {address ? <CreatorBadge address={address} className="collection-page__title-creator" /> : null}
-        {address ? <FollowButton address={address} /> : null}
-        <span className="muted collection-page__count">
-          {isLoading ? '…' : `${total.toLocaleString()} item${total === 1 ? '' : 's'}`}
-        </span>
-      </header>
+      {address ? <CreatorHero address={address} /> : null}
 
       {!isLoading && items.length > 0 ? <AddAllToCart items={items} source="creator" /> : null}
 
-      {error ? <p className="error">Couldn&rsquo;t load this creator — please try again.</p> : null}
+      <div className="browse browse--sidebar">
+        <aside className="browse__sidebar">
+          <CategoryFilter
+            category={category}
+            subCategory={subCategory}
+            onCategory={pickCategory}
+            onSub={setSubCategory}
+            title={t('creator.category')}
+            flat
+            collections={collectionsMode}
+            onCollections={toggleCollections}
+          />
+        </aside>
 
-      <div className="grid">
-        {isLoading ? (
-          <SkeletonCards count={12} />
-        ) : (
-          <>
-            {items.map(item => <AssetCard key={item.id} item={item} />)}
-            {isFetchingNextPage ? <SkeletonCards count={6} /> : null}
-          </>
-        )}
+        <div className="browse__main">
+          <FilterBar
+            rarities={rarities}
+            onToggleRarity={toggleRarity}
+            sort={sort}
+            onSort={setSort}
+            total={total}
+            loading={isLoading}
+            anyActive={anyActive}
+            onClear={reset}
+            renderTrailing={panel => (
+              <FilterPanel panelKey="price" label={priceLabel} active={priceActive} panel={panel}>
+                <div className="filter-pop filter-pop--price">
+                  <div className="filter-pop__price-row">
+                    <input
+                      type="number"
+                      min="0"
+                      aria-label="Minimum price"
+                      placeholder="Min"
+                      value={priceMin}
+                      onChange={e => setPriceMin(e.target.value)}
+                    />
+                    <span>–</span>
+                    <input
+                      type="number"
+                      min="0"
+                      aria-label="Maximum price"
+                      placeholder="Max"
+                      value={priceMax}
+                      onChange={e => setPriceMax(e.target.value)}
+                    />
+                  </div>
+                  <p className="filter-pop__hint">Price in {CURRENCY.name}</p>
+                </div>
+              </FilterPanel>
+            )}
+          />
+
+          {error ? <p className="error">{t('creator.error')}</p> : null}
+
+          <div className="grid">
+            {isLoading ? (
+              <SkeletonCards count={15} />
+            ) : (
+              <>
+                {items.map(item => (
+                  <AssetCard key={item.id} item={item} />
+                ))}
+                {isFetchingNextPage ? <SkeletonCards count={6} /> : null}
+              </>
+            )}
+          </div>
+
+          <LoadMore hasNextPage={hasNextPage} isFetching={isFetchingNextPage} onLoadMore={() => fetchNextPage()} />
+
+          {!isLoading && !error && items.length === 0 ? (
+            <p className="muted">{t('creator.empty')}</p>
+          ) : null}
+        </div>
       </div>
-
-      <LoadMore hasNextPage={hasNextPage} isFetching={isFetchingNextPage} onLoadMore={() => fetchNextPage()} />
-
-      {!isLoading && !error && items.length === 0 ? (
-        <p className="muted">This creator has no items to show yet.</p>
-      ) : null}
     </div>
   )
 }

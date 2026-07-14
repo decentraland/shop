@@ -14,6 +14,7 @@ import { SaleCountdown } from '~/components/SaleCountdown'
 import { saleDiscountPct } from '~/lib/sale'
 import { useSaleActive } from '~/hooks/useSaleActive'
 import type { CatalogItem } from '~/lib/api'
+import './asset-card.css'
 
 const HOVER_DELAY_MS = 120
 // WearablePreview's onLoad fires on the iframe's LOAD message = scene actually rendered (not just the

@@ -1,5 +1,6 @@
 import { ReactNode, useState } from 'react'
 import type { ShopSort } from '~/lib/api'
+import { Dropdown } from '~/components/Dropdown'
 
 // Shared horizontal filter bar for the browse grids (Assets + Market). Owns the single-open-panel
 // state (only one popover at a time) + the click-away scrim, and renders the filters both pages share:
@@ -24,16 +25,15 @@ export type PanelController = {
 }
 
 /**
- * A filter trigger + its popover, wired to the shared panel controller. Used both by the built-in
- * filters and by the page-specific slots so they match styling + single-open behavior. `align='right'`
- * uses the sort-style trigger (right side of the bar).
+ * A filter trigger + its popover (checkbox/range style), wired to the shared panel controller. Used by
+ * the built-in Rarity filter and the page-specific slots so they match styling + single-open behavior.
+ * For a single-select dropdown (Sort By), use the standalone <Dropdown> instead.
  */
 export function FilterPanel({
   panelKey,
   label,
   active,
   badge,
-  align = 'left',
   panel,
   children
 }: {
@@ -41,16 +41,14 @@ export function FilterPanel({
   label: ReactNode
   active?: boolean
   badge?: number
-  align?: 'left' | 'right'
   panel: PanelController
   children: ReactNode
 }) {
   const isOpen = panel.open === panelKey
-  const triggerClass = align === 'right' ? 'filterbar__sort' : 'filterbar__trigger'
   return (
     <div className="filterbar__item">
       <button
-        className={`${triggerClass}${isOpen ? ' is-open' : ''}${active ? ' is-active' : ''}`}
+        className={`filterbar__trigger${isOpen ? ' is-open' : ''}${active ? ' is-active' : ''}`}
         onClick={() => panel.toggle(panelKey)}
       >
         {label} {badge ? <span className="filterbar__badge">{badge}</span> : null}{' '}
@@ -144,22 +142,16 @@ export function FilterBar({
             {loading ? '…' : `${total.toLocaleString()} item${total === 1 ? '' : 's'}`}
             {query ? ` for “${query}”` : ''}
           </span>
-          <FilterPanel panelKey="sort" label={`Sort by: ${currentSort.label}`} align="right" panel={panel}>
-            <div className="filter-pop filter-pop--sort">
-              {sortOptions.map(s => (
-                <button
-                  key={s.key}
-                  className={`filter-pop__sort${s.key === sort ? ' is-active' : ''}`}
-                  onClick={() => {
-                    onSort(s.key)
-                    panel.close()
-                  }}
-                >
-                  {s.label}
-                </button>
-              ))}
-            </div>
-          </FilterPanel>
+          <Dropdown
+            label="Sort by"
+            ariaLabel={`Sort by: ${currentSort.label}`}
+            value={sort}
+            options={sortOptions.map(s => ({ value: s.key, label: s.label }))}
+            onChange={onSort}
+            align="right"
+            open={panel.open === 'sort'}
+            onOpenChange={next => (next ? panel.toggle('sort') : panel.close())}
+          />
         </div>
       </div>
     </>

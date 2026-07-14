@@ -234,6 +234,7 @@ export type ShopListingFilters = {
   skip?: number
   contractAddress?: string
   itemId?: string
+  creator?: string
   rarities?: string[]
   wearableCategories?: string[]
   minPriceCredits?: number
@@ -249,6 +250,7 @@ async function fetchShopListingsRaw(params: ShopListingFilters): Promise<{ listi
   if (params.skip != null) qs.set('skip', String(params.skip))
   if (params.contractAddress) qs.set('contractAddress', params.contractAddress)
   if (params.itemId != null) qs.set('itemId', params.itemId)
+  if (params.creator) qs.set('creator', params.creator)
   if (params.rarities?.length) qs.set('rarity', params.rarities.join(','))
   if (params.wearableCategories?.length) qs.set('wearableCategory', params.wearableCategories.join(','))
   if (params.minPriceCredits != null) qs.set('minPriceCredits', String(params.minPriceCredits))

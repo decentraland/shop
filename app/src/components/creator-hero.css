@@ -1,0 +1,146 @@
+/* Creator storefront hero — cover banner with a centered avatar/name/description/actions block.
+   Sits above the browse layout on the Creator page. Mirrors the marketplace account banner but
+   restyled for the shop (web2-first, no wallet/network chrome). */
+.creator-hero {
+  position: relative;
+  border-radius: var(--radius-card);
+  overflow: hidden;
+  margin-bottom: 24px;
+  min-height: 360px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Cover fills the banner; a scrim keeps the centered white text legible over any image. */
+.creator-hero__cover {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+.creator-hero__cover-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.creator-hero__scrim {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.35) 0%, rgba(0, 0, 0, 0.55) 100%);
+}
+
+.creator-hero__edit {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  color: #fff;
+  background-color: transparent;
+  border: 2px solid #fff;
+  transition: background-color 0.15s linear;
+}
+.creator-hero__edit:hover {
+  background: rgba(255, 255, 255, 0.24);
+}
+.creator-hero__edit .ico-pen {
+  width: 20px;
+  height: 20px;
+}
+
+.creator-hero__body {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 24px;
+  padding: 32px 20px;
+}
+
+.creator-hero__ava {
+  width: 112px;
+  height: 112px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 4px solid #fff;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+  /* Fallback only — the real backdrop is a deterministic per-user color set inline by CreatorHero */
+  background: #ff4bed;
+}
+.creator-hero__ava--ph {
+  display: block;
+}
+
+.creator-hero__name {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.6;
+}
+.creator-hero__desc {
+  margin: 0;
+  font-size: 15px;
+  color: #fff;
+  line-height: 1.6;
+  max-width: 520px;
+}
+
+.creator-hero__actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* Both cover actions are the SAME white outlined pill so they look and hover identically */
+.creator-hero__view,
+.creator-hero .creator-hero__follow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+  padding: 0 28px;
+  border: 2px solid #fff;
+  border-radius: var(--radius-btn);
+  background: transparent;
+  color: #fff;
+  font-weight: 600;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.046em;
+  text-decoration: none;
+  transition: background 0.15s ease;
+}
+.creator-hero__view:hover,
+.creator-hero .creator-hero__follow:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+@media (max-width: 768px) {
+  .creator-hero {
+    min-height: 260px;
+  }
+  .creator-hero__body {
+    padding: 24px 16px;
+  }
+  .creator-hero__ava {
+    width: 88px;
+    height: 88px;
+  }
+  .creator-hero__name {
+    font-size: 16px;
+  }
+  .creator-hero__desc {
+    font-size: 14px;
+  }
+}

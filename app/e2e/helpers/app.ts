@@ -151,8 +151,10 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
       const search = u.searchParams.get('search')?.toLowerCase()
       const rarity = u.searchParams.get('rarity')
       const category = u.searchParams.get('category')
+      const creator = u.searchParams.get('creator')
       if (ca) items = items.filter(i => String(i.contractAddress).toLowerCase() === ca.toLowerCase())
       if (itemId) items = items.filter(i => String(i.itemId) === itemId)
+      if (creator) items = items.filter(i => String(i.creator).toLowerCase() === creator.toLowerCase())
       if (search) items = items.filter(i => String(i.name).toLowerCase().includes(search))
       if (rarity) items = items.filter(i => rarity.split(',').includes(i.rarity))
       if (category) items = items.filter(i => i.category === category)
@@ -223,8 +225,29 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
     return json(req, { data: [] })
   }
 
-  // peer lambdas (profiles)
+  // peer lambdas (profiles) + content (store entity)
   if (u.hostname.includes('peer.decentraland')) {
+    // Creator store entity (cover + description) for the storefront hero. The fixture creator gets a
+    // store with a description; everyone else resolves to no entity (hero uses the default cover).
+    if (path === '/content/entities/active') {
+      const body = JSON.parse(req.postData() || '{}') as { pointers?: string[] }
+      const isCreator = (body.pointers ?? []).some(p => p.toLowerCase().includes(fx.CREATOR_ADDRESS.toLowerCase()))
+      return json(
+        req,
+        isCreator
+          ? [
+              {
+                content: [{ file: 'cover/cover.jpg', hash: 'QmCover' }],
+                metadata: {
+                  description: 'Handcrafted wearables & emotes.',
+                  images: [{ name: 'cover', file: 'cover/cover.jpg' }],
+                  links: []
+                }
+              }
+            ]
+          : []
+      )
+    }
     if (path.includes('/lambdas/profiles')) {
       // The fixture creator (author of the shop listings + the matched DCL name) resolves to a
       // "Galaxy Studio" profile — used for the "By {creator}" sublines and the Creators row name.
