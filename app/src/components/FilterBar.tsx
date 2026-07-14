@@ -27,7 +27,7 @@ export type PanelController = {
  * filters and by the page-specific slots so they match styling + single-open behavior. `align='right'`
  * uses the sort-style trigger (right side of the bar).
  */
-export function FilterPanel({
+function FilterPanel({
   panelKey,
   label,
   active,

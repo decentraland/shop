@@ -70,8 +70,11 @@ export function HoverPreviewLayer() {
     if (!item) return
     const iframe = document.getElementById(IFRAME_ID) as HTMLIFrameElement | null
     if (!iframe?.contentWindow) return
-    loadingTokenRef.current = token
+    // Only advance the token AFTER the boot gate — i.e. only when we actually dispatch an UPDATE. If we
+    // stamped it on every effect run (incl. a pre-boot hover that sends nothing), it would always equal
+    // the store token and handleLoad's staleness check would be a no-op.
     if (!bootedRef.current) return
+    loadingTokenRef.current = token
     const isEmote = item.category === 'emote'
     sendMessage(iframe.contentWindow, PreviewMessageType.UPDATE, {
       options: {
@@ -95,8 +98,11 @@ export function HoverPreviewLayer() {
       setBooted(true)
       return
     }
-    // A later LOAD is the response to our latest UPDATE — mark ready only if it's still the current one.
-    if (useHoverPreview.getState().token === loadingTokenRef.current) setReady()
+    // A later LOAD is the response to our latest UPDATE — mark ready only if a card is still hovered
+    // (guard against a LOAD landing after hide(), which would set ready:true with item:null) AND it's
+    // still the current token (not a stale load from a card the mouse already left).
+    const s = useHoverPreview.getState()
+    if (s.item && s.token === loadingTokenRef.current) setReady()
   }
 
   if (!mounted) return null

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { Rarity } from '@dcl/schemas'
-import { rarityColor, readableText } from '~/lib/rarity'
+import { rarityColor, rarityInk, rarityTint, readableText } from '~/lib/rarity'
 
 const FALLBACK = '#a09ba8'
 
@@ -91,5 +91,42 @@ describe('when picking readable text for a background color', () => {
     // Extra trailing chars (e.g. an alpha channel) are sliced off and ignored.
     expect(readableText('#ffffff00')).toBe('#161518')
     expect(readableText('#00000000')).toBe('#ffffff')
+  })
+})
+
+describe('when building the tinted rarity chip background (rarityTint)', () => {
+  it('should render the rarity color as an rgba at the given alpha', () => {
+    // legendary #842DDA → rgb(132, 45, 218)
+    expect(rarityTint('legendary')).toBe('rgba(132, 45, 218, 0.3)')
+    expect(rarityTint('legendary', 0.5)).toBe('rgba(132, 45, 218, 0.5)')
+  })
+
+  it('should fall back to a neutral grey rgba for an unknown rarity', () => {
+    expect(rarityTint('nonsense')).toBe('rgba(160, 155, 168, 0.3)')
+    expect(rarityTint(null)).toBe('rgba(160, 155, 168, 0.3)')
+  })
+})
+
+describe('when picking legible chip ink (rarityInk)', () => {
+  it('should keep a dark rarity color unchanged (already legible on the pale tint)', () => {
+    // legendary #842DDA has luminance < 120 → returned as-is.
+    expect(rarityInk('legendary')).toBe(rarityColor('legendary'))
+  })
+
+  it('should darken a light rarity color so it stays readable on the pale tint', () => {
+    // exotic #CAFF73 is near-white (lum ~223) → must be darkened, and end up much darker than the raw color.
+    const raw = rarityColor('exotic') // #caff73
+    const ink = rarityInk('exotic')
+    expect(ink).not.toBe(raw)
+    // Every channel scaled down by the same factor → strictly darker.
+    expect(parseInt(ink.slice(1, 3), 16)).toBeLessThan(parseInt(raw.slice(1, 3), 16))
+  })
+
+  it('should darken the neutral fallback for an unknown rarity (its grey is light)', () => {
+    // Unknown rarity → rarityColor's fallback grey #a09ba8 (lum ~158 > 120) → darkened, not returned raw.
+    const ink = rarityInk('nonsense')
+    expect(ink).toMatch(/^#[0-9a-f]{6}$/)
+    expect(ink).not.toBe('#a09ba8')
+    expect(parseInt(ink.slice(1, 3), 16)).toBeLessThan(0xa0)
   })
 })

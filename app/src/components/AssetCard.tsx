@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useCart } from '~/store/cart'
 import { useFavorites } from '~/store/favorites'
@@ -71,6 +71,16 @@ export function AssetCard(props: AssetCardProps) {
     // mouse has already moved onto).
     if (useHoverPreview.getState().item?.id === item.id) hidePreview()
   }
+
+  // Release the shared preview if this card unmounts WHILE it's the active one (a filter change or
+  // navigation removes the card without firing onLeave) — otherwise the store keeps a stale item +
+  // detached anchor node alive and the layer's scroll/resize listeners keep measuring it.
+  useEffect(() => {
+    return () => {
+      if (timer.current) clearTimeout(timer.current)
+      if (useHoverPreview.getState().item?.id === item.id) hidePreview()
+    }
+  }, [item.id, hidePreview])
 
   const catIco = categoryIcon(item)
   const genderIco = genderIcon(item.gender)
