@@ -171,7 +171,6 @@ export function NavBar() {
         <nav className="subnav__tabs">
           <NavLink to="/overview">{t('nav.overview')}</NavLink>
           <NavLink to="/assets">{t('nav.collectibles')}</NavLink>
-          <NavLink to="/market">{t('nav.market')}</NavLink>
           <NavLink to="/my-assets">{t('nav.myAssets')}</NavLink>
           <NavLink to="/my-favorites">{t('nav.myFavorites')}</NavLink>
           {session ? <NavLink to="/my-purchases">{t('nav.myPurchases')}</NavLink> : null}

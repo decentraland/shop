@@ -17,6 +17,26 @@ describe('browse the shop', () => {
     expect(await page.evaluate(() => document.body.innerText.includes('270'))).toBe(true) // credits price
   })
 
+  it('renders BOTH native (Add to cart) and legacy (≈ + Buy now) cards in the one unified grid', async () => {
+    app = await launchApp({ path: '/assets' })
+    const { page } = app
+
+    // Both a native (Galaxy Hat, fixed price) and a legacy (Retro Cap) card are present.
+    await waitForText(page, 'Galaxy Hat')
+    await waitForText(page, 'Retro Cap')
+    // Legacy card shows the fluctuating INDICATIVE price (leading ≈) + a "Market price" chip.
+    await waitForText(page, 'Market price')
+    expect(await page.evaluate(() => document.body.innerText.includes('≈'))).toBe(true)
+
+    // Each source drives its own action button (revealed on hover, so read textContent not innerText):
+    // native → Add to cart, legacy → Buy now.
+    const labels = await page.evaluate(() =>
+      [...document.querySelectorAll('.card__cart')].map(b => (b.textContent || '').trim().toLowerCase())
+    )
+    expect(labels.some(l => l.includes('add to cart'))).toBe(true)
+    expect(labels.some(l => l.includes('buy now'))).toBe(true)
+  })
+
   it('opens the item detail by clicking a card (whole-card overlay link)', async () => {
     app = await launchApp({ path: '/assets' })
     const { page } = app

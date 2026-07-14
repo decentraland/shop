@@ -25,6 +25,7 @@ export type Fixtures = {
   creatorNames: unknown
   accounts: unknown
   legacyListings: unknown
+  unifiedListings: unknown
   ownedNfts: unknown
   builderCollections: unknown
   builderItems: unknown
@@ -42,6 +43,7 @@ function defaults(): Fixtures {
     creatorNames: fx.creatorNames,
     accounts: fx.accounts,
     legacyListings: fx.legacyListings,
+    unifiedListings: fx.unifiedListings,
     ownedNfts: fx.ownedNfts,
     builderCollections: fx.builderCollections,
     builderItems: fx.builderItems,
@@ -168,7 +170,7 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
       return json(req, { data: items, total: items.length })
     }
     if (path === '/v3/catalog/legacy') {
-      // Legacy (classic MANA-priced) liquidity for the Market tab. Honor the same server-side filters.
+      // Legacy (classic MANA-priced) liquidity. Honor the same server-side filters.
       let items = [...((F.legacyListings as { data: any[] }).data ?? [])]
       const search = u.searchParams.get('search')?.toLowerCase()
       const rarity = u.searchParams.get('rarity')
@@ -177,6 +179,21 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
       if (rarity) items = items.filter(i => rarity.split(',').includes(i.rarity))
       if (category) items = items.filter(i => i.category === category)
       if (u.searchParams.get('sortBy') === 'cheapest') items.sort((a, b) => Number(BigInt(a.manaWei) - BigInt(b.manaWei)))
+      return json(req, { data: items, total: items.length })
+    }
+    if (path === '/v3/catalog/unified') {
+      // The ONE browse grid: native + legacy in one feed. Honor the same server-side filters so the
+      // browse filter/search/sort e2e stay meaningful (native rows sort by priceCredits, legacy by manaWei).
+      let items = [...((F.unifiedListings as { data: any[] }).data ?? [])]
+      const search = u.searchParams.get('search')?.toLowerCase()
+      const rarity = u.searchParams.get('rarity')
+      const category = u.searchParams.get('category')
+      if (search) items = items.filter(i => String(i.name).toLowerCase().includes(search))
+      if (rarity) items = items.filter(i => rarity.split(',').includes(i.rarity))
+      if (category) items = items.filter(i => i.category === category)
+      if (u.searchParams.get('sortBy') === 'cheapest') {
+        items.sort((a, b) => (a.priceCredits ?? 0) - (b.priceCredits ?? 0))
+      }
       return json(req, { data: items, total: items.length })
     }
     // Collections entity: search dropdown "Collections" section (fetchCollectionSuggestions, ?search=)
