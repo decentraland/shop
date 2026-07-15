@@ -389,7 +389,7 @@ h1, h2 { margin: 0; }
   column-gap: 8px; row-gap: 4px;
 }
 .card__desc { grid-area: desc; display: flex; flex-direction: column; min-width: 0; }
-.card__name { font-weight: 600; font-size: 14px; line-height: 1.57; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card__name { font-weight: 600; font-size: 14px; line-height: 1.35; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* position/z-index so the creator link sits ABOVE the whole-card overlay and stays clickable. */
 .card__creator { position: relative; z-index: 4; color: var(--muted); font-size: 10px; margin-bottom: 0; }
 .card__price { grid-area: price; align-self: start; justify-self: end; display: flex; align-items: center; gap: 4px; font-weight: 600; font-size: 17px; color: var(--text-2); }
@@ -936,7 +936,10 @@ a.purchase:hover { box-shadow: 0 8px 22px rgba(20, 20, 30, .10); transform: tran
    a deterministic color. See CreatorBadge.tsx. */
 .creator__ava--letter { display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: 11px; font-weight: 700; line-height: 1; text-transform: uppercase; }
 .creator__name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.card__creator.creator { margin-bottom: 6px; }
+/* Compact creator line inside a card so the fixed 96px body fits name + creator + the 40px action
+   button on hover without clipping it. */
+.card__creator.creator { margin-bottom: 2px; }
+.card__creator .creator__ava { width: 16px; height: 16px; }
 
 /* ---------------- Cart popover actions (try-on + checkout) ---------------- */
 .cart-pop__actions { display: flex; gap: 8px; }
