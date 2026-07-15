@@ -30,7 +30,10 @@ export function CreatorBadge({
       ) : (
         <span className="creator__ava creator__ava--ph" aria-hidden />
       )}
-      <span className="creator__name">By {name}</span>
+      <span className="creator__name">
+        By{' '}
+        <span className="creator__display">{name}</span>
+      </span>
     </>
   )
   if (linkToProfile) {

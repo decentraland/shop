@@ -30,28 +30,48 @@
   background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.35) 0%, rgba(0, 0, 0, 0.55) 100%);
 }
 
-.creator-hero__edit {
+/* Top-right cluster: the creator's social links plus (for the owner) the edit-store pen. */
+.creator-hero__links {
   position: absolute;
   top: 16px;
   right: 16px;
   z-index: 2;
   display: flex;
   align-items: center;
+  gap: 8px;
+}
+/* Social links: the icon glyph is already a filled circle, so no button chrome — just the icon,
+   sized to match the edit button's footprint, dimming slightly on hover. */
+.creator-hero__link {
+  display: flex;
+  align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
   color: #fff;
-  background-color: transparent;
+  transition: opacity 0.15s linear;
+}
+.creator-hero__link:hover {
+  opacity: 0.8;
+}
+.creator-hero__link .ico {
+  width: 36px;
+  height: 36px;
+}
+
+/* Edit-store pen keeps the round outlined-white button, but smaller than the social icons. */
+.creator-hero__edit {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
   border: 2px solid #fff;
   transition: background-color 0.15s linear;
 }
 .creator-hero__edit:hover {
+  opacity: 1;
   background: rgba(255, 255, 255, 0.24);
 }
 .creator-hero__edit .ico-pen {
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
 }
 
 .creator-hero__body {
@@ -131,7 +151,7 @@
     min-height: 260px;
   }
   .creator-hero__body {
-    padding: 24px 16px;
+    padding: 56px 16px 24px;
   }
   .creator-hero__ava {
     width: 88px;
@@ -142,5 +162,23 @@
   }
   .creator-hero__desc {
     font-size: 14px;
+  }
+  /* Smaller, tighter icons on mobile so the row clears the centered avatar. */
+  .creator-hero__links {
+    top: 12px;
+    right: 12px;
+    gap: 6px;
+  }
+  .creator-hero__link .ico {
+    width: 30px;
+    height: 30px;
+  }
+  .creator-hero__edit {
+    width: 28px;
+    height: 28px;
+  }
+  .creator-hero__edit .ico-pen {
+    width: 14px;
+    height: 14px;
   }
 }

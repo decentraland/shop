@@ -1,47 +1,53 @@
 import { describe, it, expect } from 'vitest'
 import { Rarity } from '@dcl/schemas'
-import { rarityColor, rarityGradient, readableText } from '~/lib/rarity'
+import { RARITY_BACKGROUND_COLORS, RARITY_TEXT_COLORS, rarityColor, rarityGradient, readableText } from '~/lib/rarity'
 
-const FALLBACK = '#a09ba8'
+const FALLBACK = { text: RARITY_TEXT_COLORS.common, background: RARITY_BACKGROUND_COLORS.common }
 
 describe('when resolving the color for a rarity', () => {
-  it('should return the fallback grey when no rarity is given', () => {
-    expect(rarityColor()).toBe(FALLBACK)
-    expect(rarityColor(undefined)).toBe(FALLBACK)
-    expect(rarityColor(null)).toBe(FALLBACK)
-    expect(rarityColor('')).toBe(FALLBACK)
+  it('should return the common (fallback) text+background when no rarity is given', () => {
+    expect(rarityColor()).toEqual(FALLBACK)
+    expect(rarityColor(undefined)).toEqual(FALLBACK)
+    expect(rarityColor(null)).toEqual(FALLBACK)
+    expect(rarityColor('')).toEqual(FALLBACK)
   })
 
-  it('should return the schema color for a known rarity', () => {
-    expect(rarityColor('common')).toBe(Rarity.getColor(Rarity.COMMON))
-    expect(rarityColor('mythic')).toBe(Rarity.getColor(Rarity.MYTHIC))
-    expect(rarityColor('legendary')).toBe(Rarity.getColor(Rarity.LEGENDARY))
+  it('should return the matching text+background for a known rarity', () => {
+    expect(rarityColor('common')).toEqual({
+      text: RARITY_TEXT_COLORS.common,
+      background: RARITY_BACKGROUND_COLORS.common,
+    })
+    expect(rarityColor('mythic')).toEqual({
+      text: RARITY_TEXT_COLORS.mythic,
+      background: RARITY_BACKGROUND_COLORS.mythic,
+    })
+    expect(rarityColor('legendary')).toEqual({
+      text: RARITY_TEXT_COLORS.legendary,
+      background: RARITY_BACKGROUND_COLORS.legendary,
+    })
   })
 
   it('and the rarity casing differs it should still resolve by lowercasing', () => {
-    expect(rarityColor('EPIC')).toBe(Rarity.getColor(Rarity.EPIC))
-    expect(rarityColor('Rare')).toBe(Rarity.getColor(Rarity.RARE))
-    expect(rarityColor('UnCommon')).toBe(Rarity.getColor(Rarity.UNCOMMON))
+    expect(rarityColor('EPIC')).toEqual({ text: RARITY_TEXT_COLORS.epic, background: RARITY_BACKGROUND_COLORS.epic })
+    expect(rarityColor('Rare')).toEqual({ text: RARITY_TEXT_COLORS.rare, background: RARITY_BACKGROUND_COLORS.rare })
+    expect(rarityColor('UnCommon')).toEqual({
+      text: RARITY_TEXT_COLORS.uncommon,
+      background: RARITY_BACKGROUND_COLORS.uncommon,
+    })
   })
 
   it('should return a distinct color per rarity rather than one flat wash', () => {
-    const colors = [
-      rarityColor('common'),
-      rarityColor('uncommon'),
-      rarityColor('rare'),
-      rarityColor('epic'),
-      rarityColor('legendary'),
-      rarityColor('mythic'),
-      rarityColor('unique'),
-      rarityColor('exotic')
-    ]
-    expect(new Set(colors).size).toBe(colors.length)
+    const rarities = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic', 'unique', 'exotic']
+    const texts = rarities.map(r => rarityColor(r).text)
+    const backgrounds = rarities.map(r => rarityColor(r).background)
+    expect(new Set(texts).size).toBe(rarities.length)
+    expect(new Set(backgrounds).size).toBe(rarities.length)
   })
 
-  it('and the rarity is unknown it returns the fallback grey (never undefined → would crash readableText)', () => {
-    // Rarity.getColor is a plain map lookup: an unknown key resolves to undefined without throwing.
-    // rarityColor must coalesce that to the fallback so downstream readableText(color) is safe.
-    expect(rarityColor('not-a-real-rarity')).toBe(FALLBACK)
+  it('and the rarity is unknown it returns the common colors (never undefined → would crash readableText)', () => {
+    // The lookup on RARITY_*_COLORS is a plain map access: an unknown key resolves to undefined without
+    // throwing. rarityColor must coalesce that to the common colors so downstream consumers are safe.
+    expect(rarityColor('not-a-real-rarity')).toEqual(FALLBACK)
   })
 })
 

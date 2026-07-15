@@ -162,7 +162,8 @@ export const shopListings = {
       priceCredits: 135,
       available: 1,
       network: 'MATIC',
-      chainId: 80002
+      chainId: 80002,
+      isSmart: true
     }
   ],
   total: 2

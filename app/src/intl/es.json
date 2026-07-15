@@ -6,7 +6,7 @@
     "myAssets": "Mis artículos",
     "myFavorites": "Mis favoritos",
     "myPurchases": "Mis compras",
-    "searchPlaceholder": "Buscá artículos…",
+    "searchPlaceholder": "Busca artículos…",
     "searchAria": "Buscar en la tienda",
     "yourBalance": "Tus {currency}",
     "getCredits": "Conseguir {currency}",
@@ -28,7 +28,17 @@
   },
   "collection": {
     "breadcrumb": "Coleccionables",
-    "fallbackTitle": "Colección"
+    "fallbackTitle": "Colección",
+    "category": "Categoría",
+    "viewProfile": "Ver perfil",
+    "copyAddress": "Copiar cuenta",
+    "copied": "Copiado",
+    "empty": "Esta colección no tiene artículos para mostrar.",
+    "error": "No pudimos cargar esta colección. Inténtalo de nuevo."
+  },
+  "collectionCard": {
+    "viewCollection": "Ver colección",
+    "itemCount": "{count, plural, one {# Artículo} other {# Artículos}}"
   },
   "categories": {
     "shopAll": "Ver todo",
@@ -57,23 +67,65 @@
     "fallbackName": "Creador",
     "viewProfile": "Ver perfil",
     "editStore": "Editar tienda",
+    "link": {
+      "website": "Sitio web",
+      "twitter": "Twitter",
+      "discord": "Discord",
+      "facebook": "Facebook"
+    },
     "follow": "Seguir",
     "following": "Siguiendo",
     "followTitle": "Seguir al creador",
     "unfollowTitle": "Dejar de seguir al creador",
     "empty": "Este creador todavía no tiene artículos para mostrar.",
-    "error": "No pudimos cargar este creador. Probá de nuevo."
+    "collectionsCount": "{count, plural, one {# colección} other {# colecciones}}",
+    "collectionsEmpty": "Este creador todavía no ha publicado colecciones.",
+    "error": "No pudimos cargar este creador. Prueba de nuevo."
+  },
+  "storeSettings": {
+    "title": "Configuración de la tienda",
+    "back": "Volver a tu tienda",
+    "signInPrompt": "Inicia sesión para configurar tu tienda.",
+    "signIn": "Iniciar sesión",
+    "seeAsGuest": "Ver tienda como visitante",
+    "loading": "Cargando tu tienda…",
+    "cover": "Portada de la tienda",
+    "upload": "Sube tu portada",
+    "description": "Descripción",
+    "website": "Sitio web",
+    "twitter": "Usuario de Twitter",
+    "discord": "ID de invitación de Discord",
+    "facebook": "Usuario de Facebook",
+    "save": "Guardar",
+    "saving": "Guardando…",
+    "saved": "Tienda guardada.",
+    "saveError": "No pudimos guardar tu tienda. Prueba de nuevo.",
+    "sizeError": "El tamaño máximo de la portada es {max}; la imagen que elegiste pesa {current}.",
+    "linkError": "El enlace debe comenzar con {value}"
   },
   "notFound": {
     "title": "Página no encontrada",
-    "body": "La página que buscás no está acá. Volvamos a la tienda.",
+    "body": "La página que buscas no está aquí. Volvamos a la tienda.",
     "cta": "Ver coleccionables"
   },
   "cart": {
     "empty": {
       "title": "Tu carrito está vacío",
-      "body": "Encontrá algo que te guste y va a aparecer acá.",
+      "body": "Encuentra algo que te guste y aparecerá aquí.",
       "cta": "Ver coleccionables"
     }
+  },
+  "assetCard": {
+    "sale": "OFERTA",
+    "saleWithDiscount": "OFERTA -{pct}%",
+    "smart": "Smart",
+    "addToFavorites": "Agregar a favoritos",
+    "removeFromFavorites": "Quitar de favoritos",
+    "marketPrice": "Precio de mercado",
+    "unavailable": "No disponible",
+    "buyNow": "Comprar ahora",
+    "yourItem": "Tu artículo",
+    "inCart": "En el carrito",
+    "addToCart": "Agregar al carrito"
   }
 }

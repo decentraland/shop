@@ -7,8 +7,7 @@ import {
   type CollectionHit,
   type CreatorHit,
 } from '~/lib/search'
-import { fetchCollectionItems } from '~/lib/collections'
-import { rarityGradient } from '~/lib/rarity'
+import { CollectionThumb } from '~/components/CollectionThumb'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { useProfile } from '~/hooks/useProfile'
 import { t } from '~/intl/i18n'
@@ -26,44 +25,19 @@ function CreatorName({ address, className }: { address: string; className?: stri
   return <span className={className}>{t('search.byCreator', { name })}</span>
 }
 
-// Collection thumbnail for a suggestion row. The collection search response carries no image, so
-// (like the marketplace's CollectionImage) we build a mosaic from the collection's first up-to-4
-// items — each item thumbnail over its rarity-colored gradient. Lazily fetched per visible row +
-// cached; falls back to the neutral icon tile while loading or when the collection is empty.
-function CollectionThumb({ contractAddress }: { contractAddress: string }) {
-  const { data } = useQuery({
-    queryKey: ['collection-thumb', contractAddress],
-    queryFn: () => fetchCollectionItems(contractAddress, { first: 4 }),
-    staleTime: 5 * 60_000,
-  })
-  const items = data?.items ?? []
-  if (items.length === 0) {
-    return (
-      <span className="search-pop__thumb search-pop__thumb--icon">
-        <span className="ico ico-search" aria-hidden />
-      </span>
-    )
-  }
+// The collection suggestion row's thumbnail is the shared mosaic (CollectionThumb) sized as a small
+// rounded tile, falling back to the neutral icon tile while loading or when the collection is empty.
+function CollectionRowThumb({ contractAddress }: { contractAddress: string }) {
   return (
-    <span
-      className="search-pop__thumb search-pop__thumb--mosaic"
-      data-count={items.length}
-    >
-      {items.map(item => (
-        <span
-          key={item.id}
-          className="search-pop__mosaic-cell"
-          style={{ backgroundImage: rarityGradient(item.rarity) }}
-        >
-          {item.thumbnail ? (
-            <img
-              src={item.thumbnail}
-              alt=""
-            />
-          ) : null}
+    <CollectionThumb
+      contractAddress={contractAddress}
+      className="search-pop__collthumb"
+      fallback={
+        <span className="search-pop__thumb search-pop__thumb--icon">
+          <span className="ico ico-search" aria-hidden />
         </span>
-      ))}
-    </span>
+      }
+    />
   )
 }
 
@@ -256,7 +230,7 @@ export function SearchDropdown({
                       className="search-pop__row search-pop__row--collection"
                       onClick={() => onSelectCollection(collection)}
                     >
-                      <CollectionThumb contractAddress={collection.contractAddress} />
+                      <CollectionRowThumb contractAddress={collection.contractAddress} />
                       <span className="search-pop__text">
                         <span
                           className="search-pop__name"

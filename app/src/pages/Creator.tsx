@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { fetchListings } from '~/lib/api'
+import { fetchCreatorCollections } from '~/lib/collections'
 import { AssetCard } from '~/components/AssetCard'
+import { CollectionCard } from '~/components/CollectionCard'
 import { CreatorHero } from '~/components/CreatorHero'
 import { CategoryFilter } from '~/components/CategoryFilter'
 import { FilterBar, FilterPanel, SORTS } from '~/components/FilterBar'
@@ -10,30 +12,12 @@ import { SkeletonCards } from '~/components/SkeletonCards'
 import { LoadMore } from '~/components/LoadMore'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
 import { useProfile } from '~/hooks/useProfile'
+import { SUBCAT_MAP } from '~/lib/categories'
 import { CURRENCY } from '~/lib/currency'
 import { t } from '~/intl/i18n'
 import './collection.css'
 
 const PAGE_SIZE = 48
-
-// Sidebar sub-labels → on-chain categories (kept in sync with Assets — the same server filter param).
-const SUBCAT_MAP: Record<string, string[]> = {
-  Head: ['head', 'hat', 'hair', 'facial_hair', 'eyes', 'eyebrows', 'mouth', 'mask', 'helmet', 'tiara', 'top_head'],
-  'Upper Body': ['upper_body'],
-  Handwear: ['hands_wear'],
-  'Lower Body': ['lower_body'],
-  Feet: ['feet'],
-  Accessories: ['earring', 'eyewear'],
-  Skins: ['skin'],
-  Dance: ['dance'],
-  Stunt: ['stunt'],
-  Greetings: ['greetings'],
-  Fun: ['fun'],
-  Poses: ['poses'],
-  Reactions: ['reactions'],
-  Horror: ['horror'],
-  Miscellaneous: ['miscellaneous']
-}
 
 function shortAddress(addr: string): string {
   return /^0x[a-fA-F0-9]{40}$/.test(addr) ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : addr
@@ -72,10 +56,22 @@ export function Creator() {
     sortBy
   }
 
+  // Listings (default) and collections are mutually exclusive: only one query is enabled at a time so
+  // switching modes doesn't fire the other's fetch. Both hooks are always called (rules of hooks).
   const { items, total, isLoading, error, hasNextPage, isFetchingNextPage, fetchNextPage } = useInfiniteGrid(
     ['creator-listings', filters],
     skip => fetchListings({ ...filters, first: PAGE_SIZE, skip }),
-    { enabled: !!address }
+    { enabled: !!address && !collectionsMode }
+  )
+
+  const collections = useInfiniteGrid(
+    ['creator-collections', address],
+    skip =>
+      fetchCreatorCollections(address as string, { first: PAGE_SIZE, skip }).then(r => ({
+        items: r.collections,
+        total: r.total
+      })),
+    { enabled: !!address && collectionsMode }
   )
 
   function pickCategory(key: string) {
@@ -129,7 +125,9 @@ export function Creator() {
 
       {address ? <CreatorHero address={address} /> : null}
 
-      {!isLoading && items.length > 0 ? <AddAllToCart items={items} source="creator" /> : null}
+      {!collectionsMode && !isLoading && items.length > 0 ? (
+        <AddAllToCart items={items} source="creator" />
+      ) : null}
 
       <div className="browse browse--sidebar">
         <aside className="browse__sidebar">
@@ -146,63 +144,102 @@ export function Creator() {
         </aside>
 
         <div className="browse__main">
-          <FilterBar
-            rarities={rarities}
-            onToggleRarity={toggleRarity}
-            sort={sort}
-            onSort={setSort}
-            total={total}
-            loading={isLoading}
-            anyActive={anyActive}
-            onClear={reset}
-            renderTrailing={panel => (
-              <FilterPanel panelKey="price" label={priceLabel} active={priceActive} panel={panel}>
-                <div className="filter-pop filter-pop--price">
-                  <div className="filter-pop__price-row">
-                    <input
-                      type="number"
-                      min="0"
-                      aria-label="Minimum price"
-                      placeholder="Min"
-                      value={priceMin}
-                      onChange={e => setPriceMin(e.target.value)}
-                    />
-                    <span>–</span>
-                    <input
-                      type="number"
-                      min="0"
-                      aria-label="Maximum price"
-                      placeholder="Max"
-                      value={priceMax}
-                      onChange={e => setPriceMax(e.target.value)}
-                    />
-                  </div>
-                  <p className="filter-pop__hint">Price in {CURRENCY.name}</p>
-                </div>
-              </FilterPanel>
-            )}
-          />
+          {collectionsMode ? (
+            <>
+              <div className="creator-collections__bar">
+                <span className="assets__count">
+                  {collections.isLoading
+                    ? '…'
+                    : t('creator.collectionsCount', { count: collections.total })}
+                </span>
+              </div>
 
-          {error ? <p className="error">{t('creator.error')}</p> : null}
+              {collections.error ? <p className="error">{t('creator.error')}</p> : null}
 
-          <div className="grid">
-            {isLoading ? (
-              <SkeletonCards count={15} />
-            ) : (
-              <>
-                {items.map(item => (
-                  <AssetCard key={item.id} item={item} />
-                ))}
-                {isFetchingNextPage ? <SkeletonCards count={6} /> : null}
-              </>
-            )}
-          </div>
+              <div className="grid grid--collections">
+                {collections.isLoading ? (
+                  <SkeletonCards count={9} />
+                ) : (
+                  <>
+                    {collections.items.map(c => (
+                      <CollectionCard key={c.contractAddress} collection={c} itemCount={c.itemCount} />
+                    ))}
+                    {collections.isFetchingNextPage ? <SkeletonCards count={6} /> : null}
+                  </>
+                )}
+              </div>
 
-          <LoadMore hasNextPage={hasNextPage} isFetching={isFetchingNextPage} onLoadMore={() => fetchNextPage()} />
+              <LoadMore
+                hasNextPage={collections.hasNextPage}
+                isFetching={collections.isFetchingNextPage}
+                onLoadMore={() => collections.fetchNextPage()}
+              />
 
-          {!isLoading && !error && items.length === 0 ? (
-            <p className="muted">{t('creator.empty')}</p>
-          ) : null}
+              {!collections.isLoading && !collections.error && collections.items.length === 0 ? (
+                <p className="muted">{t('creator.collectionsEmpty')}</p>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <FilterBar
+                rarities={rarities}
+                onToggleRarity={toggleRarity}
+                sort={sort}
+                onSort={setSort}
+                total={total}
+                loading={isLoading}
+                anyActive={anyActive}
+                onClear={reset}
+                renderTrailing={panel => (
+                  <FilterPanel panelKey="price" label={priceLabel} active={priceActive} panel={panel}>
+                    <div className="filter-pop filter-pop--price">
+                      <div className="filter-pop__price-row">
+                        <input
+                          type="number"
+                          min="0"
+                          aria-label="Minimum price"
+                          placeholder="Min"
+                          value={priceMin}
+                          onChange={e => setPriceMin(e.target.value)}
+                        />
+                        <span>–</span>
+                        <input
+                          type="number"
+                          min="0"
+                          aria-label="Maximum price"
+                          placeholder="Max"
+                          value={priceMax}
+                          onChange={e => setPriceMax(e.target.value)}
+                        />
+                      </div>
+                      <p className="filter-pop__hint">Price in {CURRENCY.name}</p>
+                    </div>
+                  </FilterPanel>
+                )}
+              />
+
+              {error ? <p className="error">{t('creator.error')}</p> : null}
+
+              <div className="grid">
+                {isLoading ? (
+                  <SkeletonCards count={15} />
+                ) : (
+                  <>
+                    {items.map(item => (
+                      <AssetCard key={item.id} item={item} />
+                    ))}
+                    {isFetchingNextPage ? <SkeletonCards count={6} /> : null}
+                  </>
+                )}
+              </div>
+
+              <LoadMore hasNextPage={hasNextPage} isFetching={isFetchingNextPage} onLoadMore={() => fetchNextPage()} />
+
+              {!isLoading && !error && items.length === 0 ? (
+                <p className="muted">{t('creator.empty')}</p>
+              ) : null}
+            </>
+          )}
         </div>
       </div>
     </div>

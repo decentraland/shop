@@ -61,7 +61,16 @@ h1, h2 { margin: 0; }
 .ico-credits { -webkit-mask-image: url('./assets/icons/credits.svg'); mask-image: url('./assets/icons/credits.svg'); }
 .ico-search { -webkit-mask-image: url('./assets/icons/search.svg'); mask-image: url('./assets/icons/search.svg'); }
 .ico-pen { -webkit-mask-image: url('./assets/icons/pen.svg'); mask-image: url('./assets/icons/pen.svg'); }
+.ico-upload { -webkit-mask-image: url('./assets/icons/upload.svg'); mask-image: url('./assets/icons/upload.svg'); }
+.ico-website { -webkit-mask-image: url('./assets/icons/website.svg'); mask-image: url('./assets/icons/website.svg'); }
+.ico-facebook { -webkit-mask-image: url('./assets/icons/facebook.svg'); mask-image: url('./assets/icons/facebook.svg'); }
+.ico-twitter { -webkit-mask-image: url('./assets/icons/twitter.svg'); mask-image: url('./assets/icons/twitter.svg'); }
+.ico-discord { -webkit-mask-image: url('./assets/icons/discord.svg'); mask-image: url('./assets/icons/discord.svg'); }
+.ico-arrow-left { -webkit-mask-image: url('./assets/icons/arrow-left.svg'); mask-image: url('./assets/icons/arrow-left.svg'); }
+.ico-external { -webkit-mask-image: url('./assets/icons/external-link.svg'); mask-image: url('./assets/icons/external-link.svg'); }
+.ico-copy { -webkit-mask-image: url('./assets/icons/copy.svg'); mask-image: url('./assets/icons/copy.svg'); }
 .ico-eyewear { -webkit-mask-image: url('./assets/icons/category-eyewear.svg'); mask-image: url('./assets/icons/category-eyewear.svg'); }
+.ico-smart { -webkit-mask-image: url('./assets/icons/smart.svg'); mask-image: url('./assets/icons/smart.svg'); }
 .ico-clock { -webkit-mask-image: url('./assets/icons/clock.svg'); mask-image: url('./assets/icons/clock.svg'); }
 .ico-chevron { -webkit-mask-image: url('./assets/icons/chevron-down.svg'); mask-image: url('./assets/icons/chevron-down.svg'); }
 .ico-cat-head { -webkit-mask-image: url('./assets/icons/cat-head.svg'); mask-image: url('./assets/icons/cat-head.svg'); }
@@ -123,6 +132,7 @@ h1, h2 { margin: 0; }
 
 /* ---------------- Page ---------------- */
 .page { padding: 28px 40px 80px; max-width: 1760px; margin: 0 auto; width: 100%; flex: 1 0 auto; }
+@media (max-width: 768px) { .page { padding: 16px; } }
 .placeholder { color: var(--muted); font-size: 18px; padding: 40px 0; }
 /* Suspense fallback while a lazy-loaded route chunk downloads. */
 .page-loading { display: grid; place-items: center; min-height: 46vh; }
@@ -573,13 +583,8 @@ h1, h2 { margin: 0; }
 .search-pop__thumb--round img { border-radius: 50%; }
 .search-pop__thumb--icon { display: grid; place-items: center; }
 .search-pop__thumb--icon .ico { width: 18px; height: 18px; color: var(--muted); }
-/* Collection mosaic: up to 4 item thumbnails in a 2x2 grid, each over its rarity gradient. A single
-   item fills the tile; two items split one row. */
-.search-pop__thumb--mosaic { display: grid; grid-template-columns: 1fr 1fr; grid-auto-rows: 1fr; gap: 1px; background: var(--line); }
-.search-pop__thumb--mosaic[data-count='1'] { grid-template-columns: 1fr; }
-.search-pop__thumb--mosaic[data-count='2'] { grid-template-rows: 1fr; }
-.search-pop__mosaic-cell { display: grid; place-items: center; overflow: hidden; }
-.search-pop__mosaic-cell img { width: 100%; height: 100%; object-fit: cover; }
+/* Collection tile: the shared mosaic (CollectionThumb / .coll-thumb) sized as a 40px rounded box. */
+.search-pop__collthumb { width: 40px; height: 40px; border-radius: 8px; overflow: hidden; flex: none; }
 /* Two-line label: name + a muted "By {creator}" subline. min-width: 0 lets it shrink so both lines
    ellipsize instead of pushing into the price. */
 .search-pop__text { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
@@ -699,7 +704,7 @@ a.purchase:hover { box-shadow: 0 8px 22px rgba(20, 20, 30, .10); transform: tran
 .creator--link:hover .creator__name { color: var(--text); text-decoration: underline; }
 .creator__ava { width: 18px; height: 18px; border-radius: 50%; object-fit: cover; flex: none; background: var(--media); }
 .creator__ava--ph { background: linear-gradient(135deg, var(--rarity-bg), var(--media)); }
-.creator__name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.creator__name { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ---------------- Cart popover actions (try-on + checkout) ---------------- */
 .cart-pop__actions { display: flex; gap: 8px; }

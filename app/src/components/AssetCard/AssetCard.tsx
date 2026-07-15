@@ -8,10 +8,12 @@ import { useFavorites } from '~/store/favorites'
 import { useWallet } from '~/store/wallet'
 import { isOwnListing } from '~/lib/ownership'
 import { CreatorBadge } from '~/components/CreatorBadge'
-import { rarityColor, readableText } from '~/lib/rarity'
+import { rarityColor } from '~/lib/rarity'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { SaleCountdown } from '~/components/SaleCountdown'
 import { saleDiscountPct } from '~/lib/sale'
+import { formatCredits, formatCreditsFull } from '~/lib/currency'
+import { t } from '~/intl/i18n'
 import { useSaleActive } from '~/hooks/useSaleActive'
 import type { CatalogItem } from '~/lib/api'
 import './asset-card.css'
@@ -93,10 +95,12 @@ export function AssetCard(props: AssetCardProps) {
   const saleActive = useSaleActive({
     priceCredits: item.priceCredits,
     compareAtCredits: item.compareAtCredits,
-    saleEndsAt: item.saleEndsAt
+    saleEndsAt: item.saleEndsAt,
   })
   const onSale = !isMarket && saleActive
   const discountPct = onSale ? saleDiscountPct(item.compareAtCredits!, item.priceCredits) : 0
+
+  const rarityColors = rarityColor(item.rarity)
 
   return (
     <article
@@ -107,18 +111,30 @@ export function AssetCard(props: AssetCardProps) {
       onClick={openDetail}
       role={canOpen ? 'link' : undefined}
       tabIndex={canOpen ? 0 : undefined}
-      onKeyDown={canOpen ? e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDetail() } } : undefined}
+      onKeyDown={
+        canOpen
+          ? e => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                openDetail()
+              }
+            }
+          : undefined
+      }
     >
       <div className="card__media">
         {onSale ? (
           <span className="card__sale-badge">
-            SALE{discountPct > 0 ? ` -${discountPct}%` : ''}
+            {discountPct > 0 ? t('assetCard.saleWithDiscount', { pct: discountPct }) : t('assetCard.sale')}
           </span>
         ) : null}
         <button
           className={`card__fav${faved ? ' is-on' : ''}`}
-          onClick={e => { e.stopPropagation(); toggleFav(item) }}
-          aria-label={faved ? 'Remove from favorites' : 'Add to favorites'}
+          onClick={e => {
+            e.stopPropagation()
+            toggleFav(item)
+          }}
+          aria-label={faved ? t('assetCard.removeFromFavorites') : t('assetCard.addToFavorites')}
         >
           <span className={`ico ${faved ? 'ico-heart-solid' : 'ico-heart'}`} aria-hidden />
         </button>
@@ -152,8 +168,9 @@ export function AssetCard(props: AssetCardProps) {
             {/* Transparent shield over the preview: it becomes the hover target so the cross-origin
                 iframe never shows its internal content-URL tooltip. Clicks bubble up to open detail. */}
             <span className="card__preview-shield" aria-hidden />
-            {/* Slim loading bar while the 3D boots — the thumbnail stays put underneath. */}
-            {!previewReady ? <span className="card__loadbar" aria-hidden /> : null}
+            {/* Skeleton shimmer on the gray media background while the 3D boots — sits behind the
+                thumbnail (which stays put), so the loading cue shows through/around the asset. */}
+            {!previewReady ? <span className="card__skeleton" aria-hidden /> : null}
           </>
         ) : null}
       </div>
@@ -164,7 +181,9 @@ export function AssetCard(props: AssetCardProps) {
             wrapping); the price never shrinks. */}
         <div className="card__top">
           <div className="card__desc">
-            <div className="card__name" title={item.name}>{item.name}</div>
+            <div className="card__name" title={item.name}>
+              {item.name}
+            </div>
             {item.creator ? (
               <CreatorBadge address={item.creator} className="card__creator" linkToProfile />
             ) : (
@@ -173,66 +192,86 @@ export function AssetCard(props: AssetCardProps) {
           </div>
           {isMarket && props.mode === 'market' ? (
             <div className="card__price card__price--market">
-              <span className="card__approx" aria-hidden>≈</span>
+              <span className="card__approx" aria-hidden>
+                ≈
+              </span>
               <CurrencyIcon className="card__diamond" />
-              {props.marketPriceCredits == null ? '—' : props.marketPriceCredits}
-              <span className="chip card__market-chip">Market price</span>
+              {props.marketPriceCredits == null ? '—' : formatCredits(props.marketPriceCredits)}
+              <span className="chip card__market-chip">{t('assetCard.marketPrice')}</span>
             </div>
           ) : onSale ? (
             <div className="card__price card__price--sale">
-              <span className="card__price-now">
+              <span className="card__price-now" title={formatCreditsFull(item.priceCredits)}>
                 <CurrencyIcon className="card__diamond" />
-                {item.priceCredits}
+                {formatCredits(item.priceCredits)}
               </span>
-              <span className="card__price-was">
+              <span className="card__price-was" title={formatCreditsFull(item.compareAtCredits!)}>
                 <CurrencyIcon className="card__diamond card__diamond--was" />
-                {item.compareAtCredits}
+                {formatCredits(item.compareAtCredits!)}
               </span>
               <SaleCountdown endsAt={item.saleEndsAt} className="card__countdown" />
             </div>
           ) : (
-            <div className="card__price">
+            <div className="card__price" title={formatCreditsFull(item.priceCredits)}>
               <CurrencyIcon className="card__diamond" />
-              {item.priceCredits}
+              {formatCredits(item.priceCredits)}
             </div>
           )}
         </div>
 
-        {/* Chips row is always rendered; on hover-capable devices the primary action is revealed in
-            its place on hover OR keyboard focus, and it's always shown where hover isn't available
-            (touch) — so items stay buyable without a mouse (see .card__cart in asset-card.css). Both
-            stay in the DOM so the action button is keyboard-reachable and touch-tappable. Native cards
-            add to cart; Market (legacy) cards Buy now directly (price locked at checkout). */}
-        <div className="card__chips">
-          <span
-            className="chip chip--rarity"
-            style={{ background: rarityColor(item.rarity), color: readableText(rarityColor(item.rarity)) }}
-          >
-            {item.rarity}
-          </span>
-          {item.category === 'wearable' ? (
-            <span className="chip chip--icon"><span className="ico ico-eyewear" aria-hidden /></span>
-          ) : null}
-          {gender ? <span className="chip chip--icon">{gender}</span> : null}
+        {/* Chips row and the primary action share one fixed-height slot so the card DOESN'T change
+            size when the action is revealed on hover/focus — the button (40px tall) replaces the chips
+            in place, not below them. Chips show at rest; on hover-capable devices the action is
+            revealed on hover OR keyboard focus, and it's always shown where hover isn't available
+            (touch) so items stay buyable without a mouse (see .card__action in asset-card.css). Both
+            stay in the DOM so the action is keyboard-reachable and touch-tappable. Native cards add to
+            cart; Market (legacy) cards Buy now directly (price locked at checkout). */}
+        <div className="card__action">
+          <div className="card__chips">
+            <span
+              className="chip chip--rarity"
+              style={{ background: rarityColors.background, color: rarityColors.text }}
+            >
+              {item.rarity}
+            </span>
+            {item.isSmart ? (
+              <span className="chip chip--smart">
+                <span className="ico ico-smart" aria-hidden />
+                {t('assetCard.smart')}
+              </span>
+            ) : null}
+            {item.category === 'wearable' ? (
+              <span className="chip chip--icon">
+                <span className="ico ico-eyewear" aria-hidden />
+              </span>
+            ) : null}
+            {gender ? <span className="chip chip--icon">{gender}</span> : null}
+          </div>
+          {isMarket && props.mode === 'market' ? (
+            <button
+              className="card__cart"
+              onClick={e => {
+                e.stopPropagation()
+                props.onBuyNow(item)
+              }}
+              disabled={props.marketPriceCredits == null}
+            >
+              {props.marketPriceCredits == null ? t('assetCard.unavailable') : t('assetCard.buyNow')}
+            </button>
+          ) : (
+            <button
+              className={`card__cart${inCart ? ' is-in' : ''}`}
+              onClick={e => {
+                e.stopPropagation()
+                if (!own) add(item, 'grid')
+              }}
+              disabled={inCart || own}
+            >
+              {own ? null : <span className="ico ico-cart-solid card__cart-ico" aria-hidden />}
+              {own ? t('assetCard.yourItem') : inCart ? t('assetCard.inCart') : t('assetCard.addToCart')}
+            </button>
+          )}
         </div>
-        {isMarket && props.mode === 'market' ? (
-          <button
-            className="card__cart"
-            onClick={e => { e.stopPropagation(); props.onBuyNow(item) }}
-            disabled={props.marketPriceCredits == null}
-          >
-            {props.marketPriceCredits == null ? 'Unavailable' : 'Buy now'}
-          </button>
-        ) : (
-          <button
-            className={`card__cart${inCart ? ' is-in' : ''}`}
-            onClick={e => { e.stopPropagation(); if (!own) add(item, 'grid') }}
-            disabled={inCart || own}
-          >
-            {own ? null : <span className="ico ico-cart-solid card__cart-ico" aria-hidden />}
-            {own ? 'Your item' : inCart ? 'In cart' : 'Add to cart'}
-          </button>
-        )}
       </div>
     </article>
   )

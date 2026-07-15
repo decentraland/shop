@@ -27,6 +27,16 @@ describe('creator storefront', () => {
     expect(profileHref).toContain('/profile/')
     expect(profileHref).toContain(CREATOR_ADDRESS)
 
+    // Hero social links: the store's three configured links render as icon buttons linking out.
+    const linkHrefs = await page.evaluate(() =>
+      Array.from(document.querySelectorAll('.creator-hero__link')).map(a => a.getAttribute('href'))
+    )
+    expect(linkHrefs).toEqual([
+      'https://galaxy.example',
+      'https://www.twitter.com/galaxy',
+      'https://discord.gg/galaxy'
+    ])
+
     // Grid: the creator's two listings, from the shop feed.
     await waitForText(page, 'Galaxy Hat')
     await waitForText(page, 'Nebula Jacket')

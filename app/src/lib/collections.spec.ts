@@ -2,8 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 vi.mock('~/config', () => ({ config: { nftApiUrl: 'http://nft.test' } }))
 
-// eslint-disable-next-line import/first
-import { fetchCollection, fetchCollectionItems, fetchCreatorItems } from '~/lib/collections'
+import { fetchCollection, fetchCollectionItems, fetchCreatorItems, fetchCreatorCollections } from '~/lib/collections'
 
 type RawItem = {
   id: string
@@ -41,7 +40,7 @@ function rawItem(overrides: Partial<RawItem> = {}): RawItem {
     thumbnail: 'http://img.test/hat.png',
     price: ONE_USD,
     data: { wearable: { category: 'hat', bodyShapes: ['urn:BaseMale'] } },
-    ...overrides
+    ...overrides,
   }
 }
 
@@ -49,7 +48,7 @@ function mockFetchOk(data: unknown) {
   const fetchMock = vi.fn().mockResolvedValue({
     ok: true,
     status: 200,
-    json: async () => ({ data })
+    json: async () => ({ data }),
   })
   vi.stubGlobal('fetch', fetchMock)
   return fetchMock
@@ -59,7 +58,7 @@ function mockFetchNotOk(status: number) {
   const fetchMock = vi.fn().mockResolvedValue({
     ok: false,
     status,
-    json: async () => ({})
+    json: async () => ({}),
   })
   vi.stubGlobal('fetch', fetchMock)
   return fetchMock
@@ -98,6 +97,36 @@ describe('when fetching a collection carousel', () => {
     expect(url.searchParams.get('first')).toBe('5')
   })
 
+  it('and browse filters are passed it should forward them in the query string', async () => {
+    const fetchMock = mockFetchOk([])
+
+    await fetchCollectionItems('0xcollection', {
+      category: 'emote',
+      rarities: ['epic', 'legendary'],
+      wearableCategories: ['dance', 'fun'],
+      minPriceCredits: 5,
+      maxPriceCredits: 50,
+      sortBy: 'cheapest',
+    })
+
+    const url = new URL(fetchMock.mock.calls[0][0] as string)
+    expect(url.searchParams.get('category')).toBe('emote')
+    expect(url.searchParams.getAll('rarity')).toEqual(['epic', 'legendary'])
+    expect(url.searchParams.getAll('wearableCategory')).toEqual(['dance', 'fun'])
+    expect(url.searchParams.get('minPrice')).toBe('5')
+    expect(url.searchParams.get('maxPrice')).toBe('50')
+    expect(url.searchParams.get('sortBy')).toBe('cheapest')
+  })
+
+  it('and the category is "all" it should omit the category param', async () => {
+    const fetchMock = mockFetchOk([])
+
+    await fetchCollectionItems('0xcollection', { category: 'all' })
+
+    const url = new URL(fetchMock.mock.calls[0][0] as string)
+    expect(url.searchParams.has('category')).toBe(false)
+  })
+
   it('should map each raw item into a catalog item', async () => {
     mockFetchOk([rawItem()])
 
@@ -113,11 +142,12 @@ describe('when fetching a collection carousel', () => {
       category: 'wearable',
       wearableCategory: 'hat',
       rarity: 'epic',
+      isSmart: false,
       network: 'MATIC',
       chainId: 137,
       thumbnail: 'http://img.test/hat.png',
       priceCredits: 10,
-      gender: 'male'
+      gender: 'male',
     })
   })
 
@@ -206,6 +236,70 @@ describe('when fetching a single collection by contract', () => {
   })
 })
 
+describe('when fetching a creator’s published collections', () => {
+  it('should query /v1/collections by creator, newest first, with paging forwarded', async () => {
+    const fetchMock = mockFetchOk([])
+
+    await fetchCreatorCollections('0xArtist', { first: 12, skip: 24 })
+
+    const url = new URL(fetchMock.mock.calls[0][0] as string)
+    expect(url.origin + url.pathname).toBe('http://nft.test/v1/collections')
+    expect(url.searchParams.get('creator')).toBe('0xArtist')
+    expect(url.searchParams.get('sortBy')).toBe('newest')
+    expect(url.searchParams.get('first')).toBe('12')
+    expect(url.searchParams.get('skip')).toBe('24')
+  })
+
+  it('should map each collection to meta + item count (from `size`)', async () => {
+    mockFetchOk([
+      { contractAddress: '0xc1', name: 'Soul Magic', creator: '0xartist', size: 250 },
+      { contractAddress: '0xc2', name: 'Neon Dreams', creator: '0xartist', size: 3 },
+    ])
+
+    const { collections } = await fetchCreatorCollections('0xartist')
+
+    expect(collections).toEqual([
+      { contractAddress: '0xc1', name: 'Soul Magic', creator: '0xartist', itemCount: 250 },
+      { contractAddress: '0xc2', name: 'Neon Dreams', creator: '0xartist', itemCount: 3 },
+    ])
+  })
+
+  it('should default a missing name/creator/size', async () => {
+    mockFetchOk([{ contractAddress: '0xc1' }])
+
+    const { collections } = await fetchCreatorCollections('0xartist')
+
+    expect(collections[0]).toEqual({ contractAddress: '0xc1', name: '', creator: '', itemCount: 0 })
+  })
+
+  it('should use the response total when present', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ data: [{ contractAddress: '0xc1', size: 1 }], total: 42 }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const { total } = await fetchCreatorCollections('0xartist')
+
+    expect(total).toBe(42)
+  })
+
+  it('and no total is returned it should fall back to skip + length', async () => {
+    mockFetchOk([{ contractAddress: '0xc1' }, { contractAddress: '0xc2' }])
+
+    const { total } = await fetchCreatorCollections('0xartist', { skip: 10 })
+
+    expect(total).toBe(12)
+  })
+
+  it('and the response is not ok it should throw with the status', async () => {
+    mockFetchNotOk(500)
+
+    await expect(fetchCreatorCollections('0xartist')).rejects.toThrow('fetchCreatorCollections 500')
+  })
+})
+
 describe('when mapping the price to whole credits', () => {
   it('should round up to keep credits whole (Model B)', async () => {
     // 1.23 USD → 12.3 credits → ceil → 13.
@@ -285,9 +379,7 @@ describe('when mapping optional catalog fields', () => {
   })
 
   it('should apply defaults for missing creator, itemId, rarity and thumbnail', async () => {
-    mockFetchOk([
-      rawItem({ creator: undefined, itemId: null, rarity: undefined, thumbnail: undefined })
-    ])
+    mockFetchOk([rawItem({ creator: undefined, itemId: null, rarity: undefined, thumbnail: undefined })])
 
     const { items } = await fetchCollectionItems('0xcollection')
 

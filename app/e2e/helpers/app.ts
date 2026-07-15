@@ -31,6 +31,7 @@ export type Fixtures = {
   profile: unknown
   authorize: unknown
   trade: unknown
+  userStore: unknown
 }
 
 function defaults(): Fixtures {
@@ -46,6 +47,7 @@ function defaults(): Fixtures {
     builderCollections: fx.builderCollections,
     builderItems: fx.builderItems,
     profile: fx.profile,
+    userStore: null,
     authorize: {
       credit: {
         id: '0x' + '55'.repeat(32),
@@ -232,21 +234,34 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
     if (path === '/content/entities/active') {
       const body = JSON.parse(req.postData() || '{}') as { pointers?: string[] }
       const isCreator = (body.pointers ?? []).some(p => p.toLowerCase().includes(fx.CREATOR_ADDRESS.toLowerCase()))
-      return json(
-        req,
-        isCreator
-          ? [
-              {
-                content: [{ file: 'cover/cover.jpg', hash: 'QmCover' }],
-                metadata: {
-                  description: 'Handcrafted wearables & emotes.',
-                  images: [{ name: 'cover', file: 'cover/cover.jpg' }],
-                  links: []
-                }
-              }
-            ]
-          : []
-      )
+      if (isCreator) {
+        return json(req, [
+          {
+            content: [{ file: 'cover/cover.jpg', hash: 'QmCover' }],
+            metadata: {
+              description: 'Handcrafted wearables & emotes.',
+              images: [{ name: 'cover', file: 'cover/cover.jpg' }],
+              links: [
+                { name: 'website', url: 'https://galaxy.example' },
+                { name: 'twitter', url: 'https://www.twitter.com/galaxy' },
+                { name: 'discord', url: 'https://discord.gg/galaxy' }
+              ]
+            }
+          }
+        ])
+      }
+      // Any other pointer is the signed-in user's own store: serve the per-run fixture if provided.
+      return json(req, F.userStore ? [F.userStore] : [])
+    }
+    // Store entity deployment (store-settings save). Before POSTing the entity the catalyst client
+    // GETs /available-content to skip re-uploading known hashes — return "nothing uploaded yet" so it
+    // uploads, then ack the POST /content/entities deploy so the app's success path runs.
+    if (path === '/content/available-content') {
+      const cids = u.searchParams.getAll('cid')
+      return json(req, cids.map(cid => ({ cid, available: false })))
+    }
+    if (path === '/content/entities' && method === 'POST') {
+      return json(req, { creationTimestamp: 1 })
     }
     if (path.includes('/lambdas/profiles')) {
       // The fixture creator (author of the shop listings + the matched DCL name) resolves to a

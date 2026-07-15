@@ -1,13 +1,22 @@
 import { Link } from 'react-router-dom'
 import { config } from '~/config'
-import defaultCover from '~/assets/default-cover.jpeg'
+import defaultCover from '~/assets/creator-covers/default-cover.jpeg'
 import { useProfile } from '~/hooks/useProfile'
 import { useStore } from '~/hooks/useStore'
 import { useWallet } from '~/store/wallet'
 import { FollowButton } from '~/components/FollowButton'
 import { getAvatarBackgroundColor, getDisplayName } from '~/lib/avatarColor'
+import { LINK_TYPES, type LinkType } from '~/lib/store'
 import { t } from '~/intl/i18n'
 import './creator-hero.css'
+
+// Each social link maps to its icon and a translated label (for accessibility / tooltip).
+const LINK_ICON: Record<LinkType, string> = {
+  website: 'ico-website',
+  twitter: 'ico-twitter',
+  discord: 'ico-discord',
+  facebook: 'ico-facebook',
+}
 
 // The storefront banner at the top of a creator page: cover image + centered avatar, name,
 // description and a "View profile" link out to the creator's public Decentraland profile.
@@ -31,6 +40,8 @@ export function CreatorHero({ address }: { address: string }) {
   const cover = store?.cover || defaultCover
   const description = store?.description
   const profileUrl = `${config.profileUrl}/${address}`
+  // The social links the creator set in store settings, in display order (empty ones dropped).
+  const links = LINK_TYPES.filter(type => store?.links[type])
 
   // Deterministic per-user avatar backdrop — identical to the in-world client + decentraland.org
   // navbar (ADR-292, see lib/avatarColor). Shows behind a transparent face snapshot and as the
@@ -50,15 +61,32 @@ export function CreatorHero({ address }: { address: string }) {
         <div className="creator-hero__scrim" aria-hidden />
       </div>
 
-      {isOwner && (
-        <Link
-          className="creator-hero__edit"
-          to="/store-settings"
-          title={t('creator.editStore')}
-          aria-label={t('creator.editStore')}
-        >
-          <span className="ico ico-pen" aria-hidden />
-        </Link>
+      {(links.length > 0 || isOwner) && (
+        <div className="creator-hero__links">
+          {links.map(type => (
+            <a
+              key={type}
+              className="creator-hero__link"
+              href={store!.links[type]}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={t(`creator.link.${type}`)}
+              aria-label={t(`creator.link.${type}`)}
+            >
+              <span className={`ico ${LINK_ICON[type]}`} aria-hidden />
+            </a>
+          ))}
+          {isOwner && (
+            <Link
+              className="creator-hero__link creator-hero__edit"
+              to="/store-settings"
+              title={t('creator.editStore')}
+              aria-label={t('creator.editStore')}
+            >
+              <span className="ico ico-pen" aria-hidden />
+            </Link>
+          )}
+        </div>
       )}
 
       <div className="creator-hero__body">

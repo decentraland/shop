@@ -7,32 +7,12 @@ import { FilterBar, FilterPanel, SORTS } from '~/components/FilterBar'
 import { SkeletonCards } from '~/components/SkeletonCards'
 import { LoadMore } from '~/components/LoadMore'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
+import { SUBCAT_MAP } from '~/lib/categories'
 import { CURRENCY } from '~/lib/currency'
 import { track } from '~/lib/analytics'
 
 // Items fetched per page (infinite scroll pages by cumulative offset — see useInfiniteGrid).
 const PAGE_SIZE = 48
-
-// Sidebar sub-labels → the on-chain categories they cover. Wearable sub-labels map to wearable
-// categories; emote sub-labels map to emote categories. Both go out on the same `wearableCategory`
-// query param — the server filters on a coalesced wearable/emote category column (see /v3/catalog/shop).
-const SUBCAT_MAP: Record<string, string[]> = {
-  Head: ['head', 'hat', 'hair', 'facial_hair', 'eyes', 'eyebrows', 'mouth', 'mask', 'helmet', 'tiara', 'top_head'],
-  'Upper Body': ['upper_body'],
-  Handwear: ['hands_wear'],
-  'Lower Body': ['lower_body'],
-  Feet: ['feet'],
-  Accessories: ['earring', 'eyewear'],
-  Skins: ['skin'],
-  Dance: ['dance'],
-  Stunt: ['stunt'],
-  Greetings: ['greetings'],
-  Fun: ['fun'],
-  Poses: ['poses'],
-  Reactions: ['reactions'],
-  Horror: ['horror'],
-  Miscellaneous: ['miscellaneous']
-}
 
 export function Assets() {
   const [searchParams] = useSearchParams()

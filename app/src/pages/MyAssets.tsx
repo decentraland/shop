@@ -35,7 +35,7 @@ function assetToItem(a: MyAsset): CatalogItem {
     thumbnail: a.image,
     priceCredits: a.listingPrice ?? 0,
     gender: null,
-    tokenId: a.tokenId
+    tokenId: a.tokenId,
   }
 }
 
@@ -53,7 +53,7 @@ function publishableToItem(p: PublishableItem): CatalogItem {
     chainId: config.chainId,
     thumbnail: p.thumbnail,
     priceCredits: 0,
-    gender: null
+    gender: null,
   }
 }
 
@@ -107,10 +107,11 @@ export function MyAssets() {
     error: queryError,
     hasNextPage,
     isFetchingNextPage,
-    fetchNextPage
+    fetchNextPage,
   } = useInfiniteGrid(
     ['my-assets', address],
-    skip => fetchMyAssets(address as string, { first: PAGE_SIZE, skip }).then(r => ({ items: r.assets, total: r.total })),
+    skip =>
+      fetchMyAssets(address as string, { first: PAGE_SIZE, skip }).then(r => ({ items: r.assets, total: r.total })),
     { enabled: !!address }
   )
 
@@ -118,7 +119,7 @@ export function MyAssets() {
   const { data: importable } = useQuery({
     queryKey: ['importable', address],
     queryFn: () => fetchImportable(address as string),
-    enabled: !!address
+    enabled: !!address,
   })
   const importCount = (importable?.creations.length ?? 0) + (importable?.owned.length ?? 0)
 
@@ -126,19 +127,16 @@ export function MyAssets() {
   const {
     data: publishable,
     isLoading: publishableLoading,
-    isError: publishableError
+    isError: publishableError,
   } = useQuery({
     queryKey: ['publishable-items', address],
     queryFn: () => fetchPublishableItems(address as string, session!.identity),
     enabled: !!session,
-    retry: false
+    retry: false,
   })
 
   // On-sale state per item (from the v2 catalog), so we can separate listed items from unlisted ones.
-  const contractAddresses = useMemo(
-    () => [...new Set((publishable ?? []).map(p => p.contractAddress))],
-    [publishable]
-  )
+  const contractAddresses = useMemo(() => [...new Set((publishable ?? []).map(p => p.contractAddress))], [publishable])
   const { data: saleState } = useQuery({
     queryKey: ['collection-sale-state', address, contractAddresses],
     enabled: contractAddresses.length > 0,
@@ -151,7 +149,7 @@ export function MyAssets() {
         for (const [itemId, v] of Object.entries(m)) merged[`${ca}-${itemId}`] = v
       }
       return merged
-    }
+    },
   })
 
   const saleFor = (item: PublishableItem) => saleState?.[`${item.contractAddress}-${item.blockchainItemId}`]
@@ -173,7 +171,6 @@ export function MyAssets() {
       map.set(it.collectionId, g)
     }
     return [...map.values()]
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [publishable, saleState])
 
   if (!session) {
@@ -182,7 +179,9 @@ export function MyAssets() {
         <h1>My Assets</h1>
         <p className="muted">Sign in to sell your items.</p>
         <div className="connect-row">
-          <button className="btn btn--purple" onClick={() => signIn()}>Sign in</button>
+          <button className="btn btn--purple" onClick={() => signIn()}>
+            Sign in
+          </button>
         </div>
         {error ? <p className="error">{error}</p> : null}
       </section>
@@ -195,10 +194,14 @@ export function MyAssets() {
 
       {importCount > 0 ? (
         <Link className="import-banner" to="/import">
-          <span className="import-banner__ico" aria-hidden>📦</span>
+          <span className="import-banner__ico" aria-hidden>
+            📦
+          </span>
           <span className="import-banner__text">
             <strong>Import your listings</strong>
-            <span className="import-banner__sub">You have {importCount} item{importCount === 1 ? '' : 's'} for sale elsewhere — bring them into the Shop.</span>
+            <span className="import-banner__sub">
+              You have {importCount} item{importCount === 1 ? '' : 's'} for sale elsewhere — bring them into the Shop.
+            </span>
           </span>
           <span className="import-banner__cta">Import</span>
         </Link>
@@ -216,7 +219,9 @@ export function MyAssets() {
 
         <div className="asset-grid">
           {isLoading
-            ? Array.from({ length: 8 }).map((_, i) => <div className="asset-card asset-card--skeleton" key={`sk-${i}`} />)
+            ? Array.from({ length: 8 }).map((_, i) => (
+                <div className="asset-card asset-card--skeleton" key={`sk-${i}`} />
+              ))
             : ownedAssets.map(asset => (
                 <article
                   className="asset-card asset-card--link"
@@ -231,12 +236,18 @@ export function MyAssets() {
                     }
                   }}
                 >
-                  <div className="asset-card__img">{asset.image ? <img src={asset.image} alt={asset.name} /> : null}</div>
-                  <div className="asset-card__name" title={asset.name}>{asset.name}</div>
+                  <div className="asset-card__img">
+                    {asset.image ? <img src={asset.image} alt={asset.name} /> : null}
+                  </div>
+                  <div className="asset-card__name" title={asset.name}>
+                    {asset.name}
+                  </div>
                   {asset.isOnSale ? (
                     <>
                       <div className="asset-card__listed">
-                        <span className="asset-card__price"><CurrencyIcon className="ccy-mark" /> {asset.listingPrice}</span>
+                        <span className="asset-card__price">
+                          <CurrencyIcon className="ccy-mark" /> {asset.listingPrice}
+                        </span>
                         <span className="badge">On sale</span>
                       </div>
                       <button
@@ -257,7 +268,7 @@ export function MyAssets() {
                         e.stopPropagation()
                         track('Shop Started Listing', {
                           listing_type: 'secondary',
-                          item_id: asset.itemId ?? asset.tokenId ?? null
+                          item_id: asset.itemId ?? asset.tokenId ?? null,
                         })
                         setSelling(asset)
                       }}
@@ -268,15 +279,15 @@ export function MyAssets() {
                 </article>
               ))}
           {isFetchingNextPage
-            ? Array.from({ length: 4 }).map((_, i) => <div className="asset-card asset-card--skeleton" key={`msk-${i}`} />)
+            ? Array.from({ length: 4 }).map((_, i) => (
+                <div className="asset-card asset-card--skeleton" key={`msk-${i}`} />
+              ))
             : null}
         </div>
 
-        <LoadMore hasNextPage={hasNextPage} isFetching={isFetchingNextPage} onLoadMore={() => fetchNextPage()} />
+        <LoadMore hasNextPage={hasNextPage} isFetching={isFetchingNextPage} onLoadMore={() => void fetchNextPage()} />
 
-        {!isLoading && ownedAssets.length === 0 ? (
-          <p className="muted">No items in your wardrobe yet.</p>
-        ) : null}
+        {!isLoading && ownedAssets.length === 0 ? <p className="muted">No items in your wardrobe yet.</p> : null}
       </div>
 
       {/* ---------------- Section 2: Items you created (primary), grouped by collection ---------------- */}
@@ -284,7 +295,8 @@ export function MyAssets() {
         <div className="myassets__section-head">
           <h2 className="myassets__section-title">Your creations</h2>
           <p className="myassets__section-sub">
-            Items you made. Put them on sale in the Shop — set a price in {CURRENCY.name} and buyers pay with {CURRENCY.name}.
+            Items you made. Put them on sale in the Shop — set a price in {CURRENCY.name} and buyers pay with{' '}
+            {CURRENCY.name}.
           </p>
         </div>
 
@@ -295,7 +307,9 @@ export function MyAssets() {
             ))}
           </div>
         ) : publishableError ? (
-          <p className="publish-empty">We couldn&rsquo;t load your collections right now. Please try again in a moment.</p>
+          <p className="publish-empty">
+            We couldn&rsquo;t load your collections right now. Please try again in a moment.
+          </p>
         ) : onSaleItems.length === 0 && collections.length === 0 ? (
           <p className="publish-empty">You don&rsquo;t have any items to publish yet.</p>
         ) : (
@@ -322,9 +336,13 @@ export function MyAssets() {
                       <div className="publish-card__img">
                         {item.thumbnail ? <img src={item.thumbnail} alt={item.name} /> : null}
                       </div>
-                      <div className="publish-card__name" title={item.name}>{item.name}</div>
+                      <div className="publish-card__name" title={item.name}>
+                        {item.name}
+                      </div>
                       <div className="publish-card__listed">
-                        <span className="publish-card__price"><CurrencyIcon className="ccy-mark" /> {saleFor(item)?.priceCredits ?? 0}</span>
+                        <span className="publish-card__price">
+                          <CurrencyIcon className="ccy-mark" /> {saleFor(item)?.priceCredits ?? 0}
+                        </span>
                         <span className="badge">On sale</span>
                       </div>
                       <button
@@ -366,7 +384,9 @@ export function MyAssets() {
                       <div className="publish-card__img">
                         {item.thumbnail ? <img src={item.thumbnail} alt={item.name} /> : null}
                       </div>
-                      <div className="publish-card__name" title={item.name}>{item.name}</div>
+                      <div className="publish-card__name" title={item.name}>
+                        {item.name}
+                      </div>
                       <div className="publish-card__meta">
                         <span className="publish-chip publish-chip--rarity">{item.rarity}</span>
                         <span className="publish-card__supply">{item.remainingSupply.toLocaleString()} available</span>
@@ -391,9 +411,7 @@ export function MyAssets() {
       </div>
 
       {selling ? <SellModal asset={selling} session={session} onClose={() => setSelling(null)} /> : null}
-      {publishing ? (
-        <PrimaryListModal item={publishing} session={session} onClose={() => setPublishing(null)} />
-      ) : null}
+      {publishing ? <PrimaryListModal item={publishing} session={session} onClose={() => setPublishing(null)} /> : null}
     </section>
   )
 }

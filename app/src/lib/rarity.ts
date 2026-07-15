@@ -1,17 +1,33 @@
 import { Rarity } from '@dcl/schemas'
 
-// Neutral grey for an absent or unrecognized rarity.
-const FALLBACK_COLOR = '#a09ba8'
+export const RARITY_BACKGROUND_COLORS: Record<Rarity, string> = {
+  common: '#9696964D',
+  uncommon: '#FF836233',
+  rare: '#34CE7633',
+  epic: '#289CFF4D',
+  legendary: '#A14BF34D',
+  mythic: '#FF4BED33',
+  unique: '#FEA21733',
+  exotic: '#3B432C',
+}
+
+export const RARITY_TEXT_COLORS: Record<Rarity, string> = {
+  common: '#E6E6E6',
+  uncommon: '#FF8362',
+  rare: '#34CE76',
+  epic: '#4bb0eb',
+  legendary: '#A657ED',
+  mythic: '#FF4BED',
+  unique: '#FFF280',
+  exotic: '#DBF5B1',
+}
 
 // Real per-rarity color (common grey -> mythic pink, etc.) instead of one flat purple wash.
-export function rarityColor(rarity?: string | null): string {
-  if (!rarity) return FALLBACK_COLOR
-  try {
-    // getColor is a plain map lookup: an unrecognized (but non-empty) rarity returns undefined WITHOUT
-    // throwing, so coalesce it to the fallback — otherwise readableText(undefined) would crash the card.
-    return Rarity.getColor(rarity.toLowerCase() as Rarity) || FALLBACK_COLOR
-  } catch {
-    return FALLBACK_COLOR
+export function rarityColor(rarity?: string | null): { text: string; background: string } {
+  if (!rarity) return { text: RARITY_TEXT_COLORS.common, background: RARITY_BACKGROUND_COLORS.common }
+  return {
+    text: RARITY_TEXT_COLORS[rarity.toLowerCase() as Rarity] || RARITY_TEXT_COLORS.common,
+    background: RARITY_BACKGROUND_COLORS[rarity.toLowerCase() as Rarity] || RARITY_BACKGROUND_COLORS.common,
   }
 }
 

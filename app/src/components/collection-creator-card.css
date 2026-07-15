@@ -1,0 +1,95 @@
+/* Collection sidebar identity block (Figma left column): avatar, username, copyable account chip,
+   and a "View profile" button. Sits above the CategoryFilter in the browse sidebar. */
+.creator-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 12px;
+  padding-bottom: 24px;
+  /* Pull the block up so the avatar half-overlaps the cover hero above it. The hero sits 24px above
+     (its margin-bottom); lifting by that + half the avatar (55px) lands the avatar's center on the
+     cover's bottom edge. */
+  margin-top: -79px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.creator-card__ava {
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  object-fit: cover;
+  /* White ring so the avatar reads cleanly where it straddles the cover image. */
+  border: 5px solid #fff;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+  /* Fallback only — the real backdrop is a deterministic per-user color set inline by the component */
+  background: #ff4bed;
+}
+.creator-card__ava--ph {
+  display: block;
+}
+
+.creator-card__name {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--text);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Account chip — the short address with a copy icon; the whole chip is the copy button. */
+.creator-card__account {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: var(--radius-btn);
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    background 0.15s ease;
+}
+.creator-card__account:hover {
+  color: var(--text);
+  background: var(--media);
+}
+.creator-card__copy {
+  width: 16px;
+  height: 16px;
+}
+
+/* View-profile button — full-width outlined pill, matching the Figma sidebar CTA. */
+.creator-card__view {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 44px;
+  padding: 0 20px;
+  border: 2px solid var(--accent);
+  border-radius: var(--radius-btn);
+  background: transparent;
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.046em;
+  text-decoration: none;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+.creator-card__view:hover {
+  background: var(--accent);
+  color: #fff;
+}
