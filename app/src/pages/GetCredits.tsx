@@ -1,5 +1,5 @@
-import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { CircularProgress } from 'decentraland-ui2'
 import { useWallet } from '~/store/wallet'
@@ -20,10 +20,6 @@ import {
 // truth via isMockPayments() (which gates on the publishable key) — don't reimplement the gate here.
 const CREDITS_PROVIDER = isMockPayments() ? 'mock' : 'stripe'
 
-// Lazily loaded so the real Stripe SDK is only pulled in when a live key/backend exists;
-// the mock demo path never downloads it.
-const RealCheckout = lazy(() => import('~/components/RealCheckout'))
-
 type Phase = 'select' | 'paying' | 'processing' | 'success' | 'error' | 'pending'
 
 function friendlyError(e: unknown): string {
@@ -39,15 +35,75 @@ export function GetCredits() {
   const navigate = useNavigate()
   const { session, signIn } = useWallet()
   const qc = useQueryClient()
+  const [searchParams, setSearchParams] = useSearchParams()
 
   const [phase, setPhase] = useState<Phase>('select')
   const [selected, setSelected] = useState<CreditPack | null>(null)
   const [checkout, setCheckout] = useState<CheckoutSession | null>(null)
   const [granted, setGranted] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // Gentle "payment canceled" note shown on the pack grid after a cancelled Stripe redirect.
+  const [canceledNote, setCanceledNote] = useState(false)
 
   const abortRef = useRef<AbortController | null>(null)
   useEffect(() => () => abortRef.current?.abort(), [])
+
+  // Drop Stripe's return params so a refresh doesn't re-trigger the return handling below.
+  const clearReturnParams = useCallback(() => {
+    setSearchParams(
+      prev => {
+        const next = new URLSearchParams(prev)
+        next.delete('order')
+        next.delete('canceled')
+        return next
+      },
+      { replace: true }
+    )
+  }, [setSearchParams])
+
+  // Wait for the backend to grant the credits for an order (poll until it flips off 'processing').
+  // Used by both the mock card form (onPaid) and the Stripe hosted-Checkout return handler.
+  const pollForGrant = useCallback(
+    async (orderId: string) => {
+      setPhase('processing')
+      const ac = new AbortController()
+      abortRef.current = ac
+      try {
+        const result = await pollCreditGrant(orderId, {
+          signal: ac.signal,
+          address: session?.address,
+          identity: session?.identity
+        })
+        if (result.status === 'credited') {
+          setGranted(result.creditsGranted ?? selected?.credits ?? 0)
+          setPhase('success')
+          track('Shop Completed Buy Credits', {
+            order_id: orderId,
+            pack_usd: selected?.usd ?? null,
+            credits: result.creditsGranted ?? selected?.credits ?? 0,
+            provider: CREDITS_PROVIDER
+          })
+          void qc.invalidateQueries({ queryKey: ['usd-balance'] })
+        } else if (result.status === 'pending') {
+          // Poll timed out but the payment isn't failed — the webhook can still grant the credits.
+          // Show an "on the way" state (not an error) and refetch the balance so it updates when it lands.
+          track('Shop Buy Credits Pending', { step: 'grant', pack_usd: selected?.usd ?? null })
+          void qc.invalidateQueries({ queryKey: ['usd-balance'] })
+          setPhase('pending')
+        } else {
+          track('Shop Buy Credits Failed', { step: 'grant', error_code: 'grant_failed', pack_usd: selected?.usd ?? null })
+          setError(result.error ?? `Couldn't add your ${CURRENCY.name} — please try again.`)
+          setPhase('error')
+        }
+      } catch (e) {
+        captureError(e, { flow: 'get_credits', step: 'grant', order_id: orderId })
+        track('Shop Buy Credits Failed', { step: 'grant', error_code: errorCode(e), pack_usd: selected?.usd ?? null })
+        setError(friendlyError(e))
+        setPhase('error')
+      }
+    },
+    [selected, session, qc]
+  )
 
   const startCheckout = useCallback(
     async (pack: CreditPack) => {
@@ -56,12 +112,22 @@ export function GetCredits() {
         return
       }
       setError(null)
+      setCanceledNote(false)
       setSelected(pack)
       setPhase('paying')
       track('Shop Started Buy Credits', { pack_usd: pack.usd, credits: pack.credits, provider: CREDITS_PROVIDER })
       try {
         const cs = await createPackCheckout(pack.id, { address: session.address, identity: session.identity })
-        setCheckout(cs)
+        if (cs.mock) {
+          // Mock path stays in-app: render the demo card form (PayStep).
+          setCheckout(cs)
+        } else if (cs.url) {
+          // Real path: full redirect out to Stripe's hosted Checkout. We come back to
+          // `${STRIPE_RETURN_URL}?order=${orderId}` (handled by the return effect below).
+          window.location.href = cs.url
+        } else {
+          throw new Error('Checkout did not return a redirect url')
+        }
       } catch (e) {
         captureError(e, { flow: 'get_credits', step: 'checkout', provider: CREDITS_PROVIDER })
         track('Shop Buy Credits Failed', { step: 'checkout', error_code: errorCode(e), pack_usd: pack.usd })
@@ -72,46 +138,39 @@ export function GetCredits() {
     [session, signIn]
   )
 
-  // Card charge succeeded → wait for the backend to grant the credits.
-  const onPaid = useCallback(async () => {
+  // Card charge succeeded (mock path) → wait for the backend to grant the credits.
+  const onPaid = useCallback(() => {
     if (!checkout) return
-    setPhase('processing')
-    const ac = new AbortController()
-    abortRef.current = ac
-    try {
-      const result = await pollCreditGrant(checkout.orderId, {
-        signal: ac.signal,
-        address: session?.address,
-        identity: session?.identity
-      })
-      if (result.status === 'credited') {
-        setGranted(result.creditsGranted ?? selected?.credits ?? 0)
-        setPhase('success')
-        track('Shop Completed Buy Credits', {
-          order_id: checkout.orderId,
-          pack_usd: selected?.usd ?? null,
-          credits: result.creditsGranted ?? selected?.credits ?? 0,
-          provider: CREDITS_PROVIDER
-        })
-        void qc.invalidateQueries({ queryKey: ['usd-balance'] })
-      } else if (result.status === 'pending') {
-        // Poll timed out but the payment isn't failed — the webhook can still grant the credits.
-        // Show an "on the way" state (not an error) and refetch the balance so it updates when it lands.
-        track('Shop Buy Credits Pending', { step: 'grant', pack_usd: selected?.usd ?? null })
-        void qc.invalidateQueries({ queryKey: ['usd-balance'] })
-        setPhase('pending')
-      } else {
-        track('Shop Buy Credits Failed', { step: 'grant', error_code: 'grant_failed', pack_usd: selected?.usd ?? null })
-        setError(result.error ?? `Couldn't add your ${CURRENCY.name} — please try again.`)
-        setPhase('error')
-      }
-    } catch (e) {
-      captureError(e, { flow: 'get_credits', step: 'grant', order_id: checkout.orderId })
-      track('Shop Buy Credits Failed', { step: 'grant', error_code: errorCode(e), pack_usd: selected?.usd ?? null })
-      setError(friendlyError(e))
-      setPhase('error')
+    void pollForGrant(checkout.orderId)
+  }, [checkout, pollForGrant])
+
+  // Return handling: Stripe's hosted Checkout redirects back to this page with `?order=<id>` on
+  // success or `?canceled=1` on cancel. Handle it once, then clear the params so a refresh is a no-op.
+  const returnHandled = useRef(false)
+  useEffect(() => {
+    if (returnHandled.current) return
+    const orderId = searchParams.get('order')
+    const wasCanceled = searchParams.get('canceled') != null
+
+    if (wasCanceled) {
+      returnHandled.current = true
+      clearReturnParams()
+      setCanceledNote(true)
+      setPhase('select')
+      return
     }
-  }, [checkout, selected, session, qc])
+    if (!orderId) return
+
+    // We're on Stripe's success_url. Show the crediting state right away so the pack grid doesn't
+    // flash, but the poll is a signed-fetch that needs the restored wallet identity — wait for it.
+    setPhase('processing')
+    if (!session) return
+
+    returnHandled.current = true
+    clearReturnParams()
+    void pollForGrant(orderId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, session])
 
   function reset() {
     abortRef.current?.abort()
@@ -120,6 +179,7 @@ export function GetCredits() {
     setCheckout(null)
     setGranted(null)
     setError(null)
+    setCanceledNote(false)
   }
 
   return (
@@ -139,7 +199,16 @@ export function GetCredits() {
         </div>
       ) : (
       <>
-      {phase === 'select' && <PackGrid onSelect={startCheckout} />}
+      {phase === 'select' && (
+        <>
+          {canceledNote && (
+            <p className="getcredits__note muted" role="status">
+              Payment canceled — no charge was made. Pick a pack whenever you&rsquo;re ready.
+            </p>
+          )}
+          <PackGrid onSelect={startCheckout} />
+        </>
+      )}
 
       {phase === 'paying' && selected && (
         <PayStep pack={selected} checkout={checkout} onPaid={onPaid} onCancel={reset} />
@@ -258,26 +327,16 @@ function PayStep({
       </div>
 
       <div className="pay__form">
-        {!checkout ? (
+        {checkout?.mock ? (
+          // Mock demo card form (dev / no real Stripe backend). The real path never reaches
+          // 'paying' with a checkout — it redirects out to Stripe's hosted Checkout instead —
+          // so this step only ever renders the mock form (or the brief pre-redirect spinner).
+          <MockCardForm onPaid={onPaid} amountUsd={pack.usd} />
+        ) : (
           <div className="getcredits__status" role="status" aria-live="polite">
             <CircularProgress size={32} />
             <p className="muted">Getting the payment form ready…</p>
           </div>
-        ) : checkout.mock ? (
-          <MockCardForm onPaid={onPaid} amountUsd={pack.usd} />
-        ) : (
-          // Real Stripe embedded Checkout — mounted only when a live key/backend exists,
-          // so the mock path above keeps the bundle free of Stripe at demo time.
-          <Suspense
-            fallback={
-              <div className="getcredits__status" role="status" aria-live="polite">
-                <CircularProgress size={32} />
-                <p className="muted">Getting the payment form ready…</p>
-              </div>
-            }
-          >
-            <RealCheckout clientSecret={checkout.clientSecret} onComplete={onPaid} />
-          </Suspense>
         )}
       </div>
     </div>

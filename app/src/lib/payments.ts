@@ -14,12 +14,13 @@
 //
 //   POST /credits/checkout                (signed-fetch, ADR-44: caller == buyer)
 //     req : { packId: string }
-//     res : { orderId: string, clientSecret: string }
-//           `clientSecret` is a Stripe *embedded Checkout* client secret
-//           (session.client_secret from checkout.sessions.create with
-//            ui_mode:'embedded'). The UI mounts it with <EmbeddedCheckout/>.
-//           The pack -> price/credits mapping is authoritative on the SERVER;
-//           the client only sends packId (never a price) to avoid tampering.
+//     res : { orderId: string, url: string }
+//           `url` is a Stripe *hosted* Checkout Session URL (session.url from
+//           checkout.sessions.create — Roblox-style redirect). The client sends
+//           the browser to it; Stripe redirects back to
+//           `${STRIPE_RETURN_URL}?order=${orderId}` on success (or `...&canceled=1`
+//           on cancel). The pack -> price/credits mapping is authoritative on the
+//           SERVER; the client only sends packId (never a price) to avoid tampering.
 //
 //   GET  /credits/orders/:orderId         (signed-fetch)
 //     res : { status: 'processing' | 'credited' | 'failed',
@@ -76,8 +77,16 @@ export function getPack(packId: string): CreditPack | undefined {
 
 export type CheckoutSession = {
   orderId: string
-  /** Stripe embedded-Checkout client secret, or a mock sentinel in dev. */
-  clientSecret: string
+  /**
+   * Stripe *hosted* Checkout Session URL to redirect the browser to (REAL path only).
+   * Undefined on the mock path, which never leaves the app.
+   */
+  url?: string
+  /**
+   * Mock sentinel "client secret" used only by the local mock card form (MOCK path only).
+   * Undefined on the real path, which redirects out to `url` instead.
+   */
+  clientSecret?: string
   /** True when this came from the local mock (no real Stripe backend wired). */
   mock: boolean
 }
@@ -131,8 +140,8 @@ export function isMockPayments(): boolean {
 
 // ---------------------------------------------------------------------------
 // createPackCheckout — start a purchase.
-//   REAL: POST /credits/checkout on shop-server (signed-fetch), returns a Stripe
-//         embedded client secret the UI mounts.
+//   REAL: POST /credits/checkout on credits-server (signed-fetch), returns a Stripe
+//         hosted Checkout URL the UI redirects the browser to.
 //   MOCK: returns a fake client secret so the whole flow is demoable offline.
 // ---------------------------------------------------------------------------
 export async function createPackCheckout(

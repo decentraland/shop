@@ -36,11 +36,11 @@ vi.mock('~/lib/credits', () => ({
 // eslint-disable-next-line import/first
 import { GetCredits } from '~/pages/GetCredits'
 
-function renderPage() {
+function renderPage(initialEntry = '/') {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[initialEntry]}>
         <GetCredits />
       </MemoryRouter>
     </QueryClientProvider>
@@ -86,6 +86,31 @@ describe('when a signed-in user opens the get-credits page', () => {
 
     // Back on the pack grid.
     expect(screen.getByRole('button', { name: /500 credits for \$50/i })).toBeInTheDocument()
+  })
+})
+
+describe('when returning from Stripe hosted Checkout', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('should poll the order from ?order= and show the crediting → success flow', async () => {
+    // Mock mode (no stripe key in test config): pollCreditGrant takes the offline mock path for
+    // the returned order id, so this exercises the return-handling wiring without a backend.
+    renderPage('/?order=ord_test_123')
+
+    // Lands straight in the crediting state (no pack grid flash)…
+    expect(await screen.findByText(/adding your credits/i)).toBeInTheDocument()
+    // …then the mock grant resolves to the success screen.
+    expect(await screen.findByText(/you.?re all set/i, {}, { timeout: 4000 })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /back to cart/i })).toBeInTheDocument()
+  })
+
+  it('should show a gentle canceled note (not an error) and keep the packs on ?canceled=1', async () => {
+    renderPage('/?canceled=1')
+
+    expect(await screen.findByText(/payment canceled/i)).toBeInTheDocument()
+    // Not an error state — the packs are still selectable.
+    expect(screen.getByRole('button', { name: /250 credits for \$25/i })).toBeInTheDocument()
+    expect(screen.queryByText(/something went wrong/i)).not.toBeInTheDocument()
   })
 })
 

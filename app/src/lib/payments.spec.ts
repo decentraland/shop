@@ -223,7 +223,7 @@ describe('when buying a credit pack in real mode', () => {
 
   it('should delegate to the real Stripe checkout with the packId and identity', async () => {
     enableRealMode()
-    const realSession = { orderId: 'ord_1', clientSecret: 'cs_test_123', mock: false }
+    const realSession = { orderId: 'ord_1', url: 'https://checkout.stripe.com/c/pay/cs_test_123', mock: false }
     createPackCheckoutReal.mockResolvedValueOnce(realSession)
 
     const session = await createPackCheckout('pack_25', { address: '0xabc', identity: IDENTITY })

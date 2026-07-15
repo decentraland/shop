@@ -7,9 +7,9 @@ import type { AuthIdentity } from '@dcl/crypto'
 const { signedFetch } = vi.hoisted(() => ({ signedFetch: vi.fn() }))
 vi.mock('decentraland-crypto-fetch', () => ({ default: signedFetch }))
 
-// Config is mutated per-test to drive the paymentsBaseUrl() branch (shopServerUrl preferred over
-// creditsServerUrl). Default: no shop-server → falls back to the credits-server base.
-const { config } = vi.hoisted(() => ({ config: { shopServerUrl: '', creditsServerUrl: 'https://credits.example' } }))
+// The /credits/* endpoints live on the credits-server (G1); paymentsBaseUrl() always uses
+// creditsServerUrl — shop-server is the treasury leg and is never on the buy path.
+const { config } = vi.hoisted(() => ({ config: { creditsServerUrl: 'https://credits.example' } }))
 vi.mock('~/config', () => ({ config }))
 
 // eslint-disable-next-line import/first
@@ -27,17 +27,16 @@ function fail(status: number, body = 'boom') {
 
 beforeEach(() => {
   signedFetch.mockReset()
-  config.shopServerUrl = ''
   config.creditsServerUrl = 'https://credits.example'
 })
 
 describe('when starting a real pack checkout', () => {
-  it('should POST packId via signed-fetch and return the Stripe client secret as a non-mock session', async () => {
-    signedFetch.mockResolvedValueOnce(ok({ orderId: 'ord_1', clientSecret: 'cs_test_123' }))
+  it('should POST packId via signed-fetch and return the Stripe hosted-Checkout url as a non-mock session', async () => {
+    signedFetch.mockResolvedValueOnce(ok({ orderId: 'ord_1', url: 'https://checkout.stripe.com/c/pay/cs_test_123' }))
 
     const session = await createPackCheckoutReal('pack_25', IDENTITY)
 
-    expect(session).toEqual({ orderId: 'ord_1', clientSecret: 'cs_test_123', mock: false })
+    expect(session).toEqual({ orderId: 'ord_1', url: 'https://checkout.stripe.com/c/pay/cs_test_123', mock: false })
     expect(signedFetch).toHaveBeenCalledTimes(1)
     const [url, opts] = signedFetch.mock.calls[0]
     expect(url).toBe('https://credits.example/credits/checkout')
@@ -48,13 +47,12 @@ describe('when starting a real pack checkout', () => {
     expect(JSON.parse(opts.body)).toEqual({ packId: 'pack_25' })
   })
 
-  it('should prefer the shop-server base url when one is configured', async () => {
-    config.shopServerUrl = 'https://shop.example'
-    signedFetch.mockResolvedValueOnce(ok({ orderId: 'ord_2', clientSecret: 'cs_2' }))
+  it('should hit the credits-server base url for the checkout (never shop-server) (G1)', async () => {
+    signedFetch.mockResolvedValueOnce(ok({ orderId: 'ord_2', url: 'https://checkout.stripe.com/c/pay/cs_2' }))
 
     await createPackCheckoutReal('pack_10', IDENTITY)
 
-    expect(signedFetch.mock.calls[0][0]).toBe('https://shop.example/credits/checkout')
+    expect(signedFetch.mock.calls[0][0]).toBe('https://credits.example/credits/checkout')
   })
 
   it('and the server responds non-ok it should throw with the status and body text', async () => {
@@ -146,12 +144,11 @@ describe('when polling a real credit grant', () => {
     await expect(pollCreditGrantReal('ord_8', IDENTITY, { intervalMs: 1 })).rejects.toThrow('order status 500')
   })
 
-  it('should poll the shop-server base url when one is configured', async () => {
-    config.shopServerUrl = 'https://shop.example'
+  it('should poll the credits-server base url (never shop-server) (G1)', async () => {
     signedFetch.mockResolvedValueOnce(ok({ status: 'credited', creditsGranted: 5, newBalance: 5 }))
 
     await pollCreditGrantReal('ord_9', IDENTITY, { intervalMs: 1 })
 
-    expect(signedFetch.mock.calls[0][0]).toBe('https://shop.example/credits/orders/ord_9')
+    expect(signedFetch.mock.calls[0][0]).toBe('https://credits.example/credits/orders/ord_9')
   })
 })
