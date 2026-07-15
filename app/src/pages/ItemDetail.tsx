@@ -204,17 +204,21 @@ export function ItemDetail() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current.id, current.name, resolvingTrade, forSale])
 
-  function selectSibling(item: CatalogItem) {
-    setCurrent(item)
-    // Keep the address bar in sync so refresh/share resolves the shown item. tokenId may be absent for
-    // catalog items — fall back to itemId. Only sync the URL when a valid segment exists (the item
-    // still shows in place via setCurrent) so we never push a dead /item/<contract>/ URL.
-    const seg = item.tokenId ?? item.itemId
-    if (item.contractAddress && seg) {
-      navigate(`/item/${item.contractAddress}/${seg}`, { replace: true, state: { item } })
+  // Navigating PDP→PDP (tapping a carousel <AssetCard>, which routes here via its own whole-card link)
+  // reuses this same component instance — the useState initializer above only runs on the first mount,
+  // so re-seed the shown item from the freshly-passed router state and scroll back to the top. Skips
+  // the initial route (already seeded) so it never clobbers in-flight hydration on a deep link.
+  const routeKey = `${contractAddress}/${tokenId}`
+  const seededRoute = useRef(routeKey)
+  useEffect(() => {
+    if (seededRoute.current === routeKey) return
+    seededRoute.current = routeKey
+    if (state?.item) {
+      setCurrent({ ...state.item, tradeId: state.tradeId ?? state.item.tradeId })
     }
     if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' })
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeKey])
 
   function handleAddToCart() {
     if (!forSale || inCart || own) return
@@ -469,8 +473,6 @@ export function ItemDetail() {
       <CollectionCarousel
         title={collectionTitle}
         items={carouselItems}
-        activeId={current.id}
-        onSelect={selectSibling}
         onViewAll={current.contractAddress ? () => navigate(`/collection/${current.contractAddress}`) : undefined}
       />
     </div>
