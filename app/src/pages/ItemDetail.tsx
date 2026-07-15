@@ -18,6 +18,8 @@ import { CollectionCarousel } from '~/components/CollectionCarousel'
 import { CreatorBadge } from '~/components/CreatorBadge'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { SaleCountdown } from '~/components/SaleCountdown'
+import { rarityTint, rarityInk } from '~/lib/rarity'
+import { categoryIcon, genderIcon } from '~/lib/itemIcons'
 import { saleDiscountPct } from '~/lib/sale'
 import { useSaleActive } from '~/hooks/useSaleActive'
 import { CURRENCY } from '~/lib/currency'
@@ -36,6 +38,13 @@ function genderLabel(gender: CatalogItem['gender']): string | null {
   if (gender === 'female') return 'Female'
   if (gender === 'unisex') return 'Unisex'
   return null
+}
+
+// Human label for the category chip: the specific wearable/emote sub-category when known
+// (e.g. "eyewear" → "eyewear", uppercased by CSS), else the broad Wearable/Emote.
+function categoryLabel(item: CatalogItem): string {
+  if (item.wearableCategory) return item.wearableCategory.replace(/_/g, ' ')
+  return item.category === 'emote' ? 'Emote' : 'Wearable'
 }
 
 function friendlyError(e: unknown): string {
@@ -195,17 +204,21 @@ export function ItemDetail() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current.id, current.name, resolvingTrade, forSale])
 
-  function selectSibling(item: CatalogItem) {
-    setCurrent(item)
-    // Keep the address bar in sync so refresh/share resolves the shown item. tokenId may be absent for
-    // catalog items — fall back to itemId. Only sync the URL when a valid segment exists (the item
-    // still shows in place via setCurrent) so we never push a dead /item/<contract>/ URL.
-    const seg = item.tokenId ?? item.itemId
-    if (item.contractAddress && seg) {
-      navigate(`/item/${item.contractAddress}/${seg}`, { replace: true, state: { item } })
+  // Navigating PDP→PDP (tapping a carousel <AssetCard>, which routes here via its own whole-card link)
+  // reuses this same component instance — the useState initializer above only runs on the first mount,
+  // so re-seed the shown item from the freshly-passed router state and scroll back to the top. Skips
+  // the initial route (already seeded) so it never clobbers in-flight hydration on a deep link.
+  const routeKey = `${contractAddress}/${tokenId}`
+  const seededRoute = useRef(routeKey)
+  useEffect(() => {
+    if (seededRoute.current === routeKey) return
+    seededRoute.current = routeKey
+    if (state?.item) {
+      setCurrent({ ...state.item, tradeId: state.tradeId ?? state.item.tradeId })
     }
     if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' })
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeKey])
 
   function handleAddToCart() {
     if (!forSale || inCart || own) return
@@ -284,8 +297,9 @@ export function ItemDetail() {
   }
 
   const rarity: Rarity = isValidRarity(current.rarity) ? current.rarity : Rarity.COMMON
-  const [glowLight] = Rarity.getGradient(rarity)
   const gender = genderLabel(current.gender)
+  const catIco = categoryIcon(current)
+  const genderIco = genderIcon(current.gender)
   const onSale = forSale && saleActive
   const collectionTitle = 'More from this collection'
 
@@ -321,13 +335,7 @@ export function ItemDetail() {
       </nav>
 
       <div className="item-detail__main">
-        <div
-          className="item-detail__preview"
-          style={{
-            // Subtle rarity glow on the light surface (not a full-saturation fill).
-            background: `radial-gradient(circle at 50% 38%, ${glowLight}33 0%, var(--media) 68%)`
-          }}
-        >
+        <div className="item-detail__preview">
           {/* Mount the preview only once the item's identity is resolved (deep-link/refresh hydrate a
               stub first) so the 3D iframe mounts ONCE with the right item — no stub→hydrated remount /
               double-load. Show the same loader meanwhile. */}
@@ -353,18 +361,28 @@ export function ItemDetail() {
             </button>
           </div>
 
-          {current.creator ? (
-            <CreatorBadge address={current.creator} className="item-detail__creator" linkToProfile />
-          ) : null}
-
           <div className="item-detail__chips">
-            <span className="chip chip--rarity">{current.rarity}</span>
-            <span className="chip">{current.category === 'emote' ? 'Emote' : 'Wearable'}</span>
-            {gender ? <span className="chip">{gender}</span> : null}
+            <span
+              className="chip chip--rarity"
+              style={{ background: rarityTint(rarity), color: rarityInk(rarity) }}
+            >
+              {current.rarity}
+            </span>
+            <span className="chip item-detail__chip">
+              {catIco ? <span className={`ico ico-${catIco} item-detail__chip-ico`} aria-hidden /> : null}
+              {categoryLabel(current)}
+            </span>
+            {gender ? (
+              <span className="chip item-detail__chip">
+                {genderIco ? <span className={`ico ico-${genderIco} item-detail__chip-ico`} aria-hidden /> : null}
+                {gender}
+              </span>
+            ) : null}
           </div>
 
           {description ? (
-            <div className="item-detail__description">
+            <div className="item-detail__section item-detail__description">
+              <div className="item-detail__label">Description</div>
               <p className={`item-detail__desc-text${descExpanded ? ' is-expanded' : ''}`}>{description}</p>
               {description.length > 140 ? (
                 <button className="link item-detail__desc-toggle" onClick={() => setDescExpanded(v => !v)}>
@@ -374,80 +392,87 @@ export function ItemDetail() {
             </div>
           ) : null}
 
-          <div className="item-detail__card">
-            <div className="item-detail__price-block">
-              <div className="item-detail__price-label">Price</div>
-              {forSale ? (
-                onSale ? (
-                  <div className="item-detail__price item-detail__price--sale">
-                    <span className="item-detail__price">
-                      <CurrencyIcon className="item-detail__diamond" />
-                      <span className="item-detail__price-value">{current.priceCredits}</span>
-                    </span>
-                    <span className="item-detail__price-was">
-                      <CurrencyIcon className="item-detail__diamond item-detail__diamond--was" />
-                      {current.compareAtCredits}
-                    </span>
-                    {saleDiscountPct(current.compareAtCredits!, current.priceCredits) > 0 ? (
-                      <span className="item-detail__sale-badge">
-                        SALE -{saleDiscountPct(current.compareAtCredits!, current.priceCredits)}%
-                      </span>
-                    ) : null}
-                    <SaleCountdown endsAt={current.saleEndsAt} className="item-detail__countdown" />
-                  </div>
-                ) : (
-                  <div className="item-detail__price">
+          {current.creator ? (
+            <div className="item-detail__meta">
+              <div className="item-detail__meta-col">
+                <div className="item-detail__label">Creator</div>
+                <CreatorBadge address={current.creator} className="item-detail__creator" linkToProfile />
+              </div>
+            </div>
+          ) : null}
+
+          <hr className="item-detail__divider" />
+
+          <div className="item-detail__price-block">
+            <div className="item-detail__price-label">Price</div>
+            {forSale ? (
+              onSale ? (
+                <div className="item-detail__price item-detail__price--sale">
+                  <span className="item-detail__price">
                     <CurrencyIcon className="item-detail__diamond" />
                     <span className="item-detail__price-value">{current.priceCredits}</span>
-                  </div>
-                )
+                  </span>
+                  <span className="item-detail__price-was">
+                    <CurrencyIcon className="item-detail__diamond item-detail__diamond--was" />
+                    {current.compareAtCredits}
+                  </span>
+                  {saleDiscountPct(current.compareAtCredits!, current.priceCredits) > 0 ? (
+                    <span className="item-detail__sale-badge">
+                      SALE -{saleDiscountPct(current.compareAtCredits!, current.priceCredits)}%
+                    </span>
+                  ) : null}
+                  <SaleCountdown endsAt={current.saleEndsAt} className="item-detail__countdown" />
+                </div>
               ) : (
-                <div className="item-detail__price item-detail__price--none">Not for sale</div>
-              )}
-              {session ? (
-                <div className="item-detail__balance muted">Your balance: <CurrencyIcon className="ccy-mark" /> {balance?.credits ?? 0}</div>
-              ) : null}
-            </div>
-
-            <div className="item-detail__ctas">
-              {own ? (
-                <p className="item-detail__own-note muted">
-                  This is your item — manage it in <Link to="/my-assets">My Assets</Link>.
-                </p>
-              ) : (
-              <>
-              {forSale ? (
-                <button
-                  className="btn btn--purple item-detail__cta"
-                  onClick={handleBuyNow}
-                  disabled={busy || resolvingTrade}
-                >
-                  {busy ? 'Buying…' : 'Buy now'}
-                </button>
-              ) : null}
-              <button
-                className="item-detail__addcart"
-                onClick={handleAddToCart}
-                disabled={!forSale || inCart || resolvingTrade || busy}
-              >
-                <span className="ico ico-cart-solid item-detail__addcart-ico" aria-hidden />
-                {addLabel}
-              </button>
-              </>
-              )}
-            </div>
-
-            {status ? <p className="muted item-detail__status">{status}</p> : null}
-            {error ? <p className="error item-detail__status">{error}</p> : null}
+                <div className="item-detail__price">
+                  <CurrencyIcon className="item-detail__diamond" />
+                  <span className="item-detail__price-value">{current.priceCredits}</span>
+                </div>
+              )
+            ) : (
+              <div className="item-detail__price item-detail__price--none">Not for sale</div>
+            )}
+            {session ? (
+              <div className="item-detail__balance muted">Your balance: <CurrencyIcon className="ccy-mark" /> {balance?.credits ?? 0}</div>
+            ) : null}
           </div>
+
+          <div className="item-detail__ctas">
+            {own ? (
+              <p className="item-detail__own-note muted">
+                This is your item — manage it in <Link to="/my-assets">My Assets</Link>.
+              </p>
+            ) : (
+            <>
+            {forSale ? (
+              <button
+                className="btn btn--purple item-detail__cta"
+                onClick={handleBuyNow}
+                disabled={busy || resolvingTrade}
+              >
+                {busy ? 'Buying…' : 'Buy now'}
+              </button>
+            ) : null}
+            <button
+              className="item-detail__addcart"
+              onClick={handleAddToCart}
+              disabled={!forSale || inCart || resolvingTrade || busy}
+            >
+              <span className="ico ico-cart-solid item-detail__addcart-ico" aria-hidden />
+              {addLabel}
+            </button>
+            </>
+            )}
+          </div>
+
+          {status ? <p className="muted item-detail__status">{status}</p> : null}
+          {error ? <p className="error item-detail__status">{error}</p> : null}
         </div>
       </div>
 
       <CollectionCarousel
         title={collectionTitle}
         items={carouselItems}
-        activeId={current.id}
-        onSelect={selectSibling}
         onViewAll={current.contractAddress ? () => navigate(`/collection/${current.contractAddress}`) : undefined}
       />
     </div>

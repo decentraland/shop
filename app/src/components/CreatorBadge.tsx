@@ -66,7 +66,6 @@ export function CreatorBadge({
     return (
       <button
         className={`creator creator--link${className ? ` ${className}` : ''}`}
-        title={`View ${name}`}
         onClick={e => {
           e.stopPropagation()
           navigate(`/creator/${address}`)

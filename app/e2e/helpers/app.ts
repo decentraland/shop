@@ -105,8 +105,10 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
   const method = req.method()
   const path = u.pathname
 
-  // Same-origin app assets (vite) + inline data: URIs → let through.
-  if (u.port === '5273' || req.url().startsWith('data:')) return req.continue()
+  // Same-origin app assets (vite dev server, whatever port BASE resolves to) + inline data: URIs →
+  // let through. Deriving the port from BASE (not a hardcoded 5273) keeps the mock working when the
+  // e2e server runs on a custom E2E_PORT.
+  if (u.port === new URL(BASE).port || req.url().startsWith('data:')) return req.continue()
   // CORS preflight must always succeed (204) — even for a forced-error path below — so the browser
   // actually issues the real request (otherwise a preflight failure masks the intended error as a
   // generic "Failed to fetch"). The error is returned WITH CORS headers on the real request.
@@ -285,6 +287,9 @@ export async function launchApp(
   const errors = opts.errors ?? {}
   const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] })
   const page = await browser.newPage()
+  // Default to a desktop viewport so the browse sidebar (Category/Price/Rarity) renders inline; below
+  // 900px it collapses into the mobile Filters drawer. Mobile-specific tests can override per-page.
+  await page.setViewport({ width: 1280, height: 900 })
   // Only inject the signed-in session (localStorage identity + mock window.ethereum) when NOT signedOut.
   if (!opts.signedOut) {
     const sess = await session()

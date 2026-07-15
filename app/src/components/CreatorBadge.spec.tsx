@@ -61,8 +61,10 @@ describe('CreatorBadge avatar rendering', () => {
   it('should render a clickable button to the creator page when linkToProfile is set', () => {
     useProfile.mockReturnValue({ data: { name: 'bondi' } })
     renderBadge({ linkToProfile: true })
+    // The button's accessible name comes from its visible "By bondi" text; no native title tooltip
+    // (it leaked into the card hover state — see CreatorBadge).
     const button = screen.getByRole('button', { name: /By bondi/ })
-    expect(button.getAttribute('title')).toBe('View bondi')
+    expect(button.getAttribute('title')).toBeNull()
   })
 
   it('should render nothing without an address', () => {

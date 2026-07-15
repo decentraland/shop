@@ -6,7 +6,7 @@ import { manaWeiToCredits } from '~/lib/mana-rate'
 import { useManaRate } from '~/hooks/useManaRate'
 import { AssetCard } from '~/components/AssetCard'
 import { CategoryFilter } from '~/components/CategoryFilter'
-import { FilterBar, SORTS } from '~/components/FilterBar'
+import { FilterBar, RARITIES, SORTS } from '~/components/FilterBar'
 import { SkeletonCards } from '~/components/SkeletonCards'
 import { LoadMore } from '~/components/LoadMore'
 import { MarketCheckout } from '~/components/MarketCheckout'
@@ -82,7 +82,19 @@ export function Assets() {
   const [priceMin, setPriceMin] = useState('')
   const [priceMax, setPriceMax] = useState('')
   const [sort, setSort] = useState('newest')
+  const [rarityOpen, setRarityOpen] = useState(false)
+  const [filtersOpen, setFiltersOpen] = useState(false) // mobile filters drawer
   const [checkout, setCheckout] = useState<LegacyListing | null>(null)
+
+  // Close the mobile filters drawer on Escape (it already closes on scrim tap / ✕).
+  useEffect(() => {
+    if (!filtersOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setFiltersOpen(false)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [filtersOpen])
 
   // Build the server filter set — /v3/catalog/unified does the filtering + sort + search.
   const min = priceMin && !Number.isNaN(Number(priceMin)) ? Number(priceMin) : undefined
@@ -150,6 +162,15 @@ export function Assets() {
   function toggleRarity(r: string) {
     setRarities(rs => (rs.includes(r) ? rs.filter(x => x !== r) : [...rs, r]))
   }
+  // Reset every filter to its default (Figma drawer "Clear Filters"). Filters apply live, so this
+  // takes effect immediately; the drawer's "Apply" just closes it.
+  function clearFilters() {
+    setCategory('wearable')
+    setSubCategory(null)
+    setRarities([])
+    setPriceMin('')
+    setPriceMax('')
+  }
   function openCheckout(card: CatalogItem) {
     const item = items.find(i => i.id === card.id)
     if (item && item.source === 'legacy' && item.manaWei) setCheckout(toLegacyListing(item))
@@ -176,7 +197,12 @@ export function Assets() {
 
   return (
     <div className="browse browse--sidebar">
-      <aside className="browse__sidebar">
+      {filtersOpen ? <div className="browse__scrim" onClick={() => setFiltersOpen(false)} aria-hidden /> : null}
+      <aside className={`browse__sidebar${filtersOpen ? ' is-open' : ''}`}>
+        <div className="browse__sidebar-head">
+          <span className="browse__sidebar-title">Filters</span>
+          <button className="browse__sidebar-close" onClick={() => setFiltersOpen(false)} aria-label="Close filters">✕</button>
+        </div>
         <div className="sidebar__section-label">Category</div>
         <CategoryFilter category={category} subCategory={subCategory} onCategory={pickCategory} onSub={setSubCategory} />
 
@@ -251,18 +277,41 @@ export function Assets() {
             </span>
           </div>
         </div>
+
+        <div className="sidebar__divider" />
+
+        {/* Rarity now lives at the bottom-left of the sidebar (Figma New Shop 2026) instead of a
+            top-right pill — a collapsible section over the shared RARITIES multi-select. */}
+        <button
+          type="button"
+          className="sidebar__section-toggle"
+          aria-expanded={rarityOpen}
+          onClick={() => setRarityOpen(o => !o)}
+        >
+          <span className="sidebar__section-label">Rarity</span>
+          <span className={`ico ico-chevron sidebar__section-chev${rarityOpen ? ' is-up' : ''}`} aria-hidden />
+        </button>
+        {rarityOpen ? (
+          <div className="rarity-filter">
+            {RARITIES.map(r => (
+              <label key={r} className={`rarity-filter__check${rarities.includes(r) ? ' is-on' : ''}`}>
+                <input type="checkbox" checked={rarities.includes(r)} onChange={() => toggleRarity(r)} />
+                <span>{r}</span>
+              </label>
+            ))}
+          </div>
+        ) : null}
+
+        {/* Drawer action bar (Figma node 1059-158189) — mobile only (CSS). Filters apply live, so
+            Apply simply dismisses the drawer; Clear Filters resets them all. */}
+        <div className="browse__sidebar-foot">
+          <button type="button" className="browse__clear" onClick={clearFilters}>Clear Filters</button>
+          <button type="button" className="browse__apply" onClick={() => setFiltersOpen(false)}>Apply</button>
+        </div>
       </aside>
 
       <div className="browse__main">
-        <FilterBar
-          rarities={rarities}
-          onToggleRarity={toggleRarity}
-          sort={sort}
-          onSort={setSort}
-          total={total}
-          loading={isLoading}
-          query={q}
-        />
+        <FilterBar sort={sort} onSort={setSort} total={total} loading={isLoading} query={q} onOpenFilters={() => setFiltersOpen(true)} />
 
         {/* Legacy (market-priced) cards follow the live rate; if the oracle is down, Buy Now is paused.
             Only warn when the current results actually contain a market-priced item, so users browsing

@@ -1,17 +1,18 @@
 import { ReactNode, useState } from 'react'
 import type { ShopSort } from '~/lib/api'
 
-// Main-area toolbar for the unified browse grid: the result count on the left + the Rarity and
-// Sort By dropdown "pills" on the right (Figma "Marketplace-UX-Improvements"). Owns the
-// single-open-panel state (only one popover at a time) + the click-away scrim. Category + Price
-// filters live in the page sidebar (see Assets.tsx) — this toolbar carries only Rarity + Sort.
+// Main-area toolbar for the unified browse grid: the result count on the left + the Sort By dropdown
+// "pill" on the right (Figma "New Shop 2026"). Owns the single-open-panel state + the click-away
+// scrim. Category, Price and Rarity filters all live in the page sidebar (see Assets.tsx).
 
 export const RARITIES = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic', 'unique', 'exotic']
 
+// Labels match the Figma sort menu (node 1059-160222). The server supports newest/cheapest/
+// most_expensive/name — there is no dedicated "recently listed" sort, so "Newest" covers it.
 export const SORTS: { key: string; label: string; server: ShopSort }[] = [
   { key: 'newest', label: 'Newest', server: 'newest' },
-  { key: 'price-asc', label: 'Price: Low to High', server: 'cheapest' },
-  { key: 'price-desc', label: 'Price: High to Low', server: 'most_expensive' },
+  { key: 'price-asc', label: 'Cheapest', server: 'cheapest' },
+  { key: 'price-desc', label: 'Most Expensive', server: 'most_expensive' },
   { key: 'name', label: 'Name (A–Z)', server: 'name' }
 ]
 
@@ -61,25 +62,22 @@ function FilterPanel({
 }
 
 export function FilterBar({
-  rarities,
-  onToggleRarity,
-  rarityOptions = RARITIES,
   sort,
   onSort,
   sortOptions = SORTS,
   total,
   loading,
-  query
+  query,
+  onOpenFilters
 }: {
-  rarities: string[]
-  onToggleRarity: (rarity: string) => void
-  rarityOptions?: string[]
   sort: string
   onSort: (key: string) => void
   sortOptions?: { key: string; label: string; server: ShopSort }[]
   total: number
   loading: boolean
   query?: string
+  /** Opens the mobile filters drawer. The trigger only shows on small screens (CSS). */
+  onOpenFilters?: () => void
 }) {
   const [open, setOpen] = useState<string | null>(null)
   const panel: PanelController = {
@@ -98,24 +96,12 @@ export function FilterBar({
         </span>
 
         <div className="browse__dropdowns">
-          <FilterPanel
-            panelKey="rarity"
-            label="Rarity"
-            active={rarities.length > 0}
-            badge={rarities.length || undefined}
-            align="right"
-            panel={panel}
-          >
-            <div className="filter-pop filter-pop--rarity">
-              {rarityOptions.map(r => (
-                <label key={r} className="filter-pop__check">
-                  <input type="checkbox" checked={rarities.includes(r)} onChange={() => onToggleRarity(r)} />
-                  <span>{r}</span>
-                </label>
-              ))}
-            </div>
-          </FilterPanel>
-
+          {onOpenFilters ? (
+            <button type="button" className="browse__filters-btn" onClick={onOpenFilters}>
+              <span className="ico ico-filter" aria-hidden />
+              Filters
+            </button>
+          ) : null}
           <FilterPanel panelKey="sort" label="Sort By" align="right" panel={panel}>
             <div className="filter-pop filter-pop--sort">
               {sortOptions.map(s => (

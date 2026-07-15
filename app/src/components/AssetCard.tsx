@@ -58,6 +58,10 @@ export function AssetCard(props: AssetCardProps) {
   const detailPath = `/item/${item.contractAddress}/${routeSeg}`
 
   function onEnter() {
+    // Touch devices synthesize a `mouseenter` on tap — don't enter the hover state there (it would
+    // flash the red border + 3D preview on a tap). Hover is desktop-only; see @media (hover: hover)
+    // in index.css, which gates the matching CSS swap.
+    if (typeof window !== 'undefined' && window.matchMedia && !window.matchMedia('(hover: hover)').matches) return
     if (timer.current) clearTimeout(timer.current)
     timer.current = setTimeout(() => {
       setHovered(true)
@@ -145,9 +149,8 @@ export function AssetCard(props: AssetCardProps) {
             action is always shown so items stay buyable without a mouse (see .card__cart in index.css).
             Everything stays in the DOM so the action button is keyboard-reachable and touch-tappable.
             Native cards add to cart; Market (legacy) cards Buy now directly (price locked at checkout). */}
-        <div className="card__row">
-          <div className="card__desc">
-            <div className="card__name" title={item.name}>{item.name}</div>
+        <div className="card__desc">
+          <div className="card__name" title={item.name}>{item.name}</div>
             {item.creator ? (
               <CreatorBadge address={item.creator} className="card__creator" linkToProfile />
             ) : (
@@ -180,7 +183,6 @@ export function AssetCard(props: AssetCardProps) {
               {item.priceCredits}
             </div>
           )}
-        </div>
 
         <div className="card__chips">
           <span
@@ -196,6 +198,29 @@ export function AssetCard(props: AssetCardProps) {
             <span className="chip chip--icon"><span className={`ico ico-${genderIco}`} aria-hidden /></span>
           ) : null}
         </div>
+
+        {/* Round add button — the compact mobile card's primary action (Figma). Same behavior as the
+            full-width .card__cart below; only one is visible per breakpoint (CSS). */}
+        {isMarket && props.mode === 'market' ? (
+          <button
+            className="card__add-round"
+            onClick={e => { e.stopPropagation(); props.onBuyNow(item) }}
+            disabled={props.marketPriceCredits == null}
+            aria-label={props.marketPriceCredits == null ? 'Unavailable' : 'Buy now'}
+          >
+            <span className="ico ico-plus" aria-hidden />
+          </button>
+        ) : (
+          <button
+            className={`card__add-round${inCart ? ' is-in' : ''}`}
+            onClick={e => { e.stopPropagation(); if (!own) add(item, 'grid') }}
+            disabled={inCart || own}
+            aria-label={own ? 'Your item' : inCart ? 'In cart' : 'Add to cart'}
+          >
+            <span className="ico ico-plus" aria-hidden />
+          </button>
+        )}
+
         {isMarket && props.mode === 'market' ? (
           <button
             className="card__cart"

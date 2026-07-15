@@ -172,7 +172,6 @@ export function NavBar() {
           <NavLink to="/overview">{t('nav.overview')}</NavLink>
           <NavLink to="/assets">{t('nav.collectibles')}</NavLink>
           <NavLink to="/my-assets">{t('nav.myAssets')}</NavLink>
-          <NavLink to="/my-favorites">{t('nav.myFavorites')}</NavLink>
           {session ? <NavLink to="/my-purchases">{t('nav.myPurchases')}</NavLink> : null}
         </nav>
         <div
@@ -229,6 +228,16 @@ export function NavBar() {
         >
           <CurrencyIcon className="subnav__credits-ico" />
           {t('nav.getCredits', { currency: CURRENCY.name })}
+        </NavLink>
+        <NavLink
+          to="/my-favorites"
+          className="subnav__fav"
+          aria-label={t('nav.myFavorites')}
+        >
+          <span
+            className="ico ico-heart"
+            aria-hidden
+          />
         </NavLink>
         <div className="subnav__cart-wrap">
           <NavLink

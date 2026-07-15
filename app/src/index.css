@@ -64,6 +64,8 @@ h1, h2 { margin: 0; }
 .ico-gender-unisex { -webkit-mask-image: url('./assets/icons/gender-unisex.svg'); mask-image: url('./assets/icons/gender-unisex.svg'); }
 .ico-clock { -webkit-mask-image: url('./assets/icons/clock.svg'); mask-image: url('./assets/icons/clock.svg'); }
 .ico-chevron { -webkit-mask-image: url('./assets/icons/chevron-down.svg'); mask-image: url('./assets/icons/chevron-down.svg'); }
+.ico-filter { -webkit-mask-image: url('./assets/icons/filter.svg'); mask-image: url('./assets/icons/filter.svg'); }
+.ico-plus { -webkit-mask-image: url('./assets/icons/plus.svg'); mask-image: url('./assets/icons/plus.svg'); }
 .ico-cat-head { -webkit-mask-image: url('./assets/icons/cat-head.svg'); mask-image: url('./assets/icons/cat-head.svg'); }
 .ico-cat-upper { -webkit-mask-image: url('./assets/icons/cat-upper.svg'); mask-image: url('./assets/icons/cat-upper.svg'); }
 .ico-cat-handwear { -webkit-mask-image: url('./assets/icons/cat-handwear.svg'); mask-image: url('./assets/icons/cat-handwear.svg'); }
@@ -91,15 +93,14 @@ h1, h2 { margin: 0; }
 /* ---------------- Sub-nav (shop sections; under the ui2 Navbar) ---------------- */
 .subnav {
   position: sticky; top: 92px; z-index: 40;
-  display: flex; align-items: center; gap: 28px;
+  display: flex; align-items: center; gap: 24px;
   height: 66px; padding: 0 40px; background: #fff; border-bottom: 1px solid var(--line);
 }
-@media (max-width: 768px) { .subnav { top: 64px; } }
-.subnav__tabs { display: flex; gap: 30px; height: 100%; }
+.subnav__tabs { display: flex; gap: 40px; height: 100%; }
 .subnav__tabs a {
-  display: flex; align-items: center; height: 100%;
-  text-transform: uppercase; letter-spacing: .02em; font-size: 14px; font-weight: 700;
-  color: var(--muted); border-bottom: 3px solid transparent;
+  display: flex; align-items: center; height: 100%; white-space: nowrap;
+  text-transform: uppercase; letter-spacing: .03em; font-size: 15px; font-weight: 600;
+  color: var(--muted-2); border-bottom: 4px solid transparent;
 }
 .subnav__tabs a.active { color: var(--text); border-bottom-color: var(--text); }
 .subnav__search {
@@ -109,20 +110,58 @@ h1, h2 { margin: 0; }
 .subnav__search input { border: 0; outline: 0; width: 100%; font-size: 15px; background: transparent; color: var(--text); }
 .subnav__search input::placeholder { color: var(--muted); }
 .subnav__search-ico { color: var(--muted); }
-/* The UI2 footer ships at its own (larger) scale; zoom it down to sit right in the compact shop. */
-.shop-footer { zoom: 0.8; }
+
+/* Mobile header (Figma node 1038-146881): the flat desktop row overflows on a phone, so it restacks
+   into three rows — [Buy DCL · | · balance · ♥ · cart], a full-width search pill, then the tabs.
+   flex-wrap + order + a 100% flex-basis on search/tabs forces the wraps; margin-right:auto on the
+   Buy DCL button pushes the balance/heart/cart cluster to the right edge (works with or without the
+   session-only balance chip). This block sits AFTER the base .subnav* rules so its overrides win the
+   cascade. */
+@media (max-width: 768px) {
+  /* padding-bottom: 0 so the tabs row sits flush with the subnav's bottom border — the active tab's
+     underline then lands exactly on that container border (Figma). */
+  .subnav {
+    top: 64px; height: auto; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 16px 0;
+  }
+  .subnav__credits { order: 1; margin-right: auto; }
+  .subnav__balance { order: 2; }
+  .subnav__fav { order: 3; }
+  .subnav__cart-wrap { order: 4; }
+  .subnav__search { order: 5; flex: 1 0 100%; margin-left: 0; height: 34px; }
+  .subnav__search input { font-size: 14px; }
+  /* Tabs (Figma node 1038-146881): 12px SemiBold uppercase, gap 16, active underline 4px sitting on
+     the subnav border. The row is only as tall as the text (no extra height) so it hugs the border. */
+  .subnav__tabs { order: 6; flex: 1 0 100%; height: auto; gap: 16px; overflow-x: auto; scrollbar-width: none; }
+  .subnav__tabs::-webkit-scrollbar { display: none; }
+  .subnav__tabs a {
+    height: auto; font-size: 12px; letter-spacing: .038em; font-weight: 600;
+    border-bottom-width: 4px; padding: 8px 0 6px;
+  }
+}
 .subnav__cart {
   position: relative; display: grid; place-items: center;
   width: 40px; height: 40px; background: var(--media); border-radius: var(--radius-btn); color: var(--text-2);
 }
-.subnav__cart .ico-cart { width: 24px; height: 24px; }
+.subnav__cart .ico-cart { width: 28px; height: 28px; }
 .subnav__cart-badge {
-  position: absolute; top: -6px; right: -6px; background: var(--brand-violet); color: #fff;
-  font-size: 11px; font-weight: 600; border-radius: 999px; min-width: 18px; height: 18px; display: grid; place-items: center; padding: 0 5px;
+  position: absolute; top: -4px; right: -4px; background: var(--brand-violet); color: #fff;
+  font-size: 12px; font-weight: 600; border-radius: 999px; min-width: 20px; height: 20px; display: grid; place-items: center; padding: 0 5px;
+  border: 2px solid #fff;
 }
+/* Favorites heart — sits between "Get credits" and the cart (replaces the old sub-nav tab). */
+.subnav__fav {
+  display: grid; place-items: center;
+  width: 40px; height: 40px; border-radius: var(--radius-btn); color: var(--text-2);
+  transition: background .12s ease, color .12s ease;
+}
+.subnav__fav:hover { background: var(--media); }
+.subnav__fav.active { color: var(--brand-violet); }
+.subnav__fav .ico-heart { width: 28px; height: 28px; }
 
 /* ---------------- Page ---------------- */
 .page { padding: 28px 40px 80px; max-width: 1760px; margin: 0 auto; width: 100%; flex: 1 0 auto; }
+/* Mobile gutters are 16px (Figma node 1040-149085: cards at x=16, gap 16), not the desktop 40px. */
+@media (max-width: 768px) { .page { padding: 16px 16px 56px; } }
 .placeholder { color: var(--muted); font-size: 18px; padding: 40px 0; }
 /* Suspense fallback while a lazy-loaded route chunk downloads. */
 .page-loading { display: grid; place-items: center; min-height: 46vh; }
@@ -171,7 +210,9 @@ h1, h2 { margin: 0; }
 .row__title { font-size: 20px; font-weight: 600; color: var(--text); }
 .row__viewall { display: inline-flex; align-items: center; gap: 4px; color: var(--accent); font-weight: 600; font-size: 15px; letter-spacing: .046em; text-transform: uppercase; }
 .row__track { display: flex; gap: 16px; overflow-x: auto; padding: 12px 10px; margin: 0 -10px; scroll-snap-type: x proximity; }
-.row__track > * { flex: 0 0 220px; scroll-snap-align: start; }
+.row__track > * { flex: 0 0 281px; scroll-snap-align: start; }
+/* Mobile: rail cards shrink to a 2-up width (~2 cards + a peek) instead of a single oversized 281px card. */
+@media (max-width: 720px) { .row__track > * { flex: 0 0 44vw; } }
 
 /* ---------------- Assets (sidebar + grid) ---------------- */
 .assets { display: grid; grid-template-columns: 244px 1fr; gap: 28px; }
@@ -193,7 +234,16 @@ h1, h2 { margin: 0; }
 .assets__bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
 .assets__count { color: var(--muted); font-weight: 600; }
 .sortby { background: #fff; border: 1px solid var(--line-strong); border-radius: var(--radius-btn); padding: 10px 16px; font-weight: 700; text-transform: uppercase; font-size: 13px; letter-spacing: .03em; }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 16px; }
+/* Fixed 281px columns so each card is exactly the Figma 281×300 (media 281×204 + info 96), instead of
+   stretching to fill and coming out narrower. auto-fill wraps as many 281px cards as fit; the row is
+   left-aligned with any leftover space on the right (matches the Figma grid). */
+/* Cards are FLUID (designer spec: max 350px, min ~150 on mobile, ideally ≤5 per row). auto-fill packs
+   as many ≥250px columns as fit and 1fr stretches them to fill the row exactly — so the gap stays 16px
+   AND the last card's right edge lines up with the toolbar's Sort By pill. The page is capped at
+   1760px (see .page max-width), which keeps this at 4–5 columns (never 6+) and cards well under 350px. */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 16px; }
+/* Mobile: two compact columns (Figma), ~171px each (> the 150px min). */
+@media (max-width: 720px) { .grid { grid-template-columns: 1fr 1fr; gap: 16px; } }
 
 /* ---------------- Browse: main-area toolbar (count + Rarity/Sort pills) ---------------- */
 .browse { position: relative; }
@@ -207,10 +257,12 @@ h1, h2 { margin: 0; }
 .browse__dropdowns { display: flex; align-items: center; gap: 8px; }
 .filterbar__item { position: relative; }
 /* Dropdown pill (Rarity, Sort By): white, 0.5px hairline, chevron on the right. */
+/* Toolbar pills (Sort By / Filters) — Figma node 1052-154074: white, 0.5px gray-3 hairline, fully
+   rounded (32px), Inter Medium 12px gray-2. Sort By is uppercase (per design). */
 .filterbar__sort {
   display: inline-flex; align-items: center; justify-content: space-between; gap: 6px;
-  background: #fff; border: 0.5px solid var(--muted-2); border-radius: 8px;
-  height: 40px; padding: 4px 4px 4px 12px; min-width: 120px;
+  background: #fff; border: 0.5px solid var(--muted-2); border-radius: 32px;
+  height: 40px; padding: 4px 8px 4px 12px; min-width: 120px;
   color: var(--text-2); font-weight: 500; font-size: 12px; white-space: nowrap;
   text-transform: uppercase;
 }
@@ -326,25 +378,34 @@ h1, h2 { margin: 0; }
 .card__fav .ico-heart { width: 20px; height: 20px; }
 .card__fav.is-on { color: var(--dcl-red); }
 
-/* Info area (Figma): fixed 96px (media 281×204 + info 96 = card 281×300). A top row (name/creator +
-   price) + a bottom row (chips at rest / the action button on hover). The FIXED height + space-between
-   means the chips↔button swap on hover never changes the card size (no layout shift). */
-.card__body { height: 96px; padding: 8px; display: flex; flex-direction: column; justify-content: space-between; flex: none; }
-.card__row { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
-.card__desc { display: flex; flex-direction: column; min-width: 0; flex: 1; }
-.card__name { font-weight: 600; font-size: 14px; line-height: 1.57; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Info area (Figma): fixed 96px (media 281×204 + info 96 = card 281×300). CSS grid with named areas so
+   the same markup reflows per breakpoint. Desktop: name/creator top-left, price top-right, chips (or
+   the action button on hover) on the bottom row. The FIXED height + fixed rows mean the chips↔button
+   swap on hover never changes the card size (no layout shift). */
+.card__body {
+  height: 96px; padding: 8px; flex: none;
+  display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto 1fr;
+  grid-template-areas: 'desc price' 'chips chips';
+  column-gap: 8px; row-gap: 4px;
+}
+.card__desc { grid-area: desc; display: flex; flex-direction: column; min-width: 0; }
+.card__name { font-weight: 600; font-size: 14px; line-height: 1.35; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* position/z-index so the creator link sits ABOVE the whole-card overlay and stays clickable. */
 .card__creator { position: relative; z-index: 4; color: var(--muted); font-size: 10px; margin-bottom: 0; }
-.card__price { display: flex; align-items: center; gap: 4px; flex: none; font-weight: 600; font-size: 17px; color: var(--text-2); }
+.card__price { grid-area: price; align-self: start; justify-self: end; display: flex; align-items: center; gap: 4px; font-weight: 600; font-size: 17px; color: var(--text-2); }
 .card__diamond { width: 15px; height: 15px; color: var(--text-2); }
-.card__chips { display: flex; align-items: flex-end; gap: 4px; flex-wrap: wrap; }
+.card__chips { grid-area: chips; align-self: end; display: flex; align-items: flex-end; gap: 2.4px; flex-wrap: wrap; }
+/* Round add-to-cart for the compact mobile card (Figma): hidden on desktop (the full-width .card__cart
+   is used there). */
+.card__add-round { display: none; }
 .chip { display: inline-flex; align-items: center; font-size: 11px; font-weight: 700; border-radius: var(--radius-chip); padding: 3px 8px; background: var(--chip); color: #555; }
-.chip--rarity { background: var(--rarity-bg); color: var(--rarity); text-transform: uppercase; letter-spacing: .02em; }
+.chip--rarity { background: var(--rarity-bg); color: var(--rarity); text-transform: uppercase; }
 .chip--icon { padding: 3px 6px; font-size: 13px; }
 .chip--icon .ico { width: 14px; height: 14px; color: #444; }
-/* Marketplace-style chips on the browse card: smaller than the shared .chip default. A uniform fixed
-   height keeps the rarity, category and gender chips exactly the same height (content centered). */
-.card__chips .chip { height: 18px; font-size: 8.56px; font-weight: 600; padding: 0 6.5px; letter-spacing: .02em; }
+/* Marketplace-style chips on the browse card. All three chips (rarity, category, gender) share ONE
+   fixed height so they line up; the rarity label is bumped up from the tiny Figma spec for legibility
+   and to fill the same pill height as the icon chips. */
+.card__chips .chip { height: 18px; font-size: 10px; line-height: 1; font-weight: 600; padding: 0 6.5px; letter-spacing: .01em; border-radius: 4px; }
 .card__chips .chip--icon { padding: 0 5px; }
 .card__chips .chip--icon .ico { width: 14.6px; height: 14.6px; }
 /* Add-to-cart / Buy now (Figma node 790-63037: secondary dark button). Lives in the body below the
@@ -352,24 +413,54 @@ h1, h2 { margin: 0; }
    revealed on hover OR keyboard focus, swapping out the price row; where hover isn't available (touch)
    it's always shown so the item stays buyable without a mouse. Always in the DOM (keyboard-reachable). */
 .card__cart {
+  grid-area: chips; align-self: end;
   position: relative; z-index: 4; /* above the whole-card overlay link so the action stays clickable */
   width: 100%; display: none; align-items: center; justify-content: center; gap: 8px;
   background: var(--black-btn); color: var(--soft-white); border: 0; border-radius: var(--radius-btn); height: 40px;
   font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: .046em;
   transition: background .15s ease;
 }
-.card:hover .card__cart,
-.card__body:focus-within .card__cart { display: flex; }
-/* Swap the price + chips for the action on hover/focus; the name/creator stay put. */
-.card:hover .card__price, .card:hover .card__chips,
-.card__body:focus-within .card__price, .card__body:focus-within .card__chips { display: none; }
-@media (hover: none) {
-  /* Touch: no hover to reveal on, so keep the action visible (alongside the price row). */
+/* Reveal-on-hover/focus is gated to hover-capable devices. On touch (hover: none) a tap synthesizes
+   :hover, which would otherwise swap the price row for the dark button and leak the chips back in
+   (Figma mobile card has neither) — so the swap must not apply there. See onEnter's matchMedia guard
+   for the JS side (red border + 3D preview). */
+@media (hover: hover) {
+  .card:hover .card__cart,
+  .card__body:focus-within .card__cart { display: flex; }
+  /* Swap the price + chips for the action on hover/focus; the name/creator stay put. */
+  .card:hover .card__price, .card:hover .card__chips,
+  .card__body:focus-within .card__price, .card__body:focus-within .card__chips { display: none; }
+}
+@media (hover: none) and (min-width: 721px) {
+  /* Touch on a wide screen: no hover to reveal on, so keep the full-width action visible. */
   .card__cart { display: flex; }
 }
 .card__cart:hover:not(:disabled) { background: #43404a; }
 .card__cart.is-in, .card__cart:disabled { background: #43404a; opacity: 1; cursor: default; }
 .card__cart-ico { width: 20px; height: 20px; }
+
+/* Compact mobile card (Figma New Shop 2026): name/creator on top, price bottom-left + a round add
+   button bottom-right. No chips, no full-width dark button. */
+@media (max-width: 720px) {
+  /* Media is near-square on mobile (Figma card 171×250 = media ~171×181 + info ~74). */
+  .card__media { aspect-ratio: 201 / 213; }
+  .card__name { font-size: 12px; }
+  .card__body {
+    height: auto; grid-template-rows: auto auto; grid-template-areas: 'desc desc' 'price add';
+    align-items: center; row-gap: 10px; padding: 8px;
+  }
+  .card__chips { display: none; }
+  .card__cart { display: none; }
+  .card__price { align-self: center; justify-self: start; }
+  .card__add-round {
+    grid-area: add; align-self: center; justify-self: end;
+    z-index: 4; display: inline-flex; align-items: center; justify-content: center;
+    width: 32px; height: 32px; border-radius: 50%; border: 0; padding: 0;
+    background: var(--accent); color: #fff; cursor: pointer;
+  }
+  .card__add-round .ico-plus { width: 18px; height: 18px; }
+  .card__add-round:disabled { opacity: .5; cursor: default; }
+}
 
 /* Merchandising price treatment (bundles / discounts): strikethrough "was" + green "Save X%". */
 .price-was { color: var(--muted); text-decoration: line-through; font-weight: 600; }
@@ -453,7 +544,10 @@ h1, h2 { margin: 0; }
 /* ---------------- My Assets (sell flow) ---------------- */
 .myassets__head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 16px; }
 .connect-row { display: flex; gap: 12px; margin-top: 12px; }
-.asset-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; margin-top: 20px; }
+/* My Assets / grids of AssetCard: fixed 281px columns so every card is the same Figma 281×300 as the
+   Collectibles page. */
+.asset-grid { display: grid; grid-template-columns: repeat(auto-fill, 281px); gap: 16px; margin-top: 20px; justify-content: start; }
+@media (max-width: 640px) { .asset-grid { grid-template-columns: repeat(auto-fill, minmax(0, 1fr)); } }
 .asset-card { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
 .asset-card__img { aspect-ratio: 1; background: var(--media); border-radius: 8px; display: grid; place-items: center; overflow: hidden; }
 .asset-card__img img { width: 100%; height: 100%; object-fit: contain; }
@@ -495,24 +589,24 @@ h1, h2 { margin: 0; }
 
 /* ---------------- Sub-nav: Get credits link ---------------- */
 .subnav__credits {
-  display: inline-flex; align-items: center; gap: 8px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   height: 40px; padding: 0 16px; border-radius: var(--radius-btn);
-  background: var(--rarity-bg); color: var(--accent);
-  font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: .03em;
-  white-space: nowrap;
+  background: linear-gradient(180deg, #c640cd 0%, #691fa9 100%); color: #fcfcfc;
+  font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: .046em;
+  white-space: nowrap; transition: filter .15s ease;
 }
-.subnav__credits.active { background: var(--accent); color: #fff; }
-.subnav__credits-ico { width: 16px; height: 16px; }
-@media (max-width: 768px) { .subnav__credits { display: none; } }
+.subnav__credits:hover { filter: brightness(1.08); }
+.subnav__credits:active { filter: brightness(.95); }
+.subnav__credits-ico { width: 20px; height: 20px; }
 
-/* Persistent credit balance chip (left of "Get credits"). */
+/* Persistent credit balance chip (left of "Get credits") — transparent per Figma. */
 .subnav__balance {
-  display: inline-flex; align-items: center; gap: 6px;
-  height: 40px; padding: 0 14px; border-radius: var(--radius-btn);
-  background: var(--media, #ecebed); color: #242129;
-  font-weight: 800; font-size: 14px; white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 4px;
+  height: 40px; padding: 0 4px; border-radius: 4px;
+  background: transparent; color: #242129;
+  font-weight: 600; font-size: 16px; letter-spacing: -.03em; white-space: nowrap;
 }
-.subnav__balance-ico { width: 16px; height: 16px; }
+.subnav__balance-ico { width: 20px; height: 20px; color: var(--accent); }
 .cart__balance { margin-top: 4px; }
 .cart__info { min-width: 0; }
 .cart__creator { margin-top: 3px; }
@@ -842,7 +936,10 @@ a.purchase:hover { box-shadow: 0 8px 22px rgba(20, 20, 30, .10); transform: tran
    a deterministic color. See CreatorBadge.tsx. */
 .creator__ava--letter { display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: 11px; font-weight: 700; line-height: 1; text-transform: uppercase; }
 .creator__name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.card__creator.creator { margin-bottom: 6px; }
+/* Compact creator line inside a card so the fixed 96px body fits name + creator + the 40px action
+   button on hover without clipping it. */
+.card__creator.creator { margin-bottom: 2px; }
+.card__creator .creator__ava { width: 16px; height: 16px; }
 
 /* ---------------- Cart popover actions (try-on + checkout) ---------------- */
 .cart-pop__actions { display: flex; gap: 8px; }
@@ -928,6 +1025,25 @@ a.purchase:hover { box-shadow: 0 8px 22px rgba(20, 20, 30, .10); transform: tran
 }
 .sidebar__divider { height: 1px; background: var(--media); margin: 20px 0; }
 
+/* Collapsible sidebar section header (Rarity) — reuses the section-label look with a chevron toggle,
+   matching the Figma sidebar dropdowns. */
+.sidebar__section-toggle {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  width: 100%; background: none; border: 0; padding: 0; cursor: pointer; margin-bottom: 12px;
+}
+.sidebar__section-toggle .sidebar__section-label { margin: 0; }
+.sidebar__section-chev { width: 20px; height: 20px; color: var(--muted); flex: none; transition: transform .15s ease; }
+.sidebar__section-chev.is-up { transform: rotate(180deg); }
+/* Rarity multi-select in the sidebar: a checkbox per rarity, one per row (capitalized). */
+.rarity-filter { display: flex; flex-direction: column; gap: 2px; padding: 0 4px; }
+.rarity-filter__check {
+  display: flex; align-items: center; gap: 8px; padding: 7px 6px; border-radius: 8px;
+  font-size: 14px; color: var(--text); text-transform: capitalize; cursor: pointer;
+}
+.rarity-filter__check:hover { background: #f5f4f7; }
+.rarity-filter__check.is-on { color: var(--accent); font-weight: 600; }
+.rarity-filter__check input { accent-color: var(--accent); width: 15px; height: 15px; flex: none; }
+
 /* Category list — a plain white column (no gray container): 40px rows, semibold 14px, chevron to open
    sub-categories. Animate expand/collapse to content height via grid-template-rows 0fr↔1fr. */
 .catfilter { display: flex; flex-direction: column; gap: 2px; }
@@ -1000,4 +1116,65 @@ a.purchase:hover { box-shadow: 0 8px 22px rgba(20, 20, 30, .10); transform: tran
 .browse--sidebar { display: flex; gap: 32px; align-items: flex-start; }
 .browse__sidebar { flex: none; width: 265px; }
 .browse__main { flex: 1; min-width: 0; }
-@media (max-width: 900px) { .browse--sidebar { flex-direction: column; } .browse__sidebar { width: 100%; } }
+/* Drawer chrome (the "Filters" title + close X), the action bar and the toolbar "Filters" trigger
+   only exist on mobile. */
+.browse__sidebar-head { display: none; }
+.browse__sidebar-foot { display: none; }
+.browse__filters-btn { display: none; }
+
+/* Mobile: the sidebar is an off-canvas Filters drawer (Figma), opened by the toolbar Filters button;
+   the grid takes the full width. */
+@media (max-width: 900px) {
+  .browse--sidebar { display: block; }
+  .browse__main { width: 100%; }
+  /* Mobile filters are a bottom sheet (Figma node 1059-157724): it slides up from the bottom, is
+     scrollable inside, and rounds its top corners. */
+  .browse__sidebar {
+    position: fixed; left: 0; right: 0; bottom: 0; top: auto; z-index: 9999; width: 100%;
+    max-height: 88vh; border-radius: 16px 16px 0 0;
+    background: #fff; padding: 0 16px; overflow-y: auto; box-shadow: 0 -4px 24px rgba(0, 0, 0, .18);
+    transform: translateY(100%); transition: transform .26s ease; visibility: hidden;
+  }
+  .browse__sidebar.is-open { transform: translateY(0); visibility: visible; }
+  .browse__scrim { position: fixed; inset: 0; z-index: 9998; background: rgba(0, 0, 0, .4); }
+  /* Drawer header (Figma node 1059-157724): "FILTERS" title + a close X inside a gray-5 circle. It's
+     sticky so it stays pinned while the sheet scrolls — otherwise the first rows scroll flush against
+     the rounded top edge. The negative side margins + padding let its white background cover the full
+     sheet width behind scrolling content. */
+  .browse__sidebar-head {
+    position: sticky; top: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between;
+    background: #fff; margin: 0 -16px 8px; padding: 16px 16px 12px; border-radius: 16px 16px 0 0;
+  }
+  .browse__sidebar-title { font-weight: 700; font-size: 18px; color: var(--text); }
+  .browse__sidebar-close {
+    display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%;
+    background: var(--chip); border: 0; font-size: 15px; line-height: 1; cursor: pointer; color: var(--text);
+  }
+  /* Action bar (Figma node 1059-158189): Clear Filters (underlined link) + Apply (accent button).
+     position: sticky (NOT fixed) — the drawer is transformed, which makes a fixed child anchor to the
+     scroll content, not the viewport; sticky pins it to the bottom of the scrollport instead. Negative
+     side/bottom margins cancel the drawer padding so the border-top spans edge to edge. */
+  /* Figma node 1059-158540: white bar, gap 12, p-16, upward drop shadow; the two buttons split the
+     width evenly (both flex:1, 40px, rounded-8). */
+  .browse__sidebar-foot {
+    display: flex; align-items: center; gap: 12px; position: sticky; bottom: 0;
+    margin: 8px -16px 0; padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+    background: #fff; box-shadow: 0 -4px 12px rgba(0, 0, 0, .25); z-index: 1;
+  }
+  .browse__clear {
+    flex: 1; height: 40px; background: none; border: 0; border-radius: var(--radius-btn);
+    color: var(--accent); font-weight: 600; font-size: 13px;
+    text-transform: uppercase; letter-spacing: .035em; text-decoration: underline; cursor: pointer; white-space: nowrap;
+  }
+  .browse__apply {
+    flex: 1; height: 40px; border: 0; border-radius: var(--radius-btn); background: var(--accent); color: #fff;
+    font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: .035em; cursor: pointer;
+  }
+  /* Mobile "Filters" pill — Figma node 1052-154074: rounded-32, hairline, filter icon + title-case. */
+  .browse__filters-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 40px; padding: 0 16px 0 12px;
+    background: #fff; border: 0.5px solid var(--muted-2); border-radius: 32px;
+    font-size: 12px; font-weight: 500; color: var(--text-2); cursor: pointer;
+  }
+  .browse__filters-btn .ico-filter { width: 20px; height: 20px; color: var(--text-2); }
+}

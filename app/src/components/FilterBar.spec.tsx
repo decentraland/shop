@@ -3,8 +3,6 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import { FilterBar } from './FilterBar'
 
 const base = {
-  rarities: [] as string[],
-  onToggleRarity: () => {},
   sort: 'newest',
   onSort: () => {},
   total: 42,
@@ -13,11 +11,12 @@ const base = {
 
 describe('FilterBar', () => {
   describe('when rendered', () => {
-    it('should show the result count and the Rarity + Sort By pills', () => {
+    it('should show the result count and the Sort By pill (rarity now lives in the sidebar)', () => {
       render(<FilterBar {...base} />)
       expect(screen.getByText('42 Items')).toBeTruthy()
-      expect(screen.getByRole('button', { name: /Rarity/ })).toBeTruthy()
       expect(screen.getByRole('button', { name: /Sort By/ })).toBeTruthy()
+      // Rarity moved out of the toolbar into the sidebar.
+      expect(screen.queryByRole('button', { name: /Rarity/ })).toBeNull()
     })
 
     it('should render a singular "Item" for a total of one', () => {
@@ -36,18 +35,6 @@ describe('FilterBar', () => {
     })
   })
 
-  describe('when the Rarity panel is opened', () => {
-    it('should reveal the options and call onToggleRarity on selection', () => {
-      const onToggleRarity = vi.fn()
-      render(<FilterBar {...base} onToggleRarity={onToggleRarity} />)
-
-      fireEvent.click(screen.getByRole('button', { name: /Rarity/ }))
-      fireEvent.click(screen.getByRole('checkbox', { name: 'rare' }))
-
-      expect(onToggleRarity).toHaveBeenCalledWith('rare')
-    })
-  })
-
   describe('when the Sort panel is opened', () => {
     it('should call onSort and close the panel on selection', () => {
       const onSort = vi.fn()
@@ -58,18 +45,6 @@ describe('FilterBar', () => {
 
       expect(onSort).toHaveBeenCalledWith('name')
       expect(screen.queryByText('Name (A–Z)')).toBeNull()
-    })
-  })
-
-  describe('when a second panel is opened', () => {
-    it('should close the first (only one panel open at a time)', () => {
-      render(<FilterBar {...base} />)
-
-      fireEvent.click(screen.getByRole('button', { name: /Rarity/ }))
-      expect(screen.getByRole('checkbox', { name: 'rare' })).toBeTruthy()
-
-      fireEvent.click(screen.getByRole('button', { name: /Sort By/ }))
-      expect(screen.queryByRole('checkbox', { name: 'rare' })).toBeNull()
     })
   })
 })
