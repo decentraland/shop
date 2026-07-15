@@ -57,7 +57,8 @@ describe('browse the shop', () => {
     const { page } = app
     await waitForText(page, 'Galaxy Hat')
 
-    // Rarity is a sidebar section (open by default); check "legendary".
+    // Rarity is a collapsible sidebar section that starts CLOSED — expand it, then check "legendary".
+    expect(await clickByText(page, '.sidebar__section-toggle', /rarity/i)).toBe(true)
     await page.waitForSelector('.rarity-filter', { timeout: 5000 })
     expect(await clickByText(page, '.rarity-filter__check', /^legendary$/i)).toBe(true)
     // Only the legendary item (Nebula Jacket) remains; the epic one drops out.

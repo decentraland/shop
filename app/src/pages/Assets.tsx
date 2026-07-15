@@ -82,7 +82,7 @@ export function Assets() {
   const [priceMin, setPriceMin] = useState('')
   const [priceMax, setPriceMax] = useState('')
   const [sort, setSort] = useState('newest')
-  const [rarityOpen, setRarityOpen] = useState(true)
+  const [rarityOpen, setRarityOpen] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false) // mobile filters drawer
   const [checkout, setCheckout] = useState<LegacyListing | null>(null)
 
@@ -151,6 +151,15 @@ export function Assets() {
   }
   function toggleRarity(r: string) {
     setRarities(rs => (rs.includes(r) ? rs.filter(x => x !== r) : [...rs, r]))
+  }
+  // Reset every filter to its default (Figma drawer "Clear Filters"). Filters apply live, so this
+  // takes effect immediately; the drawer's "Apply" just closes it.
+  function clearFilters() {
+    setCategory('wearable')
+    setSubCategory(null)
+    setRarities([])
+    setPriceMin('')
+    setPriceMax('')
   }
   function openCheckout(card: CatalogItem) {
     const item = items.find(i => i.id === card.id)
@@ -282,6 +291,13 @@ export function Assets() {
             ))}
           </div>
         ) : null}
+
+        {/* Drawer action bar (Figma node 1059-158189) — mobile only (CSS). Filters apply live, so
+            Apply simply dismisses the drawer; Clear Filters resets them all. */}
+        <div className="browse__sidebar-foot">
+          <button type="button" className="browse__clear" onClick={clearFilters}>Clear Filters</button>
+          <button type="button" className="browse__apply" onClick={() => setFiltersOpen(false)}>Apply</button>
+        </div>
       </aside>
 
       <div className="browse__main">

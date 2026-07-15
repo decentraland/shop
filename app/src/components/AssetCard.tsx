@@ -58,6 +58,10 @@ export function AssetCard(props: AssetCardProps) {
   const detailPath = `/item/${item.contractAddress}/${routeSeg}`
 
   function onEnter() {
+    // Touch devices synthesize a `mouseenter` on tap — don't enter the hover state there (it would
+    // flash the red border + 3D preview on a tap). Hover is desktop-only; see @media (hover: hover)
+    // in index.css, which gates the matching CSS swap.
+    if (typeof window !== 'undefined' && window.matchMedia && !window.matchMedia('(hover: hover)').matches) return
     if (timer.current) clearTimeout(timer.current)
     timer.current = setTimeout(() => {
       setHovered(true)

@@ -7,10 +7,12 @@ import type { ShopSort } from '~/lib/api'
 
 export const RARITIES = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic', 'unique', 'exotic']
 
+// Labels match the Figma sort menu (node 1059-160222). The server supports newest/cheapest/
+// most_expensive/name — there is no dedicated "recently listed" sort, so "Newest" covers it.
 export const SORTS: { key: string; label: string; server: ShopSort }[] = [
   { key: 'newest', label: 'Newest', server: 'newest' },
-  { key: 'price-asc', label: 'Price: Low to High', server: 'cheapest' },
-  { key: 'price-desc', label: 'Price: High to Low', server: 'most_expensive' },
+  { key: 'price-asc', label: 'Cheapest', server: 'cheapest' },
+  { key: 'price-desc', label: 'Most Expensive', server: 'most_expensive' },
   { key: 'name', label: 'Name (A–Z)', server: 'name' }
 ]
 
@@ -96,6 +98,7 @@ export function FilterBar({
         <div className="browse__dropdowns">
           {onOpenFilters ? (
             <button type="button" className="browse__filters-btn" onClick={onOpenFilters}>
+              <span className="ico ico-filter" aria-hidden />
               Filters
             </button>
           ) : null}
