@@ -102,14 +102,13 @@ export function CollectionCarousel({
       </div>
 
       {pages > 1 ? (
-        <div className="collection-carousel__dots" role="tablist" aria-label="Carousel pages">
+        <div className="collection-carousel__dots" aria-label="Carousel pages">
           {Array.from({ length: pages }).map((_, i) => (
             <button
               key={i}
               className={`collection-carousel__dot${i === page ? ' is-active' : ''}`}
               aria-label={`Go to page ${i + 1}`}
-              aria-selected={i === page}
-              role="tab"
+              aria-current={i === page ? 'true' : undefined}
               onClick={() => scrollToPage(i)}
             />
           ))}

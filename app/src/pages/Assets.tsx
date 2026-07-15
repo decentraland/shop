@@ -86,6 +86,16 @@ export function Assets() {
   const [filtersOpen, setFiltersOpen] = useState(false) // mobile filters drawer
   const [checkout, setCheckout] = useState<LegacyListing | null>(null)
 
+  // Close the mobile filters drawer on Escape (it already closes on scrim tap / ✕).
+  useEffect(() => {
+    if (!filtersOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setFiltersOpen(false)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [filtersOpen])
+
   // Build the server filter set — /v3/catalog/unified does the filtering + sort + search.
   const min = priceMin && !Number.isNaN(Number(priceMin)) ? Number(priceMin) : undefined
   const max = priceMax && !Number.isNaN(Number(priceMax)) ? Number(priceMax) : undefined

@@ -100,15 +100,14 @@ function Carousel({ title, items, loading }: { title: string; items: CatalogItem
         ) : null}
       </div>
       {showControls ? (
-        <div className="ov-carousel__dots" role="tablist" aria-label={`${title} pages`}>
+        <div className="ov-carousel__dots" aria-label={`${title} pages`}>
           {Array.from({ length: pageCount }).map((_, i) => (
             <button
               key={i}
               className={`ov-dot${i === page ? ' is-active' : ''}`}
               onClick={() => scrollToPage(i)}
               aria-label={`Go to page ${i + 1}`}
-              aria-selected={i === page}
-              role="tab"
+              aria-current={i === page ? 'true' : undefined}
             />
           ))}
         </div>
