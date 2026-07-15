@@ -384,6 +384,22 @@ type NFTResult = {
   order: { price?: string | null; tradeId?: string } | null
 }
 
+// Has `owner` received a token of this item yet, according to the indexer? The purchase tx confirming
+// on-chain isn't enough for the item to appear in My Assets — that page reads the indexed NFTs, which
+// lag the chain. The Success page polls this after the tx settles so it only claims "It's yours!" once
+// the item is actually queryable (and thus visible in My Assets). Any error → false (treat as not-yet).
+export async function fetchOwnsItem(owner: string, contractAddress: string, itemId: string): Promise<boolean> {
+  try {
+    const qs = new URLSearchParams({ owner: owner.toLowerCase(), contractAddress, itemId, first: '1' })
+    const res = await fetch(`${NFT_V1}/nfts?${qs.toString()}`)
+    if (!res.ok) return false
+    const { total } = (await res.json()) as { total?: number }
+    return (total ?? 0) > 0
+  } catch {
+    return false
+  }
+}
+
 export async function fetchMyAssets(
   owner: string,
   { category = 'wearable', first = 48, skip = 0 }: { category?: string; first?: number; skip?: number } = {}
