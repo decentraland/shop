@@ -1,0 +1,148 @@
+/* Overview page styles (Figma New Shop 2026, node 913-135556).
+   Kept in this dedicated file (imported at the top of Overview.tsx, mirroring ItemDetail.tsx →
+   item-detail.css) so the Overview reskin doesn't touch the shared global index.css. All classes are
+   namespaced `.ov-` to avoid collisions with the global stylesheet. Reuses global tokens (--text,
+   --accent, --amethyst, --radius-banner …) and the global .card / AssetCard styles for the rails. */
+
+/* ---------------- Hero banner (Figma "Banner A" — node 913:135558) ---------------- */
+/* Full-bleed rounded banner. The art is a single background image (dark MVFW runway scene); the
+   title + CTA are kept in code (translatable + a real link) and overlaid on the left. */
+.ov-hero {
+  position: relative;
+  display: flex;
+  align-items: center;
+  aspect-ratio: 1721 / 304;
+  max-height: 340px;
+  margin-bottom: 40px;
+  overflow: hidden;
+  border-radius: var(--radius-banner);
+  background: #14161b;
+}
+.ov-hero__bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center right;
+}
+/* Left-to-right dark scrim so the title + CTA keep AA contrast over the busy art at every width
+   (the art's left third is already dark on desktop; this guarantees it on mobile where the whole
+   scene shows behind the text). */
+.ov-hero__scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(90deg, rgba(10, 11, 14, .78) 0%, rgba(10, 11, 14, .45) 38%, rgba(10, 11, 14, 0) 68%);
+}
+.ov-hero__inner {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 24px;
+  padding: 0 64px;
+}
+.ov-hero__title {
+  margin: 0;
+  color: #fff;
+  font-size: clamp(24px, 3.2vw, 36px);
+  font-weight: 700;
+  line-height: 1.235;
+  text-transform: uppercase;
+}
+/* Figma hero CTA: amethyst gradient, 40px tall (reuses .btn.btn--purple, trimmed to the 40px spec). */
+.ov-hero__cta {
+  height: 40px;
+  padding: 0 16px;
+  display: inline-flex;
+  align-items: center;
+}
+@media (max-width: 768px) {
+  .ov-hero {
+    aspect-ratio: auto;
+    min-height: 200px;
+    max-height: none;
+  }
+  .ov-hero__inner { padding: 0 24px; }
+}
+
+/* ---------------- Carousels (Featured Products / New Creations) ---------------- */
+/* Reuses the global .row / .row__head / .row__title / .row__viewall / .row__track so the cards match
+   the rest of the app (281px AssetCards, hover-glow padding, scroll-snap). Adds the Figma side arrows
+   and the pagination dots on top. */
+.ov-carousel { position: relative; margin-bottom: 40px; }
+.ov-carousel__viewport { position: relative; }
+
+/* Side arrows (Figma "Slider Arrows" — bold chevrons sitting in the gutter, no chip background).
+   Vertically centered on the card media band (12px track padding + half of the fixed 204px media). */
+.ov-arrow {
+  position: absolute;
+  top: 114px;
+  transform: translateY(-50%);
+  z-index: 5;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: var(--text-2);
+  transition: color .15s ease, transform .15s ease;
+}
+.ov-arrow:hover:not(:disabled) { color: var(--accent); }
+.ov-arrow:disabled { opacity: .3; cursor: default; }
+.ov-arrow--left { left: -40px; }
+.ov-arrow--right { right: -40px; }
+.ov-arrow .ico-chevron { width: 26px; height: 26px; }
+.ov-arrow--left .ico-chevron { transform: rotate(90deg); }
+.ov-arrow--right .ico-chevron { transform: rotate(-90deg); }
+@media (max-width: 900px) {
+  /* Touch scrolling on smaller screens — drop the arrows (they'd overlap the cards without a gutter). */
+  .ov-arrow { display: none; }
+}
+
+/* Pagination dots (Figma "Carousel Dots" — 12px, 8px gap, active = brand purple). */
+.ov-carousel__dots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+.ov-dot {
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #d9d6de;
+  transition: background .15s ease;
+}
+.ov-dot.is-active { background: var(--accent); }
+
+/* ---------------- Promo tiles (Figma "Component 7" ×2 — node 913:135589) ---------------- */
+/* Two side-by-side promotional banners. Each is a single flat design export (see report — placeholder
+   art with baked copy) wrapped in a link; stacks to one column on mobile. */
+.ov-promos {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin: 0 0 40px;
+}
+.ov-promo {
+  display: block;
+  border-radius: var(--radius-banner);
+  overflow: hidden;
+  filter: drop-shadow(0 2.5px 6.875px rgba(0, 0, 0, .25));
+}
+.ov-promo img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 867 / 386;
+  object-fit: cover;
+}
+@media (max-width: 768px) {
+  .ov-promos { grid-template-columns: 1fr; }
+}
