@@ -65,7 +65,8 @@ export function FilterBar({
   sortOptions = SORTS,
   total,
   loading,
-  query
+  query,
+  onOpenFilters
 }: {
   sort: string
   onSort: (key: string) => void
@@ -73,6 +74,8 @@ export function FilterBar({
   total: number
   loading: boolean
   query?: string
+  /** Opens the mobile filters drawer. The trigger only shows on small screens (CSS). */
+  onOpenFilters?: () => void
 }) {
   const [open, setOpen] = useState<string | null>(null)
   const panel: PanelController = {
@@ -91,6 +94,11 @@ export function FilterBar({
         </span>
 
         <div className="browse__dropdowns">
+          {onOpenFilters ? (
+            <button type="button" className="browse__filters-btn" onClick={onOpenFilters}>
+              Filters
+            </button>
+          ) : null}
           <FilterPanel panelKey="sort" label="Sort By" align="right" panel={panel}>
             <div className="filter-pop filter-pop--sort">
               {sortOptions.map(s => (

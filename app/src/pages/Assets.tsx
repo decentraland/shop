@@ -83,6 +83,7 @@ export function Assets() {
   const [priceMax, setPriceMax] = useState('')
   const [sort, setSort] = useState('newest')
   const [rarityOpen, setRarityOpen] = useState(true)
+  const [filtersOpen, setFiltersOpen] = useState(false) // mobile filters drawer
   const [checkout, setCheckout] = useState<LegacyListing | null>(null)
 
   // Build the server filter set — /v3/catalog/unified does the filtering + sort + search.
@@ -177,7 +178,12 @@ export function Assets() {
 
   return (
     <div className="browse browse--sidebar">
-      <aside className="browse__sidebar">
+      {filtersOpen ? <div className="browse__scrim" onClick={() => setFiltersOpen(false)} aria-hidden /> : null}
+      <aside className={`browse__sidebar${filtersOpen ? ' is-open' : ''}`}>
+        <div className="browse__sidebar-head">
+          <span className="browse__sidebar-title">Filters</span>
+          <button className="browse__sidebar-close" onClick={() => setFiltersOpen(false)} aria-label="Close filters">✕</button>
+        </div>
         <div className="sidebar__section-label">Category</div>
         <CategoryFilter category={category} subCategory={subCategory} onCategory={pickCategory} onSub={setSubCategory} />
 
@@ -279,7 +285,7 @@ export function Assets() {
       </aside>
 
       <div className="browse__main">
-        <FilterBar sort={sort} onSort={setSort} total={total} loading={isLoading} query={q} />
+        <FilterBar sort={sort} onSort={setSort} total={total} loading={isLoading} query={q} onOpenFilters={() => setFiltersOpen(true)} />
 
         {/* Legacy (market-priced) cards follow the live rate; if the oracle is down, Buy Now is paused.
             Only warn when the current results actually contain a market-priced item, so users browsing
