@@ -4,7 +4,9 @@ import { resolve } from 'node:path'
 // Starts a dedicated dev server for the e2e run (port 5273, separate from the human's :5174) and
 // tears it down after. All the app's network calls are mocked per-page, so this server only serves
 // the built app assets.
-const PORT = 5273
+// Port is env-configurable so multiple e2e runs (e.g. parallel agents) don't clash on one port; pair
+// with E2E_BASE_URL=http://localhost:<same-port> so launchApp targets the right server.
+const PORT = Number(process.env.E2E_PORT ?? 5273)
 const URL = `http://localhost:${PORT}/`
 let child: ChildProcess | undefined
 
