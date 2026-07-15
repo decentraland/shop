@@ -1,10 +1,9 @@
 import { ReactNode, useState } from 'react'
 import type { ShopSort } from '~/lib/api'
 
-// Main-area toolbar for the unified browse grid: the result count on the left + the Rarity and
-// Sort By dropdown "pills" on the right (Figma "Marketplace-UX-Improvements"). Owns the
-// single-open-panel state (only one popover at a time) + the click-away scrim. Category + Price
-// filters live in the page sidebar (see Assets.tsx) — this toolbar carries only Rarity + Sort.
+// Main-area toolbar for the unified browse grid: the result count on the left + the Sort By dropdown
+// "pill" on the right (Figma "New Shop 2026"). Owns the single-open-panel state + the click-away
+// scrim. Category, Price and Rarity filters all live in the page sidebar (see Assets.tsx).
 
 export const RARITIES = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic', 'unique', 'exotic']
 
@@ -61,9 +60,6 @@ function FilterPanel({
 }
 
 export function FilterBar({
-  rarities,
-  onToggleRarity,
-  rarityOptions = RARITIES,
   sort,
   onSort,
   sortOptions = SORTS,
@@ -71,9 +67,6 @@ export function FilterBar({
   loading,
   query
 }: {
-  rarities: string[]
-  onToggleRarity: (rarity: string) => void
-  rarityOptions?: string[]
   sort: string
   onSort: (key: string) => void
   sortOptions?: { key: string; label: string; server: ShopSort }[]
@@ -98,24 +91,6 @@ export function FilterBar({
         </span>
 
         <div className="browse__dropdowns">
-          <FilterPanel
-            panelKey="rarity"
-            label="Rarity"
-            active={rarities.length > 0}
-            badge={rarities.length || undefined}
-            align="right"
-            panel={panel}
-          >
-            <div className="filter-pop filter-pop--rarity">
-              {rarityOptions.map(r => (
-                <label key={r} className="filter-pop__check">
-                  <input type="checkbox" checked={rarities.includes(r)} onChange={() => onToggleRarity(r)} />
-                  <span>{r}</span>
-                </label>
-              ))}
-            </div>
-          </FilterPanel>
-
           <FilterPanel panelKey="sort" label="Sort By" align="right" panel={panel}>
             <div className="filter-pop filter-pop--sort">
               {sortOptions.map(s => (

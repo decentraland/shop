@@ -171,7 +171,7 @@ h1, h2 { margin: 0; }
 .row__title { font-size: 20px; font-weight: 600; color: var(--text); }
 .row__viewall { display: inline-flex; align-items: center; gap: 4px; color: var(--accent); font-weight: 600; font-size: 15px; letter-spacing: .046em; text-transform: uppercase; }
 .row__track { display: flex; gap: 16px; overflow-x: auto; padding: 12px 10px; margin: 0 -10px; scroll-snap-type: x proximity; }
-.row__track > * { flex: 0 0 220px; scroll-snap-align: start; }
+.row__track > * { flex: 0 0 281px; scroll-snap-align: start; }
 
 /* ---------------- Assets (sidebar + grid) ---------------- */
 .assets { display: grid; grid-template-columns: 244px 1fr; gap: 28px; }
@@ -193,7 +193,12 @@ h1, h2 { margin: 0; }
 .assets__bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
 .assets__count { color: var(--muted); font-weight: 600; }
 .sortby { background: #fff; border: 1px solid var(--line-strong); border-radius: var(--radius-btn); padding: 10px 16px; font-weight: 700; text-transform: uppercase; font-size: 13px; letter-spacing: .03em; }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 16px; }
+/* Fixed 281px columns so each card is exactly the Figma 281×300 (media 281×204 + info 96), instead of
+   stretching to fill and coming out narrower. auto-fill wraps as many 281px cards as fit; the row is
+   left-aligned with any leftover space on the right (matches the Figma grid). */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, 281px); gap: 16px; justify-content: start; }
+/* Mobile: two compact columns (Figma) instead of fixed 281px cards that would overflow. */
+@media (max-width: 720px) { .grid { grid-template-columns: 1fr 1fr; gap: 12px; } }
 
 /* ---------------- Browse: main-area toolbar (count + Rarity/Sort pills) ---------------- */
 .browse { position: relative; }
@@ -337,14 +342,15 @@ h1, h2 { margin: 0; }
 .card__creator { position: relative; z-index: 4; color: var(--muted); font-size: 10px; margin-bottom: 0; }
 .card__price { display: flex; align-items: center; gap: 4px; flex: none; font-weight: 600; font-size: 17px; color: var(--text-2); }
 .card__diamond { width: 15px; height: 15px; color: var(--text-2); }
-.card__chips { display: flex; align-items: flex-end; gap: 4px; flex-wrap: wrap; }
+.card__chips { display: flex; align-items: flex-end; gap: 2.4px; flex-wrap: wrap; }
 .chip { display: inline-flex; align-items: center; font-size: 11px; font-weight: 700; border-radius: var(--radius-chip); padding: 3px 8px; background: var(--chip); color: #555; }
-.chip--rarity { background: var(--rarity-bg); color: var(--rarity); text-transform: uppercase; letter-spacing: .02em; }
+.chip--rarity { background: var(--rarity-bg); color: var(--rarity); text-transform: uppercase; }
 .chip--icon { padding: 3px 6px; font-size: 13px; }
 .chip--icon .ico { width: 14px; height: 14px; color: #444; }
-/* Marketplace-style chips on the browse card: smaller than the shared .chip default. A uniform fixed
-   height keeps the rarity, category and gender chips exactly the same height (content centered). */
-.card__chips .chip { height: 18px; font-size: 8.56px; font-weight: 600; padding: 0 6.5px; letter-spacing: .02em; }
+/* Marketplace-style chips on the browse card. All three chips (rarity, category, gender) share ONE
+   fixed height so they line up; the rarity label is bumped up from the tiny Figma spec for legibility
+   and to fill the same pill height as the icon chips. */
+.card__chips .chip { height: 18px; font-size: 10px; line-height: 1; font-weight: 600; padding: 0 6.5px; letter-spacing: .01em; border-radius: 4px; }
 .card__chips .chip--icon { padding: 0 5px; }
 .card__chips .chip--icon .ico { width: 14.6px; height: 14.6px; }
 /* Add-to-cart / Buy now (Figma node 790-63037: secondary dark button). Lives in the body below the
@@ -453,7 +459,10 @@ h1, h2 { margin: 0; }
 /* ---------------- My Assets (sell flow) ---------------- */
 .myassets__head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 16px; }
 .connect-row { display: flex; gap: 12px; margin-top: 12px; }
-.asset-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; margin-top: 20px; }
+/* My Assets / grids of AssetCard: fixed 281px columns so every card is the same Figma 281×300 as the
+   Collectibles page. */
+.asset-grid { display: grid; grid-template-columns: repeat(auto-fill, 281px); gap: 16px; margin-top: 20px; justify-content: start; }
+@media (max-width: 640px) { .asset-grid { grid-template-columns: repeat(auto-fill, minmax(0, 1fr)); } }
 .asset-card { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
 .asset-card__img { aspect-ratio: 1; background: var(--media); border-radius: 8px; display: grid; place-items: center; overflow: hidden; }
 .asset-card__img img { width: 100%; height: 100%; object-fit: contain; }
@@ -927,6 +936,25 @@ a.purchase:hover { box-shadow: 0 8px 22px rgba(20, 20, 30, .10); transform: tran
   text-transform: uppercase; color: var(--text); margin: 0 4px 12px;
 }
 .sidebar__divider { height: 1px; background: var(--media); margin: 20px 0; }
+
+/* Collapsible sidebar section header (Rarity) — reuses the section-label look with a chevron toggle,
+   matching the Figma sidebar dropdowns. */
+.sidebar__section-toggle {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  width: 100%; background: none; border: 0; padding: 0; cursor: pointer; margin-bottom: 12px;
+}
+.sidebar__section-toggle .sidebar__section-label { margin: 0; }
+.sidebar__section-chev { width: 20px; height: 20px; color: var(--muted); flex: none; transition: transform .15s ease; }
+.sidebar__section-chev.is-up { transform: rotate(180deg); }
+/* Rarity multi-select in the sidebar: a checkbox per rarity, one per row (capitalized). */
+.rarity-filter { display: flex; flex-direction: column; gap: 2px; padding: 0 4px; }
+.rarity-filter__check {
+  display: flex; align-items: center; gap: 8px; padding: 7px 6px; border-radius: 8px;
+  font-size: 14px; color: var(--text); text-transform: capitalize; cursor: pointer;
+}
+.rarity-filter__check:hover { background: #f5f4f7; }
+.rarity-filter__check.is-on { color: var(--accent); font-weight: 600; }
+.rarity-filter__check input { accent-color: var(--accent); width: 15px; height: 15px; flex: none; }
 
 /* Category list — a plain white column (no gray container): 40px rows, semibold 14px, chevron to open
    sub-categories. Animate expand/collapse to content height via grid-template-rows 0fr↔1fr. */

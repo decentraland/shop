@@ -6,7 +6,7 @@ import { manaWeiToCredits } from '~/lib/mana-rate'
 import { useManaRate } from '~/hooks/useManaRate'
 import { AssetCard } from '~/components/AssetCard'
 import { CategoryFilter } from '~/components/CategoryFilter'
-import { FilterBar, SORTS } from '~/components/FilterBar'
+import { FilterBar, RARITIES, SORTS } from '~/components/FilterBar'
 import { SkeletonCards } from '~/components/SkeletonCards'
 import { LoadMore } from '~/components/LoadMore'
 import { MarketCheckout } from '~/components/MarketCheckout'
@@ -82,6 +82,7 @@ export function Assets() {
   const [priceMin, setPriceMin] = useState('')
   const [priceMax, setPriceMax] = useState('')
   const [sort, setSort] = useState('newest')
+  const [rarityOpen, setRarityOpen] = useState(true)
   const [checkout, setCheckout] = useState<LegacyListing | null>(null)
 
   // Build the server filter set — /v3/catalog/unified does the filtering + sort + search.
@@ -251,18 +252,34 @@ export function Assets() {
             </span>
           </div>
         </div>
+
+        <div className="sidebar__divider" />
+
+        {/* Rarity now lives at the bottom-left of the sidebar (Figma New Shop 2026) instead of a
+            top-right pill — a collapsible section over the shared RARITIES multi-select. */}
+        <button
+          type="button"
+          className="sidebar__section-toggle"
+          aria-expanded={rarityOpen}
+          onClick={() => setRarityOpen(o => !o)}
+        >
+          <span className="sidebar__section-label">Rarity</span>
+          <span className={`ico ico-chevron sidebar__section-chev${rarityOpen ? ' is-up' : ''}`} aria-hidden />
+        </button>
+        {rarityOpen ? (
+          <div className="rarity-filter">
+            {RARITIES.map(r => (
+              <label key={r} className={`rarity-filter__check${rarities.includes(r) ? ' is-on' : ''}`}>
+                <input type="checkbox" checked={rarities.includes(r)} onChange={() => toggleRarity(r)} />
+                <span>{r}</span>
+              </label>
+            ))}
+          </div>
+        ) : null}
       </aside>
 
       <div className="browse__main">
-        <FilterBar
-          rarities={rarities}
-          onToggleRarity={toggleRarity}
-          sort={sort}
-          onSort={setSort}
-          total={total}
-          loading={isLoading}
-          query={q}
-        />
+        <FilterBar sort={sort} onSort={setSort} total={total} loading={isLoading} query={q} />
 
         {/* Legacy (market-priced) cards follow the live rate; if the oracle is down, Buy Now is paused.
             Only warn when the current results actually contain a market-priced item, so users browsing
