@@ -69,35 +69,61 @@
 }
 
 /* ---------------- Carousels (Featured Products / New Creations) ---------------- */
-/* Reuses the global .row / .row__head / .row__title / .row__viewall / .row__track so the cards match
-   the rest of the app (281px AssetCards, hover-glow padding, scroll-snap). Adds the Figma side arrows
-   and the pagination dots on top. */
+/* Reuses the global .row / .row__head / .row__title / .row__viewall and the shared AssetCard, but with
+   a dedicated track (not the global .row__track) so the cards can flex to a whole-card width and the
+   scrollbar can be hidden without touching index.css. Adds the Figma side arrows + pagination dots. */
 .ov-carousel { position: relative; margin-bottom: 40px; }
 .ov-carousel__viewport { position: relative; }
 
-/* Side arrows (Figma "Slider Arrows" — bold chevrons sitting in the gutter, no chip background).
-   Vertically centered on the card media band (12px track padding + half of the fixed 204px media). */
+/* Whole-card track. `--ov-card-w` is set in JS (Overview.tsx `layout()`) so an integer number of cards
+   + 16px gaps exactly fill the viewport — visually identical to the browse grid's fluid cards.
+   `scroll-snap-type: x mandatory` + `scroll-snap-align: start` mean the scroller can only rest on a
+   whole card, so no partial card is ever cut off at rest or after an arrow/dot click.
+   `padding: 12px 10px; margin: 0 -10px` reserves room for the outward card hover-glow (matching the
+   global .row__track); `scroll-padding-inline: 10px` keeps the snap points aligned with that gutter.
+   The scrollbar is hidden (it looked ugly under the rail). */
+.ov-carousel__track {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 12px 10px;
+  margin: 0 -10px;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: 10px;
+  scrollbar-width: none;        /* Firefox */
+  -ms-overflow-style: none;     /* legacy Edge */
+}
+.ov-carousel__track::-webkit-scrollbar { width: 0; height: 0; display: none; } /* Chrome/Safari */
+.ov-carousel__track > * {
+  flex: 0 0 var(--ov-card-w, 250px);
+  scroll-snap-align: start;
+}
+
+/* Side arrows (Figma "Slider Arrows" — node 913:135587 / 913:135609). A ~53px white circle (80%
+   opacity, white ring) with a bold black chevron; the SVG (carousel-arrow.svg) is the exact Figma
+   export. `--ov-arrow-top` (set in JS) centers them on the card media band. The left arrow mirrors the
+   same asset. A soft drop-shadow makes the near-white circle read as a floating button over the page. */
 .ov-arrow {
   position: absolute;
-  top: 114px;
+  top: var(--ov-arrow-top, 110px);
   transform: translateY(-50%);
   z-index: 5;
-  width: 36px;
-  height: 36px;
-  display: grid;
-  place-items: center;
+  width: 53px;
+  height: 53px;
+  padding: 0;
   border: 0;
   background: transparent;
-  color: var(--text-2);
-  transition: color .15s ease, transform .15s ease;
+  cursor: pointer;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, .18));
+  transition: transform .15s ease, filter .15s ease, opacity .15s ease;
 }
-.ov-arrow:hover:not(:disabled) { color: var(--accent); }
-.ov-arrow:disabled { opacity: .3; cursor: default; }
-.ov-arrow--left { left: -40px; }
+.ov-arrow img { display: block; width: 100%; height: 100%; }
 .ov-arrow--right { right: -40px; }
-.ov-arrow .ico-chevron { width: 26px; height: 26px; }
-.ov-arrow--left .ico-chevron { transform: rotate(90deg); }
-.ov-arrow--right .ico-chevron { transform: rotate(-90deg); }
+.ov-arrow--left { left: -40px; }
+.ov-arrow--left img { transform: scaleX(-1); }
+.ov-arrow:hover:not(:disabled) { transform: translateY(-50%) scale(1.07); }
+.ov-arrow:disabled { opacity: .35; cursor: default; filter: none; }
 @media (max-width: 900px) {
   /* Touch scrolling on smaller screens — drop the arrows (they'd overlap the cards without a gutter). */
   .ov-arrow { display: none; }
