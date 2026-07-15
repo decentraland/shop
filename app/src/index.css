@@ -130,8 +130,6 @@ h1, h2 { margin: 0; }
 .subnav__search input { border: 0; outline: 0; width: 100%; font-size: 15px; background: transparent; color: var(--text); }
 .subnav__search input::placeholder { color: var(--muted); }
 .subnav__search-ico { color: var(--muted); }
-/* The UI2 footer ships at its own (larger) scale; zoom it down to sit right in the compact shop. */
-.shop-footer { zoom: 0.8; }
 .subnav__cart {
   position: relative; display: grid; place-items: center;
   width: 40px; height: 40px; background: var(--media); border-radius: var(--radius-btn); color: var(--text-2);
@@ -154,6 +152,8 @@ h1, h2 { margin: 0; }
 
 /* ---------------- Page ---------------- */
 .page { padding: 28px 40px 80px; max-width: 1760px; margin: 0 auto; width: 100%; flex: 1 0 auto; }
+/* Mobile gutters are 16px (Figma node 1040-149085: cards at x=16, gap 16), not the desktop 40px. */
+@media (max-width: 768px) { .page { padding: 16px 16px 56px; } }
 .placeholder { color: var(--muted); font-size: 18px; padding: 40px 0; }
 /* Suspense fallback while a lazy-loaded route chunk downloads. */
 .page-loading { display: grid; place-items: center; min-height: 46vh; }
@@ -234,7 +234,7 @@ h1, h2 { margin: 0; }
    keeps the last partial row's cards the same width as the rows above instead of blowing them up. */
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 16px; }
 /* Mobile: two compact columns (Figma) instead of fixed 281px cards that would overflow. */
-@media (max-width: 720px) { .grid { grid-template-columns: 1fr 1fr; gap: 12px; } }
+@media (max-width: 720px) { .grid { grid-template-columns: 1fr 1fr; gap: 16px; } }
 
 /* ---------------- Browse: main-area toolbar (count + Rarity/Sort pills) ---------------- */
 .browse { position: relative; }
@@ -433,9 +433,12 @@ h1, h2 { margin: 0; }
 /* Compact mobile card (Figma New Shop 2026): name/creator on top, price bottom-left + a round add
    button bottom-right. No chips, no full-width dark button. */
 @media (max-width: 720px) {
+  /* Media is near-square on mobile (Figma card 171×250 = media ~171×181 + info ~74). */
+  .card__media { aspect-ratio: 201 / 213; }
+  .card__name { font-size: 12px; }
   .card__body {
     height: auto; grid-template-rows: auto auto; grid-template-areas: 'desc desc' 'price add';
-    align-items: center; row-gap: 8px; padding: 8px 10px 10px;
+    align-items: center; row-gap: 10px; padding: 8px;
   }
   .card__chips { display: none; }
   .card__cart { display: none; }
@@ -1116,13 +1119,19 @@ a.purchase:hover { box-shadow: 0 8px 22px rgba(20, 20, 30, .10); transform: tran
   .browse__sidebar {
     position: fixed; left: 0; right: 0; bottom: 0; top: auto; z-index: 9999; width: 100%;
     max-height: 88vh; border-radius: 16px 16px 0 0;
-    background: #fff; padding: 16px 16px 0; overflow-y: auto; box-shadow: 0 -4px 24px rgba(0, 0, 0, .18);
+    background: #fff; padding: 0 16px; overflow-y: auto; box-shadow: 0 -4px 24px rgba(0, 0, 0, .18);
     transform: translateY(100%); transition: transform .26s ease; visibility: hidden;
   }
   .browse__sidebar.is-open { transform: translateY(0); visibility: visible; }
   .browse__scrim { position: fixed; inset: 0; z-index: 9998; background: rgba(0, 0, 0, .4); }
-  /* Drawer header (Figma node 1059-157724): "FILTERS" title + a close X inside a gray-5 circle. */
-  .browse__sidebar-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  /* Drawer header (Figma node 1059-157724): "FILTERS" title + a close X inside a gray-5 circle. It's
+     sticky so it stays pinned while the sheet scrolls — otherwise the first rows scroll flush against
+     the rounded top edge. The negative side margins + padding let its white background cover the full
+     sheet width behind scrolling content. */
+  .browse__sidebar-head {
+    position: sticky; top: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between;
+    background: #fff; margin: 0 -16px 8px; padding: 16px 16px 12px; border-radius: 16px 16px 0 0;
+  }
   .browse__sidebar-title { font-weight: 700; font-size: 18px; color: var(--text); }
   .browse__sidebar-close {
     display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%;
