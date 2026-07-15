@@ -349,7 +349,7 @@ export function ItemDetail() {
               aria-pressed={faved}
               aria-label={faved ? 'Remove from favorites' : 'Add to favorites'}
             >
-              <span className="ico ico-heart" aria-hidden />
+              <span className={`ico ${faved ? 'ico-heart-solid' : 'ico-heart'}`} aria-hidden />
             </button>
           </div>
 

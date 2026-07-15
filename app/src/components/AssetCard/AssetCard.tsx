@@ -120,7 +120,7 @@ export function AssetCard(props: AssetCardProps) {
           onClick={e => { e.stopPropagation(); toggleFav(item) }}
           aria-label={faved ? 'Remove from favorites' : 'Add to favorites'}
         >
-          <span className="ico ico-heart" aria-hidden />
+          <span className={`ico ${faved ? 'ico-heart-solid' : 'ico-heart'}`} aria-hidden />
         </button>
         {/* Flat thumbnail stays visible the whole time the 3D loads (no empty frame); it only fades
             out once the preview is ready, crossfading into the 3D. */}
@@ -159,21 +159,18 @@ export function AssetCard(props: AssetCardProps) {
       </div>
 
       <div className="card__body">
-        <div className="card__desc">
-          <div className="card__name" title={item.name}>{item.name}</div>
-          {item.creator ? (
-            <CreatorBadge address={item.creator} className="card__creator" linkToProfile />
-          ) : (
-            <div className="card__creator">&nbsp;</div>
-          )}
-        </div>
-
-        {/* The price/chips row is always rendered; on hover-capable devices the primary action is
-            revealed in its place on hover OR keyboard focus, and it's always shown where hover isn't
-            available (touch) — so items stay buyable without a mouse (see .card__cart in index.css).
-            Both stay in the DOM so the action button is keyboard-reachable and touch-tappable.
-            Native cards add to cart; Market (legacy) cards Buy now directly (price locked at checkout). */}
-        <div className="card__meta">
+        {/* Title+author sit on one row with the price to their right (Figma). card__desc holds the
+            flexible column (min-width:0 so a long name ellipses instead of shoving the price out or
+            wrapping); the price never shrinks. */}
+        <div className="card__top">
+          <div className="card__desc">
+            <div className="card__name" title={item.name}>{item.name}</div>
+            {item.creator ? (
+              <CreatorBadge address={item.creator} className="card__creator" linkToProfile />
+            ) : (
+              <div className="card__creator">&nbsp;</div>
+            )}
+          </div>
           {isMarket && props.mode === 'market' ? (
             <div className="card__price card__price--market">
               <span className="card__approx" aria-hidden>≈</span>
@@ -199,18 +196,24 @@ export function AssetCard(props: AssetCardProps) {
               {item.priceCredits}
             </div>
           )}
-          <div className="card__chips">
-            <span
-              className="chip chip--rarity"
-              style={{ background: rarityColor(item.rarity), color: readableText(rarityColor(item.rarity)) }}
-            >
-              {item.rarity}
-            </span>
-            {item.category === 'wearable' ? (
-              <span className="chip chip--icon"><span className="ico ico-eyewear" aria-hidden /></span>
-            ) : null}
-            {gender ? <span className="chip chip--icon">{gender}</span> : null}
-          </div>
+        </div>
+
+        {/* Chips row is always rendered; on hover-capable devices the primary action is revealed in
+            its place on hover OR keyboard focus, and it's always shown where hover isn't available
+            (touch) — so items stay buyable without a mouse (see .card__cart in asset-card.css). Both
+            stay in the DOM so the action button is keyboard-reachable and touch-tappable. Native cards
+            add to cart; Market (legacy) cards Buy now directly (price locked at checkout). */}
+        <div className="card__chips">
+          <span
+            className="chip chip--rarity"
+            style={{ background: rarityColor(item.rarity), color: readableText(rarityColor(item.rarity)) }}
+          >
+            {item.rarity}
+          </span>
+          {item.category === 'wearable' ? (
+            <span className="chip chip--icon"><span className="ico ico-eyewear" aria-hidden /></span>
+          ) : null}
+          {gender ? <span className="chip chip--icon">{gender}</span> : null}
         </div>
         {isMarket && props.mode === 'market' ? (
           <button
