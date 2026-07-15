@@ -110,9 +110,11 @@ h1, h2 { margin: 0; }
   .subnav__cart-wrap { order: 4; }
   .subnav__search { order: 5; flex: 1 0 100%; margin-left: 0; height: 34px; }
   .subnav__search input { font-size: 14px; }
-  .subnav__tabs { order: 6; flex: 1 0 100%; height: auto; gap: 20px; overflow-x: auto; scrollbar-width: none; }
+  /* Tabs (Figma node 1038-146881): 12px SemiBold uppercase, gap 16, active underline 4px. The 36px row
+     height keeps the text vertically centered so it isn't cramped right under the search pill. */
+  .subnav__tabs { order: 6; flex: 1 0 100%; height: 36px; gap: 16px; margin-top: 2px; overflow-x: auto; scrollbar-width: none; }
   .subnav__tabs::-webkit-scrollbar { display: none; }
-  .subnav__tabs a { height: auto; font-size: 12px; border-bottom-width: 3px; padding-bottom: 4px; }
+  .subnav__tabs a { height: 100%; font-size: 12px; letter-spacing: .038em; border-bottom-width: 4px; padding-bottom: 4px; }
 }
 .subnav__tabs { display: flex; gap: 40px; height: 100%; }
 .subnav__tabs a {
@@ -225,11 +227,12 @@ h1, h2 { margin: 0; }
 /* Fixed 281px columns so each card is exactly the Figma 281×300 (media 281×204 + info 96), instead of
    stretching to fill and coming out narrower. auto-fill wraps as many 281px cards as fit; the row is
    left-aligned with any leftover space on the right (matches the Figma grid). */
-/* justify-content: space-between spreads the leftover row space into the gaps between the (fixed 281px)
-   column tracks, so a full row runs edge-to-edge and the last card's right edge lines up with the
-   toolbar's Sort By pill. Grid tracks are shared across rows, so a partial last row still aligns its
-   items to the leftmost columns (they don't fan out). gap is the floor (never tighter than 16px). */
-.grid { display: grid; grid-template-columns: repeat(auto-fill, 281px); gap: 16px; justify-content: space-between; }
+/* Fluid columns pinned to a 16px gap (Figma 5-card grid = 5×281 + 4×16 = 1471). auto-fill packs as
+   many ≥281px columns as fit — 5, then 4, then 3 as the viewport narrows — and the 1fr stretches them
+   to fill the row exactly, so the gap stays 16px AND the last card's right edge always lines up with
+   the toolbar's Sort By pill. No dynamic (uneven) gaps, no manual breakpoints. auto-fill (not auto-fit)
+   keeps the last partial row's cards the same width as the rows above instead of blowing them up. */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 16px; }
 /* Mobile: two compact columns (Figma) instead of fixed 281px cards that would overflow. */
 @media (max-width: 720px) { .grid { grid-template-columns: 1fr 1fr; gap: 12px; } }
 
@@ -246,12 +249,13 @@ h1, h2 { margin: 0; }
 .filterbar__item { position: relative; }
 /* Dropdown pill (Rarity, Sort By): white, 0.5px hairline, chevron on the right. */
 /* Toolbar pills (Sort By / Filters) — Figma node 1052-154074: white, 0.5px gray-3 hairline, fully
-   rounded (32px), Inter Medium 12px gray-2, title-case (not uppercase). */
+   rounded (32px), Inter Medium 12px gray-2. Sort By is uppercase (per design). */
 .filterbar__sort {
   display: inline-flex; align-items: center; justify-content: space-between; gap: 6px;
   background: #fff; border: 0.5px solid var(--muted-2); border-radius: 32px;
   height: 40px; padding: 4px 8px 4px 12px; min-width: 120px;
   color: var(--text-2); font-weight: 500; font-size: 12px; white-space: nowrap;
+  text-transform: uppercase;
 }
 .filterbar__sort:hover { background: #f5f4f7; }
 /* Figma "Open" state (node 898:119672): the pill fills with gray-5 while its popover is open. */
