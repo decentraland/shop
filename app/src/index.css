@@ -211,6 +211,8 @@ h1, h2 { margin: 0; }
 .row__viewall { display: inline-flex; align-items: center; gap: 4px; color: var(--accent); font-weight: 600; font-size: 15px; letter-spacing: .046em; text-transform: uppercase; }
 .row__track { display: flex; gap: 16px; overflow-x: auto; padding: 12px 10px; margin: 0 -10px; scroll-snap-type: x proximity; }
 .row__track > * { flex: 0 0 281px; scroll-snap-align: start; }
+/* Mobile: rail cards shrink to a 2-up width (~2 cards + a peek) instead of a single oversized 281px card. */
+@media (max-width: 720px) { .row__track > * { flex: 0 0 44vw; } }
 
 /* ---------------- Assets (sidebar + grid) ---------------- */
 .assets { display: grid; grid-template-columns: 244px 1fr; gap: 28px; }
@@ -235,13 +237,12 @@ h1, h2 { margin: 0; }
 /* Fixed 281px columns so each card is exactly the Figma 281×300 (media 281×204 + info 96), instead of
    stretching to fill and coming out narrower. auto-fill wraps as many 281px cards as fit; the row is
    left-aligned with any leftover space on the right (matches the Figma grid). */
-/* Fluid columns pinned to a 16px gap (Figma 5-card grid = 5×281 + 4×16 = 1471). auto-fill packs as
-   many ≥281px columns as fit — 5, then 4, then 3 as the viewport narrows — and the 1fr stretches them
-   to fill the row exactly, so the gap stays 16px AND the last card's right edge always lines up with
-   the toolbar's Sort By pill. No dynamic (uneven) gaps, no manual breakpoints. auto-fill (not auto-fit)
-   keeps the last partial row's cards the same width as the rows above instead of blowing them up. */
+/* Cards are FLUID (designer spec: max 350px, min ~150 on mobile, ideally ≤5 per row). auto-fill packs
+   as many ≥250px columns as fit and 1fr stretches them to fill the row exactly — so the gap stays 16px
+   AND the last card's right edge lines up with the toolbar's Sort By pill. The page is capped at
+   1760px (see .page max-width), which keeps this at 4–5 columns (never 6+) and cards well under 350px. */
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 16px; }
-/* Mobile: two compact columns (Figma) instead of fixed 281px cards that would overflow. */
+/* Mobile: two compact columns (Figma), ~171px each (> the 150px min). */
 @media (max-width: 720px) { .grid { grid-template-columns: 1fr 1fr; gap: 16px; } }
 
 /* ---------------- Browse: main-area toolbar (count + Rarity/Sort pills) ---------------- */

@@ -493,6 +493,7 @@
   flex: 0 0 281px;
   scroll-snap-align: start;
 }
+@media (max-width: 720px) { .collection-carousel__track > .card { flex: 0 0 44vw; } }
 
 /* Paging dots below the row. */
 .collection-carousel__dots {

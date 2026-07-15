@@ -82,23 +82,28 @@
    `padding: 12px 10px; margin: 0 -10px` reserves room for the outward card hover-glow (matching the
    global .row__track); `scroll-padding-inline: 10px` keeps the snap points aligned with that gutter.
    The scrollbar is hidden (it looked ugly under the rail). */
+/* A grid showing a FIXED whole number of cards per view (Figma = 5 desktop). grid-auto-columns makes
+   each card exactly (100% − gaps)/N of the track content box, so N cards + (N−1) 16px gaps fill the
+   viewport precisely — no partial card can ever peek. Paging by one clientWidth (see Overview.tsx)
+   therefore always lands on a whole card. Vertical-only padding gives the hover glow room top/bottom;
+   horizontal padding is 0 so the per-view width == clientWidth (no paging drift). */
 .ov-carousel__track {
-  display: flex;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: calc((100% - 64px) / 5);
   gap: 16px;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 12px 10px;
-  margin: 0 -10px;
+  padding: 12px 0;
   scroll-snap-type: x mandatory;
-  scroll-padding-inline: 10px;
   scrollbar-width: none;        /* Firefox */
   -ms-overflow-style: none;     /* legacy Edge */
 }
 .ov-carousel__track::-webkit-scrollbar { width: 0; height: 0; display: none; } /* Chrome/Safari */
-.ov-carousel__track > * {
-  flex: 0 0 var(--ov-card-w, 250px);
-  scroll-snap-align: start;
-}
+.ov-carousel__track > * { scroll-snap-align: start; }
+@media (max-width: 1200px) { .ov-carousel__track { grid-auto-columns: calc((100% - 48px) / 4); } }
+@media (max-width: 900px)  { .ov-carousel__track { grid-auto-columns: calc((100% - 32px) / 3); } }
+@media (max-width: 720px)  { .ov-carousel__track { grid-auto-columns: calc((100% - 16px) / 2); } }
 
 /* Side arrows (Figma "Slider Arrows" — node 913:135587 / 913:135609). A ~53px white circle (80%
    opacity, white ring) with a bold black chevron; the SVG (carousel-arrow.svg) is the exact Figma
@@ -123,7 +128,8 @@
 .ov-arrow--left { left: -40px; }
 .ov-arrow--left img { transform: scaleX(-1); }
 .ov-arrow:hover:not(:disabled) { transform: translateY(-50%) scale(1.07); }
-.ov-arrow:disabled { opacity: .35; cursor: default; filter: none; }
+/* Hidden (not dimmed) at the ends, so the two arrows never look mismatched — one solid, one faint. */
+.ov-arrow:disabled { opacity: 0; pointer-events: none; }
 @media (max-width: 900px) {
   /* Touch scrolling on smaller screens — drop the arrows (they'd overlap the cards without a gutter). */
   .ov-arrow { display: none; }

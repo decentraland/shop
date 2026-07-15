@@ -12,21 +12,14 @@ import heroBanner from '~/assets/overview/hero-fashion-week.png'
 import promoEmotes from '~/assets/overview/promo-best-rated-emotes.png'
 import promoOutfits from '~/assets/overview/promo-week-selected-outfits.png'
 
-// Card sizing must mirror the browse grid (index.css `.grid` = repeat(auto-fill, minmax(250px,1fr))
-// with a 16px gap) so carousel cards are visually identical to the grid cards.
-const GAP = 16
-const MIN_CARD = 250
-// Horizontal glow gutter: the track carries `padding: 12px 10px; margin: 0 -10px` (like the global
-// `.row__track`) so the outward card hover-glow isn't clipped. clientWidth therefore includes 20px of
-// padding that isn't part of the visible card area — subtract it before doing the whole-card math.
-const GLOW_GUTTER = 20
 const SKELETON_COUNT = 6
 
 // Horizontal card rail (Figma nodes 913:135571 "Featured Products" / 913:135593 "New Creations").
-// Whole-card guarantee: card widths are computed so an integer number of cards + 16px gaps exactly
-// fill the viewport (same fluid width as the browse grid). Combined with `scroll-snap-type: x mandatory`
-// + `scroll-snap-align: start` (see overview.css) the scroller can only ever rest on a whole card, so
-// no partial card is ever cut off — at any width, or after clicking an arrow / dot.
+// The track is a CSS grid showing a FIXED whole number of cards per view (5 desktop → 4 → 3 → 2 mobile,
+// see overview.css `grid-auto-columns`), so an exact integer of cards always fills the viewport with a
+// 16px gap — no partial card is ever cut off (matches the Figma). The JS just pages by one viewport
+// width and derives the dot count from the scroll extent, so it stays correct at every breakpoint
+// without duplicating the per-card width math.
 function Carousel({ title, items, loading }: { title: string; items: CatalogItem[]; loading: boolean }) {
   const trackRef = useRef<HTMLDivElement>(null)
   const [pageCount, setPageCount] = useState(1)
@@ -34,70 +27,42 @@ function Carousel({ title, items, loading }: { title: string; items: CatalogItem
 
   const count = loading ? SKELETON_COUNT : items.length
 
-  // Columns that fit the viewport, matching CSS `auto-fill, minmax(250px, 1fr)`.
-  const columnsFor = useCallback((avail: number) => {
-    return Math.max(1, Math.floor((avail + GAP) / (MIN_CARD + GAP)))
+  // Recompute the page count (from the scroll extent) and center the arrows on the card media band.
+  const measure = useCallback(() => {
+    const el = trackRef.current
+    if (!el) return
+    const view = el.clientWidth
+    if (view <= 0) return
+    const pages = Math.max(1, Math.ceil((el.scrollWidth - view) / view) + 1)
+    setPageCount(pages)
+    setPage(Math.min(pages - 1, Math.round(el.scrollLeft / view)))
+    const media = el.querySelector<HTMLElement>('.card__media')
+    const viewport = el.parentElement
+    // 12px = the track's top padding; center on the media so the chevrons sit over the artwork.
+    if (viewport) viewport.style.setProperty('--ov-arrow-top', `${12 + (media ? media.offsetHeight : 150) / 2}px`)
   }, [])
 
-  // Recompute the fluid card width, the per-page step and the page count. Writes the resulting card
-  // width to a CSS var on the track so every card (and skeleton) flexes to the exact whole-card size,
-  // and the arrow vertical offset so the chevrons sit centered on the card media band.
-  const layout = useCallback(() => {
-    const el = trackRef.current
-    if (!el) return
-    const avail = el.clientWidth - GLOW_GUTTER
-    if (avail <= 0) return
-    const cols = columnsFor(avail)
-    const cardW = (avail - (cols - 1) * GAP) / cols
-    el.style.setProperty('--ov-card-w', `${cardW}px`)
-    const viewport = el.parentElement
-    // Card media keeps a 281:204 aspect ratio (see .card__media); center the arrows on it (12px = the
-    // track's top padding).
-    if (viewport) viewport.style.setProperty('--ov-arrow-top', `${12 + (cardW * 204) / 281 / 2}px`)
-    const step = cols * (cardW + GAP)
-    const pages = Math.max(1, Math.ceil(count / cols))
-    setPageCount(pages)
-    setPage(Math.min(pages - 1, Math.round(el.scrollLeft / step)))
-  }, [columnsFor, count])
-
-  // Track only the page index on scroll (cheap) — layout() handles resize/content changes.
-  const syncPage = useCallback(() => {
-    const el = trackRef.current
-    if (!el) return
-    const avail = el.clientWidth - GLOW_GUTTER
-    if (avail <= 0) return
-    const cols = columnsFor(avail)
-    const cardW = (avail - (cols - 1) * GAP) / cols
-    const step = cols * (cardW + GAP)
-    setPage(Math.max(0, Math.round(el.scrollLeft / step)))
-  }, [columnsFor])
-
   useEffect(() => {
-    layout()
+    measure()
     const el = trackRef.current
     if (!el) return
-    el.addEventListener('scroll', syncPage, { passive: true })
-    window.addEventListener('resize', layout)
+    const onScroll = () => setPage(Math.round(el.scrollLeft / Math.max(1, el.clientWidth)))
+    el.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('resize', measure)
     return () => {
-      el.removeEventListener('scroll', syncPage)
-      window.removeEventListener('resize', layout)
+      el.removeEventListener('scroll', onScroll)
+      window.removeEventListener('resize', measure)
     }
-  }, [layout, syncPage])
+  }, [measure, count])
 
-  // Page by whole card-columns. Because cols cards exactly fill the viewport, scrolling by
-  // cols*(cardW+gap) lands the scroller precisely on the first card of the next page (a snap point) —
-  // never on a partial card.
+  // Page by exactly one viewport width — because a whole number of cards fills the viewport, this
+  // always lands on a card boundary (a snap point), never on a partial card.
   const scrollToPage = useCallback((p: number) => {
     const el = trackRef.current
     if (!el) return
-    const avail = el.clientWidth - GLOW_GUTTER
-    if (avail <= 0) return
-    const cols = columnsFor(avail)
-    const cardW = (avail - (cols - 1) * GAP) / cols
-    const step = cols * (cardW + GAP)
     const target = Math.max(0, Math.min(pageCount - 1, p))
-    el.scrollTo({ left: target * step, behavior: 'smooth' })
-  }, [columnsFor, pageCount])
+    el.scrollTo({ left: target * el.clientWidth, behavior: 'smooth' })
+  }, [pageCount])
 
   const showControls = !loading && pageCount > 1
 
