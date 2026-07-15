@@ -95,27 +95,6 @@ h1, h2 { margin: 0; }
   display: flex; align-items: center; gap: 24px;
   height: 66px; padding: 0 40px; background: #fff; border-bottom: 1px solid var(--line);
 }
-/* Mobile header (Figma node 1038-146881): the flat desktop row overflows on a phone, so it restacks
-   into three rows — [Buy DCL · | · balance · ♥ · cart], a full-width search pill, then the tabs.
-   flex-wrap + order + a 100% flex-basis on search/tabs forces the wraps; margin-right:auto on the
-   Buy DCL button pushes the balance/heart/cart cluster to the right edge (works with or without the
-   session-only balance chip). */
-@media (max-width: 768px) {
-  .subnav {
-    top: 64px; height: auto; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 16px;
-  }
-  .subnav__credits { order: 1; margin-right: auto; }
-  .subnav__balance { order: 2; }
-  .subnav__fav { order: 3; }
-  .subnav__cart-wrap { order: 4; }
-  .subnav__search { order: 5; flex: 1 0 100%; margin-left: 0; height: 34px; }
-  .subnav__search input { font-size: 14px; }
-  /* Tabs (Figma node 1038-146881): 12px SemiBold uppercase, gap 16, active underline 4px. The 36px row
-     height keeps the text vertically centered so it isn't cramped right under the search pill. */
-  .subnav__tabs { order: 6; flex: 1 0 100%; height: 36px; gap: 16px; margin-top: 2px; overflow-x: auto; scrollbar-width: none; }
-  .subnav__tabs::-webkit-scrollbar { display: none; }
-  .subnav__tabs a { height: 100%; font-size: 12px; letter-spacing: .038em; border-bottom-width: 4px; padding-bottom: 4px; }
-}
 .subnav__tabs { display: flex; gap: 40px; height: 100%; }
 .subnav__tabs a {
   display: flex; align-items: center; height: 100%; white-space: nowrap;
@@ -130,6 +109,34 @@ h1, h2 { margin: 0; }
 .subnav__search input { border: 0; outline: 0; width: 100%; font-size: 15px; background: transparent; color: var(--text); }
 .subnav__search input::placeholder { color: var(--muted); }
 .subnav__search-ico { color: var(--muted); }
+
+/* Mobile header (Figma node 1038-146881): the flat desktop row overflows on a phone, so it restacks
+   into three rows — [Buy DCL · | · balance · ♥ · cart], a full-width search pill, then the tabs.
+   flex-wrap + order + a 100% flex-basis on search/tabs forces the wraps; margin-right:auto on the
+   Buy DCL button pushes the balance/heart/cart cluster to the right edge (works with or without the
+   session-only balance chip). This block sits AFTER the base .subnav* rules so its overrides win the
+   cascade. */
+@media (max-width: 768px) {
+  /* padding-bottom: 0 so the tabs row sits flush with the subnav's bottom border — the active tab's
+     underline then lands exactly on that container border (Figma). */
+  .subnav {
+    top: 64px; height: auto; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 16px 0;
+  }
+  .subnav__credits { order: 1; margin-right: auto; }
+  .subnav__balance { order: 2; }
+  .subnav__fav { order: 3; }
+  .subnav__cart-wrap { order: 4; }
+  .subnav__search { order: 5; flex: 1 0 100%; margin-left: 0; height: 34px; }
+  .subnav__search input { font-size: 14px; }
+  /* Tabs (Figma node 1038-146881): 12px SemiBold uppercase, gap 16, active underline 4px sitting on
+     the subnav border. The row is only as tall as the text (no extra height) so it hugs the border. */
+  .subnav__tabs { order: 6; flex: 1 0 100%; height: auto; gap: 16px; overflow-x: auto; scrollbar-width: none; }
+  .subnav__tabs::-webkit-scrollbar { display: none; }
+  .subnav__tabs a {
+    height: auto; font-size: 12px; letter-spacing: .038em; font-weight: 600;
+    border-bottom-width: 4px; padding: 8px 0 6px;
+  }
+}
 .subnav__cart {
   position: relative; display: grid; place-items: center;
   width: 40px; height: 40px; background: var(--media); border-radius: var(--radius-btn); color: var(--text-2);
@@ -1141,18 +1148,21 @@ a.purchase:hover { box-shadow: 0 8px 22px rgba(20, 20, 30, .10); transform: tran
      position: sticky (NOT fixed) — the drawer is transformed, which makes a fixed child anchor to the
      scroll content, not the viewport; sticky pins it to the bottom of the scrollport instead. Negative
      side/bottom margins cancel the drawer padding so the border-top spans edge to edge. */
+  /* Figma node 1059-158540: white bar, gap 12, p-16, upward drop shadow; the two buttons split the
+     width evenly (both flex:1, 40px, rounded-8). */
   .browse__sidebar-foot {
-    display: flex; align-items: center; gap: 16px; position: sticky; bottom: 0;
-    margin: 8px -16px 0; padding: 14px 16px calc(14px + env(safe-area-inset-bottom));
-    background: #fff; border-top: 1px solid var(--line); z-index: 1;
+    display: flex; align-items: center; gap: 12px; position: sticky; bottom: 0;
+    margin: 8px -16px 0; padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+    background: #fff; box-shadow: 0 -4px 12px rgba(0, 0, 0, .25); z-index: 1;
   }
   .browse__clear {
-    background: none; border: 0; padding: 8px 4px; color: var(--accent); font-weight: 600; font-size: 13px;
-    text-transform: uppercase; letter-spacing: .03em; text-decoration: underline; cursor: pointer; white-space: nowrap;
+    flex: 1; height: 40px; background: none; border: 0; border-radius: var(--radius-btn);
+    color: var(--accent); font-weight: 600; font-size: 13px;
+    text-transform: uppercase; letter-spacing: .035em; text-decoration: underline; cursor: pointer; white-space: nowrap;
   }
   .browse__apply {
-    flex: 1; height: 44px; border: 0; border-radius: var(--radius-btn); background: var(--accent); color: #fff;
-    font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: .046em; cursor: pointer;
+    flex: 1; height: 40px; border: 0; border-radius: var(--radius-btn); background: var(--accent); color: #fff;
+    font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: .035em; cursor: pointer;
   }
   /* Mobile "Filters" pill — Figma node 1052-154074: rounded-32, hairline, filter icon + title-case. */
   .browse__filters-btn {
