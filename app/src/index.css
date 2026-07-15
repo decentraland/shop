@@ -65,6 +65,7 @@ h1, h2 { margin: 0; }
 .ico-clock { -webkit-mask-image: url('./assets/icons/clock.svg'); mask-image: url('./assets/icons/clock.svg'); }
 .ico-chevron { -webkit-mask-image: url('./assets/icons/chevron-down.svg'); mask-image: url('./assets/icons/chevron-down.svg'); }
 .ico-filter { -webkit-mask-image: url('./assets/icons/filter.svg'); mask-image: url('./assets/icons/filter.svg'); }
+.ico-plus { -webkit-mask-image: url('./assets/icons/plus.svg'); mask-image: url('./assets/icons/plus.svg'); }
 .ico-cat-head { -webkit-mask-image: url('./assets/icons/cat-head.svg'); mask-image: url('./assets/icons/cat-head.svg'); }
 .ico-cat-upper { -webkit-mask-image: url('./assets/icons/cat-upper.svg'); mask-image: url('./assets/icons/cat-upper.svg'); }
 .ico-cat-handwear { -webkit-mask-image: url('./assets/icons/cat-handwear.svg'); mask-image: url('./assets/icons/cat-handwear.svg'); }
@@ -454,8 +455,9 @@ h1, h2 { margin: 0; }
     grid-area: add; align-self: center; justify-self: end;
     z-index: 4; display: inline-flex; align-items: center; justify-content: center;
     width: 32px; height: 32px; border-radius: 50%; border: 0; padding: 0;
-    background: var(--accent); color: #fff; font-size: 22px; font-weight: 400; line-height: 1; cursor: pointer;
+    background: var(--accent); color: #fff; cursor: pointer;
   }
+  .card__add-round .ico-plus { width: 18px; height: 18px; }
   .card__add-round:disabled { opacity: .5; cursor: default; }
 }
 

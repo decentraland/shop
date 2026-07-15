@@ -208,7 +208,7 @@ export function AssetCard(props: AssetCardProps) {
             disabled={props.marketPriceCredits == null}
             aria-label={props.marketPriceCredits == null ? 'Unavailable' : 'Buy now'}
           >
-            +
+            <span className="ico ico-plus" aria-hidden />
           </button>
         ) : (
           <button
@@ -217,7 +217,7 @@ export function AssetCard(props: AssetCardProps) {
             disabled={inCart || own}
             aria-label={own ? 'Your item' : inCart ? 'In cart' : 'Add to cart'}
           >
-            +
+            <span className="ico ico-plus" aria-hidden />
           </button>
         )}
 
