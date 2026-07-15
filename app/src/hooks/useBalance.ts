@@ -12,3 +12,12 @@ export function useBalance(session: Session | null) {
     queryFn: async (): Promise<UsdBalance> => getUsdBalance(session!.address, session!.identity)
   })
 }
+
+/**
+ * Display label for a credit balance: show a dash when the balance fetch failed, so we don't render a
+ * misleading `0` (which reads as "you have no credits") on a transient network error (U3). While
+ * loading, `balance` is undefined and this shows `0` — acceptable; the dash is only for the error case.
+ */
+export function balanceLabel(balance: UsdBalance | undefined, isError: boolean): string | number {
+  return isError ? '—' : balance?.credits ?? 0
+}

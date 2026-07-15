@@ -6,7 +6,7 @@ import { config } from '~/config'
 import { useCart } from '~/store/cart'
 import { useFavorites } from '~/store/favorites'
 import { useWallet } from '~/store/wallet'
-import { useBalance } from '~/hooks/useBalance'
+import { useBalance, balanceLabel } from '~/hooks/useBalance'
 import { fetchShopListingForItem, fetchTrade, fetchTradeForItem, fetchItemDescription, usdWeiToCents, type CatalogItem } from '~/lib/api'
 import { buyWithCredits } from '~/lib/buy'
 import { buyGasless, waitForSettlement, GaslessUnavailableError, SettlementPendingError } from '~/lib/buy-gasless'
@@ -67,7 +67,7 @@ export function ItemDetail() {
   const cartItems = useCart(s => s.items)
   const toggleFav = useFavorites(s => s.toggle)
   const { session } = useWallet()
-  const { data: balance } = useBalance(session)
+  const { data: balance, isError: balanceError } = useBalance(session)
 
   // The currently-displayed item. Seeded from router state (fast path from the grid); swapped in place
   // when a carousel sibling is tapped (no full reload). Falls back to a stub for deep links/refresh
@@ -433,7 +433,7 @@ export function ItemDetail() {
               <div className="item-detail__price item-detail__price--none">Not for sale</div>
             )}
             {session ? (
-              <div className="item-detail__balance muted">Your balance: <CurrencyIcon className="ccy-mark" /> {balance?.credits ?? 0}</div>
+              <div className="item-detail__balance muted">Your balance: <CurrencyIcon className="ccy-mark" /> {balanceLabel(balance, balanceError)}</div>
             ) : null}
           </div>
 

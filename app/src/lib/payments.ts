@@ -83,7 +83,10 @@ export type CheckoutSession = {
 }
 
 export type OrderStatus = {
-  status: 'processing' | 'credited' | 'failed'
+  // 'pending' = the poll timed out but the payment isn't failed — the verified webhook can still
+  // grant the credits later (up to Stripe's retry window), so the UI shows an "on the way" state
+  // rather than a hard error (see U7).
+  status: 'processing' | 'credited' | 'failed' | 'pending'
   creditsGranted?: number
   newBalance?: number
   error?: string

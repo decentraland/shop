@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCart } from '~/store/cart'
 import { useWallet } from '~/store/wallet'
-import { useBalance } from '~/hooks/useBalance'
+import { useBalance, balanceLabel } from '~/hooks/useBalance'
 import { authorizeUsdCredit, cancelUsdIntents, devMintUsd } from '~/lib/credits'
 import { fetchTradeForItem, fetchTrade, fetchListings } from '~/lib/api'
 import { buyManyWithCredits, type CreditPurchase } from '~/lib/buy'
@@ -53,7 +53,7 @@ export function Cart() {
 
   // Last-minute upsell: more credit-buyable listings not already in the cart.
   const { data: suggested } = useQuery({ queryKey: ['upsell-listings'], queryFn: () => fetchListings({ first: 40 }), staleTime: 60_000 })
-  const { data: balance } = useBalance(session)
+  const { data: balance, isError: balanceError } = useBalance(session)
   const qc = useQueryClient()
   const navigate = useNavigate()
 
@@ -325,7 +325,7 @@ export function Cart() {
               <span>Total</span>
               <strong><CurrencyIcon className="ccy-mark" /> {total}</strong>
             </div>
-            {session ? <div className="muted cart__balance">Your balance: <CurrencyIcon className="ccy-mark" /> {balance?.credits ?? 0}</div> : null}
+            {session ? <div className="muted cart__balance">Your balance: <CurrencyIcon className="ccy-mark" /> {balanceLabel(balance, balanceError)}</div> : null}
           </div>
 
           <div className="cart__actions">

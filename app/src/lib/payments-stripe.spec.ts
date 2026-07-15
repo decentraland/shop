@@ -100,13 +100,14 @@ describe('when polling a real credit grant', () => {
     expect(result).toEqual({ status: 'failed', error: 'charge failed' })
   })
 
-  it('and the deadline has passed while still processing it should give up with a friendly failed status', async () => {
+  it('and the deadline has passed while still processing it should return pending (not failed) — the webhook can still grant later', async () => {
     // timeoutMs -1 → the deadline is already in the past, so the first 'processing' read gives up.
     signedFetch.mockResolvedValueOnce(ok({ status: 'processing' }))
 
     const result = await pollCreditGrantReal('ord_4', IDENTITY, { intervalMs: 1, timeoutMs: -1 })
 
-    expect(result).toEqual({ status: 'failed', error: 'Timed out waiting for your credits.' })
+    // Not a hard failure: the payment may still settle via the verified webhook after we stop polling (U7).
+    expect(result).toEqual({ status: 'pending' })
     expect(signedFetch).toHaveBeenCalledTimes(1)
   })
 

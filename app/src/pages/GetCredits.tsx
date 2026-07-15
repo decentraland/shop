@@ -24,7 +24,7 @@ const CREDITS_PROVIDER = isMockPayments() ? 'mock' : 'stripe'
 // the mock demo path never downloads it.
 const RealCheckout = lazy(() => import('~/components/RealCheckout'))
 
-type Phase = 'select' | 'paying' | 'processing' | 'success' | 'error'
+type Phase = 'select' | 'paying' | 'processing' | 'success' | 'error' | 'pending'
 
 function friendlyError(e: unknown): string {
   const err = e as { message?: string; name?: string }
@@ -94,6 +94,12 @@ export function GetCredits() {
           provider: CREDITS_PROVIDER
         })
         void qc.invalidateQueries({ queryKey: ['usd-balance'] })
+      } else if (result.status === 'pending') {
+        // Poll timed out but the payment isn't failed — the webhook can still grant the credits.
+        // Show an "on the way" state (not an error) and refetch the balance so it updates when it lands.
+        track('Shop Buy Credits Pending', { step: 'grant', pack_usd: selected?.usd ?? null })
+        void qc.invalidateQueries({ queryKey: ['usd-balance'] })
+        setPhase('pending')
       } else {
         track('Shop Buy Credits Failed', { step: 'grant', error_code: 'grant_failed', pack_usd: selected?.usd ?? null })
         setError(result.error ?? `Couldn't add your ${CURRENCY.name} — please try again.`)
@@ -160,6 +166,24 @@ export function GetCredits() {
             </button>
             <button className="btn btn--ghost" onClick={reset}>
               Get more {CURRENCY.name}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {phase === 'pending' && (
+        <div className="getcredits__status" role="status" aria-live="polite">
+          <p className="getcredits__status-title">Your {CURRENCY.name} are on the way</p>
+          <p className="muted">
+            Your payment went through. It&rsquo;s taking a little longer than usual to confirm — your
+            balance will update automatically as soon as it lands, no need to pay again.
+          </p>
+          <div className="getcredits__status-actions">
+            <button className="btn" onClick={() => navigate('/cart')}>
+              Back to cart
+            </button>
+            <button className="btn btn--ghost" onClick={reset}>
+              Done
             </button>
           </div>
         </div>

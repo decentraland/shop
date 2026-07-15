@@ -3,7 +3,7 @@ import { NavLink, useNavigate, useSearchParams } from 'react-router-dom'
 import { TopNav } from '~/components/TopNav'
 import { useWallet } from '~/store/wallet'
 import { useProfile } from '~/hooks/useProfile'
-import { useBalance } from '~/hooks/useBalance'
+import { useBalance, balanceLabel } from '~/hooks/useBalance'
 import { useCart } from '~/store/cart'
 import { CartPopover } from '~/components/CartPopover'
 import { SearchDropdown } from '~/components/SearchDropdown'
@@ -25,7 +25,7 @@ export function NavBar() {
   const { session, connecting, signIn, disconnect, restore } = useWallet()
   const address = session?.address
   const { data: avatar, isLoading: isLoadingProfile } = useProfile(address)
-  const { data: balance } = useBalance(session)
+  const { data: balance, isError: balanceError } = useBalance(session)
   const cartCount = useCart(s => s.items.length)
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -219,7 +219,7 @@ export function NavBar() {
             title={t('nav.yourBalance', { currency: CURRENCY.name })}
           >
             <CurrencyIcon className="subnav__balance-ico" />
-            {balance?.credits ?? 0}
+            {balanceLabel(balance, balanceError)}
           </span>
         ) : null}
         <NavLink
