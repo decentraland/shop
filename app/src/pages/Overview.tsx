@@ -6,6 +6,7 @@ import { fetchListings, type CatalogItem } from '~/lib/api'
 import { AssetCard } from '~/components/AssetCard'
 import { FollowedCreatorsRow } from '~/components/FollowedCreatorsRow'
 import { RecentlyViewed } from '~/components/RecentlyViewed'
+import { WeekTopCreators } from '~/components/WeekTopCreators'
 import heroBanner from '~/assets/overview/hero-fashion-week.png'
 import promoEmotes from '~/assets/overview/promo-best-rated-emotes.png'
 import promoOutfits from '~/assets/overview/promo-week-selected-outfits.png'
@@ -140,6 +141,8 @@ export function Overview() {
           <Link className="btn btn--purple" to="/assets">Browse Collectibles</Link>
         </div>
       )}
+
+      <WeekTopCreators />
 
       <FollowedCreatorsRow />
       <RecentlyViewed />
