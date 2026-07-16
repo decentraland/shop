@@ -18,9 +18,10 @@ const PAGE_NAMES: Record<string, string> = {
   '/my-favorites': 'favorites',
   '/my-purchases': 'my_purchases',
   '/import': 'import',
+  '/store-settings': 'store_settings',
   '/cart': 'cart',
   '/credits': 'credits',
-  '/success': 'success'
+  '/success': 'success',
 }
 
 // Overview (home) stays eager for the fastest first paint; every other route is code-split so it
@@ -29,6 +30,7 @@ const Assets = lazy(() => import('~/pages/Assets').then(m => ({ default: m.Asset
 const ItemDetail = lazy(() => import('~/pages/ItemDetail').then(m => ({ default: m.ItemDetail })))
 const Collection = lazy(() => import('~/pages/Collection').then(m => ({ default: m.Collection })))
 const Creator = lazy(() => import('~/pages/Creator').then(m => ({ default: m.Creator })))
+const StoreSettings = lazy(() => import('~/pages/StoreSettings').then(m => ({ default: m.StoreSettings })))
 const MyAssets = lazy(() => import('~/pages/MyAssets').then(m => ({ default: m.MyAssets })))
 const MyFavorites = lazy(() => import('~/pages/MyFavorites').then(m => ({ default: m.MyFavorites })))
 const MyPurchases = lazy(() => import('~/pages/MyPurchases').then(m => ({ default: m.MyPurchases })))
@@ -77,7 +79,7 @@ export function App() {
         ? 'item'
         : path.startsWith('/collection/')
           ? 'collection'
-          : path.startsWith('/creator/')
+          : path.startsWith('/assets/creator/')
             ? 'creator'
             : 'other')
     trackPage(page)
@@ -93,24 +95,25 @@ export function App() {
         <Sentry.ErrorBoundary fallback={<CrashFallback />}>
           <Suspense fallback={<PageFallback />}>
             <Routes>
-            <Route path="/" element={<Navigate to="/overview" replace />} />
-            <Route path="/overview" element={<Overview />} />
-            <Route path="/assets" element={<Assets />} />
-            {/* Assets is now the unified browse (native + legacy). Keep /market as an alias so old
+              <Route path="/" element={<Navigate to="/overview" replace />} />
+              <Route path="/overview" element={<Overview />} />
+              <Route path="/assets" element={<Assets />} />
+              {/* Assets is now the unified browse (native + legacy). Keep /market as an alias so old
                 links don't 404 — it lands on the same grid. */}
-            <Route path="/market" element={<Navigate to="/assets" replace />} />
-            <Route path="/item/:contractAddress/:tokenId" element={<ItemDetail />} />
-            <Route path="/collection/:contractAddress" element={<Collection />} />
-            <Route path="/creator/:address" element={<Creator />} />
-            <Route path="/my-assets" element={<MyAssets />} />
-            <Route path="/my-favorites" element={<MyFavorites />} />
-            <Route path="/my-purchases" element={<MyPurchases />} />
-            <Route path="/import" element={<ImportListings />} />
-            <Route path="/cart" element={<Cart />} />
-            <Route path="/credits" element={<GetCredits />} />
-            <Route path="/success" element={<Success />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+              <Route path="/market" element={<Navigate to="/assets" replace />} />
+              <Route path="/item/:contractAddress/:tokenId" element={<ItemDetail />} />
+              <Route path="/collection/:contractAddress" element={<Collection />} />
+              <Route path="/assets/creator/:address" element={<Creator />} />
+              <Route path="/store-settings" element={<StoreSettings />} />
+              <Route path="/my-assets" element={<MyAssets />} />
+              <Route path="/my-favorites" element={<MyFavorites />} />
+              <Route path="/my-purchases" element={<MyPurchases />} />
+              <Route path="/import" element={<ImportListings />} />
+              <Route path="/cart" element={<Cart />} />
+              <Route path="/credits" element={<GetCredits />} />
+              <Route path="/success" element={<Success />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
           </Suspense>
         </Sentry.ErrorBoundary>
       </main>

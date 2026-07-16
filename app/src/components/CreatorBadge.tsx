@@ -4,7 +4,7 @@ import { useProfile } from '~/hooks/useProfile'
 
 // Show a creator/seller by their DCL profile (avatar + name), falling back to a short address.
 // Uses the shared useProfile query so many cards with the same creator dedupe to one fetch.
-// `linkToProfile` makes it clickable → the creator's storefront (/creator/:address); it stops
+// `linkToProfile` makes it clickable → the creator's storefront (/assets/creator/:address); it stops
 // propagation so it works inside a clickable card without also opening the item.
 function shortAddress(addr: string): string {
   return /^0x[a-fA-F0-9]{40}$/.test(addr) ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : addr
@@ -27,7 +27,7 @@ function initialFor(name: string | undefined, address: string): string {
 export function CreatorBadge({
   address,
   className,
-  linkToProfile
+  linkToProfile,
 }: {
   address?: string
   className?: string
@@ -59,7 +59,9 @@ export function CreatorBadge({
   const inner = (
     <>
       {ava}
-      <span className="creator__name">By {name}</span>
+      <span className="creator__name">
+        By <span className="creator__display">{name}</span>
+      </span>
     </>
   )
   if (linkToProfile) {
@@ -68,7 +70,7 @@ export function CreatorBadge({
         className={`creator creator--link${className ? ` ${className}` : ''}`}
         onClick={e => {
           e.stopPropagation()
-          navigate(`/creator/${address}`)
+          navigate(`/assets/creator/${address}`)
         }}
       >
         {inner}

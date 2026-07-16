@@ -307,6 +307,7 @@ describe('when fetching the shop browse listings', () => {
       skip: 24,
       contractAddress: '0xc',
       itemId: '3',
+      creator: '0xcreator',
       rarities: ['epic', 'legendary'],
       wearableCategories: ['hat', 'hair'],
       minPriceCredits: 1,
@@ -320,6 +321,7 @@ describe('when fetching the shop browse listings', () => {
     expect(url).toContain('skip=24')
     expect(url).toContain('contractAddress=0xc')
     expect(url).toContain('itemId=3')
+    expect(url).toContain('creator=0xcreator')
     expect(url).toContain('rarity=epic%2Clegendary')
     expect(url).toContain('wearableCategory=hat%2Chair')
     expect(url).toContain('minPriceCredits=1')

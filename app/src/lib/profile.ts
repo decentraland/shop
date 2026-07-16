@@ -2,6 +2,13 @@ import { config } from '~/config'
 
 export type ProfileAvatar = {
   name?: string
+  // Whether `name` is a claimed (paid) DCL name. Drives the avatar background color (unclaimed names
+  // get an `#<last4 of address>` suffix before hashing — see lib/avatarColor.ts) and the "verified"
+  // treatment elsewhere.
+  hasClaimedName?: boolean
+  // The owner address as returned by the Catalyst payload — used with `name`/`hasClaimedName` to
+  // derive the deterministic avatar background color.
+  ethAddress?: string
   // `bodyShape` is a BaseMale/BaseFemale URN in the Catalyst payload — used to detect whether an item
   // is compatible with the connected avatar's shape (see lib/bodyShape.ts).
   avatar?: { bodyShape?: string; snapshots?: { face256?: string; body?: string } }

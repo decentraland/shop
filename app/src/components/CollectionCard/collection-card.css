@@ -1,0 +1,143 @@
+/* ---------------- Collection card ---------------- */
+/* Same 2px gradient-border-in-the-border-box trick as AssetCard (see asset-card.css): a transparent
+   base border over a white fill, swapped to the cerise gradient on hover with NO layout shift, plus a
+   soft violet glow. Fixed height so it tiles cleanly in the grid; the media flex-grows and the body
+   sits at the bottom. On hover/focus the "View collection" button appears in the body and the media
+   (flex:1) yields the space, so the card's overall height never changes. */
+.coll-card {
+  height: 300px;
+  background:
+    linear-gradient(#fff, #fff) padding-box,
+    linear-gradient(var(--line), var(--line)) border-box;
+  border: 2px solid transparent;
+  border-radius: var(--radius-card);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    box-shadow 0.15s ease;
+}
+.coll-card:hover,
+.coll-card:focus-visible {
+  background:
+    linear-gradient(#fff, #fff) padding-box,
+    var(--cerise) border-box;
+  box-shadow: 0 0 8px 0 var(--brand-violet);
+  outline: none;
+}
+
+.coll-card__media {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  background: var(--media);
+  overflow: hidden;
+}
+.coll-card__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* The cover is the shared mosaic (CollectionThumb) at cover scale: a wider gap and the (transparent)
+   item thumbnails CONTAINed with padding, so whole wearables show instead of being cropped. */
+.coll-card__cover {
+  gap: 2px;
+}
+.coll-card__cover .coll-thumb__cell img {
+  object-fit: contain;
+  padding: 10px;
+}
+
+/* Body pinned to the bottom of the card; it grows to fit the button on hover and the media absorbs it. */
+.coll-card__body {
+  flex: 0 0 auto;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.coll-card__name {
+  margin: 0;
+  font-weight: 700;
+  font-size: 18px;
+  line-height: 1.3;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.coll-card__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+/* Creator badge: show the avatar (unlike AssetCard, which hides it) and paint the name cerise — the
+   "By" stays muted. min-width:0 lets a long name ellipsis instead of shoving the count off the row. */
+.coll-card__creator {
+  min-width: 0;
+}
+.coll-card__creator.creator {
+  color: var(--muted);
+}
+.coll-card__creator .creator__ava {
+  width: 24px;
+  height: 24px;
+}
+.coll-card__creator .creator__name {
+  font-size: 14px;
+}
+.coll-card__creator .creator__display {
+  color: var(--dcl-red);
+  font-weight: 700;
+}
+.coll-card__count {
+  flex: none;
+  color: var(--text);
+  font-weight: 600;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+/* "View collection" — filled amethyst button (Figma). Hidden at rest on hover-capable devices and
+   revealed on hover OR keyboard focus (focus-within); always shown where there's no hover (touch), so
+   the collection stays reachable without a mouse. The whole card is already a link, so this is an
+   explicit affordance rather than the only way in (tabIndex -1 keeps it out of the tab order). */
+.coll-card__view {
+  display: none;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+  background: var(--amethyst);
+  color: var(--soft-white);
+  border: 0;
+  border-radius: var(--radius-btn);
+  font-weight: 700;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.046em;
+  transition: filter 0.15s ease;
+}
+.coll-card:hover .coll-card__view,
+.coll-card:focus-within .coll-card__view {
+  display: flex;
+}
+@media (hover: none) {
+  .coll-card__view {
+    display: flex;
+  }
+}
+.coll-card__view:hover {
+  filter: brightness(1.08);
+}
+
+@media (max-width: 768px) {
+  .coll-card__name {
+    font-size: 16px;
+  }
+}

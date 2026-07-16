@@ -8,7 +8,7 @@ export const BASE = process.env.E2E_BASE_URL ?? 'http://localhost:5273'
 const CORS = {
   'access-control-allow-origin': '*',
   'access-control-allow-headers': '*',
-  'access-control-allow-methods': 'GET,POST,PUT,DELETE,OPTIONS'
+  'access-control-allow-methods': 'GET,POST,PUT,DELETE,OPTIONS',
 }
 // 1x1 transparent PNG.
 const PNG = Buffer.from(
@@ -32,6 +32,7 @@ export type Fixtures = {
   profile: unknown
   authorize: unknown
   trade: unknown
+  userStore: unknown
 }
 
 function defaults(): Fixtures {
@@ -48,6 +49,7 @@ function defaults(): Fixtures {
     builderCollections: fx.builderCollections,
     builderItems: fx.builderItems,
     profile: fx.profile,
+    userStore: null,
     authorize: {
       credit: {
         id: '0x' + '55'.repeat(32),
@@ -55,13 +57,13 @@ function defaults(): Fixtures {
         availableAmount: '1000000000000000000',
         expiresAt: Math.floor(Date.now() / 1000) + 900,
         signature: '0x' + 'ab'.repeat(65),
-        contract: '0x8052a560e6e6ac86eeb7e711a4497f639b322fb3'
+        contract: '0x8052a560e6e6ac86eeb7e711a4497f639b322fb3',
       },
       maxCreditedValue: '1000000000000000000',
       usdCents: 2700,
-      oracleRate: '26960836'
+      oracleRate: '26960836',
     },
-    trade: null
+    trade: null,
   }
 }
 
@@ -96,7 +98,7 @@ function toCatalogRow(l: any) {
     chainId: l.chainId,
     thumbnail: l.thumbnail ?? '',
     price: priceWei,
-    priceCredits
+    priceCredits,
   }
 }
 
@@ -123,7 +125,11 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
 
   // JSON-RPC read provider.
   if (u.hostname.includes('rpc-amoy') || u.hostname.includes('rpc.decentraland')) {
-    return req.respond({ status: 200, headers: { 'content-type': 'application/json', ...CORS }, body: handleRpc(req.postData() || '{}') })
+    return req.respond({
+      status: 200,
+      headers: { 'content-type': 'application/json', ...CORS },
+      body: handleRpc(req.postData() || '{}'),
+    })
   }
   // Meta-transaction relayer (transactions-server): gasless checkout POSTs the signed useCredits
   // meta-tx here; the RPC mock then returns a status-1 receipt for the returned hash. Gasless is the
@@ -133,7 +139,11 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
   }
   // WearablePreview iframe → blank page (don't hit the external preview app).
   if (u.hostname.includes('wearable-preview')) {
-    return req.respond({ status: 200, headers: { 'content-type': 'text/html', ...CORS }, body: '<!doctype html><title>preview</title>' })
+    return req.respond({
+      status: 200,
+      headers: { 'content-type': 'text/html', ...CORS },
+      body: '<!doctype html><title>preview</title>',
+    })
   }
   // Images / builder content.
   if (path.includes('/contents/') || /\.(png|jpe?g|gif|svg|webp|ico)$/.test(path)) {
@@ -163,8 +173,10 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
       const search = u.searchParams.get('search')?.toLowerCase()
       const rarity = u.searchParams.get('rarity')
       const category = u.searchParams.get('category')
+      const creator = u.searchParams.get('creator')
       if (ca) items = items.filter(i => String(i.contractAddress).toLowerCase() === ca.toLowerCase())
       if (itemId) items = items.filter(i => String(i.itemId) === itemId)
+      if (creator) items = items.filter(i => String(i.creator).toLowerCase() === creator.toLowerCase())
       if (search) items = items.filter(i => String(i.name).toLowerCase().includes(search))
       if (rarity) items = items.filter(i => rarity.split(',').includes(i.rarity))
       if (category) items = items.filter(i => i.category === category)
@@ -180,7 +192,8 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
       if (search) items = items.filter(i => String(i.name).toLowerCase().includes(search))
       if (rarity) items = items.filter(i => rarity.split(',').includes(i.rarity))
       if (category) items = items.filter(i => i.category === category)
-      if (u.searchParams.get('sortBy') === 'cheapest') items.sort((a, b) => Number(BigInt(a.manaWei) - BigInt(b.manaWei)))
+      if (u.searchParams.get('sortBy') === 'cheapest')
+        items.sort((a, b) => Number(BigInt(a.manaWei) - BigInt(b.manaWei)))
       return json(req, { data: items, total: items.length })
     }
     if (path === '/v3/catalog/unified') {
@@ -201,7 +214,7 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
     // Collections entity: search dropdown "Collections" section (fetchCollectionSuggestions, ?search=)
     // + the Collection page name lookup (fetchCollection, ?contractAddress=). Honor both filters.
     if (path === '/v1/collections') {
-      let rows = ((F.collections as { data: any[] }).data ?? [])
+      let rows = (F.collections as { data: any[] }).data ?? []
       const search = u.searchParams.get('search')?.toLowerCase()
       const ca = u.searchParams.get('contractAddress')?.toLowerCase()
       if (ca) rows = rows.filter(c => String(c.contractAddress).toLowerCase() === ca)
@@ -222,7 +235,7 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
     if (path === '/v1/nfts') {
       // Creator search step 1 (lib/search.ts → fetchNameOwners): DCL names matching ?search=.
       if (u.searchParams.get('category') === 'ens') {
-        let names = ((F.creatorNames as { data: any[] }).data ?? [])
+        let names = (F.creatorNames as { data: any[] }).data ?? []
         const search = u.searchParams.get('search')?.toLowerCase()
         if (search) names = names.filter(n => String(n.nft.name).toLowerCase().includes(search))
         return json(req, { data: names, total: names.length })
@@ -232,7 +245,7 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
     // Creator search step 2 (lib/search.ts → fetchSellerCounts): collection counts per address.
     if (path === '/v1/accounts') {
       const wanted = u.searchParams.getAll('address').map(a => a.toLowerCase())
-      let rows = ((F.accounts as { data: any[] }).data ?? [])
+      let rows = (F.accounts as { data: any[] }).data ?? []
       if (wanted.length) rows = rows.filter(a => wanted.includes(String(a.address).toLowerCase()))
       return json(req, { data: rows, total: rows.length })
     }
@@ -251,8 +264,45 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
     return json(req, { data: [] })
   }
 
-  // peer lambdas (profiles)
+  // peer lambdas (profiles) + content (store entity)
   if (u.hostname.includes('peer.decentraland')) {
+    // Creator store entity (cover + description) for the storefront hero. The fixture creator gets a
+    // store with a description; everyone else resolves to no entity (hero uses the default cover).
+    if (path === '/content/entities/active') {
+      const body = JSON.parse(req.postData() || '{}') as { pointers?: string[] }
+      const isCreator = (body.pointers ?? []).some(p => p.toLowerCase().includes(fx.CREATOR_ADDRESS.toLowerCase()))
+      if (isCreator) {
+        return json(req, [
+          {
+            content: [{ file: 'cover/cover.jpg', hash: 'QmCover' }],
+            metadata: {
+              description: 'Handcrafted wearables & emotes.',
+              images: [{ name: 'cover', file: 'cover/cover.jpg' }],
+              links: [
+                { name: 'website', url: 'https://galaxy.example' },
+                { name: 'twitter', url: 'https://www.twitter.com/galaxy' },
+                { name: 'discord', url: 'https://discord.gg/galaxy' },
+              ],
+            },
+          },
+        ])
+      }
+      // Any other pointer is the signed-in user's own store: serve the per-run fixture if provided.
+      return json(req, F.userStore ? [F.userStore] : [])
+    }
+    // Store entity deployment (store-settings save). Before POSTing the entity the catalyst client
+    // GETs /available-content to skip re-uploading known hashes — return "nothing uploaded yet" so it
+    // uploads, then ack the POST /content/entities deploy so the app's success path runs.
+    if (path === '/content/available-content') {
+      const cids = u.searchParams.getAll('cid')
+      return json(
+        req,
+        cids.map(cid => ({ cid, available: false }))
+      )
+    }
+    if (path === '/content/entities' && method === 'POST') {
+      return json(req, { creationTimestamp: 1 })
+    }
     if (path.includes('/lambdas/profiles')) {
       // The fixture creator (author of the shop listings + the matched DCL name) resolves to a
       // "Galaxy Studio" profile — used for the "By {creator}" sublines and the Creators row name.

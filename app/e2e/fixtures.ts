@@ -162,7 +162,8 @@ export const shopListings = {
       priceCredits: 135,
       available: 1,
       network: 'MATIC',
-      chainId: 80002
+      chainId: 80002,
+      isSmart: true
     }
   ],
   total: 2
@@ -273,7 +274,8 @@ export const unifiedListings = {
       network: 'MATIC',
       chainId: 80002,
       source: 'native',
-      manaWei: null
+      manaWei: null,
+      isSmart: true
     },
     {
       tradeId: 'legacy-trade-1',

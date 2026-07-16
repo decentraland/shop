@@ -31,7 +31,8 @@ describe('CreatorBadge avatar rendering', () => {
     expect(img).not.toBeNull()
     expect(img?.getAttribute('src')).toBe('https://face.png')
     expect(container.querySelector('.creator__ava--letter')).toBeNull()
-    expect(screen.getByText('By bondi')).toBeTruthy()
+    // The name is split across "By " + a <span class="creator__display">, so match the row's full text.
+    expect(container.querySelector('.creator__name')?.textContent).toBe('By bondi')
   })
 
   it('should fall back to a lettered avatar (name initial) when there is no face snapshot', () => {
@@ -55,7 +56,7 @@ describe('CreatorBadge avatar rendering', () => {
     useProfile.mockReturnValue({ data: undefined })
     const { container } = renderBadge()
     expect(container.querySelector('.creator__ava--letter')?.textContent).toBe('A') // 0x[a]bc… → A
-    expect(screen.getByText('By 0xabc0…0001')).toBeTruthy()
+    expect(container.querySelector('.creator__name')?.textContent).toBe('By 0xabc0…0001')
   })
 
   it('should render a clickable button to the creator page when linkToProfile is set', () => {

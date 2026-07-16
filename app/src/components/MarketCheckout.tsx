@@ -45,7 +45,8 @@ function toCatalogItem(l: LegacyListing): CatalogItem {
     chainId: l.chainId,
     thumbnail: l.thumbnail,
     priceCredits: 0,
-    gender: null
+    gender: null,
+    isSmart: false, // TODO: legacy listings don't have the isSmart flag, but we should add it to the API or retrieve it somehow.
   }
 }
 
@@ -68,7 +69,7 @@ export function MarketCheckout({
   listing,
   rate,
   onClose,
-  onSold
+  onSold,
 }: {
   listing: LegacyListing
   rate: ManaRate
@@ -116,11 +117,11 @@ export function MarketCheckout({
         // Guard against a malformed manaWei / bad rate sizing a $0 authorize (manaWeiToUsdCents
         // returns 0 on parse failure) — never lock a free purchase.
         if (!Number.isFinite(usdCents) || usdCents <= 0) throw new Error('price unavailable')
-        const { credit, maxCreditedValue, usdCents: lockedCents } = await authorizeUsdCredit(
-          session.identity,
-          usdCents,
-          listing.tradeId
-        )
+        const {
+          credit,
+          maxCreditedValue,
+          usdCents: lockedCents,
+        } = await authorizeUsdCredit(session.identity, usdCents, listing.tradeId)
         if (cancelled) {
           // Component unmounted before we could show the price — release the reservation.
           void cancelUsdIntents(session.identity, [credit.id]).catch(() => {})
@@ -135,7 +136,7 @@ export function MarketCheckout({
         track(isUserRejection(e) ? 'Shop Purchase Cancelled' : 'Shop Purchase Failed', {
           step: 'authorize',
           error_code: errorCode(e),
-          value_usd: Math.round(manaWeiToUsdCents(listing.manaWei, rate)) / 100
+          value_usd: Math.round(manaWeiToUsdCents(listing.manaWei, rate)) / 100,
         })
         setPhase('error')
         setError(friendlyError(e))
@@ -166,7 +167,7 @@ export function MarketCheckout({
         from: 'item_checkout',
         credits_needed: locked.credits,
         credits_balance: balance?.credits ?? 0,
-        shortfall: Math.max(0, locked.credits - (balance?.credits ?? 0))
+        shortfall: Math.max(0, locked.credits - (balance?.credits ?? 0)),
       })
       void cancelUsdIntents(session.identity, [locked.credit.id]).catch(() => {})
       reservedCreditIdRef.current = null
@@ -183,7 +184,7 @@ export function MarketCheckout({
         buyer: session.address,
         signer: session.signer,
         credits: [locked.credit],
-        maxCreditedValue: locked.maxCreditedValue
+        maxCreditedValue: locked.maxCreditedValue,
       }
       let txHash: string | undefined
       if (gaslessEnabled()) {
@@ -211,8 +212,8 @@ export function MarketCheckout({
             item_id: listing.itemId ?? null,
             contract_address: listing.contractAddress,
             token_id: null,
-            price_usd: locked.usdCents / 100
-          }
+            price_usd: locked.usdCents / 100,
+          },
         ],
         value_credits: locked.credits,
         value_usd: locked.usdCents / 100,
@@ -220,7 +221,7 @@ export function MarketCheckout({
         is_primary: true,
         payment_type: 'credits',
         no_crypto_step: usedGasless,
-        transaction_hash: txHash ?? null
+        transaction_hash: txHash ?? null,
       })
       void qc.invalidateQueries({ queryKey: ['usd-balance'] })
       navigate('/success', { state: { items: [toCatalogItem(listing)], txHash } })
@@ -232,7 +233,7 @@ export function MarketCheckout({
       track(isUserRejection(e) ? 'Shop Purchase Cancelled' : 'Shop Purchase Failed', {
         step: 'submit',
         error_code: errorCode(e),
-        value_usd: locked.usdCents / 100
+        value_usd: locked.usdCents / 100,
       })
       void qc.invalidateQueries({ queryKey: ['usd-balance'] })
       const msg = friendlyError(e)
@@ -258,7 +259,9 @@ export function MarketCheckout({
         <div className="mkt-modal__head">
           <div className="mkt-modal__thumb">{listing.thumbnail ? <img src={listing.thumbnail} alt="" /> : null}</div>
           <div>
-            <div className="mkt-modal__name" title={listing.name}>{listing.name || 'Item'}</div>
+            <div className="mkt-modal__name" title={listing.name}>
+              {listing.name || 'Item'}
+            </div>
             <span className="chip chip--rarity">{listing.rarity}</span>
           </div>
         </div>
@@ -271,13 +274,17 @@ export function MarketCheckout({
                 <CurrencyIcon className="mkt-modal__diamond" />
                 {formatAmount(locked.credits)}
               </div>
-              <div className="mkt-modal__price-sub muted">Locked for this purchase · ${(locked.usdCents / 100).toFixed(2)}</div>
+              <div className="mkt-modal__price-sub muted">
+                Locked for this purchase · ${(locked.usdCents / 100).toFixed(2)}
+              </div>
             </>
           ) : (
             <>
               <div className="mkt-modal__price-label">Today&rsquo;s price</div>
               <div className="mkt-modal__price-value mkt-modal__price-value--approx">
-                <span className="mkt-modal__approx" aria-hidden>≈</span>
+                <span className="mkt-modal__approx" aria-hidden>
+                  ≈
+                </span>
                 <CurrencyIcon className="mkt-modal__diamond" />
                 {formatAmount(approxCredits)}
               </div>
@@ -286,13 +293,21 @@ export function MarketCheckout({
           )}
         </div>
 
-        {session ? <div className="mkt-modal__balance muted">Your balance: <CurrencyIcon className="ccy-mark" /> {balanceLabel(balance, balanceError)}</div> : null}
-        {needsMoreCredits ? <p className="muted mkt-modal__note">You&rsquo;ll need a few more {CURRENCY.name} to buy this.</p> : null}
+        {session ? (
+          <div className="mkt-modal__balance muted">
+            Your balance: <CurrencyIcon className="ccy-mark" /> {balanceLabel(balance, balanceError)}
+          </div>
+        ) : null}
+        {needsMoreCredits ? (
+          <p className="muted mkt-modal__note">You&rsquo;ll need a few more {CURRENCY.name} to buy this.</p>
+        ) : null}
         {status && phase === 'working' ? <p className="muted mkt-modal__note">{status}</p> : null}
         {error ? <p className="error mkt-modal__note">{error}</p> : null}
 
         <div className="mkt-modal__actions">
-          <button className="btn btn--ghost" onClick={cancel} disabled={busy}>Cancel</button>
+          <button className="btn btn--ghost" onClick={cancel} disabled={busy}>
+            Cancel
+          </button>
           <button className="btn btn--purple" onClick={confirm} disabled={busy || !locked}>
             {busy ? 'Buying…' : needsMoreCredits ? `Get ${CURRENCY.name}` : 'Confirm purchase'}
           </button>

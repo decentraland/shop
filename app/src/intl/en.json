@@ -27,7 +27,80 @@
   },
   "collection": {
     "breadcrumb": "Collectibles",
-    "fallbackTitle": "Collection"
+    "fallbackTitle": "Collection",
+    "category": "Category",
+    "viewProfile": "View profile",
+    "copyAddress": "Copy account",
+    "copied": "Copied",
+    "empty": "This collection has no items to show.",
+    "error": "Couldn’t load this collection — please try again."
+  },
+  "collectionCard": {
+    "viewCollection": "View collection",
+    "itemCount": "{count, plural, one {# Item} other {# Items}}"
+  },
+  "categories": {
+    "shopAll": "Shop All",
+    "wearables": "Wearables",
+    "emotes": "Emotes",
+    "collections": "Collections",
+    "head": "Head",
+    "upperBody": "Upper Body",
+    "handwear": "Handwear",
+    "lowerBody": "Lower Body",
+    "feet": "Feet",
+    "accessories": "Accessories",
+    "skins": "Skins",
+    "dance": "Dance",
+    "stunt": "Stunt",
+    "greetings": "Greetings",
+    "fun": "Fun",
+    "poses": "Poses",
+    "reactions": "Reactions",
+    "horror": "Horror",
+    "miscellaneous": "Miscellaneous"
+  },
+  "creator": {
+    "breadcrumb": "Assets",
+    "category": "Category",
+    "fallbackName": "Creator",
+    "viewProfile": "View profile",
+    "editStore": "Edit store",
+    "link": {
+      "website": "Website",
+      "twitter": "Twitter",
+      "discord": "Discord",
+      "facebook": "Facebook"
+    },
+    "follow": "Follow",
+    "following": "Following",
+    "followTitle": "Follow creator",
+    "unfollowTitle": "Unfollow creator",
+    "empty": "This creator has no items to show yet.",
+    "collectionsCount": "{count, plural, one {# collection} other {# collections}}",
+    "collectionsEmpty": "This creator hasn’t published any collections yet.",
+    "error": "Couldn’t load this creator — please try again."
+  },
+  "storeSettings": {
+    "title": "Store settings",
+    "back": "Back to your store",
+    "signInPrompt": "Sign in to set up your store.",
+    "signIn": "Sign in",
+    "seeAsGuest": "See store as guest",
+    "loading": "Loading your store…",
+    "cover": "Store cover",
+    "upload": "Upload your own",
+    "description": "Description",
+    "website": "Website",
+    "twitter": "Twitter handle",
+    "discord": "Discord invite ID",
+    "facebook": "Facebook handle",
+    "save": "Save",
+    "saving": "Saving…",
+    "saved": "Store saved.",
+    "saveError": "Couldn’t save your store — please try again.",
+    "sizeError": "Maximum cover size is {max}; the image you chose is {current}.",
+    "linkError": "Link should start with {value}"
   },
   "notFound": {
     "title": "Page not found",
@@ -40,5 +113,21 @@
       "body": "Find something you love and it’ll show up here.",
       "cta": "Browse Collectibles"
     }
+  },
+  "filter": {
+    "price": "Price"
+  },
+  "assetCard": {
+    "sale": "SALE",
+    "saleWithDiscount": "SALE -{pct}%",
+    "smart": "Smart",
+    "addToFavorites": "Add to favorites",
+    "removeFromFavorites": "Remove from favorites",
+    "marketPrice": "Market price",
+    "unavailable": "Unavailable",
+    "buyNow": "Buy now",
+    "yourItem": "Your item",
+    "inCart": "In cart",
+    "addToCart": "Add to cart"
   }
 }

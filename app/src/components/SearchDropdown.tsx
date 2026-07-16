@@ -1,14 +1,8 @@
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import CloseIcon from '@mui/icons-material/CloseRounded'
 import { fetchListings, type CatalogItem } from '~/lib/api'
-import {
-  fetchCollectionSuggestions,
-  fetchCreatorSuggestions,
-  type CollectionHit,
-  type CreatorHit,
-} from '~/lib/search'
-import { fetchCollectionItems } from '~/lib/collections'
-import { rarityGradient } from '~/lib/rarity'
+import { fetchCollectionSuggestions, fetchCreatorSuggestions, type CollectionHit, type CreatorHit } from '~/lib/search'
+import { CollectionThumb } from '~/components/CollectionThumb'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { useProfile } from '~/hooks/useProfile'
 import { t } from '~/intl/i18n'
@@ -26,44 +20,19 @@ function CreatorName({ address, className }: { address: string; className?: stri
   return <span className={className}>{t('search.byCreator', { name })}</span>
 }
 
-// Collection thumbnail for a suggestion row. The collection search response carries no image, so
-// (like the marketplace's CollectionImage) we build a mosaic from the collection's first up-to-4
-// items — each item thumbnail over its rarity-colored gradient. Lazily fetched per visible row +
-// cached; falls back to the neutral icon tile while loading or when the collection is empty.
-function CollectionThumb({ contractAddress }: { contractAddress: string }) {
-  const { data } = useQuery({
-    queryKey: ['collection-thumb', contractAddress],
-    queryFn: () => fetchCollectionItems(contractAddress, { first: 4 }),
-    staleTime: 5 * 60_000,
-  })
-  const items = data?.items ?? []
-  if (items.length === 0) {
-    return (
-      <span className="search-pop__thumb search-pop__thumb--icon">
-        <span className="ico ico-search" aria-hidden />
-      </span>
-    )
-  }
+// The collection suggestion row's thumbnail is the shared mosaic (CollectionThumb) sized as a small
+// rounded tile, falling back to the neutral icon tile while loading or when the collection is empty.
+function CollectionRowThumb({ contractAddress }: { contractAddress: string }) {
   return (
-    <span
-      className="search-pop__thumb search-pop__thumb--mosaic"
-      data-count={items.length}
-    >
-      {items.map(item => (
-        <span
-          key={item.id}
-          className="search-pop__mosaic-cell"
-          style={{ backgroundImage: rarityGradient(item.rarity) }}
-        >
-          {item.thumbnail ? (
-            <img
-              src={item.thumbnail}
-              alt=""
-            />
-          ) : null}
+    <CollectionThumb
+      contractAddress={contractAddress}
+      className="search-pop__collthumb"
+      fallback={
+        <span className="search-pop__thumb search-pop__thumb--icon">
+          <span className="ico ico-search" aria-hidden />
         </span>
-      ))}
-    </span>
+      }
+    />
   )
 }
 
@@ -137,36 +106,18 @@ export function SearchDropdown({
   if (!enabled) {
     if (recent.length === 0) return null
     return (
-      <div
-        className="search-pop"
-        role="listbox"
-        aria-label={t('search.suggestions')}
-      >
+      <div className="search-pop" role="listbox" aria-label={t('search.suggestions')}>
         <div className="search-pop__section-head">
           <span>{t('search.recent')}</span>
-          <button
-            type="button"
-            className="search-pop__clear"
-            onClick={onClearRecent}
-          >
+          <button type="button" className="search-pop__clear" onClick={onClearRecent}>
             {t('search.clearRecent')}
           </button>
         </div>
         <ul className="search-pop__list">
           {recent.map(term => (
-            <li
-              key={term}
-              className="search-pop__recent"
-            >
-              <button
-                type="button"
-                className="search-pop__recent-btn"
-                onClick={() => onRunSearch(term)}
-              >
-                <span
-                  className="ico ico-search search-pop__recent-ico"
-                  aria-hidden
-                />
+            <li key={term} className="search-pop__recent">
+              <button type="button" className="search-pop__recent-btn" onClick={() => onRunSearch(term)}>
+                <span className="ico ico-search search-pop__recent-ico" aria-hidden />
                 <span className="search-pop__recent-text">{term}</span>
               </button>
               <button
@@ -187,15 +138,9 @@ export function SearchDropdown({
   const nothing = items.length === 0 && collections.length === 0 && creators.length === 0
 
   return (
-    <div
-      className="search-pop"
-      role="listbox"
-      aria-label={t('search.suggestions')}
-    >
+    <div className="search-pop" role="listbox" aria-label={t('search.suggestions')}>
       {nothing ? (
-        <p className="search-pop__empty">
-          {itemsFetching ? t('search.searching') : t('search.noResults', { query })}
-        </p>
+        <p className="search-pop__empty">{itemsFetching ? t('search.searching') : t('search.noResults', { query })}</p>
       ) : (
         <>
           {items.length > 0 ? (
@@ -206,32 +151,15 @@ export function SearchDropdown({
               <ul className="search-pop__list">
                 {items.map(item => (
                   <li key={item.id}>
-                    <button
-                      type="button"
-                      className="search-pop__row"
-                      onClick={() => onSelectItem(item)}
-                    >
+                    <button type="button" className="search-pop__row" onClick={() => onSelectItem(item)}>
                       <span className="search-pop__thumb">
-                        {item.thumbnail ? (
-                          <img
-                            src={item.thumbnail}
-                            alt=""
-                          />
-                        ) : null}
+                        {item.thumbnail ? <img src={item.thumbnail} alt="" /> : null}
                       </span>
                       <span className="search-pop__text">
-                        <span
-                          className="search-pop__name"
-                          title={item.name}
-                        >
+                        <span className="search-pop__name" title={item.name}>
                           {item.name}
                         </span>
-                        {item.creator ? (
-                          <CreatorName
-                            address={item.creator}
-                            className="search-pop__sub"
-                          />
-                        ) : null}
+                        {item.creator ? <CreatorName address={item.creator} className="search-pop__sub" /> : null}
                       </span>
                       <span className="search-pop__price">
                         <CurrencyIcon className="ccy-mark" /> {item.priceCredits}
@@ -256,19 +184,13 @@ export function SearchDropdown({
                       className="search-pop__row search-pop__row--collection"
                       onClick={() => onSelectCollection(collection)}
                     >
-                      <CollectionThumb contractAddress={collection.contractAddress} />
+                      <CollectionRowThumb contractAddress={collection.contractAddress} />
                       <span className="search-pop__text">
-                        <span
-                          className="search-pop__name"
-                          title={collection.name}
-                        >
+                        <span className="search-pop__name" title={collection.name}>
                           {collection.name}
                         </span>
                         {collection.creator ? (
-                          <CreatorName
-                            address={collection.creator}
-                            className="search-pop__sub"
-                          />
+                          <CreatorName address={collection.creator} className="search-pop__sub" />
                         ) : null}
                       </span>
                     </button>
@@ -292,18 +214,10 @@ export function SearchDropdown({
                       onClick={() => onSelectCreator(creator)}
                     >
                       <span className="search-pop__thumb search-pop__thumb--round">
-                        {creator.face ? (
-                          <img
-                            src={creator.face}
-                            alt=""
-                          />
-                        ) : null}
+                        {creator.face ? <img src={creator.face} alt="" /> : null}
                       </span>
                       <span className="search-pop__text">
-                        <span
-                          className="search-pop__name"
-                          title={creator.name}
-                        >
+                        <span className="search-pop__name" title={creator.name}>
                           {creator.name}
                         </span>
                       </span>
@@ -315,11 +229,7 @@ export function SearchDropdown({
           ) : null}
 
           {total > 0 ? (
-            <button
-              type="button"
-              className="search-pop__seeall"
-              onClick={() => onRunSearch(query)}
-            >
+            <button type="button" className="search-pop__seeall" onClick={() => onRunSearch(query)}>
               {t('search.seeAll', { count: total.toLocaleString() })}
             </button>
           ) : null}

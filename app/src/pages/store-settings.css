@@ -1,0 +1,195 @@
+.store-settings {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 8px 0 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Signed-out state: a compact, fully-centered prompt (both axes) with a natural-width button. */
+.store-settings--signin {
+  min-height: 60vh;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 12px;
+}
+.store-settings__signin-btn {
+  align-self: center;
+  min-width: 200px;
+  margin-top: 8px;
+}
+
+.store-settings__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+/* Back arrow + page title, grouped so the arrow reads as "go back" to the store. */
+.store-settings__heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.store-settings__back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+  transition: color 0.15s linear;
+}
+.store-settings__back:hover { color: var(--accent); }
+.store-settings__back .ico { width: 22px; height: 22px; }
+
+.store-settings__title {
+  font-size: 24px;
+  font-weight: 800;
+}
+
+.store-settings__guest {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 14px;
+  text-decoration: none;
+}
+.store-settings__guest:hover { text-decoration: underline; }
+.store-settings__guest .ico { width: 15px; height: 15px; }
+
+/* --- field extras (base .field / .field input live in index.css) --- */
+.store-settings .field__label {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.store-settings textarea {
+  background: #fff;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: var(--text);
+  font: inherit;
+  resize: vertical;
+  min-height: 88px;
+}
+
+/* Social inputs: a fixed, non-editable prefix chip glued to the input. */
+.field__prefixed {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+}
+.field__prefix {
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  background: rgba(0, 0, 0, .04);
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+  border-right: 1px solid var(--line-strong);
+}
+.field__prefixed input {
+  border: 0 !important;
+  border-radius: 0 !important;
+  flex: 1;
+  min-width: 0;
+}
+
+/* --- cover picker: a responsive grid of template tiles + an upload tile --- */
+.cover-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.cover-picker__tile {
+  position: relative;
+  padding: 0;
+  border: 2px solid var(--line-strong);
+  border-radius: var(--radius-card);
+  overflow: hidden;
+  aspect-ratio: 16 / 9;
+  background: var(--media, #f0eef2);
+  cursor: pointer;
+}
+.cover-picker__tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.cover-picker__tile.is-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+/* Selected tick badge. */
+.cover-picker__tile.is-selected::after {
+  content: '✓';
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.cover-picker__upload {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-style: dashed;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  background: #fff;
+}
+.cover-picker__upload .ico { width: 22px; height: 22px; background: var(--muted); }
+.cover-picker__upload:hover { border-color: var(--accent); color: var(--accent); }
+.cover-picker__upload:hover .ico { background: var(--accent); }
+
+.cover-picker__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.store-settings__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 8px;
+}
+.store-settings__save {
+  min-width: 180px;
+}
+
+.store-settings__loading {
+  padding: 64px 0;
+}
+
+@media (max-width: 768px) {
+  .store-settings__actions .btn { width: 100%; }
+  .cover-picker { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+}

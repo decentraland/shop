@@ -12,6 +12,7 @@ import { LoadMore } from '~/components/LoadMore'
 import { MarketCheckout } from '~/components/MarketCheckout'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
+import { SUBCAT_MAP } from '~/lib/categories'
 import { track } from '~/lib/analytics'
 
 // Items fetched per page (infinite scroll pages by cumulative offset — see useInfiniteGrid).
@@ -22,27 +23,6 @@ const PAGE_SIZE = 48
 // UX choice — comfortably above typical listing prices — NOT the placeholder Figma showed (4,000,000),
 // which would make each pixel worth thousands of credits and the slider useless.
 const PRICE_SLIDER_MAX = 100_000
-
-// Sidebar sub-labels → the on-chain categories they cover. Wearable sub-labels map to wearable
-// categories; emote sub-labels map to emote categories. Both go out on the same `wearableCategory`
-// query param — the server filters on a coalesced wearable/emote category column (see /v3/catalog/unified).
-const SUBCAT_MAP: Record<string, string[]> = {
-  Head: ['head', 'hat', 'hair', 'facial_hair', 'eyes', 'eyebrows', 'mouth', 'mask', 'helmet', 'tiara', 'top_head'],
-  'Upper Body': ['upper_body'],
-  Handwear: ['hands_wear'],
-  'Lower Body': ['lower_body'],
-  Feet: ['feet'],
-  Accessories: ['earring', 'eyewear'],
-  Skins: ['skin'],
-  Dance: ['dance'],
-  Stunt: ['stunt'],
-  Greetings: ['greetings'],
-  Fun: ['fun'],
-  Poses: ['poses'],
-  Reactions: ['reactions'],
-  Horror: ['horror'],
-  Miscellaneous: ['miscellaneous']
-}
 
 // A legacy row from the unified feed → the LegacyListing shape MarketCheckout (Buy Now) expects. The
 // unified item is a superset of CatalogItem carrying `manaWei` (present for legacy), so the projection
@@ -67,7 +47,7 @@ function toLegacyListing(item: UnifiedListing): LegacyListing {
     available: 1,
     network: item.network,
     chainId: item.chainId,
-    createdAt: 0
+    createdAt: 0,
   }
 }
 
@@ -108,7 +88,7 @@ export function Assets() {
     minPriceCredits: min,
     maxPriceCredits: max,
     search: q || undefined,
-    sortBy
+    sortBy,
   }
 
   const { items, total, isLoading, error, hasNextPage, isFetchingNextPage, fetchNextPage } = useInfiniteGrid(
@@ -149,9 +129,9 @@ export function Assets() {
         rarities,
         min_price_credits: min ?? null,
         max_price_credits: max ?? null,
-        sort
+        sort,
       },
-      result_count: resultCount
+      result_count: resultCount,
     })
   }, [category, subCategory, rarities, min, max, sort, isLoading, resultCount])
 
@@ -201,10 +181,17 @@ export function Assets() {
       <aside className={`browse__sidebar${filtersOpen ? ' is-open' : ''}`}>
         <div className="browse__sidebar-head">
           <span className="browse__sidebar-title">Filters</span>
-          <button className="browse__sidebar-close" onClick={() => setFiltersOpen(false)} aria-label="Close filters">✕</button>
+          <button className="browse__sidebar-close" onClick={() => setFiltersOpen(false)} aria-label="Close filters">
+            ✕
+          </button>
         </div>
         <div className="sidebar__section-label">Category</div>
-        <CategoryFilter category={category} subCategory={subCategory} onCategory={pickCategory} onSub={setSubCategory} />
+        <CategoryFilter
+          category={category}
+          subCategory={subCategory}
+          onCategory={pickCategory}
+          onSub={setSubCategory}
+        />
 
         <div className="sidebar__divider" />
 
@@ -305,20 +292,32 @@ export function Assets() {
         {/* Drawer action bar (Figma node 1059-158189) — mobile only (CSS). Filters apply live, so
             Apply simply dismisses the drawer; Clear Filters resets them all. */}
         <div className="browse__sidebar-foot">
-          <button type="button" className="browse__clear" onClick={clearFilters}>Clear Filters</button>
-          <button type="button" className="browse__apply" onClick={() => setFiltersOpen(false)}>Apply</button>
+          <button type="button" className="browse__clear" onClick={clearFilters}>
+            Clear Filters
+          </button>
+          <button type="button" className="browse__apply" onClick={() => setFiltersOpen(false)}>
+            Apply
+          </button>
         </div>
       </aside>
 
       <div className="browse__main">
-        <FilterBar sort={sort} onSort={setSort} total={total} loading={isLoading} query={q} onOpenFilters={() => setFiltersOpen(true)} />
+        <FilterBar
+          sort={sort}
+          onSort={setSort}
+          total={total}
+          loading={isLoading}
+          query={q}
+          onOpenFilters={() => setFiltersOpen(true)}
+        />
 
         {/* Legacy (market-priced) cards follow the live rate; if the oracle is down, Buy Now is paused.
             Only warn when the current results actually contain a market-priced item, so users browsing
             only fixed-price items aren't shown an irrelevant notice. */}
         {rateError && items.some(i => i.source === 'legacy') ? (
           <p className="market-banner market-banner--warn">
-            Some market prices are temporarily unavailable — buying those items is paused for a moment. Please try again shortly.
+            Some market prices are temporarily unavailable — buying those items is paused for a moment. Please try again
+            shortly.
           </p>
         ) : null}
 
@@ -349,9 +348,7 @@ export function Assets() {
 
         <LoadMore hasNextPage={hasNextPage} isFetching={isFetchingNextPage} onLoadMore={() => fetchNextPage()} />
 
-        {!isLoading && items.length === 0 ? (
-          <p className="muted">No items match your filters.</p>
-        ) : null}
+        {!isLoading && items.length === 0 ? <p className="muted">No items match your filters.</p> : null}
       </div>
 
       {checkout && rate ? (
@@ -359,7 +356,10 @@ export function Assets() {
           listing={checkout}
           rate={rate}
           onClose={() => setCheckout(null)}
-          onSold={() => { setCheckout(null); refreshGrid() }}
+          onSold={() => {
+            setCheckout(null)
+            refreshGrid()
+          }}
         />
       ) : null}
     </div>

@@ -1,7 +1,9 @@
 import { Rarity } from '@dcl/schemas'
 
-// Neutral grey for an absent or unrecognized rarity.
-const FALLBACK_COLOR = '#a09ba8'
+// Per-rarity radial gradient (light center → dark edge), matching how the marketplace renders an
+// item's image background. Falls back to a neutral grey wash for unknown rarities.
+const FALLBACK_GRADIENT = 'radial-gradient(#c0bdc6, #a09ba8)'
+const FALLBACK_COLOR = '#E6E6E6'
 
 // Parse a #rrggbb color to [r, g, b]; null when it isn't a full 6-digit hex (defends against a
 // missing/short color upstream so callers can fall back instead of producing NaN channels).
@@ -18,14 +20,7 @@ function luminance([r, g, b]: [number, number, number]): number {
 
 // Real per-rarity color (common grey -> mythic pink, etc.) instead of one flat purple wash.
 export function rarityColor(rarity?: string | null): string {
-  if (!rarity) return FALLBACK_COLOR
-  try {
-    // getColor is a plain map lookup: an unrecognized (but non-empty) rarity returns undefined WITHOUT
-    // throwing, so coalesce it to the fallback — otherwise readableText(undefined) would crash the card.
-    return Rarity.getColor(rarity.toLowerCase() as Rarity) || FALLBACK_COLOR
-  } catch {
-    return FALLBACK_COLOR
-  }
+  return rarity ? Rarity.getColor(rarity.toLowerCase() as Rarity) || FALLBACK_COLOR : FALLBACK_COLOR
 }
 
 // The marketplace rarity chip is a TINTED chip: the rarity's own color at low alpha for the
@@ -50,13 +45,12 @@ export function rarityInk(rarity?: string | null, target = 120): string {
   if (lum <= target) return color
   // Luminance scales linearly with a uniform channel scale, so k = target/lum lands the ink on target.
   const k = target / lum
-  const hex = (n: number) => Math.round(n * k).toString(16).padStart(2, '0')
+  const hex = (n: number) =>
+    Math.round(n * k)
+      .toString(16)
+      .padStart(2, '0')
   return `#${hex(rgb[0])}${hex(rgb[1])}${hex(rgb[2])}`
 }
-
-// Per-rarity radial gradient (light center → dark edge), matching how the marketplace renders an
-// item's image background. Falls back to a neutral grey wash for unknown rarities.
-const FALLBACK_GRADIENT = 'radial-gradient(#c0bdc6, #a09ba8)'
 
 export function rarityGradient(rarity?: string | null): string {
   try {

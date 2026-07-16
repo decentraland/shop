@@ -8,6 +8,7 @@
   "CREDITS_SERVER_URL": "https://credits.decentraland.org",
   "BUILDER_SERVER_URL": "https://builder-api.decentraland.org",
   "PEER_URL": "https://peer.decentraland.org",
+  "PROFILE_URL": "https://decentraland.org/profile",
   "SHOP_SERVER_URL": "",
   "STRIPE_PUBLISHABLE_KEY": "",
   "SEGMENT_WRITE_KEY": "",

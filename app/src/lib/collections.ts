@@ -22,7 +22,7 @@ type RawCollectionItem = {
   // oracle rate; 0 when the item isn't for sale). We consume this as-is — no client conversion.
   priceCredits?: number
   data?: {
-    wearable?: { category?: string; bodyShapes?: string[] }
+    wearable?: { category?: string; bodyShapes?: string[]; isSmart?: boolean }
     emote?: { category?: string }
   }
 }
@@ -47,26 +47,55 @@ function toCatalogItem(r: RawCollectionItem): CatalogItem {
     category: r.category,
     wearableCategory: r.data?.wearable?.category ?? r.data?.emote?.category,
     rarity: r.rarity ?? 'common',
+    isSmart: !!r.data?.wearable?.isSmart,
     network: r.network,
     chainId: r.chainId,
     thumbnail: r.thumbnail ?? '',
     priceCredits: r.priceCredits ?? 0,
-    gender: toGender(r.data?.wearable?.bodyShapes)
+    gender: toGender(r.data?.wearable?.bodyShapes),
   }
 }
 
 export type CollectionItemsPage = { items: CatalogItem[]; total: number }
 
+// Optional browse filters for a collection's grid. Same shape/param names the Creator storefront
+// derives (SUBCAT_MAP → wearableCategories, credit price range, shared SORTS). These ride along on
+// the classic /v1/items endpoint this page already uses — server-side support for each param is
+// unverified (follow-up), so they're only appended when set.
+export type CollectionItemsFilters = {
+  category?: string
+  rarities?: string[]
+  wearableCategories?: string[]
+  minPriceCredits?: number
+  maxPriceCredits?: number
+  sortBy?: string
+}
+
 export async function fetchCollectionItems(
   contractAddress: string,
-  { first = 20, skip = 0 }: { first?: number; skip?: number } = {}
+  {
+    first = 20,
+    skip = 0,
+    category,
+    rarities,
+    wearableCategories,
+    minPriceCredits,
+    maxPriceCredits,
+    sortBy,
+  }: { first?: number; skip?: number } & CollectionItemsFilters = {}
 ): Promise<CollectionItemsPage> {
   const qs = new URLSearchParams({
     contractAddress,
     first: String(first),
     skip: String(skip),
-    includeSocialEmotes: 'false'
+    includeSocialEmotes: 'false',
   })
+  if (category && category !== 'all') qs.set('category', category)
+  rarities?.forEach(r => qs.append('rarity', r))
+  wearableCategories?.forEach(c => qs.append('wearableCategory', c))
+  if (minPriceCredits != null) qs.set('minPrice', String(minPriceCredits))
+  if (maxPriceCredits != null) qs.set('maxPrice', String(maxPriceCredits))
+  if (sortBy) qs.set('sortBy', sortBy)
   const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/items?${qs.toString()}`)
   if (!res.ok) throw new Error(`fetchCollectionItems ${res.status}`)
   const { data, total } = (await res.json()) as { data: RawCollectionItem[]; total?: number }
@@ -88,9 +117,40 @@ export async function fetchCreatorItems(
   return { items, total: total ?? skip + items.length }
 }
 
-type RawCollection = { contractAddress: string; name?: string; creator?: string }
+type RawCollection = { contractAddress: string; name?: string; creator?: string; size?: number }
 
 export type CollectionMeta = { contractAddress: string; name: string; creator: string }
+
+// A collection summary for grids/cards: meta + its item count. The collections entity carries `size`
+// (the number of items), so the count comes back with the list — no per-collection items fetch needed.
+export type CollectionSummary = CollectionMeta & { itemCount: number }
+
+export type CreatorCollectionsPage = { collections: CollectionSummary[]; total: number }
+
+// Every collection published by one creator (their storefront's "Collections" view). Mirrors the
+// marketplace's collectionAPI.fetch({ creator }); newest first. `/v1/collections` supports the
+// `creator` filter and returns `size`, which we surface as the card's item count.
+export async function fetchCreatorCollections(
+  creator: string,
+  { first = 24, skip = 0 }: { first?: number; skip?: number } = {}
+): Promise<CreatorCollectionsPage> {
+  const qs = new URLSearchParams({
+    creator,
+    first: String(first),
+    skip: String(skip),
+    sortBy: 'newest',
+  })
+  const res = await fetch(`${config.nftApiUrl}/v1/collections?${qs.toString()}`)
+  if (!res.ok) throw new Error(`fetchCreatorCollections ${res.status}`)
+  const { data, total } = (await res.json()) as { data?: RawCollection[]; total?: number }
+  const collections = (data ?? []).map(c => ({
+    contractAddress: c.contractAddress,
+    name: c.name ?? '',
+    creator: c.creator ?? '',
+    itemCount: c.size ?? 0,
+  }))
+  return { collections, total: total ?? skip + collections.length }
+}
 
 // A single collection's metadata (name + creator) by contract address. Item records don't carry the
 // collection name — it lives only on the collections entity — so the Collection page resolves it

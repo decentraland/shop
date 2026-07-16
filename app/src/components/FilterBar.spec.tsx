@@ -14,7 +14,7 @@ describe('FilterBar', () => {
     it('should show the result count and the Sort By pill (rarity now lives in the sidebar)', () => {
       render(<FilterBar {...base} />)
       expect(screen.getByText('42 Items')).toBeTruthy()
-      expect(screen.getByRole('button', { name: /Sort By/ })).toBeTruthy()
+      expect(screen.getByRole('button', { name: /Sort by/i })).toBeTruthy()
       // Rarity moved out of the toolbar into the sidebar.
       expect(screen.queryByRole('button', { name: /Rarity/ })).toBeNull()
     })
@@ -26,7 +26,8 @@ describe('FilterBar', () => {
 
     it('should show a placeholder count while loading', () => {
       render(<FilterBar {...base} loading />)
-      expect(screen.getByText('…')).toBeTruthy()
+      // The toolbar has two responsive count spans (one shown per breakpoint via CSS), so both render.
+      expect(screen.getAllByText('…').length).toBeGreaterThan(0)
     })
 
     it('should append the query to the count when present', () => {
@@ -40,7 +41,7 @@ describe('FilterBar', () => {
       const onSort = vi.fn()
       render(<FilterBar {...base} onSort={onSort} />)
 
-      fireEvent.click(screen.getByRole('button', { name: /Sort By/ }))
+      fireEvent.click(screen.getByRole('button', { name: /Sort by/i }))
       fireEvent.click(screen.getByText('Name (A–Z)'))
 
       expect(onSort).toHaveBeenCalledWith('name')

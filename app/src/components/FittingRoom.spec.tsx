@@ -33,6 +33,7 @@ function item(over: Partial<CatalogItem> & { id: string }): CatalogItem {
     thumbnail: '',
     priceCredits: 5,
     gender: null,
+    isSmart: false,
     ...over
   }
 }

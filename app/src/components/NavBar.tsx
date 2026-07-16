@@ -9,12 +9,7 @@ import { CartPopover } from '~/components/CartPopover'
 import { SearchDropdown } from '~/components/SearchDropdown'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { CURRENCY } from '~/lib/currency'
-import {
-  getRecentSearches,
-  recordSearch,
-  removeRecentSearch,
-  clearRecentSearches,
-} from '~/lib/recent-searches'
+import { getRecentSearches, recordSearch, removeRecentSearch, clearRecentSearches } from '~/lib/recent-searches'
 import { track } from '~/lib/analytics'
 import type { CatalogItem } from '~/lib/api'
 import type { CollectionHit, CreatorHit } from '~/lib/search'
@@ -116,7 +111,7 @@ export function NavBar() {
       type: 'creator',
       creator_address: creator.address,
     })
-    navigate(`/creator/${creator.address}`)
+    navigate(`/assets/creator/${creator.address}`)
   }
 
   function onSearchChange(value: string) {
@@ -174,14 +169,8 @@ export function NavBar() {
           <NavLink to="/my-assets">{t('nav.myAssets')}</NavLink>
           {session ? <NavLink to="/my-purchases">{t('nav.myPurchases')}</NavLink> : null}
         </nav>
-        <div
-          className="subnav__search"
-          ref={wrapRef}
-        >
-          <span
-            className="ico ico-search subnav__search-ico"
-            aria-hidden
-          />
+        <div className="subnav__search" ref={wrapRef}>
+          <span className="ico ico-search subnav__search-ico" aria-hidden />
           <input
             value={q}
             aria-label={t('nav.searchAria')}
@@ -191,12 +180,7 @@ export function NavBar() {
             onKeyDown={onSearchKeyDown}
           />
           {q ? (
-            <button
-              type="button"
-              className="subnav__search-clear"
-              aria-label={t('search.clear')}
-              onClick={clearSearch}
-            >
+            <button type="button" className="subnav__search-clear" aria-label={t('search.clear')} onClick={clearSearch}>
               <CloseIcon />
             </button>
           ) : null}
@@ -214,41 +198,21 @@ export function NavBar() {
           ) : null}
         </div>
         {session ? (
-          <span
-            className="subnav__balance"
-            title={t('nav.yourBalance', { currency: CURRENCY.name })}
-          >
+          <span className="subnav__balance" title={t('nav.yourBalance', { currency: CURRENCY.name })}>
             <CurrencyIcon className="subnav__balance-ico" />
             {balanceLabel(balance, balanceError)}
           </span>
         ) : null}
-        <NavLink
-          to="/credits"
-          className="subnav__credits"
-        >
+        <NavLink to="/credits" className="subnav__credits">
           <CurrencyIcon className="subnav__credits-ico" />
           {t('nav.getCredits', { currency: CURRENCY.name })}
         </NavLink>
-        <NavLink
-          to="/my-favorites"
-          className="subnav__fav"
-          aria-label={t('nav.myFavorites')}
-        >
-          <span
-            className="ico ico-heart"
-            aria-hidden
-          />
+        <NavLink to="/my-favorites" className="subnav__fav" aria-label={t('nav.myFavorites')}>
+          <span className="ico ico-heart" aria-hidden />
         </NavLink>
         <div className="subnav__cart-wrap">
-          <NavLink
-            to="/cart"
-            className="subnav__cart"
-            aria-label={t('nav.cart')}
-          >
-            <span
-              className="ico ico-cart"
-              aria-hidden
-            />
+          <NavLink to="/cart" className="subnav__cart" aria-label={t('nav.cart')}>
+            <span className="ico ico-cart" aria-hidden />
             {cartCount > 0 ? <span className="subnav__cart-badge">{cartCount}</span> : null}
           </NavLink>
           <CartPopover />

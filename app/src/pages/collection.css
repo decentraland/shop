@@ -65,3 +65,15 @@
   width: 16px;
   height: 16px;
 }
+
+/* Creator storefront → Collections view: a count bar (mirrors the item grid's FilterBar spacing) and
+   a grid sized for the wider CollectionCards. */
+.creator-collections__bar {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  margin-bottom: 16px;
+}
+.grid--collections {
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+}

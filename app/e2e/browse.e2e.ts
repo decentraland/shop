@@ -17,6 +17,16 @@ describe('browse the shop', () => {
     expect(await page.evaluate(() => document.body.innerText.includes('270'))).toBe(true) // credits price
   })
 
+  it('shows a Smart badge on smart-wearable cards', async () => {
+    app = await launchApp({ path: '/assets' })
+    const { page } = app
+    await waitForText(page, 'Nebula Jacket')
+    // The smart-wearable fixture (Nebula Jacket) renders a .chip--smart on its chips row; the
+    // non-smart one (Galaxy Hat) does not.
+    const smartChips = await page.$$eval('.chip--smart', els => els.map(e => e.textContent?.trim().toUpperCase()))
+    expect(smartChips).toEqual(['SMART'])
+  })
+
   it('renders BOTH native (Add to cart) and legacy (≈ + Buy now) cards in the one unified grid', async () => {
     app = await launchApp({ path: '/assets' })
     const { page } = app

@@ -34,11 +34,13 @@ Internally, listings are **chain-agnostic**: creating a listing is an off-chain 
 - **`src/lib/`** — the logic layer: API clients, buy/sell/import flows, trade encoding, credits, pricing, auth, analytics, monitoring. Pure-ish and heavily unit-tested (each `foo.ts` has a `foo.spec.ts`). This is where business logic belongs, not in components.
 - **`src/hooks/`** — React-query-backed hooks (`useBalance`, `useProfile`, `useManaRate`, …) and `useAccountWatcher` (reloads when the injected wallet switches accounts).
 - **`src/config/`** — runtime config via `@dcl/ui-env`. **One build serves every environment**; the env is chosen at runtime from the hostname, overridable with `?env=`. The `env/{dev,stg,prod}.json` files hold only PUBLIC, client-safe values (hosts, chain id, public ingest keys) — **never a real secret.** `VITE_*` vars (from `.env.local` / the e2e harness) override the JSON for local dev.
-- **`src/intl/`** — i18n. Author nested JSON in `en.json` / `es.json`; it's flattened to `a.b.c` keys at load. Use `t('a.b.c')` (marketplace-style wrapper over react-intl) for user-facing strings — it works with or without a provider (defaults to English, keeps unit tests green).
+- **`src/intl/`** — i18n. Author nested JSON in `en.json` / `es.json`; it's flattened to `a.b.c` keys at load. Use `t('a.b.c')` (marketplace-style wrapper over react-intl) for user-facing strings — it works with or without a provider (defaults to English, keeps unit tests green). **All user-facing text MUST be translated (hard rule):** every string a user can read — button/labels, headings, placeholders, statuses, errors, tooltips, empty states — goes through `t()` with a key added to **both** `en.json` and `es.json`. Never hardcode a display string in a component. This is part of "done" for any UI change. **Spanish register (hard rule):** address the user with **"tú"**, never "vos" — we want neutral (Latin American) Spanish, not Rioplatense voseo. Use "tú" verb forms and imperatives (e.g. "Inicia sesión", "Sube tu imagen", "Prueba de nuevo"), not the "vos" forms ("Iniciá", "Subí", "Probá").
 
 ## Design specs are the source of truth
 
 Feature behavior is specified in `design/*.md` before/alongside implementation. Before changing a flow, read the matching spec — e.g. `BUY_WITH_CREDITS_SPEC.md`, `SELL_INTEGRATION_SPEC.md`, `FLASH_SALES_SPEC.md`, `FITTING_ROOM_SPEC.md`, `I18N_SPEC.md`, `STRIPE_SPEC.md`, `CREDITS_CANONICAL_MODEL.md`, `SHOP_TRACKING_SPEC.md`, `E2E_TESTS.md`. Analytics event names/props are governed by the tracking spec — keep them in sync.
+
+The spec for all of Decentraland's public APIs is available at https://docs.decentraland.org/apis — consult it when integrating with or debugging any Decentraland API.
 
 ## Code style
 

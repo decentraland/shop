@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { t } from '~/intl/i18n'
 
 // Category filter panel (Figma "Categories Dropdown", node 696:34701). Top categories with an
 // animated accordion; Wearables and Emotes each expand into icon'd sub-categories. Wired to the
@@ -6,38 +7,40 @@ import { useState } from 'react'
 // are globally unique so they map cleanly to Assets' SUBCAT_MAP (which resolves both wearable and
 // emote on-chain categories — the server filters on a coalesced wearable/emote category column).
 
-type Sub = { key: string; label: string; icon: string }
-type Top = { key: string; label: string; expandable?: boolean; subs?: Sub[] }
+// `key` drives filter state + SUBCAT_MAP lookups (Assets/Creator) and must NOT change; `labelKey`
+// is the i18n key resolved with t() at render (never at module load — that would freeze the locale).
+type Sub = { key: string; labelKey: string; icon: string }
+type Top = { key: string; labelKey: string; expandable?: boolean; subs?: Sub[] }
 
 const CATEGORIES: Top[] = [
-  { key: 'all', label: 'Shop All' },
+  { key: 'all', labelKey: 'categories.shopAll' },
   {
     key: 'wearable',
-    label: 'Wearables',
+    labelKey: 'categories.wearables',
     expandable: true,
     subs: [
-      { key: 'Head', label: 'Head', icon: 'cat-head' },
-      { key: 'Upper Body', label: 'Upper Body', icon: 'cat-upper' },
-      { key: 'Handwear', label: 'Handwear', icon: 'cat-handwear' },
-      { key: 'Lower Body', label: 'Lower Body', icon: 'cat-lower' },
-      { key: 'Feet', label: 'Feet', icon: 'cat-feet' },
-      { key: 'Accessories', label: 'Accessories', icon: 'cat-accessories' },
-      { key: 'Skins', label: 'Skins', icon: 'cat-skins' }
+      { key: 'Head', labelKey: 'categories.head', icon: 'cat-head' },
+      { key: 'Upper Body', labelKey: 'categories.upperBody', icon: 'cat-upper' },
+      { key: 'Handwear', labelKey: 'categories.handwear', icon: 'cat-handwear' },
+      { key: 'Lower Body', labelKey: 'categories.lowerBody', icon: 'cat-lower' },
+      { key: 'Feet', labelKey: 'categories.feet', icon: 'cat-feet' },
+      { key: 'Accessories', labelKey: 'categories.accessories', icon: 'cat-accessories' },
+      { key: 'Skins', labelKey: 'categories.skins', icon: 'cat-skins' }
     ]
   },
   {
     key: 'emote',
-    label: 'Emotes',
+    labelKey: 'categories.emotes',
     expandable: true,
     subs: [
-      { key: 'Dance', label: 'Dance', icon: 'emote-dance' },
-      { key: 'Stunt', label: 'Stunt', icon: 'emote-stunt' },
-      { key: 'Greetings', label: 'Greetings', icon: 'emote-greetings' },
-      { key: 'Fun', label: 'Fun', icon: 'emote-fun' },
-      { key: 'Poses', label: 'Poses', icon: 'emote-poses' },
-      { key: 'Reactions', label: 'Reactions', icon: 'emote-reactions' },
-      { key: 'Horror', label: 'Horror', icon: 'emote-horror' },
-      { key: 'Miscellaneous', label: 'Miscellaneous', icon: 'emote-misc' }
+      { key: 'Dance', labelKey: 'categories.dance', icon: 'emote-dance' },
+      { key: 'Stunt', labelKey: 'categories.stunt', icon: 'emote-stunt' },
+      { key: 'Greetings', labelKey: 'categories.greetings', icon: 'emote-greetings' },
+      { key: 'Fun', labelKey: 'categories.fun', icon: 'emote-fun' },
+      { key: 'Poses', labelKey: 'categories.poses', icon: 'emote-poses' },
+      { key: 'Reactions', labelKey: 'categories.reactions', icon: 'emote-reactions' },
+      { key: 'Horror', labelKey: 'categories.horror', icon: 'emote-horror' },
+      { key: 'Miscellaneous', labelKey: 'categories.miscellaneous', icon: 'emote-misc' }
     ]
   }
 ]
@@ -46,12 +49,24 @@ export function CategoryFilter({
   category,
   subCategory,
   onCategory,
-  onSub
+  onSub,
+  title,
+  flat = false,
+  collections = false,
+  onCollections
 }: {
   category: string
   subCategory: string | null
   onCategory: (key: string) => void
   onSub: (key: string | null) => void
+  // Optional section heading rendered above the list (e.g. "Category" on the creator page).
+  title?: string
+  // Flat = drop the gray container/background; selected & hover read as a light-gray pill instead.
+  flat?: boolean
+  // Creator page only: render a "Collections" entry at the end. `collections` reflects whether it's
+  // the active mode (mutually exclusive with the category selection); `onCollections` toggles it.
+  collections?: boolean
+  onCollections?: () => void
 }) {
   // Accordion state is separate from the active category so clicking an open header collapses it
   // (the old derive-from-category approach couldn't close). Wearables starts open when it's active.
@@ -71,10 +86,12 @@ export function CategoryFilter({
   }
 
   return (
-    <div className="catfilter">
+    <div className={`catfilter${flat ? ' catfilter--flat' : ''}`}>
+      {title ? <p className="catfilter__title">{title}</p> : null}
       {CATEGORIES.map(top => {
         const open = expandedKey === top.key && !!top.subs
-        const selected = top.key === category
+        // In collections mode nothing in the normal category list is highlighted.
+        const selected = !collections && top.key === category
         return (
           <div key={top.key} className="catfilter__group">
             <button
@@ -82,7 +99,7 @@ export function CategoryFilter({
               className={`catfilter__cat${open ? ' is-expanded' : ''}${selected ? ' is-selected' : ''}`}
               onClick={() => clickTop(top)}
             >
-              <span className="catfilter__cat-label">{top.label}</span>
+              <span className="catfilter__cat-label">{t(top.labelKey)}</span>
               {top.expandable ? (
                 <span className={`ico ico-chevron catfilter__chev${open ? ' is-up' : ''}`} aria-hidden />
               ) : null}
@@ -100,7 +117,7 @@ export function CategoryFilter({
                     >
                       <span className="catfilter__sub-left">
                         <span className={`ico ico-${sub.icon} catfilter__sub-ico`} aria-hidden />
-                        <span className="catfilter__sub-label">{sub.label}</span>
+                        <span className="catfilter__sub-label">{t(sub.labelKey)}</span>
                       </span>
                     </button>
                   ))}
@@ -110,6 +127,18 @@ export function CategoryFilter({
           </div>
         )
       })}
+
+      {onCollections ? (
+        <div className="catfilter__group">
+          <button
+            type="button"
+            className={`catfilter__cat${collections ? ' is-selected' : ''}`}
+            onClick={onCollections}
+          >
+            <span className="catfilter__cat-label">{t('categories.collections')}</span>
+          </button>
+        </div>
+      ) : null}
     </div>
   )
 }

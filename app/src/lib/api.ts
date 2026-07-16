@@ -23,6 +23,8 @@ export type CatalogItem = {
   thumbnail: string
   priceCredits: number
   gender: 'male' | 'female' | 'unisex' | null
+  // Smart wearable (carries an interactive scene/game.js). Surfaces a "Smart" badge on the card.
+  isSmart: boolean
   // Present for secondary listings (a specific token on sale): the open USD-pegged trade + its token.
   // Checkout uses `tradeId` directly instead of resolving by itemId.
   tradeId?: string
@@ -48,7 +50,7 @@ type RawCatalogItem = {
   price?: string | null
   minPrice?: string | null
   data?: {
-    wearable?: { category?: string; bodyShapes?: string[]; description?: string }
+    wearable?: { category?: string; bodyShapes?: string[]; description?: string; isSmart?: boolean }
     emote?: { category?: string; description?: string }
   }
 }
@@ -105,20 +107,23 @@ function toCatalogItem(r: RawCatalogItem): CatalogItem {
     chainId: r.chainId,
     thumbnail: r.thumbnail ?? '',
     priceCredits: toCredits(r.price ?? r.minPrice),
-    gender: toGender(r.data?.wearable?.bodyShapes)
+    gender: toGender(r.data?.wearable?.bodyShapes),
+    isSmart: r.data?.wearable?.isSmart ?? false,
   }
 }
 
-export async function fetchCatalog(
-  { category = 'wearable', first = 24, skip = 0 }: { category?: string; first?: number; skip?: number } = {}
-): Promise<{ items: CatalogItem[]; total: number }> {
+export async function fetchCatalog({
+  category = 'wearable',
+  first = 24,
+  skip = 0,
+}: { category?: string; first?: number; skip?: number } = {}): Promise<{ items: CatalogItem[]; total: number }> {
   const qs = new URLSearchParams({
     category,
     first: String(first),
     skip: String(skip),
     isOnSale: 'true',
     sortBy: 'newest',
-    includeSocialEmotes: 'false'
+    includeSocialEmotes: 'false',
   })
   const res = await fetch(`${config.nftApiUrl}/v2/catalog?${qs.toString()}`)
   if (!res.ok) throw new Error(`Failed to fetch catalog (${res.status})`)
@@ -195,6 +200,7 @@ type ShopListingRaw = {
   available: number
   network: string
   chainId: number
+  isSmart?: boolean
   // Flash sale, when the shop catalog resolves this listing as on-sale: the pre-sale price (whole
   // credits) to compare against + the sale end as a unix expiration in SECONDS (the trade's
   // Checks.expiration). Absent for regular listings. See marketplace-server shop-catalog.
@@ -219,11 +225,12 @@ function shopListingToItem(l: ShopListingRaw): CatalogItem {
     thumbnail: l.thumbnail,
     priceCredits: l.priceCredits,
     gender: l.gender ?? null,
+    isSmart: l.isSmart ?? false,
     // Only surface a compare-at that's actually above the sale price (the badge/strikethrough guard
     // against a stale or equal value). saleEndsAt arrives as unix seconds → ms for the UI.
     compareAtCredits:
       l.compareAtCredits != null && l.compareAtCredits > l.priceCredits ? l.compareAtCredits : undefined,
-    saleEndsAt: l.saleEndsAt != null ? l.saleEndsAt * 1000 : undefined
+    saleEndsAt: l.saleEndsAt != null ? l.saleEndsAt * 1000 : undefined,
   }
 }
 
@@ -235,6 +242,7 @@ export type ShopListingFilters = {
   skip?: number
   contractAddress?: string
   itemId?: string
+  creator?: string
   rarities?: string[]
   wearableCategories?: string[]
   minPriceCredits?: number
@@ -243,13 +251,16 @@ export type ShopListingFilters = {
   sortBy?: ShopSort
 }
 
-async function fetchShopListingsRaw(params: ShopListingFilters): Promise<{ listings: ShopListingRaw[]; total: number }> {
+async function fetchShopListingsRaw(
+  params: ShopListingFilters
+): Promise<{ listings: ShopListingRaw[]; total: number }> {
   const qs = new URLSearchParams()
   if (params.category === 'wearable' || params.category === 'emote') qs.set('category', params.category)
   if (params.first != null) qs.set('first', String(params.first))
   if (params.skip != null) qs.set('skip', String(params.skip))
   if (params.contractAddress) qs.set('contractAddress', params.contractAddress)
   if (params.itemId != null) qs.set('itemId', params.itemId)
+  if (params.creator) qs.set('creator', params.creator)
   if (params.rarities?.length) qs.set('rarity', params.rarities.join(','))
   if (params.wearableCategories?.length) qs.set('wearableCategory', params.wearableCategories.join(','))
   if (params.minPriceCredits != null) qs.set('minPriceCredits', String(params.minPriceCredits))
@@ -272,9 +283,10 @@ export async function fetchShopListingForItem(contractAddress: string, itemId: s
 // Credit-buyable listings for the browse grid (primary + secondary, USD-pegged). All filtering
 // (category, rarity, price, sub-category, search, sort) happens server-side on /v3/catalog/shop.
 // Still used by the Overview drops row + the Cart upsell; the main browse grid uses fetchUnified.
-export async function fetchListings(
-  { first = 100, ...filters }: ShopListingFilters = {}
-): Promise<{ items: CatalogItem[]; total: number }> {
+export async function fetchListings({ first = 100, ...filters }: ShopListingFilters = {}): Promise<{
+  items: CatalogItem[]
+  total: number
+}> {
   const { listings, total } = await fetchShopListingsRaw({ ...filters, first })
   return { items: listings.map(shopListingToItem), total }
 }
@@ -310,13 +322,17 @@ function unifiedListingToItem(l: UnifiedListingRaw): UnifiedListing {
 // The unified browse grid: native + legacy listings in one feed. All filtering/sort/search happens
 // server-side on /v3/catalog/unified (same params as fetchListings). Native rows render Add to cart at
 // their fixed priceCredits; legacy rows render an "≈" live-rate price + Buy Now (see pages/Assets).
-export async function fetchUnified(
-  { first = 100, ...filters }: ShopListingFilters = {}
-): Promise<{ items: UnifiedListing[]; total: number }> {
+export async function fetchUnified({ first = 100, ...filters }: ShopListingFilters = {}): Promise<{
+  items: UnifiedListing[]
+  total: number
+}> {
   const qs = new URLSearchParams()
   if (filters.category === 'wearable' || filters.category === 'emote') qs.set('category', filters.category)
   qs.set('first', String(first))
   if (filters.skip != null) qs.set('skip', String(filters.skip))
+  if (filters.contractAddress) qs.set('contractAddress', filters.contractAddress)
+  if (filters.itemId != null) qs.set('itemId', filters.itemId)
+  if (filters.creator) qs.set('creator', filters.creator)
   if (filters.rarities?.length) qs.set('rarity', filters.rarities.join(','))
   if (filters.wearableCategories?.length) qs.set('wearableCategory', filters.wearableCategories.join(','))
   if (filters.minPriceCredits != null) qs.set('minPriceCredits', String(filters.minPriceCredits))
@@ -349,6 +365,59 @@ export type LegacyListing = {
   network: string
   chainId: number
   createdAt: number
+}
+
+type LegacyListingRaw = Partial<LegacyListing> & {
+  tradeId: string
+  contractAddress: string
+  manaWei: string
+}
+
+function toLegacyListing(l: LegacyListingRaw): LegacyListing {
+  return {
+    tradeId: l.tradeId,
+    listingType: 'primary',
+    contractAddress: l.contractAddress,
+    itemId: l.itemId ?? '',
+    name: l.name ?? '',
+    thumbnail: l.thumbnail ?? '',
+    rarity: l.rarity ?? 'common',
+    category: l.category ?? 'wearable',
+    wearableCategory: l.wearableCategory ?? null,
+    creator: l.creator ?? '',
+    manaWei: l.manaWei,
+    available: l.available ?? 0,
+    network: l.network ?? 'MATIC',
+    chainId: l.chainId ?? config.chainId,
+    createdAt: l.createdAt ?? 0,
+  }
+}
+
+// Legacy (classic MANA-priced) listings for the Market grid. Same server-side filtering/sort/search
+// as fetchListings, but against /v3/catalog/legacy. Prices are returned in MANA wei — the caller
+// converts to (fluctuating) credits with the live market rate (see lib/mana-rate).
+export async function fetchLegacyListings({ first = 100, ...filters }: ShopListingFilters = {}): Promise<{
+  items: LegacyListing[]
+  total: number
+}> {
+  const qs = new URLSearchParams()
+  if (filters.category === 'wearable' || filters.category === 'emote') qs.set('category', filters.category)
+  qs.set('first', String(first))
+  if (filters.skip != null) qs.set('skip', String(filters.skip))
+  if (filters.contractAddress) qs.set('contractAddress', filters.contractAddress)
+  if (filters.itemId != null) qs.set('itemId', filters.itemId)
+  if (filters.creator) qs.set('creator', filters.creator)
+  if (filters.rarities?.length) qs.set('rarity', filters.rarities.join(','))
+  if (filters.wearableCategories?.length) qs.set('wearableCategory', filters.wearableCategories.join(','))
+  if (filters.minPriceCredits != null) qs.set('minPriceCredits', String(filters.minPriceCredits))
+  if (filters.maxPriceCredits != null) qs.set('maxPriceCredits', String(filters.maxPriceCredits))
+  if (filters.search) qs.set('search', filters.search)
+  if (filters.sortBy) qs.set('sortBy', filters.sortBy)
+  const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/legacy?${qs.toString()}`)
+  if (!res.ok) throw new Error(`fetchLegacyListings ${res.status}`)
+  const json = (await res.json()) as { data?: LegacyListingRaw[]; total?: number }
+  const data = json.data ?? []
+  return { items: data.map(toLegacyListing), total: json.total ?? data.length }
 }
 
 export type MyAsset = {
@@ -410,7 +479,7 @@ export async function fetchMyAssets(
     first: String(first),
     skip: String(skip),
     sortBy: 'newest',
-    orderDirection: 'desc'
+    orderDirection: 'desc',
   })
   const res = await fetch(`${NFT_V1}/nfts?${qs.toString()}`)
   if (!res.ok) throw new Error(`Failed to fetch assets (${res.status})`)
@@ -429,7 +498,7 @@ export async function fetchMyAssets(
     chainId: r.nft.chainId,
     isOnSale: r.order != null,
     listingPrice: r.order ? toCredits(r.order.price) : undefined,
-    tradeId: r.order?.tradeId
+    tradeId: r.order?.tradeId,
   }))
 
   return { assets, total }
@@ -459,7 +528,10 @@ export async function fetchTrade(tradeId: string): Promise<Trade> {
 }
 
 // Name + thumbnail for a collection ITEM (primary sales don't have a minted token yet).
-async function fetchItemMeta(contractAddress: string, itemId: string): Promise<{ name?: string; thumbnail?: string } | null> {
+async function fetchItemMeta(
+  contractAddress: string,
+  itemId: string
+): Promise<{ name?: string; thumbnail?: string } | null> {
   const qs = new URLSearchParams({ contractAddress, itemId, first: '1' })
   const res = await fetch(`${NFT_V1}/items?${qs.toString()}`)
   if (!res.ok) return null
