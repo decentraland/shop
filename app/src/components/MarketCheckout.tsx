@@ -160,6 +160,14 @@ export function MarketCheckout({
     if (!session || !locked) return
     // Not enough balance for the locked amount → send them to top up (Get credits).
     if (needsMoreCredits) {
+      // Funnel bridge: a purchase blocked by low balance that routes to Get Credits. Lets us join the
+      // purchase funnel to the buy-credits funnel and see how many low-balance buyers go on to top up.
+      track('Shop Buy Credits Prompted', {
+        from: 'item_checkout',
+        credits_needed: locked.credits,
+        credits_balance: balance?.credits ?? 0,
+        shortfall: Math.max(0, locked.credits - (balance?.credits ?? 0))
+      })
       void cancelUsdIntents(session.identity, [locked.credit.id]).catch(() => {})
       reservedCreditIdRef.current = null
       navigate('/credits')
