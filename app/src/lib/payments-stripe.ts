@@ -73,7 +73,9 @@ export async function pollCreditGrantReal(
     const status = await fetchOrderStatusReal(orderId, identity, signal)
     if (status.status !== 'processing') return status
     if (Date.now() > deadline) {
-      return { status: 'failed', error: 'Timed out waiting for your credits.' }
+      // Not a failure: the payment may still settle via the verified webhook after we stop polling.
+      // Surface a 'pending' so the UI shows an "on the way" state instead of an error (U7).
+      return { status: 'pending' }
     }
     await delay(intervalMs, signal)
   }
