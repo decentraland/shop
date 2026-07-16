@@ -35,7 +35,8 @@ type StoreEntity = {
 }
 
 function linkUrl(links: Array<{ name: string; url: string }> | undefined, name: string): string {
-  return links?.find(l => l.name === name)?.url ?? ''
+  const url = links?.find(l => l.name === name)?.url ?? ''
+  return url.startsWith('https://') ? url : ''
 }
 
 // Fetch the creator's store entity (cover + description + links). POSTs the store URN to the

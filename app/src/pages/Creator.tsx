@@ -14,14 +14,11 @@ import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
 import { useProfile } from '~/hooks/useProfile'
 import { SUBCAT_MAP } from '~/lib/categories'
 import { CURRENCY } from '~/lib/currency'
+import { shortAddress } from '~/lib/address'
 import { t } from '~/intl/i18n'
 import './collection.css'
 
 const PAGE_SIZE = 48
-
-function shortAddress(addr: string): string {
-  return /^0x[a-fA-F0-9]{40}$/.test(addr) ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : addr
-}
 
 // A creator's storefront: their credit-buyable listings, browsable with the same category/rarity/
 // price/sort controls as the main Shop grid — scoped to this creator via /v3/catalog/shop?creator=.
@@ -110,7 +107,7 @@ export function Creator() {
   }
 
   const priceActive = !!(min || max)
-  const priceLabel = priceActive ? `${priceMin || '0'}–${priceMax || '∞'}` : 'Price'
+  const priceLabel = priceActive ? `${priceMin || '0'}–${priceMax || '∞'}` : t('filter.price')
   const anyActive = category !== 'wearable' || !!subCategory || rarities.length > 0 || priceActive
 
   return (

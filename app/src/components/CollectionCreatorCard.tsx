@@ -3,16 +3,9 @@ import { config } from '~/config'
 import { useProfile } from '~/hooks/useProfile'
 import { getAvatarBackgroundColor, getDisplayName } from '~/lib/avatarColor'
 import { captureError } from '~/lib/monitoring'
+import { shortAddress } from '~/lib/address'
 import { t } from '~/intl/i18n'
 import './collection-creator-card.css'
-
-// The collection's creator identity block, shown at the top of the sidebar (Figma left column):
-// avatar, username, a copyable account chip, and a "View profile" link out to the creator's public
-// Decentraland profile. Name/avatar come from the DCL profile (useProfile). Degrades gracefully:
-// no profile name → the short address (same rule as CreatorBadge); no address → nothing renders.
-function shortAddress(addr: string): string {
-  return /^0x[a-fA-F0-9]{40}$/.test(addr) ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : addr
-}
 
 export function CollectionCreatorCard({ address }: { address?: string }) {
   const { data: profile } = useProfile(address)
