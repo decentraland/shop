@@ -36,7 +36,11 @@ export async function setup() {
       ...process.env,
       VITE_MARKETPLACE_SERVER_URL: 'http://localhost:5003',
       VITE_NFT_API_URL: 'http://localhost:5003',
-      VITE_CREDITS_SERVER_URL: 'http://localhost:3000'
+      VITE_CREDITS_SERVER_URL: 'http://localhost:3000',
+      // Force the payments MOCK path: the resolved 'dev' config now ships a real Stripe publishable
+      // key (dev.json), but the e2e mocks don't cover Stripe's hosted redirect — an empty key keeps
+      // isMockPayments() true so the get-credits flow uses the in-app mock.
+      VITE_STRIPE_PK: ''
     }
   })
   await waitForServer()
