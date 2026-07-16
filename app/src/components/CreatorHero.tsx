@@ -7,24 +7,15 @@ import { useWallet } from '~/store/wallet'
 import { FollowButton } from '~/components/FollowButton'
 import { getAvatarBackgroundColor, getDisplayName } from '~/lib/avatarColor'
 import { LINK_TYPES, type LinkType } from '~/lib/store'
+import { shortAddress } from '~/lib/address'
 import { t } from '~/intl/i18n'
 import './creator-hero.css'
 
-// Each social link maps to its icon and a translated label (for accessibility / tooltip).
 const LINK_ICON: Record<LinkType, string> = {
   website: 'ico-website',
   twitter: 'ico-twitter',
   discord: 'ico-discord',
   facebook: 'ico-facebook',
-}
-
-// The storefront banner at the top of a creator page: cover image + centered avatar, name,
-// description and a "View profile" link out to the creator's public Decentraland profile.
-// Name/avatar come from the DCL profile (useProfile); cover/description from the store entity
-// (useStore). Everything degrades gracefully — no cover → a bundled default cover image, no
-// description → the line is hidden, no profile name → the short address (same rule as CreatorBadge).
-function shortAddress(addr: string): string {
-  return /^0x[a-fA-F0-9]{40}$/.test(addr) ? `${addr.slice(0, 6)}...${addr.slice(-4)}` : addr
 }
 
 export function CreatorHero({ address }: { address: string }) {
@@ -67,7 +58,7 @@ export function CreatorHero({ address }: { address: string }) {
             <a
               key={type}
               className="creator-hero__link"
-              href={store!.links[type]}
+              href={store?.links[type] ?? ''}
               target="_blank"
               rel="noopener noreferrer"
               title={t(`creator.link.${type}`)}

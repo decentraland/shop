@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import './dropdown.css'
 
 export type DropdownOption = { value: string; label: ReactNode }
@@ -38,16 +38,17 @@ export function Dropdown({
   const controlled = openProp !== undefined
   const open = controlled ? openProp : openState
   const ref = useRef<HTMLDivElement>(null)
+  const onOpenChangeRef = useRef(onOpenChange)
+  onOpenChangeRef.current = onOpenChange
 
-  function setOpen(next: boolean) {
-    if (controlled) onOpenChange?.(next)
+  const setOpen = useCallback((next: boolean) => {
+    if (openProp !== undefined) onOpenChangeRef.current?.(next)
     else setOpenState(next)
-  }
+  }, [openProp])
 
   const selected = options.find(o => o.value === value)
   const triggerLabel = label ?? selected?.label ?? placeholder
 
-  // Close on outside pointer-down or Escape while open.
   useEffect(() => {
     if (!open) return
     function onPointer(e: PointerEvent) {
@@ -62,8 +63,7 @@ export function Dropdown({
       document.removeEventListener('pointerdown', onPointer)
       document.removeEventListener('keydown', onKey)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open])
+  }, [open, setOpen])
 
   return (
     <div className={`dropdown${className ? ` ${className}` : ''}`} ref={ref}>

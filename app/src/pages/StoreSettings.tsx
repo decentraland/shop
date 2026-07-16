@@ -142,9 +142,12 @@ export function StoreSettings() {
     setDraft(d => ({ ...d, cover: url, coverName: `cover/${name}`, coverHash: '' }))
   }
 
+  const ALLOWED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp']
+
   function onUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) return
     setCoverSize(file.size)
     const name = `cover/${file.name}`
     const reader = new FileReader()
@@ -269,7 +272,7 @@ export function StoreSettings() {
                 <span className="ico ico-upload" aria-hidden />
                 <span>{t('storeSettings.upload')}</span>
               </button>
-              <input ref={fileInput} type="file" accept="image/*" className="cover-picker__input" onChange={onUpload} />
+              <input ref={fileInput} type="file" accept="image/png, image/jpeg, image/webp" className="cover-picker__input" onChange={onUpload} />
             </div>
             {oversize ? (
               <p className="error">

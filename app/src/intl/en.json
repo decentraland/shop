@@ -114,6 +114,9 @@
       "cta": "Browse Collectibles"
     }
   },
+  "filter": {
+    "price": "Price"
+  },
   "assetCard": {
     "sale": "SALE",
     "saleWithDiscount": "SALE -{pct}%",

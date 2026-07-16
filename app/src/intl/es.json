@@ -114,6 +114,9 @@
       "cta": "Ver coleccionables"
     }
   },
+  "filter": {
+    "price": "Precio"
+  },
   "assetCard": {
     "sale": "OFERTA",
     "saleWithDiscount": "OFERTA -{pct}%",
