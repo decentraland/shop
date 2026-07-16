@@ -1,4 +1,4 @@
-import { ChainId, Network } from '@dcl/schemas'
+import { Network } from '@dcl/schemas'
 import { config } from '~/config'
 import type { Session } from '~/lib/auth'
 import { fetchTrade, postTrade } from '~/lib/api'

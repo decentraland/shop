@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { ChainId, Network } from '@dcl/schemas'
+import { Network } from '@dcl/schemas'
 import type { Session } from '~/lib/auth'
 import type { MyAsset } from '~/lib/api'
 import { postTrade } from '~/lib/api'
@@ -75,7 +75,7 @@ export function SellModal({ asset, session, onClose }: { asset: MyAsset; session
         is_primary: false
       })
       toast.success(`“${asset.name}” is now on sale!`)
-      queryClient.invalidateQueries({ queryKey: ['my-assets', session.address] })
+      void queryClient.invalidateQueries({ queryKey: ['my-assets', session.address] })
     } catch (e) {
       captureError(e, { flow: 'list_secondary' })
       track('Shop Listing Failed', { listing_type: 'secondary', error_code: errorCode(e) })

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { ChainId, Network } from '@dcl/schemas'
+import { Network } from '@dcl/schemas'
 import type { Session } from '~/lib/auth'
 import type { PublishableItem } from '~/lib/builder'
 import { postTrade } from '~/lib/api'
@@ -110,8 +110,8 @@ export function PrimaryListModal({
         is_primary: true
       })
       toast.success(`“${item.name}” is now on sale!`)
-      queryClient.invalidateQueries({ queryKey: ['publishable-items'] })
-      queryClient.invalidateQueries({ queryKey: ['collection-sale-state'] })
+      void queryClient.invalidateQueries({ queryKey: ['publishable-items'] })
+      void queryClient.invalidateQueries({ queryKey: ['collection-sale-state'] })
     } catch (e) {
       captureError(e, { flow: 'list_primary' })
       track('Shop Listing Failed', { listing_type: 'primary', error_code: errorCode(e) })
