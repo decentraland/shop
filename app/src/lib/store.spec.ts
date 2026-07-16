@@ -236,7 +236,7 @@ describe('when saving a store', () => {
       identity
     )
 
-    const arg = buildEntity.mock.calls[0][0] as unknown as {
+    const arg = buildEntity.mock.calls[0][0] as {
       type: string
       pointers: string[]
       files: Map<string, Uint8Array>
@@ -249,7 +249,7 @@ describe('when saving a store', () => {
 
     // The content client must get a callable fetcher whose fetch stays bound to the global — passing
     // the bare window.fetch throws "Illegal invocation" in the browser. Guard against that regression.
-    const opts = createContentClient.mock.calls[0][0] as unknown as { url: string; fetcher: { fetch: unknown } }
+    const opts = createContentClient.mock.calls[0][0] as { url: string; fetcher: { fetch: unknown } }
     expect(opts.url).toBe('http://peer.test/content')
     expect(typeof opts.fetcher.fetch).toBe('function')
   })
@@ -261,7 +261,7 @@ describe('when saving a store', () => {
     await saveStore('0xabc', draft({ description: 'no cover' }), identity)
 
     expect(fetchMock).not.toHaveBeenCalled()
-    const arg = buildEntity.mock.calls[0][0] as unknown as { files: Map<string, Uint8Array> }
+    const arg = buildEntity.mock.calls[0][0] as { files: Map<string, Uint8Array> }
     expect(arg.files.size).toBe(0)
   })
 

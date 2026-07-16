@@ -105,7 +105,7 @@ export async function importListing(
   opts: { cancelOld?: boolean } = {}
 ): Promise<void> {
   const usdPrice = priceCredits / 10 // credits → USD (1 credit = $0.10)
-  const chainId = item.chainId as ChainId
+  const chainId = item.chainId
   const network = item.network as Network
 
   // Take the old MANA listing down first — otherwise POST /v1/trades 409s ("already an open order

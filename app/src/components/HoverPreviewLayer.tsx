@@ -111,10 +111,10 @@ export function HoverPreviewLayer() {
   const wrapStyle: CSSProperties = active
     ? {
         position: 'fixed',
-        left: rect!.left,
-        top: rect!.top,
-        width: rect!.width,
-        height: rect!.height,
+        left: rect.left,
+        top: rect.top,
+        width: rect.width,
+        height: rect.height,
         zIndex: 5,
         pointerEvents: 'none',
         opacity: ready ? 1 : 0,

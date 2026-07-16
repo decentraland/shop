@@ -17,7 +17,7 @@ export function useInfiniteGrid<T>(
   const query = useInfiniteQuery({
     queryKey,
     enabled: opts.enabled,
-    queryFn: ({ pageParam }) => fetchPage(pageParam as number),
+    queryFn: ({ pageParam }) => fetchPage(pageParam),
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) => {
       const loaded = allPages.reduce((n, p) => n + p.items.length, 0)
@@ -34,7 +34,7 @@ export function useInfiniteGrid<T>(
     total,
     isLoading: query.isLoading,
     isError: query.isError,
-    error: query.error as Error | null,
+    error: query.error,
     hasNextPage: query.hasNextPage,
     isFetchingNextPage: query.isFetchingNextPage,
     fetchNextPage: query.fetchNextPage

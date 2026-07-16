@@ -45,7 +45,7 @@ export function SellModal({ asset, session, onClose }: { asset: MyAsset; session
       await ensureApproval({
         signer: session.signer,
         contractAddress: asset.contractAddress,
-        chainId: asset.chainId as ChainId
+        chainId: asset.chainId
       })
 
       setStatus('Listing your item…')
@@ -55,7 +55,7 @@ export function SellModal({ asset, session, onClose }: { asset: MyAsset; session
           contractAddress: asset.contractAddress,
           tokenId: asset.tokenId,
           network: asset.network as Network,
-          chainId: asset.chainId as ChainId
+          chainId: asset.chainId
         },
         usdPrice: value / 10, // credits → USD (1 credit = $0.10)
         expiresAtMs: Date.now() + SIX_MONTHS_MS

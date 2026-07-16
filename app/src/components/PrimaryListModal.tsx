@@ -45,7 +45,7 @@ export function PrimaryListModal({
   // Set once the listing is live — swaps the form for a success view.
   const [listedCredits, setListedCredits] = useState<number | null>(null)
 
-  const chainId = config.chainId as ChainId
+  const chainId = config.chainId
   // Self-custody wallets pop approvals/confirmations; managed wallets (Magic, thirdweb) don't — gate
   // the wallet-flow wording so managed users never see MetaMask-style "two confirmations" copy.
   const showsConfirmations = showsWalletConfirmations(session.providerType)

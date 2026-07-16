@@ -126,7 +126,7 @@ export function Success() {
   const avatarFits = !!shape && wearables.every(w => isCompatible(w, shape))
   const target = dominantShape(wearables) ?? shape ?? BASE_MALE
   const useAvatar = !!session?.address && avatarFits
-  const previewProfile = useAvatar ? (session!.address as string) : 'default'
+  const previewProfile = useAvatar ? (session.address) : 'default'
   const previewBodyShape = useAvatar ? undefined : target
 
   // No wearables (emote-only purchase, or a wearable missing a URN) → render that single item directly.

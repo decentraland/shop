@@ -39,7 +39,7 @@ export function FittingRoom() {
   const { data: avatar, isFetched: profileFetched } = useProfile(address)
   const profileResolved = !address || profileFetched
   const hasAvatar = !!address && !!avatar
-  const profile = hasAvatar ? address! : 'default'
+  const profile = hasAvatar ? address : 'default'
 
   // The body shape we dress: the connected avatar's shape if any, else the cart's majority shape, else
   // male. Items the target body can't wear are skipped (they'd render invisible) and flagged in the list.

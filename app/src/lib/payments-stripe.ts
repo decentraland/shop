@@ -66,7 +66,7 @@ export async function pollCreditGrantReal(
   const { intervalMs = 1500, timeoutMs = 60_000, signal } = opts
   const deadline = Date.now() + timeoutMs
 
-  // eslint-disable-next-line no-constant-condition
+   
   while (true) {
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
     const status = await fetchOrderStatusReal(orderId, identity, signal)

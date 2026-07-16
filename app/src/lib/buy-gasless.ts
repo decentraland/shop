@@ -115,7 +115,7 @@ async function relay(chainId: number, buyer: string, functionData: string, signe
   }
 
   // 4) pack executeMetaTransaction(buyer, functionData, signature) and POST to the relayer
-  const txData = encodeExecuteMetaTransaction(cm.abi as unknown[], buyer, functionSignature, signature)
+  const txData = encodeExecuteMetaTransaction(cm.abi, buyer, functionSignature, signature)
   let body: { ok?: boolean; txHash?: string; message?: string; code?: unknown }
   try {
     const res = await fetch(`${gaslessConfig.relayerUrl}/transactions`, {
@@ -185,14 +185,14 @@ export async function buyGasless(opts: {
   const marketplace = getContract(getContractName(trade.contract), trade.chainId)
   const args = buildUseCreditsArgs(
     marketplace.address,
-    marketplace.abi as unknown[],
+    marketplace.abi,
     [trade],
     buyer,
     credits,
     maxCreditedValue
   )
   const cm = getContract(ContractName.CreditsManager, trade.chainId)
-  const functionData = new Interface(cm.abi as unknown as string[]).encodeFunctionData('useCredits', [args])
+  const functionData = new Interface(cm.abi).encodeFunctionData('useCredits', [args])
   return relay(trade.chainId, buyer, functionData, signer)
 }
 
@@ -229,14 +229,14 @@ export async function buyManyGasless(opts: {
       .toString()
     const args = buildUseCreditsArgs(
       marketplace.address,
-      marketplace.abi as unknown[],
+      marketplace.abi,
       trades,
       buyer,
       credits,
       maxCreditedValue
     )
     const cm = getContract(ContractName.CreditsManager, chainId)
-    const functionData = new Interface(cm.abi as unknown as string[]).encodeFunctionData('useCredits', [args])
+    const functionData = new Interface(cm.abi).encodeFunctionData('useCredits', [args])
     hashes.push(await relay(chainId, buyer, functionData, signer))
   }
   return hashes

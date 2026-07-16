@@ -23,7 +23,7 @@ export function setErrorForwarder(fn: ((error: unknown, context: ErrorContext) =
 /** Log an error to the console (always) and forward it to the reporter (if wired). Never throws. */
 export function captureError(error: unknown, context: ErrorContext = {}): void {
   const label = typeof context.flow === 'string' ? `error in ${context.flow}` : 'error'
-  // eslint-disable-next-line no-console
+   
   console.error(`[shop] ${label}`, error, context)
   if (forward) {
     try {
@@ -66,11 +66,11 @@ export function scrubEvent(event: Sentry.Event): Sentry.Event {
         delete o[k]
         continue
       }
-      if (typeof o[k] === 'string') o[k] = redact(o[k] as string)
+      if (typeof o[k] === 'string') o[k] = redact(o[k])
     }
   }
-  clean(event.tags as Record<string, unknown> | undefined)
-  clean(event.extra as Record<string, unknown> | undefined)
+  clean(event.tags)
+  clean(event.extra)
   return event
 }
 
@@ -84,7 +84,7 @@ export function initSentry(): void {
   if (initialized) return
   const dsn = config.sentryDsn
   if (!dsn) {
-    // eslint-disable-next-line no-console
+     
     if (import.meta.env.DEV) console.debug('[monitoring] no VITE_SENTRY_DSN → error reporting disabled')
     return
   }

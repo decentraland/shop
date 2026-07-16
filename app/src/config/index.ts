@@ -17,7 +17,7 @@ const base = createConfig(
   },
   {
     systemEnvVariables: {
-      // eslint-disable-next-line @typescript-eslint/naming-convention
+       
       VITE_DCL_DEFAULT_ENV: import.meta.env.VITE_DCL_DEFAULT_ENV ?? 'dev'
     }
   }

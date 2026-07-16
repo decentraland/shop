@@ -282,7 +282,7 @@ export function StoreSettings() {
             </div>
             {oversize ? (
               <p className="error">
-                {t('storeSettings.sizeError', { max: mb(MAX_COVER_BYTES), current: mb(coverSize as number) })}
+                {t('storeSettings.sizeError', { max: mb(MAX_COVER_BYTES), current: mb(coverSize) })}
               </p>
             ) : null}
           </div>
