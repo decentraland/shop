@@ -15,7 +15,9 @@
 // ===== BACKEND CONTRACT (credits-server) =====================================
 //   POST /credits/checkout            (signed-fetch, ADR-44: caller == buyer)
 //     req : { packId: string }
-//     res : { orderId: string, clientSecret: string }   // Stripe embedded client_secret
+//     res : { orderId: string, url: string }   // Stripe HOSTED Checkout Session URL
+//           The app redirects the browser to `url`; Stripe returns to
+//           `${STRIPE_RETURN_URL}?order=${orderId}` (or `...&canceled=1`).
 //
 //   GET  /credits/orders/:orderId     (signed-fetch)
 //     res : { status: 'processing' | 'credited' | 'failed',
@@ -27,16 +29,16 @@ import type { AuthIdentity } from '@dcl/crypto'
 import { config } from '~/config'
 import type { CheckoutSession, OrderStatus } from '~/lib/payments'
 
-// The real endpoints live on the credits-server (same host as the USD balance).
+// The /credits/* endpoints (checkout + order status) live on the credits-server, next to the
+// USD ledger and its signed-fetch auth. shop-server is the treasury (USDC leg) and is never on
+// the buy path, so it must NOT be used here (G1).
 function paymentsBaseUrl(): string {
-  // Prefer an explicit shop-server url if one is ever wired for payments; default to the
-  // credits-server, which is where the Stripe endpoints are implemented.
-  return config.shopServerUrl || config.creditsServerUrl
+  return config.creditsServerUrl
 }
 
 /**
  * Real checkout: POST /credits/checkout via signed-fetch so the server binds the order to
- * the authenticated buyer. Returns the Stripe embedded client secret the app mounts.
+ * the authenticated buyer. Returns the Stripe HOSTED Checkout URL the app redirects to.
  */
 export async function createPackCheckoutReal(
   packId: string,
@@ -50,8 +52,8 @@ export async function createPackCheckoutReal(
     body: JSON.stringify({ packId })
   })
   if (!res.ok) throw new Error(`checkout ${res.status}: ${await res.text()}`)
-  const { orderId, clientSecret } = (await res.json()) as { orderId: string; clientSecret: string }
-  return { orderId, clientSecret, mock: false }
+  const { orderId, url } = (await res.json()) as { orderId: string; url: string }
+  return { orderId, url, mock: false }
 }
 
 /**
@@ -73,7 +75,9 @@ export async function pollCreditGrantReal(
     const status = await fetchOrderStatusReal(orderId, identity, signal)
     if (status.status !== 'processing') return status
     if (Date.now() > deadline) {
-      return { status: 'failed', error: 'Timed out waiting for your credits.' }
+      // Not a failure: the payment may still settle via the verified webhook after we stop polling.
+      // Surface a 'pending' so the UI shows an "on the way" state instead of an error (U7).
+      return { status: 'pending' }
     }
     await delay(intervalMs, signal)
   }

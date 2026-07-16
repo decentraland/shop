@@ -14,12 +14,13 @@
 //
 //   POST /credits/checkout                (signed-fetch, ADR-44: caller == buyer)
 //     req : { packId: string }
-//     res : { orderId: string, clientSecret: string }
-//           `clientSecret` is a Stripe *embedded Checkout* client secret
-//           (session.client_secret from checkout.sessions.create with
-//            ui_mode:'embedded'). The UI mounts it with <EmbeddedCheckout/>.
-//           The pack -> price/credits mapping is authoritative on the SERVER;
-//           the client only sends packId (never a price) to avoid tampering.
+//     res : { orderId: string, url: string }
+//           `url` is a Stripe *hosted* Checkout Session URL (session.url from
+//           checkout.sessions.create — Roblox-style redirect). The client sends
+//           the browser to it; Stripe redirects back to
+//           `${STRIPE_RETURN_URL}?order=${orderId}` on success (or `...&canceled=1`
+//           on cancel). The pack -> price/credits mapping is authoritative on the
+//           SERVER; the client only sends packId (never a price) to avoid tampering.
 //
 //   GET  /credits/orders/:orderId         (signed-fetch)
 //     res : { status: 'processing' | 'credited' | 'failed',
@@ -76,14 +77,25 @@ export function getPack(packId: string): CreditPack | undefined {
 
 export type CheckoutSession = {
   orderId: string
-  /** Stripe embedded-Checkout client secret, or a mock sentinel in dev. */
-  clientSecret: string
+  /**
+   * Stripe *hosted* Checkout Session URL to redirect the browser to (REAL path only).
+   * Undefined on the mock path, which never leaves the app.
+   */
+  url?: string
+  /**
+   * Mock sentinel "client secret" used only by the local mock card form (MOCK path only).
+   * Undefined on the real path, which redirects out to `url` instead.
+   */
+  clientSecret?: string
   /** True when this came from the local mock (no real Stripe backend wired). */
   mock: boolean
 }
 
 export type OrderStatus = {
-  status: 'processing' | 'credited' | 'failed'
+  // 'pending' = the poll timed out but the payment isn't failed — the verified webhook can still
+  // grant the credits later (up to Stripe's retry window), so the UI shows an "on the way" state
+  // rather than a hard error (see U7).
+  status: 'processing' | 'credited' | 'failed' | 'pending'
   creditsGranted?: number
   newBalance?: number
   error?: string
@@ -93,18 +105,43 @@ export type OrderStatus = {
 // simulated card form instead of the real Stripe widget.
 export const MOCK_CLIENT_SECRET_PREFIX = 'mock_cs_'
 
+/**
+ * Chain ids for the test networks where the mock / free-mint payment flow may run. Mock is allowed ONLY
+ * on these; any other chain — a mainnet, an unknown id, or a malformed NaN — is treated as real-money
+ * (fail-closed), so a new chain or a bad config defaults to "blocked", never "free credits".
+ */
+const MOCK_ALLOWED_CHAIN_IDS = new Set<number>([
+  80002, // Polygon Amoy (dev / staging)
+  11155111, // Sepolia
+  1337, // local ganache
+  31337 // local hardhat
+])
+
 /** Are we running against the mock (no real Stripe) ? */
 export function isMockPayments(): boolean {
   // Real mode needs the Stripe publishable key. The checkout/webhook endpoints live on the
-  // credits-server (always configured — see payments-stripe paymentsBaseUrl() + STRIPE_SPEC §1), so
-  // the key is the only client-side switch; the server independently gates on STRIPE_ENABLED.
-  return !config.stripePublishableKey
+  // credits-server (always configured), so the key is the only client-side switch; the server
+  // independently gates on STRIPE_ENABLED.
+  const mock = !config.stripePublishableKey
+  // Safety net: mock mode fabricates the checkout and tops up credits for free via /dev/mint-usd, so it
+  // must be impossible on a real-money deployment. Allow it only on a known test network; a missing key
+  // on a mainnet / unknown chain is a critical misconfiguration — fail hard (surfaced to the error
+  // boundary) rather than silently faking a purchase. The credits-server independently refuses dev-mint
+  // outside non-production envs, so this is defense in depth.
+  if (mock && !MOCK_ALLOWED_CHAIN_IDS.has(config.chainId)) {
+    throw new Error(
+      `Stripe publishable key is missing on chainId=${config.chainId}, which is not a recognized test ` +
+        `network. Refusing to fall back to mock payments in a real-money environment — configure ` +
+        `STRIPE_PUBLISHABLE_KEY.`
+    )
+  }
+  return mock
 }
 
 // ---------------------------------------------------------------------------
 // createPackCheckout — start a purchase.
-//   REAL: POST /credits/checkout on shop-server (signed-fetch), returns a Stripe
-//         embedded client secret the UI mounts.
+//   REAL: POST /credits/checkout on credits-server (signed-fetch), returns a Stripe
+//         hosted Checkout URL the UI redirects the browser to.
 //   MOCK: returns a fake client secret so the whole flow is demoable offline.
 // ---------------------------------------------------------------------------
 export async function createPackCheckout(
@@ -135,7 +172,11 @@ export async function pollCreditGrant(
 ): Promise<OrderStatus> {
   const { intervalMs, timeoutMs, signal, identity } = opts
 
-  if (orderId.startsWith(MOCK_CLIENT_SECRET_PREFIX) || isMockPayments()) {
+  // Evaluate the money-safety gate FIRST: a mock-prefixed order id must not let the flow skip the
+  // real-money throw in isMockPayments() (which fails hard when the Stripe key is missing on a
+  // non-test chain). A mock order id still takes the mock path when config is legitimately real.
+  const mock = isMockPayments()
+  if (mock || orderId.startsWith(MOCK_CLIENT_SECRET_PREFIX)) {
     return mockPollCreditGrant(orderId, opts)
   }
 

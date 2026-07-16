@@ -17,6 +17,10 @@ export default defineConfig({
     globals: true,
     setupFiles: './src/test/setup.ts',
     css: false,
+    // Force the payments MOCK path in unit tests: tests resolve the 'dev' config, which now ships a
+    // real Stripe publishable key (see src/config/env/dev.json), and an empty key is what flips
+    // isMockPayments() on. Kept out of the per-env JSON so only tests are mock, not the dev deploy.
+    env: { VITE_STRIPE_PK: '' },
     // @dcl/ui-env ships extensionless internal imports (dist/index.js → './config') that Vitest's
     // resolver can't follow; inlining it routes the dep through Vite's resolver, which can.
     server: { deps: { inline: ['@dcl/ui-env'] } },

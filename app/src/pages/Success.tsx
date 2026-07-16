@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { useLocation, useNavigate, Navigate } from 'react-router-dom'
 import { WearablePreview } from '~/components/LazyWearablePreview'
 import { PreviewEmote, PreviewType } from '@dcl/schemas'
@@ -8,7 +9,75 @@ import { SuccessAnimation } from '~/components/SuccessAnimation'
 import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import { avatarShape, dominantShape, isCompatible, BASE_MALE } from '~/lib/bodyShape'
 import { itemUrn } from '~/lib/urn'
+import { waitForSettlement, SettlementPendingError } from '~/lib/buy-gasless'
+import { fetchOwnsItem } from '~/lib/api'
 import type { CatalogItem } from '~/lib/api'
+
+// Settlement of the purchase, watched on this page so we NEVER claim "It's yours!" before the item is
+// actually the buyer's AND queryable. Two gates:
+//   1. the tx receipt (mined, status 1) — not reverted;
+//   2. the indexer reflecting ownership — because My Assets reads the SAME index, and a confirmed tx
+//      leads the index by however long the squid takes; declaring success on the receipt alone lands
+//      the user on an empty My Assets.
+// States: 'pending' = tx not yet mined; 'indexing' = mined, waiting for the index to show ownership;
+// 'confirmed' = owned + indexed; 'failed' = reverted; 'timed-out' = mined but we stopped waiting (the
+// item is bought and will appear shortly — never a false success, never a false failure).
+type Settlement = 'pending' | 'indexing' | 'confirmed' | 'failed' | 'timed-out'
+
+type OwnershipCheck = { owner: string; contractAddress: string; itemId: string }
+
+const delay = (ms: number) => new Promise<void>(r => setTimeout(r, ms))
+
+function useSettlement(txHash: string | undefined, ownership: OwnershipCheck | null): Settlement {
+  // No hash to verify (shouldn't happen for a credit buy) → don't block the page.
+  const [state, setState] = useState<Settlement>(txHash ? 'pending' : 'confirmed')
+  const ownerKey = ownership ? `${ownership.owner}-${ownership.contractAddress}-${ownership.itemId}` : ''
+  useEffect(() => {
+    if (!txHash) return
+    let cancelled = false
+    ;(async () => {
+      // Gate 1: wait for the tx receipt. ~5 min of polling (20 × 15s); a reverted tx fails fast.
+      let mined = false
+      for (let attempt = 0; attempt < 20 && !cancelled; attempt++) {
+        try {
+          await waitForSettlement(txHash, { timeoutMs: 15_000 })
+          mined = true
+          break
+        } catch (e) {
+          if (e instanceof SettlementPendingError) continue // still in flight → keep waiting
+          if (!cancelled) setState('failed') // reverted on-chain: no asset was delivered
+          return
+        }
+      }
+      if (cancelled) return
+      if (!mined) {
+        setState('timed-out') // read RPC lagged the whole window — tx may still land
+        return
+      }
+      // Gate 2: the tx is mined. If we can't check ownership (managed wallet / missing itemId), confirm
+      // on the receipt alone. Otherwise poll the indexer so "It's yours!" implies it's in My Assets.
+      if (!ownership) {
+        setState('confirmed')
+        return
+      }
+      setState('indexing')
+      for (let attempt = 0; attempt < 40 && !cancelled; attempt++) {
+        if (await fetchOwnsItem(ownership.owner, ownership.contractAddress, ownership.itemId)) {
+          if (!cancelled) setState('confirmed')
+          return
+        }
+        await delay(3000) // 40 × 3s = ~2 min
+      }
+      // Bought + mined, but the indexer hasn't caught up within the window. Not a failure — surface a
+      // "will appear shortly" state instead of a false "It's yours!" over an empty wardrobe.
+      if (!cancelled) setState('timed-out')
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [txHash, ownerKey])
+  return state
+}
 
 // Modern in-world entry: the launcher deep-link handled by decentraland.org/jump (zone on testnet).
 // The old play.decentraland.* web client is deprecated. The item is already in the wardrobe.
@@ -25,7 +94,20 @@ export function Success() {
   // whether the purchased wearables render on the real avatar or on a compatible mannequin.
   const { data: avatar } = useProfile(session?.address)
 
-  const items = state?.items ?? []
+  const txHash = state?.txHash
+  const purchasedItems = state?.items ?? []
+  // Gate "It's yours!" on the indexer showing ownership of the first purchased item (all items in a
+  // basket settle in the same tx, so one being indexed means the batch is). Only when we have an
+  // address + a mint itemId to query by; otherwise fall back to receipt-only confirmation.
+  const first = purchasedItems[0]
+  const ownership: OwnershipCheck | null =
+    session?.address && first?.contractAddress && first?.itemId
+      ? { owner: session.address, contractAddress: first.contractAddress, itemId: first.itemId }
+      : null
+  // Watch settlement + indexing (called before any early return to keep hook order stable).
+  const settlement = useSettlement(txHash, ownership)
+
+  const items = purchasedItems
   // Direct hit / refresh with no purchase context → send home.
   if (items.length === 0) return <Navigate to="/assets" replace />
 
@@ -51,7 +133,6 @@ export function Success() {
   const single = emote ?? hero
   const singleIsEmote = single.category === 'emote'
 
-  const txHash = state?.txHash
   // Self-custody users additionally get a link to the on-chain tx; managed users never see it.
   const showExplorer = !!txHash && showsWalletConfirmations(session?.providerType)
 
@@ -86,42 +167,118 @@ export function Success() {
       </div>
 
       <div className="success__panel">
-        <SuccessAnimation />
-        <h1 className="success__title">It&rsquo;s yours!</h1>
-        {items.length === 1 ? (
-          <p className="success__sub">
-            <strong>{hero.name}</strong> is now in your wardrobe.
-          </p>
+        {settlement === 'pending' || settlement === 'indexing' ? (
+          <>
+            <span className="spinner success__spinner" aria-hidden />
+            <h1 className="success__title">
+              {settlement === 'indexing' ? 'Finalizing your purchase…' : 'Processing your purchase…'}
+            </h1>
+            <p className="success__sub">
+              {settlement === 'indexing' ? (
+                <>
+                  Payment confirmed — adding{' '}
+                  {items.length === 1 ? <strong>{hero.name}</strong> : `${items.length} items`} to your wardrobe.
+                  Almost there.
+                </>
+              ) : (
+                <>
+                  Confirming {items.length === 1 ? <strong>{hero.name}</strong> : `${items.length} items`} on-chain.
+                  This usually takes a few seconds — keep this tab open.
+                </>
+              )}
+            </p>
+            {showExplorer ? (
+              <div className="success__links">
+                <a className="success__receipt" href={`${EXPLORER_TX}${txHash}`} target="_blank" rel="noreferrer">
+                  View transaction ↗
+                </a>
+              </div>
+            ) : null}
+          </>
+        ) : settlement === 'timed-out' ? (
+          <>
+            <h1 className="success__title">Still processing…</h1>
+            <p className="success__sub">
+              This is taking longer than usual to confirm. Your purchase may still complete — check{' '}
+              <button className="link" onClick={() => navigate('/my-purchases')}>My Purchases</button> in a
+              few minutes to see the final status. No need to buy again.
+            </p>
+            <div className="success__links">
+              {showExplorer ? (
+                <a className="success__receipt" href={`${EXPLORER_TX}${txHash}`} target="_blank" rel="noreferrer">
+                  View transaction ↗
+                </a>
+              ) : null}
+            </div>
+            <div className="success__actions">
+              <button className="btn btn--purple" onClick={() => navigate('/my-purchases')}>
+                View my purchases
+              </button>
+              <button className="btn btn--ghost" onClick={() => navigate('/assets')}>
+                Keep shopping
+              </button>
+            </div>
+          </>
+        ) : settlement === 'failed' ? (
+          <>
+            <h1 className="success__title">Your purchase didn&rsquo;t go through</h1>
+            <p className="success__sub">
+              The transaction failed on-chain, so nothing was delivered. Your credits weren&rsquo;t spent
+              (any hold is released shortly) — you can try again.
+            </p>
+            <div className="success__links">
+              {showExplorer ? (
+                <a className="success__receipt" href={`${EXPLORER_TX}${txHash}`} target="_blank" rel="noreferrer">
+                  View transaction ↗
+                </a>
+              ) : null}
+            </div>
+            <div className="success__actions">
+              <button className="btn btn--purple" onClick={() => navigate('/assets')}>
+                Back to shop
+              </button>
+            </div>
+          </>
         ) : (
           <>
-            <p className="success__sub">{items.length} items are now in your wardrobe.</p>
-            <ul className="success__list">
-              {items.map(i => (
-                <li key={i.id}>{i.name}</li>
-              ))}
-            </ul>
+            <SuccessAnimation />
+            <h1 className="success__title">It&rsquo;s yours!</h1>
+            {items.length === 1 ? (
+              <p className="success__sub">
+                <strong>{hero.name}</strong> is now in your wardrobe.
+              </p>
+            ) : (
+              <>
+                <p className="success__sub">{items.length} items are now in your wardrobe.</p>
+                <ul className="success__list">
+                  {items.map(i => (
+                    <li key={i.id}>{i.name}</li>
+                  ))}
+                </ul>
+              </>
+            )}
+
+            <div className="success__links">
+              <button className="success__receipt" onClick={() => navigate('/my-purchases')}>
+                View order
+              </button>
+              {showExplorer ? (
+                <a className="success__receipt" href={`${EXPLORER_TX}${txHash}`} target="_blank" rel="noreferrer">
+                  View transaction ↗
+                </a>
+              ) : null}
+            </div>
+
+            <div className="success__actions">
+              <a className="btn btn--purple" href={JUMP_URL} target="_blank" rel="noreferrer">
+                Use it in-world
+              </a>
+              <button className="btn btn--ghost" onClick={() => navigate('/assets')}>
+                Keep shopping
+              </button>
+            </div>
           </>
         )}
-
-        <div className="success__links">
-          <button className="success__receipt" onClick={() => navigate('/my-purchases')}>
-            View order
-          </button>
-          {showExplorer ? (
-            <a className="success__receipt" href={`${EXPLORER_TX}${txHash}`} target="_blank" rel="noreferrer">
-              View transaction ↗
-            </a>
-          ) : null}
-        </div>
-
-        <div className="success__actions">
-          <a className="btn btn--purple" href={JUMP_URL} target="_blank" rel="noreferrer">
-            Use it in-world
-          </a>
-          <button className="btn btn--ghost" onClick={() => navigate('/assets')}>
-            Keep shopping
-          </button>
-        </div>
       </div>
     </div>
   )

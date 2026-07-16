@@ -2,7 +2,8 @@ import { ethers } from 'ethers'
 import { ContractName, getContract } from 'decentraland-transactions'
 import { config } from '~/config'
 
-// The live MANA→USD market rate + the MANA-wei→credits conversion used by the Market tab.
+// The live MANA→USD market rate + the MANA-wei→credits conversion used by the unified browse (Assets)
+// for its legacy (market-priced) cards.
 //
 // Source: the SAME on-chain oracle the purchase path uses. USD-pegged trades convert USD→MANA via
 // marketplace.manaUsdAggregator() (see lib/buy.ts tradeManaPriceWei); here we read that aggregator
@@ -12,7 +13,7 @@ import { config } from '~/config'
 //
 // The displayed credit price is only INDICATIVE (it drifts with the rate). The price is LOCKED at
 // checkout by the credits-server authorize call (which sizes MANA at its own oracle read and signs a
-// fixed maxCreditedValue) — see pages/Market checkout.
+// fixed maxCreditedValue) — see MarketCheckout (opened from the unified browse).
 
 export type ManaRate = { rate: bigint; decimals: number }
 

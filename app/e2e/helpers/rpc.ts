@@ -16,7 +16,8 @@ const SELECTORS = {
   isApprovedForAll: sel('isApprovedForAll(address,address)'),
   manaUsdAggregator: sel('manaUsdAggregator()'),
   decimals: sel('decimals()'),
-  latestRoundData: sel('latestRoundData()')
+  latestRoundData: sel('latestRoundData()'),
+  getNonce: sel('getNonce(address)') // CreditsManager meta-tx nonce (gasless checkout)
 }
 
 function ethCall(params: any[]): string {
@@ -26,6 +27,7 @@ function ethCall(params: any[]): string {
   switch (s) {
     case SELECTORS.contractSignatureIndex:
     case SELECTORS.signerSignatureIndex:
+    case SELECTORS.getNonce:
       return abi.encode(['uint256'], [0])
     case SELECTORS.globalMinters:
     case SELECTORS.isApprovedForAll:

@@ -3,7 +3,7 @@ import { NavLink, useNavigate, useSearchParams } from 'react-router-dom'
 import { TopNav } from '~/components/TopNav'
 import { useWallet } from '~/store/wallet'
 import { useProfile } from '~/hooks/useProfile'
-import { useBalance } from '~/hooks/useBalance'
+import { useBalance, balanceLabel } from '~/hooks/useBalance'
 import { useCart } from '~/store/cart'
 import { CartPopover } from '~/components/CartPopover'
 import { SearchDropdown } from '~/components/SearchDropdown'
@@ -20,7 +20,7 @@ export function NavBar() {
   const { session, connecting, signIn, disconnect, restore } = useWallet()
   const address = session?.address
   const { data: avatar, isLoading: isLoadingProfile } = useProfile(address)
-  const { data: balance } = useBalance(session)
+  const { data: balance, isError: balanceError } = useBalance(session)
   const cartCount = useCart(s => s.items.length)
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -166,9 +166,7 @@ export function NavBar() {
         <nav className="subnav__tabs">
           <NavLink to="/overview">{t('nav.overview')}</NavLink>
           <NavLink to="/assets">{t('nav.collectibles')}</NavLink>
-          <NavLink to="/market">{t('nav.market')}</NavLink>
           <NavLink to="/my-assets">{t('nav.myAssets')}</NavLink>
-          <NavLink to="/my-favorites">{t('nav.myFavorites')}</NavLink>
           {session ? <NavLink to="/my-purchases">{t('nav.myPurchases')}</NavLink> : null}
         </nav>
         <div className="subnav__search" ref={wrapRef}>
@@ -202,12 +200,15 @@ export function NavBar() {
         {session ? (
           <span className="subnav__balance" title={t('nav.yourBalance', { currency: CURRENCY.name })}>
             <CurrencyIcon className="subnav__balance-ico" />
-            {balance?.credits ?? 0}
+            {balanceLabel(balance, balanceError)}
           </span>
         ) : null}
         <NavLink to="/credits" className="subnav__credits">
           <CurrencyIcon className="subnav__credits-ico" />
           {t('nav.getCredits', { currency: CURRENCY.name })}
+        </NavLink>
+        <NavLink to="/my-favorites" className="subnav__fav" aria-label={t('nav.myFavorites')}>
+          <span className="ico ico-heart" aria-hidden />
         </NavLink>
         <div className="subnav__cart-wrap">
           <NavLink to="/cart" className="subnav__cart" aria-label={t('nav.cart')}>

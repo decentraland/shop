@@ -77,7 +77,9 @@ export function ImportListings() {
 
   function afterMigrate() {
     qc.invalidateQueries({ queryKey: ['importable'] })
-    qc.invalidateQueries({ queryKey: ['listings'] })
+    // The browse grid is keyed on 'unified-listings' (see Assets.tsx); refresh it so freshly imported
+    // listings show up. 'overview-listings'/'upsell-listings' refresh on their own staleTime.
+    qc.invalidateQueries({ queryKey: ['unified-listings'] })
     qc.invalidateQueries({ queryKey: ['my-assets'] })
     qc.invalidateQueries({ queryKey: ['collection-sale-state'] })
     toast.success('Your Shop is updated.')

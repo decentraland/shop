@@ -194,6 +194,7 @@ type ShopListingRaw = {
   rarity: string
   category: string
   wearableCategory: string | null
+  gender?: 'male' | 'female' | 'unisex' | null
   creator: string
   priceCredits: number
   available: number
@@ -223,7 +224,7 @@ function shopListingToItem(l: ShopListingRaw): CatalogItem {
     chainId: l.chainId,
     thumbnail: l.thumbnail,
     priceCredits: l.priceCredits,
-    gender: null,
+    gender: l.gender ?? null,
     isSmart: l.isSmart ?? false,
     // Only surface a compare-at that's actually above the sale price (the badge/strikethrough guard
     // against a stale or equal value). saleEndsAt arrives as unix seconds → ms for the UI.
@@ -281,6 +282,7 @@ export async function fetchShopListingForItem(contractAddress: string, itemId: s
 
 // Credit-buyable listings for the browse grid (primary + secondary, USD-pegged). All filtering
 // (category, rarity, price, sub-category, search, sort) happens server-side on /v3/catalog/shop.
+// Still used by the Overview drops row + the Cart upsell; the main browse grid uses fetchUnified.
 export async function fetchListings({ first = 100, ...filters }: ShopListingFilters = {}): Promise<{
   items: CatalogItem[]
   total: number
@@ -290,12 +292,60 @@ export async function fetchListings({ first = 100, ...filters }: ShopListingFilt
 }
 
 // ---------------------------------------------------------------------------
-// Legacy catalog (v3) — the OLD classic MANA-priced liquidity. Surfaced in the Market tab so the
-// Shop is full at launch. These listings are priced in MANA (not USD-pegged) so their CREDIT price
-// FLUCTUATES with the market rate — the Market UI shows an "≈" (indicative) price and buys them via
-// Buy Now (direct checkout), never the cart. Same query params as fetchListings.
+// Unified catalog (v3) — the single browse feed that mixes NATIVE (USD-pegged, credit-buyable, Add to
+// cart) and LEGACY (classic MANA-priced) liquidity in one grid. Same query params as /v3/catalog/shop.
+// Each row carries the existing ShopListing fields PLUS:
+//   - source: 'native' | 'legacy'
+//   - manaWei: raw MANA price, present ONLY for legacy rows (null for native)
+//   - priceCredits: server-computed (native = fixed price; legacy = a snapshot — but the UI DISPLAYS
+//     legacy with the LIVE rate, not this snapshot; see pages/Assets + lib/mana-rate).
+// This is the ONE place the /v3/catalog/unified URL lives.
 // ---------------------------------------------------------------------------
 
+export type ListingSource = 'native' | 'legacy'
+
+export type UnifiedListing = CatalogItem & {
+  source: ListingSource
+  // Raw MANA wei price for legacy rows (converted to fluctuating credits in the UI); null for native.
+  manaWei: string | null
+}
+
+type UnifiedListingRaw = ShopListingRaw & {
+  source: ListingSource
+  manaWei?: string | null
+}
+
+function unifiedListingToItem(l: UnifiedListingRaw): UnifiedListing {
+  return { ...shopListingToItem(l), source: l.source, manaWei: l.manaWei ?? null }
+}
+
+// The unified browse grid: native + legacy listings in one feed. All filtering/sort/search happens
+// server-side on /v3/catalog/unified (same params as fetchListings). Native rows render Add to cart at
+// their fixed priceCredits; legacy rows render an "≈" live-rate price + Buy Now (see pages/Assets).
+export async function fetchUnified({ first = 100, ...filters }: ShopListingFilters = {}): Promise<{
+  items: UnifiedListing[]
+  total: number
+}> {
+  const qs = new URLSearchParams()
+  if (filters.category === 'wearable' || filters.category === 'emote') qs.set('category', filters.category)
+  qs.set('first', String(first))
+  if (filters.skip != null) qs.set('skip', String(filters.skip))
+  if (filters.rarities?.length) qs.set('rarity', filters.rarities.join(','))
+  if (filters.wearableCategories?.length) qs.set('wearableCategory', filters.wearableCategories.join(','))
+  if (filters.minPriceCredits != null) qs.set('minPriceCredits', String(filters.minPriceCredits))
+  if (filters.maxPriceCredits != null) qs.set('maxPriceCredits', String(filters.maxPriceCredits))
+  if (filters.search) qs.set('search', filters.search)
+  if (filters.sortBy) qs.set('sortBy', filters.sortBy)
+  const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/unified?${qs.toString()}`)
+  if (!res.ok) throw new Error(`fetchUnified ${res.status}`)
+  const json = (await res.json()) as { data?: UnifiedListingRaw[]; total?: number }
+  const data = json.data ?? []
+  return { items: data.map(unifiedListingToItem), total: json.total ?? data.length }
+}
+
+// The legacy (classic MANA-priced) listing shape that MarketCheckout (Buy Now) consumes. A legacy row
+// from the unified feed is projected into this shape before opening checkout (see pages/Assets). These
+// listings are priced in MANA (not USD-pegged) so their credit price FLUCTUATES with the market rate.
 export type LegacyListing = {
   tradeId: string
   listingType: 'primary'
@@ -393,6 +443,22 @@ type NFTResult = {
     data?: { wearable?: { rarity?: string }; emote?: { rarity?: string } }
   }
   order: { price?: string | null; tradeId?: string } | null
+}
+
+// Has `owner` received a token of this item yet, according to the indexer? The purchase tx confirming
+// on-chain isn't enough for the item to appear in My Assets — that page reads the indexed NFTs, which
+// lag the chain. The Success page polls this after the tx settles so it only claims "It's yours!" once
+// the item is actually queryable (and thus visible in My Assets). Any error → false (treat as not-yet).
+export async function fetchOwnsItem(owner: string, contractAddress: string, itemId: string): Promise<boolean> {
+  try {
+    const qs = new URLSearchParams({ owner: owner.toLowerCase(), contractAddress, itemId, first: '1' })
+    const res = await fetch(`${NFT_V1}/nfts?${qs.toString()}`)
+    if (!res.ok) return false
+    const { total } = (await res.json()) as { total?: number }
+    return (total ?? 0) > 0
+  } catch {
+    return false
+  }
 }
 
 export async function fetchMyAssets(
