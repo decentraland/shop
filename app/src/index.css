@@ -2314,16 +2314,6 @@ h2 {
 .search-pop__thumb--mosaic[data-count="2"] {
   grid-template-rows: 1fr;
 }
-.search-pop__mosaic-cell {
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-}
-.search-pop__mosaic-cell img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
 /* Two-line label: name + a muted "By {creator}" subline. min-width: 0 lets it shrink so both lines
    ellipsize instead of pushing into the price. */
 .search-pop__text {
