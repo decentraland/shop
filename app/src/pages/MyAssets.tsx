@@ -35,6 +35,7 @@ function assetToItem(a: MyAsset): CatalogItem {
     thumbnail: a.image,
     priceCredits: a.listingPrice ?? 0,
     gender: null,
+    isSmart: false, // TODO: legacy listings don't have the isSmart flag, but we should add it to the API or retrieve it somehow.
     tokenId: a.tokenId,
   }
 }
@@ -54,6 +55,7 @@ function publishableToItem(p: PublishableItem): CatalogItem {
     thumbnail: p.thumbnail,
     priceCredits: 0,
     gender: null,
+    isSmart: false, // TODO: legacy listings don't have the isSmart flag, but we should add it to the API or retrieve it somehow.
   }
 }
 

@@ -78,6 +78,7 @@ export function ItemDetail() {
       thumbnail: '',
       priceCredits: 0,
       gender: null,
+      isSmart: false,
       tokenId: tokenId ?? undefined,
       tradeId: state?.tradeId
     }

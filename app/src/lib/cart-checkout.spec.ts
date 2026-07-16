@@ -18,6 +18,7 @@ const item = (id: string, priceCredits: number, over: Partial<CatalogItem> = {})
   thumbnail: '',
   priceCredits,
   gender: null,
+  isSmart: false,
   tradeId: `trade-${id}`,
   ...over
 })

@@ -15,7 +15,8 @@ const makeItem = (id: string, overrides: Partial<CatalogItem> = {}): CatalogItem
   thumbnail: 'https://example.com/thumb.png',
   priceCredits: 100,
   gender: 'unisex',
-  ...overrides
+  isSmart: false,
+  ...overrides,
 })
 
 // The store is a module-level zustand singleton persisted to localStorage; clear storage and swap

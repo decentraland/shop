@@ -31,6 +31,7 @@ const item = (over: Partial<CatalogItem> = {}): CatalogItem => ({
   thumbnail: '',
   priceCredits: 20,
   gender: null,
+  isSmart: false,
   ...over
 })
 

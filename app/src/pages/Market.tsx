@@ -49,7 +49,8 @@ function toCardItem(l: LegacyListing): CatalogItem {
     chainId: l.chainId,
     thumbnail: l.thumbnail,
     priceCredits: 0,
-    gender: null
+    gender: null,
+    isSmart: false // TODO: legacy listings don't have the isSmart flag, but we should add it to the API or retrieve it somehow.
   }
 }
 

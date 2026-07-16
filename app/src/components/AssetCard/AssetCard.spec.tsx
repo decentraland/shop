@@ -21,6 +21,7 @@ function makeItem(overrides: Partial<CatalogItem> = {}): CatalogItem {
     thumbnail: '',
     priceCredits: 7,
     gender: null,
+    isSmart: false,
     ...overrides
   }
 }

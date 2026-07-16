@@ -5,7 +5,7 @@ import type { CatalogItem } from '~/lib/api'
 // creditsToUsd keeps its real behaviour (1 credit = $0.10) so cart_value_usd assertions are meaningful.
 vi.mock('~/lib/analytics', () => ({
   track: vi.fn(),
-  creditsToUsd: (credits: number) => Math.round(credits * 10) / 100
+  creditsToUsd: (credits: number) => Math.round(credits * 10) / 100,
 }))
 
 import { useCart } from './cart'
@@ -26,7 +26,8 @@ const item = (over: Partial<CatalogItem> = {}): CatalogItem => ({
   thumbnail: '',
   priceCredits: 20,
   gender: null,
-  ...over
+  isSmart: false,
+  ...over,
 })
 
 beforeEach(() => {
@@ -58,7 +59,7 @@ describe('when adding an item to the cart', () => {
       is_primary: true,
       source: 'item_detail',
       cart_size: 1,
-      cart_value_usd: 2
+      cart_value_usd: 2,
     })
   })
 
