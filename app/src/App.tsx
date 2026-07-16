@@ -5,7 +5,7 @@ import { NavBar } from '~/components/NavBar'
 import { Toaster } from '~/components/Toaster'
 import { FittingRoom } from '~/components/FittingRoom'
 import { ShopFooter } from '~/components/ShopFooter'
-import { PreviewWarmer } from '~/components/PreviewWarmer'
+import { HoverPreviewLayer } from '~/components/HoverPreviewLayer'
 import { useAccountWatcher } from '~/hooks/useAccountWatcher'
 import { initAnalytics, trackPage } from '~/lib/analytics'
 import { Overview } from '~/pages/Overview'
@@ -14,7 +14,6 @@ import { Overview } from '~/pages/Overview'
 const PAGE_NAMES: Record<string, string> = {
   '/overview': 'overview',
   '/assets': 'assets',
-  '/market': 'market',
   '/my-assets': 'my_assets',
   '/my-favorites': 'favorites',
   '/my-purchases': 'my_purchases',
@@ -28,7 +27,6 @@ const PAGE_NAMES: Record<string, string> = {
 // Overview (home) stays eager for the fastest first paint; every other route is code-split so it
 // stays out of the initial bundle and loads on navigation (see vite manualChunks + LazyWearablePreview).
 const Assets = lazy(() => import('~/pages/Assets').then(m => ({ default: m.Assets })))
-const Market = lazy(() => import('~/pages/Market').then(m => ({ default: m.Market })))
 const ItemDetail = lazy(() => import('~/pages/ItemDetail').then(m => ({ default: m.ItemDetail })))
 const Collection = lazy(() => import('~/pages/Collection').then(m => ({ default: m.Collection })))
 const Creator = lazy(() => import('~/pages/Creator').then(m => ({ default: m.Creator })))
@@ -90,7 +88,7 @@ export function App() {
   return (
     <>
       <Toaster />
-      <PreviewWarmer />
+      <HoverPreviewLayer />
       <FittingRoom />
       <NavBar />
       <main className="page">
@@ -100,7 +98,9 @@ export function App() {
               <Route path="/" element={<Navigate to="/overview" replace />} />
               <Route path="/overview" element={<Overview />} />
               <Route path="/assets" element={<Assets />} />
-              <Route path="/market" element={<Market />} />
+              {/* Assets is now the unified browse (native + legacy). Keep /market as an alias so old
+                links don't 404 — it lands on the same grid. */}
+              <Route path="/market" element={<Navigate to="/assets" replace />} />
               <Route path="/item/:contractAddress/:tokenId" element={<ItemDetail />} />
               <Route path="/collection/:contractAddress" element={<Collection />} />
               <Route path="/assets/creator/:address" element={<Creator />} />

@@ -11,7 +11,7 @@ afterEach(async () => {
 
 describe('collection storefront', () => {
   it('shows the hero, creator identity block, and every item of the collection', async () => {
-    // Collection page reads fetchCollectionItems → GET /v1/items?contractAddress=<collection>
+    // Collection page reads fetchCollectionItems → GET /v3/catalog/items?contractAddress=<collection>
     // (mocked from the shopListings fixture in helpers/app.ts).
     app = await launchApp({ path: `/collection/${COLLECTION}` })
     const { page } = app
@@ -41,6 +41,24 @@ describe('collection storefront', () => {
     expect(await page.evaluate(() => !!document.querySelector('.browse--sidebar .filterbar'))).toBe(true)
   })
 
+  it('lists every item of the collection from /v3/catalog/items', async () => {
+    // Collection page reads fetchCollectionItems → GET /v3/catalog/items?contractAddress=<collection>
+    // (mocked from the shopListings fixture in helpers/app.ts).
+    app = await launchApp({ path: `/collection/${COLLECTION}` })
+    const { page } = app
+
+    // Title comes from the collections entity (fetchCollection → /v1/collections?contractAddress=),
+    // not the item records, which carry no collection name.
+    await waitForText(page, 'Galaxy Collection')
+    await waitForText(page, 'Galaxy Hat')
+    await waitForText(page, 'Nebula Jacket')
+    expect(await page.evaluate(() => document.querySelectorAll('.card:not(.card--skeleton)').length)).toBe(2)
+    await waitForText(page, '2 items')
+
+    // The shared browse controls are present (same as the Creator storefront): sidebar filters + FilterBar.
+    expect(await page.evaluate(() => !!document.querySelector('.browse--sidebar .filterbar'))).toBe(true)
+  })
+
   it('renders on a mobile viewport', async () => {
     app = await launchApp({ path: `/collection/${COLLECTION}` })
     const { page } = app
@@ -52,7 +70,14 @@ describe('collection storefront', () => {
     // we measure this page's container, not the document.)
     const widest = await page.evaluate(() => {
       const vw = document.documentElement.clientWidth
-      const els = ['.collection-page', '.collection-hero', '.browse--sidebar', '.browse__sidebar', '.grid', '.creator-card']
+      const els = [
+        '.collection-page',
+        '.collection-hero',
+        '.browse--sidebar',
+        '.browse__sidebar',
+        '.grid',
+        '.creator-card',
+      ]
       return Math.max(
         0,
         ...els.map(sel => {

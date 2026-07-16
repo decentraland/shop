@@ -10,8 +10,8 @@ afterEach(async () => {
 
 describe('browse with no listings', () => {
   it('renders the empty state on the assets grid', async () => {
-    // No shop listings → Assets renders "No items match your filters." (see src/pages/Assets.tsx).
-    app = await launchApp({ path: '/assets', fixtures: { shopListings: { data: [], total: 0 } } })
+    // No unified listings → Assets renders "No items match your filters." (see src/pages/Assets.tsx).
+    app = await launchApp({ path: '/assets', fixtures: { unifiedListings: { data: [], total: 0 } } })
     const { page } = app
 
     await waitForText(page, 'No items match your filters')

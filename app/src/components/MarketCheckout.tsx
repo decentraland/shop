@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Trade } from '@dcl/schemas'
 import { useWallet } from '~/store/wallet'
-import { useBalance } from '~/hooks/useBalance'
+import { useBalance, balanceLabel } from '~/hooks/useBalance'
 import { fetchTrade, type CatalogItem, type LegacyListing } from '~/lib/api'
 import { manaWeiToUsdCents, type ManaRate } from '~/lib/mana-rate'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
@@ -77,7 +77,7 @@ export function MarketCheckout({
   onSold: () => void
 }) {
   const { session } = useWallet()
-  const { data: balance } = useBalance(session)
+  const { data: balance, isError: balanceError } = useBalance(session)
   const qc = useQueryClient()
   const navigate = useNavigate()
 
@@ -153,12 +153,22 @@ export function MarketCheckout({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const needsMoreCredits = !!locked && (balance?.credits ?? 0) < locked.credits
+  // Only assert "needs more credits" when the balance is actually KNOWN — a failed/loading fetch must
+  // not falsely gate the buy (undefined would read as 0). If unknown, let them proceed; the on-chain buy guards.
+  const needsMoreCredits = !!locked && balance != null && balance.credits < locked.credits
 
   async function confirm() {
     if (!session || !locked) return
     // Not enough balance for the locked amount → send them to top up (Get credits).
     if (needsMoreCredits) {
+      // Funnel bridge: a purchase blocked by low balance that routes to Get Credits. Lets us join the
+      // purchase funnel to the buy-credits funnel and see how many low-balance buyers go on to top up.
+      track('Shop Buy Credits Prompted', {
+        from: 'item_checkout',
+        credits_needed: locked.credits,
+        credits_balance: balance?.credits ?? 0,
+        shortfall: Math.max(0, locked.credits - (balance?.credits ?? 0)),
+      })
       void cancelUsdIntents(session.identity, [locked.credit.id]).catch(() => {})
       reservedCreditIdRef.current = null
       navigate('/credits')
@@ -285,7 +295,7 @@ export function MarketCheckout({
 
         {session ? (
           <div className="mkt-modal__balance muted">
-            Your balance: <CurrencyIcon className="ccy-mark" /> {balance?.credits ?? 0}
+            Your balance: <CurrencyIcon className="ccy-mark" /> {balanceLabel(balance, balanceError)}
           </div>
         ) : null}
         {needsMoreCredits ? (

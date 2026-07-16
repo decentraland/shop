@@ -9,18 +9,28 @@
    the 300px. */
 .card {
   height: 300px;
-  background:
-    linear-gradient(#fff, #fff) padding-box,
-    linear-gradient(var(--line), var(--line)) border-box;
-  border: 2px solid transparent;
+  background: #fff;
   border-radius: var(--radius-card);
   overflow: hidden;
+  position: relative;
+  border: 2px solid transparent;
   display: flex;
   flex-direction: column;
   transition:
+    border-color 0.15s ease,
     background 0.15s ease,
     box-shadow 0.15s ease;
 }
+
+/* Whole-card navigation link: a transparent overlay spanning the card. It sits ABOVE the media
+   (incl. the hover preview shield) so a click anywhere navigates, but BELOW the fav/cart/creator
+   controls (z-index 4) so those stay independently clickable. See AssetCard's stretched-link. */
+.card__link {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+}
+
 /* Figma hover (node 696:34662): 2px cerise gradient border (DCL/Gradients/Cerise, #FF2D55 → #C640CD,
    outer) + a soft violet glow (Brand/Violet #A524B3, X0 Y0 Blur8 Spread0). The glow needs room in
    scroll containers — see .row__track. */
@@ -118,6 +128,17 @@
     opacity: 0.5;
   }
 }
+/* The ONE shared 3D hover preview (HoverPreviewLayer): a fixed overlay positioned over the hovered
+   card's media. pointer-events:none so hover/clicks pass through to the card underneath (hover stays
+   active, the whole-card link still navigates, and the cross-origin iframe never surfaces its internal
+   content-URL tooltip). */
+.hover-preview iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+  background: transparent;
+}
 .card__fav {
   position: absolute;
   top: 10px;
@@ -170,13 +191,16 @@
 .card__name {
   font-weight: 600;
   font-size: 14px;
-  line-height: 1.5;
+  line-height: 1.35;
   color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* position/z-index so the creator link sits ABOVE the whole-card overlay and stays clickable. */
 .card__creator {
+  position: relative;
+  z-index: 4;
   color: var(--muted);
   font-size: 10px;
   margin-bottom: 0;
@@ -216,6 +240,25 @@
   gap: 6px;
   flex-wrap: wrap;
 }
+/* Marketplace-style chips on the browse card. All three chips (rarity, category, gender) share ONE
+   fixed height so they line up; the rarity label is bumped up from the tiny Figma spec for legibility
+   and to fill the same pill height as the icon chips. */
+.card__chips .chip {
+  height: 18px;
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 600;
+  padding: 0 6.5px;
+  letter-spacing: 0.01em;
+  border-radius: 4px;
+}
+.card__chips .chip--icon {
+  padding: 0 5px;
+}
+.card__chips .chip--icon .ico {
+  width: 14.6px;
+  height: 14.6px;
+}
 /* Smart wearable badge — sits on the chips row beside the rarity chip. Light neutral pill (matches
    the other chips) with the lightning glyph + "SMART" label. */
 .card__chips .chip--smart {
@@ -231,12 +274,20 @@
   height: 13px;
   color: var(--text-2);
 }
+/* Round add-to-cart for the compact mobile card (Figma): hidden on desktop (the full-width .card__cart
+   is used there). */
+.card__add-round {
+  display: none;
+}
 /* Add-to-cart / Buy now (Figma node 790-63037: secondary dark button). Lives in the body below the
    image, never over it. On hover-capable devices it's hidden at rest (the chips row shows) and
    revealed on hover OR keyboard focus, swapping out the chips row (the title+author+price row above
    stays put); where hover isn't available (touch) it's always shown so the item stays buyable without
-   a mouse. Always in the DOM (keyboard-reachable). */
+   a mouse. Always in the DOM (keyboard-reachable). position/z-index keep it above the whole-card
+   overlay link (z-index 3) so the action stays clickable. */
 .card__cart {
+  position: relative;
+  z-index: 4;
   width: 100%;
   display: none;
   align-items: center;
@@ -253,16 +304,21 @@
   letter-spacing: 0.046em;
   transition: background 0.15s ease;
 }
-.card:hover .card__cart,
-.card__body:focus-within .card__cart {
-  display: flex;
+/* Reveal-on-hover/focus is gated to hover-capable devices. On touch (hover: none) a tap synthesizes
+   :hover, which would otherwise swap the chips row for the dark button and leak the round action out
+   of place — so the swap must not apply there. See onEnter's matchMedia guard for the JS side. */
+@media (hover: hover) {
+  .card:hover .card__cart,
+  .card__body:focus-within .card__cart {
+    display: flex;
+  }
+  .card:hover .card__chips,
+  .card__body:focus-within .card__chips {
+    display: none;
+  }
 }
-.card:hover .card__chips,
-.card__body:focus-within .card__chips {
-  display: none;
-}
-@media (hover: none) {
-  /* Touch: no hover to reveal on, so keep the action visible (alongside the chips row). */
+@media (hover: none) and (min-width: 721px) {
+  /* Touch on a wide screen: no hover to reveal on, so keep the full-width action visible. */
   .card__cart {
     display: flex;
   }
@@ -351,9 +407,15 @@
 }
 
 /* ---------------- Market tab (legacy, fluctuating-price liquidity) ---------------- */
-/* Fluctuating (indicative) price on a market card: leading "≈" + a small "Market price" chip. */
+/* Fluctuating (indicative) price on a market (legacy) card: leading "≈" + a small "Market price"
+   chip. In the name/price top row it's capped + right-aligned so the chip wraps under the price
+   instead of squeezing the item name to nothing. */
 .card__price--market {
   gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px 8px;
+  max-width: 55%;
 }
 .card__approx {
   font-weight: 700;

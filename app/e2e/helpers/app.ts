@@ -8,7 +8,7 @@ export const BASE = process.env.E2E_BASE_URL ?? 'http://localhost:5273'
 const CORS = {
   'access-control-allow-origin': '*',
   'access-control-allow-headers': '*',
-  'access-control-allow-methods': 'GET,POST,PUT,DELETE,OPTIONS'
+  'access-control-allow-methods': 'GET,POST,PUT,DELETE,OPTIONS',
 }
 // 1x1 transparent PNG.
 const PNG = Buffer.from(
@@ -25,6 +25,7 @@ export type Fixtures = {
   creatorNames: unknown
   accounts: unknown
   legacyListings: unknown
+  unifiedListings: unknown
   ownedNfts: unknown
   builderCollections: unknown
   builderItems: unknown
@@ -43,6 +44,7 @@ function defaults(): Fixtures {
     creatorNames: fx.creatorNames,
     accounts: fx.accounts,
     legacyListings: fx.legacyListings,
+    unifiedListings: fx.unifiedListings,
     ownedNfts: fx.ownedNfts,
     builderCollections: fx.builderCollections,
     builderItems: fx.builderItems,
@@ -55,13 +57,13 @@ function defaults(): Fixtures {
         availableAmount: '1000000000000000000',
         expiresAt: Math.floor(Date.now() / 1000) + 900,
         signature: '0x' + 'ab'.repeat(65),
-        contract: '0x8052a560e6e6ac86eeb7e711a4497f639b322fb3'
+        contract: '0x8052a560e6e6ac86eeb7e711a4497f639b322fb3',
       },
       maxCreditedValue: '1000000000000000000',
       usdCents: 2700,
-      oracleRate: '26960836'
+      oracleRate: '26960836',
     },
-    trade: null
+    trade: null,
   }
 }
 
@@ -78,11 +80,12 @@ function json(req: HTTPRequest, obj: unknown, status = 200) {
 // A forced error response, keyed by URL pathname (opt-in per run via launchApp({ errors })).
 type ErrorMap = Record<string, { status: number; body?: unknown }>
 
-// Map a shop listing (fixtures shape) → a RawCollectionItem the /v1/items catalog endpoint returns
-// (the shape lib/collections.ts's toCatalogItem reads). `price` is USD wei (1e18 = $1); derive it
-// from priceCredits (1 credit = $0.10) so items stay buyable with a positive credit price.
+// Map a shop listing (fixtures shape) → a catalog item the /v3/catalog/items endpoint returns
+// (the shape lib/collections.ts's toCatalogItem reads). The server computes `priceCredits` per item;
+// `price` (USD wei, 1e18 = $1) is kept for shape parity with /v1/items.
 function toCatalogRow(l: any) {
-  const priceWei = String(BigInt(Math.max(1, Math.round(l.priceCredits ?? 1))) * 10n ** 17n) // credits × $0.10 in wei
+  const priceCredits = Math.max(1, Math.round(l.priceCredits ?? 1))
+  const priceWei = String(BigInt(priceCredits) * 10n ** 17n) // credits × $0.10 in wei
   return {
     id: `${l.contractAddress}-${l.itemId ?? l.tokenId ?? '0'}`,
     name: l.name,
@@ -94,7 +97,8 @@ function toCatalogRow(l: any) {
     network: l.network,
     chainId: l.chainId,
     thumbnail: l.thumbnail ?? '',
-    price: priceWei
+    price: priceWei,
+    priceCredits,
   }
 }
 
@@ -103,8 +107,10 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
   const method = req.method()
   const path = u.pathname
 
-  // Same-origin app assets (vite) + inline data: URIs → let through.
-  if (u.port === '5273' || req.url().startsWith('data:')) return req.continue()
+  // Same-origin app assets (vite dev server, whatever port BASE resolves to) + inline data: URIs →
+  // let through. Deriving the port from BASE (not a hardcoded 5273) keeps the mock working when the
+  // e2e server runs on a custom E2E_PORT.
+  if (u.port === new URL(BASE).port || req.url().startsWith('data:')) return req.continue()
   // CORS preflight must always succeed (204) — even for a forced-error path below — so the browser
   // actually issues the real request (otherwise a preflight failure masks the intended error as a
   // generic "Failed to fetch"). The error is returned WITH CORS headers on the real request.
@@ -119,11 +125,25 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
 
   // JSON-RPC read provider.
   if (u.hostname.includes('rpc-amoy') || u.hostname.includes('rpc.decentraland')) {
-    return req.respond({ status: 200, headers: { 'content-type': 'application/json', ...CORS }, body: handleRpc(req.postData() || '{}') })
+    return req.respond({
+      status: 200,
+      headers: { 'content-type': 'application/json', ...CORS },
+      body: handleRpc(req.postData() || '{}'),
+    })
+  }
+  // Meta-transaction relayer (transactions-server): gasless checkout POSTs the signed useCredits
+  // meta-tx here; the RPC mock then returns a status-1 receipt for the returned hash. Gasless is the
+  // default checkout path, so the credit-buy flows exercise this.
+  if (u.hostname.includes('transactions-api') && path.endsWith('/transactions')) {
+    return json(req, { ok: true, txHash: '0x' + 'ab'.repeat(32) })
   }
   // WearablePreview iframe → blank page (don't hit the external preview app).
   if (u.hostname.includes('wearable-preview')) {
-    return req.respond({ status: 200, headers: { 'content-type': 'text/html', ...CORS }, body: '<!doctype html><title>preview</title>' })
+    return req.respond({
+      status: 200,
+      headers: { 'content-type': 'text/html', ...CORS },
+      body: '<!doctype html><title>preview</title>',
+    })
   }
   // Images / builder content.
   if (path.includes('/contents/') || /\.(png|jpe?g|gif|svg|webp|ico)$/.test(path)) {
@@ -164,7 +184,7 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
       return json(req, { data: items, total: items.length })
     }
     if (path === '/v3/catalog/legacy') {
-      // Legacy (classic MANA-priced) liquidity for the Market tab. Honor the same server-side filters.
+      // Legacy (classic MANA-priced) liquidity. Honor the same server-side filters.
       let items = [...((F.legacyListings as { data: any[] }).data ?? [])]
       const search = u.searchParams.get('search')?.toLowerCase()
       const rarity = u.searchParams.get('rarity')
@@ -172,13 +192,29 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
       if (search) items = items.filter(i => String(i.name).toLowerCase().includes(search))
       if (rarity) items = items.filter(i => rarity.split(',').includes(i.rarity))
       if (category) items = items.filter(i => i.category === category)
-      if (u.searchParams.get('sortBy') === 'cheapest') items.sort((a, b) => Number(BigInt(a.manaWei) - BigInt(b.manaWei)))
+      if (u.searchParams.get('sortBy') === 'cheapest')
+        items.sort((a, b) => Number(BigInt(a.manaWei) - BigInt(b.manaWei)))
+      return json(req, { data: items, total: items.length })
+    }
+    if (path === '/v3/catalog/unified') {
+      // The ONE browse grid: native + legacy in one feed. Honor the same server-side filters so the
+      // browse filter/search/sort e2e stay meaningful (native rows sort by priceCredits, legacy by manaWei).
+      let items = [...((F.unifiedListings as { data: any[] }).data ?? [])]
+      const search = u.searchParams.get('search')?.toLowerCase()
+      const rarity = u.searchParams.get('rarity')
+      const category = u.searchParams.get('category')
+      if (search) items = items.filter(i => String(i.name).toLowerCase().includes(search))
+      if (rarity) items = items.filter(i => rarity.split(',').includes(i.rarity))
+      if (category) items = items.filter(i => i.category === category)
+      if (u.searchParams.get('sortBy') === 'cheapest') {
+        items.sort((a, b) => (a.priceCredits ?? 0) - (b.priceCredits ?? 0))
+      }
       return json(req, { data: items, total: items.length })
     }
     // Collections entity: search dropdown "Collections" section (fetchCollectionSuggestions, ?search=)
     // + the Collection page name lookup (fetchCollection, ?contractAddress=). Honor both filters.
     if (path === '/v1/collections') {
-      let rows = ((F.collections as { data: any[] }).data ?? [])
+      let rows = (F.collections as { data: any[] }).data ?? []
       const search = u.searchParams.get('search')?.toLowerCase()
       const ca = u.searchParams.get('contractAddress')?.toLowerCase()
       if (ca) rows = rows.filter(c => String(c.contractAddress).toLowerCase() === ca)
@@ -186,8 +222,9 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
       return json(req, { data: rows, total: rows.length })
     }
     // Collection + Creator pages (lib/collections.ts → fetchCollectionItems/fetchCreatorItems).
-    // Returns the collection's CATALOG items, filtered by the contractAddress / creator query param.
-    if (path === '/v1/items') {
+    // Returns the collection's CATALOG items with server-computed priceCredits, filtered by the
+    // contractAddress / creator query param.
+    if (path === '/v3/catalog/items' || path === '/v1/items') {
       const ca = u.searchParams.get('contractAddress')
       const creator = u.searchParams.get('creator')
       let rows = ((F.shopListings as { data: any[] }).data ?? []).map(toCatalogRow)
@@ -198,7 +235,7 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
     if (path === '/v1/nfts') {
       // Creator search step 1 (lib/search.ts → fetchNameOwners): DCL names matching ?search=.
       if (u.searchParams.get('category') === 'ens') {
-        let names = ((F.creatorNames as { data: any[] }).data ?? [])
+        let names = (F.creatorNames as { data: any[] }).data ?? []
         const search = u.searchParams.get('search')?.toLowerCase()
         if (search) names = names.filter(n => String(n.nft.name).toLowerCase().includes(search))
         return json(req, { data: names, total: names.length })
@@ -208,7 +245,7 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
     // Creator search step 2 (lib/search.ts → fetchSellerCounts): collection counts per address.
     if (path === '/v1/accounts') {
       const wanted = u.searchParams.getAll('address').map(a => a.toLowerCase())
-      let rows = ((F.accounts as { data: any[] }).data ?? [])
+      let rows = (F.accounts as { data: any[] }).data ?? []
       if (wanted.length) rows = rows.filter(a => wanted.includes(String(a.address).toLowerCase()))
       return json(req, { data: rows, total: rows.length })
     }
@@ -244,10 +281,10 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
               links: [
                 { name: 'website', url: 'https://galaxy.example' },
                 { name: 'twitter', url: 'https://www.twitter.com/galaxy' },
-                { name: 'discord', url: 'https://discord.gg/galaxy' }
-              ]
-            }
-          }
+                { name: 'discord', url: 'https://discord.gg/galaxy' },
+              ],
+            },
+          },
         ])
       }
       // Any other pointer is the signed-in user's own store: serve the per-run fixture if provided.
@@ -258,7 +295,10 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
     // uploads, then ack the POST /content/entities deploy so the app's success path runs.
     if (path === '/content/available-content') {
       const cids = u.searchParams.getAll('cid')
-      return json(req, cids.map(cid => ({ cid, available: false })))
+      return json(
+        req,
+        cids.map(cid => ({ cid, available: false }))
+      )
     }
     if (path === '/content/entities' && method === 'POST') {
       return json(req, { creationTimestamp: 1 })
@@ -297,6 +337,9 @@ export async function launchApp(
   const errors = opts.errors ?? {}
   const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] })
   const page = await browser.newPage()
+  // Default to a desktop viewport so the browse sidebar (Category/Price/Rarity) renders inline; below
+  // 900px it collapses into the mobile Filters drawer. Mobile-specific tests can override per-page.
+  await page.setViewport({ width: 1280, height: 900 })
   // Only inject the signed-in session (localStorage identity + mock window.ethereum) when NOT signedOut.
   if (!opts.signedOut) {
     const sess = await session()

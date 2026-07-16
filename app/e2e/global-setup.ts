@@ -4,7 +4,9 @@ import { resolve } from 'node:path'
 // Starts a dedicated dev server for the e2e run (port 5273, separate from the human's :5174) and
 // tears it down after. All the app's network calls are mocked per-page, so this server only serves
 // the built app assets.
-const PORT = 5273
+// Port is env-configurable so multiple e2e runs (e.g. parallel agents) don't clash on one port; pair
+// with E2E_BASE_URL=http://localhost:<same-port> so launchApp targets the right server.
+const PORT = Number(process.env.E2E_PORT ?? 5273)
 const URL = `http://localhost:${PORT}/`
 let child: ChildProcess | undefined
 
@@ -34,7 +36,11 @@ export async function setup() {
       ...process.env,
       VITE_MARKETPLACE_SERVER_URL: 'http://localhost:5003',
       VITE_NFT_API_URL: 'http://localhost:5003',
-      VITE_CREDITS_SERVER_URL: 'http://localhost:3000'
+      VITE_CREDITS_SERVER_URL: 'http://localhost:3000',
+      // Force the payments MOCK path: the resolved 'dev' config now ships a real Stripe publishable
+      // key (dev.json), but the e2e mocks don't cover Stripe's hosted redirect — an empty key keeps
+      // isMockPayments() true so the get-credits flow uses the in-app mock.
+      VITE_STRIPE_PK: ''
     }
   })
   await waitForServer()

@@ -122,11 +122,30 @@ function fakeTrade(contract: string, receivedAssetType: number = TradeAssetType.
   } as unknown as Trade
 }
 
-const signer = {} as Ethers.Signer
+// Mock wallet: `walletChainId` is what the wallet is currently on; a wallet_switchEthereumChain
+// request moves it to the requested chain UNLESS `switchHonored` is false (simulates a wallet that
+// silently ignores the switch). ensureChain + the post-switch guard in sendUseCredits read this.
+let walletChainId = 80002
+let switchHonored = true
+const switchCalls: Array<{ method: string; params: unknown }> = []
+const signer = {
+  provider: {
+    getNetwork: async () => ({ chainId: walletChainId }),
+    send: async (method: string, params: unknown[]) => {
+      switchCalls.push({ method, params })
+      if (method === 'wallet_switchEthereumChain' && switchHonored) {
+        walletChainId = parseInt((params[0] as { chainId: string }).chainId, 16)
+      }
+    }
+  }
+} as unknown as Ethers.Signer
 
 describe('when buying several listings on the same marketplace with credits', () => {
   beforeEach(() => {
     useCreditsCalls.length = 0
+    walletChainId = 80002
+    switchHonored = true
+    switchCalls.length = 0
   })
 
   it('spends every credit in a single useCredits() call', async () => {
@@ -191,10 +210,47 @@ describe('when buying listings across different marketplaces', () => {
 describe('when buying a single listing with credits', () => {
   beforeEach(() => {
     useCreditsCalls.length = 0
+    walletChainId = 80002
+    switchHonored = true
+    switchCalls.length = 0
     contractName = 'DecentralandMarketplacePolygon'
     aggAddr = '0xaggregator'
     aggDecimals = 8
     aggAnswer = '50000000'
+  })
+
+  it('switches the wallet to the trade chain before submitting when it is on another network', async () => {
+    walletChainId = 11155111 // wallet stuck on Sepolia (e.g. a restored session)
+
+    await buyWithCredits({
+      trade: fakeTrade('0xmarket'), // chainId 80002 (Amoy)
+      buyer: BUYER,
+      signer,
+      credits: [credit(B32('1'), '100')],
+      maxCreditedValue: '100'
+    })
+
+    // Asked the wallet to move to Amoy (0x13882), then submitted useCredits.
+    expect(switchCalls).toContainEqual({ method: 'wallet_switchEthereumChain', params: [{ chainId: '0x13882' }] })
+    expect(useCreditsCalls).toHaveLength(1)
+  })
+
+  it('aborts without submitting when the wallet stays on the wrong chain', async () => {
+    walletChainId = 11155111 // Sepolia
+    switchHonored = false // wallet ignores the switch request
+
+    await expect(
+      buyWithCredits({
+        trade: fakeTrade('0xmarket'),
+        buyer: BUYER,
+        signer,
+        credits: [credit(B32('1'), '100')],
+        maxCreditedValue: '100'
+      })
+    ).rejects.toThrow(/Wrong network/)
+
+    // Never sent useCredits into the void on Sepolia (the bug that let a no-op "succeed").
+    expect(useCreditsCalls).toHaveLength(0)
   })
 
   it('and there are no credits it throws before touching the chain', async () => {

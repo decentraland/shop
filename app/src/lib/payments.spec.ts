@@ -4,7 +4,7 @@ import type { AuthIdentity } from '@dcl/crypto'
 // Config is mutated per-test to drive isMockPayments(): real mode needs the Stripe publishable key
 // (the checkout/webhook endpoints live on the always-configured credits-server). Default (empty) →
 // mock mode, which keeps the mock-path tests below honest.
-const { config } = vi.hoisted(() => ({ config: { stripePublishableKey: '', shopServerUrl: '' } }))
+const { config } = vi.hoisted(() => ({ config: { stripePublishableKey: '', shopServerUrl: '', chainId: 80002 } }))
 vi.mock('~/config', () => ({ config }))
 
 // The real Stripe seam lives in payments-stripe.ts; payments.ts only delegates to it. Stub both
@@ -47,6 +47,7 @@ beforeEach(() => {
   devMintUsd.mockReset()
   config.stripePublishableKey = ''
   config.shopServerUrl = ''
+  config.chainId = 80002 // Amoy testnet by default; mainnet cases set 137 explicitly
 })
 
 describe('when computing credit pack math at the fixed USD peg', () => {
@@ -118,6 +119,60 @@ describe('when deciding mock vs real payments from config', () => {
   })
 })
 
+describe('when the deployment is a real-money (non-test) environment', () => {
+  it('should fail hard instead of falling back to mock when the stripe key is missing on Polygon mainnet', () => {
+    config.chainId = 137
+    config.stripePublishableKey = ''
+    expect(() => isMockPayments()).toThrow(/chainId=137, which is not a recognized test network/)
+  })
+
+  it('should also fail hard on Ethereum mainnet when the stripe key is missing', () => {
+    config.chainId = 1
+    config.stripePublishableKey = ''
+    expect(() => isMockPayments()).toThrow(/real-money environment/)
+  })
+
+  it('should fail closed on an unknown / unrecognized chain id when the stripe key is missing', () => {
+    config.chainId = 424242 // not a known test network
+    config.stripePublishableKey = ''
+    expect(() => isMockPayments()).toThrow(/not a recognized test network/)
+  })
+
+  it('should fail closed on a malformed (NaN) chain id when the stripe key is missing', () => {
+    config.chainId = Number.NaN
+    config.stripePublishableKey = ''
+    expect(() => isMockPayments()).toThrow(/not a recognized test network/)
+  })
+
+  it('should run in real mode (no throw) when the stripe key IS set on mainnet', () => {
+    config.chainId = 137
+    config.stripePublishableKey = 'pk_live_123'
+    expect(isMockPayments()).toBe(false)
+  })
+
+  it('should still allow mock mode on a known test network when the stripe key is missing', () => {
+    config.chainId = 80002
+    config.stripePublishableKey = ''
+    expect(isMockPayments()).toBe(true)
+  })
+})
+
+describe('when a real-money environment is misconfigured, the money entry points fail hard', () => {
+  it('createPackCheckout should throw rather than start a mock checkout on mainnet with no stripe key', async () => {
+    config.chainId = 137
+    config.stripePublishableKey = ''
+    await expect(createPackCheckout('pack_10')).rejects.toThrow(/not a recognized test network/)
+  })
+
+  it('pollCreditGrant should throw on mainnet with no key EVEN for a mock-prefixed order id', async () => {
+    config.chainId = 137
+    config.stripePublishableKey = ''
+    await expect(pollCreditGrant(`${MOCK_CLIENT_SECRET_PREFIX}pack_10_123`)).rejects.toThrow(
+      /not a recognized test network/
+    )
+  })
+})
+
 describe('when buying a credit pack in mock mode', () => {
   it('should create a mock checkout session for a known pack', async () => {
     const session = await createPackCheckout('pack_10')
@@ -168,7 +223,7 @@ describe('when buying a credit pack in real mode', () => {
 
   it('should delegate to the real Stripe checkout with the packId and identity', async () => {
     enableRealMode()
-    const realSession = { orderId: 'ord_1', clientSecret: 'cs_test_123', mock: false }
+    const realSession = { orderId: 'ord_1', url: 'https://checkout.stripe.com/c/pay/cs_test_123', mock: false }
     createPackCheckoutReal.mockResolvedValueOnce(realSession)
 
     const session = await createPackCheckout('pack_25', { address: '0xabc', identity: IDENTITY })
