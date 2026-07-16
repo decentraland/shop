@@ -118,6 +118,20 @@ export function AssetCard(props: AssetCardProps) {
       {canOpen ? (
         <Link className="card__link" to={detailPath} state={{ item, tradeId: item.tradeId }} aria-label={item.name} />
       ) : null}
+      {/* The fav button is a SIBLING of the whole-card link (not nested in .card__media): the media is
+          its own stacking context (isolation: isolate, for the skeleton's z-index), which would trap
+          the button below the z-index:3 overlay link and make the heart navigate instead of toggle.
+          As a direct child of the position:relative card, its z-index:4 sits above the link. */}
+      <button
+        className={`card__fav${faved ? ' is-on' : ''}`}
+        onClick={e => {
+          e.stopPropagation()
+          toggleFav(item)
+        }}
+        aria-label={faved ? t('assetCard.removeFromFavorites') : t('assetCard.addToFavorites')}
+      >
+        <span className={`ico ${faved ? 'ico-heart-solid' : 'ico-heart'}`} aria-hidden />
+      </button>
       {/* The shared 3D preview (HoverPreviewLayer) overlays this element on hover; mediaRef gives it the
           rect to position over. */}
       <div className="card__media" ref={mediaRef}>
@@ -126,16 +140,6 @@ export function AssetCard(props: AssetCardProps) {
             {discountPct > 0 ? t('assetCard.saleWithDiscount', { pct: discountPct }) : t('assetCard.sale')}
           </span>
         ) : null}
-        <button
-          className={`card__fav${faved ? ' is-on' : ''}`}
-          onClick={e => {
-            e.stopPropagation()
-            toggleFav(item)
-          }}
-          aria-label={faved ? t('assetCard.removeFromFavorites') : t('assetCard.addToFavorites')}
-        >
-          <span className={`ico ${faved ? 'ico-heart-solid' : 'ico-heart'}`} aria-hidden />
-        </button>
         {/* Flat thumbnail stays visible the whole time the 3D loads (no empty frame); it only fades out
             once the shared preview has this item's scene ready, crossfading into the 3D. */}
         {item.thumbnail ? (

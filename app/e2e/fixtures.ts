@@ -274,7 +274,8 @@ export const unifiedListings = {
       network: 'MATIC',
       chainId: 80002,
       source: 'native',
-      manaWei: null
+      manaWei: null,
+      isSmart: true
     },
     {
       tradeId: 'legacy-trade-1',

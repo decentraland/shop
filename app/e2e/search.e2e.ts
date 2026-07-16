@@ -67,7 +67,7 @@ describe('search bar', () => {
     // The collection row shows a mosaic of the collection's item thumbnails (à la marketplace),
     // not the fallback icon — one cell per item (2 here: epic + legendary).
     await page.waitForFunction(
-      () => document.querySelectorAll('.search-pop__row--collection .search-pop__mosaic-cell').length === 2
+      () => document.querySelectorAll('.search-pop__row--collection .coll-thumb__cell').length === 2
     )
 
     expect(await clickByText(page, '.search-pop__row--collection', /galaxy collection/i)).toBe(true)

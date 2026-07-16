@@ -38,7 +38,7 @@ describe('collection storefront', () => {
     await waitForText(page, '2 items')
 
     // The shared browse controls are present (same as the Creator storefront): sidebar filters + FilterBar.
-    expect(await page.evaluate(() => !!document.querySelector('.browse--sidebar .filterbar'))).toBe(true)
+    expect(await page.evaluate(() => !!document.querySelector('.browse--sidebar .browse__toolbar'))).toBe(true)
   })
 
   it('lists every item of the collection from /v3/catalog/items', async () => {
@@ -56,7 +56,7 @@ describe('collection storefront', () => {
     await waitForText(page, '2 items')
 
     // The shared browse controls are present (same as the Creator storefront): sidebar filters + FilterBar.
-    expect(await page.evaluate(() => !!document.querySelector('.browse--sidebar .filterbar'))).toBe(true)
+    expect(await page.evaluate(() => !!document.querySelector('.browse--sidebar .browse__toolbar'))).toBe(true)
   })
 
   it('renders on a mobile viewport', async () => {
