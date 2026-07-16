@@ -124,6 +124,9 @@ export function GetCredits() {
         } else if (cs.url) {
           // Real path: full redirect out to Stripe's hosted Checkout. We come back to
           // `${STRIPE_RETURN_URL}?order=${orderId}` (handled by the return effect below).
+          // Funnel marker: the buyer actually reached Stripe's page (separates "started" from the
+          // drop between clicking a pack and landing on the hosted checkout).
+          track('Shop Redirected To Stripe', { order_id: cs.orderId, pack_usd: pack.usd, credits: pack.credits })
           window.location.href = cs.url
         } else {
           throw new Error('Checkout did not return a redirect url')
@@ -154,6 +157,9 @@ export function GetCredits() {
 
     if (wasCanceled) {
       returnHandled.current = true
+      // Buyer abandoned Stripe's hosted checkout (came back via `?canceled=1`). The single biggest
+      // drop in a payments funnel — tracked so we can measure hosted-page abandonment.
+      track('Shop Buy Credits Cancelled', { order_id: orderId, provider: CREDITS_PROVIDER })
       clearReturnParams()
       setCanceledNote(true)
       setPhase('select')
