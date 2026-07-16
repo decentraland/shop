@@ -10,7 +10,7 @@
       }
     }
   ],
-  "trailingComma": "es5",
+  "trailingComma": "none",
   "bracketSpacing": true,
   "arrowParens": "avoid",
   "proseWrap": "never",

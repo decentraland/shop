@@ -160,10 +160,7 @@ describe('when logging in', () => {
       31 * 24 * 60,
       expect.any(Function)
     )
-    expect(localStorageStoreIdentity).toHaveBeenCalledWith(
-      '0xabc0000000000000000000000000000000000002',
-      fresh
-    )
+    expect(localStorageStoreIdentity).toHaveBeenCalledWith('0xabc0000000000000000000000000000000000002', fresh)
   })
 
   it('should sign auth-chain messages through the wallet signer', async () => {

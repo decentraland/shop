@@ -134,12 +134,18 @@ export function PrimaryListModal({
     return (
       <div className="modal-backdrop" onClick={onClose} role="presentation">
         <div className="modal modal--success" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
-          <div className="modal-success__check" aria-hidden>✓</div>
+          <div className="modal-success__check" aria-hidden>
+            ✓
+          </div>
           <h2 className="modal__title">It’s on sale! 🎉</h2>
           {item.thumbnail ? <img className="modal__img" src={item.thumbnail} alt={item.name} /> : null}
           <p className="modal-success__name">{item.name}</p>
           <p className="muted small">
-            Listed for <strong><CurrencyIcon className="ccy-mark" /> {listedCredits}</strong> · {item.remainingSupply.toLocaleString()} available
+            Listed for{' '}
+            <strong>
+              <CurrencyIcon className="ccy-mark" /> {listedCredits}
+            </strong>{' '}
+            · {item.remainingSupply.toLocaleString()} available
           </p>
           <div className="modal__actions">
             <button className="btn btn--ghost" onClick={onClose}>
@@ -175,7 +181,9 @@ export function PrimaryListModal({
             disabled={busy}
           />
         </label>
-        <p className="muted small">Priced in whole {CURRENCY.name} (1 {CURRENCY.nameSingular} = $0.10).</p>
+        <p className="muted small">
+          Priced in whole {CURRENCY.name} (1 {CURRENCY.nameSingular} = $0.10).
+        </p>
 
         {enabled === false && !busy ? (
           showsConfirmations ? (
@@ -185,8 +193,8 @@ export function PrimaryListModal({
             </p>
           ) : (
             <p className="muted small primary-note">
-              First time selling from “{item.collectionName}”? Setting it up takes a moment — after that, listing
-              more items from this collection is instant.
+              First time selling from “{item.collectionName}”? Setting it up takes a moment — after that, listing more
+              items from this collection is instant.
             </p>
           )
         ) : enabled === true && !busy ? (

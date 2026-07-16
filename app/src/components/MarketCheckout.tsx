@@ -46,7 +46,7 @@ function toCatalogItem(l: LegacyListing): CatalogItem {
     thumbnail: l.thumbnail,
     priceCredits: 0,
     gender: null,
-    isSmart: false, // TODO: legacy listings don't have the isSmart flag, but we should add it to the API or retrieve it somehow.
+    isSmart: false // TODO: legacy listings don't have the isSmart flag, but we should add it to the API or retrieve it somehow.
   }
 }
 
@@ -69,7 +69,7 @@ export function MarketCheckout({
   listing,
   rate,
   onClose,
-  onSold,
+  onSold
 }: {
   listing: LegacyListing
   rate: ManaRate
@@ -120,7 +120,7 @@ export function MarketCheckout({
         const {
           credit,
           maxCreditedValue,
-          usdCents: lockedCents,
+          usdCents: lockedCents
         } = await authorizeUsdCredit(session.identity, usdCents, listing.tradeId)
         if (cancelled) {
           // Component unmounted before we could show the price — release the reservation.
@@ -136,7 +136,7 @@ export function MarketCheckout({
         track(isUserRejection(e) ? 'Shop Purchase Cancelled' : 'Shop Purchase Failed', {
           step: 'authorize',
           error_code: errorCode(e),
-          value_usd: Math.round(manaWeiToUsdCents(listing.manaWei, rate)) / 100,
+          value_usd: Math.round(manaWeiToUsdCents(listing.manaWei, rate)) / 100
         })
         setPhase('error')
         setError(friendlyError(e))
@@ -167,7 +167,7 @@ export function MarketCheckout({
         from: 'item_checkout',
         credits_needed: locked.credits,
         credits_balance: balance?.credits ?? 0,
-        shortfall: Math.max(0, locked.credits - (balance?.credits ?? 0)),
+        shortfall: Math.max(0, locked.credits - (balance?.credits ?? 0))
       })
       void cancelUsdIntents(session.identity, [locked.credit.id]).catch(() => {})
       reservedCreditIdRef.current = null
@@ -184,7 +184,7 @@ export function MarketCheckout({
         buyer: session.address,
         signer: session.signer,
         credits: [locked.credit],
-        maxCreditedValue: locked.maxCreditedValue,
+        maxCreditedValue: locked.maxCreditedValue
       }
       let txHash: string | undefined
       if (gaslessEnabled()) {
@@ -212,8 +212,8 @@ export function MarketCheckout({
             item_id: listing.itemId ?? null,
             contract_address: listing.contractAddress,
             token_id: null,
-            price_usd: locked.usdCents / 100,
-          },
+            price_usd: locked.usdCents / 100
+          }
         ],
         value_credits: locked.credits,
         value_usd: locked.usdCents / 100,
@@ -221,7 +221,7 @@ export function MarketCheckout({
         is_primary: true,
         payment_type: 'credits',
         no_crypto_step: usedGasless,
-        transaction_hash: txHash ?? null,
+        transaction_hash: txHash ?? null
       })
       void qc.invalidateQueries({ queryKey: ['usd-balance'] })
       navigate('/success', { state: { items: [toCatalogItem(listing)], txHash } })
@@ -233,7 +233,7 @@ export function MarketCheckout({
       track(isUserRejection(e) ? 'Shop Purchase Cancelled' : 'Shop Purchase Failed', {
         step: 'submit',
         error_code: errorCode(e),
-        value_usd: locked.usdCents / 100,
+        value_usd: locked.usdCents / 100
       })
       void qc.invalidateQueries({ queryKey: ['usd-balance'] })
       const msg = friendlyError(e)

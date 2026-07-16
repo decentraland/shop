@@ -7,7 +7,14 @@ import { useCart } from '~/store/cart'
 import { useFavorites } from '~/store/favorites'
 import { useWallet } from '~/store/wallet'
 import { useBalance, balanceLabel } from '~/hooks/useBalance'
-import { fetchShopListingForItem, fetchTrade, fetchTradeForItem, fetchItemDescription, usdWeiToCents, type CatalogItem } from '~/lib/api'
+import {
+  fetchShopListingForItem,
+  fetchTrade,
+  fetchTradeForItem,
+  fetchItemDescription,
+  usdWeiToCents,
+  type CatalogItem
+} from '~/lib/api'
 import { buyWithCredits } from '~/lib/buy'
 import { buyGasless, waitForSettlement, GaslessUnavailableError, SettlementPendingError } from '~/lib/buy-gasless'
 import { gaslessEnabled } from '~/lib/gasless-config'
@@ -155,10 +162,7 @@ export function ItemDetail() {
 
   // Resolve a buyable trade for the current item (needed for BUY NOW + a valid cart entry). Secondary
   // listings carry their tradeId directly; catalog items resolve the cheapest open listing by itemId.
-  const {
-    data: resolvedTradeId,
-    isLoading: resolvingTrade
-  } = useQuery({
+  const { data: resolvedTradeId, isLoading: resolvingTrade } = useQuery({
     queryKey: ['detail-trade', current.id, current.tradeId, current.contractAddress, current.itemId],
     enabled: !!current.contractAddress,
     queryFn: async (): Promise<string | null> => {
@@ -320,7 +324,9 @@ export function ItemDetail() {
         <span className="ico ico-cart item-detail__notfound-ico" aria-hidden />
         <h1 className="item-detail__notfound-title">This item isn’t available</h1>
         <p className="muted">It may have been delisted or moved. Browse Collectibles for something else.</p>
-        <button className="btn btn--purple" onClick={() => navigate('/assets')}>Browse Collectibles</button>
+        <button className="btn btn--purple" onClick={() => navigate('/assets')}>
+          Browse Collectibles
+        </button>
       </div>
     )
   }
@@ -363,10 +369,7 @@ export function ItemDetail() {
           </div>
 
           <div className="item-detail__chips">
-            <span
-              className="chip chip--rarity"
-              style={{ background: rarityTint(rarity), color: rarityInk(rarity) }}
-            >
+            <span className="chip chip--rarity" style={{ background: rarityTint(rarity), color: rarityInk(rarity) }}>
               {current.rarity}
             </span>
             <span className="chip item-detail__chip">
@@ -434,7 +437,9 @@ export function ItemDetail() {
               <div className="item-detail__price item-detail__price--none">Not for sale</div>
             )}
             {session ? (
-              <div className="item-detail__balance muted">Your balance: <CurrencyIcon className="ccy-mark" /> {balanceLabel(balance, balanceError)}</div>
+              <div className="item-detail__balance muted">
+                Your balance: <CurrencyIcon className="ccy-mark" /> {balanceLabel(balance, balanceError)}
+              </div>
             ) : null}
           </div>
 
@@ -444,25 +449,25 @@ export function ItemDetail() {
                 This is your item — manage it in <Link to="/my-assets">My Assets</Link>.
               </p>
             ) : (
-            <>
-            {forSale ? (
-              <button
-                className="btn btn--purple item-detail__cta"
-                onClick={handleBuyNow}
-                disabled={busy || resolvingTrade}
-              >
-                {busy ? 'Buying…' : 'Buy now'}
-              </button>
-            ) : null}
-            <button
-              className="item-detail__addcart"
-              onClick={handleAddToCart}
-              disabled={!forSale || inCart || resolvingTrade || busy}
-            >
-              <span className="ico ico-cart-solid item-detail__addcart-ico" aria-hidden />
-              {addLabel}
-            </button>
-            </>
+              <>
+                {forSale ? (
+                  <button
+                    className="btn btn--purple item-detail__cta"
+                    onClick={handleBuyNow}
+                    disabled={busy || resolvingTrade}
+                  >
+                    {busy ? 'Buying…' : 'Buy now'}
+                  </button>
+                ) : null}
+                <button
+                  className="item-detail__addcart"
+                  onClick={handleAddToCart}
+                  disabled={!forSale || inCart || resolvingTrade || busy}
+                >
+                  <span className="ico ico-cart-solid item-detail__addcart-ico" aria-hidden />
+                  {addLabel}
+                </button>
+              </>
             )}
           </div>
 

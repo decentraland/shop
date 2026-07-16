@@ -42,7 +42,11 @@ export function SellModal({ asset, session, onClose }: { asset: MyAsset; session
     setBusy(true)
     try {
       setStatus('Getting your item ready…')
-      await ensureApproval({ signer: session.signer, contractAddress: asset.contractAddress, chainId: asset.chainId as ChainId })
+      await ensureApproval({
+        signer: session.signer,
+        contractAddress: asset.contractAddress,
+        chainId: asset.chainId as ChainId
+      })
 
       setStatus('Listing your item…')
       const trade = await createUsdPeggedListing({
@@ -91,12 +95,17 @@ export function SellModal({ asset, session, onClose }: { asset: MyAsset; session
     return (
       <div className="modal-backdrop" onClick={onClose} role="presentation">
         <div className="modal modal--success" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
-          <div className="modal-success__check" aria-hidden>✓</div>
+          <div className="modal-success__check" aria-hidden>
+            ✓
+          </div>
           <h2 className="modal__title">It’s on sale! 🎉</h2>
           {asset.image ? <img className="modal__img" src={asset.image} alt={asset.name} /> : null}
           <p className="modal-success__name">{asset.name}</p>
           <p className="muted small">
-            Listed for <strong><CurrencyIcon className="ccy-mark" /> {listedCredits}</strong>
+            Listed for{' '}
+            <strong>
+              <CurrencyIcon className="ccy-mark" /> {listedCredits}
+            </strong>
           </p>
           <div className="modal__actions">
             <button className="btn btn--ghost" onClick={onClose}>
@@ -119,9 +128,18 @@ export function SellModal({ asset, session, onClose }: { asset: MyAsset; session
 
         <label className="field">
           <span>Price ({CURRENCY.name})</span>
-          <input type="number" min="1" step="1" value={price} onChange={e => setPrice(e.target.value)} disabled={busy} />
+          <input
+            type="number"
+            min="1"
+            step="1"
+            value={price}
+            onChange={e => setPrice(e.target.value)}
+            disabled={busy}
+          />
         </label>
-        <p className="muted small">Priced in whole {CURRENCY.name} (1 {CURRENCY.nameSingular} = $0.10).</p>
+        <p className="muted small">
+          Priced in whole {CURRENCY.name} (1 {CURRENCY.nameSingular} = $0.10).
+        </p>
 
         {status ? <p className="muted">{status}</p> : null}
         {error ? <p className="error">{error}</p> : null}

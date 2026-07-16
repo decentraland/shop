@@ -254,9 +254,9 @@ describe('when buying a single listing with credits', () => {
   })
 
   it('and there are no credits it throws before touching the chain', async () => {
-    await expect(
-      buyWithCredits({ trade: fakeTrade('0xmarket'), buyer: BUYER, signer, credits: [] })
-    ).rejects.toThrow('No credits to spend')
+    await expect(buyWithCredits({ trade: fakeTrade('0xmarket'), buyer: BUYER, signer, credits: [] })).rejects.toThrow(
+      'No credits to spend'
+    )
     expect(useCreditsCalls).toHaveLength(0)
   })
 

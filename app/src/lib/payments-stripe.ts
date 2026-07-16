@@ -40,10 +40,7 @@ function paymentsBaseUrl(): string {
  * Real checkout: POST /credits/checkout via signed-fetch so the server binds the order to
  * the authenticated buyer. Returns the Stripe HOSTED Checkout URL the app redirects to.
  */
-export async function createPackCheckoutReal(
-  packId: string,
-  identity: AuthIdentity
-): Promise<CheckoutSession> {
+export async function createPackCheckoutReal(packId: string, identity: AuthIdentity): Promise<CheckoutSession> {
   const res = await signedFetch(`${paymentsBaseUrl()}/credits/checkout`, {
     method: 'POST',
     identity,

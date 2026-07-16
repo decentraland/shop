@@ -54,12 +54,17 @@ export function MigrateModal({
           if (e instanceof RelistFailedError) {
             // Old listing already removed but re-listing failed → the item is now unlisted (not a plain
             // skip). Always capture it; the summary points the seller to re-list from My Assets.
-            captureError(e, { flow: 'import_listing', step: 'relist', itemId: queue[i].item.itemId ?? queue[i].item.oldTradeId })
+            captureError(e, {
+              flow: 'import_listing',
+              step: 'relist',
+              itemId: queue[i].item.itemId ?? queue[i].item.oldTradeId
+            })
             if (!cancelled) setStatuses(s => s.map((v, idx) => (idx === i ? 'unlisted' : v)))
           } else {
             const err = e as { code?: number; message?: string }
             const rejected = err.code === 4001 || /reject|denied|cancel/i.test(err.message ?? '')
-            if (!rejected) captureError(e, { flow: 'import_listing', itemId: queue[i].item.itemId ?? queue[i].item.oldTradeId })
+            if (!rejected)
+              captureError(e, { flow: 'import_listing', itemId: queue[i].item.itemId ?? queue[i].item.oldTradeId })
             if (!cancelled) setStatuses(s => s.map((v, idx) => (idx === i ? (rejected ? 'skipped' : 'failed') : v)))
           }
         }
@@ -88,7 +93,9 @@ export function MigrateModal({
     return (
       <div className="modal-backdrop" role="presentation">
         <div className="modal modal--success" role="dialog" aria-modal="true">
-          <div className="modal-success__check" aria-hidden>✓</div>
+          <div className="modal-success__check" aria-hidden>
+            ✓
+          </div>
           <h2 className="modal__title">{listedCount > 0 ? "You're in the Shop! 🎉" : 'Nothing listed'}</h2>
           <p className="muted" style={{ margin: 0 }}>
             {listedCount > 0
@@ -100,7 +107,9 @@ export function MigrateModal({
               : ''}
           </p>
           <div className="modal__actions">
-            <button className="btn btn--ghost" onClick={finish}>Done</button>
+            <button className="btn btn--ghost" onClick={finish}>
+              Done
+            </button>
             {unlisted > 0 ? (
               <button
                 className="btn btn--purple"
@@ -141,7 +150,9 @@ export function MigrateModal({
           {activeIndex >= 0 ? `${activeIndex + 1} of ${queue.length}` : ''}
         </p>
 
-        <div className="migrate__progress"><div className="migrate__bar" style={{ width: `${progress}%` }} /></div>
+        <div className="migrate__progress">
+          <div className="migrate__bar" style={{ width: `${progress}%` }} />
+        </div>
 
         <ul className="migrate__list">
           {queue.map((entry, i) => (
@@ -149,11 +160,17 @@ export function MigrateModal({
               <span className="migrate__thumb">
                 {entry.item.thumbnail ? <img src={entry.item.thumbnail} alt="" /> : null}
               </span>
-              <span className="migrate__name" title={entry.item.name}>{entry.item.name || 'Item'}</span>
-              <span className="migrate__price"><CurrencyIcon className="ccy-mark" /> {entry.priceCredits.toLocaleString()}</span>
+              <span className="migrate__name" title={entry.item.name}>
+                {entry.item.name || 'Item'}
+              </span>
+              <span className="migrate__price">
+                <CurrencyIcon className="ccy-mark" /> {entry.priceCredits.toLocaleString()}
+              </span>
               <span className="migrate__status">
                 {statuses[i] === 'active' ? (
-                  <><span className="spinner migrate__spin" aria-hidden /> {showsConfirmations ? 'Confirm…' : 'Adding…'}</>
+                  <>
+                    <span className="spinner migrate__spin" aria-hidden /> {showsConfirmations ? 'Confirm…' : 'Adding…'}
+                  </>
                 ) : statuses[i] === 'done' ? (
                   <span className="migrate__tick">✓</span>
                 ) : statuses[i] === 'skipped' ? (
@@ -161,7 +178,10 @@ export function MigrateModal({
                 ) : statuses[i] === 'failed' ? (
                   <span className="migrate__skip">Failed</span>
                 ) : statuses[i] === 'unlisted' ? (
-                  <span className="migrate__skip" title="Removed from the old marketplace but not re-listed — re-list it from My Assets.">
+                  <span
+                    className="migrate__skip"
+                    title="Removed from the old marketplace but not re-listed — re-list it from My Assets."
+                  >
                     Not listed
                   </span>
                 ) : (

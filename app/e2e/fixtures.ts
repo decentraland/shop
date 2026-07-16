@@ -172,9 +172,7 @@ export const shopListings = {
 // --- Collections search (/v1/collections?search=) → search dropdown "Collections" section ---
 // The dropdown also derives its "Creators" section from these collections' `creator` addresses.
 export const collections = {
-  data: [
-    { contractAddress: COLLECTION, name: 'Galaxy Collection', creator: CREATOR_ADDRESS }
-  ],
+  data: [{ contractAddress: COLLECTION, name: 'Galaxy Collection', creator: CREATOR_ADDRESS }],
   total: 1
 }
 

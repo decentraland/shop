@@ -188,7 +188,13 @@ export function ShopFooter() {
 
           <div className="dcl-footer__legal">
             {legalLinks.map(l => (
-              <a key={l.label} className="dcl-footer__legal-link" href={l.url} target="_blank" rel="noopener noreferrer">
+              <a
+                key={l.label}
+                className="dcl-footer__legal-link"
+                href={l.url}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
                 {l.label}
               </a>
             ))}

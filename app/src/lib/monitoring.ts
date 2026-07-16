@@ -41,14 +41,12 @@ export function captureError(error: unknown, context: ErrorContext = {}): void {
 const SIGNATURE_RE = /0x[a-fA-F0-9]{130}\b/g // 65-byte ECDSA signatures
 const HEX32_RE = /0x[a-fA-F0-9]{64}\b/g // 32-byte values (ephemeral private keys, hashes)
 const SECRET_RE = /(sk_[a-z]+_[A-Za-z0-9]+|pi_[A-Za-z0-9]+_secret_[A-Za-z0-9]+|[A-Za-z0-9-]*secret[A-Za-z0-9-]*)/gi
-const SENSITIVE_KEY = /(signature|private|identity|authchain|auth_chain|ephemeral|token|secret|password|cookie|authorization)/i
+const SENSITIVE_KEY =
+  /(signature|private|identity|authchain|auth_chain|ephemeral|token|secret|password|cookie|authorization)/i
 
 /** Redact secret-shaped substrings from free text (messages, exception values, urls). */
 export function redact(input: string): string {
-  return input
-    .replace(SIGNATURE_RE, '<signature>')
-    .replace(SECRET_RE, '<secret>')
-    .replace(HEX32_RE, '<hex32>')
+  return input.replace(SIGNATURE_RE, '<signature>').replace(SECRET_RE, '<secret>').replace(HEX32_RE, '<hex32>')
 }
 
 /** Scrub an outgoing Sentry event: redact free text, drop sensitive keys, strip cookies/headers. */

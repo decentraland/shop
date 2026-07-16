@@ -11,7 +11,7 @@ import {
   LINK_PREFIX,
   LINK_TYPES,
   type LinkType,
-  type StoreDraft,
+  type StoreDraft
 } from '~/lib/store'
 import { COVER_TEMPLATES } from '~/lib/creator-covers'
 import { Spinner } from '~/components/Spinner'
@@ -26,7 +26,7 @@ const EMPTY_DRAFT: StoreDraft = {
   coverName: '',
   coverHash: '',
   description: '',
-  links: { website: '', twitter: '', discord: '', facebook: '' },
+  links: { website: '', twitter: '', discord: '', facebook: '' }
 }
 
 function mb(bytes: number): string {
@@ -272,7 +272,13 @@ export function StoreSettings() {
                 <span className="ico ico-upload" aria-hidden />
                 <span>{t('storeSettings.upload')}</span>
               </button>
-              <input ref={fileInput} type="file" accept="image/png, image/jpeg, image/webp" className="cover-picker__input" onChange={onUpload} />
+              <input
+                ref={fileInput}
+                type="file"
+                accept="image/png, image/jpeg, image/webp"
+                className="cover-picker__input"
+                onChange={onUpload}
+              />
             </div>
             {oversize ? (
               <p className="error">

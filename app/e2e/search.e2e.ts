@@ -23,7 +23,9 @@ describe('search bar', () => {
     await page.waitForSelector('.search-pop')
     await waitForText(page, 'Nebula Jacket')
     // "Galaxy Hat" doesn't match the query → not suggested.
-    expect(await page.evaluate(() => document.querySelector('.search-pop')!.textContent!.includes('Galaxy Hat'))).toBe(false)
+    expect(await page.evaluate(() => document.querySelector('.search-pop')!.textContent!.includes('Galaxy Hat'))).toBe(
+      false
+    )
   })
 
   it('opens the item detail page when a suggestion is clicked', async () => {

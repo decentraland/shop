@@ -19,7 +19,7 @@ const emptyStore = (): CreatorStore => ({
   cover: '',
   coverHash: '',
   description: '',
-  links: { website: '', twitter: '', discord: '', facebook: '' },
+  links: { website: '', twitter: '', discord: '', facebook: '' }
 })
 
 const storeUrn = (address: string) => `urn:decentraland:off-chain:marketplace-stores:${address.toLowerCase()}`
@@ -47,7 +47,7 @@ export async function fetchStore(address: string): Promise<CreatorStore> {
     const res = await fetch(`${config.peerUrl}/content/entities/active`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pointers: [storeUrn(address)] }),
+      body: JSON.stringify({ pointers: [storeUrn(address)] })
     })
     if (!res.ok) return emptyStore()
     const entities = (await res.json()) as StoreEntity[]
@@ -68,8 +68,8 @@ export async function fetchStore(address: string): Promise<CreatorStore> {
         website: linkUrl(metadata.links, 'website'),
         twitter: linkUrl(metadata.links, 'twitter'),
         discord: linkUrl(metadata.links, 'discord'),
-        facebook: linkUrl(metadata.links, 'facebook'),
-      },
+        facebook: linkUrl(metadata.links, 'facebook')
+      }
     }
   } catch {
     return emptyStore()
@@ -95,7 +95,7 @@ export const LINK_PREFIX: Record<LinkType, string> = {
   website: 'https://',
   twitter: 'https://www.twitter.com/',
   discord: 'https://discord.gg/',
-  facebook: 'https://www.facebook.com/',
+  facebook: 'https://www.facebook.com/'
 }
 
 // The form's editable shape. `cover` is a display URL (a bundled template URL, a data:
@@ -119,7 +119,7 @@ export function draftFromStore(store: CreatorStore): StoreDraft {
     coverName: store.cover ? coverNameFromUrl(store.cover) : '',
     coverHash: store.coverHash,
     description: store.description,
-    links: { ...store.links },
+    links: { ...store.links }
   }
 }
 
@@ -185,7 +185,7 @@ export async function saveStore(address: string, draft: StoreDraft, identity: Au
     // creator actually saves their store, keeping it out of the initial bundle.
     const [{ buildEntity }, { createContentClient }] = await Promise.all([
       import('dcl-catalyst-client/dist/client/utils/DeploymentBuilder'),
-      import('dcl-catalyst-client/dist/client/ContentClient'),
+      import('dcl-catalyst-client/dist/client/ContentClient')
     ])
 
     const metadata = buildStoreMetadata(address, draft)
@@ -196,7 +196,7 @@ export async function saveStore(address: string, draft: StoreDraft, identity: Au
       pointers: [storeUrn(address)],
       files,
       metadata,
-      timestamp: Date.now(),
+      timestamp: Date.now()
     })
 
     const authChain = Authenticator.signPayload(identity, entity.entityId)

@@ -21,7 +21,7 @@ const PAGE_NAMES: Record<string, string> = {
   '/store-settings': 'store_settings',
   '/cart': 'cart',
   '/credits': 'credits',
-  '/success': 'success',
+  '/success': 'success'
 }
 
 // Overview (home) stays eager for the fastest first paint; every other route is code-split so it

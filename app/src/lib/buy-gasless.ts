@@ -183,7 +183,14 @@ export async function buyGasless(opts: {
   if (credits.length === 0) throw new Error('No credits to spend')
 
   const marketplace = getContract(getContractName(trade.contract), trade.chainId)
-  const args = buildUseCreditsArgs(marketplace.address, marketplace.abi as unknown[], [trade], buyer, credits, maxCreditedValue)
+  const args = buildUseCreditsArgs(
+    marketplace.address,
+    marketplace.abi as unknown[],
+    [trade],
+    buyer,
+    credits,
+    maxCreditedValue
+  )
   const cm = getContract(ContractName.CreditsManager, trade.chainId)
   const functionData = new Interface(cm.abi as unknown as string[]).encodeFunctionData('useCredits', [args])
   return relay(trade.chainId, buyer, functionData, signer)
@@ -220,7 +227,14 @@ export async function buyManyGasless(opts: {
     const maxCreditedValue = group
       .reduce((acc, p) => acc.add(ethers.BigNumber.from(p.maxCreditedValue)), ethers.BigNumber.from(0))
       .toString()
-    const args = buildUseCreditsArgs(marketplace.address, marketplace.abi as unknown[], trades, buyer, credits, maxCreditedValue)
+    const args = buildUseCreditsArgs(
+      marketplace.address,
+      marketplace.abi as unknown[],
+      trades,
+      buyer,
+      credits,
+      maxCreditedValue
+    )
     const cm = getContract(ContractName.CreditsManager, chainId)
     const functionData = new Interface(cm.abi as unknown as string[]).encodeFunctionData('useCredits', [args])
     hashes.push(await relay(chainId, buyer, functionData, signer))

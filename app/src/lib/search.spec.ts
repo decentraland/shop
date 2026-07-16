@@ -108,7 +108,9 @@ describe('when fetching creator suggestions by name', () => {
     expect(hits).toEqual([{ address: '0xaaa', name: 'DragonSmith Studio', face: 'http://img/a.png' }])
     // Name search hit /v1/nfts?category=ens, seller gate hit /v1/accounts.
     const urls = fetchMock.mock.calls.map(c => String(c[0]))
-    expect(urls.some(u => u.includes('/v1/nfts') && u.includes('category=ens') && u.includes('search=dragon'))).toBe(true)
+    expect(urls.some(u => u.includes('/v1/nfts') && u.includes('category=ens') && u.includes('search=dragon'))).toBe(
+      true
+    )
     expect(urls.some(u => u.includes('/v1/accounts'))).toBe(true)
   })
 

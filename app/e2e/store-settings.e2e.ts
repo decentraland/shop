@@ -100,7 +100,10 @@ describe('store settings', () => {
     // A 1x1 PNG to upload as a custom cover.
     writeFileSync(
       tmp,
-      Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64')
+      Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+        'base64'
+      )
     )
 
     app = await launchApp({ path: '/store-settings' })

@@ -121,7 +121,16 @@ export function HoverPreviewLayer() {
         transition: 'opacity .25s ease'
       }
     : // Parked offscreen but kept mounted so the engine stays warm between hovers.
-      { position: 'fixed', left: -9999, top: -9999, width: 2, height: 2, opacity: 0, pointerEvents: 'none', overflow: 'hidden' }
+      {
+        position: 'fixed',
+        left: -9999,
+        top: -9999,
+        width: 2,
+        height: 2,
+        opacity: 0,
+        pointerEvents: 'none',
+        overflow: 'hidden'
+      }
 
   return (
     <div className="hover-preview" aria-hidden style={wrapStyle}>

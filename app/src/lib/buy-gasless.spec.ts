@@ -9,9 +9,7 @@ const { gasless, nonceMock, waitForTransactionMock, CM_ABI, MARKET_ABI } = vi.ho
   // getNonce(buyer) → a BigNumber-like value (only .toString() is read by the target).
   nonceMock: vi.fn(async (_user: string): Promise<{ toString(): string }> => ({ toString: () => '7' })),
   // waitForTransaction(hash, confirmations, timeout) → a receipt-like value (only .status is read).
-  waitForTransactionMock: vi.fn(
-    async (..._args: unknown[]): Promise<{ status: number } | null> => ({ status: 1 })
-  ),
+  waitForTransactionMock: vi.fn(async (..._args: unknown[]): Promise<{ status: number } | null> => ({ status: 1 })),
   // A realistic CreditsManager ABI: enough for Interface.encodeFunctionData('useCredits') and
   // ('executeMetaTransaction') to resolve real selectors + encode real bytes (real ethers utils).
   CM_ABI: [
@@ -160,7 +158,13 @@ describe('when the gasless feature flag is off', () => {
   it('rejects a single buy with a disabled GaslessUnavailableError', async () => {
     const signer = makeSigner(async () => '0xsig')
     await expect(
-      buyGasless({ trade: fakeTrade('0xmarket'), buyer: BUYER, signer, credits: [credit(B32('1'), '100')], maxCreditedValue: '100' })
+      buyGasless({
+        trade: fakeTrade('0xmarket'),
+        buyer: BUYER,
+        signer,
+        credits: [credit(B32('1'), '100')],
+        maxCreditedValue: '100'
+      })
     ).rejects.toMatchObject({ name: 'GaslessUnavailableError', reason: 'disabled' })
   })
 
@@ -176,7 +180,13 @@ describe('when the gasless feature flag is off', () => {
     const fetchMock = stubFetch({ txHash: '0xabc' })
     const signer = makeSigner(async () => '0xsig')
     await expect(
-      buyGasless({ trade: fakeTrade('0xmarket'), buyer: BUYER, signer, credits: [credit(B32('1'), '100')], maxCreditedValue: '100' })
+      buyGasless({
+        trade: fakeTrade('0xmarket'),
+        buyer: BUYER,
+        signer,
+        credits: [credit(B32('1'), '100')],
+        maxCreditedValue: '100'
+      })
     ).rejects.toBeInstanceOf(GaslessUnavailableError)
     expect(signer._signTypedData).not.toHaveBeenCalled()
     expect(fetchMock).not.toHaveBeenCalled()
@@ -264,7 +274,13 @@ describe('when the buyer wallet cannot sign off-chain', () => {
       throw new Error('method not supported by this account')
     })
     await expect(
-      buyGasless({ trade: fakeTrade('0xmarket'), buyer: BUYER, signer, credits: [credit(B32('1'), '100')], maxCreditedValue: '100' })
+      buyGasless({
+        trade: fakeTrade('0xmarket'),
+        buyer: BUYER,
+        signer,
+        credits: [credit(B32('1'), '100')],
+        maxCreditedValue: '100'
+      })
     ).rejects.toMatchObject({ name: 'GaslessUnavailableError', reason: 'contract-account' })
   })
 
@@ -274,7 +290,13 @@ describe('when the buyer wallet cannot sign off-chain', () => {
       throw new Error('user denied message signature')
     })
     await expect(
-      buyGasless({ trade: fakeTrade('0xmarket'), buyer: BUYER, signer, credits: [credit(B32('1'), '100')], maxCreditedValue: '100' })
+      buyGasless({
+        trade: fakeTrade('0xmarket'),
+        buyer: BUYER,
+        signer,
+        credits: [credit(B32('1'), '100')],
+        maxCreditedValue: '100'
+      })
     ).rejects.toMatchObject({ name: 'GaslessUnavailableError', reason: 'unknown' })
   })
 })
@@ -284,7 +306,13 @@ describe('when the relayer fails', () => {
     stubFetch({ message: 'over capacity' }, false, 503)
     const signer = makeSigner(async () => '0xdead')
     await expect(
-      buyGasless({ trade: fakeTrade('0xmarket'), buyer: BUYER, signer, credits: [credit(B32('1'), '100')], maxCreditedValue: '100' })
+      buyGasless({
+        trade: fakeTrade('0xmarket'),
+        buyer: BUYER,
+        signer,
+        credits: [credit(B32('1'), '100')],
+        maxCreditedValue: '100'
+      })
     ).rejects.toMatchObject({ reason: 'relayer', message: 'over capacity' })
   })
 
@@ -292,7 +320,13 @@ describe('when the relayer fails', () => {
     stubFetch({ ok: true })
     const signer = makeSigner(async () => '0xdead')
     await expect(
-      buyGasless({ trade: fakeTrade('0xmarket'), buyer: BUYER, signer, credits: [credit(B32('1'), '100')], maxCreditedValue: '100' })
+      buyGasless({
+        trade: fakeTrade('0xmarket'),
+        buyer: BUYER,
+        signer,
+        credits: [credit(B32('1'), '100')],
+        maxCreditedValue: '100'
+      })
     ).rejects.toMatchObject({ reason: 'relayer' })
   })
 
@@ -300,7 +334,13 @@ describe('when the relayer fails', () => {
     stubFetch({ ok: false, message: 'nonce too low' })
     const signer = makeSigner(async () => '0xdead')
     await expect(
-      buyGasless({ trade: fakeTrade('0xmarket'), buyer: BUYER, signer, credits: [credit(B32('1'), '100')], maxCreditedValue: '100' })
+      buyGasless({
+        trade: fakeTrade('0xmarket'),
+        buyer: BUYER,
+        signer,
+        credits: [credit(B32('1'), '100')],
+        maxCreditedValue: '100'
+      })
     ).rejects.toMatchObject({ reason: 'relayer', message: 'nonce too low' })
   })
 
@@ -311,7 +351,13 @@ describe('when the relayer fails', () => {
     vi.stubGlobal('fetch', fetchMock)
     const signer = makeSigner(async () => '0xdead')
     await expect(
-      buyGasless({ trade: fakeTrade('0xmarket'), buyer: BUYER, signer, credits: [credit(B32('1'), '100')], maxCreditedValue: '100' })
+      buyGasless({
+        trade: fakeTrade('0xmarket'),
+        buyer: BUYER,
+        signer,
+        credits: [credit(B32('1'), '100')],
+        maxCreditedValue: '100'
+      })
     ).rejects.toMatchObject({ reason: 'relayer', message: 'ECONNREFUSED' })
   })
 })

@@ -59,7 +59,7 @@ export async function fetchOpenErc20Orders(scope: EnumerateScope): Promise<Class
         expiresAtMs: o.expiresAt > 1e12 ? o.expiresAt : o.expiresAt * 1000, // orders API returns seconds
         network: o.network,
         chainId: o.chainId,
-        oldTradeId: o.tradeId
+        oldTradeId: o.tradeId,
       })
     }
 

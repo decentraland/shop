@@ -46,7 +46,7 @@ export function Collection() {
     wearableCategories,
     minPriceCredits: min,
     maxPriceCredits: max,
-    sortBy,
+    sortBy
   }
 
   const { items, total, isLoading, error, hasNextPage, isFetchingNextPage, fetchNextPage } = useInfiniteGrid(
@@ -61,7 +61,7 @@ export function Collection() {
     queryKey: ['collection-meta', contractAddress],
     queryFn: () => fetchCollection(contractAddress as string),
     enabled: !!contractAddress,
-    staleTime: 5 * 60_000,
+    staleTime: 5 * 60_000
   })
 
   const title = collection?.name || t('collection.fallbackTitle')

@@ -10,9 +10,7 @@ export function getRecentSearches(): string[] {
     if (!raw) return []
     const items = JSON.parse(raw) as unknown
     if (!Array.isArray(items)) return []
-    return items
-      .filter((s): s is string => typeof s === 'string' && s.length > 0)
-      .slice(0, MAX_ITEMS)
+    return items.filter((s): s is string => typeof s === 'string' && s.length > 0).slice(0, MAX_ITEMS)
   } catch {
     return []
   }
@@ -22,10 +20,7 @@ export function recordSearch(query: string): void {
   const q = query.trim()
   if (!q) return
   try {
-    const next = [q, ...getRecentSearches().filter(s => s.toLowerCase() !== q.toLowerCase())].slice(
-      0,
-      MAX_ITEMS,
-    )
+    const next = [q, ...getRecentSearches().filter(s => s.toLowerCase() !== q.toLowerCase())].slice(0, MAX_ITEMS)
     localStorage.setItem(KEY, JSON.stringify(next))
   } catch {
     // ignore storage failures — recent searches are a nice-to-have

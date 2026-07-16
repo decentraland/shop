@@ -69,7 +69,7 @@ export function NavBar() {
     setOpen(false)
     if (trimmed) recordSearch(trimmed)
     navigate(trimmed ? `/assets?q=${encodeURIComponent(trimmed)}` : '/assets', {
-      replace: true,
+      replace: true
     })
   }
 
@@ -79,13 +79,13 @@ export function NavBar() {
     track('Shop Search Suggestion Clicked', {
       query: q.trim(),
       type: 'item',
-      item_id: item.id,
+      item_id: item.id
     })
     // Secondary listings carry tokenId; catalog items carry itemId — mirror AssetCard's route segment.
     const routeSeg = item.tokenId ?? item.itemId
     if (item.contractAddress && routeSeg) {
       navigate(`/item/${item.contractAddress}/${routeSeg}`, {
-        state: { item, tradeId: item.tradeId },
+        state: { item, tradeId: item.tradeId }
       })
     } else {
       runSearch(q)
@@ -98,7 +98,7 @@ export function NavBar() {
     track('Shop Search Suggestion Clicked', {
       query: q.trim(),
       type: 'collection',
-      contract_address: collection.contractAddress,
+      contract_address: collection.contractAddress
     })
     navigate(`/collection/${collection.contractAddress}`)
   }
@@ -109,7 +109,7 @@ export function NavBar() {
     track('Shop Search Suggestion Clicked', {
       query: q.trim(),
       type: 'creator',
-      creator_address: creator.address,
+      creator_address: creator.address
     })
     navigate(`/assets/creator/${creator.address}`)
   }

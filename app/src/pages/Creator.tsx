@@ -122,9 +122,7 @@ export function Creator() {
 
       {address ? <CreatorHero address={address} /> : null}
 
-      {!collectionsMode && !isLoading && items.length > 0 ? (
-        <AddAllToCart items={items} source="creator" />
-      ) : null}
+      {!collectionsMode && !isLoading && items.length > 0 ? <AddAllToCart items={items} source="creator" /> : null}
 
       <div className="browse browse--sidebar">
         <aside className="browse__sidebar">
@@ -145,9 +143,7 @@ export function Creator() {
             <>
               <div className="creator-collections__bar">
                 <span className="assets__count">
-                  {collections.isLoading
-                    ? '…'
-                    : t('creator.collectionsCount', { count: collections.total })}
+                  {collections.isLoading ? '…' : t('creator.collectionsCount', { count: collections.total })}
                 </span>
               </div>
 
@@ -232,9 +228,7 @@ export function Creator() {
 
               <LoadMore hasNextPage={hasNextPage} isFetching={isFetchingNextPage} onLoadMore={() => fetchNextPage()} />
 
-              {!isLoading && !error && items.length === 0 ? (
-                <p className="muted">{t('creator.empty')}</p>
-              ) : null}
+              {!isLoading && !error && items.length === 0 ? <p className="muted">{t('creator.empty')}</p> : null}
             </>
           )}
         </div>

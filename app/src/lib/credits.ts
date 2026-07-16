@@ -112,9 +112,7 @@ export async function fetchUserPurchases(
   const skip = opts?.skip ?? 0
   const first = opts?.first ?? items.length
   const total =
-    typeof json.total === 'number'
-      ? json.total
-      : skip + items.length + (first > 0 && items.length >= first ? 1 : 0)
+    typeof json.total === 'number' ? json.total : skip + items.length + (first > 0 && items.length >= first ? 1 : 0)
   return { items, total }
 }
 

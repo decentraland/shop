@@ -47,7 +47,7 @@ function toLegacyListing(item: UnifiedListing): LegacyListing {
     available: 1,
     network: item.network,
     chainId: item.chainId,
-    createdAt: 0,
+    createdAt: 0
   }
 }
 
@@ -88,7 +88,7 @@ export function Assets() {
     minPriceCredits: min,
     maxPriceCredits: max,
     search: q || undefined,
-    sortBy,
+    sortBy
   }
 
   const { items, total, isLoading, error, hasNextPage, isFetchingNextPage, fetchNextPage } = useInfiniteGrid(
@@ -129,9 +129,9 @@ export function Assets() {
         rarities,
         min_price_credits: min ?? null,
         max_price_credits: max ?? null,
-        sort,
+        sort
       },
-      result_count: resultCount,
+      result_count: resultCount
     })
   }, [category, subCategory, rarities, min, max, sort, isLoading, resultCount])
 

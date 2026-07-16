@@ -15,15 +15,15 @@ export default tseslint.config(
     languageOptions: {
       parserOptions: {
         projectService: true,
-        tsconfigRootDir: import.meta.dirname,
+        tsconfigRootDir: import.meta.dirname
       },
       globals: {
         ...globals.browser,
-        ...globals.node,
-      },
+        ...globals.node
+      }
     },
     plugins: {
-      'react-hooks': reactHooks,
+      'react-hooks': reactHooks
     },
     rules: {
       'react-hooks/rules-of-hooks': 'error',
@@ -36,18 +36,18 @@ export default tseslint.config(
         'warn',
         {
           selector: 'function',
-          format: ['PascalCase', 'camelCase'],
-        },
-      ],
-    },
+          format: ['PascalCase', 'camelCase']
+        }
+      ]
+    }
   },
 
   // Tests reference class methods unbound when wiring up mocks.
   {
     files: ['**/*.spec.{ts,tsx}'],
     rules: {
-      '@typescript-eslint/unbound-method': 'off',
-    },
+      '@typescript-eslint/unbound-method': 'off'
+    }
   },
 
   // Must come last: turn off rules that conflict with Prettier formatting.

@@ -35,7 +35,10 @@ export async function readManaUsdRate(chainId: number = config.chainId): Promise
   const aggAddr: string = await mkt.manaUsdAggregator()
   const agg = new ethers.Contract(
     aggAddr,
-    ['function decimals() view returns (uint8)', 'function latestRoundData() view returns (uint80,int256,uint256,uint256,uint80)'],
+    [
+      'function decimals() view returns (uint8)',
+      'function latestRoundData() view returns (uint80,int256,uint256,uint256,uint80)'
+    ],
     provider
   )
   const decimals: number = await agg.decimals()

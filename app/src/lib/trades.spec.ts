@@ -281,10 +281,7 @@ describe('when ensuring the marketplace is approved as operator', () => {
   it('should add the Amoy chain when switching fails with 4902', async () => {
     isApprovedForAllMock.mockResolvedValue(false)
     setApprovalForAllMock.mockResolvedValue({ wait: vi.fn().mockResolvedValue(undefined) })
-    const send = vi
-      .fn()
-      .mockRejectedValueOnce({ code: 4902 })
-      .mockResolvedValueOnce(undefined)
+    const send = vi.fn().mockRejectedValueOnce({ code: 4902 }).mockResolvedValueOnce(undefined)
     const getNetwork = vi.fn().mockResolvedValue({ chainId: ChainId.ETHEREUM_MAINNET })
     const signer = makeSigner({ provider: { getNetwork, send } })
 

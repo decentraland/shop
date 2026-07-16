@@ -155,7 +155,7 @@ export function Success() {
             key={single.id}
             contractAddress={single.contractAddress}
             tokenId={single.tokenId ?? undefined}
-            itemId={single.tokenId ? undefined : single.itemId ?? undefined}
+            itemId={single.tokenId ? undefined : (single.itemId ?? undefined)}
             profile={previewProfile}
             bodyShape={singleIsEmote ? undefined : previewBodyShape}
             type={singleIsEmote ? undefined : PreviewType.AVATAR}
@@ -177,8 +177,8 @@ export function Success() {
               {settlement === 'indexing' ? (
                 <>
                   Payment confirmed — adding{' '}
-                  {items.length === 1 ? <strong>{hero.name}</strong> : `${items.length} items`} to your wardrobe.
-                  Almost there.
+                  {items.length === 1 ? <strong>{hero.name}</strong> : `${items.length} items`} to your wardrobe. Almost
+                  there.
                 </>
               ) : (
                 <>
@@ -200,8 +200,10 @@ export function Success() {
             <h1 className="success__title">Still processing…</h1>
             <p className="success__sub">
               This is taking longer than usual to confirm. Your purchase may still complete — check{' '}
-              <button className="link" onClick={() => navigate('/my-purchases')}>My Purchases</button> in a
-              few minutes to see the final status. No need to buy again.
+              <button className="link" onClick={() => navigate('/my-purchases')}>
+                My Purchases
+              </button>{' '}
+              in a few minutes to see the final status. No need to buy again.
             </p>
             <div className="success__links">
               {showExplorer ? (
@@ -223,8 +225,8 @@ export function Success() {
           <>
             <h1 className="success__title">Your purchase didn&rsquo;t go through</h1>
             <p className="success__sub">
-              The transaction failed on-chain, so nothing was delivered. Your credits weren&rsquo;t spent
-              (any hold is released shortly) — you can try again.
+              The transaction failed on-chain, so nothing was delivered. Your credits weren&rsquo;t spent (any hold is
+              released shortly) — you can try again.
             </p>
             <div className="success__links">
               {showExplorer ? (

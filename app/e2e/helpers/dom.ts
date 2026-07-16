@@ -35,7 +35,8 @@ export async function clickWhenEnabled(page: Page, selector: string, re: RegExp,
   await page.waitForFunction(
     (sel: string, src: string) => {
       const rx = new RegExp(src, 'i')
-      const el = [...document.querySelectorAll(sel)].find(e => rx.test(e.textContent || '')) as HTMLButtonElement | undefined
+      const el = [...document.querySelectorAll(sel)].find(e => rx.test(e.textContent || '')) as
+        HTMLButtonElement | undefined
       return !!el && !el.disabled
     },
     { timeout },

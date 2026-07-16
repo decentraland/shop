@@ -9,7 +9,9 @@ export function NotFound() {
       <span className="ico ico-cart notfound__ico" aria-hidden />
       <h1 className="notfound__title">{t('notFound.title')}</h1>
       <p className="muted">{t('notFound.body')}</p>
-      <Link className="btn btn--purple" to="/assets">{t('notFound.cta')}</Link>
+      <Link className="btn btn--purple" to="/assets">
+        {t('notFound.cta')}
+      </Link>
     </div>
   )
 }

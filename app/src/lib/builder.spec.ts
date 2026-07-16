@@ -47,7 +47,7 @@ beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn())
 })
 
-describe('when fetching a creator\'s published collections', () => {
+describe("when fetching a creator's published collections", () => {
   it('should call the address-scoped published route and unwrap a { data } envelope', async () => {
     signedFetchMock.mockResolvedValueOnce(
       okRes({
@@ -271,9 +271,7 @@ describe('when fetching the items inside a collection', () => {
         ]
       })
     )
-    ;(fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
-      okRes({ data: { 'thumbnail.png': 'QmFALLBACK' } })
-    )
+    ;(fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(okRes({ data: { 'thumbnail.png': 'QmFALLBACK' } }))
 
     const items = await fetchCollectionItems(cleanCollection(), identity)
 
@@ -432,7 +430,7 @@ describe('when checking whether an item is publishable', () => {
   })
 })
 
-describe('when fetching every publishable item across a creator\'s collections', () => {
+describe("when fetching every publishable item across a creator's collections", () => {
   it('should flatten items from all published collections', async () => {
     // 1) collections call
     signedFetchMock.mockResolvedValueOnce(

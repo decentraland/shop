@@ -177,10 +177,12 @@ function loadSegment(writeKey: string): void {
     'reset',
     'setAnonymousId'
   ]
-  analytics.factory = (method: string) => (...args: unknown[]) => {
-    ;(analytics as unknown as { push: (a: unknown[]) => void }).push([method, ...args])
-    return analytics
-  }
+  analytics.factory =
+    (method: string) =>
+    (...args: unknown[]) => {
+      ;(analytics as unknown as { push: (a: unknown[]) => void }).push([method, ...args])
+      return analytics
+    }
   for (const method of analytics.methods) {
     ;(analytics as unknown as Props)[method] = (analytics.factory as (m: string) => unknown)(method)
   }

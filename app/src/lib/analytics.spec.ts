@@ -56,7 +56,13 @@ describe('analytics wrapper', () => {
     expect(spy).toHaveBeenCalledTimes(1)
     const [event, props] = spy.mock.calls[0]
     expect(event).toBe('Shop Viewed Item')
-    expect(props).toMatchObject({ item_id: '5', address: '0xBUYER', is_signed_in: true, network: 'amoy', app_env: 'dev' })
+    expect(props).toMatchObject({
+      item_id: '5',
+      address: '0xBUYER',
+      is_signed_in: true,
+      network: 'amoy',
+      app_env: 'dev'
+    })
     expect(typeof props.session_id).toBe('string')
   })
 
@@ -69,7 +75,12 @@ describe('analytics wrapper', () => {
 
   it('reset drops the Segment identity when loaded, and never throws when it is not', () => {
     const spy = vi.fn()
-    ;(window as unknown as { analytics?: unknown }).analytics = { track: vi.fn(), identify: vi.fn(), page: vi.fn(), reset: spy }
+    ;(window as unknown as { analytics?: unknown }).analytics = {
+      track: vi.fn(),
+      identify: vi.fn(),
+      page: vi.fn(),
+      reset: spy
+    }
     reset()
     expect(spy).toHaveBeenCalledTimes(1)
 

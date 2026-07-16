@@ -33,7 +33,7 @@
   position: absolute;
   inset: 0;
   z-index: 1;
-  background: linear-gradient(90deg, rgba(10, 11, 14, .78) 0%, rgba(10, 11, 14, .45) 38%, rgba(10, 11, 14, 0) 68%);
+  background: linear-gradient(90deg, rgba(10, 11, 14, 0.78) 0%, rgba(10, 11, 14, 0.45) 38%, rgba(10, 11, 14, 0) 68%);
 }
 .ov-hero__inner {
   position: relative;
@@ -65,15 +65,22 @@
     min-height: 200px;
     max-height: none;
   }
-  .ov-hero__inner { padding: 0 24px; }
+  .ov-hero__inner {
+    padding: 0 24px;
+  }
 }
 
 /* ---------------- Carousels (Featured Products / New Creations) ---------------- */
 /* Reuses the global .row / .row__head / .row__title / .row__viewall and the shared AssetCard, but with
    a dedicated track (not the global .row__track) so the cards can flex to a whole-card width and the
    scrollbar can be hidden without touching index.css. Adds the Figma side arrows + pagination dots. */
-.ov-carousel { position: relative; margin-bottom: 40px; }
-.ov-carousel__viewport { position: relative; }
+.ov-carousel {
+  position: relative;
+  margin-bottom: 40px;
+}
+.ov-carousel__viewport {
+  position: relative;
+}
 
 /* Whole-card track. `--ov-card-w` is set in JS (Overview.tsx `layout()`) so an integer number of cards
    + 16px gaps exactly fill the viewport — visually identical to the browse grid's fluid cards.
@@ -96,14 +103,32 @@
   overflow-y: hidden;
   padding: 12px 0;
   scroll-snap-type: x mandatory;
-  scrollbar-width: none;        /* Firefox */
-  -ms-overflow-style: none;     /* legacy Edge */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* legacy Edge */
 }
-.ov-carousel__track::-webkit-scrollbar { width: 0; height: 0; display: none; } /* Chrome/Safari */
-.ov-carousel__track > * { scroll-snap-align: start; }
-@media (max-width: 1200px) { .ov-carousel__track { grid-auto-columns: calc((100% - 48px) / 4); } }
-@media (max-width: 900px)  { .ov-carousel__track { grid-auto-columns: calc((100% - 32px) / 3); } }
-@media (max-width: 720px)  { .ov-carousel__track { grid-auto-columns: calc((100% - 16px) / 2); } }
+.ov-carousel__track::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+} /* Chrome/Safari */
+.ov-carousel__track > * {
+  scroll-snap-align: start;
+}
+@media (max-width: 1200px) {
+  .ov-carousel__track {
+    grid-auto-columns: calc((100% - 48px) / 4);
+  }
+}
+@media (max-width: 900px) {
+  .ov-carousel__track {
+    grid-auto-columns: calc((100% - 32px) / 3);
+  }
+}
+@media (max-width: 720px) {
+  .ov-carousel__track {
+    grid-auto-columns: calc((100% - 16px) / 2);
+  }
+}
 
 /* Side arrows (Figma "Slider Arrows" — node 913:135587 / 913:135609). A ~53px white circle (80%
    opacity, white ring) with a bold black chevron; the SVG (carousel-arrow.svg) is the exact Figma
@@ -120,19 +145,39 @@
   border: 0;
   background: transparent;
   cursor: pointer;
-  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, .18));
-  transition: transform .15s ease, filter .15s ease, opacity .15s ease;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.18));
+  transition:
+    transform 0.15s ease,
+    filter 0.15s ease,
+    opacity 0.15s ease;
 }
-.ov-arrow img { display: block; width: 100%; height: 100%; }
-.ov-arrow--right { right: -40px; }
-.ov-arrow--left { left: -40px; }
-.ov-arrow--left img { transform: scaleX(-1); }
-.ov-arrow:hover:not(:disabled) { transform: translateY(-50%) scale(1.07); }
+.ov-arrow img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.ov-arrow--right {
+  right: -40px;
+}
+.ov-arrow--left {
+  left: -40px;
+}
+.ov-arrow--left img {
+  transform: scaleX(-1);
+}
+.ov-arrow:hover:not(:disabled) {
+  transform: translateY(-50%) scale(1.07);
+}
 /* Hidden (not dimmed) at the ends, so the two arrows never look mismatched — one solid, one faint. */
-.ov-arrow:disabled { opacity: 0; pointer-events: none; }
+.ov-arrow:disabled {
+  opacity: 0;
+  pointer-events: none;
+}
 @media (max-width: 900px) {
   /* Touch scrolling on smaller screens — drop the arrows (they'd overlap the cards without a gutter). */
-  .ov-arrow { display: none; }
+  .ov-arrow {
+    display: none;
+  }
 }
 
 /* Pagination dots (Figma "Carousel Dots" — 12px, 8px gap, active = brand purple). */
@@ -149,9 +194,11 @@
   border: 0;
   border-radius: 50%;
   background: #d9d6de;
-  transition: background .15s ease;
+  transition: background 0.15s ease;
 }
-.ov-dot.is-active { background: var(--accent); }
+.ov-dot.is-active {
+  background: var(--accent);
+}
 
 /* ---------------- Promo tiles (Figma "Component 7" ×2 — node 913:135589) ---------------- */
 /* Two side-by-side promotional banners. Each is a single flat design export (see report — placeholder
@@ -166,7 +213,7 @@
   display: block;
   border-radius: var(--radius-banner);
   overflow: hidden;
-  filter: drop-shadow(0 2.5px 6.875px rgba(0, 0, 0, .25));
+  filter: drop-shadow(0 2.5px 6.875px rgba(0, 0, 0, 0.25));
 }
 .ov-promo img {
   display: block;
@@ -176,7 +223,9 @@
   object-fit: cover;
 }
 @media (max-width: 768px) {
-  .ov-promos { grid-template-columns: 1fr; }
+  .ov-promos {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ---------------- Week Top Creators table (Figma node 913-135614) ---------------- */
@@ -184,7 +233,9 @@
    Columns kept: Rank · Creator · Collections · Sales · Volume (the Figma's collection+prize columns
    have no data source and are dropped). Amethyst→magenta gradient header bar (reuses --amethyst) and a
    magenta rounded rank badge per row, matching the Figma. */
-.ov-creators { margin: 0 0 48px; }
+.ov-creators {
+  margin: 0 0 48px;
+}
 .ov-creators__head {
   display: flex;
   align-items: baseline;
@@ -206,7 +257,9 @@
 }
 
 /* Horizontal scroll on narrow screens so the table never forces the page to scroll sideways. */
-.ov-creators__scroll { overflow-x: auto; }
+.ov-creators__scroll {
+  overflow-x: auto;
+}
 .ov-creators__table {
   width: 100%;
   min-width: 640px;
@@ -215,7 +268,8 @@
 }
 
 /* Gradient header bar — one continuous amethyst/magenta band with rounded ends. */
-.ov-creators__header { }
+.ov-creators__header {
+}
 .ov-creators__th {
   background: var(--amethyst);
   color: #fff;
@@ -227,24 +281,40 @@
   white-space: nowrap;
   padding: 12px 24px;
 }
-.ov-creators__th:first-child { border-radius: 8px 0 0 8px; }
-.ov-creators__th:last-child { border-radius: 0 8px 8px 0; }
-.ov-creators__th--rank { text-align: center; }
-.ov-creators__th--num { text-align: right; }
+.ov-creators__th:first-child {
+  border-radius: 8px 0 0 8px;
+}
+.ov-creators__th:last-child {
+  border-radius: 0 8px 8px 0;
+}
+.ov-creators__th--rank {
+  text-align: center;
+}
+.ov-creators__th--num {
+  text-align: right;
+}
 
 /* Rows — subtle translucent panel like the Figma "Info Row". */
-.ov-creators__row { }
+.ov-creators__row {
+}
 .ov-creators__row td {
-  background: rgba(245, 245, 245, .8);
+  background: rgba(245, 245, 245, 0.8);
   padding: 12px 24px;
   vertical-align: middle;
   height: 64px;
 }
-.ov-creators__row td:first-child { border-radius: 8px 0 0 8px; }
-.ov-creators__row td:last-child { border-radius: 0 8px 8px 0; }
+.ov-creators__row td:first-child {
+  border-radius: 8px 0 0 8px;
+}
+.ov-creators__row td:last-child {
+  border-radius: 0 8px 8px 0;
+}
 
 /* Magenta rounded rank badge (1, 2, 3…). */
-.ov-creators__rank-cell { text-align: center; width: 96px; }
+.ov-creators__rank-cell {
+  text-align: center;
+  width: 96px;
+}
 .ov-creators__rank {
   display: inline-flex;
   align-items: center;
@@ -264,13 +334,25 @@
   animation: ov-creators-pulse 1.2s ease-in-out infinite;
 }
 
-.ov-creators__creator-cell { min-width: 200px; }
+.ov-creators__creator-cell {
+  min-width: 200px;
+}
 /* CreatorBadge renders "By {name}" — bump it up from the 12px card size to the 16px table size and
    magenta name to match the Figma creator cell. */
-.ov-creators__creator { font-size: 16px; }
-.ov-creators__creator .creator__ava { width: 32px; height: 32px; }
-.ov-creators__creator .creator__name { color: var(--accent); font-weight: 600; }
-.ov-creators__creator.creator--link:hover .creator__name { color: var(--accent); }
+.ov-creators__creator {
+  font-size: 16px;
+}
+.ov-creators__creator .creator__ava {
+  width: 32px;
+  height: 32px;
+}
+.ov-creators__creator .creator__name {
+  color: var(--accent);
+  font-weight: 600;
+}
+.ov-creators__creator.creator--link:hover .creator__name {
+  color: var(--accent);
+}
 
 .ov-creators__num {
   text-align: right;
@@ -299,13 +381,26 @@
   background: #d9d6de;
   animation: ov-creators-pulse 1.2s ease-in-out infinite;
 }
-.ov-creators__num .ov-creators__skeleton { margin-left: auto; }
-.ov-creators__skeleton--creator { width: 140px; height: 20px; }
+.ov-creators__num .ov-creators__skeleton {
+  margin-left: auto;
+}
+.ov-creators__skeleton--creator {
+  width: 140px;
+  height: 20px;
+}
 @keyframes ov-creators-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: .45; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
 }
 
 @media (max-width: 768px) {
-  .ov-creators__th, .ov-creators__row td { padding: 10px 16px; }
+  .ov-creators__th,
+  .ov-creators__row td {
+    padding: 10px 16px;
+  }
 }

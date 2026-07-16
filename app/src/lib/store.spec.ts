@@ -9,7 +9,7 @@ const { buildEntity, deploy, createContentClient, signPayload } = vi.hoisted(() 
   buildEntity: vi.fn(async (_opts: unknown) => ({ entityId: 'bafyEntity', files: new Map() })),
   deploy: vi.fn(async (_data: unknown) => ({})),
   createContentClient: vi.fn((_opts: unknown) => ({}) as { deploy: unknown }),
-  signPayload: vi.fn(() => [{ type: 'SIGNER', payload: '0xowner', signature: '' }]),
+  signPayload: vi.fn(() => [{ type: 'SIGNER', payload: '0xowner', signature: '' }])
 }))
 createContentClient.mockImplementation(() => ({ deploy }))
 vi.mock('dcl-catalyst-client/dist/client/utils/DeploymentBuilder', () => ({ buildEntity }))
@@ -26,14 +26,14 @@ import {
   draftFromStore,
   saveStore,
   templateHash,
-  type StoreDraft,
+  type StoreDraft
 } from '~/lib/store'
 
 function mockFetch(status: number, body: unknown) {
   const fetchMock = vi.fn().mockResolvedValue({
     ok: status >= 200 && status < 300,
     status,
-    json: async () => body,
+    json: async () => body
   })
   vi.stubGlobal('fetch', fetchMock)
   return fetchMock
@@ -49,9 +49,9 @@ const entity = {
     images: [{ name: 'cover', file: 'cover/Holy Dripz.jpg' }],
     links: [
       { name: 'website', url: 'https://metaskins.com' },
-      { name: 'twitter', url: 'https://twitter.com/x' },
-    ],
-  },
+      { name: 'twitter', url: 'https://twitter.com/x' }
+    ]
+  }
 }
 
 beforeEach(() => {
@@ -71,7 +71,7 @@ describe('when fetching a creator store', () => {
     expect(fetchMock).toHaveBeenCalledWith('http://peer.test/content/entities/active', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pointers: [URN] }),
+      body: JSON.stringify({ pointers: [URN] })
     })
   })
 
@@ -92,8 +92,8 @@ describe('when fetching a creator store', () => {
     mockFetch(200, [
       {
         content: [],
-        metadata: { description: 'x', images: [{ name: 'cover', file: 'cover/missing.jpg' }], links: [] },
-      },
+        metadata: { description: 'x', images: [{ name: 'cover', file: 'cover/missing.jpg' }], links: [] }
+      }
     ])
 
     const store = await fetchStore('0xabc')
@@ -111,7 +111,7 @@ describe('when fetching a creator store', () => {
       cover: '',
       coverHash: '',
       description: '',
-      links: { website: '', twitter: '', discord: '', facebook: '' },
+      links: { website: '', twitter: '', discord: '', facebook: '' }
     })
   })
 
@@ -135,7 +135,7 @@ function draft(overrides: Partial<StoreDraft> = {}): StoreDraft {
     coverHash: '',
     description: '',
     links: { website: '', twitter: '', discord: '', facebook: '' },
-    ...overrides,
+    ...overrides
   }
 }
 
@@ -154,14 +154,14 @@ describe('when building store entity metadata', () => {
     )
     expect(meta.links).toEqual([
       { name: 'website', url: 'https://x.com' },
-      { name: 'discord', url: 'https://discord.gg/y' },
+      { name: 'discord', url: 'https://discord.gg/y' }
     ])
   })
 
   it('should include the cover image only when both url and file name are present', () => {
     expect(buildStoreMetadata('0xabc', draft({ cover: 'data:image/x', coverName: '' })).images).toEqual([])
     expect(buildStoreMetadata('0xabc', draft({ cover: 'data:image/x', coverName: 'cover/a.jpeg' })).images).toEqual([
-      { name: 'cover', file: 'cover/a.jpeg' },
+      { name: 'cover', file: 'cover/a.jpeg' }
     ])
   })
 })
@@ -184,7 +184,7 @@ describe('when converting a read store into an editable draft', () => {
       cover: 'http://peer.test/content/contents/QmCover',
       coverHash: 'QmCover',
       description: 'hi',
-      links: { website: '', twitter: '', discord: '', facebook: '' },
+      links: { website: '', twitter: '', discord: '', facebook: '' }
     })
     expect(d.coverName).toBe('cover/QmCover')
     expect(d.coverHash).toBe('QmCover')
@@ -194,7 +194,7 @@ describe('when converting a read store into an editable draft', () => {
       cover: '',
       coverHash: '',
       description: '',
-      links: { website: '', twitter: '', discord: '', facebook: '' },
+      links: { website: '', twitter: '', discord: '', facebook: '' }
     })
     expect(d.coverName).toBe('')
   })
