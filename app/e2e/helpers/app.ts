@@ -73,6 +73,25 @@ function session(): Promise<TestSession> {
   return sessionPromise
 }
 
+// Stateful top-up: the mock /dev/mint-usd stands in for a real Stripe→treasury→credit-grant, so a
+// purchase must actually raise the balance the next /users/:addr/credits read returns — otherwise no
+// e2e can prove that buying credits increases the balance. Accumulated per run (reset in launchApp).
+let mintedCents = 0
+
+// F.credits (creditsResponse) with the run's accumulated top-up folded into the usd block, so the
+// balance chip reflects purchases made during the test.
+function creditsWithTopup(F: Fixtures): unknown {
+  const base = (F.credits ?? {}) as { usd?: { balanceCents?: number; credits?: number } }
+  const usd = base.usd ?? { balanceCents: 0, credits: 0 }
+  return {
+    ...base,
+    usd: {
+      balanceCents: (usd.balanceCents ?? 0) + mintedCents,
+      credits: (usd.credits ?? 0) + Math.round(mintedCents / 10),
+    },
+  }
+}
+
 function json(req: HTTPRequest, obj: unknown, status = 200) {
   return req.respond({ status, headers: { 'content-type': 'application/json', ...CORS }, body: JSON.stringify(obj) })
 }
@@ -152,11 +171,17 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
 
   // credits-server (:3000)
   if (u.port === '3000') {
-    if (/\/users\/.+\/credits$/.test(path)) return json(req, F.credits)
+    if (/\/users\/.+\/credits$/.test(path)) return json(req, creditsWithTopup(F))
     if (/\/users\/.+\/purchases$/.test(path)) return json(req, { purchases: [] })
     if (path === '/credits/authorize') return json(req, F.authorize)
     if (path === '/credits/authorize/cancel') return json(req, { released: 0 })
-    if (path === '/dev/mint-usd') return json(req, { id: 'x', usdCents: 1000, balanceCents: 6000, credits: 600 })
+    if (path === '/dev/mint-usd') {
+      // Fold the minted USD into the running balance so the post-purchase refetch shows the increase.
+      const body = JSON.parse(req.postData() || '{}') as { usdCents?: number }
+      mintedCents += Number(body.usdCents ?? 0)
+      const usd = (creditsWithTopup(F) as { usd: { balanceCents: number; credits: number } }).usd
+      return json(req, { id: 'x', usdCents: body.usdCents ?? 0, balanceCents: usd.balanceCents, credits: usd.credits })
+    }
     return json(req, {})
   }
 
@@ -335,6 +360,7 @@ export async function launchApp(
 ): Promise<App> {
   const F = { ...defaults(), ...opts.fixtures }
   const errors = opts.errors ?? {}
+  mintedCents = 0 // reset the per-run top-up accumulator so balances don't leak between tests
   const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] })
   const page = await browser.newPage()
   // Default to a desktop viewport so the browse sidebar (Category/Price/Rarity) renders inline; below
