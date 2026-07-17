@@ -33,7 +33,7 @@ export function getIntl(locale: Locale): IntlShape {
   if (!intls[locale]) {
     intls[locale] = createIntl({ locale, defaultLocale: 'en', messages: MESSAGES[locale], onError: () => {} }, cache)
   }
-  return intls[locale]!
+  return intls[locale]
 }
 
 let active: IntlShape = getIntl('en')
