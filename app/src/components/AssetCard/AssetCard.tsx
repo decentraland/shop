@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { PreviewEmote, PreviewType } from '@dcl/schemas'
 import { useCart } from '~/store/cart'
 import { useFavorites } from '~/store/favorites'
 import { useHoverPreview } from '~/store/hoverPreview'
@@ -16,7 +15,6 @@ import { formatCredits, formatCreditsFull } from '~/lib/currency'
 import { t } from '~/intl/i18n'
 import { useSaleActive } from '~/hooks/useSaleActive'
 import type { CatalogItem } from '~/lib/api'
-import { WearablePreview } from '../LazyWearablePreview'
 import './asset-card.css'
 
 const HOVER_DELAY_MS = 120
@@ -34,7 +32,6 @@ type AssetCardProps =
 export function AssetCard(props: AssetCardProps) {
   const { item } = props
   const isMarket = props.mode === 'market'
-  const [hovered, setHovered] = useState(false)
   const timer = useRef<ReturnType<typeof setTimeout>>()
   const mediaRef = useRef<HTMLDivElement>(null)
 
@@ -70,13 +67,11 @@ export function AssetCard(props: AssetCardProps) {
     if (typeof window !== 'undefined' && window.matchMedia && !window.matchMedia('(hover: hover)').matches) return
     if (timer.current) clearTimeout(timer.current)
     timer.current = setTimeout(() => {
-      setHovered(true)
       if (canPreview && mediaRef.current) showPreview(item, mediaRef.current)
     }, HOVER_DELAY_MS)
   }
   function onLeave() {
     if (timer.current) clearTimeout(timer.current)
-    setHovered(false)
     // Only release the shared preview if WE'RE the ones holding it (avoid stealing it from a card the
     // mouse has already moved onto).
     if (useHoverPreview.getState().item?.id === item.id) hidePreview()
@@ -107,7 +102,7 @@ export function AssetCard(props: AssetCardProps) {
 
   return (
     <article
-      className={`card${hovered ? ' card--hover' : ''}`}
+      className="card"
       style={canOpen ? { cursor: 'pointer' } : undefined}
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}
@@ -163,29 +158,11 @@ export function AssetCard(props: AssetCardProps) {
             loading="lazy"
           />
         ) : null}
-        {hovered && canPreview ? (
-          <>
-            <div className={`card__preview${previewReady ? ' is-ready' : ''}`}>
-              <WearablePreview
-                contractAddress={item.contractAddress}
-                itemId={item.itemId ?? undefined}
-                profile="default"
-                // Load straight into the fashion pose (like ItemPreview) so the avatar doesn't flash a
-                // default arms-out T-pose for a beat before settling. Emotes play their own animation.
-                type={item.category === 'emote' ? undefined : PreviewType.AVATAR}
-                emote={item.category === 'emote' ? undefined : PreviewEmote.FASHION}
-                disableBackground
-                disableFadeEffect
-              />
-            </div>
-            {/* Transparent shield over the preview: it becomes the hover target so the cross-origin
-                iframe never shows its internal content-URL tooltip. Clicks bubble up to open detail. */}
-            <span className="card__preview-shield" aria-hidden />
-            {/* Skeleton shimmer on the gray media background while the 3D boots — sits behind the
-                thumbnail (which stays put), so the loading cue shows through/around the asset. */}
-            {!previewReady ? <span className="card__skeleton" aria-hidden /> : null}
-          </>
-        ) : null}
+        {/* The 3D preview is the ONE shared HoverPreviewLayer overlay (see App.tsx) — the card does NOT
+            mount its own <WearablePreview> (that duplicated the avatar over the shared one, cold-booted a
+            second engine per hover, and doubled the Babylon/Sentry work). On hover the card just asks the
+            store to point the warm iframe here (showPreview); the thumbnail above crossfades out via
+            .card__img--hidden once that shared preview is ready. */}
       </div>
 
       <div className="card__body">

@@ -36,11 +36,18 @@
 /* Figma hover (node 696:34662): 2px cerise gradient border (DCL/Gradients/Cerise, #FF2D55 → #C640CD,
    outer) + a soft violet glow (Brand/Violet #A524B3, X0 Y0 Blur8 Spread0). The glow needs room in
    scroll containers — see .row__track. */
-.card--hover {
-  background:
-    linear-gradient(#fff, #fff) padding-box,
-    var(--cerise) border-box;
-  box-shadow: 0 0 8px 0 var(--brand-violet);
+/* Border + glow are pure CSS :hover/:focus-within so they appear INSTANTLY on mouseenter — like the
+   action button's reveal — instead of waiting on React state + the 120ms preview debounce (which made
+   the border lag and stutter while the 3D engine booted). Gated to hover-capable devices so a touch
+   tap (which synthesizes :hover) never flashes the border. */
+@media (hover: hover) {
+  .card:hover,
+  .card:focus-within {
+    background:
+      linear-gradient(#fff, #fff) padding-box,
+      var(--cerise) border-box;
+    box-shadow: 0 0 8px 0 var(--brand-violet);
+  }
 }
 
 /* isolation: isolate makes the media its own stacking context so the skeleton (z-index:-1) paints
