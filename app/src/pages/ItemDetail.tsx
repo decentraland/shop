@@ -6,8 +6,17 @@ import { config } from '~/config'
 import { useCart } from '~/store/cart'
 import { useFavorites } from '~/store/favorites'
 import { useWallet } from '~/store/wallet'
-import { fetchShopListingForItem, fetchTradeForItem, fetchItemDescription, type CatalogItem } from '~/lib/api'
+import {
+  fetchShopListingForItem,
+  fetchTradeForItem,
+  fetchItemDescription,
+  type CatalogItem,
+  type LegacyListing,
+  type UnifiedListing
+} from '~/lib/api'
 import { BuyModal } from '~/components/BuyModal'
+import { MarketCheckout } from '~/components/MarketCheckout'
+import { useManaRate } from '~/hooks/useManaRate'
 import { fetchCollectionItems, fetchCollection } from '~/lib/collections'
 import { ItemPreview } from '~/components/ItemPreview'
 import { CollectionCarousel } from '~/components/CollectionCarousel'
@@ -44,8 +53,23 @@ function categoryLabel(item: CatalogItem): string {
 
 export function ItemDetail() {
   const { contractAddress, tokenId } = useParams<{ contractAddress: string; tokenId: string }>()
-  const { state } = useLocation() as { state?: { item?: CatalogItem; tradeId?: string; resumeBuy?: boolean } }
+  const { state } = useLocation() as {
+    state?: {
+      item?: CatalogItem
+      tradeId?: string
+      resumeBuy?: boolean
+      // Market mode: a legacy/MANA item navigated from the collectibles grid. The item carries
+      // `manaWei` (it's a UnifiedListing); `marketPriceCredits` is the grid's indicative credit price.
+      market?: boolean
+      marketPriceCredits?: number | null
+    }
+  }
   const navigate = useNavigate()
+
+  // Market (legacy/MANA) mode is decided entirely by the router state the grid passes — there's no
+  // authoritative shop-listing to fall back to (legacy items aren't in the USD-pegged feed).
+  const isMarket = !!state?.market
+  const marketPriceCredits = state?.marketPriceCredits ?? null
 
   const add = useCart(s => s.add)
   const cartItems = useCart(s => s.items)
@@ -94,13 +118,29 @@ export function ItemDetail() {
   // Deep-link / refresh: the route segment is the itemId for primary listings. Hydrate the item
   // (name, price, tradeId) straight from the shop feed so it resolves correctly (a primary itemId is
   // NOT a tokenId — the sibling fallback below would otherwise mis-match).
+  // Also runs when a PRIMARY item was seeded from router state (grid nav) or a sibling but is missing
+  // its stock (`available`) — siblings/grid rows don't carry it — so the authoritative shop listing
+  // can backfill it (see the effect below). Never for a market/legacy item (not in this feed).
+  const needsPrimaryStock = current.available == null && !current.tokenId
   const { data: deepLinkItem, isLoading: deepLinkLoading } = useQuery({
     queryKey: ['shop-item', current.contractAddress, tokenId],
-    enabled: !state?.item && !!current.contractAddress && !!tokenId,
+    enabled: !isMarket && !!current.contractAddress && !!tokenId && (!state?.item || needsPrimaryStock),
     queryFn: () => fetchShopListingForItem(current.contractAddress, tokenId as string)
   })
   useEffect(() => {
-    if (deepLinkItem) setCurrent(prev => (prev.tradeId ? prev : { ...deepLinkItem }))
+    if (!deepLinkItem) return
+    setCurrent(prev => {
+      // Bare deep-link stub (no tradeId yet) → full hydrate from the authoritative listing.
+      if (!prev.tradeId) return { ...deepLinkItem }
+      // Seeded item (grid/sibling): keep its identity/price/name/tradeId, only backfill the
+      // authoritative fields it lacked (stock + wearableCategory) — never clobber the rest.
+      if (prev.available != null && prev.wearableCategory) return prev
+      return {
+        ...prev,
+        available: prev.available ?? deepLinkItem.available,
+        wearableCategory: prev.wearableCategory ?? deepLinkItem.wearableCategory
+      }
+    })
   }, [deepLinkItem])
 
   // Item long description — not in the shop feed, so read from the v2 catalog by contract + itemId.
@@ -171,6 +211,34 @@ export function ItemDetail() {
 
   const buyableTradeId = current.tradeId ?? resolvedTradeId ?? undefined
   const forSale = !!buyableTradeId
+
+  // Market (legacy) checkout: the live MANA→USD rate (read only in market mode) + the LegacyListing
+  // projection MarketCheckout expects, built from the UnifiedListing the grid passed in router state.
+  // The price is only indicative until MarketCheckout locks it at authorize (see MarketCheckout).
+  const { data: manaRate } = useManaRate(isMarket)
+  const marketListing: LegacyListing | null = useMemo(() => {
+    if (!isMarket || !state?.item) return null
+    const it = state.item as UnifiedListing
+    if (!it.manaWei) return null
+    return {
+      tradeId: it.tradeId ?? it.id,
+      listingType: 'primary',
+      contractAddress: it.contractAddress,
+      itemId: it.itemId ?? '',
+      name: it.name,
+      thumbnail: it.thumbnail,
+      rarity: it.rarity,
+      category: it.category,
+      wearableCategory: it.wearableCategory ?? null,
+      creator: it.creator,
+      manaWei: it.manaWei,
+      available: 1,
+      network: it.network,
+      chainId: it.chainId,
+      createdAt: 0
+    }
+  }, [isMarket, state?.item])
+  const canBuyMarket = isMarket && marketPriceCredits != null && !!manaRate && !!marketListing
   // Live sale-active flag (collapses the badge/strikethrough/discount the moment the window closes).
   // Kept up here with the other hooks so it's never called after an early return.
   const saleActive = useSaleActive({
@@ -234,10 +302,13 @@ export function ItemDetail() {
 
   // Stock (primary/mint listings only): the shop feed carries the remaining mintable supply. Secondary
   // listings (a specific token) have no stock concept, so we hide it there (see Figma 1052-151285).
-  const showStock = typeof current.available === 'number' && current.available > 0 && !current.tokenId
+  const showStock = typeof current.available === 'number' && current.available > 0 && !current.tokenId && !isMarket
   // Both action buttons present (buyable, not your own): on mobile they collapse into a sticky row of
-  // a wide Buy-now + a compact cart icon (see Figma 1182-194973).
-  const dualCta = !own && forSale
+  // a wide Buy-now + a compact cart icon (see Figma 1182-194973). A market item has only Buy now.
+  const dualCta = !own && forSale && !isMarket
+  // The CTA block renders action buttons for a market item too (single Buy now), or for any listing
+  // that isn't your own (the "manage in My Assets" note replaces them only for your own native item).
+  const showCtaButtons = isMarket || !own
 
   // Nothing hydrated the item (bad/stale deep link, or an item that isn't in the shop feed — e.g. a
   // legacy/market piece). Once every resolution path has settled and there's still no name, show a
@@ -276,6 +347,17 @@ export function ItemDetail() {
               <span className="item-preview__spinner" aria-hidden />
             </div>
           )}
+          {/* Mobile favourite heart: a circular button at the preview's top-right (Figma 1182-195410).
+              Shares the fav state with the title-row heart, which hides on mobile (item-detail.css) so
+              only one is ever in the a11y tree. */}
+          <button
+            className={`item-detail__fav item-detail__fav--preview${faved ? ' is-on' : ''}`}
+            onClick={() => toggleFav(current)}
+            aria-pressed={faved}
+            aria-label={faved ? 'Remove from favorites' : 'Add to favorites'}
+          >
+            <span className={`ico ${faved ? 'ico-heart-solid' : 'ico-heart'}`} aria-hidden />
+          </button>
         </div>
 
         <div className="item-detail__info">
@@ -336,6 +418,7 @@ export function ItemDetail() {
                   <CollectionBadge
                     contractAddress={current.contractAddress}
                     name={collection.name}
+                    items={siblings}
                     className="item-detail__creator"
                   />
                 </div>
@@ -349,7 +432,24 @@ export function ItemDetail() {
             <div className="item-detail__price-row">
               <div className="item-detail__price-col">
                 <div className="item-detail__price-label">Price</div>
-                {forSale ? (
+                {isMarket ? (
+                  <>
+                    <div className="item-detail__price item-detail__price--market">
+                      {marketPriceCredits == null ? (
+                        <span className="item-detail__price-value">—</span>
+                      ) : (
+                        <>
+                          <span className="item-detail__approx" aria-hidden>
+                            ≈
+                          </span>
+                          <CurrencyIcon className="item-detail__diamond" />
+                          <span className="item-detail__price-value">{marketPriceCredits}</span>
+                        </>
+                      )}
+                    </div>
+                    <div className="item-detail__market-note muted">Market price</div>
+                  </>
+                ) : forSale ? (
                   onSale ? (
                     <div className="item-detail__price item-detail__price--sale">
                       <span className="item-detail__price">
@@ -387,11 +487,27 @@ export function ItemDetail() {
           </div>
 
           <div
-            className={`item-detail__ctas${own ? '' : ' item-detail__ctas--buttons'}${
+            className={`item-detail__ctas${showCtaButtons ? ' item-detail__ctas--buttons' : ''}${
               dualCta ? ' item-detail__ctas--dual' : ''
             }`}
           >
-            {own ? (
+            {isMarket ? (
+              // Market (legacy/MANA) item: a single Buy now that opens the MANA→credits checkout
+              // (MarketCheckout) — never Add to cart / BuyModal.
+              <button
+                className="btn btn--purple item-detail__cta"
+                onClick={() => setShowBuy(true)}
+                disabled={!canBuyMarket}
+              >
+                <span className="item-detail__cta-label">Buy now</span>
+                {marketPriceCredits != null ? (
+                  <span className="item-detail__cta-price" aria-hidden>
+                    <CurrencyIcon className="item-detail__cta-diamond" />
+                    {marketPriceCredits}
+                  </span>
+                ) : null}
+              </button>
+            ) : own ? (
               <p className="item-detail__own-note muted">
                 This is your item — manage it in <Link to="/my-assets">My Assets</Link>.
               </p>
@@ -432,7 +548,14 @@ export function ItemDetail() {
         onViewAll={current.contractAddress ? () => navigate(`/collection/${current.contractAddress}`) : undefined}
       />
 
-      {showBuy ? (
+      {showBuy && isMarket && marketListing && manaRate ? (
+        <MarketCheckout
+          listing={marketListing}
+          rate={manaRate}
+          onClose={() => setShowBuy(false)}
+          onSold={() => setShowBuy(false)}
+        />
+      ) : showBuy && !isMarket ? (
         <BuyModal
           item={cartItem}
           resume={resumeBuy}
