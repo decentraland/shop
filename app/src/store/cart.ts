@@ -17,6 +17,8 @@ type CartState = {
   add: (item: CatalogItem, source?: AddToCartSource) => void
   remove: (id: string) => void
   clear: () => void
+  /** Restore a cart snapshot (used to resume checkout after a Stripe top-up redirect wiped the store). */
+  restore: (items: CatalogItem[]) => void
   setOpen: (open: boolean) => void
   setFittingOpen: (open: boolean) => void
 }
@@ -57,6 +59,8 @@ export const useCart = create<CartState>((set, get) => ({
     if (item) track('Shop Removed From Cart', { item_id: item.itemId ?? null, cart_size: get().items.length })
   },
   clear: () => set({ items: [] }),
+  // Silent restore (no analytics, no popover) — the buyer already added these before topping up.
+  restore: items => set(s => (s.items.length ? {} : { items })),
   // Opening/closing via setOpen (cart-icon click or dismiss) clears the "just added" banner — that
   // banner only belongs to an add-triggered open.
   setOpen: open => set({ open, justAddedCount: 0 }),

@@ -8,6 +8,7 @@ import { CURRENCY, formatAmount } from '~/lib/currency'
 import { track, errorCode } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
 import { RESUME_BUY_KEY } from '~/lib/resume-buy'
+import { RESUME_CART_KEY } from '~/lib/cart-checkout'
 import {
   CREDIT_PACKS,
   createPackCheckout,
@@ -85,6 +86,17 @@ export function GetCredits() {
             provider: CREDITS_PROVIDER
           })
           void qc.invalidateQueries({ queryKey: ['usd-balance'] })
+          // If this top-up was started to finish a CART checkout (no-funds → Stripe from the cart's
+          // buy modal), route back to the cart, which restores the stashed cart and resumes checkout.
+          // The cart consumes RESUME_CART_KEY itself (we only detect + route here).
+          try {
+            if (sessionStorage.getItem(RESUME_CART_KEY)) {
+              navigate('/cart', { state: { resumeCheckout: true } })
+              return
+            }
+          } catch {
+            /* ignore — the credits still landed */
+          }
           // If this top-up was started to finish an item purchase (no-funds → Stripe from the buy
           // modal), resume that buy now that the credits landed: hand off to the item page in resume
           // mode so it completes with the new balance.

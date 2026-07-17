@@ -10,7 +10,7 @@ afterEach(async () => {
 })
 
 describe('cart checkout', () => {
-  it('adds an item, then checks the cart out to success', async () => {
+  it('adds an item, then checks the cart out to the success modal', async () => {
     app = await launchApp({ path: `/item/${COLLECTION}/1`, fixtures: { trade: buyTrade } })
     const { page } = app
 
@@ -26,7 +26,36 @@ describe('cart checkout', () => {
     await waitForText(page, 'Nebula Jacket')
     expect(await clickByText(page, 'button', /^checkout$/i)).toBe(true)
 
-    await page.waitForFunction(() => window.location.pathname === '/success', { timeout: 30000 })
-    expect(await page.evaluate(() => window.location.pathname)).toBe('/success')
+    // The checkout modal runs review → authorize → gasless buy → settlement, then shows the multi-item
+    // success state in place (Figma 1182-220275) — no navigation away to a separate /success page.
+    await waitForText(page, 'Your purchase was successful', 30000)
+    expect(await page.evaluate(() => window.location.pathname)).toBe('/cart')
+  })
+
+  it('shows the Buy Credits and Items (pack picker) state when funds are insufficient', async () => {
+    // Force the credits-server authorize step to 402 (insufficient funds). The cart checkout treats
+    // that as "not enough credits" — releases any reservation and shows the top-up pack picker instead
+    // of a bare error, matching the PDP no-funds flow. No purchase happens.
+    app = await launchApp({
+      path: `/item/${COLLECTION}/1`,
+      fixtures: { trade: buyTrade },
+      errors: { '/credits/authorize': { status: 402, body: { error: 'insufficient funds' } } },
+    })
+    const { page } = app
+
+    await waitForText(page, 'Nebula Jacket')
+    await waitForText(page, 'Buy now')
+    expect(await clickByText(page, 'button', /add to cart/i)).toBe(true)
+    await waitForText(page, 'In cart')
+
+    await page.click('.subnav__cart')
+    await waitForText(page, 'Checkout')
+    expect(await clickByText(page, 'button', /^checkout$/i)).toBe(true)
+
+    await waitForText(page, 'Buy Credits and Items')
+    await waitForText(page, 'Insufficient Funds')
+
+    // Never navigated to /success — nothing was purchased.
+    expect(await page.evaluate(() => window.location.pathname)).toBe('/cart')
   })
 })
