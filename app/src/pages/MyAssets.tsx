@@ -16,6 +16,7 @@ import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
 import { CURRENCY } from '~/lib/currency'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { track } from '~/lib/analytics'
+import { t } from '~/intl/i18n'
 import '~/styles/my-listings.css'
 
 const PAGE_SIZE = 48
@@ -84,7 +85,7 @@ export function MyAssets() {
     try {
       const trade = await fetchTrade(tradeId)
       await cancelListing({ trade, signer: session.signer })
-      toast.success(`“${name}” is no longer for sale.`)
+      toast.success(t('myAssets.removedFromSale', { name }))
       await qc.invalidateQueries({ queryKey: ['my-assets', session.address] })
       await qc.invalidateQueries({ queryKey: ['collection-sale-state'] })
     } catch (e) {
@@ -92,7 +93,7 @@ export function MyAssets() {
       const msg = (err.message ?? '').toLowerCase()
       const rejected = err.code === 4001 || msg.includes('reject') || msg.includes('denied')
       if (!rejected) captureError(e, { flow: 'remove-listing', tradeId })
-      setCancelError(rejected ? 'You cancelled the request.' : "Couldn't remove the listing — please try again.")
+      setCancelError(rejected ? t('getCredits.errorCanceled') : t('myAssets.removeListingError'))
     } finally {
       setCancelling(null)
     }
@@ -178,11 +179,11 @@ export function MyAssets() {
   if (!session) {
     return (
       <section className="myassets">
-        <h1>My Assets</h1>
-        <p className="muted">Sign in to sell your items.</p>
+        <h1>{t('nav.myAssets')}</h1>
+        <p className="muted">{t('myAssets.signInPrompt')}</p>
         <div className="connect-row">
           <button className="btn btn--purple" onClick={() => signIn()}>
-            Sign in
+            {t('storeSettings.signIn')}
           </button>
         </div>
         {error ? <p className="error">{error}</p> : null}
@@ -192,7 +193,7 @@ export function MyAssets() {
 
   return (
     <section className="myassets">
-      <h1>My Assets</h1>
+      <h1>{t('nav.myAssets')}</h1>
 
       {importCount > 0 ? (
         <Link className="import-banner" to="/import">
@@ -200,23 +201,21 @@ export function MyAssets() {
             📦
           </span>
           <span className="import-banner__text">
-            <strong>Import your listings</strong>
-            <span className="import-banner__sub">
-              You have {importCount} item{importCount === 1 ? '' : 's'} for sale elsewhere — bring them into the Shop.
-            </span>
+            <strong>{t('myAssets.importTitle')}</strong>
+            <span className="import-banner__sub">{t('myAssets.importSub', { count: importCount })}</span>
           </span>
-          <span className="import-banner__cta">Import</span>
+          <span className="import-banner__cta">{t('myAssets.import')}</span>
         </Link>
       ) : null}
 
       {/* ---------------- Section 1: Items you own (secondary market) ---------------- */}
       <div className="myassets__section">
         <div className="myassets__section-head">
-          <h2 className="myassets__section-title">Items you own</h2>
-          <p className="myassets__section-sub">Wearables &amp; emotes you&rsquo;ve bought — resell them in the Shop.</p>
+          <h2 className="myassets__section-title">{t('myAssets.ownedTitle')}</h2>
+          <p className="myassets__section-sub">{t('myAssets.ownedSub')}</p>
         </div>
 
-        {queryError ? <p className="error">Couldn&rsquo;t load your items — please try again.</p> : null}
+        {queryError ? <p className="error">{t('myAssets.ownedError')}</p> : null}
         {cancelError ? <p className="error">{cancelError}</p> : null}
 
         <div className="asset-grid">
@@ -230,7 +229,7 @@ export function MyAssets() {
                       row's action button (z-index) so nested controls aren't inside a clickable link. */}
                   <button
                     className="card-link-overlay"
-                    aria-label={`View ${asset.name}`}
+                    aria-label={t('myAssets.viewItem', { name: asset.name })}
                     onClick={() => openDetail(assetToItem(asset))}
                   />
                   <div className="asset-card__img">
@@ -245,7 +244,7 @@ export function MyAssets() {
                         <span className="asset-card__price">
                           <CurrencyIcon className="ccy-mark" /> {asset.listingPrice}
                         </span>
-                        <span className="badge">On sale</span>
+                        <span className="badge">{t('myAssets.onSale')}</span>
                       </div>
                       <button
                         className="btn btn--sm btn--ghost asset-card__remove"
@@ -255,7 +254,7 @@ export function MyAssets() {
                           if (asset.tradeId) void cancelByTrade(asset.tradeId, asset.name, asset.id)
                         }}
                       >
-                        {cancelling === asset.id ? 'Removing…' : 'Remove listing'}
+                        {cancelling === asset.id ? t('myAssets.removing') : t('myAssets.removeListing')}
                       </button>
                     </>
                   ) : (
@@ -270,7 +269,7 @@ export function MyAssets() {
                         setSelling(asset)
                       }}
                     >
-                      Put on sale
+                      {t('myAssets.putOnSale')}
                     </button>
                   )}
                 </article>
@@ -284,17 +283,14 @@ export function MyAssets() {
 
         <LoadMore hasNextPage={hasNextPage} isFetching={isFetchingNextPage} onLoadMore={() => void fetchNextPage()} />
 
-        {!isLoading && ownedAssets.length === 0 ? <p className="muted">No items in your wardrobe yet.</p> : null}
+        {!isLoading && ownedAssets.length === 0 ? <p className="muted">{t('myAssets.ownedEmpty')}</p> : null}
       </div>
 
       {/* ---------------- Section 2: Items you created (primary), grouped by collection ---------------- */}
       <div className="myassets__section">
         <div className="myassets__section-head">
-          <h2 className="myassets__section-title">Your creations</h2>
-          <p className="myassets__section-sub">
-            Items you made. Put them on sale in the Shop — set a price in {CURRENCY.name} and buyers pay with{' '}
-            {CURRENCY.name}.
-          </p>
+          <h2 className="myassets__section-title">{t('myAssets.creationsTitle')}</h2>
+          <p className="myassets__section-sub">{t('myAssets.creationsSub', { currency: CURRENCY.name })}</p>
         </div>
 
         {publishableLoading ? (
@@ -304,17 +300,15 @@ export function MyAssets() {
             ))}
           </div>
         ) : publishableError ? (
-          <p className="publish-empty">
-            We couldn&rsquo;t load your collections right now. Please try again in a moment.
-          </p>
+          <p className="publish-empty">{t('myAssets.collectionsError')}</p>
         ) : onSaleItems.length === 0 && collections.length === 0 ? (
-          <p className="publish-empty">You don&rsquo;t have any items to publish yet.</p>
+          <p className="publish-empty">{t('myAssets.nothingToPublish')}</p>
         ) : (
           <>
             {/* Already on sale */}
             {onSaleItems.length > 0 ? (
               <div className="creations-collection">
-                <h3 className="creations-collection__name">On sale</h3>
+                <h3 className="creations-collection__name">{t('myAssets.onSale')}</h3>
                 <div className="publish-grid">
                   {onSaleItems.map(item => (
                     <article
@@ -323,7 +317,7 @@ export function MyAssets() {
                     >
                       <button
                         className="card-link-overlay"
-                        aria-label={`View ${item.name}`}
+                        aria-label={t('myAssets.viewItem', { name: item.name })}
                         onClick={() => openDetail(publishableToItem(item))}
                       />
                       <div className="publish-card__img">
@@ -336,7 +330,7 @@ export function MyAssets() {
                         <span className="publish-card__price">
                           <CurrencyIcon className="ccy-mark" /> {saleFor(item)?.priceCredits ?? 0}
                         </span>
-                        <span className="badge">On sale</span>
+                        <span className="badge">{t('myAssets.onSale')}</span>
                       </div>
                       <button
                         className="btn btn--sm btn--ghost publish-card__cta"
@@ -347,7 +341,7 @@ export function MyAssets() {
                           if (sale?.tradeId) void cancelByTrade(sale.tradeId, item.name, item.id)
                         }}
                       >
-                        {cancelling === item.id ? 'Removing…' : 'Remove listing'}
+                        {cancelling === item.id ? t('myAssets.removing') : t('myAssets.removeListing')}
                       </button>
                     </article>
                   ))}
@@ -367,7 +361,7 @@ export function MyAssets() {
                     >
                       <button
                         className="card-link-overlay"
-                        aria-label={`View ${item.name}`}
+                        aria-label={t('myAssets.viewItem', { name: item.name })}
                         onClick={() => openDetail(publishableToItem(item))}
                       />
                       <div className="publish-card__img">
@@ -378,7 +372,7 @@ export function MyAssets() {
                       </div>
                       <div className="publish-card__meta">
                         <span className="publish-chip publish-chip--rarity">{item.rarity}</span>
-                        <span className="publish-card__supply">{item.remainingSupply.toLocaleString()} available</span>
+                        <span className="publish-card__supply">{t('myAssets.available', { count: item.remainingSupply })}</span>
                       </div>
                       <button
                         className="btn btn--sm btn--purple publish-card__cta"
@@ -388,7 +382,7 @@ export function MyAssets() {
                           setPublishing(item)
                         }}
                       >
-                        Put on sale
+                        {t('myAssets.putOnSale')}
                       </button>
                     </article>
                   ))}
