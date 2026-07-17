@@ -7,7 +7,7 @@ import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { CURRENCY, formatAmount } from '~/lib/currency'
 import { track, errorCode } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
-import { RESUME_BUY_KEY } from '~/components/BuyModal'
+import { RESUME_BUY_KEY } from '~/lib/resume-buy'
 import {
   CREDIT_PACKS,
   createPackCheckout,

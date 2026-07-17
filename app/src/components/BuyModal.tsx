@@ -16,10 +16,7 @@ import { buyGasless, waitForSettlement, GaslessUnavailableError, SettlementPendi
 import { gaslessEnabled } from '~/lib/gasless-config'
 import { isOwnTrade } from '~/lib/ownership'
 import { CREDIT_PACKS, createPackCheckout } from '~/lib/payments'
-
-// sessionStorage key: the item a buyer was purchasing when they were sent to Stripe to top up. After
-// the credits land (GetCredits return), the shop resumes this buy with the newly-bought credits.
-export const RESUME_BUY_KEY = 'dcl_shop_resume_buy'
+import { RESUME_BUY_KEY } from '~/lib/resume-buy'
 
 function friendlyError(e: unknown): string {
   const err = e as { code?: number; message?: string }
