@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { t } from '~/intl/i18n'
+import { ErrorNotice } from '~/components/ErrorNotice'
 import { fetchCollection, fetchCollectionItems } from '~/lib/collections'
 import { AssetCard } from '~/components/AssetCard'
 import { CollectionHero } from '~/components/CollectionHero'
@@ -159,7 +160,7 @@ export function Collection() {
             )}
           />
 
-          {error ? <p className="error">{t('collection.error')}</p> : null}
+          {error ? <ErrorNotice message={t('collection.error')} /> : null}
 
           <div className="grid">
             {isLoading ? (

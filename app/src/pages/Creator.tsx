@@ -17,6 +17,7 @@ import { SUBCAT_MAP } from '~/lib/categories'
 import { CURRENCY } from '~/lib/currency'
 import { shortAddress } from '~/lib/address'
 import { t } from '~/intl/i18n'
+import { ErrorNotice } from '~/components/ErrorNotice'
 import './collection.css'
 
 const PAGE_SIZE = 48
@@ -152,7 +153,7 @@ export function Creator() {
                 </span>
               </div>
 
-              {collections.error ? <p className="error">{t('creator.error')}</p> : null}
+              {collections.error ? <ErrorNotice message={t('creator.error')} /> : null}
 
               <div className="grid grid--collections">
                 {collections.isLoading ? (
@@ -216,7 +217,7 @@ export function Creator() {
                 )}
               />
 
-              {error ? <p className="error">{t('creator.error')}</p> : null}
+              {error ? <ErrorNotice message={t('creator.error')} /> : null}
 
               <div className="grid">
                 {isLoading ? (

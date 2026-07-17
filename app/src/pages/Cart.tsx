@@ -18,6 +18,8 @@ import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { CartCheckoutModal, type CheckoutLine, type CheckoutPhase } from '~/components/CartCheckoutModal'
 import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
+import { isRejection, isInsufficient } from '~/lib/errors'
+import { ErrorNotice } from '~/components/ErrorNotice'
 import { track, purchaseItemsProps, errorCode, isUserRejection, creditsToUsd } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
 import { CollectionCarousel } from '~/components/CollectionCarousel'
@@ -25,22 +27,14 @@ import { CreatorBadge } from '~/components/CreatorBadge'
 import type { CatalogItem } from '~/lib/api'
 import './cart.css'
 
+// Cart-specific mapping: the "listing changed" message is plural (a multi-item cart), so it maps
+// locally rather than via the shared singular soldOrRemoved/cantBuyOwn.
 function friendlyError(e: unknown): string {
-  const err = e as { code?: number; message?: string }
-  const msg = (err.message ?? '').toLowerCase()
-  if (err.code === 4001 || msg.includes('reject') || msg.includes('denied') || msg.includes('cancel')) {
-    return t('getCredits.errorCanceled')
-  }
+  if (isRejection(e)) return t('errors.rejected')
+  const msg = ((e as { message?: string }).message ?? '').toLowerCase()
   if (msg.includes('insufficient')) return t('cart.error.insufficient', { currency: CURRENCY.name })
   if (msg.includes('no active listing') || msg.includes('your own listing')) return t('cart.error.listingChanged')
   return t('marketCheckout.error.generic')
-}
-
-// True when an authorize failure means "not enough credits" (server 402 / insufficient) rather than a
-// genuine error — those route to the pack picker (no-funds), never the error state. Mirrors BuyModal.
-function isInsufficient(e: unknown): boolean {
-  const err = e as { code?: number; status?: number; message?: string }
-  return err.code === 402 || err.status === 402 || (err.message ?? '').toLowerCase().includes('insufficient')
 }
 
 // How long a pending review stays valid before we re-resolve on Confirm. Past this, live prices may
@@ -575,7 +569,7 @@ export function Cart() {
             ) : null}
             {notice ? <p className="muted checkout__msg">{notice}</p> : null}
             {status ? <p className="muted checkout__msg">{status}</p> : null}
-            {error ? <p className="error checkout__msg">{error}</p> : null}
+            <ErrorNotice message={error} className="checkout__msg" />
           </div>
         </aside>
       </div>

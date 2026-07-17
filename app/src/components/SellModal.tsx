@@ -12,17 +12,10 @@ import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { track, errorCode } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
 import { t } from '~/intl/i18n'
+import { friendlyError } from '~/lib/errors'
+import { ErrorNotice } from '~/components/ErrorNotice'
 
 const SIX_MONTHS_MS = 1000 * 60 * 60 * 24 * 182
-
-function friendlyError(e: unknown): string {
-  const err = e as { code?: number; message?: string }
-  const msg = (err.message ?? '').toLowerCase()
-  if (err.code === 4001 || msg.includes('reject') || msg.includes('denied') || msg.includes('cancel')) {
-    return t('getCredits.errorCanceled')
-  }
-  return t('sellModal.errorGeneric')
-}
 
 export function SellModal({ asset, session, onClose }: { asset: MyAsset; session: Session; onClose: () => void }) {
   const queryClient = useQueryClient()
@@ -80,7 +73,7 @@ export function SellModal({ asset, session, onClose }: { asset: MyAsset; session
     } catch (e) {
       captureError(e, { flow: 'list_secondary' })
       track('Shop Listing Failed', { listing_type: 'secondary', error_code: errorCode(e) })
-      setError(friendlyError(e))
+      setError(friendlyError(e, t('sellModal.errorGeneric')))
       setStatus(null)
     } finally {
       setBusy(false)
@@ -143,7 +136,7 @@ export function SellModal({ asset, session, onClose }: { asset: MyAsset; session
         </p>
 
         {status ? <p className="muted">{status}</p> : null}
-        {error ? <p className="error">{error}</p> : null}
+        <ErrorNotice message={error} />
 
         <div className="modal__actions">
           <button className="btn btn--ghost" onClick={onClose} disabled={busy}>

@@ -16,6 +16,7 @@ import { useSeo } from '~/hooks/useSeo'
 import { SUBCAT_MAP } from '~/lib/categories'
 import { track } from '~/lib/analytics'
 import { t } from '~/intl/i18n'
+import { ErrorNotice } from '~/components/ErrorNotice'
 
 // Items fetched per page (infinite scroll pages by cumulative offset — see useInfiniteGrid).
 const PAGE_SIZE = 48
@@ -329,7 +330,7 @@ export function Assets() {
           <p className="market-banner market-banner--warn">{t('assets.marketUnavailable')}</p>
         ) : null}
 
-        {error ? <p className="error">{t('assets.loadError')}</p> : null}
+        {error ? <ErrorNotice message={t('assets.loadError')} /> : null}
 
         <div className="grid">
           {isLoading ? (

@@ -3,6 +3,7 @@ import type { CreditPack } from '~/lib/payments'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { formatCredits } from '~/lib/currency'
 import { t } from '~/intl/i18n'
+import { ErrorNotice } from '~/components/ErrorNotice'
 
 // A cart line as the modal displays it: the item + the LIVE credit price it will be charged.
 export type CheckoutLine = { item: CatalogItem; priceCredits: number }
@@ -91,7 +92,7 @@ export function CartCheckoutModal(props: Props) {
         )}
         {phase === 'error' && (
           <div className="buy-modal__body">
-            <p className="buy-modal__error">{props.message}</p>
+            <ErrorNotice message={props.message} />
             <div className="buy-modal__ctas">
               <button className="buy-modal__btn buy-modal__btn--gradient" onClick={onClose}>
                 {t('buyModal.close')}
