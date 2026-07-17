@@ -42,16 +42,22 @@ function PurchaseRow({ purchase }: { purchase: PurchaseRecord }) {
     <>
       <div className="purchase__thumb">{thumbnail ? <img src={thumbnail} alt={name} /> : null}</div>
       <div className="purchase__info">
-        <div className="purchase__name" title={name}>{name}</div>
+        <div className="purchase__name" title={name}>
+          {name}
+        </div>
         <div className="muted purchase__date">{formatDate(purchase.createdAt)}</div>
       </div>
       <StatusBadge status={purchase.status} />
-      <div className="purchase__price"><CurrencyIcon className="ccy-mark" /> {purchase.credits}</div>
+      <div className="purchase__price">
+        <CurrencyIcon className="ccy-mark" /> {purchase.credits}
+      </div>
     </>
   )
 
   return to ? (
-    <Link className="purchase" to={to}>{body}</Link>
+    <Link className="purchase" to={to}>
+      {body}
+    </Link>
   ) : (
     <div className="purchase">{body}</div>
   )
@@ -84,7 +90,9 @@ export function MyPurchases() {
         <span className="ico ico-cart purchases-empty__ico" aria-hidden />
         <p className="purchases-empty__title">No purchases yet</p>
         <p className="muted">When you buy something it&rsquo;ll appear here.</p>
-        <Link className="btn btn--purple" to="/assets">Browse Collectibles</Link>
+        <Link className="btn btn--purple" to="/assets">
+          Browse Collectibles
+        </Link>
       </div>
     )
   }
@@ -94,7 +102,9 @@ export function MyPurchases() {
       <div className="purchases__head">
         <h1>My Purchases</h1>
         {!isLoading ? (
-          <span className="purchases__count">{purchases.length} order{purchases.length > 1 ? 's' : ''}</span>
+          <span className="purchases__count">
+            {purchases.length} order{purchases.length > 1 ? 's' : ''}
+          </span>
         ) : null}
       </div>
       <div className="purchases__list">
@@ -102,14 +112,16 @@ export function MyPurchases() {
           Array.from({ length: 4 }).map((_, i) => <div className="purchase purchase--skeleton" key={i} />)
         ) : (
           <>
-            {purchases.map(p => <PurchaseRow key={p.id} purchase={p} />)}
+            {purchases.map(p => (
+              <PurchaseRow key={p.id} purchase={p} />
+            ))}
             {isFetchingNextPage
               ? Array.from({ length: 2 }).map((_, i) => <div className="purchase purchase--skeleton" key={`m-${i}`} />)
               : null}
           </>
         )}
       </div>
-      <LoadMore hasNextPage={hasNextPage} isFetching={isFetchingNextPage} onLoadMore={() => fetchNextPage()} />
+      <LoadMore hasNextPage={hasNextPage} isFetching={isFetchingNextPage} onLoadMore={() => void fetchNextPage()} />
     </section>
   )
 }

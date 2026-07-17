@@ -14,23 +14,46 @@ import {
 // Re-export the shared vocabulary so existing importers (Cart, tests) keep their `~/lib/buy` imports.
 export type { CreditPurchase, SpendableCredit } from '~/lib/trade-encoding'
 
+// ethers v5 `Contract` exposes dynamically-named ABI methods through an `any` index signature, so
+// reads come back untyped. Narrow each call site to the shape its ABI fragment actually returns.
+type OracleReaderContract = ethers.Contract & {
+  manaUsdAggregator(): Promise<string>
+}
+type AggregatorContract = ethers.Contract & {
+  decimals(): Promise<number>
+  latestRoundData(): Promise<[ethers.BigNumber, ethers.BigNumber, ethers.BigNumber, ethers.BigNumber, ethers.BigNumber]>
+}
+type MarketplaceContract = ethers.Contract & {
+  cancelSignature(trades: unknown[], overrides?: ethers.Overrides): Promise<ethers.ContractTransaction>
+}
+type CreditsManagerContract = ethers.Contract & {
+  useCredits(args: unknown, overrides?: ethers.Overrides): Promise<ethers.ContractTransaction>
+}
+
 // The MANA the trade settles for. USD-pegged trades convert USD→MANA via the on-chain oracle
 // (+2% buffer so the approval covers rounding); plain ERC20 trades use the amount directly.
 async function tradeManaPriceWei(trade: Trade): Promise<string> {
   const priceAsset = trade.received[0] as { assetType: number; amount?: string }
   const amount = priceAsset.amount ?? '0'
-  if (priceAsset.assetType !== TradeAssetType.USD_PEGGED_MANA) return amount
+  if (priceAsset.assetType !== Number(TradeAssetType.USD_PEGGED_MANA)) return amount
 
   const market = getContract(getContractName(trade.contract), trade.chainId)
   const provider = new ethers.providers.JsonRpcProvider(config.rpcUrl)
-  const mkt = new ethers.Contract(market.address, ['function manaUsdAggregator() view returns (address)'], provider)
-  const aggAddr: string = await mkt.manaUsdAggregator()
+  const mkt = new ethers.Contract(
+    market.address,
+    ['function manaUsdAggregator() view returns (address)'],
+    provider
+  ) as OracleReaderContract
+  const aggAddr = await mkt.manaUsdAggregator()
   const agg = new ethers.Contract(
     aggAddr,
-    ['function decimals() view returns (uint8)', 'function latestRoundData() view returns (uint80,int256,uint256,uint256,uint80)'],
+    [
+      'function decimals() view returns (uint8)',
+      'function latestRoundData() view returns (uint80,int256,uint256,uint256,uint80)'
+    ],
     provider
-  )
-  const dec: number = await agg.decimals()
+  ) as AggregatorContract
+  const dec = await agg.decimals()
   const rd = await agg.latestRoundData()
   const rate = ethers.BigNumber.from(rd[1])
   const manaWei = ethers.BigNumber.from(amount).mul(ethers.BigNumber.from(10).pow(dec)).div(rate)
@@ -50,10 +73,12 @@ async function sendUseCredits(chainId: number, args: unknown, signer: ethers.Sig
   // silently. Re-read the active network and abort instead of sending useCredits into the void.
   const active = await web3.getNetwork()
   if (active.chainId !== chainId) {
-    throw new Error(`Wrong network: wallet is on chain ${active.chainId}, expected ${chainId}. Switch networks and try again.`)
+    throw new Error(
+      `Wrong network: wallet is on chain ${active.chainId}, expected ${chainId}. Switch networks and try again.`
+    )
   }
   const cm = getContract(ContractName.CreditsManager, chainId)
-  const contract = new ethers.Contract(cm.address, cm.abi, signer)
+  const contract = new ethers.Contract(cm.address, cm.abi, signer) as CreditsManagerContract
   const tx = await contract.useCredits(args, amoyGasOverrides(chainId))
   const receipt = await tx.wait()
   return receipt.transactionHash
@@ -75,7 +100,7 @@ export async function cancelListing(opts: { trade: Trade; signer: ethers.Signer 
   const marketplace = getContract(getContractName(trade.contract), trade.chainId)
   // beneficiary is irrelevant to the cancel hash (sent assets are signed without one); pass the seller.
   const onChainTrade = getOnChainTrade(trade, seller)
-  const contract = new ethers.Contract(marketplace.address, marketplace.abi, signer)
+  const contract = new ethers.Contract(marketplace.address, marketplace.abi, signer) as MarketplaceContract
   // cancelSignature takes a Trade[] (mirrors accept([...]) — see TradeService.cancel, which calls
   // it with [tradeToCancel]). Passing a single trade fails to ABI-encode as tuple[] and reverts.
   const tx = await contract.cancelSignature([onChainTrade], amoyGasOverrides(trade.chainId))

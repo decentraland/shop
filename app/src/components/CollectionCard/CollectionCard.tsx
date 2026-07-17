@@ -65,9 +65,7 @@ export function CollectionCard({ collection, cover, itemCount }: CollectionCardP
           ) : (
             <span className="coll-card__creator">&nbsp;</span>
           )}
-          <span className="coll-card__count">
-            {count == null ? '…' : t('collectionCard.itemCount', { count })}
-          </span>
+          <span className="coll-card__count">{count == null ? '…' : t('collectionCard.itemCount', { count })}</span>
         </div>
         <button
           className="coll-card__view"

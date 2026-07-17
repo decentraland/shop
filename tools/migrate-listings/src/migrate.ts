@@ -93,9 +93,7 @@ export async function prepareMigration(
       entry.credits = usdWeiToCredits(usdWei)
 
       const expiresAtMs =
-        expired || !listing.expiresAtMs
-          ? Date.now() + opts.expirationDays * 24 * 60 * 60 * 1000
-          : listing.expiresAtMs
+        expired || !listing.expiresAtMs ? Date.now() + opts.expirationDays * 24 * 60 * 60 * 1000 : listing.expiresAtMs
 
       entry.prepared = await buildUsdPeggedTrade({ listing, usdWei, expiresAtMs })
       entry.status = 'PREPARED'
@@ -123,9 +121,10 @@ export type RunOptions = {
 export async function runMigration(
   entries: MigrationEntry[],
   opts: RunOptions,
-  postTrade: (t: import('@dcl/schemas').TradeCreation, h: Record<string, string>) => Promise<
-    { ok: true; tradeId: string } | { ok: false; status: number; message: string }
-  >
+  postTrade: (
+    t: import('@dcl/schemas').TradeCreation,
+    h: Record<string, string>
+  ) => Promise<{ ok: true; tradeId: string } | { ok: false; status: number; message: string }>
 ): Promise<MigrationEntry[]> {
   for (const entry of entries) {
     if (entry.status !== 'PREPARED' || !entry.prepared) continue

@@ -9,8 +9,8 @@ async function loadFresh(env: Record<string, string | undefined>): Promise<Gasle
   vi.resetModules()
   // Stubbing with `undefined` removes the key entirely, so an omitted var reads as unset
   // (nullish) rather than an empty string — that distinction drives the `?? default` fallback.
-  vi.stubEnv('VITE_GASLESS_CHECKOUT', env.VITE_GASLESS_CHECKOUT as string)
-  vi.stubEnv('VITE_RELAYER_URL', env.VITE_RELAYER_URL as string)
+  vi.stubEnv('VITE_GASLESS_CHECKOUT', env.VITE_GASLESS_CHECKOUT)
+  vi.stubEnv('VITE_RELAYER_URL', env.VITE_RELAYER_URL)
   return import('~/lib/gasless-config')
 }
 

@@ -52,7 +52,11 @@ export function Cart() {
   const hasWearable = items.some(i => i.category !== 'emote')
 
   // Last-minute upsell: more credit-buyable listings not already in the cart.
-  const { data: suggested } = useQuery({ queryKey: ['upsell-listings'], queryFn: () => fetchListings({ first: 40 }), staleTime: 60_000 })
+  const { data: suggested } = useQuery({
+    queryKey: ['upsell-listings'],
+    queryFn: () => fetchListings({ first: 40 }),
+    staleTime: 60_000
+  })
   const { data: balance, isError: balanceError } = useBalance(session)
   const qc = useQueryClient()
   const navigate = useNavigate()
@@ -102,7 +106,11 @@ export function Cart() {
       setStatus('Preparing your order…')
       const purchases: CreditPurchase[] = []
       for (const line of lines) {
-        const { credit, maxCreditedValue } = await authorizeUsdCredit(session.identity, line.usdCents, line.item.tradeId)
+        const { credit, maxCreditedValue } = await authorizeUsdCredit(
+          session.identity,
+          line.usdCents,
+          line.item.tradeId
+        )
         reservedSalts.push(credit.id)
         purchases.push({ trade: line.trade, credits: [credit], maxCreditedValue })
       }
@@ -118,7 +126,9 @@ export function Cart() {
           // reservations — the credits-server reconciles those against the indexed CreditUsed event.
           // Release (rethrow) ONLY when every failure is a hard revert and none is still pending.
           const settled = await Promise.allSettled(hashes.map(h => waitForSettlement(h)))
-          const failures = settled.flatMap(r => (r.status === 'rejected' ? [r.reason] : []))
+          const failures = settled
+            .filter((r): r is PromiseRejectedResult => r.status === 'rejected')
+            .map(r => r.reason as unknown)
           if (failures.length && !failures.some(r => r instanceof SettlementPendingError)) {
             throw failures[0]
           }
@@ -266,7 +276,9 @@ export function Cart() {
         <span className="ico ico-cart cart-empty__ico" aria-hidden />
         <p className="cart-empty__title">{t('cart.empty.title')}</p>
         <p className="muted">{t('cart.empty.body')}</p>
-        <Link className="btn btn--purple" to="/assets">{t('cart.empty.cta')}</Link>
+        <Link className="btn btn--purple" to="/assets">
+          {t('cart.empty.cta')}
+        </Link>
       </div>
     )
   }
@@ -284,15 +296,21 @@ export function Cart() {
               const changed = !!line && line.priceCredits !== item.priceCredits
               return (
                 <div className="cart__row" key={item.id}>
-                  <div className="cart__thumb">{item.thumbnail ? <img src={item.thumbnail} alt={item.name} /> : null}</div>
+                  <div className="cart__thumb">
+                    {item.thumbnail ? <img src={item.thumbnail} alt={item.name} /> : null}
+                  </div>
                   <div className="cart__info">
                     <div className="cart__name">{item.name}</div>
-                    {item.creator ? <CreatorBadge address={item.creator} className="cart__creator" linkToProfile /> : null}
+                    {item.creator ? (
+                      <CreatorBadge address={item.creator} className="cart__creator" linkToProfile />
+                    ) : null}
                   </div>
                   <div className="cart__price">
                     <CurrencyIcon className="ccy-mark" /> {livePrice}
                     {changed ? (
-                      <span className="muted" style={{ marginLeft: 6, textDecoration: 'line-through' }}>{item.priceCredits}</span>
+                      <span className="muted" style={{ marginLeft: 6, textDecoration: 'line-through' }}>
+                        {item.priceCredits}
+                      </span>
                     ) : null}
                   </div>
                   <button
@@ -311,9 +329,13 @@ export function Cart() {
 
           {/* Utility actions kept subtle so they don't compete with Checkout. */}
           <div className="cart__utils">
-            <button className="link" onClick={() => editCart(clear)} disabled={busy}>Clear cart</button>
+            <button className="link" onClick={() => editCart(clear)} disabled={busy}>
+              Clear cart
+            </button>
             {import.meta.env.DEV ? (
-              <button className="link" onClick={getTestCredits} disabled={busy || !session}>Get test {CURRENCY.name} (dev)</button>
+              <button className="link" onClick={() => void getTestCredits()} disabled={busy || !session}>
+                Get test {CURRENCY.name} (dev)
+              </button>
             ) : null}
           </div>
         </div>
@@ -323,18 +345,32 @@ export function Cart() {
           <div className="cart__total">
             <div className="cart__total-line">
               <span>Total</span>
-              <strong><CurrencyIcon className="ccy-mark" /> {total}</strong>
+              <strong>
+                <CurrencyIcon className="ccy-mark" /> {total}
+              </strong>
             </div>
-            {session ? <div className="muted cart__balance">Your balance: <CurrencyIcon className="ccy-mark" /> {balanceLabel(balance, balanceError)}</div> : null}
+            {session ? (
+              <div className="muted cart__balance">
+                Your balance: <CurrencyIcon className="ccy-mark" /> {balanceLabel(balance, balanceError)}
+              </div>
+            ) : null}
           </div>
 
           <div className="cart__actions">
-            <button className="btn btn--purple cart__checkout" onClick={review ? confirmPurchase : checkout} disabled={busy}>
+            <button
+              className="btn btn--purple cart__checkout"
+              onClick={() => void (review ? confirmPurchase() : checkout())}
+              disabled={busy}
+            >
               {busy ? 'Working…' : review ? 'Confirm purchase' : 'Checkout'}
             </button>
-            <Link className="btn btn--ghost" to="/credits">Get {CURRENCY.name}</Link>
+            <Link className="btn btn--ghost" to="/credits">
+              Get {CURRENCY.name}
+            </Link>
             {hasWearable ? (
-              <button className="btn btn--ghost" onClick={() => setFittingOpen(true)} disabled={busy}>Try on outfit</button>
+              <button className="btn btn--ghost" onClick={() => setFittingOpen(true)} disabled={busy}>
+                Try on outfit
+              </button>
             ) : null}
           </div>
 
@@ -351,9 +387,13 @@ export function Cart() {
 
       {upsell.length > 0 ? (
         <section className="row cart-upsell">
-          <div className="row__head"><h2 className="row__title">You might also like</h2></div>
+          <div className="row__head">
+            <h2 className="row__title">You might also like</h2>
+          </div>
           <div className="row__track">
-            {upsell.map(i => <AssetCard key={i.id} item={i} />)}
+            {upsell.map(i => (
+              <AssetCard key={i.id} item={i} />
+            ))}
           </div>
         </section>
       ) : null}

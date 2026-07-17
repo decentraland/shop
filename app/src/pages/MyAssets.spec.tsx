@@ -45,7 +45,6 @@ vi.mock('~/lib/trades', () => ({
   ensureApproval: (...args: unknown[]) => ensureApproval(...args)
 }))
 
-// eslint-disable-next-line import/first
 import { MyAssets } from '~/pages/MyAssets'
 
 function renderPage() {

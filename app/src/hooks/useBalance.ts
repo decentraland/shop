@@ -19,5 +19,5 @@ export function useBalance(session: Session | null) {
  * loading, `balance` is undefined and this shows `0` — acceptable; the dash is only for the error case.
  */
 export function balanceLabel(balance: UsdBalance | undefined, isError: boolean): string | number {
-  return isError ? '—' : balance?.credits ?? 0
+  return isError ? '—' : (balance?.credits ?? 0)
 }

@@ -71,7 +71,7 @@ export function SearchDropdown({
   onSelectCreator,
   onRunSearch,
   onRemoveRecent,
-  onClearRecent,
+  onClearRecent
 }: SearchDropdownProps) {
   const enabled = query.length >= MIN_QUERY_LEN
 
@@ -81,7 +81,7 @@ export function SearchDropdown({
     enabled,
     // Keep the previous suggestions on screen while the next keystroke's results load (no flicker).
     placeholderData: keepPreviousData,
-    staleTime: 30_000,
+    staleTime: 30_000
   })
 
   const { data: collections = [] } = useQuery({
@@ -89,7 +89,7 @@ export function SearchDropdown({
     queryFn: () => fetchCollectionSuggestions(query),
     enabled,
     placeholderData: keepPreviousData,
-    staleTime: 30_000,
+    staleTime: 30_000
   })
 
   const { data: creators = [] } = useQuery({
@@ -97,7 +97,7 @@ export function SearchDropdown({
     queryFn: () => fetchCreatorSuggestions(query),
     enabled,
     placeholderData: keepPreviousData,
-    staleTime: 30_000,
+    staleTime: 30_000
   })
 
   const items = enabled ? (itemData?.items ?? []) : []

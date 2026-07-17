@@ -1,15 +1,10 @@
-import { ChainId, Network } from '@dcl/schemas'
+import { Network } from '@dcl/schemas'
 import { config } from '~/config'
 import type { Session } from '~/lib/auth'
 import { fetchTrade, postTrade } from '~/lib/api'
 import { cancelListing } from '~/lib/buy'
 import { manaWeiToCredits, readManaUsdRate } from '~/lib/mana-rate'
-import {
-  createPrimaryUsdPeggedListing,
-  createUsdPeggedListing,
-  ensureApproval,
-  ensureMinter
-} from '~/lib/trades'
+import { createPrimaryUsdPeggedListing, createUsdPeggedListing, ensureApproval, ensureMinter } from '~/lib/trades'
 
 // "Import your listings": bring a seller's OLD classic (MANA-priced) listings into the Shop as
 // credit-buyable. The server returns the raw price; we convert MANA→credits here via the oracle
@@ -110,7 +105,7 @@ export async function importListing(
   opts: { cancelOld?: boolean } = {}
 ): Promise<void> {
   const usdPrice = priceCredits / 10 // credits → USD (1 credit = $0.10)
-  const chainId = item.chainId as ChainId
+  const chainId = item.chainId
   const network = item.network as Network
 
   // Take the old MANA listing down first — otherwise POST /v1/trades 409s ("already an open order

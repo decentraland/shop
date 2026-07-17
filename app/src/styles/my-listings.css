@@ -131,14 +131,32 @@
 }
 
 /* My Assets — clear separation of "owned" (secondary) vs "created" (primary, grouped by collection) */
-.myassets__section { margin-bottom: 48px; }
-.myassets__section-head { margin-bottom: 18px; }
-.myassets__section-title { font-size: 22px; font-weight: 700; margin: 0; }
-.myassets__section-sub { color: var(--muted); font-size: 14px; margin: 4px 0 0; }
-.creations-collection { margin-bottom: 26px; }
+.myassets__section {
+  margin-bottom: 48px;
+}
+.myassets__section-head {
+  margin-bottom: 18px;
+}
+.myassets__section-title {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0;
+}
+.myassets__section-sub {
+  color: var(--muted);
+  font-size: 14px;
+  margin: 4px 0 0;
+}
+.creations-collection {
+  margin-bottom: 26px;
+}
 .creations-collection__name {
-  font-size: 15px; font-weight: 700; color: var(--text-2); margin: 0 0 14px;
-  padding-bottom: 8px; border-bottom: 1px solid var(--line);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-2);
+  margin: 0 0 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
 }
 
 /* Clickable cards → item detail. Navigation is a single overlaid button (.card-link-overlay) rather
@@ -147,7 +165,9 @@
 .asset-card--link,
 .publish-card--link {
   position: relative;
-  transition: box-shadow 0.15s ease, transform 0.15s ease;
+  transition:
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
 }
 .asset-card--link:hover,
 .publish-card--link:hover {
@@ -196,17 +216,49 @@
 
 /* Import-old-listings banner (top of My Assets) */
 .import-banner {
-  display: flex; align-items: center; gap: 14px; text-decoration: none; color: var(--text);
-  background: linear-gradient(100deg, rgba(165, 36, 179, 0.10), rgba(105, 31, 169, 0.06));
-  border: 1px solid rgba(105, 31, 169, 0.22); border-radius: 14px; padding: 14px 18px; margin: 4px 0 22px;
-  transition: box-shadow 0.15s ease, transform 0.15s ease;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  text-decoration: none;
+  color: var(--text);
+  background: linear-gradient(100deg, rgba(165, 36, 179, 0.1), rgba(105, 31, 169, 0.06));
+  border: 1px solid rgba(105, 31, 169, 0.22);
+  border-radius: 14px;
+  padding: 14px 18px;
+  margin: 4px 0 22px;
+  transition:
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
 }
-.import-banner:hover { box-shadow: 0 10px 26px rgba(105, 31, 169, 0.16); transform: translateY(-1px); }
-.import-banner__ico { font-size: 26px; }
-.import-banner__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.import-banner__text strong { font-size: 15px; }
-.import-banner__sub { color: var(--muted); font-size: 13px; }
+.import-banner:hover {
+  box-shadow: 0 10px 26px rgba(105, 31, 169, 0.16);
+  transform: translateY(-1px);
+}
+.import-banner__ico {
+  font-size: 26px;
+}
+.import-banner__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.import-banner__text strong {
+  font-size: 15px;
+}
+.import-banner__sub {
+  color: var(--muted);
+  font-size: 13px;
+}
 .import-banner__cta {
-  margin-left: auto; flex: none; background: var(--accent); color: #fff; font-weight: 700; font-size: 13px;
-  letter-spacing: 0.03em; text-transform: uppercase; padding: 9px 18px; border-radius: 9px;
+  margin-left: auto;
+  flex: none;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 9px 18px;
+  border-radius: 9px;
 }

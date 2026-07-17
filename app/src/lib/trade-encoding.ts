@@ -122,7 +122,10 @@ export function buildUseCreditsArgs(
   maxCreditedValue: string
 ) {
   const { selector, data } = buildAcceptCalldata(trades, buyer, marketplaceAbi)
-  const sumAvailable = credits.reduce((acc, c) => acc.add(ethers.BigNumber.from(c.availableAmount)), ethers.BigNumber.from(0))
+  const sumAvailable = credits.reduce(
+    (acc, c) => acc.add(ethers.BigNumber.from(c.availableAmount)),
+    ethers.BigNumber.from(0)
+  )
   const uncredited = ethers.BigNumber.from(maxCreditedValue).sub(sumAvailable)
   return {
     credits: credits.map(c => ({ value: c.amount, expiresAt: Number(c.expiresAt), salt: idToSalt(c.id) })),

@@ -25,7 +25,6 @@ vi.mock('decentraland-dapps/dist/modules/trades/TradeService', () => ({
 
 // ethers stays REAL — toCredits() uses formatEther and usdWeiToCents() uses BigInt.
 
-// eslint-disable-next-line import/first
 import {
   usdWeiToCents,
   fetchCatalog,
@@ -287,8 +286,40 @@ describe('when fetching the shop browse listings', () => {
       jsonOk({
         total: 2,
         data: [
-          { tradeId: 'a', listingType: 'primary', contractAddress: '0x1', itemId: '1', tokenId: null, name: 'A', thumbnail: '', rarity: 'common', category: 'wearable', wearableCategory: null, creator: '0xa', priceCredits: 5, available: 1, network: 'MATIC', chainId: 80002 },
-          { tradeId: 'b', listingType: 'secondary', contractAddress: '0x2', itemId: null, tokenId: '42', name: 'B', thumbnail: '', rarity: 'rare', category: 'emote', wearableCategory: null, creator: '0xb', priceCredits: 8, available: 1, network: 'MATIC', chainId: 80002 }
+          {
+            tradeId: 'a',
+            listingType: 'primary',
+            contractAddress: '0x1',
+            itemId: '1',
+            tokenId: null,
+            name: 'A',
+            thumbnail: '',
+            rarity: 'common',
+            category: 'wearable',
+            wearableCategory: null,
+            creator: '0xa',
+            priceCredits: 5,
+            available: 1,
+            network: 'MATIC',
+            chainId: 80002
+          },
+          {
+            tradeId: 'b',
+            listingType: 'secondary',
+            contractAddress: '0x2',
+            itemId: null,
+            tokenId: '42',
+            name: 'B',
+            thumbnail: '',
+            rarity: 'rare',
+            category: 'emote',
+            wearableCategory: null,
+            creator: '0xb',
+            priceCredits: 8,
+            available: 1,
+            network: 'MATIC',
+            chainId: 80002
+          }
         ]
       })
     )
@@ -356,10 +387,23 @@ describe('when fetching the shop browse listings', () => {
         total: 1,
         data: [
           {
-            tradeId: 's', listingType: 'primary', contractAddress: '0x1', itemId: '1', tokenId: null,
-            name: 'S', thumbnail: '', rarity: 'common', category: 'wearable', wearableCategory: null,
-            creator: '0xa', priceCredits: 7, available: 1, network: 'MATIC', chainId: 80002,
-            compareAtCredits: 10, saleEndsAt: 1_700_000_000
+            tradeId: 's',
+            listingType: 'primary',
+            contractAddress: '0x1',
+            itemId: '1',
+            tokenId: null,
+            name: 'S',
+            thumbnail: '',
+            rarity: 'common',
+            category: 'wearable',
+            wearableCategory: null,
+            creator: '0xa',
+            priceCredits: 7,
+            available: 1,
+            network: 'MATIC',
+            chainId: 80002,
+            compareAtCredits: 10,
+            saleEndsAt: 1_700_000_000
           }
         ]
       })
@@ -375,10 +419,23 @@ describe('when fetching the shop browse listings', () => {
         total: 1,
         data: [
           {
-            tradeId: 's', listingType: 'primary', contractAddress: '0x1', itemId: '1', tokenId: null,
-            name: 'S', thumbnail: '', rarity: 'common', category: 'wearable', wearableCategory: null,
-            creator: '0xa', priceCredits: 10, available: 1, network: 'MATIC', chainId: 80002,
-            compareAtCredits: 10, saleEndsAt: null
+            tradeId: 's',
+            listingType: 'primary',
+            contractAddress: '0x1',
+            itemId: '1',
+            tokenId: null,
+            name: 'S',
+            thumbnail: '',
+            rarity: 'common',
+            category: 'wearable',
+            wearableCategory: null,
+            creator: '0xa',
+            priceCredits: 10,
+            available: 1,
+            network: 'MATIC',
+            chainId: 80002,
+            compareAtCredits: 10,
+            saleEndsAt: null
           }
         ]
       })
@@ -482,9 +539,7 @@ describe('when fetching the unified browse listings', () => {
   })
 
   it('should default first to 100 and normalise a missing manaWei to null', async () => {
-    fetchMock.mockResolvedValueOnce(
-      jsonOk({ data: [{ ...legacyRow, manaWei: undefined, source: 'native' }] })
-    )
+    fetchMock.mockResolvedValueOnce(jsonOk({ data: [{ ...legacyRow, manaWei: undefined, source: 'native' }] }))
     const { items, total } = await fetchUnified()
     expect(lastUrl()).toContain('first=100')
     expect(items[0].manaWei).toBeNull()

@@ -15,7 +15,7 @@ const LINK_ICON: Record<LinkType, string> = {
   website: 'ico-website',
   twitter: 'ico-twitter',
   discord: 'ico-discord',
-  facebook: 'ico-facebook',
+  facebook: 'ico-facebook'
 }
 
 export function CreatorHero({ address }: { address: string }) {
@@ -41,7 +41,7 @@ export function CreatorHero({ address }: { address: string }) {
     getDisplayName({
       name: profile?.name,
       hasClaimedName: profile?.hasClaimedName,
-      ethAddress: profile?.ethAddress ?? address,
+      ethAddress: profile?.ethAddress ?? address
     })
   )
 

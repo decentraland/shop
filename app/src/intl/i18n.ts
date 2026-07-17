@@ -23,20 +23,17 @@ function flatten(obj: Record<string, unknown>, prefix = '', out: Record<string, 
 }
 
 export const MESSAGES: Record<Locale, Record<string, string>> = {
-  en: flatten(en as Record<string, unknown>),
-  es: flatten(es as Record<string, unknown>)
+  en: flatten(en),
+  es: flatten(es)
 }
 
 const cache = createIntlCache()
 const intls: Partial<Record<Locale, IntlShape>> = {}
 export function getIntl(locale: Locale): IntlShape {
   if (!intls[locale]) {
-    intls[locale] = createIntl(
-      { locale, defaultLocale: 'en', messages: MESSAGES[locale], onError: () => {} },
-      cache
-    )
+    intls[locale] = createIntl({ locale, defaultLocale: 'en', messages: MESSAGES[locale], onError: () => {} }, cache)
   }
-  return intls[locale]!
+  return intls[locale]
 }
 
 let active: IntlShape = getIntl('en')
@@ -46,5 +43,5 @@ export function setActiveLocale(locale: Locale): void {
 
 // Localized string for a key. Interpolation: t('x.y', { name }). Missing keys fall back to the id.
 export function t(id: string, values?: Record<string, string | number>): string {
-  return active.formatMessage({ id }, values) as string
+  return active.formatMessage({ id }, values)
 }

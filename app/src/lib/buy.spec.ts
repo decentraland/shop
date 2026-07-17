@@ -72,7 +72,6 @@ vi.mock('ethers', async importOriginal => {
   }
 })
 
-// eslint-disable-next-line import/first
 import { buyWithCredits, buyManyWithCredits, cancelListing, type CreditPurchase, type SpendableCredit } from '~/lib/buy'
 
 const B32 = (n: string) => '0x' + n.repeat(64)
@@ -254,9 +253,9 @@ describe('when buying a single listing with credits', () => {
   })
 
   it('and there are no credits it throws before touching the chain', async () => {
-    await expect(
-      buyWithCredits({ trade: fakeTrade('0xmarket'), buyer: BUYER, signer, credits: [] })
-    ).rejects.toThrow('No credits to spend')
+    await expect(buyWithCredits({ trade: fakeTrade('0xmarket'), buyer: BUYER, signer, credits: [] })).rejects.toThrow(
+      'No credits to spend'
+    )
     expect(useCreditsCalls).toHaveLength(0)
   })
 

@@ -78,9 +78,7 @@ export async function reviewCart(
 
   const liveTotalCredits = buyable.reduce((sum, line) => sum + line.priceCredits, 0)
   const orderChanged =
-    unavailable.length > 0 ||
-    own.length > 0 ||
-    buyable.some(line => line.priceCredits !== line.item.priceCredits)
+    unavailable.length > 0 || own.length > 0 || buyable.some(line => line.priceCredits !== line.item.priceCredits)
 
   return { buyable, unavailable, own, liveTotalCredits, orderChanged }
 }

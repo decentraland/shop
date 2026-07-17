@@ -1,6 +1,7 @@
 import js from '@eslint/js'
 import tseslint from 'typescript-eslint'
 import reactHooks from 'eslint-plugin-react-hooks'
+import importX from 'eslint-plugin-import-x'
 import prettier from 'eslint-config-prettier'
 import globals from 'globals'
 
@@ -15,19 +16,24 @@ export default tseslint.config(
     languageOptions: {
       parserOptions: {
         projectService: true,
-        tsconfigRootDir: import.meta.dirname,
+        tsconfigRootDir: import.meta.dirname
       },
       globals: {
         ...globals.browser,
-        ...globals.node,
-      },
+        ...globals.node
+      }
     },
+    // Register the (maintained) import plugin under the `import` name. `import/first` enforces
+    // import-before-code in source; specs are exempted (see override below) because vi.mock()
+    // hoisting requires the mock setup to precede the imports it intercepts.
     plugins: {
       'react-hooks': reactHooks,
+      import: importX
     },
     rules: {
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'warn',
+      'import/first': 'error',
       '@typescript-eslint/no-unnecessary-type-assertion': 'warn',
       '@typescript-eslint/require-await': 'warn',
       '@typescript-eslint/no-misused-promises': 'warn',
@@ -36,18 +42,30 @@ export default tseslint.config(
         'warn',
         {
           selector: 'function',
-          format: ['PascalCase', 'camelCase'],
-        },
-      ],
-    },
+          format: ['PascalCase', 'camelCase']
+        }
+      ]
+    }
   },
 
-  // Tests reference class methods unbound when wiring up mocks.
+  // Tests reference class methods unbound when wiring up mocks, and mocks/fixtures legitimately
+  // traffic in `any` (vi.fn() return values, stubbed globals, cast partials). Enforcing the
+  // no-unsafe-* / no-explicit-any family here is high-noise and low-value, so relax it for specs
+  // only — real source stays strict.
   {
     files: ['**/*.spec.{ts,tsx}'],
     rules: {
       '@typescript-eslint/unbound-method': 'off',
-    },
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-return': 'off',
+      '@typescript-eslint/no-unsafe-argument': 'off',
+      '@typescript-eslint/require-await': 'off',
+      'react-hooks/exhaustive-deps': 'off',
+      'import/first': 'off'
+    }
   },
 
   // Must come last: turn off rules that conflict with Prettier formatting.

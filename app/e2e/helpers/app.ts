@@ -8,7 +8,7 @@ export const BASE = process.env.E2E_BASE_URL ?? 'http://localhost:5273'
 const CORS = {
   'access-control-allow-origin': '*',
   'access-control-allow-headers': '*',
-  'access-control-allow-methods': 'GET,POST,PUT,DELETE,OPTIONS',
+  'access-control-allow-methods': 'GET,POST,PUT,DELETE,OPTIONS'
 }
 // 1x1 transparent PNG.
 const PNG = Buffer.from(
@@ -57,13 +57,13 @@ function defaults(): Fixtures {
         availableAmount: '1000000000000000000',
         expiresAt: Math.floor(Date.now() / 1000) + 900,
         signature: '0x' + 'ab'.repeat(65),
-        contract: '0x8052a560e6e6ac86eeb7e711a4497f639b322fb3',
+        contract: '0x8052a560e6e6ac86eeb7e711a4497f639b322fb3'
       },
       maxCreditedValue: '1000000000000000000',
       usdCents: 2700,
-      oracleRate: '26960836',
+      oracleRate: '26960836'
     },
-    trade: null,
+    trade: null
   }
 }
 
@@ -98,7 +98,7 @@ function toCatalogRow(l: any) {
     chainId: l.chainId,
     thumbnail: l.thumbnail ?? '',
     price: priceWei,
-    priceCredits,
+    priceCredits
   }
 }
 
@@ -128,7 +128,7 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
     return req.respond({
       status: 200,
       headers: { 'content-type': 'application/json', ...CORS },
-      body: handleRpc(req.postData() || '{}'),
+      body: handleRpc(req.postData() || '{}')
     })
   }
   // Meta-transaction relayer (transactions-server): gasless checkout POSTs the signed useCredits
@@ -142,7 +142,7 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
     return req.respond({
       status: 200,
       headers: { 'content-type': 'text/html', ...CORS },
-      body: '<!doctype html><title>preview</title>',
+      body: '<!doctype html><title>preview</title>'
     })
   }
   // Images / builder content.
@@ -281,10 +281,10 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
               links: [
                 { name: 'website', url: 'https://galaxy.example' },
                 { name: 'twitter', url: 'https://www.twitter.com/galaxy' },
-                { name: 'discord', url: 'https://discord.gg/galaxy' },
-              ],
-            },
-          },
+                { name: 'discord', url: 'https://discord.gg/galaxy' }
+              ]
+            }
+          }
         ])
       }
       // Any other pointer is the signed-in user's own store: serve the per-run fixture if provided.

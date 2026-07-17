@@ -62,7 +62,9 @@
   background: var(--media);
 }
 @media (max-width: 900px) {
-  .item-detail__preview { aspect-ratio: 1 / 1; }
+  .item-detail__preview {
+    aspect-ratio: 1 / 1;
+  }
 }
 .item-detail__preview iframe,
 .item-detail__preview > * {
@@ -74,50 +76,114 @@
 /* "On avatar / Item" toggle over the preview (wearables only), pinned top-left (matches the Figma).
    The higher-specificity selector undoes the greedy `> *` sizing so the pill keeps its intrinsic size. */
 .item-detail__preview > .item-preview__toggle {
-  position: absolute; top: 16px; left: 16px; z-index: 2;
-  width: auto; height: auto; display: inline-flex; gap: 2px; padding: 3px;
-  background: rgba(255, 255, 255, .92); border: 1px solid var(--line); border-radius: 999px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, .12);
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 2;
+  width: auto;
+  height: auto;
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
 }
 .item-preview__toggle button {
-  border: 0; background: none; cursor: pointer; padding: 6px 16px; border-radius: 999px;
-  font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
-  color: var(--muted); transition: background .12s ease, color .12s ease;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  padding: 6px 16px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
 }
-.item-preview__toggle button.is-active { background: var(--text); color: #fff; }
-.item-preview__toggle button:not(.is-active):hover { color: var(--text); }
+.item-preview__toggle button.is-active {
+  background: var(--text);
+  color: #fff;
+}
+.item-preview__toggle button:not(.is-active):hover {
+  color: var(--text);
+}
 /* Emote play/pause + sound + scrub controls, pinned to the bottom of the preview (emotes only). The
    higher-specificity selector undoes the greedy `> *` sizing. */
 .item-detail__preview > .item-preview__emote-controls {
-  position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); z-index: 2;
-  width: auto; height: auto; max-width: 92%; display: flex; align-items: center;
-  background: rgba(255, 255, 255, .92); border: 1px solid var(--line); border-radius: 12px;
-  padding: 6px 10px; box-shadow: 0 1px 4px rgba(0, 0, 0, .12);
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  width: auto;
+  height: auto;
+  max-width: 92%;
+  display: flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 6px 10px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
 }
 
 /* Body-shape incompatibility note (pill at the bottom of the preview). Overrides the greedy `> *`. */
 .item-detail__preview > .item-preview__note {
-  position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); z-index: 2;
-  width: auto; height: auto; max-width: 88%; margin: 0; text-align: center;
-  background: rgba(22, 21, 24, .78); color: #fff; font-size: 12px; font-weight: 500;
-  padding: 6px 12px; border-radius: 999px;
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  width: auto;
+  height: auto;
+  max-width: 88%;
+  margin: 0;
+  text-align: center;
+  background: rgba(22, 21, 24, 0.78);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: 999px;
 }
 
 /* Loader overlay while the profile settles / the preview iframe loads — masks the load so it never
    flickers raw. Overrides the greedy `> *` sizing; sits above the iframe (z-index 1) but below the
    controls (z-index 2). Background stays transparent so the surface shows through. */
 .item-detail__preview > .item-preview__loading {
-  position: absolute; inset: 0; z-index: 1;
-  display: flex; align-items: center; justify-content: center;
-  width: 100%; height: 100%; background: transparent;
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  background: transparent;
 }
 .item-preview__spinner {
-  width: 34px; height: 34px; border-radius: 50%;
-  border: 3px solid var(--line); border-top-color: var(--accent);
-  animation: item-preview-spin .8s linear infinite;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 3px solid var(--line);
+  border-top-color: var(--accent);
+  animation: item-preview-spin 0.8s linear infinite;
 }
-@keyframes item-preview-spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .item-preview__spinner { animation-duration: 2.4s; } }
+@keyframes item-preview-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .item-preview__spinner {
+    animation-duration: 2.4s;
+  }
+}
 
 /* Info column */
 .item-detail__info {
@@ -148,10 +214,16 @@
   place-items: center;
   color: var(--text-2);
   cursor: pointer;
-  transition: color .12s ease, background .12s ease;
+  transition:
+    color 0.12s ease,
+    background 0.12s ease;
 }
-.item-detail__fav:hover { background: var(--line); }
-.item-detail__fav.is-on { color: var(--dcl-red); }
+.item-detail__fav:hover {
+  background: var(--line);
+}
+.item-detail__fav.is-on {
+  color: var(--dcl-red);
+}
 .item-detail__fav .ico-heart {
   width: 18px;
   height: 18px;
@@ -204,11 +276,23 @@
   gap: 8px;
 }
 .item-detail__desc-text {
-  margin: 0; color: var(--text-2); font-size: 14px; line-height: 30px;
-  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden;
+  margin: 0;
+  color: var(--text-2);
+  font-size: 14px;
+  line-height: 30px;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow: hidden;
 }
-.item-detail__desc-text.is-expanded { -webkit-line-clamp: unset; overflow: visible; }
-.item-detail__desc-toggle { font-size: 13px; align-self: flex-start; }
+.item-detail__desc-text.is-expanded {
+  -webkit-line-clamp: unset;
+  overflow: visible;
+}
+.item-detail__desc-toggle {
+  font-size: 13px;
+  align-self: flex-start;
+}
 
 /* Creator / Collection meta (two columns to mirror the Figma). */
 .item-detail__meta {
@@ -224,11 +308,26 @@
 }
 /* PDP creator badge: larger avatar + prominent purple link (overrides the compact card default).
    Matches the Figma: 48px avatar, 12px gap, 14px underlined purple name. */
-.item-detail__creator.creator { color: var(--accent); font-size: 14px; gap: 12px; }
-.item-detail__creator .creator__ava { width: 48px; height: 48px; }
-.item-detail__creator .creator__ava--letter { font-size: 18px; }
-.item-detail__creator .creator__name { color: var(--accent); font-weight: 500; text-decoration: underline; }
-.item-detail__creator.creator--link:hover .creator__name { color: var(--brand-violet); }
+.item-detail__creator.creator {
+  color: var(--accent);
+  font-size: 14px;
+  gap: 12px;
+}
+.item-detail__creator .creator__ava {
+  width: 48px;
+  height: 48px;
+}
+.item-detail__creator .creator__ava--letter {
+  font-size: 18px;
+}
+.item-detail__creator .creator__name {
+  color: var(--accent);
+  font-weight: 500;
+  text-decoration: underline;
+}
+.item-detail__creator.creator--link:hover .creator__name {
+  color: var(--brand-violet);
+}
 
 /* Divider between the meta block and the price/CTA block. */
 .item-detail__divider {
@@ -359,9 +458,11 @@
   text-transform: uppercase;
   letter-spacing: 0.046em;
   cursor: pointer;
-  transition: filter .15s ease;
+  transition: filter 0.15s ease;
 }
-.item-detail__addcart:hover:not(:disabled) { filter: brightness(1.35); }
+.item-detail__addcart:hover:not(:disabled) {
+  filter: brightness(1.35);
+}
 .item-detail__addcart:disabled {
   opacity: 0.55;
   cursor: default;
@@ -385,18 +486,38 @@
 }
 
 @media (max-width: 900px) {
-  .item-detail__title { font-size: 20px; line-height: 24px; }
+  .item-detail__title {
+    font-size: 20px;
+    line-height: 24px;
+  }
   /* Mobile order (matches the Figma): creator before the description, then the buy section.
      Explicit order on every child so the positioned items land between the chips and the divider
      (a bare `order` only on two of them would push them past the default-order siblings). */
-  .item-detail__info-head { order: 0; }
-  .item-detail__chips { order: 1; }
-  .item-detail__meta { order: 2; grid-template-columns: 1fr; }
-  .item-detail__description { order: 3; }
-  .item-detail__divider { order: 4; }
-  .item-detail__price-block { order: 5; }
-  .item-detail__ctas { order: 6; }
-  .item-detail__status { order: 7; }
+  .item-detail__info-head {
+    order: 0;
+  }
+  .item-detail__chips {
+    order: 1;
+  }
+  .item-detail__meta {
+    order: 2;
+    grid-template-columns: 1fr;
+  }
+  .item-detail__description {
+    order: 3;
+  }
+  .item-detail__divider {
+    order: 4;
+  }
+  .item-detail__price-block {
+    order: 5;
+  }
+  .item-detail__ctas {
+    order: 6;
+  }
+  .item-detail__status {
+    order: 7;
+  }
 }
 
 /* ---------------- Collection carousel ---------------- */
@@ -458,19 +579,35 @@
   display: grid;
   place-items: center;
   cursor: pointer;
-  box-shadow: 0 6px 16px rgba(22, 21, 24, .16);
-  transition: transform .12s ease, box-shadow .12s ease, opacity .12s ease;
+  box-shadow: 0 6px 16px rgba(22, 21, 24, 0.16);
+  transition:
+    transform 0.12s ease,
+    box-shadow 0.12s ease,
+    opacity 0.12s ease;
 }
-.collection-carousel__arrow--left { left: -10px; }
-.collection-carousel__arrow--right { right: -10px; }
+.collection-carousel__arrow--left {
+  left: -10px;
+}
+.collection-carousel__arrow--right {
+  right: -10px;
+}
 .collection-carousel__arrow:hover:not(:disabled) {
   transform: translateY(-50%) scale(1.06);
-  box-shadow: 0 8px 20px rgba(22, 21, 24, .2);
+  box-shadow: 0 8px 20px rgba(22, 21, 24, 0.2);
 }
-.collection-carousel__arrow:disabled { opacity: 0; pointer-events: none; }
-@media (prefers-reduced-motion: reduce) { .collection-carousel__arrow { transition: none; } }
+.collection-carousel__arrow:disabled {
+  opacity: 0;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .collection-carousel__arrow {
+    transition: none;
+  }
+}
 @media (max-width: 900px) {
-  .collection-carousel__arrow { display: none; }
+  .collection-carousel__arrow {
+    display: none;
+  }
 }
 
 .collection-carousel__track {
@@ -485,7 +622,9 @@
   scroll-snap-type: x proximity;
   scrollbar-width: none;
 }
-.collection-carousel__track::-webkit-scrollbar { display: none; }
+.collection-carousel__track::-webkit-scrollbar {
+  display: none;
+}
 /* Each slide is the SHARED <AssetCard> (root class .card) — sized identically to the browse grid /
    Overview rails (Figma 281×300) so a card here is indistinguishable from a card anywhere else. This
    mirrors index.css `.row__track > *`. */
@@ -493,7 +632,11 @@
   flex: 0 0 281px;
   scroll-snap-align: start;
 }
-@media (max-width: 720px) { .collection-carousel__track > .card { flex: 0 0 44vw; } }
+@media (max-width: 720px) {
+  .collection-carousel__track > .card {
+    flex: 0 0 44vw;
+  }
+}
 
 /* Paging dots below the row. */
 .collection-carousel__dots {
@@ -512,9 +655,14 @@
   background: var(--line-strong);
   opacity: 0.5;
   cursor: pointer;
-  transition: opacity .12s ease, background .12s ease, transform .12s ease;
+  transition:
+    opacity 0.12s ease,
+    background 0.12s ease,
+    transform 0.12s ease;
 }
-.collection-carousel__dot:hover { opacity: 0.8; }
+.collection-carousel__dot:hover {
+  opacity: 0.8;
+}
 .collection-carousel__dot.is-active {
   background: var(--accent);
   opacity: 1;
@@ -531,6 +679,14 @@
   text-align: center;
   gap: 14px;
 }
-.item-detail__notfound-ico { width: 44px; height: 44px; opacity: 0.4; }
-.item-detail__notfound-title { font-size: 22px; }
-.item-detail--notfound .btn { margin-top: 6px; }
+.item-detail__notfound-ico {
+  width: 44px;
+  height: 44px;
+  opacity: 0.4;
+}
+.item-detail__notfound-title {
+  font-size: 22px;
+}
+.item-detail--notfound .btn {
+  margin-top: 6px;
+}

@@ -27,7 +27,7 @@ function initialFor(name: string | undefined, address: string): string {
 export function CreatorBadge({
   address,
   className,
-  linkToProfile,
+  linkToProfile
 }: {
   address?: string
   className?: string

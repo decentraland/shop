@@ -20,7 +20,6 @@ vi.mock('~/lib/buy-gasless', () => ({ waitForSettlement, SettlementPendingError 
 // Partial mock: keep the real module (types + other exports) but stub the ownership check.
 vi.mock('~/lib/api', async orig => ({ ...(await orig<Record<string, unknown>>()), fetchOwnsItem }))
 
-// eslint-disable-next-line import/first
 import { Success } from '~/pages/Success'
 
 const item = {

@@ -49,6 +49,6 @@ export function walletSignerFromEthers(
       )
       return { ...prepared.trade, signature }
     },
-    cancelOld
+    cancelOld,
   }
 }

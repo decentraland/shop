@@ -39,14 +39,21 @@ export function CartPopover() {
         {items.slice(-4).map(i => (
           <div className="cart-pop__row" key={i.id}>
             <div className="cart-pop__thumb">{i.thumbnail ? <img src={i.thumbnail} alt={i.name} /> : null}</div>
-            <div className="cart-pop__name" title={i.name}>{i.name}</div>
-            <div className="cart-pop__price"><CurrencyIcon className="ccy-mark" /> {i.priceCredits}</div>
+            <div className="cart-pop__name" title={i.name}>
+              {i.name}
+            </div>
+            <div className="cart-pop__price">
+              <CurrencyIcon className="ccy-mark" /> {i.priceCredits}
+            </div>
           </div>
         ))}
       </div>
       <div className="cart-pop__foot">
         <span className="cart-pop__total">
-          {items.length} item{items.length > 1 ? 's' : ''} · <strong><CurrencyIcon className="ccy-mark" /> {total}</strong>
+          {items.length} item{items.length > 1 ? 's' : ''} ·{' '}
+          <strong>
+            <CurrencyIcon className="ccy-mark" /> {total}
+          </strong>
         </span>
         <div className="cart-pop__actions">
           <button className="btn btn--ghost btn--sm" onClick={() => setFittingOpen(true)}>

@@ -184,7 +184,7 @@ export async function fetchCollectionItems(
     unwrap(payload).map(async raw => {
       const rarity = raw.rarity ?? 'common'
       const total = Number(raw.total_supply ?? 0) || 0
-      let max = 0
+      let max: number
       try {
         max = Rarity.getMaxSupply(rarity as Rarity)
       } catch {

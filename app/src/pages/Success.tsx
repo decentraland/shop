@@ -35,7 +35,7 @@ function useSettlement(txHash: string | undefined, ownership: OwnershipCheck | n
   useEffect(() => {
     if (!txHash) return
     let cancelled = false
-    ;(async () => {
+    const checkSettlement = async () => {
       // Gate 1: wait for the tx receipt. ~5 min of polling (20 × 15s); a reverted tx fails fast.
       let mined = false
       for (let attempt = 0; attempt < 20 && !cancelled; attempt++) {
@@ -71,10 +71,16 @@ function useSettlement(txHash: string | undefined, ownership: OwnershipCheck | n
       // Bought + mined, but the indexer hasn't caught up within the window. Not a failure — surface a
       // "will appear shortly" state instead of a false "It's yours!" over an empty wardrobe.
       if (!cancelled) setState('timed-out')
-    })()
+    }
+
+    void checkSettlement()
+
     return () => {
       cancelled = true
     }
+    // `ownerKey` is the stringified `ownership` — depend on it (not the object) so the poll doesn't
+    // restart on a new object reference carrying identical values.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [txHash, ownerKey])
   return state
 }
@@ -126,7 +132,7 @@ export function Success() {
   const avatarFits = !!shape && wearables.every(w => isCompatible(w, shape))
   const target = dominantShape(wearables) ?? shape ?? BASE_MALE
   const useAvatar = !!session?.address && avatarFits
-  const previewProfile = useAvatar ? (session!.address as string) : 'default'
+  const previewProfile = useAvatar ? session.address : 'default'
   const previewBodyShape = useAvatar ? undefined : target
 
   // No wearables (emote-only purchase, or a wearable missing a URN) → render that single item directly.
@@ -155,7 +161,7 @@ export function Success() {
             key={single.id}
             contractAddress={single.contractAddress}
             tokenId={single.tokenId ?? undefined}
-            itemId={single.tokenId ? undefined : single.itemId ?? undefined}
+            itemId={single.tokenId ? undefined : (single.itemId ?? undefined)}
             profile={previewProfile}
             bodyShape={singleIsEmote ? undefined : previewBodyShape}
             type={singleIsEmote ? undefined : PreviewType.AVATAR}
@@ -177,8 +183,8 @@ export function Success() {
               {settlement === 'indexing' ? (
                 <>
                   Payment confirmed — adding{' '}
-                  {items.length === 1 ? <strong>{hero.name}</strong> : `${items.length} items`} to your wardrobe.
-                  Almost there.
+                  {items.length === 1 ? <strong>{hero.name}</strong> : `${items.length} items`} to your wardrobe. Almost
+                  there.
                 </>
               ) : (
                 <>
@@ -200,8 +206,10 @@ export function Success() {
             <h1 className="success__title">Still processing…</h1>
             <p className="success__sub">
               This is taking longer than usual to confirm. Your purchase may still complete — check{' '}
-              <button className="link" onClick={() => navigate('/my-purchases')}>My Purchases</button> in a
-              few minutes to see the final status. No need to buy again.
+              <button className="link" onClick={() => navigate('/my-purchases')}>
+                My Purchases
+              </button>{' '}
+              in a few minutes to see the final status. No need to buy again.
             </p>
             <div className="success__links">
               {showExplorer ? (
@@ -223,8 +231,8 @@ export function Success() {
           <>
             <h1 className="success__title">Your purchase didn&rsquo;t go through</h1>
             <p className="success__sub">
-              The transaction failed on-chain, so nothing was delivered. Your credits weren&rsquo;t spent
-              (any hold is released shortly) — you can try again.
+              The transaction failed on-chain, so nothing was delivered. Your credits weren&rsquo;t spent (any hold is
+              released shortly) — you can try again.
             </p>
             <div className="success__links">
               {showExplorer ? (

@@ -56,7 +56,7 @@ async function toSession(res: {
 
 export async function login(providerType: ProviderType = ProviderType.INJECTED): Promise<Session> {
   const connection = await getConnection()
-  const res = await connection.connect(providerType, config.chainId as ChainId)
+  const res = await connection.connect(providerType, config.chainId)
   return toSession(res)
 }
 

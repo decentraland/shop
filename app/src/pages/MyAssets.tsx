@@ -36,7 +36,7 @@ function assetToItem(a: MyAsset): CatalogItem {
     priceCredits: a.listingPrice ?? 0,
     gender: null,
     isSmart: false, // TODO: legacy listings don't have the isSmart flag, but we should add it to the API or retrieve it somehow.
-    tokenId: a.tokenId,
+    tokenId: a.tokenId
   }
 }
 
@@ -55,7 +55,7 @@ function publishableToItem(p: PublishableItem): CatalogItem {
     thumbnail: p.thumbnail,
     priceCredits: 0,
     gender: null,
-    isSmart: false, // TODO: legacy listings don't have the isSmart flag, but we should add it to the API or retrieve it somehow.
+    isSmart: false // TODO: legacy listings don't have the isSmart flag, but we should add it to the API or retrieve it somehow.
   }
 }
 
@@ -109,7 +109,7 @@ export function MyAssets() {
     error: queryError,
     hasNextPage,
     isFetchingNextPage,
-    fetchNextPage,
+    fetchNextPage
   } = useInfiniteGrid(
     ['my-assets', address],
     skip =>
@@ -121,7 +121,7 @@ export function MyAssets() {
   const { data: importable } = useQuery({
     queryKey: ['importable', address],
     queryFn: () => fetchImportable(address as string),
-    enabled: !!address,
+    enabled: !!address
   })
   const importCount = (importable?.creations.length ?? 0) + (importable?.owned.length ?? 0)
 
@@ -129,12 +129,12 @@ export function MyAssets() {
   const {
     data: publishable,
     isLoading: publishableLoading,
-    isError: publishableError,
+    isError: publishableError
   } = useQuery({
     queryKey: ['publishable-items', address],
     queryFn: () => fetchPublishableItems(address as string, session!.identity),
     enabled: !!session,
-    retry: false,
+    retry: false
   })
 
   // On-sale state per item (from the v2 catalog), so we can separate listed items from unlisted ones.
@@ -151,7 +151,7 @@ export function MyAssets() {
         for (const [itemId, v] of Object.entries(m)) merged[`${ca}-${itemId}`] = v
       }
       return merged
-    },
+    }
   })
 
   const saleFor = (item: PublishableItem) => saleState?.[`${item.contractAddress}-${item.blockchainItemId}`]
@@ -265,7 +265,7 @@ export function MyAssets() {
                         e.stopPropagation()
                         track('Shop Started Listing', {
                           listing_type: 'secondary',
-                          item_id: asset.itemId ?? asset.tokenId ?? null,
+                          item_id: asset.itemId ?? asset.tokenId ?? null
                         })
                         setSelling(asset)
                       }}

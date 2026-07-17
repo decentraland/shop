@@ -15,7 +15,9 @@ vi.mock('~/hooks/useProfile', () => ({ useProfile: () => ({ data: undefined }) }
 vi.mock('~/components/LazyWearablePreview', () => ({
   WearablePreview: (p: { urns?: string[]; onLoad?: () => void }) => {
     // Fire onLoad async (like the real iframe), not during render.
-    useEffect(() => { p.onLoad?.() }, [p.onLoad])
+    useEffect(() => {
+      p.onLoad?.()
+    }, [p.onLoad])
     return <div data-testid="wp" data-urns={(p.urns ?? []).join(',')} />
   }
 }))
@@ -60,7 +62,11 @@ beforeEach(() => {
 describe('FittingRoom', () => {
   it('renders nothing when closed', () => {
     useCart.setState({ items: [hatA], fittingOpen: false })
-    const { container } = render(<MemoryRouter><FittingRoom /></MemoryRouter>)
+    const { container } = render(
+      <MemoryRouter>
+        <FittingRoom />
+      </MemoryRouter>
+    )
     expect(container.firstChild).toBeNull()
   })
 
@@ -87,7 +93,7 @@ describe('FittingRoom', () => {
     expect(screen.getAllByText(/1 per slot/i)).toHaveLength(2) // both hats
   })
 
-  it('disables the toggle for an emote (can\'t be worn)', () => {
+  it("disables the toggle for an emote (can't be worn)", () => {
     const emote = item({ id: 'e', name: 'Dance', category: 'emote', wearableCategory: 'dance', itemId: '99' })
     open([top, emote])
     const emoteRow = screen.getByText('Dance').closest('.fitting-row') as HTMLElement
