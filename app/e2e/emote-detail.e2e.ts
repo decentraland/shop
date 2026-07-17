@@ -53,5 +53,33 @@ describe('view an emote item detail page', () => {
     await page.waitForSelector('.item-preview__emote-controls', { timeout: 20000 })
     const hasControls = await page.$('.item-preview__emote-controls')
     expect(hasControls).not.toBeNull()
+
+    // The playback bar reads as a proper bar (not the collapsed empty pill the ui2 default produced):
+    // its play/pause button and scrub slider are present.
+    await page.waitForSelector('.item-preview__emote-controls .MuiButtonBase-root', { timeout: 20000 })
+    const playButton = await page.$('.item-preview__emote-controls .MuiButtonBase-root')
+    expect(playButton).not.toBeNull()
+    const scrubber = await page.$(".item-preview__emote-controls input[type='range']")
+    expect(scrubber).not.toBeNull()
+
+    // The bar sits at the bottom of the preview, stays within it horizontally, and has real width —
+    // proving the ui2 container's position:absolute overlay layout was neutralized (a collapsed bar
+    // would be a near-zero-width empty pill). Loose bounds only; no exact-pixel assertions.
+    const layout = await page.evaluate(() => {
+      const preview = document.querySelector('.item-detail__preview') as HTMLElement
+      const bar = document.querySelector('.item-preview__emote-controls') as HTMLElement
+      const p = preview.getBoundingClientRect()
+      const b = bar.getBoundingClientRect()
+      return {
+        barWidth: b.width,
+        withinX: b.left >= p.left && b.right <= p.right,
+        inLowerHalf: b.top > p.top + p.height / 2,
+        aboveBottom: b.bottom <= p.bottom
+      }
+    })
+    expect(layout.barWidth).toBeGreaterThan(150)
+    expect(layout.withinX).toBe(true)
+    expect(layout.inLowerHalf).toBe(true)
+    expect(layout.aboveBottom).toBe(true)
   })
 })
