@@ -17,6 +17,16 @@ import { config } from '~/config'
 
 export type ManaRate = { rate: bigint; decimals: number }
 
+// ethers v5 `Contract` returns `any` for dynamically-named ABI methods; narrow to the aggregator's
+// fragments so the round-data tuple reads below stay type-checked.
+type OracleReaderContract = ethers.Contract & {
+  manaUsdAggregator(): Promise<string>
+}
+type AggregatorContract = ethers.Contract & {
+  decimals(): Promise<number>
+  latestRoundData(): Promise<[ethers.BigNumber, ethers.BigNumber, ethers.BigNumber, ethers.BigNumber, ethers.BigNumber]>
+}
+
 const USD_WEI_PER_CREDIT = 10n ** 17n // 1 credit = $0.10 = 1e17 USD wei
 
 // Max age of the oracle round before we treat it as stale. The MANA/USD aggregator's heartbeat is on
@@ -31,14 +41,21 @@ const MAX_STALENESS_SECONDS = 90000
 export async function readManaUsdRate(chainId: number = config.chainId): Promise<ManaRate> {
   const market = getContract(ContractName.OffChainMarketplaceV2, chainId)
   const provider = new ethers.providers.JsonRpcProvider(config.rpcUrl)
-  const mkt = new ethers.Contract(market.address, ['function manaUsdAggregator() view returns (address)'], provider)
-  const aggAddr: string = await mkt.manaUsdAggregator()
+  const mkt = new ethers.Contract(
+    market.address,
+    ['function manaUsdAggregator() view returns (address)'],
+    provider
+  ) as OracleReaderContract
+  const aggAddr = await mkt.manaUsdAggregator()
   const agg = new ethers.Contract(
     aggAddr,
-    ['function decimals() view returns (uint8)', 'function latestRoundData() view returns (uint80,int256,uint256,uint256,uint80)'],
+    [
+      'function decimals() view returns (uint8)',
+      'function latestRoundData() view returns (uint80,int256,uint256,uint256,uint80)'
+    ],
     provider
-  )
-  const decimals: number = await agg.decimals()
+  ) as AggregatorContract
+  const decimals = await agg.decimals()
   // latestRoundData = [roundId, answer, startedAt, updatedAt, answeredInRound].
   const rd = await agg.latestRoundData()
   const rate = BigInt(rd[1].toString())

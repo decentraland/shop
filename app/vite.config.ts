@@ -63,7 +63,10 @@ export default defineConfig({
       { find: '~', replacement: fileURLToPath(new URL('./src', import.meta.url)) },
       // Cross-chain SDK we don't use; stub it so decentraland-transactions bundles without it.
       // Anchored regexes so the /dist/types subpath doesn't get mangled by prefix matching.
-      { find: /^@0xsquid\/sdk\/dist\/types$/, replacement: fileURLToPath(new URL('./src/stubs/squid.ts', import.meta.url)) },
+      {
+        find: /^@0xsquid\/sdk\/dist\/types$/,
+        replacement: fileURLToPath(new URL('./src/stubs/squid.ts', import.meta.url))
+      },
       { find: /^@0xsquid\/sdk$/, replacement: fileURLToPath(new URL('./src/stubs/squid.ts', import.meta.url)) }
     ]
   },
@@ -78,7 +81,8 @@ export default defineConfig({
         // additionally lazy-loaded in App.tsx, and WearablePreview via LazyWearablePreview.
         manualChunks(id: string) {
           if (!id.includes('node_modules')) return undefined
-          if (/[\\/]node_modules[\\/](react|react-dom|react-router|react-router-dom|scheduler)[\\/]/.test(id)) return 'react'
+          if (/[\\/]node_modules[\\/](react|react-dom|react-router|react-router-dom|scheduler)[\\/]/.test(id))
+            return 'react'
           if (/[\\/]node_modules[\\/](ethers|@ethersproject)[\\/]/.test(id)) return 'ethers'
           // Let rollup split @mui/@emotion/decentraland-ui2 naturally: the heavy MUI lives in the
           // (dynamic) wallet-modal + lazy-route chunks, so forcing it all into one eager chunk would

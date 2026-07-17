@@ -29,6 +29,10 @@ export type CatalogItem = {
   // Checkout uses `tradeId` directly instead of resolving by itemId.
   tradeId?: string
   tokenId?: string
+  // Remaining mintable supply for a PRIMARY listing (from the shop feed). Absent for secondary
+  // listings (a specific token has no stock concept) and for catalog-only items. Surfaces the STOCK
+  // figure next to the price on the item detail page.
+  available?: number
   // Flash sale (see lib/sale.ts). Present only when the listing is a live, discounted, time-boxed
   // trade. `compareAtCredits` is the pre-sale price to strike through; `saleEndsAt` is epoch MS (the
   // mapper converts the trade's expiration seconds once). Both absent for a regular listing.
@@ -108,14 +112,14 @@ function toCatalogItem(r: RawCatalogItem): CatalogItem {
     thumbnail: r.thumbnail ?? '',
     priceCredits: toCredits(r.price ?? r.minPrice),
     gender: toGender(r.data?.wearable?.bodyShapes),
-    isSmart: r.data?.wearable?.isSmart ?? false,
+    isSmart: r.data?.wearable?.isSmart ?? false
   }
 }
 
 export async function fetchCatalog({
   category = 'wearable',
   first = 24,
-  skip = 0,
+  skip = 0
 }: { category?: string; first?: number; skip?: number } = {}): Promise<{ items: CatalogItem[]; total: number }> {
   const qs = new URLSearchParams({
     category,
@@ -123,7 +127,7 @@ export async function fetchCatalog({
     skip: String(skip),
     isOnSale: 'true',
     sortBy: 'newest',
-    includeSocialEmotes: 'false',
+    includeSocialEmotes: 'false'
   })
   const res = await fetch(`${config.nftApiUrl}/v2/catalog?${qs.toString()}`)
   if (!res.ok) throw new Error(`Failed to fetch catalog (${res.status})`)
@@ -226,11 +230,13 @@ function shopListingToItem(l: ShopListingRaw): CatalogItem {
     priceCredits: l.priceCredits,
     gender: l.gender ?? null,
     isSmart: l.isSmart ?? false,
+    // Only meaningful for primary listings; secondary rows carry a per-token value the PDP ignores.
+    available: l.listingType === 'primary' ? l.available : undefined,
     // Only surface a compare-at that's actually above the sale price (the badge/strikethrough guard
     // against a stale or equal value). saleEndsAt arrives as unix seconds → ms for the UI.
     compareAtCredits:
       l.compareAtCredits != null && l.compareAtCredits > l.priceCredits ? l.compareAtCredits : undefined,
-    saleEndsAt: l.saleEndsAt != null ? l.saleEndsAt * 1000 : undefined,
+    saleEndsAt: l.saleEndsAt != null ? l.saleEndsAt * 1000 : undefined
   }
 }
 
@@ -389,7 +395,7 @@ function toLegacyListing(l: LegacyListingRaw): LegacyListing {
     available: l.available ?? 0,
     network: l.network ?? 'MATIC',
     chainId: l.chainId ?? config.chainId,
-    createdAt: l.createdAt ?? 0,
+    createdAt: l.createdAt ?? 0
   }
 }
 
@@ -479,7 +485,7 @@ export async function fetchMyAssets(
     first: String(first),
     skip: String(skip),
     sortBy: 'newest',
-    orderDirection: 'desc',
+    orderDirection: 'desc'
   })
   const res = await fetch(`${NFT_V1}/nfts?${qs.toString()}`)
   if (!res.ok) throw new Error(`Failed to fetch assets (${res.status})`)
@@ -498,7 +504,7 @@ export async function fetchMyAssets(
     chainId: r.nft.chainId,
     isOnSale: r.order != null,
     listingPrice: r.order ? toCredits(r.order.price) : undefined,
-    tradeId: r.order?.tradeId,
+    tradeId: r.order?.tradeId
   }))
 
   return { assets, total }
@@ -518,13 +524,55 @@ export async function postTrade(trade: TradeCreation, identity: AuthIdentity) {
   return service.addTrade(trade)
 }
 
+// The signed trade behind a listing is not immutable: the server re-signs it as availability
+// decrements or the sale/expiration window rolls, which mints a NEW tradeId and retires the old one.
+// So a tradeId captured earlier (router state, a cached feed row, a stored cart line) can 404 even
+// though the item is still on sale under a fresh trade. Callers distinguish this not-found from other
+// failures via this error so they can re-resolve the item's CURRENT trade (see resolveLiveTrade).
+export class TradeNotFoundError extends Error {
+  constructor(public tradeId: string) {
+    // Keep the legacy message so any message-based handling keeps working.
+    super('fetchTrade 404')
+    this.name = 'TradeNotFoundError'
+  }
+}
+
 // Full signed Trade (signer, signature, checks, sent, received) needed to execute a purchase.
 // The endpoint wraps the trade in `{ ok, data }` — unwrap it (otherwise received/sent are undefined).
 export async function fetchTrade(tradeId: string): Promise<Trade> {
   const res = await fetch(`${config.marketplaceServerUrl}/v1/trades/${tradeId}`)
+  // Consume/cancel the body before throwing: 404 is the expected fast-path for stale trade IDs (a cart
+  // with several stale lines hits it repeatedly), so an unread stream would leak connections (Jarvis P2).
+  if (res.status === 404) {
+    void res.body?.cancel()
+    throw new TradeNotFoundError(tradeId)
+  }
   if (!res.ok) throw new Error(`fetchTrade ${res.status}`)
   const json = (await res.json()) as { ok?: boolean; data?: Trade } | Trade
   return ((json as { data?: Trade }).data ?? json) as Trade
+}
+
+// Resolve an item's CURRENT signed trade, tolerant of a stale/expired tradeId. Tries the known
+// tradeId first (fast path — no extra lookup); if that 404s (the trade was re-signed/retired) and we
+// can identify the item, re-resolves the live trade from the shop feed by (contract, itemId). Any
+// other failure propagates — we must never silently swap to a different trade on a transient error,
+// and we only ever re-resolve BY ITEM so a caller can't end up buying an unrelated trade. Returns
+// null when the item has no live listing at all (never listed / sold out / cancelled).
+export async function resolveLiveTrade(item: {
+  tradeId?: string
+  contractAddress: string
+  itemId?: string | null
+}): Promise<Trade | null> {
+  if (item.tradeId) {
+    try {
+      return await fetchTrade(item.tradeId)
+    } catch (e) {
+      if (!(e instanceof TradeNotFoundError) || !item.itemId) throw e
+      // fall through: the cached trade is gone — re-resolve the item's current listing.
+    }
+  }
+  if (item.itemId) return fetchTradeForItem(item.contractAddress, item.itemId)
+  return null
 }
 
 // Name + thumbnail for a collection ITEM (primary sales don't have a minted token yet).

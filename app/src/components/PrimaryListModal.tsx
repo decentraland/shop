@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { ChainId, Network } from '@dcl/schemas'
+import { Network } from '@dcl/schemas'
 import type { Session } from '~/lib/auth'
 import type { PublishableItem } from '~/lib/builder'
 import { postTrade } from '~/lib/api'
@@ -45,7 +45,7 @@ export function PrimaryListModal({
   // Set once the listing is live — swaps the form for a success view.
   const [listedCredits, setListedCredits] = useState<number | null>(null)
 
-  const chainId = config.chainId as ChainId
+  const chainId = config.chainId
   // Self-custody wallets pop approvals/confirmations; managed wallets (Magic, thirdweb) don't — gate
   // the wallet-flow wording so managed users never see MetaMask-style "two confirmations" copy.
   const showsConfirmations = showsWalletConfirmations(session.providerType)
@@ -110,8 +110,8 @@ export function PrimaryListModal({
         is_primary: true
       })
       toast.success(`“${item.name}” is now on sale!`)
-      queryClient.invalidateQueries({ queryKey: ['publishable-items'] })
-      queryClient.invalidateQueries({ queryKey: ['collection-sale-state'] })
+      void queryClient.invalidateQueries({ queryKey: ['publishable-items'] })
+      void queryClient.invalidateQueries({ queryKey: ['collection-sale-state'] })
     } catch (e) {
       captureError(e, { flow: 'list_primary' })
       track('Shop Listing Failed', { listing_type: 'primary', error_code: errorCode(e) })
@@ -134,12 +134,18 @@ export function PrimaryListModal({
     return (
       <div className="modal-backdrop" onClick={onClose} role="presentation">
         <div className="modal modal--success" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
-          <div className="modal-success__check" aria-hidden>✓</div>
+          <div className="modal-success__check" aria-hidden>
+            ✓
+          </div>
           <h2 className="modal__title">It’s on sale! 🎉</h2>
           {item.thumbnail ? <img className="modal__img" src={item.thumbnail} alt={item.name} /> : null}
           <p className="modal-success__name">{item.name}</p>
           <p className="muted small">
-            Listed for <strong><CurrencyIcon className="ccy-mark" /> {listedCredits}</strong> · {item.remainingSupply.toLocaleString()} available
+            Listed for{' '}
+            <strong>
+              <CurrencyIcon className="ccy-mark" /> {listedCredits}
+            </strong>{' '}
+            · {item.remainingSupply.toLocaleString()} available
           </p>
           <div className="modal__actions">
             <button className="btn btn--ghost" onClick={onClose}>
@@ -175,7 +181,9 @@ export function PrimaryListModal({
             disabled={busy}
           />
         </label>
-        <p className="muted small">Priced in whole {CURRENCY.name} (1 {CURRENCY.nameSingular} = $0.10).</p>
+        <p className="muted small">
+          Priced in whole {CURRENCY.name} (1 {CURRENCY.nameSingular} = $0.10).
+        </p>
 
         {enabled === false && !busy ? (
           showsConfirmations ? (
@@ -185,8 +193,8 @@ export function PrimaryListModal({
             </p>
           ) : (
             <p className="muted small primary-note">
-              First time selling from “{item.collectionName}”? Setting it up takes a moment — after that, listing
-              more items from this collection is instant.
+              First time selling from “{item.collectionName}”? Setting it up takes a moment — after that, listing more
+              items from this collection is instant.
             </p>
           )
         ) : enabled === true && !busy ? (
@@ -204,7 +212,7 @@ export function PrimaryListModal({
           <button className="btn btn--ghost" onClick={onClose} disabled={busy}>
             Cancel
           </button>
-          <button className="btn" onClick={publish} disabled={busy || enabled === null}>
+          <button className="btn" onClick={() => void publish()} disabled={busy || enabled === null}>
             {enabled === null ? 'Checking…' : cta}
           </button>
         </div>

@@ -60,7 +60,7 @@ export function ItemPreview({ item }: { item: CatalogItem }) {
           contractAddress={item.contractAddress}
           // secondary listings carry tokenId; catalog/mint items carry itemId — never both.
           tokenId={item.tokenId ?? undefined}
-          itemId={item.tokenId ? undefined : item.itemId ?? undefined}
+          itemId={item.tokenId ? undefined : (item.itemId ?? undefined)}
           profile={itemAlone ? undefined : compatibleAvatar ? profile : 'default'}
           bodyShape={itemAlone || compatibleAvatar ? undefined : mannequinShape}
           type={isEmote ? undefined : itemAlone ? PreviewType.WEARABLE : PreviewType.AVATAR}

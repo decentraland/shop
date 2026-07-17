@@ -20,7 +20,7 @@ export const gaslessConfig = {
   // footgun, so it's the default.
   enabled: flag !== '0' && flag !== 'false',
   // DCL transactions-server (fronts the OpenZeppelin Relayer). Amoy/dev by default.
-  relayerUrl: (import.meta.env.VITE_RELAYER_URL as string | undefined) ?? 'https://transactions-api.decentraland.zone/v1'
+  relayerUrl: import.meta.env.VITE_RELAYER_URL ?? 'https://transactions-api.decentraland.zone/v1'
 }
 
 // Cheap predicate for call sites choosing between buyGasless and buyWithCredits.

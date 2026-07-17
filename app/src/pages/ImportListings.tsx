@@ -76,12 +76,13 @@ export function ImportListings() {
   }
 
   function afterMigrate() {
-    qc.invalidateQueries({ queryKey: ['importable'] })
+    // Fire-and-forget cache invalidations — the refetch happens in the background, nothing here awaits it.
+    void qc.invalidateQueries({ queryKey: ['importable'] })
     // The browse grid is keyed on 'unified-listings' (see Assets.tsx); refresh it so freshly imported
     // listings show up. 'overview-listings'/'upsell-listings' refresh on their own staleTime.
-    qc.invalidateQueries({ queryKey: ['unified-listings'] })
-    qc.invalidateQueries({ queryKey: ['my-assets'] })
-    qc.invalidateQueries({ queryKey: ['collection-sale-state'] })
+    void qc.invalidateQueries({ queryKey: ['unified-listings'] })
+    void qc.invalidateQueries({ queryKey: ['my-assets'] })
+    void qc.invalidateQueries({ queryKey: ['collection-sale-state'] })
     toast.success('Your Shop is updated.')
   }
 
@@ -89,10 +90,14 @@ export function ImportListings() {
   if (!session) {
     return (
       <div className="imp-empty">
-        <span className="imp-empty__ico" aria-hidden>📦</span>
+        <span className="imp-empty__ico" aria-hidden>
+          📦
+        </span>
         <h1 className="imp-empty__title">Import your listings</h1>
         <p className="muted">Sign in to bring the items you already sell into the Shop.</p>
-        <button className="btn btn--purple" onClick={() => signIn()}>Sign in</button>
+        <button className="btn btn--purple" onClick={() => signIn()}>
+          Sign in
+        </button>
       </div>
     )
   }
@@ -100,10 +105,14 @@ export function ImportListings() {
   if (!isLoading && all.length === 0) {
     return (
       <div className="imp-empty">
-        <span className="imp-empty__ico" aria-hidden>✨</span>
+        <span className="imp-empty__ico" aria-hidden>
+          ✨
+        </span>
         <h1 className="imp-empty__title">You're all caught up</h1>
         <p className="muted">Everything you sell is already in the Shop — nothing to import.</p>
-        <Link className="btn btn--purple" to="/my-assets">Go to My Assets</Link>
+        <Link className="btn btn--purple" to="/my-assets">
+          Go to My Assets
+        </Link>
       </div>
     )
   }
@@ -112,18 +121,24 @@ export function ImportListings() {
     <div className="imp">
       <header className="imp__head">
         <span className="imp__eyebrow">Import to the Shop</span>
-        <h1 className="imp__title">Bring your listings <span className="imp__grad">into the Shop</span></h1>
+        <h1 className="imp__title">
+          Bring your listings <span className="imp__grad">into the Shop</span>
+        </h1>
         <p className="imp__lede">
-          These items are already for sale elsewhere. We suggested a price in {CURRENCY.name} for each —
-          matched to today's rate and rounded up. Adjust anything, then list them.
+          These items are already for sale elsewhere. We suggested a price in {CURRENCY.name} for each — matched to
+          today's rate and rounded up. Adjust anything, then list them.
         </p>
       </header>
 
-      <div className="imp__ratebar"><CurrencyIcon className="ccy-mark imp__diamond" /> 1 {CURRENCY.nameSingular} = $0.10 · prices rounded up</div>
+      <div className="imp__ratebar">
+        <CurrencyIcon className="ccy-mark imp__diamond" /> 1 {CURRENCY.nameSingular} = $0.10 · prices rounded up
+      </div>
 
       {isLoading ? (
         <div className="imp__list">
-          {Array.from({ length: 4 }).map((_, i) => <div className="imp-row imp-row--skeleton" key={i} />)}
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div className="imp-row imp-row--skeleton" key={i} />
+          ))}
         </div>
       ) : (
         SECTIONS.map(sec => {
@@ -150,7 +165,9 @@ export function ImportListings() {
                       />
                       <div className="imp-thumb">{item.thumbnail ? <img src={item.thumbnail} alt="" /> : null}</div>
                       <div className="imp-meta">
-                        <div className="imp-name" title={item.name}>{item.name || 'Item'}</div>
+                        <div className="imp-name" title={item.name}>
+                          {item.name || 'Item'}
+                        </div>
                         <span className="imp-chip">{item.rarity}</span>
                       </div>
                       <div className="imp-price">
@@ -171,7 +188,8 @@ export function ImportListings() {
                               className="imp-price__reset"
                               onClick={() => setPrices(p => ({ ...p, [item.oldTradeId]: item.suggestedCredits }))}
                             >
-                              Reset to <CurrencyIcon className="ccy-mark" />{item.suggestedCredits.toLocaleString()}
+                              Reset to <CurrencyIcon className="ccy-mark" />
+                              {item.suggestedCredits.toLocaleString()}
                             </button>
                           ) : null}
                         </div>
@@ -197,7 +215,9 @@ export function ImportListings() {
       <div className="imp-dock">
         <div className="imp-dock__inner">
           <div className="imp-dock__summary">
-            <div className="imp-dock__total"><CurrencyIcon className="ccy-mark imp__diamond" /> {total.toLocaleString()}</div>
+            <div className="imp-dock__total">
+              <CurrencyIcon className="ccy-mark imp__diamond" /> {total.toLocaleString()}
+            </div>
             <div className="imp-dock__sub">
               {selectedItems.length} item{selectedItems.length === 1 ? '' : 's'} selected · ${(total * 0.1).toFixed(2)}
             </div>

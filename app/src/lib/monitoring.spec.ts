@@ -4,7 +4,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 vi.mock('~/config', () => ({ config: { sentryDsn: '', sentryEnvironment: 'test', sentryRelease: 'shop@test' } }))
 vi.mock('~/store/wallet', () => ({ useWallet: { getState: () => ({ session: null }) } }))
 
-// eslint-disable-next-line import/first
 import { captureError, redact, scrubEvent, setErrorForwarder } from '~/lib/monitoring'
 
 describe('redact', () => {

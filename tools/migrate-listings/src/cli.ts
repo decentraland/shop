@@ -28,23 +28,43 @@ function parseArgs(argv: string[]): Args {
     cancelOld: 'after-post',
     includeExpired: false,
     expirationDays: config.defaultExpirationDays,
-    help: false
+    help: false,
   }
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]
     const next = () => argv[++i]
     switch (arg) {
-      case '--seller': a.seller = next(); break
-      case '--collection': a.collection = next(); break
-      case '--dry-run': a.dryRun = true; break
-      case '--source': a.source = next() as Source; break
-      case '--round': a.round = next() as RoundMode; break
-      case '--cancel-old': a.cancelOld = next() as CancelMode; break
-      case '--include-expired': a.includeExpired = true; break
-      case '--expiration-days': a.expirationDays = Number(next()); break
-      case '--out': a.out = next(); break
+      case '--seller':
+        a.seller = next()
+        break
+      case '--collection':
+        a.collection = next()
+        break
+      case '--dry-run':
+        a.dryRun = true
+        break
+      case '--source':
+        a.source = next() as Source
+        break
+      case '--round':
+        a.round = next() as RoundMode
+        break
+      case '--cancel-old':
+        a.cancelOld = next() as CancelMode
+        break
+      case '--include-expired':
+        a.includeExpired = true
+        break
+      case '--expiration-days':
+        a.expirationDays = Number(next())
+        break
+      case '--out':
+        a.out = next()
+        break
       case '-h':
-      case '--help': a.help = true; break
+      case '--help':
+        a.help = true
+        break
       default:
         if (arg.startsWith('--')) throw new Error(`Unknown flag: ${arg}`)
     }
@@ -94,7 +114,7 @@ function printTable(entries: MigrationEntry[]): void {
       item: `${short(e.source.contractAddress)} ${target}`,
       seller: short(e.source.seller),
       newPrice: `${e.usdDisplay} (${e.credits} cr)`,
-      status: e.status
+      status: e.status,
     }
   })
   if (rows.length === 0) {
@@ -115,7 +135,10 @@ function short(addr: string): string {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2))
-  if (args.help) { console.log(HELP); return }
+  if (args.help) {
+    console.log(HELP)
+    return
+  }
   if (!args.seller && !args.collection) {
     console.error('Error: pass exactly one of --seller <address> or --collection <address>. Use --help.')
     process.exit(1)
@@ -126,7 +149,9 @@ async function main() {
   }
 
   const scope = { seller: args.seller, collection: args.collection }
-  console.log(`Reading open classic listings for ${args.seller ? 'seller' : 'collection'} ${args.seller ?? args.collection}`)
+  console.log(
+    `Reading open classic listings for ${args.seller ? 'seller' : 'collection'} ${args.seller ?? args.collection}`
+  )
   console.log(`Server: ${config.marketplaceServerUrl} · chain: ${config.chainId} · round: ${args.round}`)
 
   const { oracle, entries } = await prepareMigration({
@@ -134,7 +159,7 @@ async function main() {
     round: args.round,
     includeExpired: args.includeExpired,
     expirationDays: args.expirationDays,
-    includePrimary: args.source === 'db'
+    includePrimary: args.source === 'db',
   })
 
   console.log(

@@ -10,7 +10,6 @@ vi.mock('decentraland-crypto-fetch', () => ({ default: signedFetch }))
 // Pin the credits-server base URL so the asserted URLs are stable regardless of env.
 vi.mock('~/config', () => ({ config: { creditsServerUrl: 'https://credits.example' } }))
 
-// eslint-disable-next-line import/first
 import {
   authorizeUsdCredit,
   cancelUsdIntents,
@@ -119,7 +118,9 @@ describe('when authorizing a USD credit for one purchase', () => {
 
 describe('when fetching the buyer purchase history', () => {
   it('should GET the confirmed-only path by default and unwrap purchases', async () => {
-    const purchases = [{ id: 'p1', tradeId: null, usdCents: 100, credits: 10, status: 'SETTLED', createdAt: 1, manaSettledWei: null }]
+    const purchases = [
+      { id: 'p1', tradeId: null, usdCents: 100, credits: 10, status: 'SETTLED', createdAt: 1, manaSettledWei: null }
+    ]
     signedFetch.mockResolvedValueOnce(ok({ purchases }))
 
     const result = await fetchUserPurchases('0xABC', IDENTITY)
@@ -137,7 +138,9 @@ describe('when fetching the buyer purchase history', () => {
   })
 
   it('should forward limit/offset and return the server total', async () => {
-    const purchases = [{ id: 'p1', tradeId: null, usdCents: 100, credits: 10, status: 'SETTLED', createdAt: 1, manaSettledWei: null }]
+    const purchases = [
+      { id: 'p1', tradeId: null, usdCents: 100, credits: 10, status: 'SETTLED', createdAt: 1, manaSettledWei: null }
+    ]
     signedFetch.mockResolvedValueOnce(ok({ purchases, total: 42 }))
 
     const result = await fetchUserPurchases('0xabc', IDENTITY, { all: true, first: 24, skip: 24 })
@@ -236,7 +239,9 @@ describe('when dev-minting USD (plain fetch)', () => {
 
 describe('when dev-minting a spendable credit (plain fetch)', () => {
   it('should POST the lowercased address, default amount 100 and a fixed reason', async () => {
-    const fetchMock = vi.fn().mockResolvedValueOnce(ok({ signature: '0x', expiresAt: 1, seasonId: null, creditId: 'c' }))
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(ok({ signature: '0x', expiresAt: 1, seasonId: null, creditId: 'c' }))
     vi.stubGlobal('fetch', fetchMock)
 
     const result = await devMintCredit('0xABC')

@@ -95,10 +95,7 @@ describe('conflictingIds', () => {
 describe('wornUrns', () => {
   it('returns URNs for equipped wearables in cart order, skipping emotes', () => {
     const urns = wornUrns([hatA, top, danceEmote], new Set(['a', 'c', 'e']))
-    expect(urns).toEqual([
-      'urn:decentraland:amoy:collections-v2:0xc:10',
-      'urn:decentraland:amoy:collections-v2:0xc:12'
-    ])
+    expect(urns).toEqual(['urn:decentraland:amoy:collections-v2:0xc:10', 'urn:decentraland:amoy:collections-v2:0xc:12'])
   })
   it('skips items that are not equipped', () => {
     expect(wornUrns([hatA, top], new Set(['a']))).toEqual(['urn:decentraland:amoy:collections-v2:0xc:10'])

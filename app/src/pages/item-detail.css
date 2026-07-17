@@ -86,13 +86,70 @@
 }
 .item-preview__toggle button.is-active { background: var(--text); color: #fff; }
 .item-preview__toggle button:not(.is-active):hover { color: var(--text); }
-/* Emote play/pause + sound + scrub controls, pinned to the bottom of the preview (emotes only). The
-   higher-specificity selector undoes the greedy `> *` sizing. */
+/* Emote play/pause + sound + scrub controls, pinned to the bottom of the preview (emotes only).
+   The bar itself is the shop-styled pill; the decentraland-ui2 <EmoteControls> renders inside it. That
+   ui2 component ships a dark-theme overlay layout (its container is position:absolute/width:100%/bottom:0
+   to span a full-size WearablePreview, with a dark play button, a red — MUI primary — icon and an
+   oversized gray slider). We neutralize that layout and restyle its parts to the shop's light theme so
+   it reads as a clean, legible playback bar. The higher-specificity selector also undoes the greedy
+   `.item-detail__preview > *` sizing. */
 .item-detail__preview > .item-preview__emote-controls {
-  position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); z-index: 2;
-  width: auto; height: auto; max-width: 92%; display: flex; align-items: center;
-  background: rgba(255, 255, 255, .92); border: 1px solid var(--line); border-radius: 12px;
-  padding: 6px 10px; box-shadow: 0 1px 4px rgba(0, 0, 0, .12);
+  position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 2;
+  width: min(360px, 88%); height: auto; display: flex; align-items: center;
+  background: rgba(255, 255, 255, .94); backdrop-filter: blur(6px);
+  border: 1px solid var(--line); border-radius: var(--radius-pill);
+  padding: 6px 12px; box-shadow: 0 2px 10px rgba(22, 21, 24, .12);
+}
+/* Neutralize the ui2 container's overlay positioning so it becomes a plain in-flow flex row. */
+.item-preview__emote-controls .MuiBox-root {
+  position: static; width: 100%; margin: 0; padding: 0;
+  display: flex; align-items: center; gap: 10px;
+}
+/* Play/pause + sound: strip the MUI button chrome (min-width, uppercase, dark bg, red primary icon). */
+.item-preview__emote-controls .MuiButtonBase-root {
+  min-width: 0; padding: 0; margin: 0; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: none !important; box-shadow: none !important;
+  color: var(--muted); flex: 0 0 auto; transition: background .12s ease, color .12s ease;
+}
+.item-preview__emote-controls .MuiButtonBase-root .MuiSvgIcon-root { font-size: 20px; margin: 0; }
+/* Play/pause = the first control: a solid accent circle with a white glyph. */
+.item-preview__emote-controls .MuiBox-root > .MuiButtonBase-root:first-child {
+  width: 34px; height: 34px; background: var(--accent) !important; color: #fff;
+}
+.item-preview__emote-controls .MuiBox-root > .MuiButtonBase-root:first-child:hover {
+  background: var(--text) !important;
+}
+/* Sound toggle (only shown when the emote has audio) = a quiet ghost icon button after the scrubber. */
+.item-preview__emote-controls .MuiBox-root > input + .MuiButtonBase-root {
+  width: 30px; height: 30px; color: var(--muted);
+}
+.item-preview__emote-controls .MuiBox-root > input + .MuiButtonBase-root:hover {
+  background: var(--media) !important; color: var(--text);
+}
+/* Scrubber: a slim light track with an accent thumb (replaces ui2's chunky gray slider). */
+.item-preview__emote-controls input[type='range'] {
+  flex: 1 1 auto; width: auto; min-width: 0; height: 4px; margin: 0; padding: 0;
+  -webkit-appearance: none; appearance: none; background: transparent; cursor: pointer;
+}
+.item-preview__emote-controls input[type='range']::-webkit-slider-runnable-track {
+  height: 4px; border-radius: 999px; background: var(--line-strong);
+}
+.item-preview__emote-controls input[type='range']::-moz-range-track {
+  height: 4px; border-radius: 999px; background: var(--line-strong);
+}
+.item-preview__emote-controls input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; width: 13px; height: 13px; margin-top: -4.5px;
+  border-radius: 50%; background: var(--accent); border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(22, 21, 24, .3); cursor: pointer;
+}
+.item-preview__emote-controls input[type='range']::-moz-range-thumb {
+  width: 13px; height: 13px; border-radius: 50%; background: var(--accent);
+  border: 2px solid #fff; box-shadow: 0 1px 3px rgba(22, 21, 24, .3); cursor: pointer;
+}
+.item-preview__emote-controls input[type='range']:focus-visible { outline: none; }
+.item-preview__emote-controls input[type='range']:focus-visible::-webkit-slider-thumb {
+  outline: 2px solid var(--accent); outline-offset: 2px;
 }
 
 /* Body-shape incompatibility note (pill at the bottom of the preview). Overrides the greedy `> *`. */
@@ -119,11 +176,12 @@
 @keyframes item-preview-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .item-preview__spinner { animation-duration: 2.4s; } }
 
-/* Info column */
+/* Info column. Explicit per-section margins (not a uniform gap) to hit the Figma rhythm:
+   title→tags 12, tags→description 15, description→creator/collection 32 (see Figma 1052-151285). */
 .item-detail__info {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 0;
 }
 .item-detail__info-head {
   display: flex;
@@ -163,9 +221,9 @@
   align-items: center;
   gap: 5px;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0;
   color: var(--muted);
 }
 
@@ -175,13 +233,14 @@
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-  margin-top: -6px;
+  margin-top: 12px;
 }
 .item-detail__chips .chip {
   height: 24px;
   padding: 0 8px;
   gap: 3px;
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 500;
   border-radius: 4px;
   letter-spacing: 0.02em;
   text-transform: uppercase;
@@ -191,8 +250,8 @@
   color: var(--text-2);
 }
 .item-detail__chip-ico {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   color: var(--text-2);
 }
 
@@ -203,6 +262,10 @@
   align-items: flex-start;
   gap: 8px;
 }
+.item-detail__description {
+  margin-top: 15px;
+  gap: 11px;
+}
 .item-detail__desc-text {
   margin: 0; color: var(--text-2); font-size: 14px; line-height: 30px;
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden;
@@ -210,17 +273,22 @@
 .item-detail__desc-text.is-expanded { -webkit-line-clamp: unset; overflow: visible; }
 .item-detail__desc-toggle { font-size: 13px; align-self: flex-start; }
 
-/* Creator / Collection meta (two columns to mirror the Figma). */
+/* Creator / Collection meta — two columns, creator hugging the left and collection the right edge
+   (Figma 1052-151285 lays them out space-between). Stays side-by-side on mobile too (Figma 1182-190351). */
 .item-detail__meta {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
+  justify-content: space-between;
   gap: 16px;
+  margin-top: 32px;
 }
 .item-detail__meta-col {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 15px;
   min-width: 0;
+}
+.item-detail__meta-col--collection {
+  align-items: flex-start;
 }
 /* PDP creator badge: larger avatar + prominent purple link (overrides the compact card default).
    Matches the Figma: 48px avatar, 12px gap, 14px underlined purple name. */
@@ -230,26 +298,51 @@
 .item-detail__creator .creator__name { color: var(--accent); font-weight: 500; text-decoration: underline; }
 .item-detail__creator.creator--link:hover .creator__name { color: var(--brand-violet); }
 
-/* Divider between the meta block and the price/CTA block. */
+/* Divider between the meta block and the price/CTA block (Figma neutrals/gray-4). */
 .item-detail__divider {
   border: 0;
-  border-top: 1px solid var(--line);
-  margin: 4px 0;
+  border-top: 1px solid #cfcdd4;
+  margin: 24px 0 0;
   width: 100%;
 }
 
-/* Price block */
+/* Price block: PRICE on the left, STOCK right-aligned on the same row (Figma 1052-151285). */
 .item-detail__price-block {
+  margin-top: 16px;
+}
+.item-detail__price-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  width: 100%;
+}
+.item-detail__price-col {
+  flex: 1 1 auto;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
+.item-detail__stock-col {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  text-align: right;
+}
+.item-detail__stock-value {
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--text-2);
+}
 .item-detail__price-label {
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--muted);
+  letter-spacing: 0;
+  color: #5e5b67;
 }
 .item-detail__price {
   display: flex;
@@ -325,23 +418,35 @@
   width: 14px;
   height: 14px;
 }
-.item-detail__balance {
-  font-size: 13px;
-}
-
-/* CTAs — two full-width stacked buttons */
+/* CTAs — two full-width stacked buttons on desktop (Buy now above Add to cart). */
 .item-detail__ctas {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  margin-top: 4px;
+  margin-top: 20px;
 }
 .item-detail__cta {
   width: 100%;
   height: 48px;
   border-radius: 8px;
   font-size: 15px;
-  text-align: center;
+  font-weight: 600;
+  letter-spacing: 0.46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+/* Price inside the Buy-now button: hidden on desktop, shown in the mobile sticky bar (Figma 1182-194973). */
+.item-detail__cta-price {
+  display: none;
+  align-items: center;
+  gap: 6px;
+}
+.item-detail__cta-diamond {
+  width: 20px;
+  height: 20px;
+  color: #fff;
 }
 .item-detail__addcart {
   width: 100%;
@@ -357,7 +462,7 @@
   font-weight: 600;
   font-size: 15px;
   text-transform: uppercase;
-  letter-spacing: 0.046em;
+  letter-spacing: 0.46px;
   cursor: pointer;
   transition: filter .15s ease;
 }
@@ -386,17 +491,57 @@
 
 @media (max-width: 900px) {
   .item-detail__title { font-size: 20px; line-height: 24px; }
-  /* Mobile order (matches the Figma): creator before the description, then the buy section.
+  /* Mobile order (matches the Figma): creator/collection before the description, then the buy section.
      Explicit order on every child so the positioned items land between the chips and the divider
      (a bare `order` only on two of them would push them past the default-order siblings). */
   .item-detail__info-head { order: 0; }
-  .item-detail__chips { order: 1; }
-  .item-detail__meta { order: 2; grid-template-columns: 1fr; }
-  .item-detail__description { order: 3; }
-  .item-detail__divider { order: 4; }
-  .item-detail__price-block { order: 5; }
+  .item-detail__chips { order: 1; margin-top: 10px; }
+  .item-detail__meta { order: 2; margin-top: 20px; }
+  .item-detail__description { order: 3; margin-top: 20px; }
+  .item-detail__divider { order: 4; margin-top: 20px; }
+  .item-detail__price-block { order: 5; margin-top: 16px; }
   .item-detail__ctas { order: 6; }
   .item-detail__status { order: 7; }
+
+  /* Keep the last of the scrollable content clear of the fixed action bar. */
+  .item-detail { padding-bottom: 88px; }
+
+  /* Action buttons sticky-fixed to the bottom of the viewport (Figma 1182-194973). */
+  .item-detail__ctas--buttons {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    margin-top: 0;
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+    background: var(--soft-white);
+    box-shadow: 0 -4px 16px rgba(22, 21, 24, .12);
+  }
+  /* Buyable: a wide Buy-now (showing the price) + a compact dark cart-icon square. */
+  .item-detail__ctas--dual {
+    flex-direction: row;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .item-detail__ctas--dual .item-detail__cta {
+    flex: 1 1 auto;
+    width: auto;
+  }
+  .item-detail__ctas--dual .item-detail__cta-price {
+    display: inline-flex;
+  }
+  .item-detail__ctas--dual .item-detail__addcart {
+    flex: 0 0 auto;
+    width: 56px;
+    padding: 0;
+  }
+  .item-detail__ctas--dual .item-detail__addcart-label {
+    display: none;
+  }
+  .item-detail__ctas--dual .item-detail__addcart-ico {
+    margin: 0;
+  }
 }
 
 /* ---------------- Collection carousel ---------------- */
@@ -442,31 +587,28 @@
 .collection-carousel__viewport {
   position: relative;
 }
+/* Side arrows: the exact same treatment as the Overview rail (Figma 1052-151302) — the shared
+   carousel-arrow.svg (white circle + bold chevron) floated with a soft drop-shadow, centered on the
+   card media band (12px track padding + half of the 200px media = ~112px). The left arrow mirrors it. */
 .collection-carousel__arrow {
   position: absolute;
-  top: calc(50% - 22px);
+  top: 112px;
   transform: translateY(-50%);
-  z-index: 3;
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
+  z-index: 5;
+  width: 53px;
+  height: 53px;
+  padding: 0;
   border: 0;
-  background: #fff;
-  color: var(--text);
-  font-size: 24px;
-  line-height: 1;
-  display: grid;
-  place-items: center;
+  background: transparent;
   cursor: pointer;
-  box-shadow: 0 6px 16px rgba(22, 21, 24, .16);
-  transition: transform .12s ease, box-shadow .12s ease, opacity .12s ease;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, .18));
+  transition: transform .15s ease, filter .15s ease, opacity .15s ease;
 }
-.collection-carousel__arrow--left { left: -10px; }
-.collection-carousel__arrow--right { right: -10px; }
-.collection-carousel__arrow:hover:not(:disabled) {
-  transform: translateY(-50%) scale(1.06);
-  box-shadow: 0 8px 20px rgba(22, 21, 24, .2);
-}
+.collection-carousel__arrow img { display: block; width: 100%; height: 100%; }
+.collection-carousel__arrow--left { left: -40px; }
+.collection-carousel__arrow--right { right: -40px; }
+.collection-carousel__arrow--left img { transform: scaleX(-1); }
+.collection-carousel__arrow:hover:not(:disabled) { transform: translateY(-50%) scale(1.07); }
 .collection-carousel__arrow:disabled { opacity: 0; pointer-events: none; }
 @media (prefers-reduced-motion: reduce) { .collection-carousel__arrow { transition: none; } }
 @media (max-width: 900px) {
@@ -493,7 +635,8 @@
   flex: 0 0 281px;
   scroll-snap-align: start;
 }
-@media (max-width: 720px) { .collection-carousel__track > .card { flex: 0 0 44vw; } }
+/* Mobile: show one full card plus a peek of the next (Figma 1182-190397), not multiple cramped cards. */
+@media (max-width: 720px) { .collection-carousel__track > .card { flex: 0 0 85%; } }
 
 /* Paging dots below the row. */
 .collection-carousel__dots {

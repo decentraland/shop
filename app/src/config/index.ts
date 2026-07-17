@@ -17,7 +17,6 @@ const base = createConfig(
   },
   {
     systemEnvVariables: {
-      // eslint-disable-next-line @typescript-eslint/naming-convention
       VITE_DCL_DEFAULT_ENV: import.meta.env.VITE_DCL_DEFAULT_ENV ?? 'dev'
     }
   }
@@ -47,8 +46,7 @@ export const config = {
   // other client-safe values. Environment/release are derived (no per-env JSON key needed).
   sentryDsn: env.VITE_SENTRY_DSN ?? base.get('SENTRY_DSN'),
   sentryEnvironment:
-    env.VITE_SENTRY_ENVIRONMENT ??
-    (Number(env.VITE_CHAIN_ID ?? base.get('CHAIN_ID')) === 80002 ? 'dev' : 'prod'),
+    env.VITE_SENTRY_ENVIRONMENT ?? (Number(env.VITE_CHAIN_ID ?? base.get('CHAIN_ID')) === 80002 ? 'dev' : 'prod'),
   // Release tag — MUST match the source-map upload's release (vite plugin / CI). e.g. "shop@1.2.3".
   sentryRelease: env.VITE_SENTRY_RELEASE ?? `shop@${env.VITE_APP_VERSION ?? '0.0.0-dev'}`
 }

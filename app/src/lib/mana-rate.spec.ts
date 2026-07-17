@@ -53,7 +53,6 @@ vi.mock('ethers', async importOriginal => {
   }
 })
 
-// eslint-disable-next-line import/first
 import { readManaUsdRate, manaWeiToUsdWei, manaWeiToCredits, manaWeiToUsdCents } from '~/lib/mana-rate'
 
 // $0.50 per MANA at 8 decimals: rate 50000000, decimals 8 → manaWei * 5e7 / 1e8 = manaWei / 2.

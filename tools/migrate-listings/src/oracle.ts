@@ -9,7 +9,7 @@ import type { OracleSnapshot } from './types'
 const MARKET_AGG_ABI = ['function manaUsdAggregator() view returns (address)']
 const AGG_ABI = [
   'function decimals() view returns (uint8)',
-  'function latestRoundData() view returns (uint80,int256,uint256,uint256,uint80)'
+  'function latestRoundData() view returns (uint80,int256,uint256,uint256,uint80)',
 ]
 
 export function readProvider(): ethers.providers.JsonRpcProvider {
@@ -44,7 +44,7 @@ export async function readOracle(chainId: number): Promise<OracleSnapshot> {
     aggregatorAddress,
     decimals,
     rate: rate.toString(),
-    readAtMs: Date.now()
+    readAtMs: Date.now(),
   }
 }
 

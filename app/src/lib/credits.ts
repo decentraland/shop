@@ -31,7 +31,7 @@ export async function getUserCredits(address: string, identity: AuthIdentity): P
   const url = `${config.creditsServerUrl}/users/${address.toLowerCase()}/credits`
   const res = await signedFetch(url, { method: 'GET', identity, metadata: {} })
   if (!res.ok) throw new Error(`getUserCredits ${res.status}: ${await res.text()}`)
-  return res.json()
+  return res.json() as Promise<UserCreditsResponse>
 }
 
 // The user's spendable balance in fixed USD credits (1 credit = $0.10). Reads the `usd` block
@@ -76,7 +76,7 @@ export async function authorizeUsdCredit(
     body: JSON.stringify({ usdPriceCents, tradeId })
   })
   if (!res.ok) throw new Error(`authorizeUsdCredit ${res.status}: ${await res.text()}`)
-  return res.json()
+  return res.json() as Promise<AuthorizeResult>
 }
 
 // One row of the buyer's Shop purchase history (a USD purchase intent). SETTLED = confirmed on-chain;
@@ -112,9 +112,7 @@ export async function fetchUserPurchases(
   const skip = opts?.skip ?? 0
   const first = opts?.first ?? items.length
   const total =
-    typeof json.total === 'number'
-      ? json.total
-      : skip + items.length + (first > 0 && items.length >= first ? 1 : 0)
+    typeof json.total === 'number' ? json.total : skip + items.length + (first > 0 && items.length >= first ? 1 : 0)
   return { items, total }
 }
 
@@ -145,7 +143,7 @@ export async function devMintUsd(address: string, usdCents = 1000): Promise<DevM
     body: JSON.stringify({ address: address.toLowerCase(), usdCents })
   })
   if (!res.ok) throw new Error(`devMintUsd ${res.status}: ${await res.text()}`)
-  return res.json()
+  return res.json() as Promise<DevMintUsdResult>
 }
 
 export type DevMintResult = { signature: string; expiresAt: number; seasonId: number | null; creditId: string }
@@ -158,5 +156,5 @@ export async function devMintCredit(address: string, amount = 100): Promise<DevM
     body: JSON.stringify({ address: address.toLowerCase(), amount, reason: 'shop dev mint' })
   })
   if (!res.ok) throw new Error(`devMintCredit ${res.status}: ${await res.text()}`)
-  return res.json()
+  return res.json() as Promise<DevMintResult>
 }

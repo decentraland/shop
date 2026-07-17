@@ -10,7 +10,7 @@ const modules: Record<string, string> = import.meta.glob(
   {
     eager: true,
     query: '?url',
-    import: 'default',
+    import: 'default'
   }
 )
 

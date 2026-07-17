@@ -18,7 +18,7 @@ function load(): string[] {
   try {
     const raw = localStorage.getItem(keyFor(account))
     if (!raw) return []
-    const parsed = JSON.parse(raw)
+    const parsed = JSON.parse(raw) as object
     return Array.isArray(parsed) ? parsed.filter((a): a is string => typeof a === 'string') : []
   } catch {
     return []

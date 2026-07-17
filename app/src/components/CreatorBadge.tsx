@@ -28,10 +28,13 @@ export function CreatorBadge({
   address,
   className,
   linkToProfile,
+  hidePrefix,
 }: {
   address?: string
   className?: string
   linkToProfile?: boolean
+  /** Drop the "By " prefix (the PDP shows the bare creator name — see Figma 1052-151285). */
+  hidePrefix?: boolean
 }) {
   const navigate = useNavigate()
   const { data } = useProfile(address)
@@ -60,7 +63,8 @@ export function CreatorBadge({
     <>
       {ava}
       <span className="creator__name">
-        By <span className="creator__display">{name}</span>
+        {hidePrefix ? null : 'By '}
+        <span className="creator__display">{name}</span>
       </span>
     </>
   )

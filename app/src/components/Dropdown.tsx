@@ -41,10 +41,13 @@ export function Dropdown({
   const onOpenChangeRef = useRef(onOpenChange)
   onOpenChangeRef.current = onOpenChange
 
-  const setOpen = useCallback((next: boolean) => {
-    if (openProp !== undefined) onOpenChangeRef.current?.(next)
-    else setOpenState(next)
-  }, [openProp])
+  const setOpen = useCallback(
+    (next: boolean) => {
+      if (openProp !== undefined) onOpenChangeRef.current?.(next)
+      else setOpenState(next)
+    },
+    [openProp]
+  )
 
   const selected = options.find(o => o.value === value)
   const triggerLabel = label ?? selected?.label ?? placeholder

@@ -40,10 +40,7 @@ function paymentsBaseUrl(): string {
  * Real checkout: POST /credits/checkout via signed-fetch so the server binds the order to
  * the authenticated buyer. Returns the Stripe HOSTED Checkout URL the app redirects to.
  */
-export async function createPackCheckoutReal(
-  packId: string,
-  identity: AuthIdentity
-): Promise<CheckoutSession> {
+export async function createPackCheckoutReal(packId: string, identity: AuthIdentity): Promise<CheckoutSession> {
   const res = await signedFetch(`${paymentsBaseUrl()}/credits/checkout`, {
     method: 'POST',
     identity,
@@ -69,7 +66,6 @@ export async function pollCreditGrantReal(
   const { intervalMs = 1500, timeoutMs = 60_000, signal } = opts
   const deadline = Date.now() + timeoutMs
 
-  // eslint-disable-next-line no-constant-condition
   while (true) {
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
     const status = await fetchOrderStatusReal(orderId, identity, signal)
@@ -95,7 +91,7 @@ async function fetchOrderStatusReal(
     signal
   })
   if (!res.ok) throw new Error(`order status ${res.status}`)
-  return res.json()
+  return res.json() as Promise<OrderStatus>
 }
 
 function delay(ms: number, signal?: AbortSignal): Promise<void> {

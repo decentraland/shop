@@ -43,8 +43,13 @@
   color: var(--text);
   transition: color 0.15s linear;
 }
-.store-settings__back:hover { color: var(--accent); }
-.store-settings__back .ico { width: 22px; height: 22px; }
+.store-settings__back:hover {
+  color: var(--accent);
+}
+.store-settings__back .ico {
+  width: 22px;
+  height: 22px;
+}
 
 .store-settings__title {
   font-size: 24px;
@@ -60,8 +65,13 @@
   font-size: 14px;
   text-decoration: none;
 }
-.store-settings__guest:hover { text-decoration: underline; }
-.store-settings__guest .ico { width: 15px; height: 15px; }
+.store-settings__guest:hover {
+  text-decoration: underline;
+}
+.store-settings__guest .ico {
+  width: 15px;
+  height: 15px;
+}
 
 /* --- field extras (base .field / .field input live in index.css) --- */
 .store-settings .field__label {
@@ -93,7 +103,7 @@
   display: flex;
   align-items: center;
   padding: 0 10px;
-  background: rgba(0, 0, 0, .04);
+  background: rgba(0, 0, 0, 0.04);
   color: var(--muted);
   font-size: 13px;
   white-space: nowrap;
@@ -136,7 +146,7 @@
 
 /* Selected tick badge. */
 .cover-picker__tile.is-selected::after {
-  content: '✓';
+  content: "✓";
   position: absolute;
   top: 6px;
   right: 6px;
@@ -163,9 +173,18 @@
   font-weight: 700;
   background: #fff;
 }
-.cover-picker__upload .ico { width: 22px; height: 22px; background: var(--muted); }
-.cover-picker__upload:hover { border-color: var(--accent); color: var(--accent); }
-.cover-picker__upload:hover .ico { background: var(--accent); }
+.cover-picker__upload .ico {
+  width: 22px;
+  height: 22px;
+  background: var(--muted);
+}
+.cover-picker__upload:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.cover-picker__upload:hover .ico {
+  background: var(--accent);
+}
 
 .cover-picker__input {
   position: absolute;
@@ -190,6 +209,10 @@
 }
 
 @media (max-width: 768px) {
-  .store-settings__actions .btn { width: 100%; }
-  .cover-picker { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+  .store-settings__actions .btn {
+    width: 100%;
+  }
+  .cover-picker {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  }
 }

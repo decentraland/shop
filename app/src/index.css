@@ -1131,12 +1131,24 @@ h2 {
     font-size: 12px;
   }
   .card__body {
+    display: grid;
     height: auto;
-    grid-template-rows: auto auto;
+    grid-template-columns: 1fr auto;
     grid-template-areas: "desc desc" "price add";
     align-items: center;
     row-gap: 10px;
     padding: 8px;
+  }
+  /* The desktop DOM nests name/creator + price inside .card__top and the button inside .card__action.
+     `display: contents` promotes .card__top's children into the card__body grid so they place as the
+     Figma mobile card (Figma 1040-149088): name+creator on row 1, then price (left) + round add (right)
+     on row 2. Without this the flex-row .card__top overflows the narrow card and clips the price. */
+  .card__top {
+    display: contents;
+  }
+  .card__desc {
+    grid-area: desc;
+    min-width: 0;
   }
   .card__chips {
     display: none;
@@ -1145,11 +1157,17 @@ h2 {
     display: none;
   }
   .card__price {
+    grid-area: price;
     align-self: center;
     justify-self: start;
   }
-  .card__add-round {
+  .card__action {
     grid-area: add;
+    align-self: center;
+    justify-self: end;
+    min-height: 0;
+  }
+  .card__add-round {
     align-self: center;
     justify-self: end;
     z-index: 4;
@@ -3799,4 +3817,379 @@ a.purchase:hover {
     height: 20px;
     color: var(--text-2);
   }
+}
+
+/* ============================================================================
+   Buy Now modal (PDP) — Figma "Buy Asset directly from PDP" (node 1179-174483 et al).
+   4 states: ready (Buy Asset) · nofunds (Buy Credits and Item) · processing · complete.
+   ============================================================================ */
+.buy-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+.buy-modal__scrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(22, 21, 24, 0.45);
+}
+.buy-modal__card {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 560px;
+  /* Grid-item auto-minimum can otherwise push the card past the viewport on a
+     narrow screen (e.g. the cart's multi-item success list); let it shrink. */
+  min-width: 0;
+  background: #fff;
+  border-radius: 16px;
+  padding: 12px 16px 16px;
+  box-shadow: 0 24px 60px rgba(22, 21, 24, 0.28);
+  animation: cart-pop-in 0.16s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+.buy-modal__card--tall {
+  min-height: 379px;
+  justify-content: space-between;
+}
+/* Header */
+.buy-modal__head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #cfcdd4;
+}
+.buy-modal__head-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.buy-modal__title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.6;
+  color: #161518;
+}
+.buy-modal__x {
+  flex-shrink: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  padding: 2px;
+  line-height: 0;
+}
+.buy-modal__balance {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.buy-modal__balance-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #5e5b67;
+}
+.buy-modal__balance-ico {
+  width: 14px;
+  height: 14px;
+  background: #161518;
+}
+.buy-modal__balance-value {
+  font-size: 14px;
+  color: #161518;
+}
+/* Body */
+.buy-modal__body {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+.buy-modal__loading {
+  padding: 32px 0;
+  text-align: center;
+  color: #716b7c;
+}
+.buy-modal__error {
+  margin: 0;
+  color: #d64550;
+  font-size: 15px;
+}
+/* Asset card row */
+.buy-modal__asset {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.buy-modal__asset-thumb {
+  flex-shrink: 0;
+  width: 180px;
+  height: 180px;
+  background: #ecebed;
+  border: 1px solid #a09ba8;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+.buy-modal__asset-thumb img {
+  width: 83%;
+  height: 83%;
+  object-fit: contain;
+  filter: drop-shadow(0.7px 2.9px 3.7px rgba(0, 0, 0, 0.1));
+}
+.buy-modal__asset-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  padding: 8px;
+}
+.buy-modal__asset-name {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.57;
+  color: #161518;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.buy-modal__asset-creator {
+  font-size: 10px;
+  line-height: 1.43;
+  color: #716b7c;
+}
+.buy-modal__asset-price {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.buy-modal__asset-price-ico {
+  width: 24px;
+  height: 24px;
+  background: #242129;
+}
+.buy-modal__asset-price span {
+  font-size: 24px;
+  font-weight: 600;
+  color: #242129;
+}
+/* Warning banner (nofunds) */
+.buy-modal__warning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: center;
+  background: #f0dfff;
+  border-radius: 8px;
+  padding: 12px 8px;
+}
+.buy-modal__warning-ico {
+  flex-shrink: 0;
+}
+.buy-modal__warning-text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.334;
+  color: #242129;
+  text-align: center;
+}
+.buy-modal__warning-text b {
+  font-weight: 700;
+}
+/* Pack picker */
+.buy-modal__packs {
+  display: flex;
+  gap: 12px;
+}
+.buy-modal__pack {
+  flex: 1;
+  height: 109px;
+  border: 1px solid #a09ba8;
+  background: #ecebed;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: border-color 0.12s ease;
+}
+.buy-modal__pack--on {
+  border: 4px solid #c640cd;
+}
+.buy-modal__pack-ico {
+  width: 24px;
+  height: 24px;
+  background: #161518;
+}
+.buy-modal__pack-amount {
+  font-size: 24px;
+  font-weight: 500;
+  color: #161518;
+}
+.buy-modal__pack-usd {
+  font-size: 14px;
+  color: #161518;
+}
+/* Total row */
+.buy-modal__total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid #cfcdd4;
+  padding-top: 12px;
+}
+.buy-modal__total-credits {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 24px;
+  font-weight: 700;
+  color: #161518;
+}
+.buy-modal__total-ico {
+  width: 30px;
+  height: 30px;
+  background: #161518;
+}
+.buy-modal__total-usd {
+  font-size: 14px;
+  font-weight: 600;
+  color: #5e5b67;
+}
+/* CTAs */
+.buy-modal__ctas {
+  display: flex;
+  gap: 12px;
+}
+.buy-modal__btn {
+  flex: 1;
+  height: 46px;
+  border-radius: 8px;
+  border: 0;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.46px;
+  text-transform: uppercase;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.buy-modal__btn--full {
+  width: 100%;
+}
+.buy-modal__btn--gradient {
+  background: linear-gradient(180deg, #c640cd, #691fa9);
+  color: #fcfcfc;
+}
+.buy-modal__btn--outline {
+  background: transparent;
+  border: 2px solid #691fa9;
+  color: #691fa9;
+  font-size: 13px;
+}
+.buy-modal__btn--ruby {
+  background: #ff2d55;
+  color: #fcfcfc;
+  font-size: 13px;
+  letter-spacing: 0.61px;
+}
+.buy-modal__btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+/* Processing */
+.buy-modal__processing {
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+  padding: 24px 0;
+}
+.buy-modal__logo {
+  width: 61px;
+  height: 61px;
+}
+.buy-modal__processing-text {
+  font-size: 20px;
+  font-weight: 700;
+  color: #242129;
+  text-align: center;
+}
+.buy-modal__progress {
+  width: 100%;
+  max-width: 456px;
+  height: 12px;
+  background: #ecebed;
+  border-radius: 100px;
+  overflow: hidden;
+}
+.buy-modal__progress-fill {
+  display: block;
+  height: 100%;
+  width: 40%;
+  border-radius: 100px;
+  background: linear-gradient(180deg, #c640cd, #691fa9);
+  animation: buy-modal-progress 1.1s ease-in-out infinite;
+}
+@keyframes buy-modal-progress {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(320%); }
+}
+/* Success */
+.buy-modal__success {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  background: rgba(193, 238, 207, 0.5);
+  border-radius: 16px;
+  padding: 24px 16px;
+}
+.buy-modal__success-text {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.334;
+  color: #242129;
+  text-align: center;
+}
+.buy-modal__success-text b {
+  font-weight: 700;
+}
+
+/* DCL spinner for the buy-modal loading state (fixed-height body → no layout jump). */
+.buy-modal__spinner {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 4px solid #ecebed;
+  border-top-color: #691fa9;
+  border-right-color: #c640cd;
+  animation: buy-modal-spin 0.8s linear infinite;
+}
+@keyframes buy-modal-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* "This is your item" note on the PDP — a bordered card, not bare text (Figma). */
+.item-detail__own-note {
+  margin: 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card, 12px);
+  background: var(--surface, #fff);
+  color: var(--muted);
+}
+.item-detail__own-note a {
+  color: var(--accent, #691fa9);
+  font-weight: 600;
 }

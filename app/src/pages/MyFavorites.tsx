@@ -18,7 +18,9 @@ export function MyFavorites() {
         <span className="ico ico-heart favorites-empty__ico" aria-hidden />
         <p className="favorites-empty__title">No favorites yet</p>
         <p className="muted">Tap the heart on any item to save it here.</p>
-        <Link className="btn btn--purple" to="/assets">Browse Collectibles</Link>
+        <Link className="btn btn--purple" to="/assets">
+          Browse Collectibles
+        </Link>
       </div>
     )
   }
@@ -27,7 +29,9 @@ export function MyFavorites() {
     <section className="favorites">
       <div className="favorites__head">
         <h1>My Favorites</h1>
-        <span className="favorites__count">{items.length} item{items.length > 1 ? 's' : ''}</span>
+        <span className="favorites__count">
+          {items.length} item{items.length > 1 ? 's' : ''}
+        </span>
       </div>
       <div className="grid">
         {items.slice(0, visible).map(item => (

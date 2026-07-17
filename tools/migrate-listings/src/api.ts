@@ -12,7 +12,7 @@ export async function postTrade(trade: TradeCreation, authHeaders: Record<string
   const res = await fetch(`${config.marketplaceServerUrl}/v1/trades`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeaders },
-    body: JSON.stringify(trade)
+    body: JSON.stringify(trade),
   })
   const json = (await res.json().catch(() => ({}))) as { data?: { id?: string }; message?: string }
   if (!res.ok) {

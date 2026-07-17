@@ -1,0 +1,359 @@
+/* Cart drawer — new Shop 2026 design (Figma node 1182-199895 "Add to cart drawer").
+   Scoped to its own file (NOT index.css) to keep parallel workstreams conflict-free.
+   Right-side slide-in drawer with a scrim, opened on add-to-cart and on cart-icon click. */
+
+.cartd {
+  position: fixed;
+  inset: 0;
+  /* Above the global top nav (decentraland-ui2 AppBar) and the mobile filter sheet (9999) so the
+     drawer reads as a true modal that covers the whole viewport. */
+  z-index: 10000;
+  display: flex;
+  justify-content: flex-end;
+}
+.cartd__scrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(22, 21, 24, 0.5);
+  animation: cartd-fade 0.16s ease;
+}
+.cartd__panel {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  width: min(480px, 100vw);
+  height: 100%;
+  background: #fff;
+  box-shadow: -8px 0 32px rgba(22, 21, 24, 0.18);
+  animation: cartd-slide 0.22s ease;
+  font-family: var(--sans);
+}
+@keyframes cartd-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes cartd-slide {
+  from {
+    transform: translateX(24px);
+    opacity: 0.4;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+/* ---------- Header ---------- */
+.cartd__head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 16px;
+  border-bottom: 1px solid #cfcdd4;
+}
+.cartd__title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.6;
+  color: #161518;
+}
+.cartd__close {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 31px;
+  height: 31px;
+  border: 0;
+  background: none;
+  color: #161518;
+  cursor: pointer;
+  border-radius: 8px;
+}
+.cartd__close:hover {
+  background: #ecebed;
+}
+.cartd__close svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ---------- Body (scrollable) ---------- */
+.cartd__body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 16px 16px 24px;
+}
+
+/* Success banner (shown only when opened via add-to-cart) */
+.cartd__banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 12px;
+  border-radius: 16px;
+  background: rgba(193, 238, 207, 0.5);
+}
+.cartd__banner-check {
+  flex: none;
+  width: 20px;
+  height: 20px;
+}
+.cartd__banner p {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.5;
+  font-weight: 400;
+  color: #242129;
+}
+.cartd__banner strong {
+  font-weight: 600;
+}
+
+/* ---------- Cart item list ---------- */
+.cartd__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.cartd__card {
+  position: relative;
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+  border: 1px solid #cfcdd4;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+}
+.cartd__thumb {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 128px;
+  align-self: stretch;
+  background: #ecebed;
+  border-radius: 12px;
+}
+.cartd__thumb img {
+  width: 82%;
+  height: 82%;
+  object-fit: contain;
+  filter: drop-shadow(0.6px 2.2px 2.8px rgba(0, 0, 0, 0.1));
+}
+.cartd__thumb-check {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 20px;
+  height: 20px;
+}
+.cartd__info {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 8px;
+}
+.cartd__name {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: #161518;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-right: 28px; /* clear the delete button */
+}
+/* Creator subline: reuse CreatorBadge but drop its avatar to match the text-only Figma treatment. */
+.cartd__by {
+  margin-top: 4px;
+  font-size: 10px;
+  color: #716b7c;
+}
+.cartd__by .creator__ava {
+  display: none;
+}
+.cartd__by .creator__name {
+  font-size: 10px;
+  line-height: 1.43;
+}
+.cartd__rowbottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-right: 8px;
+}
+
+/* Quantity stepper (visual — the store holds one unit per item; minus removes, plus is inert) */
+.cartd__stepper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+  border: 0.5px solid #a09ba8;
+  border-radius: 50px;
+}
+.cartd__step {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #161518;
+  cursor: pointer;
+}
+.cartd__step:disabled {
+  color: #a09ba8;
+  cursor: default;
+}
+.cartd__step svg {
+  width: 16px;
+  height: 16px;
+}
+.cartd__qty {
+  min-width: 12px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  color: #161518;
+}
+.cartd__price {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1;
+  color: #242129;
+  white-space: nowrap;
+}
+.cartd__diamond {
+  width: 22px;
+  height: 22px;
+  color: #a14bf3;
+}
+.cartd__del {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #716b7c;
+  cursor: pointer;
+}
+.cartd__del:hover {
+  color: #d33;
+}
+.cartd__del .ico-trash {
+  width: 20px;
+  height: 20px;
+}
+
+/* ---------- Footer (sticky) ---------- */
+.cartd__foot {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background: #fff;
+  border-top: 1px solid #cfcdd4;
+  box-shadow: 0 -4px 12px 2px rgba(0, 0, 0, 0.12);
+}
+.cartd__totalrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.cartd__total-label {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.57;
+  color: #5e5b67;
+}
+.cartd__total-val {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1;
+  color: #161518;
+}
+.cartd__total-diamond {
+  width: 28px;
+  height: 28px;
+  color: #a14bf3;
+}
+.cartd__ctas {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.cartd__cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 46px;
+  border-radius: 8px;
+  font-family: var(--sans);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 24px;
+  letter-spacing: 0.46px;
+  text-transform: uppercase;
+  text-decoration: none;
+  cursor: pointer;
+}
+.cartd__cta--primary {
+  border: 0;
+  background: #691fa9;
+  color: #fcfcfc;
+}
+.cartd__cta--primary:hover {
+  background: #58198c;
+}
+.cartd__cta--secondary {
+  border: 2px solid #c640cd;
+  background: #fff;
+  color: #691fa9;
+}
+.cartd__cta--secondary:hover {
+  background: rgba(198, 64, 205, 0.06);
+}
+
+/* Cart icon in the nav becomes a button (opens this drawer) — reset native button chrome so it keeps
+   the .subnav__cart look defined in index.css. */
+button.subnav__cart {
+  border: 0;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+}

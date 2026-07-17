@@ -160,7 +160,10 @@
   max-height: 0;
   opacity: 0;
   padding: 0;
-  transition: max-height 0.3s ease, opacity 0.3s ease, padding 0.3s ease;
+  transition:
+    max-height 0.3s ease,
+    opacity 0.3s ease,
+    padding 0.3s ease;
 }
 .dcl-footer__dropdown-content.is-open {
   max-height: 400px;

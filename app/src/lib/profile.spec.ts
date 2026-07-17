@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 vi.mock('~/config', () => ({ config: { peerUrl: 'http://peer.test' } }))
 
-// eslint-disable-next-line import/first
 import { fetchProfile } from '~/lib/profile'
 
 function mockFetch(status: number, body: unknown) {

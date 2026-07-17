@@ -5,25 +5,30 @@
   position: relative;
   display: inline-block;
 }
+/* Typography + metrics pinned to the Figma "Sort By" component (node 1038-144899): Inter Medium 12px
+   (not 700/13px), 1.43 line-height, soft-black-2 text, a hairline gray-3 border, an 8px radius, a 40px
+   pill that hugs its content, and a 24px gap to the 24px chevron. Dropdown is only used for Sort By, so
+   these can live on the shared trigger without affecting other UI. */
 .dropdown__trigger {
   display: inline-flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  min-width: 190px;
-  height: 44px;
-  padding: 0 16px;
+  gap: 24px;
+  height: 40px;
+  padding: 0 4px 0 12px;
   background: #fff;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius-card);
-  color: var(--text);
-  font-weight: 700;
-  font-size: 13px;
+  border: 0.5px solid var(--line-strong);
+  border-radius: 8px;
+  color: var(--text-2);
+  font-weight: 500;
+  font-size: 12px;
+  line-height: 1.43;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
   white-space: nowrap;
   cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
 }
 .dropdown__trigger:hover {
   border-color: #7c7788;
@@ -42,8 +47,8 @@
   text-overflow: ellipsis;
 }
 .dropdown__chev {
-  width: 18px;
-  height: 18px;
+  width: 24px;
+  height: 24px;
   color: #43404a;
   flex: none;
   transition: transform 0.15s ease;

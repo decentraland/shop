@@ -12,7 +12,6 @@ vi.mock('decentraland-crypto-fetch', () => ({ default: signedFetch }))
 const { config } = vi.hoisted(() => ({ config: { creditsServerUrl: 'https://credits.example' } }))
 vi.mock('~/config', () => ({ config }))
 
-// eslint-disable-next-line import/first
 import { createPackCheckoutReal, pollCreditGrantReal } from '~/lib/payments-stripe'
 
 const IDENTITY = {} as AuthIdentity

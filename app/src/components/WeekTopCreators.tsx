@@ -53,9 +53,15 @@ function SkeletonRow() {
       <td className="ov-creators__creator-cell">
         <span className="ov-creators__skeleton ov-creators__skeleton--creator" />
       </td>
-      <td className="ov-creators__num"><span className="ov-creators__skeleton" /></td>
-      <td className="ov-creators__num"><span className="ov-creators__skeleton" /></td>
-      <td className="ov-creators__num"><span className="ov-creators__skeleton" /></td>
+      <td className="ov-creators__num">
+        <span className="ov-creators__skeleton" />
+      </td>
+      <td className="ov-creators__num">
+        <span className="ov-creators__skeleton" />
+      </td>
+      <td className="ov-creators__num">
+        <span className="ov-creators__skeleton" />
+      </td>
     </tr>
   )
 }
@@ -81,11 +87,21 @@ export function WeekTopCreators() {
         <table className="ov-creators__table">
           <thead>
             <tr className="ov-creators__header">
-              <th className="ov-creators__th ov-creators__th--rank" scope="col">Rank</th>
-              <th className="ov-creators__th" scope="col">Creator</th>
-              <th className="ov-creators__th ov-creators__th--num" scope="col">Collections</th>
-              <th className="ov-creators__th ov-creators__th--num" scope="col">Sales</th>
-              <th className="ov-creators__th ov-creators__th--num" scope="col">Volume</th>
+              <th className="ov-creators__th ov-creators__th--rank" scope="col">
+                Rank
+              </th>
+              <th className="ov-creators__th" scope="col">
+                Creator
+              </th>
+              <th className="ov-creators__th ov-creators__th--num" scope="col">
+                Collections
+              </th>
+              <th className="ov-creators__th ov-creators__th--num" scope="col">
+                Sales
+              </th>
+              <th className="ov-creators__th ov-creators__th--num" scope="col">
+                Volume
+              </th>
             </tr>
           </thead>
           <tbody>

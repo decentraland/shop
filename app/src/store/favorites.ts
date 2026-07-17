@@ -19,11 +19,12 @@ function load(addr: string | null): Items {
   try {
     const raw = localStorage.getItem(keyFor(addr))
     if (!raw) return {}
-    const parsed = JSON.parse(raw)
+    const parsed = JSON.parse(raw) as object
     if (!parsed || typeof parsed !== 'object') return {}
     // Tolerate the legacy zustand-persist envelope ({ state: { items }, version }) so anonymous
     // favorites saved before this store was namespaced still hydrate.
-    const items = 'state' in parsed && parsed.state?.items ? parsed.state.items : parsed
+    const envelope = parsed as { state?: { items?: object } }
+    const items = 'state' in parsed && envelope.state?.items ? envelope.state.items : parsed
     return items && typeof items === 'object' ? (items as Items) : {}
   } catch {
     return {}
