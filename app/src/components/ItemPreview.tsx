@@ -85,22 +85,35 @@ export function ItemPreview({ item }: { item: CatalogItem }) {
         </p>
       ) : null}
       {!isEmote ? (
+        // On desktop this is a text pill ("On avatar / Item") pinned top-left; on mobile it collapses
+        // to an icon-only pill button-group at the bottom-right (Figma 1182-195374) — the SVG glyphs
+        // show and the text labels hide (see item-detail.css). aria-label keeps each button named when
+        // its visible text is hidden.
         <div className="item-preview__toggle" role="group" aria-label="Preview mode">
           <button
             type="button"
             className={view === 'avatar' ? 'is-active' : ''}
             aria-pressed={view === 'avatar'}
+            aria-label="On avatar"
             onClick={() => setView('avatar')}
           >
-            On avatar
+            <svg className="item-preview__toggle-ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+              <circle cx="12" cy="7.5" r="4" />
+              <path d="M4 20c0-4.2 3.6-6.5 8-6.5s8 2.3 8 6.5v.5H4z" />
+            </svg>
+            <span className="item-preview__toggle-label">On avatar</span>
           </button>
           <button
             type="button"
             className={view === 'item' ? 'is-active' : ''}
             aria-pressed={view === 'item'}
+            aria-label="Item"
             onClick={() => setView('item')}
           >
-            Item
+            <svg className="item-preview__toggle-ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+              <path d="M8.5 3 3 6l1.8 3.8 2.2-1V21h10V8.8l2.2 1L22 6l-5.5-3a2.6 2.6 0 0 1-4.5 1.4A2.6 2.6 0 0 1 8.5 3z" />
+            </svg>
+            <span className="item-preview__toggle-label">Item</span>
           </button>
         </div>
       ) : (

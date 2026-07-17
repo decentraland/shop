@@ -36,11 +36,18 @@
 /* Figma hover (node 696:34662): 2px cerise gradient border (DCL/Gradients/Cerise, #FF2D55 → #C640CD,
    outer) + a soft violet glow (Brand/Violet #A524B3, X0 Y0 Blur8 Spread0). The glow needs room in
    scroll containers — see .row__track. */
-.card--hover {
-  background:
-    linear-gradient(#fff, #fff) padding-box,
-    var(--cerise) border-box;
-  box-shadow: 0 0 8px 0 var(--brand-violet);
+/* Border + glow are pure CSS :hover/:focus-within so they appear INSTANTLY on mouseenter — like the
+   action button's reveal — instead of waiting on React state + the 120ms preview debounce (which made
+   the border lag and stutter while the 3D engine booted). Gated to hover-capable devices so a touch
+   tap (which synthesizes :hover) never flashes the border. */
+@media (hover: hover) {
+  .card:hover,
+  .card:focus-within {
+    background:
+      linear-gradient(#fff, #fff) padding-box,
+      var(--cerise) border-box;
+    box-shadow: 0 0 8px 0 var(--brand-violet);
+  }
 }
 
 /* isolation: isolate makes the media its own stacking context so the skeleton (z-index:-1) paints
@@ -358,10 +365,9 @@
   padding: 4px 8px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
 }
-/* Sale/market prices carry extra bits (was-price, countdown, market chip) that don't fit on one line
-   beside the title — let them wrap and align to the right, capped so the title keeps room. */
-.card__price--sale,
-.card__price--market {
+/* Sale prices carry extra bits (was-price, countdown) that don't fit on one line beside the title —
+   let them wrap and align to the right, capped so the title keeps room. */
+.card__price--sale {
   white-space: normal;
   flex-wrap: wrap;
   justify-content: flex-end;
@@ -408,28 +414,26 @@
   white-space: nowrap;
 }
 
-/* ---------------- Market tab (legacy, fluctuating-price liquidity) ---------------- */
-/* Fluctuating (indicative) price on a market (legacy) card: leading "≈" + a small "Market price"
-   chip. In the name/price top row it's capped + right-aligned so the chip wraps under the price
-   instead of squeezing the item name to nothing. */
+/* ---------------- Market (legacy, fluctuating-price liquidity) ---------------- */
+/* Market (legacy) card price: the SAME single-line layout as a native card's price, just with a
+   leading "≈" to flag that the credit value is an indicative, live-rate conversion. Keeping it to one
+   line (no wrap, no chip inside the row) is what lets the revealed "Buy now" button match a native
+   card's "Add to cart" exactly — the "Market price" tag lives in the chips row below instead. */
 .card__price--market {
-  gap: 8px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 4px 8px;
-  max-width: 55%;
+  gap: 4px;
 }
 .card__approx {
   font-weight: 700;
   color: var(--muted);
 }
-.card__market-chip {
+/* "Market price" tag — a chip in the chips row (swapped out for the action button on hover like every
+   other chip, so it never distorts the price row or the Buy now button). Subtle accent pill so it
+   reads as an annotation, distinct from the rarity chip; size/shape inherit from .card__chips .chip. */
+.card__chips .chip--market {
   background: var(--rarity-bg);
   color: var(--accent);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
   text-transform: uppercase;
+  letter-spacing: 0.02em;
 }
 
 /* hover preview loader */
