@@ -7,11 +7,8 @@ import { useCart } from '~/store/cart'
 import { useFavorites } from '~/store/favorites'
 import { useWallet } from '~/store/wallet'
 import { useBalance, balanceLabel } from '~/hooks/useBalance'
-import { fetchShopListingForItem, fetchTradeForItem, resolveLiveTrade, fetchItemDescription, usdWeiToCents, type CatalogItem } from '~/lib/api'
-import { buyWithCredits } from '~/lib/buy'
-import { buyGasless, waitForSettlement, GaslessUnavailableError, SettlementPendingError } from '~/lib/buy-gasless'
-import { gaslessEnabled } from '~/lib/gasless-config'
-import { authorizeUsdCredit, cancelUsdIntents } from '~/lib/credits'
+import { fetchShopListingForItem, fetchTradeForItem, fetchItemDescription, type CatalogItem } from '~/lib/api'
+import { BuyModal } from '~/components/BuyModal'
 import { fetchCollectionItems } from '~/lib/collections'
 import { ItemPreview } from '~/components/ItemPreview'
 import { CollectionCarousel } from '~/components/CollectionCarousel'
@@ -22,11 +19,9 @@ import { rarityTint, rarityInk } from '~/lib/rarity'
 import { categoryIcon, genderIcon } from '~/lib/itemIcons'
 import { saleDiscountPct } from '~/lib/sale'
 import { useSaleActive } from '~/hooks/useSaleActive'
-import { CURRENCY } from '~/lib/currency'
-import { track, itemProps, purchaseItemsProps, errorCode, isUserRejection, creditsToUsd } from '~/lib/analytics'
+import { track, itemProps } from '~/lib/analytics'
 import { recordViewed } from '~/lib/recently-viewed'
-import { isOwnListing, isOwnTrade } from '~/lib/ownership'
-import { captureError } from '~/lib/monitoring'
+import { isOwnListing } from '~/lib/ownership'
 import './item-detail.css'
 
 function isValidRarity(r: string): r is Rarity {
@@ -45,17 +40,6 @@ function genderLabel(gender: CatalogItem['gender']): string | null {
 function categoryLabel(item: CatalogItem): string {
   if (item.wearableCategory) return item.wearableCategory.replace(/_/g, ' ')
   return item.category === 'emote' ? 'Emote' : 'Wearable'
-}
-
-function friendlyError(e: unknown): string {
-  const err = e as { code?: number; message?: string }
-  const msg = (err.message ?? '').toLowerCase()
-  if (err.code === 4001 || msg.includes('reject') || msg.includes('denied') || msg.includes('cancel')) {
-    return 'You cancelled the request.'
-  }
-  if (msg.includes('insufficient')) return `You don't have enough ${CURRENCY.name} — get more first.`
-  if (msg.includes('no active listing') || msg.includes('not for sale')) return 'This item is not for sale right now.'
-  return "Couldn't complete checkout — please try again."
 }
 
 export function ItemDetail() {
@@ -93,9 +77,7 @@ export function ItemDetail() {
     }
   })
 
-  const [busy, setBusy] = useState(false)
-  const [status, setStatus] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [showBuy, setShowBuy] = useState(false)
 
   // Sibling items of the same collection (the "more from this collection" carousel).
   const { data: siblings = [], isFetched: siblingsFetched } = useQuery({
@@ -188,12 +170,6 @@ export function ItemDetail() {
   const inCart = cartItems.some(i => i.id === cartItem.id)
   const faved = useFavorites(s => !!s.items[current.id])
 
-  // Reset transient status whenever the hero item changes.
-  useEffect(() => {
-    setStatus(null)
-    setError(null)
-  }, [current.id])
-
   // KR5 denominator: fire 'Shop Viewed Item' once per hydrated item (deduped across re-renders and the
   // in-place carousel swaps), after the trade resolves so `for_sale` is accurate.
   const viewedRef = useRef<string | null>(null)
@@ -226,82 +202,6 @@ export function ItemDetail() {
     add(cartItem, 'item_detail')
   }
 
-  async function handleBuyNow() {
-    if (!forSale || !buyableTradeId) return
-    if (!session) {
-      setError('Sign in to check out.')
-      return
-    }
-    setError(null)
-    setBusy(true)
-    let reservedCreditId: string | undefined
-    let step: 'authorize' | 'submit' = 'authorize'
-    let usedGasless = false
-    try {
-      setStatus(`Buying ${current.name || 'item'}…`)
-      // Resolve the item's LIVE trade, not the tradeId we happen to be holding: a listing's signed
-      // trade is re-minted as availability/expiration rolls, so a tradeId seeded from the grid, a
-      // cached feed, or a deep link can be stale and 404. resolveLiveTrade re-resolves by item on a
-      // not-found so a still-listed item stays buyable; null means there's genuinely no live listing.
-      const trade = await resolveLiveTrade(cartItem)
-      if (!trade) throw new Error('not for sale')
-      if (isOwnTrade(trade, session.address)) {
-        setError("You can't buy your own listing.")
-        setStatus(null)
-        setBusy(false)
-        return
-      }
-      const priceAsset = trade.received?.[0] as { amount?: string } | undefined
-      const usdCents = usdWeiToCents(priceAsset?.amount)
-      // Authorize against the trade we actually resolved (its id may differ from buyableTradeId if we
-      // re-resolved), and size the reservation from ITS price — never a stale display amount.
-      const { credit, maxCreditedValue } = await authorizeUsdCredit(session.identity, usdCents, trade.id)
-      reservedCreditId = credit.id
-      step = 'submit'
-      const buyArgs = { trade, buyer: session.address, signer: session.signer, credits: [credit], maxCreditedValue }
-      let txHash: string | undefined
-      if (gaslessEnabled()) {
-        try {
-          txHash = await buyGasless(buyArgs) // buyer confirms off-chain; relayer covers the fee
-          await waitForSettlement(txHash)
-          usedGasless = true
-        } catch (gaslessErr) {
-          if (gaslessErr instanceof SettlementPendingError) {
-            // Broadcast but not yet confirmed — do NOT release the reservation; the credits-server
-            // reconciles it against the indexed CreditUsed event. Optimistic success.
-            usedGasless = true
-          } else if (gaslessErr instanceof GaslessUnavailableError) {
-            txHash = await buyWithCredits(buyArgs) // fallback: buyer submits
-          } else {
-            throw gaslessErr
-          }
-        }
-      } else {
-        txHash = await buyWithCredits(buyArgs)
-      }
-      reservedCreditId = undefined // consumed by the buy
-      track('Shop Completed Purchase', {
-        ...purchaseItemsProps([cartItem]),
-        payment_type: 'credits',
-        no_crypto_step: usedGasless,
-        transaction_hash: txHash ?? null
-      })
-      navigate('/success', { state: { items: [cartItem], txHash } })
-    } catch (e) {
-      if (!isUserRejection(e)) captureError(e, { flow: 'buy', step, gasless: usedGasless })
-      // Release the reserved dollars so the balance isn't stuck until the TTL (matches Cart/MarketCheckout).
-      if (reservedCreditId) void cancelUsdIntents(session.identity, [reservedCreditId]).catch(() => {})
-      track(isUserRejection(e) ? 'Shop Purchase Cancelled' : 'Shop Purchase Failed', {
-        step,
-        error_code: errorCode(e),
-        value_usd: creditsToUsd(cartItem.priceCredits)
-      })
-      setError(friendlyError(e))
-      setStatus(null)
-    } finally {
-      setBusy(false)
-    }
-  }
 
   const rarity: Rarity = isValidRarity(current.rarity) ? current.rarity : Rarity.COMMON
   const gender = genderLabel(current.gender)
@@ -454,16 +354,16 @@ export function ItemDetail() {
             {forSale ? (
               <button
                 className="btn btn--purple item-detail__cta"
-                onClick={handleBuyNow}
-                disabled={busy || resolvingTrade}
+                onClick={() => setShowBuy(true)}
+                disabled={resolvingTrade}
               >
-                {busy ? 'Buying…' : 'Buy now'}
+                Buy now
               </button>
             ) : null}
             <button
               className="item-detail__addcart"
               onClick={handleAddToCart}
-              disabled={!forSale || inCart || resolvingTrade || busy}
+              disabled={!forSale || inCart || resolvingTrade}
             >
               <span className="ico ico-cart-solid item-detail__addcart-ico" aria-hidden />
               {addLabel}
@@ -472,8 +372,6 @@ export function ItemDetail() {
             )}
           </div>
 
-          {status ? <p className="muted item-detail__status">{status}</p> : null}
-          {error ? <p className="error item-detail__status">{error}</p> : null}
         </div>
       </div>
 
@@ -482,6 +380,8 @@ export function ItemDetail() {
         items={carouselItems}
         onViewAll={current.contractAddress ? () => navigate(`/collection/${current.contractAddress}`) : undefined}
       />
+
+      {showBuy ? <BuyModal item={cartItem} onClose={() => setShowBuy(false)} /> : null}
     </div>
   )
 }
