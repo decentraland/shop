@@ -31,7 +31,7 @@ function friendlyError(e: unknown): string {
     return t('getCredits.errorCanceled')
   }
   if (msg.includes('insufficient')) return t('cart.error.insufficient', { currency: CURRENCY.name })
-  if (msg.includes('no active listing') || msg.includes('your own listing')) return err.message as string
+  if (msg.includes('no active listing') || msg.includes('your own listing')) return t('cart.error.listingChanged')
   return t('marketCheckout.error.generic')
 }
 

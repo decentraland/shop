@@ -145,7 +145,8 @@
     },
     "error": {
       "insufficient": "You don't have enough {currency} — get more first.",
-      "noneAvailable": "None of these items are available to buy right now."
+      "noneAvailable": "None of these items are available to buy right now.",
+      "listingChanged": "One or more items changed — please review your cart and try again."
     },
     "drop": {
       "unavailable": "{count} no longer available",

@@ -145,7 +145,8 @@
     },
     "error": {
       "insufficient": "No tienes suficientes {currency}. Consigue más primero.",
-      "noneAvailable": "Ninguno de estos artículos está disponible para comprar en este momento."
+      "noneAvailable": "Ninguno de estos artículos está disponible para comprar en este momento.",
+      "listingChanged": "Uno o más artículos cambiaron. Revisa tu carrito e inténtalo de nuevo."
     },
     "drop": {
       "unavailable": "{count, plural, one {# que ya no está disponible} other {# que ya no están disponibles}}",
