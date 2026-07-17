@@ -165,7 +165,7 @@ export function Creator() {
               <LoadMore
                 hasNextPage={collections.hasNextPage}
                 isFetching={collections.isFetchingNextPage}
-                onLoadMore={() => collections.fetchNextPage()}
+                onLoadMore={() => void collections.fetchNextPage()}
               />
 
               {!collections.isLoading && !collections.error && collections.items.length === 0 ? (
@@ -226,7 +226,11 @@ export function Creator() {
                 )}
               </div>
 
-              <LoadMore hasNextPage={hasNextPage} isFetching={isFetchingNextPage} onLoadMore={() => fetchNextPage()} />
+              <LoadMore
+                hasNextPage={hasNextPage}
+                isFetching={isFetchingNextPage}
+                onLoadMore={() => void fetchNextPage()}
+              />
 
               {!isLoading && !error && items.length === 0 ? <p className="muted">{t('creator.empty')}</p> : null}
             </>

@@ -346,7 +346,7 @@ export function Assets() {
           )}
         </div>
 
-        <LoadMore hasNextPage={hasNextPage} isFetching={isFetchingNextPage} onLoadMore={() => fetchNextPage()} />
+        <LoadMore hasNextPage={hasNextPage} isFetching={isFetchingNextPage} onLoadMore={() => void fetchNextPage()} />
 
         {!isLoading && items.length === 0 ? <p className="muted">No items match your filters.</p> : null}
       </div>

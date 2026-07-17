@@ -37,7 +37,7 @@ export function MigrateModal({
     started.current = true
 
     let cancelled = false
-    ;(async () => {
+    const migrateItems = async () => {
       for (let i = 0; i < queue.length; i++) {
         if (cancelled) return
         setStatuses(s => s.map((v, idx) => (idx === i ? 'active' : v)))
@@ -70,7 +70,9 @@ export function MigrateModal({
         }
       }
       if (!cancelled) setPhase('finished')
-    })()
+    }
+
+    void migrateItems()
 
     return () => {
       cancelled = true

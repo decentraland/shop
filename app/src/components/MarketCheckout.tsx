@@ -108,7 +108,8 @@ export function MarketCheckout({
       setError('Sign in to check out.')
       return
     }
-    ;(async () => {
+
+    const lockPrice = async () => {
       try {
         const trade = await fetchTrade(listing.tradeId)
         if (!trade) throw new Error('not found')
@@ -141,7 +142,10 @@ export function MarketCheckout({
         setPhase('error')
         setError(friendlyError(e))
       }
-    })()
+    }
+
+    void lockPrice()
+
     return () => {
       cancelled = true
       // Release a locked-but-unspent reservation if the user navigates away without buying/cancelling.
@@ -308,7 +312,7 @@ export function MarketCheckout({
           <button className="btn btn--ghost" onClick={cancel} disabled={busy}>
             Cancel
           </button>
-          <button className="btn btn--purple" onClick={confirm} disabled={busy || !locked}>
+          <button className="btn btn--purple" onClick={() => void confirm()} disabled={busy || !locked}>
             {busy ? 'Buying…' : needsMoreCredits ? `Get ${CURRENCY.name}` : 'Confirm purchase'}
           </button>
         </div>

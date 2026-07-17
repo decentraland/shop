@@ -329,7 +329,7 @@ export function StoreSettings() {
           ))}
 
           <div className="store-settings__actions">
-            <button className="btn btn--purple store-settings__save" onClick={save} disabled={!canSave}>
+            <button className="btn btn--purple store-settings__save" onClick={() => void save()} disabled={!canSave}>
               {saving ? t('storeSettings.saving') : t('storeSettings.save')}
             </button>
           </div>

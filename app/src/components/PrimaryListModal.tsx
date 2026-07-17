@@ -212,7 +212,7 @@ export function PrimaryListModal({
           <button className="btn btn--ghost" onClick={onClose} disabled={busy}>
             Cancel
           </button>
-          <button className="btn" onClick={publish} disabled={busy || enabled === null}>
+          <button className="btn" onClick={() => void publish()} disabled={busy || enabled === null}>
             {enabled === null ? 'Checking…' : cta}
           </button>
         </div>

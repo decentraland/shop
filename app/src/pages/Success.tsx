@@ -35,7 +35,7 @@ function useSettlement(txHash: string | undefined, ownership: OwnershipCheck | n
   useEffect(() => {
     if (!txHash) return
     let cancelled = false
-    ;(async () => {
+    const checkSettlement = async () => {
       // Gate 1: wait for the tx receipt. ~5 min of polling (20 × 15s); a reverted tx fails fast.
       let mined = false
       for (let attempt = 0; attempt < 20 && !cancelled; attempt++) {
@@ -71,10 +71,16 @@ function useSettlement(txHash: string | undefined, ownership: OwnershipCheck | n
       // Bought + mined, but the indexer hasn't caught up within the window. Not a failure — surface a
       // "will appear shortly" state instead of a false "It's yours!" over an empty wardrobe.
       if (!cancelled) setState('timed-out')
-    })()
+    }
+
+    void checkSettlement()
+
     return () => {
       cancelled = true
     }
+    // `ownerKey` is the stringified `ownership` — depend on it (not the object) so the poll doesn't
+    // restart on a new object reference carrying identical values.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [txHash, ownerKey])
   return state
 }
@@ -126,7 +132,7 @@ export function Success() {
   const avatarFits = !!shape && wearables.every(w => isCompatible(w, shape))
   const target = dominantShape(wearables) ?? shape ?? BASE_MALE
   const useAvatar = !!session?.address && avatarFits
-  const previewProfile = useAvatar ? (session.address) : 'default'
+  const previewProfile = useAvatar ? session.address : 'default'
   const previewBodyShape = useAvatar ? undefined : target
 
   // No wearables (emote-only purchase, or a wearable missing a URN) → render that single item directly.

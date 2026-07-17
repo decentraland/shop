@@ -37,7 +37,7 @@ function segment(): SegmentApi | undefined {
 // share the same anonymousId and post-login events carry the address. Never let a store read (or a
 // mocked store in tests) break the flow that's tracking — tracking is best-effort.
 function context(): Props {
-  let session = null
+  let session: ReturnType<typeof useWallet.getState>['session'] | null
   try {
     session = useWallet.getState().session
   } catch {
@@ -184,7 +184,7 @@ function loadSegment(writeKey: string): void {
       return analytics
     }
   for (const method of analytics.methods) {
-    ;(analytics as unknown as Props)[method] = (analytics.factory)(method)
+    ;(analytics as unknown as Props)[method] = analytics.factory(method)
   }
   analytics.load = (key: string) => {
     const script = document.createElement('script')
@@ -193,7 +193,7 @@ function loadSegment(writeKey: string): void {
     document.head.appendChild(script)
   }
   w.analytics = analytics
-  ;(analytics.load)(writeKey)
+  analytics.load(writeKey)
   ;(analytics as SegmentApi).page()
 }
 

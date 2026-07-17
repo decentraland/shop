@@ -126,7 +126,9 @@ export function Cart() {
           // reservations — the credits-server reconciles those against the indexed CreditUsed event.
           // Release (rethrow) ONLY when every failure is a hard revert and none is still pending.
           const settled = await Promise.allSettled(hashes.map(h => waitForSettlement(h)))
-          const failures = settled.flatMap(r => (r.status === 'rejected' ? [r.reason] : []))
+          const failures = settled
+            .filter((r): r is PromiseRejectedResult => r.status === 'rejected')
+            .map(r => r.reason as unknown)
           if (failures.length && !failures.some(r => r instanceof SettlementPendingError)) {
             throw failures[0]
           }
@@ -331,7 +333,7 @@ export function Cart() {
               Clear cart
             </button>
             {import.meta.env.DEV ? (
-              <button className="link" onClick={getTestCredits} disabled={busy || !session}>
+              <button className="link" onClick={() => void getTestCredits()} disabled={busy || !session}>
                 Get test {CURRENCY.name} (dev)
               </button>
             ) : null}
@@ -357,7 +359,7 @@ export function Cart() {
           <div className="cart__actions">
             <button
               className="btn btn--purple cart__checkout"
-              onClick={review ? confirmPurchase : checkout}
+              onClick={() => void (review ? confirmPurchase() : checkout())}
               disabled={busy}
             >
               {busy ? 'Working…' : review ? 'Confirm purchase' : 'Checkout'}

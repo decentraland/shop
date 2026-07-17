@@ -148,7 +148,7 @@ export function SellModal({ asset, session, onClose }: { asset: MyAsset; session
           <button className="btn btn--ghost" onClick={onClose} disabled={busy}>
             Cancel
           </button>
-          <button className="btn" onClick={list} disabled={busy}>
+          <button className="btn" onClick={() => void list()} disabled={busy}>
             {busy ? 'Listing…' : 'Put on sale'}
           </button>
         </div>

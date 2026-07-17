@@ -2,10 +2,6 @@ import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { PreviewEmote, PreviewType } from '@dcl/schemas'
 import { WearablePreview } from '~/components/LazyWearablePreview'
-
-// Lazy so the WebGL backdrop (+ its shader and pattern texture) only loads when the room opens —
-// it never touches the main bundle.
-const AnimatedBackground = lazy(() => import('~/components/AnimatedBackground/AnimatedBackground'))
 import { useCart } from '~/store/cart'
 import { useWallet } from '~/store/wallet'
 import { useProfile } from '~/hooks/useProfile'
@@ -15,6 +11,10 @@ import { CURRENCY } from '~/lib/currency'
 import { track } from '~/lib/analytics'
 import { isWearable, slotOf, slotRegion, defaultWorn, toggleWorn, conflictingIds, wornUrns } from '~/lib/outfit'
 import { avatarShape, dominantShape, itemShapes, shapeLabel, isCompatible, BASE_MALE } from '~/lib/bodyShape'
+
+// Lazy so the WebGL backdrop (+ its shader and pattern texture) only loads when the room opens —
+// it never touches the main bundle.
+const AnimatedBackground = lazy(() => import('~/components/AnimatedBackground/AnimatedBackground'))
 
 // Turn a wearable sub-category into a human label ("upper_body" → "Upper body").
 function slotLabel(slot: string | null): string {

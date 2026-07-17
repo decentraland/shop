@@ -167,7 +167,7 @@ export function Collection() {
             )}
           </div>
 
-          <LoadMore hasNextPage={hasNextPage} isFetching={isFetchingNextPage} onLoadMore={() => fetchNextPage()} />
+          <LoadMore hasNextPage={hasNextPage} isFetching={isFetchingNextPage} onLoadMore={() => void fetchNextPage()} />
 
           {!isLoading && !error && items.length === 0 ? <p className="muted">{t('collection.empty')}</p> : null}
         </div>

@@ -121,7 +121,7 @@ export function MyPurchases() {
           </>
         )}
       </div>
-      <LoadMore hasNextPage={hasNextPage} isFetching={isFetchingNextPage} onLoadMore={() => fetchNextPage()} />
+      <LoadMore hasNextPage={hasNextPage} isFetching={isFetchingNextPage} onLoadMore={() => void fetchNextPage()} />
     </section>
   )
 }

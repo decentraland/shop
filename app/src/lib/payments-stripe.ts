@@ -66,7 +66,6 @@ export async function pollCreditGrantReal(
   const { intervalMs = 1500, timeoutMs = 60_000, signal } = opts
   const deadline = Date.now() + timeoutMs
 
-   
   while (true) {
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
     const status = await fetchOrderStatusReal(orderId, identity, signal)
@@ -92,7 +91,7 @@ async function fetchOrderStatusReal(
     signal
   })
   if (!res.ok) throw new Error(`order status ${res.status}`)
-  return res.json()
+  return res.json() as Promise<OrderStatus>
 }
 
 function delay(ms: number, signal?: AbortSignal): Promise<void> {

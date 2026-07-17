@@ -8,7 +8,9 @@ vi.mock('~/lib/analytics', () => ({
   creditsToUsd: (credits: number) => Math.round(credits * 10) / 100
 }))
 
+// eslint-disable-next-line import/first
 import { useCart } from './cart'
+// eslint-disable-next-line import/first
 import { track } from '~/lib/analytics'
 
 const trackMock = vi.mocked(track)

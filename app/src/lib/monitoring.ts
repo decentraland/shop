@@ -23,7 +23,7 @@ export function setErrorForwarder(fn: ((error: unknown, context: ErrorContext) =
 /** Log an error to the console (always) and forward it to the reporter (if wired). Never throws. */
 export function captureError(error: unknown, context: ErrorContext = {}): void {
   const label = typeof context.flow === 'string' ? `error in ${context.flow}` : 'error'
-   
+
   console.error(`[shop] ${label}`, error, context)
   if (forward) {
     try {
@@ -84,7 +84,6 @@ export function initSentry(): void {
   if (initialized) return
   const dsn = config.sentryDsn
   if (!dsn) {
-     
     if (import.meta.env.DEV) console.debug('[monitoring] no VITE_SENTRY_DSN → error reporting disabled')
     return
   }

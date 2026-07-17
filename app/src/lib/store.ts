@@ -209,6 +209,10 @@ export async function saveStore(address: string, draft: StoreDraft, identity: Au
     await client.deploy({ ...entity, authChain })
   } catch (error) {
     captureError(error, { flow: 'saveStore' })
-    throw new Error('save-failed')
+    // Rethrow a stable message for the UI, but keep the original as `cause` for debugging. Set it
+    // manually (not via the Error options arg) so we don't depend on the ES2022 lib target.
+    const failure: Error & { cause?: unknown } = new Error('save-failed')
+    failure.cause = error
+    throw failure
   }
 }

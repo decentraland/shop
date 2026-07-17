@@ -91,8 +91,12 @@ async function relay(chainId: number, buyer: string, functionData: string, signe
   const cm = getContract(ContractName.CreditsManager, chainId) // Amoy 0x8052…fb3
 
   // 1) fresh nonce (replay protection) from the contract, via read-only RPC
-  const reader = new ethers.Contract(cm.address, ['function getNonce(address) view returns (uint256)'], readProvider())
-  const nonce: ethers.BigNumber = await reader.getNonce(buyer)
+  const reader = new ethers.Contract(
+    cm.address,
+    ['function getNonce(address) view returns (uint256)'],
+    readProvider()
+  ) as ethers.Contract & { getNonce(address: string): Promise<ethers.BigNumber> }
+  const nonce = await reader.getNonce(buyer)
 
   // 2) the useCredits calldata IS the meta-tx functionData
   const functionSignature = functionData
@@ -116,14 +120,15 @@ async function relay(chainId: number, buyer: string, functionData: string, signe
 
   // 4) pack executeMetaTransaction(buyer, functionData, signature) and POST to the relayer
   const txData = encodeExecuteMetaTransaction(cm.abi, buyer, functionSignature, signature)
-  let body: { ok?: boolean; txHash?: string; message?: string; code?: unknown }
+  type RelayerResponse = { ok?: boolean; txHash?: string; message?: string; code?: unknown }
+  let body: RelayerResponse
   try {
     const res = await fetch(`${gaslessConfig.relayerUrl}/transactions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ transactionData: { from: buyer, params: [cm.address, txData] } })
     })
-    body = await res.json()
+    body = (await res.json()) as RelayerResponse
     if (!res.ok && body?.ok !== true && !body?.txHash) {
       throw new GaslessUnavailableError(body?.message ?? `relayer ${res.status}`, 'relayer')
     }
@@ -183,14 +188,7 @@ export async function buyGasless(opts: {
   if (credits.length === 0) throw new Error('No credits to spend')
 
   const marketplace = getContract(getContractName(trade.contract), trade.chainId)
-  const args = buildUseCreditsArgs(
-    marketplace.address,
-    marketplace.abi,
-    [trade],
-    buyer,
-    credits,
-    maxCreditedValue
-  )
+  const args = buildUseCreditsArgs(marketplace.address, marketplace.abi, [trade], buyer, credits, maxCreditedValue)
   const cm = getContract(ContractName.CreditsManager, trade.chainId)
   const functionData = new Interface(cm.abi).encodeFunctionData('useCredits', [args])
   return relay(trade.chainId, buyer, functionData, signer)
@@ -227,14 +225,7 @@ export async function buyManyGasless(opts: {
     const maxCreditedValue = group
       .reduce((acc, p) => acc.add(ethers.BigNumber.from(p.maxCreditedValue)), ethers.BigNumber.from(0))
       .toString()
-    const args = buildUseCreditsArgs(
-      marketplace.address,
-      marketplace.abi,
-      trades,
-      buyer,
-      credits,
-      maxCreditedValue
-    )
+    const args = buildUseCreditsArgs(marketplace.address, marketplace.abi, trades, buyer, credits, maxCreditedValue)
     const cm = getContract(ContractName.CreditsManager, chainId)
     const functionData = new Interface(cm.abi).encodeFunctionData('useCredits', [args])
     hashes.push(await relay(chainId, buyer, functionData, signer))

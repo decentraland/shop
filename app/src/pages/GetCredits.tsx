@@ -218,7 +218,7 @@ export function GetCredits() {
                   Payment canceled — no charge was made. Pick a pack whenever you&rsquo;re ready.
                 </p>
               )}
-              <PackGrid onSelect={startCheckout} />
+              <PackGrid onSelect={pack => void startCheckout(pack)} />
             </>
           )}
 

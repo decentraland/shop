@@ -17,7 +17,6 @@ const base = createConfig(
   },
   {
     systemEnvVariables: {
-       
       VITE_DCL_DEFAULT_ENV: import.meta.env.VITE_DCL_DEFAULT_ENV ?? 'dev'
     }
   }

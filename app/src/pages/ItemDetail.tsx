@@ -453,7 +453,7 @@ export function ItemDetail() {
                 {forSale ? (
                   <button
                     className="btn btn--purple item-detail__cta"
-                    onClick={handleBuyNow}
+                    onClick={() => void handleBuyNow()}
                     disabled={busy || resolvingTrade}
                   >
                     {busy ? 'Buying…' : 'Buy now'}
