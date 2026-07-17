@@ -103,7 +103,7 @@ export async function fetchCreatorSuggestions(search: string, first = 4, nameFir
       return {
         address,
         name: profile?.name || (owners.get(address) ?? address),
-        face: profile?.avatar?.snapshots?.face256,
+        face: profile?.avatar?.snapshots?.face256
       }
     })
   )

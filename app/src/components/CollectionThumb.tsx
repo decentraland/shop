@@ -18,7 +18,7 @@ export function useCollectionPreview(contractAddress: string, enabled = true) {
     queryKey: ['collection-preview', contractAddress],
     queryFn: () => fetchCollectionItems(contractAddress, { first: MOSAIC_COUNT }),
     enabled,
-    staleTime: 5 * 60_000,
+    staleTime: 5 * 60_000
   })
 }
 
@@ -29,11 +29,7 @@ export function CollectionMosaic({ items, className }: { items: CatalogItem[]; c
   return (
     <span className={`coll-thumb${className ? ` ${className}` : ''}`} data-count={cells.length} aria-hidden>
       {cells.map(item => (
-        <span
-          key={item.id}
-          className="coll-thumb__cell"
-          style={{ backgroundImage: rarityGradient(item.rarity) }}
-        >
+        <span key={item.id} className="coll-thumb__cell" style={{ backgroundImage: rarityGradient(item.rarity) }}>
           {item.thumbnail ? <img src={item.thumbnail} alt="" loading="lazy" /> : null}
         </span>
       ))}
@@ -46,7 +42,7 @@ export function CollectionMosaic({ items, className }: { items: CatalogItem[]; c
 export function CollectionThumb({
   contractAddress,
   className,
-  fallback = null,
+  fallback = null
 }: {
   contractAddress: string
   className?: string

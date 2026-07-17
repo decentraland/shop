@@ -123,7 +123,11 @@ export function GetCredits() {
           void qc.invalidateQueries({ queryKey: ['usd-balance'] })
           setPhase('pending')
         } else {
-          track('Shop Buy Credits Failed', { step: 'grant', error_code: 'grant_failed', pack_usd: selected?.usd ?? null })
+          track('Shop Buy Credits Failed', {
+            step: 'grant',
+            error_code: 'grant_failed',
+            pack_usd: selected?.usd ?? null
+          })
           setError(result.error ?? `Couldn't add your ${CURRENCY.name} — please try again.`)
           setPhase('error')
         }
@@ -232,82 +236,89 @@ export function GetCredits() {
           <p className="getcredits__status-title">Sign in to get {CURRENCY.name}</p>
           <p className="muted">Connect your account to buy {CURRENCY.name} and start shopping.</p>
           <div className="getcredits__status-actions">
-            <button className="btn btn--purple" onClick={signIn}>Sign in</button>
+            <button className="btn btn--purple" onClick={signIn}>
+              Sign in
+            </button>
           </div>
         </div>
       ) : (
-      <>
-      {phase === 'select' && (
         <>
-          {canceledNote && (
-            <p className="getcredits__note muted" role="status">
-              Payment canceled — no charge was made. Pick a pack whenever you&rsquo;re ready.
-            </p>
+          {phase === 'select' && (
+            <>
+              {canceledNote && (
+                <p className="getcredits__note muted" role="status">
+                  Payment canceled — no charge was made. Pick a pack whenever you&rsquo;re ready.
+                </p>
+              )}
+              <PackGrid onSelect={pack => void startCheckout(pack)} />
+            </>
           )}
-          <PackGrid onSelect={startCheckout} />
+
+          {phase === 'paying' && selected && (
+            <PayStep pack={selected} checkout={checkout} onPaid={onPaid} onCancel={reset} />
+          )}
+
+          {phase === 'processing' && (
+            <div className="getcredits__status" role="status" aria-live="polite">
+              <CircularProgress size={40} />
+              <p className="getcredits__status-title">Adding your {CURRENCY.name}…</p>
+              <p className="muted">Payment received. Just a moment while we top up your balance.</p>
+            </div>
+          )}
+
+          {phase === 'success' && (
+            <div className="getcredits__status getcredits__status--ok" role="status" aria-live="polite">
+              <div className="getcredits__confetti" aria-hidden>
+                🎉
+              </div>
+              <p className="getcredits__status-title">You&rsquo;re all set!</p>
+              <p className="muted">
+                <strong>
+                  <CurrencyIcon className="ccy-mark" /> {granted}
+                </strong>{' '}
+                {CURRENCY.name} added to your account.
+              </p>
+              <div className="getcredits__status-actions">
+                <button className="btn" onClick={() => navigate('/cart')}>
+                  Back to cart
+                </button>
+                <button className="btn btn--ghost" onClick={reset}>
+                  Get more {CURRENCY.name}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {phase === 'pending' && (
+            <div className="getcredits__status" role="status" aria-live="polite">
+              <p className="getcredits__status-title">Your {CURRENCY.name} are on the way</p>
+              <p className="muted">
+                Your payment went through. It&rsquo;s taking a little longer than usual to confirm — your balance will
+                update automatically as soon as it lands, no need to pay again.
+              </p>
+              <div className="getcredits__status-actions">
+                <button className="btn" onClick={() => navigate('/cart')}>
+                  Back to cart
+                </button>
+                <button className="btn btn--ghost" onClick={reset}>
+                  Done
+                </button>
+              </div>
+            </div>
+          )}
+
+          {phase === 'error' && (
+            <div className="getcredits__status getcredits__status--err" role="alert">
+              <p className="getcredits__status-title">Something went wrong</p>
+              <p className="error">{error}</p>
+              <div className="getcredits__status-actions">
+                <button className="btn" onClick={reset}>
+                  Try again
+                </button>
+              </div>
+            </div>
+          )}
         </>
-      )}
-
-      {phase === 'paying' && selected && (
-        <PayStep pack={selected} checkout={checkout} onPaid={onPaid} onCancel={reset} />
-      )}
-
-      {phase === 'processing' && (
-        <div className="getcredits__status" role="status" aria-live="polite">
-          <CircularProgress size={40} />
-          <p className="getcredits__status-title">Adding your {CURRENCY.name}…</p>
-          <p className="muted">Payment received. Just a moment while we top up your balance.</p>
-        </div>
-      )}
-
-      {phase === 'success' && (
-        <div className="getcredits__status getcredits__status--ok" role="status" aria-live="polite">
-          <div className="getcredits__confetti" aria-hidden>🎉</div>
-          <p className="getcredits__status-title">You&rsquo;re all set!</p>
-          <p className="muted">
-            <strong><CurrencyIcon className="ccy-mark" /> {granted}</strong> {CURRENCY.name} added to your account.
-          </p>
-          <div className="getcredits__status-actions">
-            <button className="btn" onClick={() => navigate('/cart')}>
-              Back to cart
-            </button>
-            <button className="btn btn--ghost" onClick={reset}>
-              Get more {CURRENCY.name}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {phase === 'pending' && (
-        <div className="getcredits__status" role="status" aria-live="polite">
-          <p className="getcredits__status-title">Your {CURRENCY.name} are on the way</p>
-          <p className="muted">
-            Your payment went through. It&rsquo;s taking a little longer than usual to confirm — your
-            balance will update automatically as soon as it lands, no need to pay again.
-          </p>
-          <div className="getcredits__status-actions">
-            <button className="btn" onClick={() => navigate('/cart')}>
-              Back to cart
-            </button>
-            <button className="btn btn--ghost" onClick={reset}>
-              Done
-            </button>
-          </div>
-        </div>
-      )}
-
-      {phase === 'error' && (
-        <div className="getcredits__status getcredits__status--err" role="alert">
-          <p className="getcredits__status-title">Something went wrong</p>
-          <p className="error">{error}</p>
-          <div className="getcredits__status-actions">
-            <button className="btn" onClick={reset}>
-              Try again
-            </button>
-          </div>
-        </div>
-      )}
-      </>
       )}
     </div>
   )
@@ -326,7 +337,8 @@ function PackGrid({ onSelect }: { onSelect: (pack: CreditPack) => void }) {
         >
           {pack.bestValue && <span className="pack__ribbon">Best value</span>}
           <span className="pack__credits">
-            <CurrencyIcon className="pack__credits-ico" />{pack.credits}
+            <CurrencyIcon className="pack__credits-ico" />
+            {pack.credits}
           </span>
           <span className="pack__label">{CURRENCY.name}</span>
           <span className="pack__price">${pack.usd}</span>
@@ -356,7 +368,9 @@ function PayStep({
         </button>
         <div className="pay__summary-row">
           <span>You&rsquo;ll get</span>
-          <strong><CurrencyIcon className="ccy-mark" /> {formatAmount(pack.credits)}</strong>
+          <strong>
+            <CurrencyIcon className="ccy-mark" /> {formatAmount(pack.credits)}
+          </strong>
         </div>
         <div className="pay__summary-row pay__summary-row--total">
           <span>You pay</span>

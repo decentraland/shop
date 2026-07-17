@@ -68,7 +68,6 @@ vi.mock('ethers', async importOriginal => {
   }
 })
 
-// eslint-disable-next-line import/first
 import { login, restoreSession, logout, signInRedirect } from '~/lib/auth'
 
 const STORED_IDENTITY = { authChain: [{ type: 'SIGNER' }] }
@@ -160,10 +159,7 @@ describe('when logging in', () => {
       31 * 24 * 60,
       expect.any(Function)
     )
-    expect(localStorageStoreIdentity).toHaveBeenCalledWith(
-      '0xabc0000000000000000000000000000000000002',
-      fresh
-    )
+    expect(localStorageStoreIdentity).toHaveBeenCalledWith('0xabc0000000000000000000000000000000000002', fresh)
   })
 
   it('should sign auth-chain messages through the wallet signer', async () => {

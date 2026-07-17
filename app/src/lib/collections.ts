@@ -52,7 +52,7 @@ function toCatalogItem(r: RawCollectionItem): CatalogItem {
     chainId: r.chainId,
     thumbnail: r.thumbnail ?? '',
     priceCredits: r.priceCredits ?? 0,
-    gender: toGender(r.data?.wearable?.bodyShapes),
+    gender: toGender(r.data?.wearable?.bodyShapes)
   }
 }
 
@@ -81,14 +81,14 @@ export async function fetchCollectionItems(
     wearableCategories,
     minPriceCredits,
     maxPriceCredits,
-    sortBy,
+    sortBy
   }: { first?: number; skip?: number } & CollectionItemsFilters = {}
 ): Promise<CollectionItemsPage> {
   const qs = new URLSearchParams({
     contractAddress,
     first: String(first),
     skip: String(skip),
-    includeSocialEmotes: 'false',
+    includeSocialEmotes: 'false'
   })
   if (category && category !== 'all') qs.set('category', category)
   rarities?.forEach(r => qs.append('rarity', r))
@@ -138,7 +138,7 @@ export async function fetchCreatorCollections(
     creator,
     first: String(first),
     skip: String(skip),
-    sortBy: 'newest',
+    sortBy: 'newest'
   })
   const res = await fetch(`${config.nftApiUrl}/v1/collections?${qs.toString()}`)
   if (!res.ok) throw new Error(`fetchCreatorCollections ${res.status}`)
@@ -147,7 +147,7 @@ export async function fetchCreatorCollections(
     contractAddress: c.contractAddress,
     name: c.name ?? '',
     creator: c.creator ?? '',
-    itemCount: c.size ?? 0,
+    itemCount: c.size ?? 0
   }))
   return { collections, total: total ?? skip + collections.length }
 }

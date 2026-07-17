@@ -35,7 +35,6 @@ vi.mock('~/lib/trades', () => ({
   createUsdPeggedListing: (...args: unknown[]) => createUsdPeggedListing(...args)
 }))
 
-// eslint-disable-next-line import/first
 import { fetchImportable, importListing, RelistFailedError, type ImportItem, type ImportListing } from '~/lib/import'
 
 const listing = (over: Partial<ImportListing> = {}): ImportListing => ({
@@ -77,7 +76,7 @@ beforeEach(() => {
   fetchTrade.mockResolvedValue({ id: 'old-trade' })
 })
 
-describe('when fetching a seller\'s importable listings', () => {
+describe("when fetching a seller's importable listings", () => {
   it('should query the marketplace server with a lowercased seller address', async () => {
     ;(fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(okResponse([]))
 
@@ -87,7 +86,11 @@ describe('when fetching a seller\'s importable listings', () => {
   })
 
   it('should throw when the response is not ok', async () => {
-    ;(fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: false, status: 503, json: async () => ({}) })
+    ;(fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: false,
+      status: 503,
+      json: async () => ({})
+    })
 
     await expect(fetchImportable('0xseller')).rejects.toThrow('fetchImportable 503')
   })

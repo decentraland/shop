@@ -168,7 +168,13 @@ export async function createPackCheckout(
 // ---------------------------------------------------------------------------
 export async function pollCreditGrant(
   orderId: string,
-  opts: { intervalMs?: number; timeoutMs?: number; signal?: AbortSignal; address?: string; identity?: AuthIdentity } = {}
+  opts: {
+    intervalMs?: number
+    timeoutMs?: number
+    signal?: AbortSignal
+    address?: string
+    identity?: AuthIdentity
+  } = {}
 ): Promise<OrderStatus> {
   const { intervalMs, timeoutMs, signal, identity } = opts
 

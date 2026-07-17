@@ -34,7 +34,6 @@ const followReloadFor = vi.fn()
 vi.mock('~/store/favorites', () => ({ useFavorites: { getState: () => ({ reloadFor: favReloadFor }) } }))
 vi.mock('~/store/follows', () => ({ useFollows: { getState: () => ({ reloadFor: followReloadFor }) } }))
 
-// eslint-disable-next-line import/first
 import { useWallet } from '~/store/wallet'
 
 const SIGNING_IN_FLAG = 'shop:signing_in'

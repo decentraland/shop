@@ -2,10 +2,6 @@ import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { PreviewEmote, PreviewType } from '@dcl/schemas'
 import { WearablePreview } from '~/components/LazyWearablePreview'
-
-// Lazy so the WebGL backdrop (+ its shader and pattern texture) only loads when the room opens —
-// it never touches the main bundle.
-const AnimatedBackground = lazy(() => import('~/components/AnimatedBackground/AnimatedBackground'))
 import { useCart } from '~/store/cart'
 import { useWallet } from '~/store/wallet'
 import { useProfile } from '~/hooks/useProfile'
@@ -15,6 +11,10 @@ import { CURRENCY } from '~/lib/currency'
 import { track } from '~/lib/analytics'
 import { isWearable, slotOf, slotRegion, defaultWorn, toggleWorn, conflictingIds, wornUrns } from '~/lib/outfit'
 import { avatarShape, dominantShape, itemShapes, shapeLabel, isCompatible, BASE_MALE } from '~/lib/bodyShape'
+
+// Lazy so the WebGL backdrop (+ its shader and pattern texture) only loads when the room opens —
+// it never touches the main bundle.
+const AnimatedBackground = lazy(() => import('~/components/AnimatedBackground/AnimatedBackground'))
 
 // Turn a wearable sub-category into a human label ("upper_body" → "Upper body").
 function slotLabel(slot: string | null): string {
@@ -39,7 +39,7 @@ export function FittingRoom() {
   const { data: avatar, isFetched: profileFetched } = useProfile(address)
   const profileResolved = !address || profileFetched
   const hasAvatar = !!address && !!avatar
-  const profile = hasAvatar ? address! : 'default'
+  const profile = hasAvatar ? address : 'default'
 
   // The body shape we dress: the connected avatar's shape if any, else the cart's majority shape, else
   // male. Items the target body can't wear are skipped (they'd render invisible) and flagged in the list.
@@ -108,7 +108,9 @@ export function FittingRoom() {
     <div className="fitting" role="dialog" aria-modal="true" aria-label="Fitting room">
       <div className="fitting__scrim" onClick={() => setOpen(false)} />
       <div className="fitting__panel">
-        <button className="fitting__close" onClick={() => setOpen(false)} aria-label="Close">×</button>
+        <button className="fitting__close" onClick={() => setOpen(false)} aria-label="Close">
+          ×
+        </button>
 
         <div className="fitting__stage">
           {/* Animated purple vignette behind the avatar (transparent WearablePreview sits on top). */}
@@ -116,7 +118,9 @@ export function FittingRoom() {
             <AnimatedBackground />
           </Suspense>
           {!profileResolved ? (
-            <div className="fitting__loading" aria-hidden><span className="fitting__spinner" /></div>
+            <div className="fitting__loading" aria-hidden>
+              <span className="fitting__spinner" />
+            </div>
           ) : urns.length > 0 ? (
             <>
               {/* Stable key (profile) so toggling an item updates the SAME iframe (one reload, masked by
@@ -135,7 +139,11 @@ export function FittingRoom() {
                 dev={config.chainId === 80002}
                 onLoad={() => setPreviewReady(true)}
               />
-              {!previewReady ? <div className="fitting__loading" aria-hidden><span className="fitting__spinner" /></div> : null}
+              {!previewReady ? (
+                <div className="fitting__loading" aria-hidden>
+                  <span className="fitting__spinner" />
+                </div>
+              ) : null}
             </>
           ) : (
             <div className="fitting__empty-stage">
@@ -159,7 +167,10 @@ export function FittingRoom() {
               const on = worn.has(item.id)
               const conflicted = conflicts.has(item.id)
               return (
-                <div className={`fitting-row${on ? ' is-on' : ''}${incompatible ? ' is-incompatible' : ''}`} key={item.id}>
+                <div
+                  className={`fitting-row${on ? ' is-on' : ''}${incompatible ? ' is-incompatible' : ''}`}
+                  key={item.id}
+                >
                   <label className="fitting-row__toggle">
                     <input
                       type="checkbox"
@@ -169,9 +180,13 @@ export function FittingRoom() {
                     />
                     <span className="fitting-row__box" aria-hidden />
                   </label>
-                  <div className="fitting-row__thumb">{item.thumbnail ? <img src={item.thumbnail} alt={item.name} /> : null}</div>
+                  <div className="fitting-row__thumb">
+                    {item.thumbnail ? <img src={item.thumbnail} alt={item.name} /> : null}
+                  </div>
                   <div className="fitting-row__info">
-                    <div className="fitting-row__name" title={item.name}>{item.name}</div>
+                    <div className="fitting-row__name" title={item.name}>
+                      {item.name}
+                    </div>
                     <div className="fitting-row__meta">
                       <span
                         className={`ico ico-slot-${wearable ? slotRegion(item) : 'item'} fitting-row__slot-ico`}
@@ -179,7 +194,11 @@ export function FittingRoom() {
                         role="img"
                         aria-label={wearable ? slotLabel(slotOf(item)) : 'Emote'}
                       />
-                      {conflicted && !incompatible ? <span className="fitting-row__conflict" title="Only one item per slot can be worn">1 per slot</span> : null}
+                      {conflicted && !incompatible ? (
+                        <span className="fitting-row__conflict" title="Only one item per slot can be worn">
+                          1 per slot
+                        </span>
+                      ) : null}
                       {incompatible ? (
                         <span
                           className="fitting-row__incompat"
@@ -190,7 +209,10 @@ export function FittingRoom() {
                       ) : null}
                     </div>
                   </div>
-                  <div className="fitting-row__price"><CurrencyIcon className="fitting-row__diamond" />{item.priceCredits}</div>
+                  <div className="fitting-row__price">
+                    <CurrencyIcon className="fitting-row__diamond" />
+                    {item.priceCredits}
+                  </div>
                   <button
                     className="fitting-row__remove"
                     onClick={() => remove(item.id)}
@@ -206,7 +228,10 @@ export function FittingRoom() {
 
           <div className="fitting__foot">
             <div className="fitting__total">
-              {items.length} item{items.length > 1 ? 's' : ''} · <strong>{CURRENCY.symbol} {total}</strong>
+              {items.length} item{items.length > 1 ? 's' : ''} ·{' '}
+              <strong>
+                {CURRENCY.symbol} {total}
+              </strong>
             </div>
             <button
               className="btn btn--purple fitting__checkout"

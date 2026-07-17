@@ -65,7 +65,7 @@ export function ShopFooter() {
   const [openSection, setOpenSection] = useState<string | null>(null)
   const [langOpen, setLangOpen] = useState(false)
   const langRef = useRef<HTMLDivElement>(null)
-  const current = LANGUAGE_LABELS[locale as Locale] ?? LANGUAGE_LABELS.en
+  const current = LANGUAGE_LABELS[locale] ?? LANGUAGE_LABELS.en
 
   useEffect(() => {
     if (!langOpen) return
@@ -174,7 +174,7 @@ export function ShopFooter() {
                     key={code}
                     className={code === locale ? 'is-active' : ''}
                     onClick={() => {
-                      setLocale(code as Locale)
+                      setLocale(code)
                       setLangOpen(false)
                     }}
                   >
@@ -188,7 +188,13 @@ export function ShopFooter() {
 
           <div className="dcl-footer__legal">
             {legalLinks.map(l => (
-              <a key={l.label} className="dcl-footer__legal-link" href={l.url} target="_blank" rel="noopener noreferrer">
+              <a
+                key={l.label}
+                className="dcl-footer__legal-link"
+                href={l.url}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
                 {l.label}
               </a>
             ))}

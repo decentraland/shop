@@ -99,7 +99,7 @@ export function AssetCard(props: AssetCardProps) {
   const saleActive = useSaleActive({
     priceCredits: item.priceCredits,
     compareAtCredits: item.compareAtCredits,
-    saleEndsAt: item.saleEndsAt,
+    saleEndsAt: item.saleEndsAt
   })
   const onSale = !isMarket && saleActive
   const discountPct = onSale ? saleDiscountPct(item.compareAtCredits!, item.priceCredits) : 0

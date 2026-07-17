@@ -24,7 +24,18 @@ export function slotOf(item: Pick<CatalogItem, 'category' | 'wearableCategory' |
 // sub-categories into head / upper / lower / feet / hands, with a generic fallback.
 export type SlotRegion = 'head' | 'upper' | 'lower' | 'feet' | 'hands' | 'item'
 const HEAD_CATEGORIES = new Set([
-  'hat', 'helmet', 'mask', 'tiara', 'top_head', 'hair', 'facial_hair', 'eyewear', 'earring', 'eyes', 'eyebrows', 'mouth'
+  'hat',
+  'helmet',
+  'mask',
+  'tiara',
+  'top_head',
+  'hair',
+  'facial_hair',
+  'eyewear',
+  'earring',
+  'eyes',
+  'eyebrows',
+  'mouth'
 ])
 export function slotRegion(item: Pick<CatalogItem, 'category' | 'wearableCategory'>): SlotRegion {
   if (!isWearable(item)) return 'item'

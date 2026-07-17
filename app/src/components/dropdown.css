@@ -26,7 +26,9 @@
   text-transform: uppercase;
   white-space: nowrap;
   cursor: pointer;
-  transition: border-color 0.15s ease, background 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
 }
 .dropdown__trigger:hover {
   border-color: #7c7788;

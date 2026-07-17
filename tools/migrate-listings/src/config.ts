@@ -23,7 +23,7 @@ export const config = {
   // Default fresh expiration when re-listing (or re-listing an expired one with --include-expired).
   defaultExpirationDays: Number(process.env.EXPIRATION_DAYS ?? 180),
   // Never list below this many credits (1 credit = $0.10). Guards against sub-credit dust → free.
-  minCredits: Number(process.env.MIN_CREDITS ?? 1)
+  minCredits: Number(process.env.MIN_CREDITS ?? 1),
 }
 
 // 1 credit = $0.10 ⇒ $1 = 1e18 USD wei = 10 credits ⇒ 1 credit = 1e17 USD wei.

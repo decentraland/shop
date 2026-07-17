@@ -1,9 +1,12 @@
-import { readFileSync } from 'fs'
+import { readFileSync, writeFileSync, mkdtempSync } from 'fs'
+import { tmpdir } from 'os'
+import { join } from 'path'
 import { fileURLToPath } from 'url'
 import { hashV1 } from '@dcl/hashing'
 import { describe, it, expect, afterEach } from 'vitest'
 import { launchApp, type App } from './helpers/app'
 import { waitForText } from './helpers/dom'
+import { ElementHandle } from 'puppeteer'
 
 let app: App | undefined
 afterEach(async () => {
@@ -93,14 +96,14 @@ describe('store settings', () => {
   })
 
   it('keeps the uploaded cover as a re-selectable tile after picking a template', async () => {
-    const { writeFileSync, mkdtempSync } = await import('fs')
-    const { tmpdir } = await import('os')
-    const { join } = await import('path')
     const tmp = join(mkdtempSync(join(tmpdir(), 'shop-e2e-')), 'upload.png')
     // A 1x1 PNG to upload as a custom cover.
     writeFileSync(
       tmp,
-      Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64')
+      Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+        'base64'
+      )
     )
 
     app = await launchApp({ path: '/store-settings' })
@@ -108,7 +111,7 @@ describe('store settings', () => {
     await waitForText(page, 'Store settings')
 
     // Upload → the custom tile appears and is selected.
-    const input = (await page.$('.cover-picker__input'))!
+    const input = (await page.$('.cover-picker__input'))! as ElementHandle<HTMLInputElement>
     await input.uploadFile(tmp)
     await page.waitForFunction(() => !!document.querySelector('.cover-picker__tile--custom.is-selected'), {
       timeout: 5000

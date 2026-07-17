@@ -108,14 +108,14 @@ function toCatalogItem(r: RawCatalogItem): CatalogItem {
     thumbnail: r.thumbnail ?? '',
     priceCredits: toCredits(r.price ?? r.minPrice),
     gender: toGender(r.data?.wearable?.bodyShapes),
-    isSmart: r.data?.wearable?.isSmart ?? false,
+    isSmart: r.data?.wearable?.isSmart ?? false
   }
 }
 
 export async function fetchCatalog({
   category = 'wearable',
   first = 24,
-  skip = 0,
+  skip = 0
 }: { category?: string; first?: number; skip?: number } = {}): Promise<{ items: CatalogItem[]; total: number }> {
   const qs = new URLSearchParams({
     category,
@@ -123,7 +123,7 @@ export async function fetchCatalog({
     skip: String(skip),
     isOnSale: 'true',
     sortBy: 'newest',
-    includeSocialEmotes: 'false',
+    includeSocialEmotes: 'false'
   })
   const res = await fetch(`${config.nftApiUrl}/v2/catalog?${qs.toString()}`)
   if (!res.ok) throw new Error(`Failed to fetch catalog (${res.status})`)
@@ -230,7 +230,7 @@ function shopListingToItem(l: ShopListingRaw): CatalogItem {
     // against a stale or equal value). saleEndsAt arrives as unix seconds → ms for the UI.
     compareAtCredits:
       l.compareAtCredits != null && l.compareAtCredits > l.priceCredits ? l.compareAtCredits : undefined,
-    saleEndsAt: l.saleEndsAt != null ? l.saleEndsAt * 1000 : undefined,
+    saleEndsAt: l.saleEndsAt != null ? l.saleEndsAt * 1000 : undefined
   }
 }
 
@@ -389,7 +389,7 @@ function toLegacyListing(l: LegacyListingRaw): LegacyListing {
     available: l.available ?? 0,
     network: l.network ?? 'MATIC',
     chainId: l.chainId ?? config.chainId,
-    createdAt: l.createdAt ?? 0,
+    createdAt: l.createdAt ?? 0
   }
 }
 
@@ -479,7 +479,7 @@ export async function fetchMyAssets(
     first: String(first),
     skip: String(skip),
     sortBy: 'newest',
-    orderDirection: 'desc',
+    orderDirection: 'desc'
   })
   const res = await fetch(`${NFT_V1}/nfts?${qs.toString()}`)
   if (!res.ok) throw new Error(`Failed to fetch assets (${res.status})`)
@@ -498,7 +498,7 @@ export async function fetchMyAssets(
     chainId: r.nft.chainId,
     isOnSale: r.order != null,
     listingPrice: r.order ? toCredits(r.order.price) : undefined,
-    tradeId: r.order?.tradeId,
+    tradeId: r.order?.tradeId
   }))
 
   return { assets, total }
@@ -535,7 +535,12 @@ export class TradeNotFoundError extends Error {
 // The endpoint wraps the trade in `{ ok, data }` — unwrap it (otherwise received/sent are undefined).
 export async function fetchTrade(tradeId: string): Promise<Trade> {
   const res = await fetch(`${config.marketplaceServerUrl}/v1/trades/${tradeId}`)
-  if (res.status === 404) throw new TradeNotFoundError(tradeId)
+  // Consume/cancel the body before throwing: 404 is the expected fast-path for stale trade IDs (a cart
+  // with several stale lines hits it repeatedly), so an unread stream would leak connections (Jarvis P2).
+  if (res.status === 404) {
+    void res.body?.cancel()
+    throw new TradeNotFoundError(tradeId)
+  }
   if (!res.ok) throw new Error(`fetchTrade ${res.status}`)
   const json = (await res.json()) as { ok?: boolean; data?: Trade } | Trade
   return ((json as { data?: Trade }).data ?? json) as Trade

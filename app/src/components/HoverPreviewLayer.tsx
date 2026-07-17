@@ -111,17 +111,26 @@ export function HoverPreviewLayer() {
   const wrapStyle: CSSProperties = active
     ? {
         position: 'fixed',
-        left: rect!.left,
-        top: rect!.top,
-        width: rect!.width,
-        height: rect!.height,
+        left: rect.left,
+        top: rect.top,
+        width: rect.width,
+        height: rect.height,
         zIndex: 5,
         pointerEvents: 'none',
         opacity: ready ? 1 : 0,
         transition: 'opacity .25s ease'
       }
     : // Parked offscreen but kept mounted so the engine stays warm between hovers.
-      { position: 'fixed', left: -9999, top: -9999, width: 2, height: 2, opacity: 0, pointerEvents: 'none', overflow: 'hidden' }
+      {
+        position: 'fixed',
+        left: -9999,
+        top: -9999,
+        width: 2,
+        height: 2,
+        opacity: 0,
+        pointerEvents: 'none',
+        overflow: 'hidden'
+      }
 
   return (
     <div className="hover-preview" aria-hidden style={wrapStyle}>

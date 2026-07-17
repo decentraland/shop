@@ -8,10 +8,18 @@ export function SuccessAnimation() {
         <circle className="success-anim__ring" cx="60" cy="60" r="54" />
         <path className="success-anim__check" d="M37 61 l16 16 l30 -34" />
       </svg>
-      <span className="success-anim__spark success-anim__spark--1" aria-hidden>✦</span>
-      <span className="success-anim__spark success-anim__spark--2" aria-hidden>✦</span>
-      <span className="success-anim__spark success-anim__spark--3" aria-hidden>◈</span>
-      <span className="success-anim__spark success-anim__spark--4" aria-hidden>✦</span>
+      <span className="success-anim__spark success-anim__spark--1" aria-hidden>
+        ✦
+      </span>
+      <span className="success-anim__spark success-anim__spark--2" aria-hidden>
+        ✦
+      </span>
+      <span className="success-anim__spark success-anim__spark--3" aria-hidden>
+        ◈
+      </span>
+      <span className="success-anim__spark success-anim__spark--4" aria-hidden>
+        ✦
+      </span>
     </div>
   )
 }

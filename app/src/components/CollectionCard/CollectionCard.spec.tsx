@@ -15,7 +15,7 @@ function renderCard(overrides: Partial<CollectionMeta & { cover: string; itemCou
     creator: '',
     cover: 'https://example.com/cover.png',
     itemCount: 250,
-    ...overrides,
+    ...overrides
   }
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(

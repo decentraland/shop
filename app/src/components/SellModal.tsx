@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { ChainId, Network } from '@dcl/schemas'
+import { Network } from '@dcl/schemas'
 import type { Session } from '~/lib/auth'
 import type { MyAsset } from '~/lib/api'
 import { postTrade } from '~/lib/api'
@@ -42,7 +42,11 @@ export function SellModal({ asset, session, onClose }: { asset: MyAsset; session
     setBusy(true)
     try {
       setStatus('Getting your item ready…')
-      await ensureApproval({ signer: session.signer, contractAddress: asset.contractAddress, chainId: asset.chainId as ChainId })
+      await ensureApproval({
+        signer: session.signer,
+        contractAddress: asset.contractAddress,
+        chainId: asset.chainId
+      })
 
       setStatus('Listing your item…')
       const trade = await createUsdPeggedListing({
@@ -51,7 +55,7 @@ export function SellModal({ asset, session, onClose }: { asset: MyAsset; session
           contractAddress: asset.contractAddress,
           tokenId: asset.tokenId,
           network: asset.network as Network,
-          chainId: asset.chainId as ChainId
+          chainId: asset.chainId
         },
         usdPrice: value / 10, // credits → USD (1 credit = $0.10)
         expiresAtMs: Date.now() + SIX_MONTHS_MS
@@ -71,7 +75,7 @@ export function SellModal({ asset, session, onClose }: { asset: MyAsset; session
         is_primary: false
       })
       toast.success(`“${asset.name}” is now on sale!`)
-      queryClient.invalidateQueries({ queryKey: ['my-assets', session.address] })
+      void queryClient.invalidateQueries({ queryKey: ['my-assets', session.address] })
     } catch (e) {
       captureError(e, { flow: 'list_secondary' })
       track('Shop Listing Failed', { listing_type: 'secondary', error_code: errorCode(e) })
@@ -91,12 +95,17 @@ export function SellModal({ asset, session, onClose }: { asset: MyAsset; session
     return (
       <div className="modal-backdrop" onClick={onClose} role="presentation">
         <div className="modal modal--success" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
-          <div className="modal-success__check" aria-hidden>✓</div>
+          <div className="modal-success__check" aria-hidden>
+            ✓
+          </div>
           <h2 className="modal__title">It’s on sale! 🎉</h2>
           {asset.image ? <img className="modal__img" src={asset.image} alt={asset.name} /> : null}
           <p className="modal-success__name">{asset.name}</p>
           <p className="muted small">
-            Listed for <strong><CurrencyIcon className="ccy-mark" /> {listedCredits}</strong>
+            Listed for{' '}
+            <strong>
+              <CurrencyIcon className="ccy-mark" /> {listedCredits}
+            </strong>
           </p>
           <div className="modal__actions">
             <button className="btn btn--ghost" onClick={onClose}>
@@ -119,9 +128,18 @@ export function SellModal({ asset, session, onClose }: { asset: MyAsset; session
 
         <label className="field">
           <span>Price ({CURRENCY.name})</span>
-          <input type="number" min="1" step="1" value={price} onChange={e => setPrice(e.target.value)} disabled={busy} />
+          <input
+            type="number"
+            min="1"
+            step="1"
+            value={price}
+            onChange={e => setPrice(e.target.value)}
+            disabled={busy}
+          />
         </label>
-        <p className="muted small">Priced in whole {CURRENCY.name} (1 {CURRENCY.nameSingular} = $0.10).</p>
+        <p className="muted small">
+          Priced in whole {CURRENCY.name} (1 {CURRENCY.nameSingular} = $0.10).
+        </p>
 
         {status ? <p className="muted">{status}</p> : null}
         {error ? <p className="error">{error}</p> : null}
@@ -130,7 +148,7 @@ export function SellModal({ asset, session, onClose }: { asset: MyAsset; session
           <button className="btn btn--ghost" onClick={onClose} disabled={busy}>
             Cancel
           </button>
-          <button className="btn" onClick={list} disabled={busy}>
+          <button className="btn" onClick={() => void list()} disabled={busy}>
             {busy ? 'Listing…' : 'Put on sale'}
           </button>
         </div>

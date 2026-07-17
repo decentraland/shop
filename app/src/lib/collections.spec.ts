@@ -37,7 +37,7 @@ function rawItem(overrides: Partial<RawItem> = {}): RawItem {
     thumbnail: 'http://img.test/hat.png',
     priceCredits: 10,
     data: { wearable: { category: 'hat', bodyShapes: ['urn:BaseMale'] } },
-    ...overrides,
+    ...overrides
   }
 }
 
@@ -45,7 +45,7 @@ function mockFetchOk(data: unknown) {
   const fetchMock = vi.fn().mockResolvedValue({
     ok: true,
     status: 200,
-    json: async () => ({ data }),
+    json: async () => ({ data })
   })
   vi.stubGlobal('fetch', fetchMock)
   return fetchMock
@@ -55,7 +55,7 @@ function mockFetchNotOk(status: number) {
   const fetchMock = vi.fn().mockResolvedValue({
     ok: false,
     status,
-    json: async () => ({}),
+    json: async () => ({})
   })
   vi.stubGlobal('fetch', fetchMock)
   return fetchMock
@@ -103,7 +103,7 @@ describe('when fetching a collection carousel', () => {
       wearableCategories: ['dance', 'fun'],
       minPriceCredits: 5,
       maxPriceCredits: 50,
-      sortBy: 'cheapest',
+      sortBy: 'cheapest'
     })
 
     const url = new URL(fetchMock.mock.calls[0][0] as string)
@@ -144,7 +144,7 @@ describe('when fetching a collection carousel', () => {
       chainId: 137,
       thumbnail: 'http://img.test/hat.png',
       priceCredits: 10,
-      gender: 'male',
+      gender: 'male'
     })
   })
 
@@ -250,14 +250,14 @@ describe('when fetching a creator’s published collections', () => {
   it('should map each collection to meta + item count (from `size`)', async () => {
     mockFetchOk([
       { contractAddress: '0xc1', name: 'Soul Magic', creator: '0xartist', size: 250 },
-      { contractAddress: '0xc2', name: 'Neon Dreams', creator: '0xartist', size: 3 },
+      { contractAddress: '0xc2', name: 'Neon Dreams', creator: '0xartist', size: 3 }
     ])
 
     const { collections } = await fetchCreatorCollections('0xartist')
 
     expect(collections).toEqual([
       { contractAddress: '0xc1', name: 'Soul Magic', creator: '0xartist', itemCount: 250 },
-      { contractAddress: '0xc2', name: 'Neon Dreams', creator: '0xartist', itemCount: 3 },
+      { contractAddress: '0xc2', name: 'Neon Dreams', creator: '0xartist', itemCount: 3 }
     ])
   })
 
@@ -273,7 +273,7 @@ describe('when fetching a creator’s published collections', () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
-      json: async () => ({ data: [{ contractAddress: '0xc1', size: 1 }], total: 42 }),
+      json: async () => ({ data: [{ contractAddress: '0xc1', size: 1 }], total: 42 })
     })
     vi.stubGlobal('fetch', fetchMock)
 

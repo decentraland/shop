@@ -27,7 +27,7 @@ export function valueForAsset(asset: {
     case TradeAssetType.USD_PEGGED_MANA:
       return asset.amount as string
     default:
-      throw new Error(`Unsupported assetType ${asset.assetType}`)
+      throw new Error(`Unsupported assetType ${String(asset.assetType)}`)
   }
 }
 
@@ -120,6 +120,21 @@ const COLLECTION_MINTER_ABI = [
   'function setMinters(address[] minters, bool[] values)'
 ]
 
+// ethers v5 `Contract` exposes dynamically-named ABI methods through an `any` index signature. Narrow
+// each contract to the fragments its ABI declares so reads/txs above stay type-checked.
+type IndexContract = ethers.Contract & {
+  contractSignatureIndex(): Promise<ethers.BigNumber>
+  signerSignatureIndex(address: string): Promise<ethers.BigNumber>
+}
+type Erc721Contract = ethers.Contract & {
+  isApprovedForAll(owner: string, operator: string): Promise<boolean>
+  setApprovalForAll(operator: string, approved: boolean): Promise<ethers.ContractTransaction>
+}
+type CollectionMinterContract = ethers.Contract & {
+  globalMinters(minter: string): Promise<boolean>
+  setMinters(minters: string[], values: boolean[]): Promise<ethers.ContractTransaction>
+}
+
 const AMOY_ADD_PARAMS = {
   chainId: '0x13882',
   chainName: 'Polygon Amoy',
@@ -154,12 +169,12 @@ export async function ensureApproval(opts: {
 }): Promise<void> {
   const market = getContract(ContractName.OffChainMarketplaceV2, opts.chainId)
   const owner = await opts.signer.getAddress()
-  const erc721Read = new ethers.Contract(opts.contractAddress, ERC721_ABI, readProvider())
-  const approved: boolean = await erc721Read.isApprovedForAll(owner, market.address)
+  const erc721Read = new ethers.Contract(opts.contractAddress, ERC721_ABI, readProvider()) as Erc721Contract
+  const approved = await erc721Read.isApprovedForAll(owner, market.address)
   if (approved) return
 
   await ensureChain(opts.signer.provider as ethers.providers.Web3Provider, opts.chainId)
-  const erc721 = new ethers.Contract(opts.contractAddress, ERC721_ABI, opts.signer)
+  const erc721 = new ethers.Contract(opts.contractAddress, ERC721_ABI, opts.signer) as Erc721Contract
   const tx = await erc721.setApprovalForAll(market.address, true)
   await tx.wait()
 }
@@ -183,9 +198,9 @@ export async function createUsdPeggedListing(opts: {
   const mana = getContract(ContractName.MANAToken, nft.chainId)
 
   // Read signature indices from the target-chain RPC (not the wallet's network).
-  const marketC = new ethers.Contract(market.address, INDEX_ABI, readProvider())
-  const contractSignatureIndex: ethers.BigNumber = await marketC.contractSignatureIndex()
-  const signerSignatureIndex: ethers.BigNumber = await marketC.signerSignatureIndex(seller)
+  const marketC = new ethers.Contract(market.address, INDEX_ABI, readProvider()) as IndexContract
+  const contractSignatureIndex = await marketC.contractSignatureIndex()
+  const signerSignatureIndex = await marketC.signerSignatureIndex(seller)
 
   const tradeToSign: Omit<TradeCreation, 'signature'> = {
     signer: seller,
@@ -244,7 +259,11 @@ export async function createUsdPeggedListing(opts: {
  */
 export async function isMarketplaceMinter(opts: { contractAddress: string; chainId: ChainId }): Promise<boolean> {
   const market = getContract(ContractName.OffChainMarketplaceV2, opts.chainId)
-  const collection = new ethers.Contract(opts.contractAddress, COLLECTION_MINTER_ABI, readProvider())
+  const collection = new ethers.Contract(
+    opts.contractAddress,
+    COLLECTION_MINTER_ABI,
+    readProvider()
+  ) as CollectionMinterContract
   try {
     return await collection.globalMinters(market.address)
   } catch {
@@ -263,8 +282,12 @@ export async function ensureMinter(opts: {
   chainId: ChainId
 }): Promise<void> {
   const market = getContract(ContractName.OffChainMarketplaceV2, opts.chainId)
-  const collectionRead = new ethers.Contract(opts.contractAddress, COLLECTION_MINTER_ABI, readProvider())
-  let already = false
+  const collectionRead = new ethers.Contract(
+    opts.contractAddress,
+    COLLECTION_MINTER_ABI,
+    readProvider()
+  ) as CollectionMinterContract
+  let already: boolean
   try {
     already = await collectionRead.globalMinters(market.address)
   } catch {
@@ -273,7 +296,11 @@ export async function ensureMinter(opts: {
   if (already) return
 
   await ensureChain(opts.signer.provider as ethers.providers.Web3Provider, opts.chainId)
-  const collection = new ethers.Contract(opts.contractAddress, COLLECTION_MINTER_ABI, opts.signer)
+  const collection = new ethers.Contract(
+    opts.contractAddress,
+    COLLECTION_MINTER_ABI,
+    opts.signer
+  ) as CollectionMinterContract
   const tx = await collection.setMinters([market.address], [true])
   await tx.wait()
 }
@@ -305,9 +332,9 @@ export async function createPrimaryUsdPeggedListing(opts: {
   const mana = getContract(ContractName.MANAToken, item.chainId)
 
   // Read signature indices from the target-chain RPC (not the wallet's network).
-  const marketC = new ethers.Contract(market.address, INDEX_ABI, readProvider())
-  const contractSignatureIndex: ethers.BigNumber = await marketC.contractSignatureIndex()
-  const signerSignatureIndex: ethers.BigNumber = await marketC.signerSignatureIndex(creator)
+  const marketC = new ethers.Contract(market.address, INDEX_ABI, readProvider()) as IndexContract
+  const contractSignatureIndex = await marketC.contractSignatureIndex()
+  const signerSignatureIndex = await marketC.signerSignatureIndex(creator)
 
   // One signed listing mints up to `uses` units. Default to the whole remaining run (min 1).
   const uses = Math.max(1, Math.floor(opts.uses ?? 1))

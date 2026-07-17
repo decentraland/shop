@@ -17,7 +17,14 @@ const signIn = vi.fn()
 // Mutable so a test can render the logged-out state (session = null).
 let currentSession: typeof session | null = session
 vi.mock('~/store/wallet', () => ({
-  useWallet: () => ({ session: currentSession, connecting: false, error: null, signIn, restore: vi.fn(), disconnect: vi.fn() })
+  useWallet: () => ({
+    session: currentSession,
+    connecting: false,
+    error: null,
+    signIn,
+    restore: vi.fn(),
+    disconnect: vi.fn()
+  })
 }))
 
 // decentraland-ui2 pulls heavy ESM transitive deps (@dcl/hooks) that don't resolve under
@@ -33,7 +40,6 @@ vi.mock('~/lib/credits', () => ({
   devMintUsd: vi.fn().mockResolvedValue({ id: 'test', usdCents: 2500, balanceCents: 2500, credits: 250 })
 }))
 
-// eslint-disable-next-line import/first
 import { GetCredits } from '~/pages/GetCredits'
 
 function renderPage(initialEntry = '/') {

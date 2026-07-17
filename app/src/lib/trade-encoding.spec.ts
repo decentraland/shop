@@ -6,12 +6,16 @@ import { TradeAssetType, type Trade } from '@dcl/schemas'
 // it so its ESM/cross-chain deps don't get evaluated when importing the target. Real ethers stays.
 vi.mock('decentraland-transactions', () => ({
   ContractName: { OffChainMarketplaceV2: 'OffChainMarketplaceV2', MANAToken: 'MANAToken' },
-  getContract: () => ({ address: '0x0000000000000000000000000000000000000000', name: 'DecentralandMarketplacePolygon', version: '1.0.0', abi: [] })
+  getContract: () => ({
+    address: '0x0000000000000000000000000000000000000000',
+    name: 'DecentralandMarketplacePolygon',
+    version: '1.0.0',
+    abi: []
+  })
 }))
 
 vi.mock('~/config', () => ({ config: { rpcUrl: 'http://localhost', chainId: 80002 } }))
 
-// eslint-disable-next-line import/first
 import {
   getOnChainTrade,
   buildAcceptCalldata,
@@ -86,7 +90,9 @@ describe('when porting a trade to its on-chain shape', () => {
 
   it('falls back to the buyer when a received asset has no beneficiary', () => {
     const trade = fakeTrade({
-      received: [{ assetType: TradeAssetType.USD_PEGGED_MANA, contractAddress: MANA, value: '1', amount: '1', extra: '0x' }]
+      received: [
+        { assetType: TradeAssetType.USD_PEGGED_MANA, contractAddress: MANA, value: '1', amount: '1', extra: '0x' }
+      ]
     } as unknown as Partial<Trade>)
     const onchain = getOnChainTrade(trade, BUYER)
     expect(onchain.received[0].beneficiary).toBe(BUYER)
@@ -105,27 +111,27 @@ describe('when porting a trade to its on-chain shape', () => {
   it('flattens allowedProof to an empty array', () => {
     const trade = fakeTrade({
       checks: { ...fakeTrade().checks, allowedProof: [B32('1'), B32('2')] }
-    } as unknown as Partial<Trade>)
+    })
     const onchain = getOnChainTrade(trade, BUYER)
     expect(onchain.checks.allowedProof).toEqual([])
   })
 
   it('pads a short salt to 32 bytes', () => {
-    const trade = fakeTrade({ checks: { ...fakeTrade().checks, salt: '0x01' } } as unknown as Partial<Trade>)
+    const trade = fakeTrade({ checks: { ...fakeTrade().checks, salt: '0x01' } })
     const onchain = getOnChainTrade(trade, BUYER)
     expect(onchain.checks.salt).toBe(ethers.utils.hexZeroPad('0x01', 32))
     expect(onchain.checks.salt).toHaveLength(66)
   })
 
   it('normalizes an empty allowedRoot to the 32-byte zero root', () => {
-    const trade = fakeTrade({ checks: { ...fakeTrade().checks, allowedRoot: '0x' } } as unknown as Partial<Trade>)
+    const trade = fakeTrade({ checks: { ...fakeTrade().checks, allowedRoot: '0x' } })
     const onchain = getOnChainTrade(trade, BUYER)
     expect(onchain.checks.allowedRoot).toBe(ZERO32)
   })
 
   it('keeps a real allowedRoot untouched', () => {
     const root = B32('b')
-    const trade = fakeTrade({ checks: { ...fakeTrade().checks, allowedRoot: root } } as unknown as Partial<Trade>)
+    const trade = fakeTrade({ checks: { ...fakeTrade().checks, allowedRoot: root } })
     const onchain = getOnChainTrade(trade, BUYER)
     expect(onchain.checks.allowedRoot).toBe(root)
   })
@@ -133,7 +139,7 @@ describe('when porting a trade to its on-chain shape', () => {
   it('converts millisecond expiration/effective to seconds', () => {
     const trade = fakeTrade({
       checks: { ...fakeTrade().checks, expiration: 2_000_000_000_000, effective: 1_500_000_000_000 }
-    } as unknown as Partial<Trade>)
+    })
     const onchain = getOnChainTrade(trade, BUYER)
     expect(onchain.checks.expiration).toBe(2_000_000_000)
     expect(onchain.checks.effective).toBe(1_500_000_000)
@@ -149,7 +155,13 @@ describe('when porting a trade to its on-chain shape', () => {
     const trade = fakeTrade({
       sent: [{ assetType: TradeAssetType.ERC721, contractAddress: NFT, value: '5', tokenId: '5' }],
       received: [
-        { assetType: TradeAssetType.USD_PEGGED_MANA, contractAddress: MANA, value: '1', amount: '1', beneficiary: SELLER }
+        {
+          assetType: TradeAssetType.USD_PEGGED_MANA,
+          contractAddress: MANA,
+          value: '1',
+          amount: '1',
+          beneficiary: SELLER
+        }
       ]
     } as unknown as Partial<Trade>)
     const onchain = getOnChainTrade(trade, BUYER)
@@ -159,13 +171,15 @@ describe('when porting a trade to its on-chain shape', () => {
 
   it('maps external checks through, preserving their fields', () => {
     const check = { contractAddress: ADDR('66'), selector: '0xdeadbeef', value: '0x01', required: true }
-    const trade = fakeTrade({ checks: { ...fakeTrade().checks, externalChecks: [check] } } as unknown as Partial<Trade>)
+    const trade = fakeTrade({ checks: { ...fakeTrade().checks, externalChecks: [check] } })
     const onchain = getOnChainTrade(trade, BUYER)
     expect(onchain.checks.externalChecks).toEqual([check])
   })
 
   it('treats a missing externalChecks list as empty', () => {
-    const trade = fakeTrade({ checks: { ...fakeTrade().checks, externalChecks: undefined } } as unknown as Partial<Trade>)
+    const trade = fakeTrade({
+      checks: { ...fakeTrade().checks, externalChecks: undefined }
+    } as unknown as Partial<Trade>)
     const onchain = getOnChainTrade(trade, BUYER)
     expect(onchain.checks.externalChecks).toEqual([])
   })
@@ -266,7 +280,10 @@ describe('when building the useCredits args', () => {
       ACCEPT_ABI,
       [fakeTrade()],
       BUYER,
-      [{ ...credit('0x01', '100'), signature: '0xaaa' }, { ...credit('0x02', '50'), signature: '0xbbb' }],
+      [
+        { ...credit('0x01', '100'), signature: '0xaaa' },
+        { ...credit('0x02', '50'), signature: '0xbbb' }
+      ],
       '150'
     )
     expect(args.creditsSignatures).toEqual(['0xaaa', '0xbbb'])

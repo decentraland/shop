@@ -76,7 +76,7 @@ describe('collection storefront', () => {
         '.browse--sidebar',
         '.browse__sidebar',
         '.grid',
-        '.creator-card',
+        '.creator-card'
       ]
       return Math.max(
         0,

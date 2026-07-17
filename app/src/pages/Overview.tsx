@@ -57,12 +57,15 @@ function Carousel({ title, items, loading }: { title: string; items: CatalogItem
 
   // Page by exactly one viewport width — because a whole number of cards fills the viewport, this
   // always lands on a card boundary (a snap point), never on a partial card.
-  const scrollToPage = useCallback((p: number) => {
-    const el = trackRef.current
-    if (!el) return
-    const target = Math.max(0, Math.min(pageCount - 1, p))
-    el.scrollTo({ left: target * el.clientWidth, behavior: 'smooth' })
-  }, [pageCount])
+  const scrollToPage = useCallback(
+    (p: number) => {
+      const el = trackRef.current
+      if (!el) return
+      const target = Math.max(0, Math.min(pageCount - 1, p))
+      el.scrollTo({ left: target * el.clientWidth, behavior: 'smooth' })
+    },
+    [pageCount]
+  )
 
   const showControls = !loading && pageCount > 1
 
@@ -70,7 +73,9 @@ function Carousel({ title, items, loading }: { title: string; items: CatalogItem
     <section className="row ov-carousel">
       <div className="row__head">
         <h2 className="row__title">{title}</h2>
-        <Link className="row__viewall" to="/assets">View all <span className="ico ico-viewall" aria-hidden /></Link>
+        <Link className="row__viewall" to="/assets">
+          View all <span className="ico ico-viewall" aria-hidden />
+        </Link>
       </div>
       <div className="ov-carousel__viewport">
         {showControls ? (
@@ -128,7 +133,9 @@ export function Overview() {
         <div className="ov-hero__scrim" aria-hidden />
         <div className="ov-hero__inner">
           <h1 className="ov-hero__title">Fashion week outfits</h1>
-          <Link className="btn btn--purple ov-hero__cta" to="/assets">Explore collection</Link>
+          <Link className="btn btn--purple ov-hero__cta" to="/assets">
+            Explore collection
+          </Link>
         </div>
       </section>
 
@@ -153,7 +160,9 @@ export function Overview() {
         <div className="overview__empty">
           <p className="overview__empty-title">New drops are on the way</p>
           <p className="muted">There are no items on sale right now — check back soon.</p>
-          <Link className="btn btn--purple" to="/assets">Browse Collectibles</Link>
+          <Link className="btn btn--purple" to="/assets">
+            Browse Collectibles
+          </Link>
         </div>
       )}
 

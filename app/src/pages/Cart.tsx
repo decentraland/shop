@@ -109,7 +109,7 @@ export function Cart() {
   // Re-resolve each line's LIVE trade at review time: a stored tradeId can be stale (the trade gets
   // re-signed as availability/expiration rolls), so resolveLiveTrade re-resolves by item on a 404
   // instead of dropping a still-listed row as unavailable.
-  const resolveTrade: TradeResolver = item => resolveLiveTrade(item)
+  const resolveTrade: TradeResolver = resolveLiveTrade
 
   // Any manual cart edit invalidates a pending confirmation (its snapshot no longer matches the cart).
   function editCart(fn: () => void) {
@@ -161,7 +161,10 @@ export function Cart() {
         const line = lines[i]
         setModal({ phase: 'processing', step: i + 1, total: lines.length })
         try {
-          const { credit, maxCreditedValue } = await authorizeUsdCredit(session.identity, line.usdCents, line.item.tradeId)
+          // Authorize against the freshly RESOLVED trade (line.trade), not the item's original tradeId:
+          // a stale tradeId may have been re-signed to a new trade, and the spend below executes against
+          // line.trade — authorizing the retired trade would mismatch what's actually charged (Jarvis P1).
+          const { credit, maxCreditedValue } = await authorizeUsdCredit(session.identity, line.usdCents, line.trade.id)
           reservedSalts.push(credit.id)
           purchases.push({ trade: line.trade, credits: [credit], maxCreditedValue })
         } catch (authErr) {

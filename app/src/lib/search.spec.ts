@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 vi.mock('~/config', () => ({ config: { nftApiUrl: 'http://nft.test', peerUrl: 'http://peer.test' } }))
 
-// eslint-disable-next-line import/first
 import { fetchCollectionSuggestions, fetchCreatorSuggestions } from '~/lib/search'
 
 // A fetch stub that routes by URL: collections / ens-names / accounts / per-address profiles.
@@ -54,7 +53,7 @@ describe('when fetching collection suggestions', () => {
 
     await fetchCollectionSuggestions('dragon')
 
-    const url = new URL(fetchMock.mock.calls[0][0] as string)
+    const url = new URL(fetchMock.mock.calls[0][0])
     expect(url.origin + url.pathname).toBe('http://nft.test/v1/collections')
     expect(url.searchParams.get('search')).toBe('dragon')
     expect(url.searchParams.get('first')).toBe('4')
@@ -108,7 +107,9 @@ describe('when fetching creator suggestions by name', () => {
     expect(hits).toEqual([{ address: '0xaaa', name: 'DragonSmith Studio', face: 'http://img/a.png' }])
     // Name search hit /v1/nfts?category=ens, seller gate hit /v1/accounts.
     const urls = fetchMock.mock.calls.map(c => String(c[0]))
-    expect(urls.some(u => u.includes('/v1/nfts') && u.includes('category=ens') && u.includes('search=dragon'))).toBe(true)
+    expect(urls.some(u => u.includes('/v1/nfts') && u.includes('category=ens') && u.includes('search=dragon'))).toBe(
+      true
+    )
     expect(urls.some(u => u.includes('/v1/accounts'))).toBe(true)
   })
 

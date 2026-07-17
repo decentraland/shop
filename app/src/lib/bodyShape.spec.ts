@@ -1,9 +1,20 @@
 import { describe, it, expect } from 'vitest'
 import { BodyShape } from '@dcl/schemas'
 import type { CatalogItem } from '~/lib/api'
-import { itemShapes, avatarShape, isCompatible, dominantShape, shapeLabel, BASE_MALE, BASE_FEMALE } from '~/lib/bodyShape'
+import {
+  itemShapes,
+  avatarShape,
+  isCompatible,
+  dominantShape,
+  shapeLabel,
+  BASE_MALE,
+  BASE_FEMALE
+} from '~/lib/bodyShape'
 
-const w = (gender: CatalogItem['gender']): Pick<CatalogItem, 'gender' | 'category'> => ({ gender, category: 'wearable' })
+const w = (gender: CatalogItem['gender']): Pick<CatalogItem, 'gender' | 'category'> => ({
+  gender,
+  category: 'wearable'
+})
 const emote: Pick<CatalogItem, 'gender' | 'category'> = { gender: null, category: 'emote' }
 
 describe('bodyShape helpers', () => {

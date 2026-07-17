@@ -29,11 +29,13 @@ const trade = (dollars: number, signer = '0xseller'): Trade =>
   ({ signer, received: [{ amount: (BigInt(Math.round(dollars * 100)) * 10n ** 16n).toString() }] }) as unknown as Trade
 
 // Resolver driven by a map of item.id → trade | null | 'throw'.
-const resolverFrom = (map: Record<string, Trade | null | 'throw'>): TradeResolver => async i => {
-  const r = map[i.id]
-  if (r === 'throw') throw new Error('resolve failed')
-  return r ?? null
-}
+const resolverFrom =
+  (map: Record<string, Trade | null | 'throw'>): TradeResolver =>
+  async i => {
+    const r = map[i.id]
+    if (r === 'throw') throw new Error('resolve failed')
+    return r ?? null
+  }
 
 describe('reviewCart', () => {
   it('marks everything buyable with no price change when live prices match the cart', async () => {
@@ -76,11 +78,7 @@ describe('reviewCart', () => {
 
   it('handles a mixed basket: only buyable rows count toward the live total', async () => {
     const items = [item('a', 20), item('b', 10), item('c', 5)]
-    const review = await reviewCart(
-      items,
-      BUYER,
-      resolverFrom({ a: trade(2), b: null, c: trade(0.5, BUYER) })
-    )
+    const review = await reviewCart(items, BUYER, resolverFrom({ a: trade(2), b: null, c: trade(0.5, BUYER) }))
 
     expect(review.buyable.map(l => l.item.id)).toEqual(['a'])
     expect(review.unavailable.map(i => i.id)).toEqual(['b'])
@@ -91,7 +89,11 @@ describe('reviewCart', () => {
 
   it('never throws for a malformed trade with an empty received array (classified unavailable)', async () => {
     const emptyReceived = { signer: '0xseller', received: [] } as unknown as Trade
-    const review = await reviewCart([item('a', 20), item('b', 10)], BUYER, resolverFrom({ a: emptyReceived, b: trade(1) }))
+    const review = await reviewCart(
+      [item('a', 20), item('b', 10)],
+      BUYER,
+      resolverFrom({ a: emptyReceived, b: trade(1) })
+    )
 
     expect(review.unavailable.map(i => i.id)).toEqual(['a'])
     expect(review.buyable.map(l => l.item.id)).toEqual(['b'])

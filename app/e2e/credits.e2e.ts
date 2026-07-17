@@ -23,6 +23,8 @@ describe('get credits page', () => {
 
     // The signed-in balance chip renders in the sub-nav (creditsResponse.usd.credits = 500).
     await page.waitForSelector('.subnav__balance', { timeout: 20000 })
-    expect(await page.evaluate(() => document.querySelector('.subnav__balance')?.textContent?.includes('500'))).toBe(true)
+    expect(await page.evaluate(() => document.querySelector('.subnav__balance')?.textContent?.includes('500'))).toBe(
+      true
+    )
   })
 })

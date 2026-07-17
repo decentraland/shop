@@ -20,7 +20,6 @@ vi.mock('~/lib/payments-stripe', () => ({ createPackCheckoutReal, pollCreditGran
 const { devMintUsd } = vi.hoisted(() => ({ devMintUsd: vi.fn() }))
 vi.mock('~/lib/credits', () => ({ devMintUsd }))
 
-// eslint-disable-next-line import/first
 import {
   CREDIT_PACKS,
   MOCK_CLIENT_SECRET_PREFIX,

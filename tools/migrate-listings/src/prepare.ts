@@ -15,20 +15,20 @@ export const OFFCHAIN_MARKETPLACE_TYPES = {
   Trade: [
     { name: 'checks', type: 'Checks' },
     { name: 'sent', type: 'AssetWithoutBeneficiary[]' },
-    { name: 'received', type: 'Asset[]' }
+    { name: 'received', type: 'Asset[]' },
   ],
   Asset: [
     { name: 'assetType', type: 'uint256' },
     { name: 'contractAddress', type: 'address' },
     { name: 'value', type: 'uint256' },
     { name: 'extra', type: 'bytes' },
-    { name: 'beneficiary', type: 'address' }
+    { name: 'beneficiary', type: 'address' },
   ],
   AssetWithoutBeneficiary: [
     { name: 'assetType', type: 'uint256' },
     { name: 'contractAddress', type: 'address' },
     { name: 'value', type: 'uint256' },
-    { name: 'extra', type: 'bytes' }
+    { name: 'extra', type: 'bytes' },
   ],
   Checks: [
     { name: 'uses', type: 'uint256' },
@@ -38,14 +38,14 @@ export const OFFCHAIN_MARKETPLACE_TYPES = {
     { name: 'contractSignatureIndex', type: 'uint256' },
     { name: 'signerSignatureIndex', type: 'uint256' },
     { name: 'allowedRoot', type: 'bytes32' },
-    { name: 'externalChecks', type: 'ExternalCheck[]' }
+    { name: 'externalChecks', type: 'ExternalCheck[]' },
   ],
   ExternalCheck: [
     { name: 'contractAddress', type: 'address' },
     { name: 'selector', type: 'bytes4' },
     { name: 'value', type: 'bytes' },
-    { name: 'required', type: 'bool' }
-  ]
+    { name: 'required', type: 'bool' },
+  ],
 }
 
 // USD_PEGGED_MANA-aware value extractor (dapps' getValueForTradeAsset has no USD case). Mirrors
@@ -85,28 +85,28 @@ export function generateTradeValues(trade: Omit<TradeCreation, 'signature'>) {
         contractAddress: c.contractAddress,
         selector: c.selector,
         value: c.value ? c.value : '0x',
-        required: c.required
-      }))
+        required: c.required,
+      })),
     },
     sent: trade.sent.map(a => ({
       assetType: a.assetType,
       contractAddress: a.contractAddress,
       value: valueForAsset(a),
-      extra: a.extra ? a.extra : '0x'
+      extra: a.extra ? a.extra : '0x',
     })),
     received: trade.received.map(a => ({
       assetType: a.assetType,
       contractAddress: a.contractAddress,
       value: valueForAsset(a),
       extra: a.extra ? a.extra : '0x',
-      beneficiary: (a as { beneficiary?: string }).beneficiary
-    }))
+      beneficiary: (a as { beneficiary?: string }).beneficiary,
+    })),
   }
 }
 
 const INDEX_ABI = [
   'function contractSignatureIndex() view returns (uint256)',
-  'function signerSignatureIndex(address) view returns (uint256)'
+  'function signerSignatureIndex(address) view returns (uint256)',
 ]
 
 export function eip712Domain(chainId: number) {
@@ -115,13 +115,16 @@ export function eip712Domain(chainId: number) {
     name: market.name,
     version: market.version,
     salt: ethers.utils.hexZeroPad(ethers.utils.hexlify(chainId), 32),
-    verifyingContract: market.address
+    verifyingContract: market.address,
   }
 }
 
 // Read the revocation counters from the target-chain RPC. Prepare-time read; the real wallet path
 // should re-read signerSignatureIndex right before signing (MIGRATION_SPEC §8).
-async function readSignatureIndices(chainId: number, signer: string): Promise<{ contractIdx: number; signerIdx: number }> {
+async function readSignatureIndices(
+  chainId: number,
+  signer: string
+): Promise<{ contractIdx: number; signerIdx: number }> {
   const market = getContract(ContractName.OffChainMarketplaceV2, chainId)
   const c = new ethers.Contract(market.address, INDEX_ABI, readProvider())
   const contractIdx: ethers.BigNumber = await c.contractSignatureIndex()
@@ -160,16 +163,16 @@ export async function buildUsdPeggedTrade(opts: {
           assetType: TradeAssetType.COLLECTION_ITEM,
           contractAddress: listing.contractAddress,
           itemId: listing.itemId as string,
-          extra: ''
-        }
+          extra: '',
+        },
       ]
     : [
         {
           assetType: TradeAssetType.ERC721,
           contractAddress: listing.contractAddress,
           tokenId: listing.tokenId as string,
-          extra: ''
-        }
+          extra: '',
+        },
       ]
 
   const trade: Omit<TradeCreation, 'signature'> = {
@@ -185,7 +188,7 @@ export async function buildUsdPeggedTrade(opts: {
       contractSignatureIndex: contractIdx,
       signerSignatureIndex: signerIdx,
       allowedRoot: '0x',
-      externalChecks: []
+      externalChecks: [],
     },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     sent: sent as any,
@@ -195,9 +198,9 @@ export async function buildUsdPeggedTrade(opts: {
         contractAddress: mana.address,
         amount: usdWei.toString(),
         extra: '',
-        beneficiary: seller
-      }
-    ]
+        beneficiary: seller,
+      },
+    ],
   }
 
   return { trade, domain: eip712Domain(chainId), types: OFFCHAIN_MARKETPLACE_TYPES }

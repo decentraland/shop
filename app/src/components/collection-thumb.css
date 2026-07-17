@@ -12,14 +12,14 @@
   grid-auto-rows: 1fr;
   background: var(--line);
 }
-.coll-thumb[data-count='1'] {
+.coll-thumb[data-count="1"] {
   grid-template-columns: 1fr;
 }
-.coll-thumb[data-count='2'] {
+.coll-thumb[data-count="2"] {
   grid-template-rows: 1fr;
 }
 /* 3 items: first spans the full top row, the other two share the bottom row. */
-.coll-thumb[data-count='3'] .coll-thumb__cell:first-child {
+.coll-thumb[data-count="3"] .coll-thumb__cell:first-child {
   grid-column: span 2;
 }
 .coll-thumb__cell {

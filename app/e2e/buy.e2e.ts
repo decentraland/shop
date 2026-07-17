@@ -1,6 +1,6 @@
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, afterEach } from 'vitest'
 import { launchApp, type App } from './helpers/app'
-import { clickByText, waitForText } from './helpers/dom'
+import { clickWhenEnabled, waitForText } from './helpers/dom'
 import { COLLECTION, buyTrade } from './fixtures'
 
 let app: App | undefined
@@ -21,11 +21,13 @@ describe('buy an item with credits', () => {
     await waitForText(page, 'Buy now')
 
     // Open the buy modal from the PDP.
-    expect(await clickByText(page, 'button', /buy now/i)).toBe(true)
+    await clickWhenEnabled(page, 'button', /buy now/i)
     await waitForText(page, 'Buy Asset')
 
-    // Confirm in the modal (its own "Buy" button — exact, not "Buy now").
-    expect(await clickByText(page, 'button', /^buy$/i)).toBe(true)
+    // Confirm in the modal (its own "Buy" button — exact, not "Buy now"). The modal opens in a loading
+    // state (same "Buy Asset" title) and only renders the enabled "Buy" button once the async
+    // resolve-trade → authorize step reaches its ready phase, so wait for it rather than clicking early.
+    await clickWhenEnabled(page, 'button', /^buy$/i)
 
     // The modal runs authorize → gasless buy → settlement, then shows the success state in place.
     await waitForText(page, 'Purchase complete!', 30000)

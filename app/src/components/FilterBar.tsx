@@ -15,7 +15,7 @@ export const SORTS: { key: string; label: string; server: ShopSort }[] = [
   { key: 'newest', label: 'Newest', server: 'newest' },
   { key: 'price-asc', label: 'Cheapest', server: 'cheapest' },
   { key: 'price-desc', label: 'Most Expensive', server: 'most_expensive' },
-  { key: 'name', label: 'Name (A–Z)', server: 'name' },
+  { key: 'name', label: 'Name (A–Z)', server: 'name' }
 ]
 
 /** Controls which popover (if any) is open — only one at a time. */
@@ -36,7 +36,7 @@ export function FilterPanel({
   active,
   badge,
   panel,
-  children,
+  children
 }: {
   panelKey: string
   label: ReactNode
@@ -74,7 +74,7 @@ export function FilterBar({
   anyActive,
   onClear,
   renderLeading,
-  renderTrailing,
+  renderTrailing
 }: {
   sort: string
   onSort: (key: string) => void
@@ -101,7 +101,7 @@ export function FilterBar({
   const panel: PanelController = {
     open,
     toggle: key => setOpen(current => (current === key ? null : key)),
-    close: () => setOpen(null),
+    close: () => setOpen(null)
   }
   // Pages using the inline filter row opt in via any of the filter slots; the rest (Assets) drive
   // filters from the sidebar and only pass the mobile drawer trigger.
@@ -131,7 +131,11 @@ export function FilterBar({
                 <div className="filter-pop filter-pop--rarity">
                   {rarityOptions.map(r => (
                     <label key={r} className="filter-pop__check">
-                      <input type="checkbox" checked={rarities?.includes(r) ?? false} onChange={() => onToggleRarity(r)} />
+                      <input
+                        type="checkbox"
+                        checked={rarities?.includes(r) ?? false}
+                        onChange={() => onToggleRarity(r)}
+                      />
                       <span>{r}</span>
                     </label>
                   ))}

@@ -1,0 +1,8 @@
+{
+  // The app is a nested project (app/package.json + app/eslint.config.js) — the CLI runs ESLint
+  // from app/, so tell the extension to do the same. Without this, the extension is rooted at the
+  // repo top, can't reliably resolve app/eslint.config.js, and under-reports vs `npm run lint`.
+  "eslint.workingDirectories": [{ "directory": "app", "changeProcessCWD": true }],
+  "eslint.useFlatConfig": true,
+  "eslint.validate": ["javascript", "javascriptreact", "typescript", "typescriptreact"]
+}

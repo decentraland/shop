@@ -23,7 +23,7 @@ export function setErrorForwarder(fn: ((error: unknown, context: ErrorContext) =
 /** Log an error to the console (always) and forward it to the reporter (if wired). Never throws. */
 export function captureError(error: unknown, context: ErrorContext = {}): void {
   const label = typeof context.flow === 'string' ? `error in ${context.flow}` : 'error'
-  // eslint-disable-next-line no-console
+
   console.error(`[shop] ${label}`, error, context)
   if (forward) {
     try {
@@ -41,14 +41,12 @@ export function captureError(error: unknown, context: ErrorContext = {}): void {
 const SIGNATURE_RE = /0x[a-fA-F0-9]{130}\b/g // 65-byte ECDSA signatures
 const HEX32_RE = /0x[a-fA-F0-9]{64}\b/g // 32-byte values (ephemeral private keys, hashes)
 const SECRET_RE = /(sk_[a-z]+_[A-Za-z0-9]+|pi_[A-Za-z0-9]+_secret_[A-Za-z0-9]+|[A-Za-z0-9-]*secret[A-Za-z0-9-]*)/gi
-const SENSITIVE_KEY = /(signature|private|identity|authchain|auth_chain|ephemeral|token|secret|password|cookie|authorization)/i
+const SENSITIVE_KEY =
+  /(signature|private|identity|authchain|auth_chain|ephemeral|token|secret|password|cookie|authorization)/i
 
 /** Redact secret-shaped substrings from free text (messages, exception values, urls). */
 export function redact(input: string): string {
-  return input
-    .replace(SIGNATURE_RE, '<signature>')
-    .replace(SECRET_RE, '<secret>')
-    .replace(HEX32_RE, '<hex32>')
+  return input.replace(SIGNATURE_RE, '<signature>').replace(SECRET_RE, '<secret>').replace(HEX32_RE, '<hex32>')
 }
 
 /** Scrub an outgoing Sentry event: redact free text, drop sensitive keys, strip cookies/headers. */
@@ -68,11 +66,11 @@ export function scrubEvent(event: Sentry.Event): Sentry.Event {
         delete o[k]
         continue
       }
-      if (typeof o[k] === 'string') o[k] = redact(o[k] as string)
+      if (typeof o[k] === 'string') o[k] = redact(o[k])
     }
   }
-  clean(event.tags as Record<string, unknown> | undefined)
-  clean(event.extra as Record<string, unknown> | undefined)
+  clean(event.tags)
+  clean(event.extra)
   return event
 }
 
@@ -86,7 +84,6 @@ export function initSentry(): void {
   if (initialized) return
   const dsn = config.sentryDsn
   if (!dsn) {
-    // eslint-disable-next-line no-console
     if (import.meta.env.DEV) console.debug('[monitoring] no VITE_SENTRY_DSN → error reporting disabled')
     return
   }

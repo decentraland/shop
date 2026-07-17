@@ -37,8 +37,12 @@ describe('avatar color (ADR-292 parity)', () => {
     })
 
     it('claimed and unclaimed names hash to different colors', () => {
-      const claimed = getAvatarBackgroundColor(getDisplayName({ name: 'Alice', hasClaimedName: true, ethAddress: '0x1234abcd' }))
-      const unclaimed = getAvatarBackgroundColor(getDisplayName({ name: 'Alice', hasClaimedName: false, ethAddress: '0x1234abcd' }))
+      const claimed = getAvatarBackgroundColor(
+        getDisplayName({ name: 'Alice', hasClaimedName: true, ethAddress: '0x1234abcd' })
+      )
+      const unclaimed = getAvatarBackgroundColor(
+        getDisplayName({ name: 'Alice', hasClaimedName: false, ethAddress: '0x1234abcd' })
+      )
       expect(claimed).not.toBe(unclaimed)
     })
   })
