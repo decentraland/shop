@@ -46,9 +46,10 @@ describe('cart checkout', () => {
     await waitForText(page, 'Nebula Jacket')
     await waitForText(page, 'Buy now')
     expect(await clickByText(page, 'button', /add to cart/i)).toBe(true)
-    await waitForText(page, 'In cart')
 
-    await page.click('.subnav__cart')
+    // Adding opens the cart drawer; go to the cart page from its CTA, then check out.
+    await waitForText(page, 'successfully added to cart')
+    expect(await clickByText(page, 'a', /go to cart/i)).toBe(true)
     await waitForText(page, 'Checkout')
     expect(await clickByText(page, 'button', /^checkout$/i)).toBe(true)
 
