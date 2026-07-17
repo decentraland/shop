@@ -358,10 +358,9 @@
   padding: 4px 8px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
 }
-/* Sale/market prices carry extra bits (was-price, countdown, market chip) that don't fit on one line
-   beside the title — let them wrap and align to the right, capped so the title keeps room. */
-.card__price--sale,
-.card__price--market {
+/* Sale prices carry extra bits (was-price, countdown) that don't fit on one line beside the title —
+   let them wrap and align to the right, capped so the title keeps room. */
+.card__price--sale {
   white-space: normal;
   flex-wrap: wrap;
   justify-content: flex-end;
@@ -408,28 +407,26 @@
   white-space: nowrap;
 }
 
-/* ---------------- Market tab (legacy, fluctuating-price liquidity) ---------------- */
-/* Fluctuating (indicative) price on a market (legacy) card: leading "≈" + a small "Market price"
-   chip. In the name/price top row it's capped + right-aligned so the chip wraps under the price
-   instead of squeezing the item name to nothing. */
+/* ---------------- Market (legacy, fluctuating-price liquidity) ---------------- */
+/* Market (legacy) card price: the SAME single-line layout as a native card's price, just with a
+   leading "≈" to flag that the credit value is an indicative, live-rate conversion. Keeping it to one
+   line (no wrap, no chip inside the row) is what lets the revealed "Buy now" button match a native
+   card's "Add to cart" exactly — the "Market price" tag lives in the chips row below instead. */
 .card__price--market {
-  gap: 8px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 4px 8px;
-  max-width: 55%;
+  gap: 4px;
 }
 .card__approx {
   font-weight: 700;
   color: var(--muted);
 }
-.card__market-chip {
+/* "Market price" tag — a chip in the chips row (swapped out for the action button on hover like every
+   other chip, so it never distorts the price row or the Buy now button). Subtle accent pill so it
+   reads as an annotation, distinct from the rarity chip; size/shape inherit from .card__chips .chip. */
+.card__chips .chip--market {
   background: var(--rarity-bg);
   color: var(--accent);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
   text-transform: uppercase;
+  letter-spacing: 0.02em;
 }
 
 /* hover preview loader */

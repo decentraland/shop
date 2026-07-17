@@ -57,9 +57,10 @@ export function AssetCard(props: AssetCardProps) {
   // Secondary listings carry tokenId; catalog items carry itemId — use whichever is present so the
   // /item/:contractAddress/:tokenId route segment is always populated.
   const routeSeg = item.tokenId ?? item.itemId
-  // Market (legacy) cards don't open the item-detail page — those listings aren't in the USD-pegged
-  // shop feed the detail page reads, so Buy now is the only action. Keeps the tab self-contained.
-  const canOpen = !isMarket && !!item.contractAddress && !!routeSeg
+  // The whole card opens the item-detail page — market (legacy) cards included: they carry a valid
+  // contractAddress + tokenId/itemId, and the detail page renders them in "market mode" (live-rate
+  // price + Buy now) from the router state handed over on the link below.
+  const canOpen = !!item.contractAddress && !!routeSeg
   const detailPath = `/item/${item.contractAddress}/${routeSeg}`
 
   function onEnter() {
@@ -116,7 +117,19 @@ export function AssetCard(props: AssetCardProps) {
           interactive controls inside a link is invalid and breaks SR/tab order. The overlay sits below
           those controls via z-index (see .card__link in index.css) so they stay independently operable. */}
       {canOpen ? (
-        <Link className="card__link" to={detailPath} state={{ item, tradeId: item.tradeId }} aria-label={item.name} />
+        <Link
+          className="card__link"
+          to={detailPath}
+          // Market cards open the detail page in "market mode": hand it the live-rate credit price and
+          // the market item (a UnifiedListing carrying manaWei) so it renders the ≈ price + Buy now
+          // without a refetch. Native cards pass their tradeId (the detail page resolves the fixed price).
+          state={
+            props.mode === 'market'
+              ? { item, market: true, marketPriceCredits: props.marketPriceCredits }
+              : { item, tradeId: item.tradeId }
+          }
+          aria-label={item.name}
+        />
       ) : null}
       {/* The fav button is a SIBLING of the whole-card link (not nested in .card__media): the media is
           its own stacking context (isolation: isolate, for the skeleton's z-index), which would trap
@@ -197,7 +210,6 @@ export function AssetCard(props: AssetCardProps) {
               </span>
               <CurrencyIcon className="card__diamond" />
               {props.marketPriceCredits == null ? '—' : formatCredits(props.marketPriceCredits)}
-              <span className="chip card__market-chip">{t('assetCard.marketPrice')}</span>
             </div>
           ) : onSale ? (
             <div className="card__price card__price--sale">
@@ -228,6 +240,10 @@ export function AssetCard(props: AssetCardProps) {
             cart; Market (legacy) cards Buy now directly (price locked at checkout). */}
         <div className="card__action">
           <div className="card__chips">
+            {/* Market (legacy) tag: the "≈ price is a live-rate market price" indicator. Lives here in
+                the chips row (not the price row) so it's swapped out for the action button on hover like
+                every other chip and never distorts the price row / Buy now button. */}
+            {isMarket ? <span className="chip chip--market">{t('assetCard.marketPrice')}</span> : null}
             <span
               className="chip chip--rarity"
               style={{ background: rarityTint(item.rarity), color: rarityInk(item.rarity) }}
