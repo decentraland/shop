@@ -344,7 +344,7 @@ export function ItemDetail() {
             <ItemPreview item={current} />
           ) : (
             <div className="item-preview__loading" aria-busy="true" aria-label="Loading preview">
-              <span className="item-preview__spinner" aria-hidden />
+              <span className="skeleton item-preview__skeleton" aria-hidden />
             </div>
           )}
           {/* Mobile favourite heart: a circular button at the preview's top-right (Figma 1182-195410).
@@ -361,8 +361,12 @@ export function ItemDetail() {
         </div>
 
         <div className="item-detail__info">
+          {!current.name ? (
+            <ItemInfoSkeleton />
+          ) : (
+            <>
           <div className="item-detail__info-head">
-            <h1 className="item-detail__title">{current.name || 'Loading…'}</h1>
+            <h1 className="item-detail__title">{current.name}</h1>
             <button
               className={`item-detail__fav${faved ? ' is-on' : ''}`}
               onClick={() => toggleFav(current)}
@@ -541,7 +545,8 @@ export function ItemDetail() {
             </>
             )}
           </div>
-
+            </>
+          )}
         </div>
       </div>
 
@@ -568,6 +573,25 @@ export function ItemDetail() {
           }}
         />
       ) : null}
+    </div>
+  )
+}
+
+// Content-shaped placeholder for the info column while a deep-linked/refreshed item resolves (replaces
+// the old bare "Loading…" title). Purely decorative → aria-hidden; the preview carries the aria-busy.
+function ItemInfoSkeleton() {
+  return (
+    <div className="item-detail__info-skel" aria-hidden>
+      <span className="skeleton id-skel__title" />
+      <div className="id-skel__chips">
+        <span className="skeleton id-skel__chip" />
+        <span className="skeleton id-skel__chip" />
+      </div>
+      <span className="skeleton id-skel__line" />
+      <span className="skeleton id-skel__line id-skel__line--short" />
+      <hr className="item-detail__divider" />
+      <span className="skeleton id-skel__price" />
+      <span className="skeleton id-skel__btn" />
     </div>
   )
 }
