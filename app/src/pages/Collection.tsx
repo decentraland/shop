@@ -89,7 +89,7 @@ export function Collection() {
 
   return (
     <div className="collection-page">
-      <nav className="collection-page__crumbs" aria-label="Breadcrumb">
+      <nav className="collection-page__crumbs" aria-label={t('collection.breadcrumbAria')}>
         <button className="collection-page__crumb-link" onClick={() => navigate('/assets')}>
           {t('collection.breadcrumb')}
         </button>
@@ -131,8 +131,8 @@ export function Collection() {
                     <input
                       type="number"
                       min="0"
-                      aria-label="Minimum price"
-                      placeholder="Min"
+                      aria-label={t('collection.priceMin')}
+                      placeholder={t('collection.priceMinPlaceholder')}
                       value={priceMin}
                       onChange={e => setPriceMin(e.target.value)}
                     />
@@ -140,13 +140,13 @@ export function Collection() {
                     <input
                       type="number"
                       min="0"
-                      aria-label="Maximum price"
-                      placeholder="Max"
+                      aria-label={t('collection.priceMax')}
+                      placeholder={t('collection.priceMaxPlaceholder')}
                       value={priceMax}
                       onChange={e => setPriceMax(e.target.value)}
                     />
                   </div>
-                  <p className="filter-pop__hint">Price in {CURRENCY.name}</p>
+                  <p className="filter-pop__hint">{t('collection.priceHint', { currency: CURRENCY.name })}</p>
                 </div>
               </FilterPanel>
             )}

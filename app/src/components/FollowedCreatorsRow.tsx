@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { fetchCreatorItems } from '~/lib/collections'
 import { AssetCard } from '~/components/AssetCard'
 import { useFollows } from '~/store/follows'
+import { t } from '~/intl/i18n'
 import type { CatalogItem } from '~/lib/api'
 
 // Bound the fan-out so a visitor following many creators doesn't fire dozens of requests.
@@ -41,7 +42,7 @@ export function FollowedCreatorsRow() {
   return (
     <section className="row">
       <div className="row__head">
-        <h2 className="row__title">From creators you follow</h2>
+        <h2 className="row__title">{t('followedCreators.title')}</h2>
       </div>
       <div className="row__track">
         {isLoading

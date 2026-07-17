@@ -1,3 +1,4 @@
+import { t } from '~/intl/i18n'
 import './spinner.css'
 
 export type SpinnerSize = 'small' | 'medium' | 'large'
@@ -25,7 +26,7 @@ export function Spinner({ label, size = 'medium', direction = 'column', classNam
       className={`spinner-box spinner-box--${direction}${className ? ` ${className}` : ''}`}
       role="status"
       aria-live="polite"
-      aria-label={label ? undefined : 'Loading'}
+      aria-label={label ? undefined : t('spinner.loading')}
     >
       <span className={`spinner-box__ring spinner-box__ring--${size}`} aria-hidden />
       {label ? <span className="spinner-box__label">{label}</span> : null}

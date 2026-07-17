@@ -2,6 +2,7 @@ import { ethers } from 'ethers'
 import { useQuery } from '@tanstack/react-query'
 import { CreatorBadge } from '~/components/CreatorBadge'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
+import { t } from '~/intl/i18n'
 import { fetchTopCreators, type CreatorRank } from '~/lib/rankings'
 
 // "Week Top Creators" table (Figma node 913-135614). Real data from marketplace-server
@@ -79,8 +80,8 @@ export function WeekTopCreators() {
   return (
     <section className="ov-creators">
       <div className="ov-creators__head">
-        <h2 className="ov-creators__title">Week Top Creators</h2>
-        <span className="ov-creators__period">This Week</span>
+        <h2 className="ov-creators__title">{t('weekTopCreators.title')}</h2>
+        <span className="ov-creators__period">{t('weekTopCreators.thisWeek')}</span>
       </div>
 
       <div className="ov-creators__scroll">
@@ -88,19 +89,19 @@ export function WeekTopCreators() {
           <thead>
             <tr className="ov-creators__header">
               <th className="ov-creators__th ov-creators__th--rank" scope="col">
-                Rank
+                {t('weekTopCreators.rank')}
               </th>
               <th className="ov-creators__th" scope="col">
-                Creator
+                {t('weekTopCreators.creator')}
               </th>
               <th className="ov-creators__th ov-creators__th--num" scope="col">
-                Collections
+                {t('weekTopCreators.collections')}
               </th>
               <th className="ov-creators__th ov-creators__th--num" scope="col">
-                Sales
+                {t('weekTopCreators.sales')}
               </th>
               <th className="ov-creators__th ov-creators__th--num" scope="col">
-                Volume
+                {t('weekTopCreators.volume')}
               </th>
             </tr>
           </thead>

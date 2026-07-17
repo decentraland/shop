@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { getRecentlyViewed } from '~/lib/recently-viewed'
 import { AssetCard } from '~/components/AssetCard'
+import { t } from '~/intl/i18n'
 
 // "Recently viewed" discovery row (client-side, from localStorage). Renders nothing until the user
 // has viewed at least one item. `excludeId` drops the item currently on screen (e.g. on its detail page).
@@ -10,7 +11,7 @@ export function RecentlyViewed({ excludeId }: { excludeId?: string }) {
   return (
     <section className="row">
       <div className="row__head">
-        <h2 className="row__title">Recently viewed</h2>
+        <h2 className="row__title">{t('recentlyViewed.title')}</h2>
       </div>
       <div className="row__track">
         {items.map(item => (

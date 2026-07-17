@@ -112,7 +112,7 @@ export function Creator() {
 
   return (
     <div className="collection-page">
-      <nav className="collection-page__crumbs" aria-label="Breadcrumb">
+      <nav className="collection-page__crumbs" aria-label={t('creator.breadcrumbAria')}>
         <button className="collection-page__crumb-link" onClick={() => navigate('/assets')}>
           {t('creator.breadcrumb')}
         </button>
@@ -190,8 +190,8 @@ export function Creator() {
                         <input
                           type="number"
                           min="0"
-                          aria-label="Minimum price"
-                          placeholder="Min"
+                          aria-label={t('creator.priceMin')}
+                          placeholder={t('creator.priceMinPlaceholder')}
                           value={priceMin}
                           onChange={e => setPriceMin(e.target.value)}
                         />
@@ -199,13 +199,13 @@ export function Creator() {
                         <input
                           type="number"
                           min="0"
-                          aria-label="Maximum price"
-                          placeholder="Max"
+                          aria-label={t('creator.priceMax')}
+                          placeholder={t('creator.priceMaxPlaceholder')}
                           value={priceMax}
                           onChange={e => setPriceMax(e.target.value)}
                         />
                       </div>
-                      <p className="filter-pop__hint">Price in {CURRENCY.name}</p>
+                      <p className="filter-pop__hint">{t('creator.priceHint', { currency: CURRENCY.name })}</p>
                     </div>
                   </FilterPanel>
                 )}
