@@ -130,6 +130,24 @@
   }
 }
 
+/* Discovery rows on the overview (Recently viewed, Followed creators) reuse the shared .row/.row__track,
+   but on THIS page every rail must show cards at the exact same width as the Featured/New Creations
+   carousels above — a single consistent card size down the whole page (Figma 913:135556). The shared
+   track is a flex rail of fixed 281px cards, which reads narrower than the carousels' fluid 1/5 columns.
+   Override it here (scoped to .overview, so Cart upsell / ItemDetail rails keep the 281px rail) with the
+   SAME fixed-N-per-view grid + zero horizontal padding the carousels use, so the columns line up exactly.
+   Grid items ignore the child flex-basis, so no > * override is needed. */
+.overview .row__track {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: calc((100% - 64px) / 5);
+  padding: 12px 0;
+  margin: 0;
+}
+@media (max-width: 1200px) { .overview .row__track { grid-auto-columns: calc((100% - 48px) / 4); } }
+@media (max-width: 900px)  { .overview .row__track { grid-auto-columns: calc((100% - 32px) / 3); } }
+@media (max-width: 720px)  { .overview .row__track { grid-auto-columns: calc((100% - 16px) / 2); } }
+
 /* Side arrows (Figma "Slider Arrows" — node 913:135587 / 913:135609). A ~53px white circle (80%
    opacity, white ring) with a bold black chevron; the SVG (carousel-arrow.svg) is the exact Figma
    export. `--ov-arrow-top` (set in JS) centers them on the card media band. The left arrow mirrors the

@@ -169,10 +169,6 @@ export function FilterBar({
         )}
 
         <div className="filterbar__right">
-          <span className="filterbar__count">
-            {loading ? '…' : `${total.toLocaleString()} item${total === 1 ? '' : 's'}`}
-            {query ? ` for “${query}”` : ''}
-          </span>
           <Dropdown
             label="Sort by"
             ariaLabel="Sort by"
