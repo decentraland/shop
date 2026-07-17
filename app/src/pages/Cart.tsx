@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCart } from '~/store/cart'
+import { useFavorites } from '~/store/favorites'
 import { useWallet } from '~/store/wallet'
 import { useBalance } from '~/hooks/useBalance'
 import { authorizeUsdCredit, cancelUsdIntents, devMintUsd } from '~/lib/credits'
@@ -18,7 +19,7 @@ import { CartCheckoutModal, type CheckoutLine, type CheckoutPhase } from '~/comp
 import { t } from '~/intl/i18n'
 import { track, purchaseItemsProps, errorCode, isUserRejection, creditsToUsd } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
-import { AssetCard } from '~/components/AssetCard'
+import { CollectionCarousel } from '~/components/CollectionCarousel'
 import { CreatorBadge } from '~/components/CreatorBadge'
 import type { CatalogItem } from '~/lib/api'
 import './cart.css'
@@ -72,6 +73,8 @@ export function Cart() {
   const clear = useCart(s => s.clear)
   const restore = useCart(s => s.restore)
   const setFittingOpen = useCart(s => s.setFittingOpen)
+  const favItems = useFavorites(s => s.items)
+  const toggleFav = useFavorites(s => s.toggle)
   const { session } = useWallet()
 
   // Try-on is only meaningful for wearables (emotes aren't "worn").
@@ -101,7 +104,7 @@ export function Cart() {
   // While a review is pending the total reflects the live (re-resolved) prices of what's still buyable.
   const total = review ? review.liveTotalCredits : shownTotal
   const inCart = new Set(items.map(i => i.id))
-  const upsell = (suggested?.items ?? []).filter(i => !inCart.has(i.id)).slice(0, 6)
+  const upsell = (suggested?.items ?? []).filter(i => !inCart.has(i.id)).slice(0, 12)
   // Live-price lookup for the rows while a review is pending.
   const lineById = new Map(review?.buyable.map(l => [l.item.id, l] as const))
   const balanceCredits = balance?.credits ?? 0
@@ -440,7 +443,7 @@ export function Cart() {
             <h1 className="checkout__panel-title">Cart: {items.length} {itemWord}</h1>
             {hasWearable ? (
               <button className="checkout__fitting" onClick={() => setFittingOpen(true)} disabled={working}>
-                <span className="ico ico-emote-dance checkout__fitting-ico" aria-hidden />
+                <span className="ico ico-fitting-room checkout__fitting-ico" aria-hidden />
                 Fitting Room
               </button>
             ) : null}
@@ -451,10 +454,22 @@ export function Cart() {
               const line = lineById.get(item.id)
               const livePrice = line ? line.priceCredits : item.priceCredits
               const changed = !!line && line.priceCredits !== item.priceCredits
+              const faved = !!favItems[item.id]
+              // Whole-item deep link (same route the browse cards use): cart lines carry the listing's
+              // contractAddress + itemId/tokenId, so the thumbnail + name navigate to the detail page
+              // client-side (the PDP re-hydrates from the passed router state).
+              const routeSeg = item.tokenId ?? item.itemId
+              const detailPath = item.contractAddress && routeSeg ? `/item/${item.contractAddress}/${routeSeg}` : null
               return (
                 <div className="checkout__card" key={item.id}>
                   <div className="checkout__thumb">
-                    {item.thumbnail ? <img src={item.thumbnail} alt={item.name} /> : null}
+                    {detailPath ? (
+                      <Link className="checkout__thumb-link" to={detailPath} state={{ item, tradeId: item.tradeId }} aria-label={item.name}>
+                        {item.thumbnail ? <img src={item.thumbnail} alt={item.name} /> : null}
+                      </Link>
+                    ) : item.thumbnail ? (
+                      <img src={item.thumbnail} alt={item.name} />
+                    ) : null}
                     <span className="checkout__thumb-check" aria-hidden>
                       <svg viewBox="0 0 20 20" width="12" height="12">
                         <path
@@ -470,31 +485,61 @@ export function Cart() {
                   </div>
                   <div className="checkout__info">
                     <div className="checkout__desc">
-                      <div className="checkout__name" title={item.name}>{item.name}</div>
+                      {detailPath ? (
+                        <Link className="checkout__name" to={detailPath} state={{ item, tradeId: item.tradeId }} title={item.name}>
+                          {item.name}
+                        </Link>
+                      ) : (
+                        <div className="checkout__name" title={item.name}>{item.name}</div>
+                      )}
                       {item.creator ? <CreatorBadge address={item.creator} className="checkout__creator" linkToProfile /> : null}
                     </div>
                     <div className="checkout__foot">
-                      {/* Display-only quantity: cart lines are unique listings (qty always 1). */}
-                      <span className="checkout__qty" aria-label="Quantity: 1">
-                        <span className="checkout__qty-sign" aria-hidden>−</span>
-                        <span className="checkout__qty-num">1</span>
-                        <span className="checkout__qty-sign" aria-hidden>+</span>
-                      </span>
+                      {/* Quantity stepper — visual only: a cart line is a single unique listing (qty always
+                          1), so minus removes the line and plus is inert (mirrors the cart drawer stepper). */}
+                      <div className="checkout__stepper">
+                        <button
+                          className="checkout__step"
+                          onClick={() => editCart(() => remove(item.id))}
+                          disabled={working}
+                          aria-label={`Remove ${item.name} from cart`}
+                        >
+                          <svg viewBox="0 0 16 16" fill="none" aria-hidden focusable="false">
+                            <path d="M3.5 8h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                          </svg>
+                        </button>
+                        <span className="checkout__qty">1</span>
+                        <button className="checkout__step" disabled aria-label="Increase quantity">
+                          <svg viewBox="0 0 16 16" fill="none" aria-hidden focusable="false">
+                            <path d="M8 3.5v9M3.5 8h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                          </svg>
+                        </button>
+                      </div>
                       <div className="checkout__price">
                         <CurrencyIcon className="checkout__price-ico" /> {livePrice}
                         {changed ? <span className="checkout__price-was">{item.priceCredits}</span> : null}
                       </div>
                     </div>
                   </div>
-                  <button
-                    className="checkout__remove"
-                    onClick={() => editCart(() => remove(item.id))}
-                    disabled={working}
-                    aria-label={`Remove ${item.name}`}
-                    title="Remove"
-                  >
-                    <span className="ico ico-trash" aria-hidden />
-                  </button>
+                  <div className="checkout__actions">
+                    <button
+                      className={`checkout__fav${faved ? ' is-on' : ''}`}
+                      onClick={() => toggleFav(item)}
+                      aria-label={faved ? `Remove ${item.name} from favorites` : `Add ${item.name} to favorites`}
+                      title={faved ? 'Remove from favorites' : 'Add to favorites'}
+                    >
+                      <span className={`ico ${faved ? 'ico-heart-solid' : 'ico-heart'}`} aria-hidden />
+                    </button>
+                    <button
+                      className="checkout__remove"
+                      onClick={() => editCart(() => remove(item.id))}
+                      disabled={working}
+                      aria-label={`Remove ${item.name}`}
+                      title="Remove"
+                    >
+                      <span className="ico ico-trash" aria-hidden />
+                    </button>
+                  </div>
                 </div>
               )
             })}
@@ -536,12 +581,9 @@ export function Cart() {
       </div>
 
       {upsell.length > 0 ? (
-        <section className="row cart-upsell">
-          <div className="row__head"><h2 className="row__title">You might also like</h2></div>
-          <div className="row__track">
-            {upsell.map(i => <AssetCard key={i.id} item={i} />)}
-          </div>
-        </section>
+        <div className="cart-upsell">
+          <CollectionCarousel title="You might also like" items={upsell} />
+        </div>
       ) : null}
 
       {modal ? (

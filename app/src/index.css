@@ -237,6 +237,11 @@ h2 {
   -webkit-mask-image: url("./assets/icons/emote-dance.svg");
   mask-image: url("./assets/icons/emote-dance.svg");
 }
+/* Person raising both arms (Figma "SecondaryBarEmotes") — the Fitting Room affordance. */
+.ico-fitting-room {
+  -webkit-mask-image: url("./assets/icons/fitting-room.svg");
+  mask-image: url("./assets/icons/fitting-room.svg");
+}
 .ico-emote-stunt {
   -webkit-mask-image: url("./assets/icons/emote-stunt.svg");
   mask-image: url("./assets/icons/emote-stunt.svg");
@@ -329,6 +334,10 @@ h2 {
   font-weight: 600;
   color: var(--muted-2);
   border-bottom: 4px solid transparent;
+}
+/* Hover promotes an inactive tab to the selected (black) text colour. */
+.subnav__tabs a:hover {
+  color: var(--text);
 }
 .subnav__tabs a.active {
   color: var(--text);
@@ -3796,19 +3805,18 @@ a.purchase:hover {
     letter-spacing: 0.035em;
     cursor: pointer;
   }
-  /* Mobile "Filters" pill — Figma node 1052-154074: rounded-32, hairline, filter icon + title-case. */
+  /* Mobile filters trigger — icon-only square (Figma node 1059-161129): white, 0.5px gray-3 hairline,
+     rounded-4, a 20px filter glyph with 4px padding (≈28px box). */
   .browse__filters-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
-    height: 40px;
-    padding: 0 16px 0 12px;
+    width: 28px;
+    height: 28px;
+    padding: 4px;
     background: #fff;
-    border: 0.5px solid var(--muted-2);
-    border-radius: 32px;
-    font-size: 12px;
-    font-weight: 500;
+    border: 0.5px solid var(--line-strong);
+    border-radius: 4px;
     color: var(--text-2);
     cursor: pointer;
   }
