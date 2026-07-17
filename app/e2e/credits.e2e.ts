@@ -19,7 +19,7 @@ describe('get credits page', () => {
     expect(await page.evaluate(() => document.querySelectorAll('.pack').length)).toBe(4)
     await waitForText(page, '$5')
     await waitForText(page, '$50')
-    await waitForText(page, 'Best value')
+    await waitForText(page, 'Recommended')
 
     // The signed-in balance chip renders in the sub-nav (creditsResponse.usd.credits = 500).
     await page.waitForSelector('.subnav__balance', { timeout: 20000 })
@@ -43,9 +43,8 @@ describe('get credits page', () => {
     // Complete the mock card form (prefilled with the Stripe test card).
     await clickWhenEnabled(page, 'button', /pay \$25/i)
 
-    // Processing → success: 250 credits granted for the $25 pack. ("You're all set!" uses a curly
-    // apostrophe, so match on a substring that avoids it.)
-    await waitForText(page, 'all set')
+    // Processing → success: 250 credits granted for the $25 pack.
+    await waitForText(page, 'successful')
     await waitForText(page, '250')
 
     // The purchase must actually raise the balance: the /dev/mint-usd top-up ($25 = 250 credits) folds

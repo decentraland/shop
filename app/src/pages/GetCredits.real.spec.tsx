@@ -95,8 +95,8 @@ describe('when returning from Stripe hosted Checkout on the real path', () => {
 
     // The grant resolves to the success screen with the server-reported count (the crediting spinner is
     // exercised by GetCredits.spec.tsx, whose real mock lingers; here the poll resolves instantly).
-    expect(await screen.findByText(/you.?re all set/i)).toBeInTheDocument()
-    expect(screen.getByText('250')).toBeInTheDocument()
+    expect(await screen.findByText(/purchase was successful/i)).toBeInTheDocument()
+    expect(screen.getByText(/250/)).toBeInTheDocument()
     expect(screen.getByText(/added to your account/i)).toBeInTheDocument()
 
     // The order id polled came from the return param, and the balance query was invalidated.
@@ -111,7 +111,7 @@ describe('when returning from Stripe hosted Checkout on the real path', () => {
 
     renderPage('/?order=ord_x')
 
-    expect(await screen.findByText(/you.?re all set/i)).toBeInTheDocument()
+    expect(await screen.findByText(/purchase was successful/i)).toBeInTheDocument()
     expect(screen.getByText(/your credits are ready/i)).toBeInTheDocument()
     // No misleading "0" count anywhere on the success screen.
     expect(screen.queryByText('0')).not.toBeInTheDocument()
@@ -128,7 +128,7 @@ describe('when returning from Stripe hosted Checkout on the real path', () => {
 
     renderPage('/?order=ord_x')
 
-    expect(await screen.findByText(/you.?re all set/i)).toBeInTheDocument()
+    expect(await screen.findByText(/purchase was successful/i)).toBeInTheDocument()
     expect(screen.getByText(/your credits are ready/i)).toBeInTheDocument()
     const completed = track.mock.calls.find(c => c[0] === 'Shop Completed Buy Credits')
     expect(completed?.[1]).toMatchObject({ credits: null })
@@ -167,7 +167,7 @@ describe('when returning from Stripe hosted Checkout on the real path', () => {
 
     renderPage('/?order=ord_x')
 
-    expect(await screen.findByText(/you.?re all set/i)).toBeInTheDocument()
+    expect(await screen.findByText(/purchase was successful/i)).toBeInTheDocument()
     // The return handler clears ?order= (changing searchParams → effect re-runs), but the returnHandled
     // ref must keep it to a single poll.
     expect(pollCreditGrant).toHaveBeenCalledTimes(1)
@@ -178,7 +178,7 @@ describe('when returning from Stripe hosted Checkout on the real path', () => {
 
     renderPage('/?order=ord_x')
 
-    expect(await screen.findByText(/you.?re all set/i)).toBeInTheDocument()
+    expect(await screen.findByText(/purchase was successful/i)).toBeInTheDocument()
     expect(screen.getByTestId('search').textContent).not.toContain('order')
   })
 
@@ -203,13 +203,14 @@ describe('when returning from Stripe hosted Checkout on the real path', () => {
 
   it('should not poll until the wallet identity is restored (signed-fetch needs it)', async () => {
     // On the success_url the poll is a signed-fetch; until the wallet restores (session null) we must
-    // NOT poll. The signed-out gate shows the sign-in prompt during that brief window.
+    // NOT poll. With always-show-packs there's no sign-in gate — the buyer (who WAS charged) sees the
+    // "completing purchase" crediting state while the wallet silently restores, then the poll runs.
     currentSession = null
     pollCreditGrant.mockResolvedValue({ status: 'credited', creditsGranted: 250 })
 
     renderPage('/?order=ord_x')
 
-    expect(await screen.findByText(/sign in to get credits/i)).toBeInTheDocument()
+    expect(await screen.findByText(/completing purchase/i)).toBeInTheDocument()
     expect(pollCreditGrant).not.toHaveBeenCalled()
   })
 })

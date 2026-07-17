@@ -62,7 +62,7 @@ describe('when a signed-in user opens the get-credits page', () => {
     expect(screen.getByRole('button', { name: /100 credits for \$10/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /250 credits for \$25/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /500 credits for \$50/i })).toBeInTheDocument()
-    expect(screen.getByText(/best value/i)).toBeInTheDocument()
+    expect(screen.getByText(/recommended/i)).toBeInTheDocument()
   })
 
   it('should buy a pack end-to-end and add the credits (mocked happy path)', async () => {
@@ -78,9 +78,9 @@ describe('when a signed-in user opens the get-credits page', () => {
 
     // Processing → success: credits added. (Mock flow has a short simulated
     // charge + crediting delay, so allow more than the RTL default timeout.)
-    expect(await screen.findByText(/you.?re all set/i, {}, { timeout: 4000 })).toBeInTheDocument()
+    expect(await screen.findByText(/purchase was successful/i, {}, { timeout: 4000 })).toBeInTheDocument()
     expect(screen.getByText(/250/)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /back to cart/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /start shopping/i })).toBeInTheDocument()
   })
 
   it('should let the user go back and choose a different pack before paying', async () => {
@@ -104,10 +104,10 @@ describe('when returning from Stripe hosted Checkout', () => {
     renderPage('/?order=ord_test_123')
 
     // Lands straight in the crediting state (no pack grid flash)…
-    expect(await screen.findByText(/adding your credits/i)).toBeInTheDocument()
+    expect(await screen.findByText(/completing purchase/i)).toBeInTheDocument()
     // …then the mock grant resolves to the success screen.
-    expect(await screen.findByText(/you.?re all set/i, {}, { timeout: 4000 })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /back to cart/i })).toBeInTheDocument()
+    expect(await screen.findByText(/purchase was successful/i, {}, { timeout: 4000 })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /start shopping/i })).toBeInTheDocument()
   })
 
   it('should show a gentle canceled note (not an error) and keep the packs on ?canceled=1', async () => {
@@ -129,16 +129,16 @@ describe('when a signed-out user opens the get-credits page', () => {
     currentSession = session
   })
 
-  it('should prompt to sign in instead of showing the packs, and sign in on click', async () => {
+  it('should still show the packs and start sign-in when a pack is clicked', async () => {
     const user = userEvent.setup()
     renderPage()
 
-    // No purchasable packs while logged out.
-    expect(screen.queryByRole('button', { name: /50 credits for \$5/i })).not.toBeInTheDocument()
+    // Packs are visible even while logged out (always-show-packs).
+    expect(screen.getByRole('button', { name: /50 credits for \$5/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /500 credits for \$50/i })).toBeInTheDocument()
 
-    // A sign-in CTA is shown and triggers the login redirect.
-    const signInBtn = screen.getByRole('button', { name: /^sign in$/i })
-    await user.click(signInBtn)
+    // Clicking a pack triggers sign-in instead of dropping into an un-authable Stripe checkout.
+    await user.click(screen.getByRole('button', { name: /250 credits for \$25/i }))
     expect(signIn).toHaveBeenCalledTimes(1)
   })
 })

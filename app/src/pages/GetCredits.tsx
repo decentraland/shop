@@ -9,6 +9,10 @@ import { track, errorCode } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
 import { RESUME_BUY_KEY } from '~/lib/resume-buy'
 import { RESUME_CART_KEY } from '~/lib/cart-checkout'
+import packChips from '~/assets/credits/pack-chips.webp'
+import creditCoin from '~/assets/credits/credit-coin.webp'
+import checkCircle from '~/assets/credits/check-circle.svg'
+import loaderLogo from '~/assets/credits/loader-logo.svg'
 import {
   CREDIT_PACKS,
   createPackCheckout,
@@ -21,6 +25,18 @@ import {
 // Live Stripe when real payments are configured; otherwise the built-in mock (dev). Single source of
 // truth via isMockPayments() (which gates on the publishable key) — don't reimplement the gate here.
 const CREDITS_PROVIDER = isMockPayments() ? 'mock' : 'stripe'
+
+// Pack artwork, mapped onto CREDIT_PACKS by id. Placeholder art lifted from Figma (all packs share the
+// same chip-stack render today); a per-pack swap is a one-line change here once final art lands.
+const PACK_IMAGES: Record<string, string> = {
+  pack_5: packChips,
+  pack_10: packChips,
+  pack_25: packChips,
+  pack_50: packChips
+}
+
+// Where "Get credits and start shopping" points. No credits-specific doc yet — link to the shop docs.
+const LEARN_MORE_URL = 'https://docs.decentraland.org'
 
 type Phase = 'select' | 'paying' | 'processing' | 'success' | 'error' | 'pending'
 
@@ -143,11 +159,13 @@ export function GetCredits() {
         setPhase('error')
       }
     },
-    [selected, session, qc]
+    [selected, session, qc, navigate]
   )
 
   const startCheckout = useCallback(
     async (pack: CreditPack) => {
+      // Always-show-packs: signed-out buyers can browse the packs; clicking one starts sign-in (they
+      // land back here to pick again) rather than dropping them into an un-authable Stripe checkout.
       if (!session) {
         signIn()
         return
@@ -229,107 +247,124 @@ export function GetCredits() {
     setCanceledNote(false)
   }
 
+  const showHeader = phase === 'select' || phase === 'paying'
+
   return (
     <div className="getcredits">
-      <header className="getcredits__head">
-        <h1 className="getcredits__title">Get {CURRENCY.name}</h1>
-        <p className="muted">Add {CURRENCY.name} to your account to shop. Pay with any card.</p>
-      </header>
+      {showHeader && (
+        <header className="getcredits__head">
+          <h1 className="getcredits__title">Purchase {CURRENCY.name}</h1>
+          <p className="getcredits__sub">
+            Get {CURRENCY.name} and start shopping in the Marketplace!{' '}
+            <a className="getcredits__learn" href={LEARN_MORE_URL} target="_blank" rel="noreferrer">
+              Learn more
+              <svg className="getcredits__learn-ico" viewBox="0 0 13 13" aria-hidden fill="none">
+                <path d="M4 2h7v7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M11 2 2 11" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </a>
+          </p>
+        </header>
+      )}
 
-      {!session ? (
-        <div className="getcredits__status" role="status">
-          <p className="getcredits__status-title">Sign in to get {CURRENCY.name}</p>
-          <p className="muted">Connect your account to buy {CURRENCY.name} and start shopping.</p>
-          <div className="getcredits__status-actions">
-            <button className="btn btn--purple" onClick={signIn}>
-              Sign in
+      {phase === 'select' && (
+        <>
+          {canceledNote && (
+            <p className="getcredits__note muted" role="status">
+              Payment canceled — no charge was made. Pick a pack whenever you&rsquo;re ready.
+            </p>
+          )}
+          <PackGrid onSelect={pack => void startCheckout(pack)} />
+        </>
+      )}
+
+      {phase === 'paying' && selected && (
+        <PayStep pack={selected} checkout={checkout} onPaid={onPaid} onCancel={reset} />
+      )}
+
+      {phase === 'processing' && (
+        <div className="gc-processing" role="status" aria-live="polite">
+          <img className="gc-processing__logo" src={loaderLogo} alt="" width={61} height={61} />
+          <div className="gc-processing__body">
+            <p className="gc-processing__title">
+              <strong>Completing purchase</strong>…
+            </p>
+            <div className="gc-progress" aria-hidden>
+              <span className="gc-progress__track">
+                <span className="gc-progress__fill" />
+              </span>
+              <span className="gc-progress__count">1/1</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {phase === 'success' && (
+        <div className="gc-success" role="status" aria-live="polite">
+          <div className="gc-banner">
+            <img className="gc-banner__icon" src={checkCircle} alt="" width={60} height={60} />
+            <p className="gc-banner__text">
+              <strong>Your purchase was successful!</strong> Your {CURRENCY.name} are ready to spend in the
+              Marketplace.
+            </p>
+          </div>
+
+          {granted != null && (
+            <div className="gc-credits">
+              <div className="gc-credits__row">
+                <img className="gc-credits__coin" src={creditCoin} alt="" width={93} height={93} />
+                <p className="gc-credits__text">
+                  <CurrencyIcon className="gc-credits__diamond" />
+                  <span>
+                    <strong className="gc-credits__amount">
+                      {granted} {CURRENCY.name}
+                    </strong>{' '}
+                    <span className="gc-credits__added">Added to your account</span>
+                  </span>
+                </p>
+              </div>
+            </div>
+          )}
+
+          <div className="gc-actions">
+            <button className="gc-actions__btn gc-actions__btn--outline" onClick={reset}>
+              Buy more {CURRENCY.name}
+            </button>
+            <button className="gc-actions__btn gc-actions__btn--solid" onClick={() => navigate('/assets')}>
+              Start shopping
             </button>
           </div>
         </div>
-      ) : (
-        <>
-          {phase === 'select' && (
-            <>
-              {canceledNote && (
-                <p className="getcredits__note muted" role="status">
-                  Payment canceled — no charge was made. Pick a pack whenever you&rsquo;re ready.
-                </p>
-              )}
-              <PackGrid onSelect={pack => void startCheckout(pack)} />
-            </>
-          )}
+      )}
 
-          {phase === 'paying' && selected && (
-            <PayStep pack={selected} checkout={checkout} onPaid={onPaid} onCancel={reset} />
-          )}
+      {phase === 'pending' && (
+        <div className="gc-status" role="status" aria-live="polite">
+          <p className="gc-status__title">Your {CURRENCY.name} are on the way</p>
+          <p className="muted">
+            Your payment went through. It&rsquo;s taking a little longer than usual to confirm — your balance will
+            update automatically as soon as it lands, no need to pay again.
+          </p>
+          <div className="gc-status__actions">
+            <button className="gc-actions__btn gc-actions__btn--solid" onClick={() => navigate('/assets')}>
+              Start shopping
+            </button>
+            <button className="gc-actions__btn gc-actions__btn--outline" onClick={reset}>
+              Done
+            </button>
+          </div>
+        </div>
+      )}
 
-          {phase === 'processing' && (
-            <div className="getcredits__status" role="status" aria-live="polite">
-              <CircularProgress size={40} />
-              <p className="getcredits__status-title">Adding your {CURRENCY.name}…</p>
-              <p className="muted">Payment received. Just a moment while we top up your balance.</p>
-            </div>
-          )}
-
-          {phase === 'success' && (
-            <div className="getcredits__status getcredits__status--ok" role="status" aria-live="polite">
-              <div className="getcredits__confetti" aria-hidden>
-                🎉
-              </div>
-              <p className="getcredits__status-title">You&rsquo;re all set!</p>
-              <p className="muted">
-                {granted != null ? (
-                  <>
-                    <strong>
-                      <CurrencyIcon className="ccy-mark" /> {granted}
-                    </strong>{' '}
-                    {CURRENCY.name} added to your account.
-                  </>
-                ) : (
-                  <>Your {CURRENCY.name} are ready.</>
-                )}
-              </p>
-              <div className="getcredits__status-actions">
-                <button className="btn" onClick={() => navigate('/cart')}>
-                  Back to cart
-                </button>
-                <button className="btn btn--ghost" onClick={reset}>
-                  Get more {CURRENCY.name}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {phase === 'pending' && (
-            <div className="getcredits__status" role="status" aria-live="polite">
-              <p className="getcredits__status-title">Your {CURRENCY.name} are on the way</p>
-              <p className="muted">
-                Your payment went through. It&rsquo;s taking a little longer than usual to confirm — your balance will
-                update automatically as soon as it lands, no need to pay again.
-              </p>
-              <div className="getcredits__status-actions">
-                <button className="btn" onClick={() => navigate('/cart')}>
-                  Back to cart
-                </button>
-                <button className="btn btn--ghost" onClick={reset}>
-                  Done
-                </button>
-              </div>
-            </div>
-          )}
-
-          {phase === 'error' && (
-            <div className="getcredits__status getcredits__status--err" role="alert">
-              <p className="getcredits__status-title">Something went wrong</p>
-              <p className="error">{error}</p>
-              <div className="getcredits__status-actions">
-                <button className="btn" onClick={reset}>
-                  Try again
-                </button>
-              </div>
-            </div>
-          )}
-        </>
+      {phase === 'error' && (
+        <div className="gc-status gc-status--err" role="alert">
+          <p className="gc-status__title">Something went wrong</p>
+          <p className="error">{error}</p>
+          <div className="gc-status__actions">
+            <button className="gc-actions__btn gc-actions__btn--solid" onClick={reset}>
+              Try again
+            </button>
+          </div>
+        </div>
       )}
     </div>
   )
@@ -346,14 +381,18 @@ function PackGrid({ onSelect }: { onSelect: (pack: CreditPack) => void }) {
           onClick={() => onSelect(pack)}
           aria-label={`Get ${formatAmount(pack.credits)} for $${pack.usd}`}
         >
-          {pack.bestValue && <span className="pack__ribbon">Best value</span>}
-          <span className="pack__credits">
-            <CurrencyIcon className="pack__credits-ico" />
-            {pack.credits}
+          {pack.bestValue && <span className="pack__badge">Recommended</span>}
+          <span className="pack__inner">
+            <span className="pack__label">
+              {pack.credits} {CURRENCY.name}
+            </span>
+            <span className="pack__art">
+              <img src={PACK_IMAGES[pack.id] ?? packChips} alt="" loading="lazy" />
+            </span>
+            <span className="pack__cta-wrap">
+              <span className="pack__cta">${pack.usd.toFixed(2)}</span>
+            </span>
           </span>
-          <span className="pack__label">{CURRENCY.name}</span>
-          <span className="pack__price">${pack.usd}</span>
-          <span className="pack__cta">Get {CURRENCY.name}</span>
         </button>
       ))}
     </div>
