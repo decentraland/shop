@@ -160,9 +160,8 @@ export function FilterBar({
         ) : (
           <div className="browse__dropdowns">
             {onOpenFilters ? (
-              <button type="button" className="browse__filters-btn" onClick={onOpenFilters}>
+              <button type="button" className="browse__filters-btn" onClick={onOpenFilters} aria-label="Filters">
                 <span className="ico ico-filter" aria-hidden />
-                Filters
               </button>
             ) : null}
           </div>
