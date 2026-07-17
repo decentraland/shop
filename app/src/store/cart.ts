@@ -9,6 +9,9 @@ type CartState = {
   items: CatalogItem[]
   /** Whether the cart popover is showing (auto-opens on add for feedback). */
   open: boolean
+  /** How many items were added in the burst that opened the drawer — drives the "N Item(s) added"
+   *  success banner. 0 when the drawer was opened from the cart icon (no banner). */
+  justAddedCount: number
   /** Whether the fitting-room (try-on) modal is showing. */
   fittingOpen: boolean
   add: (item: CatalogItem, source?: AddToCartSource) => void
@@ -23,11 +26,18 @@ const cartValueUsd = (items: CatalogItem[]): number => creditsToUsd(items.reduce
 export const useCart = create<CartState>((set, get) => ({
   items: [],
   open: false,
+  justAddedCount: 0,
   fittingOpen: false,
-  // Adding always opens the popover (feedback), even if the item was already in the cart.
+  // Adding always opens the popover (feedback), even if the item was already in the cart. A real add
+  // (not a re-add of an existing item) bumps justAddedCount so the success banner shows; consecutive
+  // adds while the drawer is already open accumulate the count.
   add: (item, source = 'grid') => {
     const already = get().items.some(i => i.id === item.id)
-    set(s => (already ? { open: true } : { items: [...s.items, item], open: true }))
+    set(s =>
+      already
+        ? { open: true }
+        : { items: [...s.items, item], open: true, justAddedCount: (s.open ? s.justAddedCount : 0) + 1 }
+    )
     if (already) return
     const items = get().items
     track('Shop Added To Cart', {
@@ -47,7 +57,9 @@ export const useCart = create<CartState>((set, get) => ({
     if (item) track('Shop Removed From Cart', { item_id: item.itemId ?? null, cart_size: get().items.length })
   },
   clear: () => set({ items: [] }),
-  setOpen: open => set({ open }),
+  // Opening/closing via setOpen (cart-icon click or dismiss) clears the "just added" banner — that
+  // banner only belongs to an add-triggered open.
+  setOpen: open => set({ open, justAddedCount: 0 }),
   // Opening the fitting room closes the transient popover so they don't stack.
   setFittingOpen: fittingOpen => set(fittingOpen ? { fittingOpen, open: false } : { fittingOpen })
 }))

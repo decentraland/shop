@@ -22,6 +22,7 @@ export function NavBar() {
   const { data: avatar, isLoading: isLoadingProfile } = useProfile(address)
   const { data: balance, isError: balanceError } = useBalance(session)
   const cartCount = useCart(s => s.items.length)
+  const openCart = useCart(s => s.setOpen)
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { pathname } = useLocation()
@@ -219,10 +220,17 @@ export function NavBar() {
           <span className="ico ico-heart" aria-hidden />
         </NavLink>
         <div className="subnav__cart-wrap">
-          <NavLink to="/cart" className="subnav__cart" aria-label={t('nav.cart')}>
+          {/* Cart icon opens the cart drawer (open-on-icon). With an empty cart there's nothing to show,
+              so it falls back to navigating to the cart page. */}
+          <button
+            type="button"
+            className="subnav__cart"
+            aria-label={t('nav.cart')}
+            onClick={() => (cartCount > 0 ? openCart(true) : navigate('/cart'))}
+          >
             <span className="ico ico-cart" aria-hidden />
             {cartCount > 0 ? <span className="subnav__cart-badge">{cartCount}</span> : null}
-          </NavLink>
+          </button>
           <CartPopover />
         </div>
       </div>
