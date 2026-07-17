@@ -8,15 +8,13 @@ import { useProfile } from '~/hooks/useProfile'
 import { avatarShape, isCompatible, itemShapes, shapeLabel } from '~/lib/bodyShape'
 import type { CatalogItem } from '~/lib/api'
 
-// The hero preview: the item MOUNTED on the connected user's avatar (like the marketplace item page).
-// - profile = the connected address when they have a published avatar, else 'default' (default DCL body).
-// - wearables → type=AVATAR + a FASHION pose so the avatar isn't in a T-pose.
-// - emotes    → no type (the preview app auto-detects + plays the emote on the avatar) + wheel zoom.
-// One iframe only; keyed on the item id so switching items re-mounts a single preview (no per-card iframes).
-//
-// Wearables also get an "On avatar / Item" toggle (like the marketplace): switching flips the preview
-// `type` between AVATAR (worn) and WEARABLE (the item alone), which the WearablePreview reloads in place
-// — no remount (key stays item.id). Emotes have no "alone" view (they're animations on an avatar).
+// The hero preview. Wearables DEFAULT to the item shown ALONE (PreviewType.WEARABLE — no avatar, no
+// emote), exactly how the marketplace item page loads (its try-on state starts OFF), so there's no odd
+// default avatar pose. The "On avatar / Item" toggle flips to AVATAR (worn) + a FASHION pose.
+// - emotes → no type (the preview app auto-detects + plays the emote on the avatar) + wheel zoom.
+// One shared iframe with a STABLE id and NO React key — so navigating item→item (or toggling avatar/item)
+// reloads the scene IN PLACE (the marketplace approach) instead of destroying + recreating the iframe,
+// which flashed a visible double-load. The loader below covers every (re)load until onLoad fires.
 
 export function ItemPreview({ item }: { item: CatalogItem }) {
   const address = useWallet(s => s.session?.address)
@@ -29,8 +27,12 @@ export function ItemPreview({ item }: { item: CatalogItem }) {
   const profile = address && avatar ? address : 'default'
 
   const isEmote = item.category === 'emote'
-  const [view, setView] = useState<'avatar' | 'item'>('avatar')
+  // Default to the item shown alone (matches the marketplace) — the "On avatar" toggle opts into the worn view.
+  const [view, setView] = useState<'avatar' | 'item'>('item')
   const itemAlone = !isEmote && view === 'item'
+  // The item-alone view needs no avatar, so it can render immediately; only the avatar/emote views wait for
+  // the profile fetch to settle (so they mount once with the final avatar rather than default→avatar reload).
+  const profileReady = itemAlone || !profileLoading
 
   // Cover every (re)load with a loader so the iframe never flickers raw (like the marketplace's
   // Loader overlay + onLoad). Reset to loading whenever the preview will actually reload: a new item
@@ -53,9 +55,8 @@ export function ItemPreview({ item }: { item: CatalogItem }) {
   return (
     <>
       {/* Gate on the profile fetch so we mount ONCE with the final avatar (no default→avatar reload). */}
-      {!profileLoading ? (
+      {profileReady ? (
         <WearablePreview
-          key={item.id}
           id="shop-item-preview"
           contractAddress={item.contractAddress}
           // secondary listings carry tokenId; catalog/mint items carry itemId — never both.
@@ -74,7 +75,7 @@ export function ItemPreview({ item }: { item: CatalogItem }) {
           onLoad={() => setPreviewLoading(false)}
         />
       ) : null}
-      {profileLoading || previewLoading ? (
+      {!profileReady || previewLoading ? (
         <div className="item-preview__loading" aria-busy="true" aria-label="Loading preview">
           <span className="item-preview__spinner" aria-hidden />
         </div>
