@@ -312,12 +312,16 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: var(--media);
+  /* 1px gaps between rows AND cells, filled by this background, draw a hairline divider between each
+     collaged item so the (often light) thumbnails don't blend into one another. */
+  gap: 1px;
+  background: var(--line-strong);
 }
 .collection-collage__row {
   display: flex;
   flex: 1 1 50%;
   min-height: 0;
+  gap: 1px;
 }
 .collection-collage__row--full { flex-basis: 100%; }
 .collection-collage__row img {

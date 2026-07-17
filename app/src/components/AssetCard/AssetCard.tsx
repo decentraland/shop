@@ -6,7 +6,7 @@ import { useHoverPreview } from '~/store/hoverPreview'
 import { useWallet } from '~/store/wallet'
 import { isOwnListing } from '~/lib/ownership'
 import { CreatorBadge } from '~/components/CreatorBadge'
-import { rarityInk, rarityTint } from '~/lib/rarity'
+import { rarityInk, rarityTint, rarityDescription } from '~/lib/rarity'
 import { categoryIcon, genderIcon } from '~/lib/itemIcons'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { SaleCountdown } from '~/components/SaleCountdown'
@@ -224,6 +224,7 @@ export function AssetCard(props: AssetCardProps) {
             <span
               className="chip chip--rarity"
               style={{ background: rarityTint(item.rarity), color: rarityInk(item.rarity) }}
+              title={rarityDescription(item.rarity)}
             >
               {item.rarity}
             </span>

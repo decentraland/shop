@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import type { CatalogItem } from '~/lib/api'
+import { capitalizeFirst } from '~/lib/text'
 
 // The collection a PDP item belongs to (thumbnail collage + name), linking to the collection
 // storefront. Mirrors the marketplace webapp's CollectionImage: a 2×2 collage of up to 4 item
@@ -56,7 +57,7 @@ export function CollectionBadge({
           ) : null}
         </span>
       ) : null}
-      <span className="creator__name">{name}</span>
+      <span className="creator__name">{capitalizeFirst(name)}</span>
     </button>
   )
 }

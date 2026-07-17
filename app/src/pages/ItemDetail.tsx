@@ -24,7 +24,7 @@ import { CreatorBadge } from '~/components/CreatorBadge'
 import { CollectionBadge } from '~/components/CollectionBadge'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { SaleCountdown } from '~/components/SaleCountdown'
-import { rarityTint, rarityInk } from '~/lib/rarity'
+import { rarityTint, rarityInk, rarityDescription } from '~/lib/rarity'
 import { categoryIcon, genderIcon } from '~/lib/itemIcons'
 import { saleDiscountPct } from '~/lib/sale'
 import { useSaleActive } from '~/hooks/useSaleActive'
@@ -377,6 +377,7 @@ export function ItemDetail() {
             <span
               className="chip chip--rarity"
               style={{ background: rarityTint(rarity), color: rarityInk(rarity) }}
+              title={rarityDescription(current.rarity)}
             >
               {current.rarity}
             </span>
@@ -480,7 +481,9 @@ export function ItemDetail() {
               {showStock ? (
                 <div className="item-detail__stock-col">
                   <div className="item-detail__price-label">Stock</div>
-                  <div className="item-detail__stock-value">{current.available}</div>
+                  <div className="item-detail__stock-value">
+                    {(current.available ?? 0).toLocaleString()}/{Rarity.getMaxSupply(rarity).toLocaleString()}
+                  </div>
                 </div>
               ) : null}
             </div>
