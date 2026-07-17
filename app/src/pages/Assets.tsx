@@ -176,9 +176,9 @@ export function Assets() {
   }
 
   return (
-    <div className="browse browse--sidebar">
+    <div className="browse browse--sidebar" data-testid="browse">
       {filtersOpen ? <div className="browse__scrim" onClick={() => setFiltersOpen(false)} aria-hidden /> : null}
-      <aside className={`browse__sidebar${filtersOpen ? ' is-open' : ''}`}>
+      <aside className={`browse__sidebar${filtersOpen ? ' is-open' : ''}`} data-testid="browse-sidebar">
         <div className="browse__sidebar-head">
           <span className="browse__sidebar-title">Filters</span>
           <button className="browse__sidebar-close" onClick={() => setFiltersOpen(false)} aria-label="Close filters">
@@ -272,6 +272,7 @@ export function Assets() {
         <button
           type="button"
           className="sidebar__section-toggle"
+          data-testid="sidebar-section-toggle"
           aria-expanded={rarityOpen}
           onClick={() => setRarityOpen(o => !o)}
         >
@@ -279,9 +280,13 @@ export function Assets() {
           <span className={`ico ico-chevron sidebar__section-chev${rarityOpen ? ' is-up' : ''}`} aria-hidden />
         </button>
         {rarityOpen ? (
-          <div className="rarity-filter">
+          <div className="rarity-filter" data-testid="rarity-filter">
             {RARITIES.map(r => (
-              <label key={r} className={`rarity-filter__check${rarities.includes(r) ? ' is-on' : ''}`}>
+              <label
+                key={r}
+                className={`rarity-filter__check${rarities.includes(r) ? ' is-on' : ''}`}
+                data-testid="rarity-filter-check"
+              >
                 <input type="checkbox" checked={rarities.includes(r)} onChange={() => toggleRarity(r)} />
                 <span>{r}</span>
               </label>
@@ -321,9 +326,13 @@ export function Assets() {
           </p>
         ) : null}
 
-        {error ? <p className="error">Couldn&rsquo;t load items — please try again.</p> : null}
+        {error ? (
+          <p className="error" data-testid="browse-error">
+            Couldn&rsquo;t load items — please try again.
+          </p>
+        ) : null}
 
-        <div className="grid">
+        <div className="grid" data-testid="grid">
           {isLoading ? (
             <SkeletonCards count={15} />
           ) : (

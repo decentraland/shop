@@ -46,10 +46,18 @@ export function CreatorBadge({
   const name = data?.name || shortAddress(address)
   const showImage = !!face && !broken
   const ava = showImage ? (
-    <img className="creator__ava" src={face} alt="" loading="lazy" onError={() => setBroken(true)} />
+    <img
+      className="creator__ava"
+      data-testid="creator-ava"
+      src={face}
+      alt=""
+      loading="lazy"
+      onError={() => setBroken(true)}
+    />
   ) : (
     <span
       className="creator__ava creator__ava--letter"
+      data-testid="creator-ava-letter"
       style={{ backgroundColor: colorForAddress(address) }}
       aria-hidden
     >
@@ -59,7 +67,7 @@ export function CreatorBadge({
   const inner = (
     <>
       {ava}
-      <span className="creator__name">
+      <span className="creator__name" data-testid="creator-name">
         By <span className="creator__display">{name}</span>
       </span>
     </>
@@ -68,6 +76,7 @@ export function CreatorBadge({
     return (
       <button
         className={`creator creator--link${className ? ` ${className}` : ''}`}
+        data-testid="creator"
         onClick={e => {
           e.stopPropagation()
           navigate(`/assets/creator/${address}`)
@@ -77,5 +86,9 @@ export function CreatorBadge({
       </button>
     )
   }
-  return <span className={`creator${className ? ` ${className}` : ''}`}>{inner}</span>
+  return (
+    <span className={`creator${className ? ` ${className}` : ''}`} data-testid="creator">
+      {inner}
+    </span>
+  )
 }

@@ -300,6 +300,7 @@ function PackGrid({ onSelect }: { onSelect: (pack: CreditPack) => void }) {
           key={pack.id}
           type="button"
           className={`pack${pack.bestValue ? ' pack--best' : ''}`}
+          data-testid="pack"
           onClick={() => onSelect(pack)}
           aria-label={`Get ${formatAmount(pack.credits)} for $${pack.usd}`}
         >

@@ -106,7 +106,7 @@ export function SearchDropdown({
   if (!enabled) {
     if (recent.length === 0) return null
     return (
-      <div className="search-pop" role="listbox" aria-label={t('search.suggestions')}>
+      <div className="search-pop" data-testid="search-pop" role="listbox" aria-label={t('search.suggestions')}>
         <div className="search-pop__section-head">
           <span>{t('search.recent')}</span>
           <button type="button" className="search-pop__clear" onClick={onClearRecent}>
@@ -138,7 +138,7 @@ export function SearchDropdown({
   const nothing = items.length === 0 && collections.length === 0 && creators.length === 0
 
   return (
-    <div className="search-pop" role="listbox" aria-label={t('search.suggestions')}>
+    <div className="search-pop" data-testid="search-pop" role="listbox" aria-label={t('search.suggestions')}>
       {nothing ? (
         <p className="search-pop__empty">{itemsFetching ? t('search.searching') : t('search.noResults', { query })}</p>
       ) : (
@@ -151,7 +151,13 @@ export function SearchDropdown({
               <ul className="search-pop__list">
                 {items.map(item => (
                   <li key={item.id}>
-                    <button type="button" className="search-pop__row" onClick={() => onSelectItem(item)}>
+                    <button
+                      type="button"
+                      className="search-pop__row"
+                      data-testid="search-pop-row"
+                      data-kind="item"
+                      onClick={() => onSelectItem(item)}
+                    >
                       <span className="search-pop__thumb">
                         {item.thumbnail ? <img src={item.thumbnail} alt="" /> : null}
                       </span>
@@ -182,6 +188,8 @@ export function SearchDropdown({
                     <button
                       type="button"
                       className="search-pop__row search-pop__row--collection"
+                      data-testid="search-pop-row"
+                      data-kind="collection"
                       onClick={() => onSelectCollection(collection)}
                     >
                       <CollectionRowThumb contractAddress={collection.contractAddress} />
@@ -211,6 +219,8 @@ export function SearchDropdown({
                     <button
                       type="button"
                       className="search-pop__row search-pop__row--creator"
+                      data-testid="search-pop-row"
+                      data-kind="creator"
                       onClick={() => onSelectCreator(creator)}
                     >
                       <span className="search-pop__thumb search-pop__thumb--round">

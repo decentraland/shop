@@ -241,6 +241,8 @@ export function StoreSettings() {
                     key={tpl.name}
                     type="button"
                     className={`cover-picker__tile${selected ? ' is-selected' : ''}`}
+                    data-testid="cover-picker-tile"
+                    data-selected={selected}
                     aria-pressed={selected}
                     onClick={() => pickTemplate(tpl.name, tpl.url)}
                   >
@@ -257,6 +259,9 @@ export function StoreSettings() {
                 <button
                   type="button"
                   className={`cover-picker__tile cover-picker__tile--custom${!selectedTemplate ? ' is-selected' : ''}`}
+                  data-testid="cover-picker-tile"
+                  data-variant="custom"
+                  data-selected={!selectedTemplate}
                   aria-pressed={!selectedTemplate}
                   onClick={pickCustom}
                 >
@@ -267,6 +272,8 @@ export function StoreSettings() {
               <button
                 type="button"
                 className="cover-picker__tile cover-picker__upload"
+                data-testid="cover-picker-tile"
+                data-variant="upload"
                 onClick={() => fileInput.current?.click()}
               >
                 <span className="ico ico-upload" aria-hidden />
@@ -277,6 +284,7 @@ export function StoreSettings() {
                 type="file"
                 accept="image/png, image/jpeg, image/webp"
                 className="cover-picker__input"
+                data-testid="cover-picker-input"
                 onChange={onUpload}
               />
             </div>

@@ -169,6 +169,7 @@ export function FittingRoom() {
               return (
                 <div
                   className={`fitting-row${on ? ' is-on' : ''}${incompatible ? ' is-incompatible' : ''}`}
+                  data-testid="fitting-row"
                   key={item.id}
                 >
                   <label className="fitting-row__toggle">

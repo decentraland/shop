@@ -5,29 +5,29 @@ import { Spinner } from './Spinner'
 describe('Spinner', () => {
   describe('when rendered', () => {
     it('should default to a medium column layout with a generic accessible name', () => {
-      const { container } = render(<Spinner />)
-      const box = container.querySelector('.spinner-box')!
-      expect(box.className).toContain('spinner-box--column')
+      render(<Spinner />)
+      const box = screen.getByTestId('spinner-box')
+      expect(box.getAttribute('data-direction')).toBe('column')
       expect(box.getAttribute('role')).toBe('status')
       expect(box.getAttribute('aria-label')).toBe('Loading')
-      expect(container.querySelector('.spinner-box__ring--medium')).toBeTruthy()
+      expect(screen.getByTestId('spinner-box-ring').getAttribute('data-size')).toBe('medium')
     })
 
     it('should render the label and use it as the accessible name (no generic fallback)', () => {
-      const { container } = render(<Spinner label="Loading your store…" />)
+      render(<Spinner label="Loading your store…" />)
       expect(screen.getByText('Loading your store…')).toBeTruthy()
-      expect(container.querySelector('.spinner-box')!.getAttribute('aria-label')).toBeNull()
+      expect(screen.getByTestId('spinner-box').getAttribute('aria-label')).toBeNull()
     })
 
     it('should apply the requested size and direction', () => {
-      const { container } = render(<Spinner size="large" direction="row" />)
-      expect(container.querySelector('.spinner-box--row')).toBeTruthy()
-      expect(container.querySelector('.spinner-box__ring--large')).toBeTruthy()
+      render(<Spinner size="large" direction="row" />)
+      expect(screen.getByTestId('spinner-box').getAttribute('data-direction')).toBe('row')
+      expect(screen.getByTestId('spinner-box-ring').getAttribute('data-size')).toBe('large')
     })
 
     it('should append a custom className', () => {
-      const { container } = render(<Spinner className="my-loader" />)
-      expect(container.querySelector('.spinner-box.my-loader')).toBeTruthy()
+      render(<Spinner className="my-loader" />)
+      expect(screen.getByTestId('spinner-box').classList.contains('my-loader')).toBe(true)
     })
   })
 })

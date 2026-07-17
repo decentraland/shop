@@ -47,24 +47,24 @@ describe('AssetCard flash-sale treatment', () => {
     )
     // 10 → 7 is a 30% cut.
     expect(screen.getByText(/SALE\s*-30%/)).toBeTruthy()
-    const was = container.querySelector('.card__price-was')
+    const was = container.querySelector('[data-testid="card-price-was"]')
     expect(was?.textContent).toContain('10')
-    const now = container.querySelector('.card__price-now')
+    const now = container.querySelector('[data-testid="card-price-now"]')
     expect(now?.textContent).toContain('7')
     // A live window renders a ticking countdown pill.
-    expect(container.querySelector('.card__countdown')).toBeTruthy()
+    expect(container.querySelector('[data-testid="card-countdown"]')).toBeTruthy()
   })
 
   it('shows no sale treatment for a regular listing', () => {
     const { container } = renderCard(makeItem({ priceCredits: 7 }))
     expect(screen.queryByText(/SALE/)).toBeNull()
-    expect(container.querySelector('.card__price-was')).toBeNull()
-    expect(container.querySelector('.card__sale-badge')).toBeNull()
+    expect(container.querySelector('[data-testid="card-price-was"]')).toBeNull()
+    expect(container.querySelector('[data-testid="card-sale-badge"]')).toBeNull()
   })
 
   it('ignores a compare-at that does not beat the price (no phantom discount)', () => {
     const { container } = renderCard(makeItem({ priceCredits: 10, compareAtCredits: 10 }))
-    expect(container.querySelector('.card__sale-badge')).toBeNull()
-    expect(container.querySelector('.card__price-was')).toBeNull()
+    expect(container.querySelector('[data-testid="card-sale-badge"]')).toBeNull()
+    expect(container.querySelector('[data-testid="card-price-was"]')).toBeNull()
   })
 })

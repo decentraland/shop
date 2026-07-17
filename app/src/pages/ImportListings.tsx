@@ -175,6 +175,7 @@ export function ImportListings() {
                           <CurrencyIcon className="ccy-mark imp-price__diamond" />
                           <input
                             className="imp-price__input"
+                            data-testid="imp-price-input"
                             inputMode="numeric"
                             value={credits.toLocaleString()}
                             onChange={e => setPrice(item.oldTradeId, e.target.value)}

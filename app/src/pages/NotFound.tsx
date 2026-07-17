@@ -5,7 +5,7 @@ import { t } from '~/intl/i18n'
 // a bad URL from rendering a blank page — always offers a way back into the shop.
 export function NotFound() {
   return (
-    <div className="notfound">
+    <div className="notfound" data-testid="notfound">
       <span className="ico ico-cart notfound__ico" aria-hidden />
       <h1 className="notfound__title">{t('notFound.title')}</h1>
       <p className="muted">{t('notFound.body')}</p>
