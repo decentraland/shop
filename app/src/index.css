@@ -4162,3 +4162,31 @@ a.purchase:hover {
 .buy-modal__success-text b {
   font-weight: 700;
 }
+
+/* DCL spinner for the buy-modal loading state (fixed-height body → no layout jump). */
+.buy-modal__spinner {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 4px solid #ecebed;
+  border-top-color: #691fa9;
+  border-right-color: #c640cd;
+  animation: buy-modal-spin 0.8s linear infinite;
+}
+@keyframes buy-modal-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* "This is your item" note on the PDP — a bordered card, not bare text (Figma). */
+.item-detail__own-note {
+  margin: 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card, 12px);
+  background: var(--surface, #fff);
+  color: var(--muted);
+}
+.item-detail__own-note a {
+  color: var(--accent, #691fa9);
+  font-weight: 600;
+}

@@ -7,6 +7,7 @@ import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { CURRENCY, formatAmount } from '~/lib/currency'
 import { track, errorCode } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
+import { RESUME_BUY_KEY } from '~/components/BuyModal'
 import {
   CREDIT_PACKS,
   createPackCheckout,
@@ -84,6 +85,25 @@ export function GetCredits() {
             provider: CREDITS_PROVIDER
           })
           void qc.invalidateQueries({ queryKey: ['usd-balance'] })
+          // If this top-up was started to finish an item purchase (no-funds → Stripe from the buy
+          // modal), resume that buy now that the credits landed: hand off to the item page in resume
+          // mode so it completes with the new balance.
+          try {
+            const pending = sessionStorage.getItem(RESUME_BUY_KEY)
+            if (pending) {
+              sessionStorage.removeItem(RESUME_BUY_KEY)
+              const pendingItem = JSON.parse(pending)
+              const seg = pendingItem?.tokenId ?? pendingItem?.itemId
+              if (pendingItem?.contractAddress && seg) {
+                navigate(`/item/${pendingItem.contractAddress}/${seg}`, {
+                  state: { item: pendingItem, resumeBuy: true },
+                })
+                return
+              }
+            }
+          } catch {
+            /* ignore a malformed resume payload — the credits still landed */
+          }
         } else if (result.status === 'pending') {
           // Poll timed out but the payment isn't failed — the webhook can still grant the credits.
           // Show an "on the way" state (not an error) and refetch the balance so it updates when it lands.

@@ -44,7 +44,7 @@ function categoryLabel(item: CatalogItem): string {
 
 export function ItemDetail() {
   const { contractAddress, tokenId } = useParams<{ contractAddress: string; tokenId: string }>()
-  const { state } = useLocation() as { state?: { item?: CatalogItem; tradeId?: string } }
+  const { state } = useLocation() as { state?: { item?: CatalogItem; tradeId?: string; resumeBuy?: boolean } }
   const navigate = useNavigate()
 
   const add = useCart(s => s.add)
@@ -78,6 +78,12 @@ export function ItemDetail() {
   })
 
   const [showBuy, setShowBuy] = useState(false)
+  // Returning from a Stripe top-up started in the buy modal (no-funds flow): auto-open the modal in
+  // resume mode so it finishes the purchase with the newly-bought credits.
+  const [resumeBuy, setResumeBuy] = useState(!!state?.resumeBuy)
+  useEffect(() => {
+    if (state?.resumeBuy) setShowBuy(true)
+  }, [state?.resumeBuy])
 
   // Sibling items of the same collection (the "more from this collection" carousel).
   const { data: siblings = [], isFetched: siblingsFetched } = useQuery({
@@ -381,7 +387,16 @@ export function ItemDetail() {
         onViewAll={current.contractAddress ? () => navigate(`/collection/${current.contractAddress}`) : undefined}
       />
 
-      {showBuy ? <BuyModal item={cartItem} onClose={() => setShowBuy(false)} /> : null}
+      {showBuy ? (
+        <BuyModal
+          item={cartItem}
+          resume={resumeBuy}
+          onClose={() => {
+            setShowBuy(false)
+            setResumeBuy(false)
+          }}
+        />
+      ) : null}
     </div>
   )
 }

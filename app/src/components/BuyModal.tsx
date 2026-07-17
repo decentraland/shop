@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { CircularProgress } from 'decentraland-ui2'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Trade } from '@dcl/schemas'
 import { useWallet } from '~/store/wallet'
 import { useBalance } from '~/hooks/useBalance'
 import { resolveLiveTrade, usdWeiToCents, type CatalogItem } from '~/lib/api'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
-import { formatAmount } from '~/lib/currency'
+import { formatCredits } from '~/lib/currency'
 import { track, errorCode, isUserRejection, purchaseItemsProps } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
 import { authorizeUsdCredit, cancelUsdIntents } from '~/lib/credits'
@@ -14,7 +15,11 @@ import { buyWithCredits } from '~/lib/buy'
 import { buyGasless, waitForSettlement, GaslessUnavailableError, SettlementPendingError } from '~/lib/buy-gasless'
 import { gaslessEnabled } from '~/lib/gasless-config'
 import { isOwnTrade } from '~/lib/ownership'
-import { CREDIT_PACKS } from '~/lib/payments'
+import { CREDIT_PACKS, createPackCheckout } from '~/lib/payments'
+
+// sessionStorage key: the item a buyer was purchasing when they were sent to Stripe to top up. After
+// the credits land (GetCredits return), the shop resumes this buy with the newly-bought credits.
+export const RESUME_BUY_KEY = 'dcl_shop_resume_buy'
 
 function friendlyError(e: unknown): string {
   const err = e as { code?: number; message?: string }
@@ -51,7 +56,17 @@ type Phase = 'loading' | 'ready' | 'nofunds' | 'processing' | 'complete' | 'erro
  *   4. settled/indexed → "Purchase complete!"
  * On any exit before buying, the reserved dollars are released.
  */
-export function BuyModal({ item, onClose }: { item: CatalogItem; onClose: () => void }) {
+export function BuyModal({
+  item,
+  onClose,
+  resume = false,
+}: {
+  item: CatalogItem
+  onClose: () => void
+  // Resuming an item buy right after topping up on Stripe: skip the "Buy" click and auto-confirm
+  // (Figma "Completing Purchase…" → success), since the buyer already committed on the PDP.
+  resume?: boolean
+}) {
   const { session } = useWallet()
   const { data: balance } = useBalance(session)
   const qc = useQueryClient()
@@ -124,8 +139,11 @@ export function BuyModal({ item, onClose }: { item: CatalogItem; onClose: () => 
           reservedCreditIdRef.current = credit.id
           const lockedCredits = Math.ceil(lockedCents / 10)
           setItemCredits(lockedCredits)
-          setLocked({ trade, credit, maxCreditedValue, usdCents: lockedCents, credits: lockedCredits })
-          setPhase('ready')
+          const lockedObj = { trade, credit, maxCreditedValue, usdCents: lockedCents, credits: lockedCredits }
+          setLocked(lockedObj)
+          // Resuming after a Stripe top-up: the buyer already committed, so finish automatically.
+          if (resume) void confirm(lockedObj)
+          else setPhase('ready')
         } catch (authErr) {
           if (cancelled) return
           // Server said not enough credits → show the pack picker, not a bare error.
@@ -155,18 +173,18 @@ export function BuyModal({ item, onClose }: { item: CatalogItem; onClose: () => 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  async function confirm() {
-    if (!session || !locked) return
+  async function confirm(lk = locked) {
+    if (!session || !lk) return
     setPhase('processing')
     setError(null)
     let usedGasless = false
     try {
       const buyArgs = {
-        trade: locked.trade,
+        trade: lk.trade,
         buyer: session.address,
         signer: session.signer,
-        credits: [locked.credit],
-        maxCreditedValue: locked.maxCreditedValue,
+        credits: [lk.credit],
+        maxCreditedValue: lk.maxCreditedValue,
       }
       let txHash: string | undefined
       if (gaslessEnabled()) {
@@ -197,7 +215,7 @@ export function BuyModal({ item, onClose }: { item: CatalogItem; onClose: () => 
       setPhase('complete')
     } catch (e) {
       if (!isUserRejection(e)) captureError(e, { flow: 'buy', step: 'submit', gasless: usedGasless })
-      void cancelUsdIntents(session.identity, [locked.credit.id]).catch(() => {})
+      void cancelUsdIntents(session.identity, [lk.credit.id]).catch(() => {})
       reservedCreditIdRef.current = null
       track(isUserRejection(e) ? 'Shop Purchase Cancelled' : 'Shop Purchase Failed', {
         step: 'submit',
@@ -209,11 +227,38 @@ export function BuyModal({ item, onClose }: { item: CatalogItem; onClose: () => 
     }
   }
 
-  function goToCredits() {
-    // Release the item reservation and route to the top-up flow with the chosen pack pre-selected.
+  // No funds → buy the selected pack on Stripe directly, then resume THIS item purchase with the new
+  // credits. Stash the item so the /credits return handler picks it up and re-opens this modal in
+  // resume mode; then send the buyer straight to the Stripe hosted checkout (never the /credits page).
+  async function buyCreditsAndItem() {
+    if (!selectedPack) return
+    try {
+      sessionStorage.setItem(RESUME_BUY_KEY, JSON.stringify(item))
+    } catch {
+      /* private mode: resume just won't auto-trigger; the credits still land */
+    }
+    // Release the (unaffordable) item reservation; we re-authorize after topping up.
     if (session && locked) void cancelUsdIntents(session.identity, [locked.credit.id]).catch(() => {})
     reservedCreditIdRef.current = null
-    navigate(`/credits${selectedPack ? `?pack=${selectedPack}` : ''}`)
+    setPhase('loading')
+    try {
+      const cs = await createPackCheckout(selectedPack)
+      if (cs.url) {
+        window.location.href = cs.url // Stripe hosted checkout with the pack pre-selected
+        return
+      }
+      // No hosted URL (mock/dev, Stripe off): the credits page grants then resumes.
+      navigate('/credits')
+    } catch (e) {
+      captureError(e, { flow: 'buy_credits_and_item' })
+      try {
+        sessionStorage.removeItem(RESUME_BUY_KEY)
+      } catch {
+        /* ignore */
+      }
+      setError("Couldn't start the credits checkout — please try again.")
+      setPhase('error')
+    }
   }
 
   const busy = phase === 'processing'
@@ -223,7 +268,9 @@ export function BuyModal({ item, onClose }: { item: CatalogItem; onClose: () => 
   return (
     <div className="buy-modal" role="dialog" aria-modal="true" aria-label={`Buy ${item.name}`}>
       <div className="buy-modal__scrim" onClick={busy ? undefined : onClose} aria-hidden />
-      <div className={`buy-modal__card${phase === 'processing' ? ' buy-modal__card--tall' : ''}`}>
+      <div
+        className={`buy-modal__card${phase === 'processing' || phase === 'loading' ? ' buy-modal__card--tall' : ''}`}
+      >
         {/* Header: title + balance + divider */}
         <div className="buy-modal__head">
           <div className="buy-modal__head-row">
@@ -241,12 +288,16 @@ export function BuyModal({ item, onClose }: { item: CatalogItem; onClose: () => 
               {phase === 'nofunds' ? 'DCL Balance:' : 'My Credits Balance:'}
             </span>
             <CurrencyIcon className="buy-modal__balance-ico" />
-            <span className="buy-modal__balance-value">{formatAmount(balanceCredits)}</span>
+            <span className="buy-modal__balance-value">{formatCredits(balanceCredits)}</span>
           </div>
         </div>
 
         {/* Loading (resolving + authorizing) */}
-        {phase === 'loading' && <div className="buy-modal__body buy-modal__loading">Locking price…</div>}
+        {phase === 'loading' && (
+          <div className="buy-modal__body buy-modal__processing">
+            <CircularProgress size={44} />
+          </div>
+        )}
 
         {/* Error */}
         {phase === 'error' && (
@@ -292,7 +343,7 @@ export function BuyModal({ item, onClose }: { item: CatalogItem; onClose: () => 
                     onClick={() => setSelectedPack(p.id)}
                   >
                     <CurrencyIcon className="buy-modal__pack-ico" />
-                    <span className="buy-modal__pack-amount">{formatAmount(packCredits)}</span>
+                    <span className="buy-modal__pack-amount">{formatCredits(packCredits)}</span>
                     <span className="buy-modal__pack-usd">(${p.usd.toFixed(2)})</span>
                   </button>
                 )
@@ -301,7 +352,7 @@ export function BuyModal({ item, onClose }: { item: CatalogItem; onClose: () => 
             <div className="buy-modal__total">
               <div className="buy-modal__total-credits">
                 <CurrencyIcon className="buy-modal__total-ico" />
-                <span>{formatAmount(OFFER_PACKS.find(p => p.id === selectedPack)?.credits ?? 0)}</span>
+                <span>{formatCredits(OFFER_PACKS.find(p => p.id === selectedPack)?.credits ?? 0)}</span>
               </div>
               <span className="buy-modal__total-usd">
                 ${(OFFER_PACKS.find(p => p.id === selectedPack)?.usd ?? 0).toFixed(2)}
@@ -311,7 +362,7 @@ export function BuyModal({ item, onClose }: { item: CatalogItem; onClose: () => 
               <button className="buy-modal__btn buy-modal__btn--outline" onClick={onClose}>
                 Cancel
               </button>
-              <button className="buy-modal__btn buy-modal__btn--gradient" onClick={goToCredits}>
+              <button className="buy-modal__btn buy-modal__btn--gradient" onClick={buyCreditsAndItem}>
                 Buy
               </button>
             </div>
@@ -323,7 +374,7 @@ export function BuyModal({ item, onClose }: { item: CatalogItem; onClose: () => 
           <div className="buy-modal__body">
             <AssetRow item={item} priceCredits={priceCredits} />
             <div className="buy-modal__ctas">
-              <button className="buy-modal__btn buy-modal__btn--gradient buy-modal__btn--full" onClick={confirm}>
+              <button className="buy-modal__btn buy-modal__btn--gradient buy-modal__btn--full" onClick={() => confirm()}>
                 Buy
               </button>
             </div>
@@ -334,7 +385,9 @@ export function BuyModal({ item, onClose }: { item: CatalogItem; onClose: () => 
         {phase === 'processing' && (
           <div className="buy-modal__body buy-modal__processing">
             <img className="buy-modal__logo" src="/icon-192.png" alt="" width={61} height={61} />
-            <div className="buy-modal__processing-text">Completing transaction…</div>
+            <div className="buy-modal__processing-text">
+              {resume ? 'Completing Purchase…' : 'Completing transaction…'}
+            </div>
             <div className="buy-modal__progress" aria-hidden>
               <span className="buy-modal__progress-fill" />
             </div>
@@ -385,7 +438,7 @@ function AssetRow({ item, priceCredits }: { item: CatalogItem; priceCredits: num
         </div>
         <div className="buy-modal__asset-price">
           <CurrencyIcon className="buy-modal__asset-price-ico" />
-          <span>{formatAmount(priceCredits)}</span>
+          <span>{formatCredits(priceCredits)}</span>
         </div>
       </div>
     </div>
