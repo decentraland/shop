@@ -114,6 +114,32 @@
       "cta": "Browse Collectibles"
     }
   },
+  "getCredits": {
+    "title": "Purchase {currency}",
+    "subtitle": "Get {currency} and start shopping in the Marketplace!",
+    "learnMore": "Learn more",
+    "canceledNote": "Payment canceled — no charge was made. Pick a pack whenever you’re ready.",
+    "packBadge": "Recommended",
+    "packAria": "Get {amount} for ${usd}",
+    "creditsAmount": "{credits} {currency}",
+    "redirecting": "Redirecting to secure checkout…",
+    "processing": "Completing purchase",
+    "successTitle": "Your purchase was successful!",
+    "successBody": "Your {currency} are ready to spend in the Marketplace.",
+    "creditsAdded": "Added to your account",
+    "buyMore": "Buy more {currency}",
+    "startShopping": "Start shopping",
+    "pendingTitle": "Your {currency} are on the way",
+    "pendingBody": "Your payment went through. It’s taking a little longer than usual to confirm — your balance will update automatically as soon as it lands, no need to pay again.",
+    "done": "Done",
+    "errorTitle": "Something went wrong",
+    "tryAgain": "Try again",
+    "errorCanceled": "You cancelled the request.",
+    "errorSignIn": "Sign in to get {currency}.",
+    "errorTimeout": "This is taking longer than usual — your {currency} will appear shortly.",
+    "errorGeneric": "Couldn’t complete your purchase — please try again.",
+    "errorGrant": "Couldn’t add your {currency} — please try again."
+  },
   "filter": {
     "price": "Price"
   },

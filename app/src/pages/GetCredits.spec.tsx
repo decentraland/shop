@@ -69,29 +69,18 @@ describe('when a signed-in user opens the get-credits page', () => {
     const user = userEvent.setup()
     renderPage()
 
-    // Pick a pack.
+    // Pick a pack — no intermediate card form in mock mode; it goes straight to crediting.
     await user.click(screen.getByRole('button', { name: /250 credits for \$25/i }))
 
-    // The mock card form appears with the summary; pay.
-    const payButton = await screen.findByRole('button', { name: /pay \$25/i })
-    await user.click(payButton)
+    // No embedded pay form / "choose a different pack" back-link appears.
+    expect(screen.queryByRole('button', { name: /pay \$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /choose a different pack/i })).not.toBeInTheDocument()
 
     // Processing → success: credits added. (Mock flow has a short simulated
     // charge + crediting delay, so allow more than the RTL default timeout.)
     expect(await screen.findByText(/purchase was successful/i, {}, { timeout: 4000 })).toBeInTheDocument()
     expect(screen.getByText(/250/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /start shopping/i })).toBeInTheDocument()
-  })
-
-  it('should let the user go back and choose a different pack before paying', async () => {
-    const user = userEvent.setup()
-    renderPage()
-
-    await user.click(screen.getByRole('button', { name: /50 credits for \$5/i }))
-    await user.click(await screen.findByRole('button', { name: /choose a different pack/i }))
-
-    // Back on the pack grid.
-    expect(screen.getByRole('button', { name: /500 credits for \$50/i })).toBeInTheDocument()
   })
 })
 

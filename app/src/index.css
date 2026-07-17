@@ -1842,76 +1842,7 @@ h2 {
   filter: brightness(1.08);
 }
 
-/* Pay step (summary + form) */
-.pay {
-  display: grid;
-  grid-template-columns: 260px 1fr;
-  gap: 24px;
-  align-items: start;
-}
-@media (max-width: 720px) {
-  .pay {
-    grid-template-columns: 1fr;
-  }
-}
-.pay__summary {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-card);
-  padding: 20px;
-}
-.pay__summary-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  color: var(--muted);
-}
-.pay__summary-row strong {
-  color: var(--text);
-  font-size: 16px;
-}
-.pay__summary-row--total {
-  border-top: 1px solid var(--line);
-  padding-top: 14px;
-}
-.pay__summary-row--total strong {
-  font-size: 22px;
-}
-.pay__form {
-  background: #fff;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-card);
-  padding: 24px;
-  min-height: 220px;
-}
-
-/* Mock card form + real Stripe embed container */
-.card-form {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-.card-form__note {
-  margin: 0;
-}
-.card-form__row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-.card-form__pay {
-  margin-top: 6px;
-  padding: 14px;
-  font-size: 14px;
-}
-.stripe-embed {
-  min-height: 320px;
-}
-
-/* Status panels (processing / success / error) */
+/* Status panels (redirecting / processing / success / error) */
 .getcredits__status {
   display: flex;
   flex-direction: column;

@@ -114,6 +114,32 @@
       "cta": "Ver coleccionables"
     }
   },
+  "getCredits": {
+    "title": "Comprar {currency}",
+    "subtitle": "¡Consigue {currency} y empieza a comprar en el Marketplace!",
+    "learnMore": "Más información",
+    "canceledNote": "Pago cancelado: no se realizó ningún cargo. Elige un paquete cuando quieras.",
+    "packBadge": "Recomendado",
+    "packAria": "Consigue {amount} por ${usd}",
+    "creditsAmount": "{credits} {currency}",
+    "redirecting": "Redirigiendo al pago seguro…",
+    "processing": "Completando la compra",
+    "successTitle": "¡Tu compra se realizó con éxito!",
+    "successBody": "Tus {currency} están listos para gastar en el Marketplace.",
+    "creditsAdded": "Añadidos a tu cuenta",
+    "buyMore": "Comprar más {currency}",
+    "startShopping": "Empezar a comprar",
+    "pendingTitle": "Tus {currency} están en camino",
+    "pendingBody": "Tu pago se procesó correctamente. Está tardando un poco más de lo habitual en confirmarse; tu saldo se actualizará automáticamente en cuanto llegue, no necesitas pagar de nuevo.",
+    "done": "Listo",
+    "errorTitle": "Algo salió mal",
+    "tryAgain": "Intentar de nuevo",
+    "errorCanceled": "Cancelaste la solicitud.",
+    "errorSignIn": "Inicia sesión para conseguir {currency}.",
+    "errorTimeout": "Esto está tardando más de lo habitual; tus {currency} aparecerán en breve.",
+    "errorGeneric": "No pudimos completar tu compra. Inténtalo de nuevo.",
+    "errorGrant": "No pudimos añadir tus {currency}. Inténtalo de nuevo."
+  },
   "filter": {
     "price": "Precio"
   },

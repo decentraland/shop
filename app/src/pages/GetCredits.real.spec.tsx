@@ -228,6 +228,12 @@ describe('when starting a real hosted checkout from a pack click', () => {
 
     await user.click(screen.getByRole('button', { name: /250 credits for \$25/i }))
 
+    // No intermediate embedded card form / "choose a different pack" back-link — the pack click goes
+    // straight to Stripe (a minimal "redirecting to secure checkout" spinner covers the async window).
+    expect(await screen.findByText(/redirecting to secure checkout/i)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /pay \$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /choose a different pack/i })).not.toBeInTheDocument()
+
     // Redirect happens once the hosted session resolves; the funnel marker fires with the order id.
     await vi.waitFor(() => expect(window.location.href).toBe('https://checkout.stripe.com/c/pay/cs_test_123'))
     const redirected = track.mock.calls.find(c => c[0] === 'Shop Redirected To Stripe')
