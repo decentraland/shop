@@ -77,12 +77,17 @@ export function GetCredits() {
           identity: session?.identity
         })
         if (result.status === 'credited') {
-          setGranted(result.creditsGranted ?? selected?.credits ?? 0)
+          // On the real hosted-redirect return `selected` is null (we came back on a fresh page load),
+          // so if the server omits creditsGranted we have no count to show. Never render "0 credits
+          // added" to a buyer who WAS charged — fall back to a generic "your credits are ready" success
+          // (granted = null) instead, and don't log credits:0 as if it were a real grant amount.
+          const creditsGranted = result.creditsGranted ?? selected?.credits ?? 0
+          setGranted(creditsGranted > 0 ? creditsGranted : null)
           setPhase('success')
           track('Shop Completed Buy Credits', {
             order_id: orderId,
             pack_usd: selected?.usd ?? null,
-            credits: result.creditsGranted ?? selected?.credits ?? 0,
+            credits: creditsGranted > 0 ? creditsGranted : null,
             provider: CREDITS_PROVIDER
           })
           void qc.invalidateQueries({ queryKey: ['usd-balance'] })
@@ -273,10 +278,16 @@ export function GetCredits() {
               </div>
               <p className="getcredits__status-title">You&rsquo;re all set!</p>
               <p className="muted">
-                <strong>
-                  <CurrencyIcon className="ccy-mark" /> {granted}
-                </strong>{' '}
-                {CURRENCY.name} added to your account.
+                {granted != null ? (
+                  <>
+                    <strong>
+                      <CurrencyIcon className="ccy-mark" /> {granted}
+                    </strong>{' '}
+                    {CURRENCY.name} added to your account.
+                  </>
+                ) : (
+                  <>Your {CURRENCY.name} are ready.</>
+                )}
               </p>
               <div className="getcredits__status-actions">
                 <button className="btn" onClick={() => navigate('/cart')}>
