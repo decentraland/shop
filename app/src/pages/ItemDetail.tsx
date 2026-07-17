@@ -7,7 +7,7 @@ import { useCart } from '~/store/cart'
 import { useFavorites } from '~/store/favorites'
 import { useWallet } from '~/store/wallet'
 import { useBalance, balanceLabel } from '~/hooks/useBalance'
-import { fetchShopListingForItem, fetchTrade, fetchTradeForItem, fetchItemDescription, usdWeiToCents, type CatalogItem } from '~/lib/api'
+import { fetchShopListingForItem, fetchTradeForItem, resolveLiveTrade, fetchItemDescription, usdWeiToCents, type CatalogItem } from '~/lib/api'
 import { buyWithCredits } from '~/lib/buy'
 import { buyGasless, waitForSettlement, GaslessUnavailableError, SettlementPendingError } from '~/lib/buy-gasless'
 import { gaslessEnabled } from '~/lib/gasless-config'
@@ -239,7 +239,11 @@ export function ItemDetail() {
     let usedGasless = false
     try {
       setStatus(`Buying ${current.name || 'item'}…`)
-      const trade = await fetchTrade(buyableTradeId)
+      // Resolve the item's LIVE trade, not the tradeId we happen to be holding: a listing's signed
+      // trade is re-minted as availability/expiration rolls, so a tradeId seeded from the grid, a
+      // cached feed, or a deep link can be stale and 404. resolveLiveTrade re-resolves by item on a
+      // not-found so a still-listed item stays buyable; null means there's genuinely no live listing.
+      const trade = await resolveLiveTrade(cartItem)
       if (!trade) throw new Error('not for sale')
       if (isOwnTrade(trade, session.address)) {
         setError("You can't buy your own listing.")
@@ -249,7 +253,9 @@ export function ItemDetail() {
       }
       const priceAsset = trade.received?.[0] as { amount?: string } | undefined
       const usdCents = usdWeiToCents(priceAsset?.amount)
-      const { credit, maxCreditedValue } = await authorizeUsdCredit(session.identity, usdCents, buyableTradeId)
+      // Authorize against the trade we actually resolved (its id may differ from buyableTradeId if we
+      // re-resolved), and size the reservation from ITS price — never a stale display amount.
+      const { credit, maxCreditedValue } = await authorizeUsdCredit(session.identity, usdCents, trade.id)
       reservedCreditId = credit.id
       step = 'submit'
       const buyArgs = { trade, buyer: session.address, signer: session.signer, credits: [credit], maxCreditedValue }

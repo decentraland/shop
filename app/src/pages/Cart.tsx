@@ -5,7 +5,7 @@ import { useCart } from '~/store/cart'
 import { useWallet } from '~/store/wallet'
 import { useBalance, balanceLabel } from '~/hooks/useBalance'
 import { authorizeUsdCredit, cancelUsdIntents, devMintUsd } from '~/lib/credits'
-import { fetchTradeForItem, fetchTrade, fetchListings } from '~/lib/api'
+import { resolveLiveTrade, fetchListings } from '~/lib/api'
 import { buyManyWithCredits, type CreditPurchase } from '~/lib/buy'
 import { buyManyGasless, waitForSettlement, GaslessUnavailableError, SettlementPendingError } from '~/lib/buy-gasless'
 import { reviewCart, type CartReview, type ResolvedLine, type TradeResolver } from '~/lib/cart-checkout'
@@ -75,8 +75,10 @@ export function Cart() {
   // Live-price lookup for the rows while a review is pending.
   const lineById = new Map(review?.buyable.map(l => [l.item.id, l] as const))
 
-  const resolveTrade: TradeResolver = item =>
-    item.tradeId ? fetchTrade(item.tradeId) : fetchTradeForItem(item.contractAddress, item.itemId ?? '')
+  // Re-resolve each line's LIVE trade at review time: a stored tradeId can be stale (the trade gets
+  // re-signed as availability/expiration rolls), so resolveLiveTrade re-resolves by item on a 404
+  // instead of dropping a still-listed row as unavailable.
+  const resolveTrade: TradeResolver = item => resolveLiveTrade(item)
 
   // Any manual cart edit invalidates a pending confirmation (its snapshot no longer matches the cart).
   function editCart(fn: () => void) {

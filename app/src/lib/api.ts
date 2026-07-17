@@ -518,13 +518,50 @@ export async function postTrade(trade: TradeCreation, identity: AuthIdentity) {
   return service.addTrade(trade)
 }
 
+// The signed trade behind a listing is not immutable: the server re-signs it as availability
+// decrements or the sale/expiration window rolls, which mints a NEW tradeId and retires the old one.
+// So a tradeId captured earlier (router state, a cached feed row, a stored cart line) can 404 even
+// though the item is still on sale under a fresh trade. Callers distinguish this not-found from other
+// failures via this error so they can re-resolve the item's CURRENT trade (see resolveLiveTrade).
+export class TradeNotFoundError extends Error {
+  constructor(public tradeId: string) {
+    // Keep the legacy message so any message-based handling keeps working.
+    super('fetchTrade 404')
+    this.name = 'TradeNotFoundError'
+  }
+}
+
 // Full signed Trade (signer, signature, checks, sent, received) needed to execute a purchase.
 // The endpoint wraps the trade in `{ ok, data }` — unwrap it (otherwise received/sent are undefined).
 export async function fetchTrade(tradeId: string): Promise<Trade> {
   const res = await fetch(`${config.marketplaceServerUrl}/v1/trades/${tradeId}`)
+  if (res.status === 404) throw new TradeNotFoundError(tradeId)
   if (!res.ok) throw new Error(`fetchTrade ${res.status}`)
   const json = (await res.json()) as { ok?: boolean; data?: Trade } | Trade
   return ((json as { data?: Trade }).data ?? json) as Trade
+}
+
+// Resolve an item's CURRENT signed trade, tolerant of a stale/expired tradeId. Tries the known
+// tradeId first (fast path — no extra lookup); if that 404s (the trade was re-signed/retired) and we
+// can identify the item, re-resolves the live trade from the shop feed by (contract, itemId). Any
+// other failure propagates — we must never silently swap to a different trade on a transient error,
+// and we only ever re-resolve BY ITEM so a caller can't end up buying an unrelated trade. Returns
+// null when the item has no live listing at all (never listed / sold out / cancelled).
+export async function resolveLiveTrade(item: {
+  tradeId?: string
+  contractAddress: string
+  itemId?: string | null
+}): Promise<Trade | null> {
+  if (item.tradeId) {
+    try {
+      return await fetchTrade(item.tradeId)
+    } catch (e) {
+      if (!(e instanceof TradeNotFoundError) || !item.itemId) throw e
+      // fall through: the cached trade is gone — re-resolve the item's current listing.
+    }
+  }
+  if (item.itemId) return fetchTradeForItem(item.contractAddress, item.itemId)
+  return null
 }
 
 // Name + thumbnail for a collection ITEM (primary sales don't have a minted token yet).
