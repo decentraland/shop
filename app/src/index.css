@@ -237,6 +237,11 @@ h2 {
   -webkit-mask-image: url("./assets/icons/emote-dance.svg");
   mask-image: url("./assets/icons/emote-dance.svg");
 }
+/* Person raising both arms (Figma "SecondaryBarEmotes") — the Fitting Room affordance. */
+.ico-fitting-room {
+  -webkit-mask-image: url("./assets/icons/fitting-room.svg");
+  mask-image: url("./assets/icons/fitting-room.svg");
+}
 .ico-emote-stunt {
   -webkit-mask-image: url("./assets/icons/emote-stunt.svg");
   mask-image: url("./assets/icons/emote-stunt.svg");

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { AssetCard } from '~/components/AssetCard'
 import carouselArrow from '~/assets/icons/carousel-arrow.svg'
 import type { CatalogItem } from '~/lib/api'
+import './CollectionCarousel.css'
 
 // Horizontal row of sibling items from the same collection. Renders the SHARED <AssetCard> (identical
 // to the browse grid / Overview rails) so a card here is visually indistinguishable from a card
