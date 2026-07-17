@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { NavLink, useNavigate, useSearchParams } from 'react-router-dom'
+import { NavLink, useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { TopNav } from '~/components/TopNav'
 import { useWallet } from '~/store/wallet'
 import { useProfile } from '~/hooks/useProfile'
@@ -24,6 +24,10 @@ export function NavBar() {
   const cartCount = useCart(s => s.items.length)
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
+  const { pathname } = useLocation()
+  // The Collectibles tab covers the whole browse surface: the grid + an item's detail page + a
+  // collection/creator page (a NavLink to /assets alone wouldn't light up on those routes).
+  const collectiblesActive = /^\/(assets|item|collection|creator)(\/|$)/.test(pathname)
   const urlQuery = searchParams.get('q') ?? ''
 
   // What the input shows (drives the box) and what the dropdown queries (debounced) are separate:
@@ -165,7 +169,11 @@ export function NavBar() {
       <div className="subnav">
         <nav className="subnav__tabs">
           <NavLink to="/overview">{t('nav.overview')}</NavLink>
-          <NavLink to="/assets">{t('nav.collectibles')}</NavLink>
+          {/* Collectibles stays active across the item detail / collection / creator pages too (they're
+              all part of browsing collectibles), not just the /assets grid. */}
+          <NavLink to="/assets" className={() => (collectiblesActive ? 'active' : '')}>
+            {t('nav.collectibles')}
+          </NavLink>
           <NavLink to="/my-assets">{t('nav.myAssets')}</NavLink>
           {session ? <NavLink to="/my-purchases">{t('nav.myPurchases')}</NavLink> : null}
         </nav>
