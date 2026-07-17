@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCart } from '~/store/cart'
 import { useWallet } from '~/store/wallet'
-import { useBalance, balanceLabel } from '~/hooks/useBalance'
+import { useBalance } from '~/hooks/useBalance'
 import { authorizeUsdCredit, cancelUsdIntents, devMintUsd } from '~/lib/credits'
 import { resolveLiveTrade, fetchListings } from '~/lib/api'
 import { buyManyWithCredits, type CreditPurchase } from '~/lib/buy'
@@ -79,7 +79,7 @@ export function Cart() {
 
   // Last-minute upsell: more credit-buyable listings not already in the cart.
   const { data: suggested } = useQuery({ queryKey: ['upsell-listings'], queryFn: () => fetchListings({ first: 40 }), staleTime: 60_000 })
-  const { data: balance, isError: balanceError } = useBalance(session)
+  const { data: balance } = useBalance(session)
   const qc = useQueryClient()
   const navigate = useNavigate()
   const { state: navState } = useLocation() as { state?: { resumeCheckout?: boolean } }
@@ -417,12 +417,35 @@ export function Cart() {
     )
   }
 
+  const itemWord = items.length === 1 ? 'Item' : 'Items'
+
   return (
     <div className="checkout">
-      <h1 className="checkout__title">Cart ({items.length})</h1>
+      <button className="checkout__back" onClick={() => navigate(-1)} type="button">
+        <span className="ico ico-arrow-left" aria-hidden />
+        Cart
+      </button>
 
       <div className="checkout__body">
-        <div className="checkout__main">
+        <section className="checkout__panel">
+          <div className="checkout__panel-head">
+            <button
+              className="checkout__panel-back"
+              onClick={() => navigate(-1)}
+              type="button"
+              aria-label="Go back"
+            >
+              <span className="ico ico-arrow-left" aria-hidden />
+            </button>
+            <h1 className="checkout__panel-title">Cart: {items.length} {itemWord}</h1>
+            {hasWearable ? (
+              <button className="checkout__fitting" onClick={() => setFittingOpen(true)} disabled={working}>
+                <span className="ico ico-emote-dance checkout__fitting-ico" aria-hidden />
+                Fitting Room
+              </button>
+            ) : null}
+          </div>
+
           <div className="checkout__list">
             {items.map(item => {
               const line = lineById.get(item.id)
@@ -430,13 +453,37 @@ export function Cart() {
               const changed = !!line && line.priceCredits !== item.priceCredits
               return (
                 <div className="checkout__card" key={item.id}>
-                  <div className="checkout__thumb">{item.thumbnail ? <img src={item.thumbnail} alt={item.name} /> : null}</div>
+                  <div className="checkout__thumb">
+                    {item.thumbnail ? <img src={item.thumbnail} alt={item.name} /> : null}
+                    <span className="checkout__thumb-check" aria-hidden>
+                      <svg viewBox="0 0 20 20" width="12" height="12">
+                        <path
+                          d="M5 10.5l3 3 7-7.5"
+                          fill="none"
+                          stroke="#fff"
+                          strokeWidth="2.4"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </span>
+                  </div>
                   <div className="checkout__info">
-                    <div className="checkout__name" title={item.name}>{item.name}</div>
-                    {item.creator ? <CreatorBadge address={item.creator} className="checkout__creator" linkToProfile /> : null}
-                    <div className="checkout__price">
-                      <CurrencyIcon className="checkout__price-ico" /> {livePrice}
-                      {changed ? <span className="checkout__price-was">{item.priceCredits}</span> : null}
+                    <div className="checkout__desc">
+                      <div className="checkout__name" title={item.name}>{item.name}</div>
+                      {item.creator ? <CreatorBadge address={item.creator} className="checkout__creator" linkToProfile /> : null}
+                    </div>
+                    <div className="checkout__foot">
+                      {/* Display-only quantity: cart lines are unique listings (qty always 1). */}
+                      <span className="checkout__qty" aria-label="Quantity: 1">
+                        <span className="checkout__qty-sign" aria-hidden>−</span>
+                        <span className="checkout__qty-num">1</span>
+                        <span className="checkout__qty-sign" aria-hidden>+</span>
+                      </span>
+                      <div className="checkout__price">
+                        <CurrencyIcon className="checkout__price-ico" /> {livePrice}
+                        {changed ? <span className="checkout__price-was">{item.priceCredits}</span> : null}
+                      </div>
                     </div>
                   </div>
                   <button
@@ -453,47 +500,38 @@ export function Cart() {
             })}
           </div>
 
-          {/* Utility actions kept subtle so they don't compete with Checkout. */}
+          {/* Utility actions kept subtle so they don't compete with the CTA. */}
           <div className="checkout__utils">
             <button className="link" onClick={() => editCart(clear)} disabled={working}>Clear cart</button>
             {import.meta.env.DEV ? (
               <button className="link" onClick={getTestCredits} disabled={working || !session}>Get test {CURRENCY.name} (dev)</button>
             ) : null}
           </div>
-        </div>
+        </section>
 
         <aside className="checkout__summary">
-          <h2 className="checkout__summary-title">Order summary</h2>
-          <div className="checkout__total">
+          <h2 className="checkout__summary-title">Purchase Summary</h2>
+          <div className="checkout__summary-body">
             <div className="checkout__total-line">
-              <span>Total</span>
-              <strong><CurrencyIcon className="checkout__total-ico" /> {total}</strong>
+              <span className="checkout__total-label">Total: {items.length} {items.length === 1 ? 'item' : 'items'}</span>
+              <span className="checkout__total-value">
+                <CurrencyIcon className="checkout__total-ico" /> {total}
+              </span>
             </div>
-            {session ? (
-              <div className="checkout__balance">
-                Your balance: <CurrencyIcon className="checkout__balance-ico" /> {balanceLabel(balance, balanceError)}
-              </div>
-            ) : null}
-          </div>
 
-          <div className="checkout__actions">
-            <button className="btn btn--purple" onClick={review ? confirmPurchase : checkout} disabled={working}>
-              {working ? 'Working…' : review ? 'Confirm purchase' : 'Checkout'}
+            <button className="checkout__cta" onClick={review ? confirmPurchase : checkout} disabled={working}>
+              {working ? 'Working…' : review ? 'Confirm purchase' : 'Buy now'}
             </button>
-            <Link className="btn btn--ghost" to="/credits">Get {CURRENCY.name}</Link>
-            {hasWearable ? (
-              <button className="btn btn--ghost" onClick={() => setFittingOpen(true)} disabled={working}>Try on outfit</button>
-            ) : null}
-          </div>
 
-          {review ? (
-            <p className="muted checkout__msg">
-              Prices or availability changed since you added these — review the updated total and confirm to buy.
-            </p>
-          ) : null}
-          {notice ? <p className="muted checkout__msg">{notice}</p> : null}
-          {status ? <p className="muted checkout__msg">{status}</p> : null}
-          {error ? <p className="error checkout__msg">{error}</p> : null}
+            {review ? (
+              <p className="muted checkout__msg">
+                Prices or availability changed since you added these — review the updated total and confirm to buy.
+              </p>
+            ) : null}
+            {notice ? <p className="muted checkout__msg">{notice}</p> : null}
+            {status ? <p className="muted checkout__msg">{status}</p> : null}
+            {error ? <p className="error checkout__msg">{error}</p> : null}
+          </div>
         </aside>
       </div>
 

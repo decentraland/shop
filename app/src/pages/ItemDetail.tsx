@@ -6,13 +6,13 @@ import { config } from '~/config'
 import { useCart } from '~/store/cart'
 import { useFavorites } from '~/store/favorites'
 import { useWallet } from '~/store/wallet'
-import { useBalance, balanceLabel } from '~/hooks/useBalance'
 import { fetchShopListingForItem, fetchTradeForItem, fetchItemDescription, type CatalogItem } from '~/lib/api'
 import { BuyModal } from '~/components/BuyModal'
-import { fetchCollectionItems } from '~/lib/collections'
+import { fetchCollectionItems, fetchCollection } from '~/lib/collections'
 import { ItemPreview } from '~/components/ItemPreview'
 import { CollectionCarousel } from '~/components/CollectionCarousel'
 import { CreatorBadge } from '~/components/CreatorBadge'
+import { CollectionBadge } from '~/components/CollectionBadge'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { SaleCountdown } from '~/components/SaleCountdown'
 import { rarityTint, rarityInk } from '~/lib/rarity'
@@ -51,7 +51,6 @@ export function ItemDetail() {
   const cartItems = useCart(s => s.items)
   const toggleFav = useFavorites(s => s.toggle)
   const { session } = useWallet()
-  const { data: balance, isError: balanceError } = useBalance(session)
 
   // The currently-displayed item. Seeded from router state (fast path from the grid); swapped in place
   // when a carousel sibling is tapped (no full reload). Falls back to a stub for deep links/refresh
@@ -114,16 +113,27 @@ export function ItemDetail() {
     queryFn: () => fetchItemDescription(current.contractAddress, current.itemId as string)
   })
 
+  // Collection name — item records don't carry it (it lives on the collections entity), so resolve it
+  // by contract for the "Collection" badge shown beside the creator (see Figma 1052-151285).
+  const { data: collection } = useQuery({
+    queryKey: ['collection-meta', current.contractAddress],
+    enabled: !!current.contractAddress,
+    staleTime: 5 * 60_000,
+    queryFn: () => fetchCollection(current.contractAddress)
+  })
+
   // Fallback backfill: if still unhydrated (e.g. not currently on sale), fill from the matching
-  // sibling once the collection resolves.
+  // sibling once the collection resolves. Skip it when the authoritative shop listing (deepLinkItem)
+  // is available — that carries the fields siblings lack (stock, wearableCategory) and would otherwise
+  // be clobbered if both resolve in the same React batch (the guard below reads a stale `current`).
   useEffect(() => {
-    if (current.name || siblings.length === 0) return
+    if (current.name || deepLinkItem || siblings.length === 0) return
     const match =
       (tokenId && siblings.find(s => s.tokenId === tokenId || s.itemId === tokenId)) ||
       siblings.find(s => s.contractAddress === current.contractAddress)
     if (match) setCurrent(prev => ({ ...match, tradeId: prev.tradeId ?? match.tradeId }))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [siblings])
+  }, [siblings, deepLinkItem])
 
   // Carousel = OTHER items from the collection: drop the currently-viewed item + dedupe.
   const carouselItems = useMemo(() => {
@@ -222,6 +232,13 @@ export function ItemDetail() {
 
   const addLabel = !forSale ? 'Not for sale' : inCart ? 'In cart' : resolvingTrade ? 'Checking…' : 'Add to cart'
 
+  // Stock (primary/mint listings only): the shop feed carries the remaining mintable supply. Secondary
+  // listings (a specific token) have no stock concept, so we hide it there (see Figma 1052-151285).
+  const showStock = typeof current.available === 'number' && current.available > 0 && !current.tokenId
+  // Both action buttons present (buyable, not your own): on mobile they collapse into a sticky row of
+  // a wide Buy-now + a compact cart icon (see Figma 1182-194973).
+  const dualCta = !own && forSale
+
   // Nothing hydrated the item (bad/stale deep link, or an item that isn't in the shop feed — e.g. a
   // legacy/market piece). Once every resolution path has settled and there's still no name, show a
   // graceful not-found instead of a permanent "Loading…" blank.
@@ -305,52 +322,75 @@ export function ItemDetail() {
             </div>
           ) : null}
 
-          {current.creator ? (
+          {current.creator || collection?.name ? (
             <div className="item-detail__meta">
-              <div className="item-detail__meta-col">
-                <div className="item-detail__label">Creator</div>
-                <CreatorBadge address={current.creator} className="item-detail__creator" linkToProfile />
-              </div>
+              {current.creator ? (
+                <div className="item-detail__meta-col">
+                  <div className="item-detail__label">Creator</div>
+                  <CreatorBadge address={current.creator} className="item-detail__creator" linkToProfile hidePrefix />
+                </div>
+              ) : null}
+              {collection?.name ? (
+                <div className="item-detail__meta-col item-detail__meta-col--collection">
+                  <div className="item-detail__label">Collection</div>
+                  <CollectionBadge
+                    contractAddress={current.contractAddress}
+                    name={collection.name}
+                    className="item-detail__creator"
+                  />
+                </div>
+              ) : null}
             </div>
           ) : null}
 
           <hr className="item-detail__divider" />
 
           <div className="item-detail__price-block">
-            <div className="item-detail__price-label">Price</div>
-            {forSale ? (
-              onSale ? (
-                <div className="item-detail__price item-detail__price--sale">
-                  <span className="item-detail__price">
-                    <CurrencyIcon className="item-detail__diamond" />
-                    <span className="item-detail__price-value">{current.priceCredits}</span>
-                  </span>
-                  <span className="item-detail__price-was">
-                    <CurrencyIcon className="item-detail__diamond item-detail__diamond--was" />
-                    {current.compareAtCredits}
-                  </span>
-                  {saleDiscountPct(current.compareAtCredits!, current.priceCredits) > 0 ? (
-                    <span className="item-detail__sale-badge">
-                      SALE -{saleDiscountPct(current.compareAtCredits!, current.priceCredits)}%
-                    </span>
-                  ) : null}
-                  <SaleCountdown endsAt={current.saleEndsAt} className="item-detail__countdown" />
+            <div className="item-detail__price-row">
+              <div className="item-detail__price-col">
+                <div className="item-detail__price-label">Price</div>
+                {forSale ? (
+                  onSale ? (
+                    <div className="item-detail__price item-detail__price--sale">
+                      <span className="item-detail__price">
+                        <CurrencyIcon className="item-detail__diamond" />
+                        <span className="item-detail__price-value">{current.priceCredits}</span>
+                      </span>
+                      <span className="item-detail__price-was">
+                        <CurrencyIcon className="item-detail__diamond item-detail__diamond--was" />
+                        {current.compareAtCredits}
+                      </span>
+                      {saleDiscountPct(current.compareAtCredits!, current.priceCredits) > 0 ? (
+                        <span className="item-detail__sale-badge">
+                          SALE -{saleDiscountPct(current.compareAtCredits!, current.priceCredits)}%
+                        </span>
+                      ) : null}
+                      <SaleCountdown endsAt={current.saleEndsAt} className="item-detail__countdown" />
+                    </div>
+                  ) : (
+                    <div className="item-detail__price">
+                      <CurrencyIcon className="item-detail__diamond" />
+                      <span className="item-detail__price-value">{current.priceCredits}</span>
+                    </div>
+                  )
+                ) : (
+                  <div className="item-detail__price item-detail__price--none">Not for sale</div>
+                )}
+              </div>
+              {showStock ? (
+                <div className="item-detail__stock-col">
+                  <div className="item-detail__price-label">Stock</div>
+                  <div className="item-detail__stock-value">{current.available}</div>
                 </div>
-              ) : (
-                <div className="item-detail__price">
-                  <CurrencyIcon className="item-detail__diamond" />
-                  <span className="item-detail__price-value">{current.priceCredits}</span>
-                </div>
-              )
-            ) : (
-              <div className="item-detail__price item-detail__price--none">Not for sale</div>
-            )}
-            {session ? (
-              <div className="item-detail__balance muted">Your balance: <CurrencyIcon className="ccy-mark" /> {balanceLabel(balance, balanceError)}</div>
-            ) : null}
+              ) : null}
+            </div>
           </div>
 
-          <div className="item-detail__ctas">
+          <div
+            className={`item-detail__ctas${own ? '' : ' item-detail__ctas--buttons'}${
+              dualCta ? ' item-detail__ctas--dual' : ''
+            }`}
+          >
             {own ? (
               <p className="item-detail__own-note muted">
                 This is your item — manage it in <Link to="/my-assets">My Assets</Link>.
@@ -363,16 +403,21 @@ export function ItemDetail() {
                 onClick={() => setShowBuy(true)}
                 disabled={resolvingTrade}
               >
-                Buy now
+                <span className="item-detail__cta-label">Buy now</span>
+                <span className="item-detail__cta-price" aria-hidden>
+                  <CurrencyIcon className="item-detail__cta-diamond" />
+                  {current.priceCredits}
+                </span>
               </button>
             ) : null}
             <button
               className="item-detail__addcart"
               onClick={handleAddToCart}
               disabled={!forSale || inCart || resolvingTrade}
+              aria-label={addLabel}
             >
               <span className="ico ico-cart-solid item-detail__addcart-ico" aria-hidden />
-              {addLabel}
+              <span className="item-detail__addcart-label">{addLabel}</span>
             </button>
             </>
             )}

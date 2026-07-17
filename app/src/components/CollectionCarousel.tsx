@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AssetCard } from '~/components/AssetCard'
+import carouselArrow from '~/assets/icons/carousel-arrow.svg'
 import type { CatalogItem } from '~/lib/api'
 
 // Horizontal row of sibling items from the same collection. Renders the SHARED <AssetCard> (identical
@@ -82,7 +83,7 @@ export function CollectionCarousel({
           aria-label="Scroll left"
           disabled={atStart}
         >
-          ‹
+          <img src={carouselArrow} alt="" aria-hidden />
         </button>
 
         <div className="collection-carousel__track" ref={trackRef}>
@@ -97,7 +98,7 @@ export function CollectionCarousel({
           aria-label="Scroll right"
           disabled={atEnd}
         >
-          ›
+          <img src={carouselArrow} alt="" aria-hidden />
         </button>
       </div>
 

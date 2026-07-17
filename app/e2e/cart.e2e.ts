@@ -22,9 +22,9 @@ describe('cart checkout', () => {
     // (client-side nav keeps the cart state) and check out.
     await waitForText(page, 'successfully added to cart')
     expect(await clickByText(page, 'a', /go to cart/i)).toBe(true)
-    await waitForText(page, 'Checkout')
+    await waitForText(page, 'Buy now')
     await waitForText(page, 'Nebula Jacket')
-    expect(await clickByText(page, 'button', /^checkout$/i)).toBe(true)
+    expect(await clickByText(page, 'button', /^buy now$/i)).toBe(true)
 
     // The checkout modal runs review → authorize → gasless buy → settlement, then shows the multi-item
     // success state in place (Figma 1182-220275) — no navigation away to a separate /success page.
@@ -50,8 +50,8 @@ describe('cart checkout', () => {
     // Adding opens the cart drawer; go to the cart page from its CTA, then check out.
     await waitForText(page, 'successfully added to cart')
     expect(await clickByText(page, 'a', /go to cart/i)).toBe(true)
-    await waitForText(page, 'Checkout')
-    expect(await clickByText(page, 'button', /^checkout$/i)).toBe(true)
+    await waitForText(page, 'Buy now')
+    expect(await clickByText(page, 'button', /^buy now$/i)).toBe(true)
 
     await waitForText(page, 'Buy Credits and Items')
     await waitForText(page, 'Insufficient Funds')

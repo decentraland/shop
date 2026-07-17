@@ -29,6 +29,10 @@ export type CatalogItem = {
   // Checkout uses `tradeId` directly instead of resolving by itemId.
   tradeId?: string
   tokenId?: string
+  // Remaining mintable supply for a PRIMARY listing (from the shop feed). Absent for secondary
+  // listings (a specific token has no stock concept) and for catalog-only items. Surfaces the STOCK
+  // figure next to the price on the item detail page.
+  available?: number
   // Flash sale (see lib/sale.ts). Present only when the listing is a live, discounted, time-boxed
   // trade. `compareAtCredits` is the pre-sale price to strike through; `saleEndsAt` is epoch MS (the
   // mapper converts the trade's expiration seconds once). Both absent for a regular listing.
@@ -226,6 +230,8 @@ function shopListingToItem(l: ShopListingRaw): CatalogItem {
     priceCredits: l.priceCredits,
     gender: l.gender ?? null,
     isSmart: l.isSmart ?? false,
+    // Only meaningful for primary listings; secondary rows carry a per-token value the PDP ignores.
+    available: l.listingType === 'primary' ? l.available : undefined,
     // Only surface a compare-at that's actually above the sale price (the badge/strikethrough guard
     // against a stale or equal value). saleEndsAt arrives as unix seconds → ms for the UI.
     compareAtCredits:

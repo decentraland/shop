@@ -3841,6 +3841,9 @@ a.purchase:hover {
   z-index: 1;
   width: 100%;
   max-width: 560px;
+  /* Grid-item auto-minimum can otherwise push the card past the viewport on a
+     narrow screen (e.g. the cart's multi-item success list); let it shrink. */
+  min-width: 0;
   background: #fff;
   border-radius: 16px;
   padding: 12px 16px 16px;

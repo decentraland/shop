@@ -7,56 +7,130 @@
    only adds the cart PAGE layout + the multi-item-specific pieces the single
    -item BuyModal doesn't have (a step counter, a scrollable line list, and
    the multi-item "purchase complete" list).
-   Figma "New Shop 2026": 1182-216274 (page), 1182-218528 (processing),
-   1182-219697 (insufficient funds), 1182-220275 (success).
+   Figma "New Shop 2026": 1182-232377 (cart, desktop), 1182-236880 (cart,
+   mobile), 1182-232376 / 1182-235858 (success, desktop / mobile).
    ========================================================================== */
 
-/* ---------------- Checkout page ---------------- */
+/* ---------------- Checkout (cart) page ---------------- */
 .checkout {
-  max-width: 1120px;
+  max-width: 1510px;
   margin: 0 auto;
 }
-.checkout__title {
-  margin: 0 0 4px;
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--text);
+
+/* Breadcrumb back link (Figma "‹ CART") — desktop only. */
+.checkout__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 16px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-2);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 0.15s ease;
 }
-/* Two columns: the line items on the left, a sticky order summary on the right.
-   The upsell row lives outside this grid so it spans full width below. */
+.checkout__back:hover {
+  color: var(--accent);
+}
+.checkout__back .ico {
+  width: 18px;
+  height: 18px;
+}
+
+/* Two columns: the cart panel on the left, a sticky purchase summary on the
+   right (Figma left 871 / right 615 / gap 24 → left flexes, right fixed). The
+   upsell row lives outside this grid so it spans full width below. */
 .checkout__body {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
-  gap: 28px;
+  grid-template-columns: minmax(0, 1fr) 600px;
+  gap: 24px;
   align-items: start;
-  margin: 20px 0;
 }
-.checkout__main {
+
+/* Left: a white card wrapping the header + the cart-card list. */
+.checkout__panel {
   min-width: 0;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 24px;
 }
+.checkout__panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.checkout__panel-back {
+  display: none; /* mobile only (a chevron before the title) */
+}
+.checkout__panel-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--text);
+}
+/* Fitting Room button — outlined (magenta border / purple label). */
+.checkout__fitting {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #fff;
+  border: 1.5px solid #c640cd;
+  border-radius: 8px;
+  padding: 9px 16px;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.046em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  transition: background 0.15s ease;
+}
+.checkout__fitting:hover:not(:disabled) {
+  background: rgba(198, 64, 205, 0.06);
+}
+.checkout__fitting:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.checkout__fitting-ico {
+  width: 20px;
+  height: 20px;
+}
+
 .checkout__list {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
-/* A cart line = the "Marketplace Cards" component (thumbnail + name/creator + price). */
+/* A cart line = the Figma "Cart cards" component (thumbnail + name/creator +
+   quantity + price), with a remove control at the top-right. */
 .checkout__card {
+  position: relative;
   display: flex;
-  align-items: center;
+  align-items: stretch;
   gap: 12px;
   background: #fff;
-  border: 1px solid var(--line);
+  border: 1px solid #cfcdd4;
   border-radius: 12px;
-  padding: 8px;
+  overflow: hidden;
 }
 .checkout__thumb {
+  position: relative;
   flex-shrink: 0;
-  width: 120px;
-  height: 120px;
+  width: 137px;
+  height: 137px;
   background: var(--media);
-  border: 0.13px solid var(--muted-2);
-  border-radius: 8px;
+  border-radius: 12px;
   display: grid;
   place-items: center;
   overflow: hidden;
@@ -67,18 +141,38 @@
   object-fit: contain;
   filter: drop-shadow(0.56px 2.25px 2.8px rgba(0, 0, 0, 0.1));
 }
+/* Green "ready to buy" check overlaid on the thumbnail (Figma). Decorative. */
+.checkout__thumb-check {
+  position: absolute;
+  top: 7.5px;
+  left: 7.5px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #34ce77;
+  display: grid;
+  place-items: center;
+}
 .checkout__info {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 8px;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 16px 8px;
+}
+.checkout__desc {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding-right: 56px; /* clear the top-right remove button */
 }
 .checkout__name {
-  font-size: 20px;
+  font-size: 16px;
   font-weight: 600;
-  line-height: 1.4;
+  line-height: 1.2;
   color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -89,17 +183,48 @@
   line-height: 1.43;
   color: var(--muted);
 }
+.checkout__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-right: 8px;
+}
+/* Quantity indicator — display-only: a cart line is a single unique listing,
+   so its quantity is always 1 (multi-quantity isn't part of the cart model). */
+.checkout__qty {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border: 0.5px solid var(--muted-2);
+  border-radius: 50px;
+  color: var(--muted-2);
+}
+.checkout__qty-sign {
+  width: 16px;
+  font-size: 18px;
+  line-height: 1;
+  text-align: center;
+}
+.checkout__qty-num {
+  min-width: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  text-align: center;
+}
 .checkout__price {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 21px;
+  font-size: 24px;
   font-weight: 600;
   color: var(--text-2);
 }
 .checkout__price-ico {
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   background: var(--accent);
 }
 .checkout__price-was {
@@ -110,13 +235,14 @@
   text-decoration: line-through;
 }
 .checkout__remove {
-  flex-shrink: 0;
+  position: absolute;
+  top: 12px;
+  right: 12px;
   border: 0;
   background: none;
   color: var(--muted-2);
   cursor: pointer;
-  padding: 8px;
-  margin-right: 4px;
+  padding: 4px;
   border-radius: 8px;
   display: grid;
   place-items: center;
@@ -125,8 +251,8 @@
     background 0.12s ease;
 }
 .checkout__remove .ico-trash {
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
 }
 .checkout__remove:hover:not(:disabled) {
   color: var(--dcl-red);
@@ -141,7 +267,7 @@
 .checkout__utils {
   display: flex;
   gap: 20px;
-  margin-top: 14px;
+  margin-top: 16px;
 }
 .checkout__utils .link {
   font-size: 13px;
@@ -152,83 +278,174 @@
   color: var(--text);
 }
 
-/* Order summary (right column). */
+/* Right: purchase summary card. */
 .checkout__summary {
   position: sticky;
-  top: 88px;
+  top: 172px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
   background: #fff;
   border: 1px solid var(--line);
   border-radius: 16px;
-  padding: 20px;
+  padding: 16px;
 }
 .checkout__summary-title {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 700;
+  margin: 0 0 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #cfcdd4;
+  font-size: 20px;
+  font-weight: 600;
   color: var(--text);
 }
-.checkout__total {
+.checkout__summary-body {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding-top: 12px;
-  border-top: 1px solid #cfcdd4;
+  gap: 12px;
 }
 .checkout__total-line {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 16px;
-  color: var(--text);
+  gap: 12px;
 }
-.checkout__total-line strong {
+.checkout__total-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #5e5b67;
+}
+.checkout__total-value {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
   font-size: 24px;
   font-weight: 700;
+  color: var(--text);
 }
 .checkout__total-ico {
   width: 24px;
   height: 24px;
   background: var(--accent);
 }
-.checkout__balance {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 14px;
-  color: var(--muted);
-}
-.checkout__balance-ico {
-  width: 14px;
-  height: 14px;
-  background: var(--muted);
-}
-.checkout__actions {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.checkout__actions .btn {
+.checkout__cta {
   width: 100%;
-  justify-content: center;
-  text-decoration: none;
+  height: 56px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--amethyst);
+  color: var(--soft-white);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.046em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    filter 0.15s ease;
+}
+.checkout__cta:hover:not(:disabled) {
+  background: var(--accent);
+}
+.checkout__cta:active:not(:disabled) {
+  filter: brightness(0.95);
+}
+.checkout__cta:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 .checkout__msg {
   margin: 0;
   font-size: 13px;
 }
 
-@media (max-width: 880px) {
+.cart-upsell {
+  margin-top: 40px;
+}
+
+/* Single-column below the two-column breakpoint; the summary stops sticking. */
+@media (max-width: 1080px) {
   .checkout__body {
     grid-template-columns: 1fr;
   }
   .checkout__summary {
     position: static;
+  }
+}
+
+/* Mobile (Figma 1182-236880): compact cards + a fixed bottom summary bar. */
+@media (max-width: 880px) {
+  .checkout {
+    padding-bottom: 188px; /* room for the fixed summary bar */
+  }
+  .checkout__back {
+    display: none;
+  }
+  .checkout__panel {
+    padding: 16px;
+  }
+  .checkout__panel-head {
+    margin-bottom: 16px;
+    gap: 8px;
+  }
+  .checkout__panel-back {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+    border: 0;
+    background: none;
+    padding: 0;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .checkout__panel-back .ico {
+    width: 20px;
+    height: 20px;
+  }
+  .checkout__panel-title {
+    flex: 1;
+    min-width: 0;
+    font-size: 16px;
+  }
+  .checkout__fitting {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+  .checkout__thumb {
+    width: 120px;
+    height: 120px;
+  }
+  .checkout__info {
+    padding: 12px 4px 12px 0;
+  }
+  /* Name wraps to two lines on mobile (Figma), then ellipsizes. */
+  .checkout__name {
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+  .checkout__price {
+    font-size: 20px;
+  }
+  .checkout__price-ico {
+    width: 20px;
+    height: 20px;
+  }
+  /* Fixed bottom summary bar. */
+  .checkout__summary {
+    position: fixed;
+    left: 0;
+    right: 0;
+    top: auto;
+    bottom: 0;
+    z-index: 30;
+    border: 0;
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -4px 20px rgba(22, 21, 24, 0.12);
+  }
+  .checkout__summary-title {
+    margin-bottom: 12px;
+    padding-bottom: 12px;
   }
 }
 
@@ -274,7 +491,7 @@
   border-radius: 8px;
 }
 
-/* "Purchase complete" multi-item list (Figma 1182-220275): compact rows with a
+/* "Purchase complete" multi-item list (Figma 1182-232376): compact rows with a
    red check overlay + dividers. */
 .cart-checkout__done {
   display: flex;
@@ -334,9 +551,10 @@
   flex-direction: column;
   gap: 2px;
   padding: 8px;
+  overflow: hidden; /* keep long, unbreakable creator addresses from widening the modal */
 }
 .cart-checkout__done-name {
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 600;
   line-height: 1.4;
   color: var(--text);
@@ -348,6 +566,9 @@
   font-size: 10px;
   line-height: 1.43;
   color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .cart-checkout__done-price {
   display: inline-flex;
@@ -355,13 +576,13 @@
   gap: 4px;
   flex-shrink: 0;
   padding-right: 4px;
-  font-size: 21px;
+  font-size: 24px;
   font-weight: 600;
   color: var(--text-2);
 }
 .cart-checkout__done-price-ico {
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   background: var(--accent);
 }
 
@@ -370,4 +591,49 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+/* Success banner (Figma 1182-232376): check to the LEFT of the text on desktop. */
+.cart-checkout__done-body .buy-modal__success {
+  flex-direction: row;
+  align-items: center;
+  gap: 24px;
+  padding: 16px 24px;
+}
+.cart-checkout__done-body .buy-modal__success-text {
+  text-align: left;
+  font-size: 18px;
+}
+/* Let the two CTAs shrink so their min-content can't widen the modal past the
+   viewport on mobile (grid items default to min-width:auto = min-content). */
+.cart-checkout__done-body .buy-modal__btn {
+  min-width: 0;
+}
+
+/* Mobile success (Figma 1182-235858): banner stacks, compact rows. */
+@media (max-width: 600px) {
+  .cart-checkout__done-body .buy-modal__success {
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+  }
+  .cart-checkout__done-body .buy-modal__success-text {
+    text-align: center;
+  }
+  .cart-checkout__done {
+    padding: 16px;
+  }
+  .cart-checkout__done-thumb {
+    width: 72px;
+    height: 72px;
+  }
+  .cart-checkout__done-name {
+    font-size: 16px;
+  }
+  .cart-checkout__done-price {
+    font-size: 20px;
+  }
+  .cart-checkout__done-price-ico {
+    width: 20px;
+    height: 20px;
+  }
 }
