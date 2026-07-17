@@ -231,18 +231,18 @@ export function BuyModal({
   // credits. Stash the item so the /credits return handler picks it up and re-opens this modal in
   // resume mode; then send the buyer straight to the Stripe hosted checkout (never the /credits page).
   async function buyCreditsAndItem() {
-    if (!selectedPack) return
+    if (!selectedPack || !session) return
     try {
       sessionStorage.setItem(RESUME_BUY_KEY, JSON.stringify(item))
     } catch {
       /* private mode: resume just won't auto-trigger; the credits still land */
     }
     // Release the (unaffordable) item reservation; we re-authorize after topping up.
-    if (session && locked) void cancelUsdIntents(session.identity, [locked.credit.id]).catch(() => {})
+    if (locked) void cancelUsdIntents(session.identity, [locked.credit.id]).catch(() => {})
     reservedCreditIdRef.current = null
     setPhase('loading')
     try {
-      const cs = await createPackCheckout(selectedPack)
+      const cs = await createPackCheckout(selectedPack, { address: session.address, identity: session.identity })
       if (cs.url) {
         window.location.href = cs.url // Stripe hosted checkout with the pack pre-selected
         return
