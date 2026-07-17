@@ -33,7 +33,13 @@
     "copyAddress": "Copy account",
     "copied": "Copied",
     "empty": "This collection has no items to show.",
-    "error": "Couldn’t load this collection — please try again."
+    "error": "Couldn’t load this collection — please try again.",
+    "breadcrumbAria": "Breadcrumb",
+    "priceMin": "Minimum price",
+    "priceMax": "Maximum price",
+    "priceMinPlaceholder": "Min",
+    "priceMaxPlaceholder": "Max",
+    "priceHint": "Price in {currency}"
   },
   "collectionCard": {
     "viewCollection": "View collection",
@@ -79,7 +85,13 @@
     "empty": "This creator has no items to show yet.",
     "collectionsCount": "{count, plural, one {# collection} other {# collections}}",
     "collectionsEmpty": "This creator hasn’t published any collections yet.",
-    "error": "Couldn’t load this creator — please try again."
+    "error": "Couldn’t load this creator — please try again.",
+    "breadcrumbAria": "Breadcrumb",
+    "priceMin": "Minimum price",
+    "priceMax": "Maximum price",
+    "priceMinPlaceholder": "Min",
+    "priceMaxPlaceholder": "Max",
+    "priceHint": "Price in {currency}"
   },
   "storeSettings": {
     "title": "Store settings",
@@ -112,6 +124,34 @@
       "title": "Your cart is empty",
       "body": "Find something you love and it’ll show up here.",
       "cta": "Browse Collectibles"
+    },
+    "panelTitle": "Cart: {count, plural, one {# Item} other {# Items}}",
+    "goBack": "Go back",
+    "fittingRoom": "Fitting Room",
+    "removeFromCart": "Remove {name} from cart",
+    "increaseQuantity": "Increase quantity",
+    "removeFromFavorites": "Remove {name} from favorites",
+    "addToFavorites": "Add {name} to favorites",
+    "remove": "Remove {name}",
+    "removeTitle": "Remove",
+    "clearCart": "Clear cart",
+    "purchaseSummary": "Purchase Summary",
+    "totalItems": "Total: {count, plural, one {# item} other {# items}}",
+    "working": "Working…",
+    "priceChanged": "Prices or availability changed since you added these — review the updated total and confirm to buy.",
+    "youMightAlsoLike": "You might also like",
+    "status": {
+      "reviewing": "Reviewing your cart…"
+    },
+    "error": {
+      "insufficient": "You don't have enough {currency} — get more first.",
+      "noneAvailable": "None of these items are available to buy right now."
+    },
+    "drop": {
+      "unavailable": "{count} no longer available",
+      "own": "{count} you can't buy (your own listing)",
+      "and": "and",
+      "removed": "Removed {items} from your cart."
     }
   },
   "getCredits": {
@@ -155,5 +195,387 @@
     "yourItem": "Your item",
     "inCart": "In cart",
     "addToCart": "Add to cart"
+  },
+  "buyModal": {
+    "titleBuy": "Buy Asset",
+    "titleNoFunds": "Buy Credits and Item",
+    "titleComplete": "Purchase complete!",
+    "dialogAria": "Buy {name}",
+    "close": "Close",
+    "dclBalance": "DCL Balance:",
+    "myCreditsBalance": "My Credits Balance:",
+    "signInToCheckout": "Sign in to check out.",
+    "insufficientFunds": "Insufficient Funds.",
+    "warningNeedToBuy": "You will need to buy",
+    "warningCreditsAmount": "{count} Credits",
+    "warningToPurchase": "to purchase {count, plural, one {this item.} other {these items.}}",
+    "cancel": "Cancel",
+    "buy": "Buy",
+    "completingPurchase": "Completing Purchase…",
+    "completingTransaction": "Completing transaction…",
+    "successBody": "You can find your item in the My Assets tab.",
+    "myAssets": "My assets",
+    "tryInWorld": "Try in world",
+    "itemFallback": "Item",
+    "error": {
+      "soldOrRemoved": "This item was just sold or removed.",
+      "cantBuyOwn": "You can't buy your own listing.",
+      "generic": "Couldn't complete the purchase — please try again.",
+      "creditsCheckout": "Couldn't start the credits checkout — please try again."
+    }
+  },
+  "cartCheckout": {
+    "titleBuy": "Buy Assets",
+    "titleNoFunds": "Buy Credits and Items",
+    "dialogAria": "Check out your cart"
+  },
+  "marketCheckout": {
+    "finalPrice": "Final price",
+    "lockedForPurchase": "Locked for this purchase",
+    "todaysPrice": "Today’s price",
+    "lockingPrice": "Locking today’s price…",
+    "yourBalance": "Your balance:",
+    "needMore": "You’ll need a few more {currency} to buy this.",
+    "confirming": "Confirming your purchase…",
+    "buying": "Buying…",
+    "confirmPurchase": "Confirm purchase",
+    "error": {
+      "insufficient": "Not enough {currency} — get more first.",
+      "soldOrRemoved": "This item was just sold or removed. Refreshing the market…",
+      "generic": "Couldn't complete checkout — please try again."
+    }
+  },
+  "itemDetail": {
+    "genderMale": "Male",
+    "genderFemale": "Female",
+    "genderUnisex": "Unisex",
+    "categoryEmote": "Emote",
+    "categoryWearable": "Wearable",
+    "moreFromCollection": "More from this collection",
+    "notForSale": "Not for sale",
+    "checking": "Checking…",
+    "notAvailableTitle": "This item isn’t available",
+    "notAvailableBody": "It may have been delisted or moved. Browse Collectibles for something else.",
+    "breadcrumbAria": "Breadcrumb",
+    "itemFallback": "Item",
+    "description": "Description",
+    "showLess": "Show less",
+    "readMore": "Read more",
+    "creator": "Creator",
+    "collection": "Collection",
+    "price": "Price",
+    "stock": "Stock",
+    "ownItemPrefix": "This is your item — manage it in",
+    "ownItemSuffix": "."
+  },
+  "success": {
+    "finalizing": "Finalizing your purchase…",
+    "processing": "Processing your purchase…",
+    "indexingBefore": "Payment confirmed — adding",
+    "indexingAfter": "to your wardrobe. Almost there.",
+    "confirmingBefore": "Confirming",
+    "confirmingAfter": "on-chain. This usually takes a few seconds — keep this tab open.",
+    "itemCount": "{count, plural, one {# item} other {# items}}",
+    "viewTransaction": "View transaction ↗",
+    "stillProcessingTitle": "Still processing…",
+    "timedOutBefore": "This is taking longer than usual to confirm. Your purchase may still complete — check",
+    "timedOutAfter": "in a few minutes to see the final status. No need to buy again.",
+    "viewMyPurchases": "View my purchases",
+    "keepShopping": "Keep shopping",
+    "failedTitle": "Your purchase didn’t go through",
+    "failedBody": "The transaction failed on-chain, so nothing was delivered. Your credits weren’t spent (any hold is released shortly) — you can try again.",
+    "backToShop": "Back to shop",
+    "title": "It’s yours!",
+    "heroInWardrobe": "is now in your wardrobe.",
+    "itemsInWardrobe": "{count, plural, one {# item is now in your wardrobe.} other {# items are now in your wardrobe.}}",
+    "viewOrder": "View order",
+    "useItInWorld": "Use it in-world"
+  },
+  "itemPreview": {
+    "loading": "Loading preview",
+    "shownOnBody": "Shown on a {shape} body — this item isn’t made for your avatar’s shape.",
+    "previewMode": "Preview mode",
+    "onAvatar": "On avatar",
+    "item": "Item"
+  },
+  "assets": {
+    "filters": "Filters",
+    "closeFilters": "Close filters",
+    "category": "Category",
+    "min": "Min",
+    "max": "Max",
+    "priceTo": "to",
+    "minPriceAria": "Minimum price",
+    "maxPriceAria": "Maximum price",
+    "minPriceSliderAria": "Minimum price slider",
+    "maxPriceSliderAria": "Maximum price slider",
+    "rarity": "Rarity",
+    "clearFilters": "Clear Filters",
+    "apply": "Apply",
+    "marketUnavailable": "Some market prices are temporarily unavailable — buying those items is paused for a moment. Please try again shortly.",
+    "loadError": "Couldn’t load items — please try again.",
+    "noItems": "No items match your filters."
+  },
+  "myAssets": {
+    "signInPrompt": "Sign in to sell your items.",
+    "removedFromSale": "“{name}” is no longer for sale.",
+    "removeListingError": "Couldn’t remove the listing — please try again.",
+    "importTitle": "Import your listings",
+    "importSub": "You have {count, plural, one {# item} other {# items}} for sale elsewhere — bring them into the Shop.",
+    "import": "Import",
+    "ownedTitle": "Items you own",
+    "ownedSub": "Wearables & emotes you’ve bought — resell them in the Shop.",
+    "ownedError": "Couldn’t load your items — please try again.",
+    "viewItem": "View {name}",
+    "onSale": "On sale",
+    "removing": "Removing…",
+    "removeListing": "Remove listing",
+    "putOnSale": "Put on sale",
+    "ownedEmpty": "No items in your wardrobe yet.",
+    "creationsTitle": "Your creations",
+    "creationsSub": "Items you made. Put them on sale in the Shop — set a price in {currency} and buyers pay with {currency}.",
+    "collectionsError": "We couldn’t load your collections right now. Please try again in a moment.",
+    "nothingToPublish": "You don’t have any items to publish yet.",
+    "available": "{count, number} available"
+  },
+  "myPurchases": {
+    "processing": "Processing",
+    "completed": "Completed",
+    "itemFallback": "Item",
+    "signInTitle": "Sign in to see your purchases",
+    "signInBody": "Your order history shows up here once you sign in.",
+    "emptyTitle": "No purchases yet",
+    "emptyBody": "When you buy something it’ll appear here.",
+    "orderCount": "{count, plural, one {# order} other {# orders}}"
+  },
+  "myFavorites": {
+    "emptyTitle": "No favorites yet",
+    "emptyBody": "Tap the heart on any item to save it here.",
+    "itemCount": "{count, plural, one {# item} other {# items}}"
+  },
+  "overview": {
+    "viewAll": "View all",
+    "previous": "Previous",
+    "next": "Next",
+    "carouselPages": "{title} pages",
+    "goToPage": "Go to page {page}",
+    "heroTitle": "Fashion week outfits",
+    "exploreCollection": "Explore collection",
+    "featuredProducts": "Featured Products",
+    "newCreations": "New Creations",
+    "promoEmotesAria": "Best rated emotes — explore collection",
+    "promoEmotesAlt": "Best rated emotes",
+    "promoOutfitsAria": "Week selected outfits — explore collection",
+    "promoOutfitsAlt": "Week selected outfits",
+    "emptyTitle": "New drops are on the way",
+    "emptyBody": "There are no items on sale right now — check back soon."
+  },
+  "app": {
+    "crash": {
+      "title": "Something went wrong",
+      "body": "This page hit an unexpected error. Try reloading.",
+      "reload": "Reload"
+    }
+  },
+  "cartPopover": {
+    "removeFromCart": "Remove {name} from cart",
+    "increaseQuantity": "Increase quantity",
+    "removeItem": "Remove {name}",
+    "remove": "Remove",
+    "dialogLabel": "Shopping cart",
+    "title": "Shopping Cart ({count})",
+    "close": "Close",
+    "bannerCount": "{count, plural, one {# Item} other {# Items}}",
+    "bannerAdded": "successfully added to cart!",
+    "total": "Total: {count, plural, one {# item} other {# items}}",
+    "goToCart": "Go to cart",
+    "continueShopping": "Continue shopping"
+  },
+  "filterBar": {
+    "sortNewest": "Newest",
+    "sortCheapest": "Cheapest",
+    "sortMostExpensive": "Most Expensive",
+    "sortName": "Name (A–Z)",
+    "count": "{count, plural, one {# Item} other {# Items}}",
+    "forQuery": "for “{query}”",
+    "rarity": "Rarity",
+    "clearAll": "Clear all",
+    "filters": "Filters",
+    "sortBy": "Sort by"
+  },
+  "addAll": {
+    "added": "Added {count, plural, one {# item} other {# items}} to your cart.",
+    "forSale": "{count} for sale",
+    "allInCart": "All in cart",
+    "addAll": "Add all ({count}) to cart"
+  },
+  "footer": {
+    "newsletterTitle": "Get the weekly highlights in your inbox",
+    "newsletterFrameTitle": "Newsletter signup",
+    "connect": "Connect",
+    "gettingStarted": "Getting Started",
+    "resources": "Resources",
+    "menu": "Menu",
+    "linkWhatIs": "What is Decentraland",
+    "linkDownload": "Download",
+    "linkSystemRequirements": "System Requirements",
+    "linkFaqs": "FAQs",
+    "linkContactSupport": "Contact Support",
+    "linkMarketplace": "Marketplace",
+    "linkCreatorHub": "Creator Hub",
+    "linkDocs": "Docs",
+    "linkBlog": "Blog",
+    "linkVote": "Vote",
+    "linkPrivacy": "Privacy Policy",
+    "linkTerms": "Terms of Use",
+    "linkContentPolicy": "Content Policy",
+    "linkEthics": "Code of Ethics"
+  },
+  "collectionCarousel": {
+    "viewAll": "View all",
+    "scrollLeft": "Scroll left",
+    "scrollRight": "Scroll right",
+    "pages": "Carousel pages",
+    "goToPage": "Go to page {page}"
+  },
+  "weekTopCreators": {
+    "title": "Week Top Creators",
+    "thisWeek": "This Week",
+    "rank": "Rank",
+    "creator": "Creator",
+    "collections": "Collections",
+    "sales": "Sales",
+    "volume": "Volume"
+  },
+  "loadMore": {
+    "loading": "Loading…",
+    "loadMore": "Load more"
+  },
+  "recentlyViewed": {
+    "title": "Recently viewed"
+  },
+  "followedCreators": {
+    "title": "From creators you follow"
+  },
+  "spinner": {
+    "loading": "Loading"
+  },
+  "successAnimation": {
+    "label": "Purchase successful"
+  },
+  "importListings": {
+    "creations": {
+      "title": "Your creations",
+      "sub": "Items you made. Put them on sale in the Shop."
+    },
+    "owned": {
+      "title": "Items you own",
+      "sub": "Things you've bought elsewhere — resell them in the Shop."
+    },
+    "toastUpdated": "Your Shop is updated.",
+    "signInTitle": "Import your listings",
+    "signInBody": "Sign in to bring the items you already sell into the Shop.",
+    "emptyTitle": "You're all caught up",
+    "emptyBody": "Everything you sell is already in the Shop — nothing to import.",
+    "goToMyAssets": "Go to My Assets",
+    "eyebrow": "Import to the Shop",
+    "titleLead": "Bring your listings",
+    "titleAccent": "into the Shop",
+    "lede": "These items are already for sale elsewhere. We suggested a price in {currency} for each — matched to today's rate and rounded up. Adjust anything, then list them.",
+    "rate": "1 {currency} = $0.10 · prices rounded up",
+    "includeItem": "Include {name}",
+    "itemFallback": "Item",
+    "priceAria": "Price in {currency} for {name}",
+    "resetTo": "Reset to",
+    "list": "List",
+    "selectedSummary": "{count, plural, one {# item} other {# items}} selected · ${usd}",
+    "listAll": "List all ({count})"
+  },
+  "sellModal": {
+    "errorGeneric": "Couldn't list your item — please try again.",
+    "errorWholeNumber": "Enter a whole number of credits",
+    "statusPreparing": "Getting your item ready…",
+    "statusListing": "Listing your item…",
+    "statusPublishing": "Publishing…",
+    "toastOnSale": "“{name}” is now on sale!",
+    "successTitle": "It’s on sale! 🎉",
+    "listedFor": "Listed for",
+    "viewInShop": "View in Shop",
+    "listTitle": "List “{name}”",
+    "priceLabel": "Price ({currency})",
+    "pricedInWhole": "Priced in whole {currency} (1 {currencySingular} = $0.10).",
+    "cancel": "Cancel",
+    "listing": "Listing…",
+    "putOnSale": "Put on sale"
+  },
+  "primaryList": {
+    "errorGeneric": "Couldn't publish your item — please try again.",
+    "errorWholeNumber": "Enter a whole number of credits",
+    "statusEnabling": "Enabling sales for this collection…",
+    "statusPublishing": "Publishing your item…",
+    "statusFinishing": "Finishing up…",
+    "toastOnSale": "“{name}” is now on sale!",
+    "listing": "Listing…",
+    "enableAndPutOnSale": "Enable & put on sale",
+    "putOnSale": "Put on sale",
+    "successTitle": "It’s on sale! 🎉",
+    "listedFor": "Listed for",
+    "dotAvailable": "· {count, plural, one {# available} other {# available}}",
+    "viewInShop": "View in Shop",
+    "publishTitle": "Publish “{name}”",
+    "fromCollection": "From your collection “{collectionName}” · {count, plural, one {# available} other {# available}}",
+    "priceLabel": "Price ({currency})",
+    "pricedInWhole": "Priced in whole {currency} (1 {currencySingular} = $0.10).",
+    "firstTimeConfirm": "First time selling from “{collectionName}”? It needs a one-time approval, then you’ll confirm the listing — two quick confirmations. After this, listing more items from this collection is a single step.",
+    "firstTimeManaged": "First time selling from “{collectionName}”? Setting it up takes a moment — after that, listing more items from this collection is instant.",
+    "readyConfirm": "This collection is ready — publishing is a single confirmation.",
+    "readyManaged": "This collection is ready — publishing is instant.",
+    "cancel": "Cancel",
+    "checking": "Checking…"
+  },
+  "migrate": {
+    "successTitle": "You're in the Shop! 🎉",
+    "nothingTitle": "Nothing listed",
+    "listedSummary": "{count, plural, one {# item is} other {# items are}} now for sale with {currency}.",
+    "noneListed": "No items were listed.",
+    "skippedSummary": "{count, plural, one {# skipped} other {# skipped}} — you can try those again anytime.",
+    "unlistedSummary": "{count, plural, one {# item was taken off the old marketplace but couldn't be re-listed — re-list it from My Assets.} other {# items were taken off the old marketplace but couldn't be re-listed — re-list them from My Assets.}}",
+    "goToMyAssets": "Go to My Assets",
+    "viewInShop": "View in Shop",
+    "listingTitle": "Listing your items",
+    "subConfirm": "We take down each old listing and re-list it for credits — confirm each step.",
+    "subManaged": "Moving your items to the Shop.",
+    "progressCount": "{current} of {total}",
+    "itemFallback": "Item",
+    "statusConfirm": "Confirm…",
+    "statusAdding": "Adding…",
+    "statusSkipped": "Skipped",
+    "statusFailed": "Failed",
+    "unlistedTooltip": "Removed from the old marketplace but not re-listed — re-list it from My Assets.",
+    "statusUnlisted": "Not listed",
+    "hintConfirm": "A couple of quick confirmations pop up per item (take down + re-list). Keep this open.",
+    "hintManaged": "This only takes a moment — keep this open.",
+    "statusWaiting": "Waiting"
+  },
+  "fittingRoom": {
+    "title": "Fitting room",
+    "close": "Close",
+    "wearable": "Wearable",
+    "emptyStageTitle": "Nothing on right now.",
+    "emptyStageBody": "Turn on an item from the list to try it.",
+    "sub": "Mix and match your cart. Turn items on and off to see the look.",
+    "emote": "Emote",
+    "conflictTooltip": "Only one item per slot can be worn",
+    "onePerSlot": "1 per slot",
+    "madeForShape": "This item is made for the {shape} body shape",
+    "shapeOnly": "{shape} only",
+    "removeFromCart": "Remove {name} from cart",
+    "remove": "Remove",
+    "itemCount": "{count, plural, one {# item} other {# items}}",
+    "checkout": "Checkout"
+  },
+  "bodyShape": {
+    "male": "Male",
+    "female": "Female"
   }
 }
