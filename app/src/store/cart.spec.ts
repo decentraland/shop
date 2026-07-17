@@ -31,7 +31,10 @@ const item = (over: Partial<CatalogItem> = {}): CatalogItem => ({
 })
 
 beforeEach(() => {
-  useCart.setState({ items: [], open: false })
+  // The cart persists to localStorage; wipe it and reset every field (including the transient UI
+  // ones) so a persisted snapshot never leaks into the next test.
+  localStorage.clear()
+  useCart.setState({ items: [], open: false, justAddedCount: 0, fittingOpen: false })
   trackMock.mockClear()
 })
 
@@ -167,5 +170,53 @@ describe('when toggling the popover', () => {
     useCart.setState({ items: [item()] })
     useCart.getState().setOpen(true)
     expect(useCart.getState().items).toHaveLength(1)
+  })
+})
+
+describe('when the cart is persisted to localStorage', () => {
+  it('should write the items into dcl_shop_cart but never the transient UI fields', () => {
+    useCart.getState().add(item({ id: 't1' }))
+
+    const raw = localStorage.getItem('dcl_shop_cart')
+    expect(raw).toBeTruthy()
+    const persisted = JSON.parse(raw as string)
+
+    // zustand-persist envelope: { state, version }. partialize keeps only `items`.
+    expect(persisted.version).toBe(1)
+    expect(Object.keys(persisted.state)).toEqual(['items'])
+    expect(persisted.state.items).toHaveLength(1)
+    expect(persisted.state.items[0].id).toBe('t1')
+    // A reload must not reopen the drawer or re-show the "N added" banner.
+    expect(persisted.state).not.toHaveProperty('open')
+    expect(persisted.state).not.toHaveProperty('justAddedCount')
+    expect(persisted.state).not.toHaveProperty('fittingOpen')
+  })
+
+  it('should rehydrate items from a pre-seeded snapshot on a fresh store, leaving the UI at its defaults', async () => {
+    localStorage.setItem('dcl_shop_cart', JSON.stringify({ state: { items: [item({ id: 'seed' })] }, version: 1 }))
+
+    // Simulate a page reload: reset the module registry and re-import so the store is created from
+    // scratch and hydrates from the seeded snapshot (localStorage is synchronous).
+    vi.resetModules()
+    const { useCart: freshCart } = await import('./cart')
+    await freshCart.persist.rehydrate()
+
+    const state = freshCart.getState()
+    expect(state.items).toHaveLength(1)
+    expect(state.items[0].id).toBe('seed')
+    // Transient UI is NOT restored — it comes from the initializer defaults, not from storage.
+    expect(state.open).toBe(false)
+    expect(state.justAddedCount).toBe(0)
+    expect(state.fittingOpen).toBe(false)
+  })
+
+  it('should empty the persisted snapshot when the cart is cleared', () => {
+    useCart.getState().add(item({ id: 't1' }))
+    expect(JSON.parse(localStorage.getItem('dcl_shop_cart') as string).state.items).toHaveLength(1)
+
+    useCart.getState().clear()
+
+    expect(useCart.getState().items).toEqual([])
+    expect(JSON.parse(localStorage.getItem('dcl_shop_cart') as string).state.items).toEqual([])
   })
 })
