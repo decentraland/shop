@@ -5,6 +5,8 @@ import { CircularProgress } from 'decentraland-ui2'
 import { useWallet } from '~/store/wallet'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { CURRENCY, formatAmount } from '~/lib/currency'
+import { useSeo } from '~/hooks/useSeo'
+import { t } from '~/intl/i18n'
 import { track, errorCode } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
 import { RESUME_BUY_KEY } from '~/lib/resume-buy'
@@ -34,6 +36,7 @@ function friendlyError(e: unknown): string {
 }
 
 export function GetCredits() {
+  useSeo({ title: t('nav.getCredits', { currency: CURRENCY.name }), noindex: true })
   const navigate = useNavigate()
   const { session, signIn } = useWallet()
   const qc = useQueryClient()

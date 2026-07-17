@@ -16,6 +16,7 @@ import { CREDIT_PACKS, createPackCheckout } from '~/lib/payments'
 import { config } from '~/config'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { CartCheckoutModal, type CheckoutLine, type CheckoutPhase } from '~/components/CartCheckoutModal'
+import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
 import { track, purchaseItemsProps, errorCode, isUserRejection, creditsToUsd } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
@@ -68,6 +69,7 @@ type ModalState =
   | { phase: 'error'; message: string }
 
 export function Cart() {
+  useSeo({ title: t('nav.cart'), noindex: true })
   const items = useCart(s => s.items)
   const remove = useCart(s => s.remove)
   const clear = useCart(s => s.clear)

@@ -145,6 +145,18 @@
     },
     "creator": {
       "description": "Descubre wearables y emotes de {name} en la Decentraland Shop."
+    },
+    "import": {
+      "title": "Importar artículos"
+    },
+    "storeSettings": {
+      "title": "Configuración de la tienda"
+    },
+    "success": {
+      "title": "Compra completada"
+    },
+    "notFound": {
+      "title": "Página no encontrada"
     }
   }
 }
