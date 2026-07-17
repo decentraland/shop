@@ -28,11 +28,11 @@ function friendlyError(e: unknown): string {
   const err = e as { code?: number; message?: string }
   const msg = (err.message ?? '').toLowerCase()
   if (err.code === 4001 || msg.includes('reject') || msg.includes('denied') || msg.includes('cancel')) {
-    return 'You cancelled the request.'
+    return t('getCredits.errorCanceled')
   }
-  if (msg.includes('insufficient')) return `You don't have enough ${CURRENCY.name} — get more first.`
+  if (msg.includes('insufficient')) return t('cart.error.insufficient', { currency: CURRENCY.name })
   if (msg.includes('no active listing') || msg.includes('your own listing')) return err.message as string
-  return "Couldn't complete checkout — please try again."
+  return t('marketCheckout.error.generic')
 }
 
 // True when an authorize failure means "not enough credits" (server 402 / insufficient) rather than a
@@ -55,9 +55,9 @@ const JUMP_URL = config.chainId === 80002 ? 'https://decentraland.zone/jump' : '
 // One-line summary of the rows we pruned so the buyer knows why the cart shrank.
 function dropNotice(review: CartReview): string {
   const parts: string[] = []
-  if (review.unavailable.length) parts.push(`${review.unavailable.length} no longer available`)
-  if (review.own.length) parts.push(`${review.own.length} you can't buy (your own listing)`)
-  return `Removed ${parts.join(' and ')} from your cart.`
+  if (review.unavailable.length) parts.push(t('cart.drop.unavailable', { count: review.unavailable.length }))
+  if (review.own.length) parts.push(t('cart.drop.own', { count: review.own.length }))
+  return t('cart.drop.removed', { items: parts.join(` ${t('cart.drop.and')} `) })
 }
 
 // The multi-item checkout modal's state — a pure reflection of the charge flow (Cart owns the money).
@@ -262,7 +262,7 @@ export function Cart() {
 
   async function checkout() {
     if (!session) {
-      setError('Sign in to check out.')
+      setError(t('buyModal.signInToCheckout'))
       return
     }
     const cartItems = useCart.getState().items // read live so a post-top-up resume sees the restored cart
@@ -279,7 +279,7 @@ export function Cart() {
     try {
       // Resolve every item's LIVE listing first — never charge a stale snapshot, and never let one bad
       // item abort the basket.
-      setStatus('Reviewing your cart…')
+      setStatus(t('cart.status.reviewing'))
       const rev = await reviewCart(cartItems, session.address, resolveTrade)
 
       // Prune the rows we can't buy (sold/cancelled, or the buyer's own listing) and say what happened.
@@ -289,7 +289,7 @@ export function Cart() {
         setNotice(dropNotice(rev))
       }
       if (rev.buyable.length === 0) {
-        setError('None of these items are available to buy right now.')
+        setError(t('cart.error.noneAvailable'))
         setReview(null)
         setStatus(null)
         return
@@ -316,7 +316,7 @@ export function Cart() {
   async function confirmPurchase() {
     if (!review) return
     if (!session) {
-      setError('Sign in to check out.')
+      setError(t('buyModal.signInToCheckout'))
       return
     }
     // A review left sitting too long may be pricing off stale trades (a sale ended, a listing sold).
@@ -360,7 +360,7 @@ export function Cart() {
         /* ignore */
       }
       captureError(e, { flow: 'cart_buy_credits' })
-      setModal({ phase: 'error', message: "Couldn't start the credits checkout — please try again." })
+      setModal({ phase: 'error', message: t('buyModal.error.creditsCheckout') })
     } finally {
       setBusy(false)
     }
@@ -420,13 +420,11 @@ export function Cart() {
     )
   }
 
-  const itemWord = items.length === 1 ? 'Item' : 'Items'
-
   return (
     <div className="checkout">
       <button className="checkout__back" onClick={() => navigate(-1)} type="button">
         <span className="ico ico-arrow-left" aria-hidden />
-        Cart
+        {t('nav.cart')}
       </button>
 
       <div className="checkout__body">
@@ -436,15 +434,15 @@ export function Cart() {
               className="checkout__panel-back"
               onClick={() => navigate(-1)}
               type="button"
-              aria-label="Go back"
+              aria-label={t('cart.goBack')}
             >
               <span className="ico ico-arrow-left" aria-hidden />
             </button>
-            <h1 className="checkout__panel-title">Cart: {items.length} {itemWord}</h1>
+            <h1 className="checkout__panel-title">{t('cart.panelTitle', { count: items.length })}</h1>
             {hasWearable ? (
               <button className="checkout__fitting" onClick={() => setFittingOpen(true)} disabled={working}>
                 <span className="ico ico-fitting-room checkout__fitting-ico" aria-hidden />
-                Fitting Room
+                {t('cart.fittingRoom')}
               </button>
             ) : null}
           </div>
@@ -502,14 +500,14 @@ export function Cart() {
                           className="checkout__step"
                           onClick={() => editCart(() => remove(item.id))}
                           disabled={working}
-                          aria-label={`Remove ${item.name} from cart`}
+                          aria-label={t('cart.removeFromCart', { name: item.name })}
                         >
                           <svg viewBox="0 0 16 16" fill="none" aria-hidden focusable="false">
                             <path d="M3.5 8h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                           </svg>
                         </button>
                         <span className="checkout__qty">1</span>
-                        <button className="checkout__step" disabled aria-label="Increase quantity">
+                        <button className="checkout__step" disabled aria-label={t('cart.increaseQuantity')}>
                           <svg viewBox="0 0 16 16" fill="none" aria-hidden focusable="false">
                             <path d="M8 3.5v9M3.5 8h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                           </svg>
@@ -525,8 +523,8 @@ export function Cart() {
                     <button
                       className={`checkout__fav${faved ? ' is-on' : ''}`}
                       onClick={() => toggleFav(item)}
-                      aria-label={faved ? `Remove ${item.name} from favorites` : `Add ${item.name} to favorites`}
-                      title={faved ? 'Remove from favorites' : 'Add to favorites'}
+                      aria-label={faved ? t('cart.removeFromFavorites', { name: item.name }) : t('cart.addToFavorites', { name: item.name })}
+                      title={faved ? t('assetCard.removeFromFavorites') : t('assetCard.addToFavorites')}
                     >
                       <span className={`ico ${faved ? 'ico-heart-solid' : 'ico-heart'}`} aria-hidden />
                     </button>
@@ -534,8 +532,8 @@ export function Cart() {
                       className="checkout__remove"
                       onClick={() => editCart(() => remove(item.id))}
                       disabled={working}
-                      aria-label={`Remove ${item.name}`}
-                      title="Remove"
+                      aria-label={t('cart.remove', { name: item.name })}
+                      title={t('cart.removeTitle')}
                     >
                       <span className="ico ico-trash" aria-hidden />
                     </button>
@@ -547,7 +545,7 @@ export function Cart() {
 
           {/* Utility actions kept subtle so they don't compete with the CTA. */}
           <div className="checkout__utils">
-            <button className="link" onClick={() => editCart(clear)} disabled={working}>Clear cart</button>
+            <button className="link" onClick={() => editCart(clear)} disabled={working}>{t('cart.clearCart')}</button>
             {import.meta.env.DEV ? (
               <button className="link" onClick={getTestCredits} disabled={working || !session}>Get test {CURRENCY.name} (dev)</button>
             ) : null}
@@ -555,22 +553,22 @@ export function Cart() {
         </section>
 
         <aside className="checkout__summary">
-          <h2 className="checkout__summary-title">Purchase Summary</h2>
+          <h2 className="checkout__summary-title">{t('cart.purchaseSummary')}</h2>
           <div className="checkout__summary-body">
             <div className="checkout__total-line">
-              <span className="checkout__total-label">Total: {items.length} {items.length === 1 ? 'item' : 'items'}</span>
+              <span className="checkout__total-label">{t('cart.totalItems', { count: items.length })}</span>
               <span className="checkout__total-value">
                 <CurrencyIcon className="checkout__total-ico" /> {total}
               </span>
             </div>
 
             <button className="checkout__cta" onClick={review ? confirmPurchase : checkout} disabled={working}>
-              {working ? 'Working…' : review ? 'Confirm purchase' : 'Buy now'}
+              {working ? t('cart.working') : review ? t('marketCheckout.confirmPurchase') : t('assetCard.buyNow')}
             </button>
 
             {review ? (
               <p className="muted checkout__msg">
-                Prices or availability changed since you added these — review the updated total and confirm to buy.
+                {t('cart.priceChanged')}
               </p>
             ) : null}
             {notice ? <p className="muted checkout__msg">{notice}</p> : null}
@@ -582,7 +580,7 @@ export function Cart() {
 
       {upsell.length > 0 ? (
         <div className="cart-upsell">
-          <CollectionCarousel title="You might also like" items={upsell} />
+          <CollectionCarousel title={t('cart.youMightAlsoLike')} items={upsell} />
         </div>
       ) : null}
 
