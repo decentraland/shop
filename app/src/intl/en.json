@@ -129,5 +129,22 @@
     "yourItem": "Your item",
     "inCart": "In cart",
     "addToCart": "Add to cart"
+  },
+  "seo": {
+    "collectibles": {
+      "title": "Browse Collectibles",
+      "searchTitle": "Search results for “{query}”",
+      "description": "Browse thousands of wearables and emotes for your Decentraland avatar. Filter by category, rarity, and price to find your next look."
+    },
+    "item": {
+      "notFoundTitle": "Item not available",
+      "fallbackDescription": "{name} — {rarity} {category} by {creator} on the Decentraland Shop."
+    },
+    "collection": {
+      "description": "Explore every wearable and emote in the {name} collection on the Decentraland Shop."
+    },
+    "creator": {
+      "description": "Discover wearables and emotes by {name} on the Decentraland Shop."
+    }
   }
 }

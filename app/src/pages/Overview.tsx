@@ -7,6 +7,7 @@ import { AssetCard } from '~/components/AssetCard'
 import { FollowedCreatorsRow } from '~/components/FollowedCreatorsRow'
 import { RecentlyViewed } from '~/components/RecentlyViewed'
 import { WeekTopCreators } from '~/components/WeekTopCreators'
+import { useSeo } from '~/hooks/useSeo'
 import carouselArrow from '~/assets/icons/carousel-arrow.svg'
 import heroBanner from '~/assets/overview/hero-fashion-week.png'
 import promoEmotes from '~/assets/overview/promo-best-rated-emotes.png'
@@ -122,6 +123,9 @@ function Carousel({ title, items, loading }: { title: string; items: CatalogItem
 }
 
 export function Overview() {
+  // Home page: the hook's site-wide default title/description is the best fit here (its title tail is
+  // "Wearables & Emotes for Your Avatar", which we don't want to override), so pass nothing. Indexable.
+  useSeo({})
   // Only credit-buyable (USD-pegged) listings — not the primary mint catalog.
   const { data, isLoading } = useQuery({ queryKey: ['overview-listings'], queryFn: () => fetchListings({ first: 24 }) })
   const items = data?.items ?? []
