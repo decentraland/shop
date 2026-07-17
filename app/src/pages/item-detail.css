@@ -86,6 +86,8 @@
 }
 .item-preview__toggle button.is-active { background: var(--text); color: #fff; }
 .item-preview__toggle button:not(.is-active):hover { color: var(--text); }
+/* Icon glyphs live in the toggle for the mobile icon-only pill; hidden on desktop (text shows). */
+.item-preview__toggle-ico { display: none; width: 18px; height: 18px; }
 /* Emote play/pause + sound + scrub controls, pinned to the bottom of the preview (emotes only).
    The bar itself is the shop-styled pill; the decentraland-ui2 <EmoteControls> renders inside it. That
    ui2 component ships a dark-theme overlay layout (its container is position:absolute/width:100%/bottom:0
@@ -214,6 +216,10 @@
   width: 18px;
   height: 18px;
 }
+/* Mobile-only heart overlaid on the preview (Figma 1182-195410). Hidden on desktop; the specific
+   selector overrides the greedy `.item-detail__preview > *` sizing. Shown + positioned in the mobile
+   block below, where the title-row heart is hidden so only one heart is ever exposed to a11y. */
+.item-detail__preview > .item-detail__fav--preview { display: none; }
 
 /* Small uppercase section labels (Description / Creator / Price). */
 .item-detail__label {
@@ -298,6 +304,35 @@
 .item-detail__creator .creator__name { color: var(--accent); font-weight: 500; text-decoration: underline; }
 .item-detail__creator.creator--link:hover .creator__name { color: var(--brand-violet); }
 
+/* Collection badge = a 2×2 collage of up to 4 collection item thumbnails (like the marketplace
+   webapp's CollectionImage), reusing the 48px round `.creator__ava` slot so it sits consistently
+   beside the creator avatar (Figma 1052-151285). Rows are stacked flex rows, each cell an <img> that
+   covers its share; a single row (≤2 thumbnails) spans the full height. */
+.collection-collage {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  /* 1px gaps between rows AND cells, filled by this background, draw a hairline divider between each
+     collaged item so the (often light) thumbnails don't blend into one another. */
+  gap: 1px;
+  background: var(--line-strong);
+}
+.collection-collage__row {
+  display: flex;
+  flex: 1 1 50%;
+  min-height: 0;
+  gap: 1px;
+}
+.collection-collage__row--full { flex-basis: 100%; }
+.collection-collage__row img {
+  flex: 1 1 0;
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
 /* Divider between the meta block and the price/CTA block (Figma neutrals/gray-4). */
 .item-detail__divider {
   border: 0;
@@ -363,6 +398,18 @@
 .item-detail__price--none {
   font-size: 18px;
   color: var(--muted);
+}
+/* Market (legacy/MANA) item: an indicative "≈ credits" price + a "Market price" note (the exact
+   price is locked later in MarketCheckout). Mirrors the market card's ≈ treatment. */
+.item-detail__approx {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text);
+  margin-right: -2px;
+}
+.item-detail__market-note {
+  font-size: 13px;
+  margin-top: 6px;
 }
 /* Flash sale (see lib/sale.ts): emphasized "now" + struck-through "was" + a badge + countdown. */
 .item-detail__price--sale {
@@ -541,6 +588,57 @@
   }
   .item-detail__ctas--dual .item-detail__addcart-ico {
     margin: 0;
+  }
+
+  /* Favourite heart moves onto the preview's top-right (Figma 1182-195410): a white circular button.
+     The title-row heart is hidden so there's exactly one heart in the a11y tree. */
+  .item-detail__info-head .item-detail__fav { display: none; }
+  .item-detail__preview > .item-detail__fav--preview {
+    display: grid;
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 3;
+    width: 40px;
+    height: 40px;
+    background: rgba(255, 255, 255, .92);
+    box-shadow: 0 1px 4px rgba(22, 21, 24, .18);
+  }
+  .item-detail__preview > .item-detail__fav--preview:hover { background: #fff; }
+
+  /* Avatar/Item toggle → an icon-only pill button-group at the preview's bottom-right (Figma
+     1182-195374): active = soft-black bg + white icon, inactive = white bg + dark icon. */
+  .item-detail__preview > .item-preview__toggle {
+    top: auto;
+    left: auto;
+    bottom: 12px;
+    right: 12px;
+    gap: 0;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    box-shadow: 0 1px 4px rgba(22, 21, 24, .18);
+    overflow: hidden;
+  }
+  .item-preview__toggle-label { display: none; }
+  .item-preview__toggle-ico { display: block; }
+  .item-preview__toggle button {
+    padding: 9px 13px;
+    border-radius: 0;
+    background: #fff;
+    color: var(--text-2);
+  }
+  .item-preview__toggle button.is-active {
+    background: var(--text);
+    color: #fff;
+  }
+  .item-preview__toggle button:first-child {
+    border-top-left-radius: 999px;
+    border-bottom-left-radius: 999px;
+  }
+  .item-preview__toggle button:last-child {
+    border-top-right-radius: 999px;
+    border-bottom-right-radius: 999px;
   }
 }
 

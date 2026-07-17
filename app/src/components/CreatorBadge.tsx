@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useProfile } from '~/hooks/useProfile'
+import { capitalizeFirst } from '~/lib/text'
 
 // Show a creator/seller by their DCL profile (avatar + name), falling back to a short address.
 // Uses the shared useProfile query so many cards with the same creator dedupe to one fetch.
@@ -46,7 +47,8 @@ export function CreatorBadge({
   useEffect(() => setBroken(false), [face])
 
   if (!address) return null
-  const name = data?.name || shortAddress(address)
+  // Capitalise the first letter of the display name ("bondi" → "Bondi"); leave a raw address as-is.
+  const name = data?.name ? capitalizeFirst(data.name) : shortAddress(address)
   const showImage = !!face && !broken
   const ava = showImage ? (
     <img className="creator__ava" src={face} alt="" loading="lazy" onError={() => setBroken(true)} />
