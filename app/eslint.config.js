@@ -23,9 +23,9 @@ export default tseslint.config(
         ...globals.node
       }
     },
-    // Register the (maintained) import plugin under the `import` name so the existing
-    // `// eslint-disable-next-line import/first` directives keep resolving. `import/first`
-    // documents why specs place their imports after `vi.mock(...)` hoisting setup.
+    // Register the (maintained) import plugin under the `import` name. `import/first` enforces
+    // import-before-code in source; specs are exempted (see override below) because vi.mock()
+    // hoisting requires the mock setup to precede the imports it intercepts.
     plugins: {
       'react-hooks': reactHooks,
       import: importX
@@ -63,7 +63,8 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-return': 'off',
       '@typescript-eslint/no-unsafe-argument': 'off',
       '@typescript-eslint/require-await': 'off',
-      'react-hooks/exhaustive-deps': 'off'
+      'react-hooks/exhaustive-deps': 'off',
+      'import/first': 'off'
     }
   },
 

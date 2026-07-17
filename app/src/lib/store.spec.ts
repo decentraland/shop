@@ -18,7 +18,6 @@ vi.mock('@dcl/crypto', () => ({ Authenticator: { signPayload } }))
 const hashV1 = vi.hoisted(() => vi.fn(async (_bytes: Uint8Array) => 'bafyTemplateHash'))
 vi.mock('@dcl/hashing', () => ({ hashV1 }))
 
-// eslint-disable-next-line import/first
 import {
   fetchStore,
   buildStoreMetadata,

@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 vi.mock('~/config', () => ({ config: { nftApiUrl: 'http://nft.test', peerUrl: 'http://peer.test' } }))
 
-// eslint-disable-next-line import/first
 import { fetchCollectionSuggestions, fetchCreatorSuggestions } from '~/lib/search'
 
 // A fetch stub that routes by URL: collections / ens-names / accounts / per-address profiles.

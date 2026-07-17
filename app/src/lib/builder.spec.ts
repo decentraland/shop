@@ -9,7 +9,6 @@ vi.mock('decentraland-crypto-fetch', () => ({ default: (...args: unknown[]) => s
 // Stable builder base so URL assertions are deterministic.
 vi.mock('~/config', () => ({ config: { builderServerUrl: 'https://builder.test' } }))
 
-// eslint-disable-next-line import/first
 import {
   fetchCreatorCollections,
   fetchCollectionItems,

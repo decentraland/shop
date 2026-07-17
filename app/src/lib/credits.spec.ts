@@ -10,7 +10,6 @@ vi.mock('decentraland-crypto-fetch', () => ({ default: signedFetch }))
 // Pin the credits-server base URL so the asserted URLs are stable regardless of env.
 vi.mock('~/config', () => ({ config: { creditsServerUrl: 'https://credits.example' } }))
 
-// eslint-disable-next-line import/first
 import {
   authorizeUsdCredit,
   cancelUsdIntents,

@@ -45,7 +45,6 @@ vi.mock('ethers', async importOriginal => {
   return { ethers: { ...actual.ethers, Contract: MockContract } }
 })
 
-// eslint-disable-next-line import/first
 import { cancelListing } from '~/lib/buy'
 
 const signer = {

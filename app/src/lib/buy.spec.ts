@@ -72,7 +72,6 @@ vi.mock('ethers', async importOriginal => {
   }
 })
 
-// eslint-disable-next-line import/first
 import { buyWithCredits, buyManyWithCredits, cancelListing, type CreditPurchase, type SpendableCredit } from '~/lib/buy'
 
 const B32 = (n: string) => '0x' + n.repeat(64)
