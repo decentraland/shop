@@ -36,6 +36,8 @@ import {
   fetchTrade,
   fetchTradeDisplay,
   fetchTradeForItem,
+  resolveLiveTrade,
+  TradeNotFoundError,
   postTrade
 } from '~/lib/api'
 
@@ -657,9 +659,19 @@ describe('when fetching a single signed trade', () => {
     expect(trade).toEqual({ id: 'raw' })
   })
 
-  it('should throw when the trade request fails', async () => {
+  it('should throw a TradeNotFoundError when the trade is gone (404)', async () => {
     fetchMock.mockResolvedValueOnce(httpError(404))
-    await expect(fetchTrade('t3')).rejects.toThrow('fetchTrade 404')
+    const err = await fetchTrade('t3').catch(e => e)
+    expect(err).toBeInstanceOf(TradeNotFoundError)
+    expect(String(err.message)).toContain('fetchTrade 404')
+  })
+
+  it('should throw a plain error for a non-404 failure', async () => {
+    fetchMock.mockResolvedValueOnce(httpError(500))
+    const err = await fetchTrade('t4').catch(e => e)
+    expect(err).toBeInstanceOf(Error)
+    expect(err).not.toBeInstanceOf(TradeNotFoundError)
+    expect(String(err.message)).toContain('fetchTrade 500')
   })
 })
 
@@ -772,5 +784,66 @@ describe('when resolving the open trade for a catalog item', () => {
     expect(await fetchTradeForItem('0xc', '3')).toBeNull()
     // no trade fetch when there is no tradeId.
     expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('when resolving an item to its live trade', () => {
+  it('should use the known tradeId directly when it still exists', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ data: { id: 'tr-known' } }))
+    const trade = await resolveLiveTrade({ tradeId: 'tr-known', contractAddress: '0xc', itemId: '4' })
+    expect(trade).toEqual({ id: 'tr-known' })
+    // one call only — no re-resolution when the trade is live.
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(String(fetchMock.mock.calls[0][0])).toBe('https://market.test/v1/trades/tr-known')
+  })
+
+  it('should re-resolve the current trade from the shop feed when the known tradeId is gone (404)', async () => {
+    fetchMock
+      .mockResolvedValueOnce(httpError(404)) // stale tradeId 404s
+      .mockResolvedValueOnce(jsonOk({ data: [{ tradeId: 'tr-fresh', itemId: '4' }] })) // shop feed
+      .mockResolvedValueOnce(jsonOk({ data: { id: 'tr-fresh' } })) // fresh trade
+    const trade = await resolveLiveTrade({ tradeId: 'tr-stale', contractAddress: '0xc', itemId: '4' })
+    expect(trade).toEqual({ id: 'tr-fresh' })
+    expect(String(fetchMock.mock.calls[0][0])).toBe('https://market.test/v1/trades/tr-stale')
+    expect(String(fetchMock.mock.calls[1][0])).toContain('https://market.test/v3/catalog/shop?')
+    expect(String(fetchMock.mock.calls[2][0])).toBe('https://market.test/v1/trades/tr-fresh')
+  })
+
+  it('should return null when the tradeId is gone and the item is no longer listed', async () => {
+    fetchMock
+      .mockResolvedValueOnce(httpError(404)) // stale tradeId 404s
+      .mockResolvedValueOnce(jsonOk({ data: [] })) // no live listing
+    expect(await resolveLiveTrade({ tradeId: 'tr-stale', contractAddress: '0xc', itemId: '4' })).toBeNull()
+  })
+
+  it('should NOT re-resolve on a non-404 failure (never silently swap the trade)', async () => {
+    fetchMock.mockResolvedValueOnce(httpError(500))
+    await expect(resolveLiveTrade({ tradeId: 'tr-x', contractAddress: '0xc', itemId: '4' })).rejects.toThrow(
+      'fetchTrade 500'
+    )
+    // only the direct fetch happened — no fallback to the feed.
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('should propagate the not-found when there is no itemId to re-resolve by', async () => {
+    fetchMock.mockResolvedValueOnce(httpError(404))
+    await expect(resolveLiveTrade({ tradeId: 'tr-x', contractAddress: '0xc', itemId: null })).rejects.toBeInstanceOf(
+      TradeNotFoundError
+    )
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('should resolve straight from the shop feed when there is no known tradeId', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonOk({ data: [{ tradeId: 'tr-feed', itemId: '4' }] }))
+      .mockResolvedValueOnce(jsonOk({ data: { id: 'tr-feed' } }))
+    const trade = await resolveLiveTrade({ contractAddress: '0xc', itemId: '4' })
+    expect(trade).toEqual({ id: 'tr-feed' })
+    expect(String(fetchMock.mock.calls[0][0])).toContain('https://market.test/v3/catalog/shop?')
+  })
+
+  it('should return null when there is neither a tradeId nor an itemId', async () => {
+    expect(await resolveLiveTrade({ contractAddress: '0xc' })).toBeNull()
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 })

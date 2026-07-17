@@ -6,34 +6,22 @@ import { config } from '~/config'
 import { useCart } from '~/store/cart'
 import { useFavorites } from '~/store/favorites'
 import { useWallet } from '~/store/wallet'
-import { useBalance, balanceLabel } from '~/hooks/useBalance'
-import {
-  fetchShopListingForItem,
-  fetchTrade,
-  fetchTradeForItem,
-  fetchItemDescription,
-  usdWeiToCents,
-  type CatalogItem
-} from '~/lib/api'
-import { buyWithCredits } from '~/lib/buy'
-import { buyGasless, waitForSettlement, GaslessUnavailableError, SettlementPendingError } from '~/lib/buy-gasless'
-import { gaslessEnabled } from '~/lib/gasless-config'
-import { authorizeUsdCredit, cancelUsdIntents } from '~/lib/credits'
-import { fetchCollectionItems } from '~/lib/collections'
+import { fetchShopListingForItem, fetchTradeForItem, fetchItemDescription, type CatalogItem } from '~/lib/api'
+import { BuyModal } from '~/components/BuyModal'
+import { fetchCollectionItems, fetchCollection } from '~/lib/collections'
 import { ItemPreview } from '~/components/ItemPreview'
 import { CollectionCarousel } from '~/components/CollectionCarousel'
 import { CreatorBadge } from '~/components/CreatorBadge'
+import { CollectionBadge } from '~/components/CollectionBadge'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { SaleCountdown } from '~/components/SaleCountdown'
 import { rarityTint, rarityInk } from '~/lib/rarity'
 import { categoryIcon, genderIcon } from '~/lib/itemIcons'
 import { saleDiscountPct } from '~/lib/sale'
 import { useSaleActive } from '~/hooks/useSaleActive'
-import { CURRENCY } from '~/lib/currency'
-import { track, itemProps, purchaseItemsProps, errorCode, isUserRejection, creditsToUsd } from '~/lib/analytics'
+import { track, itemProps } from '~/lib/analytics'
 import { recordViewed } from '~/lib/recently-viewed'
-import { isOwnListing, isOwnTrade } from '~/lib/ownership'
-import { captureError } from '~/lib/monitoring'
+import { isOwnListing } from '~/lib/ownership'
 import './item-detail.css'
 
 function isValidRarity(r: string): r is Rarity {
@@ -54,27 +42,15 @@ function categoryLabel(item: CatalogItem): string {
   return item.category === 'emote' ? 'Emote' : 'Wearable'
 }
 
-function friendlyError(e: unknown): string {
-  const err = e as { code?: number; message?: string }
-  const msg = (err.message ?? '').toLowerCase()
-  if (err.code === 4001 || msg.includes('reject') || msg.includes('denied') || msg.includes('cancel')) {
-    return 'You cancelled the request.'
-  }
-  if (msg.includes('insufficient')) return `You don't have enough ${CURRENCY.name} — get more first.`
-  if (msg.includes('no active listing') || msg.includes('not for sale')) return 'This item is not for sale right now.'
-  return "Couldn't complete checkout — please try again."
-}
-
 export function ItemDetail() {
   const { contractAddress, tokenId } = useParams<{ contractAddress: string; tokenId: string }>()
-  const { state } = useLocation() as { state?: { item?: CatalogItem; tradeId?: string } }
+  const { state } = useLocation() as { state?: { item?: CatalogItem; tradeId?: string; resumeBuy?: boolean } }
   const navigate = useNavigate()
 
   const add = useCart(s => s.add)
   const cartItems = useCart(s => s.items)
   const toggleFav = useFavorites(s => s.toggle)
   const { session } = useWallet()
-  const { data: balance, isError: balanceError } = useBalance(session)
 
   // The currently-displayed item. Seeded from router state (fast path from the grid); swapped in place
   // when a carousel sibling is tapped (no full reload). Falls back to a stub for deep links/refresh
@@ -100,9 +76,13 @@ export function ItemDetail() {
     }
   })
 
-  const [busy, setBusy] = useState(false)
-  const [status, setStatus] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [showBuy, setShowBuy] = useState(false)
+  // Returning from a Stripe top-up started in the buy modal (no-funds flow): auto-open the modal in
+  // resume mode so it finishes the purchase with the newly-bought credits.
+  const [resumeBuy, setResumeBuy] = useState(!!state?.resumeBuy)
+  useEffect(() => {
+    if (state?.resumeBuy) setShowBuy(true)
+  }, [state?.resumeBuy])
 
   // Sibling items of the same collection (the "more from this collection" carousel).
   const { data: siblings = [], isFetched: siblingsFetched } = useQuery({
@@ -133,16 +113,27 @@ export function ItemDetail() {
     queryFn: () => fetchItemDescription(current.contractAddress, current.itemId as string)
   })
 
+  // Collection name — item records don't carry it (it lives on the collections entity), so resolve it
+  // by contract for the "Collection" badge shown beside the creator (see Figma 1052-151285).
+  const { data: collection } = useQuery({
+    queryKey: ['collection-meta', current.contractAddress],
+    enabled: !!current.contractAddress,
+    staleTime: 5 * 60_000,
+    queryFn: () => fetchCollection(current.contractAddress)
+  })
+
   // Fallback backfill: if still unhydrated (e.g. not currently on sale), fill from the matching
-  // sibling once the collection resolves.
+  // sibling once the collection resolves. Skip it when the authoritative shop listing (deepLinkItem)
+  // is available — that carries the fields siblings lack (stock, wearableCategory) and would otherwise
+  // be clobbered if both resolve in the same React batch (the guard below reads a stale `current`).
   useEffect(() => {
-    if (current.name || siblings.length === 0) return
+    if (current.name || deepLinkItem || siblings.length === 0) return
     const match =
       (tokenId && siblings.find(s => s.tokenId === tokenId || s.itemId === tokenId)) ||
       siblings.find(s => s.contractAddress === current.contractAddress)
     if (match) setCurrent(prev => ({ ...match, tradeId: prev.tradeId ?? match.tradeId }))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [siblings])
+  }, [siblings, deepLinkItem])
 
   // Carousel = OTHER items from the collection: drop the currently-viewed item + dedupe.
   const carouselItems = useMemo(() => {
@@ -192,12 +183,6 @@ export function ItemDetail() {
   const inCart = cartItems.some(i => i.id === cartItem.id)
   const faved = useFavorites(s => !!s.items[current.id])
 
-  // Reset transient status whenever the hero item changes.
-  useEffect(() => {
-    setStatus(null)
-    setError(null)
-  }, [current.id])
-
   // KR5 denominator: fire 'Shop Viewed Item' once per hydrated item (deduped across re-renders and the
   // in-place carousel swaps), after the trade resolves so `for_sale` is accurate.
   const viewedRef = useRef<string | null>(null)
@@ -230,77 +215,6 @@ export function ItemDetail() {
     add(cartItem, 'item_detail')
   }
 
-  async function handleBuyNow() {
-    if (!forSale || !buyableTradeId) return
-    if (!session) {
-      setError('Sign in to check out.')
-      return
-    }
-    setError(null)
-    setBusy(true)
-    let reservedCreditId: string | undefined
-    let step: 'authorize' | 'submit' = 'authorize'
-    let usedGasless = false
-    try {
-      setStatus(`Buying ${current.name || 'item'}…`)
-      const trade = await fetchTrade(buyableTradeId)
-      if (!trade) throw new Error('not for sale')
-      if (isOwnTrade(trade, session.address)) {
-        setError("You can't buy your own listing.")
-        setStatus(null)
-        setBusy(false)
-        return
-      }
-      const priceAsset = trade.received?.[0] as { amount?: string } | undefined
-      const usdCents = usdWeiToCents(priceAsset?.amount)
-      const { credit, maxCreditedValue } = await authorizeUsdCredit(session.identity, usdCents, buyableTradeId)
-      reservedCreditId = credit.id
-      step = 'submit'
-      const buyArgs = { trade, buyer: session.address, signer: session.signer, credits: [credit], maxCreditedValue }
-      let txHash: string | undefined
-      if (gaslessEnabled()) {
-        try {
-          txHash = await buyGasless(buyArgs) // buyer confirms off-chain; relayer covers the fee
-          await waitForSettlement(txHash)
-          usedGasless = true
-        } catch (gaslessErr) {
-          if (gaslessErr instanceof SettlementPendingError) {
-            // Broadcast but not yet confirmed — do NOT release the reservation; the credits-server
-            // reconciles it against the indexed CreditUsed event. Optimistic success.
-            usedGasless = true
-          } else if (gaslessErr instanceof GaslessUnavailableError) {
-            txHash = await buyWithCredits(buyArgs) // fallback: buyer submits
-          } else {
-            throw gaslessErr
-          }
-        }
-      } else {
-        txHash = await buyWithCredits(buyArgs)
-      }
-      reservedCreditId = undefined // consumed by the buy
-      track('Shop Completed Purchase', {
-        ...purchaseItemsProps([cartItem]),
-        payment_type: 'credits',
-        no_crypto_step: usedGasless,
-        transaction_hash: txHash ?? null
-      })
-      navigate('/success', { state: { items: [cartItem], txHash } })
-    } catch (e) {
-      if (!isUserRejection(e)) captureError(e, { flow: 'buy', step, gasless: usedGasless })
-      // Release the reserved dollars so the balance isn't stuck until the TTL (matches Cart/MarketCheckout).
-      if (reservedCreditId) void cancelUsdIntents(session.identity, [reservedCreditId]).catch(() => {})
-      track(isUserRejection(e) ? 'Shop Purchase Cancelled' : 'Shop Purchase Failed', {
-        step,
-        error_code: errorCode(e),
-        value_usd: creditsToUsd(cartItem.priceCredits)
-      })
-      setError(friendlyError(e))
-      setStatus(null)
-    } finally {
-      setBusy(false)
-    }
-  }
-
   const rarity: Rarity = isValidRarity(current.rarity) ? current.rarity : Rarity.COMMON
   const gender = genderLabel(current.gender)
   const catIco = categoryIcon(current)
@@ -313,6 +227,13 @@ export function ItemDetail() {
   const own = isOwnListing(current, session?.address)
 
   const addLabel = !forSale ? 'Not for sale' : inCart ? 'In cart' : resolvingTrade ? 'Checking…' : 'Add to cart'
+
+  // Stock (primary/mint listings only): the shop feed carries the remaining mintable supply. Secondary
+  // listings (a specific token) have no stock concept, so we hide it there (see Figma 1052-151285).
+  const showStock = typeof current.available === 'number' && current.available > 0 && !current.tokenId
+  // Both action buttons present (buyable, not your own): on mobile they collapse into a sticky row of
+  // a wide Buy-now + a compact cart icon (see Figma 1182-194973).
+  const dualCta = !own && forSale
 
   // Nothing hydrated the item (bad/stale deep link, or an item that isn't in the shop feed — e.g. a
   // legacy/market piece). Once every resolution path has settled and there's still no name, show a
@@ -396,54 +317,75 @@ export function ItemDetail() {
             </div>
           ) : null}
 
-          {current.creator ? (
+          {current.creator || collection?.name ? (
             <div className="item-detail__meta">
-              <div className="item-detail__meta-col">
-                <div className="item-detail__label">Creator</div>
-                <CreatorBadge address={current.creator} className="item-detail__creator" linkToProfile />
-              </div>
+              {current.creator ? (
+                <div className="item-detail__meta-col">
+                  <div className="item-detail__label">Creator</div>
+                  <CreatorBadge address={current.creator} className="item-detail__creator" linkToProfile hidePrefix />
+                </div>
+              ) : null}
+              {collection?.name ? (
+                <div className="item-detail__meta-col item-detail__meta-col--collection">
+                  <div className="item-detail__label">Collection</div>
+                  <CollectionBadge
+                    contractAddress={current.contractAddress}
+                    name={collection.name}
+                    className="item-detail__creator"
+                  />
+                </div>
+              ) : null}
             </div>
           ) : null}
 
           <hr className="item-detail__divider" />
 
           <div className="item-detail__price-block">
-            <div className="item-detail__price-label">Price</div>
-            {forSale ? (
-              onSale ? (
-                <div className="item-detail__price item-detail__price--sale">
-                  <span className="item-detail__price">
-                    <CurrencyIcon className="item-detail__diamond" />
-                    <span className="item-detail__price-value">{current.priceCredits}</span>
-                  </span>
-                  <span className="item-detail__price-was">
-                    <CurrencyIcon className="item-detail__diamond item-detail__diamond--was" />
-                    {current.compareAtCredits}
-                  </span>
-                  {saleDiscountPct(current.compareAtCredits!, current.priceCredits) > 0 ? (
-                    <span className="item-detail__sale-badge">
-                      SALE -{saleDiscountPct(current.compareAtCredits!, current.priceCredits)}%
-                    </span>
-                  ) : null}
-                  <SaleCountdown endsAt={current.saleEndsAt} className="item-detail__countdown" />
-                </div>
-              ) : (
-                <div className="item-detail__price">
-                  <CurrencyIcon className="item-detail__diamond" />
-                  <span className="item-detail__price-value">{current.priceCredits}</span>
-                </div>
-              )
-            ) : (
-              <div className="item-detail__price item-detail__price--none">Not for sale</div>
-            )}
-            {session ? (
-              <div className="item-detail__balance muted">
-                Your balance: <CurrencyIcon className="ccy-mark" /> {balanceLabel(balance, balanceError)}
+            <div className="item-detail__price-row">
+              <div className="item-detail__price-col">
+                <div className="item-detail__price-label">Price</div>
+                {forSale ? (
+                  onSale ? (
+                    <div className="item-detail__price item-detail__price--sale">
+                      <span className="item-detail__price">
+                        <CurrencyIcon className="item-detail__diamond" />
+                        <span className="item-detail__price-value">{current.priceCredits}</span>
+                      </span>
+                      <span className="item-detail__price-was">
+                        <CurrencyIcon className="item-detail__diamond item-detail__diamond--was" />
+                        {current.compareAtCredits}
+                      </span>
+                      {saleDiscountPct(current.compareAtCredits!, current.priceCredits) > 0 ? (
+                        <span className="item-detail__sale-badge">
+                          SALE -{saleDiscountPct(current.compareAtCredits!, current.priceCredits)}%
+                        </span>
+                      ) : null}
+                      <SaleCountdown endsAt={current.saleEndsAt} className="item-detail__countdown" />
+                    </div>
+                  ) : (
+                    <div className="item-detail__price">
+                      <CurrencyIcon className="item-detail__diamond" />
+                      <span className="item-detail__price-value">{current.priceCredits}</span>
+                    </div>
+                  )
+                ) : (
+                  <div className="item-detail__price item-detail__price--none">Not for sale</div>
+                )}
               </div>
-            ) : null}
+              {showStock ? (
+                <div className="item-detail__stock-col">
+                  <div className="item-detail__price-label">Stock</div>
+                  <div className="item-detail__stock-value">{current.available}</div>
+                </div>
+              ) : null}
+            </div>
           </div>
 
-          <div className="item-detail__ctas">
+          <div
+            className={`item-detail__ctas${own ? '' : ' item-detail__ctas--buttons'}${
+              dualCta ? ' item-detail__ctas--dual' : ''
+            }`}
+          >
             {own ? (
               <p className="item-detail__own-note muted">
                 This is your item — manage it in <Link to="/my-assets">My Assets</Link>.
@@ -453,26 +395,28 @@ export function ItemDetail() {
                 {forSale ? (
                   <button
                     className="btn btn--purple item-detail__cta"
-                    onClick={() => void handleBuyNow()}
-                    disabled={busy || resolvingTrade}
+                    onClick={() => setShowBuy(true)}
+                    disabled={resolvingTrade}
                   >
-                    {busy ? 'Buying…' : 'Buy now'}
+                    <span className="item-detail__cta-label">Buy now</span>
+                    <span className="item-detail__cta-price" aria-hidden>
+                      <CurrencyIcon className="item-detail__cta-diamond" />
+                      {current.priceCredits}
+                    </span>
                   </button>
                 ) : null}
                 <button
                   className="item-detail__addcart"
                   onClick={handleAddToCart}
-                  disabled={!forSale || inCart || resolvingTrade || busy}
+                  disabled={!forSale || inCart || resolvingTrade}
+                  aria-label={addLabel}
                 >
                   <span className="ico ico-cart-solid item-detail__addcart-ico" aria-hidden />
-                  {addLabel}
+                  <span className="item-detail__addcart-label">{addLabel}</span>
                 </button>
               </>
             )}
           </div>
-
-          {status ? <p className="muted item-detail__status">{status}</p> : null}
-          {error ? <p className="error item-detail__status">{error}</p> : null}
         </div>
       </div>
 
@@ -481,6 +425,17 @@ export function ItemDetail() {
         items={carouselItems}
         onViewAll={current.contractAddress ? () => navigate(`/collection/${current.contractAddress}`) : undefined}
       />
+
+      {showBuy ? (
+        <BuyModal
+          item={cartItem}
+          resume={resumeBuy}
+          onClose={() => {
+            setShowBuy(false)
+            setResumeBuy(false)
+          }}
+        />
+      ) : null}
     </div>
   )
 }

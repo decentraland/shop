@@ -1,15 +1,18 @@
 /* ---------------- Card ---------------- */
 /* The 2px border is a gradient painted in the border box via background-clip: the white fill clips to
-   padding-box and the border layer shows through the 2px border ring. Base border is a 2px transparent
-   layer over the same white fill so the hover swap to the cerise gradient causes NO layout shift — a
-   solid `border` can't hold a gradient, and box-shadow can't either. `border-color` transitions don't
-   apply to gradient backgrounds, so we transition `background` + `box-shadow`. */
+   padding-box and the border layer shows through the 2px border ring. At rest the border layer is the
+   subtle --line frame (Figma: ~0.25px #a09ba8 hairline, tokenised as #e6e4ea); on hover it swaps to
+   the cerise gradient. The border stays a 2px transparent ring in both states so the swap causes NO
+   layout shift — a solid `border` can't hold a gradient, and box-shadow can't either. `border-color`
+   transitions don't apply to gradient backgrounds, so we transition `background` + `box-shadow`. */
 /* Fixed 300px card: a 96px footer (.card__body) + the rest for the asset preview (.card__media,
    which flex-grows to fill). box-sizing is border-box (index.css), so the 2px border is included in
    the 300px. */
 .card {
   height: 300px;
-  background: #fff;
+  background:
+    linear-gradient(#fff, #fff) padding-box,
+    linear-gradient(var(--line), var(--line)) border-box;
   border-radius: var(--radius-card);
   overflow: hidden;
   position: relative;
@@ -17,7 +20,6 @@
   display: flex;
   flex-direction: column;
   transition:
-    border-color 0.15s ease,
     background 0.15s ease,
     box-shadow 0.15s ease;
 }

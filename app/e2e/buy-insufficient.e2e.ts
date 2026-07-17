@@ -10,9 +10,10 @@ afterEach(async () => {
 })
 
 describe('buy with insufficient funds', () => {
-  it('surfaces an error and does NOT navigate to /success when authorize fails (402)', async () => {
+  it('opens the Buy Credits and Item state (pack picker) and never navigates to /success', async () => {
     // Deep-link the secondary item; force the credits-server authorize step to 402 (insufficient
-    // funds). ItemDetail.handleBuyNow catches the thrown error, releases the intent and setError(...).
+    // funds). The buy modal treats that as "not enough credits" and shows the top-up pack picker
+    // instead of a bare error — no dollars are reserved, no purchase happens.
     app = await launchApp({
       path: `/item/${COLLECTION}/1`,
       fixtures: { trade: buyTrade },
@@ -25,11 +26,11 @@ describe('buy with insufficient funds', () => {
 
     expect(await clickByText(page, 'button', /buy now/i)).toBe(true)
 
-    // The friendly insufficient-funds error renders (friendlyError matches "insufficient").
-    await waitForText(page, "don't have enough")
+    // The modal reaches the no-funds state: header + insufficient-funds warning.
+    await waitForText(page, 'Buy Credits and Item')
+    await waitForText(page, 'Insufficient Funds')
 
-    // Crucially, checkout did NOT succeed → we stay on the item page, never /success.
+    // Checkout never succeeded → we stay on the item page, never /success.
     expect(await page.evaluate(() => window.location.pathname)).toBe(`/item/${COLLECTION}/1`)
-    expect(await page.evaluate(() => window.location.pathname === '/success')).toBe(false)
   })
 })

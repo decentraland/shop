@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { NavLink, useNavigate, useSearchParams } from 'react-router-dom'
+import { NavLink, useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { TopNav } from '~/components/TopNav'
 import { useWallet } from '~/store/wallet'
 import { useProfile } from '~/hooks/useProfile'
@@ -22,8 +22,13 @@ export function NavBar() {
   const { data: avatar, isLoading: isLoadingProfile } = useProfile(address)
   const { data: balance, isError: balanceError } = useBalance(session)
   const cartCount = useCart(s => s.items.length)
+  const openCart = useCart(s => s.setOpen)
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
+  const { pathname } = useLocation()
+  // The Collectibles tab covers the whole browse surface: the grid + an item's detail page + a
+  // collection/creator page (a NavLink to /assets alone wouldn't light up on those routes).
+  const collectiblesActive = /^\/(assets|item|collection|creator)(\/|$)/.test(pathname)
   const urlQuery = searchParams.get('q') ?? ''
 
   // What the input shows (drives the box) and what the dropdown queries (debounced) are separate:
@@ -165,7 +170,11 @@ export function NavBar() {
       <div className="subnav">
         <nav className="subnav__tabs">
           <NavLink to="/overview">{t('nav.overview')}</NavLink>
-          <NavLink to="/assets">{t('nav.collectibles')}</NavLink>
+          {/* Collectibles stays active across the item detail / collection / creator pages too (they're
+              all part of browsing collectibles), not just the /assets grid. */}
+          <NavLink to="/assets" className={() => (collectiblesActive ? 'active' : '')}>
+            {t('nav.collectibles')}
+          </NavLink>
           <NavLink to="/my-assets">{t('nav.myAssets')}</NavLink>
           {session ? <NavLink to="/my-purchases">{t('nav.myPurchases')}</NavLink> : null}
         </nav>
@@ -221,14 +230,22 @@ export function NavBar() {
           <span className="ico ico-heart" aria-hidden />
         </NavLink>
         <div className="subnav__cart-wrap">
-          <NavLink to="/cart" className="subnav__cart" data-testid="subnav-cart" aria-label={t('nav.cart')}>
+          {/* Cart icon opens the cart drawer (open-on-icon). With an empty cart there's nothing to show,
+              so it falls back to navigating to the cart page. */}
+          <button
+            type="button"
+            className="subnav__cart"
+            data-testid="subnav-cart"
+            aria-label={t('nav.cart')}
+            onClick={() => (cartCount > 0 ? openCart(true) : navigate('/cart'))}
+          >
             <span className="ico ico-cart" aria-hidden />
             {cartCount > 0 ? (
               <span className="subnav__cart-badge" data-testid="subnav-cart-badge">
                 {cartCount}
               </span>
             ) : null}
-          </NavLink>
+          </button>
           <CartPopover />
         </div>
       </div>

@@ -26,6 +26,12 @@ export type CartReview = {
   orderChanged: boolean // a live price differs from what the cart showed, or rows were dropped
 }
 
+// sessionStorage key: the cart snapshot stashed when a buyer is sent to Stripe to top up mid-checkout
+// (the insufficient-funds → pack picker flow). It survives the full-page Stripe redirect (which wipes
+// the in-memory cart store); after the credits land, the /credits return handler routes back to /cart,
+// which restores this snapshot and resumes the checkout. Mirrors BuyModal's RESUME_BUY_KEY (per-item).
+export const RESUME_CART_KEY = 'dcl_shop_resume_cart'
+
 // Resolves an item to its current on-chain-signed trade, or null when there's no live listing.
 export type TradeResolver = (item: CatalogItem) => Promise<Trade | null>
 
