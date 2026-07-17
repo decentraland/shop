@@ -29,6 +29,13 @@ function friendlyError(e: unknown): string {
   return "Couldn't complete the purchase — please try again."
 }
 
+// True when an authorize failure means "not enough credits" (server 402 / insufficient) rather than
+// a genuine error — those route to the pack picker instead of the error state.
+function isInsufficient(e: unknown): boolean {
+  const err = e as { code?: number; status?: number; message?: string }
+  return err.code === 402 || err.status === 402 || (err.message ?? '').toLowerCase().includes('insufficient')
+}
+
 // The three top-up packs offered when the buyer is short on credits. The cheapest one that still
 // clears the shortfall is pre-selected. Packs come from the canonical shop catalogue.
 const OFFER_PACKS = CREDIT_PACKS.slice(0, 3)
@@ -53,6 +60,7 @@ export function BuyModal({ item, onClose }: { item: CatalogItem; onClose: () => 
   const [phase, setPhase] = useState<Phase>('loading')
   const [error, setError] = useState<string | null>(null)
   const [selectedPack, setSelectedPack] = useState<string>('')
+  const [itemCredits, setItemCredits] = useState(item.priceCredits)
   const [locked, setLocked] = useState<{
     trade: Trade
     credit: Awaited<ReturnType<typeof authorizeUsdCredit>>['credit']
@@ -62,7 +70,7 @@ export function BuyModal({ item, onClose }: { item: CatalogItem; onClose: () => 
   } | null>(null)
   const reservedCreditIdRef = useRef<string | null>(null)
 
-  const priceCredits = locked?.credits ?? item.priceCredits
+  const priceCredits = locked?.credits ?? itemCredits
   const balanceCredits = balance?.credits ?? 0
 
   // Step 1+2 on open: resolve the live trade, authorize, reserve the dollars → LOCK the price, then
@@ -74,6 +82,19 @@ export function BuyModal({ item, onClose }: { item: CatalogItem; onClose: () => 
       setError('Sign in to check out.')
       return
     }
+    // Route to the no-funds (pack picker) state: reserve nothing, prompt a top-up.
+    const goNoFunds = (credits: number) => {
+      const shortfall = credits - (balance?.credits ?? 0)
+      const cover = OFFER_PACKS.find(p => p.credits >= shortfall) ?? OFFER_PACKS[OFFER_PACKS.length - 1]
+      setSelectedPack(cover.id)
+      track('Shop Buy Credits Prompted', {
+        from: 'item_checkout',
+        credits_needed: credits,
+        credits_balance: balance?.credits ?? 0,
+        shortfall: Math.max(0, shortfall),
+      })
+      setPhase('nofunds')
+    }
     ;(async () => {
       try {
         const trade = await resolveLiveTrade(item)
@@ -81,31 +102,39 @@ export function BuyModal({ item, onClose }: { item: CatalogItem; onClose: () => 
         if (isOwnTrade(trade, session.address)) throw new Error("You can't buy your own listing.")
         const usdCents = usdWeiToCents((trade.received?.[0] as { amount?: string } | undefined)?.amount)
         if (!Number.isFinite(usdCents) || usdCents <= 0) throw new Error('price unavailable')
-        const { credit, maxCreditedValue, usdCents: lockedCents } = await authorizeUsdCredit(
-          session.identity,
-          usdCents,
-          trade.id
-        )
-        if (cancelled) {
-          void cancelUsdIntents(session.identity, [credit.id]).catch(() => {})
+        const credits = Math.ceil(usdCents / 10)
+        if (cancelled) return
+        setItemCredits(credits)
+        // Known-and-short → straight to the pack picker; don't reserve dollars we can't spend.
+        if (balance != null && balance.credits < credits) {
+          goNoFunds(credits)
           return
         }
-        reservedCreditIdRef.current = credit.id
-        const credits = Math.ceil(lockedCents / 10)
-        setLocked({ trade, credit, maxCreditedValue, usdCents: lockedCents, credits })
-        const enough = (balance?.credits ?? 0) >= credits
-        if (!enough) {
-          const shortfall = credits - (balance?.credits ?? 0)
-          const cover = OFFER_PACKS.find(p => p.credits >= shortfall) ?? OFFER_PACKS[OFFER_PACKS.length - 1]
-          setSelectedPack(cover.id)
-          track('Shop Buy Credits Prompted', {
-            from: 'item_checkout',
-            credits_needed: credits,
-            credits_balance: balance?.credits ?? 0,
-            shortfall: Math.max(0, shortfall),
-          })
+        // Enough (or balance unknown) → LOCK the price by authorizing the credit.
+        try {
+          const { credit, maxCreditedValue, usdCents: lockedCents } = await authorizeUsdCredit(
+            session.identity,
+            usdCents,
+            trade.id
+          )
+          if (cancelled) {
+            void cancelUsdIntents(session.identity, [credit.id]).catch(() => {})
+            return
+          }
+          reservedCreditIdRef.current = credit.id
+          const lockedCredits = Math.ceil(lockedCents / 10)
+          setItemCredits(lockedCredits)
+          setLocked({ trade, credit, maxCreditedValue, usdCents: lockedCents, credits: lockedCredits })
+          setPhase('ready')
+        } catch (authErr) {
+          if (cancelled) return
+          // Server said not enough credits → show the pack picker, not a bare error.
+          if (isInsufficient(authErr)) {
+            goNoFunds(credits)
+            return
+          }
+          throw authErr
         }
-        setPhase(enough ? 'ready' : 'nofunds')
       } catch (e) {
         if (cancelled) return
         track(isUserRejection(e) ? 'Shop Purchase Cancelled' : 'Shop Purchase Failed', {
