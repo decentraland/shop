@@ -68,7 +68,6 @@ vi.mock('ethers', async importOriginal => {
   }
 })
 
-// eslint-disable-next-line import/first
 import { login, restoreSession, logout, signInRedirect } from '~/lib/auth'
 
 const STORED_IDENTITY = { authChain: [{ type: 'SIGNER' }] }

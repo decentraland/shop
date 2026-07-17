@@ -16,8 +16,10 @@ export type { CreditPurchase, SpendableCredit } from '~/lib/trade-encoding'
 
 // ethers v5 `Contract` exposes dynamically-named ABI methods through an `any` index signature, so
 // reads come back untyped. Narrow each call site to the shape its ABI fragment actually returns.
-type AggregatorContract = ethers.Contract & {
+type OracleReaderContract = ethers.Contract & {
   manaUsdAggregator(): Promise<string>
+}
+type AggregatorContract = ethers.Contract & {
   decimals(): Promise<number>
   latestRoundData(): Promise<[ethers.BigNumber, ethers.BigNumber, ethers.BigNumber, ethers.BigNumber, ethers.BigNumber]>
 }
@@ -41,7 +43,7 @@ async function tradeManaPriceWei(trade: Trade): Promise<string> {
     market.address,
     ['function manaUsdAggregator() view returns (address)'],
     provider
-  ) as AggregatorContract
+  ) as OracleReaderContract
   const aggAddr = await mkt.manaUsdAggregator()
   const agg = new ethers.Contract(
     aggAddr,

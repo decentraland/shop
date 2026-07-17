@@ -16,7 +16,6 @@ vi.mock('decentraland-transactions', () => ({
 
 vi.mock('~/config', () => ({ config: { rpcUrl: 'http://localhost', chainId: 80002 } }))
 
-// eslint-disable-next-line import/first
 import {
   getOnChainTrade,
   buildAcceptCalldata,

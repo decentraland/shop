@@ -40,7 +40,6 @@ vi.mock('~/lib/credits', () => ({
   devMintUsd: vi.fn().mockResolvedValue({ id: 'test', usdCents: 2500, balanceCents: 2500, credits: 250 })
 }))
 
-// eslint-disable-next-line import/first
 import { GetCredits } from '~/pages/GetCredits'
 
 function renderPage(initialEntry = '/') {

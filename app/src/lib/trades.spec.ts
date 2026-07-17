@@ -76,7 +76,6 @@ vi.mock('ethers', async importOriginal => {
   }
 })
 
-// eslint-disable-next-line import/first
 import {
   valueForAsset,
   generateTradeValues,

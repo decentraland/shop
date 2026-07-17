@@ -67,7 +67,6 @@ vi.mock('ethers', async importOriginal => {
   }
 })
 
-// eslint-disable-next-line import/first
 import {
   GaslessUnavailableError,
   SettlementPendingError,
@@ -75,7 +74,6 @@ import {
   buyManyGasless,
   waitForSettlement
 } from '~/lib/buy-gasless'
-// eslint-disable-next-line import/first
 import type { CreditPurchase, SpendableCredit } from '~/lib/trade-encoding'
 
 const ADDR = (n: string) => '0x' + n.repeat(20)

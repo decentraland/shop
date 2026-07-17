@@ -35,7 +35,6 @@ vi.mock('~/lib/trades', () => ({
   createUsdPeggedListing: (...args: unknown[]) => createUsdPeggedListing(...args)
 }))
 
-// eslint-disable-next-line import/first
 import { fetchImportable, importListing, RelistFailedError, type ImportItem, type ImportListing } from '~/lib/import'
 
 const listing = (over: Partial<ImportListing> = {}): ImportListing => ({

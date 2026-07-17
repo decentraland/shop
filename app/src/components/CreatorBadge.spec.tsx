@@ -6,7 +6,6 @@ import { MemoryRouter } from 'react-router-dom'
 const { useProfile } = vi.hoisted(() => ({ useProfile: vi.fn() }))
 vi.mock('~/hooks/useProfile', () => ({ useProfile }))
 
-// eslint-disable-next-line import/first
 import { CreatorBadge } from './CreatorBadge'
 
 const ADDR = '0xabc0000000000000000000000000000000000001'

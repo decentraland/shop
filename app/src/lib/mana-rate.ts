@@ -19,8 +19,10 @@ export type ManaRate = { rate: bigint; decimals: number }
 
 // ethers v5 `Contract` returns `any` for dynamically-named ABI methods; narrow to the aggregator's
 // fragments so the round-data tuple reads below stay type-checked.
-type AggregatorContract = ethers.Contract & {
+type OracleReaderContract = ethers.Contract & {
   manaUsdAggregator(): Promise<string>
+}
+type AggregatorContract = ethers.Contract & {
   decimals(): Promise<number>
   latestRoundData(): Promise<[ethers.BigNumber, ethers.BigNumber, ethers.BigNumber, ethers.BigNumber, ethers.BigNumber]>
 }
@@ -43,7 +45,7 @@ export async function readManaUsdRate(chainId: number = config.chainId): Promise
     market.address,
     ['function manaUsdAggregator() view returns (address)'],
     provider
-  ) as AggregatorContract
+  ) as OracleReaderContract
   const aggAddr = await mkt.manaUsdAggregator()
   const agg = new ethers.Contract(
     aggAddr,

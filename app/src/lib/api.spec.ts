@@ -25,7 +25,6 @@ vi.mock('decentraland-dapps/dist/modules/trades/TradeService', () => ({
 
 // ethers stays REAL — toCredits() uses formatEther and usdWeiToCents() uses BigInt.
 
-// eslint-disable-next-line import/first
 import {
   usdWeiToCents,
   fetchCatalog,

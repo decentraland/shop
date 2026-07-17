@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 vi.mock('~/config', () => ({ config: { marketplaceServerUrl: 'http://mps.test', nftApiUrl: 'http://nft.test' } }))
 
-// eslint-disable-next-line import/first
 import { fetchCollection, fetchCollectionItems, fetchCreatorItems, fetchCreatorCollections } from '~/lib/collections'
 
 type RawItem = {
