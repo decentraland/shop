@@ -15,8 +15,8 @@ describe('favorite an item', () => {
     await waitForText(page, 'Galaxy Hat')
 
     // Heart the first card.
-    await page.waitForSelector('.card__fav', { timeout: 15000 })
-    await page.click('.card__fav')
+    await page.waitForSelector('[data-testid="card-fav"]', { timeout: 15000 })
+    await page.click('[data-testid="card-fav"]')
 
     // It persists (localStorage) → shows on the favorites page after navigating.
     await page.goto(`${BASE}/my-favorites`, { waitUntil: 'networkidle2', timeout: 45000 })

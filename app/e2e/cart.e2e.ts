@@ -20,7 +20,7 @@ describe('cart checkout', () => {
     await waitForText(page, 'In cart')
 
     // Go to the cart (client-side nav keeps the cart state) and check out.
-    await page.click('.subnav__cart')
+    await page.click('[data-testid="subnav-cart"]')
     await waitForText(page, 'Checkout')
     await waitForText(page, 'Nebula Jacket')
     expect(await clickByText(page, 'button', /^checkout$/i)).toBe(true)

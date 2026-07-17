@@ -15,13 +15,13 @@ describe('browse when the catalog fetch fails', () => {
     app = await launchApp({ path: '/assets', errors: { '/v3/catalog/unified': { status: 500 } } })
     const { page } = app
 
-    await page.waitForSelector('.error', { timeout: 20000 })
+    await page.waitForSelector('[data-testid="browse-error"]', { timeout: 20000 })
     await waitForText(page, 'load items')
 
     // The raw fetch error must NOT leak to the user (web2 convention).
     expect(await bodyText(page)).not.toContain('fetchUnified')
 
     // The grid never populated with real cards.
-    expect(await page.evaluate(() => document.querySelectorAll('.card:not(.card--skeleton)').length)).toBe(0)
+    expect(await page.evaluate(() => document.querySelectorAll('[data-testid="card"]').length)).toBe(0)
   })
 })

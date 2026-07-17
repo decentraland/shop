@@ -15,7 +15,7 @@ describe('unmatched / malformed routes', () => {
     await waitForText(page, 'Page not found')
     await waitForText(page, 'Browse Collectibles')
     // The blank-page bug is gone: there's real content, not an empty <main>.
-    expect(await page.evaluate(() => document.querySelector('.notfound') !== null)).toBe(true)
+    expect(await page.evaluate(() => document.querySelector('[data-testid="notfound"]') !== null)).toBe(true)
   })
 
   it('renders NotFound for a malformed item deep link (no id segment)', async () => {

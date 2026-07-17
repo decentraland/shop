@@ -143,7 +143,7 @@ export function MigrateModal({
 
   return (
     <div className="modal-backdrop" role="presentation">
-      <div className="modal migrate" role="dialog" aria-modal="true" aria-live="polite">
+      <div className="modal migrate" data-testid="modal" role="dialog" aria-modal="true" aria-live="polite">
         <h2 className="modal__title">Listing your items</h2>
         <p className="muted small" style={{ margin: '0 0 4px' }}>
           {showsConfirmations
