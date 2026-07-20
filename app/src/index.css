@@ -336,7 +336,8 @@ h2 {
   align-items: center;
   gap: 24px;
   height: 66px;
-  padding: 0 40px;
+  /* 54px matches the ui2 Navbar's desktop side padding so the sub-nav aligns with the top nav. */
+  padding: 0 54px;
   background: #fff;
   border-bottom: 1px solid var(--line);
 }
@@ -509,7 +510,9 @@ h2 {
 
 /* ---------------- Page ---------------- */
 .page {
-  padding: 28px 40px 80px;
+  /* 54px side gutter matches the ui2 Navbar's desktop padding (16px 54px, full-width) so the shop
+     content lines up with the top nav instead of sitting ~14px wider. Mobile matches its 16px below. */
+  padding: 28px 54px 80px;
   max-width: 1760px;
   margin: 0 auto;
   width: 100%;
@@ -663,6 +666,9 @@ h2 {
   font-size: 15px;
   letter-spacing: 0.046em;
   text-transform: uppercase;
+}
+.row__viewall:hover {
+  text-decoration: underline;
 }
 .row__track {
   display: flex;
