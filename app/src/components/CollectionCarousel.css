@@ -63,8 +63,11 @@
   transition: transform .15s ease, filter .15s ease, opacity .15s ease;
 }
 .collection-carousel__arrow img { display: block; width: 100%; height: 100%; }
-.collection-carousel__arrow--left { left: -40px; }
-.collection-carousel__arrow--right { right: -40px; }
+/* Sit the 53px arrows in the page gutter (aligned to the nav's 54px), not over the cards — at -40px
+   their inner edge landed ~13px onto the first/last card (Figma 1179-172512: arrows live beside the
+   rail, not on it). */
+.collection-carousel__arrow--left { left: -53px; }
+.collection-carousel__arrow--right { right: -53px; }
 .collection-carousel__arrow--left img { transform: scaleX(-1); }
 .collection-carousel__arrow:hover:not(:disabled) { transform: translateY(-50%) scale(1.07); }
 .collection-carousel__arrow:disabled { opacity: 0; pointer-events: none; }
