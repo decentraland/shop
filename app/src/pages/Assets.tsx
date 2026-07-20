@@ -12,6 +12,7 @@ import { LoadMore } from '~/components/LoadMore'
 import { MarketCheckout } from '~/components/MarketCheckout'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
+import { useSeo } from '~/hooks/useSeo'
 import { SUBCAT_MAP } from '~/lib/categories'
 import { track } from '~/lib/analytics'
 import { t } from '~/intl/i18n'
@@ -56,6 +57,15 @@ export function Assets() {
   const [searchParams] = useSearchParams()
   const q = (searchParams.get('q') ?? '').trim().toLowerCase()
   const qc = useQueryClient()
+
+  // Collectibles grid SEO. Fold the (case-preserved) search term into the title when present; the
+  // description stays generic. Canonical/og:url naturally drop the ?q= (the hook uses the pathname),
+  // so search variants collapse onto /assets. Indexable.
+  const rawQuery = (searchParams.get('q') ?? '').trim()
+  useSeo({
+    title: rawQuery ? t('seo.collectibles.searchTitle', { query: rawQuery }) : t('seo.collectibles.title'),
+    description: t('seo.collectibles.description')
+  })
 
   const [category, setCategory] = useState('wearable')
   const [subCategory, setSubCategory] = useState<string | null>(null)

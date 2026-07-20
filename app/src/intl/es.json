@@ -578,5 +578,34 @@
   "bodyShape": {
     "male": "Masculino",
     "female": "Femenino"
+  },
+  "seo": {
+    "collectibles": {
+      "title": "Explorar coleccionables",
+      "searchTitle": "Resultados para «{query}»",
+      "description": "Explora miles de wearables y emotes para tu avatar de Decentraland. Filtra por categoría, rareza y precio para encontrar tu próximo look."
+    },
+    "item": {
+      "notFoundTitle": "Artículo no disponible",
+      "fallbackDescription": "{name}: {rarity} {category} de {creator} en la Decentraland Shop."
+    },
+    "collection": {
+      "description": "Explora todos los wearables y emotes de la colección {name} en la Decentraland Shop."
+    },
+    "creator": {
+      "description": "Descubre wearables y emotes de {name} en la Decentraland Shop."
+    },
+    "import": {
+      "title": "Importar artículos"
+    },
+    "storeSettings": {
+      "title": "Configuración de la tienda"
+    },
+    "success": {
+      "title": "Compra completada"
+    },
+    "notFound": {
+      "title": "Página no encontrada"
+    }
   }
 }

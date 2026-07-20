@@ -16,6 +16,7 @@ import {
 import { COVER_TEMPLATES } from '~/lib/creator-covers'
 import { Spinner } from '~/components/Spinner'
 import { toast } from '~/store/toast'
+import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
 import './store-settings.css'
 
@@ -37,6 +38,7 @@ function mb(bytes: number): string {
 // cover, description and social links, then deploys the store entity (see lib/store.saveStore). Only
 // the signed-in creator edits their OWN store, so everything is scoped to session.address.
 export function StoreSettings() {
+  useSeo({ title: t('seo.storeSettings.title'), noindex: true })
   const { session, signIn } = useWallet()
   const navigate = useNavigate()
   const qc = useQueryClient()

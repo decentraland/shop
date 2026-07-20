@@ -17,6 +17,9 @@ import {
 import { BuyModal } from '~/components/BuyModal'
 import { MarketCheckout } from '~/components/MarketCheckout'
 import { useManaRate } from '~/hooks/useManaRate'
+import { useSeo } from '~/hooks/useSeo'
+import { shortAddress } from '~/lib/address'
+import { t } from '~/intl/i18n'
 import { fetchCollectionItems, fetchCollection } from '~/lib/collections'
 import { ItemPreview } from '~/components/ItemPreview'
 import { CollectionCarousel } from '~/components/CollectionCarousel'
@@ -31,7 +34,6 @@ import { useSaleActive } from '~/hooks/useSaleActive'
 import { track, itemProps } from '~/lib/analytics'
 import { recordViewed } from '~/lib/recently-viewed'
 import { isOwnListing } from '~/lib/ownership'
-import { t } from '~/intl/i18n'
 import './item-detail.css'
 
 function isValidRarity(r: string): r is Rarity {
@@ -321,7 +323,35 @@ export function ItemDetail() {
   // legacy/market piece). Once every resolution path has settled and there's still no name, show a
   // graceful not-found instead of a permanent "Loading…" blank.
   const stillResolving = deepLinkLoading || (!!current.contractAddress && !siblingsFetched)
-  if (!current.name && !stillResolving) {
+  const notFound = !current.name && !stillResolving
+
+  // Per-page SEO. Called unconditionally (before the not-found early return) so hook order stays stable
+  // across renders. The title is set ONLY once the item hydrates (`current.name`) so a deep-link/refresh
+  // stub never flashes a misleading title; the not-found state sets its own title and is de-indexed. The
+  // description prefers the item's real long description, else a generated fallback. og:image uses the
+  // item thumbnail only when it's an absolute URL — otherwise the hook falls back to the default image.
+  const thumbAbsolute = /^https?:\/\//i.test(current.thumbnail)
+  useSeo(
+    notFound
+      ? { title: t('seo.item.notFoundTitle'), noindex: true }
+      : current.name
+        ? {
+            title: current.name,
+            description:
+              description ||
+              t('seo.item.fallbackDescription', {
+                name: current.name,
+                rarity: current.rarity,
+                category: categoryLabel(current),
+                creator: shortAddress(current.creator)
+              }),
+            image: thumbAbsolute ? current.thumbnail : undefined,
+            type: 'product'
+          }
+        : {}
+  )
+
+  if (notFound) {
     return (
       <div className="item-detail item-detail--notfound">
         <span className="ico ico-cart item-detail__notfound-ico" aria-hidden />

@@ -7,6 +7,7 @@ import { toast } from '~/store/toast'
 import { MigrateModal, type MigrateEntry } from '~/components/MigrateModal'
 import { CURRENCY } from '~/lib/currency'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
+import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
 import '~/styles/import.css'
 
@@ -24,6 +25,7 @@ const SECTIONS = [
 ]
 
 export function ImportListings() {
+  useSeo({ title: t('seo.import.title'), noindex: true })
   const { session, signIn, restore } = useWallet()
   const qc = useQueryClient()
   const address = session?.address

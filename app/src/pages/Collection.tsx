@@ -12,6 +12,7 @@ import { AddAllToCart } from '~/components/AddAllToCart'
 import { SkeletonCards } from '~/components/SkeletonCards'
 import { LoadMore } from '~/components/LoadMore'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
+import { useSeo } from '~/hooks/useSeo'
 import { SUBCAT_MAP } from '~/lib/categories'
 import { CURRENCY } from '~/lib/currency'
 import './collection.css'
@@ -65,6 +66,12 @@ export function Collection() {
   })
 
   const title = collection?.name || t('collection.fallbackTitle')
+  // Per-page SEO — title/description track the collection name once its metadata resolves (until then
+  // the hook's site default applies). Indexable.
+  useSeo({
+    title: collection?.name,
+    description: collection?.name ? t('seo.collection.description', { name: collection.name }) : undefined
+  })
   // Prefer the collection's own creator; fall back to an item's creator until the metadata loads.
   const creator = collection?.creator || items[0]?.creator
 
