@@ -15,18 +15,19 @@ import { buyGasless, waitForSettlement, GaslessUnavailableError, SettlementPendi
 import { gaslessEnabled } from '~/lib/gasless-config'
 import { isOwnTrade } from '~/lib/ownership'
 import { t } from '~/intl/i18n'
+import { isRejection } from '~/lib/errors'
+import { ErrorNotice } from '~/components/ErrorNotice'
 
+// Market-specific mapping: keeps the "…Refreshing the market…" sold-out copy (the market view
+// refetches live prices on this failure), so it maps locally rather than via the shared soldOrRemoved.
 function friendlyError(e: unknown): string {
-  const err = e as { code?: number; message?: string }
-  const msg = (err.message ?? '').toLowerCase()
-  if (err.code === 4001 || msg.includes('reject') || msg.includes('denied') || msg.includes('cancel')) {
-    return t('getCredits.errorCanceled')
-  }
+  if (isRejection(e)) return t('errors.rejected')
+  const msg = ((e as { message?: string }).message ?? '').toLowerCase()
   if (msg.includes('insufficient')) return t('marketCheckout.error.insufficient', { currency: CURRENCY.name })
   if (msg.includes('not found') || msg.includes('no active listing') || msg.includes('404')) {
     return t('marketCheckout.error.soldOrRemoved')
   }
-  if (msg.includes('your own listing')) return t('buyModal.error.cantBuyOwn')
+  if (msg.includes('your own listing')) return t('errors.cantBuyOwn')
   return t('marketCheckout.error.generic')
 }
 
@@ -307,7 +308,7 @@ export function MarketCheckout({
           <p className="muted mkt-modal__note">{t('marketCheckout.needMore', { currency: CURRENCY.name })}</p>
         ) : null}
         {status && phase === 'working' ? <p className="muted mkt-modal__note">{status}</p> : null}
-        {error ? <p className="error mkt-modal__note">{error}</p> : null}
+        <ErrorNotice message={error} className="mkt-modal__note" />
 
         <div className="mkt-modal__actions">
           <button className="btn btn--ghost" onClick={cancel} disabled={busy}>

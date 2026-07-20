@@ -14,17 +14,10 @@ import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import { track, errorCode } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
 import { t } from '~/intl/i18n'
+import { friendlyError } from '~/lib/errors'
+import { ErrorNotice } from '~/components/ErrorNotice'
 
 const SIX_MONTHS_MS = 1000 * 60 * 60 * 24 * 182
-
-function friendlyError(e: unknown): string {
-  const err = e as { code?: number; message?: string }
-  const msg = (err.message ?? '').toLowerCase()
-  if (err.code === 4001 || msg.includes('reject') || msg.includes('denied') || msg.includes('cancel')) {
-    return t('getCredits.errorCanceled')
-  }
-  return t('primaryList.errorGeneric')
-}
 
 export function PrimaryListModal({
   item,
@@ -116,7 +109,7 @@ export function PrimaryListModal({
     } catch (e) {
       captureError(e, { flow: 'list_primary' })
       track('Shop Listing Failed', { listing_type: 'primary', error_code: errorCode(e) })
-      setError(friendlyError(e))
+      setError(friendlyError(e, t('primaryList.errorGeneric')))
       setStatus(null)
     } finally {
       setBusy(false)
@@ -212,7 +205,7 @@ export function PrimaryListModal({
         ) : null}
 
         {status ? <p className="muted">{status}</p> : null}
-        {error ? <p className="error">{error}</p> : null}
+        <ErrorNotice message={error} />
 
         <div className="modal__actions">
           <button className="btn btn--ghost" onClick={onClose} disabled={busy}>

@@ -18,26 +18,8 @@ import { isOwnTrade } from '~/lib/ownership'
 import { CREDIT_PACKS, createPackCheckout } from '~/lib/payments'
 import { RESUME_BUY_KEY } from '~/lib/resume-buy'
 import { t } from '~/intl/i18n'
-
-function friendlyError(e: unknown): string {
-  const err = e as { code?: number; message?: string }
-  const msg = (err.message ?? '').toLowerCase()
-  if (err.code === 4001 || msg.includes('reject') || msg.includes('denied') || msg.includes('cancel')) {
-    return t('getCredits.errorCanceled')
-  }
-  if (msg.includes('not for sale') || msg.includes('not found') || msg.includes('404')) {
-    return t('buyModal.error.soldOrRemoved')
-  }
-  if (msg.includes('your own listing')) return t('buyModal.error.cantBuyOwn')
-  return t('buyModal.error.generic')
-}
-
-// True when an authorize failure means "not enough credits" (server 402 / insufficient) rather than
-// a genuine error — those route to the pack picker instead of the error state.
-function isInsufficient(e: unknown): boolean {
-  const err = e as { code?: number; status?: number; message?: string }
-  return err.code === 402 || err.status === 402 || (err.message ?? '').toLowerCase().includes('insufficient')
-}
+import { friendlyError, isInsufficient } from '~/lib/errors'
+import { ErrorNotice } from '~/components/ErrorNotice'
 
 // The three top-up packs offered when the buyer is short on credits. The cheapest one that still
 // clears the shortfall is pre-selected. Packs come from the canonical shop catalogue.
@@ -158,7 +140,7 @@ export function BuyModal({
           error_code: errorCode(e),
         })
         setPhase('error')
-        setError(friendlyError(e))
+        setError(friendlyError(e, t('buyModal.error.generic'), { sale: true }))
       }
     })()
     return () => {
@@ -220,7 +202,7 @@ export function BuyModal({
         error_code: errorCode(e),
       })
       void qc.invalidateQueries({ queryKey: ['usd-balance'] })
-      setError(friendlyError(e))
+      setError(friendlyError(e, t('buyModal.error.generic'), { sale: true }))
       setPhase('error')
     }
   }
@@ -300,7 +282,7 @@ export function BuyModal({
         {/* Error */}
         {phase === 'error' && (
           <div className="buy-modal__body">
-            <p className="buy-modal__error">{error}</p>
+            <ErrorNotice message={error} />
             <div className="buy-modal__ctas">
               <button className="buy-modal__btn buy-modal__btn--gradient" onClick={onClose}>
                 {t('buyModal.close')}

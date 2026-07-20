@@ -1,4 +1,10 @@
 {
+  "errors": {
+    "rejected": "You cancelled the request.",
+    "insufficient": "You don't have enough {currency} — get more first.",
+    "soldOrRemoved": "This item was just sold or removed.",
+    "cantBuyOwn": "You can't buy your own listing."
+  },
   "nav": {
     "overview": "Overview",
     "collectibles": "Collectibles",
@@ -219,8 +225,6 @@
     "tryInWorld": "Try in world",
     "itemFallback": "Item",
     "error": {
-      "soldOrRemoved": "This item was just sold or removed.",
-      "cantBuyOwn": "You can't buy your own listing.",
       "generic": "Couldn't complete the purchase — please try again.",
       "creditsCheckout": "Couldn't start the credits checkout — please try again."
     }

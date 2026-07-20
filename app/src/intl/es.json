@@ -1,4 +1,10 @@
 {
+  "errors": {
+    "rejected": "Cancelaste la solicitud.",
+    "insufficient": "No tienes suficientes {currency}. Consigue más primero.",
+    "soldOrRemoved": "Este artículo acaba de venderse o eliminarse.",
+    "cantBuyOwn": "No puedes comprar tu propia publicación."
+  },
   "nav": {
     "overview": "Inicio",
     "collectibles": "Coleccionables",
@@ -219,8 +225,6 @@
     "tryInWorld": "Probar en el mundo",
     "itemFallback": "Artículo",
     "error": {
-      "soldOrRemoved": "Este artículo acaba de venderse o eliminarse.",
-      "cantBuyOwn": "No puedes comprar tu propia publicación.",
       "generic": "No pudimos completar la compra. Inténtalo de nuevo.",
       "creditsCheckout": "No pudimos iniciar el pago de créditos. Inténtalo de nuevo."
     }

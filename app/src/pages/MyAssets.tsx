@@ -18,6 +18,7 @@ import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { track } from '~/lib/analytics'
 import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
+import { ErrorNotice } from '~/components/ErrorNotice'
 import '~/styles/my-listings.css'
 
 const PAGE_SIZE = 48
@@ -188,7 +189,7 @@ export function MyAssets() {
             {t('storeSettings.signIn')}
           </button>
         </div>
-        {error ? <p className="error">{error}</p> : null}
+        <ErrorNotice message={error} />
       </section>
     )
   }
@@ -217,8 +218,8 @@ export function MyAssets() {
           <p className="myassets__section-sub">{t('myAssets.ownedSub')}</p>
         </div>
 
-        {queryError ? <p className="error">{t('myAssets.ownedError')}</p> : null}
-        {cancelError ? <p className="error">{cancelError}</p> : null}
+        {queryError ? <ErrorNotice message={t('myAssets.ownedError')} /> : null}
+        <ErrorNotice message={cancelError} />
 
         <div className="asset-grid">
           {isLoading
