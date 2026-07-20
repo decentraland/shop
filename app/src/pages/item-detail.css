@@ -574,18 +574,6 @@
   gap: 12px;
   margin-top: 20px;
 }
-.item-detail__cta {
-  width: 100%;
-  height: 48px;
-  border-radius: 8px;
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: 0.46px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-}
 /* Price inside the Buy-now button: hidden on desktop, shown in the mobile sticky bar (Figma 1182-194973). */
 .item-detail__cta-price {
   display: none;
@@ -700,10 +688,6 @@
     flex-direction: row;
     align-items: stretch;
     gap: 12px;
-  }
-  .item-detail__ctas--dual .item-detail__cta {
-    flex: 1 1 auto;
-    width: auto;
   }
   .item-detail__ctas--dual .item-detail__cta-price {
     display: inline-flex;

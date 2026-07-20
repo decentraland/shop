@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
+import { Button } from '~/components/Button'
+import styled from '@emotion/styled'
 import { CircularProgress } from 'decentraland-ui2'
 import { useWallet } from '~/store/wallet'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
@@ -22,6 +24,14 @@ import {
 // Live Stripe when real payments are configured; otherwise the built-in mock (dev). Single source of
 // truth via isMockPayments() (which gates on the publishable key) — don't reimplement the gate here.
 const CREDITS_PROVIDER = isMockPayments() ? 'mock' : 'stripe'
+
+const PayBtn = styled(Button)`
+  && {
+    margin-top: 6px;
+    padding: 14px;
+    font-size: 14px;
+  }
+`
 
 type Phase = 'select' | 'paying' | 'processing' | 'success' | 'error' | 'pending'
 
@@ -237,9 +247,9 @@ export function GetCredits() {
           <p className="getcredits__status-title">Sign in to get {CURRENCY.name}</p>
           <p className="muted">Connect your account to buy {CURRENCY.name} and start shopping.</p>
           <div className="getcredits__status-actions">
-            <button className="btn btn--purple" onClick={signIn}>
+            <Button variant="purple" onClick={signIn}>
               Sign in
-            </button>
+            </Button>
           </div>
         </div>
       ) : (
@@ -280,12 +290,10 @@ export function GetCredits() {
                 {CURRENCY.name} added to your account.
               </p>
               <div className="getcredits__status-actions">
-                <button className="btn" onClick={() => navigate('/cart')}>
-                  Back to cart
-                </button>
-                <button className="btn btn--ghost" onClick={reset}>
+                <Button onClick={() => navigate('/cart')}>Back to cart</Button>
+                <Button variant="ghost" onClick={reset}>
                   Get more {CURRENCY.name}
-                </button>
+                </Button>
               </div>
             </div>
           )}
@@ -298,12 +306,10 @@ export function GetCredits() {
                 update automatically as soon as it lands, no need to pay again.
               </p>
               <div className="getcredits__status-actions">
-                <button className="btn" onClick={() => navigate('/cart')}>
-                  Back to cart
-                </button>
-                <button className="btn btn--ghost" onClick={reset}>
+                <Button onClick={() => navigate('/cart')}>Back to cart</Button>
+                <Button variant="ghost" onClick={reset}>
                   Done
-                </button>
+                </Button>
               </div>
             </div>
           )}
@@ -313,9 +319,7 @@ export function GetCredits() {
               <p className="getcredits__status-title">Something went wrong</p>
               <p className="error">{error}</p>
               <div className="getcredits__status-actions">
-                <button className="btn" onClick={reset}>
-                  Try again
-                </button>
+                <Button onClick={reset}>Try again</Button>
               </div>
             </div>
           )}
@@ -426,9 +430,9 @@ function MockCardForm({ onPaid, amountUsd }: { onPaid: () => void; amountUsd: nu
           <input defaultValue="123" disabled={busy} inputMode="numeric" />
         </label>
       </div>
-      <button className="btn btn--purple card-form__pay" onClick={pay} disabled={busy}>
+      <PayBtn variant="purple" onClick={pay} disabled={busy}>
         {busy ? 'Processing…' : `Pay $${amountUsd}`}
-      </button>
+      </PayBtn>
     </div>
   )
 }

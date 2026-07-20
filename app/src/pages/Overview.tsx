@@ -18,6 +18,14 @@ const EmptyCta = styled(Button)`
   margin-top: 10px;
 `
 
+// Figma hero CTA: the purple button trimmed to the 40px hero spec.
+const HeroCta = styled(Button)`
+  height: 40px;
+  padding: 0 16px;
+  display: inline-flex;
+  align-items: center;
+`
+
 const SKELETON_COUNT = 6
 
 // Horizontal card rail (Figma nodes 913:135571 "Featured Products" / 913:135593 "New Creations").
@@ -139,9 +147,9 @@ export function Overview() {
         <div className="ov-hero__scrim" aria-hidden />
         <div className="ov-hero__inner">
           <h1 className="ov-hero__title">Fashion week outfits</h1>
-          <Link className="btn btn--purple ov-hero__cta" to="/assets">
+          <HeroCta as={Link} to="/assets" variant="purple">
             Explore collection
-          </Link>
+          </HeroCta>
         </div>
       </section>
 

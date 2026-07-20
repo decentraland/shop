@@ -109,12 +109,6 @@
   font-size: 12px;
 }
 
-/* Reuse the .btn look; full-width CTA inside the card. */
-.publish-card__cta {
-  margin-top: auto;
-  width: 100%;
-}
-
 /* Empty / loading states. */
 .publish-empty {
   color: var(--muted);
@@ -193,12 +187,6 @@
 .publish-card--link > button:not(.card-link-overlay) {
   position: relative;
   z-index: 2;
-}
-
-/* "Remove listing" sits under the on-sale row; keep it visually secondary. */
-.asset-card__remove {
-  margin-top: 8px;
-  width: 100%;
 }
 
 /* "On sale" created items: price + badge instead of a Put-on-sale button. */

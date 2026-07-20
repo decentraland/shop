@@ -6,6 +6,8 @@ import { useWallet } from '~/store/wallet'
 import { useProfile } from '~/hooks/useProfile'
 import { config } from '~/config'
 import { SuccessAnimation } from '~/components/SuccessAnimation'
+import { Button } from '~/components/Button'
+import styled from '@emotion/styled'
 import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import { avatarShape, dominantShape, isCompatible, BASE_MALE } from '~/lib/bodyShape'
 import { itemUrn } from '~/lib/urn'
@@ -25,6 +27,11 @@ import type { CatalogItem } from '~/lib/api'
 type Settlement = 'pending' | 'indexing' | 'confirmed' | 'failed' | 'timed-out'
 
 type OwnershipCheck = { owner: string; contractAddress: string; itemId: string }
+
+const SuccessBtn = styled(Button)`
+  min-width: 160px;
+  text-align: center;
+`
 
 const delay = (ms: number) => new Promise<void>(r => setTimeout(r, ms))
 
@@ -219,12 +226,12 @@ export function Success() {
               ) : null}
             </div>
             <div className="success__actions">
-              <button className="btn btn--purple" onClick={() => navigate('/my-purchases')}>
+              <SuccessBtn variant="purple" onClick={() => navigate('/my-purchases')}>
                 View my purchases
-              </button>
-              <button className="btn btn--ghost" onClick={() => navigate('/assets')}>
+              </SuccessBtn>
+              <SuccessBtn variant="ghost" onClick={() => navigate('/assets')}>
                 Keep shopping
-              </button>
+              </SuccessBtn>
             </div>
           </>
         ) : settlement === 'failed' ? (
@@ -242,9 +249,9 @@ export function Success() {
               ) : null}
             </div>
             <div className="success__actions">
-              <button className="btn btn--purple" onClick={() => navigate('/assets')}>
+              <SuccessBtn variant="purple" onClick={() => navigate('/assets')}>
                 Back to shop
-              </button>
+              </SuccessBtn>
             </div>
           </>
         ) : (
@@ -278,12 +285,12 @@ export function Success() {
             </div>
 
             <div className="success__actions">
-              <a className="btn btn--purple" href={JUMP_URL} target="_blank" rel="noreferrer">
+              <SuccessBtn as="a" href={JUMP_URL} target="_blank" rel="noreferrer" variant="purple">
                 Use it in-world
-              </a>
-              <button className="btn btn--ghost" onClick={() => navigate('/assets')}>
+              </SuccessBtn>
+              <SuccessBtn variant="ghost" onClick={() => navigate('/assets')}>
                 Keep shopping
-              </button>
+              </SuccessBtn>
             </div>
           </>
         )}

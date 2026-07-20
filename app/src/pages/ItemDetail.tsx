@@ -14,6 +14,7 @@ import { CollectionCarousel } from '~/components/CollectionCarousel'
 import { CreatorBadge } from '~/components/CreatorBadge'
 import { Button } from '~/components/Button'
 import styled from '@emotion/styled'
+import { theme } from '~/styles/theme'
 import { CollectionBadge } from '~/components/CollectionBadge'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { SaleCountdown } from '~/components/SaleCountdown'
@@ -28,6 +29,30 @@ import './item-detail.css'
 
 const NotFoundCta = styled(Button)`
   margin-top: 6px;
+`
+
+// The PDP Buy-now CTA: full-width, taller, its own type scale. `&&` so font-size/letter-spacing win
+// over the purple variant's data-variant rules. In the mobile sticky bar it sits beside the cart
+// square (the `--dual` parent), where it flexes to share the row.
+const DetailCta = styled(Button)`
+  && {
+    width: 100%;
+    height: 48px;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.46px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  ${theme.media.down('lg')} {
+    .item-detail__ctas--dual && {
+      flex: 1 1 auto;
+      width: auto;
+    }
+  }
 `
 
 function isValidRarity(r: string): r is Rarity {
@@ -399,17 +424,13 @@ export function ItemDetail() {
             ) : (
               <>
                 {forSale ? (
-                  <button
-                    className="btn btn--purple item-detail__cta"
-                    onClick={() => setShowBuy(true)}
-                    disabled={resolvingTrade}
-                  >
+                  <DetailCta variant="purple" onClick={() => setShowBuy(true)} disabled={resolvingTrade}>
                     <span className="item-detail__cta-label">Buy now</span>
                     <span className="item-detail__cta-price" aria-hidden>
                       <CurrencyIcon className="item-detail__cta-diamond" />
                       {current.priceCredits}
                     </span>
-                  </button>
+                  </DetailCta>
                 ) : null}
                 <button
                   className="item-detail__addcart"

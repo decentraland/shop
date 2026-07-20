@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type MouseEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { Button } from '~/components/Button'
+import styled from '@emotion/styled'
 import { config } from '~/config'
 import { useWallet } from '~/store/wallet'
 import { fetchCollectionSaleState, fetchMyAssets, fetchTrade, type CatalogItem, type MyAsset } from '~/lib/api'
@@ -17,6 +19,16 @@ import { CURRENCY } from '~/lib/currency'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { track } from '~/lib/analytics'
 import '~/styles/my-listings.css'
+
+const RemoveBtn = styled(Button)`
+  margin-top: 8px;
+  width: 100%;
+`
+
+const PublishCta = styled(Button)`
+  margin-top: auto;
+  width: 100%;
+`
 
 const PAGE_SIZE = 48
 
@@ -181,9 +193,9 @@ export function MyAssets() {
         <h1>My Assets</h1>
         <p className="muted">Sign in to sell your items.</p>
         <div className="connect-row">
-          <button className="btn btn--purple" onClick={() => signIn()}>
+          <Button variant="purple" onClick={() => signIn()}>
             Sign in
-          </button>
+          </Button>
         </div>
         {error ? <p className="error">{error}</p> : null}
       </section>
@@ -247,20 +259,21 @@ export function MyAssets() {
                         </span>
                         <span className="badge">On sale</span>
                       </div>
-                      <button
-                        className="btn btn--sm btn--ghost asset-card__remove"
+                      <RemoveBtn
+                        size="sm"
+                        variant="ghost"
                         disabled={cancelling === asset.id || !asset.tradeId}
-                        onClick={e => {
+                        onClick={(e: MouseEvent) => {
                           e.stopPropagation()
                           if (asset.tradeId) void cancelByTrade(asset.tradeId, asset.name, asset.id)
                         }}
                       >
                         {cancelling === asset.id ? 'Removing…' : 'Remove listing'}
-                      </button>
+                      </RemoveBtn>
                     </>
                   ) : (
-                    <button
-                      className="btn btn--sm"
+                    <Button
+                      size="sm"
                       onClick={e => {
                         e.stopPropagation()
                         track('Shop Started Listing', {
@@ -271,7 +284,7 @@ export function MyAssets() {
                       }}
                     >
                       Put on sale
-                    </button>
+                    </Button>
                   )}
                 </article>
               ))}
@@ -338,17 +351,18 @@ export function MyAssets() {
                         </span>
                         <span className="badge">On sale</span>
                       </div>
-                      <button
-                        className="btn btn--sm btn--ghost publish-card__cta"
+                      <PublishCta
+                        size="sm"
+                        variant="ghost"
                         disabled={cancelling === item.id}
-                        onClick={e => {
+                        onClick={(e: MouseEvent) => {
                           e.stopPropagation()
                           const sale = saleFor(item)
                           if (sale?.tradeId) void cancelByTrade(sale.tradeId, item.name, item.id)
                         }}
                       >
                         {cancelling === item.id ? 'Removing…' : 'Remove listing'}
-                      </button>
+                      </PublishCta>
                     </article>
                   ))}
                 </div>
@@ -380,16 +394,17 @@ export function MyAssets() {
                         <span className="publish-chip publish-chip--rarity">{item.rarity}</span>
                         <span className="publish-card__supply">{item.remainingSupply.toLocaleString()} available</span>
                       </div>
-                      <button
-                        className="btn btn--sm btn--purple publish-card__cta"
-                        onClick={e => {
+                      <PublishCta
+                        size="sm"
+                        variant="purple"
+                        onClick={(e: MouseEvent) => {
                           e.stopPropagation()
                           track('Shop Started Listing', { listing_type: 'primary', item_id: item.blockchainItemId })
                           setPublishing(item)
                         }}
                       >
                         Put on sale
-                      </button>
+                      </PublishCta>
                     </article>
                   ))}
                 </div>

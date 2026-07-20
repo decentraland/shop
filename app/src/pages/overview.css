@@ -52,13 +52,6 @@
   line-height: 1.235;
   text-transform: uppercase;
 }
-/* Figma hero CTA: amethyst gradient, 40px tall (reuses .btn.btn--purple, trimmed to the 40px spec). */
-.ov-hero__cta {
-  height: 40px;
-  padding: 0 16px;
-  display: inline-flex;
-  align-items: center;
-}
 @media (max-width: 768px) {
   .ov-hero {
     aspect-ratio: auto;

@@ -502,61 +502,7 @@ h2 {
   min-height: 46vh;
 }
 
-/* ---------------- Buttons ---------------- */
-.btn {
-  border: 0;
-  border-radius: var(--radius-btn);
-  padding: 12px 22px;
-  font-weight: 700;
-  font-size: 15px;
-  background: var(--black-btn);
-  color: #fff;
-  transition:
-    background 0.15s ease,
-    filter 0.15s ease,
-    transform 0.12s ease;
-}
-.btn:disabled {
-  opacity: 0.55;
-  cursor: default;
-}
-/* Primary CTA = Amethyst gradient (Figma "Add to cart" primary), solid purple on hover/press. */
-.btn--purple {
-  background: var(--amethyst);
-  color: var(--soft-white);
-  text-transform: uppercase;
-  letter-spacing: 0.046em;
-  font-size: 13px;
-}
-.btn--purple:hover:not(:disabled) {
-  background: var(--accent);
-}
-.btn--purple:active:not(:disabled) {
-  background: var(--accent);
-  transform: translateY(1px);
-}
-/* Outlined primary (Figma outlined variant): magenta border, purple label. */
-.btn--outline {
-  background: #fff;
-  border: 2px solid #c640cd;
-  color: var(--accent);
-  text-transform: uppercase;
-  letter-spacing: 0.046em;
-  font-size: 13px;
-  font-weight: 600;
-}
-.btn--outline:hover:not(:disabled) {
-  background: rgba(198, 64, 205, 0.06);
-}
-.btn--ghost {
-  background: #fff;
-  border: 1px solid var(--line-strong);
-  color: var(--text);
-}
-.btn--sm {
-  padding: 8px 12px;
-  font-size: 13px;
-}
+/* Buttons live in the `Button` component (components/Button) — styled, variants on data-*. */
 
 /* ---------------- Hero / banner ---------------- */
 .hero {
@@ -1538,11 +1484,6 @@ h2 {
   flex-direction: column;
   gap: 10px;
 }
-.cart__actions .btn {
-  width: 100%;
-  justify-content: center;
-  text-decoration: none;
-}
 .cart__msg {
   margin: 0;
   font-size: 13px;
@@ -1820,11 +1761,6 @@ h2 {
   grid-template-columns: 1fr 1fr;
   gap: 12px;
 }
-.card-form__pay {
-  margin-top: 6px;
-  padding: 14px;
-  font-size: 14px;
-}
 .stripe-embed {
   min-height: 320px;
 }
@@ -1847,9 +1783,6 @@ h2 {
   display: flex;
   gap: 12px;
   margin-top: 16px;
-}
-.getcredits__status-actions .btn {
-  text-decoration: none;
 }
 .getcredits__confetti {
   font-size: 48px;
@@ -1949,11 +1882,6 @@ h2 {
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
-}
-.success__actions .btn {
-  min-width: 160px;
-  text-align: center;
-  text-decoration: none;
 }
 @media (max-width: 820px) {
   .success {
@@ -2753,9 +2681,6 @@ a.purchase:hover {
 .cart-pop__actions {
   display: flex;
   gap: 8px;
-}
-.cart-pop__actions .btn {
-  flex: 1;
 }
 
 /* ---------------- Fitting room (try on the cart outfit) ---------------- */

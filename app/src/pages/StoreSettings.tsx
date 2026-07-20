@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
+import { Button } from '~/components/Button'
+import styled from '@emotion/styled'
 import { useWallet } from '~/store/wallet'
 import { useStore } from '~/hooks/useStore'
 import {
@@ -18,6 +20,12 @@ import { Spinner } from '~/components/Spinner'
 import { toast } from '~/store/toast'
 import { t } from '~/intl/i18n'
 import './store-settings.css'
+
+const SignInBtn = styled(Button)`
+  align-self: center;
+  min-width: 200px;
+  margin-top: 8px;
+`
 
 const MAX_COVER_BYTES = 1_000_000 // 1 MB, same cap as the classic marketplace.
 
@@ -129,9 +137,9 @@ export function StoreSettings() {
       <section className="store-settings store-settings--signin" aria-label={t('storeSettings.title')}>
         <h1 className="store-settings__title">{t('storeSettings.title')}</h1>
         <p className="muted">{t('storeSettings.signInPrompt')}</p>
-        <button className="btn btn--purple store-settings__signin-btn" onClick={signIn}>
+        <SignInBtn variant="purple" onClick={signIn}>
           {t('storeSettings.signIn')}
-        </button>
+        </SignInBtn>
       </section>
     )
   }
@@ -337,14 +345,15 @@ export function StoreSettings() {
           ))}
 
           <div className="store-settings__actions">
-            <button
-              className="btn btn--purple store-settings__save"
+            <Button
+              variant="purple"
+              className="store-settings__save"
               data-testid="store-settings-save"
               onClick={() => void save()}
               disabled={!canSave}
             >
               {saving ? t('storeSettings.saving') : t('storeSettings.save')}
-            </button>
+            </Button>
           </div>
         </>
       )}
