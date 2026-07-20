@@ -11,6 +11,7 @@ import { AddAllToCart } from '~/components/AddAllToCart'
 import { SkeletonCards } from '~/components/SkeletonCards'
 import { LoadMore } from '~/components/LoadMore'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
+import { useSeo } from '~/hooks/useSeo'
 import { useProfile } from '~/hooks/useProfile'
 import { SUBCAT_MAP } from '~/lib/categories'
 import { CURRENCY } from '~/lib/currency'
@@ -31,6 +32,10 @@ export function Creator() {
   const collectionsMode = searchParams.has('collections')
   const { data: profile } = useProfile(address)
   const name = profile?.name || (address ? shortAddress(address) : t('creator.fallbackName'))
+
+  // Per-page SEO — the creator's display name (or shortened address until the profile loads) as the
+  // title, with a creator-scoped description. Indexable.
+  useSeo({ title: name, description: t('seo.creator.description', { name }) })
 
   const [category, setCategory] = useState('wearable')
   const [subCategory, setSubCategory] = useState<string | null>(null)

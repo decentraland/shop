@@ -6,6 +6,8 @@ import { fetchTradeDisplay } from '~/lib/api'
 import { LoadMore } from '~/components/LoadMore'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
+import { useSeo } from '~/hooks/useSeo'
+import { t } from '~/intl/i18n'
 
 const PAGE_SIZE = 24
 
@@ -64,6 +66,7 @@ function PurchaseRow({ purchase }: { purchase: PurchaseRecord }) {
 }
 
 export function MyPurchases() {
+  useSeo({ title: t('nav.myPurchases'), noindex: true })
   const { session } = useWallet()
   const { items, isLoading, hasNextPage, isFetchingNextPage, fetchNextPage } = useInfiniteGrid(
     ['purchases', session?.address],

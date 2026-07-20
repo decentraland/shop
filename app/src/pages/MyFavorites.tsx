@@ -3,12 +3,15 @@ import { Link } from 'react-router-dom'
 import { useFavorites } from '~/store/favorites'
 import { AssetCard } from '~/components/AssetCard'
 import { LoadMore } from '~/components/LoadMore'
+import { useSeo } from '~/hooks/useSeo'
+import { t } from '~/intl/i18n'
 
 // Favorites live client-side (instant, no async → no skeleton needed); page them so a long list
 // doesn't render hundreds of cards at once.
 const PAGE_SIZE = 24
 
 export function MyFavorites() {
+  useSeo({ title: t('nav.myFavorites'), noindex: true })
   const items = useFavorites(s => Object.values(s.items))
   const [visible, setVisible] = useState(PAGE_SIZE)
 

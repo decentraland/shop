@@ -11,6 +11,8 @@ import { avatarShape, dominantShape, isCompatible, BASE_MALE } from '~/lib/bodyS
 import { itemUrn } from '~/lib/urn'
 import { waitForSettlement, SettlementPendingError } from '~/lib/buy-gasless'
 import { fetchOwnsItem } from '~/lib/api'
+import { useSeo } from '~/hooks/useSeo'
+import { t } from '~/intl/i18n'
 import type { CatalogItem } from '~/lib/api'
 
 // Settlement of the purchase, watched on this page so we NEVER claim "It's yours!" before the item is
@@ -112,6 +114,8 @@ export function Success() {
       : null
   // Watch settlement + indexing (called before any early return to keep hook order stable).
   const settlement = useSettlement(txHash, ownership)
+
+  useSeo({ title: t('seo.success.title'), noindex: true })
 
   const items = purchasedItems
   // Direct hit / refresh with no purchase context → send home.

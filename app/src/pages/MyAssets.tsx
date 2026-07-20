@@ -16,6 +16,8 @@ import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
 import { CURRENCY } from '~/lib/currency'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { track } from '~/lib/analytics'
+import { useSeo } from '~/hooks/useSeo'
+import { t } from '~/intl/i18n'
 import '~/styles/my-listings.css'
 
 const PAGE_SIZE = 48
@@ -60,6 +62,7 @@ function publishableToItem(p: PublishableItem): CatalogItem {
 }
 
 export function MyAssets() {
+  useSeo({ title: t('nav.myAssets'), noindex: true })
   const { session, error, signIn, restore } = useWallet()
   const navigate = useNavigate()
   const qc = useQueryClient()
