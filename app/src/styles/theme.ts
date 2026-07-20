@@ -32,6 +32,9 @@ const colors = {
   dclRed: '#ff2d55',
   ok: '#1ea672',
   err: '#d33',
+  // Saturated solid-fill variants of ok/err (badges, success checks, toast accents)
+  okStrong: '#1f8a4c',
+  errStrong: '#d64545',
   white: '#ffffff'
 } as const
 
