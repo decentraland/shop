@@ -14,12 +14,14 @@ export function CollectionHero({ name, creator }: { name: string; creator?: stri
   const cover = store?.cover || defaultCover
 
   return (
-    <section className="collection-hero" aria-label={name}>
+    <section className="collection-hero" data-testid="collection-hero" aria-label={name}>
       <div className="collection-hero__cover">
         <img className="collection-hero__cover-img" src={cover} alt="" loading="eager" />
         <div className="collection-hero__scrim" aria-hidden />
       </div>
-      <h1 className="collection-hero__title">{name}</h1>
+      <h1 className="collection-hero__title" data-testid="collection-hero-title">
+        {name}
+      </h1>
     </section>
   )
 }

@@ -58,6 +58,7 @@ export function CreatorHero({ address }: { address: string }) {
             <a
               key={type}
               className="creator-hero__link"
+              data-testid="creator-hero-link"
               href={store?.links[type] ?? ''}
               target="_blank"
               rel="noopener noreferrer"
@@ -91,7 +92,13 @@ export function CreatorHero({ address }: { address: string }) {
           {description ? <p className="creator-hero__desc">{description}</p> : null}
         </div>
         <div className="creator-hero__actions">
-          <a className="creator-hero__view" href={profileUrl} target="_blank" rel="noopener noreferrer">
+          <a
+            className="creator-hero__view"
+            data-testid="creator-hero-view"
+            href={profileUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
             {t('creator.viewProfile')}
           </a>
           <FollowButton address={address} className="creator-hero__follow" />

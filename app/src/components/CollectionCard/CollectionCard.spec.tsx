@@ -42,7 +42,7 @@ describe('CollectionCard', () => {
 
   it('renders the supplied cover image', () => {
     const { container } = renderCard({ cover: 'https://example.com/hero.png' })
-    const img = container.querySelector('.coll-card__img')
+    const img = container.querySelector('[data-testid="coll-card-img"]')
     expect((img as HTMLImageElement | null)?.src).toBe('https://example.com/hero.png')
   })
 })

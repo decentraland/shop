@@ -116,7 +116,7 @@ export function SellModal({ asset, session, onClose }: { asset: MyAsset; session
 
   return (
     <div className="modal-backdrop" onClick={onClose} role="presentation">
-      <div className="modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
+      <div className="modal" data-testid="modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
         <h2 className="modal__title">{t('sellModal.listTitle', { name: asset.name })}</h2>
         {asset.image ? <img className="modal__img" src={asset.image} alt={asset.name} /> : null}
 

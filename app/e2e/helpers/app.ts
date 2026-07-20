@@ -87,8 +87,8 @@ function creditsWithTopup(F: Fixtures): unknown {
     ...base,
     usd: {
       balanceCents: (usd.balanceCents ?? 0) + mintedCents,
-      credits: (usd.credits ?? 0) + Math.round(mintedCents / 10),
-    },
+      credits: (usd.credits ?? 0) + Math.round(mintedCents / 10)
+    }
   }
 }
 

@@ -160,7 +160,7 @@ export function PrimaryListModal({
 
   return (
     <div className="modal-backdrop" onClick={onClose} role="presentation">
-      <div className="modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
+      <div className="modal" data-testid="modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
         <h2 className="modal__title">{t('primaryList.publishTitle', { name: item.name })}</h2>
         {item.thumbnail ? <img className="modal__img" src={item.thumbnail} alt={item.name} /> : null}
 

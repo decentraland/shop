@@ -19,7 +19,9 @@ describe('import old listings', () => {
     await waitForText(page, 'Galaxy Hat')
     await waitForText(page, 'Nebula Jacket')
     // Auto-converted suggested prices live in the editable inputs (100 MANA → 270, 50 MANA → 135).
-    const prices = await page.$$eval('.imp-price__input', els => els.map(e => (e as HTMLInputElement).value))
+    const prices = await page.$$eval('[data-testid="imp-price-input"]', els =>
+      els.map(e => (e as HTMLInputElement).value)
+    )
     expect(prices).toContain('270')
     expect(prices).toContain('135')
 

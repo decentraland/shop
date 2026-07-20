@@ -159,7 +159,9 @@ export function Overview() {
           </section>
 
           {/* New Creations carousel — needs a second page of listings (>12) to be worth showing. */}
-          {items.length > 12 ? <Carousel title={t('overview.newCreations')} items={items.slice(12, 24)} loading={false} /> : null}
+          {items.length > 12 ? (
+            <Carousel title={t('overview.newCreations')} items={items.slice(12, 24)} loading={false} />
+          ) : null}
         </>
       ) : (
         <div className="overview__empty">

@@ -30,7 +30,7 @@ export function CreatorBadge({
   address,
   className,
   linkToProfile,
-  hidePrefix,
+  hidePrefix
 }: {
   address?: string
   className?: string
@@ -52,10 +52,18 @@ export function CreatorBadge({
   const name = data?.name ? capitalizeFirst(data.name) : shortAddress(address)
   const showImage = !!face && !broken
   const ava = showImage ? (
-    <img className="creator__ava" src={face} alt="" loading="lazy" onError={() => setBroken(true)} />
+    <img
+      className="creator__ava"
+      data-testid="creator-ava"
+      src={face}
+      alt=""
+      loading="lazy"
+      onError={() => setBroken(true)}
+    />
   ) : (
     <span
       className="creator__ava creator__ava--letter"
+      data-testid="creator-ava-letter"
       style={{ backgroundColor: colorForAddress(address) }}
       aria-hidden
     >
@@ -65,7 +73,7 @@ export function CreatorBadge({
   const inner = (
     <>
       {ava}
-      <span className="creator__name">
+      <span className="creator__name" data-testid="creator-name">
         {/* Reuse the shared "By {name}" message for the prefix; the name keeps its own styled span
             (creator__display), so we render the prefix with an empty name and the name separately. */}
         {hidePrefix ? null : t('search.byCreator', { name: '' })}
@@ -77,6 +85,7 @@ export function CreatorBadge({
     return (
       <button
         className={`creator creator--link${className ? ` ${className}` : ''}`}
+        data-testid="creator"
         onClick={e => {
           e.stopPropagation()
           navigate(`/assets/creator/${address}`)
@@ -86,5 +95,9 @@ export function CreatorBadge({
       </button>
     )
   }
-  return <span className={`creator${className ? ` ${className}` : ''}`}>{inner}</span>
+  return (
+    <span className={`creator${className ? ` ${className}` : ''}`} data-testid="creator">
+      {inner}
+    </span>
+  )
 }

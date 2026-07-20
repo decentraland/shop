@@ -187,21 +187,13 @@ export function Success() {
               {settlement === 'indexing' ? (
                 <>
                   {t('success.indexingBefore')}{' '}
-                  {items.length === 1 ? (
-                    <strong>{hero.name}</strong>
-                  ) : (
-                    t('success.itemCount', { count: items.length })
-                  )}{' '}
+                  {items.length === 1 ? <strong>{hero.name}</strong> : t('success.itemCount', { count: items.length })}{' '}
                   {t('success.indexingAfter')}
                 </>
               ) : (
                 <>
                   {t('success.confirmingBefore')}{' '}
-                  {items.length === 1 ? (
-                    <strong>{hero.name}</strong>
-                  ) : (
-                    t('success.itemCount', { count: items.length })
-                  )}{' '}
+                  {items.length === 1 ? <strong>{hero.name}</strong> : t('success.itemCount', { count: items.length })}{' '}
                   {t('success.confirmingAfter')}
                 </>
               )}

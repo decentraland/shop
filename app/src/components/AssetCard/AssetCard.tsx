@@ -103,6 +103,7 @@ export function AssetCard(props: AssetCardProps) {
   return (
     <article
       className="card"
+      data-testid="card"
       style={canOpen ? { cursor: 'pointer' } : undefined}
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}
@@ -114,6 +115,7 @@ export function AssetCard(props: AssetCardProps) {
       {canOpen ? (
         <Link
           className="card__link"
+          data-testid="card-link"
           to={detailPath}
           // Market cards open the detail page in "market mode": hand it the live-rate credit price and
           // the market item (a UnifiedListing carrying manaWei) so it renders the ≈ price + Buy now
@@ -132,6 +134,7 @@ export function AssetCard(props: AssetCardProps) {
           As a direct child of the position:relative card, its z-index:4 sits above the link. */}
       <button
         className={`card__fav${faved ? ' is-on' : ''}`}
+        data-testid="card-fav"
         onClick={e => {
           e.stopPropagation()
           toggleFav(item)
@@ -144,7 +147,7 @@ export function AssetCard(props: AssetCardProps) {
           rect to position over. */}
       <div className="card__media" ref={mediaRef}>
         {onSale ? (
-          <span className="card__sale-badge">
+          <span className="card__sale-badge" data-testid="card-sale-badge">
             {discountPct > 0 ? t('assetCard.saleWithDiscount', { pct: discountPct }) : t('assetCard.sale')}
           </span>
         ) : null}
@@ -181,7 +184,7 @@ export function AssetCard(props: AssetCardProps) {
             )}
           </div>
           {isMarket && props.mode === 'market' ? (
-            <div className="card__price card__price--market">
+            <div className="card__price card__price--market" data-testid="card-price-market">
               <span className="card__approx" aria-hidden>
                 ≈
               </span>
@@ -190,15 +193,23 @@ export function AssetCard(props: AssetCardProps) {
             </div>
           ) : onSale ? (
             <div className="card__price card__price--sale">
-              <span className="card__price-now" title={formatCreditsFull(item.priceCredits)}>
+              <span
+                className="card__price-now"
+                data-testid="card-price-now"
+                title={formatCreditsFull(item.priceCredits)}
+              >
                 <CurrencyIcon className="card__diamond" />
                 {formatCredits(item.priceCredits)}
               </span>
-              <span className="card__price-was" title={formatCreditsFull(item.compareAtCredits!)}>
+              <span
+                className="card__price-was"
+                data-testid="card-price-was"
+                title={formatCreditsFull(item.compareAtCredits!)}
+              >
                 <CurrencyIcon className="card__diamond card__diamond--was" />
                 {formatCredits(item.compareAtCredits!)}
               </span>
-              <SaleCountdown endsAt={item.saleEndsAt} className="card__countdown" />
+              <SaleCountdown endsAt={item.saleEndsAt} className="card__countdown" testId="card-countdown" />
             </div>
           ) : (
             <div className="card__price" title={formatCreditsFull(item.priceCredits)}>
@@ -220,7 +231,11 @@ export function AssetCard(props: AssetCardProps) {
             {/* Market (legacy) tag: the "≈ price is a live-rate market price" indicator. Lives here in
                 the chips row (not the price row) so it's swapped out for the action button on hover like
                 every other chip and never distorts the price row / Buy now button. */}
-            {isMarket ? <span className="chip chip--market">{t('assetCard.marketPrice')}</span> : null}
+            {isMarket ? (
+              <span className="chip chip--market" data-testid="chip-market">
+                {t('assetCard.marketPrice')}
+              </span>
+            ) : null}
             <span
               className="chip chip--rarity"
               style={{ background: rarityTint(item.rarity), color: rarityInk(item.rarity) }}
@@ -229,7 +244,7 @@ export function AssetCard(props: AssetCardProps) {
               {item.rarity}
             </span>
             {item.isSmart ? (
-              <span className="chip chip--smart">
+              <span className="chip chip--smart" data-testid="chip-smart">
                 <span className="ico ico-smart" aria-hidden />
                 {t('assetCard.smart')}
               </span>
@@ -277,6 +292,7 @@ export function AssetCard(props: AssetCardProps) {
           {isMarket && props.mode === 'market' ? (
             <button
               className="card__cart"
+              data-testid="card-cart"
               onClick={e => {
                 e.stopPropagation()
                 props.onBuyNow(item)
@@ -288,6 +304,7 @@ export function AssetCard(props: AssetCardProps) {
           ) : (
             <button
               className={`card__cart${inCart ? ' is-in' : ''}`}
+              data-testid="card-cart"
               onClick={e => {
                 e.stopPropagation()
                 if (!own) add(item, 'grid')

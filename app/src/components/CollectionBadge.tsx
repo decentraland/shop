@@ -12,7 +12,7 @@ export function CollectionBadge({
   contractAddress,
   name,
   items,
-  className,
+  className
 }: {
   contractAddress?: string
   name?: string
@@ -41,9 +41,7 @@ export function CollectionBadge({
     >
       {thumbs.length > 0 ? (
         <span className="creator__ava collection-collage" aria-hidden>
-          <span
-            className={`collection-collage__row${row2.length === 0 ? ' collection-collage__row--full' : ''}`}
-          >
+          <span className={`collection-collage__row${row2.length === 0 ? ' collection-collage__row--full' : ''}`}>
             {row1.map((src, i) => (
               <img key={i} src={src} alt="" />
             ))}

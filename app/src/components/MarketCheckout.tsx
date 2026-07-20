@@ -259,7 +259,12 @@ export function MarketCheckout({
   const busy = phase === 'working'
 
   return (
-    <div className="mkt-modal" role="dialog" aria-modal="true" aria-label={t('buyModal.dialogAria', { name: listing.name })}>
+    <div
+      className="mkt-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-label={t('buyModal.dialogAria', { name: listing.name })}
+    >
       <div className="mkt-modal__scrim" onClick={busy ? undefined : cancel} aria-hidden />
       <div className="mkt-modal__card">
         <div className="mkt-modal__head">
@@ -301,7 +306,8 @@ export function MarketCheckout({
 
         {session ? (
           <div className="mkt-modal__balance muted">
-            {t('marketCheckout.yourBalance')} <CurrencyIcon className="ccy-mark" /> {balanceLabel(balance, balanceError)}
+            {t('marketCheckout.yourBalance')} <CurrencyIcon className="ccy-mark" />{' '}
+            {balanceLabel(balance, balanceError)}
           </div>
         ) : null}
         {needsMoreCredits ? (
@@ -315,7 +321,11 @@ export function MarketCheckout({
             {t('buyModal.cancel')}
           </button>
           <button className="btn btn--purple" onClick={() => void confirm()} disabled={busy || !locked}>
-            {busy ? t('marketCheckout.buying') : needsMoreCredits ? t('nav.getCredits', { currency: CURRENCY.name }) : t('marketCheckout.confirmPurchase')}
+            {busy
+              ? t('marketCheckout.buying')
+              : needsMoreCredits
+                ? t('nav.getCredits', { currency: CURRENCY.name })
+                : t('marketCheckout.confirmPurchase')}
           </button>
         </div>
       </div>

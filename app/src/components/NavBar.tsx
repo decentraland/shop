@@ -189,7 +189,13 @@ export function NavBar() {
             onKeyDown={onSearchKeyDown}
           />
           {q ? (
-            <button type="button" className="subnav__search-clear" aria-label={t('search.clear')} onClick={clearSearch}>
+            <button
+              type="button"
+              className="subnav__search-clear"
+              data-testid="subnav-search-clear"
+              aria-label={t('search.clear')}
+              onClick={clearSearch}
+            >
               <CloseIcon />
             </button>
           ) : null}
@@ -207,7 +213,11 @@ export function NavBar() {
           ) : null}
         </div>
         {session ? (
-          <span className="subnav__balance" title={t('nav.yourBalance', { currency: CURRENCY.name })}>
+          <span
+            className="subnav__balance"
+            data-testid="subnav-balance"
+            title={t('nav.yourBalance', { currency: CURRENCY.name })}
+          >
             <CurrencyIcon className="subnav__balance-ico" />
             {balanceLoading ? (
               <span className="skeleton subnav__balance-skel" aria-hidden />
@@ -229,11 +239,16 @@ export function NavBar() {
           <button
             type="button"
             className="subnav__cart"
+            data-testid="subnav-cart"
             aria-label={t('nav.cart')}
             onClick={() => (cartCount > 0 ? openCart(true) : navigate('/cart'))}
           >
             <span className="ico ico-cart" aria-hidden />
-            {cartCount > 0 ? <span className="subnav__cart-badge">{cartCount}</span> : null}
+            {cartCount > 0 ? (
+              <span className="subnav__cart-badge" data-testid="subnav-cart-badge">
+                {cartCount}
+              </span>
+            ) : null}
           </button>
           <CartPopover />
         </div>

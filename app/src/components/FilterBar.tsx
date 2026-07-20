@@ -113,8 +113,8 @@ export function FilterBar({
   return (
     <>
       {open ? <div className="filterbar__scrim" onClick={panel.close} aria-hidden /> : null}
-      <div className="browse__toolbar">
-        <span className="browse__count">
+      <div className="browse__toolbar" data-testid="browse-toolbar">
+        <span className="browse__count" data-testid="browse-count">
           {loading ? '…' : t('filterBar.count', { count: total })}
           {query ? ` ${t('filterBar.forQuery', { query })}` : ''}
         </span>

@@ -62,7 +62,9 @@
   background: var(--media);
 }
 @media (max-width: 900px) {
-  .item-detail__preview { aspect-ratio: 1 / 1; }
+  .item-detail__preview {
+    aspect-ratio: 1 / 1;
+  }
 }
 .item-detail__preview iframe,
 .item-detail__preview > * {
@@ -74,20 +76,55 @@
 /* "On avatar / Item" toggle over the preview (wearables only), pinned top-left (matches the Figma).
    The higher-specificity selector undoes the greedy `> *` sizing so the pill keeps its intrinsic size. */
 .item-detail__preview > .item-preview__toggle {
-  position: absolute; top: 16px; left: 16px; z-index: 2;
-  width: auto; height: auto; display: inline-flex; gap: 2px; padding: 3px;
-  background: rgba(255, 255, 255, .92); border: 1px solid var(--line); border-radius: 999px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, .12);
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 2;
+  width: auto;
+  height: auto;
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
 }
 .item-preview__toggle button {
-  border: 0; background: none; cursor: pointer; padding: 6px 16px; border-radius: 999px;
-  font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .04em;
-  color: var(--muted); transition: background .12s ease, color .12s ease;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  padding: 6px 16px;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
 }
-.item-preview__toggle button.is-active { background: var(--text); color: #fff; }
-.item-preview__toggle button:not(.is-active):hover { color: var(--text); }
+.item-preview__toggle button.is-active {
+  background: var(--text);
+  color: #fff;
+}
+.item-preview__toggle button:not(.is-active):hover {
+  color: var(--text);
+}
+.item-preview__toggle button.is-active {
+  background: var(--text);
+  color: #fff;
+}
+.item-preview__toggle button:not(.is-active):hover {
+  color: var(--text);
+}
 /* Icon glyphs live in the toggle for the mobile icon-only pill; hidden on desktop (text shows). */
-.item-preview__toggle-ico { display: none; width: 18px; height: 18px; }
+.item-preview__toggle-ico {
+  display: none;
+  width: 18px;
+  height: 18px;
+}
 /* Emote play/pause + sound + scrub controls, pinned to the bottom of the preview (emotes only).
    The bar itself is the shop-styled pill; the decentraland-ui2 <EmoteControls> renders inside it. That
    ui2 component ships a dark-theme overlay layout (its container is position:absolute/width:100%/bottom:0
@@ -96,104 +133,224 @@
    it reads as a clean, legible playback bar. The higher-specificity selector also undoes the greedy
    `.item-detail__preview > *` sizing. */
 .item-detail__preview > .item-preview__emote-controls {
-  position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 2;
-  width: min(360px, 88%); height: auto; display: flex; align-items: center;
-  background: rgba(255, 255, 255, .94); backdrop-filter: blur(6px);
-  border: 1px solid var(--line); border-radius: var(--radius-pill);
-  padding: 6px 12px; box-shadow: 0 2px 10px rgba(22, 21, 24, .12);
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  width: min(360px, 88%);
+  height: auto;
+  display: flex;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(6px);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  padding: 6px 12px;
+  box-shadow: 0 2px 10px rgba(22, 21, 24, 0.12);
 }
 /* Neutralize the ui2 container's overlay positioning so it becomes a plain in-flow flex row. */
 .item-preview__emote-controls .MuiBox-root {
-  position: static; width: 100%; margin: 0; padding: 0;
-  display: flex; align-items: center; gap: 10px;
+  position: static;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 /* Play/pause + sound: strip the MUI button chrome (min-width, uppercase, dark bg, red primary icon). */
 .item-preview__emote-controls .MuiButtonBase-root {
-  min-width: 0; padding: 0; margin: 0; border-radius: 50%;
-  display: inline-flex; align-items: center; justify-content: center;
-  background: none !important; box-shadow: none !important;
-  color: var(--muted); flex: 0 0 auto; transition: background .12s ease, color .12s ease;
+  min-width: 0;
+  padding: 0;
+  margin: 0;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none !important;
+  box-shadow: none !important;
+  color: var(--muted);
+  flex: 0 0 auto;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
 }
-.item-preview__emote-controls .MuiButtonBase-root .MuiSvgIcon-root { font-size: 20px; margin: 0; }
+.item-preview__emote-controls .MuiButtonBase-root .MuiSvgIcon-root {
+  font-size: 20px;
+  margin: 0;
+}
 /* Play/pause = the first control: a solid accent circle with a white glyph. */
 .item-preview__emote-controls .MuiBox-root > .MuiButtonBase-root:first-child {
-  width: 34px; height: 34px; background: var(--accent) !important; color: #fff;
+  width: 34px;
+  height: 34px;
+  background: var(--accent) !important;
+  color: #fff;
 }
 .item-preview__emote-controls .MuiBox-root > .MuiButtonBase-root:first-child:hover {
   background: var(--text) !important;
 }
 /* Sound toggle (only shown when the emote has audio) = a quiet ghost icon button after the scrubber. */
 .item-preview__emote-controls .MuiBox-root > input + .MuiButtonBase-root {
-  width: 30px; height: 30px; color: var(--muted);
+  width: 30px;
+  height: 30px;
+  color: var(--muted);
 }
 .item-preview__emote-controls .MuiBox-root > input + .MuiButtonBase-root:hover {
-  background: var(--media) !important; color: var(--text);
+  background: var(--media) !important;
+  color: var(--text);
 }
 /* Scrubber: a slim light track with an accent thumb (replaces ui2's chunky gray slider). */
-.item-preview__emote-controls input[type='range'] {
-  flex: 1 1 auto; width: auto; min-width: 0; height: 4px; margin: 0; padding: 0;
-  -webkit-appearance: none; appearance: none; background: transparent; cursor: pointer;
+.item-preview__emote-controls input[type="range"] {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+  height: 4px;
+  margin: 0;
+  padding: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
 }
-.item-preview__emote-controls input[type='range']::-webkit-slider-runnable-track {
-  height: 4px; border-radius: 999px; background: var(--line-strong);
+.item-preview__emote-controls input[type="range"]::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--line-strong);
 }
-.item-preview__emote-controls input[type='range']::-moz-range-track {
-  height: 4px; border-radius: 999px; background: var(--line-strong);
+.item-preview__emote-controls input[type="range"]::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--line-strong);
 }
-.item-preview__emote-controls input[type='range']::-webkit-slider-thumb {
-  -webkit-appearance: none; appearance: none; width: 13px; height: 13px; margin-top: -4.5px;
-  border-radius: 50%; background: var(--accent); border: 2px solid #fff;
-  box-shadow: 0 1px 3px rgba(22, 21, 24, .3); cursor: pointer;
+.item-preview__emote-controls input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 13px;
+  height: 13px;
+  margin-top: -4.5px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(22, 21, 24, 0.3);
+  cursor: pointer;
 }
-.item-preview__emote-controls input[type='range']::-moz-range-thumb {
-  width: 13px; height: 13px; border-radius: 50%; background: var(--accent);
-  border: 2px solid #fff; box-shadow: 0 1px 3px rgba(22, 21, 24, .3); cursor: pointer;
+.item-preview__emote-controls input[type="range"]::-moz-range-thumb {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(22, 21, 24, 0.3);
+  cursor: pointer;
 }
-.item-preview__emote-controls input[type='range']:focus-visible { outline: none; }
-.item-preview__emote-controls input[type='range']:focus-visible::-webkit-slider-thumb {
-  outline: 2px solid var(--accent); outline-offset: 2px;
+.item-preview__emote-controls input[type="range"]:focus-visible {
+  outline: none;
+}
+.item-preview__emote-controls input[type="range"]:focus-visible::-webkit-slider-thumb {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 /* Body-shape incompatibility note (pill at the bottom of the preview). Overrides the greedy `> *`. */
 .item-detail__preview > .item-preview__note {
-  position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); z-index: 2;
-  width: auto; height: auto; max-width: 88%; margin: 0; text-align: center;
-  background: rgba(22, 21, 24, .78); color: #fff; font-size: 12px; font-weight: 500;
-  padding: 6px 12px; border-radius: 999px;
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  width: auto;
+  height: auto;
+  max-width: 88%;
+  margin: 0;
+  text-align: center;
+  background: rgba(22, 21, 24, 0.78);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: 999px;
 }
 
 /* Loader overlay while the profile settles / the preview iframe loads — masks the load so it never
    flickers raw. Overrides the greedy `> *` sizing; sits above the iframe (z-index 1) but below the
    controls (z-index 2). Background stays transparent so the surface shows through. */
 .item-detail__preview > .item-preview__loading {
-  position: absolute; inset: 0; z-index: 1;
-  display: flex; align-items: center; justify-content: center;
-  width: 100%; height: 100%; background: transparent;
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  background: transparent;
 }
 .item-preview__spinner {
-  width: 34px; height: 34px; border-radius: 50%;
-  border: 3px solid var(--line); border-top-color: var(--accent);
-  animation: item-preview-spin .8s linear infinite;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 3px solid var(--line);
+  border-top-color: var(--accent);
+  animation: item-preview-spin 0.8s linear infinite;
 }
-@keyframes item-preview-spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .item-preview__spinner { animation-duration: 2.4s; } }
+@keyframes item-preview-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .item-preview__spinner {
+    animation-duration: 2.4s;
+  }
+}
 
 /* Content-shaped skeletons for the item detail while a deep-linked/refreshed item resolves. */
 .item-detail__preview > .item-preview__loading .item-preview__skeleton {
-  position: absolute; inset: 0; width: 100%; height: 100%; border-radius: inherit;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
 }
 .item-detail__info-skel {
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
-.id-skel__title { height: 34px; width: 70%; border-radius: 8px; }
-.id-skel__chips { display: flex; gap: 8px; }
-.id-skel__chip { height: 24px; width: 88px; border-radius: 6px; }
-.id-skel__line { height: 14px; width: 100%; border-radius: 6px; }
-.id-skel__line--short { width: 55%; }
-.id-skel__price { height: 30px; width: 40%; border-radius: 8px; }
-.id-skel__btn { height: 48px; width: 100%; border-radius: 8px; margin-top: 8px; }
+.id-skel__title {
+  height: 34px;
+  width: 70%;
+  border-radius: 8px;
+}
+.id-skel__chips {
+  display: flex;
+  gap: 8px;
+}
+.id-skel__chip {
+  height: 24px;
+  width: 88px;
+  border-radius: 6px;
+}
+.id-skel__line {
+  height: 14px;
+  width: 100%;
+  border-radius: 6px;
+}
+.id-skel__line--short {
+  width: 55%;
+}
+.id-skel__price {
+  height: 30px;
+  width: 40%;
+  border-radius: 8px;
+}
+.id-skel__btn {
+  height: 48px;
+  width: 100%;
+  border-radius: 8px;
+  margin-top: 8px;
+}
 
 /* Info column. Explicit per-section margins (not a uniform gap) to hit the Figma rhythm:
    title→tags 12, tags→description 15, description→creator/collection 32 (see Figma 1052-151285). */
@@ -225,10 +382,16 @@
   place-items: center;
   color: var(--text-2);
   cursor: pointer;
-  transition: color .12s ease, background .12s ease;
+  transition:
+    color 0.12s ease,
+    background 0.12s ease;
 }
-.item-detail__fav:hover { background: var(--line); }
-.item-detail__fav.is-on { color: var(--dcl-red); }
+.item-detail__fav:hover {
+  background: var(--line);
+}
+.item-detail__fav.is-on {
+  color: var(--dcl-red);
+}
 .item-detail__fav .ico-heart {
   width: 18px;
   height: 18px;
@@ -236,7 +399,9 @@
 /* Mobile-only heart overlaid on the preview (Figma 1182-195410). Hidden on desktop; the specific
    selector overrides the greedy `.item-detail__preview > *` sizing. Shown + positioned in the mobile
    block below, where the title-row heart is hidden so only one heart is ever exposed to a11y. */
-.item-detail__preview > .item-detail__fav--preview { display: none; }
+.item-detail__preview > .item-detail__fav--preview {
+  display: none;
+}
 
 /* Small uppercase section labels (Description / Creator / Price). */
 .item-detail__label {
@@ -290,11 +455,23 @@
   gap: 11px;
 }
 .item-detail__desc-text {
-  margin: 0; color: var(--text-2); font-size: 14px; line-height: 30px;
-  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden;
+  margin: 0;
+  color: var(--text-2);
+  font-size: 14px;
+  line-height: 30px;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow: hidden;
 }
-.item-detail__desc-text.is-expanded { -webkit-line-clamp: unset; overflow: visible; }
-.item-detail__desc-toggle { font-size: 13px; align-self: flex-start; }
+.item-detail__desc-text.is-expanded {
+  -webkit-line-clamp: unset;
+  overflow: visible;
+}
+.item-detail__desc-toggle {
+  font-size: 13px;
+  align-self: flex-start;
+}
 
 /* Creator / Collection meta — two columns, creator hugging the left and collection the right edge
    (Figma 1052-151285 lays them out space-between). Stays side-by-side on mobile too (Figma 1182-190351). */
@@ -315,11 +492,26 @@
 }
 /* PDP creator badge: larger avatar + prominent purple link (overrides the compact card default).
    Matches the Figma: 48px avatar, 12px gap, 14px underlined purple name. */
-.item-detail__creator.creator { color: var(--accent); font-size: 14px; gap: 12px; }
-.item-detail__creator .creator__ava { width: 48px; height: 48px; }
-.item-detail__creator .creator__ava--letter { font-size: 18px; }
-.item-detail__creator .creator__name { color: var(--accent); font-weight: 500; text-decoration: underline; }
-.item-detail__creator.creator--link:hover .creator__name { color: var(--brand-violet); }
+.item-detail__creator.creator {
+  color: var(--accent);
+  font-size: 14px;
+  gap: 12px;
+}
+.item-detail__creator .creator__ava {
+  width: 48px;
+  height: 48px;
+}
+.item-detail__creator .creator__ava--letter {
+  font-size: 18px;
+}
+.item-detail__creator .creator__name {
+  color: var(--accent);
+  font-weight: 500;
+  text-decoration: underline;
+}
+.item-detail__creator.creator--link:hover .creator__name {
+  color: var(--brand-violet);
+}
 
 /* Collection badge = a 2×2 collage of up to 4 collection item thumbnails (like the marketplace
    webapp's CollectionImage), reusing the 48px round `.creator__ava` slot so it sits consistently
@@ -340,7 +532,9 @@
   min-height: 0;
   gap: 1px;
 }
-.collection-collage__row--full { flex-basis: 100%; }
+.collection-collage__row--full {
+  flex-basis: 100%;
+}
 .collection-collage__row img {
   flex: 1 1 0;
   min-width: 0;
@@ -528,9 +722,11 @@
   text-transform: uppercase;
   letter-spacing: 0.46px;
   cursor: pointer;
-  transition: filter .15s ease;
+  transition: filter 0.15s ease;
 }
-.item-detail__addcart:hover:not(:disabled) { filter: brightness(1.35); }
+.item-detail__addcart:hover:not(:disabled) {
+  filter: brightness(1.35);
+}
 .item-detail__addcart:disabled {
   opacity: 0.55;
   cursor: default;
@@ -554,21 +750,47 @@
 }
 
 @media (max-width: 900px) {
-  .item-detail__title { font-size: 20px; line-height: 24px; }
+  .item-detail__title {
+    font-size: 20px;
+    line-height: 24px;
+  }
   /* Mobile order (matches the Figma): creator/collection before the description, then the buy section.
      Explicit order on every child so the positioned items land between the chips and the divider
      (a bare `order` only on two of them would push them past the default-order siblings). */
-  .item-detail__info-head { order: 0; }
-  .item-detail__chips { order: 1; margin-top: 10px; }
-  .item-detail__meta { order: 2; margin-top: 20px; }
-  .item-detail__description { order: 3; margin-top: 20px; }
-  .item-detail__divider { order: 4; margin-top: 20px; }
-  .item-detail__price-block { order: 5; margin-top: 16px; }
-  .item-detail__ctas { order: 6; }
-  .item-detail__status { order: 7; }
+  .item-detail__info-head {
+    order: 0;
+  }
+  .item-detail__chips {
+    order: 1;
+    margin-top: 10px;
+  }
+  .item-detail__meta {
+    order: 2;
+    margin-top: 20px;
+  }
+  .item-detail__description {
+    order: 3;
+    margin-top: 20px;
+  }
+  .item-detail__divider {
+    order: 4;
+    margin-top: 20px;
+  }
+  .item-detail__price-block {
+    order: 5;
+    margin-top: 16px;
+  }
+  .item-detail__ctas {
+    order: 6;
+  }
+  .item-detail__status {
+    order: 7;
+  }
 
   /* Keep the last of the scrollable content clear of the fixed action bar. */
-  .item-detail { padding-bottom: 88px; }
+  .item-detail {
+    padding-bottom: 88px;
+  }
 
   /* Action buttons sticky-fixed to the bottom of the viewport (Figma 1182-194973). */
   .item-detail__ctas--buttons {
@@ -580,7 +802,7 @@
     margin-top: 0;
     padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
     background: var(--soft-white);
-    box-shadow: 0 -4px 16px rgba(22, 21, 24, .12);
+    box-shadow: 0 -4px 16px rgba(22, 21, 24, 0.12);
   }
   /* Buyable: a wide Buy-now (showing the price) + a compact dark cart-icon square. */
   .item-detail__ctas--dual {
@@ -609,7 +831,9 @@
 
   /* Favourite heart moves onto the preview's top-right (Figma 1182-195410): a white circular button.
      The title-row heart is hidden so there's exactly one heart in the a11y tree. */
-  .item-detail__info-head .item-detail__fav { display: none; }
+  .item-detail__info-head .item-detail__fav {
+    display: none;
+  }
   .item-detail__preview > .item-detail__fav--preview {
     display: grid;
     position: absolute;
@@ -618,10 +842,12 @@
     z-index: 3;
     width: 40px;
     height: 40px;
-    background: rgba(255, 255, 255, .92);
-    box-shadow: 0 1px 4px rgba(22, 21, 24, .18);
+    background: rgba(255, 255, 255, 0.92);
+    box-shadow: 0 1px 4px rgba(22, 21, 24, 0.18);
   }
-  .item-detail__preview > .item-detail__fav--preview:hover { background: #fff; }
+  .item-detail__preview > .item-detail__fav--preview:hover {
+    background: #fff;
+  }
 
   /* Avatar/Item toggle → an icon-only pill button-group at the preview's bottom-right (Figma
      1182-195374): active = soft-black bg + white icon, inactive = white bg + dark icon. */
@@ -634,11 +860,15 @@
     padding: 0;
     background: transparent;
     border: 0;
-    box-shadow: 0 1px 4px rgba(22, 21, 24, .18);
+    box-shadow: 0 1px 4px rgba(22, 21, 24, 0.18);
     overflow: hidden;
   }
-  .item-preview__toggle-label { display: none; }
-  .item-preview__toggle-ico { display: block; }
+  .item-preview__toggle-label {
+    display: none;
+  }
+  .item-preview__toggle-ico {
+    display: block;
+  }
   .item-preview__toggle button {
     padding: 9px 13px;
     border-radius: 0;
@@ -672,6 +902,14 @@
   text-align: center;
   gap: 14px;
 }
-.item-detail__notfound-ico { width: 44px; height: 44px; opacity: 0.4; }
-.item-detail__notfound-title { font-size: 22px; }
-.item-detail--notfound .btn { margin-top: 6px; }
+.item-detail__notfound-ico {
+  width: 44px;
+  height: 44px;
+  opacity: 0.4;
+}
+.item-detail__notfound-title {
+  font-size: 22px;
+}
+.item-detail--notfound .btn {
+  margin-top: 6px;
+}

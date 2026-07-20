@@ -144,9 +144,21 @@
   padding: 12px 0;
   margin: 0;
 }
-@media (max-width: 1200px) { .overview .row__track { grid-auto-columns: calc((100% - 48px) / 4); } }
-@media (max-width: 900px)  { .overview .row__track { grid-auto-columns: calc((100% - 32px) / 3); } }
-@media (max-width: 720px)  { .overview .row__track { grid-auto-columns: calc((100% - 16px) / 2); } }
+@media (max-width: 1200px) {
+  .overview .row__track {
+    grid-auto-columns: calc((100% - 48px) / 4);
+  }
+}
+@media (max-width: 900px) {
+  .overview .row__track {
+    grid-auto-columns: calc((100% - 32px) / 3);
+  }
+}
+@media (max-width: 720px) {
+  .overview .row__track {
+    grid-auto-columns: calc((100% - 16px) / 2);
+  }
+}
 
 /* Side arrows (Figma "Slider Arrows" — node 913:135587 / 913:135609). A ~53px white circle (80%
    opacity, white ring) with a bold black chevron; the SVG (carousel-arrow.svg) is the exact Figma

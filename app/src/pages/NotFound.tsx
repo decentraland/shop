@@ -7,7 +7,7 @@ import { t } from '~/intl/i18n'
 export function NotFound() {
   useSeo({ title: t('seo.notFound.title'), noindex: true })
   return (
-    <div className="notfound">
+    <div className="notfound" data-testid="notfound">
       <span className="ico ico-cart notfound__ico" aria-hidden />
       <h1 className="notfound__title">{t('notFound.title')}</h1>
       <p className="muted">{t('notFound.body')}</p>

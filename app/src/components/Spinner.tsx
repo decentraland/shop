@@ -24,11 +24,18 @@ export function Spinner({ label, size = 'medium', direction = 'column', classNam
   return (
     <div
       className={`spinner-box spinner-box--${direction}${className ? ` ${className}` : ''}`}
+      data-testid="spinner-box"
+      data-direction={direction}
       role="status"
       aria-live="polite"
       aria-label={label ? undefined : t('spinner.loading')}
     >
-      <span className={`spinner-box__ring spinner-box__ring--${size}`} aria-hidden />
+      <span
+        className={`spinner-box__ring spinner-box__ring--${size}`}
+        data-testid="spinner-box-ring"
+        data-size={size}
+        aria-hidden
+      />
       {label ? <span className="spinner-box__label">{label}</span> : null}
     </div>
   )

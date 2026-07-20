@@ -818,18 +818,18 @@ describe('when resolving an item to its live trade', () => {
 
   it('should NOT re-resolve on a non-404 failure (never silently swap the trade)', async () => {
     fetchMock.mockResolvedValueOnce(httpError(500))
-    await expect(
-      resolveLiveTrade({ tradeId: 'tr-x', contractAddress: '0xc', itemId: '4' })
-    ).rejects.toThrow('fetchTrade 500')
+    await expect(resolveLiveTrade({ tradeId: 'tr-x', contractAddress: '0xc', itemId: '4' })).rejects.toThrow(
+      'fetchTrade 500'
+    )
     // only the direct fetch happened — no fallback to the feed.
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
   it('should propagate the not-found when there is no itemId to re-resolve by', async () => {
     fetchMock.mockResolvedValueOnce(httpError(404))
-    await expect(
-      resolveLiveTrade({ tradeId: 'tr-x', contractAddress: '0xc', itemId: null })
-    ).rejects.toBeInstanceOf(TradeNotFoundError)
+    await expect(resolveLiveTrade({ tradeId: 'tr-x', contractAddress: '0xc', itemId: null })).rejects.toBeInstanceOf(
+      TradeNotFoundError
+    )
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 

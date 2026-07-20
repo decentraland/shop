@@ -375,7 +375,9 @@ export function MyAssets() {
                       </div>
                       <div className="publish-card__meta">
                         <span className="publish-chip publish-chip--rarity">{item.rarity}</span>
-                        <span className="publish-card__supply">{t('myAssets.available', { count: item.remainingSupply })}</span>
+                        <span className="publish-card__supply">
+                          {t('myAssets.available', { count: item.remainingSupply })}
+                        </span>
                       </div>
                       <button
                         className="btn btn--sm btn--purple publish-card__cta"

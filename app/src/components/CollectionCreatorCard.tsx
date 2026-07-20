@@ -39,7 +39,7 @@ export function CollectionCreatorCard({ address }: { address?: string }) {
   }
 
   return (
-    <div className="creator-card">
+    <div className="creator-card" data-testid="creator-card">
       {face ? (
         <img className="creator-card__ava" src={face} alt="" loading="eager" style={{ backgroundColor: avatarBg }} />
       ) : (
@@ -61,7 +61,13 @@ export function CollectionCreatorCard({ address }: { address?: string }) {
         <span className="ico ico-copy creator-card__copy" aria-hidden />
       </button>
 
-      <a className="creator-card__view" href={profileUrl} target="_blank" rel="noopener noreferrer">
+      <a
+        className="creator-card__view"
+        data-testid="creator-card-view"
+        href={profileUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+      >
         {t('collection.viewProfile')}
       </a>
     </div>

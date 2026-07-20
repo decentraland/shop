@@ -20,7 +20,8 @@ function formatDate(ms: number): string {
 }
 
 function StatusBadge({ status }: { status: PurchaseRecord['status'] }) {
-  if (status === 'PENDING') return <span className="purchase__badge purchase__badge--pending">{t('myPurchases.processing')}</span>
+  if (status === 'PENDING')
+    return <span className="purchase__badge purchase__badge--pending">{t('myPurchases.processing')}</span>
   return <span className="purchase__badge purchase__badge--done">{t('myPurchases.completed')}</span>
 }
 

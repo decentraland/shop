@@ -133,7 +133,7 @@ function NoFunds({
   selectedPack,
   onSelectPack,
   onBuyPacks,
-  onCancel,
+  onCancel
 }: {
   lines: CheckoutLine[]
   shortfallCredits: number
@@ -170,7 +170,9 @@ function NoFunds({
                 <div className="buy-modal__asset-name" title={l.item.name}>
                   {l.item.name || t('buyModal.itemFallback')}
                 </div>
-                {l.item.creator ? <div className="buy-modal__asset-creator">{t('search.byCreator', { name: l.item.creator })}</div> : null}
+                {l.item.creator ? (
+                  <div className="buy-modal__asset-creator">{t('search.byCreator', { name: l.item.creator })}</div>
+                ) : null}
               </div>
               <div className="buy-modal__asset-price">
                 <CurrencyIcon className="buy-modal__asset-price-ico" />
@@ -223,7 +225,7 @@ function NoFunds({
 function Complete({
   purchased,
   onMyAssets,
-  onTryInWorld,
+  onTryInWorld
 }: {
   purchased: CatalogItem[]
   onMyAssets: () => void
@@ -271,7 +273,9 @@ function Complete({
                 <div className="cart-checkout__done-name" title={item.name}>
                   {item.name || t('buyModal.itemFallback')}
                 </div>
-                {item.creator ? <div className="cart-checkout__done-creator">{t('search.byCreator', { name: item.creator })}</div> : null}
+                {item.creator ? (
+                  <div className="cart-checkout__done-creator">{t('search.byCreator', { name: item.creator })}</div>
+                ) : null}
               </div>
               <div className="cart-checkout__done-price">
                 <CurrencyIcon className="cart-checkout__done-price-ico" />

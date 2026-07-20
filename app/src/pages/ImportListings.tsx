@@ -131,7 +131,8 @@ export function ImportListings() {
       </header>
 
       <div className="imp__ratebar">
-        <CurrencyIcon className="ccy-mark imp__diamond" /> {t('importListings.rate', { currency: CURRENCY.nameSingular })}
+        <CurrencyIcon className="ccy-mark imp__diamond" />{' '}
+        {t('importListings.rate', { currency: CURRENCY.nameSingular })}
       </div>
 
       {isLoading ? (
@@ -175,6 +176,7 @@ export function ImportListings() {
                           <CurrencyIcon className="ccy-mark imp-price__diamond" />
                           <input
                             className="imp-price__input"
+                            data-testid="imp-price-input"
                             inputMode="numeric"
                             value={credits.toLocaleString()}
                             onChange={e => setPrice(item.oldTradeId, e.target.value)}

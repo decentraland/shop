@@ -244,6 +244,8 @@ export function StoreSettings() {
                     key={tpl.name}
                     type="button"
                     className={`cover-picker__tile${selected ? ' is-selected' : ''}`}
+                    data-testid="cover-picker-tile"
+                    data-selected={selected}
                     aria-pressed={selected}
                     onClick={() => pickTemplate(tpl.name, tpl.url)}
                   >
@@ -260,6 +262,9 @@ export function StoreSettings() {
                 <button
                   type="button"
                   className={`cover-picker__tile cover-picker__tile--custom${!selectedTemplate ? ' is-selected' : ''}`}
+                  data-testid="cover-picker-tile"
+                  data-variant="custom"
+                  data-selected={!selectedTemplate}
                   aria-pressed={!selectedTemplate}
                   onClick={pickCustom}
                 >
@@ -270,6 +275,8 @@ export function StoreSettings() {
               <button
                 type="button"
                 className="cover-picker__tile cover-picker__upload"
+                data-testid="cover-picker-tile"
+                data-variant="upload"
                 onClick={() => fileInput.current?.click()}
               >
                 <span className="ico ico-upload" aria-hidden />
@@ -280,11 +287,14 @@ export function StoreSettings() {
                 type="file"
                 accept="image/png, image/jpeg, image/webp"
                 className="cover-picker__input"
+                data-testid="cover-picker-input"
                 onChange={onUpload}
               />
             </div>
             {oversize ? (
-              <ErrorNotice message={t('storeSettings.sizeError', { max: mb(MAX_COVER_BYTES), current: mb(coverSize) })} />
+              <ErrorNotice
+                message={t('storeSettings.sizeError', { max: mb(MAX_COVER_BYTES), current: mb(coverSize) })}
+              />
             ) : null}
           </div>
 
@@ -330,7 +340,12 @@ export function StoreSettings() {
           ))}
 
           <div className="store-settings__actions">
-            <button className="btn btn--purple store-settings__save" onClick={() => void save()} disabled={!canSave}>
+            <button
+              className="btn btn--purple store-settings__save"
+              data-testid="store-settings-save"
+              onClick={() => void save()}
+              disabled={!canSave}
+            >
               {saving ? t('storeSettings.saving') : t('storeSettings.save')}
             </button>
           </div>
