@@ -630,6 +630,13 @@ a.checkout__name:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* "× N" quantity tag shown beside an item name in the no-funds / success lists (primary multi-buy). */
+.cart-checkout__qty-tag {
+  margin-left: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
 .cart-checkout__done-creator {
   font-size: 10px;
   line-height: 1.43;

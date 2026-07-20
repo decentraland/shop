@@ -1,12 +1,11 @@
 import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
-import { useCart } from '~/store/cart'
+import { useCart, type CartItem } from '~/store/cart'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { CreatorBadge } from '~/components/CreatorBadge'
 import { t } from '~/intl/i18n'
 import { formatCredits, formatCreditsFull } from '~/lib/currency'
-import type { CatalogItem } from '~/lib/api'
 import './CartPopover.css'
 
 // Green check-in-circle used by the success banner and each cart line's thumbnail (Figma Icn/Check).
@@ -26,9 +25,24 @@ function CheckCircle() {
 }
 
 // A single cart line: thumbnail (+ in-cart check), name, creator, quantity stepper, price, delete.
-// The store keeps exactly one unit per item, so the stepper is visual: minus removes the line, plus
-// is inert (no multi-quantity support). The trash button is the primary removal affordance.
-function CartRow({ item, onRemove }: { item: CatalogItem; onRemove: (id: string) => void }) {
+// PRIMARY (mint) lines support multiple copies — minus decrements (floored at 1), plus increments up
+// to remaining stock, and the price shows the line subtotal. SECONDARY lines are a single unique
+// token, so the stepper is hidden (qty is always 1). The trash button removes the whole line.
+function CartRow({
+  item,
+  onRemove,
+  onIncrement,
+  onDecrement
+}: {
+  item: CartItem
+  onRemove: (id: string) => void
+  onIncrement: (id: string) => void
+  onDecrement: (id: string) => void
+}) {
+  const isPrimary = !item.tokenId
+  const qty = item.quantity
+  const atStockCap = typeof item.available === 'number' && qty >= item.available
+  const subtotal = item.priceCredits * qty
   return (
     <li className="cartd__card">
       <div className="cartd__thumb">
@@ -45,26 +59,34 @@ function CartRow({ item, onRemove }: { item: CatalogItem; onRemove: (id: string)
           {item.creator ? <CreatorBadge address={item.creator} className="cartd__by" /> : null}
         </div>
         <div className="cartd__rowbottom">
-          <div className="cartd__stepper">
-            <button
-              className="cartd__step"
-              onClick={() => onRemove(item.id)}
-              aria-label={t('cartPopover.removeFromCart', { name: item.name })}
-            >
-              <svg viewBox="0 0 16 16" fill="none" aria-hidden focusable="false">
-                <path d="M3.5 8h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
-            </button>
-            <span className="cartd__qty">1</span>
-            <button className="cartd__step" disabled aria-label={t('cartPopover.increaseQuantity')}>
-              <svg viewBox="0 0 16 16" fill="none" aria-hidden focusable="false">
-                <path d="M8 3.5v9M3.5 8h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
-            </button>
-          </div>
-          <div className="cartd__price" title={formatCreditsFull(item.priceCredits)}>
+          {isPrimary ? (
+            <div className="cartd__stepper">
+              <button
+                className="cartd__step"
+                onClick={() => onDecrement(item.id)}
+                disabled={qty <= 1}
+                aria-label={t('cartPopover.decreaseQuantity', { name: item.name })}
+              >
+                <svg viewBox="0 0 16 16" fill="none" aria-hidden focusable="false">
+                  <path d="M3.5 8h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+              </button>
+              <span className="cartd__qty">{qty}</span>
+              <button
+                className="cartd__step"
+                onClick={() => onIncrement(item.id)}
+                disabled={atStockCap}
+                aria-label={t('cartPopover.increaseQuantity')}
+              >
+                <svg viewBox="0 0 16 16" fill="none" aria-hidden focusable="false">
+                  <path d="M8 3.5v9M3.5 8h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+              </button>
+            </div>
+          ) : null}
+          <div className="cartd__price" title={formatCreditsFull(subtotal)}>
             <CurrencyIcon className="cartd__diamond" />
-            {formatCredits(item.priceCredits)}
+            {formatCredits(subtotal)}
           </div>
         </div>
       </div>
@@ -89,10 +111,13 @@ export function CartPopover() {
   const justAddedCount = useCart(s => s.justAddedCount)
   const setOpen = useCart(s => s.setOpen)
   const remove = useCart(s => s.remove)
+  const increment = useCart(s => s.increment)
+  const decrement = useCart(s => s.decrement)
   const panelRef = useRef<HTMLDivElement>(null)
 
-  const total = items.reduce((sum, i) => sum + i.priceCredits, 0)
-  const count = items.length
+  const total = items.reduce((sum, i) => sum + i.priceCredits * i.quantity, 0)
+  // Count reflects total units across all lines (Σ quantity), not the number of distinct lines.
+  const count = items.reduce((n, i) => n + i.quantity, 0)
 
   // Escape closes the drawer (outside-click is handled by the scrim). No auto-dismiss: a full drawer
   // stays until the user dismisses it.
@@ -137,7 +162,7 @@ export function CartPopover() {
 
           <ul className="cartd__list">
             {items.map(i => (
-              <CartRow key={i.id} item={i} onRemove={remove} />
+              <CartRow key={i.id} item={i} onRemove={remove} onIncrement={increment} onDecrement={decrement} />
             ))}
           </ul>
         </div>

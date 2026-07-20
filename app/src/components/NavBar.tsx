@@ -21,7 +21,7 @@ export function NavBar() {
   const address = session?.address
   const { data: avatar, isLoading: isLoadingProfile } = useProfile(address)
   const { data: balance, isError: balanceError, isLoading: balanceLoading } = useBalance(session)
-  const cartCount = useCart(s => s.items.length)
+  const cartCount = useCart(s => s.items.reduce((n, i) => n + i.quantity, 0))
   const openCart = useCart(s => s.setOpen)
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()

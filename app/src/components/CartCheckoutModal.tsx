@@ -5,8 +5,8 @@ import { formatCredits } from '~/lib/currency'
 import { t } from '~/intl/i18n'
 import { ErrorNotice } from '~/components/ErrorNotice'
 
-// A cart line as the modal displays it: the item + the LIVE credit price it will be charged.
-export type CheckoutLine = { item: CatalogItem; priceCredits: number }
+// A cart line as the modal displays it: the item + the LIVE per-unit credit price + how many units.
+export type CheckoutLine = { item: CatalogItem; priceCredits: number; quantity?: number }
 
 // The modal is a PURE presentational view of the checkout flow — all money logic (review, authorize,
 // buy, settle, release) stays in Cart.tsx. It renders the multi-item variants of the four pixel-perfect
@@ -30,7 +30,7 @@ type Props = {
   onSelectPack?: (id: string) => void
   onBuyPacks?: () => void
   // complete
-  purchased?: CatalogItem[]
+  purchased?: Array<CatalogItem & { quantity?: number }>
   onMyAssets?: () => void
   onTryInWorld?: () => void
   // error
@@ -144,6 +144,7 @@ function NoFunds({
   onCancel: () => void
 }) {
   const pack = packs.find(p => p.id === selectedPack)
+  const unitCount = lines.reduce((n, l) => n + (l.quantity ?? 1), 0)
   return (
     <div className="buy-modal__body">
       <div className="buy-modal__warning">
@@ -155,30 +156,34 @@ function NoFunds({
         <p className="buy-modal__warning-text">
           <b>{t('buyModal.insufficientFunds')}</b> {t('buyModal.warningNeedToBuy')}{' '}
           <b>{t('buyModal.warningCreditsAmount', { count: Math.max(0, shortfallCredits) })}</b>{' '}
-          {t('buyModal.warningToPurchase', { count: lines.length })}
+          {t('buyModal.warningToPurchase', { count: unitCount })}
         </p>
       </div>
 
       <div className="cart-checkout__scroll">
-        {lines.map(l => (
-          <div className="buy-modal__asset" key={l.item.id}>
-            <div className="buy-modal__asset-thumb">
-              {l.item.thumbnail ? <img src={l.item.thumbnail} alt="" /> : null}
-            </div>
-            <div className="buy-modal__asset-info">
-              <div>
-                <div className="buy-modal__asset-name" title={l.item.name}>
-                  {l.item.name || t('buyModal.itemFallback')}
+        {lines.map(l => {
+          const qty = l.quantity ?? 1
+          return (
+            <div className="buy-modal__asset" key={l.item.id}>
+              <div className="buy-modal__asset-thumb">
+                {l.item.thumbnail ? <img src={l.item.thumbnail} alt="" /> : null}
+              </div>
+              <div className="buy-modal__asset-info">
+                <div>
+                  <div className="buy-modal__asset-name" title={l.item.name}>
+                    {l.item.name || t('buyModal.itemFallback')}
+                    {qty > 1 ? <span className="cart-checkout__qty-tag">{t('cartCheckout.qty', { count: qty })}</span> : null}
+                  </div>
+                  {l.item.creator ? <div className="buy-modal__asset-creator">{t('search.byCreator', { name: l.item.creator })}</div> : null}
                 </div>
-                {l.item.creator ? <div className="buy-modal__asset-creator">{t('search.byCreator', { name: l.item.creator })}</div> : null}
-              </div>
-              <div className="buy-modal__asset-price">
-                <CurrencyIcon className="buy-modal__asset-price-ico" />
-                <span>{formatCredits(l.priceCredits)}</span>
+                <div className="buy-modal__asset-price">
+                  <CurrencyIcon className="buy-modal__asset-price-ico" />
+                  <span>{formatCredits(l.priceCredits * qty)}</span>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       <div className="buy-modal__packs">
@@ -225,7 +230,7 @@ function Complete({
   onMyAssets,
   onTryInWorld,
 }: {
-  purchased: CatalogItem[]
+  purchased: Array<CatalogItem & { quantity?: number }>
   onMyAssets: () => void
   onTryInWorld: () => void
 }) {
@@ -250,35 +255,39 @@ function Complete({
 
       <div className="cart-checkout__done">
         <div className="cart-checkout__done-scroll">
-          {purchased.map(item => (
-            <div className="cart-checkout__done-row" key={item.id}>
-              <div className="cart-checkout__done-thumb">
-                {item.thumbnail ? <img src={item.thumbnail} alt="" /> : null}
-                <span className="cart-checkout__done-check" aria-hidden>
-                  <svg viewBox="0 0 18 18" width="12" height="12">
-                    <path
-                      d="M4 9l3.5 3.5L14 5"
-                      fill="none"
-                      stroke="#fff"
-                      strokeWidth="2.2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </span>
-              </div>
-              <div className="cart-checkout__done-info">
-                <div className="cart-checkout__done-name" title={item.name}>
-                  {item.name || t('buyModal.itemFallback')}
+          {purchased.map(item => {
+            const qty = item.quantity ?? 1
+            return (
+              <div className="cart-checkout__done-row" key={item.id}>
+                <div className="cart-checkout__done-thumb">
+                  {item.thumbnail ? <img src={item.thumbnail} alt="" /> : null}
+                  <span className="cart-checkout__done-check" aria-hidden>
+                    <svg viewBox="0 0 18 18" width="12" height="12">
+                      <path
+                        d="M4 9l3.5 3.5L14 5"
+                        fill="none"
+                        stroke="#fff"
+                        strokeWidth="2.2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </span>
                 </div>
-                {item.creator ? <div className="cart-checkout__done-creator">{t('search.byCreator', { name: item.creator })}</div> : null}
+                <div className="cart-checkout__done-info">
+                  <div className="cart-checkout__done-name" title={item.name}>
+                    {item.name || t('buyModal.itemFallback')}
+                    {qty > 1 ? <span className="cart-checkout__qty-tag">{t('cartCheckout.qty', { count: qty })}</span> : null}
+                  </div>
+                  {item.creator ? <div className="cart-checkout__done-creator">{t('search.byCreator', { name: item.creator })}</div> : null}
+                </div>
+                <div className="cart-checkout__done-price">
+                  <CurrencyIcon className="cart-checkout__done-price-ico" />
+                  <span>{formatCredits(item.priceCredits * qty)}</span>
+                </div>
               </div>
-              <div className="cart-checkout__done-price">
-                <CurrencyIcon className="cart-checkout__done-price-ico" />
-                <span>{formatCredits(item.priceCredits)}</span>
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </div>
 

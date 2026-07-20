@@ -255,6 +255,12 @@ export function ItemDetail() {
     [current, buyableTradeId]
   )
   const inCart = cartItems.some(i => i.id === cartItem.id)
+  // Quantity support is PRIMARY-only: a primary (mint) line can hold multiple copies up to stock, so
+  // Add-to-cart stays enabled and re-clicking adds another. A secondary listing is a single unique
+  // token (tokenId), so it keeps the add-once ("In cart") behaviour.
+  const isPrimary = !cartItem.tokenId
+  const cartQty = cartItems.find(i => i.id === cartItem.id)?.quantity ?? 0
+  const atStockCap = isPrimary && typeof current.available === 'number' && cartQty >= current.available
   const faved = useFavorites(s => !!s.items[current.id])
 
   // KR5 denominator: fire 'Shop Viewed Item' once per hydrated item (deduped across re-renders and the
@@ -285,7 +291,10 @@ export function ItemDetail() {
   }, [routeKey])
 
   function handleAddToCart() {
-    if (!forSale || inCart || own) return
+    if (!forSale || own || resolvingTrade) return
+    // Secondary: only ever one copy of a unique token. Primary: don't exceed remaining stock.
+    if (!isPrimary && inCart) return
+    if (atStockCap) return
     add(cartItem, 'item_detail')
   }
 
@@ -303,11 +312,13 @@ export function ItemDetail() {
 
   const addLabel = !forSale
     ? t('itemDetail.notForSale')
-    : inCart
-      ? t('assetCard.inCart')
-      : resolvingTrade
-        ? t('itemDetail.checking')
-        : t('assetCard.addToCart')
+    : resolvingTrade
+      ? t('itemDetail.checking')
+      : atStockCap
+        ? t('itemDetail.maxInCart')
+        : !isPrimary && inCart
+          ? t('assetCard.inCart')
+          : t('assetCard.addToCart')
 
   // Stock (primary/mint listings only): the shop feed carries the remaining mintable supply. Secondary
   // listings (a specific token) have no stock concept, so we hide it there (see Figma 1052-151285).
@@ -576,7 +587,7 @@ export function ItemDetail() {
             <button
               className="item-detail__addcart"
               onClick={handleAddToCart}
-              disabled={!forSale || inCart || resolvingTrade}
+              disabled={!forSale || resolvingTrade || (isPrimary ? atStockCap : inCart)}
               aria-label={addLabel}
             >
               <span className="ico ico-cart-solid item-detail__addcart-ico" aria-hidden />
