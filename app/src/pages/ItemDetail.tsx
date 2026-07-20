@@ -371,7 +371,7 @@ export function ItemDetail() {
       </nav>
 
       <div className="item-detail__main">
-        <div className="item-detail__preview">
+        <div className="item-detail__preview" data-testid="item-preview">
           {/* Mount the preview only once the item's identity is resolved (deep-link/refresh hydrate a
               stub first) so the 3D iframe mounts ONCE with the right item — no stub→hydrated remount /
               double-load. Show the same loader meanwhile. */}

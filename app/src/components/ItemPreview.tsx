@@ -117,7 +117,7 @@ export function ItemPreview({ item }: { item: CatalogItem }) {
           </button>
         </div>
       ) : (
-        <div className="item-preview__emote-controls">
+        <div className="item-preview__emote-controls" data-testid="emote-controls">
           <EmoteControls wearablePreviewId="shop-item-preview" hideFrameInput />
         </div>
       )}

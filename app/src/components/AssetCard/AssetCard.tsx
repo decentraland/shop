@@ -184,7 +184,7 @@ export function AssetCard(props: AssetCardProps) {
             )}
           </div>
           {isMarket && props.mode === 'market' ? (
-            <div className="card__price card__price--market">
+            <div className="card__price card__price--market" data-testid="card-price-market">
               <span className="card__approx" aria-hidden>
                 ≈
               </span>
@@ -231,7 +231,11 @@ export function AssetCard(props: AssetCardProps) {
             {/* Market (legacy) tag: the "≈ price is a live-rate market price" indicator. Lives here in
                 the chips row (not the price row) so it's swapped out for the action button on hover like
                 every other chip and never distorts the price row / Buy now button. */}
-            {isMarket ? <span className="chip chip--market">{t('assetCard.marketPrice')}</span> : null}
+            {isMarket ? (
+              <span className="chip chip--market" data-testid="chip-market">
+                {t('assetCard.marketPrice')}
+              </span>
+            ) : null}
             <span
               className="chip chip--rarity"
               style={{ background: rarityTint(item.rarity), color: rarityInk(item.rarity) }}

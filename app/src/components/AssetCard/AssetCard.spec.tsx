@@ -83,15 +83,15 @@ describe('AssetCard market (legacy) mode', () => {
       </MemoryRouter>
     )
     // Fluctuating price: leading "≈" + the converted credit value, on a single line.
-    const price = container.querySelector('.card__price--market')
+    const price = container.querySelector('[data-testid="card-price-market"]')
     expect(price?.textContent).toContain('≈')
     expect(price?.textContent).toContain('123')
     // The Market price tag moved OUT of the price row (which is what cramped the button) and INTO the
     // chips row.
-    expect(price?.querySelector('.chip')).toBeNull()
-    expect(container.querySelector('.card__chips .chip--market')?.textContent).toMatch(/market price/i)
-    // The action is Buy now (not Add to cart), same .card__cart element/metrics as a native card.
-    expect(container.querySelector('.card__cart')?.textContent).toMatch(/buy now/i)
+    expect(price?.querySelector('[data-testid="chip-market"]')).toBeNull()
+    expect(container.querySelector('[data-testid="chip-market"]')?.textContent).toMatch(/market price/i)
+    // The action is Buy now (not Add to cart), same card element/metrics as a native card.
+    expect(container.querySelector('[data-testid="card-cart"]')?.textContent).toMatch(/buy now/i)
   })
 
   it('disables Buy now when the live rate is unavailable (null price)', () => {
@@ -100,8 +100,8 @@ describe('AssetCard market (legacy) mode', () => {
         <AssetCard item={makeItem()} mode="market" marketPriceCredits={null} onBuyNow={() => {}} />
       </MemoryRouter>
     )
-    expect((container.querySelector('.card__cart') as HTMLButtonElement).disabled).toBe(true)
-    expect(container.querySelector('.card__price--market')?.textContent).toContain('—')
+    expect((container.querySelector('[data-testid="card-cart"]') as HTMLButtonElement).disabled).toBe(true)
+    expect(container.querySelector('[data-testid="card-price-market"]')?.textContent).toContain('—')
   })
 
   it('opens the detail page in market mode when the card body is clicked, passing { item, market, marketPriceCredits } state', () => {
@@ -117,7 +117,7 @@ describe('AssetCard market (legacy) mode', () => {
         </Routes>
       </MemoryRouter>
     )
-    const link = container.querySelector('.card__link') as HTMLAnchorElement
+    const link = container.querySelector('[data-testid="card-link"]') as HTMLAnchorElement
     expect(link).toBeTruthy()
     expect(link.getAttribute('href')).toBe('/item/0xc/1')
 
