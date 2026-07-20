@@ -95,8 +95,8 @@ describe('when returning from Stripe hosted Checkout on the real path', () => {
 
     // The grant resolves to the success screen with the server-reported count (the crediting spinner is
     // exercised by GetCredits.spec.tsx, whose real mock lingers; here the poll resolves instantly).
-    expect(await screen.findByText(/you.?re all set/i)).toBeInTheDocument()
-    expect(screen.getByText('250')).toBeInTheDocument()
+    expect(await screen.findByText(/purchase was successful/i)).toBeInTheDocument()
+    expect(screen.getByText(/250/)).toBeInTheDocument()
     expect(screen.getByText(/added to your account/i)).toBeInTheDocument()
 
     // The order id polled came from the return param, and the balance query was invalidated.
@@ -111,7 +111,7 @@ describe('when returning from Stripe hosted Checkout on the real path', () => {
 
     renderPage('/?order=ord_x')
 
-    expect(await screen.findByText(/you.?re all set/i)).toBeInTheDocument()
+    expect(await screen.findByText(/purchase was successful/i)).toBeInTheDocument()
     expect(screen.getByText(/your credits are ready/i)).toBeInTheDocument()
     // No misleading "0" count anywhere on the success screen.
     expect(screen.queryByText('0')).not.toBeInTheDocument()
@@ -128,7 +128,7 @@ describe('when returning from Stripe hosted Checkout on the real path', () => {
 
     renderPage('/?order=ord_x')
 
-    expect(await screen.findByText(/you.?re all set/i)).toBeInTheDocument()
+    expect(await screen.findByText(/purchase was successful/i)).toBeInTheDocument()
     expect(screen.getByText(/your credits are ready/i)).toBeInTheDocument()
     const completed = track.mock.calls.find(c => c[0] === 'Shop Completed Buy Credits')
     expect(completed?.[1]).toMatchObject({ credits: null })
@@ -167,7 +167,7 @@ describe('when returning from Stripe hosted Checkout on the real path', () => {
 
     renderPage('/?order=ord_x')
 
-    expect(await screen.findByText(/you.?re all set/i)).toBeInTheDocument()
+    expect(await screen.findByText(/purchase was successful/i)).toBeInTheDocument()
     // The return handler clears ?order= (changing searchParams → effect re-runs), but the returnHandled
     // ref must keep it to a single poll.
     expect(pollCreditGrant).toHaveBeenCalledTimes(1)
@@ -178,7 +178,7 @@ describe('when returning from Stripe hosted Checkout on the real path', () => {
 
     renderPage('/?order=ord_x')
 
-    expect(await screen.findByText(/you.?re all set/i)).toBeInTheDocument()
+    expect(await screen.findByText(/purchase was successful/i)).toBeInTheDocument()
     expect(screen.getByTestId('search').textContent).not.toContain('order')
   })
 
@@ -203,13 +203,14 @@ describe('when returning from Stripe hosted Checkout on the real path', () => {
 
   it('should not poll until the wallet identity is restored (signed-fetch needs it)', async () => {
     // On the success_url the poll is a signed-fetch; until the wallet restores (session null) we must
-    // NOT poll. The signed-out gate shows the sign-in prompt during that brief window.
+    // NOT poll. With always-show-packs there's no sign-in gate — the buyer (who WAS charged) sees the
+    // "completing purchase" crediting state while the wallet silently restores, then the poll runs.
     currentSession = null
     pollCreditGrant.mockResolvedValue({ status: 'credited', creditsGranted: 250 })
 
     renderPage('/?order=ord_x')
 
-    expect(await screen.findByText(/sign in to get credits/i)).toBeInTheDocument()
+    expect(await screen.findByText(/completing purchase/i)).toBeInTheDocument()
     expect(pollCreditGrant).not.toHaveBeenCalled()
   })
 })
@@ -226,6 +227,12 @@ describe('when starting a real hosted checkout from a pack click', () => {
     renderPage('/')
 
     await user.click(screen.getByRole('button', { name: /250 credits for \$25/i }))
+
+    // No intermediate embedded card form / "choose a different pack" back-link — the pack click goes
+    // straight to Stripe (a minimal "redirecting to secure checkout" spinner covers the async window).
+    expect(await screen.findByText(/redirecting to secure checkout/i)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /pay \$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /choose a different pack/i })).not.toBeInTheDocument()
 
     // Redirect happens once the hosted session resolves; the funnel marker fires with the order id.
     await vi.waitFor(() => expect(window.location.href).toBe('https://checkout.stripe.com/c/pay/cs_test_123'))

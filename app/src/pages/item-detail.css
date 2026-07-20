@@ -178,6 +178,23 @@
 @keyframes item-preview-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .item-preview__spinner { animation-duration: 2.4s; } }
 
+/* Content-shaped skeletons for the item detail while a deep-linked/refreshed item resolves. */
+.item-detail__preview > .item-preview__loading .item-preview__skeleton {
+  position: absolute; inset: 0; width: 100%; height: 100%; border-radius: inherit;
+}
+.item-detail__info-skel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.id-skel__title { height: 34px; width: 70%; border-radius: 8px; }
+.id-skel__chips { display: flex; gap: 8px; }
+.id-skel__chip { height: 24px; width: 88px; border-radius: 6px; }
+.id-skel__line { height: 14px; width: 100%; border-radius: 6px; }
+.id-skel__line--short { width: 55%; }
+.id-skel__price { height: 30px; width: 40%; border-radius: 8px; }
+.id-skel__btn { height: 48px; width: 100%; border-radius: 8px; margin-top: 8px; }
+
 /* Info column. Explicit per-section margins (not a uniform gap) to hit the Figma rhythm:
    title→tags 12, tags→description 15, description→creator/collection 32 (see Figma 1052-151285). */
 .item-detail__info {
