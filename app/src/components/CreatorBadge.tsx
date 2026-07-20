@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useProfile } from '~/hooks/useProfile'
 import { capitalizeFirst } from '~/lib/text'
+import { t } from '~/intl/i18n'
 
 // Show a creator/seller by their DCL profile (avatar + name), falling back to a short address.
 // Uses the shared useProfile query so many cards with the same creator dedupe to one fetch.
@@ -65,7 +66,9 @@ export function CreatorBadge({
     <>
       {ava}
       <span className="creator__name">
-        {hidePrefix ? null : 'By '}
+        {/* Reuse the shared "By {name}" message for the prefix; the name keeps its own styled span
+            (creator__display), so we render the prefix with an empty name and the name separately. */}
+        {hidePrefix ? null : t('search.byCreator', { name: '' })}
         <span className="creator__display">{name}</span>
       </span>
     </>

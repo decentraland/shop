@@ -20,8 +20,8 @@ function formatDate(ms: number): string {
 }
 
 function StatusBadge({ status }: { status: PurchaseRecord['status'] }) {
-  if (status === 'PENDING') return <span className="purchase__badge purchase__badge--pending">Processing</span>
-  return <span className="purchase__badge purchase__badge--done">Completed</span>
+  if (status === 'PENDING') return <span className="purchase__badge purchase__badge--pending">{t('myPurchases.processing')}</span>
+  return <span className="purchase__badge purchase__badge--done">{t('myPurchases.completed')}</span>
 }
 
 function PurchaseRow({ purchase }: { purchase: PurchaseRecord }) {
@@ -32,7 +32,7 @@ function PurchaseRow({ purchase }: { purchase: PurchaseRecord }) {
     staleTime: 5 * 60_000
   })
 
-  const name = display?.name ?? 'Item'
+  const name = display?.name ?? t('myPurchases.itemFallback')
   const thumbnail = display?.thumbnail ?? ''
   // Only link when we can build a resolvable detail URL: BOTH a contract AND an id segment.
   // Legacy/market purchases often resolve to a contract with no tokenId/itemId — linking those
@@ -78,8 +78,8 @@ export function MyPurchases() {
     return (
       <div className="purchases-empty">
         <span className="ico ico-cart purchases-empty__ico" aria-hidden />
-        <p className="purchases-empty__title">Sign in to see your purchases</p>
-        <p className="muted">Your order history shows up here once you sign in.</p>
+        <p className="purchases-empty__title">{t('myPurchases.signInTitle')}</p>
+        <p className="muted">{t('myPurchases.signInBody')}</p>
       </div>
     )
   }
@@ -91,10 +91,10 @@ export function MyPurchases() {
     return (
       <div className="purchases-empty">
         <span className="ico ico-cart purchases-empty__ico" aria-hidden />
-        <p className="purchases-empty__title">No purchases yet</p>
-        <p className="muted">When you buy something it&rsquo;ll appear here.</p>
+        <p className="purchases-empty__title">{t('myPurchases.emptyTitle')}</p>
+        <p className="muted">{t('myPurchases.emptyBody')}</p>
         <Link className="btn btn--purple" to="/assets">
-          Browse Collectibles
+          {t('notFound.cta')}
         </Link>
       </div>
     )
@@ -103,11 +103,9 @@ export function MyPurchases() {
   return (
     <section className="purchases">
       <div className="purchases__head">
-        <h1>My Purchases</h1>
+        <h1>{t('nav.myPurchases')}</h1>
         {!isLoading ? (
-          <span className="purchases__count">
-            {purchases.length} order{purchases.length > 1 ? 's' : ''}
-          </span>
+          <span className="purchases__count">{t('myPurchases.orderCount', { count: purchases.length })}</span>
         ) : null}
       </div>
       <div className="purchases__list">

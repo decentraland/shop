@@ -19,10 +19,10 @@ export function MyFavorites() {
     return (
       <div className="favorites-empty">
         <span className="ico ico-heart favorites-empty__ico" aria-hidden />
-        <p className="favorites-empty__title">No favorites yet</p>
-        <p className="muted">Tap the heart on any item to save it here.</p>
+        <p className="favorites-empty__title">{t('myFavorites.emptyTitle')}</p>
+        <p className="muted">{t('myFavorites.emptyBody')}</p>
         <Link className="btn btn--purple" to="/assets">
-          Browse Collectibles
+          {t('notFound.cta')}
         </Link>
       </div>
     )
@@ -31,10 +31,8 @@ export function MyFavorites() {
   return (
     <section className="favorites">
       <div className="favorites__head">
-        <h1>My Favorites</h1>
-        <span className="favorites__count">
-          {items.length} item{items.length > 1 ? 's' : ''}
-        </span>
+        <h1>{t('nav.myFavorites')}</h1>
+        <span className="favorites__count">{t('myFavorites.itemCount', { count: items.length })}</span>
       </div>
       <div className="grid">
         {items.slice(0, visible).map(item => (

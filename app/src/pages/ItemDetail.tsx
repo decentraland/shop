@@ -41,9 +41,9 @@ function isValidRarity(r: string): r is Rarity {
 }
 
 function genderLabel(gender: CatalogItem['gender']): string | null {
-  if (gender === 'male') return 'Male'
-  if (gender === 'female') return 'Female'
-  if (gender === 'unisex') return 'Unisex'
+  if (gender === 'male') return t('itemDetail.genderMale')
+  if (gender === 'female') return t('itemDetail.genderFemale')
+  if (gender === 'unisex') return t('itemDetail.genderUnisex')
   return null
 }
 
@@ -51,7 +51,7 @@ function genderLabel(gender: CatalogItem['gender']): string | null {
 // (e.g. "eyewear" → "eyewear", uppercased by CSS), else the broad Wearable/Emote.
 function categoryLabel(item: CatalogItem): string {
   if (item.wearableCategory) return item.wearableCategory.replace(/_/g, ' ')
-  return item.category === 'emote' ? 'Emote' : 'Wearable'
+  return item.category === 'emote' ? t('itemDetail.categoryEmote') : t('itemDetail.categoryWearable')
 }
 
 export function ItemDetail() {
@@ -295,13 +295,19 @@ export function ItemDetail() {
   const catIco = categoryIcon(current)
   const genderIco = genderIcon(current.gender)
   const onSale = forSale && saleActive
-  const collectionTitle = 'More from this collection'
+  const collectionTitle = t('itemDetail.moreFromCollection')
 
   // Your own (primary) listing — you can't buy it (see lib/ownership.ts). Secondary self-listings are
   // caught authoritatively at buy time by isOwnTrade.
   const own = isOwnListing(current, session?.address)
 
-  const addLabel = !forSale ? 'Not for sale' : inCart ? 'In cart' : resolvingTrade ? 'Checking…' : 'Add to cart'
+  const addLabel = !forSale
+    ? t('itemDetail.notForSale')
+    : inCart
+      ? t('assetCard.inCart')
+      : resolvingTrade
+        ? t('itemDetail.checking')
+        : t('assetCard.addToCart')
 
   // Stock (primary/mint listings only): the shop feed carries the remaining mintable supply. Secondary
   // listings (a specific token) have no stock concept, so we hide it there (see Figma 1052-151285).
@@ -349,21 +355,21 @@ export function ItemDetail() {
     return (
       <div className="item-detail item-detail--notfound">
         <span className="ico ico-cart item-detail__notfound-ico" aria-hidden />
-        <h1 className="item-detail__notfound-title">This item isn’t available</h1>
-        <p className="muted">It may have been delisted or moved. Browse Collectibles for something else.</p>
-        <button className="btn btn--purple" onClick={() => navigate('/assets')}>Browse Collectibles</button>
+        <h1 className="item-detail__notfound-title">{t('itemDetail.notAvailableTitle')}</h1>
+        <p className="muted">{t('itemDetail.notAvailableBody')}</p>
+        <button className="btn btn--purple" onClick={() => navigate('/assets')}>{t('notFound.cta')}</button>
       </div>
     )
   }
 
   return (
     <div className="item-detail">
-      <nav className="item-detail__crumbs" aria-label="Breadcrumb">
+      <nav className="item-detail__crumbs" aria-label={t('itemDetail.breadcrumbAria')}>
         <button className="item-detail__crumb-link" onClick={() => navigate('/assets')}>
-          Collectibles
+          {t('nav.collectibles')}
         </button>
         <span className="item-detail__crumb-sep">/</span>
-        <span className="item-detail__crumb-current">{current.name || 'Item'}</span>
+        <span className="item-detail__crumb-current">{current.name || t('itemDetail.itemFallback')}</span>
       </nav>
 
       <div className="item-detail__main">
@@ -374,7 +380,7 @@ export function ItemDetail() {
           {current.name ? (
             <ItemPreview item={current} />
           ) : (
-            <div className="item-preview__loading" aria-busy="true" aria-label="Loading preview">
+            <div className="item-preview__loading" aria-busy="true" aria-label={t('itemPreview.loading')}>
               <span className="skeleton item-preview__skeleton" aria-hidden />
             </div>
           )}
@@ -385,7 +391,7 @@ export function ItemDetail() {
             className={`item-detail__fav item-detail__fav--preview${faved ? ' is-on' : ''}`}
             onClick={() => toggleFav(current)}
             aria-pressed={faved}
-            aria-label={faved ? 'Remove from favorites' : 'Add to favorites'}
+            aria-label={faved ? t('assetCard.removeFromFavorites') : t('assetCard.addToFavorites')}
           >
             <span className={`ico ${faved ? 'ico-heart-solid' : 'ico-heart'}`} aria-hidden />
           </button>
@@ -402,7 +408,7 @@ export function ItemDetail() {
               className={`item-detail__fav${faved ? ' is-on' : ''}`}
               onClick={() => toggleFav(current)}
               aria-pressed={faved}
-              aria-label={faved ? 'Remove from favorites' : 'Add to favorites'}
+              aria-label={faved ? t('assetCard.removeFromFavorites') : t('assetCard.addToFavorites')}
             >
               <span className={`ico ${faved ? 'ico-heart-solid' : 'ico-heart'}`} aria-hidden />
             </button>
@@ -430,11 +436,11 @@ export function ItemDetail() {
 
           {description ? (
             <div className="item-detail__section item-detail__description">
-              <div className="item-detail__label">Description</div>
+              <div className="item-detail__label">{t('itemDetail.description')}</div>
               <p className={`item-detail__desc-text${descExpanded ? ' is-expanded' : ''}`}>{description}</p>
               {description.length > 140 ? (
                 <button className="link item-detail__desc-toggle" onClick={() => setDescExpanded(v => !v)}>
-                  {descExpanded ? 'Show less' : 'Read more'}
+                  {descExpanded ? t('itemDetail.showLess') : t('itemDetail.readMore')}
                 </button>
               ) : null}
             </div>
@@ -444,13 +450,13 @@ export function ItemDetail() {
             <div className="item-detail__meta">
               {current.creator ? (
                 <div className="item-detail__meta-col">
-                  <div className="item-detail__label">Creator</div>
+                  <div className="item-detail__label">{t('itemDetail.creator')}</div>
                   <CreatorBadge address={current.creator} className="item-detail__creator" linkToProfile hidePrefix />
                 </div>
               ) : null}
               {collection?.name ? (
                 <div className="item-detail__meta-col item-detail__meta-col--collection">
-                  <div className="item-detail__label">Collection</div>
+                  <div className="item-detail__label">{t('itemDetail.collection')}</div>
                   <CollectionBadge
                     contractAddress={current.contractAddress}
                     name={collection.name}
@@ -467,7 +473,7 @@ export function ItemDetail() {
           <div className="item-detail__price-block">
             <div className="item-detail__price-row">
               <div className="item-detail__price-col">
-                <div className="item-detail__price-label">Price</div>
+                <div className="item-detail__price-label">{t('itemDetail.price')}</div>
                 {isMarket ? (
                   <>
                     <div className="item-detail__price item-detail__price--market">
@@ -483,7 +489,7 @@ export function ItemDetail() {
                         </>
                       )}
                     </div>
-                    <div className="item-detail__market-note muted">Market price</div>
+                    <div className="item-detail__market-note muted">{t('assetCard.marketPrice')}</div>
                   </>
                 ) : forSale ? (
                   onSale ? (
@@ -498,7 +504,9 @@ export function ItemDetail() {
                       </span>
                       {saleDiscountPct(current.compareAtCredits!, current.priceCredits) > 0 ? (
                         <span className="item-detail__sale-badge">
-                          SALE -{saleDiscountPct(current.compareAtCredits!, current.priceCredits)}%
+                          {t('assetCard.saleWithDiscount', {
+                            pct: saleDiscountPct(current.compareAtCredits!, current.priceCredits)
+                          })}
                         </span>
                       ) : null}
                       <SaleCountdown endsAt={current.saleEndsAt} className="item-detail__countdown" />
@@ -510,12 +518,12 @@ export function ItemDetail() {
                     </div>
                   )
                 ) : (
-                  <div className="item-detail__price item-detail__price--none">Not for sale</div>
+                  <div className="item-detail__price item-detail__price--none">{t('itemDetail.notForSale')}</div>
                 )}
               </div>
               {showStock ? (
                 <div className="item-detail__stock-col">
-                  <div className="item-detail__price-label">Stock</div>
+                  <div className="item-detail__price-label">{t('itemDetail.stock')}</div>
                   <div className="item-detail__stock-value">
                     {(current.available ?? 0).toLocaleString()}/{Rarity.getMaxSupply(rarity).toLocaleString()}
                   </div>
@@ -537,7 +545,7 @@ export function ItemDetail() {
                 onClick={() => setShowBuy(true)}
                 disabled={!canBuyMarket}
               >
-                <span className="item-detail__cta-label">Buy now</span>
+                <span className="item-detail__cta-label">{t('assetCard.buyNow')}</span>
                 {marketPriceCredits != null ? (
                   <span className="item-detail__cta-price" aria-hidden>
                     <CurrencyIcon className="item-detail__cta-diamond" />
@@ -547,7 +555,8 @@ export function ItemDetail() {
               </button>
             ) : own ? (
               <p className="item-detail__own-note muted">
-                This is your item — manage it in <Link to="/my-assets">My Assets</Link>.
+                {t('itemDetail.ownItemPrefix')} <Link to="/my-assets">{t('nav.myAssets')}</Link>
+                {t('itemDetail.ownItemSuffix')}
               </p>
             ) : (
             <>
@@ -557,7 +566,7 @@ export function ItemDetail() {
                 onClick={() => setShowBuy(true)}
                 disabled={resolvingTrade}
               >
-                <span className="item-detail__cta-label">Buy now</span>
+                <span className="item-detail__cta-label">{t('assetCard.buyNow')}</span>
                 <span className="item-detail__cta-price" aria-hidden>
                   <CurrencyIcon className="item-detail__cta-diamond" />
                   {current.priceCredits}

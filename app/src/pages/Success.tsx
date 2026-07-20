@@ -181,87 +181,93 @@ export function Success() {
           <>
             <span className="spinner success__spinner" aria-hidden />
             <h1 className="success__title">
-              {settlement === 'indexing' ? 'Finalizing your purchase…' : 'Processing your purchase…'}
+              {settlement === 'indexing' ? t('success.finalizing') : t('success.processing')}
             </h1>
             <p className="success__sub">
               {settlement === 'indexing' ? (
                 <>
-                  Payment confirmed — adding{' '}
-                  {items.length === 1 ? <strong>{hero.name}</strong> : `${items.length} items`} to your wardrobe. Almost
-                  there.
+                  {t('success.indexingBefore')}{' '}
+                  {items.length === 1 ? (
+                    <strong>{hero.name}</strong>
+                  ) : (
+                    t('success.itemCount', { count: items.length })
+                  )}{' '}
+                  {t('success.indexingAfter')}
                 </>
               ) : (
                 <>
-                  Confirming {items.length === 1 ? <strong>{hero.name}</strong> : `${items.length} items`} on-chain.
-                  This usually takes a few seconds — keep this tab open.
+                  {t('success.confirmingBefore')}{' '}
+                  {items.length === 1 ? (
+                    <strong>{hero.name}</strong>
+                  ) : (
+                    t('success.itemCount', { count: items.length })
+                  )}{' '}
+                  {t('success.confirmingAfter')}
                 </>
               )}
             </p>
             {showExplorer ? (
               <div className="success__links">
                 <a className="success__receipt" href={`${EXPLORER_TX}${txHash}`} target="_blank" rel="noreferrer">
-                  View transaction ↗
+                  {t('success.viewTransaction')}
                 </a>
               </div>
             ) : null}
           </>
         ) : settlement === 'timed-out' ? (
           <>
-            <h1 className="success__title">Still processing…</h1>
+            <h1 className="success__title">{t('success.stillProcessingTitle')}</h1>
             <p className="success__sub">
-              This is taking longer than usual to confirm. Your purchase may still complete — check{' '}
+              {t('success.timedOutBefore')}{' '}
               <button className="link" onClick={() => navigate('/my-purchases')}>
-                My Purchases
+                {t('nav.myPurchases')}
               </button>{' '}
-              in a few minutes to see the final status. No need to buy again.
+              {t('success.timedOutAfter')}
             </p>
             <div className="success__links">
               {showExplorer ? (
                 <a className="success__receipt" href={`${EXPLORER_TX}${txHash}`} target="_blank" rel="noreferrer">
-                  View transaction ↗
+                  {t('success.viewTransaction')}
                 </a>
               ) : null}
             </div>
             <div className="success__actions">
               <button className="btn btn--purple" onClick={() => navigate('/my-purchases')}>
-                View my purchases
+                {t('success.viewMyPurchases')}
               </button>
               <button className="btn btn--ghost" onClick={() => navigate('/assets')}>
-                Keep shopping
+                {t('success.keepShopping')}
               </button>
             </div>
           </>
         ) : settlement === 'failed' ? (
           <>
-            <h1 className="success__title">Your purchase didn&rsquo;t go through</h1>
-            <p className="success__sub">
-              The transaction failed on-chain, so nothing was delivered. Your credits weren&rsquo;t spent (any hold is
-              released shortly) — you can try again.
-            </p>
+            <h1 className="success__title">{t('success.failedTitle')}</h1>
+            <p className="success__sub">{t('success.failedBody')}</p>
             <div className="success__links">
               {showExplorer ? (
                 <a className="success__receipt" href={`${EXPLORER_TX}${txHash}`} target="_blank" rel="noreferrer">
-                  View transaction ↗
+                  {t('success.viewTransaction')}
                 </a>
               ) : null}
             </div>
             <div className="success__actions">
               <button className="btn btn--purple" onClick={() => navigate('/assets')}>
-                Back to shop
+                {t('success.backToShop')}
               </button>
             </div>
           </>
         ) : (
           <>
             <SuccessAnimation />
-            <h1 className="success__title">It&rsquo;s yours!</h1>
+            <h1 className="success__title">{t('success.title')}</h1>
             {items.length === 1 ? (
               <p className="success__sub">
-                <strong>{hero.name}</strong> is now in your wardrobe.
+                <strong>{hero.name}</strong> {t('success.heroInWardrobe')}
               </p>
             ) : (
               <>
-                <p className="success__sub">{items.length} items are now in your wardrobe.</p>
+                <p className="success__sub">{t('success.itemsInWardrobe', { count: items.length })}</p>
                 <ul className="success__list">
                   {items.map(i => (
                     <li key={i.id}>{i.name}</li>
@@ -272,21 +278,21 @@ export function Success() {
 
             <div className="success__links">
               <button className="success__receipt" onClick={() => navigate('/my-purchases')}>
-                View order
+                {t('success.viewOrder')}
               </button>
               {showExplorer ? (
                 <a className="success__receipt" href={`${EXPLORER_TX}${txHash}`} target="_blank" rel="noreferrer">
-                  View transaction ↗
+                  {t('success.viewTransaction')}
                 </a>
               ) : null}
             </div>
 
             <div className="success__actions">
               <a className="btn btn--purple" href={JUMP_URL} target="_blank" rel="noreferrer">
-                Use it in-world
+                {t('success.useItInWorld')}
               </a>
               <button className="btn btn--ghost" onClick={() => navigate('/assets')}>
-                Keep shopping
+                {t('success.keepShopping')}
               </button>
             </div>
           </>

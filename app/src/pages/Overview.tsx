@@ -7,6 +7,7 @@ import { AssetCard } from '~/components/AssetCard'
 import { FollowedCreatorsRow } from '~/components/FollowedCreatorsRow'
 import { RecentlyViewed } from '~/components/RecentlyViewed'
 import { WeekTopCreators } from '~/components/WeekTopCreators'
+import { t } from '~/intl/i18n'
 import { useSeo } from '~/hooks/useSeo'
 import carouselArrow from '~/assets/icons/carousel-arrow.svg'
 import heroBanner from '~/assets/overview/hero-fashion-week.png'
@@ -75,7 +76,7 @@ function Carousel({ title, items, loading }: { title: string; items: CatalogItem
       <div className="row__head">
         <h2 className="row__title">{title}</h2>
         <Link className="row__viewall" to="/assets">
-          View all <span className="ico ico-viewall" aria-hidden />
+          {t('overview.viewAll')} <span className="ico ico-viewall" aria-hidden />
         </Link>
       </div>
       <div className="ov-carousel__viewport">
@@ -84,7 +85,7 @@ function Carousel({ title, items, loading }: { title: string; items: CatalogItem
             className="ov-arrow ov-arrow--left"
             onClick={() => scrollToPage(page - 1)}
             disabled={page <= 0}
-            aria-label="Previous"
+            aria-label={t('overview.previous')}
           >
             <img src={carouselArrow} alt="" aria-hidden />
           </button>
@@ -99,20 +100,20 @@ function Carousel({ title, items, loading }: { title: string; items: CatalogItem
             className="ov-arrow ov-arrow--right"
             onClick={() => scrollToPage(page + 1)}
             disabled={page >= pageCount - 1}
-            aria-label="Next"
+            aria-label={t('overview.next')}
           >
             <img src={carouselArrow} alt="" aria-hidden />
           </button>
         ) : null}
       </div>
       {showControls ? (
-        <div className="ov-carousel__dots" aria-label={`${title} pages`}>
+        <div className="ov-carousel__dots" aria-label={t('overview.carouselPages', { title })}>
           {Array.from({ length: pageCount }).map((_, i) => (
             <button
               key={i}
               className={`ov-dot${i === page ? ' is-active' : ''}`}
               onClick={() => scrollToPage(i)}
-              aria-label={`Go to page ${i + 1}`}
+              aria-label={t('overview.goToPage', { page: i + 1 })}
               aria-current={i === page ? 'true' : undefined}
             />
           ))}
@@ -136,36 +137,36 @@ export function Overview() {
         <img className="ov-hero__bg" src={heroBanner} alt="" aria-hidden />
         <div className="ov-hero__scrim" aria-hidden />
         <div className="ov-hero__inner">
-          <h1 className="ov-hero__title">Fashion week outfits</h1>
+          <h1 className="ov-hero__title">{t('overview.heroTitle')}</h1>
           <Link className="btn btn--purple ov-hero__cta" to="/assets">
-            Explore collection
+            {t('overview.exploreCollection')}
           </Link>
         </div>
       </section>
 
       {isLoading || items.length > 0 ? (
         <>
-          <Carousel title="Featured Products" items={items.slice(0, 12)} loading={isLoading} />
+          <Carousel title={t('overview.featuredProducts')} items={items.slice(0, 12)} loading={isLoading} />
 
           {/* Promo tiles (Figma node 913:135589). Placeholder art — see report for production source. */}
           <section className="ov-promos">
-            <Link className="ov-promo" to="/assets" aria-label="Best rated emotes — explore collection">
-              <img src={promoEmotes} alt="Best rated emotes" />
+            <Link className="ov-promo" to="/assets" aria-label={t('overview.promoEmotesAria')}>
+              <img src={promoEmotes} alt={t('overview.promoEmotesAlt')} />
             </Link>
-            <Link className="ov-promo" to="/assets" aria-label="Week selected outfits — explore collection">
-              <img src={promoOutfits} alt="Week selected outfits" />
+            <Link className="ov-promo" to="/assets" aria-label={t('overview.promoOutfitsAria')}>
+              <img src={promoOutfits} alt={t('overview.promoOutfitsAlt')} />
             </Link>
           </section>
 
           {/* New Creations carousel — needs a second page of listings (>12) to be worth showing. */}
-          {items.length > 12 ? <Carousel title="New Creations" items={items.slice(12, 24)} loading={false} /> : null}
+          {items.length > 12 ? <Carousel title={t('overview.newCreations')} items={items.slice(12, 24)} loading={false} /> : null}
         </>
       ) : (
         <div className="overview__empty">
-          <p className="overview__empty-title">New drops are on the way</p>
-          <p className="muted">There are no items on sale right now — check back soon.</p>
+          <p className="overview__empty-title">{t('overview.emptyTitle')}</p>
+          <p className="muted">{t('overview.emptyBody')}</p>
           <Link className="btn btn--purple" to="/assets">
-            Browse Collectibles
+            {t('notFound.cta')}
           </Link>
         </div>
       )}

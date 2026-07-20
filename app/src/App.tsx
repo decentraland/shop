@@ -9,6 +9,7 @@ import { HoverPreviewLayer } from '~/components/HoverPreviewLayer'
 import { useAccountWatcher } from '~/hooks/useAccountWatcher'
 import { initAnalytics, trackPage } from '~/lib/analytics'
 import { Overview } from '~/pages/Overview'
+import { t } from '~/intl/i18n'
 
 // Route path → funnel page name (see design/SHOP_TRACKING_SPEC.md §5.2).
 const PAGE_NAMES: Record<string, string> = {
@@ -53,10 +54,10 @@ function PageFallback() {
 function CrashFallback() {
   return (
     <div className="overview__empty">
-      <p className="overview__empty-title">Something went wrong</p>
-      <p className="muted">This page hit an unexpected error. Try reloading.</p>
+      <p className="overview__empty-title">{t('app.crash.title')}</p>
+      <p className="muted">{t('app.crash.body')}</p>
       <button className="btn btn--purple" onClick={() => window.location.reload()}>
-        Reload
+        {t('app.crash.reload')}
       </button>
     </div>
   )

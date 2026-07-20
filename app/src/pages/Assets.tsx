@@ -191,12 +191,12 @@ export function Assets() {
       {filtersOpen ? <div className="browse__scrim" onClick={() => setFiltersOpen(false)} aria-hidden /> : null}
       <aside className={`browse__sidebar${filtersOpen ? ' is-open' : ''}`}>
         <div className="browse__sidebar-head">
-          <span className="browse__sidebar-title">Filters</span>
-          <button className="browse__sidebar-close" onClick={() => setFiltersOpen(false)} aria-label="Close filters">
+          <span className="browse__sidebar-title">{t('assets.filters')}</span>
+          <button className="browse__sidebar-close" onClick={() => setFiltersOpen(false)} aria-label={t('assets.closeFilters')}>
             ✕
           </button>
         </div>
-        <div className="sidebar__section-label">Category</div>
+        <div className="sidebar__section-label">{t('assets.category')}</div>
         <CategoryFilter
           category={category}
           subCategory={subCategory}
@@ -206,32 +206,32 @@ export function Assets() {
 
         <div className="sidebar__divider" />
 
-        <div className="sidebar__section-label">Price</div>
+        <div className="sidebar__section-label">{t('filter.price')}</div>
         <div className="price-filter">
           <div className="price-filter__inputs">
             <label className="price-filter__field">
-              <span className="price-filter__field-label">Min</span>
+              <span className="price-filter__field-label">{t('assets.min')}</span>
               <span className="price-filter__box">
                 <CurrencyIcon className="price-filter__coin" />
                 <input
                   type="number"
                   min="0"
-                  aria-label="Minimum price"
+                  aria-label={t('assets.minPriceAria')}
                   placeholder="0"
                   value={priceMin}
                   onChange={e => setPriceMin(e.target.value)}
                 />
               </span>
             </label>
-            <span className="price-filter__to">to</span>
+            <span className="price-filter__to">{t('assets.priceTo')}</span>
             <label className="price-filter__field">
-              <span className="price-filter__field-label">Max</span>
+              <span className="price-filter__field-label">{t('assets.max')}</span>
               <span className="price-filter__box">
                 <CurrencyIcon className="price-filter__coin" />
                 <input
                   type="number"
                   min="0"
-                  aria-label="Maximum price"
+                  aria-label={t('assets.maxPriceAria')}
                   placeholder="0"
                   value={priceMax}
                   onChange={e => setPriceMax(e.target.value)}
@@ -251,7 +251,7 @@ export function Assets() {
               min={0}
               max={PRICE_SLIDER_MAX}
               value={sliderMin}
-              aria-label="Minimum price slider"
+              aria-label={t('assets.minPriceSliderAria')}
               onChange={e => onSlideMin(Number(e.target.value))}
             />
             <input
@@ -259,7 +259,7 @@ export function Assets() {
               min={0}
               max={PRICE_SLIDER_MAX}
               value={sliderMax}
-              aria-label="Maximum price slider"
+              aria-label={t('assets.maxPriceSliderAria')}
               onChange={e => onSlideMax(Number(e.target.value))}
             />
           </div>
@@ -286,7 +286,7 @@ export function Assets() {
           aria-expanded={rarityOpen}
           onClick={() => setRarityOpen(o => !o)}
         >
-          <span className="sidebar__section-label">Rarity</span>
+          <span className="sidebar__section-label">{t('assets.rarity')}</span>
           <span className={`ico ico-chevron sidebar__section-chev${rarityOpen ? ' is-up' : ''}`} aria-hidden />
         </button>
         {rarityOpen ? (
@@ -304,10 +304,10 @@ export function Assets() {
             Apply simply dismisses the drawer; Clear Filters resets them all. */}
         <div className="browse__sidebar-foot">
           <button type="button" className="browse__clear" onClick={clearFilters}>
-            Clear Filters
+            {t('assets.clearFilters')}
           </button>
           <button type="button" className="browse__apply" onClick={() => setFiltersOpen(false)}>
-            Apply
+            {t('assets.apply')}
           </button>
         </div>
       </aside>
@@ -326,13 +326,10 @@ export function Assets() {
             Only warn when the current results actually contain a market-priced item, so users browsing
             only fixed-price items aren't shown an irrelevant notice. */}
         {rateError && items.some(i => i.source === 'legacy') ? (
-          <p className="market-banner market-banner--warn">
-            Some market prices are temporarily unavailable — buying those items is paused for a moment. Please try again
-            shortly.
-          </p>
+          <p className="market-banner market-banner--warn">{t('assets.marketUnavailable')}</p>
         ) : null}
 
-        {error ? <p className="error">Couldn&rsquo;t load items — please try again.</p> : null}
+        {error ? <p className="error">{t('assets.loadError')}</p> : null}
 
         <div className="grid">
           {isLoading ? (
@@ -359,7 +356,7 @@ export function Assets() {
 
         <LoadMore hasNextPage={hasNextPage} isFetching={isFetchingNextPage} onLoadMore={() => void fetchNextPage()} />
 
-        {!isLoading && items.length === 0 ? <p className="muted">No items match your filters.</p> : null}
+        {!isLoading && items.length === 0 ? <p className="muted">{t('assets.noItems')}</p> : null}
       </div>
 
       {checkout && rate ? (
