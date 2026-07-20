@@ -1,6 +1,7 @@
 import { useCart, type AddToCartSource } from '~/store/cart'
 import { useWallet } from '~/store/wallet'
 import { isOwnListing } from '~/lib/ownership'
+import { Button } from '~/components/Button'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { toast } from '~/store/toast'
 import type { CatalogItem } from '~/lib/api'
@@ -31,9 +32,9 @@ export function AddAllToCart({ items, source }: { items: CatalogItem[]; source: 
       <span className="addall__summary">
         {buyable.length} for sale · <CurrencyIcon className="addall__diamond" /> {total.toLocaleString()}
       </span>
-      <button className="btn btn--purple btn--sm addall__cta" onClick={addAll} disabled={toAdd.length === 0}>
+      <Button variant="purple" size="sm" onClick={addAll} disabled={toAdd.length === 0}>
         {toAdd.length === 0 ? 'All in cart' : `Add all (${toAdd.length}) to cart`}
-      </button>
+      </Button>
     </div>
   )
 }

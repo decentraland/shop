@@ -24,6 +24,7 @@ const colors = {
   panel: '#f5f5f5',
   chip: '#ecebed',
   accent: '#691fa9', // purple — View all, Sign-in CTA
+  magenta: '#c640cd', // brand magenta — gradient stop, outline-button border, card hover borders
   brandViolet: '#a524b3', // cart badge
   rarity: '#a14bf3',
   rarityBg: 'rgba(161, 75, 243, 0.3)',
