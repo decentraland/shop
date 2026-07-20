@@ -12,6 +12,12 @@
    ========================================================================== */
 
 /* ---------------- Checkout (cart) page ---------------- */
+/* Cart route paints the whole page gray (Figma 1182-216274) so the white cart cards get the focus
+   and the cross-sell reads as secondary. Full-bleed via a body class (toggled while Cart is mounted)
+   rather than a wrapper, so the gray reaches the viewport edges under the sticky sub-nav. */
+body.shop-cart-bg {
+  background: var(--media);
+}
 .checkout {
   max-width: 1510px;
   margin: 0 auto;
@@ -52,11 +58,12 @@
   align-items: start;
 }
 
-/* Left: a white card wrapping the header + the cart-card list. */
+/* Left: a white card wrapping the header + the cart-card list. On the gray page the card needs no
+   outline — a soft shadow lifts it and drops the box-in-box border clutter. */
 .checkout__panel {
   min-width: 0;
   background: #fff;
-  border: 1px solid var(--line);
+  box-shadow: 0 1px 3px rgba(22, 21, 24, 0.06);
   border-radius: 16px;
   padding: 24px;
 }
@@ -341,7 +348,7 @@ a.checkout__name:hover {
   display: flex;
   flex-direction: column;
   background: #fff;
-  border: 1px solid var(--line);
+  box-shadow: 0 1px 3px rgba(22, 21, 24, 0.06);
   border-radius: 16px;
   padding: 16px;
 }

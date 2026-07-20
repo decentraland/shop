@@ -98,6 +98,13 @@ export function Cart() {
   const toggleFav = useFavorites(s => s.toggle)
   const { session } = useWallet()
 
+  // Paint the whole page gray while the cart is open (Figma 1182-216274) so the white cart cards get
+  // the focus. Toggled on <body> so the gray is full-bleed under the sticky sub-nav; reverted on leave.
+  useEffect(() => {
+    document.body.classList.add('shop-cart-bg')
+    return () => document.body.classList.remove('shop-cart-bg')
+  }, [])
+
   // Try-on is only meaningful for wearables (emotes aren't "worn").
   const hasWearable = items.some(i => i.category !== 'emote')
 
