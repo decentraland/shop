@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type MouseEvent } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button } from '~/components/Button'
@@ -265,7 +265,7 @@ export function MyAssets() {
                         size="sm"
                         variant="ghost"
                         disabled={cancelling === asset.id || !asset.tradeId}
-                        onClick={(e: MouseEvent) => {
+                        onClick={e => {
                           e.stopPropagation()
                           if (asset.tradeId) void cancelByTrade(asset.tradeId, asset.name, asset.id)
                         }}
@@ -352,7 +352,7 @@ export function MyAssets() {
                         size="sm"
                         variant="ghost"
                         disabled={cancelling === item.id}
-                        onClick={(e: MouseEvent) => {
+                        onClick={e => {
                           e.stopPropagation()
                           const sale = saleFor(item)
                           if (sale?.tradeId) void cancelByTrade(sale.tradeId, item.name, item.id)
@@ -396,7 +396,7 @@ export function MyAssets() {
                       <PublishCta
                         size="sm"
                         variant="purple"
-                        onClick={(e: MouseEvent) => {
+                        onClick={e => {
                           e.stopPropagation()
                           track('Shop Started Listing', { listing_type: 'primary', item_id: item.blockchainItemId })
                           setPublishing(item)

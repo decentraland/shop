@@ -1,5 +1,5 @@
 import { forwardRef } from 'react'
-import type { ComponentPropsWithoutRef, ElementType, ForwardedRef, ReactElement } from 'react'
+import type { ComponentPropsWithoutRef, ElementType, ForwardedRef, MouseEventHandler, ReactElement } from 'react'
 import * as S from './Button.styles'
 
 export type ButtonVariant = 'default' | 'purple' | 'outline' | 'ghost'
@@ -10,6 +10,9 @@ type ButtonOwnProps = {
   variant?: ButtonVariant
   /** `sm` is the compact padding/label. */
   size?: ButtonSize
+  // Pinned explicitly (not inherited from the element) so it stays typed even when the polymorphic
+  // element type widens to ElementType — this is what lets `styled(Button)` infer `onClick`'s event.
+  onClick?: MouseEventHandler<HTMLElement>
 }
 
 // Polymorphic: renders a <button> by default, but `as` lets call sites render a router <Link> or <a>
