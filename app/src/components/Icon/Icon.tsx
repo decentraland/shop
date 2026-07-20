@@ -78,6 +78,8 @@ type IconProps = {
 
 export function Icon({ name, size, className, style, ...rest }: IconProps) {
   const url = SRC[name]
+  if (import.meta.env.DEV && !url) console.warn(`Icon: no SVG found for "${name}" — check assets/icons/`)
+
   const vars = {
     '--icon-url': url ? `url("${url}")` : undefined,
     ...(size != null ? { width: size, height: size } : null),

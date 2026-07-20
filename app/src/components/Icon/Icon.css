@@ -13,3 +13,9 @@
   -webkit-mask-size: contain;
   mask-size: contain;
 }
+/* Inline currency mark sized to the surrounding text. */
+.ccy-mark {
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.125em;
+}

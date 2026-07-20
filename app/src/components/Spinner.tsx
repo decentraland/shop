@@ -2,7 +2,6 @@ import styled from '@emotion/styled'
 import { keyframes } from '@emotion/react'
 import { theme } from '~/styles/theme'
 import { t } from '~/intl/i18n'
-import './spinner.css'
 
 export type SpinnerSize = 'small' | 'medium' | 'large'
 export type SpinnerDirection = 'row' | 'column'

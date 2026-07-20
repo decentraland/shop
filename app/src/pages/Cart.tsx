@@ -456,7 +456,7 @@ export function Cart() {
             <h1 className="checkout__panel-title">{t('cart.panelTitle', { count: items.length })}</h1>
             {hasWearable ? (
               <button className="checkout__fitting" onClick={() => setFittingOpen(true)} disabled={working}>
-                <Icon name="emote-dance" />
+                <Icon name="fitting-room" />
                 {t('cart.fittingRoom')}
               </button>
             ) : null}

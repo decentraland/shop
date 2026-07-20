@@ -13,6 +13,7 @@ import { isWearable, slotOf, slotRegion, defaultWorn, toggleWorn, conflictingIds
 import { avatarShape, dominantShape, itemShapes, shapeLabel, isCompatible, BASE_MALE } from '~/lib/bodyShape'
 import { Button } from '~/components/Button'
 import { Icon, type IconName } from '~/components/Icon'
+import type { SlotRegion } from '~/lib/outfit'
 import styled from '@emotion/styled'
 import { t } from '~/intl/i18n'
 
@@ -23,6 +24,15 @@ const AnimatedBackground = lazy(() => import('~/components/AnimatedBackground/An
 const CheckoutBtn = styled(Button)`
   flex: none;
 `
+
+const SLOT_ICON: Record<SlotRegion, IconName> = {
+  head: 'slot-head',
+  upper: 'slot-upper',
+  lower: 'slot-lower',
+  feet: 'slot-feet',
+  hands: 'slot-hands',
+  item: 'slot-item'
+}
 
 // Turn a wearable sub-category into a human label ("upper_body" → "Upper body").
 function slotLabel(slot: string | null): string {
@@ -198,7 +208,7 @@ export function FittingRoom() {
                     </div>
                     <div className="fitting-row__meta">
                       <Icon
-                        name={`slot-${wearable ? slotRegion(item) : 'item'}` as IconName}
+                        name={SLOT_ICON[wearable ? slotRegion(item) : 'item']}
                         size={16}
                         color="var(--muted)"
                         title={wearable ? slotLabel(slotOf(item)) : t('fittingRoom.emote')}
