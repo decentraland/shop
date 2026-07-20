@@ -423,7 +423,7 @@ export function ItemDetail() {
             aria-pressed={faved}
             aria-label={faved ? t('assetCard.removeFromFavorites') : t('assetCard.addToFavorites')}
           >
-            <span className={`ico ${faved ? 'ico-heart-solid' : 'ico-heart'}`} aria-hidden />
+            <Icon name={faved ? 'heart-solid' : 'heart'} size={18} />
           </button>
         </div>
 
@@ -454,12 +454,12 @@ export function ItemDetail() {
                   {current.rarity}
                 </span>
                 <span className="chip item-detail__chip">
-                  {catIco ? <span className={`ico ico-${catIco} item-detail__chip-ico`} aria-hidden /> : null}
+                  {catIco ? <Icon name={catIco} size={18} color="var(--text-2)" /> : null}
                   {categoryLabel(current)}
                 </span>
                 {gender ? (
                   <span className="chip item-detail__chip">
-                    {genderIco ? <span className={`ico ico-${genderIco} item-detail__chip-ico`} aria-hidden /> : null}
+                    {genderIco ? <Icon name={genderIco} size={18} color="var(--text-2)" /> : null}
                     {gender}
                   </span>
                 ) : null}
@@ -576,11 +576,7 @@ export function ItemDetail() {
                 {isMarket ? (
                   // Market (legacy/MANA) item: a single Buy now that opens the MANA→credits checkout
                   // (MarketCheckout) — never Add to cart / BuyModal.
-                  <button
-                    className="btn btn--purple item-detail__cta"
-                    onClick={() => setShowBuy(true)}
-                    disabled={!canBuyMarket}
-                  >
+                  <DetailCta variant="purple" onClick={() => setShowBuy(true)} disabled={!canBuyMarket}>
                     <span className="item-detail__cta-label">{t('assetCard.buyNow')}</span>
                     {marketPriceCredits != null ? (
                       <span className="item-detail__cta-price" aria-hidden>
@@ -588,7 +584,7 @@ export function ItemDetail() {
                         {marketPriceCredits}
                       </span>
                     ) : null}
-                  </button>
+                  </DetailCta>
                 ) : own ? (
                   <p className="item-detail__own-note muted">
                     {t('itemDetail.ownItemPrefix')} <Link to="/my-assets">{t('nav.myAssets')}</Link>

@@ -392,10 +392,6 @@
 .item-detail__fav.is-on {
   color: var(--dcl-red);
 }
-.item-detail__fav .ico-heart {
-  width: 18px;
-  height: 18px;
-}
 /* Mobile-only heart overlaid on the preview (Figma 1182-195410). Hidden on desktop; the specific
    selector overrides the greedy `.item-detail__preview > *` sizing. Shown + positioned in the mobile
    block below, where the title-row heart is hidden so only one heart is ever exposed to a11y. */

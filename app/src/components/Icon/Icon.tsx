@@ -47,6 +47,7 @@ export type IconName =
   | 'external-link'
   | 'facebook'
   | 'filter'
+  | 'fitting-room'
   | 'gender-female'
   | 'gender-male'
   | 'gender-unisex'

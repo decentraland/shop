@@ -559,7 +559,7 @@ export function Cart() {
                       }
                       title={faved ? t('assetCard.removeFromFavorites') : t('assetCard.addToFavorites')}
                     >
-                      <span className={`ico ${faved ? 'ico-heart-solid' : 'ico-heart'}`} aria-hidden />
+                      <Icon name={faved ? 'heart-solid' : 'heart'} />
                     </button>
 
                     <button
