@@ -434,7 +434,6 @@ export function ItemDetail() {
             <>
               <div className="item-detail__info-head">
                 <h1 className="item-detail__title">{current.name}</h1>
-
                 <button
                   className={`item-detail__fav${faved ? ' is-on' : ''}`}
                   onClick={() => toggleFav(current)}

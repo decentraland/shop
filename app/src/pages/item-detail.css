@@ -855,25 +855,3 @@
     border-bottom-right-radius: 999px;
   }
 }
-
-/* The Collection carousel styles moved to components/CollectionCarousel.css (co-located with the
-   shared component so it stays styled wherever it's rendered — cart upsell included). */
-
-/* Not-found / unresolvable item (bad deep link, delisted, or not in the shop feed) */
-.item-detail--notfound {
-  min-height: 46vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  gap: 14px;
-}
-.item-detail__notfound-ico {
-  width: 44px;
-  height: 44px;
-  opacity: 0.4;
-}
-.item-detail__notfound-title {
-  font-size: 22px;
-}
