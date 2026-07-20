@@ -63,10 +63,6 @@
   color: var(--text);
   background: var(--media);
 }
-.creator-card__copy {
-  width: 16px;
-  height: 16px;
-}
 
 /* View-profile button — full-width outlined pill, matching the Figma sidebar CTA. */
 .creator-card__view {

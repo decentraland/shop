@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
+import { Icon } from '~/components/Icon'
 import { useCart } from '~/store/cart'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { CreatorBadge } from '~/components/CreatorBadge'
@@ -67,7 +68,7 @@ function CartRow({ item, onRemove }: { item: CatalogItem; onRemove: (id: string)
         aria-label={`Remove ${item.name}`}
         title="Remove"
       >
-        <span className="ico ico-trash" aria-hidden />
+        <Icon name="trash" />
       </button>
     </li>
   )

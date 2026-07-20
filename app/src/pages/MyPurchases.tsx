@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { Icon } from '~/components/Icon'
 import { useQuery } from '@tanstack/react-query'
 import { useWallet } from '~/store/wallet'
 import { fetchUserPurchases, type PurchaseRecord } from '~/lib/credits'
@@ -80,7 +81,7 @@ export function MyPurchases() {
   if (!session) {
     return (
       <div className="purchases-empty">
-        <span className="ico ico-cart purchases-empty__ico" aria-hidden />
+        <Icon name="cart" size={40} color="var(--muted-2)" />
         <p className="purchases-empty__title">Sign in to see your purchases</p>
         <p className="muted">Your order history shows up here once you sign in.</p>
       </div>
@@ -93,7 +94,7 @@ export function MyPurchases() {
   if (!isLoading && purchases.length === 0) {
     return (
       <div className="purchases-empty">
-        <span className="ico ico-cart purchases-empty__ico" aria-hidden />
+        <Icon name="cart" size={40} color="var(--muted-2)" />
         <p className="purchases-empty__title">No purchases yet</p>
         <p className="muted">When you buy something it&rsquo;ll appear here.</p>
         <EmptyCta as={Link} to="/assets" variant="purple">

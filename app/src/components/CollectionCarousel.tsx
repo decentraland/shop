@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AssetCard } from '~/components/AssetCard'
+import { Icon } from '~/components/Icon'
 import carouselArrow from '~/assets/icons/carousel-arrow.svg'
 import type { CatalogItem } from '~/lib/api'
 
@@ -71,7 +72,7 @@ export function CollectionCarousel({
         {onViewAll ? (
           <button className="collection-carousel__viewall" onClick={onViewAll}>
             View all
-            <span className="ico ico-chevron collection-carousel__viewall-ico" aria-hidden />
+            <Icon name="chevron-down" size={16} className="collection-carousel__viewall-ico" />
           </button>
         ) : null}
       </div>

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Icon } from '~/components/Icon'
 import { useFavorites } from '~/store/favorites'
 import { AssetCard } from '~/components/AssetCard'
 import { LoadMore } from '~/components/LoadMore'
@@ -21,7 +22,7 @@ export function MyFavorites() {
   if (items.length === 0) {
     return (
       <div className="favorites-empty">
-        <span className="ico ico-heart favorites-empty__ico" aria-hidden />
+        <Icon name="heart" size={40} color="var(--muted-2)" />
         <p className="favorites-empty__title">No favorites yet</p>
         <p className="muted">Tap the heart on any item to save it here.</p>
         <EmptyCta as={Link} to="/assets" variant="purple">

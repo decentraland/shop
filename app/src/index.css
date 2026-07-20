@@ -87,219 +87,6 @@ h2 {
   font-weight: 600;
 }
 
-/* ---------------- Icons (Figma SVGs via CSS mask, recolorable via currentColor) ---------------- */
-.ico {
-  display: inline-block;
-  width: 20px;
-  height: 20px;
-  flex: none;
-  background-color: currentColor;
-  -webkit-mask-repeat: no-repeat;
-  mask-repeat: no-repeat;
-  -webkit-mask-position: center;
-  mask-position: center;
-  -webkit-mask-size: contain;
-  mask-size: contain;
-}
-.ico-heart {
-  -webkit-mask-image: url("./assets/icons/heart.svg");
-  mask-image: url("./assets/icons/heart.svg");
-}
-.ico-heart-solid {
-  -webkit-mask-image: url("./assets/icons/heart-solid.svg");
-  mask-image: url("./assets/icons/heart-solid.svg");
-}
-/* Currency mark sized to the surrounding text — used everywhere the credits symbol appears inline. */
-.ccy-mark {
-  width: 1em;
-  height: 1em;
-  vertical-align: -0.125em;
-}
-.ico-cart {
-  -webkit-mask-image: url("./assets/icons/cart.svg");
-  mask-image: url("./assets/icons/cart.svg");
-}
-.ico-cart-solid {
-  -webkit-mask-image: url("./assets/icons/cart-solid.svg");
-  mask-image: url("./assets/icons/cart-solid.svg");
-}
-/* TODO: credits.svg is a placeholder we hand-authored during the MVP (a DCL-style diamond), not the
-   official credits mark. Replace with the definitive credits icon once design provides it. */
-.ico-credits {
-  -webkit-mask-image: url("./assets/icons/credits.svg");
-  mask-image: url("./assets/icons/credits.svg");
-}
-.ico-search {
-  -webkit-mask-image: url("./assets/icons/search.svg");
-  mask-image: url("./assets/icons/search.svg");
-}
-.ico-pen {
-  -webkit-mask-image: url("./assets/icons/pen.svg");
-  mask-image: url("./assets/icons/pen.svg");
-}
-.ico-upload {
-  -webkit-mask-image: url("./assets/icons/upload.svg");
-  mask-image: url("./assets/icons/upload.svg");
-}
-.ico-website {
-  -webkit-mask-image: url("./assets/icons/website.svg");
-  mask-image: url("./assets/icons/website.svg");
-}
-.ico-facebook {
-  -webkit-mask-image: url("./assets/icons/facebook.svg");
-  mask-image: url("./assets/icons/facebook.svg");
-}
-.ico-twitter {
-  -webkit-mask-image: url("./assets/icons/twitter.svg");
-  mask-image: url("./assets/icons/twitter.svg");
-}
-.ico-discord {
-  -webkit-mask-image: url("./assets/icons/discord.svg");
-  mask-image: url("./assets/icons/discord.svg");
-}
-.ico-arrow-left {
-  -webkit-mask-image: url("./assets/icons/arrow-left.svg");
-  mask-image: url("./assets/icons/arrow-left.svg");
-}
-.ico-external {
-  -webkit-mask-image: url("./assets/icons/external-link.svg");
-  mask-image: url("./assets/icons/external-link.svg");
-}
-.ico-copy {
-  -webkit-mask-image: url("./assets/icons/copy.svg");
-  mask-image: url("./assets/icons/copy.svg");
-}
-.ico-eyewear {
-  -webkit-mask-image: url("./assets/icons/category-eyewear.svg");
-  mask-image: url("./assets/icons/category-eyewear.svg");
-}
-.ico-smart {
-  -webkit-mask-image: url("./assets/icons/smart.svg");
-  mask-image: url("./assets/icons/smart.svg");
-}
-.ico-gender-male {
-  -webkit-mask-image: url("./assets/icons/gender-male.svg");
-  mask-image: url("./assets/icons/gender-male.svg");
-}
-.ico-gender-female {
-  -webkit-mask-image: url("./assets/icons/gender-female.svg");
-  mask-image: url("./assets/icons/gender-female.svg");
-}
-.ico-gender-unisex {
-  -webkit-mask-image: url("./assets/icons/gender-unisex.svg");
-  mask-image: url("./assets/icons/gender-unisex.svg");
-}
-.ico-clock {
-  -webkit-mask-image: url("./assets/icons/clock.svg");
-  mask-image: url("./assets/icons/clock.svg");
-}
-.ico-chevron {
-  -webkit-mask-image: url("./assets/icons/chevron-down.svg");
-  mask-image: url("./assets/icons/chevron-down.svg");
-}
-.ico-filter {
-  -webkit-mask-image: url("./assets/icons/filter.svg");
-  mask-image: url("./assets/icons/filter.svg");
-}
-.ico-plus {
-  -webkit-mask-image: url("./assets/icons/plus.svg");
-  mask-image: url("./assets/icons/plus.svg");
-}
-.ico-cat-head {
-  -webkit-mask-image: url("./assets/icons/cat-head.svg");
-  mask-image: url("./assets/icons/cat-head.svg");
-}
-.ico-cat-upper {
-  -webkit-mask-image: url("./assets/icons/cat-upper.svg");
-  mask-image: url("./assets/icons/cat-upper.svg");
-}
-.ico-cat-handwear {
-  -webkit-mask-image: url("./assets/icons/cat-handwear.svg");
-  mask-image: url("./assets/icons/cat-handwear.svg");
-}
-.ico-cat-lower {
-  -webkit-mask-image: url("./assets/icons/cat-lower.svg");
-  mask-image: url("./assets/icons/cat-lower.svg");
-}
-.ico-cat-feet {
-  -webkit-mask-image: url("./assets/icons/cat-feet.svg");
-  mask-image: url("./assets/icons/cat-feet.svg");
-}
-.ico-cat-accessories {
-  -webkit-mask-image: url("./assets/icons/cat-accessories.svg");
-  mask-image: url("./assets/icons/cat-accessories.svg");
-}
-.ico-cat-skins {
-  -webkit-mask-image: url("./assets/icons/cat-skins.svg");
-  mask-image: url("./assets/icons/cat-skins.svg");
-}
-.ico-emote-dance {
-  -webkit-mask-image: url("./assets/icons/emote-dance.svg");
-  mask-image: url("./assets/icons/emote-dance.svg");
-}
-.ico-emote-stunt {
-  -webkit-mask-image: url("./assets/icons/emote-stunt.svg");
-  mask-image: url("./assets/icons/emote-stunt.svg");
-}
-.ico-emote-greetings {
-  -webkit-mask-image: url("./assets/icons/emote-greetings.svg");
-  mask-image: url("./assets/icons/emote-greetings.svg");
-}
-.ico-emote-fun {
-  -webkit-mask-image: url("./assets/icons/emote-fun.svg");
-  mask-image: url("./assets/icons/emote-fun.svg");
-}
-.ico-emote-poses {
-  -webkit-mask-image: url("./assets/icons/emote-poses.svg");
-  mask-image: url("./assets/icons/emote-poses.svg");
-}
-.ico-emote-reactions {
-  -webkit-mask-image: url("./assets/icons/emote-reactions.svg");
-  mask-image: url("./assets/icons/emote-reactions.svg");
-}
-.ico-emote-horror {
-  -webkit-mask-image: url("./assets/icons/emote-horror.svg");
-  mask-image: url("./assets/icons/emote-horror.svg");
-}
-.ico-emote-misc {
-  -webkit-mask-image: url("./assets/icons/emote-misc.svg");
-  mask-image: url("./assets/icons/emote-misc.svg");
-}
-.ico-trash {
-  -webkit-mask-image: url("./assets/icons/trash.svg");
-  mask-image: url("./assets/icons/trash.svg");
-}
-.ico-slot-head {
-  -webkit-mask-image: url("./assets/icons/slot-head.svg");
-  mask-image: url("./assets/icons/slot-head.svg");
-}
-.ico-slot-upper {
-  -webkit-mask-image: url("./assets/icons/slot-upper.svg");
-  mask-image: url("./assets/icons/slot-upper.svg");
-}
-.ico-slot-lower {
-  -webkit-mask-image: url("./assets/icons/slot-lower.svg");
-  mask-image: url("./assets/icons/slot-lower.svg");
-}
-.ico-slot-feet {
-  -webkit-mask-image: url("./assets/icons/slot-feet.svg");
-  mask-image: url("./assets/icons/slot-feet.svg");
-}
-.ico-slot-hands {
-  -webkit-mask-image: url("./assets/icons/slot-hands.svg");
-  mask-image: url("./assets/icons/slot-hands.svg");
-}
-.ico-slot-item {
-  -webkit-mask-image: url("./assets/icons/slot-item.svg");
-  mask-image: url("./assets/icons/slot-item.svg");
-}
-.ico-viewall {
-  -webkit-mask-image: url("./assets/icons/view-all-arrow.svg");
-  mask-image: url("./assets/icons/view-all-arrow.svg");
-  width: 18px;
-  height: 18px;
-}
-
 /* ---------------- Sub-nav (shop sections; under the ui2 Navbar) ---------------- */
 .subnav {
   position: sticky;
@@ -356,9 +143,6 @@ h2 {
   color: var(--text);
 }
 .subnav__search input::placeholder {
-  color: var(--muted);
-}
-.subnav__search-ico {
   color: var(--muted);
 }
 
@@ -433,10 +217,6 @@ h2 {
   border-radius: var(--radius-btn);
   color: var(--text-2);
 }
-.subnav__cart .ico-cart {
-  width: 28px;
-  height: 28px;
-}
 .subnav__cart-badge {
   position: absolute;
   top: -4px;
@@ -471,7 +251,7 @@ h2 {
 .subnav__fav.active {
   color: var(--brand-violet);
 }
-.subnav__fav .ico-heart {
+.subnav__fav .ico {
   width: 28px;
   height: 28px;
 }
@@ -798,16 +578,6 @@ h2 {
   background: var(--chip);
   border-color: var(--muted-2);
 }
-.filterbar__chev {
-  width: 24px;
-  height: 24px;
-  color: var(--text-2);
-  flex: none;
-  transition: transform 0.15s ease;
-}
-.filterbar__chev.is-up {
-  transform: rotate(180deg);
-}
 .filterbar__badge {
   display: inline-grid;
   place-items: center;
@@ -1103,7 +873,7 @@ h2 {
     color: #fff;
     cursor: pointer;
   }
-  .card__add-round .ico-plus {
+  .card__add-round .ico {
     width: 18px;
     height: 18px;
   }
@@ -1145,10 +915,6 @@ h2 {
   border-radius: 6px;
   padding: 2px 8px;
   white-space: nowrap;
-}
-.sale-countdown__ico {
-  width: 13px;
-  height: 13px;
 }
 
 /* ---------------- Market tab (legacy, fluctuating-price liquidity) ---------------- */
@@ -1560,10 +1326,6 @@ h2 {
     color 0.12s ease,
     background 0.12s ease;
 }
-.cart__remove .ico-trash {
-  width: 20px;
-  height: 20px;
-}
 .cart__remove:hover:not(:disabled) {
   color: var(--dcl-red);
   background: rgba(255, 45, 85, 0.1);
@@ -1943,10 +1705,6 @@ h2 {
   font-size: 14px;
   margin-bottom: 12px;
 }
-.cart-pop__head .ico-cart {
-  width: 18px;
-  height: 18px;
-}
 .cart-pop__list {
   display: flex;
   flex-direction: column;
@@ -2208,12 +1966,6 @@ h2 {
 .search-pop__recent-btn:hover {
   background: #f5f4f7;
 }
-.search-pop__recent-ico {
-  width: 16px;
-  height: 16px;
-  color: var(--muted);
-  flex: 0 0 auto;
-}
 .search-pop__recent-text {
   min-width: 0;
   overflow: hidden;
@@ -2306,11 +2058,6 @@ h2 {
   text-align: center;
   padding: 90px 20px;
   min-height: 50vh;
-}
-.cart-empty__ico {
-  width: 44px;
-  height: 44px;
-  color: var(--muted-2);
 }
 .cart-empty__title {
   font-size: 22px;
@@ -2446,11 +2193,6 @@ h2 {
   padding: 90px 20px;
   min-height: 50vh;
 }
-.favorites-empty__ico {
-  width: 40px;
-  height: 40px;
-  color: var(--muted-2);
-}
 .favorites-empty__title {
   font-size: 22px;
   font-weight: 700;
@@ -2561,11 +2303,6 @@ a.purchase:hover {
   text-align: center;
   padding: 90px 20px;
   min-height: 50vh;
-}
-.purchases-empty__ico {
-  width: 40px;
-  height: 40px;
-  color: var(--muted-2);
 }
 .purchases-empty__title {
   font-size: 22px;
@@ -2893,11 +2630,6 @@ a.purchase:hover {
   gap: 6px;
   margin-top: 3px;
 }
-.fitting-row__slot-ico {
-  width: 16px;
-  height: 16px;
-  color: var(--muted);
-}
 .fitting-row__conflict {
   font-size: 10px;
   font-weight: 700;
@@ -2951,10 +2683,6 @@ a.purchase:hover {
   transition:
     color 0.12s ease,
     background 0.12s ease;
-}
-.fitting-row__remove .ico-trash {
-  width: 18px;
-  height: 18px;
 }
 .fitting-row__remove:hover {
   color: var(--dcl-red);
@@ -3041,16 +2769,6 @@ a.purchase:hover {
 }
 .sidebar__section-toggle .sidebar__section-label {
   margin: 0;
-}
-.sidebar__section-chev {
-  width: 20px;
-  height: 20px;
-  color: var(--muted);
-  flex: none;
-  transition: transform 0.15s ease;
-}
-.sidebar__section-chev.is-up {
-  transform: rotate(180deg);
 }
 /* Rarity multi-select in the sidebar: a checkbox per rarity, one per row (capitalized). */
 .rarity-filter {
@@ -3153,36 +2871,17 @@ a.purchase:hover {
   color: var(--rarity);
   font-weight: 600;
 }
-.catfilter__chev {
-  width: 24px;
-  height: 24px;
-  color: var(--text);
-  flex: none;
-  transition: transform 0.15s ease;
-}
-.catfilter__chev.is-up {
-  transform: rotate(180deg);
-}
 .catfilter__sub-left {
   display: flex;
   align-items: center;
   gap: 8px;
   min-width: 0;
 }
-.catfilter__sub-ico {
-  width: 20px;
-  height: 20px;
-  color: #43404a;
-  flex: none;
-}
 .catfilter__sub-label {
   font-family: var(--sans);
   font-weight: 400;
   font-size: 14px;
   line-height: 1.5;
-  color: #43404a;
-}
-.catfilter__chev--sub {
   color: #43404a;
 }
 /* Section heading above the list (creator page). */
@@ -3517,11 +3216,6 @@ a.purchase:hover {
     font-weight: 500;
     color: var(--text-2);
     cursor: pointer;
-  }
-  .browse__filters-btn .ico-filter {
-    width: 20px;
-    height: 20px;
-    color: var(--text-2);
   }
 }
 

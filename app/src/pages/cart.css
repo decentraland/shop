@@ -101,10 +101,6 @@
   opacity: 0.55;
   cursor: default;
 }
-.checkout__fitting-ico {
-  width: 20px;
-  height: 20px;
-}
 
 .checkout__list {
   display: flex;
@@ -249,10 +245,6 @@
   transition:
     color 0.12s ease,
     background 0.12s ease;
-}
-.checkout__remove .ico-trash {
-  width: 24px;
-  height: 24px;
 }
 .checkout__remove:hover:not(:disabled) {
   color: var(--dcl-red);

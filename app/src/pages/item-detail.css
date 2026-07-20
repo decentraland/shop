@@ -332,10 +332,6 @@
 .item-detail__fav.is-on {
   color: var(--dcl-red);
 }
-.item-detail__fav .ico-heart {
-  width: 18px;
-  height: 18px;
-}
 
 /* Small uppercase section labels (Description / Creator / Price). */
 .item-detail__label {
@@ -369,11 +365,6 @@
 }
 .item-detail__chip {
   background: var(--chip);
-  color: var(--text-2);
-}
-.item-detail__chip-ico {
-  width: 18px;
-  height: 18px;
   color: var(--text-2);
 }
 
@@ -563,10 +554,6 @@
   padding: 4px 10px;
   white-space: nowrap;
 }
-.item-detail__countdown .sale-countdown__ico {
-  width: 14px;
-  height: 14px;
-}
 /* CTAs — two full-width stacked buttons on desktop (Buy now above Add to cart). */
 .item-detail__ctas {
   display: flex;
@@ -609,10 +596,6 @@
 .item-detail__addcart:disabled {
   opacity: 0.55;
   cursor: default;
-}
-.item-detail__addcart-ico {
-  width: 20px;
-  height: 20px;
 }
 .item-detail__status {
   margin: 0;
@@ -700,7 +683,7 @@
   .item-detail__ctas--dual .item-detail__addcart-label {
     display: none;
   }
-  .item-detail__ctas--dual .item-detail__addcart-ico {
+  .item-detail__ctas--dual .item-detail__addcart .ico {
     margin: 0;
   }
 }
@@ -739,8 +722,6 @@
   text-decoration: underline;
 }
 .collection-carousel__viewall-ico {
-  width: 16px;
-  height: 16px;
   transform: rotate(-90deg);
 }
 

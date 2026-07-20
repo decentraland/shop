@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { Button } from '~/components/Button'
+import { Icon } from '~/components/Icon'
 import styled from '@emotion/styled'
 import { useWallet } from '~/store/wallet'
 import { useStore } from '~/hooks/useStore'
@@ -217,7 +218,7 @@ export function StoreSettings() {
               title={t('storeSettings.back')}
               aria-label={t('storeSettings.back')}
             >
-              <span className="ico ico-arrow-left" aria-hidden />
+              <Icon name="arrow-left" />
             </Link>
           ) : null}
           <h1 className="store-settings__title">{t('storeSettings.title')}</h1>
@@ -230,7 +231,7 @@ export function StoreSettings() {
             rel="noopener noreferrer"
           >
             {t('storeSettings.seeAsGuest')}
-            <span className="ico ico-external" aria-hidden />
+            <Icon name="external-link" />
           </a>
         ) : null}
       </div>
@@ -284,7 +285,7 @@ export function StoreSettings() {
                 data-variant="upload"
                 onClick={() => fileInput.current?.click()}
               >
-                <span className="ico ico-upload" aria-hidden />
+                <Icon name="upload" />
                 <span>{t('storeSettings.upload')}</span>
               </button>
               <input

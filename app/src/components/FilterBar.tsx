@@ -1,5 +1,7 @@
 import { ReactNode, useState } from 'react'
 import type { ShopSort } from '~/lib/api'
+import { Icon } from '~/components/Icon'
+import { Chevron } from '~/components/Chevron'
 import { Dropdown } from '~/components/Dropdown'
 
 // Main-area toolbar for the unified browse grid: the result count on the left + the Sort By dropdown
@@ -53,7 +55,7 @@ export function FilterPanel({
         onClick={() => panel.toggle(panelKey)}
       >
         {label} {badge ? <span className="filterbar__badge">{badge}</span> : null}{' '}
-        <span className={`ico ico-chevron filterbar__chev${isOpen ? ' is-up' : ''}`} aria-hidden />
+        <Chevron up={isOpen} size={24} color="var(--text-2)" />
       </button>
       {isOpen ? children : null}
     </div>
@@ -161,7 +163,7 @@ export function FilterBar({
           <div className="browse__dropdowns">
             {onOpenFilters ? (
               <button type="button" className="browse__filters-btn" onClick={onOpenFilters}>
-                <span className="ico ico-filter" aria-hidden />
+                <Icon name="filter" color="var(--text-2)" />
                 Filters
               </button>
             ) : null}

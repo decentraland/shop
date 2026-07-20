@@ -12,6 +12,7 @@ import { track } from '~/lib/analytics'
 import { isWearable, slotOf, slotRegion, defaultWorn, toggleWorn, conflictingIds, wornUrns } from '~/lib/outfit'
 import { avatarShape, dominantShape, itemShapes, shapeLabel, isCompatible, BASE_MALE } from '~/lib/bodyShape'
 import { Button } from '~/components/Button'
+import { Icon, type IconName } from '~/components/Icon'
 import styled from '@emotion/styled'
 
 // Lazy so the WebGL backdrop (+ its shader and pattern texture) only loads when the room opens —
@@ -195,8 +196,10 @@ export function FittingRoom() {
                       {item.name}
                     </div>
                     <div className="fitting-row__meta">
-                      <span
-                        className={`ico ico-slot-${wearable ? slotRegion(item) : 'item'} fitting-row__slot-ico`}
+                      <Icon
+                        name={`slot-${wearable ? slotRegion(item) : 'item'}` as IconName}
+                        size={16}
+                        color="var(--muted)"
                         title={wearable ? slotLabel(slotOf(item)) : 'Emote'}
                         role="img"
                         aria-label={wearable ? slotLabel(slotOf(item)) : 'Emote'}
@@ -226,7 +229,7 @@ export function FittingRoom() {
                     aria-label={`Remove ${item.name} from cart`}
                     title="Remove"
                   >
-                    <span className="ico ico-trash" aria-hidden />
+                    <Icon name="trash" size={18} />
                   </button>
                 </div>
               )

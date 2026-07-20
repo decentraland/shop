@@ -17,6 +17,7 @@ import styled from '@emotion/styled'
 import { theme } from '~/styles/theme'
 import { CollectionBadge } from '~/components/CollectionBadge'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
+import { Icon } from '~/components/Icon'
 import { SaleCountdown } from '~/components/SaleCountdown'
 import { rarityTint, rarityInk } from '~/lib/rarity'
 import { categoryIcon, genderIcon } from '~/lib/itemIcons'
@@ -273,7 +274,7 @@ export function ItemDetail() {
   if (!current.name && !stillResolving) {
     return (
       <div className="item-detail item-detail--notfound">
-        <span className="ico ico-cart item-detail__notfound-ico" aria-hidden />
+        <Icon name="cart" className="item-detail__notfound-ico" />
         <h1 className="item-detail__notfound-title">This item isn’t available</h1>
         <p className="muted">It may have been delisted or moved. Browse Collectibles for something else.</p>
         <NotFoundCta variant="purple" onClick={() => navigate('/assets')}>
@@ -316,7 +317,7 @@ export function ItemDetail() {
               aria-pressed={faved}
               aria-label={faved ? 'Remove from favorites' : 'Add to favorites'}
             >
-              <span className={`ico ${faved ? 'ico-heart-solid' : 'ico-heart'}`} aria-hidden />
+              <Icon name={faved ? 'heart-solid' : 'heart'} size={18} />
             </button>
           </div>
 
@@ -325,12 +326,12 @@ export function ItemDetail() {
               {current.rarity}
             </span>
             <span className="chip item-detail__chip">
-              {catIco ? <span className={`ico ico-${catIco} item-detail__chip-ico`} aria-hidden /> : null}
+              {catIco ? <Icon name={catIco} size={18} color="var(--text-2)" /> : null}
               {categoryLabel(current)}
             </span>
             {gender ? (
               <span className="chip item-detail__chip">
-                {genderIco ? <span className={`ico ico-${genderIco} item-detail__chip-ico`} aria-hidden /> : null}
+                {genderIco ? <Icon name={genderIco} size={18} color="var(--text-2)" /> : null}
                 {gender}
               </span>
             ) : null}
@@ -391,7 +392,7 @@ export function ItemDetail() {
                           SALE -{saleDiscountPct(current.compareAtCredits!, current.priceCredits)}%
                         </span>
                       ) : null}
-                      <SaleCountdown endsAt={current.saleEndsAt} className="item-detail__countdown" />
+                      <SaleCountdown endsAt={current.saleEndsAt} className="item-detail__countdown" iconSize={14} />
                     </div>
                   ) : (
                     <div className="item-detail__price">
@@ -438,7 +439,7 @@ export function ItemDetail() {
                   disabled={!forSale || inCart || resolvingTrade}
                   aria-label={addLabel}
                 >
-                  <span className="ico ico-cart-solid item-detail__addcart-ico" aria-hidden />
+                  <Icon name="cart-solid" />
                   <span className="item-detail__addcart-label">{addLabel}</span>
                 </button>
               </>

@@ -13,6 +13,7 @@ import promoEmotes from '~/assets/overview/promo-best-rated-emotes.png'
 import promoOutfits from '~/assets/overview/promo-week-selected-outfits.png'
 import styled from '@emotion/styled'
 import { Button } from '~/components/Button'
+import { Icon } from '~/components/Icon'
 
 const EmptyCta = styled(Button)`
   margin-top: 10px;
@@ -88,7 +89,7 @@ function Carousel({ title, items, loading }: { title: string; items: CatalogItem
       <div className="row__head">
         <h2 className="row__title">{title}</h2>
         <Link className="row__viewall" to="/assets">
-          View all <span className="ico ico-viewall" aria-hidden />
+          View all <Icon name="view-all-arrow" size={18} />
         </Link>
       </div>
       <div className="ov-carousel__viewport">

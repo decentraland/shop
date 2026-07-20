@@ -10,6 +10,7 @@ import { CreatorBadge } from '~/components/CreatorBadge'
 import { rarityInk, rarityTint } from '~/lib/rarity'
 import { categoryIcon, genderIcon } from '~/lib/itemIcons'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
+import { Icon } from '~/components/Icon'
 import { SaleCountdown } from '~/components/SaleCountdown'
 import { saleDiscountPct } from '~/lib/sale'
 import { formatCredits, formatCreditsFull } from '~/lib/currency'
@@ -138,7 +139,7 @@ export function AssetCard(props: AssetCardProps) {
         }}
         aria-label={faved ? t('assetCard.removeFromFavorites') : t('assetCard.addToFavorites')}
       >
-        <span className={`ico ${faved ? 'ico-heart-solid' : 'ico-heart'}`} aria-hidden />
+        <Icon name={faved ? 'heart-solid' : 'heart'} size={18} />
       </button>
       {/* The shared 3D preview (HoverPreviewLayer) overlays this element on hover; mediaRef gives it the
           rect to position over. */}
@@ -252,18 +253,18 @@ export function AssetCard(props: AssetCardProps) {
             </span>
             {item.isSmart ? (
               <span className="chip chip--smart" data-testid="chip-smart">
-                <span className="ico ico-smart" aria-hidden />
+                <Icon name="smart" size={13} />
                 {t('assetCard.smart')}
               </span>
             ) : null}
             {catIco ? (
               <span className="chip chip--icon">
-                <span className={`ico ico-${catIco}`} aria-hidden />
+                <Icon name={catIco} />
               </span>
             ) : null}
             {genderIco ? (
               <span className="chip chip--icon">
-                <span className={`ico ico-${genderIco}`} aria-hidden />
+                <Icon name={genderIco} />
               </span>
             ) : null}
           </div>
@@ -280,7 +281,7 @@ export function AssetCard(props: AssetCardProps) {
               disabled={props.marketPriceCredits == null}
               aria-label={props.marketPriceCredits == null ? t('assetCard.unavailable') : t('assetCard.buyNow')}
             >
-              <span className="ico ico-plus" aria-hidden />
+              <Icon name="plus" />
             </button>
           ) : (
             <button
@@ -292,7 +293,7 @@ export function AssetCard(props: AssetCardProps) {
               disabled={inCart || own}
               aria-label={own ? t('assetCard.yourItem') : inCart ? t('assetCard.inCart') : t('assetCard.addToCart')}
             >
-              <span className="ico ico-plus" aria-hidden />
+              <Icon name="plus" />
             </button>
           )}
 
@@ -318,7 +319,7 @@ export function AssetCard(props: AssetCardProps) {
               }}
               disabled={inCart || own}
             >
-              {own ? null : <span className="ico ico-cart-solid card__cart-ico" aria-hidden />}
+              {own ? null : <Icon name="cart-solid" />}
               {own ? t('assetCard.yourItem') : inCart ? t('assetCard.inCart') : t('assetCard.addToCart')}
             </button>
           )}

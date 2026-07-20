@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { Button } from '~/components/Button'
+import { Icon } from '~/components/Icon'
 import { t } from '~/intl/i18n'
 
 // Catch-all for unmatched routes (and malformed deep links like /item/<contract> with no id). Keeps
@@ -7,7 +8,7 @@ import { t } from '~/intl/i18n'
 export function NotFound() {
   return (
     <div className="notfound" data-testid="notfound">
-      <span className="ico ico-cart notfound__ico" aria-hidden />
+      <Icon name="cart" className="notfound__ico" />
       <h1 className="notfound__title">{t('notFound.title')}</h1>
       <p className="muted">{t('notFound.body')}</p>
       <Button as={Link} to="/assets" variant="purple">

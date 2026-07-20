@@ -27,6 +27,7 @@ import { captureError } from '~/lib/monitoring'
 import { AssetCard } from '~/components/AssetCard'
 import { CreatorBadge } from '~/components/CreatorBadge'
 import { Button } from '~/components/Button'
+import { Icon } from '~/components/Icon'
 import styled from '@emotion/styled'
 import type { CatalogItem } from '~/lib/api'
 import './cart.css'
@@ -425,7 +426,7 @@ export function Cart() {
   if (items.length === 0 && !modal) {
     return (
       <div className="cart cart--empty">
-        <span className="ico ico-cart cart-empty__ico" aria-hidden />
+        <Icon name="cart" size={44} color="var(--muted-2)" />
         <p className="cart-empty__title">{t('cart.empty.title')}</p>
         <p className="muted">{t('cart.empty.body')}</p>
         <EmptyCta as={Link} to="/assets" variant="purple">
@@ -440,7 +441,7 @@ export function Cart() {
   return (
     <div className="checkout">
       <button className="checkout__back" onClick={() => navigate(-1)} type="button">
-        <span className="ico ico-arrow-left" aria-hidden />
+        <Icon name="arrow-left" />
         Cart
       </button>
 
@@ -448,14 +449,14 @@ export function Cart() {
         <section className="checkout__panel">
           <div className="checkout__panel-head">
             <button className="checkout__panel-back" onClick={() => navigate(-1)} type="button" aria-label="Go back">
-              <span className="ico ico-arrow-left" aria-hidden />
+              <Icon name="arrow-left" />
             </button>
             <h1 className="checkout__panel-title">
               Cart: {items.length} {itemWord}
             </h1>
             {hasWearable ? (
               <button className="checkout__fitting" onClick={() => setFittingOpen(true)} disabled={working}>
-                <span className="ico ico-emote-dance checkout__fitting-ico" aria-hidden />
+                <Icon name="emote-dance" />
                 Fitting Room
               </button>
             ) : null}
@@ -516,7 +517,7 @@ export function Cart() {
                     aria-label={`Remove ${item.name}`}
                     title="Remove"
                   >
-                    <span className="ico ico-trash" aria-hidden />
+                    <Icon name="trash" size={24} />
                   </button>
                 </div>
               )

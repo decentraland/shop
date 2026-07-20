@@ -270,10 +270,6 @@
 .cartd__del:hover {
   color: #d33;
 }
-.cartd__del .ico-trash {
-  width: 20px;
-  height: 20px;
-}
 
 /* ---------- Footer (sticky) ---------- */
 .cartd__foot {
