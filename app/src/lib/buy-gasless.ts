@@ -169,6 +169,27 @@ export async function waitForSettlement(txHash: string, opts?: { timeoutMs?: num
 }
 
 /**
+ * Gasless submit of an ALREADY-BUILT CreditsManager.useCredits(args) call. Wraps the exact same
+ * meta-tx path buyGasless uses (nonce → off-chain EIP-712 signature → relayer), but takes the
+ * pre-encoded `args` tuple instead of building accept([trade]) — so a name-registration external
+ * call (server-signed CreditExecutor.execute) can be relayed identically. Returns the broadcast
+ * txHash. Throws GaslessUnavailableError when the flag is off / signer is a contract account /
+ * relayer is down — the caller should fall back to buy.ts's sendUseCredits.
+ */
+export async function useCreditsGasless(opts: {
+  chainId: number
+  buyer: string
+  signer: ethers.Signer
+  args: unknown
+}): Promise<string> {
+  if (!gaslessConfig.enabled) throw new GaslessUnavailableError('gasless checkout disabled', 'disabled')
+  const { chainId, buyer, signer, args } = opts
+  const cm = getContract(ContractName.CreditsManager, chainId)
+  const functionData = new Interface(cm.abi).encodeFunctionData('useCredits', [args])
+  return relay(chainId, buyer, functionData, signer)
+}
+
+/**
  * Gasless single-item buy: buyer signs an off-chain meta-tx wrapping useCredits(accept([trade]));
  * relayer submits + pays gas. Same signature shape as lib/buy.ts's buyWithCredits so call sites
  * can swap based on the feature flag. Returns the broadcast txHash.
