@@ -6,6 +6,12 @@ import { fetchTradeDisplay } from '~/lib/api'
 import { LoadMore } from '~/components/LoadMore'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
+import { Button } from '~/components/Button'
+import styled from '@emotion/styled'
+
+const EmptyCta = styled(Button)`
+  margin-top: 12px;
+`
 
 const PAGE_SIZE = 24
 
@@ -90,9 +96,9 @@ export function MyPurchases() {
         <span className="ico ico-cart purchases-empty__ico" aria-hidden />
         <p className="purchases-empty__title">No purchases yet</p>
         <p className="muted">When you buy something it&rsquo;ll appear here.</p>
-        <Link className="btn btn--purple" to="/assets">
+        <EmptyCta as={Link} to="/assets" variant="purple">
           Browse Collectibles
-        </Link>
+        </EmptyCta>
       </div>
     )
   }

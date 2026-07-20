@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
+import { Button } from '~/components/Button'
 import { Network } from '@dcl/schemas'
 import type { Session } from '~/lib/auth'
 import type { PublishableItem } from '~/lib/builder'
@@ -148,12 +149,12 @@ export function PrimaryListModal({
             · {item.remainingSupply.toLocaleString()} available
           </p>
           <div className="modal__actions">
-            <button className="btn btn--ghost" onClick={onClose}>
+            <Button variant="ghost" onClick={onClose}>
               Done
-            </button>
-            <button className="btn btn--purple" onClick={viewInShop}>
+            </Button>
+            <Button variant="purple" onClick={viewInShop}>
               View in Shop
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -209,12 +210,12 @@ export function PrimaryListModal({
         {error ? <p className="error">{error}</p> : null}
 
         <div className="modal__actions">
-          <button className="btn btn--ghost" onClick={onClose} disabled={busy}>
+          <Button variant="ghost" onClick={onClose} disabled={busy}>
             Cancel
-          </button>
-          <button className="btn" onClick={() => void publish()} disabled={busy || enabled === null}>
+          </Button>
+          <Button onClick={() => void publish()} disabled={busy || enabled === null}>
             {enabled === null ? 'Checking…' : cta}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

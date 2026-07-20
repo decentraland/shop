@@ -11,10 +11,16 @@ import { CURRENCY } from '~/lib/currency'
 import { track } from '~/lib/analytics'
 import { isWearable, slotOf, slotRegion, defaultWorn, toggleWorn, conflictingIds, wornUrns } from '~/lib/outfit'
 import { avatarShape, dominantShape, itemShapes, shapeLabel, isCompatible, BASE_MALE } from '~/lib/bodyShape'
+import { Button } from '~/components/Button'
+import styled from '@emotion/styled'
 
 // Lazy so the WebGL backdrop (+ its shader and pattern texture) only loads when the room opens —
 // it never touches the main bundle.
 const AnimatedBackground = lazy(() => import('~/components/AnimatedBackground/AnimatedBackground'))
+
+const CheckoutBtn = styled(Button)`
+  flex: none;
+`
 
 // Turn a wearable sub-category into a human label ("upper_body" → "Upper body").
 function slotLabel(slot: string | null): string {
@@ -234,15 +240,15 @@ export function FittingRoom() {
                 {CURRENCY.symbol} {total}
               </strong>
             </div>
-            <button
-              className="btn btn--purple fitting__checkout"
+            <CheckoutBtn
+              variant="purple"
               onClick={() => {
                 setOpen(false)
                 navigate('/cart')
               }}
             >
               Checkout
-            </button>
+            </CheckoutBtn>
           </div>
         </div>
       </div>

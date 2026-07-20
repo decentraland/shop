@@ -13,6 +13,7 @@ export const Root = styled.button`
   font-size: 15px;
   background: ${theme.colors.blackBtn};
   color: ${theme.colors.white};
+  text-decoration: none; /* so an as=Link / as=a element renders without an underline; no-op on button */
   transition:
     background 0.15s ease,
     filter 0.15s ease,

@@ -9,6 +9,8 @@ import { HoverPreviewLayer } from '~/components/HoverPreviewLayer'
 import { useAccountWatcher } from '~/hooks/useAccountWatcher'
 import { initAnalytics, trackPage } from '~/lib/analytics'
 import { Overview } from '~/pages/Overview'
+import { Button } from '~/components/Button'
+import styled from '@emotion/styled'
 
 // Route path → funnel page name (see design/SHOP_TRACKING_SPEC.md §5.2).
 const PAGE_NAMES: Record<string, string> = {
@@ -47,6 +49,9 @@ function PageFallback() {
     </div>
   )
 }
+const ReloadCta = styled(Button)`
+  margin-top: 10px;
+`
 
 // Shown if a page throws during render. Keep it generic — never surface the raw error (PII rule).
 // The error itself is reported to Sentry by the surrounding Sentry.ErrorBoundary.
@@ -55,9 +60,9 @@ function CrashFallback() {
     <div className="overview__empty">
       <p className="overview__empty-title">Something went wrong</p>
       <p className="muted">This page hit an unexpected error. Try reloading.</p>
-      <button className="btn btn--purple" onClick={() => window.location.reload()}>
+      <ReloadCta variant="purple" onClick={() => window.location.reload()}>
         Reload
-      </button>
+      </ReloadCta>
     </div>
   )
 }

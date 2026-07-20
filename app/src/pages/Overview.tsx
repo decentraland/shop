@@ -11,6 +11,12 @@ import carouselArrow from '~/assets/icons/carousel-arrow.svg'
 import heroBanner from '~/assets/overview/hero-fashion-week.png'
 import promoEmotes from '~/assets/overview/promo-best-rated-emotes.png'
 import promoOutfits from '~/assets/overview/promo-week-selected-outfits.png'
+import styled from '@emotion/styled'
+import { Button } from '~/components/Button'
+
+const EmptyCta = styled(Button)`
+  margin-top: 10px;
+`
 
 const SKELETON_COUNT = 6
 
@@ -160,9 +166,9 @@ export function Overview() {
         <div className="overview__empty">
           <p className="overview__empty-title">New drops are on the way</p>
           <p className="muted">There are no items on sale right now — check back soon.</p>
-          <Link className="btn btn--purple" to="/assets">
+          <EmptyCta as={Link} to="/assets" variant="purple">
             Browse Collectibles
-          </Link>
+          </EmptyCta>
         </div>
       )}
 

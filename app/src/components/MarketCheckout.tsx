@@ -14,6 +14,13 @@ import { buyWithCredits } from '~/lib/buy'
 import { buyGasless, waitForSettlement, GaslessUnavailableError, SettlementPendingError } from '~/lib/buy-gasless'
 import { gaslessEnabled } from '~/lib/gasless-config'
 import { isOwnTrade } from '~/lib/ownership'
+import { Button } from '~/components/Button'
+import styled from '@emotion/styled'
+
+// The two modal-footer buttons split the row evenly (was `.mkt-modal__actions .btn { flex: 1 }`).
+const ActionBtn = styled(Button)`
+  flex: 1;
+`
 
 function friendlyError(e: unknown): string {
   const err = e as { code?: number; message?: string }
@@ -309,12 +316,12 @@ export function MarketCheckout({
         {error ? <p className="error mkt-modal__note">{error}</p> : null}
 
         <div className="mkt-modal__actions">
-          <button className="btn btn--ghost" onClick={cancel} disabled={busy}>
+          <ActionBtn variant="ghost" onClick={cancel} disabled={busy}>
             Cancel
-          </button>
-          <button className="btn btn--purple" onClick={() => void confirm()} disabled={busy || !locked}>
+          </ActionBtn>
+          <ActionBtn variant="purple" onClick={() => void confirm()} disabled={busy || !locked}>
             {busy ? 'Buying…' : needsMoreCredits ? `Get ${CURRENCY.name}` : 'Confirm purchase'}
-          </button>
+          </ActionBtn>
         </div>
       </div>
     </div>

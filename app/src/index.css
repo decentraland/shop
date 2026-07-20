@@ -1045,15 +1045,6 @@ h2 {
   }
 }
 
-/* Infinite-scroll "load more" trigger (sentinel + fallback button), centered under a grid. */
-.load-more {
-  display: flex;
-  justify-content: center;
-  padding: 28px 0 8px;
-}
-.load-more .btn {
-  min-width: 160px;
-}
 .spinner {
   width: 30px;
   height: 30px;
@@ -1333,9 +1324,6 @@ h2 {
   display: flex;
   gap: 10px;
   margin-top: 18px;
-}
-.mkt-modal__actions .btn {
-  flex: 1;
 }
 
 /* ---------------- My Assets (sell flow) ---------------- */
@@ -2379,10 +2367,6 @@ h2 {
   font-weight: 700;
   margin: 0;
 }
-.overview__empty .btn {
-  margin-top: 10px;
-  text-decoration: none;
-}
 /* Empty state spans the full page (not the 920px cart column) so it's centered on screen, not left-of-center. */
 .cart--empty {
   max-width: none;
@@ -2404,10 +2388,6 @@ h2 {
   font-size: 22px;
   font-weight: 700;
   margin: 6px 0 0;
-}
-.cart--empty .btn {
-  margin-top: 12px;
-  text-decoration: none;
 }
 
 /* ---------------------------------------------------------------------------
@@ -2548,10 +2528,6 @@ h2 {
   font-weight: 700;
   margin: 6px 0 0;
 }
-.favorites-empty .btn {
-  margin-top: 12px;
-  text-decoration: none;
-}
 
 /* ---------------------------------------------------------------------------
    Group B — My Purchases (order history)
@@ -2667,10 +2643,6 @@ a.purchase:hover {
   font-size: 22px;
   font-weight: 700;
   margin: 6px 0 0;
-}
-.purchases-empty .btn {
-  margin-top: 12px;
-  text-decoration: none;
 }
 
 /* Listing success view (inside the publish / sell modal) */
@@ -3076,10 +3048,6 @@ a.purchase:hover {
   font-size: 14px;
   color: var(--text-2);
 }
-.fitting__checkout {
-  flex: none;
-}
-
 @keyframes fade-in {
   from {
     opacity: 0;

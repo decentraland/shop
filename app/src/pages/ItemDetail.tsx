@@ -12,6 +12,8 @@ import { fetchCollectionItems, fetchCollection } from '~/lib/collections'
 import { ItemPreview } from '~/components/ItemPreview'
 import { CollectionCarousel } from '~/components/CollectionCarousel'
 import { CreatorBadge } from '~/components/CreatorBadge'
+import { Button } from '~/components/Button'
+import styled from '@emotion/styled'
 import { CollectionBadge } from '~/components/CollectionBadge'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { SaleCountdown } from '~/components/SaleCountdown'
@@ -23,6 +25,10 @@ import { track, itemProps } from '~/lib/analytics'
 import { recordViewed } from '~/lib/recently-viewed'
 import { isOwnListing } from '~/lib/ownership'
 import './item-detail.css'
+
+const NotFoundCta = styled(Button)`
+  margin-top: 6px;
+`
 
 function isValidRarity(r: string): r is Rarity {
   return (Object.values(Rarity) as string[]).includes(r)
@@ -245,9 +251,9 @@ export function ItemDetail() {
         <span className="ico ico-cart item-detail__notfound-ico" aria-hidden />
         <h1 className="item-detail__notfound-title">This item isn’t available</h1>
         <p className="muted">It may have been delisted or moved. Browse Collectibles for something else.</p>
-        <button className="btn btn--purple" onClick={() => navigate('/assets')}>
+        <NotFoundCta variant="purple" onClick={() => navigate('/assets')}>
           Browse Collectibles
-        </button>
+        </NotFoundCta>
       </div>
     )
   }

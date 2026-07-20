@@ -26,8 +26,14 @@ import { track, purchaseItemsProps, errorCode, isUserRejection, creditsToUsd } f
 import { captureError } from '~/lib/monitoring'
 import { AssetCard } from '~/components/AssetCard'
 import { CreatorBadge } from '~/components/CreatorBadge'
+import { Button } from '~/components/Button'
+import styled from '@emotion/styled'
 import type { CatalogItem } from '~/lib/api'
 import './cart.css'
+
+const EmptyCta = styled(Button)`
+  margin-top: 12px;
+`
 
 function friendlyError(e: unknown): string {
   const err = e as { code?: number; message?: string }
@@ -422,9 +428,9 @@ export function Cart() {
         <span className="ico ico-cart cart-empty__ico" aria-hidden />
         <p className="cart-empty__title">{t('cart.empty.title')}</p>
         <p className="muted">{t('cart.empty.body')}</p>
-        <Link className="btn btn--purple" to="/assets">
+        <EmptyCta as={Link} to="/assets" variant="purple">
           {t('cart.empty.cta')}
-        </Link>
+        </EmptyCta>
       </div>
     )
   }

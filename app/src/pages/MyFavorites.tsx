@@ -3,6 +3,12 @@ import { Link } from 'react-router-dom'
 import { useFavorites } from '~/store/favorites'
 import { AssetCard } from '~/components/AssetCard'
 import { LoadMore } from '~/components/LoadMore'
+import { Button } from '~/components/Button'
+import styled from '@emotion/styled'
+
+const EmptyCta = styled(Button)`
+  margin-top: 12px;
+`
 
 // Favorites live client-side (instant, no async → no skeleton needed); page them so a long list
 // doesn't render hundreds of cards at once.
@@ -18,9 +24,9 @@ export function MyFavorites() {
         <span className="ico ico-heart favorites-empty__ico" aria-hidden />
         <p className="favorites-empty__title">No favorites yet</p>
         <p className="muted">Tap the heart on any item to save it here.</p>
-        <Link className="btn btn--purple" to="/assets">
+        <EmptyCta as={Link} to="/assets" variant="purple">
           Browse Collectibles
-        </Link>
+        </EmptyCta>
       </div>
     )
   }

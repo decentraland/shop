@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Button } from '~/components/Button'
 import type { Session } from '~/lib/auth'
 import { importListing, RelistFailedError, type ImportItem } from '~/lib/import'
 import { CURRENCY } from '~/lib/currency'
@@ -109,12 +110,12 @@ export function MigrateModal({
               : ''}
           </p>
           <div className="modal__actions">
-            <button className="btn btn--ghost" onClick={finish}>
+            <Button variant="ghost" onClick={finish}>
               Done
-            </button>
+            </Button>
             {unlisted > 0 ? (
-              <button
-                className="btn btn--purple"
+              <Button
+                variant="purple"
                 onClick={() => {
                   onDone()
                   onClose()
@@ -122,10 +123,10 @@ export function MigrateModal({
                 }}
               >
                 Go to My Assets
-              </button>
+              </Button>
             ) : listedCount > 0 ? (
-              <button
-                className="btn btn--purple"
+              <Button
+                variant="purple"
                 onClick={() => {
                   onDone()
                   onClose()
@@ -133,7 +134,7 @@ export function MigrateModal({
                 }}
               >
                 View in Shop
-              </button>
+              </Button>
             ) : null}
           </div>
         </div>
