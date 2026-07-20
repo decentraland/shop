@@ -5,36 +5,48 @@ import { CircularProgress } from 'decentraland-ui2'
 import { useWallet } from '~/store/wallet'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { CURRENCY, formatAmount } from '~/lib/currency'
+import { useSeo } from '~/hooks/useSeo'
 import { track, errorCode } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
+import { t } from '~/intl/i18n'
 import { RESUME_BUY_KEY } from '~/lib/resume-buy'
 import { RESUME_CART_KEY } from '~/lib/cart-checkout'
 import type { CatalogItem } from '~/lib/api'
-import {
-  CREDIT_PACKS,
-  createPackCheckout,
-  pollCreditGrant,
-  isMockPayments,
-  type CheckoutSession,
-  type CreditPack
-} from '~/lib/payments'
+import packChips from '~/assets/credits/pack-chips.webp'
+import creditCoin from '~/assets/credits/credit-coin.webp'
+import checkCircle from '~/assets/credits/check-circle.svg'
+import loaderLogo from '~/assets/credits/loader-logo.svg'
+import { CREDIT_PACKS, createPackCheckout, pollCreditGrant, isMockPayments, type CreditPack } from '~/lib/payments'
 
 // Live Stripe when real payments are configured; otherwise the built-in mock (dev). Single source of
 // truth via isMockPayments() (which gates on the publishable key) — don't reimplement the gate here.
 const CREDITS_PROVIDER = isMockPayments() ? 'mock' : 'stripe'
 
-type Phase = 'select' | 'paying' | 'processing' | 'success' | 'error' | 'pending'
+// Pack artwork, mapped onto CREDIT_PACKS by id. Placeholder art lifted from Figma (all packs share the
+// same chip-stack render today); a per-pack swap is a one-line change here once final art lands.
+const PACK_IMAGES: Record<string, string> = {
+  pack_5: packChips,
+  pack_10: packChips,
+  pack_25: packChips,
+  pack_50: packChips
+}
+
+// Where "Get credits and start shopping" points. No credits-specific doc yet — link to the shop docs.
+const LEARN_MORE_URL = 'https://docs.decentraland.org'
+
+type Phase = 'select' | 'redirecting' | 'processing' | 'success' | 'error' | 'pending'
 
 function friendlyError(e: unknown): string {
   const err = e as { message?: string; name?: string }
-  if (err?.name === 'AbortError') return 'You cancelled the request.'
+  if (err?.name === 'AbortError') return t('getCredits.errorCanceled')
   const msg = (err?.message ?? '').toLowerCase()
-  if (msg.includes('sign in')) return `Sign in to get ${CURRENCY.name}.`
-  if (msg.includes('timed out')) return `This is taking longer than usual — your ${CURRENCY.name} will appear shortly.`
-  return "Couldn't complete your purchase — please try again."
+  if (msg.includes('sign in')) return t('getCredits.errorSignIn', { currency: CURRENCY.name })
+  if (msg.includes('timed out')) return t('getCredits.errorTimeout', { currency: CURRENCY.name })
+  return t('getCredits.errorGeneric')
 }
 
 export function GetCredits() {
+  useSeo({ title: t('nav.getCredits', { currency: CURRENCY.name }), noindex: true })
   const navigate = useNavigate()
   const { session, signIn } = useWallet()
   const qc = useQueryClient()
@@ -42,7 +54,6 @@ export function GetCredits() {
 
   const [phase, setPhase] = useState<Phase>('select')
   const [selected, setSelected] = useState<CreditPack | null>(null)
-  const [checkout, setCheckout] = useState<CheckoutSession | null>(null)
   const [granted, setGranted] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   // Gentle "payment canceled" note shown on the pack grid after a cancelled Stripe redirect.
@@ -65,7 +76,8 @@ export function GetCredits() {
   }, [setSearchParams])
 
   // Wait for the backend to grant the credits for an order (poll until it flips off 'processing').
-  // Used by both the mock card form (onPaid) and the Stripe hosted-Checkout return handler.
+  // Used by both the mock "went to Stripe → came back credited" path and the Stripe hosted-Checkout
+  // return handler.
   const pollForGrant = useCallback(
     async (orderId: string) => {
       setPhase('processing')
@@ -78,12 +90,17 @@ export function GetCredits() {
           identity: session?.identity
         })
         if (result.status === 'credited') {
-          setGranted(result.creditsGranted ?? selected?.credits ?? 0)
+          // On the real hosted-redirect return `selected` is null (we came back on a fresh page load),
+          // so if the server omits creditsGranted we have no count to show. Never render "0 credits
+          // added" to a buyer who WAS charged — fall back to a generic "your credits are ready" success
+          // (granted = null) instead, and don't log credits:0 as if it were a real grant amount.
+          const creditsGranted = result.creditsGranted ?? selected?.credits ?? 0
+          setGranted(creditsGranted > 0 ? creditsGranted : null)
           setPhase('success')
           track('Shop Completed Buy Credits', {
             order_id: orderId,
             pack_usd: selected?.usd ?? null,
-            credits: result.creditsGranted ?? selected?.credits ?? 0,
+            credits: creditsGranted > 0 ? creditsGranted : null,
             provider: CREDITS_PROVIDER
           })
           void qc.invalidateQueries({ queryKey: ['usd-balance'] })
@@ -129,7 +146,7 @@ export function GetCredits() {
             error_code: 'grant_failed',
             pack_usd: selected?.usd ?? null
           })
-          setError(result.error ?? `Couldn't add your ${CURRENCY.name} — please try again.`)
+          setError(result.error ?? t('getCredits.errorGrant', { currency: CURRENCY.name }))
           setPhase('error')
         }
       } catch (e) {
@@ -144,6 +161,8 @@ export function GetCredits() {
 
   const startCheckout = useCallback(
     async (pack: CreditPack) => {
+      // Always-show-packs: signed-out buyers can browse the packs; clicking one starts sign-in (they
+      // land back here to pick again) rather than dropping them into an un-authable Stripe checkout.
       if (!session) {
         signIn()
         return
@@ -151,13 +170,19 @@ export function GetCredits() {
       setError(null)
       setCanceledNote(false)
       setSelected(pack)
-      setPhase('paying')
+      // No intermediate page: REAL goes straight out to Stripe's hosted Checkout (show a minimal
+      // "redirecting" spinner for the brief async window before the redirect leaves the page); MOCK
+      // (local dev, no real Stripe) skips the embedded card form and lands straight in the crediting
+      // state so it behaves like "went to Stripe → came back credited".
+      setPhase(CREDITS_PROVIDER === 'mock' ? 'processing' : 'redirecting')
       track('Shop Started Buy Credits', { pack_usd: pack.usd, credits: pack.credits, provider: CREDITS_PROVIDER })
       try {
         const cs = await createPackCheckout(pack.id, { address: session.address, identity: session.identity })
         if (cs.mock) {
-          // Mock path stays in-app: render the demo card form (PayStep).
-          setCheckout(cs)
+          // Mock path: no card form — hand straight to the credit-grant polling, which mints via
+          // /dev/mint-usd and advances to success (the grant count comes from the mock/server result,
+          // exactly as it does on the real hosted-redirect return where `selected` is null).
+          void pollForGrant(cs.orderId)
         } else if (cs.url) {
           // Real path: full redirect out to Stripe's hosted Checkout. We come back to
           // `${STRIPE_RETURN_URL}?order=${orderId}` (handled by the return effect below).
@@ -175,14 +200,8 @@ export function GetCredits() {
         setPhase('error')
       }
     },
-    [session, signIn]
+    [session, signIn, pollForGrant]
   )
-
-  // Card charge succeeded (mock path) → wait for the backend to grant the credits.
-  const onPaid = useCallback(() => {
-    if (!checkout) return
-    void pollForGrant(checkout.orderId)
-  }, [checkout, pollForGrant])
 
   // Return handling: Stripe's hosted Checkout redirects back to this page with `?order=<id>` on
   // success or `?canceled=1` on cancel. Handle it once, then clear the params so a refresh is a no-op.
@@ -219,107 +238,140 @@ export function GetCredits() {
     abortRef.current?.abort()
     setPhase('select')
     setSelected(null)
-    setCheckout(null)
     setGranted(null)
     setError(null)
     setCanceledNote(false)
   }
 
+  const showHeader = phase === 'select'
+
   return (
     <div className="getcredits">
-      <header className="getcredits__head">
-        <h1 className="getcredits__title">Get {CURRENCY.name}</h1>
-        <p className="muted">Add {CURRENCY.name} to your account to shop. Pay with any card.</p>
-      </header>
+      {showHeader && (
+        <header className="getcredits__head">
+          <h1 className="getcredits__title">{t('getCredits.title', { currency: CURRENCY.name })}</h1>
+          <p className="getcredits__sub">
+            {t('getCredits.subtitle', { currency: CURRENCY.name })}{' '}
+            <a className="getcredits__learn" href={LEARN_MORE_URL} target="_blank" rel="noreferrer">
+              {t('getCredits.learnMore')}
+              <svg className="getcredits__learn-ico" viewBox="0 0 13 13" aria-hidden fill="none">
+                <path
+                  d="M4 2h7v7"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M11 2 2 11"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </a>
+          </p>
+        </header>
+      )}
 
-      {!session ? (
-        <div className="getcredits__status" role="status">
-          <p className="getcredits__status-title">Sign in to get {CURRENCY.name}</p>
-          <p className="muted">Connect your account to buy {CURRENCY.name} and start shopping.</p>
-          <div className="getcredits__status-actions">
-            <button className="btn btn--purple" onClick={signIn}>
-              Sign in
+      {phase === 'select' && (
+        <>
+          {canceledNote && (
+            <p className="getcredits__note muted" role="status">
+              {t('getCredits.canceledNote')}
+            </p>
+          )}
+          <PackGrid onSelect={pack => void startCheckout(pack)} />
+        </>
+      )}
+
+      {phase === 'redirecting' && (
+        <div className="getcredits__status" role="status" aria-live="polite">
+          <CircularProgress size={32} />
+          <p className="muted">{t('getCredits.redirecting')}</p>
+        </div>
+      )}
+
+      {phase === 'processing' && (
+        <div className="gc-processing" role="status" aria-live="polite">
+          <img className="gc-processing__logo" src={loaderLogo} alt="" width={61} height={61} />
+          <div className="gc-processing__body">
+            <p className="gc-processing__title">
+              <strong>{t('getCredits.processing')}</strong>…
+            </p>
+            <div className="gc-progress" aria-hidden>
+              <span className="gc-progress__track">
+                <span className="gc-progress__fill" />
+              </span>
+              <span className="gc-progress__count">1/1</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {phase === 'success' && (
+        <div className="gc-success" role="status" aria-live="polite">
+          <div className="gc-banner">
+            <img className="gc-banner__icon" src={checkCircle} alt="" width={60} height={60} />
+            <p className="gc-banner__text">
+              <strong>{t('getCredits.successTitle')}</strong> {t('getCredits.successBody', { currency: CURRENCY.name })}
+            </p>
+          </div>
+
+          {granted != null && (
+            <div className="gc-credits">
+              <div className="gc-credits__row">
+                <img className="gc-credits__coin" src={creditCoin} alt="" width={93} height={93} />
+                <p className="gc-credits__text">
+                  <CurrencyIcon className="gc-credits__diamond" />
+                  <span>
+                    <strong className="gc-credits__amount">
+                      {t('getCredits.creditsAmount', { credits: granted, currency: CURRENCY.name })}
+                    </strong>{' '}
+                    <span className="gc-credits__added">{t('getCredits.creditsAdded')}</span>
+                  </span>
+                </p>
+              </div>
+            </div>
+          )}
+
+          <div className="gc-actions">
+            <button className="gc-actions__btn gc-actions__btn--outline" onClick={reset}>
+              {t('getCredits.buyMore', { currency: CURRENCY.name })}
+            </button>
+            <button className="gc-actions__btn gc-actions__btn--solid" onClick={() => navigate('/assets')}>
+              {t('getCredits.startShopping')}
             </button>
           </div>
         </div>
-      ) : (
-        <>
-          {phase === 'select' && (
-            <>
-              {canceledNote && (
-                <p className="getcredits__note muted" role="status">
-                  Payment canceled — no charge was made. Pick a pack whenever you&rsquo;re ready.
-                </p>
-              )}
-              <PackGrid onSelect={pack => void startCheckout(pack)} />
-            </>
-          )}
+      )}
 
-          {phase === 'paying' && selected && (
-            <PayStep pack={selected} checkout={checkout} onPaid={onPaid} onCancel={reset} />
-          )}
+      {phase === 'pending' && (
+        <div className="gc-status" role="status" aria-live="polite">
+          <p className="gc-status__title">{t('getCredits.pendingTitle', { currency: CURRENCY.name })}</p>
+          <p className="muted">{t('getCredits.pendingBody')}</p>
+          <div className="gc-status__actions">
+            <button className="gc-actions__btn gc-actions__btn--solid" onClick={() => navigate('/assets')}>
+              {t('getCredits.startShopping')}
+            </button>
+            <button className="gc-actions__btn gc-actions__btn--outline" onClick={reset}>
+              {t('getCredits.done')}
+            </button>
+          </div>
+        </div>
+      )}
 
-          {phase === 'processing' && (
-            <div className="getcredits__status" role="status" aria-live="polite">
-              <CircularProgress size={40} />
-              <p className="getcredits__status-title">Adding your {CURRENCY.name}…</p>
-              <p className="muted">Payment received. Just a moment while we top up your balance.</p>
-            </div>
-          )}
-
-          {phase === 'success' && (
-            <div className="getcredits__status getcredits__status--ok" role="status" aria-live="polite">
-              <div className="getcredits__confetti" aria-hidden>
-                🎉
-              </div>
-              <p className="getcredits__status-title">You&rsquo;re all set!</p>
-              <p className="muted">
-                <strong>
-                  <CurrencyIcon className="ccy-mark" /> {granted}
-                </strong>{' '}
-                {CURRENCY.name} added to your account.
-              </p>
-              <div className="getcredits__status-actions">
-                <button className="btn" onClick={() => navigate('/cart')}>
-                  Back to cart
-                </button>
-                <button className="btn btn--ghost" onClick={reset}>
-                  Get more {CURRENCY.name}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {phase === 'pending' && (
-            <div className="getcredits__status" role="status" aria-live="polite">
-              <p className="getcredits__status-title">Your {CURRENCY.name} are on the way</p>
-              <p className="muted">
-                Your payment went through. It&rsquo;s taking a little longer than usual to confirm — your balance will
-                update automatically as soon as it lands, no need to pay again.
-              </p>
-              <div className="getcredits__status-actions">
-                <button className="btn" onClick={() => navigate('/cart')}>
-                  Back to cart
-                </button>
-                <button className="btn btn--ghost" onClick={reset}>
-                  Done
-                </button>
-              </div>
-            </div>
-          )}
-
-          {phase === 'error' && (
-            <div className="getcredits__status getcredits__status--err" role="alert">
-              <p className="getcredits__status-title">Something went wrong</p>
-              <p className="error">{error}</p>
-              <div className="getcredits__status-actions">
-                <button className="btn" onClick={reset}>
-                  Try again
-                </button>
-              </div>
-            </div>
-          )}
-        </>
+      {phase === 'error' && (
+        <div className="gc-status gc-status--err" role="alert">
+          <p className="gc-status__title">{t('getCredits.errorTitle')}</p>
+          <p className="error">{error}</p>
+          <div className="gc-status__actions">
+            <button className="gc-actions__btn gc-actions__btn--solid" onClick={reset}>
+              {t('getCredits.tryAgain')}
+            </button>
+          </div>
+        </div>
       )}
     </div>
   )
@@ -335,100 +387,22 @@ function PackGrid({ onSelect }: { onSelect: (pack: CreditPack) => void }) {
           className={`pack${pack.bestValue ? ' pack--best' : ''}`}
           data-testid="pack"
           onClick={() => onSelect(pack)}
-          aria-label={`Get ${formatAmount(pack.credits)} for $${pack.usd}`}
+          aria-label={t('getCredits.packAria', { amount: formatAmount(pack.credits), usd: pack.usd })}
         >
-          {pack.bestValue && <span className="pack__ribbon">Best value</span>}
-          <span className="pack__credits">
-            <CurrencyIcon className="pack__credits-ico" />
-            {pack.credits}
+          {pack.bestValue && <span className="pack__badge">{t('getCredits.packBadge')}</span>}
+          <span className="pack__inner">
+            <span className="pack__label">
+              {t('getCredits.creditsAmount', { credits: pack.credits, currency: CURRENCY.name })}
+            </span>
+            <span className="pack__art">
+              <img src={PACK_IMAGES[pack.id] ?? packChips} alt="" loading="lazy" />
+            </span>
+            <span className="pack__cta-wrap">
+              <span className="pack__cta">${pack.usd.toFixed(2)}</span>
+            </span>
           </span>
-          <span className="pack__label">{CURRENCY.name}</span>
-          <span className="pack__price">${pack.usd}</span>
-          <span className="pack__cta">Get {CURRENCY.name}</span>
         </button>
       ))}
-    </div>
-  )
-}
-
-function PayStep({
-  pack,
-  checkout,
-  onPaid,
-  onCancel
-}: {
-  pack: CreditPack
-  checkout: CheckoutSession | null
-  onPaid: () => void
-  onCancel: () => void
-}) {
-  return (
-    <div className="pay">
-      <div className="pay__summary">
-        <button className="link" onClick={onCancel}>
-          &larr; Choose a different pack
-        </button>
-        <div className="pay__summary-row">
-          <span>You&rsquo;ll get</span>
-          <strong>
-            <CurrencyIcon className="ccy-mark" /> {formatAmount(pack.credits)}
-          </strong>
-        </div>
-        <div className="pay__summary-row pay__summary-row--total">
-          <span>You pay</span>
-          <strong>${pack.usd}</strong>
-        </div>
-      </div>
-
-      <div className="pay__form">
-        {checkout?.mock ? (
-          // Mock demo card form (dev / no real Stripe backend). The real path never reaches
-          // 'paying' with a checkout — it redirects out to Stripe's hosted Checkout instead —
-          // so this step only ever renders the mock form (or the brief pre-redirect spinner).
-          <MockCardForm onPaid={onPaid} amountUsd={pack.usd} />
-        ) : (
-          <div className="getcredits__status" role="status" aria-live="polite">
-            <CircularProgress size={32} />
-            <p className="muted">Getting the payment form ready…</p>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-// Mocked card form — stands in for the Stripe widget so the flow is fully demoable
-// with no backend. 4242 4242 4242 4242 is the standard Stripe test card.
-function MockCardForm({ onPaid, amountUsd }: { onPaid: () => void; amountUsd: number }) {
-  const [number, setNumber] = useState('4242 4242 4242 4242')
-  const [busy, setBusy] = useState(false)
-
-  function pay() {
-    setBusy(true)
-    // Simulate the card being charged, then hand off to the credit-grant polling.
-    setTimeout(() => onPaid(), 700)
-  }
-
-  return (
-    <div className="card-form" aria-label="Payment details">
-      <p className="muted small card-form__note">Demo mode — no real charge is made.</p>
-      <label className="field">
-        <span>Card number</span>
-        <input value={number} onChange={e => setNumber(e.target.value)} disabled={busy} inputMode="numeric" />
-      </label>
-      <div className="card-form__row">
-        <label className="field">
-          <span>Expiry</span>
-          <input defaultValue="12 / 34" disabled={busy} />
-        </label>
-        <label className="field">
-          <span>CVC</span>
-          <input defaultValue="123" disabled={busy} inputMode="numeric" />
-        </label>
-      </div>
-      <button className="btn btn--purple card-form__pay" onClick={pay} disabled={busy}>
-        {busy ? 'Processing…' : `Pay $${amountUsd}`}
-      </button>
     </div>
   )
 }

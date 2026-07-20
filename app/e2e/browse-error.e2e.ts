@@ -10,7 +10,7 @@ afterEach(async () => {
 
 describe('browse when the catalog fetch fails', () => {
   it('surfaces a friendly error (not the raw fetch message) instead of the grid', async () => {
-    // Force /v3/catalog/unified → 500. fetchUnified throws → Assets renders <p class="error"> with a
+    // Force /v3/catalog/unified → 500. fetchUnified throws → Assets renders an <ErrorNotice> with a
     // generic web2 message — never the raw "fetchUnified 500". See src/pages/Assets.tsx.
     app = await launchApp({ path: '/assets', errors: { '/v3/catalog/unified': { status: 500 } } })
     const { page } = app

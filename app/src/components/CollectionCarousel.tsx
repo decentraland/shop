@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AssetCard } from '~/components/AssetCard'
+import { t } from '~/intl/i18n'
 import carouselArrow from '~/assets/icons/carousel-arrow.svg'
 import type { CatalogItem } from '~/lib/api'
+import './CollectionCarousel.css'
 
 // Horizontal row of sibling items from the same collection. Renders the SHARED <AssetCard> (identical
 // to the browse grid / Overview rails) so a card here is visually indistinguishable from a card
@@ -70,7 +72,7 @@ export function CollectionCarousel({
         <h2 className="collection-carousel__title">{title}</h2>
         {onViewAll ? (
           <button className="collection-carousel__viewall" onClick={onViewAll}>
-            View all
+            {t('collectionCarousel.viewAll')}
             <span className="ico ico-chevron collection-carousel__viewall-ico" aria-hidden />
           </button>
         ) : null}
@@ -80,7 +82,7 @@ export function CollectionCarousel({
         <button
           className="collection-carousel__arrow collection-carousel__arrow--left"
           onClick={() => scrollByDir(-1)}
-          aria-label="Scroll left"
+          aria-label={t('collectionCarousel.scrollLeft')}
           disabled={atStart}
         >
           <img src={carouselArrow} alt="" aria-hidden />
@@ -95,7 +97,7 @@ export function CollectionCarousel({
         <button
           className="collection-carousel__arrow collection-carousel__arrow--right"
           onClick={() => scrollByDir(1)}
-          aria-label="Scroll right"
+          aria-label={t('collectionCarousel.scrollRight')}
           disabled={atEnd}
         >
           <img src={carouselArrow} alt="" aria-hidden />
@@ -103,12 +105,12 @@ export function CollectionCarousel({
       </div>
 
       {pages > 1 ? (
-        <div className="collection-carousel__dots" aria-label="Carousel pages">
+        <div className="collection-carousel__dots" aria-label={t('collectionCarousel.pages')}>
           {Array.from({ length: pages }).map((_, i) => (
             <button
               key={i}
               className={`collection-carousel__dot${i === page ? ' is-active' : ''}`}
-              aria-label={`Go to page ${i + 1}`}
+              aria-label={t('collectionCarousel.goToPage', { page: i + 1 })}
               aria-current={i === page ? 'true' : undefined}
               onClick={() => scrollToPage(i)}
             />

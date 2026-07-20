@@ -7,6 +7,7 @@ import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import { track } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
+import { t } from '~/intl/i18n'
 
 export type MigrateEntry = { item: ImportItem; priceCredits: number }
 // 'unlisted' = the old listing was taken down but re-listing failed → the item now has NO listing and
@@ -98,19 +99,17 @@ export function MigrateModal({
           <div className="modal-success__check" aria-hidden>
             ✓
           </div>
-          <h2 className="modal__title">{listedCount > 0 ? "You're in the Shop! 🎉" : 'Nothing listed'}</h2>
+          <h2 className="modal__title">{listedCount > 0 ? t('migrate.successTitle') : t('migrate.nothingTitle')}</h2>
           <p className="muted" style={{ margin: 0 }}>
             {listedCount > 0
-              ? `${listedCount} ${listedCount === 1 ? 'item is' : 'items are'} now for sale with ${CURRENCY.name}.`
-              : 'No items were listed.'}
-            {skipped > 0 ? ` ${skipped} skipped — you can try those again anytime.` : ''}
-            {unlisted > 0
-              ? ` ${unlisted} ${unlisted === 1 ? 'item was' : 'items were'} taken off the old marketplace but couldn't be re-listed — re-list ${unlisted === 1 ? 'it' : 'them'} from My Assets.`
-              : ''}
+              ? t('migrate.listedSummary', { count: listedCount, currency: CURRENCY.name })
+              : t('migrate.noneListed')}
+            {skipped > 0 ? ' ' + t('migrate.skippedSummary', { count: skipped }) : ''}
+            {unlisted > 0 ? ' ' + t('migrate.unlistedSummary', { count: unlisted }) : ''}
           </p>
           <div className="modal__actions">
             <button className="btn btn--ghost" onClick={finish}>
-              Done
+              {t('getCredits.done')}
             </button>
             {unlisted > 0 ? (
               <button
@@ -121,7 +120,7 @@ export function MigrateModal({
                   navigate('/my-assets')
                 }}
               >
-                Go to My Assets
+                {t('migrate.goToMyAssets')}
               </button>
             ) : listedCount > 0 ? (
               <button
@@ -132,7 +131,7 @@ export function MigrateModal({
                   navigate('/assets')
                 }}
               >
-                View in Shop
+                {t('migrate.viewInShop')}
               </button>
             ) : null}
           </div>
@@ -144,12 +143,10 @@ export function MigrateModal({
   return (
     <div className="modal-backdrop" role="presentation">
       <div className="modal migrate" data-testid="modal" role="dialog" aria-modal="true" aria-live="polite">
-        <h2 className="modal__title">Listing your items</h2>
+        <h2 className="modal__title">{t('migrate.listingTitle')}</h2>
         <p className="muted small" style={{ margin: '0 0 4px' }}>
-          {showsConfirmations
-            ? 'We take down each old listing and re-list it for credits — confirm each step.'
-            : 'Moving your items to the Shop.'}{' '}
-          {activeIndex >= 0 ? `${activeIndex + 1} of ${queue.length}` : ''}
+          {showsConfirmations ? t('migrate.subConfirm') : t('migrate.subManaged')}{' '}
+          {activeIndex >= 0 ? t('migrate.progressCount', { current: activeIndex + 1, total: queue.length }) : ''}
         </p>
 
         <div className="migrate__progress">
@@ -163,7 +160,7 @@ export function MigrateModal({
                 {entry.item.thumbnail ? <img src={entry.item.thumbnail} alt="" /> : null}
               </span>
               <span className="migrate__name" title={entry.item.name}>
-                {entry.item.name || 'Item'}
+                {entry.item.name || t('migrate.itemFallback')}
               </span>
               <span className="migrate__price">
                 <CurrencyIcon className="ccy-mark" /> {entry.priceCredits.toLocaleString()}
@@ -171,23 +168,21 @@ export function MigrateModal({
               <span className="migrate__status">
                 {statuses[i] === 'active' ? (
                   <>
-                    <span className="spinner migrate__spin" aria-hidden /> {showsConfirmations ? 'Confirm…' : 'Adding…'}
+                    <span className="spinner migrate__spin" aria-hidden />{' '}
+                    {showsConfirmations ? t('migrate.statusConfirm') : t('migrate.statusAdding')}
                   </>
                 ) : statuses[i] === 'done' ? (
                   <span className="migrate__tick">✓</span>
                 ) : statuses[i] === 'skipped' ? (
-                  <span className="migrate__skip">Skipped</span>
+                  <span className="migrate__skip">{t('migrate.statusSkipped')}</span>
                 ) : statuses[i] === 'failed' ? (
-                  <span className="migrate__skip">Failed</span>
+                  <span className="migrate__skip">{t('migrate.statusFailed')}</span>
                 ) : statuses[i] === 'unlisted' ? (
-                  <span
-                    className="migrate__skip"
-                    title="Removed from the old marketplace but not re-listed — re-list it from My Assets."
-                  >
-                    Not listed
+                  <span className="migrate__skip" title={t('migrate.unlistedTooltip')}>
+                    {t('migrate.statusUnlisted')}
                   </span>
                 ) : (
-                  <span className="migrate__wait">Waiting</span>
+                  <span className="migrate__wait">{t('migrate.statusWaiting')}</span>
                 )}
               </span>
             </li>
@@ -195,9 +190,7 @@ export function MigrateModal({
         </ul>
 
         <p className="muted small migrate__hint">
-          {showsConfirmations
-            ? 'A couple of quick confirmations pop up per item (take down + re-list). Keep this open.'
-            : 'This only takes a moment — keep this open.'}
+          {showsConfirmations ? t('migrate.hintConfirm') : t('migrate.hintManaged')}
         </p>
       </div>
     </div>

@@ -1,4 +1,5 @@
 import { Rarity } from '@dcl/schemas'
+import { capitalizeFirst } from '~/lib/text'
 
 // Per-rarity radial gradient (light center → dark edge), matching how the marketplace renders an
 // item's image background. Falls back to a neutral grey wash for unknown rarities.
@@ -50,6 +51,20 @@ export function rarityInk(rarity?: string | null, target = 120): string {
       .toString(16)
       .padStart(2, '0')
   return `#${hex(rgb[0])}${hex(rgb[1])}${hex(rgb[2])}`
+}
+
+// Short tooltip explaining a rarity by its scarcity — every DCL rarity is defined by how many can ever
+// be minted (unique = 1 … common = 100,000). Used as the `title` on rarity chips (matches the
+// marketplace, which surfaces the same max-supply meaning). Falls back to just the name if unknown.
+export function rarityDescription(rarity?: string | null): string {
+  const name = capitalizeFirst(rarity ?? 'Common')
+  try {
+    const max = Rarity.getMaxSupply((rarity ?? 'common').toLowerCase() as Rarity)
+    if (max > 0) return `${name} rarity — only ${max.toLocaleString()} can ever be minted`
+  } catch {
+    /* unknown rarity → name only */
+  }
+  return `${name} rarity`
 }
 
 export function rarityGradient(rarity?: string | null): string {

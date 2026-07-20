@@ -1,6 +1,7 @@
 import { BodyShape } from '@dcl/schemas'
 import type { CatalogItem } from '~/lib/api'
 import type { ProfileAvatar } from '~/hooks/useProfile'
+import { t } from '~/intl/i18n'
 
 // Body-shape / avatar–item compatibility.
 //
@@ -41,8 +42,10 @@ export function isCompatible(item: ItemLike, shape: BodyShapeUrn | null): boolea
   return shape == null || itemShapes(item).includes(shape)
 }
 
-export function shapeLabel(shape: BodyShapeUrn): 'Male' | 'Female' {
-  return shape === BASE_FEMALE ? 'Female' : 'Male'
+// Localized body-shape label. Returns a plain string (via t()) rather than the literal union so it
+// can be dropped straight into JSX; callers only ever render it as text.
+export function shapeLabel(shape: BodyShapeUrn): string {
+  return shape === BASE_FEMALE ? t('bodyShape.female') : t('bodyShape.male')
 }
 
 // The majority body shape among the gendered items in a set (ties → male); null when none are gendered

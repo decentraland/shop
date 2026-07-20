@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocale } from '~/store/locale'
-import { LOCALES, type Locale } from '~/intl/i18n'
+import { LOCALES, t, type Locale } from '~/intl/i18n'
 import './shop-footer.css'
 
 // The full Decentraland footer (Figma "New Shop 2026" node 1040-149847) — the large purple footer
@@ -9,20 +9,21 @@ import './shop-footer.css'
 
 const BEEHIIV_EMBED_URL = 'https://embeds.beehiiv.com/ff89783d-748b-4ba3-8700-4759f6f62831?slim=true'
 
+// `label` holds an i18n key (translated at render — see below) so the footer follows the active locale.
 const gettingStartedLinks = [
-  { label: 'What is Decentraland', url: 'https://docs.decentraland.org/introduction/about-decentraland' },
-  { label: 'Download', url: 'https://decentraland.org/download' },
-  { label: 'System Requirements', url: 'https://docs.decentraland.org/in-world/settings-and-performance' },
-  { label: 'FAQs', url: 'https://docs.decentraland.org/faqs/decentraland-101' },
-  { label: 'Contact Support', url: 'https://decentraland.org/help/' }
+  { label: 'footer.linkWhatIs', url: 'https://docs.decentraland.org/introduction/about-decentraland' },
+  { label: 'footer.linkDownload', url: 'https://decentraland.org/download' },
+  { label: 'footer.linkSystemRequirements', url: 'https://docs.decentraland.org/in-world/settings-and-performance' },
+  { label: 'footer.linkFaqs', url: 'https://docs.decentraland.org/faqs/decentraland-101' },
+  { label: 'footer.linkContactSupport', url: 'https://decentraland.org/help/' }
 ]
 
 const resourceLinks = [
-  { label: 'Marketplace', url: 'https://decentraland.org/marketplace' },
-  { label: 'Creator Hub', url: 'https://decentraland.org/create/' },
-  { label: 'Docs', url: 'https://docs.decentraland.org' },
-  { label: 'Blog', url: 'https://decentraland.org/blog/' },
-  { label: 'Vote', url: 'https://decentraland.org/dao' }
+  { label: 'footer.linkMarketplace', url: 'https://decentraland.org/marketplace' },
+  { label: 'footer.linkCreatorHub', url: 'https://decentraland.org/create/' },
+  { label: 'footer.linkDocs', url: 'https://docs.decentraland.org' },
+  { label: 'footer.linkBlog', url: 'https://decentraland.org/blog/' },
+  { label: 'footer.linkVote', url: 'https://decentraland.org/dao' }
 ]
 
 const socialLinks = [
@@ -36,10 +37,10 @@ const socialLinks = [
 ]
 
 const legalLinks = [
-  { label: 'Privacy Policy', url: 'https://decentraland.org/privacy/' },
-  { label: 'Terms of Use', url: 'https://decentraland.org/terms/' },
-  { label: 'Content Policy', url: 'https://decentraland.org/content/' },
-  { label: 'Code of Ethics', url: 'https://decentraland.org/ethics/' }
+  { label: 'footer.linkPrivacy', url: 'https://decentraland.org/privacy/' },
+  { label: 'footer.linkTerms', url: 'https://decentraland.org/terms/' },
+  { label: 'footer.linkContentPolicy', url: 'https://decentraland.org/content/' },
+  { label: 'footer.linkEthics', url: 'https://decentraland.org/ethics/' }
 ]
 
 const LANGUAGE_LABELS: Record<Locale, { label: string; flag: string }> = {
@@ -85,37 +86,37 @@ export function ShopFooter() {
           <span className="dcl-footer__wordmark">Decentraland</span>
 
           <div className="dcl-footer__news">
-            <p className="dcl-footer__news-title">Get the weekly highlights in your inbox</p>
+            <p className="dcl-footer__news-title">{t('footer.newsletterTitle')}</p>
             <iframe
               className="dcl-footer__news-frame"
               src={BEEHIIV_EMBED_URL}
               height="65"
               frameBorder="0"
               scrolling="no"
-              title="Newsletter signup"
+              title={t('footer.newsletterFrameTitle')}
             />
           </div>
 
           <div className="dcl-footer__connect dcl-footer__connect--desktop">
-            <p className="dcl-footer__label">Connect</p>
+            <p className="dcl-footer__label">{t('footer.connect')}</p>
             <SocialRow />
           </div>
         </div>
 
         <div className="dcl-footer__right">
           <div className="dcl-footer__col">
-            <p className="dcl-footer__label">Getting Started</p>
+            <p className="dcl-footer__label">{t('footer.gettingStarted')}</p>
             {gettingStartedLinks.map(l => (
               <a key={l.label} className="dcl-footer__link" href={l.url} target="_blank" rel="noopener noreferrer">
-                {l.label}
+                {t(l.label)}
               </a>
             ))}
           </div>
           <div className="dcl-footer__col">
-            <p className="dcl-footer__label">Resources</p>
+            <p className="dcl-footer__label">{t('footer.resources')}</p>
             {resourceLinks.map(l => (
               <a key={l.label} className="dcl-footer__link" href={l.url} target="_blank" rel="noopener noreferrer">
-                {l.label}
+                {t(l.label)}
               </a>
             ))}
           </div>
@@ -123,10 +124,10 @@ export function ShopFooter() {
 
         {/* Mobile-only collapsible menu (Figma mobile footer). */}
         <div className="dcl-footer__mobile-menu">
-          <p className="dcl-footer__menu-label">Menu</p>
+          <p className="dcl-footer__menu-label">{t('footer.menu')}</p>
           {[
-            { key: 'getting-started', label: 'Getting Started', links: gettingStartedLinks },
-            { key: 'resources', label: 'Resources', links: resourceLinks }
+            { key: 'getting-started', label: t('footer.gettingStarted'), links: gettingStartedLinks },
+            { key: 'resources', label: t('footer.resources'), links: resourceLinks }
           ].map(section => (
             <div key={section.key}>
               <button
@@ -143,7 +144,7 @@ export function ShopFooter() {
               <div className={`dcl-footer__dropdown-content${openSection === section.key ? ' is-open' : ''}`}>
                 {section.links.map(l => (
                   <a key={l.label} className="dcl-footer__mlink" href={l.url} target="_blank" rel="noopener noreferrer">
-                    {l.label}
+                    {t(l.label)}
                   </a>
                 ))}
               </div>
@@ -152,7 +153,7 @@ export function ShopFooter() {
         </div>
 
         <div className="dcl-footer__connect dcl-footer__connect--mobile">
-          <p className="dcl-footer__label">Connect</p>
+          <p className="dcl-footer__label">{t('footer.connect')}</p>
           <SocialRow />
         </div>
       </div>
@@ -195,7 +196,7 @@ export function ShopFooter() {
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                {l.label}
+                {t(l.label)}
               </a>
             ))}
           </div>

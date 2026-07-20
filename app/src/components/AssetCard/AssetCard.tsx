@@ -1,13 +1,12 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { PreviewEmote, PreviewType } from '@dcl/schemas'
 import { useCart } from '~/store/cart'
 import { useFavorites } from '~/store/favorites'
 import { useHoverPreview } from '~/store/hoverPreview'
 import { useWallet } from '~/store/wallet'
 import { isOwnListing } from '~/lib/ownership'
 import { CreatorBadge } from '~/components/CreatorBadge'
-import { rarityInk, rarityTint } from '~/lib/rarity'
+import { rarityInk, rarityTint, rarityDescription } from '~/lib/rarity'
 import { categoryIcon, genderIcon } from '~/lib/itemIcons'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { SaleCountdown } from '~/components/SaleCountdown'
@@ -16,7 +15,6 @@ import { formatCredits, formatCreditsFull } from '~/lib/currency'
 import { t } from '~/intl/i18n'
 import { useSaleActive } from '~/hooks/useSaleActive'
 import type { CatalogItem } from '~/lib/api'
-import { WearablePreview } from '../LazyWearablePreview'
 import './asset-card.css'
 
 const HOVER_DELAY_MS = 120
@@ -34,7 +32,6 @@ type AssetCardProps =
 export function AssetCard(props: AssetCardProps) {
   const { item } = props
   const isMarket = props.mode === 'market'
-  const [hovered, setHovered] = useState(false)
   const timer = useRef<ReturnType<typeof setTimeout>>()
   const mediaRef = useRef<HTMLDivElement>(null)
 
@@ -57,9 +54,10 @@ export function AssetCard(props: AssetCardProps) {
   // Secondary listings carry tokenId; catalog items carry itemId — use whichever is present so the
   // /item/:contractAddress/:tokenId route segment is always populated.
   const routeSeg = item.tokenId ?? item.itemId
-  // Market (legacy) cards don't open the item-detail page — those listings aren't in the USD-pegged
-  // shop feed the detail page reads, so Buy now is the only action. Keeps the tab self-contained.
-  const canOpen = !isMarket && !!item.contractAddress && !!routeSeg
+  // The whole card opens the item-detail page — market (legacy) cards included: they carry a valid
+  // contractAddress + tokenId/itemId, and the detail page renders them in "market mode" (live-rate
+  // price + Buy now) from the router state handed over on the link below.
+  const canOpen = !!item.contractAddress && !!routeSeg
   const detailPath = `/item/${item.contractAddress}/${routeSeg}`
 
   function onEnter() {
@@ -69,13 +67,11 @@ export function AssetCard(props: AssetCardProps) {
     if (typeof window !== 'undefined' && window.matchMedia && !window.matchMedia('(hover: hover)').matches) return
     if (timer.current) clearTimeout(timer.current)
     timer.current = setTimeout(() => {
-      setHovered(true)
       if (canPreview && mediaRef.current) showPreview(item, mediaRef.current)
     }, HOVER_DELAY_MS)
   }
   function onLeave() {
     if (timer.current) clearTimeout(timer.current)
-    setHovered(false)
     // Only release the shared preview if WE'RE the ones holding it (avoid stealing it from a card the
     // mouse has already moved onto).
     if (useHoverPreview.getState().item?.id === item.id) hidePreview()
@@ -106,7 +102,7 @@ export function AssetCard(props: AssetCardProps) {
 
   return (
     <article
-      className={`card${hovered ? ' card--hover' : ''}`}
+      className="card"
       data-testid="card"
       style={canOpen ? { cursor: 'pointer' } : undefined}
       onMouseEnter={onEnter}
@@ -121,7 +117,14 @@ export function AssetCard(props: AssetCardProps) {
           className="card__link"
           data-testid="card-link"
           to={detailPath}
-          state={{ item, tradeId: item.tradeId }}
+          // Market cards open the detail page in "market mode": hand it the live-rate credit price and
+          // the market item (a UnifiedListing carrying manaWei) so it renders the ≈ price + Buy now
+          // without a refetch. Native cards pass their tradeId (the detail page resolves the fixed price).
+          state={
+            props.mode === 'market'
+              ? { item, market: true, marketPriceCredits: props.marketPriceCredits }
+              : { item, tradeId: item.tradeId }
+          }
           aria-label={item.name}
         />
       ) : null}
@@ -158,29 +161,11 @@ export function AssetCard(props: AssetCardProps) {
             loading="lazy"
           />
         ) : null}
-        {hovered && canPreview ? (
-          <>
-            <div className={`card__preview${previewReady ? ' is-ready' : ''}`}>
-              <WearablePreview
-                contractAddress={item.contractAddress}
-                itemId={item.itemId ?? undefined}
-                profile="default"
-                // Load straight into the fashion pose (like ItemPreview) so the avatar doesn't flash a
-                // default arms-out T-pose for a beat before settling. Emotes play their own animation.
-                type={item.category === 'emote' ? undefined : PreviewType.AVATAR}
-                emote={item.category === 'emote' ? undefined : PreviewEmote.FASHION}
-                disableBackground
-                disableFadeEffect
-              />
-            </div>
-            {/* Transparent shield over the preview: it becomes the hover target so the cross-origin
-                iframe never shows its internal content-URL tooltip. Clicks bubble up to open detail. */}
-            <span className="card__preview-shield" aria-hidden />
-            {/* Skeleton shimmer on the gray media background while the 3D boots — sits behind the
-                thumbnail (which stays put), so the loading cue shows through/around the asset. */}
-            {!previewReady ? <span className="card__skeleton" aria-hidden /> : null}
-          </>
-        ) : null}
+        {/* The 3D preview is the ONE shared HoverPreviewLayer overlay (see App.tsx) — the card does NOT
+            mount its own <WearablePreview> (that duplicated the avatar over the shared one, cold-booted a
+            second engine per hover, and doubled the Babylon/Sentry work). On hover the card just asks the
+            store to point the warm iframe here (showPreview); the thumbnail above crossfades out via
+            .card__img--hidden once that shared preview is ready. */}
       </div>
 
       <div className="card__body">
@@ -205,7 +190,6 @@ export function AssetCard(props: AssetCardProps) {
               </span>
               <CurrencyIcon className="card__diamond" />
               {props.marketPriceCredits == null ? '—' : formatCredits(props.marketPriceCredits)}
-              <span className="chip card__market-chip">{t('assetCard.marketPrice')}</span>
             </div>
           ) : onSale ? (
             <div className="card__price card__price--sale">
@@ -244,9 +228,14 @@ export function AssetCard(props: AssetCardProps) {
             cart; Market (legacy) cards Buy now directly (price locked at checkout). */}
         <div className="card__action">
           <div className="card__chips">
+            {/* Market (legacy) tag: the "≈ price is a live-rate market price" indicator. Lives here in
+                the chips row (not the price row) so it's swapped out for the action button on hover like
+                every other chip and never distorts the price row / Buy now button. */}
+            {isMarket ? <span className="chip chip--market">{t('assetCard.marketPrice')}</span> : null}
             <span
               className="chip chip--rarity"
               style={{ background: rarityTint(item.rarity), color: rarityInk(item.rarity) }}
+              title={rarityDescription(item.rarity)}
             >
               {item.rarity}
             </span>

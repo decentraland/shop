@@ -16,7 +16,9 @@ import {
 import { COVER_TEMPLATES } from '~/lib/creator-covers'
 import { Spinner } from '~/components/Spinner'
 import { toast } from '~/store/toast'
+import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
+import { ErrorNotice } from '~/components/ErrorNotice'
 import './store-settings.css'
 
 const MAX_COVER_BYTES = 1_000_000 // 1 MB, same cap as the classic marketplace.
@@ -37,6 +39,7 @@ function mb(bytes: number): string {
 // cover, description and social links, then deploys the store entity (see lib/store.saveStore). Only
 // the signed-in creator edits their OWN store, so everything is scoped to session.address.
 export function StoreSettings() {
+  useSeo({ title: t('seo.storeSettings.title'), noindex: true })
   const { session, signIn } = useWallet()
   const navigate = useNavigate()
   const qc = useQueryClient()
@@ -289,9 +292,9 @@ export function StoreSettings() {
               />
             </div>
             {oversize ? (
-              <p className="error">
-                {t('storeSettings.sizeError', { max: mb(MAX_COVER_BYTES), current: mb(coverSize) })}
-              </p>
+              <ErrorNotice
+                message={t('storeSettings.sizeError', { max: mb(MAX_COVER_BYTES), current: mb(coverSize) })}
+              />
             ) : null}
           </div>
 
@@ -317,7 +320,7 @@ export function StoreSettings() {
               }
             />
             {!isValidLink('website', draft.links.website) ? (
-              <p className="error">{t('storeSettings.linkError', { value: LINK_PREFIX.website })}</p>
+              <ErrorNotice message={t('storeSettings.linkError', { value: LINK_PREFIX.website })} />
             ) : null}
           </label>
 

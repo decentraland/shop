@@ -31,7 +31,8 @@ describe('CreatorBadge avatar rendering', () => {
     expect(img?.getAttribute('src')).toBe('https://face.png')
     expect(container.querySelector('[data-testid="creator-ava-letter"]')).toBeNull()
     // The name is split across "By " + a <span class="creator__display">, so match the row's full text.
-    expect(container.querySelector('[data-testid="creator-name"]')?.textContent).toBe('By bondi')
+    // The display capitalises the first letter of the profile name ("bondi" → "Bondi").
+    expect(container.querySelector('[data-testid="creator-name"]')?.textContent).toBe('By Bondi')
   })
 
   it('should fall back to a lettered avatar (name initial) when there is no face snapshot', () => {
@@ -61,9 +62,9 @@ describe('CreatorBadge avatar rendering', () => {
   it('should render a clickable button to the creator page when linkToProfile is set', () => {
     useProfile.mockReturnValue({ data: { name: 'bondi' } })
     renderBadge({ linkToProfile: true })
-    // The button's accessible name comes from its visible "By bondi" text; no native title tooltip
-    // (it leaked into the card hover state — see CreatorBadge).
-    const button = screen.getByRole('button', { name: /By bondi/ })
+    // The button's accessible name comes from its visible "By Bondi" text (first letter capitalised);
+    // no native title tooltip (it leaked into the card hover state — see CreatorBadge).
+    const button = screen.getByRole('button', { name: /By Bondi/ })
     expect(button.getAttribute('title')).toBeNull()
   })
 

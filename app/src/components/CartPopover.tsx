@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { useCart } from '~/store/cart'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { CreatorBadge } from '~/components/CreatorBadge'
+import { t } from '~/intl/i18n'
 import { formatCredits, formatCreditsFull } from '~/lib/currency'
 import type { CatalogItem } from '~/lib/api'
 import './CartPopover.css'
@@ -42,14 +43,14 @@ function CartRow({ item, onRemove }: { item: CatalogItem; onRemove: (id: string)
             <button
               className="cartd__step"
               onClick={() => onRemove(item.id)}
-              aria-label={`Remove ${item.name} from cart`}
+              aria-label={t('cartPopover.removeFromCart', { name: item.name })}
             >
               <svg viewBox="0 0 16 16" fill="none" aria-hidden focusable="false">
                 <path d="M3.5 8h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
               </svg>
             </button>
             <span className="cartd__qty">1</span>
-            <button className="cartd__step" disabled aria-label="Increase quantity">
+            <button className="cartd__step" disabled aria-label={t('cartPopover.increaseQuantity')}>
               <svg viewBox="0 0 16 16" fill="none" aria-hidden focusable="false">
                 <path d="M8 3.5v9M3.5 8h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
               </svg>
@@ -64,8 +65,8 @@ function CartRow({ item, onRemove }: { item: CatalogItem; onRemove: (id: string)
       <button
         className="cartd__del"
         onClick={() => onRemove(item.id)}
-        aria-label={`Remove ${item.name}`}
-        title="Remove"
+        aria-label={t('cartPopover.removeItem', { name: item.name })}
+        title={t('cartPopover.remove')}
       >
         <span className="ico ico-trash" aria-hidden />
       </button>
@@ -103,12 +104,12 @@ export function CartPopover() {
   // Portal to <body> so the drawer escapes the nav's stacking context and overlays the whole viewport
   // (including the fixed global top nav), instead of being trapped under it.
   return createPortal(
-    <div className="cartd" role="dialog" aria-modal="true" aria-label="Shopping cart">
+    <div className="cartd" role="dialog" aria-modal="true" aria-label={t('cartPopover.dialogLabel')}>
       <div className="cartd__scrim" onClick={() => setOpen(false)} />
       <aside className="cartd__panel" ref={panelRef}>
         <header className="cartd__head">
-          <h2 className="cartd__title">Shopping Cart ({count})</h2>
-          <button className="cartd__close" onClick={() => setOpen(false)} aria-label="Close">
+          <h2 className="cartd__title">{t('cartPopover.title', { count })}</h2>
+          <button className="cartd__close" onClick={() => setOpen(false)} aria-label={t('cartPopover.close')}>
             <svg viewBox="0 0 24 24" fill="none" aria-hidden focusable="false">
               <path d="M5 5l14 14M19 5L5 19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
             </svg>
@@ -122,10 +123,8 @@ export function CartPopover() {
                 <CheckCircle />
               </span>
               <p>
-                <strong>
-                  {justAddedCount} Item{justAddedCount > 1 ? 's' : ''}
-                </strong>{' '}
-                successfully added to cart!
+                <strong>{t('cartPopover.bannerCount', { count: justAddedCount })}</strong>{' '}
+                {t('cartPopover.bannerAdded')}
               </p>
             </div>
           ) : null}
@@ -139,9 +138,7 @@ export function CartPopover() {
 
         <footer className="cartd__foot">
           <div className="cartd__totalrow">
-            <span className="cartd__total-label">
-              Total: {count} item{count > 1 ? 's' : ''}
-            </span>
+            <span className="cartd__total-label">{t('cartPopover.total', { count })}</span>
             <span className="cartd__total-val" title={formatCreditsFull(total)}>
               <CurrencyIcon className="cartd__total-diamond" />
               {formatCredits(total)}
@@ -149,10 +146,10 @@ export function CartPopover() {
           </div>
           <div className="cartd__ctas">
             <Link className="cartd__cta cartd__cta--primary" to="/cart" onClick={() => setOpen(false)}>
-              Go to cart
+              {t('cartPopover.goToCart')}
             </Link>
             <button className="cartd__cta cartd__cta--secondary" onClick={() => setOpen(false)}>
-              Continue shopping
+              {t('cartPopover.continueShopping')}
             </button>
           </div>
         </footer>

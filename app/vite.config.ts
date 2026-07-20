@@ -84,6 +84,19 @@ export default defineConfig({
           if (/[\\/]node_modules[\\/](react|react-dom|react-router|react-router-dom|scheduler)[\\/]/.test(id))
             return 'react'
           if (/[\\/]node_modules[\\/](ethers|@ethersproject)[\\/]/.test(id)) return 'ethers'
+          // @dcl/schemas is a CommonJS barrel (no ESM, no exports map) so importing a single enum
+          // pulls its whole ajv-based validation stack. The app uses a few enums eagerly, so it can't
+          // be lazy-loaded — isolate it + ajv into one long-lived cacheable chunk (shared with the
+          // lazy routes) instead of baking ~1MB of it into the entry blob.
+          if (/[\\/]node_modules[\\/](@dcl[\\/]schemas|ajv|ajv-keywords|ajv-errors|ajv-formats|fast-uri)[\\/]/.test(id))
+            return 'dcl-schemas'
+          // Sentry loads eagerly (initSentry runs before the first render and App wraps routes in its
+          // ErrorBoundary), so it can't be deferred without dropping early-error capture — split it out
+          // of the entry into its own chunk instead.
+          if (/[\\/]node_modules[\\/](@sentry|@sentry-internal)[\\/]/.test(id)) return 'sentry'
+          // formatjs/react-intl message pipeline is eager via I18nProvider; give it its own chunk.
+          if (/[\\/]node_modules[\\/](@formatjs|intl-messageformat|intl-messageformat-parser)[\\/]/.test(id))
+            return 'intl'
           // Let rollup split @mui/@emotion/decentraland-ui2 naturally: the heavy MUI lives in the
           // (dynamic) wallet-modal + lazy-route chunks, so forcing it all into one eager chunk would
           // drag the whole thing in for any tiny eager use.

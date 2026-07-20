@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { t } from '~/intl/i18n'
 
 /**
  * Infinite-scroll trigger for a paginated grid. Auto-loads the next page when the sentinel scrolls
@@ -35,7 +36,7 @@ export function LoadMore({
   return (
     <div className="load-more" ref={ref}>
       <button className="btn btn--ghost" onClick={onLoadMore} disabled={isFetching}>
-        {isFetching ? 'Loading…' : 'Load more'}
+        {isFetching ? t('loadMore.loading') : t('loadMore.loadMore')}
       </button>
     </div>
   )

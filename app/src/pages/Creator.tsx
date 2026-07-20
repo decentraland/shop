@@ -11,11 +11,13 @@ import { AddAllToCart } from '~/components/AddAllToCart'
 import { SkeletonCards } from '~/components/SkeletonCards'
 import { LoadMore } from '~/components/LoadMore'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
+import { useSeo } from '~/hooks/useSeo'
 import { useProfile } from '~/hooks/useProfile'
 import { SUBCAT_MAP } from '~/lib/categories'
 import { CURRENCY } from '~/lib/currency'
 import { shortAddress } from '~/lib/address'
 import { t } from '~/intl/i18n'
+import { ErrorNotice } from '~/components/ErrorNotice'
 import './collection.css'
 
 const PAGE_SIZE = 48
@@ -31,6 +33,10 @@ export function Creator() {
   const collectionsMode = searchParams.has('collections')
   const { data: profile } = useProfile(address)
   const name = profile?.name || (address ? shortAddress(address) : t('creator.fallbackName'))
+
+  // Per-page SEO — the creator's display name (or shortened address until the profile loads) as the
+  // title, with a creator-scoped description. Indexable.
+  useSeo({ title: name, description: t('seo.creator.description', { name }) })
 
   const [category, setCategory] = useState('wearable')
   const [subCategory, setSubCategory] = useState<string | null>(null)
@@ -112,7 +118,7 @@ export function Creator() {
 
   return (
     <div className="collection-page">
-      <nav className="collection-page__crumbs" aria-label="Breadcrumb">
+      <nav className="collection-page__crumbs" aria-label={t('creator.breadcrumbAria')}>
         <button className="collection-page__crumb-link" onClick={() => navigate('/assets')}>
           {t('creator.breadcrumb')}
         </button>
@@ -147,7 +153,7 @@ export function Creator() {
                 </span>
               </div>
 
-              {collections.error ? <p className="error">{t('creator.error')}</p> : null}
+              {collections.error ? <ErrorNotice message={t('creator.error')} /> : null}
 
               <div className="grid grid--collections">
                 {collections.isLoading ? (
@@ -190,8 +196,8 @@ export function Creator() {
                         <input
                           type="number"
                           min="0"
-                          aria-label="Minimum price"
-                          placeholder="Min"
+                          aria-label={t('creator.priceMin')}
+                          placeholder={t('creator.priceMinPlaceholder')}
                           value={priceMin}
                           onChange={e => setPriceMin(e.target.value)}
                         />
@@ -199,19 +205,19 @@ export function Creator() {
                         <input
                           type="number"
                           min="0"
-                          aria-label="Maximum price"
-                          placeholder="Max"
+                          aria-label={t('creator.priceMax')}
+                          placeholder={t('creator.priceMaxPlaceholder')}
                           value={priceMax}
                           onChange={e => setPriceMax(e.target.value)}
                         />
                       </div>
-                      <p className="filter-pop__hint">Price in {CURRENCY.name}</p>
+                      <p className="filter-pop__hint">{t('creator.priceHint', { currency: CURRENCY.name })}</p>
                     </div>
                   </FilterPanel>
                 )}
               />
 
-              {error ? <p className="error">{t('creator.error')}</p> : null}
+              {error ? <ErrorNotice message={t('creator.error')} /> : null}
 
               <div className="grid">
                 {isLoading ? (

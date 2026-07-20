@@ -11,17 +11,11 @@ import { CURRENCY } from '~/lib/currency'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { track, errorCode } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
+import { t } from '~/intl/i18n'
+import { friendlyError } from '~/lib/errors'
+import { ErrorNotice } from '~/components/ErrorNotice'
 
 const SIX_MONTHS_MS = 1000 * 60 * 60 * 24 * 182
-
-function friendlyError(e: unknown): string {
-  const err = e as { code?: number; message?: string }
-  const msg = (err.message ?? '').toLowerCase()
-  if (err.code === 4001 || msg.includes('reject') || msg.includes('denied') || msg.includes('cancel')) {
-    return 'You cancelled the request.'
-  }
-  return "Couldn't list your item — please try again."
-}
 
 export function SellModal({ asset, session, onClose }: { asset: MyAsset; session: Session; onClose: () => void }) {
   const queryClient = useQueryClient()
@@ -36,19 +30,19 @@ export function SellModal({ asset, session, onClose }: { asset: MyAsset; session
     setError(null)
     const value = Number(price)
     if (!Number.isInteger(value) || value <= 0) {
-      setError('Enter a whole number of credits')
+      setError(t('sellModal.errorWholeNumber'))
       return
     }
     setBusy(true)
     try {
-      setStatus('Getting your item ready…')
+      setStatus(t('sellModal.statusPreparing'))
       await ensureApproval({
         signer: session.signer,
         contractAddress: asset.contractAddress,
         chainId: asset.chainId
       })
 
-      setStatus('Listing your item…')
+      setStatus(t('sellModal.statusListing'))
       const trade = await createUsdPeggedListing({
         signer: session.signer,
         nft: {
@@ -61,7 +55,7 @@ export function SellModal({ asset, session, onClose }: { asset: MyAsset; session
         expiresAtMs: Date.now() + SIX_MONTHS_MS
       })
 
-      setStatus('Publishing…')
+      setStatus(t('sellModal.statusPublishing'))
       await postTrade(trade, session.identity)
 
       setStatus(null)
@@ -74,12 +68,12 @@ export function SellModal({ asset, session, onClose }: { asset: MyAsset; session
         listing_type: 'secondary',
         is_primary: false
       })
-      toast.success(`“${asset.name}” is now on sale!`)
+      toast.success(t('sellModal.toastOnSale', { name: asset.name }))
       void queryClient.invalidateQueries({ queryKey: ['my-assets', session.address] })
     } catch (e) {
       captureError(e, { flow: 'list_secondary' })
       track('Shop Listing Failed', { listing_type: 'secondary', error_code: errorCode(e) })
-      setError(friendlyError(e))
+      setError(friendlyError(e, t('sellModal.errorGeneric')))
       setStatus(null)
     } finally {
       setBusy(false)
@@ -98,21 +92,21 @@ export function SellModal({ asset, session, onClose }: { asset: MyAsset; session
           <div className="modal-success__check" aria-hidden>
             ✓
           </div>
-          <h2 className="modal__title">It’s on sale! 🎉</h2>
+          <h2 className="modal__title">{t('sellModal.successTitle')}</h2>
           {asset.image ? <img className="modal__img" src={asset.image} alt={asset.name} /> : null}
           <p className="modal-success__name">{asset.name}</p>
           <p className="muted small">
-            Listed for{' '}
+            {t('sellModal.listedFor')}{' '}
             <strong>
               <CurrencyIcon className="ccy-mark" /> {listedCredits}
             </strong>
           </p>
           <div className="modal__actions">
             <button className="btn btn--ghost" onClick={onClose}>
-              Done
+              {t('getCredits.done')}
             </button>
             <button className="btn btn--purple" onClick={viewInShop}>
-              View in Shop
+              {t('sellModal.viewInShop')}
             </button>
           </div>
         </div>
@@ -123,11 +117,11 @@ export function SellModal({ asset, session, onClose }: { asset: MyAsset; session
   return (
     <div className="modal-backdrop" onClick={onClose} role="presentation">
       <div className="modal" data-testid="modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
-        <h2 className="modal__title">List “{asset.name}”</h2>
+        <h2 className="modal__title">{t('sellModal.listTitle', { name: asset.name })}</h2>
         {asset.image ? <img className="modal__img" src={asset.image} alt={asset.name} /> : null}
 
         <label className="field">
-          <span>Price ({CURRENCY.name})</span>
+          <span>{t('sellModal.priceLabel', { currency: CURRENCY.name })}</span>
           <input
             type="number"
             min="1"
@@ -138,18 +132,18 @@ export function SellModal({ asset, session, onClose }: { asset: MyAsset; session
           />
         </label>
         <p className="muted small">
-          Priced in whole {CURRENCY.name} (1 {CURRENCY.nameSingular} = $0.10).
+          {t('sellModal.pricedInWhole', { currency: CURRENCY.name, currencySingular: CURRENCY.nameSingular })}
         </p>
 
         {status ? <p className="muted">{status}</p> : null}
-        {error ? <p className="error">{error}</p> : null}
+        <ErrorNotice message={error} />
 
         <div className="modal__actions">
           <button className="btn btn--ghost" onClick={onClose} disabled={busy}>
-            Cancel
+            {t('sellModal.cancel')}
           </button>
           <button className="btn" onClick={() => void list()} disabled={busy}>
-            {busy ? 'Listing…' : 'Put on sale'}
+            {busy ? t('sellModal.listing') : t('sellModal.putOnSale')}
           </button>
         </div>
       </div>
