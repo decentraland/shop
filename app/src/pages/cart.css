@@ -77,29 +77,47 @@
   line-height: 1.2;
   color: var(--text);
 }
-/* Fitting Room button — outlined (magenta border / purple label). */
+/* Fitting Room button (Figma 1182-232414) — purple label + a GRADIENT (Amethyst) border. A flat
+   `border-color` can't hold a gradient, so the border is a 2px transparent ring with the white fill
+   clipped to padding-box and the amethyst gradient showing through the border-box (same technique as
+   the asset card's hover border in asset-card.css). */
 .checkout__fitting {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
-  background: #fff;
-  border: 1.5px solid #c640cd;
+  height: 40px;
+  padding: 0 12px;
+  border: 2px solid transparent;
   border-radius: 8px;
-  padding: 9px 16px;
+  background:
+    linear-gradient(#fff, #fff) padding-box,
+    var(--amethyst) border-box;
   color: var(--accent);
   font-size: 13px;
   font-weight: 600;
-  letter-spacing: 0.046em;
+  line-height: 24px;
+  letter-spacing: 0.46px;
   text-transform: uppercase;
   white-space: nowrap;
-  transition: background 0.15s ease;
+  cursor: pointer;
+  transition:
+    box-shadow 0.15s ease,
+    filter 0.15s ease;
 }
 .checkout__fitting:hover:not(:disabled) {
-  background: rgba(198, 64, 205, 0.06);
+  box-shadow: 0 0 8px 0 rgba(165, 36, 179, 0.35);
+}
+.checkout__fitting:active:not(:disabled) {
+  filter: brightness(0.97);
 }
 .checkout__fitting:disabled {
   opacity: 0.55;
   cursor: default;
+}
+.checkout__fitting-ico {
+  width: 24px;
+  height: 24px;
 }
 
 .checkout__list {
@@ -130,6 +148,13 @@
   display: grid;
   place-items: center;
   overflow: hidden;
+}
+/* The image sits in a stretched link so the whole tile navigates to the item (client-side). */
+.checkout__thumb-link {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
 }
 .checkout__thumb img {
   width: 83%;
@@ -163,21 +188,35 @@
   flex-direction: column;
   gap: 4px;
   min-width: 0;
-  padding-right: 56px; /* clear the top-right remove button */
+  padding-right: 64px; /* clear the top-right favourite + remove group */
 }
 .checkout__name {
+  display: block;
   font-size: 16px;
   font-weight: 600;
   line-height: 1.2;
   color: var(--text);
+  text-decoration: none;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+a.checkout__name:hover {
+  color: var(--accent);
+}
+/* Creator subline: reuse CreatorBadge but drop its avatar for the text-only Figma treatment
+   ("By {creator}"), matching the cart drawer. */
 .checkout__creator {
   font-size: 10px;
   line-height: 1.43;
   color: var(--muted);
+}
+.checkout__creator .creator__ava {
+  display: none;
+}
+.checkout__creator .creator__name {
+  font-size: 10px;
+  line-height: 1.43;
 }
 .checkout__foot {
   display: flex;
@@ -186,27 +225,40 @@
   gap: 12px;
   padding-right: 8px;
 }
-/* Quantity indicator — display-only: a cart line is a single unique listing,
-   so its quantity is always 1 (multi-quantity isn't part of the cart model). */
-.checkout__qty {
+/* Quantity stepper (Figma pill) — visual only: a cart line is a single unique listing, so its
+   quantity is always 1 (minus removes the line, plus is inert; mirrors the cart drawer stepper). */
+.checkout__stepper {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 5px 10px;
+  padding: 6px;
   border: 0.5px solid var(--muted-2);
   border-radius: 50px;
-  color: var(--muted-2);
 }
-.checkout__qty-sign {
+.checkout__step {
+  display: grid;
+  place-items: center;
   width: 16px;
-  font-size: 18px;
-  line-height: 1;
-  text-align: center;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  cursor: pointer;
 }
-.checkout__qty-num {
+.checkout__step:disabled {
+  color: var(--muted-2);
+  cursor: default;
+}
+.checkout__step svg {
+  width: 16px;
+  height: 16px;
+}
+.checkout__qty {
   min-width: 12px;
   font-size: 14px;
   font-weight: 500;
+  line-height: 1.2;
   color: var(--text);
   text-align: center;
 }
@@ -230,26 +282,38 @@
   color: var(--muted);
   text-decoration: line-through;
 }
-.checkout__remove {
+/* Favourite (heart) + delete (trash) group at the top-right of the card (Figma: gap 12, 24px each). */
+.checkout__actions {
   position: absolute;
-  top: 12px;
-  right: 12px;
-  border: 0;
-  background: none;
-  color: var(--muted-2);
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 8px;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.checkout__fav,
+.checkout__remove {
   display: grid;
   place-items: center;
-  transition:
-    color 0.12s ease,
-    background 0.12s ease;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.12s ease;
+}
+.checkout__fav:hover:not(:disabled) {
+  color: var(--text);
+}
+.checkout__fav.is-on {
+  color: var(--dcl-red);
 }
 .checkout__remove:hover:not(:disabled) {
   color: var(--dcl-red);
-  background: rgba(255, 45, 85, 0.1);
 }
+.checkout__fav:disabled,
 .checkout__remove:disabled {
   opacity: 0.5;
   cursor: default;
@@ -349,8 +413,10 @@
   font-size: 13px;
 }
 
+/* Upsell rail = the shared <CollectionCarousel> (side arrows + dots), same as the item-detail page.
+   The carousel supplies its own top margin, so this wrapper only scopes it under the cart. */
 .cart-upsell {
-  margin-top: 40px;
+  margin-top: 8px;
 }
 
 /* Single-column below the two-column breakpoint; the summary stops sticking. */
@@ -398,8 +464,13 @@
     font-size: 16px;
   }
   .checkout__fitting {
-    padding: 8px 12px;
+    height: 36px;
+    padding: 0 10px;
     font-size: 12px;
+  }
+  .checkout__fitting-ico {
+    width: 20px;
+    height: 20px;
   }
   .checkout__thumb {
     width: 120px;

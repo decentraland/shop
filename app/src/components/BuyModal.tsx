@@ -17,26 +17,9 @@ import { gaslessEnabled } from '~/lib/gasless-config'
 import { isOwnTrade } from '~/lib/ownership'
 import { CREDIT_PACKS, createPackCheckout } from '~/lib/payments'
 import { RESUME_BUY_KEY } from '~/lib/resume-buy'
-
-function friendlyError(e: unknown): string {
-  const err = e as { code?: number; message?: string }
-  const msg = (err.message ?? '').toLowerCase()
-  if (err.code === 4001 || msg.includes('reject') || msg.includes('denied') || msg.includes('cancel')) {
-    return 'You cancelled the request.'
-  }
-  if (msg.includes('not for sale') || msg.includes('not found') || msg.includes('404')) {
-    return 'This item was just sold or removed.'
-  }
-  if (msg.includes('your own listing')) return "You can't buy your own listing."
-  return "Couldn't complete the purchase — please try again."
-}
-
-// True when an authorize failure means "not enough credits" (server 402 / insufficient) rather than
-// a genuine error — those route to the pack picker instead of the error state.
-function isInsufficient(e: unknown): boolean {
-  const err = e as { code?: number; status?: number; message?: string }
-  return err.code === 402 || err.status === 402 || (err.message ?? '').toLowerCase().includes('insufficient')
-}
+import { t } from '~/intl/i18n'
+import { friendlyError, isInsufficient } from '~/lib/errors'
+import { ErrorNotice } from '~/components/ErrorNotice'
 
 // The three top-up packs offered when the buyer is short on credits. The cheapest one that still
 // clears the shortfall is pre-selected. Packs come from the canonical shop catalogue.
@@ -91,7 +74,7 @@ export function BuyModal({
     let cancelled = false
     if (!session) {
       setPhase('error')
-      setError('Sign in to check out.')
+      setError(t('buyModal.signInToCheckout'))
       return
     }
     // Route to the no-funds (pack picker) state: reserve nothing, prompt a top-up.
@@ -157,7 +140,7 @@ export function BuyModal({
           error_code: errorCode(e)
         })
         setPhase('error')
-        setError(friendlyError(e))
+        setError(friendlyError(e, t('buyModal.error.generic'), { sale: true }))
       }
     })()
     return () => {
@@ -219,7 +202,7 @@ export function BuyModal({
         error_code: errorCode(e)
       })
       void qc.invalidateQueries({ queryKey: ['usd-balance'] })
-      setError(friendlyError(e))
+      setError(friendlyError(e, t('buyModal.error.generic'), { sale: true }))
       setPhase('error')
     }
   }
@@ -253,16 +236,26 @@ export function BuyModal({
       } catch {
         /* ignore */
       }
-      setError("Couldn't start the credits checkout — please try again.")
+      setError(t('buyModal.error.creditsCheckout'))
       setPhase('error')
     }
   }
 
   const busy = phase === 'processing'
-  const title = phase === 'complete' ? 'Purchase complete!' : phase === 'nofunds' ? 'Buy Credits and Item' : 'Buy Asset'
+  const title =
+    phase === 'complete'
+      ? t('buyModal.titleComplete')
+      : phase === 'nofunds'
+        ? t('buyModal.titleNoFunds')
+        : t('buyModal.titleBuy')
 
   return (
-    <div className="buy-modal" role="dialog" aria-modal="true" aria-label={`Buy ${item.name}`}>
+    <div
+      className="buy-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-label={t('buyModal.dialogAria', { name: item.name })}
+    >
       <div className="buy-modal__scrim" onClick={busy ? undefined : onClose} aria-hidden />
       <div
         className={`buy-modal__card${phase === 'processing' || phase === 'loading' ? ' buy-modal__card--tall' : ''}`}
@@ -272,7 +265,7 @@ export function BuyModal({
           <div className="buy-modal__head-row">
             <h2 className="buy-modal__title">{title}</h2>
             {!busy && (
-              <button className="buy-modal__x" onClick={onClose} aria-label="Close">
+              <button className="buy-modal__x" onClick={onClose} aria-label={t('buyModal.close')}>
                 <svg viewBox="0 0 18 18" width="18" height="18" aria-hidden>
                   <path d="M4 4l10 10M14 4L4 14" stroke="#161518" strokeWidth="1.8" strokeLinecap="round" />
                 </svg>
@@ -281,7 +274,7 @@ export function BuyModal({
           </div>
           <div className="buy-modal__balance">
             <span className="buy-modal__balance-label">
-              {phase === 'nofunds' ? 'DCL Balance:' : 'My Credits Balance:'}
+              {phase === 'nofunds' ? t('buyModal.dclBalance') : t('buyModal.myCreditsBalance')}
             </span>
             <CurrencyIcon className="buy-modal__balance-ico" />
             <span className="buy-modal__balance-value">{formatCredits(balanceCredits)}</span>
@@ -298,10 +291,10 @@ export function BuyModal({
         {/* Error */}
         {phase === 'error' && (
           <div className="buy-modal__body">
-            <p className="buy-modal__error">{error}</p>
+            <ErrorNotice message={error} />
             <div className="buy-modal__ctas">
               <button className="buy-modal__btn buy-modal__btn--gradient" onClick={onClose}>
-                Close
+                {t('buyModal.close')}
               </button>
             </div>
           </div>
@@ -317,8 +310,9 @@ export function BuyModal({
                 <circle cx="12" cy="17" r="1.1" fill="#691fa9" />
               </svg>
               <p className="buy-modal__warning-text">
-                <b>Insufficient Funds.</b> You will need to buy{' '}
-                <b>{Math.max(0, priceCredits - balanceCredits)} Credits</b> to purchase this item.
+                <b>{t('buyModal.insufficientFunds')}</b> {t('buyModal.warningNeedToBuy')}{' '}
+                <b>{t('buyModal.warningCreditsAmount', { count: Math.max(0, priceCredits - balanceCredits) })}</b>{' '}
+                {t('buyModal.warningToPurchase', { count: 1 })}
               </p>
             </div>
             <AssetRow item={item} priceCredits={priceCredits} />
@@ -350,10 +344,10 @@ export function BuyModal({
             </div>
             <div className="buy-modal__ctas">
               <button className="buy-modal__btn buy-modal__btn--outline" onClick={onClose}>
-                Cancel
+                {t('buyModal.cancel')}
               </button>
               <button className="buy-modal__btn buy-modal__btn--gradient" onClick={() => void buyCreditsAndItem()}>
-                Buy
+                {t('buyModal.buy')}
               </button>
             </div>
           </div>
@@ -368,7 +362,7 @@ export function BuyModal({
                 className="buy-modal__btn buy-modal__btn--gradient buy-modal__btn--full"
                 onClick={() => void confirm()}
               >
-                Buy
+                {t('buyModal.buy')}
               </button>
             </div>
           </div>
@@ -379,7 +373,7 @@ export function BuyModal({
           <div className="buy-modal__body buy-modal__processing">
             <img className="buy-modal__logo" src="/icon-192.png" alt="" width={61} height={61} />
             <div className="buy-modal__processing-text">
-              {resume ? 'Completing Purchase…' : 'Completing transaction…'}
+              {resume ? t('buyModal.completingPurchase') : t('buyModal.completingTransaction')}
             </div>
             <div className="buy-modal__progress" aria-hidden>
               <span className="buy-modal__progress-fill" />
@@ -403,15 +397,15 @@ export function BuyModal({
                 />
               </svg>
               <p className="buy-modal__success-text">
-                <b>Your purchase was successful!</b> You can find your item in the My Assets tab.
+                <b>{t('getCredits.successTitle')}</b> {t('buyModal.successBody')}
               </p>
             </div>
             <div className="buy-modal__ctas">
               <button className="buy-modal__btn buy-modal__btn--outline" onClick={() => navigate('/assets?tab=mine')}>
-                My assets
+                {t('buyModal.myAssets')}
               </button>
               <button className="buy-modal__btn buy-modal__btn--ruby" onClick={onClose}>
-                Try in world
+                {t('buyModal.tryInWorld')}
                 <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden>
                   <path
                     d="M5 12h12M13 7l5 5-5 5"
@@ -439,9 +433,11 @@ function AssetRow({ item, priceCredits }: { item: CatalogItem; priceCredits: num
       <div className="buy-modal__asset-info">
         <div>
           <div className="buy-modal__asset-name" title={item.name}>
-            {item.name || 'Item'}
+            {item.name || t('buyModal.itemFallback')}
           </div>
-          {item.creator ? <div className="buy-modal__asset-creator">By {item.creator}</div> : null}
+          {item.creator ? (
+            <div className="buy-modal__asset-creator">{t('search.byCreator', { name: item.creator })}</div>
+          ) : null}
         </div>
         <div className="buy-modal__asset-price">
           <CurrencyIcon className="buy-modal__asset-price-ico" />

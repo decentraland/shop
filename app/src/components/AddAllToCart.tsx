@@ -4,6 +4,7 @@ import { isOwnListing } from '~/lib/ownership'
 import { Button } from '~/components/Button'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { toast } from '~/store/toast'
+import { t } from '~/intl/i18n'
 import type { CatalogItem } from '~/lib/api'
 
 // "Buy the set" bar for collection/creator pages: the total of the listed items + one-tap
@@ -24,16 +25,17 @@ export function AddAllToCart({ items, source }: { items: CatalogItem[]; source: 
 
   function addAll() {
     toAdd.forEach(i => add(i, source))
-    toast.success(`Added ${toAdd.length} item${toAdd.length === 1 ? '' : 's'} to your cart.`)
+    toast.success(t('addAll.added', { count: toAdd.length }))
   }
 
   return (
     <div className="addall">
       <span className="addall__summary">
-        {buyable.length} for sale · <CurrencyIcon className="addall__diamond" /> {total.toLocaleString()}
+        {t('addAll.forSale', { count: buyable.length })} · <CurrencyIcon className="addall__diamond" />{' '}
+        {total.toLocaleString()}
       </span>
       <Button variant="purple" size="sm" onClick={addAll} disabled={toAdd.length === 0}>
-        {toAdd.length === 0 ? 'All in cart' : `Add all (${toAdd.length}) to cart`}
+        {toAdd.length === 0 ? t('addAll.allInCart') : t('addAll.addAll', { count: toAdd.length })}
       </Button>
     </div>
   )

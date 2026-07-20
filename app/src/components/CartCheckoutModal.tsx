@@ -2,6 +2,8 @@ import type { CatalogItem } from '~/lib/api'
 import type { CreditPack } from '~/lib/payments'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { formatCredits } from '~/lib/currency'
+import { t } from '~/intl/i18n'
+import { ErrorNotice } from '~/components/ErrorNotice'
 
 // A cart line as the modal displays it: the item + the LIVE credit price it will be charged.
 export type CheckoutLine = { item: CatalogItem; priceCredits: number }
@@ -40,11 +42,11 @@ export function CartCheckoutModal(props: Props) {
   const busy = phase === 'processing'
   // The success state has no header in Figma (1182-220275) — just the green banner + list + CTAs.
   const showHead = phase !== 'complete'
-  const title = phase === 'nofunds' ? 'Buy Credits and Items' : 'Buy Assets'
+  const title = phase === 'nofunds' ? t('cartCheckout.titleNoFunds') : t('cartCheckout.titleBuy')
   const tall = phase === 'processing'
 
   return (
-    <div className="buy-modal" role="dialog" aria-modal="true" aria-label="Check out your cart">
+    <div className="buy-modal" role="dialog" aria-modal="true" aria-label={t('cartCheckout.dialogAria')}>
       <div className="buy-modal__scrim" onClick={busy ? undefined : onClose} aria-hidden />
       <div className={`buy-modal__card${tall ? ' buy-modal__card--tall' : ''}`}>
         {showHead && (
@@ -52,7 +54,7 @@ export function CartCheckoutModal(props: Props) {
             <div className="buy-modal__head-row">
               <h2 className="buy-modal__title">{title}</h2>
               {!busy && (
-                <button className="buy-modal__x" onClick={onClose} aria-label="Close">
+                <button className="buy-modal__x" onClick={onClose} aria-label={t('buyModal.close')}>
                   <svg viewBox="0 0 18 18" width="18" height="18" aria-hidden>
                     <path d="M4 4l10 10M14 4L4 14" stroke="#161518" strokeWidth="1.8" strokeLinecap="round" />
                   </svg>
@@ -61,7 +63,7 @@ export function CartCheckoutModal(props: Props) {
             </div>
             <div className="buy-modal__balance">
               <span className="buy-modal__balance-label">
-                {phase === 'nofunds' ? 'DCL Balance:' : 'My Credits Balance:'}
+                {phase === 'nofunds' ? t('buyModal.dclBalance') : t('buyModal.myCreditsBalance')}
               </span>
               <CurrencyIcon className="buy-modal__balance-ico" />
               <span className="buy-modal__balance-value">{formatCredits(balanceCredits)}</span>
@@ -90,10 +92,10 @@ export function CartCheckoutModal(props: Props) {
         )}
         {phase === 'error' && (
           <div className="buy-modal__body">
-            <p className="buy-modal__error">{props.message}</p>
+            <ErrorNotice message={props.message} />
             <div className="buy-modal__ctas">
               <button className="buy-modal__btn buy-modal__btn--gradient" onClick={onClose}>
-                Close
+                {t('buyModal.close')}
               </button>
             </div>
           </div>
@@ -109,7 +111,7 @@ function Processing({ step, total }: { step: number; total: number }) {
   return (
     <div className="buy-modal__body buy-modal__processing">
       <img className="buy-modal__logo" src="/icon-192.png" alt="" width={61} height={61} />
-      <div className="buy-modal__processing-text">Completing transaction…</div>
+      <div className="buy-modal__processing-text">{t('buyModal.completingTransaction')}</div>
       <div className="cart-checkout__progress-row">
         <div className="buy-modal__progress" aria-hidden>
           <span className="buy-modal__progress-fill" />
@@ -151,8 +153,9 @@ function NoFunds({
           <circle cx="12" cy="17" r="1.1" fill="#691fa9" />
         </svg>
         <p className="buy-modal__warning-text">
-          <b>Insufficient Funds.</b> You will need to buy <b>{Math.max(0, shortfallCredits)} Credits</b> to purchase
-          {lines.length === 1 ? ' this item.' : ' these items.'}
+          <b>{t('buyModal.insufficientFunds')}</b> {t('buyModal.warningNeedToBuy')}{' '}
+          <b>{t('buyModal.warningCreditsAmount', { count: Math.max(0, shortfallCredits) })}</b>{' '}
+          {t('buyModal.warningToPurchase', { count: lines.length })}
         </p>
       </div>
 
@@ -165,9 +168,11 @@ function NoFunds({
             <div className="buy-modal__asset-info">
               <div>
                 <div className="buy-modal__asset-name" title={l.item.name}>
-                  {l.item.name || 'Item'}
+                  {l.item.name || t('buyModal.itemFallback')}
                 </div>
-                {l.item.creator ? <div className="buy-modal__asset-creator">By {l.item.creator}</div> : null}
+                {l.item.creator ? (
+                  <div className="buy-modal__asset-creator">{t('search.byCreator', { name: l.item.creator })}</div>
+                ) : null}
               </div>
               <div className="buy-modal__asset-price">
                 <CurrencyIcon className="buy-modal__asset-price-ico" />
@@ -205,10 +210,10 @@ function NoFunds({
 
       <div className="buy-modal__ctas">
         <button className="buy-modal__btn buy-modal__btn--outline" onClick={onCancel}>
-          Cancel
+          {t('buyModal.cancel')}
         </button>
         <button className="buy-modal__btn buy-modal__btn--gradient" onClick={onBuyPacks}>
-          Buy
+          {t('buyModal.buy')}
         </button>
       </div>
     </div>
@@ -241,7 +246,7 @@ function Complete({
           />
         </svg>
         <p className="buy-modal__success-text">
-          <b>Your purchase was successful!</b> You can find your item in the My Assets tab.
+          <b>{t('getCredits.successTitle')}</b> {t('buyModal.successBody')}
         </p>
       </div>
 
@@ -266,9 +271,11 @@ function Complete({
               </div>
               <div className="cart-checkout__done-info">
                 <div className="cart-checkout__done-name" title={item.name}>
-                  {item.name || 'Item'}
+                  {item.name || t('buyModal.itemFallback')}
                 </div>
-                {item.creator ? <div className="cart-checkout__done-creator">By {item.creator}</div> : null}
+                {item.creator ? (
+                  <div className="cart-checkout__done-creator">{t('search.byCreator', { name: item.creator })}</div>
+                ) : null}
               </div>
               <div className="cart-checkout__done-price">
                 <CurrencyIcon className="cart-checkout__done-price-ico" />
@@ -281,10 +288,10 @@ function Complete({
 
       <div className="buy-modal__ctas">
         <button className="buy-modal__btn buy-modal__btn--outline" onClick={onMyAssets}>
-          My assets
+          {t('buyModal.myAssets')}
         </button>
         <button className="buy-modal__btn buy-modal__btn--ruby" onClick={onTryInWorld}>
-          Try in world
+          {t('buyModal.tryInWorld')}
           <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden>
             <path
               d="M5 12h12M13 7l5 5-5 5"

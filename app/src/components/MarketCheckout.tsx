@@ -15,6 +15,9 @@ import { buyGasless, waitForSettlement, GaslessUnavailableError, SettlementPendi
 import { gaslessEnabled } from '~/lib/gasless-config'
 import { isOwnTrade } from '~/lib/ownership'
 import { Button } from '~/components/Button'
+import { t } from '~/intl/i18n'
+import { isRejection } from '~/lib/errors'
+import { ErrorNotice } from '~/components/ErrorNotice'
 import styled from '@emotion/styled'
 
 // The two modal-footer buttons split the row evenly (was `.mkt-modal__actions .btn { flex: 1 }`).
@@ -22,18 +25,17 @@ const ActionBtn = styled(Button)`
   flex: 1;
 `
 
+// Market-specific mapping: keeps the "…Refreshing the market…" sold-out copy (the market view
+// refetches live prices on this failure), so it maps locally rather than via the shared soldOrRemoved.
 function friendlyError(e: unknown): string {
-  const err = e as { code?: number; message?: string }
-  const msg = (err.message ?? '').toLowerCase()
-  if (err.code === 4001 || msg.includes('reject') || msg.includes('denied') || msg.includes('cancel')) {
-    return 'You cancelled the request.'
-  }
-  if (msg.includes('insufficient')) return `Not enough ${CURRENCY.name} — get more first.`
+  if (isRejection(e)) return t('errors.rejected')
+  const msg = ((e as { message?: string }).message ?? '').toLowerCase()
+  if (msg.includes('insufficient')) return t('marketCheckout.error.insufficient', { currency: CURRENCY.name })
   if (msg.includes('not found') || msg.includes('no active listing') || msg.includes('404')) {
-    return 'This item was just sold or removed. Refreshing the market…'
+    return t('marketCheckout.error.soldOrRemoved')
   }
-  if (msg.includes('your own listing')) return "You can't buy your own listing."
-  return "Couldn't complete checkout — please try again."
+  if (msg.includes('your own listing')) return t('errors.cantBuyOwn')
+  return t('marketCheckout.error.generic')
 }
 
 // The legacy listing rendered as the CatalogItem shape the Success page + preview expect.
@@ -89,7 +91,7 @@ export function MarketCheckout({
   const navigate = useNavigate()
 
   const [phase, setPhase] = useState<Phase>('confirm')
-  const [status, setStatus] = useState<string>('Locking today’s price…')
+  const [status, setStatus] = useState<string>(t('marketCheckout.lockingPrice'))
   const [error, setError] = useState<string | null>(null)
   // The authorized (LOCKED) purchase: the signed trade, the one-time credit, the MANA cap + the price.
   const [locked, setLocked] = useState<{
@@ -112,7 +114,7 @@ export function MarketCheckout({
     let cancelled = false
     if (!session) {
       setPhase('error')
-      setError('Sign in to check out.')
+      setError(t('buyModal.signInToCheckout'))
       return
     }
 
@@ -189,7 +191,7 @@ export function MarketCheckout({
     setError(null)
     let usedGasless = false
     try {
-      setStatus('Confirming your purchase…')
+      setStatus(t('marketCheckout.confirming'))
       const buyArgs = {
         trade: locked.trade,
         buyer: session.address,
@@ -247,10 +249,10 @@ export function MarketCheckout({
         value_usd: locked.usdCents / 100
       })
       void qc.invalidateQueries({ queryKey: ['usd-balance'] })
-      const msg = friendlyError(e)
-      setError(msg)
+      setError(friendlyError(e))
       setPhase('error')
-      if (/sold or removed/i.test(msg)) onSold()
+      const raw = ((e as { message?: string }).message ?? '').toLowerCase()
+      if (raw.includes('not found') || raw.includes('no active listing') || raw.includes('404')) onSold()
     }
   }
 
@@ -264,14 +266,19 @@ export function MarketCheckout({
   const busy = phase === 'working'
 
   return (
-    <div className="mkt-modal" role="dialog" aria-modal="true" aria-label={`Buy ${listing.name}`}>
+    <div
+      className="mkt-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-label={t('buyModal.dialogAria', { name: listing.name })}
+    >
       <div className="mkt-modal__scrim" onClick={busy ? undefined : cancel} aria-hidden />
       <div className="mkt-modal__card">
         <div className="mkt-modal__head">
           <div className="mkt-modal__thumb">{listing.thumbnail ? <img src={listing.thumbnail} alt="" /> : null}</div>
           <div>
             <div className="mkt-modal__name" title={listing.name}>
-              {listing.name || 'Item'}
+              {listing.name || t('buyModal.itemFallback')}
             </div>
             <span className="chip chip--rarity">{listing.rarity}</span>
           </div>
@@ -280,18 +287,18 @@ export function MarketCheckout({
         <div className="mkt-modal__price">
           {locked ? (
             <>
-              <div className="mkt-modal__price-label">Final price</div>
+              <div className="mkt-modal__price-label">{t('marketCheckout.finalPrice')}</div>
               <div className="mkt-modal__price-value">
                 <CurrencyIcon className="mkt-modal__diamond" />
                 {formatAmount(locked.credits)}
               </div>
               <div className="mkt-modal__price-sub muted">
-                Locked for this purchase · ${(locked.usdCents / 100).toFixed(2)}
+                {t('marketCheckout.lockedForPurchase')} · ${(locked.usdCents / 100).toFixed(2)}
               </div>
             </>
           ) : (
             <>
-              <div className="mkt-modal__price-label">Today&rsquo;s price</div>
+              <div className="mkt-modal__price-label">{t('marketCheckout.todaysPrice')}</div>
               <div className="mkt-modal__price-value mkt-modal__price-value--approx">
                 <span className="mkt-modal__approx" aria-hidden>
                   ≈
@@ -299,28 +306,33 @@ export function MarketCheckout({
                 <CurrencyIcon className="mkt-modal__diamond" />
                 {formatAmount(approxCredits)}
               </div>
-              <div className="mkt-modal__price-sub muted">{status || 'Locking today’s price…'}</div>
+              <div className="mkt-modal__price-sub muted">{status || t('marketCheckout.lockingPrice')}</div>
             </>
           )}
         </div>
 
         {session ? (
           <div className="mkt-modal__balance muted">
-            Your balance: <CurrencyIcon className="ccy-mark" /> {balanceLabel(balance, balanceError)}
+            {t('marketCheckout.yourBalance')} <CurrencyIcon className="ccy-mark" />{' '}
+            {balanceLabel(balance, balanceError)}
           </div>
         ) : null}
         {needsMoreCredits ? (
-          <p className="muted mkt-modal__note">You&rsquo;ll need a few more {CURRENCY.name} to buy this.</p>
+          <p className="muted mkt-modal__note">{t('marketCheckout.needMore', { currency: CURRENCY.name })}</p>
         ) : null}
         {status && phase === 'working' ? <p className="muted mkt-modal__note">{status}</p> : null}
-        {error ? <p className="error mkt-modal__note">{error}</p> : null}
+        <ErrorNotice message={error} className="mkt-modal__note" />
 
         <div className="mkt-modal__actions">
           <ActionBtn variant="ghost" onClick={cancel} disabled={busy}>
-            Cancel
+            {t('buyModal.cancel')}
           </ActionBtn>
           <ActionBtn variant="purple" onClick={() => void confirm()} disabled={busy || !locked}>
-            {busy ? 'Buying…' : needsMoreCredits ? `Get ${CURRENCY.name}` : 'Confirm purchase'}
+            {busy
+              ? t('marketCheckout.buying')
+              : needsMoreCredits
+                ? t('nav.getCredits', { currency: CURRENCY.name })
+                : t('marketCheckout.confirmPurchase')}
           </ActionBtn>
         </div>
       </div>

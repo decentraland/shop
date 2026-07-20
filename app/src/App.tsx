@@ -11,6 +11,7 @@ import { initAnalytics, trackPage } from '~/lib/analytics'
 import { Overview } from '~/pages/Overview'
 import { Button } from '~/components/Button'
 import styled from '@emotion/styled'
+import { t } from '~/intl/i18n'
 
 // Route path → funnel page name (see design/SHOP_TRACKING_SPEC.md §5.2).
 const PAGE_NAMES: Record<string, string> = {
@@ -58,10 +59,10 @@ const ReloadCta = styled(Button)`
 function CrashFallback() {
   return (
     <div className="overview__empty">
-      <p className="overview__empty-title">Something went wrong</p>
-      <p className="muted">This page hit an unexpected error. Try reloading.</p>
+      <p className="overview__empty-title">{t('app.crash.title')}</p>
+      <p className="muted">{t('app.crash.body')}</p>
       <ReloadCta variant="purple" onClick={() => window.location.reload()}>
-        Reload
+        {t('app.crash.reload')}
       </ReloadCta>
     </div>
   )

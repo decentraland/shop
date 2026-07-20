@@ -9,6 +9,8 @@ import { CURRENCY } from '~/lib/currency'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { Button } from '~/components/Button'
 import styled from '@emotion/styled'
+import { useSeo } from '~/hooks/useSeo'
+import { t } from '~/intl/i18n'
 import '~/styles/import.css'
 
 // The empty-state CTA sits below the copy (was `.imp-empty .btn { margin-top: 10px }`).
@@ -24,17 +26,18 @@ const DockCta = styled(Button)`
 const SECTIONS = [
   {
     key: 'creations' as const,
-    title: 'Your creations',
-    sub: 'Items you made. Put them on sale in the Shop.'
+    title: 'importListings.creations.title',
+    sub: 'importListings.creations.sub'
   },
   {
     key: 'owned' as const,
-    title: 'Items you own',
-    sub: "Things you've bought elsewhere — resell them in the Shop."
+    title: 'importListings.owned.title',
+    sub: 'importListings.owned.sub'
   }
 ]
 
 export function ImportListings() {
+  useSeo({ title: t('seo.import.title'), noindex: true })
   const { session, signIn, restore } = useWallet()
   const qc = useQueryClient()
   const address = session?.address
@@ -95,7 +98,7 @@ export function ImportListings() {
     void qc.invalidateQueries({ queryKey: ['unified-listings'] })
     void qc.invalidateQueries({ queryKey: ['my-assets'] })
     void qc.invalidateQueries({ queryKey: ['collection-sale-state'] })
-    toast.success('Your Shop is updated.')
+    toast.success(t('importListings.toastUpdated'))
   }
 
   // ---- states -------------------------------------------------------------
@@ -105,10 +108,10 @@ export function ImportListings() {
         <span className="imp-empty__ico" aria-hidden>
           📦
         </span>
-        <h1 className="imp-empty__title">Import your listings</h1>
-        <p className="muted">Sign in to bring the items you already sell into the Shop.</p>
+        <h1 className="imp-empty__title">{t('importListings.signInTitle')}</h1>
+        <p className="muted">{t('importListings.signInBody')}</p>
         <ImpEmptyCta variant="purple" onClick={() => signIn()}>
-          Sign in
+          {t('storeSettings.signIn')}
         </ImpEmptyCta>
       </div>
     )
@@ -120,10 +123,10 @@ export function ImportListings() {
         <span className="imp-empty__ico" aria-hidden>
           ✨
         </span>
-        <h1 className="imp-empty__title">You're all caught up</h1>
-        <p className="muted">Everything you sell is already in the Shop — nothing to import.</p>
+        <h1 className="imp-empty__title">{t('importListings.emptyTitle')}</h1>
+        <p className="muted">{t('importListings.emptyBody')}</p>
         <ImpEmptyCta as={Link} to="/my-assets" variant="purple">
-          Go to My Assets
+          {t('importListings.goToMyAssets')}
         </ImpEmptyCta>
       </div>
     )
@@ -132,18 +135,16 @@ export function ImportListings() {
   return (
     <div className="imp">
       <header className="imp__head">
-        <span className="imp__eyebrow">Import to the Shop</span>
+        <span className="imp__eyebrow">{t('importListings.eyebrow')}</span>
         <h1 className="imp__title">
-          Bring your listings <span className="imp__grad">into the Shop</span>
+          {t('importListings.titleLead')} <span className="imp__grad">{t('importListings.titleAccent')}</span>
         </h1>
-        <p className="imp__lede">
-          These items are already for sale elsewhere. We suggested a price in {CURRENCY.name} for each — matched to
-          today's rate and rounded up. Adjust anything, then list them.
-        </p>
+        <p className="imp__lede">{t('importListings.lede', { currency: CURRENCY.name })}</p>
       </header>
 
       <div className="imp__ratebar">
-        <CurrencyIcon className="ccy-mark imp__diamond" /> 1 {CURRENCY.nameSingular} = $0.10 · prices rounded up
+        <CurrencyIcon className="ccy-mark imp__diamond" />{' '}
+        {t('importListings.rate', { currency: CURRENCY.nameSingular })}
       </div>
 
       {isLoading ? (
@@ -159,8 +160,8 @@ export function ImportListings() {
           return (
             <section className="imp__section" key={sec.key}>
               <div className="imp__section-head">
-                <h2 className="imp__section-title">{sec.title}</h2>
-                <span className="imp__section-sub">{sec.sub}</span>
+                <h2 className="imp__section-title">{t(sec.title)}</h2>
+                <span className="imp__section-sub">{t(sec.sub)}</span>
               </div>
               <div className="imp__list">
                 {items.map(item => {
@@ -173,12 +174,12 @@ export function ImportListings() {
                         className="imp-check"
                         checked={isSelected(item.oldTradeId)}
                         onChange={() => toggle(item.oldTradeId)}
-                        aria-label={`Include ${item.name}`}
+                        aria-label={t('importListings.includeItem', { name: item.name })}
                       />
                       <div className="imp-thumb">{item.thumbnail ? <img src={item.thumbnail} alt="" /> : null}</div>
                       <div className="imp-meta">
                         <div className="imp-name" title={item.name}>
-                          {item.name || 'Item'}
+                          {item.name || t('importListings.itemFallback')}
                         </div>
                         <span className="imp-chip">{item.rarity}</span>
                       </div>
@@ -191,7 +192,7 @@ export function ImportListings() {
                             inputMode="numeric"
                             value={credits.toLocaleString()}
                             onChange={e => setPrice(item.oldTradeId, e.target.value)}
-                            aria-label={`Price in ${CURRENCY.name} for ${item.name}`}
+                            aria-label={t('importListings.priceAria', { currency: CURRENCY.name, name: item.name })}
                           />
                         </div>
                         <div className="imp-price__sub">
@@ -201,7 +202,7 @@ export function ImportListings() {
                               className="imp-price__reset"
                               onClick={() => setPrices(p => ({ ...p, [item.oldTradeId]: item.suggestedCredits }))}
                             >
-                              Reset to <CurrencyIcon className="ccy-mark" />
+                              {t('importListings.resetTo')} <CurrencyIcon className="ccy-mark" />
                               {item.suggestedCredits.toLocaleString()}
                             </button>
                           ) : null}
@@ -214,7 +215,7 @@ export function ImportListings() {
                           disabled={!isSelected(item.oldTradeId)}
                           onClick={() => setQueue(buildQueue([item]))}
                         >
-                          List
+                          {t('importListings.list')}
                         </Button>
                       </div>
                     </article>
@@ -233,7 +234,10 @@ export function ImportListings() {
               <CurrencyIcon className="ccy-mark imp__diamond" /> {total.toLocaleString()}
             </div>
             <div className="imp-dock__sub">
-              {selectedItems.length} item{selectedItems.length === 1 ? '' : 's'} selected · ${(total * 0.1).toFixed(2)}
+              {t('importListings.selectedSummary', {
+                count: selectedItems.length,
+                usd: (total * 0.1).toFixed(2)
+              })}
             </div>
           </div>
           <span className="imp-dock__spacer" />
@@ -242,7 +246,7 @@ export function ImportListings() {
             disabled={selectedItems.length === 0}
             onClick={() => setQueue(buildQueue(selectedItems))}
           >
-            List all ({selectedItems.length})
+            {t('importListings.listAll', { count: selectedItems.length })}
           </DockCta>
         </div>
       </div>

@@ -21,7 +21,7 @@ export function NavBar() {
   const { session, connecting, signIn, disconnect, restore } = useWallet()
   const address = session?.address
   const { data: avatar, isLoading: isLoadingProfile } = useProfile(address)
-  const { data: balance, isError: balanceError } = useBalance(session)
+  const { data: balance, isError: balanceError, isLoading: balanceLoading } = useBalance(session)
   const cartCount = useCart(s => s.items.length)
   const openCart = useCart(s => s.setOpen)
   const navigate = useNavigate()
@@ -220,7 +220,11 @@ export function NavBar() {
             title={t('nav.yourBalance', { currency: CURRENCY.name })}
           >
             <CurrencyIcon className="subnav__balance-ico" />
-            {balanceLabel(balance, balanceError)}
+            {balanceLoading ? (
+              <span className="skeleton subnav__balance-skel" aria-hidden />
+            ) : (
+              balanceLabel(balance, balanceError)
+            )}
           </span>
         ) : null}
         <NavLink to="/credits" className="subnav__credits">

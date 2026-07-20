@@ -14,17 +14,11 @@ import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import { track, errorCode } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
+import { t } from '~/intl/i18n'
+import { friendlyError } from '~/lib/errors'
+import { ErrorNotice } from '~/components/ErrorNotice'
 
 const SIX_MONTHS_MS = 1000 * 60 * 60 * 24 * 182
-
-function friendlyError(e: unknown): string {
-  const err = e as { code?: number; message?: string }
-  const msg = (err.message ?? '').toLowerCase()
-  if (err.code === 4001 || msg.includes('reject') || msg.includes('denied') || msg.includes('cancel')) {
-    return 'You cancelled the request.'
-  }
-  return "Couldn't publish your item — please try again."
-}
 
 export function PrimaryListModal({
   item,
@@ -70,7 +64,7 @@ export function PrimaryListModal({
     setError(null)
     const value = Number(price)
     if (!Number.isInteger(value) || value <= 0) {
-      setError('Enter a whole number of credits')
+      setError(t('primaryList.errorWholeNumber'))
       return
     }
     setBusy(true)
@@ -78,12 +72,12 @@ export function PrimaryListModal({
       // Minter prereq: the Shop can only fulfil sales of this collection once it's enabled. This is a
       // one-time step per collection; skipped automatically if already enabled.
       if (!enabled) {
-        setStatus('Enabling sales for this collection…')
+        setStatus(t('primaryList.statusEnabling'))
         await ensureMinter({ signer: session.signer, contractAddress: item.contractAddress, chainId })
         setEnabled(true)
       }
 
-      setStatus('Publishing your item…')
+      setStatus(t('primaryList.statusPublishing'))
       const trade = await createPrimaryUsdPeggedListing({
         signer: session.signer,
         item: {
@@ -97,7 +91,7 @@ export function PrimaryListModal({
         expiresAtMs: Date.now() + SIX_MONTHS_MS
       })
 
-      setStatus('Finishing up…')
+      setStatus(t('primaryList.statusFinishing'))
       await postTrade(trade, session.identity)
 
       setStatus(null)
@@ -110,13 +104,13 @@ export function PrimaryListModal({
         listing_type: 'primary',
         is_primary: true
       })
-      toast.success(`“${item.name}” is now on sale!`)
+      toast.success(t('primaryList.toastOnSale', { name: item.name }))
       void queryClient.invalidateQueries({ queryKey: ['publishable-items'] })
       void queryClient.invalidateQueries({ queryKey: ['collection-sale-state'] })
     } catch (e) {
       captureError(e, { flow: 'list_primary' })
       track('Shop Listing Failed', { listing_type: 'primary', error_code: errorCode(e) })
-      setError(friendlyError(e))
+      setError(friendlyError(e, t('primaryList.errorGeneric')))
       setStatus(null)
     } finally {
       setBusy(false)
@@ -128,7 +122,11 @@ export function PrimaryListModal({
     navigate(`/item/${item.contractAddress}/${item.blockchainItemId}`)
   }
 
-  const cta = busy ? 'Listing…' : enabled === false ? 'Enable & put on sale' : 'Put on sale'
+  const cta = busy
+    ? t('primaryList.listing')
+    : enabled === false
+      ? t('primaryList.enableAndPutOnSale')
+      : t('primaryList.putOnSale')
 
   // ---- Success view ----------------------------------------------------------------------------
   if (listedCredits !== null) {
@@ -138,22 +136,22 @@ export function PrimaryListModal({
           <div className="modal-success__check" aria-hidden>
             ✓
           </div>
-          <h2 className="modal__title">It’s on sale! 🎉</h2>
+          <h2 className="modal__title">{t('primaryList.successTitle')}</h2>
           {item.thumbnail ? <img className="modal__img" src={item.thumbnail} alt={item.name} /> : null}
           <p className="modal-success__name">{item.name}</p>
           <p className="muted small">
-            Listed for{' '}
+            {t('primaryList.listedFor')}{' '}
             <strong>
               <CurrencyIcon className="ccy-mark" /> {listedCredits}
             </strong>{' '}
-            · {item.remainingSupply.toLocaleString()} available
+            {t('primaryList.dotAvailable', { count: item.remainingSupply })}
           </p>
           <div className="modal__actions">
             <Button variant="ghost" onClick={onClose}>
-              Done
+              {t('getCredits.done')}
             </Button>
             <Button variant="purple" onClick={viewInShop}>
-              View in Shop
+              {t('primaryList.viewInShop')}
             </Button>
           </div>
         </div>
@@ -164,15 +162,18 @@ export function PrimaryListModal({
   return (
     <div className="modal-backdrop" onClick={onClose} role="presentation">
       <div className="modal" data-testid="modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
-        <h2 className="modal__title">Publish “{item.name}”</h2>
+        <h2 className="modal__title">{t('primaryList.publishTitle', { name: item.name })}</h2>
         {item.thumbnail ? <img className="modal__img" src={item.thumbnail} alt={item.name} /> : null}
 
         <p className="muted small">
-          From your collection “{item.collectionName}” · {item.remainingSupply.toLocaleString()} available
+          {t('primaryList.fromCollection', {
+            collectionName: item.collectionName,
+            count: item.remainingSupply
+          })}
         </p>
 
         <label className="field">
-          <span>Price ({CURRENCY.name})</span>
+          <span>{t('primaryList.priceLabel', { currency: CURRENCY.name })}</span>
           <input
             type="number"
             min="1"
@@ -183,38 +184,36 @@ export function PrimaryListModal({
           />
         </label>
         <p className="muted small">
-          Priced in whole {CURRENCY.name} (1 {CURRENCY.nameSingular} = $0.10).
+          {t('primaryList.pricedInWhole', { currency: CURRENCY.name, currencySingular: CURRENCY.nameSingular })}
         </p>
 
         {enabled === false && !busy ? (
           showsConfirmations ? (
             <p className="muted small primary-note">
-              First time selling from “{item.collectionName}”? It needs a one-time approval, then you’ll confirm the
-              listing — two quick confirmations. After this, listing more items from this collection is a single step.
+              {t('primaryList.firstTimeConfirm', { collectionName: item.collectionName })}
             </p>
           ) : (
             <p className="muted small primary-note">
-              First time selling from “{item.collectionName}”? Setting it up takes a moment — after that, listing more
-              items from this collection is instant.
+              {t('primaryList.firstTimeManaged', { collectionName: item.collectionName })}
             </p>
           )
         ) : enabled === true && !busy ? (
           showsConfirmations ? (
-            <p className="muted small primary-note">This collection is ready — publishing is a single confirmation.</p>
+            <p className="muted small primary-note">{t('primaryList.readyConfirm')}</p>
           ) : (
-            <p className="muted small primary-note">This collection is ready — publishing is instant.</p>
+            <p className="muted small primary-note">{t('primaryList.readyManaged')}</p>
           )
         ) : null}
 
         {status ? <p className="muted">{status}</p> : null}
-        {error ? <p className="error">{error}</p> : null}
+        <ErrorNotice message={error} />
 
         <div className="modal__actions">
           <Button variant="ghost" onClick={onClose} disabled={busy}>
-            Cancel
+            {t('primaryList.cancel')}
           </Button>
           <Button onClick={() => void publish()} disabled={busy || enabled === null}>
-            {enabled === null ? 'Checking…' : cta}
+            {enabled === null ? t('primaryList.checking') : cta}
           </Button>
         </div>
       </div>

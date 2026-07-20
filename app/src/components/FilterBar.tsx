@@ -3,6 +3,7 @@ import type { ShopSort } from '~/lib/api'
 import { Icon } from '~/components/Icon'
 import { Chevron } from '~/components/Chevron'
 import { Dropdown } from '~/components/Dropdown'
+import { t } from '~/intl/i18n'
 
 // Main-area toolbar for the unified browse grid: the result count on the left + the Sort By dropdown
 // "pill" on the right (Figma "New Shop 2026"). Owns the single-open-panel state + the click-away
@@ -13,11 +14,13 @@ export const RARITIES = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'myt
 
 // Labels match the Figma sort menu (node 1059-160222). The server supports newest/cheapest/
 // most_expensive/name — there is no dedicated "recently listed" sort, so "Newest" covers it.
+// `label` holds an i18n key (translated at render — see the Dropdown below) so the menu follows the
+// active locale; consumers only read `.key`/`.server`.
 export const SORTS: { key: string; label: string; server: ShopSort }[] = [
-  { key: 'newest', label: 'Newest', server: 'newest' },
-  { key: 'price-asc', label: 'Cheapest', server: 'cheapest' },
-  { key: 'price-desc', label: 'Most Expensive', server: 'most_expensive' },
-  { key: 'name', label: 'Name (A–Z)', server: 'name' }
+  { key: 'newest', label: 'filterBar.sortNewest', server: 'newest' },
+  { key: 'price-asc', label: 'filterBar.sortCheapest', server: 'cheapest' },
+  { key: 'price-desc', label: 'filterBar.sortMostExpensive', server: 'most_expensive' },
+  { key: 'name', label: 'filterBar.sortName', server: 'name' }
 ]
 
 /** Controls which popover (if any) is open — only one at a time. */
@@ -113,9 +116,9 @@ export function FilterBar({
     <>
       {open ? <div className="filterbar__scrim" onClick={panel.close} aria-hidden /> : null}
       <div className="browse__toolbar" data-testid="browse-toolbar">
-        <span className="browse__count">
-          {loading ? '…' : `${total.toLocaleString()} Item${total === 1 ? '' : 's'}`}
-          {query ? ` for “${query}”` : ''}
+        <span className="browse__count" data-testid="browse-count">
+          {loading ? '…' : t('filterBar.count', { count: total })}
+          {query ? ` ${t('filterBar.forQuery', { query })}` : ''}
         </span>
 
         {hasInlineFilters ? (
@@ -125,7 +128,7 @@ export function FilterBar({
             {onToggleRarity ? (
               <FilterPanel
                 panelKey="rarity"
-                label="Rarity"
+                label={t('filterBar.rarity')}
                 active={(rarities?.length ?? 0) > 0}
                 badge={rarities?.length || undefined}
                 panel={panel}
@@ -155,16 +158,20 @@ export function FilterBar({
                   panel.close()
                 }}
               >
-                Clear all
+                {t('filterBar.clearAll')}
               </button>
             ) : null}
           </div>
         ) : (
           <div className="browse__dropdowns">
             {onOpenFilters ? (
-              <button type="button" className="browse__filters-btn" onClick={onOpenFilters}>
+              <button
+                type="button"
+                className="browse__filters-btn"
+                onClick={onOpenFilters}
+                aria-label={t('filterBar.filters')}
+              >
                 <Icon name="filter" color="var(--text-2)" />
-                Filters
               </button>
             ) : null}
           </div>
@@ -172,10 +179,10 @@ export function FilterBar({
 
         <div className="filterbar__right">
           <Dropdown
-            label="Sort by"
-            ariaLabel="Sort by"
+            label={t('filterBar.sortBy')}
+            ariaLabel={t('filterBar.sortBy')}
             value={sort}
-            options={sortOptions.map(s => ({ value: s.key, label: s.label }))}
+            options={sortOptions.map(s => ({ value: s.key, label: t(s.label) }))}
             onChange={onSort}
             align="right"
             open={panel.open === 'sort'}

@@ -1,6 +1,8 @@
 import styled from '@emotion/styled'
 import { keyframes } from '@emotion/react'
 import { theme } from '~/styles/theme'
+import { t } from '~/intl/i18n'
+import './spinner.css'
 
 export type SpinnerSize = 'small' | 'medium' | 'large'
 export type SpinnerDirection = 'row' | 'column'
@@ -88,7 +90,7 @@ export function Spinner({ label, size = 'medium', direction = 'column', classNam
       data-direction={direction}
       role="status"
       aria-live="polite"
-      aria-label={label ? undefined : 'Loading'}
+      aria-label={label ? undefined : t('spinner.loading')}
     >
       <Ring data-testid="spinner-box-ring" data-size={size} aria-hidden />
       {label ? <Label>{label}</Label> : null}

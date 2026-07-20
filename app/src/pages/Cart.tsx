@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCart } from '~/store/cart'
+import { useFavorites } from '~/store/favorites'
 import { useWallet } from '~/store/wallet'
 import { useBalance } from '~/hooks/useBalance'
 import { authorizeUsdCredit, cancelUsdIntents, devMintUsd } from '~/lib/credits'
@@ -21,10 +22,13 @@ import { CREDIT_PACKS, createPackCheckout } from '~/lib/payments'
 import { config } from '~/config'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { CartCheckoutModal, type CheckoutLine } from '~/components/CartCheckoutModal'
+import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
+import { isRejection, isInsufficient } from '~/lib/errors'
+import { ErrorNotice } from '~/components/ErrorNotice'
 import { track, purchaseItemsProps, errorCode, isUserRejection, creditsToUsd } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
-import { AssetCard } from '~/components/AssetCard'
+import { CollectionCarousel } from '~/components/CollectionCarousel'
 import { CreatorBadge } from '~/components/CreatorBadge'
 import { Button } from '~/components/Button'
 import { Icon } from '~/components/Icon'
@@ -36,22 +40,14 @@ const EmptyCta = styled(Button)`
   margin-top: 12px;
 `
 
+// Cart-specific mapping: the "listing changed" message is plural (a multi-item cart), so it maps
+// locally rather than via the shared singular soldOrRemoved/cantBuyOwn.
 function friendlyError(e: unknown): string {
-  const err = e as { code?: number; message?: string }
-  const msg = (err.message ?? '').toLowerCase()
-  if (err.code === 4001 || msg.includes('reject') || msg.includes('denied') || msg.includes('cancel')) {
-    return 'You cancelled the request.'
-  }
-  if (msg.includes('insufficient')) return `You don't have enough ${CURRENCY.name} — get more first.`
-  if (msg.includes('no active listing') || msg.includes('your own listing')) return err.message as string
-  return "Couldn't complete checkout — please try again."
-}
-
-// True when an authorize failure means "not enough credits" (server 402 / insufficient) rather than a
-// genuine error — those route to the pack picker (no-funds), never the error state. Mirrors BuyModal.
-function isInsufficient(e: unknown): boolean {
-  const err = e as { code?: number; status?: number; message?: string }
-  return err.code === 402 || err.status === 402 || (err.message ?? '').toLowerCase().includes('insufficient')
+  if (isRejection(e)) return t('errors.rejected')
+  const msg = ((e as { message?: string }).message ?? '').toLowerCase()
+  if (msg.includes('insufficient')) return t('cart.error.insufficient', { currency: CURRENCY.name })
+  if (msg.includes('no active listing') || msg.includes('your own listing')) return t('cart.error.listingChanged')
+  return t('marketCheckout.error.generic')
 }
 
 // How long a pending review stays valid before we re-resolve on Confirm. Past this, live prices may
@@ -67,9 +63,9 @@ const JUMP_URL = config.chainId === 80002 ? 'https://decentraland.zone/jump' : '
 // One-line summary of the rows we pruned so the buyer knows why the cart shrank.
 function dropNotice(review: CartReview): string {
   const parts: string[] = []
-  if (review.unavailable.length) parts.push(`${review.unavailable.length} no longer available`)
-  if (review.own.length) parts.push(`${review.own.length} you can't buy (your own listing)`)
-  return `Removed ${parts.join(' and ')} from your cart.`
+  if (review.unavailable.length) parts.push(t('cart.drop.unavailable', { count: review.unavailable.length }))
+  if (review.own.length) parts.push(t('cart.drop.own', { count: review.own.length }))
+  return t('cart.drop.removed', { items: parts.join(` ${t('cart.drop.and')} `) })
 }
 
 // The multi-item checkout modal's state — a pure reflection of the charge flow (Cart owns the money).
@@ -80,11 +76,14 @@ type ModalState =
   | { phase: 'error'; message: string }
 
 export function Cart() {
+  useSeo({ title: t('nav.cart'), noindex: true })
   const items = useCart(s => s.items)
   const remove = useCart(s => s.remove)
   const clear = useCart(s => s.clear)
   const restore = useCart(s => s.restore)
   const setFittingOpen = useCart(s => s.setFittingOpen)
+  const favItems = useFavorites(s => s.items)
+  const toggleFav = useFavorites(s => s.toggle)
   const { session } = useWallet()
 
   // Try-on is only meaningful for wearables (emotes aren't "worn").
@@ -118,7 +117,7 @@ export function Cart() {
   // While a review is pending the total reflects the live (re-resolved) prices of what's still buyable.
   const total = review ? review.liveTotalCredits : shownTotal
   const inCart = new Set(items.map(i => i.id))
-  const upsell = (suggested?.items ?? []).filter(i => !inCart.has(i.id)).slice(0, 6)
+  const upsell = (suggested?.items ?? []).filter(i => !inCart.has(i.id)).slice(0, 12)
   // Live-price lookup for the rows while a review is pending.
   const lineById = new Map(review?.buyable.map(l => [l.item.id, l] as const))
   const balanceCredits = balance?.credits ?? 0
@@ -276,7 +275,7 @@ export function Cart() {
 
   async function checkout() {
     if (!session) {
-      setError('Sign in to check out.')
+      setError(t('buyModal.signInToCheckout'))
       return
     }
     const cartItems = useCart.getState().items // read live so a post-top-up resume sees the restored cart
@@ -293,7 +292,7 @@ export function Cart() {
     try {
       // Resolve every item's LIVE listing first — never charge a stale snapshot, and never let one bad
       // item abort the basket.
-      setStatus('Reviewing your cart…')
+      setStatus(t('cart.status.reviewing'))
       const rev = await reviewCart(cartItems, session.address, resolveTrade)
 
       // Prune the rows we can't buy (sold/cancelled, or the buyer's own listing) and say what happened.
@@ -303,7 +302,7 @@ export function Cart() {
         setNotice(dropNotice(rev))
       }
       if (rev.buyable.length === 0) {
-        setError('None of these items are available to buy right now.')
+        setError(t('cart.error.noneAvailable'))
         setReview(null)
         setStatus(null)
         return
@@ -330,7 +329,7 @@ export function Cart() {
   async function confirmPurchase() {
     if (!review) return
     if (!session) {
-      setError('Sign in to check out.')
+      setError(t('buyModal.signInToCheckout'))
       return
     }
     // A review left sitting too long may be pricing off stale trades (a sale ended, a listing sold).
@@ -374,7 +373,7 @@ export function Cart() {
         /* ignore */
       }
       captureError(e, { flow: 'cart_buy_credits' })
-      setModal({ phase: 'error', message: "Couldn't start the credits checkout — please try again." })
+      setModal({ phase: 'error', message: t('buyModal.error.creditsCheckout') })
     } finally {
       setBusy(false)
     }
@@ -436,28 +435,29 @@ export function Cart() {
     )
   }
 
-  const itemWord = items.length === 1 ? 'Item' : 'Items'
-
   return (
     <div className="checkout">
       <button className="checkout__back" onClick={() => navigate(-1)} type="button">
         <Icon name="arrow-left" />
-        Cart
+        {t('nav.cart')}
       </button>
 
       <div className="checkout__body">
         <section className="checkout__panel">
           <div className="checkout__panel-head">
-            <button className="checkout__panel-back" onClick={() => navigate(-1)} type="button" aria-label="Go back">
+            <button
+              className="checkout__panel-back"
+              onClick={() => navigate(-1)}
+              type="button"
+              aria-label={t('cart.goBack')}
+            >
               <Icon name="arrow-left" />
             </button>
-            <h1 className="checkout__panel-title">
-              Cart: {items.length} {itemWord}
-            </h1>
+            <h1 className="checkout__panel-title">{t('cart.panelTitle', { count: items.length })}</h1>
             {hasWearable ? (
               <button className="checkout__fitting" onClick={() => setFittingOpen(true)} disabled={working}>
                 <Icon name="emote-dance" />
-                Fitting Room
+                {t('cart.fittingRoom')}
               </button>
             ) : null}
           </div>
@@ -467,10 +467,27 @@ export function Cart() {
               const line = lineById.get(item.id)
               const livePrice = line ? line.priceCredits : item.priceCredits
               const changed = !!line && line.priceCredits !== item.priceCredits
+              const faved = !!favItems[item.id]
+              // Whole-item deep link (same route the browse cards use): cart lines carry the listing's
+              // contractAddress + itemId/tokenId, so the thumbnail + name navigate to the detail page
+              // client-side (the PDP re-hydrates from the passed router state).
+              const routeSeg = item.tokenId ?? item.itemId
+              const detailPath = item.contractAddress && routeSeg ? `/item/${item.contractAddress}/${routeSeg}` : null
               return (
                 <div className="checkout__card" key={item.id}>
                   <div className="checkout__thumb">
-                    {item.thumbnail ? <img src={item.thumbnail} alt={item.name} /> : null}
+                    {detailPath ? (
+                      <Link
+                        className="checkout__thumb-link"
+                        to={detailPath}
+                        state={{ item, tradeId: item.tradeId }}
+                        aria-label={item.name}
+                      >
+                        {item.thumbnail ? <img src={item.thumbnail} alt={item.name} /> : null}
+                      </Link>
+                    ) : item.thumbnail ? (
+                      <img src={item.thumbnail} alt={item.name} />
+                    ) : null}
                     <span className="checkout__thumb-check" aria-hidden>
                       <svg viewBox="0 0 20 20" width="12" height="12">
                         <path
@@ -486,39 +503,75 @@ export function Cart() {
                   </div>
                   <div className="checkout__info">
                     <div className="checkout__desc">
-                      <div className="checkout__name" title={item.name}>
-                        {item.name}
-                      </div>
+                      {detailPath ? (
+                        <Link
+                          className="checkout__name"
+                          to={detailPath}
+                          state={{ item, tradeId: item.tradeId }}
+                          title={item.name}
+                        >
+                          {item.name}
+                        </Link>
+                      ) : (
+                        <div className="checkout__name" title={item.name}>
+                          {item.name}
+                        </div>
+                      )}
                       {item.creator ? (
                         <CreatorBadge address={item.creator} className="checkout__creator" linkToProfile />
                       ) : null}
                     </div>
                     <div className="checkout__foot">
-                      {/* Display-only quantity: cart lines are unique listings (qty always 1). */}
-                      <span className="checkout__qty" aria-label="Quantity: 1">
-                        <span className="checkout__qty-sign" aria-hidden>
-                          −
-                        </span>
-                        <span className="checkout__qty-num">1</span>
-                        <span className="checkout__qty-sign" aria-hidden>
-                          +
-                        </span>
-                      </span>
+                      {/* Quantity stepper — visual only: a cart line is a single unique listing (qty always
+                          1), so minus removes the line and plus is inert (mirrors the cart drawer stepper). */}
+                      <div className="checkout__stepper">
+                        <button
+                          className="checkout__step"
+                          onClick={() => editCart(() => remove(item.id))}
+                          disabled={working}
+                          aria-label={t('cart.removeFromCart', { name: item.name })}
+                        >
+                          <svg viewBox="0 0 16 16" fill="none" aria-hidden focusable="false">
+                            <path d="M3.5 8h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                          </svg>
+                        </button>
+                        <span className="checkout__qty">1</span>
+                        <button className="checkout__step" disabled aria-label={t('cart.increaseQuantity')}>
+                          <svg viewBox="0 0 16 16" fill="none" aria-hidden focusable="false">
+                            <path d="M8 3.5v9M3.5 8h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                          </svg>
+                        </button>
+                      </div>
                       <div className="checkout__price">
                         <CurrencyIcon className="checkout__price-ico" /> {livePrice}
                         {changed ? <span className="checkout__price-was">{item.priceCredits}</span> : null}
                       </div>
                     </div>
                   </div>
-                  <button
-                    className="checkout__remove"
-                    onClick={() => editCart(() => remove(item.id))}
-                    disabled={working}
-                    aria-label={`Remove ${item.name}`}
-                    title="Remove"
-                  >
-                    <Icon name="trash" size={24} />
-                  </button>
+                  <div className="checkout__actions">
+                    <button
+                      className={`checkout__fav${faved ? ' is-on' : ''}`}
+                      onClick={() => toggleFav(item)}
+                      aria-label={
+                        faved
+                          ? t('cart.removeFromFavorites', { name: item.name })
+                          : t('cart.addToFavorites', { name: item.name })
+                      }
+                      title={faved ? t('assetCard.removeFromFavorites') : t('assetCard.addToFavorites')}
+                    >
+                      <span className={`ico ${faved ? 'ico-heart-solid' : 'ico-heart'}`} aria-hidden />
+                    </button>
+
+                    <button
+                      className="checkout__remove"
+                      onClick={() => editCart(() => remove(item.id))}
+                      disabled={working}
+                      aria-label={t('cart.remove', { name: item.name })}
+                      title={t('cart.removeTitle')}
+                    >
+                      <Icon name="trash" size={24} />
+                    </button>
+                  </div>
                 </div>
               )
             })}
@@ -527,7 +580,7 @@ export function Cart() {
           {/* Utility actions kept subtle so they don't compete with the CTA. */}
           <div className="checkout__utils">
             <button className="link" onClick={() => editCart(clear)} disabled={working}>
-              Clear cart
+              {t('cart.clearCart')}
             </button>
             {import.meta.env.DEV ? (
               <button className="link" onClick={() => void getTestCredits()} disabled={working || !session}>
@@ -538,12 +591,10 @@ export function Cart() {
         </section>
 
         <aside className="checkout__summary">
-          <h2 className="checkout__summary-title">Purchase Summary</h2>
+          <h2 className="checkout__summary-title">{t('cart.purchaseSummary')}</h2>
           <div className="checkout__summary-body">
             <div className="checkout__total-line">
-              <span className="checkout__total-label">
-                Total: {items.length} {items.length === 1 ? 'item' : 'items'}
-              </span>
+              <span className="checkout__total-label">{t('cart.totalItems', { count: items.length })}</span>
               <span className="checkout__total-value">
                 <CurrencyIcon className="checkout__total-ico" /> {total}
               </span>
@@ -554,32 +605,21 @@ export function Cart() {
               onClick={() => void (review ? confirmPurchase() : checkout())}
               disabled={working}
             >
-              {working ? 'Working…' : review ? 'Confirm purchase' : 'Buy now'}
+              {working ? t('cart.working') : review ? t('marketCheckout.confirmPurchase') : t('assetCard.buyNow')}
             </button>
 
-            {review ? (
-              <p className="muted checkout__msg">
-                Prices or availability changed since you added these — review the updated total and confirm to buy.
-              </p>
-            ) : null}
+            {review ? <p className="muted checkout__msg">{t('cart.priceChanged')}</p> : null}
             {notice ? <p className="muted checkout__msg">{notice}</p> : null}
             {status ? <p className="muted checkout__msg">{status}</p> : null}
-            {error ? <p className="error checkout__msg">{error}</p> : null}
+            <ErrorNotice message={error} className="checkout__msg" />
           </div>
         </aside>
       </div>
 
       {upsell.length > 0 ? (
-        <section className="row cart-upsell">
-          <div className="row__head">
-            <h2 className="row__title">You might also like</h2>
-          </div>
-          <div className="row__track">
-            {upsell.map(i => (
-              <AssetCard key={i.id} item={i} />
-            ))}
-          </div>
-        </section>
+        <div className="cart-upsell">
+          <CollectionCarousel title={t('cart.youMightAlsoLike')} items={upsell} />
+        </div>
       ) : null}
 
       {modal ? (

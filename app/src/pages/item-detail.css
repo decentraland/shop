@@ -112,6 +112,19 @@
 .item-preview__toggle button:not(.is-active):hover {
   color: var(--text);
 }
+.item-preview__toggle button.is-active {
+  background: var(--text);
+  color: #fff;
+}
+.item-preview__toggle button:not(.is-active):hover {
+  color: var(--text);
+}
+/* Icon glyphs live in the toggle for the mobile icon-only pill; hidden on desktop (text shows). */
+.item-preview__toggle-ico {
+  display: none;
+  width: 18px;
+  height: 18px;
+}
 /* Emote play/pause + sound + scrub controls, pinned to the bottom of the preview (emotes only).
    The bar itself is the shop-styled pill; the decentraland-ui2 <EmoteControls> renders inside it. That
    ui2 component ships a dark-theme overlay layout (its container is position:absolute/width:100%/bottom:0
@@ -292,6 +305,53 @@
   }
 }
 
+/* Content-shaped skeletons for the item detail while a deep-linked/refreshed item resolves. */
+.item-detail__preview > .item-preview__loading .item-preview__skeleton {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+}
+.item-detail__info-skel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.id-skel__title {
+  height: 34px;
+  width: 70%;
+  border-radius: 8px;
+}
+.id-skel__chips {
+  display: flex;
+  gap: 8px;
+}
+.id-skel__chip {
+  height: 24px;
+  width: 88px;
+  border-radius: 6px;
+}
+.id-skel__line {
+  height: 14px;
+  width: 100%;
+  border-radius: 6px;
+}
+.id-skel__line--short {
+  width: 55%;
+}
+.id-skel__price {
+  height: 30px;
+  width: 40%;
+  border-radius: 8px;
+}
+.id-skel__btn {
+  height: 48px;
+  width: 100%;
+  border-radius: 8px;
+  margin-top: 8px;
+}
+
 /* Info column. Explicit per-section margins (not a uniform gap) to hit the Figma rhythm:
    title→tags 12, tags→description 15, description→creator/collection 32 (see Figma 1052-151285). */
 .item-detail__info {
@@ -331,6 +391,16 @@
 }
 .item-detail__fav.is-on {
   color: var(--dcl-red);
+}
+.item-detail__fav .ico-heart {
+  width: 18px;
+  height: 18px;
+}
+/* Mobile-only heart overlaid on the preview (Figma 1182-195410). Hidden on desktop; the specific
+   selector overrides the greedy `.item-detail__preview > *` sizing. Shown + positioned in the mobile
+   block below, where the title-row heart is hidden so only one heart is ever exposed to a11y. */
+.item-detail__preview > .item-detail__fav--preview {
+  display: none;
 }
 
 /* Small uppercase section labels (Description / Creator / Price). */
@@ -438,6 +508,37 @@
   color: var(--brand-violet);
 }
 
+/* Collection badge = a 2×2 collage of up to 4 collection item thumbnails (like the marketplace
+   webapp's CollectionImage), reusing the 48px round `.creator__ava` slot so it sits consistently
+   beside the creator avatar (Figma 1052-151285). Rows are stacked flex rows, each cell an <img> that
+   covers its share; a single row (≤2 thumbnails) spans the full height. */
+.collection-collage {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  /* 1px gaps between rows AND cells, filled by this background, draw a hairline divider between each
+     collaged item so the (often light) thumbnails don't blend into one another. */
+  gap: 1px;
+  background: var(--line-strong);
+}
+.collection-collage__row {
+  display: flex;
+  flex: 1 1 50%;
+  min-height: 0;
+  gap: 1px;
+}
+.collection-collage__row--full {
+  flex-basis: 100%;
+}
+.collection-collage__row img {
+  flex: 1 1 0;
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
 /* Divider between the meta block and the price/CTA block (Figma neutrals/gray-4). */
 .item-detail__divider {
   border: 0;
@@ -503,6 +604,18 @@
 .item-detail__price--none {
   font-size: 18px;
   color: var(--muted);
+}
+/* Market (legacy/MANA) item: an indicative "≈ credits" price + a "Market price" note (the exact
+   price is locked later in MarketCheckout). Mirrors the market card's ≈ treatment. */
+.item-detail__approx {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text);
+  margin-right: -2px;
+}
+.item-detail__market-note {
+  font-size: 13px;
+  margin-top: 6px;
 }
 /* Flash sale (see lib/sale.ts): emphasized "now" + struck-through "was" + a badge + countdown. */
 .item-detail__price--sale {
@@ -686,160 +799,69 @@
   .item-detail__ctas--dual .item-detail__addcart .ico {
     margin: 0;
   }
-}
 
-/* ---------------- Collection carousel ---------------- */
-.collection-carousel {
-  margin-top: 64px;
-}
-.collection-carousel__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 20px;
-}
-.collection-carousel__title {
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--text);
-}
-.collection-carousel__viewall {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  background: none;
-  border: 0;
-  padding: 0;
-  color: var(--accent);
-  font-weight: 700;
-  font-size: 13px;
-  letter-spacing: 0.046em;
-  text-transform: uppercase;
-  cursor: pointer;
-  white-space: nowrap;
-}
-.collection-carousel__viewall:hover {
-  text-decoration: underline;
-}
-.collection-carousel__viewall-ico {
-  transform: rotate(-90deg);
-}
-
-/* Viewport wraps the track and hosts the side navigation arrows. */
-.collection-carousel__viewport {
-  position: relative;
-}
-/* Side arrows: the exact same treatment as the Overview rail (Figma 1052-151302) — the shared
-   carousel-arrow.svg (white circle + bold chevron) floated with a soft drop-shadow, centered on the
-   card media band (12px track padding + half of the 200px media = ~112px). The left arrow mirrors it. */
-.collection-carousel__arrow {
-  position: absolute;
-  top: 112px;
-  transform: translateY(-50%);
-  z-index: 5;
-  width: 53px;
-  height: 53px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.18));
-  transition:
-    transform 0.15s ease,
-    filter 0.15s ease,
-    opacity 0.15s ease;
-}
-.collection-carousel__arrow img {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-.collection-carousel__arrow--left {
-  left: -40px;
-}
-.collection-carousel__arrow--right {
-  right: -40px;
-}
-.collection-carousel__arrow--left img {
-  transform: scaleX(-1);
-}
-.collection-carousel__arrow:hover:not(:disabled) {
-  transform: translateY(-50%) scale(1.07);
-}
-.collection-carousel__arrow:disabled {
-  opacity: 0;
-  pointer-events: none;
-}
-@media (prefers-reduced-motion: reduce) {
-  .collection-carousel__arrow {
-    transition: none;
-  }
-}
-@media (max-width: 900px) {
-  .collection-carousel__arrow {
+  /* Favourite heart moves onto the preview's top-right (Figma 1182-195410): a white circular button.
+     The title-row heart is hidden so there's exactly one heart in the a11y tree. */
+  .item-detail__info-head .item-detail__fav {
     display: none;
   }
-}
+  .item-detail__preview > .item-detail__fav--preview {
+    display: grid;
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 3;
+    width: 40px;
+    height: 40px;
+    background: rgba(255, 255, 255, 0.92);
+    box-shadow: 0 1px 4px rgba(22, 21, 24, 0.18);
+  }
+  .item-detail__preview > .item-detail__fav--preview:hover {
+    background: #fff;
+  }
 
-.collection-carousel__track {
-  display: flex;
-  gap: 16px;
-  overflow-x: auto;
-  /* Reserve room for the cards' outward hover/active glow (box-shadow ring): an overflow-x scroller
-     also clips overflow-y, so without vertical padding the ring crops flat top/bottom. Vertical
-     padding for the glow, negative horizontal margin so the side glow bleeds into the page padding. */
-  padding: 12px 10px;
-  margin: 0 -10px;
-  scroll-snap-type: x proximity;
-  scrollbar-width: none;
-}
-.collection-carousel__track::-webkit-scrollbar {
-  display: none;
-}
-/* Each slide is the SHARED <AssetCard> (root class .card) — sized identically to the browse grid /
-   Overview rails (Figma 281×300) so a card here is indistinguishable from a card anywhere else. This
-   mirrors index.css `.row__track > *`. */
-.collection-carousel__track > .card {
-  flex: 0 0 281px;
-  scroll-snap-align: start;
-}
-/* Mobile: show one full card plus a peek of the next (Figma 1182-190397), not multiple cramped cards. */
-@media (max-width: 720px) {
-  .collection-carousel__track > .card {
-    flex: 0 0 85%;
+  /* Avatar/Item toggle → an icon-only pill button-group at the preview's bottom-right (Figma
+     1182-195374): active = soft-black bg + white icon, inactive = white bg + dark icon. */
+  .item-detail__preview > .item-preview__toggle {
+    top: auto;
+    left: auto;
+    bottom: 12px;
+    right: 12px;
+    gap: 0;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    box-shadow: 0 1px 4px rgba(22, 21, 24, 0.18);
+    overflow: hidden;
+  }
+  .item-preview__toggle-label {
+    display: none;
+  }
+  .item-preview__toggle-ico {
+    display: block;
+  }
+  .item-preview__toggle button {
+    padding: 9px 13px;
+    border-radius: 0;
+    background: #fff;
+    color: var(--text-2);
+  }
+  .item-preview__toggle button.is-active {
+    background: var(--text);
+    color: #fff;
+  }
+  .item-preview__toggle button:first-child {
+    border-top-left-radius: 999px;
+    border-bottom-left-radius: 999px;
+  }
+  .item-preview__toggle button:last-child {
+    border-top-right-radius: 999px;
+    border-bottom-right-radius: 999px;
   }
 }
 
-/* Paging dots below the row. */
-.collection-carousel__dots {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  margin-top: 18px;
-}
-.collection-carousel__dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  border: 0;
-  padding: 0;
-  background: var(--line-strong);
-  opacity: 0.5;
-  cursor: pointer;
-  transition:
-    opacity 0.12s ease,
-    background 0.12s ease,
-    transform 0.12s ease;
-}
-.collection-carousel__dot:hover {
-  opacity: 0.8;
-}
-.collection-carousel__dot.is-active {
-  background: var(--accent);
-  opacity: 1;
-  transform: scale(1.1);
-}
+/* The Collection carousel styles moved to components/CollectionCarousel.css (co-located with the
+   shared component so it stays styled wherever it's rendered — cart upsell included). */
 
 /* Not-found / unresolvable item (bad deep link, delisted, or not in the shop feed) */
 .item-detail--notfound {

@@ -6,17 +6,16 @@ import { config } from '~/config'
 import { useWallet } from '~/store/wallet'
 import { useProfile } from '~/hooks/useProfile'
 import { avatarShape, isCompatible, itemShapes, shapeLabel } from '~/lib/bodyShape'
+import { t } from '~/intl/i18n'
 import type { CatalogItem } from '~/lib/api'
 
-// The hero preview: the item MOUNTED on the connected user's avatar (like the marketplace item page).
-// - profile = the connected address when they have a published avatar, else 'default' (default DCL body).
-// - wearables → type=AVATAR + a FASHION pose so the avatar isn't in a T-pose.
-// - emotes    → no type (the preview app auto-detects + plays the emote on the avatar) + wheel zoom.
-// One iframe only; keyed on the item id so switching items re-mounts a single preview (no per-card iframes).
-//
-// Wearables also get an "On avatar / Item" toggle (like the marketplace): switching flips the preview
-// `type` between AVATAR (worn) and WEARABLE (the item alone), which the WearablePreview reloads in place
-// — no remount (key stays item.id). Emotes have no "alone" view (they're animations on an avatar).
+// The hero preview. Wearables DEFAULT to the item shown ALONE (PreviewType.WEARABLE — no avatar, no
+// emote), exactly how the marketplace item page loads (its try-on state starts OFF), so there's no odd
+// default avatar pose. The "On avatar / Item" toggle flips to AVATAR (worn) + a FASHION pose.
+// - emotes → no type (the preview app auto-detects + plays the emote on the avatar) + wheel zoom.
+// One shared iframe with a STABLE id and NO React key — so navigating item→item (or toggling avatar/item)
+// reloads the scene IN PLACE (the marketplace approach) instead of destroying + recreating the iframe,
+// which flashed a visible double-load. The loader below covers every (re)load until onLoad fires.
 
 export function ItemPreview({ item }: { item: CatalogItem }) {
   const address = useWallet(s => s.session?.address)
@@ -29,8 +28,12 @@ export function ItemPreview({ item }: { item: CatalogItem }) {
   const profile = address && avatar ? address : 'default'
 
   const isEmote = item.category === 'emote'
-  const [view, setView] = useState<'avatar' | 'item'>('avatar')
+  // Default to the item shown alone (matches the marketplace) — the "On avatar" toggle opts into the worn view.
+  const [view, setView] = useState<'avatar' | 'item'>('item')
   const itemAlone = !isEmote && view === 'item'
+  // The item-alone view needs no avatar, so it can render immediately; only the avatar/emote views wait for
+  // the profile fetch to settle (so they mount once with the final avatar rather than default→avatar reload).
+  const profileReady = itemAlone || !profileLoading
 
   // Cover every (re)load with a loader so the iframe never flickers raw (like the marketplace's
   // Loader overlay + onLoad). Reset to loading whenever the preview will actually reload: a new item
@@ -53,9 +56,8 @@ export function ItemPreview({ item }: { item: CatalogItem }) {
   return (
     <>
       {/* Gate on the profile fetch so we mount ONCE with the final avatar (no default→avatar reload). */}
-      {!profileLoading ? (
+      {profileReady ? (
         <WearablePreview
-          key={item.id}
           id="shop-item-preview"
           contractAddress={item.contractAddress}
           // secondary listings carry tokenId; catalog/mint items carry itemId — never both.
@@ -74,37 +76,48 @@ export function ItemPreview({ item }: { item: CatalogItem }) {
           onLoad={() => setPreviewLoading(false)}
         />
       ) : null}
-      {profileLoading || previewLoading ? (
-        <div className="item-preview__loading" aria-busy="true" aria-label="Loading preview">
+      {!profileReady || previewLoading ? (
+        <div className="item-preview__loading" aria-busy="true" aria-label={t('itemPreview.loading')}>
           <span className="item-preview__spinner" aria-hidden />
         </div>
       ) : null}
       {incompatible && !itemAlone ? (
-        <p className="item-preview__note">
-          Shown on a {shapeLabel(mannequinShape)} body — this item isn’t made for your avatar’s shape.
-        </p>
+        <p className="item-preview__note">{t('itemPreview.shownOnBody', { shape: shapeLabel(mannequinShape) })}</p>
       ) : null}
       {!isEmote ? (
-        <div className="item-preview__toggle" role="group" aria-label="Preview mode">
+        // On desktop this is a text pill ("On avatar / Item") pinned top-left; on mobile it collapses
+        // to an icon-only pill button-group at the bottom-right (Figma 1182-195374) — the SVG glyphs
+        // show and the text labels hide (see item-detail.css). aria-label keeps each button named when
+        // its visible text is hidden.
+        <div className="item-preview__toggle" role="group" aria-label={t('itemPreview.previewMode')}>
           <button
             type="button"
             className={view === 'avatar' ? 'is-active' : ''}
             aria-pressed={view === 'avatar'}
+            aria-label={t('itemPreview.onAvatar')}
             onClick={() => setView('avatar')}
           >
-            On avatar
+            <svg className="item-preview__toggle-ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+              <circle cx="12" cy="7.5" r="4" />
+              <path d="M4 20c0-4.2 3.6-6.5 8-6.5s8 2.3 8 6.5v.5H4z" />
+            </svg>
+            <span className="item-preview__toggle-label">{t('itemPreview.onAvatar')}</span>
           </button>
           <button
             type="button"
             className={view === 'item' ? 'is-active' : ''}
             aria-pressed={view === 'item'}
+            aria-label={t('itemPreview.item')}
             onClick={() => setView('item')}
           >
-            Item
+            <svg className="item-preview__toggle-ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+              <path d="M8.5 3 3 6l1.8 3.8 2.2-1V21h10V8.8l2.2 1L22 6l-5.5-3a2.6 2.6 0 0 1-4.5 1.4A2.6 2.6 0 0 1 8.5 3z" />
+            </svg>
+            <span className="item-preview__toggle-label">{t('itemPreview.item')}</span>
           </button>
         </div>
       ) : (
-        <div className="item-preview__emote-controls">
+        <div className="item-preview__emote-controls" data-testid="emote-controls">
           <EmoteControls wearablePreviewId="shop-item-preview" hideFrameInput />
         </div>
       )}

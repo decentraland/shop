@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { t } from '~/intl/i18n'
+import { ErrorNotice } from '~/components/ErrorNotice'
 import { fetchCollection, fetchCollectionItems } from '~/lib/collections'
 import { AssetCard } from '~/components/AssetCard'
 import { CollectionHero } from '~/components/CollectionHero'
@@ -12,6 +13,7 @@ import { AddAllToCart } from '~/components/AddAllToCart'
 import { SkeletonCards } from '~/components/SkeletonCards'
 import { LoadMore } from '~/components/LoadMore'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
+import { useSeo } from '~/hooks/useSeo'
 import { SUBCAT_MAP } from '~/lib/categories'
 import { CURRENCY } from '~/lib/currency'
 import './collection.css'
@@ -65,6 +67,12 @@ export function Collection() {
   })
 
   const title = collection?.name || t('collection.fallbackTitle')
+  // Per-page SEO — title/description track the collection name once its metadata resolves (until then
+  // the hook's site default applies). Indexable.
+  useSeo({
+    title: collection?.name,
+    description: collection?.name ? t('seo.collection.description', { name: collection.name }) : undefined
+  })
   // Prefer the collection's own creator; fall back to an item's creator until the metadata loads.
   const creator = collection?.creator || items[0]?.creator
 
@@ -89,7 +97,7 @@ export function Collection() {
 
   return (
     <div className="collection-page" data-testid="collection-page">
-      <nav className="collection-page__crumbs" aria-label="Breadcrumb">
+      <nav className="collection-page__crumbs" aria-label={t('collection.breadcrumbAria')}>
         <button className="collection-page__crumb-link" onClick={() => navigate('/assets')}>
           {t('collection.breadcrumb')}
         </button>
@@ -131,8 +139,8 @@ export function Collection() {
                     <input
                       type="number"
                       min="0"
-                      aria-label="Minimum price"
-                      placeholder="Min"
+                      aria-label={t('collection.priceMin')}
+                      placeholder={t('collection.priceMinPlaceholder')}
                       value={priceMin}
                       onChange={e => setPriceMin(e.target.value)}
                     />
@@ -140,19 +148,19 @@ export function Collection() {
                     <input
                       type="number"
                       min="0"
-                      aria-label="Maximum price"
-                      placeholder="Max"
+                      aria-label={t('collection.priceMax')}
+                      placeholder={t('collection.priceMaxPlaceholder')}
                       value={priceMax}
                       onChange={e => setPriceMax(e.target.value)}
                     />
                   </div>
-                  <p className="filter-pop__hint">Price in {CURRENCY.name}</p>
+                  <p className="filter-pop__hint">{t('collection.priceHint', { currency: CURRENCY.name })}</p>
                 </div>
               </FilterPanel>
             )}
           />
 
-          {error ? <p className="error">{t('collection.error')}</p> : null}
+          {error ? <ErrorNotice message={t('collection.error')} /> : null}
 
           <div className="grid" data-testid="grid">
             {isLoading ? (
