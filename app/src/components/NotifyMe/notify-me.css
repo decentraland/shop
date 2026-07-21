@@ -78,26 +78,28 @@
   opacity: 0.9;
 }
 /* Confirmed / already-subscribed state. */
+/* Subscribed confirmation pill (Figma 1182-204041): soft-green pill, filled green check, one line. */
 .notify__done {
   flex-direction: row;
   align-items: center;
-  gap: 10px;
-  padding: 12px 14px;
-  border-radius: 8px;
-  background: var(--rarity-bg, #f4edfa);
+  gap: 16px;
+  padding: 12px;
+  border-radius: 16px;
+  background: rgba(193, 238, 207, 0.5);
 }
-.notify__done-ico {
+.notify__done-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
   width: 20px;
   height: 20px;
-  color: var(--accent);
-  flex-shrink: 0;
+  border-radius: 50%;
+  background: #34ce76;
+  color: #fff;
 }
-.notify__done-title {
-  font-weight: 600;
-  font-size: 14px;
-  color: var(--text);
-}
-.notify__done-sub {
-  font-size: 13px;
-  color: var(--muted);
+.notify__done-text {
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--text-2);
 }
