@@ -409,6 +409,41 @@ export const legacyTrade = {
   ]
 }
 
+// A full signed PRIMARY (mint) Trade for the Galaxy Hat (shop tradeId 'trade-1', itemId 0). A
+// USD-pegged public_item_order priced $27 (270 credits), uses = remaining supply (100) so the same
+// trade can be accepted multiple times in one accept([...]) — the basis for multi-quantity buys.
+export const primaryTrade = {
+  id: 'trade-1',
+  signer: CREATOR_ADDRESS,
+  signature: '0x' + 'ab'.repeat(65),
+  network: 'MATIC',
+  chainId: 80002,
+  type: 'public_item_order',
+  contract: OFFCHAIN_MARKETPLACE_AMOY,
+  checks: {
+    uses: 100,
+    expiration: Date.now() + 86_400_000,
+    effective: Date.now() - 60_000,
+    salt: '0x' + '00'.repeat(32),
+    contractSignatureIndex: 0,
+    signerSignatureIndex: 0,
+    allowedRoot: '0x',
+    allowedProof: [],
+    externalChecks: []
+  },
+  sent: [{ assetType: 4, contractAddress: COLLECTION, value: '0', itemId: '0', extra: '0x' }],
+  received: [
+    {
+      assetType: 2,
+      contractAddress: MANA_AMOY,
+      value: '27000000000000000000',
+      amount: '27000000000000000000',
+      beneficiary: CREATOR_ADDRESS,
+      extra: '0x'
+    }
+  ]
+}
+
 // --- Profile (peer lambdas) ---
 export const profile = {
   avatars: [

@@ -68,17 +68,29 @@ function dropNotice(review: CartReview): string {
   return t('cart.drop.removed', { items: parts.join(` ${t('cart.drop.and')} `) })
 }
 
+// Sum of a set of reviewed lines in whole credits — per-unit price × quantity for each line.
+const sumLineCredits = (lines: ResolvedLine[]): number =>
+  lines.reduce((n, l) => n + l.priceCredits * l.quantity, 0)
+
+// Expand each reviewed line into one entry per unit (quantity 1) — the money flow authorizes and
+// mints per unit (a primary trade may be accepted up to its `checks.uses` = remaining supply), so N
+// copies become N credits in the same accept([...]) batch. Settlement stays per-unit and correct.
+const toUnits = (lines: ResolvedLine[]): ResolvedLine[] =>
+  lines.flatMap(l => Array.from({ length: l.quantity }, () => ({ ...l, quantity: 1 })))
+
 // The multi-item checkout modal's state — a pure reflection of the charge flow (Cart owns the money).
 type ModalState =
   | { phase: 'processing'; step: number; total: number }
   | { phase: 'nofunds'; lines: CheckoutLine[]; shortfall: number }
-  | { phase: 'complete'; purchased: CatalogItem[] }
+  | { phase: 'complete'; purchased: Array<CatalogItem & { quantity?: number }> }
   | { phase: 'error'; message: string }
 
 export function Cart() {
   useSeo({ title: t('nav.cart'), noindex: true })
   const items = useCart(s => s.items)
   const remove = useCart(s => s.remove)
+  const increment = useCart(s => s.increment)
+  const decrement = useCart(s => s.decrement)
   const clear = useCart(s => s.clear)
   const restore = useCart(s => s.restore)
   const setFittingOpen = useCart(s => s.setFittingOpen)
@@ -113,7 +125,9 @@ export function Cart() {
   const [modal, setModal] = useState<ModalState | null>(null)
   const [selectedPack, setSelectedPack] = useState('')
 
-  const shownTotal = items.reduce((sum, i) => sum + i.priceCredits, 0)
+  const shownTotal = items.reduce((sum, i) => sum + i.priceCredits * i.quantity, 0)
+  // Total units across all lines (Σ quantity) — the "N items" the summary/count reflect.
+  const totalUnits = items.reduce((n, i) => n + i.quantity, 0)
   // While a review is pending the total reflects the live (re-resolved) prices of what's still buyable.
   const total = review ? review.liveTotalCredits : shownTotal
   const inCart = new Set(items.map(i => i.id))
@@ -143,7 +157,7 @@ export function Cart() {
   // Show the no-funds (pack picker) overlay for a set of buyable lines — reserve nothing, prompt a
   // top-up. The cheapest pack that still clears the shortfall is pre-selected.
   function openNoFunds(lines: ResolvedLine[]) {
-    const totalCredits = lines.reduce((n, l) => n + l.priceCredits, 0)
+    const totalCredits = sumLineCredits(lines)
     const shortfall = Math.max(0, totalCredits - balanceCredits)
     const cover = OFFER_PACKS.find(p => p.credits >= shortfall) ?? OFFER_PACKS[OFFER_PACKS.length - 1]
     setSelectedPack(cover.id)
@@ -153,7 +167,11 @@ export function Cart() {
       credits_balance: balanceCredits,
       shortfall
     })
-    setModal({ phase: 'nofunds', lines: lines.map(l => ({ item: l.item, priceCredits: l.priceCredits })), shortfall })
+    setModal({
+      phase: 'nofunds',
+      lines: lines.map(l => ({ item: l.item, priceCredits: l.priceCredits, quantity: l.quantity })),
+      shortfall,
+    })
     setBusy(false)
   }
 
@@ -162,20 +180,26 @@ export function Cart() {
   // complete, or → no-funds on a 402, or → error. Releases reservations on failure.
   async function charge(lines: ResolvedLine[]) {
     if (!session || lines.length === 0) return
-    // Carry the LIVE price so the success list + analytics reflect what was actually charged.
-    const purchased = lines.map(l => ({ ...l.item, priceCredits: l.priceCredits }))
+    // Expand to one unit per copy: buying qty N of a primary line is N per-unit authorizes + N
+    // credits in the same accept([...trade × N]) batch (the trade's checks.uses = remaining supply
+    // permits it). Keeps the money math + settlement strictly per-unit.
+    const units = toUnits(lines)
+    // Per-unit snapshot at the LIVE price for analytics (correct value across quantities).
+    const purchasedUnits = units.map(l => ({ ...l.item, priceCredits: l.priceCredits }))
+    // Per-line snapshot (carries quantity) for the success modal — unique keys, shows "× N".
+    const purchasedLines = lines.map(l => ({ ...l.item, priceCredits: l.priceCredits, quantity: l.quantity }))
     const reservedSalts: string[] = []
     let step: 'authorize' | 'submit' = 'authorize'
     let usedGasless = false
-    setModal({ phase: 'processing', step: 1, total: lines.length })
+    setModal({ phase: 'processing', step: 1, total: units.length })
     try {
       // Authorize SEQUENTIALLY (not Promise.all): each authorize reserves against the running USD
       // balance, so ordering is what makes the insufficient-credits guard correct — parallel calls
       // would all read the pre-reservation balance and could over-authorize.
       const purchases: CreditPurchase[] = []
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i]
-        setModal({ phase: 'processing', step: i + 1, total: lines.length })
+      for (let i = 0; i < units.length; i++) {
+        const line = units[i]
+        setModal({ phase: 'processing', step: i + 1, total: units.length })
         try {
           // Authorize against the freshly RESOLVED trade (line.trade), not the item's original tradeId:
           // a stale tradeId may have been re-signed to a new trade, and the spend below executes against
@@ -233,20 +257,20 @@ export function Cart() {
       lines.forEach(l => remove(l.item.id))
       setReview(null)
       track('Shop Completed Purchase', {
-        ...purchaseItemsProps(purchased),
+        ...purchaseItemsProps(purchasedUnits),
         payment_type: 'credits',
         no_crypto_step: usedGasless,
         transaction_hash: hashes[0] ?? null
       })
       void qc.invalidateQueries({ queryKey: ['usd-balance'] })
-      setModal({ phase: 'complete', purchased })
+      setModal({ phase: 'complete', purchased: purchasedLines })
     } catch (e) {
       if (!isUserRejection(e)) captureError(e, { flow: 'cart_checkout', step, cart_size: lines.length })
       track(isUserRejection(e) ? 'Shop Purchase Cancelled' : 'Shop Purchase Failed', {
         step,
         error_code: errorCode(e),
-        value_usd: creditsToUsd(purchased.reduce((n, i) => n + i.priceCredits, 0)),
-        cart_size: lines.length
+        value_usd: creditsToUsd(purchasedUnits.reduce((n, i) => n + i.priceCredits, 0)),
+        cart_size: units.length,
       })
       // Release any dollars we reserved so the balance isn't stuck until the TTL (~15 min).
       if (reservedSalts.length) {
@@ -263,7 +287,7 @@ export function Cart() {
 
   // Decide, for a reviewed set of buyable lines, whether to charge or to prompt a top-up first.
   function chargeOrTopUp(lines: ResolvedLine[]) {
-    const totalCredits = lines.reduce((n, l) => n + l.priceCredits, 0)
+    const totalCredits = sumLineCredits(lines)
     // Known-and-short → straight to the pack picker; don't reserve dollars we can't spend. When the
     // balance is unknown we still try (the sequential authorize guards it server-side → 402 → nofunds).
     if (balance != null && balance.credits < totalCredits) {
@@ -283,11 +307,12 @@ export function Cart() {
     setError(null)
     setNotice(null)
     setBusy(true)
+    const cartCredits = cartItems.reduce((n, i) => n + i.priceCredits * i.quantity, 0)
     track('Shop Started Checkout', {
       cart_size: cartItems.length,
-      cart_value_credits: cartItems.reduce((n, i) => n + i.priceCredits, 0),
-      cart_value_usd: creditsToUsd(cartItems.reduce((n, i) => n + i.priceCredits, 0)),
-      has_sufficient_credits: balanceCredits >= cartItems.reduce((n, i) => n + i.priceCredits, 0)
+      cart_value_credits: cartCredits,
+      cart_value_usd: creditsToUsd(cartCredits),
+      has_sufficient_credits: balanceCredits >= cartCredits,
     })
     try {
       // Resolve every item's LIVE listing first — never charge a stale snapshot, and never let one bad
@@ -453,7 +478,7 @@ export function Cart() {
             >
               <Icon name="arrow-left" />
             </button>
-            <h1 className="checkout__panel-title">{t('cart.panelTitle', { count: items.length })}</h1>
+            <h1 className="checkout__panel-title">{t('cart.panelTitle', { count: totalUnits })}</h1>
             {hasWearable ? (
               <button className="checkout__fitting" onClick={() => setFittingOpen(true)} disabled={working}>
                 <Icon name="fitting-room" />
@@ -467,6 +492,11 @@ export function Cart() {
               const line = lineById.get(item.id)
               const livePrice = line ? line.priceCredits : item.priceCredits
               const changed = !!line && line.priceCredits !== item.priceCredits
+              // Quantity is only a primary (mint) concept; a secondary token is a single unique unit.
+              const isPrimary = !item.tokenId
+              const qty = item.quantity
+              const atStockCap = typeof item.available === 'number' && qty >= item.available
+              const lineSubtotal = livePrice * qty
               const faved = !!favItems[item.id]
               // Whole-item deep link (same route the browse cards use): cart lines carry the listing's
               // contractAddress + itemId/tokenId, so the thumbnail + name navigate to the detail page
@@ -522,29 +552,37 @@ export function Cart() {
                       ) : null}
                     </div>
                     <div className="checkout__foot">
-                      {/* Quantity stepper — visual only: a cart line is a single unique listing (qty always
-                          1), so minus removes the line and plus is inert (mirrors the cart drawer stepper). */}
-                      <div className="checkout__stepper">
-                        <button
-                          className="checkout__step"
-                          onClick={() => editCart(() => remove(item.id))}
-                          disabled={working}
-                          aria-label={t('cart.removeFromCart', { name: item.name })}
-                        >
-                          <svg viewBox="0 0 16 16" fill="none" aria-hidden focusable="false">
-                            <path d="M3.5 8h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                          </svg>
-                        </button>
-                        <span className="checkout__qty">1</span>
-                        <button className="checkout__step" disabled aria-label={t('cart.increaseQuantity')}>
-                          <svg viewBox="0 0 16 16" fill="none" aria-hidden focusable="false">
-                            <path d="M8 3.5v9M3.5 8h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                          </svg>
-                        </button>
-                      </div>
+                      {/* Quantity stepper. PRIMARY (mint) lines can buy multiple copies: minus decrements
+                          (floored at 1 — the trash button removes), plus increments up to remaining stock.
+                          SECONDARY lines are a single unique token, so the stepper is hidden (qty is 1). */}
+                      {isPrimary ? (
+                        <div className="checkout__stepper">
+                          <button
+                            className="checkout__step"
+                            onClick={() => editCart(() => decrement(item.id))}
+                            disabled={working || qty <= 1}
+                            aria-label={t('cart.decreaseQuantity', { name: item.name })}
+                          >
+                            <svg viewBox="0 0 16 16" fill="none" aria-hidden focusable="false">
+                              <path d="M3.5 8h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                            </svg>
+                          </button>
+                          <span className="checkout__qty">{qty}</span>
+                          <button
+                            className="checkout__step"
+                            onClick={() => editCart(() => increment(item.id))}
+                            disabled={working || atStockCap}
+                            aria-label={t('cart.increaseQuantity')}
+                          >
+                            <svg viewBox="0 0 16 16" fill="none" aria-hidden focusable="false">
+                              <path d="M8 3.5v9M3.5 8h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                            </svg>
+                          </button>
+                        </div>
+                      ) : null}
                       <div className="checkout__price">
-                        <CurrencyIcon className="checkout__price-ico" /> {livePrice}
-                        {changed ? <span className="checkout__price-was">{item.priceCredits}</span> : null}
+                        <CurrencyIcon className="checkout__price-ico" /> {lineSubtotal}
+                        {changed ? <span className="checkout__price-was">{item.priceCredits * qty}</span> : null}
                       </div>
                     </div>
                   </div>
@@ -594,7 +632,7 @@ export function Cart() {
           <h2 className="checkout__summary-title">{t('cart.purchaseSummary')}</h2>
           <div className="checkout__summary-body">
             <div className="checkout__total-line">
-              <span className="checkout__total-label">{t('cart.totalItems', { count: items.length })}</span>
+              <span className="checkout__total-label">{t('cart.totalItems', { count: totalUnits })}</span>
               <span className="checkout__total-value">
                 <CurrencyIcon className="checkout__total-ico" /> {total}
               </span>

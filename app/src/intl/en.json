@@ -136,6 +136,7 @@
     "fittingRoom": "Fitting Room",
     "removeFromCart": "Remove {name} from cart",
     "increaseQuantity": "Increase quantity",
+    "decreaseQuantity": "Decrease quantity of {name}",
     "removeFromFavorites": "Remove {name} from favorites",
     "addToFavorites": "Add {name} to favorites",
     "remove": "Remove {name}",
@@ -232,7 +233,8 @@
   "cartCheckout": {
     "titleBuy": "Buy Assets",
     "titleNoFunds": "Buy Credits and Items",
-    "dialogAria": "Check out your cart"
+    "dialogAria": "Check out your cart",
+    "qty": "× {count}"
   },
   "marketCheckout": {
     "finalPrice": "Final price",
@@ -259,6 +261,7 @@
     "moreFromCollection": "More from this collection",
     "notForSale": "Not for sale",
     "checking": "Checking…",
+    "maxInCart": "Max in cart",
     "notAvailableTitle": "This item isn’t available",
     "notAvailableBody": "It may have been delisted or moved. Browse Collectibles for something else.",
     "breadcrumbAria": "Breadcrumb",
@@ -385,6 +388,7 @@
   "cartPopover": {
     "removeFromCart": "Remove {name} from cart",
     "increaseQuantity": "Increase quantity",
+    "decreaseQuantity": "Decrease quantity of {name}",
     "removeItem": "Remove {name}",
     "remove": "Remove",
     "dialogLabel": "Shopping cart",
