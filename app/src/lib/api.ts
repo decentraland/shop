@@ -459,6 +459,27 @@ type NFTResult = {
   order: { price?: string | null; tradeId?: string } | null
 }
 
+// Maps one indexer NFT row to the flattened MyAsset shape the UI consumes. Shared by fetchMyAssets
+// (the My Assets grid) and fetchOwnedToken (single-token ownership check) so the field mapping —
+// including the isOnSale / listingPrice / tradeId derivation from `order` — stays in one place.
+function toMyAsset(r: NFTResult): MyAsset {
+  return {
+    id: r.nft.id,
+    contractAddress: r.nft.contractAddress,
+    tokenId: r.nft.tokenId,
+    itemId: r.nft.itemId ?? null,
+    name: r.nft.name,
+    category: r.nft.category,
+    image: r.nft.image,
+    rarity: r.nft.data?.wearable?.rarity ?? r.nft.data?.emote?.rarity,
+    network: r.nft.network,
+    chainId: r.nft.chainId,
+    isOnSale: r.order != null,
+    listingPrice: r.order ? toCredits(r.order.price) : undefined,
+    tradeId: r.order?.tradeId
+  }
+}
+
 // Has `owner` received a token of this item yet, according to the indexer? The purchase tx confirming
 // on-chain isn't enough for the item to appear in My Assets — that page reads the indexed NFTs, which
 // lag the chain. The Success page polls this after the tx settles so it only claims "It's yours!" once
@@ -491,21 +512,7 @@ export async function fetchMyAssets(
   if (!res.ok) throw new Error(`Failed to fetch assets (${res.status})`)
   const { data, total } = (await res.json()) as { data: NFTResult[]; total: number }
 
-  const assets = data.map(r => ({
-    id: r.nft.id,
-    contractAddress: r.nft.contractAddress,
-    tokenId: r.nft.tokenId,
-    itemId: r.nft.itemId ?? null,
-    name: r.nft.name,
-    category: r.nft.category,
-    image: r.nft.image,
-    rarity: r.nft.data?.wearable?.rarity ?? r.nft.data?.emote?.rarity,
-    network: r.nft.network,
-    chainId: r.nft.chainId,
-    isOnSale: r.order != null,
-    listingPrice: r.order ? toCredits(r.order.price) : undefined,
-    tradeId: r.order?.tradeId
-  }))
+  const assets = data.map(toMyAsset)
 
   return { assets, total }
 }
@@ -529,21 +536,7 @@ export async function fetchOwnedToken(
     // Guard on the token id too: the endpoint filters server-side, but never claim ownership of a
     // token the response didn't actually match (defensive against a loose/again-cached row).
     if (!r || r.nft.tokenId !== tokenId) return null
-    return {
-      id: r.nft.id,
-      contractAddress: r.nft.contractAddress,
-      tokenId: r.nft.tokenId,
-      itemId: r.nft.itemId ?? null,
-      name: r.nft.name,
-      category: r.nft.category,
-      image: r.nft.image,
-      rarity: r.nft.data?.wearable?.rarity ?? r.nft.data?.emote?.rarity,
-      network: r.nft.network,
-      chainId: r.nft.chainId,
-      isOnSale: r.order != null,
-      listingPrice: r.order ? toCredits(r.order.price) : undefined,
-      tradeId: r.order?.tradeId
-    }
+    return toMyAsset(r)
   } catch {
     return null
   }

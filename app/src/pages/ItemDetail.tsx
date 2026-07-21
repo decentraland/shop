@@ -24,6 +24,7 @@ import { PrimaryListModal } from '~/components/PrimaryListModal'
 import { MarketCheckout } from '~/components/MarketCheckout'
 import { toast } from '~/store/toast'
 import { captureError } from '~/lib/monitoring'
+import { isRejection } from '~/lib/errors'
 import { useManaRate } from '~/hooks/useManaRate'
 import { useSeo } from '~/hooks/useSeo'
 import { shortAddress } from '~/lib/address'
@@ -390,7 +391,8 @@ export function ItemDetail() {
   const { data: ownedAsset } = useQuery({
     queryKey: ['owned-token', current.contractAddress, current.tokenId, session?.address],
     enabled: !isMarket && !!session?.address && !!current.contractAddress && !!current.tokenId,
-    queryFn: () => fetchOwnedToken(session!.address, current.contractAddress, current.tokenId as string)
+    queryFn: () =>
+      session ? fetchOwnedToken(session.address, current.contractAddress, current.tokenId as string) : null
   })
 
   // The creator's builder record for this primary item — needed to open PrimaryListModal (it carries
@@ -399,7 +401,8 @@ export function ItemDetail() {
     queryKey: ['publishable-item', current.contractAddress, current.itemId, session?.address],
     enabled: own && !!session && !!current.itemId,
     queryFn: async (): Promise<PublishableItem | null> => {
-      const items = await fetchPublishableItems(session!.address, session!.identity)
+      if (!session) return null
+      const items = await fetchPublishableItems(session.address, session.identity)
       return (
         items.find(
           p =>
@@ -422,7 +425,8 @@ export function ItemDetail() {
 
   async function refreshManage() {
     await Promise.all([
-      qc.invalidateQueries({ queryKey: ['owned-token'] }),
+      // Scope to THIS token (prefix match), not every owned-token query in the cache.
+      qc.invalidateQueries({ queryKey: ['owned-token', current.contractAddress, current.tokenId] }),
       qc.invalidateQueries({ queryKey: ['detail-trade'] }),
       qc.invalidateQueries({ queryKey: ['shop-item'] }),
       qc.invalidateQueries({ queryKey: ['collection-sale-state'] })
@@ -443,9 +447,7 @@ export function ItemDetail() {
       await refreshManage()
       return true
     } catch (e) {
-      const err = e as { code?: number; message?: string }
-      const msg = (err.message ?? '').toLowerCase()
-      const rejected = err.code === 4001 || msg.includes('reject') || msg.includes('denied')
+      const rejected = isRejection(e)
       if (!rejected) captureError(e, { flow: 'remove-listing', tradeId: manageTradeId })
       setManageError(rejected ? t('getCredits.errorCanceled') : t('myAssets.removeListingError'))
       return false
