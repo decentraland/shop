@@ -12,15 +12,34 @@
    ========================================================================== */
 
 /* ---------------- Checkout (cart) page ---------------- */
-/* Cart route paints the whole page gray (Figma 1182-216274) so the white cart cards get the focus
-   and the cross-sell reads as secondary. Full-bleed via a body class (toggled while Cart is mounted)
-   rather than a wrapper, so the gray reaches the viewport edges under the sticky sub-nav. */
+/* Cart route background (Figma 1182-232377): a gray band sits behind the TOP section (breadcrumb +
+   cart/summary panels) so the white panels get the focus; the cross-sell section below is on the
+   white page. The `shop-cart-bg` body class is kept as a route marker (toggled while Cart is mounted)
+   but the page itself stays the default white — the gray is a full-bleed band on `.checkout__top`. */
 body.shop-cart-bg {
-  background: var(--media);
+  background: var(--bg);
 }
 .checkout {
   max-width: 1510px;
   margin: 0 auto;
+}
+/* Gray band behind the top section only, full-bleed to the viewport edges (reaches under the sticky
+   sub-nav, same as the old whole-page gray, but stops at the panels so the cross-sell is on white). */
+.checkout__top {
+  position: relative;
+}
+.checkout__top::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 50%;
+  width: 100vw;
+  transform: translateX(-50%);
+  background: var(--media);
+  z-index: 0;
+}
+.checkout__top > * {
+  position: relative;
+  z-index: 1;
 }
 
 /* Breadcrumb back link (Figma "‹ CART") — desktop only. */
@@ -421,9 +440,10 @@ a.checkout__name:hover {
 }
 
 /* Upsell rail = the shared <CollectionCarousel> (side arrows + dots), same as the item-detail page.
-   The carousel supplies its own top margin, so this wrapper only scopes it under the cart. */
+   Figma 1182-232377: the cross-sell sits on the white page (the gray band above stops at the panels). */
 .cart-upsell {
-  margin-top: 8px;
+  margin-top: 40px;
+  padding-bottom: 24px;
 }
 
 /* Single-column below the two-column breakpoint; the summary stops sticking. */

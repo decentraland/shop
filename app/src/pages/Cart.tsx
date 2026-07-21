@@ -78,7 +78,7 @@ const toUnits = (lines: ResolvedLine[]): ResolvedLine[] =>
 
 // The multi-item checkout modal's state — a pure reflection of the charge flow (Cart owns the money).
 type ModalState =
-  | { phase: 'processing'; step: number; total: number }
+  | { phase: 'processing'; step: number; total: number; submitting?: boolean }
   | { phase: 'nofunds'; lines: CheckoutLine[]; shortfall: number }
   | { phase: 'complete'; purchased: Array<CatalogItem & { quantity?: number }> }
   | { phase: 'error'; message: string }
@@ -236,6 +236,9 @@ export function Cart() {
       }
 
       step = 'submit'
+      // All units authorized: the whole basket settles in ONE accept([...]) tx (trades are grouped by
+      // chain+marketplace, and the shop is single-chain). Hold the bar full + pulsing while it confirms.
+      setModal({ phase: 'processing', step: units.length, total: units.length, submitting: true })
       let hashes: string[] = []
       if (gaslessEnabled()) {
         try {
@@ -471,12 +474,15 @@ export function Cart() {
 
   return (
     <div className="checkout">
-      <button className="checkout__back" onClick={() => navigate(-1)} type="button">
-        <Icon name="arrow-left" />
-        {t('nav.cart')}
-      </button>
+      {/* Top section (breadcrumb + cart/summary panels) sits on the gray band; everything below
+          (the cross-sell) is on the white page — Figma 1182-232377. */}
+      <div className="checkout__top">
+        <button className="checkout__back" onClick={() => navigate(-1)} type="button">
+          <Icon name="arrow-left" />
+          {t('nav.cart')}
+        </button>
 
-      <div className="checkout__body">
+        <div className="checkout__body">
         <section className="checkout__panel">
           <div className="checkout__panel-head">
             <button
@@ -659,8 +665,9 @@ export function Cart() {
             {notice ? <p className="muted checkout__msg">{notice}</p> : null}
             {status ? <p className="muted checkout__msg">{status}</p> : null}
             <ErrorNotice message={error} className="checkout__msg" />
-          </div>
-        </aside>
+            </div>
+          </aside>
+        </div>
       </div>
 
       {upsell.length > 0 ? (
@@ -676,6 +683,7 @@ export function Cart() {
           onClose={closeModal}
           step={modal.phase === 'processing' ? modal.step : undefined}
           total={modal.phase === 'processing' ? modal.total : undefined}
+          submitting={modal.phase === 'processing' ? modal.submitting : undefined}
           lines={modal.phase === 'nofunds' ? modal.lines : undefined}
           shortfallCredits={modal.phase === 'nofunds' ? modal.shortfall : undefined}
           packs={OFFER_PACKS}

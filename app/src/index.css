@@ -3814,6 +3814,32 @@ a.purchase:hover {
     transform: translateX(320%);
   }
 }
+/* Determinate variant (cart multi-item, Figma 1182-232610): the fill width reflects step/total, set
+   inline, so it advances as each unit is authorized instead of the indeterminate slide above. */
+.buy-modal__progress-fill--step {
+  animation: none;
+  min-width: 12px;
+  transition: width 0.35s ease;
+}
+/* While the single settlement tx confirms (all units authorized), the bar is full and pulses so it
+   reads as "working", never frozen. */
+.buy-modal__progress-fill--pulsing {
+  animation: buy-modal-fill-pulse 1.2s ease-in-out infinite;
+}
+@keyframes buy-modal-fill-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .buy-modal__progress-fill--pulsing {
+    animation: none;
+  }
+}
 /* Success */
 .buy-modal__success {
   display: flex;

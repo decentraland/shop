@@ -4,6 +4,7 @@ import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { formatCredits } from '~/lib/currency'
 import { t } from '~/intl/i18n'
 import { ErrorNotice } from '~/components/ErrorNotice'
+import loaderLogo from '~/assets/credits/loader-logo.svg'
 
 // A cart line as the modal displays it: the item + the LIVE per-unit credit price + how many units.
 export type CheckoutLine = { item: CatalogItem; priceCredits: number; quantity?: number }
@@ -22,6 +23,7 @@ type Props = {
   // processing
   step?: number
   total?: number
+  submitting?: boolean
   // nofunds
   lines?: CheckoutLine[]
   shortfallCredits?: number
@@ -71,7 +73,9 @@ export function CartCheckoutModal(props: Props) {
           </div>
         )}
 
-        {phase === 'processing' && <Processing step={props.step ?? 1} total={props.total ?? 1} />}
+        {phase === 'processing' && (
+          <Processing step={props.step ?? 1} total={props.total ?? 1} submitting={props.submitting} />
+        )}
         {phase === 'nofunds' && (
           <NoFunds
             lines={props.lines ?? []}
@@ -105,16 +109,22 @@ export function CartCheckoutModal(props: Props) {
   )
 }
 
-// Processing (Figma 1182-218528): logo + "Completing transaction…" + progress bar with an "n/N"
-// step counter that advances as each line is authorized.
-function Processing({ step, total }: { step: number; total: number }) {
+// Processing (Figma 1182-232610): the DCL logo + "Completing transaction…" + a DETERMINATE progress
+// bar with an "n/N" step counter. The bar fills to step/total as each unit is authorized (real work);
+// once all units are authorized the whole basket settles in ONE tx, so the bar sits full and pulses
+// (`submitting`) while that single transaction confirms.
+function Processing({ step, total, submitting }: { step: number; total: number; submitting?: boolean }) {
+  const pct = total > 0 ? Math.min(100, Math.round((step / total) * 100)) : 0
   return (
     <div className="buy-modal__body buy-modal__processing">
-      <img className="buy-modal__logo" src="/icon-192.png" alt="" width={61} height={61} />
+      <img className="buy-modal__logo" src={loaderLogo} alt="" width={61} height={61} />
       <div className="buy-modal__processing-text">{t('buyModal.completingTransaction')}</div>
       <div className="cart-checkout__progress-row">
         <div className="buy-modal__progress" aria-hidden>
-          <span className="buy-modal__progress-fill" />
+          <span
+            className={`buy-modal__progress-fill buy-modal__progress-fill--step${submitting ? ' buy-modal__progress-fill--pulsing' : ''}`}
+            style={{ width: `${pct}%` }}
+          />
         </div>
         <span className="cart-checkout__step">
           {step}/{total}
