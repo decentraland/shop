@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { NavLink, useNavigate, useSearchParams, useLocation } from 'react-router-dom'
+import { Icon } from '~/components/Icon'
 import { TopNav } from '~/components/TopNav'
 import { useWallet } from '~/store/wallet'
 import { useProfile } from '~/hooks/useProfile'
@@ -179,7 +180,7 @@ export function NavBar() {
           {session ? <NavLink to="/my-purchases">{t('nav.myPurchases')}</NavLink> : null}
         </nav>
         <div className="subnav__search" ref={wrapRef}>
-          <span className="ico ico-search subnav__search-ico" aria-hidden />
+          <Icon name="search" color="var(--muted)" />
           <input
             value={q}
             aria-label={t('nav.searchAria')}
@@ -189,7 +190,13 @@ export function NavBar() {
             onKeyDown={onSearchKeyDown}
           />
           {q ? (
-            <button type="button" className="subnav__search-clear" aria-label={t('search.clear')} onClick={clearSearch}>
+            <button
+              type="button"
+              className="subnav__search-clear"
+              data-testid="subnav-search-clear"
+              aria-label={t('search.clear')}
+              onClick={clearSearch}
+            >
               <CloseIcon />
             </button>
           ) : null}
@@ -207,7 +214,11 @@ export function NavBar() {
           ) : null}
         </div>
         {session ? (
-          <span className="subnav__balance" title={t('nav.yourBalance', { currency: CURRENCY.name })}>
+          <span
+            className="subnav__balance"
+            data-testid="subnav-balance"
+            title={t('nav.yourBalance', { currency: CURRENCY.name })}
+          >
             <CurrencyIcon className="subnav__balance-ico" />
             {balanceLoading ? (
               <span className="skeleton subnav__balance-skel" aria-hidden />
@@ -221,7 +232,7 @@ export function NavBar() {
           {t('nav.getCredits', { currency: CURRENCY.name })}
         </NavLink>
         <NavLink to="/my-favorites" className="subnav__fav" aria-label={t('nav.myFavorites')}>
-          <span className="ico ico-heart" aria-hidden />
+          <Icon name="heart" />
         </NavLink>
         <div className="subnav__cart-wrap">
           {/* Cart icon opens the cart drawer (open-on-icon). With an empty cart there's nothing to show,
@@ -229,11 +240,16 @@ export function NavBar() {
           <button
             type="button"
             className="subnav__cart"
+            data-testid="subnav-cart"
             aria-label={t('nav.cart')}
             onClick={() => (cartCount > 0 ? openCart(true) : navigate('/cart'))}
           >
-            <span className="ico ico-cart" aria-hidden />
-            {cartCount > 0 ? <span className="subnav__cart-badge">{cartCount}</span> : null}
+            <Icon name="cart" size={28} />
+            {cartCount > 0 ? (
+              <span className="subnav__cart-badge" data-testid="subnav-cart-badge">
+                {cartCount}
+              </span>
+            ) : null}
           </button>
           <CartPopover />
         </div>

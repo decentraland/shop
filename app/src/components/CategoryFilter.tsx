@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { t } from '~/intl/i18n'
+import { Icon, type IconName } from '~/components/Icon'
+import { Chevron } from '~/components/Chevron'
 
 // Category filter panel (Figma "Categories Dropdown", node 696:34701). Top categories with an
 // animated accordion; Wearables and Emotes each expand into icon'd sub-categories. Wired to the
@@ -9,7 +11,7 @@ import { t } from '~/intl/i18n'
 
 // `key` drives filter state + SUBCAT_MAP lookups (Assets/Creator) and must NOT change; `labelKey`
 // is the i18n key resolved with t() at render (never at module load — that would freeze the locale).
-type Sub = { key: string; labelKey: string; icon: string }
+type Sub = { key: string; labelKey: string; icon: IconName }
 type Top = { key: string; labelKey: string; expandable?: boolean; subs?: Sub[] }
 
 const CATEGORIES: Top[] = [
@@ -100,9 +102,7 @@ export function CategoryFilter({
               onClick={() => clickTop(top)}
             >
               <span className="catfilter__cat-label">{t(top.labelKey)}</span>
-              {top.expandable ? (
-                <span className={`ico ico-chevron catfilter__chev${open ? ' is-up' : ''}`} aria-hidden />
-              ) : null}
+              {top.expandable ? <Chevron up={open} size={24} color="var(--text)" /> : null}
             </button>
 
             {top.subs ? (
@@ -116,7 +116,7 @@ export function CategoryFilter({
                       onClick={() => onSub(subCategory === sub.key ? null : sub.key)}
                     >
                       <span className="catfilter__sub-left">
-                        <span className={`ico ico-${sub.icon} catfilter__sub-ico`} aria-hidden />
+                        <Icon name={sub.icon} color="#43404a" />
                         <span className="catfilter__sub-label">{t(sub.labelKey)}</span>
                       </span>
                     </button>

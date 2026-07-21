@@ -162,11 +162,6 @@
   place-items: center;
   color: var(--text);
 }
-.card__fav .ico-heart,
-.card__fav .ico-heart-solid {
-  width: 18px;
-  height: 18px;
-}
 .card__fav.is-on {
   color: var(--dcl-red);
 }
@@ -216,7 +211,7 @@
 }
 /* On the card we show just "By AuthorName" — hide the creator avatar (the badge still renders it
    elsewhere: cart, collection, item detail). */
-.card__creator .creator__ava {
+.card__creator [data-avatar] {
   display: none;
 }
 /* Price never shrinks or wraps — the name yields space to it, not the reverse. */
@@ -278,11 +273,6 @@
   text-transform: uppercase;
   letter-spacing: 0.02em;
 }
-.card__chips .chip--smart .ico-smart {
-  width: 13px;
-  height: 13px;
-  color: var(--text-2);
-}
 /* Round add-to-cart for the compact mobile card (Figma): hidden on desktop (the full-width .card__cart
    is used there). */
 .card__add-round {
@@ -340,10 +330,6 @@
   background: #43404a;
   opacity: 1;
   cursor: default;
-}
-.card__cart-ico {
-  width: 20px;
-  height: 20px;
 }
 
 /* ---------------- Flash sale (time-boxed discounted listing — see lib/sale.ts) ---------------- */

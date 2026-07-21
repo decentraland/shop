@@ -1,6 +1,6 @@
 import defaultCover from '~/assets/creator-covers/default-cover.jpeg'
 import { useStore } from '~/hooks/useStore'
-import './collection-hero.css'
+import * as S from './CollectionHero.styles'
 
 // The banner at the top of a collection page: the creator's store cover image with the collection
 // name centered over it (Figma "COLLECTION NAME"). The cover is the SAME image as the creator's
@@ -14,14 +14,12 @@ export function CollectionHero({ name, creator }: { name: string; creator?: stri
   const cover = store?.cover || defaultCover
 
   return (
-    <section className="collection-hero" aria-label={name}>
-      <div className="collection-hero__cover">
-        <img className="collection-hero__cover-img" src={cover} alt="" loading="eager" />
-        <div className="collection-hero__scrim" aria-hidden />
-      </div>
-      <h1 className="collection-hero__title">{name}</h1>
-    </section>
+    <S.Root data-testid="collection-hero" aria-label={name}>
+      <S.Cover>
+        <S.CoverImg src={cover} alt="" loading="eager" />
+        <S.Scrim aria-hidden />
+      </S.Cover>
+      <S.Title data-testid="collection-hero-title">{name}</S.Title>
+    </S.Root>
   )
 }
-
-export default CollectionHero

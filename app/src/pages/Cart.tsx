@@ -9,13 +9,19 @@ import { authorizeUsdCredit, cancelUsdIntents, devMintUsd } from '~/lib/credits'
 import { resolveLiveTrade, fetchListings } from '~/lib/api'
 import { buyManyWithCredits, type CreditPurchase } from '~/lib/buy'
 import { buyManyGasless, waitForSettlement, GaslessUnavailableError, SettlementPendingError } from '~/lib/buy-gasless'
-import { reviewCart, RESUME_CART_KEY, type CartReview, type ResolvedLine, type TradeResolver } from '~/lib/cart-checkout'
+import {
+  reviewCart,
+  RESUME_CART_KEY,
+  type CartReview,
+  type ResolvedLine,
+  type TradeResolver
+} from '~/lib/cart-checkout'
 import { gaslessEnabled } from '~/lib/gasless-config'
 import { CURRENCY } from '~/lib/currency'
 import { CREDIT_PACKS, createPackCheckout } from '~/lib/payments'
 import { config } from '~/config'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
-import { CartCheckoutModal, type CheckoutLine, type CheckoutPhase } from '~/components/CartCheckoutModal'
+import { CartCheckoutModal, type CheckoutLine } from '~/components/CartCheckoutModal'
 import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
 import { isRejection, isInsufficient } from '~/lib/errors'
@@ -24,8 +30,15 @@ import { track, purchaseItemsProps, errorCode, isUserRejection, creditsToUsd } f
 import { captureError } from '~/lib/monitoring'
 import { CollectionCarousel } from '~/components/CollectionCarousel'
 import { CreatorBadge } from '~/components/CreatorBadge'
+import { Button } from '~/components/Button'
+import { Icon } from '~/components/Icon'
+import styled from '@emotion/styled'
 import type { CatalogItem } from '~/lib/api'
 import './cart.css'
+
+const EmptyCta = styled(Button)`
+  margin-top: 12px;
+`
 
 // Cart-specific mapping: the "listing changed" message is plural (a multi-item cart), so it maps
 // locally rather than via the shared singular soldOrRemoved/cantBuyOwn.
@@ -77,7 +90,11 @@ export function Cart() {
   const hasWearable = items.some(i => i.category !== 'emote')
 
   // Last-minute upsell: more credit-buyable listings not already in the cart.
-  const { data: suggested } = useQuery({ queryKey: ['upsell-listings'], queryFn: () => fetchListings({ first: 40 }), staleTime: 60_000 })
+  const { data: suggested } = useQuery({
+    queryKey: ['upsell-listings'],
+    queryFn: () => fetchListings({ first: 40 }),
+    staleTime: 60_000
+  })
   const { data: balance } = useBalance(session)
   const qc = useQueryClient()
   const navigate = useNavigate()
@@ -134,7 +151,7 @@ export function Cart() {
       from: 'cart_checkout',
       credits_needed: totalCredits,
       credits_balance: balanceCredits,
-      shortfall,
+      shortfall
     })
     setModal({ phase: 'nofunds', lines: lines.map(l => ({ item: l.item, priceCredits: l.priceCredits })), shortfall })
     setBusy(false)
@@ -195,7 +212,7 @@ export function Cart() {
           // reservations — the credits-server reconciles those against the indexed CreditUsed event.
           // Release (rethrow) ONLY when every failure is a hard revert and none is still pending.
           const settled = await Promise.allSettled(hashes.map(h => waitForSettlement(h)))
-          const failures = settled.flatMap(r => (r.status === 'rejected' ? [r.reason] : []))
+          const failures = settled.flatMap(r => (r.status === 'rejected' ? [r.reason as unknown] : []))
           if (failures.length && !failures.some(r => r instanceof SettlementPendingError)) {
             throw failures[0]
           }
@@ -219,7 +236,7 @@ export function Cart() {
         ...purchaseItemsProps(purchased),
         payment_type: 'credits',
         no_crypto_step: usedGasless,
-        transaction_hash: hashes[0] ?? null,
+        transaction_hash: hashes[0] ?? null
       })
       void qc.invalidateQueries({ queryKey: ['usd-balance'] })
       setModal({ phase: 'complete', purchased })
@@ -229,7 +246,7 @@ export function Cart() {
         step,
         error_code: errorCode(e),
         value_usd: creditsToUsd(purchased.reduce((n, i) => n + i.priceCredits, 0)),
-        cart_size: lines.length,
+        cart_size: lines.length
       })
       // Release any dollars we reserved so the balance isn't stuck until the TTL (~15 min).
       if (reservedSalts.length) {
@@ -270,7 +287,7 @@ export function Cart() {
       cart_size: cartItems.length,
       cart_value_credits: cartItems.reduce((n, i) => n + i.priceCredits, 0),
       cart_value_usd: creditsToUsd(cartItems.reduce((n, i) => n + i.priceCredits, 0)),
-      has_sufficient_credits: balanceCredits >= cartItems.reduce((n, i) => n + i.priceCredits, 0),
+      has_sufficient_credits: balanceCredits >= cartItems.reduce((n, i) => n + i.priceCredits, 0)
     })
     try {
       // Resolve every item's LIVE listing first — never charge a stale snapshot, and never let one bad
@@ -408,10 +425,12 @@ export function Cart() {
   if (items.length === 0 && !modal) {
     return (
       <div className="cart cart--empty">
-        <span className="ico ico-cart cart-empty__ico" aria-hidden />
+        <Icon name="cart" size={44} color="var(--muted-2)" />
         <p className="cart-empty__title">{t('cart.empty.title')}</p>
         <p className="muted">{t('cart.empty.body')}</p>
-        <Link className="btn btn--purple" to="/assets">{t('cart.empty.cta')}</Link>
+        <EmptyCta as={Link} to="/assets" variant="purple">
+          {t('cart.empty.cta')}
+        </EmptyCta>
       </div>
     )
   }
@@ -419,7 +438,7 @@ export function Cart() {
   return (
     <div className="checkout">
       <button className="checkout__back" onClick={() => navigate(-1)} type="button">
-        <span className="ico ico-arrow-left" aria-hidden />
+        <Icon name="arrow-left" />
         {t('nav.cart')}
       </button>
 
@@ -432,12 +451,12 @@ export function Cart() {
               type="button"
               aria-label={t('cart.goBack')}
             >
-              <span className="ico ico-arrow-left" aria-hidden />
+              <Icon name="arrow-left" />
             </button>
             <h1 className="checkout__panel-title">{t('cart.panelTitle', { count: items.length })}</h1>
             {hasWearable ? (
               <button className="checkout__fitting" onClick={() => setFittingOpen(true)} disabled={working}>
-                <span className="ico ico-fitting-room checkout__fitting-ico" aria-hidden />
+                <Icon name="fitting-room" />
                 {t('cart.fittingRoom')}
               </button>
             ) : null}
@@ -458,7 +477,12 @@ export function Cart() {
                 <div className="checkout__card" key={item.id}>
                   <div className="checkout__thumb">
                     {detailPath ? (
-                      <Link className="checkout__thumb-link" to={detailPath} state={{ item, tradeId: item.tradeId }} aria-label={item.name}>
+                      <Link
+                        className="checkout__thumb-link"
+                        to={detailPath}
+                        state={{ item, tradeId: item.tradeId }}
+                        aria-label={item.name}
+                      >
                         {item.thumbnail ? <img src={item.thumbnail} alt={item.name} /> : null}
                       </Link>
                     ) : item.thumbnail ? (
@@ -480,13 +504,22 @@ export function Cart() {
                   <div className="checkout__info">
                     <div className="checkout__desc">
                       {detailPath ? (
-                        <Link className="checkout__name" to={detailPath} state={{ item, tradeId: item.tradeId }} title={item.name}>
+                        <Link
+                          className="checkout__name"
+                          to={detailPath}
+                          state={{ item, tradeId: item.tradeId }}
+                          title={item.name}
+                        >
                           {item.name}
                         </Link>
                       ) : (
-                        <div className="checkout__name" title={item.name}>{item.name}</div>
+                        <div className="checkout__name" title={item.name}>
+                          {item.name}
+                        </div>
                       )}
-                      {item.creator ? <CreatorBadge address={item.creator} className="checkout__creator" linkToProfile /> : null}
+                      {item.creator ? (
+                        <CreatorBadge address={item.creator} className="checkout__creator" linkToProfile />
+                      ) : null}
                     </div>
                     <div className="checkout__foot">
                       {/* Quantity stepper — visual only: a cart line is a single unique listing (qty always
@@ -519,11 +552,16 @@ export function Cart() {
                     <button
                       className={`checkout__fav${faved ? ' is-on' : ''}`}
                       onClick={() => toggleFav(item)}
-                      aria-label={faved ? t('cart.removeFromFavorites', { name: item.name }) : t('cart.addToFavorites', { name: item.name })}
+                      aria-label={
+                        faved
+                          ? t('cart.removeFromFavorites', { name: item.name })
+                          : t('cart.addToFavorites', { name: item.name })
+                      }
                       title={faved ? t('assetCard.removeFromFavorites') : t('assetCard.addToFavorites')}
                     >
-                      <span className={`ico ${faved ? 'ico-heart-solid' : 'ico-heart'}`} aria-hidden />
+                      <Icon name={faved ? 'heart-solid' : 'heart'} />
                     </button>
+
                     <button
                       className="checkout__remove"
                       onClick={() => editCart(() => remove(item.id))}
@@ -531,7 +569,7 @@ export function Cart() {
                       aria-label={t('cart.remove', { name: item.name })}
                       title={t('cart.removeTitle')}
                     >
-                      <span className="ico ico-trash" aria-hidden />
+                      <Icon name="trash" size={24} />
                     </button>
                   </div>
                 </div>
@@ -541,9 +579,13 @@ export function Cart() {
 
           {/* Utility actions kept subtle so they don't compete with the CTA. */}
           <div className="checkout__utils">
-            <button className="link" onClick={() => editCart(clear)} disabled={working}>{t('cart.clearCart')}</button>
+            <button className="link" onClick={() => editCart(clear)} disabled={working}>
+              {t('cart.clearCart')}
+            </button>
             {import.meta.env.DEV ? (
-              <button className="link" onClick={getTestCredits} disabled={working || !session}>Get test {CURRENCY.name} (dev)</button>
+              <button className="link" onClick={() => void getTestCredits()} disabled={working || !session}>
+                Get test {CURRENCY.name} (dev)
+              </button>
             ) : null}
           </div>
         </section>
@@ -558,15 +600,15 @@ export function Cart() {
               </span>
             </div>
 
-            <button className="checkout__cta" onClick={review ? confirmPurchase : checkout} disabled={working}>
+            <button
+              className="checkout__cta"
+              onClick={() => void (review ? confirmPurchase() : checkout())}
+              disabled={working}
+            >
               {working ? t('cart.working') : review ? t('marketCheckout.confirmPurchase') : t('assetCard.buyNow')}
             </button>
 
-            {review ? (
-              <p className="muted checkout__msg">
-                {t('cart.priceChanged')}
-              </p>
-            ) : null}
+            {review ? <p className="muted checkout__msg">{t('cart.priceChanged')}</p> : null}
             {notice ? <p className="muted checkout__msg">{notice}</p> : null}
             {status ? <p className="muted checkout__msg">{status}</p> : null}
             <ErrorNotice message={error} className="checkout__msg" />
@@ -582,7 +624,7 @@ export function Cart() {
 
       {modal ? (
         <CartCheckoutModal
-          phase={modal.phase as CheckoutPhase}
+          phase={modal.phase}
           balanceCredits={balanceCredits}
           onClose={closeModal}
           step={modal.phase === 'processing' ? modal.step : undefined}
@@ -592,7 +634,7 @@ export function Cart() {
           packs={OFFER_PACKS}
           selectedPack={selectedPack}
           onSelectPack={setSelectedPack}
-          onBuyPacks={buyCreditsAndItems}
+          onBuyPacks={() => void buyCreditsAndItems()}
           purchased={modal.phase === 'complete' ? modal.purchased : undefined}
           onMyAssets={() => navigate('/assets?tab=mine')}
           onTryInWorld={() => window.open(JUMP_URL, '_blank', 'noopener')}

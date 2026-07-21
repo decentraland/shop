@@ -19,7 +19,7 @@ describe('list an owned item (secondary)', () => {
     // Open the sell modal from the owned card…
     expect(await clickByText(page, 'button', /put on sale/i)).toBe(true)
     // …then confirm the listing in the modal.
-    await clickWhenEnabled(page, '.modal button', /put on sale/i)
+    await clickWhenEnabled(page, '[data-testid="modal"] button', /put on sale/i)
 
     await waitForText(page, 'on sale!')
     expect(await page.evaluate(() => /on sale!/i.test(document.body.innerText))).toBe(true)

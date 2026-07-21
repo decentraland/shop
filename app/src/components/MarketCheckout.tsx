@@ -14,9 +14,16 @@ import { buyWithCredits } from '~/lib/buy'
 import { buyGasless, waitForSettlement, GaslessUnavailableError, SettlementPendingError } from '~/lib/buy-gasless'
 import { gaslessEnabled } from '~/lib/gasless-config'
 import { isOwnTrade } from '~/lib/ownership'
+import { Button } from '~/components/Button'
 import { t } from '~/intl/i18n'
 import { isRejection } from '~/lib/errors'
 import { ErrorNotice } from '~/components/ErrorNotice'
+import styled from '@emotion/styled'
+
+// The two modal-footer buttons split the row evenly (was `.mkt-modal__actions .btn { flex: 1 }`).
+const ActionBtn = styled(Button)`
+  flex: 1;
+`
 
 // Market-specific mapping: keeps the "…Refreshing the market…" sold-out copy (the market view
 // refetches live prices on this failure), so it maps locally rather than via the shared soldOrRemoved.
@@ -259,7 +266,12 @@ export function MarketCheckout({
   const busy = phase === 'working'
 
   return (
-    <div className="mkt-modal" role="dialog" aria-modal="true" aria-label={t('buyModal.dialogAria', { name: listing.name })}>
+    <div
+      className="mkt-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-label={t('buyModal.dialogAria', { name: listing.name })}
+    >
       <div className="mkt-modal__scrim" onClick={busy ? undefined : cancel} aria-hidden />
       <div className="mkt-modal__card">
         <div className="mkt-modal__head">
@@ -301,7 +313,8 @@ export function MarketCheckout({
 
         {session ? (
           <div className="mkt-modal__balance muted">
-            {t('marketCheckout.yourBalance')} <CurrencyIcon className="ccy-mark" /> {balanceLabel(balance, balanceError)}
+            {t('marketCheckout.yourBalance')} <CurrencyIcon className="ccy-mark" />{' '}
+            {balanceLabel(balance, balanceError)}
           </div>
         ) : null}
         {needsMoreCredits ? (
@@ -311,12 +324,16 @@ export function MarketCheckout({
         <ErrorNotice message={error} className="mkt-modal__note" />
 
         <div className="mkt-modal__actions">
-          <button className="btn btn--ghost" onClick={cancel} disabled={busy}>
+          <ActionBtn variant="ghost" onClick={cancel} disabled={busy}>
             {t('buyModal.cancel')}
-          </button>
-          <button className="btn btn--purple" onClick={() => void confirm()} disabled={busy || !locked}>
-            {busy ? t('marketCheckout.buying') : needsMoreCredits ? t('nav.getCredits', { currency: CURRENCY.name }) : t('marketCheckout.confirmPurchase')}
-          </button>
+          </ActionBtn>
+          <ActionBtn variant="purple" onClick={() => void confirm()} disabled={busy || !locked}>
+            {busy
+              ? t('marketCheckout.buying')
+              : needsMoreCredits
+                ? t('nav.getCredits', { currency: CURRENCY.name })
+                : t('marketCheckout.confirmPurchase')}
+          </ActionBtn>
         </div>
       </div>
     </div>

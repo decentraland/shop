@@ -49,7 +49,7 @@ export function CollectionCard({ collection, cover, itemCount }: CollectionCardP
     >
       <div className="coll-card__media">
         {cover ? (
-          <img className="coll-card__img" src={cover} alt="" loading="lazy" />
+          <img className="coll-card__img" data-testid="coll-card-img" src={cover} alt="" loading="lazy" />
         ) : mosaic.length > 0 ? (
           <CollectionMosaic items={mosaic} className="coll-card__cover" />
         ) : null}

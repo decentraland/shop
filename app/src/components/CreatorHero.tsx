@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { Icon, type IconName } from '~/components/Icon'
 import { config } from '~/config'
 import defaultCover from '~/assets/creator-covers/default-cover.jpeg'
 import { useProfile } from '~/hooks/useProfile'
@@ -11,11 +12,11 @@ import { shortAddress } from '~/lib/address'
 import { t } from '~/intl/i18n'
 import './creator-hero.css'
 
-const LINK_ICON: Record<LinkType, string> = {
-  website: 'ico-website',
-  twitter: 'ico-twitter',
-  discord: 'ico-discord',
-  facebook: 'ico-facebook'
+const LINK_ICON: Record<LinkType, IconName> = {
+  website: 'website',
+  twitter: 'twitter',
+  discord: 'discord',
+  facebook: 'facebook'
 }
 
 export function CreatorHero({ address }: { address: string }) {
@@ -58,13 +59,14 @@ export function CreatorHero({ address }: { address: string }) {
             <a
               key={type}
               className="creator-hero__link"
+              data-testid="creator-hero-link"
               href={store?.links[type] ?? ''}
               target="_blank"
               rel="noopener noreferrer"
               title={t(`creator.link.${type}`)}
               aria-label={t(`creator.link.${type}`)}
             >
-              <span className={`ico ${LINK_ICON[type]}`} aria-hidden />
+              <Icon name={LINK_ICON[type]} />
             </a>
           ))}
           {isOwner && (
@@ -74,7 +76,7 @@ export function CreatorHero({ address }: { address: string }) {
               title={t('creator.editStore')}
               aria-label={t('creator.editStore')}
             >
-              <span className="ico ico-pen" aria-hidden />
+              <Icon name="pen" />
             </Link>
           )}
         </div>
@@ -91,7 +93,13 @@ export function CreatorHero({ address }: { address: string }) {
           {description ? <p className="creator-hero__desc">{description}</p> : null}
         </div>
         <div className="creator-hero__actions">
-          <a className="creator-hero__view" href={profileUrl} target="_blank" rel="noopener noreferrer">
+          <a
+            className="creator-hero__view"
+            data-testid="creator-hero-view"
+            href={profileUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
             {t('creator.viewProfile')}
           </a>
           <FollowButton address={address} className="creator-hero__follow" />

@@ -17,17 +17,24 @@ const session = {
   signer: {} as never,
   web3Provider: {} as never,
   identity: {} as never,
-  providerType: 'injected' as never,
+  providerType: 'injected' as never
 }
 
 const signIn = vi.fn()
 let currentSession: typeof session | null = session
 vi.mock('~/store/wallet', () => ({
-  useWallet: () => ({ session: currentSession, connecting: false, error: null, signIn, restore: vi.fn(), disconnect: vi.fn() }),
+  useWallet: () => ({
+    session: currentSession,
+    connecting: false,
+    error: null,
+    signIn,
+    restore: vi.fn(),
+    disconnect: vi.fn()
+  })
 }))
 
 vi.mock('decentraland-ui2', () => ({
-  CircularProgress: ({ size }: { size?: number }) => <span role="progressbar" data-size={size} />,
+  CircularProgress: ({ size }: { size?: number }) => <span role="progressbar" data-size={size} />
 }))
 
 // Real mode + controllable payment seam. isMockPayments returns false so CREDITS_PROVIDER = 'stripe'
@@ -40,8 +47,8 @@ const { isMockPayments, createPackCheckout, pollCreditGrant, CREDIT_PACKS } = vi
     { id: 'pack_5', usd: 5, credits: 50 },
     { id: 'pack_10', usd: 10, credits: 100 },
     { id: 'pack_25', usd: 25, credits: 250, bestValue: true },
-    { id: 'pack_50', usd: 50, credits: 500 },
-  ],
+    { id: 'pack_50', usd: 50, credits: 500 }
+  ]
 }))
 vi.mock('~/lib/payments', () => ({ isMockPayments, createPackCheckout, pollCreditGrant, CREDIT_PACKS }))
 
@@ -51,7 +58,6 @@ vi.mock('~/lib/analytics', () => ({ track, errorCode }))
 const { captureError } = vi.hoisted(() => ({ captureError: vi.fn() }))
 vi.mock('~/lib/monitoring', () => ({ captureError }))
 
-// eslint-disable-next-line import/first
 import { GetCredits } from '~/pages/GetCredits'
 
 // Surfaces the current router search string so idempotency tests can assert `?order=` was stripped.
@@ -221,7 +227,7 @@ describe('when starting a real hosted checkout from a pack click', () => {
     createPackCheckout.mockResolvedValue({
       orderId: 'ord_new',
       url: 'https://checkout.stripe.com/c/pay/cs_test_123',
-      mock: false,
+      mock: false
     })
 
     renderPage('/')

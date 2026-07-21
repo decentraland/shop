@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useProfile } from '~/hooks/useProfile'
 import { capitalizeFirst } from '~/lib/text'
 import { t } from '~/intl/i18n'
+import * as S from './badge.styles'
 
 // Show a creator/seller by their DCL profile (avatar + name), falling back to a short address.
 // Uses the shared useProfile query so many cards with the same creator dedupe to one fetch.
@@ -20,8 +21,6 @@ function colorForAddress(addr: string): string {
   return `hsl(${hash % 360}, 52%, 45%)`
 }
 
-// The letter shown in the fallback avatar: the profile name's initial, else the first character of the
-// address (skipping the 0x prefix). Always uppercase.
 function initialFor(name: string | undefined, address: string): string {
   return (name?.trim()?.[0] || address.replace(/^0x/i, '')[0] || '?').toUpperCase()
 }
@@ -30,61 +29,67 @@ export function CreatorBadge({
   address,
   className,
   linkToProfile,
-  hidePrefix,
+  hidePrefix
 }: {
   address?: string
   className?: string
   linkToProfile?: boolean
-  /** Drop the "By " prefix (the PDP shows the bare creator name — see Figma 1052-151285). */
+  /** Drop the "By " prefix (the PDP shows the bare creator name). */
   hidePrefix?: boolean
 }) {
   const navigate = useNavigate()
   const { data } = useProfile(address)
   const face = data?.avatar?.snapshots?.face256
   // Some profiles have no face snapshot, or one whose URL 404s (not deployed) — in both cases fall back
-  // to a lettered avatar instead of a broken image. `broken` tracks a failed load; reset it when the
-  // face url changes because list rows reuse component instances across different creators.
+  // to a lettered avatar instead of a broken image. `broken` resets when the face url changes because
+  // list rows reuse component instances across different creators.
   const [broken, setBroken] = useState(false)
   useEffect(() => setBroken(false), [face])
 
   if (!address) return null
-  // Capitalise the first letter of the display name ("bondi" → "Bondi"); leave a raw address as-is.
   const name = data?.name ? capitalizeFirst(data.name) : shortAddress(address)
   const showImage = !!face && !broken
   const ava = showImage ? (
-    <img className="creator__ava" src={face} alt="" loading="lazy" onError={() => setBroken(true)} />
+    <S.AvaImg data-avatar data-testid="creator-ava" src={face} alt="" loading="lazy" onError={() => setBroken(true)} />
   ) : (
-    <span
-      className="creator__ava creator__ava--letter"
+    <S.Ava
+      data-avatar
+      data-letter
+      data-testid="creator-ava-letter"
       style={{ backgroundColor: colorForAddress(address) }}
       aria-hidden
     >
       {initialFor(data?.name, address)}
-    </span>
+    </S.Ava>
   )
   const inner = (
     <>
       {ava}
-      <span className="creator__name">
-        {/* Reuse the shared "By {name}" message for the prefix; the name keeps its own styled span
-            (creator__display), so we render the prefix with an empty name and the name separately. */}
+      <S.Name data-testid="creator-name">
         {hidePrefix ? null : t('search.byCreator', { name: '' })}
-        <span className="creator__display">{name}</span>
-      </span>
+        <S.Display data-testid="creator-display">{name}</S.Display>
+      </S.Name>
     </>
   )
   if (linkToProfile) {
     return (
-      <button
-        className={`creator creator--link${className ? ` ${className}` : ''}`}
+      <S.Root
+        as="button"
+        data-link
+        className={className}
+        data-testid="creator"
         onClick={e => {
           e.stopPropagation()
           navigate(`/assets/creator/${address}`)
         }}
       >
         {inner}
-      </button>
+      </S.Root>
     )
   }
-  return <span className={`creator${className ? ` ${className}` : ''}`}>{inner}</span>
+  return (
+    <S.Root className={className} data-testid="creator">
+      {inner}
+    </S.Root>
+  )
 }

@@ -11,6 +11,7 @@ import { captureError } from '~/lib/monitoring'
 import { t } from '~/intl/i18n'
 import { RESUME_BUY_KEY } from '~/lib/resume-buy'
 import { RESUME_CART_KEY } from '~/lib/cart-checkout'
+import type { CatalogItem } from '~/lib/api'
 import packChips from '~/assets/credits/pack-chips.webp'
 import creditCoin from '~/assets/credits/credit-coin.webp'
 import checkCircle from '~/assets/credits/check-circle.svg'
@@ -121,11 +122,11 @@ export function GetCredits() {
             const pending = sessionStorage.getItem(RESUME_BUY_KEY)
             if (pending) {
               sessionStorage.removeItem(RESUME_BUY_KEY)
-              const pendingItem = JSON.parse(pending)
-              const seg = pendingItem?.tokenId ?? pendingItem?.itemId
-              if (pendingItem?.contractAddress && seg) {
+              const pendingItem = JSON.parse(pending) as CatalogItem
+              const seg = pendingItem.tokenId ?? pendingItem.itemId
+              if (pendingItem.contractAddress && seg) {
                 navigate(`/item/${pendingItem.contractAddress}/${seg}`, {
-                  state: { item: pendingItem, resumeBuy: true },
+                  state: { item: pendingItem, resumeBuy: true }
                 })
                 return
               }
@@ -254,8 +255,20 @@ export function GetCredits() {
             <a className="getcredits__learn" href={LEARN_MORE_URL} target="_blank" rel="noreferrer">
               {t('getCredits.learnMore')}
               <svg className="getcredits__learn-ico" viewBox="0 0 13 13" aria-hidden fill="none">
-                <path d="M4 2h7v7" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M11 2 2 11" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                <path
+                  d="M4 2h7v7"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M11 2 2 11"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
               </svg>
             </a>
           </p>
@@ -372,6 +385,7 @@ function PackGrid({ onSelect }: { onSelect: (pack: CreditPack) => void }) {
           key={pack.id}
           type="button"
           className={`pack${pack.bestValue ? ' pack--best' : ''}`}
+          data-testid="pack"
           onClick={() => onSelect(pack)}
           aria-label={t('getCredits.packAria', { amount: formatAmount(pack.credits), usd: pack.usd })}
         >

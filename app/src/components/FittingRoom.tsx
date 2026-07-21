@@ -11,11 +11,28 @@ import { CURRENCY } from '~/lib/currency'
 import { track } from '~/lib/analytics'
 import { isWearable, slotOf, slotRegion, defaultWorn, toggleWorn, conflictingIds, wornUrns } from '~/lib/outfit'
 import { avatarShape, dominantShape, itemShapes, shapeLabel, isCompatible, BASE_MALE } from '~/lib/bodyShape'
+import { Button } from '~/components/Button'
+import { Icon, type IconName } from '~/components/Icon'
+import type { SlotRegion } from '~/lib/outfit'
+import styled from '@emotion/styled'
 import { t } from '~/intl/i18n'
 
 // Lazy so the WebGL backdrop (+ its shader and pattern texture) only loads when the room opens —
 // it never touches the main bundle.
 const AnimatedBackground = lazy(() => import('~/components/AnimatedBackground/AnimatedBackground'))
+
+const CheckoutBtn = styled(Button)`
+  flex: none;
+`
+
+const SLOT_ICON: Record<SlotRegion, IconName> = {
+  head: 'slot-head',
+  upper: 'slot-upper',
+  lower: 'slot-lower',
+  feet: 'slot-feet',
+  hands: 'slot-hands',
+  item: 'slot-item'
+}
 
 // Turn a wearable sub-category into a human label ("upper_body" → "Upper body").
 function slotLabel(slot: string | null): string {
@@ -170,6 +187,7 @@ export function FittingRoom() {
               return (
                 <div
                   className={`fitting-row${on ? ' is-on' : ''}${incompatible ? ' is-incompatible' : ''}`}
+                  data-testid="fitting-row"
                   key={item.id}
                 >
                   <label className="fitting-row__toggle">
@@ -189,8 +207,10 @@ export function FittingRoom() {
                       {item.name}
                     </div>
                     <div className="fitting-row__meta">
-                      <span
-                        className={`ico ico-slot-${wearable ? slotRegion(item) : 'item'} fitting-row__slot-ico`}
+                      <Icon
+                        name={SLOT_ICON[wearable ? slotRegion(item) : 'item']}
+                        size={16}
+                        color="var(--muted)"
                         title={wearable ? slotLabel(slotOf(item)) : t('fittingRoom.emote')}
                         role="img"
                         aria-label={wearable ? slotLabel(slotOf(item)) : t('fittingRoom.emote')}
@@ -220,7 +240,7 @@ export function FittingRoom() {
                     aria-label={t('fittingRoom.removeFromCart', { name: item.name })}
                     title={t('fittingRoom.remove')}
                   >
-                    <span className="ico ico-trash" aria-hidden />
+                    <Icon name="trash" size={18} />
                   </button>
                 </div>
               )
@@ -234,15 +254,15 @@ export function FittingRoom() {
                 {CURRENCY.symbol} {total}
               </strong>
             </div>
-            <button
-              className="btn btn--purple fitting__checkout"
+            <CheckoutBtn
+              variant="purple"
               onClick={() => {
                 setOpen(false)
                 navigate('/cart')
               }}
             >
               {t('fittingRoom.checkout')}
-            </button>
+            </CheckoutBtn>
           </div>
         </div>
       </div>

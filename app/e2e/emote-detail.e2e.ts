@@ -50,24 +50,25 @@ describe('view an emote item detail page', () => {
 
     // The emote-only controls region (which hosts the ui2 EmoteControls) mounted successfully — i.e.
     // the theme.spacing()-dependent styled components rendered instead of throwing.
-    await page.waitForSelector('.item-preview__emote-controls', { timeout: 20000 })
-    const hasControls = await page.$('.item-preview__emote-controls')
+    await page.waitForSelector('[data-testid="emote-controls"]', { timeout: 20000 })
+    const hasControls = await page.$('[data-testid="emote-controls"]')
     expect(hasControls).not.toBeNull()
 
     // The playback bar reads as a proper bar (not the collapsed empty pill the ui2 default produced):
-    // its play/pause button and scrub slider are present.
-    await page.waitForSelector('.item-preview__emote-controls .MuiButtonBase-root', { timeout: 20000 })
-    const playButton = await page.$('.item-preview__emote-controls .MuiButtonBase-root')
+    // its play/pause button and scrub slider are present. The button/slider are rendered by the ui2
+    // EmoteControls, so target them by tag/type under our testid'd container (no class selectors).
+    await page.waitForSelector('[data-testid="emote-controls"] button', { timeout: 20000 })
+    const playButton = await page.$('[data-testid="emote-controls"] button')
     expect(playButton).not.toBeNull()
-    const scrubber = await page.$(".item-preview__emote-controls input[type='range']")
+    const scrubber = await page.$('[data-testid="emote-controls"] input[type="range"]')
     expect(scrubber).not.toBeNull()
 
     // The bar sits at the bottom of the preview, stays within it horizontally, and has real width —
     // proving the ui2 container's position:absolute overlay layout was neutralized (a collapsed bar
     // would be a near-zero-width empty pill). Loose bounds only; no exact-pixel assertions.
     const layout = await page.evaluate(() => {
-      const preview = document.querySelector('.item-detail__preview') as HTMLElement
-      const bar = document.querySelector('.item-preview__emote-controls') as HTMLElement
+      const preview = document.querySelector('[data-testid="item-preview"]') as HTMLElement
+      const bar = document.querySelector('[data-testid="emote-controls"]') as HTMLElement
       const p = preview.getBoundingClientRect()
       const b = bar.getBoundingClientRect()
       return {

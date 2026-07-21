@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Button } from '~/components/Button'
 import type { Session } from '~/lib/auth'
 import { importListing, RelistFailedError, type ImportItem } from '~/lib/import'
 import { CURRENCY } from '~/lib/currency'
@@ -99,9 +100,7 @@ export function MigrateModal({
           <div className="modal-success__check" aria-hidden>
             ✓
           </div>
-          <h2 className="modal__title">
-            {listedCount > 0 ? t('migrate.successTitle') : t('migrate.nothingTitle')}
-          </h2>
+          <h2 className="modal__title">{listedCount > 0 ? t('migrate.successTitle') : t('migrate.nothingTitle')}</h2>
           <p className="muted" style={{ margin: 0 }}>
             {listedCount > 0
               ? t('migrate.listedSummary', { count: listedCount, currency: CURRENCY.name })
@@ -110,12 +109,12 @@ export function MigrateModal({
             {unlisted > 0 ? ' ' + t('migrate.unlistedSummary', { count: unlisted }) : ''}
           </p>
           <div className="modal__actions">
-            <button className="btn btn--ghost" onClick={finish}>
+            <Button variant="ghost" onClick={finish}>
               {t('getCredits.done')}
-            </button>
+            </Button>
             {unlisted > 0 ? (
-              <button
-                className="btn btn--purple"
+              <Button
+                variant="purple"
                 onClick={() => {
                   onDone()
                   onClose()
@@ -123,10 +122,10 @@ export function MigrateModal({
                 }}
               >
                 {t('migrate.goToMyAssets')}
-              </button>
+              </Button>
             ) : listedCount > 0 ? (
-              <button
-                className="btn btn--purple"
+              <Button
+                variant="purple"
                 onClick={() => {
                   onDone()
                   onClose()
@@ -134,7 +133,7 @@ export function MigrateModal({
                 }}
               >
                 {t('migrate.viewInShop')}
-              </button>
+              </Button>
             ) : null}
           </div>
         </div>
@@ -144,7 +143,7 @@ export function MigrateModal({
 
   return (
     <div className="modal-backdrop" role="presentation">
-      <div className="modal migrate" role="dialog" aria-modal="true" aria-live="polite">
+      <div className="modal migrate" data-testid="modal" role="dialog" aria-modal="true" aria-live="polite">
         <h2 className="modal__title">{t('migrate.listingTitle')}</h2>
         <p className="muted small" style={{ margin: '0 0 4px' }}>
           {showsConfirmations ? t('migrate.subConfirm') : t('migrate.subManaged')}{' '}

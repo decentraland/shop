@@ -52,13 +52,6 @@
   line-height: 1.235;
   text-transform: uppercase;
 }
-/* Figma hero CTA: amethyst gradient, 40px tall (reuses .btn.btn--purple, trimmed to the 40px spec). */
-.ov-hero__cta {
-  height: 40px;
-  padding: 0 16px;
-  display: inline-flex;
-  align-items: center;
-}
 @media (max-width: 768px) {
   .ov-hero {
     aspect-ratio: auto;
@@ -144,9 +137,21 @@
   padding: 12px 0;
   margin: 0;
 }
-@media (max-width: 1200px) { .overview .row__track { grid-auto-columns: calc((100% - 48px) / 4); } }
-@media (max-width: 900px)  { .overview .row__track { grid-auto-columns: calc((100% - 32px) / 3); } }
-@media (max-width: 720px)  { .overview .row__track { grid-auto-columns: calc((100% - 16px) / 2); } }
+@media (max-width: 1200px) {
+  .overview .row__track {
+    grid-auto-columns: calc((100% - 48px) / 4);
+  }
+}
+@media (max-width: 900px) {
+  .overview .row__track {
+    grid-auto-columns: calc((100% - 32px) / 3);
+  }
+}
+@media (max-width: 720px) {
+  .overview .row__track {
+    grid-auto-columns: calc((100% - 16px) / 2);
+  }
+}
 
 /* Side arrows (Figma "Slider Arrows" — node 913:135587 / 913:135609). A ~53px white circle (80%
    opacity, white ring) with a bold black chevron; the SVG (carousel-arrow.svg) is the exact Figma
@@ -362,15 +367,15 @@
 .ov-creators__creator {
   font-size: 16px;
 }
-.ov-creators__creator .creator__ava {
+.ov-creators__creator [data-avatar] {
   width: 32px;
   height: 32px;
 }
-.ov-creators__creator .creator__name {
+.ov-creators__creator [data-testid="creator-name"] {
   color: var(--accent);
   font-weight: 600;
 }
-.ov-creators__creator.creator--link:hover .creator__name {
+.ov-creators__creator[data-link]:hover [data-testid="creator-name"] {
   color: var(--accent);
 }
 

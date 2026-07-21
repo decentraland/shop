@@ -33,6 +33,7 @@ export type Fixtures = {
   authorize: unknown
   trade: unknown
   userStore: unknown
+  purchases: unknown
 }
 
 function defaults(): Fixtures {
@@ -63,7 +64,8 @@ function defaults(): Fixtures {
       usdCents: 2700,
       oracleRate: '26960836'
     },
-    trade: null
+    trade: null,
+    purchases: { purchases: [] }
   }
 }
 
@@ -87,8 +89,8 @@ function creditsWithTopup(F: Fixtures): unknown {
     ...base,
     usd: {
       balanceCents: (usd.balanceCents ?? 0) + mintedCents,
-      credits: (usd.credits ?? 0) + Math.round(mintedCents / 10),
-    },
+      credits: (usd.credits ?? 0) + Math.round(mintedCents / 10)
+    }
   }
 }
 
@@ -172,7 +174,7 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
   // credits-server (:3000)
   if (u.port === '3000') {
     if (/\/users\/.+\/credits$/.test(path)) return json(req, creditsWithTopup(F))
-    if (/\/users\/.+\/purchases$/.test(path)) return json(req, { purchases: [] })
+    if (/\/users\/.+\/purchases$/.test(path)) return json(req, F.purchases)
     if (path === '/credits/authorize') return json(req, F.authorize)
     if (path === '/credits/authorize/cancel') return json(req, { released: 0 })
     if (path === '/dev/mint-usd') {

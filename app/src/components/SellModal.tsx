@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
+import { Button } from '~/components/Button'
 import { Network } from '@dcl/schemas'
 import type { Session } from '~/lib/auth'
 import type { MyAsset } from '~/lib/api'
@@ -102,12 +103,12 @@ export function SellModal({ asset, session, onClose }: { asset: MyAsset; session
             </strong>
           </p>
           <div className="modal__actions">
-            <button className="btn btn--ghost" onClick={onClose}>
+            <Button variant="ghost" onClick={onClose}>
               {t('getCredits.done')}
-            </button>
-            <button className="btn btn--purple" onClick={viewInShop}>
+            </Button>
+            <Button variant="purple" onClick={viewInShop}>
               {t('sellModal.viewInShop')}
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -116,7 +117,7 @@ export function SellModal({ asset, session, onClose }: { asset: MyAsset; session
 
   return (
     <div className="modal-backdrop" onClick={onClose} role="presentation">
-      <div className="modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
+      <div className="modal" data-testid="modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
         <h2 className="modal__title">{t('sellModal.listTitle', { name: asset.name })}</h2>
         {asset.image ? <img className="modal__img" src={asset.image} alt={asset.name} /> : null}
 
@@ -139,12 +140,12 @@ export function SellModal({ asset, session, onClose }: { asset: MyAsset; session
         <ErrorNotice message={error} />
 
         <div className="modal__actions">
-          <button className="btn btn--ghost" onClick={onClose} disabled={busy}>
+          <Button variant="ghost" onClick={onClose} disabled={busy}>
             {t('sellModal.cancel')}
-          </button>
-          <button className="btn" onClick={() => void list()} disabled={busy}>
+          </Button>
+          <Button onClick={() => void list()} disabled={busy}>
             {busy ? t('sellModal.listing') : t('sellModal.putOnSale')}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

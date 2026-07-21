@@ -1,10 +1,17 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Icon } from '~/components/Icon'
 import { useFavorites } from '~/store/favorites'
 import { AssetCard } from '~/components/AssetCard'
 import { LoadMore } from '~/components/LoadMore'
+import { Button } from '~/components/Button'
 import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
+import styled from '@emotion/styled'
+
+const EmptyCta = styled(Button)`
+  margin-top: 12px;
+`
 
 // Favorites live client-side (instant, no async → no skeleton needed); page them so a long list
 // doesn't render hundreds of cards at once.
@@ -18,12 +25,12 @@ export function MyFavorites() {
   if (items.length === 0) {
     return (
       <div className="favorites-empty">
-        <span className="ico ico-heart favorites-empty__ico" aria-hidden />
+        <Icon name="heart" size={40} color="var(--muted-2)" />
         <p className="favorites-empty__title">{t('myFavorites.emptyTitle')}</p>
         <p className="muted">{t('myFavorites.emptyBody')}</p>
-        <Link className="btn btn--purple" to="/assets">
+        <EmptyCta as={Link} to="/assets" variant="purple">
           {t('notFound.cta')}
-        </Link>
+        </EmptyCta>
       </div>
     )
   }

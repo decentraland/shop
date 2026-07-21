@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
+import { Icon } from '~/components/Icon'
 import { useCart } from '~/store/cart'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { CreatorBadge } from '~/components/CreatorBadge'
@@ -14,13 +15,7 @@ function CheckCircle() {
   return (
     <svg viewBox="0 0 20 20" fill="none" aria-hidden focusable="false">
       <circle cx="10" cy="10" r="10" fill="#1ea672" />
-      <path
-        d="M5.8 10.3l2.7 2.7 5.7-6"
-        stroke="#fff"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+      <path d="M5.8 10.3l2.7 2.7 5.7-6" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
 }
@@ -74,7 +69,7 @@ function CartRow({ item, onRemove }: { item: CatalogItem; onRemove: (id: string)
         aria-label={t('cartPopover.removeItem', { name: item.name })}
         title={t('cartPopover.remove')}
       >
-        <span className="ico ico-trash" aria-hidden />
+        <Icon name="trash" />
       </button>
     </li>
   )

@@ -38,7 +38,7 @@ describe('store settings', () => {
     await waitForText(page, 'Store settings')
 
     // Pick the first cover template so the deploy uploads a cover file.
-    await page.click('.cover-picker__tile')
+    await page.click('[data-testid="cover-picker-tile"]')
     // Type a description (React-controlled input needs the native setter + input event).
     await page.evaluate(() => {
       const ta = document.querySelector('textarea') as HTMLTextAreaElement
@@ -48,7 +48,7 @@ describe('store settings', () => {
     })
 
     // Save is enabled once the form is dirty and valid.
-    const btn = '.store-settings__actions .btn'
+    const btn = '[data-testid="store-settings-save"]'
     await page.waitForFunction(
       (sel: string) => !(document.querySelector(sel) as HTMLButtonElement)?.disabled,
       { timeout: 5000 },
@@ -85,12 +85,15 @@ describe('store settings', () => {
 
     // Wait for the async template-hash resolution to settle, then count selected tiles. Exactly one
     // tile is selected and there is no custom tile — proving the template matched by hash.
-    await page.waitForFunction(() => document.querySelectorAll('.cover-picker__tile.is-selected').length === 1, {
-      timeout: 5000
-    })
+    await page.waitForFunction(
+      () => document.querySelectorAll('[data-testid="cover-picker-tile"][data-selected="true"]').length === 1,
+      {
+        timeout: 5000
+      }
+    )
     const counts = await page.evaluate(() => ({
-      selected: document.querySelectorAll('.cover-picker__tile.is-selected').length,
-      custom: document.querySelectorAll('.cover-picker__tile--custom').length
+      selected: document.querySelectorAll('[data-testid="cover-picker-tile"][data-selected="true"]').length,
+      custom: document.querySelectorAll('[data-testid="cover-picker-tile"][data-variant="custom"]').length
     }))
     expect(counts).toEqual({ selected: 1, custom: 0 })
   })
@@ -111,25 +114,33 @@ describe('store settings', () => {
     await waitForText(page, 'Store settings')
 
     // Upload → the custom tile appears and is selected.
-    const input = (await page.$('.cover-picker__input'))! as ElementHandle<HTMLInputElement>
+    const input = (await page.$('[data-testid="cover-picker-input"]'))! as ElementHandle<HTMLInputElement>
     await input.uploadFile(tmp)
-    await page.waitForFunction(() => !!document.querySelector('.cover-picker__tile--custom.is-selected'), {
-      timeout: 5000
-    })
+    await page.waitForFunction(
+      () => !!document.querySelector('[data-testid="cover-picker-tile"][data-variant="custom"][data-selected="true"]'),
+      {
+        timeout: 5000
+      }
+    )
 
     // Pick a template → custom tile PERSISTS (the bug was it vanished) but is no longer selected.
-    await page.click('.cover-picker__tile:not(.cover-picker__tile--custom):not(.cover-picker__upload)')
+    await page.click('[data-testid="cover-picker-tile"]:not([data-variant])')
     const afterTemplate = await page.evaluate(() => ({
-      customPresent: document.querySelectorAll('.cover-picker__tile--custom').length,
-      customSelected: !!document.querySelector('.cover-picker__tile--custom.is-selected')
+      customPresent: document.querySelectorAll('[data-testid="cover-picker-tile"][data-variant="custom"]').length,
+      customSelected: !!document.querySelector(
+        '[data-testid="cover-picker-tile"][data-variant="custom"][data-selected="true"]'
+      )
     }))
     expect(afterTemplate).toEqual({ customPresent: 1, customSelected: false })
 
     // Re-click the custom tile → it becomes selected again.
-    await page.click('.cover-picker__tile--custom')
-    await page.waitForFunction(() => !!document.querySelector('.cover-picker__tile--custom.is-selected'), {
-      timeout: 5000
-    })
+    await page.click('[data-testid="cover-picker-tile"][data-variant="custom"]')
+    await page.waitForFunction(
+      () => !!document.querySelector('[data-testid="cover-picker-tile"][data-variant="custom"][data-selected="true"]'),
+      {
+        timeout: 5000
+      }
+    )
   })
 
   it('shows a sign-in prompt when signed out', async () => {
