@@ -574,6 +574,14 @@
   line-height: 1;
   color: var(--text-2);
 }
+/* "OUT OF STOCK" beside a not-for-sale price (Figma 1182-203305): SemiBold 14 uppercase, gray-1. */
+.item-detail__stock-value--out {
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: #5e5b67;
+}
 .item-detail__price-label {
   font-size: 14px;
   font-weight: 600;

@@ -183,3 +183,48 @@ describe('AssetCard own-item MANAGE CTA', () => {
     expect(useCart.getState().items).toHaveLength(0)
   })
 })
+
+describe('AssetCard view-only mode', () => {
+  function renderView(item: CatalogItem) {
+    return render(
+      <MemoryRouter>
+        <AssetCard item={item} mode="view" />
+      </MemoryRouter>
+    )
+  }
+
+  it('shows a NOT FOR SALE tag + VIEW button and no add-to-cart when the item is not for sale', () => {
+    const { container } = renderView(makeItem({ priceCredits: 0 }))
+    expect(container.querySelector('[data-testid="card-nfs"]')?.textContent).toMatch(/not for sale/i)
+    expect(container.querySelector('[data-testid="card-view"]')?.textContent).toMatch(/view/i)
+    // View-only cards never render a trade action.
+    expect(container.querySelector('[data-testid="card-cart"]')).toBeNull()
+    expect(container.querySelector('[data-testid="card-add-round"]')).toBeNull()
+  })
+
+  it('shows the credit price (not the tag) + VIEW button for a for-sale catalog item', () => {
+    const { container } = renderView(makeItem({ priceCredits: 42 }))
+    expect(container.querySelector('[data-testid="card-nfs"]')).toBeNull()
+    expect(container.querySelector('[data-testid="card-view"]')).toBeTruthy()
+    expect(container.querySelector('.card__price')?.textContent).toContain('42')
+    expect(container.querySelector('[data-testid="card-cart"]')).toBeNull()
+  })
+
+  it('navigates to the item detail via the whole-card link, seeding the item in router state', () => {
+    const item = makeItem({ priceCredits: 0, contractAddress: '0xc', itemId: '1' })
+    const { container } = render(
+      <MemoryRouter initialEntries={['/assets']}>
+        <Routes>
+          <Route path="/assets" element={<AssetCard item={item} mode="view" />} />
+          <Route path="/item/:contractAddress/:seg" element={<LocationProbe />} />
+        </Routes>
+      </MemoryRouter>
+    )
+    const link = container.querySelector('[data-testid="card-link"]') as HTMLAnchorElement
+    expect(link.getAttribute('href')).toBe('/item/0xc/1')
+    fireEvent.click(link)
+    const state = JSON.parse(screen.getByTestId('loc-state').textContent || '{}')
+    expect(state.item?.id).toBe(item.id)
+    expect(state.market).toBeUndefined()
+  })
+})

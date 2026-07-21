@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { fetchUnified, type CatalogItem, type LegacyListing, type UnifiedListing } from '~/lib/api'
+import { fetchCatalogItems } from '~/lib/collections'
 import { manaWeiToCredits } from '~/lib/mana-rate'
 import { useManaRate } from '~/hooks/useManaRate'
 import { AssetCard } from '~/components/AssetCard'
@@ -68,7 +69,7 @@ export function Assets() {
   const [rarities, setRarities] = useState<string[]>([])
   const [priceMin, setPriceMin] = useState('')
   const [priceMax, setPriceMax] = useState('')
-  const [status, setStatus] = useState<FilterStatus>('all')
+  const [status, setStatus] = useState<FilterStatus>('on_sale')
   const [smart, setSmart] = useState(false)
   const [sort, setSort] = useState('newest')
   const [filtersOpen, setFiltersOpen] = useState(false) // mobile filters drawer
@@ -90,11 +91,18 @@ export function Assets() {
     }
   }, [filtersOpen])
 
-  // Build the server filter set — /v3/catalog/unified does the filtering + sort + search.
+  // Browse is routed by the Status filter:
+  //  • 'on_sale' (DEFAULT) → the fast unified MV (/v3/catalog/unified) — native + legacy on-sale
+  //    liquidity, with Add-to-cart / Buy-now cards.
+  //  • 'all' / 'not_for_sale' → the full catalog (/v3/catalog/items, via fetchCatalogItems) — every
+  //    item incl. those not for sale, rendered as VIEW-only cards (no inline trade). 'not_for_sale'
+  //    passes isOnSale:false; 'all' leaves it unset (both).
+  const isUnified = status === 'on_sale'
   const min = priceMin && !Number.isNaN(Number(priceMin)) ? Number(priceMin) : undefined
   const max = priceMax && !Number.isNaN(Number(priceMax)) ? Number(priceMax) : undefined
   const wearableCategories = subCategory ? SUBCAT_MAP[subCategory] : undefined
   const sortBy = (SORTS.find(s => s.key === sort) ?? SORTS[0]).server
+  // Unified (on-sale) grid filter set — /v3/catalog/unified does the filtering + sort + search.
   const filters = {
     category,
     rarities: rarities.length ? rarities : undefined,
@@ -104,13 +112,28 @@ export function Assets() {
     search: q || undefined,
     sortBy,
     isSmart: smart || undefined,
-    onSale: status === 'all' ? undefined : status === 'on_sale'
+    onSale: true
+  }
+  // Full-catalog (all / not-for-sale) filter set. Same category/rarity/sub-category/search/sort/smart,
+  // minus the credit price-range (see fetchCatalogItems — that endpoint's range is MANA-denominated).
+  const catalogFilters = {
+    category,
+    rarities: rarities.length ? rarities : undefined,
+    wearableCategories,
+    search: q || undefined,
+    sortBy,
+    isWearableSmart: smart || undefined,
+    isOnSale: status === 'not_for_sale' ? false : undefined
   }
 
-  const { items, total, isLoading, error, hasNextPage, isFetchingNextPage, fetchNextPage } = useInfiniteGrid(
-    ['unified-listings', filters],
-    skip => fetchUnified({ ...filters, first: PAGE_SIZE, skip })
-  )
+  const { items, total, isLoading, error, hasNextPage, isFetchingNextPage, fetchNextPage } =
+    useInfiniteGrid<CatalogItem>(
+      isUnified ? ['unified-listings', filters] : ['catalog-items', catalogFilters],
+      skip =>
+        isUnified
+          ? fetchUnified({ ...filters, first: PAGE_SIZE, skip })
+          : fetchCatalogItems({ ...catalogFilters, first: PAGE_SIZE, skip })
+    )
   const resultCount = total
 
   // The live market rate powers the legacy cards' fluctuating "≈" credit prices. If the oracle is
@@ -167,11 +190,11 @@ export function Assets() {
     setRarities([])
     setPriceMin('')
     setPriceMax('')
-    setStatus('all')
+    setStatus('on_sale')
     setSmart(false)
   }
   function openCheckout(card: CatalogItem) {
-    const item = items.find(i => i.id === card.id)
+    const item = items.find(i => i.id === card.id) as UnifiedListing | undefined
     if (item && item.source === 'legacy' && item.manaWei) setCheckout(toLegacyListing(item))
   }
   function refreshGrid() {
@@ -194,11 +217,11 @@ export function Assets() {
     if (rarities.includes(r))
       chips.push({ key: `rarity-${r}`, label: capitalizeFirst(r), onRemove: () => toggleRarity(r) })
   if (smart) chips.push({ key: 'smart', label: t('filter.smart'), onRemove: () => setSmart(false) })
-  if (status !== 'all')
+  if (status !== 'on_sale')
     chips.push({
       key: 'status',
-      label: status === 'on_sale' ? t('filter.onSale') : t('filter.notForSale'),
-      onRemove: () => setStatus('all')
+      label: status === 'all' ? t('filter.statusAll') : t('filter.notForSale'),
+      onRemove: () => setStatus('on_sale')
     })
 
   return (
@@ -255,7 +278,7 @@ export function Assets() {
         {/* Legacy (market-priced) cards follow the live rate; if the oracle is down, Buy Now is paused.
             Only warn when the current results actually contain a market-priced item, so users browsing
             only fixed-price items aren't shown an irrelevant notice. */}
-        {rateError && items.some(i => i.source === 'legacy') ? (
+        {rateError && isUnified && items.some(i => (i as UnifiedListing).source === 'legacy') ? (
           <p className="market-banner market-banner--warn">{t('assets.marketUnavailable')}</p>
         ) : null}
 
@@ -266,19 +289,23 @@ export function Assets() {
             <SkeletonCards count={15} />
           ) : (
             <>
-              {items.map(item =>
-                item.source === 'legacy' ? (
+              {items.map(item => {
+                // View-only grids ('all' / 'not_for_sale'): every card is a VIEW card (no inline trade).
+                if (!isUnified) return <AssetCard key={item.id} item={item} mode="view" />
+                // On-sale unified grid: legacy rows → market (≈ + Buy now), native → Add-to-cart.
+                const unified = item as UnifiedListing
+                return unified.source === 'legacy' ? (
                   <AssetCard
                     key={item.id}
-                    item={item}
+                    item={unified}
                     mode="market"
-                    marketPriceCredits={priceOf(item)}
+                    marketPriceCredits={priceOf(unified)}
                     onBuyNow={openCheckout}
                   />
                 ) : (
                   <AssetCard key={item.id} item={item} />
                 )
-              )}
+              })}
               {isFetchingNextPage ? <SkeletonCards count={6} /> : null}
             </>
           )}

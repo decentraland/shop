@@ -332,6 +332,43 @@
   cursor: default;
 }
 
+/* ---------------- View-only card (browse "All" / "Not for Sale") ---------------- */
+/* "NOT FOR SALE" tag, sits where the price would be on the title row (Figma 1246-256347): tiny
+   uppercase muted label. Never shrinks/wraps, like the price it replaces. */
+.card__nfs {
+  flex-shrink: 0;
+  font-weight: 600;
+  font-size: 8px;
+  line-height: 20px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+/* Full-width dark VIEW button (Figma 1246-256347). Unlike the on-sale card's Add-to-cart it's ALWAYS
+   visible (no hover reveal) and carries no click handler — the whole-card overlay link navigates. */
+.card__view {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--black-btn);
+  color: var(--soft-white);
+  border-radius: var(--radius-btn);
+  height: 40px;
+  font-weight: 600;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.046em;
+}
+.card__view .ico {
+  width: 20px;
+  height: 20px;
+}
+
 /* ---------------- Flash sale (time-boxed discounted listing — see lib/sale.ts) ---------------- */
 /* Corner ribbon on the card image (fav sits top-right, so this anchors top-left). */
 .card__sale-badge {

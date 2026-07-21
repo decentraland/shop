@@ -26,13 +26,20 @@ const HOVER_DELAY_MS = 120
 //   an "≈" indicative price + a "Market price" chip and swaps Add-to-cart for Buy now (direct
 //   checkout — legacy items are never added to the Zustand cart). `marketPriceCredits` is the
 //   converted (rounded-up) price and `onBuyNow` opens the Buy Now checkout.
+// - 'view' (view-only browse — the "All" / "Not for Sale" grids): NO trade happens inline, so the
+//   card drops Add-to-cart/Buy-now entirely. The footer shows the credit price when the item IS for
+//   sale (priceCredits > 0) or a small "NOT FOR SALE" tag when it isn't (priceCredits === 0), plus a
+//   full-width dark VIEW button that opens the item detail (Figma 1246-256347). The whole card is the
+//   link, so the VIEW pill is a decorative affordance (aria-hidden) — no duplicate tab stop.
 type AssetCardProps =
   | { item: CatalogItem; mode?: 'shop' }
+  | { item: CatalogItem; mode: 'view' }
   | { item: CatalogItem; mode: 'market'; marketPriceCredits: number | null; onBuyNow: (item: CatalogItem) => void }
 
 export function AssetCard(props: AssetCardProps) {
   const { item } = props
   const isMarket = props.mode === 'market'
+  const isView = props.mode === 'view'
   const navigate = useNavigate()
   const timer = useRef<ReturnType<typeof setTimeout>>()
   const mediaRef = useRef<HTMLDivElement>(null)
@@ -178,6 +185,40 @@ export function AssetCard(props: AssetCardProps) {
             .card__img--hidden once that shared preview is ready. */}
       </div>
 
+      {isView ? (
+        <div className="card__body">
+          {/* View-only footer (Figma 1246-256347): name + author on the left; on the right the credit
+              price when the item is for sale, or a small "NOT FOR SALE" tag when it isn't. */}
+          <div className="card__top">
+            <div className="card__desc">
+              <div className="card__name" title={item.name}>
+                {item.name}
+              </div>
+              {item.creator ? (
+                <CreatorBadge address={item.creator} className="card__creator" linkToProfile />
+              ) : (
+                <div className="card__creator">&nbsp;</div>
+              )}
+            </div>
+            {item.priceCredits > 0 ? (
+              <div className="card__price" title={formatCreditsFull(item.priceCredits)}>
+                <CurrencyIcon className="card__diamond" />
+                {formatCredits(item.priceCredits)}
+              </div>
+            ) : (
+              <span className="card__nfs" data-testid="card-nfs">
+                {t('assetCard.notForSale')}
+              </span>
+            )}
+          </div>
+          {/* Full-width dark VIEW affordance. Decorative (aria-hidden) — the whole-card overlay link
+              above provides the accessible, keyboard-reachable navigation to the item detail. */}
+          <span className="card__view" data-testid="card-view" aria-hidden>
+            <Icon name="eye" size={20} />
+            {t('assetCard.view')}
+          </span>
+        </div>
+      ) : (
       <div className="card__body">
         {/* Title+author sit on one row with the price to their right (Figma). card__desc holds the
             flexible column (min-width:0 so a long name ellipses instead of shoving the price out or
@@ -329,6 +370,7 @@ export function AssetCard(props: AssetCardProps) {
           )}
         </div>
       </div>
+      )}
     </article>
   )
 }

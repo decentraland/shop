@@ -103,6 +103,57 @@ export async function fetchCollectionItems(
   return { items, total: total ?? skip + items.length }
 }
 
+// Browse filters for the full catalog grid (/v3/catalog/items) — the "All" and "Not for Sale" browse
+// modes (the "On Sale" mode uses the faster unified MV via fetchUnified). Mirrors the on-sale grid's
+// filter set (category, rarity, sub-category, search, sort, smart) plus `isOnSale` to split for-sale
+// from not-for-sale items. Signal: an item's server-computed priceCredits === 0 ⟺ not for sale.
+export type CatalogItemsFilters = {
+  first?: number
+  skip?: number
+  category?: string
+  rarities?: string[]
+  wearableCategories?: string[]
+  search?: string
+  sortBy?: string
+  // From the Filters "Smart" toggle → the endpoint's isWearableSmart param.
+  isWearableSmart?: boolean
+  // Listing status: true = on sale only, false = not-for-sale only, undefined = all.
+  isOnSale?: boolean
+}
+
+export async function fetchCatalogItems({
+  first = 48,
+  skip = 0,
+  category,
+  rarities,
+  wearableCategories,
+  search,
+  sortBy,
+  isWearableSmart,
+  isOnSale
+}: CatalogItemsFilters = {}): Promise<CollectionItemsPage> {
+  const qs = new URLSearchParams({
+    first: String(first),
+    skip: String(skip),
+    includeSocialEmotes: 'false'
+  })
+  if (category && category !== 'all') qs.set('category', category)
+  rarities?.forEach(r => qs.append('rarity', r))
+  wearableCategories?.forEach(c => qs.append('wearableCategory', c))
+  if (search) qs.set('search', search)
+  if (sortBy) qs.set('sortBy', sortBy)
+  if (isWearableSmart) qs.set('isWearableSmart', 'true')
+  if (isOnSale != null) qs.set('isOnSale', String(isOnSale))
+  // NOTE: the credit price-range filter is intentionally omitted here — /v3/catalog/items takes a
+  // MANA-denominated minPrice/maxPrice (not credits), so wiring the shop's credit range to it would
+  // mis-filter. Left as a follow-up (needs a credit-aware range param on the endpoint).
+  const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/items?${qs.toString()}`)
+  if (!res.ok) throw new Error(`fetchCatalogItems ${res.status}`)
+  const { data, total } = (await res.json()) as { data: RawCollectionItem[]; total?: number }
+  const items = (data ?? []).map(toCatalogItem)
+  return { items, total: total ?? skip + items.length }
+}
+
 // Every catalog item made by one creator (their storefront). Same source/shape as the collection
 // fetch, filtered by `creator`.
 export async function fetchCreatorItems(

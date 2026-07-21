@@ -32,6 +32,7 @@ import { t } from '~/intl/i18n'
 import { fetchCollectionItems, fetchCollection } from '~/lib/collections'
 import { ItemPreview } from '~/components/ItemPreview'
 import { CollectionCarousel } from '~/components/CollectionCarousel'
+import { NotifyMe } from '~/components/NotifyMe'
 import { CreatorBadge } from '~/components/CreatorBadge'
 import { Button } from '~/components/Button'
 import styled from '@emotion/styled'
@@ -491,6 +492,10 @@ export function ItemDetail() {
   // Stock (primary/mint listings only): the shop feed carries the remaining mintable supply. Secondary
   // listings (a specific token) have no stock concept, so we hide it there (see Figma 1052-151285).
   const showStock = typeof current.available === 'number' && current.available > 0 && !current.tokenId && !isMarket
+  // Primary (mint) listing whose supply is exhausted → surface "OUT OF STOCK" next to the not-for-sale
+  // price (Figma 1182-203305). Only when we actually know the remaining supply is 0 (secondary tokens
+  // and market items have no stock concept).
+  const outOfStock = !isMarket && !current.tokenId && current.available === 0
   // Both action buttons present (buyable, not managed by you): on mobile they collapse into a sticky
   // row of a wide Buy-now + a compact cart icon (see Figma 1182-194973). A market item has only Buy now.
   const dualCta = !manage && forSale && !isMarket
@@ -714,6 +719,12 @@ export function ItemDetail() {
                         {(current.available ?? 0).toLocaleString()}/{Rarity.getMaxSupply(rarity).toLocaleString()}
                       </div>
                     </div>
+                  ) : outOfStock ? (
+                    <div className="item-detail__stock-col">
+                      <div className="item-detail__stock-value item-detail__stock-value--out" data-testid="out-of-stock">
+                        {t('itemDetail.outOfStock')}
+                      </div>
+                    </div>
                   ) : null}
                 </div>
               </div>
@@ -763,27 +774,28 @@ export function ItemDetail() {
                       {t('itemDetail.ownItemSuffix')}
                     </ManageNote>
                   </ManageActions>
-                ) : (
+                ) : forSale ? (
                   <>
-                    {forSale ? (
-                      <DetailCta variant="purple" onClick={() => setShowBuy(true)} disabled={resolvingTrade}>
-                        <span className="item-detail__cta-label">{t('assetCard.buyNow')}</span>
-                        <span className="item-detail__cta-price" aria-hidden>
-                          <CurrencyIcon className="item-detail__cta-diamond" />
-                          {current.priceCredits}
-                        </span>
-                      </DetailCta>
-                    ) : null}
+                    <DetailCta variant="purple" onClick={() => setShowBuy(true)} disabled={resolvingTrade}>
+                      <span className="item-detail__cta-label">{t('assetCard.buyNow')}</span>
+                      <span className="item-detail__cta-price" aria-hidden>
+                        <CurrencyIcon className="item-detail__cta-diamond" />
+                        {current.priceCredits}
+                      </span>
+                    </DetailCta>
                     <button
                       className="item-detail__addcart"
                       onClick={handleAddToCart}
-                      disabled={!forSale || resolvingTrade || (isPrimary ? atStockCap : inCart)}
+                      disabled={resolvingTrade || (isPrimary ? atStockCap : inCart)}
                       aria-label={addLabel}
                     >
                       <Icon name="cart-solid" />
                       <span className="item-detail__addcart-label">{addLabel}</span>
                     </button>
                   </>
+                ) : (
+                  // No buyable listing → hide buy/add-cart and offer "Notify me when available".
+                  <NotifyMe item={current} />
                 )}
               </div>
             </>

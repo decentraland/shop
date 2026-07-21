@@ -47,6 +47,7 @@ export type IconName =
   | 'emote-stunt'
   | 'ethereum'
   | 'external-link'
+  | 'eye'
   | 'facebook'
   | 'filter'
   | 'fitting-room'
