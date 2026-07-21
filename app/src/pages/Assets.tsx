@@ -8,6 +8,7 @@ import { AssetCard } from '~/components/AssetCard'
 import { Filters, type FilterStatus } from '~/components/Filters'
 import { FilterBar, type FilterChip, RARITIES, SORTS } from '~/components/FilterBar'
 import { SkeletonCards } from '~/components/SkeletonCards'
+import { listingKey } from '~/lib/listingKey'
 import { LoadMore } from '~/components/LoadMore'
 import { MarketCheckout } from '~/components/MarketCheckout'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
@@ -107,11 +108,17 @@ export function Assets() {
     onSale: status === 'all' ? undefined : status === 'on_sale'
   }
 
-  const { items, total, isLoading, error, hasNextPage, isFetchingNextPage, fetchNextPage } = useInfiniteGrid(
-    ['unified-listings', filters],
-    skip => fetchUnified({ ...filters, first: PAGE_SIZE, skip })
-  )
+  const { items, total, isLoading, isPlaceholderData, error, hasNextPage, isFetchingNextPage, fetchNextPage } =
+    useInfiniteGrid(['unified-listings', filters], skip => fetchUnified({ ...filters, first: PAGE_SIZE, skip }))
   const resultCount = total
+
+  // Show skeletons both on the first load (no data yet) and while a NEW filter/search/sort set is
+  // in-flight — in that window react-query is still handing us the PREVIOUS results (keepPreviousData),
+  // so without this the grid would keep the now-stale cards on screen until the new data lands. On the
+  // filter-change case keep the skeleton count equal to the number of cards currently shown so the grid
+  // height doesn't jump; on the very first load fall back to a sensible full-ish grid.
+  const showGridSkeletons = isLoading || isPlaceholderData
+  const gridSkeletonCount = isLoading ? 15 : Math.min(Math.max(items.length, 1), PAGE_SIZE)
 
   // The live market rate powers the legacy cards' fluctuating "≈" credit prices. If the oracle is
   // stale/down we still list the items but disable Buy Now with a notice (rather than pricing off a
@@ -262,21 +269,21 @@ export function Assets() {
         {error ? <ErrorNotice message={t('assets.loadError')} testId="browse-error" /> : null}
 
         <div className="grid" data-testid="grid">
-          {isLoading ? (
-            <SkeletonCards count={15} />
+          {showGridSkeletons ? (
+            <SkeletonCards count={gridSkeletonCount} />
           ) : (
             <>
               {items.map(item =>
                 item.source === 'legacy' ? (
                   <AssetCard
-                    key={item.id}
+                    key={listingKey(item)}
                     item={item}
                     mode="market"
                     marketPriceCredits={priceOf(item)}
                     onBuyNow={openCheckout}
                   />
                 ) : (
-                  <AssetCard key={item.id} item={item} />
+                  <AssetCard key={listingKey(item)} item={item} />
                 )
               )}
               {isFetchingNextPage ? <SkeletonCards count={6} /> : null}
