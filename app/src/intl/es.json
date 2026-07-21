@@ -210,7 +210,23 @@
     "yourItem": "Tu artículo",
     "manage": "Gestionar",
     "inCart": "En el carrito",
-    "addToCart": "Agregar al carrito"
+    "addToCart": "Agregar al carrito",
+    "notForSale": "No en venta",
+    "view": "Ver"
+  },
+  "notifyMe": {
+    "label": "Avísame cuando esté disponible",
+    "placeholder": "Ingresa tu correo",
+    "cta": "Avísame",
+    "working": "Enviando…",
+    "signInCta": "Inicia sesión para recibir aviso",
+    "subscribedTitle": "Estás en la lista",
+    "subscribedBody": "Te avisaremos cuando vuelva a estar disponible.",
+    "error": "No pudimos guardarlo: inténtalo de nuevo."
+  },
+  "makeOffer": {
+    "cta": "Hacer una oferta",
+    "comingSoon": "Muy pronto — vas a poder hacer una oferta por artículos que no están a la venta."
   },
   "buyModal": {
     "titleBuy": "Comprar artículo",
@@ -287,6 +303,7 @@
     "collection": "Colección",
     "price": "Precio",
     "stock": "Stock",
+    "outOfStock": "Agotado",
     "ownItemPrefix": "Este es tu artículo: gestiónalo en",
     "ownItemSuffix": ".",
     "manageList": "Poner a la venta",

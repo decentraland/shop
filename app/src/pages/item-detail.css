@@ -574,12 +574,20 @@
   line-height: 1;
   color: var(--text-2);
 }
+/* "OUT OF STOCK" beside a not-for-sale price (Figma 1182-203305): SemiBold 14 uppercase, gray-1. */
+.item-detail__stock-value--out {
+  font-size: 14px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--muted-1);
+}
 .item-detail__price-label {
   font-size: 14px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0;
-  color: #5e5b67;
+  color: var(--muted-1);
 }
 .item-detail__price {
   display: flex;
@@ -597,9 +605,24 @@
   font-size: 30px;
   line-height: 1;
 }
+/* Not-for-sale: "Not for Sale" + info tooltip (Figma 1182-203305) — 14px semibold, no PRICE label. */
 .item-detail__price--none {
-  font-size: 18px;
-  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.item-detail__price-info {
+  display: inline-flex;
+  color: var(--muted-2);
+  cursor: help;
+}
+.item-detail__price-info:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 /* Market (legacy/MANA) item: an indicative "≈ credits" price + a "Market price" note (the exact
    price is locked later in MarketCheckout). Mirrors the market card's ≈ treatment. */

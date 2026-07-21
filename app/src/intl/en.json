@@ -210,7 +210,23 @@
     "yourItem": "Your item",
     "manage": "Manage",
     "inCart": "In cart",
-    "addToCart": "Add to cart"
+    "addToCart": "Add to cart",
+    "notForSale": "Not for Sale",
+    "view": "View"
+  },
+  "notifyMe": {
+    "label": "Notify me when available",
+    "placeholder": "Enter your email",
+    "cta": "Notify me",
+    "working": "Sending…",
+    "signInCta": "Sign in to get notified",
+    "subscribedTitle": "You're on the list",
+    "subscribedBody": "You'll be notified when it's available again.",
+    "error": "Couldn't save that — please try again."
+  },
+  "makeOffer": {
+    "cta": "Make an offer",
+    "comingSoon": "Coming soon — you'll be able to make an offer on items that aren't for sale."
   },
   "buyModal": {
     "titleBuy": "Buy Asset",
@@ -287,6 +303,8 @@
     "collection": "Collection",
     "price": "Price",
     "stock": "Stock",
+    "outOfStock": "Out of stock",
+    "notForSaleHint": "This item isn't listed for sale right now. Get notified when it becomes available.",
     "ownItemPrefix": "This is your item — manage it in",
     "ownItemSuffix": ".",
     "manageList": "List for sale",
