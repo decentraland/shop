@@ -109,6 +109,17 @@ export const Right = styled.div`
   ${theme.media.down('lg')} {
     /* Keep the count + Sort/Filters pills on the first row; chips (order 3) wrap below. */
     order: 2;
+
+    /* On mobile the Sort By dropdown is a pill matching the Filters pill (Figma 1304-310201): fully
+       rounded, 0.5px gray-3 hairline, title-case (not the desktop uppercase), same 28px height. */
+    & .dropdown__trigger {
+      height: 28px;
+      padding: 4px 4px 4px 12px;
+      border-radius: 32px;
+      border-width: 0.5px;
+      font-weight: 500;
+      text-transform: none;
+    }
   }
 `
 

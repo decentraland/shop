@@ -388,6 +388,12 @@ export const SmartRow = styled.div`
   width: 100%;
   height: 40px;
   padding: 4px;
+
+  /* On mobile SMART is a peer of the collapsible section headers (Figma 1304-307965): same 52px row
+     height so it doesn't read as a smaller afterthought. */
+  ${theme.media.down('lg')} {
+    height: 52px;
+  }
 `
 
 export const SmartLeft = styled.div`
@@ -400,6 +406,11 @@ export const SmartFlash = styled(Icon)`
   width: 14px;
   height: 14px;
   color: ${theme.colors.text};
+
+  ${theme.media.down('lg')} {
+    width: 16px;
+    height: 16px;
+  }
 `
 
 export const SmartTitle = styled.span`
@@ -408,6 +419,13 @@ export const SmartTitle = styled.span`
   font-size: 14px;
   line-height: 1.43;
   color: ${theme.colors.text};
+  /* Figma labels SMART in uppercase (the flash-feature label), unlike the title-case section names. */
+  text-transform: uppercase;
+
+  /* Match the section-header title size on mobile so SMART has the same hierarchy as Price/Rarity/etc. */
+  ${theme.media.down('lg')} {
+    font-size: 16px;
+  }
 `
 
 export const SmartInfo = styled(Icon)`
@@ -436,6 +454,12 @@ export const Toggle = styled('button', noForward('on'))<{ on?: boolean }>`
     outline: 2px solid ${theme.colors.accent};
     outline-offset: 2px;
   }
+
+  /* Bigger, tappable switch on mobile (the 24×14 desktop pill reads as too small on a phone). */
+  ${theme.media.down('lg')} {
+    width: 40px;
+    height: 22px;
+  }
 `
 
 export const ToggleKnob = styled('span', noForward('on'))<{ on?: boolean }>`
@@ -449,4 +473,10 @@ export const ToggleKnob = styled('span', noForward('on'))<{ on?: boolean }>`
   background: ${theme.colors.white};
   box-shadow: 0 1px 2px rgba(22, 21, 24, 0.3);
   transition: left 0.15s ease;
+
+  ${theme.media.down('lg')} {
+    width: 18px;
+    height: 18px;
+    left: ${({ on }) => (on ? 'calc(100% - 18px)' : '2px')};
+  }
 `
