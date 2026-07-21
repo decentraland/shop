@@ -483,8 +483,9 @@ export function Cart() {
         </button>
 
         <div className="checkout__body">
-        <section className="checkout__panel">
-          <div className="checkout__panel-head">
+        <div className="checkout__left">
+          {/* Header card (Figma 1182-216308): "Cart: N Items" + Fitting Room — its own white card. */}
+          <div className="checkout__head-card">
             <button
               className="checkout__panel-back"
               onClick={() => navigate(-1)}
@@ -502,6 +503,8 @@ export function Cart() {
             ) : null}
           </div>
 
+          {/* Items card (Figma 1182-216322): the cart lines, p-24, radius 16. */}
+          <section className="checkout__panel">
           <div className="checkout__list">
             {items.map(item => {
               const line = lineById.get(item.id)
@@ -641,7 +644,8 @@ export function Cart() {
               </button>
             ) : null}
           </div>
-        </section>
+          </section>
+        </div>
 
         <aside className="checkout__summary">
           <h2 className="checkout__summary-title">{t('cart.purchaseSummary')}</h2>
