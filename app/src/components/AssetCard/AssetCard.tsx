@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useCart } from '~/store/cart'
 import { useFavorites } from '~/store/favorites'
 import { useHoverPreview } from '~/store/hoverPreview'
@@ -33,6 +33,7 @@ type AssetCardProps =
 export function AssetCard(props: AssetCardProps) {
   const { item } = props
   const isMarket = props.mode === 'market'
+  const navigate = useNavigate()
   const timer = useRef<ReturnType<typeof setTimeout>>()
   const mediaRef = useRef<HTMLDivElement>(null)
 
@@ -60,6 +61,14 @@ export function AssetCard(props: AssetCardProps) {
   // price + Buy now) from the router state handed over on the link below.
   const canOpen = !!item.contractAddress && !!routeSeg
   const detailPath = `/item/${item.contractAddress}/${routeSeg}`
+
+  // Own item → the card's action becomes MANAGE: it opens the item's detail page (same route + seeded
+  // state as the whole-card link) where the owner/creator management actions (List / Update price /
+  // Remove) live. Navigates explicitly (the button sits above the card link and stops propagation).
+  function goManage(e: React.MouseEvent) {
+    e.stopPropagation()
+    if (canOpen) navigate(detailPath, { state: { item, tradeId: item.tradeId } })
+  }
 
   function onEnter() {
     // Touch devices synthesize a `mouseenter` on tap — don't enter the hover state there (it would
@@ -278,15 +287,16 @@ export function AssetCard(props: AssetCardProps) {
             </button>
           ) : (
             <button
-              className={`card__add-round${inCart ? ' is-in' : ''}`}
+              className={`card__add-round${!own && inCart ? ' is-in' : ''}`}
               onClick={e => {
+                if (own) return goManage(e)
                 e.stopPropagation()
-                if (!own) add(item, 'grid')
+                add(item, 'grid')
               }}
-              disabled={inCart || own}
-              aria-label={own ? t('assetCard.yourItem') : inCart ? t('assetCard.inCart') : t('assetCard.addToCart')}
+              disabled={!own && inCart}
+              aria-label={own ? t('assetCard.manage') : inCart ? t('assetCard.inCart') : t('assetCard.addToCart')}
             >
-              <Icon name="plus" />
+              <Icon name={own ? 'pen' : 'plus'} />
             </button>
           )}
 
@@ -304,16 +314,17 @@ export function AssetCard(props: AssetCardProps) {
             </button>
           ) : (
             <button
-              className={`card__cart${inCart ? ' is-in' : ''}`}
+              className={`card__cart${!own && inCart ? ' is-in' : ''}`}
               data-testid="card-cart"
               onClick={e => {
+                if (own) return goManage(e)
                 e.stopPropagation()
-                if (!own) add(item, 'grid')
+                add(item, 'grid')
               }}
-              disabled={inCart || own}
+              disabled={!own && inCart}
             >
-              {own ? null : <Icon name="cart-solid" />}
-              {own ? t('assetCard.yourItem') : inCart ? t('assetCard.inCart') : t('assetCard.addToCart')}
+              <Icon name={own ? 'pen' : 'cart-solid'} />
+              {own ? t('assetCard.manage') : inCart ? t('assetCard.inCart') : t('assetCard.addToCart')}
             </button>
           )}
         </div>
