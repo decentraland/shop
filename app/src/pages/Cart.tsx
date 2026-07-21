@@ -20,25 +20,16 @@ import { gaslessEnabled } from '~/lib/gasless-config'
 import { CURRENCY } from '~/lib/currency'
 import { CREDIT_PACKS, createPackCheckout } from '~/lib/payments'
 import { config } from '~/config'
-import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { CartCheckoutModal, type CheckoutLine } from '~/components/CartCheckoutModal'
 import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
 import { isRejection, isInsufficient } from '~/lib/errors'
-import { ErrorNotice } from '~/components/ErrorNotice'
 import { track, purchaseItemsProps, errorCode, isUserRejection, creditsToUsd } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
 import { CollectionCarousel } from '~/components/CollectionCarousel'
-import { CreatorBadge } from '~/components/CreatorBadge'
-import { Button } from '~/components/Button'
 import { Icon } from '~/components/Icon'
-import styled from '@emotion/styled'
 import type { CatalogItem } from '~/lib/api'
-import './cart.css'
-
-const EmptyCta = styled(Button)`
-  margin-top: 12px;
-`
+import * as S from './Cart.styles'
 
 // Cart-specific mapping: the "listing changed" message is plural (a multi-item cart), so it maps
 // locally rather than via the shared singular soldOrRemoved/cantBuyOwn.
@@ -428,41 +419,36 @@ export function Cart() {
         <Icon name="cart" size={44} color="var(--muted-2)" />
         <p className="cart-empty__title">{t('cart.empty.title')}</p>
         <p className="muted">{t('cart.empty.body')}</p>
-        <EmptyCta as={Link} to="/assets" variant="purple">
+        <S.EmptyCta as={Link} to="/assets" variant="purple">
           {t('cart.empty.cta')}
-        </EmptyCta>
+        </S.EmptyCta>
       </div>
     )
   }
 
   return (
-    <div className="checkout">
-      <button className="checkout__back" onClick={() => navigate(-1)} type="button">
+    <S.Checkout>
+      <S.Back onClick={() => navigate(-1)} type="button">
         <Icon name="arrow-left" />
         {t('nav.cart')}
-      </button>
+      </S.Back>
 
-      <div className="checkout__body">
-        <section className="checkout__panel">
-          <div className="checkout__panel-head">
-            <button
-              className="checkout__panel-back"
-              onClick={() => navigate(-1)}
-              type="button"
-              aria-label={t('cart.goBack')}
-            >
+      <S.Body>
+        <S.Panel>
+          <S.PanelHead>
+            <S.PanelBack onClick={() => navigate(-1)} type="button" aria-label={t('cart.goBack')}>
               <Icon name="arrow-left" />
-            </button>
-            <h1 className="checkout__panel-title">{t('cart.panelTitle', { count: items.length })}</h1>
+            </S.PanelBack>
+            <S.PanelTitle>{t('cart.panelTitle', { count: items.length })}</S.PanelTitle>
             {hasWearable ? (
-              <button className="checkout__fitting" onClick={() => setFittingOpen(true)} disabled={working}>
+              <S.Fitting onClick={() => setFittingOpen(true)} disabled={working}>
                 <Icon name="fitting-room" />
                 {t('cart.fittingRoom')}
-              </button>
+              </S.Fitting>
             ) : null}
-          </div>
+          </S.PanelHead>
 
-          <div className="checkout__list">
+          <S.List>
             {items.map(item => {
               const line = lineById.get(item.id)
               const livePrice = line ? line.priceCredits : item.priceCredits
@@ -474,21 +460,16 @@ export function Cart() {
               const routeSeg = item.tokenId ?? item.itemId
               const detailPath = item.contractAddress && routeSeg ? `/item/${item.contractAddress}/${routeSeg}` : null
               return (
-                <div className="checkout__card" key={item.id}>
-                  <div className="checkout__thumb">
+                <S.Card key={item.id}>
+                  <S.Thumb>
                     {detailPath ? (
-                      <Link
-                        className="checkout__thumb-link"
-                        to={detailPath}
-                        state={{ item, tradeId: item.tradeId }}
-                        aria-label={item.name}
-                      >
+                      <S.ThumbLink to={detailPath} state={{ item, tradeId: item.tradeId }} aria-label={item.name}>
                         {item.thumbnail ? <img src={item.thumbnail} alt={item.name} /> : null}
-                      </Link>
+                      </S.ThumbLink>
                     ) : item.thumbnail ? (
                       <img src={item.thumbnail} alt={item.name} />
                     ) : null}
-                    <span className="checkout__thumb-check" aria-hidden>
+                    <S.ThumbCheck aria-hidden>
                       <svg viewBox="0 0 20 20" width="12" height="12">
                         <path
                           d="M5 10.5l3 3 7-7.5"
@@ -499,34 +480,24 @@ export function Cart() {
                           strokeLinejoin="round"
                         />
                       </svg>
-                    </span>
-                  </div>
-                  <div className="checkout__info">
-                    <div className="checkout__desc">
+                    </S.ThumbCheck>
+                  </S.Thumb>
+                  <S.Info>
+                    <S.Desc>
                       {detailPath ? (
-                        <Link
-                          className="checkout__name"
-                          to={detailPath}
-                          state={{ item, tradeId: item.tradeId }}
-                          title={item.name}
-                        >
+                        <S.NameLink to={detailPath} state={{ item, tradeId: item.tradeId }} title={item.name}>
                           {item.name}
-                        </Link>
+                        </S.NameLink>
                       ) : (
-                        <div className="checkout__name" title={item.name}>
-                          {item.name}
-                        </div>
+                        <S.Name title={item.name}>{item.name}</S.Name>
                       )}
-                      {item.creator ? (
-                        <CreatorBadge address={item.creator} className="checkout__creator" linkToProfile />
-                      ) : null}
-                    </div>
-                    <div className="checkout__foot">
+                      {item.creator ? <S.Creator address={item.creator} linkToProfile /> : null}
+                    </S.Desc>
+                    <S.Foot>
                       {/* Quantity stepper — visual only: a cart line is a single unique listing (qty always
                           1), so minus removes the line and plus is inert (mirrors the cart drawer stepper). */}
-                      <div className="checkout__stepper">
-                        <button
-                          className="checkout__step"
+                      <S.Stepper>
+                        <S.Step
                           onClick={() => editCart(() => remove(item.id))}
                           disabled={working}
                           aria-label={t('cart.removeFromCart', { name: item.name })}
@@ -534,23 +505,23 @@ export function Cart() {
                           <svg viewBox="0 0 16 16" fill="none" aria-hidden focusable="false">
                             <path d="M3.5 8h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                           </svg>
-                        </button>
-                        <span className="checkout__qty">1</span>
-                        <button className="checkout__step" disabled aria-label={t('cart.increaseQuantity')}>
+                        </S.Step>
+                        <S.Qty>1</S.Qty>
+                        <S.Step disabled aria-label={t('cart.increaseQuantity')}>
                           <svg viewBox="0 0 16 16" fill="none" aria-hidden focusable="false">
                             <path d="M8 3.5v9M3.5 8h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                           </svg>
-                        </button>
-                      </div>
-                      <div className="checkout__price">
-                        <CurrencyIcon className="checkout__price-ico" /> {livePrice}
-                        {changed ? <span className="checkout__price-was">{item.priceCredits}</span> : null}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="checkout__actions">
-                    <button
-                      className={`checkout__fav${faved ? ' is-on' : ''}`}
+                        </S.Step>
+                      </S.Stepper>
+                      <S.Price>
+                        <S.PriceIco /> {livePrice}
+                        {changed ? <S.PriceWas>{item.priceCredits}</S.PriceWas> : null}
+                      </S.Price>
+                    </S.Foot>
+                  </S.Info>
+                  <S.Actions>
+                    <S.Fav
+                      data-on={faved || undefined}
                       onClick={() => toggleFav(item)}
                       aria-label={
                         faved
@@ -560,25 +531,24 @@ export function Cart() {
                       title={faved ? t('assetCard.removeFromFavorites') : t('assetCard.addToFavorites')}
                     >
                       <Icon name={faved ? 'heart-solid' : 'heart'} />
-                    </button>
+                    </S.Fav>
 
-                    <button
-                      className="checkout__remove"
+                    <S.Remove
                       onClick={() => editCart(() => remove(item.id))}
                       disabled={working}
                       aria-label={t('cart.remove', { name: item.name })}
                       title={t('cart.removeTitle')}
                     >
                       <Icon name="trash" size={24} />
-                    </button>
-                  </div>
-                </div>
+                    </S.Remove>
+                  </S.Actions>
+                </S.Card>
               )
             })}
-          </div>
+          </S.List>
 
           {/* Utility actions kept subtle so they don't compete with the CTA. */}
-          <div className="checkout__utils">
+          <S.Utils>
             <button className="link" onClick={() => editCart(clear)} disabled={working}>
               {t('cart.clearCart')}
             </button>
@@ -587,39 +557,35 @@ export function Cart() {
                 Get test {CURRENCY.name} (dev)
               </button>
             ) : null}
-          </div>
-        </section>
+          </S.Utils>
+        </S.Panel>
 
-        <aside className="checkout__summary">
-          <h2 className="checkout__summary-title">{t('cart.purchaseSummary')}</h2>
-          <div className="checkout__summary-body">
-            <div className="checkout__total-line">
-              <span className="checkout__total-label">{t('cart.totalItems', { count: items.length })}</span>
-              <span className="checkout__total-value">
-                <CurrencyIcon className="checkout__total-ico" /> {total}
-              </span>
-            </div>
+        <S.Summary>
+          <S.SummaryTitle>{t('cart.purchaseSummary')}</S.SummaryTitle>
+          <S.SummaryBody>
+            <S.TotalLine>
+              <S.TotalLabel>{t('cart.totalItems', { count: items.length })}</S.TotalLabel>
+              <S.TotalValue>
+                <S.TotalIco /> {total}
+              </S.TotalValue>
+            </S.TotalLine>
 
-            <button
-              className="checkout__cta"
-              onClick={() => void (review ? confirmPurchase() : checkout())}
-              disabled={working}
-            >
+            <S.Cta onClick={() => void (review ? confirmPurchase() : checkout())} disabled={working}>
               {working ? t('cart.working') : review ? t('marketCheckout.confirmPurchase') : t('assetCard.buyNow')}
-            </button>
+            </S.Cta>
 
-            {review ? <p className="muted checkout__msg">{t('cart.priceChanged')}</p> : null}
-            {notice ? <p className="muted checkout__msg">{notice}</p> : null}
-            {status ? <p className="muted checkout__msg">{status}</p> : null}
-            <ErrorNotice message={error} className="checkout__msg" />
-          </div>
-        </aside>
-      </div>
+            {review ? <S.Msg className="muted">{t('cart.priceChanged')}</S.Msg> : null}
+            {notice ? <S.Msg className="muted">{notice}</S.Msg> : null}
+            {status ? <S.Msg className="muted">{status}</S.Msg> : null}
+            <S.MsgNotice message={error} />
+          </S.SummaryBody>
+        </S.Summary>
+      </S.Body>
 
       {upsell.length > 0 ? (
-        <div className="cart-upsell">
+        <S.Upsell>
           <CollectionCarousel title={t('cart.youMightAlsoLike')} items={upsell} />
-        </div>
+        </S.Upsell>
       ) : null}
 
       {modal ? (
@@ -641,6 +607,6 @@ export function Cart() {
           message={modal.phase === 'error' ? modal.message : undefined}
         />
       ) : null}
-    </div>
+    </S.Checkout>
   )
 }

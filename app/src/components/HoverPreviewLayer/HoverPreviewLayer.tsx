@@ -1,9 +1,20 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import styled from '@emotion/styled'
 import { PreviewEmote, PreviewType } from '@dcl/schemas'
 import { PreviewMessageType, sendMessage } from '@dcl/schemas/dist/dapps/preview'
 import { WearablePreview } from '~/components/LazyWearablePreview'
 import { config } from '~/config'
 import { useHoverPreview } from '~/store/hoverPreview'
+
+const Wrap = styled.div`
+  & iframe {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    display: block;
+    background: transparent;
+  }
+`
 
 // ONE persistent WearablePreview for the whole app. It boots a single 3D engine once (while the
 // browser is idle) and then, on card hover, is repositioned over the hovered card and told to load
@@ -133,7 +144,7 @@ export function HoverPreviewLayer() {
       }
 
   return (
-    <div className="hover-preview" aria-hidden style={wrapStyle}>
+    <Wrap aria-hidden style={wrapStyle}>
       <WearablePreview
         id={IFRAME_ID}
         profile="default"
@@ -142,6 +153,6 @@ export function HoverPreviewLayer() {
         dev={config.chainId === 80002}
         onLoad={handleLoad}
       />
-    </div>
+    </Wrap>
   )
 }
