@@ -4,6 +4,7 @@
   --text: #161518;
   --text-2: #242129;
   --muted: #716b7c;
+  --muted-1: #5e5b67; /* gray-1: uppercase labels (price / stock) */
   --muted-2: #a09ba8;
   --line: #e6e4ea; /* subtle card border (approx 0.25px #a09ba8) */
   --line-strong: #a09ba8; /* search field / defined borders */

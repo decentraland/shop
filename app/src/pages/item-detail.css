@@ -580,14 +580,14 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.02em;
-  color: #5e5b67;
+  color: var(--muted-1);
 }
 .item-detail__price-label {
   font-size: 14px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0;
-  color: #5e5b67;
+  color: var(--muted-1);
 }
 .item-detail__price {
   display: flex;

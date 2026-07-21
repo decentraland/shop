@@ -51,4 +51,6 @@ export async function createNotifyRequest(req: NotifyRequest, identity: AuthIden
     body: JSON.stringify(req)
   })
   if (!res.ok) throw new Error(`createNotifyRequest ${res.status}: ${await res.text()}`)
+  // Drain the success body so the underlying connection isn't left open.
+  await res.json().catch(() => undefined)
 }
