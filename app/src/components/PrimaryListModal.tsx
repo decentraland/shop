@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
+import { Button } from '~/components/Button'
 import { Network } from '@dcl/schemas'
 import type { Session } from '~/lib/auth'
 import type { PublishableItem } from '~/lib/builder'
@@ -146,12 +147,12 @@ export function PrimaryListModal({
             {t('primaryList.dotAvailable', { count: item.remainingSupply })}
           </p>
           <div className="modal__actions">
-            <button className="btn btn--ghost" onClick={onClose}>
+            <Button variant="ghost" onClick={onClose}>
               {t('getCredits.done')}
-            </button>
-            <button className="btn btn--purple" onClick={viewInShop}>
+            </Button>
+            <Button variant="purple" onClick={viewInShop}>
               {t('primaryList.viewInShop')}
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -208,12 +209,12 @@ export function PrimaryListModal({
         <ErrorNotice message={error} />
 
         <div className="modal__actions">
-          <button className="btn btn--ghost" onClick={onClose} disabled={busy}>
+          <Button variant="ghost" onClick={onClose} disabled={busy}>
             {t('primaryList.cancel')}
-          </button>
-          <button className="btn" onClick={() => void publish()} disabled={busy || enabled === null}>
+          </Button>
+          <Button onClick={() => void publish()} disabled={busy || enabled === null}>
             {enabled === null ? t('primaryList.checking') : cta}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

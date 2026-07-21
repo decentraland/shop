@@ -48,6 +48,15 @@ The spec for all of Decentraland's public APIs is available at https://docs.dece
 - TypeScript strict, `noUnusedLocals` / `noUnusedParameters` on. Prefer `type` imports.
 - Never surface a raw error to the user (web2-first + PII rule) — report it to Sentry via `captureError` and show human-friendly copy.
 
+## Commenting Guidelines
+
+- **Keep comments sparse and direct.** Do NOT write narrative essays, design spec references (e.g., Figma node IDs), or obvious explanations.
+- **No self-evident comments.** Never comment on what code explicitly does (e.g., `// Page size constant` or `// Margin top 10px`). Only comment on **WHY** something non-obvious is done.
+- **Avoid temporary or historical context.** Do not reference old CSS classes, past refactors, or comparison with other files (e.g., "mirrors ItemDetail.tsx", "was .imp-empty").
+- **No section headers/dividers.** Avoid ASCII section dividers like `/* ---------------- Hero banner ---------------- */`.
+- **JSDoc / TSDoc:** Keep docstrings to max 1–2 concise sentences. High-level architecture explanations belong in external docs, not above component functions.
+- **CSS:** Do not add file-level overviews or style guides inside CSS/SCSS files unless strictly required for non-obvious hack workarounds.
+
 ## Commands (run from `app/`)
 
 - `npm run dev` — dev server (port 5173).

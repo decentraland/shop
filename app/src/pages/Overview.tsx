@@ -13,6 +13,21 @@ import carouselArrow from '~/assets/icons/carousel-arrow.svg'
 import heroBanner from '~/assets/overview/hero-fashion-week.png'
 import promoEmotes from '~/assets/overview/promo-best-rated-emotes.png'
 import promoOutfits from '~/assets/overview/promo-week-selected-outfits.png'
+import styled from '@emotion/styled'
+import { Button } from '~/components/Button'
+import { Icon } from '~/components/Icon'
+
+const EmptyCta = styled(Button)`
+  margin-top: 10px;
+`
+
+// Figma hero CTA: the purple button trimmed to the 40px hero spec.
+const HeroCta = styled(Button)`
+  height: 40px;
+  padding: 0 16px;
+  display: inline-flex;
+  align-items: center;
+`
 
 const SKELETON_COUNT = 6
 
@@ -76,7 +91,7 @@ function Carousel({ title, items, loading }: { title: string; items: CatalogItem
       <div className="row__head">
         <h2 className="row__title">{title}</h2>
         <Link className="row__viewall" to="/assets">
-          {t('overview.viewAll')} <span className="ico ico-viewall" aria-hidden />
+          {t('overview.viewAll')} <Icon name="view-all-arrow" size={18} />
         </Link>
       </div>
       <div className="ov-carousel__viewport">
@@ -138,9 +153,9 @@ export function Overview() {
         <div className="ov-hero__scrim" aria-hidden />
         <div className="ov-hero__inner">
           <h1 className="ov-hero__title">{t('overview.heroTitle')}</h1>
-          <Link className="btn btn--purple ov-hero__cta" to="/assets">
+          <HeroCta as={Link} to="/assets" variant="purple">
             {t('overview.exploreCollection')}
-          </Link>
+          </HeroCta>
         </div>
       </section>
 
@@ -167,9 +182,9 @@ export function Overview() {
         <div className="overview__empty">
           <p className="overview__empty-title">{t('overview.emptyTitle')}</p>
           <p className="muted">{t('overview.emptyBody')}</p>
-          <Link className="btn btn--purple" to="/assets">
+          <EmptyCta as={Link} to="/assets" variant="purple">
             {t('notFound.cta')}
-          </Link>
+          </EmptyCta>
         </div>
       )}
 

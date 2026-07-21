@@ -1,7 +1,7 @@
 import { CURRENCY } from '~/lib/currency'
+import { Icon } from '~/components/Icon'
 
-// The currency mark (the diamond today). Centralized so a rebrand only touches CURRENCY.iconClass +
-// its SVG. `className` carries the context-specific sizing (card__diamond, mkt-modal__diamond, ...).
+// The currency mark. `className` carries context-specific sizing (card__diamond, mkt-modal__diamond, …).
 export function CurrencyIcon({ className }: { className?: string }) {
-  return <span className={`ico ${CURRENCY.iconClass}${className ? ` ${className}` : ''}`} aria-hidden />
+  return <Icon name={CURRENCY.iconName} className={className} />
 }

@@ -1,9 +1,9 @@
 import type { CatalogItem } from '~/lib/api'
+import type { IconName } from '~/components/Icon'
 
-// On-chain wearable/emote category → sprite icon suffix (the `.ico-<suffix>` mask classes in index.css).
-// Mirrors the sidebar CategoryFilter groups (see Assets' SUBCAT_MAP) so a card's category chip uses the
-// same icon a shopper would filter by. Unknown categories fall back to null (chip is omitted).
-const CATEGORY_ICON: Record<string, string> = {
+// On-chain wearable/emote category → icon name. Mirrors the sidebar CategoryFilter groups so a card's
+// category chip uses the same icon a shopper would filter by. Unknown categories fall back to null.
+const CATEGORY_ICON: Record<string, IconName> = {
   // Head group
   head: 'cat-head',
   hat: 'cat-head',
@@ -36,8 +36,8 @@ const CATEGORY_ICON: Record<string, string> = {
   horror: 'emote-horror'
 }
 
-/** Icon suffix for a card's category chip, or null when we have no matching icon. */
-export function categoryIcon(item: Pick<CatalogItem, 'category' | 'wearableCategory'>): string | null {
+/** Icon for a card's category chip, or null when we have no matching icon. */
+export function categoryIcon(item: Pick<CatalogItem, 'category' | 'wearableCategory'>): IconName | null {
   const key = item.wearableCategory?.toLowerCase()
   if (key && CATEGORY_ICON[key]) return CATEGORY_ICON[key]
   // Emote with an unmapped/missing sub-category still gets the generic emote glyph.
@@ -45,8 +45,8 @@ export function categoryIcon(item: Pick<CatalogItem, 'category' | 'wearableCateg
   return null
 }
 
-/** Icon suffix for the gender chip, or null when gender is unknown. */
-export function genderIcon(gender: CatalogItem['gender']): string | null {
+/** Icon for the gender chip, or null when gender is unknown. */
+export function genderIcon(gender: CatalogItem['gender']): IconName | null {
   if (gender === 'male') return 'gender-male'
   if (gender === 'female') return 'gender-female'
   if (gender === 'unisex') return 'gender-unisex'

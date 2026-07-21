@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react'
 import type { NavbarProps } from 'decentraland-ui2'
+import * as S from './TopNav.styles'
 
 // The global DCL top navbar pulls in all of decentraland-ui2 (MUI + emotion) — by far the biggest
 // dependency. Lazy-load it so it stays out of the initial bundle: the shop's own sub-nav + content
@@ -10,7 +11,7 @@ const Navbar = lazy(() => import('decentraland-ui2/dist/components/Navbar').then
 
 export function TopNav(props: NavbarProps) {
   return (
-    <Suspense fallback={<div className="topnav-skeleton" aria-hidden />}>
+    <Suspense fallback={<S.Skeleton aria-hidden />}>
       <Navbar {...props} />
     </Suspense>
   )

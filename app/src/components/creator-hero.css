@@ -69,7 +69,7 @@
   opacity: 1;
   background: rgba(255, 255, 255, 0.24);
 }
-.creator-hero__edit .ico-pen {
+.creator-hero__edit .ico {
   width: 16px;
   height: 16px;
 }
@@ -177,7 +177,7 @@
     width: 28px;
     height: 28px;
   }
-  .creator-hero__edit .ico-pen {
+  .creator-hero__edit .ico {
     width: 14px;
     height: 14px;
   }

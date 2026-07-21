@@ -24,8 +24,12 @@ import { fetchCollectionItems, fetchCollection } from '~/lib/collections'
 import { ItemPreview } from '~/components/ItemPreview'
 import { CollectionCarousel } from '~/components/CollectionCarousel'
 import { CreatorBadge } from '~/components/CreatorBadge'
+import { Button } from '~/components/Button'
+import styled from '@emotion/styled'
+import { theme } from '~/styles/theme'
 import { CollectionBadge } from '~/components/CollectionBadge'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
+import { Icon } from '~/components/Icon'
 import { SaleCountdown } from '~/components/SaleCountdown'
 import { rarityTint, rarityInk, rarityDescription } from '~/lib/rarity'
 import { categoryIcon, genderIcon } from '~/lib/itemIcons'
@@ -35,6 +39,34 @@ import { track, itemProps } from '~/lib/analytics'
 import { recordViewed } from '~/lib/recently-viewed'
 import { isOwnListing } from '~/lib/ownership'
 import './item-detail.css'
+
+const NotFoundCta = styled(Button)`
+  margin-top: 6px;
+`
+
+// The PDP Buy-now CTA: full-width, taller, its own type scale. `&&` so font-size/letter-spacing win
+// over the purple variant's data-variant rules. In the mobile sticky bar it sits beside the cart
+// square (the `--dual` parent), where it flexes to share the row.
+const DetailCta = styled(Button)`
+  && {
+    width: 100%;
+    height: 48px;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.46px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  ${theme.media.down('lg')} {
+    .item-detail__ctas--dual && {
+      flex: 1 1 auto;
+      width: auto;
+    }
+  }
+`
 
 function isValidRarity(r: string): r is Rarity {
   return (Object.values(Rarity) as string[]).includes(r)
@@ -350,12 +382,12 @@ export function ItemDetail() {
   if (notFound) {
     return (
       <div className="item-detail item-detail--notfound">
-        <span className="ico ico-cart item-detail__notfound-ico" aria-hidden />
+        <Icon name="cart" className="item-detail__notfound-ico" />
         <h1 className="item-detail__notfound-title">{t('itemDetail.notAvailableTitle')}</h1>
         <p className="muted">{t('itemDetail.notAvailableBody')}</p>
-        <button className="btn btn--purple" onClick={() => navigate('/assets')}>
+        <NotFoundCta variant="purple" onClick={() => navigate('/assets')}>
           {t('notFound.cta')}
-        </button>
+        </NotFoundCta>
       </div>
     )
   }
@@ -391,7 +423,7 @@ export function ItemDetail() {
             aria-pressed={faved}
             aria-label={faved ? t('assetCard.removeFromFavorites') : t('assetCard.addToFavorites')}
           >
-            <span className={`ico ${faved ? 'ico-heart-solid' : 'ico-heart'}`} aria-hidden />
+            <Icon name={faved ? 'heart-solid' : 'heart'} size={18} />
           </button>
         </div>
 
@@ -408,7 +440,7 @@ export function ItemDetail() {
                   aria-pressed={faved}
                   aria-label={faved ? t('assetCard.removeFromFavorites') : t('assetCard.addToFavorites')}
                 >
-                  <span className={`ico ${faved ? 'ico-heart-solid' : 'ico-heart'}`} aria-hidden />
+                  <Icon name={faved ? 'heart-solid' : 'heart'} size={18} />
                 </button>
               </div>
 
@@ -421,12 +453,12 @@ export function ItemDetail() {
                   {current.rarity}
                 </span>
                 <span className="chip item-detail__chip">
-                  {catIco ? <span className={`ico ico-${catIco} item-detail__chip-ico`} aria-hidden /> : null}
+                  {catIco ? <Icon name={catIco} size={18} color="var(--text-2)" /> : null}
                   {categoryLabel(current)}
                 </span>
                 {gender ? (
                   <span className="chip item-detail__chip">
-                    {genderIco ? <span className={`ico ico-${genderIco} item-detail__chip-ico`} aria-hidden /> : null}
+                    {genderIco ? <Icon name={genderIco} size={18} color="var(--text-2)" /> : null}
                     {gender}
                   </span>
                 ) : null}
@@ -543,11 +575,7 @@ export function ItemDetail() {
                 {isMarket ? (
                   // Market (legacy/MANA) item: a single Buy now that opens the MANA→credits checkout
                   // (MarketCheckout) — never Add to cart / BuyModal.
-                  <button
-                    className="btn btn--purple item-detail__cta"
-                    onClick={() => setShowBuy(true)}
-                    disabled={!canBuyMarket}
-                  >
+                  <DetailCta variant="purple" onClick={() => setShowBuy(true)} disabled={!canBuyMarket}>
                     <span className="item-detail__cta-label">{t('assetCard.buyNow')}</span>
                     {marketPriceCredits != null ? (
                       <span className="item-detail__cta-price" aria-hidden>
@@ -555,7 +583,7 @@ export function ItemDetail() {
                         {marketPriceCredits}
                       </span>
                     ) : null}
-                  </button>
+                  </DetailCta>
                 ) : own ? (
                   <p className="item-detail__own-note muted">
                     {t('itemDetail.ownItemPrefix')} <Link to="/my-assets">{t('nav.myAssets')}</Link>
@@ -564,17 +592,13 @@ export function ItemDetail() {
                 ) : (
                   <>
                     {forSale ? (
-                      <button
-                        className="btn btn--purple item-detail__cta"
-                        onClick={() => setShowBuy(true)}
-                        disabled={resolvingTrade}
-                      >
+                      <DetailCta variant="purple" onClick={() => setShowBuy(true)} disabled={resolvingTrade}>
                         <span className="item-detail__cta-label">{t('assetCard.buyNow')}</span>
                         <span className="item-detail__cta-price" aria-hidden>
                           <CurrencyIcon className="item-detail__cta-diamond" />
                           {current.priceCredits}
                         </span>
-                      </button>
+                      </DetailCta>
                     ) : null}
                     <button
                       className="item-detail__addcart"
@@ -582,7 +606,7 @@ export function ItemDetail() {
                       disabled={!forSale || inCart || resolvingTrade}
                       aria-label={addLabel}
                     >
-                      <span className="ico ico-cart-solid item-detail__addcart-ico" aria-hidden />
+                      <Icon name="cart-solid" />
                       <span className="item-detail__addcart-label">{addLabel}</span>
                     </button>
                   </>

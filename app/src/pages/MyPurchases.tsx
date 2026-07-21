@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { Icon } from '~/components/Icon'
 import { useQuery } from '@tanstack/react-query'
 import { useWallet } from '~/store/wallet'
 import { fetchUserPurchases, type PurchaseRecord } from '~/lib/credits'
@@ -6,8 +7,14 @@ import { fetchTradeDisplay } from '~/lib/api'
 import { LoadMore } from '~/components/LoadMore'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
+import { Button } from '~/components/Button'
 import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
+import styled from '@emotion/styled'
+
+const EmptyCta = styled(Button)`
+  margin-top: 12px;
+`
 
 const PAGE_SIZE = 24
 
@@ -78,7 +85,7 @@ export function MyPurchases() {
   if (!session) {
     return (
       <div className="purchases-empty">
-        <span className="ico ico-cart purchases-empty__ico" aria-hidden />
+        <Icon name="cart" size={40} color="var(--muted-2)" />
         <p className="purchases-empty__title">{t('myPurchases.signInTitle')}</p>
         <p className="muted">{t('myPurchases.signInBody')}</p>
       </div>
@@ -91,12 +98,12 @@ export function MyPurchases() {
   if (!isLoading && purchases.length === 0) {
     return (
       <div className="purchases-empty">
-        <span className="ico ico-cart purchases-empty__ico" aria-hidden />
+        <Icon name="cart" size={40} color="var(--muted-2)" />
         <p className="purchases-empty__title">{t('myPurchases.emptyTitle')}</p>
         <p className="muted">{t('myPurchases.emptyBody')}</p>
-        <Link className="btn btn--purple" to="/assets">
+        <EmptyCta as={Link} to="/assets" variant="purple">
           {t('notFound.cta')}
-        </Link>
+        </EmptyCta>
       </div>
     )
   }

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { NavLink, useNavigate, useSearchParams, useLocation } from 'react-router-dom'
+import { Icon } from '~/components/Icon'
 import { TopNav } from '~/components/TopNav'
 import { useWallet } from '~/store/wallet'
 import { useProfile } from '~/hooks/useProfile'
@@ -179,7 +180,7 @@ export function NavBar() {
           {session ? <NavLink to="/my-purchases">{t('nav.myPurchases')}</NavLink> : null}
         </nav>
         <div className="subnav__search" ref={wrapRef}>
-          <span className="ico ico-search subnav__search-ico" aria-hidden />
+          <Icon name="search" color="var(--muted)" />
           <input
             value={q}
             aria-label={t('nav.searchAria')}
@@ -231,7 +232,7 @@ export function NavBar() {
           {t('nav.getCredits', { currency: CURRENCY.name })}
         </NavLink>
         <NavLink to="/my-favorites" className="subnav__fav" aria-label={t('nav.myFavorites')}>
-          <span className="ico ico-heart" aria-hidden />
+          <Icon name="heart" />
         </NavLink>
         <div className="subnav__cart-wrap">
           {/* Cart icon opens the cart drawer (open-on-icon). With an empty cart there's nothing to show,
@@ -243,7 +244,7 @@ export function NavBar() {
             aria-label={t('nav.cart')}
             onClick={() => (cartCount > 0 ? openCart(true) : navigate('/cart'))}
           >
-            <span className="ico ico-cart" aria-hidden />
+            <Icon name="cart" size={28} />
             {cartCount > 0 ? (
               <span className="subnav__cart-badge" data-testid="subnav-cart-badge">
                 {cartCount}

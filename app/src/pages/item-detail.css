@@ -392,10 +392,6 @@
 .item-detail__fav.is-on {
   color: var(--dcl-red);
 }
-.item-detail__fav .ico-heart {
-  width: 18px;
-  height: 18px;
-}
 /* Mobile-only heart overlaid on the preview (Figma 1182-195410). Hidden on desktop; the specific
    selector overrides the greedy `.item-detail__preview > *` sizing. Shown + positioned in the mobile
    block below, where the title-row heart is hidden so only one heart is ever exposed to a11y. */
@@ -435,11 +431,6 @@
 }
 .item-detail__chip {
   background: var(--chip);
-  color: var(--text-2);
-}
-.item-detail__chip-ico {
-  width: 18px;
-  height: 18px;
   color: var(--text-2);
 }
 
@@ -492,24 +483,24 @@
 }
 /* PDP creator badge: larger avatar + prominent purple link (overrides the compact card default).
    Matches the Figma: 48px avatar, 12px gap, 14px underlined purple name. */
-.item-detail__creator.creator {
+.item-detail__creator[data-testid="creator"] {
   color: var(--accent);
   font-size: 14px;
   gap: 12px;
 }
-.item-detail__creator .creator__ava {
+.item-detail__creator [data-avatar] {
   width: 48px;
   height: 48px;
 }
-.item-detail__creator .creator__ava--letter {
+.item-detail__creator [data-letter] {
   font-size: 18px;
 }
-.item-detail__creator .creator__name {
+.item-detail__creator [data-testid="creator-name"] {
   color: var(--accent);
   font-weight: 500;
   text-decoration: underline;
 }
-.item-detail__creator.creator--link:hover .creator__name {
+.item-detail__creator[data-link]:hover [data-testid="creator-name"] {
   color: var(--brand-violet);
 }
 
@@ -672,28 +663,12 @@
   padding: 4px 10px;
   white-space: nowrap;
 }
-.item-detail__countdown .sale-countdown__ico {
-  width: 14px;
-  height: 14px;
-}
 /* CTAs — two full-width stacked buttons on desktop (Buy now above Add to cart). */
 .item-detail__ctas {
   display: flex;
   flex-direction: column;
   gap: 12px;
   margin-top: 20px;
-}
-.item-detail__cta {
-  width: 100%;
-  height: 48px;
-  border-radius: 8px;
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: 0.46px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
 }
 /* Price inside the Buy-now button: hidden on desktop, shown in the mobile sticky bar (Figma 1182-194973). */
 .item-detail__cta-price {
@@ -730,10 +705,6 @@
 .item-detail__addcart:disabled {
   opacity: 0.55;
   cursor: default;
-}
-.item-detail__addcart-ico {
-  width: 20px;
-  height: 20px;
 }
 .item-detail__status {
   margin: 0;
@@ -810,10 +781,6 @@
     align-items: stretch;
     gap: 12px;
   }
-  .item-detail__ctas--dual .item-detail__cta {
-    flex: 1 1 auto;
-    width: auto;
-  }
   .item-detail__ctas--dual .item-detail__cta-price {
     display: inline-flex;
   }
@@ -825,7 +792,7 @@
   .item-detail__ctas--dual .item-detail__addcart-label {
     display: none;
   }
-  .item-detail__ctas--dual .item-detail__addcart-ico {
+  .item-detail__ctas--dual .item-detail__addcart .ico {
     margin: 0;
   }
 
@@ -889,10 +856,7 @@
   }
 }
 
-/* The Collection carousel styles moved to components/CollectionCarousel.css (co-located with the
-   shared component so it stays styled wherever it's rendered — cart upsell included). */
-
-/* Not-found / unresolvable item (bad deep link, delisted, or not in the shop feed) */
+/* Not-found / unresolvable item (bad deep link, delisted, or not in the shop feed). */
 .item-detail--notfound {
   min-height: 46vh;
   display: flex;
@@ -909,7 +873,4 @@
 }
 .item-detail__notfound-title {
   font-size: 22px;
-}
-.item-detail--notfound .btn {
-  margin-top: 6px;
 }

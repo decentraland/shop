@@ -15,11 +15,6 @@
   text-align: center;
   gap: 12px;
 }
-.store-settings__signin-btn {
-  align-self: center;
-  min-width: 200px;
-  margin-top: 8px;
-}
 
 .store-settings__head {
   display: flex;
@@ -209,7 +204,7 @@
 }
 
 @media (max-width: 768px) {
-  .store-settings__actions .btn {
+  .store-settings__save {
     width: 100%;
   }
   .cover-picker {

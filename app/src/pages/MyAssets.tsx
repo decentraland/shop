@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { Button } from '~/components/Button'
+import styled from '@emotion/styled'
 import { config } from '~/config'
 import { useWallet } from '~/store/wallet'
 import { fetchCollectionSaleState, fetchMyAssets, fetchTrade, type CatalogItem, type MyAsset } from '~/lib/api'
@@ -20,6 +22,16 @@ import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
 import { ErrorNotice } from '~/components/ErrorNotice'
 import '~/styles/my-listings.css'
+
+const RemoveBtn = styled(Button)`
+  margin-top: 8px;
+  width: 100%;
+`
+
+const PublishCta = styled(Button)`
+  margin-top: auto;
+  width: 100%;
+`
 
 const PAGE_SIZE = 48
 
@@ -185,9 +197,9 @@ export function MyAssets() {
         <h1>{t('nav.myAssets')}</h1>
         <p className="muted">{t('myAssets.signInPrompt')}</p>
         <div className="connect-row">
-          <button className="btn btn--purple" onClick={() => signIn()}>
+          <Button variant="purple" onClick={() => signIn()}>
             {t('storeSettings.signIn')}
-          </button>
+          </Button>
         </div>
         <ErrorNotice message={error} />
       </section>
@@ -249,8 +261,9 @@ export function MyAssets() {
                         </span>
                         <span className="badge">{t('myAssets.onSale')}</span>
                       </div>
-                      <button
-                        className="btn btn--sm btn--ghost asset-card__remove"
+                      <RemoveBtn
+                        size="sm"
+                        variant="ghost"
                         disabled={cancelling === asset.id || !asset.tradeId}
                         onClick={e => {
                           e.stopPropagation()
@@ -258,11 +271,11 @@ export function MyAssets() {
                         }}
                       >
                         {cancelling === asset.id ? t('myAssets.removing') : t('myAssets.removeListing')}
-                      </button>
+                      </RemoveBtn>
                     </>
                   ) : (
-                    <button
-                      className="btn btn--sm"
+                    <Button
+                      size="sm"
                       onClick={e => {
                         e.stopPropagation()
                         track('Shop Started Listing', {
@@ -273,7 +286,7 @@ export function MyAssets() {
                       }}
                     >
                       {t('myAssets.putOnSale')}
-                    </button>
+                    </Button>
                   )}
                 </article>
               ))}
@@ -335,8 +348,9 @@ export function MyAssets() {
                         </span>
                         <span className="badge">{t('myAssets.onSale')}</span>
                       </div>
-                      <button
-                        className="btn btn--sm btn--ghost publish-card__cta"
+                      <PublishCta
+                        size="sm"
+                        variant="ghost"
                         disabled={cancelling === item.id}
                         onClick={e => {
                           e.stopPropagation()
@@ -345,7 +359,7 @@ export function MyAssets() {
                         }}
                       >
                         {cancelling === item.id ? t('myAssets.removing') : t('myAssets.removeListing')}
-                      </button>
+                      </PublishCta>
                     </article>
                   ))}
                 </div>
@@ -379,8 +393,9 @@ export function MyAssets() {
                           {t('myAssets.available', { count: item.remainingSupply })}
                         </span>
                       </div>
-                      <button
-                        className="btn btn--sm btn--purple publish-card__cta"
+                      <PublishCta
+                        size="sm"
+                        variant="purple"
                         onClick={e => {
                           e.stopPropagation()
                           track('Shop Started Listing', { listing_type: 'primary', item_id: item.blockchainItemId })
@@ -388,7 +403,7 @@ export function MyAssets() {
                         }}
                       >
                         {t('myAssets.putOnSale')}
-                      </button>
+                      </PublishCta>
                     </article>
                   ))}
                 </div>

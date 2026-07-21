@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
+import { Chevron } from '~/components/Chevron'
 import { fetchUnified, type CatalogItem, type LegacyListing, type UnifiedListing } from '~/lib/api'
 import { manaWeiToCredits } from '~/lib/mana-rate'
 import { useManaRate } from '~/hooks/useManaRate'
@@ -293,7 +294,7 @@ export function Assets() {
           onClick={() => setRarityOpen(o => !o)}
         >
           <span className="sidebar__section-label">{t('assets.rarity')}</span>
-          <span className={`ico ico-chevron sidebar__section-chev${rarityOpen ? ' is-up' : ''}`} aria-hidden />
+          <Chevron up={rarityOpen} size={20} color="var(--muted)" />
         </button>
         {rarityOpen ? (
           <div className="rarity-filter" data-testid="rarity-filter">

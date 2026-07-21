@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
+import { Button } from '~/components/Button'
 import { Network } from '@dcl/schemas'
 import type { Session } from '~/lib/auth'
 import type { MyAsset } from '~/lib/api'
@@ -102,12 +103,12 @@ export function SellModal({ asset, session, onClose }: { asset: MyAsset; session
             </strong>
           </p>
           <div className="modal__actions">
-            <button className="btn btn--ghost" onClick={onClose}>
+            <Button variant="ghost" onClick={onClose}>
               {t('getCredits.done')}
-            </button>
-            <button className="btn btn--purple" onClick={viewInShop}>
+            </Button>
+            <Button variant="purple" onClick={viewInShop}>
               {t('sellModal.viewInShop')}
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -139,12 +140,12 @@ export function SellModal({ asset, session, onClose }: { asset: MyAsset; session
         <ErrorNotice message={error} />
 
         <div className="modal__actions">
-          <button className="btn btn--ghost" onClick={onClose} disabled={busy}>
+          <Button variant="ghost" onClick={onClose} disabled={busy}>
             {t('sellModal.cancel')}
-          </button>
-          <button className="btn" onClick={() => void list()} disabled={busy}>
+          </Button>
+          <Button onClick={() => void list()} disabled={busy}>
             {busy ? t('sellModal.listing') : t('sellModal.putOnSale')}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

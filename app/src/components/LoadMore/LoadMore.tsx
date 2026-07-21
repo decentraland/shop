@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import * as S from './LoadMore.styles'
 import { t } from '~/intl/i18n'
 
 /**
@@ -34,12 +35,10 @@ export function LoadMore({
   if (!hasNextPage) return null
 
   return (
-    <div className="load-more" ref={ref}>
-      <button className="btn btn--ghost" onClick={onLoadMore} disabled={isFetching}>
+    <S.Root ref={ref}>
+      <S.Trigger variant="ghost" onClick={onLoadMore} disabled={isFetching}>
         {isFetching ? t('loadMore.loading') : t('loadMore.loadMore')}
-      </button>
-    </div>
+      </S.Trigger>
+    </S.Root>
   )
 }
-
-export default LoadMore

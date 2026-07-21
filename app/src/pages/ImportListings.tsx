@@ -7,9 +7,21 @@ import { toast } from '~/store/toast'
 import { MigrateModal, type MigrateEntry } from '~/components/MigrateModal'
 import { CURRENCY } from '~/lib/currency'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
+import { Button } from '~/components/Button'
+import styled from '@emotion/styled'
 import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
 import '~/styles/import.css'
+
+// The empty-state CTA sits below the copy (was `.imp-empty .btn { margin-top: 10px }`).
+const ImpEmptyCta = styled(Button)`
+  margin-top: 10px;
+`
+
+// The dock's "List all" CTA is a touch roomier than the base button.
+const DockCta = styled(Button)`
+  padding: 13px 24px;
+`
 
 const SECTIONS = [
   {
@@ -98,9 +110,9 @@ export function ImportListings() {
         </span>
         <h1 className="imp-empty__title">{t('importListings.signInTitle')}</h1>
         <p className="muted">{t('importListings.signInBody')}</p>
-        <button className="btn btn--purple" onClick={() => signIn()}>
+        <ImpEmptyCta variant="purple" onClick={() => signIn()}>
           {t('storeSettings.signIn')}
-        </button>
+        </ImpEmptyCta>
       </div>
     )
   }
@@ -113,9 +125,9 @@ export function ImportListings() {
         </span>
         <h1 className="imp-empty__title">{t('importListings.emptyTitle')}</h1>
         <p className="muted">{t('importListings.emptyBody')}</p>
-        <Link className="btn btn--purple" to="/my-assets">
+        <ImpEmptyCta as={Link} to="/my-assets" variant="purple">
           {t('importListings.goToMyAssets')}
-        </Link>
+        </ImpEmptyCta>
       </div>
     )
   }
@@ -197,13 +209,14 @@ export function ImportListings() {
                         </div>
                       </div>
                       <div className="imp-action">
-                        <button
-                          className="btn btn--sm imp-row__list"
+                        <Button
+                          size="sm"
+                          className="imp-row__list"
                           disabled={!isSelected(item.oldTradeId)}
                           onClick={() => setQueue(buildQueue([item]))}
                         >
                           {t('importListings.list')}
-                        </button>
+                        </Button>
                       </div>
                     </article>
                   )
@@ -228,13 +241,13 @@ export function ImportListings() {
             </div>
           </div>
           <span className="imp-dock__spacer" />
-          <button
-            className="btn btn--purple imp-dock__cta"
+          <DockCta
+            variant="purple"
             disabled={selectedItems.length === 0}
             onClick={() => setQueue(buildQueue(selectedItems))}
           >
             {t('importListings.listAll', { count: selectedItems.length })}
-          </button>
+          </DockCta>
         </div>
       </div>
 

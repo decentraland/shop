@@ -1,5 +1,7 @@
 import { ReactNode, useState } from 'react'
 import type { ShopSort } from '~/lib/api'
+import { Icon } from '~/components/Icon'
+import { Chevron } from '~/components/Chevron'
 import { Dropdown } from '~/components/Dropdown'
 import { t } from '~/intl/i18n'
 
@@ -56,7 +58,7 @@ export function FilterPanel({
         onClick={() => panel.toggle(panelKey)}
       >
         {label} {badge ? <span className="filterbar__badge">{badge}</span> : null}{' '}
-        <span className={`ico ico-chevron filterbar__chev${isOpen ? ' is-up' : ''}`} aria-hidden />
+        <Chevron up={isOpen} size={24} color="var(--text-2)" />
       </button>
       {isOpen ? children : null}
     </div>
@@ -169,7 +171,7 @@ export function FilterBar({
                 onClick={onOpenFilters}
                 aria-label={t('filterBar.filters')}
               >
-                <span className="ico ico-filter" aria-hidden />
+                <Icon name="filter" color="var(--text-2)" />
               </button>
             ) : null}
           </div>

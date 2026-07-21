@@ -1,4 +1,5 @@
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
+import { Chevron } from '~/components/Chevron'
 import './dropdown.css'
 
 export type DropdownOption = { value: string; label: ReactNode }
@@ -79,7 +80,7 @@ export function Dropdown({
         onClick={() => setOpen(!open)}
       >
         <span className="dropdown__label">{triggerLabel}</span>
-        <span className={`ico ico-chevron dropdown__chev${open ? ' is-up' : ''}`} aria-hidden />
+        <Chevron up={open} size={24} color="#43404a" />
       </button>
 
       {open ? (

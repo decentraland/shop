@@ -30,8 +30,15 @@ import { track, purchaseItemsProps, errorCode, isUserRejection, creditsToUsd } f
 import { captureError } from '~/lib/monitoring'
 import { CollectionCarousel } from '~/components/CollectionCarousel'
 import { CreatorBadge } from '~/components/CreatorBadge'
+import { Button } from '~/components/Button'
+import { Icon } from '~/components/Icon'
+import styled from '@emotion/styled'
 import type { CatalogItem } from '~/lib/api'
 import './cart.css'
+
+const EmptyCta = styled(Button)`
+  margin-top: 12px;
+`
 
 // Cart-specific mapping: the "listing changed" message is plural (a multi-item cart), so it maps
 // locally rather than via the shared singular soldOrRemoved/cantBuyOwn.
@@ -418,12 +425,12 @@ export function Cart() {
   if (items.length === 0 && !modal) {
     return (
       <div className="cart cart--empty">
-        <span className="ico ico-cart cart-empty__ico" aria-hidden />
+        <Icon name="cart" size={44} color="var(--muted-2)" />
         <p className="cart-empty__title">{t('cart.empty.title')}</p>
         <p className="muted">{t('cart.empty.body')}</p>
-        <Link className="btn btn--purple" to="/assets">
+        <EmptyCta as={Link} to="/assets" variant="purple">
           {t('cart.empty.cta')}
-        </Link>
+        </EmptyCta>
       </div>
     )
   }
@@ -431,7 +438,7 @@ export function Cart() {
   return (
     <div className="checkout">
       <button className="checkout__back" onClick={() => navigate(-1)} type="button">
-        <span className="ico ico-arrow-left" aria-hidden />
+        <Icon name="arrow-left" />
         {t('nav.cart')}
       </button>
 
@@ -444,12 +451,12 @@ export function Cart() {
               type="button"
               aria-label={t('cart.goBack')}
             >
-              <span className="ico ico-arrow-left" aria-hidden />
+              <Icon name="arrow-left" />
             </button>
             <h1 className="checkout__panel-title">{t('cart.panelTitle', { count: items.length })}</h1>
             {hasWearable ? (
               <button className="checkout__fitting" onClick={() => setFittingOpen(true)} disabled={working}>
-                <span className="ico ico-fitting-room checkout__fitting-ico" aria-hidden />
+                <Icon name="fitting-room" />
                 {t('cart.fittingRoom')}
               </button>
             ) : null}
@@ -552,8 +559,9 @@ export function Cart() {
                       }
                       title={faved ? t('assetCard.removeFromFavorites') : t('assetCard.addToFavorites')}
                     >
-                      <span className={`ico ${faved ? 'ico-heart-solid' : 'ico-heart'}`} aria-hidden />
+                      <Icon name={faved ? 'heart-solid' : 'heart'} />
                     </button>
+
                     <button
                       className="checkout__remove"
                       onClick={() => editCart(() => remove(item.id))}
@@ -561,7 +569,7 @@ export function Cart() {
                       aria-label={t('cart.remove', { name: item.name })}
                       title={t('cart.removeTitle')}
                     >
-                      <span className="ico ico-trash" aria-hidden />
+                      <Icon name="trash" size={24} />
                     </button>
                   </div>
                 </div>
