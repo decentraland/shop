@@ -365,15 +365,15 @@
 .ov-creators__creator {
   font-size: 16px;
 }
-.ov-creators__creator .creator__ava {
+.ov-creators__creator [data-avatar] {
   width: 32px;
   height: 32px;
 }
-.ov-creators__creator .creator__name {
+.ov-creators__creator [data-testid="creator-name"] {
   color: var(--accent);
   font-weight: 600;
 }
-.ov-creators__creator.creator--link:hover .creator__name {
+.ov-creators__creator[data-link]:hover [data-testid="creator-name"] {
   color: var(--accent);
 }
 

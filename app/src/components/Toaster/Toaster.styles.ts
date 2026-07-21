@@ -36,6 +36,13 @@ export const Icon = styled.span`
   font-weight: 800;
   font-size: 13px;
   background: ${theme.colors.accent};
+
+  &[data-kind='success'] {
+    background: ${theme.colors.okStrong};
+  }
+  &[data-kind='error'] {
+    background: ${theme.colors.errStrong};
+  }
 `
 
 export const Msg = styled.span`
@@ -62,15 +69,9 @@ export const Item = styled.div`
 
   &[data-kind='success'] {
     border-left-color: ${theme.colors.okStrong};
-    ${Icon} {
-      background: ${theme.colors.okStrong};
-    }
   }
   &[data-kind='error'] {
     border-left-color: ${theme.colors.errStrong};
-    ${Icon} {
-      background: ${theme.colors.errStrong};
-    }
   }
 
   @media (prefers-reduced-motion: reduce) {

@@ -211,10 +211,10 @@ a.checkout__name:hover {
   line-height: 1.43;
   color: var(--muted);
 }
-.checkout__creator .creator__ava {
+.checkout__creator [data-avatar] {
   display: none;
 }
-.checkout__creator .creator__name {
+.checkout__creator [data-testid="creator-name"] {
   font-size: 10px;
   line-height: 1.43;
 }

@@ -211,7 +211,7 @@
 }
 /* On the card we show just "By AuthorName" — hide the creator avatar (the badge still renders it
    elsewhere: cart, collection, item detail). */
-.card__creator .creator__ava {
+.card__creator [data-avatar] {
   display: none;
 }
 /* Price never shrinks or wraps — the name yields space to it, not the reverse. */

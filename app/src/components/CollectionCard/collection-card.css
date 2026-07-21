@@ -81,17 +81,17 @@
 .coll-card__creator {
   min-width: 0;
 }
-.coll-card__creator.creator {
+.coll-card__creator[data-testid="creator"] {
   color: var(--muted);
 }
-.coll-card__creator .creator__ava {
+.coll-card__creator [data-avatar] {
   width: 24px;
   height: 24px;
 }
-.coll-card__creator .creator__name {
+.coll-card__creator [data-testid="creator-name"] {
   font-size: 14px;
 }
-.coll-card__creator .creator__display {
+.coll-card__creator [data-testid="creator-display"] {
   color: var(--dcl-red);
   font-weight: 700;
 }

@@ -19,7 +19,9 @@ function ToastItem({ t }: { t: Toast }) {
       role={t.kind === 'error' ? 'alert' : 'status'}
       onClick={() => dismiss(t.id)}
     >
-      <S.Icon aria-hidden>{ICON[t.kind]}</S.Icon>
+      <S.Icon data-kind={t.kind} aria-hidden>
+        {ICON[t.kind]}
+      </S.Icon>
       <S.Msg>{t.message}</S.Msg>
     </S.Item>
   )

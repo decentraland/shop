@@ -483,24 +483,24 @@
 }
 /* PDP creator badge: larger avatar + prominent purple link (overrides the compact card default).
    Matches the Figma: 48px avatar, 12px gap, 14px underlined purple name. */
-.item-detail__creator.creator {
+.item-detail__creator[data-testid="creator"] {
   color: var(--accent);
   font-size: 14px;
   gap: 12px;
 }
-.item-detail__creator .creator__ava {
+.item-detail__creator [data-avatar] {
   width: 48px;
   height: 48px;
 }
-.item-detail__creator .creator__ava--letter {
+.item-detail__creator [data-letter] {
   font-size: 18px;
 }
-.item-detail__creator .creator__name {
+.item-detail__creator [data-testid="creator-name"] {
   color: var(--accent);
   font-weight: 500;
   text-decoration: underline;
 }
-.item-detail__creator.creator--link:hover .creator__name {
+.item-detail__creator[data-link]:hover [data-testid="creator-name"] {
   color: var(--brand-violet);
 }
 

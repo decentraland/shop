@@ -2633,62 +2633,11 @@ a.purchase:hover {
 }
 
 /* Creator badge (avatar + profile name, address fallback) */
-.creator {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--muted);
-  font-size: 12px;
-  min-width: 0;
-}
-.creator--link {
-  background: none;
-  border: 0;
-  padding: 0;
-  margin: 0;
-  font: inherit;
-  cursor: pointer;
-  max-width: 100%;
-}
-.creator--link:hover .creator__name {
-  color: var(--text);
-  text-decoration: underline;
-}
-.creator__ava {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  object-fit: cover;
-  flex: none;
-  background: var(--media);
-}
-.creator__ava--ph {
-  background: linear-gradient(135deg, var(--rarity-bg), var(--media));
-}
-/* Lettered fallback avatar (no profile face, or the face url failed to load): the creator's initial on
-   a deterministic color. See CreatorBadge.tsx. */
-.creator__ava--letter {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1;
-  text-transform: uppercase;
-}
-.creator__name {
-  font-size: 12px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-/* Compact creator line inside a card so the fixed 96px body fits name + creator + the 40px action
-   button on hover without clipping it. */
-.card__creator.creator {
+/* Compact creator line inside a card (fixed-height card body). */
+.card__creator[data-testid="creator"] {
   margin-bottom: 2px;
 }
-.card__creator .creator__ava {
+.card__creator [data-avatar] {
   width: 16px;
   height: 16px;
 }
