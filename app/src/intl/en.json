@@ -228,7 +228,8 @@
     "cancel": "Cancel",
     "buy": "Buy",
     "completingPurchase": "Completing Purchase…",
-    "completingTransaction": "Completing transaction…",
+    "completingTransaction": "Completing your purchase…",
+    "confirmToContinue": "Confirm to continue…",
     "successBody": "You can find your item in the My Assets tab.",
     "myAssets": "My assets",
     "tryInWorld": "Try in world",
@@ -242,7 +243,12 @@
     "titleBuy": "Buy Assets",
     "titleNoFunds": "Buy Credits and Items",
     "dialogAria": "Check out your cart",
-    "qty": "× {count}"
+    "qty": "× {count}",
+    "preparing": "Preparing your purchase…",
+    "errorTitle": "Oops! Something went wrong",
+    "errorHeadline": "We couldn't complete your purchase this time.",
+    "errorBody": "Don't worry, your credits are safe. Please try again in a moment.",
+    "tryAgain": "Try again"
   },
   "marketCheckout": {
     "finalPrice": "Final price",

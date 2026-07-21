@@ -3,7 +3,12 @@ import type { CreditPack } from '~/lib/payments'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { formatCredits } from '~/lib/currency'
 import { t } from '~/intl/i18n'
-import { ErrorNotice } from '~/components/ErrorNotice'
+import loaderLogo from '~/assets/credits/loader-logo.svg'
+import buyErrorAvatar from '~/assets/error/buy-error.png'
+
+// The processing stages (mirrors Cart.tsx): reserve credits per unit → wait for the wallet signature
+// → settle the single on-chain tx. Kept as a local union so the modal has no dependency on Cart.
+export type CheckoutStage = 'reserving' | 'awaiting-signature' | 'settling'
 
 // A cart line as the modal displays it: the item + the LIVE per-unit credit price + how many units.
 export type CheckoutLine = { item: CatalogItem; priceCredits: number; quantity?: number }
@@ -20,8 +25,12 @@ type Props = {
   balanceCredits: number
   onClose: () => void
   // processing
+  stage?: CheckoutStage
   step?: number
   total?: number
+  // Self-custody (MetaMask etc.) users get a "confirm to continue" prompt; managed (social) users sign
+  // transparently, so they never see a confirmation step. Never leak "wallet/transaction" — see CONVENTIONS.
+  isSelfCustody?: boolean
   // nofunds
   lines?: CheckoutLine[]
   shortfallCredits?: number
@@ -35,6 +44,7 @@ type Props = {
   onTryInWorld?: () => void
   // error
   message?: string | null
+  onRetry?: () => void
 }
 
 export function CartCheckoutModal(props: Props) {
@@ -42,7 +52,12 @@ export function CartCheckoutModal(props: Props) {
   const busy = phase === 'processing'
   // The success state has no header in Figma (1182-220275) — just the green banner + list + CTAs.
   const showHead = phase !== 'complete'
-  const title = phase === 'nofunds' ? t('cartCheckout.titleNoFunds') : t('cartCheckout.titleBuy')
+  const title =
+    phase === 'error'
+      ? t('cartCheckout.errorTitle')
+      : phase === 'nofunds'
+        ? t('cartCheckout.titleNoFunds')
+        : t('cartCheckout.titleBuy')
   const tall = phase === 'processing'
 
   return (
@@ -71,7 +86,14 @@ export function CartCheckoutModal(props: Props) {
           </div>
         )}
 
-        {phase === 'processing' && <Processing step={props.step ?? 1} total={props.total ?? 1} />}
+        {phase === 'processing' && (
+          <Processing
+            stage={props.stage ?? 'reserving'}
+            step={props.step ?? 1}
+            total={props.total ?? 1}
+            isSelfCustody={!!props.isSelfCustody}
+          />
+        )}
         {phase === 'nofunds' && (
           <NoFunds
             lines={props.lines ?? []}
@@ -92,10 +114,22 @@ export function CartCheckoutModal(props: Props) {
         )}
         {phase === 'error' && (
           <div className="buy-modal__body">
-            <ErrorNotice message={props.message} />
+            {/* Figma 1182-196586: pink panel + sad-robot art + reassuring copy, then Cancel / Try again. */}
+            <div className="buy-error">
+              <img className="buy-error__art" src={buyErrorAvatar} alt="" width={64} height={80} />
+              <p className="buy-error__text">
+                <b>{t('cartCheckout.errorHeadline')}</b> {t('cartCheckout.errorBody')}
+              </p>
+            </div>
             <div className="buy-modal__ctas">
-              <button className="buy-modal__btn buy-modal__btn--gradient" onClick={onClose}>
-                {t('buyModal.close')}
+              <button className="buy-modal__btn buy-modal__btn--outline" onClick={onClose}>
+                {t('buyModal.cancel')}
+              </button>
+              <button
+                className="buy-modal__btn buy-modal__btn--purple"
+                onClick={props.onRetry ?? onClose}
+              >
+                {t('cartCheckout.tryAgain')}
               </button>
             </div>
           </div>
@@ -105,21 +139,57 @@ export function CartCheckoutModal(props: Props) {
   )
 }
 
-// Processing (Figma 1182-218528): logo + "Completing transaction…" + progress bar with an "n/N"
-// step counter that advances as each line is authorized.
-function Processing({ step, total }: { step: number; total: number }) {
+// Processing (Figma 1182-232610). The flow has three HONEST stages so the bar never claims progress
+// the purchase hasn't made:
+//  - reserving: the N units' credits are reserved sequentially (silent) → a DETERMINATE bar fills to
+//    step/total, with an "n/N" counter when there's more than one unit.
+//  - awaiting-signature: ONE wallet prompt to sign/confirm the purchase → an INDETERMINATE bar (the
+//    buyer hasn't acted yet, so showing a near-full bar would be a lie).
+//  - settling: the single tx confirms on-chain → INDETERMINATE bar, "Completing transaction…".
+function Processing({
+  stage,
+  step,
+  total,
+  isSelfCustody
+}: {
+  stage: CheckoutStage
+  step: number
+  total: number
+  isSelfCustody: boolean
+}) {
+  const reserving = stage === 'reserving'
+  const pct = total > 0 ? Math.min(100, Math.round((step / total) * 100)) : 0
+  // Managed (social) users never confirm anything, so they never see a "confirm" prompt — they go
+  // straight to "completing". Copy is web2-first: no "wallet"/"transaction" for anyone (see CONVENTIONS).
+  const text =
+    stage === 'awaiting-signature'
+      ? isSelfCustody
+        ? t('buyModal.confirmToContinue')
+        : t('buyModal.completingTransaction')
+      : stage === 'settling'
+        ? t('buyModal.completingTransaction')
+        : t('cartCheckout.preparing')
   return (
     <div className="buy-modal__body buy-modal__processing">
-      <img className="buy-modal__logo" src="/icon-192.png" alt="" width={61} height={61} />
-      <div className="buy-modal__processing-text">{t('buyModal.completingTransaction')}</div>
-      <div className="cart-checkout__progress-row">
+      <img className="buy-modal__logo" src={loaderLogo} alt="" width={61} height={61} />
+      <div className="buy-modal__processing-text">{text}</div>
+      {reserving ? (
+        <div className="cart-checkout__progress-row">
+          <div className="buy-modal__progress" aria-hidden>
+            <span className="buy-modal__progress-fill buy-modal__progress-fill--step" style={{ width: `${pct}%` }} />
+          </div>
+          {total > 1 ? (
+            <span className="cart-checkout__step">
+              {step}/{total}
+            </span>
+          ) : null}
+        </div>
+      ) : (
+        // Indeterminate: the base .buy-modal__progress-fill is the sliding shimmer (no fixed width).
         <div className="buy-modal__progress" aria-hidden>
           <span className="buy-modal__progress-fill" />
         </div>
-        <span className="cart-checkout__step">
-          {step}/{total}
-        </span>
-      </div>
+      )}
     </div>
   )
 }

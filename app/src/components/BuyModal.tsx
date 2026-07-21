@@ -21,6 +21,7 @@ import { RESUME_BUY_KEY } from '~/lib/resume-buy'
 import { t } from '~/intl/i18n'
 import { friendlyError, isInsufficient } from '~/lib/errors'
 import { ErrorNotice } from '~/components/ErrorNotice'
+import loaderLogo from '~/assets/credits/loader-logo.svg'
 
 type Phase = 'loading' | 'ready' | 'nofunds' | 'processing' | 'complete' | 'error'
 
@@ -372,7 +373,7 @@ export function BuyModal({
         {/* Processing — completing transaction */}
         {phase === 'processing' && (
           <div className="buy-modal__body buy-modal__processing">
-            <img className="buy-modal__logo" src="/icon-192.png" alt="" width={61} height={61} />
+            <img className="buy-modal__logo" src={loaderLogo} alt="" width={61} height={61} />
             <div className="buy-modal__processing-text">
               {resume ? t('buyModal.completingPurchase') : t('buyModal.completingTransaction')}
             </div>

@@ -378,8 +378,10 @@ h2 {
   display: flex;
   gap: 16px;
   overflow-x: auto;
-  padding: 12px 10px;
-  margin: 0 -10px;
+  /* Horizontal padding (not a negative margin) reserves room for the first/last card's outward hover
+     glow (2px cerise border + 8px box-shadow) so an overflow-x scroller doesn't crop the ring. */
+  padding: 12px 14px;
+  scroll-padding-inline: 14px;
   scroll-snap-type: x proximity;
 }
 .row__track > * {
@@ -3352,9 +3354,41 @@ a.purchase:hover {
   font-size: 13px;
   letter-spacing: 0.61px;
 }
+/* Solid purple CTA (Figma "Try again" — DCL/Purple #691fa9 fill, white label). */
+.buy-modal__btn--purple {
+  background: #691fa9;
+  color: #fcfcfc;
+  font-size: 13px;
+}
 .buy-modal__btn:disabled {
   opacity: 0.6;
   cursor: default;
+}
+/* Error state (Figma 1182-196586): a light-pink panel with the sad-robot art + reassuring copy. */
+.buy-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  background: rgba(255, 201, 213, 0.5);
+  border-radius: 16px;
+  padding: 24px 16px;
+}
+.buy-error__art {
+  width: 64px;
+  height: 80px;
+  object-fit: contain;
+}
+.buy-error__text {
+  margin: 0;
+  text-align: center;
+  font-size: 20px;
+  line-height: 1.334;
+  font-weight: 400;
+  color: #242129;
+}
+.buy-error__text b {
+  font-weight: 700;
 }
 /* Processing */
 .buy-modal__processing {
@@ -3396,6 +3430,32 @@ a.purchase:hover {
   }
   100% {
     transform: translateX(320%);
+  }
+}
+/* Determinate variant (cart multi-item, Figma 1182-232610): the fill width reflects step/total, set
+   inline, so it advances as each unit is authorized instead of the indeterminate slide above. */
+.buy-modal__progress-fill--step {
+  animation: none;
+  min-width: 12px;
+  transition: width 0.35s ease;
+}
+/* While the single settlement tx confirms (all units authorized), the bar is full and pulses so it
+   reads as "working", never frozen. */
+.buy-modal__progress-fill--pulsing {
+  animation: buy-modal-fill-pulse 1.2s ease-in-out infinite;
+}
+@keyframes buy-modal-fill-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .buy-modal__progress-fill--pulsing {
+    animation: none;
   }
 }
 /* Success */

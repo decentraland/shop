@@ -12,15 +12,20 @@
    ========================================================================== */
 
 /* ---------------- Checkout (cart) page ---------------- */
-/* Cart route paints the whole page gray (Figma 1182-216274) so the white cart cards get the focus
-   and the cross-sell reads as secondary. Full-bleed via a body class (toggled while Cart is mounted)
-   rather than a wrapper, so the gray reaches the viewport edges under the sticky sub-nav. */
+/* Cart route background (Figma 1182-216274): the whole page is gray so the white cards (header,
+   items, summary) get the focus. Full-bleed via a body class (toggled while Cart is mounted) so the
+   gray reaches the viewport edges AND fills up to the sticky sub-nav with no white gap. The cross-sell
+   section below the panels is lifted back to white by a band on `.cart-upsell`. */
 body.shop-cart-bg {
   background: var(--media);
 }
 .checkout {
   max-width: 1510px;
   margin: 0 auto;
+}
+/* Groups the breadcrumb + the two-column body; no background of its own (the gray comes from body). */
+.checkout__top {
+  position: relative;
 }
 
 /* Breadcrumb back link (Figma "‹ CART") — desktop only. */
@@ -53,35 +58,45 @@ body.shop-cart-bg {
    upsell row lives outside this grid so it spans full width below. */
 .checkout__body {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 600px;
+  grid-template-columns: minmax(0, 1fr) 615px;
   gap: 24px;
   align-items: start;
 }
 
-/* Left: a white card wrapping the header + the cart-card list. On the gray page the card needs no
-   outline — a soft shadow lifts it and drops the box-in-box border clutter. */
-.checkout__panel {
+/* Left column = TWO stacked white cards (Figma 1182-216307): a header card + the items card, 12px
+   apart. Both are white/rounded-16 on the gray page. */
+.checkout__left {
   min-width: 0;
-  background: #fff;
-  box-shadow: 0 1px 3px rgba(22, 21, 24, 0.06);
-  border-radius: 16px;
-  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
-.checkout__panel-head {
+/* Header card (Figma 1182-216308): "Cart: N Items" left, Fitting Room right. pl 24 / pr 12 / py 12. */
+.checkout__head-card {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 24px;
+  background: #fff;
+  border-radius: 16px;
+  padding: 12px 12px 12px 24px;
+}
+/* Items card (Figma 1182-216322): the cart-card list, 24px padding all around (this is the missing
+   bottom padding — the last line now has 24px of breathing room before the card edge). */
+.checkout__panel {
+  min-width: 0;
+  background: #fff;
+  border-radius: 16px;
+  padding: 24px;
 }
 .checkout__panel-back {
   display: none; /* mobile only (a chevron before the title) */
 }
 .checkout__panel-title {
   margin: 0;
-  font-size: 18px;
+  font-size: 14px;
   font-weight: 600;
-  line-height: 1.2;
+  line-height: 1.57;
   color: var(--text);
 }
 /* Fitting Room button (Figma 1182-232414) — purple label + a GRADIENT (Amethyst) border. A flat
@@ -130,7 +145,7 @@ body.shop-cart-bg {
 .checkout__list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 24px;
 }
 
 /* A cart line = the Figma "Cart cards" component (thumbnail + name/creator +
@@ -148,7 +163,7 @@ body.shop-cart-bg {
 .checkout__thumb {
   position: relative;
   flex-shrink: 0;
-  width: 137px;
+  width: 137.5px;
   height: 137px;
   background: var(--media);
   border-radius: 12px;
@@ -273,6 +288,9 @@ a.checkout__name:hover {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  /* Always right-aligned: with a stepper present space-between handles it; for secondary/unique lines
+     (no stepper) the auto margin keeps the lone price on the right instead of falling to the left. */
+  margin-left: auto;
   font-size: 24px;
   font-weight: 600;
   color: var(--text-2);
@@ -292,10 +310,10 @@ a.checkout__name:hover {
 /* Favourite (heart) + delete (trash) group at the top-right of the card (Figma: gap 12, 24px each). */
 .checkout__actions {
   position: absolute;
-  top: 10px;
-  right: 10px;
+  top: 9px;
+  right: 7px;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
 }
 .checkout__fav,
@@ -353,10 +371,10 @@ a.checkout__name:hover {
   padding: 16px;
 }
 .checkout__summary-title {
-  margin: 0 0 16px;
+  margin: 0 0 24px;
   padding-bottom: 16px;
   border-bottom: 1px solid #cfcdd4;
-  font-size: 20px;
+  font-size: 24px;
   font-weight: 600;
   color: var(--text);
 }
@@ -372,21 +390,21 @@ a.checkout__name:hover {
   gap: 12px;
 }
 .checkout__total-label {
-  font-size: 14px;
-  font-weight: 600;
-  color: #5e5b67;
+  font-size: 16px;
+  font-weight: 400;
+  color: var(--muted);
 }
 .checkout__total-value {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   font-size: 24px;
-  font-weight: 700;
-  color: var(--text);
+  font-weight: 600;
+  color: var(--text-2);
 }
 .checkout__total-ico {
-  width: 24px;
-  height: 24px;
+  width: 30px;
+  height: 30px;
   background: var(--accent);
 }
 .checkout__cta {
@@ -421,9 +439,27 @@ a.checkout__name:hover {
 }
 
 /* Upsell rail = the shared <CollectionCarousel> (side arrows + dots), same as the item-detail page.
-   The carousel supplies its own top margin, so this wrapper only scopes it under the cart. */
+   Figma 1182-216274: the cross-sell sits on WHITE while the page above is gray. A full-bleed white
+   band starts at the panels' bottom and extends down through the page's 80px bottom padding so the
+   white meets the footer with no gray strip. */
 .cart-upsell {
-  margin-top: 8px;
+  position: relative;
+  padding: 40px 0 24px;
+}
+.cart-upsell::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: -80px; /* eat .page's 80px bottom padding so white reaches the footer */
+  left: 50%;
+  width: 100vw;
+  transform: translateX(-50%);
+  background: var(--bg);
+  z-index: 0;
+}
+.cart-upsell > * {
+  position: relative;
+  z-index: 1;
 }
 
 /* Single-column below the two-column breakpoint; the summary stops sticking. */

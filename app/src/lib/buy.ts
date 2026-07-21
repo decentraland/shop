@@ -60,7 +60,12 @@ async function tradeManaPriceWei(trade: Trade): Promise<string> {
   return manaWei.mul(102).div(100).toString() // +2% buffer
 }
 
-export async function sendUseCredits(chainId: number, args: unknown, signer: ethers.Signer): Promise<string> {
+export async function sendUseCredits(
+  chainId: number,
+  args: unknown,
+  signer: ethers.Signer,
+  onSigned?: () => void
+): Promise<string> {
   // useCredits is a REAL transaction, so it MUST run on the trade's chain. A restored session (or a
   // user who was last on another network) can leave the wallet on a different chain — without pinning
   // it first the wallet submits useCredits on its active network (e.g. Sepolia), where the
@@ -80,6 +85,9 @@ export async function sendUseCredits(chainId: number, args: unknown, signer: eth
   const cm = getContract(ContractName.CreditsManager, chainId)
   const contract = new ethers.Contract(cm.address, cm.abi, signer) as CreditsManagerContract
   const tx = await contract.useCredits(args, amoyGasOverrides(chainId))
+  // Tx submitted (the buyer confirmed in their wallet) — settlement is next. Callers use this to flip
+  // the UI from "confirm in your wallet" to "completing transaction".
+  onSigned?.()
   const receipt = await tx.wait()
   return receipt.transactionHash
 }
@@ -141,8 +149,10 @@ export async function buyManyWithCredits(opts: {
   purchases: CreditPurchase[]
   buyer: string
   signer: ethers.Signer
+  /** Fired once the buyer confirms the tx in their wallet, before on-chain settlement. */
+  onSigned?: () => void
 }): Promise<string[]> {
-  const { purchases, buyer, signer } = opts
+  const { purchases, buyer, signer, onSigned } = opts
   if (purchases.length === 0) throw new Error('No items to buy')
 
   // Group by (chain, marketplace) so each group is one accept([...]) → one signature.
@@ -164,7 +174,7 @@ export async function buyManyWithCredits(opts: {
       .reduce((acc, p) => acc.add(ethers.BigNumber.from(p.maxCreditedValue)), ethers.BigNumber.from(0))
       .toString()
     const args = buildUseCreditsArgs(marketplace.address, marketplace.abi, trades, buyer, credits, maxCreditedValue)
-    hashes.push(await sendUseCredits(chainId, args, signer))
+    hashes.push(await sendUseCredits(chainId, args, signer, onSigned))
   }
   return hashes
 }
