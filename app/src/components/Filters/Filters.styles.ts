@@ -27,13 +27,15 @@ export const Section = styled.div`
   width: 100%;
 `
 
-// Collapsible section header (title + chevron). `fillWhenOpen` gives it the gray-5 wash Figma uses for
-// Rarity/Status when open; `desktopStatic` hides the chevron and stops it reading as interactive on
+// Collapsible section header (title + chevron). Transparent background — Figma separates the sections
+// with hairline dividers only, no gray wash (a persistent fill read as a stuck hover state). A subtle
+// hover tint appears only while the pointer is actually over the header (never after a tap, since we
+// don't style :focus). `desktopStatic` hides the chevron and stops it reading as interactive on
 // desktop (Category/Price are always shown there).
 export const Header = styled(
   'button',
-  noForward('fillWhenOpen', 'open', 'desktopStatic')
-)<{ fillWhenOpen?: boolean; open?: boolean; desktopStatic?: boolean }>`
+  noForward('desktopStatic')
+)<{ desktopStatic?: boolean }>`
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -43,7 +45,7 @@ export const Header = styled(
   padding: 4px;
   border: 0;
   border-radius: 4px;
-  background: ${({ fillWhenOpen, open }) => (fillWhenOpen && open ? theme.colors.media : 'transparent')};
+  background: transparent;
   color: ${theme.colors.text};
   text-align: left;
   cursor: pointer;
@@ -52,8 +54,10 @@ export const Header = styled(
     height: 52px;
   }
 
-  &:hover {
-    background: ${({ fillWhenOpen, open }) => (fillWhenOpen && open ? theme.colors.media : '#f5f4f7')};
+  @media (hover: hover) {
+    &:hover {
+      background: #f5f4f7;
+    }
   }
   &:focus-visible {
     outline: 2px solid ${theme.colors.accent};
@@ -64,7 +68,6 @@ export const Header = styled(
     desktopStatic
       ? `${theme.media.up('lg')} {
           cursor: default;
-          background: transparent;
           &:hover { background: transparent; }
         }`
       : ''}

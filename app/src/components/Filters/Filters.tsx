@@ -31,7 +31,6 @@ function FilterSection({
   open,
   onToggle,
   summary,
-  fillWhenOpen,
   desktopStatic,
   headerTestId,
   headerAria,
@@ -41,7 +40,6 @@ function FilterSection({
   open: boolean
   onToggle: () => void
   summary?: string
-  fillWhenOpen?: boolean
   desktopStatic?: boolean
   headerTestId?: string
   headerAria?: string
@@ -52,8 +50,6 @@ function FilterSection({
     <S.Section>
       <S.Header
         type="button"
-        open={open}
-        fillWhenOpen={fillWhenOpen}
         desktopStatic={desktopStatic}
         onClick={onToggle}
         aria-expanded={open}
@@ -229,7 +225,6 @@ export function Filters({
         open={openRarity}
         onToggle={() => setOpenRarity(o => !o)}
         summary={raritySummary}
-        fillWhenOpen
         headerTestId="sidebar-section-toggle"
       >
         <S.RarityChips data-testid="rarity-filter">
@@ -261,7 +256,6 @@ export function Filters({
         open={openStatus}
         onToggle={() => setOpenStatus(o => !o)}
         summary={statusSummary}
-        fillWhenOpen
       >
         {(
           [
