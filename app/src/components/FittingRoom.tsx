@@ -155,6 +155,7 @@ export function FittingRoom() {
                 disableBackground
                 disableFadeEffect
                 dev={config.chainId === 80002}
+                unity
                 onLoad={() => setPreviewReady(true)}
               />
               {!previewReady ? (

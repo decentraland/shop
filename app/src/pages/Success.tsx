@@ -166,6 +166,7 @@ export function Success() {
             emote={PreviewEmote.FASHION}
             background="ecebed"
             dev={config.chainId === 80002}
+            unity
           />
         ) : (
           <WearablePreview
@@ -179,6 +180,7 @@ export function Success() {
             emote={singleIsEmote ? undefined : PreviewEmote.FASHION}
             background="ecebed"
             dev={config.chainId === 80002}
+            unity
           />
         )}
       </div>

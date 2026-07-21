@@ -73,6 +73,8 @@ export function ItemPreview({ item }: { item: CatalogItem }) {
           wheelZoom={isEmote ? 1.5 : undefined}
           wheelStart={isEmote ? 100 : undefined}
           dev={config.chainId === 80002}
+          // Prefer Unity (best-effort — the wrapper falls back to Babylon when conditions aren't met).
+          unity
           onLoad={() => setPreviewLoading(false)}
         />
       ) : null}
