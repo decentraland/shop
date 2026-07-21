@@ -156,14 +156,14 @@ export function Assets() {
   // result_count is accurate (see design/SHOP_TRACKING_SPEC.md §5.2). Refs dedupe + skip the initial load.
   const lastSearched = useRef<string | null>(null)
   useEffect(() => {
-    if (isLoading || !q || lastSearched.current === q) return
+    if (isLoading || isPlaceholderData || !q || lastSearched.current === q) return
     lastSearched.current = q
     track('Shop Searched', { query: q, result_count: resultCount })
-  }, [q, isLoading, resultCount])
+  }, [q, isLoading, isPlaceholderData, resultCount])
 
   const lastFilterSig = useRef<string>('__init__')
   useEffect(() => {
-    if (isLoading) return
+    if (isLoading || isPlaceholderData) return
     const sig = JSON.stringify({ category, subCategory, rarities, min, max, sort, status, smart })
     if (lastFilterSig.current === '__init__' || lastFilterSig.current === sig) {
       lastFilterSig.current = sig
@@ -183,7 +183,7 @@ export function Assets() {
       },
       result_count: resultCount
     })
-  }, [category, subCategory, rarities, min, max, sort, status, smart, isLoading, resultCount])
+  }, [category, subCategory, rarities, min, max, sort, status, smart, isLoading, isPlaceholderData, resultCount])
 
   function pickCategory(key: string) {
     setCategory(key)
@@ -277,7 +277,7 @@ export function Assets() {
           sort={sort}
           onSort={setSort}
           total={total}
-          loading={isLoading}
+          loading={isLoading || isPlaceholderData}
           query={q}
           onOpenFilters={() => setFiltersOpen(true)}
           chips={chips}
@@ -322,7 +322,7 @@ export function Assets() {
 
         <LoadMore hasNextPage={hasNextPage} isFetching={isFetchingNextPage} onLoadMore={() => void fetchNextPage()} />
 
-        {!isLoading && items.length === 0 ? <p className="muted">{t('assets.noItems')}</p> : null}
+        {!isLoading && !isPlaceholderData && items.length === 0 ? <p className="muted">{t('assets.noItems')}</p> : null}
       </S.Main>
 
       {checkout && rate ? (
