@@ -1,32 +1,26 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { Chevron } from '~/components/Chevron'
 import { fetchUnified, type CatalogItem, type LegacyListing, type UnifiedListing } from '~/lib/api'
 import { manaWeiToCredits } from '~/lib/mana-rate'
 import { useManaRate } from '~/hooks/useManaRate'
 import { AssetCard } from '~/components/AssetCard'
-import { CategoryFilter } from '~/components/CategoryFilter'
-import { FilterBar, RARITIES, SORTS } from '~/components/FilterBar'
+import { Filters, type FilterStatus } from '~/components/Filters'
+import { FilterBar, type FilterChip, RARITIES, SORTS } from '~/components/FilterBar'
 import { SkeletonCards } from '~/components/SkeletonCards'
 import { LoadMore } from '~/components/LoadMore'
 import { MarketCheckout } from '~/components/MarketCheckout'
-import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
 import { useSeo } from '~/hooks/useSeo'
 import { SUBCAT_MAP } from '~/lib/categories'
+import { capitalizeFirst } from '~/lib/text'
 import { track } from '~/lib/analytics'
 import { t } from '~/intl/i18n'
 import { ErrorNotice } from '~/components/ErrorNotice'
+import * as S from './Assets.styles'
 
 // Items fetched per page (infinite scroll pages by cumulative offset — see useInfiniteGrid).
 const PAGE_SIZE = 48
-
-// Upper bound for the sidebar price range slider (in credits). The Min/Max text inputs stay free-form
-// (an exact price above this is still typable); the slider is the coarse control, so the bound is a
-// UX choice — comfortably above typical listing prices — NOT the placeholder Figma showed (4,000,000),
-// which would make each pixel worth thousands of credits and the slider useless.
-const PRICE_SLIDER_MAX = 100_000
 
 // A legacy row from the unified feed → the LegacyListing shape MarketCheckout (Buy Now) expects. The
 // unified item is a superset of CatalogItem carrying `manaWei` (present for legacy), so the projection
@@ -74,19 +68,26 @@ export function Assets() {
   const [rarities, setRarities] = useState<string[]>([])
   const [priceMin, setPriceMin] = useState('')
   const [priceMax, setPriceMax] = useState('')
+  const [status, setStatus] = useState<FilterStatus>('all')
+  const [smart, setSmart] = useState(false)
   const [sort, setSort] = useState('newest')
-  const [rarityOpen, setRarityOpen] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false) // mobile filters drawer
   const [checkout, setCheckout] = useState<LegacyListing | null>(null)
 
-  // Close the mobile filters drawer on Escape (it already closes on scrim tap / ✕).
+  // Close the mobile filters drawer on Escape (it already closes on scrim tap / ✕) and lock body
+  // scroll while it's open so the page behind the bottom sheet can't scroll (only the sheet does).
   useEffect(() => {
     if (!filtersOpen) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setFiltersOpen(false)
     }
     document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prevOverflow
+    }
   }, [filtersOpen])
 
   // Build the server filter set — /v3/catalog/unified does the filtering + sort + search.
@@ -101,7 +102,9 @@ export function Assets() {
     minPriceCredits: min,
     maxPriceCredits: max,
     search: q || undefined,
-    sortBy
+    sortBy,
+    isSmart: smart || undefined,
+    onSale: status === 'all' ? undefined : status === 'on_sale'
   }
 
   const { items, total, isLoading, error, hasNextPage, isFetchingNextPage, fetchNextPage } = useInfiniteGrid(
@@ -129,7 +132,7 @@ export function Assets() {
   const lastFilterSig = useRef<string>('__init__')
   useEffect(() => {
     if (isLoading) return
-    const sig = JSON.stringify({ category, subCategory, rarities, min, max, sort })
+    const sig = JSON.stringify({ category, subCategory, rarities, min, max, sort, status, smart })
     if (lastFilterSig.current === '__init__' || lastFilterSig.current === sig) {
       lastFilterSig.current = sig
       return
@@ -142,11 +145,13 @@ export function Assets() {
         rarities,
         min_price_credits: min ?? null,
         max_price_credits: max ?? null,
+        status,
+        smart,
         sort
       },
       result_count: resultCount
     })
-  }, [category, subCategory, rarities, min, max, sort, isLoading, resultCount])
+  }, [category, subCategory, rarities, min, max, sort, status, smart, isLoading, resultCount])
 
   function pickCategory(key: string) {
     setCategory(key)
@@ -155,14 +160,15 @@ export function Assets() {
   function toggleRarity(r: string) {
     setRarities(rs => (rs.includes(r) ? rs.filter(x => x !== r) : [...rs, r]))
   }
-  // Reset every filter to its default (Figma drawer "Clear Filters"). Filters apply live, so this
-  // takes effect immediately; the drawer's "Apply" just closes it.
+  // Reset every filter to its default. Filters apply live, so this takes effect immediately.
   function clearFilters() {
     setCategory('wearable')
     setSubCategory(null)
     setRarities([])
     setPriceMin('')
     setPriceMax('')
+    setStatus('all')
+    setSmart(false)
   }
   function openCheckout(card: CatalogItem) {
     const item = items.find(i => i.id === card.id)
@@ -172,158 +178,69 @@ export function Assets() {
     void qc.invalidateQueries({ queryKey: ['unified-listings'] })
   }
 
-  // Dual-handle price range slider (sidebar). The two overlaid range inputs drive the SAME priceMin/
-  // priceMax state as the text inputs, so typing and dragging stay in sync. Values are clamped so the
-  // handles can't cross; an empty bound means "unbounded" (min → 0 shown, max → the slider ceiling).
-  const sliderMin = min != null ? Math.min(min, PRICE_SLIDER_MAX) : 0
-  const sliderMax = max != null ? Math.min(max, PRICE_SLIDER_MAX) : PRICE_SLIDER_MAX
-  const minPct = (sliderMin / PRICE_SLIDER_MAX) * 100
-  const maxPct = (sliderMax / PRICE_SLIDER_MAX) * 100
-  function onSlideMin(v: number) {
-    const n = Math.min(v, sliderMax)
-    setPriceMin(n <= 0 ? '' : String(n))
-  }
-  function onSlideMax(v: number) {
-    const n = Math.max(v, sliderMin)
-    setPriceMax(n >= PRICE_SLIDER_MAX ? '' : String(n))
-  }
+  // Applied-filter chips (Figma top-bar 1304-310186 / desktop 1256-293193): price, each selected
+  // rarity (in canonical order), Smart, and a non-default Status. Each removes just its own filter.
+  const chips: FilterChip[] = []
+  if (min != null || max != null)
+    chips.push({
+      key: 'price',
+      label: t('filter.price'),
+      onRemove: () => {
+        setPriceMin('')
+        setPriceMax('')
+      }
+    })
+  for (const r of RARITIES)
+    if (rarities.includes(r))
+      chips.push({ key: `rarity-${r}`, label: capitalizeFirst(r), onRemove: () => toggleRarity(r) })
+  if (smart) chips.push({ key: 'smart', label: t('filter.smart'), onRemove: () => setSmart(false) })
+  if (status !== 'all')
+    chips.push({
+      key: 'status',
+      label: status === 'on_sale' ? t('filter.onSale') : t('filter.notForSale'),
+      onRemove: () => setStatus('all')
+    })
 
   return (
-    <div className="browse browse--sidebar" data-testid="browse">
-      {filtersOpen ? <div className="browse__scrim" onClick={() => setFiltersOpen(false)} aria-hidden /> : null}
-      <aside className={`browse__sidebar${filtersOpen ? ' is-open' : ''}`} data-testid="browse-sidebar">
-        <div className="browse__sidebar-head">
-          <span className="browse__sidebar-title">{t('assets.filters')}</span>
-          <button
-            className="browse__sidebar-close"
-            onClick={() => setFiltersOpen(false)}
-            aria-label={t('assets.closeFilters')}
-          >
+    <S.Root data-testid="browse">
+      {filtersOpen ? <S.Scrim onClick={() => setFiltersOpen(false)} aria-hidden /> : null}
+      <S.Sidebar className={filtersOpen ? 'is-open' : ''} data-testid="browse-sidebar">
+        <S.DrawerHead>
+          <S.DrawerTitle>{t('assets.filters')}</S.DrawerTitle>
+          <S.CloseBtn onClick={() => setFiltersOpen(false)} aria-label={t('assets.closeFilters')}>
             ✕
-          </button>
-        </div>
-        <div className="sidebar__section-label">{t('assets.category')}</div>
-        <CategoryFilter
-          category={category}
-          subCategory={subCategory}
-          onCategory={pickCategory}
-          onSub={setSubCategory}
-        />
+          </S.CloseBtn>
+        </S.DrawerHead>
 
-        <div className="sidebar__divider" />
+        <S.SidebarScroll>
+          <Filters
+            category={category}
+            subCategory={subCategory}
+            onCategory={pickCategory}
+            onSub={setSubCategory}
+            priceMin={priceMin}
+            priceMax={priceMax}
+            onPriceMin={setPriceMin}
+            onPriceMax={setPriceMax}
+            rarities={rarities}
+            onToggleRarity={toggleRarity}
+            status={status}
+            onStatus={setStatus}
+            smart={smart}
+            onSmart={setSmart}
+          />
+        </S.SidebarScroll>
 
-        <div className="sidebar__section-label">{t('filter.price')}</div>
-        <div className="price-filter">
-          <div className="price-filter__inputs">
-            <label className="price-filter__field">
-              <span className="price-filter__field-label">{t('assets.min')}</span>
-              <span className="price-filter__box">
-                <CurrencyIcon className="price-filter__coin" />
-                <input
-                  type="number"
-                  min="0"
-                  aria-label={t('assets.minPriceAria')}
-                  placeholder="0"
-                  value={priceMin}
-                  onChange={e => setPriceMin(e.target.value)}
-                />
-              </span>
-            </label>
-            <span className="price-filter__to">{t('assets.priceTo')}</span>
-            <label className="price-filter__field">
-              <span className="price-filter__field-label">{t('assets.max')}</span>
-              <span className="price-filter__box">
-                <CurrencyIcon className="price-filter__coin" />
-                <input
-                  type="number"
-                  min="0"
-                  aria-label={t('assets.maxPriceAria')}
-                  placeholder="0"
-                  value={priceMax}
-                  onChange={e => setPriceMax(e.target.value)}
-                />
-              </span>
-            </label>
-          </div>
+        {/* Bottom action bar (Figma node 1304-308322) — mobile only. Filters apply live, so this
+            simply dismisses the sheet. */}
+        <S.DrawerFoot>
+          <S.ShowItems type="button" onClick={() => setFiltersOpen(false)}>
+            {t('assets.showItems')}
+          </S.ShowItems>
+        </S.DrawerFoot>
+      </S.Sidebar>
 
-          <div
-            className="price-filter__slider"
-            style={{ '--min-pct': `${minPct}%`, '--max-pct': `${maxPct}%` } as CSSProperties}
-          >
-            <div className="price-filter__track" aria-hidden />
-            <div className="price-filter__fill" aria-hidden />
-            <input
-              type="range"
-              min={0}
-              max={PRICE_SLIDER_MAX}
-              value={sliderMin}
-              aria-label={t('assets.minPriceSliderAria')}
-              onChange={e => onSlideMin(Number(e.target.value))}
-            />
-            <input
-              type="range"
-              min={0}
-              max={PRICE_SLIDER_MAX}
-              value={sliderMax}
-              aria-label={t('assets.maxPriceSliderAria')}
-              onChange={e => onSlideMax(Number(e.target.value))}
-            />
-          </div>
-
-          <div className="price-filter__range">
-            <span className="price-filter__range-val">
-              <CurrencyIcon className="price-filter__coin" />
-              {sliderMin.toLocaleString()}
-            </span>
-            <span className="price-filter__range-val">
-              <CurrencyIcon className="price-filter__coin" />
-              {sliderMax.toLocaleString()}
-            </span>
-          </div>
-        </div>
-
-        <div className="sidebar__divider" />
-
-        {/* Rarity now lives at the bottom-left of the sidebar (Figma New Shop 2026) instead of a
-            top-right pill — a collapsible section over the shared RARITIES multi-select. */}
-        <button
-          type="button"
-          className="sidebar__section-toggle"
-          data-testid="sidebar-section-toggle"
-          aria-expanded={rarityOpen}
-          onClick={() => setRarityOpen(o => !o)}
-        >
-          <span className="sidebar__section-label">{t('assets.rarity')}</span>
-          <Chevron up={rarityOpen} size={20} color="var(--muted)" />
-        </button>
-        {rarityOpen ? (
-          <div className="rarity-filter" data-testid="rarity-filter">
-            {RARITIES.map(r => (
-              <label
-                key={r}
-                className={`rarity-filter__check${rarities.includes(r) ? ' is-on' : ''}`}
-                data-testid="rarity-filter-check"
-              >
-                <input type="checkbox" checked={rarities.includes(r)} onChange={() => toggleRarity(r)} />
-                <span>{r}</span>
-              </label>
-            ))}
-          </div>
-        ) : null}
-
-        {/* Drawer action bar (Figma node 1059-158189) — mobile only (CSS). Filters apply live, so
-            Apply simply dismisses the drawer; Clear Filters resets them all. */}
-        <div className="browse__sidebar-foot">
-          <button type="button" className="browse__clear" onClick={clearFilters}>
-            {t('assets.clearFilters')}
-          </button>
-          <button type="button" className="browse__apply" onClick={() => setFiltersOpen(false)}>
-            {t('assets.apply')}
-          </button>
-        </div>
-      </aside>
-
-      <div className="browse__main">
+      <S.Main>
         <FilterBar
           sort={sort}
           onSort={setSort}
@@ -331,6 +248,8 @@ export function Assets() {
           loading={isLoading}
           query={q}
           onOpenFilters={() => setFiltersOpen(true)}
+          chips={chips}
+          onClearChips={clearFilters}
         />
 
         {/* Legacy (market-priced) cards follow the live rate; if the oracle is down, Buy Now is paused.
@@ -368,7 +287,7 @@ export function Assets() {
         <LoadMore hasNextPage={hasNextPage} isFetching={isFetchingNextPage} onLoadMore={() => void fetchNextPage()} />
 
         {!isLoading && items.length === 0 ? <p className="muted">{t('assets.noItems')}</p> : null}
-      </div>
+      </S.Main>
 
       {checkout && rate ? (
         <MarketCheckout
@@ -381,6 +300,6 @@ export function Assets() {
           }}
         />
       ) : null}
-    </div>
+    </S.Root>
   )
 }

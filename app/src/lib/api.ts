@@ -255,6 +255,10 @@ export type ShopListingFilters = {
   maxPriceCredits?: number
   search?: string
   sortBy?: ShopSort
+  // Smart-wearables only (Figma "Smart" toggle). Omitted = no smart constraint.
+  isSmart?: boolean
+  // Listing status (Figma "Status" filter): true = on sale, false = not for sale, undefined = all.
+  onSale?: boolean
 }
 
 async function fetchShopListingsRaw(
@@ -345,6 +349,8 @@ export async function fetchUnified({ first = 100, ...filters }: ShopListingFilte
   if (filters.maxPriceCredits != null) qs.set('maxPriceCredits', String(filters.maxPriceCredits))
   if (filters.search) qs.set('search', filters.search)
   if (filters.sortBy) qs.set('sortBy', filters.sortBy)
+  if (filters.isSmart) qs.set('isSmart', 'true')
+  if (filters.onSale != null) qs.set('onSale', String(filters.onSale))
   const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/unified?${qs.toString()}`)
   if (!res.ok) throw new Error(`fetchUnified ${res.status}`)
   const json = (await res.json()) as { data?: UnifiedListingRaw[]; total?: number }

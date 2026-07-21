@@ -190,7 +190,13 @@
     "errorGrant": "No pudimos añadir tus {currency}. Inténtalo de nuevo."
   },
   "filter": {
-    "price": "Precio"
+    "price": "Precio",
+    "status": "Estado",
+    "statusAll": "Todos",
+    "onSale": "En venta",
+    "notForSale": "No en venta",
+    "smart": "Smart",
+    "smartHint": "Los wearables Smart añaden utilidad interactiva en el mundo."
   },
   "assetCard": {
     "sale": "OFERTA",
@@ -321,6 +327,7 @@
     "rarity": "Rareza",
     "clearFilters": "Borrar filtros",
     "apply": "Aplicar",
+    "showItems": "Mostrar artículos",
     "marketUnavailable": "Algunos precios de mercado no están disponibles temporalmente; la compra de esos artículos está pausada por un momento. Inténtalo de nuevo en breve.",
     "loadError": "No pudimos cargar los artículos. Inténtalo de nuevo.",
     "noItems": "Ningún artículo coincide con tus filtros."
@@ -411,7 +418,8 @@
     "rarity": "Rareza",
     "clearAll": "Borrar todo",
     "filters": "Filtros",
-    "sortBy": "Ordenar por"
+    "sortBy": "Ordenar por",
+    "removeFilter": "Quitar el filtro {filter}"
   },
   "addAll": {
     "added": "{count, plural, one {Se añadió # artículo a tu carrito.} other {Se añadieron # artículos a tu carrito.}}",

@@ -14,13 +14,15 @@
 
 const colors = {
   bg: '#ffffff',
-  text: '#161518',
-  text2: '#242129',
-  muted: '#716b7c',
-  muted2: '#a09ba8',
+  text: '#161518', // Neutrals/Soft Black 1
+  text2: '#242129', // Neutrals/Soft Black 2
+  muted: '#716b7c', // Neutrals/Gray 2
+  muted2: '#a09ba8', // Neutrals/Gray 3
+  gray0: '#43404a', // Neutrals/Gray 0 — filter labels, applied-filter chip bg
+  gray4: '#cfcdd4', // Neutrals/Gray 4 — hairline borders on rarity swatch chips
   line: '#e6e4ea', // subtle card border
   lineStrong: '#a09ba8', // search field / defined borders
-  media: '#ecebed',
+  media: '#ecebed', // Neutrals/Gray 5 — selected/expanded section fill
   panel: '#f5f5f5',
   chip: '#ecebed',
   accent: '#691fa9', // purple — View all, Sign-in CTA
@@ -37,6 +39,19 @@ const colors = {
   okStrong: '#1f8a4c',
   errStrong: '#d64545',
   white: '#ffffff'
+} as const
+
+// Per-rarity swatch colors for the filter chips (Figma "Rarities/*" variables — a distinct palette
+// from @dcl/schemas' Rarity.getColor, so they're pinned here as design tokens).
+const rarities = {
+  common: '#73d3d3',
+  uncommon: '#ff8362',
+  rare: '#34ce76',
+  epic: '#289cff',
+  legendary: '#a24bf3',
+  exotic: '#bdfd4e',
+  mythic: '#ff4bed',
+  unique: '#fea217'
 } as const
 
 const gradients = {
@@ -76,6 +91,6 @@ const media = {
   up: (bp: Breakpoint) => `@media (min-width: ${breakpoints[bp] + 1}px)`
 }
 
-export const theme = { colors, gradients, radius, font, media }
+export const theme = { colors, rarities, gradients, radius, font, media }
 
 export type AppTheme = typeof theme
