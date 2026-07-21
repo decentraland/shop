@@ -58,6 +58,7 @@ export type IconName =
   | 'heart-solid'
   | 'info'
   | 'mana-logo'
+  | 'offer'
   | 'pen'
   | 'plus'
   | 'search'

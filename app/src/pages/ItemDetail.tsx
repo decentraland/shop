@@ -33,6 +33,8 @@ import { fetchCollectionItems, fetchCollection } from '~/lib/collections'
 import { ItemPreview } from '~/components/ItemPreview'
 import { CollectionCarousel } from '~/components/CollectionCarousel'
 import { NotifyMe } from '~/components/NotifyMe'
+import { MakeOfferButton } from '~/components/MakeOfferButton'
+import { Tooltip } from '~/components/Tooltip'
 import { CreatorBadge } from '~/components/CreatorBadge'
 import { Button } from '~/components/Button'
 import styled from '@emotion/styled'
@@ -664,7 +666,9 @@ export function ItemDetail() {
               <div className="item-detail__price-block">
                 <div className="item-detail__price-row">
                   <div className="item-detail__price-col">
-                    <div className="item-detail__price-label">{t('itemDetail.price')}</div>
+                    {isMarket || forSale ? (
+                      <div className="item-detail__price-label">{t('itemDetail.price')}</div>
+                    ) : null}
                     {isMarket ? (
                       <>
                         <div className="item-detail__price item-detail__price--market">
@@ -709,7 +713,19 @@ export function ItemDetail() {
                         </div>
                       )
                     ) : (
-                      <div className="item-detail__price item-detail__price--none">{t('itemDetail.notForSale')}</div>
+                      <div className="item-detail__price item-detail__price--none">
+                        <span>{t('itemDetail.notForSale')}</span>
+                        <Tooltip content={t('itemDetail.notForSaleHint')}>
+                          <span
+                            className="item-detail__price-info"
+                            tabIndex={0}
+                            role="img"
+                            aria-label={t('itemDetail.notForSaleHint')}
+                          >
+                            <Icon name="info" size={14} />
+                          </span>
+                        </Tooltip>
+                      </div>
                     )}
                   </div>
                   {showStock ? (
@@ -721,7 +737,10 @@ export function ItemDetail() {
                     </div>
                   ) : outOfStock ? (
                     <div className="item-detail__stock-col">
-                      <div className="item-detail__stock-value item-detail__stock-value--out" data-testid="out-of-stock">
+                      <div
+                        className="item-detail__stock-value item-detail__stock-value--out"
+                        data-testid="out-of-stock"
+                      >
                         {t('itemDetail.outOfStock')}
                       </div>
                     </div>
@@ -794,8 +813,12 @@ export function ItemDetail() {
                     </button>
                   </>
                 ) : (
-                  // No buyable listing → hide buy/add-cart and offer "Notify me when available".
-                  <NotifyMe item={current} />
+                  // No buyable listing → hide buy/add-cart and offer "Notify me when available" + the
+                  // (coming-soon) Make an offer CTA.
+                  <>
+                    <NotifyMe item={current} />
+                    <MakeOfferButton item={current} />
+                  </>
                 )}
               </div>
             </>

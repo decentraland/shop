@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { CATEGORIES, CategoryFilter } from '~/components/CategoryFilter'
 import { Chevron } from '~/components/Chevron'
+import { Tooltip } from '~/components/Tooltip'
 import { RARITIES } from '~/components/FilterBar'
 import { CURRENCY } from '~/lib/currency'
 import { capitalizeFirst } from '~/lib/text'
@@ -282,7 +283,9 @@ export function Filters({
         <S.SmartLeft>
           <S.SmartFlash name="smart" aria-hidden />
           <S.SmartTitle>{t('filter.smart')}</S.SmartTitle>
-          <S.SmartInfo name="info" role="img" aria-label={t('filter.smartHint')} title={t('filter.smartHint')} />
+          <Tooltip content={t('filter.smartHint')} placement="bottom">
+            <S.SmartInfo name="info" role="img" aria-label={t('filter.smartHint')} tabIndex={0} />
+          </Tooltip>
         </S.SmartLeft>
         <S.Toggle
           type="button"
