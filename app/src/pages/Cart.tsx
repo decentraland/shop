@@ -77,8 +77,11 @@ const toUnits = (lines: ResolvedLine[]): ResolvedLine[] =>
   lines.flatMap(l => Array.from({ length: l.quantity }, () => ({ ...l, quantity: 1 })))
 
 // The multi-item checkout modal's state — a pure reflection of the charge flow (Cart owns the money).
+// The processing stages, in order: reserve each unit's credits (silent, N sequential authorizes) →
+// wait for the buyer to sign/confirm in their wallet (ONE prompt) → settle the single on-chain tx.
+type ProcessingStage = 'reserving' | 'awaiting-signature' | 'settling'
 type ModalState =
-  | { phase: 'processing'; step: number; total: number; submitting?: boolean }
+  | { phase: 'processing'; stage: ProcessingStage; step: number; total: number }
   | { phase: 'nofunds'; lines: CheckoutLine[]; shortfall: number }
   | { phase: 'complete'; purchased: Array<CatalogItem & { quantity?: number }> }
   | { phase: 'error'; message: string }
@@ -200,7 +203,7 @@ export function Cart() {
     const reservedSalts: string[] = []
     let step: 'authorize' | 'submit' = 'authorize'
     let usedGasless = false
-    setModal({ phase: 'processing', step: 1, total: units.length })
+    setModal({ phase: 'processing', stage: 'reserving', step: 1, total: units.length })
     try {
       // Authorize SEQUENTIALLY (not Promise.all): each authorize reserves against the running USD
       // balance, so ordering is what makes the insufficient-credits guard correct — parallel calls
@@ -208,7 +211,7 @@ export function Cart() {
       const purchases: CreditPurchase[] = []
       for (let i = 0; i < units.length; i++) {
         const line = units[i]
-        setModal({ phase: 'processing', step: i + 1, total: units.length })
+        setModal({ phase: 'processing', stage: 'reserving', step: i + 1, total: units.length })
         try {
           // Authorize against the freshly RESOLVED trade (line.trade), not the item's original tradeId:
           // a stale tradeId may have been re-signed to a new trade, and the spend below executes against
@@ -236,13 +239,16 @@ export function Cart() {
       }
 
       step = 'submit'
-      // All units authorized: the whole basket settles in ONE accept([...]) tx (trades are grouped by
-      // chain+marketplace, and the shop is single-chain). Hold the bar full + pulsing while it confirms.
-      setModal({ phase: 'processing', step: units.length, total: units.length, submitting: true })
+      // All units authorized. The whole basket settles in ONE accept([...]) tx (trades are grouped by
+      // chain+marketplace, and the shop is single-chain), so from here it's a single wallet prompt then
+      // one settlement — NOT a per-item count. Show "confirm in your wallet" until the buyer signs
+      // (onSigned), then "completing transaction" while it settles.
+      const onSigned = () => setModal({ phase: 'processing', stage: 'settling', step: units.length, total: units.length })
+      setModal({ phase: 'processing', stage: 'awaiting-signature', step: units.length, total: units.length })
       let hashes: string[] = []
       if (gaslessEnabled()) {
         try {
-          hashes = await buyManyGasless({ purchases, buyer: session.address, signer: session.signer })
+          hashes = await buyManyGasless({ purchases, buyer: session.address, signer: session.signer, onSigned })
           // Once buyManyGasless returns, every group's meta-tx is BROADCAST. A group that's only
           // pending (unconfirmed within the window) may still land, so we must NOT release the
           // reservations — the credits-server reconciles those against the indexed CreditUsed event.
@@ -259,7 +265,7 @@ export function Cart() {
           usedGasless = true
         } catch (gaslessErr) {
           if (!(gaslessErr instanceof GaslessUnavailableError)) throw gaslessErr
-          hashes = await buyManyWithCredits({ purchases, buyer: session.address, signer: session.signer })
+          hashes = await buyManyWithCredits({ purchases, buyer: session.address, signer: session.signer, onSigned })
         }
       } else {
         hashes = await buyManyWithCredits({ purchases, buyer: session.address, signer: session.signer })
@@ -685,9 +691,9 @@ export function Cart() {
           phase={modal.phase}
           balanceCredits={balanceCredits}
           onClose={closeModal}
+          stage={modal.phase === 'processing' ? modal.stage : undefined}
           step={modal.phase === 'processing' ? modal.step : undefined}
           total={modal.phase === 'processing' ? modal.total : undefined}
-          submitting={modal.phase === 'processing' ? modal.submitting : undefined}
           lines={modal.phase === 'nofunds' ? modal.lines : undefined}
           shortfallCredits={modal.phase === 'nofunds' ? modal.shortfall : undefined}
           packs={OFFER_PACKS}
@@ -698,6 +704,7 @@ export function Cart() {
           onMyAssets={() => navigate('/assets?tab=mine')}
           onTryInWorld={() => window.open(JUMP_URL, '_blank', 'noopener')}
           message={modal.phase === 'error' ? modal.message : undefined}
+          onRetry={() => void checkout()}
         />
       ) : null}
     </div>

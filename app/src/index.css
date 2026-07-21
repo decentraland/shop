@@ -3770,9 +3770,41 @@ a.purchase:hover {
   font-size: 13px;
   letter-spacing: 0.61px;
 }
+/* Solid purple CTA (Figma "Try again" — DCL/Purple #691fa9 fill, white label). */
+.buy-modal__btn--purple {
+  background: #691fa9;
+  color: #fcfcfc;
+  font-size: 13px;
+}
 .buy-modal__btn:disabled {
   opacity: 0.6;
   cursor: default;
+}
+/* Error state (Figma 1182-196586): a light-pink panel with the sad-robot art + reassuring copy. */
+.buy-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  background: rgba(255, 201, 213, 0.5);
+  border-radius: 16px;
+  padding: 24px 16px;
+}
+.buy-error__art {
+  width: 64px;
+  height: 80px;
+  object-fit: contain;
+}
+.buy-error__text {
+  margin: 0;
+  text-align: center;
+  font-size: 20px;
+  line-height: 1.334;
+  font-weight: 400;
+  color: #242129;
+}
+.buy-error__text b {
+  font-weight: 700;
 }
 /* Processing */
 .buy-modal__processing {

@@ -4,8 +4,8 @@ import { clickByText, waitForText } from './helpers/dom'
 import { COLLECTION, buyTrade } from './fixtures'
 
 // Cart checkout error path: a hard authorize failure (500, NOT a 402 insufficient) drives the
-// CartCheckoutModal into its error phase, which renders <ErrorNotice> (.error-notice). Nothing is
-// purchased and the page never navigates to /success.
+// CartCheckoutModal into its error phase (Figma 1182-196586): the pink `.buy-error` panel with the
+// "Oops! Something went wrong" copy + a Try again CTA. Nothing is purchased and we never reach /success.
 
 let app: App | undefined
 afterEach(async () => {
@@ -33,8 +33,9 @@ describe('cart checkout error path', () => {
     expect(await clickByText(page, 'button', /^buy now$/i)).toBe(true)
 
     // Review passes (default balance covers the item) → charge → authorize 500 → error phase modal.
-    await page.waitForSelector('.error-notice', { timeout: 30000 })
-    await waitForText(page, "Couldn't complete checkout")
+    await page.waitForSelector('.buy-error', { timeout: 30000 })
+    await waitForText(page, "We couldn't complete your purchase")
+    await waitForText(page, 'Try again')
 
     // The raw server error must not leak, nothing was purchased, and we stay on /cart.
     const body = await page.evaluate(() => document.body.innerText)

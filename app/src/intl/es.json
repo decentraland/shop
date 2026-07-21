@@ -222,6 +222,7 @@
     "buy": "Comprar",
     "completingPurchase": "Completando la compra…",
     "completingTransaction": "Completando la transacción…",
+    "confirmInWallet": "Confirma en tu wallet…",
     "successBody": "Puedes encontrar tu artículo en la pestaña Mis artículos.",
     "myAssets": "Mis artículos",
     "tryInWorld": "Probar en el mundo",
@@ -235,7 +236,12 @@
     "titleBuy": "Comprar artículos",
     "titleNoFunds": "Comprar créditos y artículos",
     "dialogAria": "Finaliza la compra de tu carrito",
-    "qty": "× {count}"
+    "qty": "× {count}",
+    "preparing": "Preparando tu compra…",
+    "errorTitle": "¡Ups! Algo salió mal",
+    "errorHeadline": "No pudimos completar tu compra esta vez.",
+    "errorBody": "Tranquilo, tus créditos están a salvo. Inténtalo de nuevo en un momento.",
+    "tryAgain": "Reintentar"
   },
   "marketCheckout": {
     "finalPrice": "Precio final",
