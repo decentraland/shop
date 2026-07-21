@@ -72,7 +72,7 @@ body.shop-cart-bg {
    upsell row lives outside this grid so it spans full width below. */
 .checkout__body {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 600px;
+  grid-template-columns: minmax(0, 1fr) 615px;
   gap: 24px;
   align-items: start;
 }
@@ -149,7 +149,7 @@ body.shop-cart-bg {
 .checkout__list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 24px;
 }
 
 /* A cart line = the Figma "Cart cards" component (thumbnail + name/creator +
@@ -167,7 +167,7 @@ body.shop-cart-bg {
 .checkout__thumb {
   position: relative;
   flex-shrink: 0;
-  width: 137px;
+  width: 137.5px;
   height: 137px;
   background: var(--media);
   border-radius: 12px;
@@ -292,6 +292,9 @@ a.checkout__name:hover {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  /* Always right-aligned: with a stepper present space-between handles it; for secondary/unique lines
+     (no stepper) the auto margin keeps the lone price on the right instead of falling to the left. */
+  margin-left: auto;
   font-size: 24px;
   font-weight: 600;
   color: var(--text-2);
@@ -311,10 +314,10 @@ a.checkout__name:hover {
 /* Favourite (heart) + delete (trash) group at the top-right of the card (Figma: gap 12, 24px each). */
 .checkout__actions {
   position: absolute;
-  top: 10px;
-  right: 10px;
+  top: 9px;
+  right: 7px;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
 }
 .checkout__fav,
@@ -372,10 +375,10 @@ a.checkout__name:hover {
   padding: 16px;
 }
 .checkout__summary-title {
-  margin: 0 0 16px;
+  margin: 0 0 24px;
   padding-bottom: 16px;
   border-bottom: 1px solid #cfcdd4;
-  font-size: 20px;
+  font-size: 24px;
   font-weight: 600;
   color: var(--text);
 }
@@ -391,21 +394,21 @@ a.checkout__name:hover {
   gap: 12px;
 }
 .checkout__total-label {
-  font-size: 14px;
-  font-weight: 600;
-  color: #5e5b67;
+  font-size: 16px;
+  font-weight: 400;
+  color: var(--muted);
 }
 .checkout__total-value {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   font-size: 24px;
-  font-weight: 700;
-  color: var(--text);
+  font-weight: 600;
+  color: var(--text-2);
 }
 .checkout__total-ico {
-  width: 24px;
-  height: 24px;
+  width: 30px;
+  height: 30px;
   background: var(--accent);
 }
 .checkout__cta {
