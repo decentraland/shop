@@ -459,6 +459,27 @@ type NFTResult = {
   order: { price?: string | null; tradeId?: string } | null
 }
 
+// Maps one indexer NFT row to the flattened MyAsset shape the UI consumes. Shared by fetchMyAssets
+// (the My Assets grid) and fetchOwnedToken (single-token ownership check) so the field mapping —
+// including the isOnSale / listingPrice / tradeId derivation from `order` — stays in one place.
+function toMyAsset(r: NFTResult): MyAsset {
+  return {
+    id: r.nft.id,
+    contractAddress: r.nft.contractAddress,
+    tokenId: r.nft.tokenId,
+    itemId: r.nft.itemId ?? null,
+    name: r.nft.name,
+    category: r.nft.category,
+    image: r.nft.image,
+    rarity: r.nft.data?.wearable?.rarity ?? r.nft.data?.emote?.rarity,
+    network: r.nft.network,
+    chainId: r.nft.chainId,
+    isOnSale: r.order != null,
+    listingPrice: r.order ? toCredits(r.order.price) : undefined,
+    tradeId: r.order?.tradeId
+  }
+}
+
 // Has `owner` received a token of this item yet, according to the indexer? The purchase tx confirming
 // on-chain isn't enough for the item to appear in My Assets — that page reads the indexed NFTs, which
 // lag the chain. The Success page polls this after the tx settles so it only claims "It's yours!" once
@@ -491,23 +512,34 @@ export async function fetchMyAssets(
   if (!res.ok) throw new Error(`Failed to fetch assets (${res.status})`)
   const { data, total } = (await res.json()) as { data: NFTResult[]; total: number }
 
-  const assets = data.map(r => ({
-    id: r.nft.id,
-    contractAddress: r.nft.contractAddress,
-    tokenId: r.nft.tokenId,
-    itemId: r.nft.itemId ?? null,
-    name: r.nft.name,
-    category: r.nft.category,
-    image: r.nft.image,
-    rarity: r.nft.data?.wearable?.rarity ?? r.nft.data?.emote?.rarity,
-    network: r.nft.network,
-    chainId: r.nft.chainId,
-    isOnSale: r.order != null,
-    listingPrice: r.order ? toCredits(r.order.price) : undefined,
-    tradeId: r.order?.tradeId
-  }))
+  const assets = data.map(toMyAsset)
 
   return { assets, total }
+}
+
+// Ownership + listing state of ONE specific token for a viewer. The item detail page uses it to decide
+// whether to show owner-management actions (List / Update price / Remove) for a secondary NFT the
+// connected wallet holds. Hits the same /v1/nfts endpoint (filtered by owner + token) fetchMyAssets
+// uses and maps the single row to a MyAsset — so it carries isOnSale + the open trade id (to cancel).
+// Returns null when the viewer doesn't own that token, or on any error (treat as "not the owner").
+export async function fetchOwnedToken(
+  owner: string,
+  contractAddress: string,
+  tokenId: string
+): Promise<MyAsset | null> {
+  try {
+    const qs = new URLSearchParams({ owner: owner.toLowerCase(), contractAddress, tokenId, first: '1' })
+    const res = await fetch(`${NFT_V1}/nfts?${qs.toString()}`)
+    if (!res.ok) return null
+    const { data } = (await res.json()) as { data: NFTResult[] }
+    const r = data?.[0]
+    // Guard on the token id too: the endpoint filters server-side, but never claim ownership of a
+    // token the response didn't actually match (defensive against a loose/again-cached row).
+    if (!r || r.nft.tokenId !== tokenId) return null
+    return toMyAsset(r)
+  } catch {
+    return null
+  }
 }
 
 // The metadata "signer" is the APP identifier (server validates it ∈ ['dcl:marketplace','dcl:builder']),

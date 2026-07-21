@@ -1,9 +1,12 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import type { ReactElement } from 'react'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AssetCard } from './AssetCard'
 import { useCart } from '~/store/cart'
 import { useFavorites } from '~/store/favorites'
+import { useWallet } from '~/store/wallet'
 import type { CatalogItem } from '~/lib/api'
 
 // A minimal catalog item — creator '' so the card skips CreatorBadge (which would fetch a profile).
@@ -128,5 +131,55 @@ describe('AssetCard market (legacy) mode', () => {
     expect(state.market).toBe(true)
     expect(state.marketPriceCredits).toBe(123)
     expect(state.item?.id).toBe(item.id)
+  })
+})
+
+describe('AssetCard own-item MANAGE CTA', () => {
+  const ME = '0x' + '11'.repeat(20)
+
+  // creator === you means the card renders CreatorBadge (which reads a profile via react-query), so
+  // these renders need a QueryClientProvider (the profile fetch is fire-and-forget / disabled here).
+  function renderWithQuery(ui: ReactElement) {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    return render(<QueryClientProvider client={qc}>{ui}</QueryClientProvider>)
+  }
+
+  afterEach(() => {
+    // The wallet store is real (not mocked) — clear the session so it doesn't leak into other suites.
+    useWallet.setState({ session: null })
+  })
+
+  it('labels the action MANAGE (not "your item") for your own primary item and enables it', () => {
+    useWallet.setState({ session: { address: ME } as never })
+    // A primary item you created (creator === you, no tokenId) → isOwnListing is true.
+    const { container } = renderWithQuery(
+      <MemoryRouter>
+        <AssetCard item={makeItem({ creator: ME })} />
+      </MemoryRouter>
+    )
+    const cart = container.querySelector('[data-testid="card-cart"]') as HTMLButtonElement
+    expect(cart.textContent).toMatch(/manage/i)
+    expect(cart.textContent).not.toMatch(/your item/i)
+    // MANAGE is actionable (unlike the old disabled "your item").
+    expect(cart.disabled).toBe(false)
+  })
+
+  it('navigates to the item detail page (management view) when MANAGE is clicked, without adding to cart', () => {
+    useWallet.setState({ session: { address: ME } as never })
+    const item = makeItem({ creator: ME, contractAddress: '0xc', itemId: '1' })
+    const { container } = renderWithQuery(
+      <MemoryRouter initialEntries={['/assets']}>
+        <Routes>
+          <Route path="/assets" element={<AssetCard item={item} />} />
+          <Route path="/item/:contractAddress/:seg" element={<LocationProbe />} />
+        </Routes>
+      </MemoryRouter>
+    )
+    fireEvent.click(container.querySelector('[data-testid="card-cart"]') as HTMLButtonElement)
+    // Landed on the detail route with the item seeded in state (so the management view can render it)…
+    const state = JSON.parse(screen.getByTestId('loc-state').textContent || '{}')
+    expect(state.item?.id).toBe(item.id)
+    // …and it never added your own item to the cart.
+    expect(useCart.getState().items).toHaveLength(0)
   })
 })

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Rarity } from '@dcl/schemas'
 import { config } from '~/config'
 import { useCart } from '~/store/cart'
@@ -10,12 +10,21 @@ import {
   fetchShopListingForItem,
   fetchTradeForItem,
   fetchItemDescription,
+  fetchOwnedToken,
+  fetchTrade,
   type CatalogItem,
   type LegacyListing,
   type UnifiedListing
 } from '~/lib/api'
+import { cancelListing } from '~/lib/buy'
+import { fetchPublishableItems, type PublishableItem } from '~/lib/builder'
 import { BuyModal } from '~/components/BuyModal'
+import { SellModal } from '~/components/SellModal'
+import { PrimaryListModal } from '~/components/PrimaryListModal'
 import { MarketCheckout } from '~/components/MarketCheckout'
+import { toast } from '~/store/toast'
+import { captureError } from '~/lib/monitoring'
+import { isRejection } from '~/lib/errors'
 import { useManaRate } from '~/hooks/useManaRate'
 import { useSeo } from '~/hooks/useSeo'
 import { shortAddress } from '~/lib/address'
@@ -28,6 +37,7 @@ import { Button } from '~/components/Button'
 import styled from '@emotion/styled'
 import { theme } from '~/styles/theme'
 import { CollectionBadge } from '~/components/CollectionBadge'
+import { ErrorNotice } from '~/components/ErrorNotice'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { Icon } from '~/components/Icon'
 import { SaleCountdown } from '~/components/SaleCountdown'
@@ -65,6 +75,35 @@ const DetailCta = styled(Button)`
       flex: 1 1 auto;
       width: auto;
     }
+  }
+`
+
+// Owner/creator management actions (replace the buy CTAs when the viewer owns or created this item).
+// Stacked full-width so List / Update price / Remove read as a clear action column.
+const ManageActions = styled('div')`
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+`
+
+// The take-down (secondary) action: a full-width ghost button under the primary manage CTA.
+const RemoveCta = styled(Button)`
+  && {
+    width: 100%;
+    height: 44px;
+  }
+`
+
+// "Manage all your items in My Assets" helper, mirroring the old own-note styling.
+const ManageNote = styled('p')`
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: ${theme.colors.muted};
+
+  a {
+    color: ${theme.colors.accent};
+    font-weight: 600;
   }
 `
 
@@ -338,6 +377,107 @@ export function ItemDetail() {
   // caught authoritatively at buy time by isOwnTrade.
   const own = isOwnListing(current, session?.address)
 
+  // ---- Owner / creator management -----------------------------------------------------------------
+  // Two roles manage this item instead of buying it:
+  //  • CREATOR of a PRIMARY (mint) listing they published — `own` (isOwnListing) already flags it.
+  //  • OWNER of a SECONDARY token they hold — resolved by querying the connected wallet's holding of
+  //    this exact token (also reports whether it's listed + the trade id to take it down).
+  const qc = useQueryClient()
+  const [showSell, setShowSell] = useState(false)
+  const [showPrimary, setShowPrimary] = useState(false)
+  const [managing, setManaging] = useState(false)
+  const [manageError, setManageError] = useState<string | null>(null)
+
+  const { data: ownedAsset } = useQuery({
+    queryKey: ['owned-token', current.contractAddress, current.tokenId, session?.address],
+    enabled: !isMarket && !!session?.address && !!current.contractAddress && !!current.tokenId,
+    queryFn: () =>
+      session ? fetchOwnedToken(session.address, current.contractAddress, current.tokenId as string) : null
+  })
+
+  // The creator's builder record for this primary item — needed to open PrimaryListModal (it carries
+  // the collection name, remaining supply, and minter prereq). Only fetched for your own primary item.
+  const { data: publishableItem } = useQuery({
+    queryKey: ['publishable-item', current.contractAddress, current.itemId, session?.address],
+    enabled: own && !!session && !!current.itemId,
+    queryFn: async (): Promise<PublishableItem | null> => {
+      if (!session) return null
+      const items = await fetchPublishableItems(session.address, session.identity)
+      return (
+        items.find(
+          p =>
+            p.contractAddress.toLowerCase() === current.contractAddress.toLowerCase() &&
+            p.blockchainItemId === current.itemId
+        ) ?? null
+      )
+    }
+  })
+
+  const manageAsSecondary = !!ownedAsset
+  const manageAsPrimary = own
+  // Never over the market (legacy) flow — legacy items aren't managed through the shop's trade flows.
+  const manage = !isMarket && (manageAsPrimary || manageAsSecondary)
+  // Listed? Secondary uses the token's authoritative order; primary uses the resolved buyable trade.
+  const manageListed = manageAsSecondary ? !!ownedAsset?.isOnSale : forSale
+  const manageTradeId = manageAsSecondary ? ownedAsset?.tradeId : buyableTradeId
+  // Can we open the list/relist modal? Need the backing record the modal reads its inputs from.
+  const canOpenListModal = manageAsSecondary ? !!ownedAsset : !!publishableItem
+
+  async function refreshManage() {
+    await Promise.all([
+      // Scope to THIS token (prefix match), not every owned-token query in the cache.
+      qc.invalidateQueries({ queryKey: ['owned-token', current.contractAddress, current.tokenId] }),
+      qc.invalidateQueries({ queryKey: ['detail-trade'] }),
+      qc.invalidateQueries({ queryKey: ['shop-item'] }),
+      qc.invalidateQueries({ queryKey: ['collection-sale-state'] })
+    ])
+  }
+
+  // Take the current listing down (invalidates its signature on-chain). Mirrors My Assets' cancel flow.
+  // `silent` skips the "no longer for sale" toast when this is the first half of an Update price
+  // (cancel-then-relist — see updatePrice).
+  async function takeDown(opts: { silent?: boolean } = {}): Promise<boolean> {
+    if (!session || !manageTradeId) return false
+    setManageError(null)
+    setManaging(true)
+    try {
+      const trade = await fetchTrade(manageTradeId)
+      await cancelListing({ trade, signer: session.signer })
+      if (!opts.silent) toast.success(t('myAssets.removedFromSale', { name: current.name }))
+      await refreshManage()
+      return true
+    } catch (e) {
+      const rejected = isRejection(e)
+      if (!rejected) captureError(e, { flow: 'remove-listing', tradeId: manageTradeId })
+      setManageError(rejected ? t('getCredits.errorCanceled') : t('myAssets.removeListingError'))
+      return false
+    } finally {
+      setManaging(false)
+    }
+  }
+
+  function openListModal() {
+    if (manageAsSecondary) setShowSell(true)
+    else setShowPrimary(true)
+  }
+
+  // Update price: the shop's listings are independent signed trades (unlike the classic marketplace's
+  // single order slot that a re-list overwrites), so re-listing WITHOUT cancelling would leave the old
+  // price still fulfillable. Take the current listing down first, then open the list modal to re-list
+  // at the new price — both halves are the shop's existing, tested flows.
+  async function updatePrice() {
+    const ok = await takeDown({ silent: true })
+    if (ok) openListModal()
+  }
+
+  // Modal closed (after a successful list or a cancel) → refresh the management state so the view
+  // reflects the new listing / price.
+  function closeManageModal() {
+    setShowSell(false)
+    setShowPrimary(false)
+    void refreshManage()
+  }
+
   const addLabel = !forSale
     ? t('itemDetail.notForSale')
     : resolvingTrade
@@ -351,12 +491,12 @@ export function ItemDetail() {
   // Stock (primary/mint listings only): the shop feed carries the remaining mintable supply. Secondary
   // listings (a specific token) have no stock concept, so we hide it there (see Figma 1052-151285).
   const showStock = typeof current.available === 'number' && current.available > 0 && !current.tokenId && !isMarket
-  // Both action buttons present (buyable, not your own): on mobile they collapse into a sticky row of
-  // a wide Buy-now + a compact cart icon (see Figma 1182-194973). A market item has only Buy now.
-  const dualCta = !own && forSale && !isMarket
+  // Both action buttons present (buyable, not managed by you): on mobile they collapse into a sticky
+  // row of a wide Buy-now + a compact cart icon (see Figma 1182-194973). A market item has only Buy now.
+  const dualCta = !manage && forSale && !isMarket
   // The CTA block renders action buttons for a market item too (single Buy now), or for any listing
-  // that isn't your own (the "manage in My Assets" note replaces them only for your own native item).
-  const showCtaButtons = isMarket || !own
+  // you don't manage (the owner/creator management actions replace them when you own/created it).
+  const showCtaButtons = isMarket || !manage
 
   // Nothing hydrated the item (bad/stale deep link, or an item that isn't in the shop feed — e.g. a
   // legacy/market piece). Once every resolution path has settled and there's still no name, show a
@@ -595,11 +735,34 @@ export function ItemDetail() {
                       </span>
                     ) : null}
                   </DetailCta>
-                ) : own ? (
-                  <p className="item-detail__own-note muted">
-                    {t('itemDetail.ownItemPrefix')} <Link to="/my-assets">{t('nav.myAssets')}</Link>
-                    {t('itemDetail.ownItemSuffix')}
-                  </p>
+                ) : manage ? (
+                  <ManageActions data-testid="manage-actions">
+                    <ErrorNotice message={manageError} />
+                    {manageListed ? (
+                      <>
+                        <DetailCta
+                          variant="purple"
+                          onClick={() => void updatePrice()}
+                          disabled={managing || !canOpenListModal}
+                        >
+                          <span className="item-detail__cta-label">
+                            {managing ? t('itemDetail.manageWorking') : t('itemDetail.manageUpdatePrice')}
+                          </span>
+                        </DetailCta>
+                        <RemoveCta variant="ghost" onClick={() => void takeDown()} disabled={managing}>
+                          {managing ? t('myAssets.removing') : t('itemDetail.manageRemove')}
+                        </RemoveCta>
+                      </>
+                    ) : (
+                      <DetailCta variant="purple" onClick={openListModal} disabled={managing || !canOpenListModal}>
+                        <span className="item-detail__cta-label">{t('itemDetail.manageList')}</span>
+                      </DetailCta>
+                    )}
+                    <ManageNote>
+                      {t('itemDetail.ownItemPrefix')} <Link to="/my-assets">{t('nav.myAssets')}</Link>
+                      {t('itemDetail.ownItemSuffix')}
+                    </ManageNote>
+                  </ManageActions>
                 ) : (
                   <>
                     {forSale ? (
@@ -650,6 +813,13 @@ export function ItemDetail() {
             setResumeBuy(false)
           }}
         />
+      ) : null}
+
+      {showSell && ownedAsset && session ? (
+        <SellModal asset={ownedAsset} session={session} onClose={closeManageModal} />
+      ) : null}
+      {showPrimary && publishableItem && session ? (
+        <PrimaryListModal item={publishableItem} session={session} onClose={closeManageModal} />
       ) : null}
     </div>
   )
