@@ -343,6 +343,38 @@ export const buyTrade = {
   ]
 }
 
+// An own-listing Trade: identical to buyTrade but SIGNED BY THE TEST USER, so isOwnTrade(trade,
+// TEST_ADDRESS) fires. Opening the BuyModal against this throws "You can't buy your own listing.",
+// which surfaces in the modal's error phase (<ErrorNotice>). Used by the buy-errors e2e.
+export const ownTrade = {
+  ...buyTrade,
+  signer: TEST_ADDRESS,
+  received: [
+    {
+      assetType: 2,
+      contractAddress: MANA_AMOY,
+      value: '13500000000000000000',
+      amount: '13500000000000000000',
+      beneficiary: TEST_ADDRESS,
+      extra: '0x'
+    }
+  ]
+}
+
+// --- Purchase history (credits-server GET /users/:addr/purchases) ---
+// The raw response shape fetchUserPurchases reads ({ purchases, total }). One SETTLED + one PENDING
+// row are rendered (with "Completed"/"Processing" badges); the EXPIRED row is filtered out by
+// MyPurchases, so only 2 rows show. tradeId is null so PurchaseRow renders the "Item" fallback name
+// without a follow-up trade-display fetch (kept deterministic). Used by the my-purchases e2e.
+export const purchasesResponse = {
+  purchases: [
+    { id: 'purchase-1', tradeId: null, usdCents: 13500, credits: 135, status: 'SETTLED', createdAt: 1_700_000_000_000, manaSettledWei: null },
+    { id: 'purchase-2', tradeId: null, usdCents: 27000, credits: 270, status: 'PENDING', createdAt: 1_700_000_100_000, manaSettledWei: null },
+    { id: 'purchase-3', tradeId: null, usdCents: 5000, credits: 50, status: 'EXPIRED', createdAt: 1_700_000_200_000, manaSettledWei: null }
+  ],
+  total: 3
+}
+
 // A full signed Trade for the legacy Buy Now path (what fetchTrade('legacy-trade-1') returns). A
 // USD-pegged primary item order priced $27 (270 credits) on the real Amoy marketplace.
 export const legacyTrade = {
@@ -372,6 +404,41 @@ export const legacyTrade = {
       value: '27000000000000000000',
       amount: '27000000000000000000',
       beneficiary: '0x' + 'aa'.repeat(20),
+      extra: '0x'
+    }
+  ]
+}
+
+// A full signed PRIMARY (mint) Trade for the Galaxy Hat (shop tradeId 'trade-1', itemId 0). A
+// USD-pegged public_item_order priced $27 (270 credits), uses = remaining supply (100) so the same
+// trade can be accepted multiple times in one accept([...]) — the basis for multi-quantity buys.
+export const primaryTrade = {
+  id: 'trade-1',
+  signer: CREATOR_ADDRESS,
+  signature: '0x' + 'ab'.repeat(65),
+  network: 'MATIC',
+  chainId: 80002,
+  type: 'public_item_order',
+  contract: OFFCHAIN_MARKETPLACE_AMOY,
+  checks: {
+    uses: 100,
+    expiration: Date.now() + 86_400_000,
+    effective: Date.now() - 60_000,
+    salt: '0x' + '00'.repeat(32),
+    contractSignatureIndex: 0,
+    signerSignatureIndex: 0,
+    allowedRoot: '0x',
+    allowedProof: [],
+    externalChecks: []
+  },
+  sent: [{ assetType: 4, contractAddress: COLLECTION, value: '0', itemId: '0', extra: '0x' }],
+  received: [
+    {
+      assetType: 2,
+      contractAddress: MANA_AMOY,
+      value: '27000000000000000000',
+      amount: '27000000000000000000',
+      beneficiary: CREATOR_ADDRESS,
       extra: '0x'
     }
   ]

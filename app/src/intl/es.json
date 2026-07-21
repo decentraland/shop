@@ -136,6 +136,7 @@
     "fittingRoom": "Probador",
     "removeFromCart": "Quitar {name} del carrito",
     "increaseQuantity": "Aumentar cantidad",
+    "decreaseQuantity": "Disminuir cantidad de {name}",
     "removeFromFavorites": "Quitar {name} de favoritos",
     "addToFavorites": "Agregar {name} a favoritos",
     "remove": "Quitar {name}",
@@ -233,7 +234,8 @@
   "cartCheckout": {
     "titleBuy": "Comprar artículos",
     "titleNoFunds": "Comprar créditos y artículos",
-    "dialogAria": "Finaliza la compra de tu carrito"
+    "dialogAria": "Finaliza la compra de tu carrito",
+    "qty": "× {count}"
   },
   "marketCheckout": {
     "finalPrice": "Precio final",
@@ -260,6 +262,7 @@
     "moreFromCollection": "Más de esta colección",
     "notForSale": "No está a la venta",
     "checking": "Comprobando…",
+    "maxInCart": "Máximo en el carrito",
     "notAvailableTitle": "Este artículo no está disponible",
     "notAvailableBody": "Puede que se haya retirado o movido. Explora los coleccionables para encontrar otra cosa.",
     "breadcrumbAria": "Ruta de navegación",
@@ -386,6 +389,7 @@
   "cartPopover": {
     "removeFromCart": "Quitar {name} del carrito",
     "increaseQuantity": "Aumentar cantidad",
+    "decreaseQuantity": "Disminuir cantidad de {name}",
     "removeItem": "Quitar {name}",
     "remove": "Quitar",
     "dialogLabel": "Carrito de compras",

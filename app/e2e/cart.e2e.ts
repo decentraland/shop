@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { launchApp, type App } from './helpers/app'
-import { clickByText, waitForText } from './helpers/dom'
-import { COLLECTION, buyTrade } from './fixtures'
+import { clickByAria, clickByText, waitForText } from './helpers/dom'
+import { COLLECTION, buyTrade, primaryTrade, creditsResponse } from './fixtures'
 
 let app: App | undefined
 afterEach(async () => {
@@ -28,6 +28,37 @@ describe('cart checkout', () => {
 
     // The checkout modal runs review → authorize → gasless buy → settlement, then shows the multi-item
     // success state in place (Figma 1182-220275) — no navigation away to a separate /success page.
+    await waitForText(page, 'Your purchase was successful', 30000)
+    expect(await page.evaluate(() => window.location.pathname)).toBe('/cart')
+  })
+
+  it('buys quantity 2 of a PRIMARY item (adds one, steps up to 2) through to the success modal', async () => {
+    // Galaxy Hat is a primary/mint listing (itemId 0, 270 credits, 100 in stock). Give the wallet a
+    // fat balance so 2 × 270 = 540 credits clears without the top-up flow.
+    app = await launchApp({
+      path: `/item/${COLLECTION}/0`,
+      fixtures: {
+        trade: primaryTrade,
+        credits: { ...creditsResponse, usd: { balanceCents: 100_000, credits: 1_000 } },
+      },
+    })
+    const { page } = app
+
+    await waitForText(page, 'Galaxy Hat')
+    await waitForText(page, 'Buy now')
+    // Primary: Add to cart stays enabled. Add one, then use the drawer's + stepper to reach quantity 2.
+    expect(await clickByText(page, 'button', /add to cart/i)).toBe(true)
+    await waitForText(page, 'successfully added to cart')
+    expect(await clickByAria(page, /increase quantity/i)).toBe(true)
+
+    // The drawer total is now 2 × 270 = 540 credits. Go to the cart page and buy.
+    await waitForText(page, '540')
+    expect(await clickByText(page, 'a', /go to cart/i)).toBe(true)
+    await waitForText(page, 'Galaxy Hat')
+    await waitForText(page, '540') // qty-2 line subtotal + summary total
+    expect(await clickByText(page, 'button', /^buy now$/i)).toBe(true)
+
+    // Checkout expands the qty-2 primary line into 2 per-unit authorizes + one accept([trade × 2]).
     await waitForText(page, 'Your purchase was successful', 30000)
     expect(await page.evaluate(() => window.location.pathname)).toBe('/cart')
   })
