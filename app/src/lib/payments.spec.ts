@@ -4,7 +4,9 @@ import type { AuthIdentity } from '@dcl/crypto'
 // Config is mutated per-test to drive isMockPayments(): real mode needs the Stripe publishable key
 // (the checkout/webhook endpoints live on the always-configured credits-server). Default (empty) →
 // mock mode, which keeps the mock-path tests below honest.
-const { config } = vi.hoisted(() => ({ config: { stripePublishableKey: '', shopServerUrl: '', chainId: 80002 } }))
+const { config } = vi.hoisted(() => ({
+  config: { stripePublishableKey: '', shopServerUrl: '', creditsServerUrl: 'https://credits.example', chainId: 80002 }
+}))
 vi.mock('~/config', () => ({ config }))
 
 // The real Stripe seam lives in payments-stripe.ts; payments.ts only delegates to it. Stub both
@@ -26,6 +28,7 @@ import {
   USD_PER_CREDIT,
   createPackCheckout,
   creditsForUsd,
+  fetchCreditPacks,
   getPack,
   isMockPayments,
   pollCreditGrant,
@@ -313,5 +316,38 @@ describe('when polling a credit grant in real mode', () => {
       timeoutMs: 2,
       signal: controller.signal
     })
+  })
+})
+
+describe('when fetching the credit-pack catalogue from the credits-server', () => {
+  it('should GET the public /credits/packs endpoint and map recommended -> bestValue, ordered', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        // Deliberately out of order to prove the client sorts by `order`.
+        packs: [
+          { id: 'pack_25', usd: 25, credits: 250, recommended: true, order: 3 },
+          { id: 'pack_5', usd: 5, credits: 50, order: 1 },
+          { id: 'pack_10', usd: 10, credits: 100, order: 2 }
+        ]
+      })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const packs = await fetchCreditPacks()
+
+    expect(fetchMock).toHaveBeenCalledWith('https://credits.example/credits/packs')
+    expect(packs).toEqual([
+      { id: 'pack_5', usd: 5, credits: 50 },
+      { id: 'pack_10', usd: 10, credits: 100 },
+      { id: 'pack_25', usd: 25, credits: 250, bestValue: true }
+    ])
+    vi.unstubAllGlobals()
+  })
+
+  it('should throw on a non-ok response so the hook can fall back to the bundled packs', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 503, text: async () => 'down' }))
+    await expect(fetchCreditPacks()).rejects.toThrow(/credit packs 503/)
+    vi.unstubAllGlobals()
   })
 })

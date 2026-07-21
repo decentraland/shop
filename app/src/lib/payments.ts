@@ -52,14 +52,40 @@ export type CreditPack = {
   bestValue?: boolean
 }
 
-// Pack catalogue. Kept here so the UI + tests share one source of truth; the real
-// server mirrors these ids (client sends only the id, server owns the amounts).
+// Pack catalogue FALLBACK. The catalogue is now sourced from the credits-server
+// (GET /credits/packs, the same authoritative map checkout prices from — see fetchCreditPacks
+// below and hooks/useCreditPacks). This bundled copy is kept ONLY as a typed fallback so the buy
+// flow never hard-depends on a network fetch: the no-funds pack pickers (BuyModal/Cart) sit on the
+// critical purchase path and must render synchronously even before/without the fetch, and the Get
+// Credits grid degrades to it if the endpoint is unreachable. It is NOT a second price list —
+// checkout is always priced by the server from `packId`, so a drift here only affects display, and
+// the ids (the actual contract) are what matter. Keep the ids in sync with the server catalogue.
 export const CREDIT_PACKS: CreditPack[] = [
   { id: 'pack_5', usd: 5, credits: creditsForUsd(5) },
   { id: 'pack_10', usd: 10, credits: creditsForUsd(10) },
   { id: 'pack_25', usd: 25, credits: creditsForUsd(25), bestValue: true },
   { id: 'pack_50', usd: 50, credits: creditsForUsd(50) }
 ]
+
+// Shape returned by the public credits-server catalogue endpoint (READ-only, no auth, no secrets).
+type ServerCreditPack = { id: string; usd: number; credits: number; recommended?: boolean; order?: number }
+
+/**
+ * Fetch the credit-pack catalogue from the credits-server (public GET /credits/packs). This is the
+ * single source of truth for the offering (ids, USD prices, credit amounts, recommended flag,
+ * order); the shop no longer hardcodes it. Maps the server shape onto the UI `CreditPack`
+ * (`recommended` -> `bestValue`) and returns it ordered. Consumed via the useCreditPacks hook, which
+ * falls back to CREDIT_PACKS if this throws.
+ */
+export async function fetchCreditPacks(): Promise<CreditPack[]> {
+  const res = await fetch(`${config.creditsServerUrl}/credits/packs`)
+  if (!res.ok) throw new Error(`credit packs ${res.status}`)
+  const { packs } = (await res.json()) as { packs: ServerCreditPack[] }
+  return packs
+    .slice()
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    .map(p => ({ id: p.id, usd: p.usd, credits: p.credits, ...(p.recommended ? { bestValue: true } : {}) }))
+}
 
 /** Credits granted for a given USD amount at the fixed peg. */
 export function creditsForUsd(usd: number): number {

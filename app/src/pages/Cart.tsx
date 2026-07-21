@@ -18,7 +18,8 @@ import {
 } from '~/lib/cart-checkout'
 import { gaslessEnabled } from '~/lib/gasless-config'
 import { CURRENCY } from '~/lib/currency'
-import { CREDIT_PACKS, createPackCheckout } from '~/lib/payments'
+import { createPackCheckout } from '~/lib/payments'
+import { useCreditPacks } from '~/hooks/useCreditPacks'
 import { config } from '~/config'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { CartCheckoutModal, type CheckoutLine } from '~/components/CartCheckoutModal'
@@ -53,9 +54,6 @@ function friendlyError(e: unknown): string {
 // How long a pending review stays valid before we re-resolve on Confirm. Past this, live prices may
 // have drifted (or listings sold), so we re-review instead of charging a stale total.
 const REVIEW_TTL_MS = 120_000
-
-// The three top-up packs offered when the buyer is short on credits (same set the PDP uses).
-const OFFER_PACKS = CREDIT_PACKS.slice(0, 3)
 
 // In-world launcher deep-link (zone on testnet) — matches the success page.
 const JUMP_URL = config.chainId === 80002 ? 'https://decentraland.zone/jump' : 'https://decentraland.org/jump'
@@ -97,6 +95,10 @@ export function Cart() {
   const favItems = useFavorites(s => s.items)
   const toggleFav = useFavorites(s => s.toggle)
   const { session } = useWallet()
+  // The three top-up packs offered when the buyer is short on credits (same set the PDP uses).
+  // Sourced from the credits-server catalogue (single source of truth); falls back to the bundled
+  // packs so this critical picker always renders.
+  const OFFER_PACKS = useCreditPacks().packs.slice(0, 3)
 
   // Paint the whole page gray while the cart is open (Figma 1182-216274) so the white cart cards get
   // the focus. Toggled on <body> so the gray is full-bleed under the sticky sub-nav; reverted on leave.

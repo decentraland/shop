@@ -173,6 +173,17 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
 
   // credits-server (:3000)
   if (u.port === '3000') {
+    // Public pack catalogue (GET /credits/packs) — the shop's single source of truth for the pack
+    // grid + no-funds pickers. Mirrors src/logic/credit-pack-catalog on the server.
+    if (path === '/credits/packs')
+      return json(req, {
+        packs: [
+          { id: 'pack_5', usd: 5, credits: 50, order: 1 },
+          { id: 'pack_10', usd: 10, credits: 100, order: 2 },
+          { id: 'pack_25', usd: 25, credits: 250, recommended: true, order: 3 },
+          { id: 'pack_50', usd: 50, credits: 500, order: 4 }
+        ]
+      })
     if (/\/users\/.+\/credits$/.test(path)) return json(req, creditsWithTopup(F))
     if (/\/users\/.+\/purchases$/.test(path)) return json(req, F.purchases)
     if (path === '/credits/authorize') return json(req, F.authorize)

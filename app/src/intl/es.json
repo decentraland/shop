@@ -169,6 +169,7 @@
     "canceledNote": "Pago cancelado: no se realizó ningún cargo. Elige un paquete cuando quieras.",
     "packBadge": "Recomendado",
     "packAria": "Consigue {amount} por ${usd}",
+    "packsLoading": "Cargando paquetes de {currency}…",
     "creditsAmount": "{credits} {currency}",
     "redirecting": "Redirigiendo al pago seguro…",
     "processing": "Completando la compra",

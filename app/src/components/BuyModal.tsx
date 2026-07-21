@@ -15,15 +15,12 @@ import { buyWithCredits } from '~/lib/buy'
 import { buyGasless, waitForSettlement, GaslessUnavailableError, SettlementPendingError } from '~/lib/buy-gasless'
 import { gaslessEnabled } from '~/lib/gasless-config'
 import { isOwnTrade } from '~/lib/ownership'
-import { CREDIT_PACKS, createPackCheckout } from '~/lib/payments'
+import { createPackCheckout } from '~/lib/payments'
+import { useCreditPacks } from '~/hooks/useCreditPacks'
 import { RESUME_BUY_KEY } from '~/lib/resume-buy'
 import { t } from '~/intl/i18n'
 import { friendlyError, isInsufficient } from '~/lib/errors'
 import { ErrorNotice } from '~/components/ErrorNotice'
-
-// The three top-up packs offered when the buyer is short on credits. The cheapest one that still
-// clears the shortfall is pre-selected. Packs come from the canonical shop catalogue.
-const OFFER_PACKS = CREDIT_PACKS.slice(0, 3)
 
 type Phase = 'loading' | 'ready' | 'nofunds' | 'processing' | 'complete' | 'error'
 
@@ -51,6 +48,10 @@ export function BuyModal({
   const { data: balance } = useBalance(session)
   const qc = useQueryClient()
   const navigate = useNavigate()
+  // The three top-up packs offered when the buyer is short on credits. Sourced from the credits-server
+  // catalogue (single source of truth); falls back to the bundled packs so this critical picker always
+  // renders. The cheapest pack that still clears the shortfall is pre-selected.
+  const OFFER_PACKS = useCreditPacks().packs.slice(0, 3)
 
   const [phase, setPhase] = useState<Phase>('loading')
   const [error, setError] = useState<string | null>(null)
