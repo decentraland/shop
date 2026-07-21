@@ -87,11 +87,10 @@ export function NotifyMe({ item }: { item: CatalogItem }) {
   if (subscribed) {
     return (
       <div className="notify notify__done" data-testid="notify-subscribed">
-        <Icon name="check" className="notify__done-ico" aria-hidden />
-        <div>
-          <div className="notify__done-title">{t('notifyMe.subscribedTitle')}</div>
-          <div className="notify__done-sub">{t('notifyMe.subscribedBody')}</div>
-        </div>
+        <span className="notify__done-check" aria-hidden>
+          <Icon name="check" size={12} />
+        </span>
+        <span className="notify__done-text">{t('notifyMe.subscribedBody')}</span>
       </div>
     )
   }
