@@ -39,10 +39,13 @@ vi.mock('decentraland-ui2', () => ({
 
 // Real mode + controllable payment seam. isMockPayments returns false so CREDITS_PROVIDER = 'stripe'
 // and the pack click takes the hosted-redirect branch.
-const { isMockPayments, createPackCheckout, pollCreditGrant, CREDIT_PACKS } = vi.hoisted(() => ({
+const { isMockPayments, createPackCheckout, pollCreditGrant, fetchCreditPacks, CREDIT_PACKS } = vi.hoisted(() => ({
   isMockPayments: vi.fn(() => false),
   createPackCheckout: vi.fn(),
   pollCreditGrant: vi.fn(),
+  // The pack catalogue is seeded into the query cache in renderPage, so this isn't actually called;
+  // it just has to exist on the mock for the useCreditPacks import to resolve.
+  fetchCreditPacks: vi.fn(),
   CREDIT_PACKS: [
     { id: 'pack_5', usd: 5, credits: 50 },
     { id: 'pack_10', usd: 10, credits: 100 },
@@ -50,7 +53,13 @@ const { isMockPayments, createPackCheckout, pollCreditGrant, CREDIT_PACKS } = vi
     { id: 'pack_50', usd: 50, credits: 500 }
   ]
 }))
-vi.mock('~/lib/payments', () => ({ isMockPayments, createPackCheckout, pollCreditGrant, CREDIT_PACKS }))
+vi.mock('~/lib/payments', () => ({
+  isMockPayments,
+  createPackCheckout,
+  pollCreditGrant,
+  fetchCreditPacks,
+  CREDIT_PACKS
+}))
 
 const { track, errorCode } = vi.hoisted(() => ({ track: vi.fn(), errorCode: vi.fn(() => 'ERR_CODE') }))
 vi.mock('~/lib/analytics', () => ({ track, errorCode }))
@@ -68,6 +77,9 @@ function LocationProbe() {
 
 function renderPage(initialEntry = '/') {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  // Seed the pack catalogue (useCreditPacks / GET /credits/packs) so the grid renders synchronously
+  // without a network fetch — these tests focus on the checkout + return flow, not the catalogue.
+  qc.setQueryData(['credit-packs'], CREDIT_PACKS)
   const invalidate = vi.spyOn(qc, 'invalidateQueries')
   const utils = render(
     <QueryClientProvider client={qc}>

@@ -16,7 +16,8 @@ import packChips from '~/assets/credits/pack-chips.webp'
 import creditCoin from '~/assets/credits/credit-coin.webp'
 import checkCircle from '~/assets/credits/check-circle.svg'
 import loaderLogo from '~/assets/credits/loader-logo.svg'
-import { CREDIT_PACKS, createPackCheckout, pollCreditGrant, isMockPayments, type CreditPack } from '~/lib/payments'
+import { createPackCheckout, pollCreditGrant, isMockPayments, type CreditPack } from '~/lib/payments'
+import { useCreditPacks } from '~/hooks/useCreditPacks'
 
 // Live Stripe when real payments are configured; otherwise the built-in mock (dev). Single source of
 // truth via isMockPayments() (which gates on the publishable key) — don't reimplement the gate here.
@@ -51,6 +52,8 @@ export function GetCredits() {
   const { session, signIn } = useWallet()
   const qc = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
+  // Catalogue from the credits-server (single source of truth); falls back to the bundled packs.
+  const { packs, isLoading: packsLoading } = useCreditPacks()
 
   const [phase, setPhase] = useState<Phase>('select')
   const [selected, setSelected] = useState<CreditPack | null>(null)
@@ -282,7 +285,7 @@ export function GetCredits() {
               {t('getCredits.canceledNote')}
             </p>
           )}
-          <PackGrid onSelect={pack => void startCheckout(pack)} />
+          <PackGrid packs={packs} loading={packsLoading} onSelect={pack => void startCheckout(pack)} />
         </>
       )}
 
@@ -377,10 +380,35 @@ export function GetCredits() {
   )
 }
 
-function PackGrid({ onSelect }: { onSelect: (pack: CreditPack) => void }) {
+function PackGrid({
+  packs,
+  loading,
+  onSelect
+}: {
+  packs: CreditPack[]
+  loading: boolean
+  onSelect: (pack: CreditPack) => void
+}) {
+  // Content-shaped skeletons (same shimmer as the rest of the app) while the catalogue loads, so the
+  // grid keeps its shape instead of flashing a bare spinner. Four matches the usual pack count.
+  if (loading) {
+    return (
+      <div className="packs" aria-busy="true" aria-label={t('getCredits.packsLoading', { currency: CURRENCY.name })}>
+        {[0, 1, 2, 3].map(i => (
+          <div key={i} className="pack pack--skeleton" aria-hidden>
+            <span className="pack__inner">
+              <span className="skeleton pack__label-sk" />
+              <span className="skeleton pack__art-sk" />
+              <span className="skeleton pack__cta-sk" />
+            </span>
+          </div>
+        ))}
+      </div>
+    )
+  }
   return (
     <div className="packs">
-      {CREDIT_PACKS.map(pack => (
+      {packs.map(pack => (
         <button
           key={pack.id}
           type="button"

@@ -168,6 +168,7 @@
     "canceledNote": "Payment canceled — no charge was made. Pick a pack whenever you’re ready.",
     "packBadge": "Recommended",
     "packAria": "Get {amount} for ${usd}",
+    "packsLoading": "Loading {currency} packs…",
     "creditsAmount": "{credits} {currency}",
     "redirecting": "Redirecting to secure checkout…",
     "processing": "Completing purchase",

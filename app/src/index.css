@@ -1542,6 +1542,38 @@ h2 {
   filter: brightness(1.08);
 }
 
+/* Loading placeholders for the pack grid while the catalogue loads (GET /credits/packs). Same dark
+   card shell as a real pack, with content-shaped .skeleton shimmer blocks where the label, artwork
+   and price CTA go — so the grid keeps its shape instead of flashing a bare spinner. */
+.pack--skeleton {
+  cursor: default;
+}
+.pack--skeleton:hover {
+  transform: none;
+}
+.pack--skeleton:hover .pack__inner {
+  box-shadow: none;
+}
+.pack__label-sk {
+  display: block;
+  width: 60%;
+  height: 24px;
+  margin: 40px auto 4px;
+}
+.pack__art-sk {
+  display: block;
+  width: calc(100% - 24px);
+  margin: 4px 12px 0;
+  aspect-ratio: 1 / 1;
+  border-radius: 16px;
+}
+.pack__cta-sk {
+  display: block;
+  height: 48px;
+  margin: 20px 24px 40px;
+  border-radius: 8px;
+}
+
 /* Status panels (redirecting / processing / success / error) */
 .getcredits__status {
   display: flex;
