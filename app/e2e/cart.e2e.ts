@@ -70,7 +70,7 @@ describe('cart checkout', () => {
     app = await launchApp({
       path: `/item/${COLLECTION}/1`,
       fixtures: { trade: buyTrade },
-      errors: { '/credits/authorize': { status: 402, body: { error: 'insufficient funds' } } },
+      errors: { '/credits/authorize': { status: 402, body: { error: 'insufficient funds' } } }
     })
     const { page } = app
 

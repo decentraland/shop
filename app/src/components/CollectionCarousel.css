@@ -59,18 +59,44 @@
   border: 0;
   background: transparent;
   cursor: pointer;
-  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, .18));
-  transition: transform .15s ease, filter .15s ease, opacity .15s ease;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.18));
+  transition:
+    transform 0.15s ease,
+    filter 0.15s ease,
+    opacity 0.15s ease;
 }
-.collection-carousel__arrow img { display: block; width: 100%; height: 100%; }
-.collection-carousel__arrow--left { left: -40px; }
-.collection-carousel__arrow--right { right: -40px; }
-.collection-carousel__arrow--left img { transform: scaleX(-1); }
-.collection-carousel__arrow:hover:not(:disabled) { transform: translateY(-50%) scale(1.07); }
-.collection-carousel__arrow:disabled { opacity: 0; pointer-events: none; }
-@media (prefers-reduced-motion: reduce) { .collection-carousel__arrow { transition: none; } }
+.collection-carousel__arrow img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+/* Sit the 53px arrows in the page gutter (aligned to the nav's 54px), not over the cards — at -40px
+   their inner edge landed ~13px onto the first/last card (Figma 1179-172512: arrows live beside the rail). */
+.collection-carousel__arrow--left {
+  left: -53px;
+}
+.collection-carousel__arrow--right {
+  right: -53px;
+}
+.collection-carousel__arrow--left img {
+  transform: scaleX(-1);
+}
+.collection-carousel__arrow:hover:not(:disabled) {
+  transform: translateY(-50%) scale(1.07);
+}
+.collection-carousel__arrow:disabled {
+  opacity: 0;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .collection-carousel__arrow {
+    transition: none;
+  }
+}
 @media (max-width: 900px) {
-  .collection-carousel__arrow { display: none; }
+  .collection-carousel__arrow {
+    display: none;
+  }
 }
 
 .collection-carousel__track {
@@ -85,7 +111,9 @@
   scroll-snap-type: x proximity;
   scrollbar-width: none;
 }
-.collection-carousel__track::-webkit-scrollbar { display: none; }
+.collection-carousel__track::-webkit-scrollbar {
+  display: none;
+}
 /* Each slide is the SHARED <AssetCard> (root class .card) — sized identically to the browse grid /
    Overview rails (Figma 281×300) so a card here is indistinguishable from a card anywhere else. This
    mirrors index.css `.row__track > *`. */
@@ -94,7 +122,11 @@
   scroll-snap-align: start;
 }
 /* Mobile: show one full card plus a peek of the next (Figma 1182-190397), not multiple cramped cards. */
-@media (max-width: 720px) { .collection-carousel__track > .card { flex: 0 0 85%; } }
+@media (max-width: 720px) {
+  .collection-carousel__track > .card {
+    flex: 0 0 85%;
+  }
+}
 
 /* Paging dots below the row. */
 .collection-carousel__dots {
@@ -113,9 +145,14 @@
   background: var(--line-strong);
   opacity: 0.5;
   cursor: pointer;
-  transition: opacity .12s ease, background .12s ease, transform .12s ease;
+  transition:
+    opacity 0.12s ease,
+    background 0.12s ease,
+    transform 0.12s ease;
 }
-.collection-carousel__dot:hover { opacity: 0.8; }
+.collection-carousel__dot:hover {
+  opacity: 0.8;
+}
 .collection-carousel__dot.is-active {
   background: var(--accent);
   opacity: 1;

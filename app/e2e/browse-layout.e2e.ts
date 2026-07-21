@@ -16,7 +16,7 @@ describe('collectibles browse layout', () => {
     app = await launchApp({ path: '/assets' })
     const { page } = app
     await waitForText(page, 'Items')
-    const counts = await page.$$eval('.browse__count, .filterbar__count', els => els.length)
+    const counts = await page.$$eval('[data-testid="browse-count"]', els => els.length)
     expect(counts).toBe(1)
   })
 
@@ -30,7 +30,7 @@ describe('collectibles browse layout', () => {
     expect(overflow).toBe(false)
     // And a card's own content must not overflow its frame (the name/price row clipped the price).
     const cardOverflow = await page.evaluate(() => {
-      const c = document.querySelector('.card') as HTMLElement | null
+      const c = document.querySelector('[data-testid="card"]') as HTMLElement | null
       return c ? c.scrollWidth > c.clientWidth + 1 : false
     })
     expect(cardOverflow).toBe(false)

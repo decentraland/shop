@@ -81,7 +81,7 @@ describe('FittingRoom', () => {
   it('swaps same-slot items when toggling the other one on', async () => {
     open([hatA, hatB, top])
     // hatA is worn by default; turn hatB on → hatA comes off (same slot).
-    const rowB = screen.getByText('Hat B').closest('.fitting-row') as HTMLElement
+    const rowB = screen.getByText('Hat B').closest('[data-testid="fitting-row"]') as HTMLElement
     await userEvent.click(within(rowB).getByRole('checkbox'))
     const urns = urnsOf()
     expect(urns).toContain(':11') // hatB now on
@@ -96,14 +96,14 @@ describe('FittingRoom', () => {
   it("disables the toggle for an emote (can't be worn)", () => {
     const emote = item({ id: 'e', name: 'Dance', category: 'emote', wearableCategory: 'dance', itemId: '99' })
     open([top, emote])
-    const emoteRow = screen.getByText('Dance').closest('.fitting-row') as HTMLElement
+    const emoteRow = screen.getByText('Dance').closest('[data-testid="fitting-row"]') as HTMLElement
     expect(within(emoteRow).getByRole('checkbox')).toBeDisabled()
     expect(urnsOf()).not.toContain(':99') // emote never equipped
   })
 
   it('removes an item from the cart', async () => {
     open([hatA, top])
-    const rowA = screen.getByText('Hat A').closest('.fitting-row') as HTMLElement
+    const rowA = screen.getByText('Hat A').closest('[data-testid="fitting-row"]') as HTMLElement
     await userEvent.click(within(rowA).getByRole('button', { name: /remove hat a/i }))
     expect(useCart.getState().items.map(i => i.id)).toEqual(['c'])
   })

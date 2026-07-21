@@ -16,7 +16,7 @@ describe('browse with no listings', () => {
 
     await waitForText(page, 'No items match your filters')
     // The grid has no cards.
-    expect(await page.evaluate(() => document.querySelectorAll('.card').length)).toBe(0)
+    expect(await page.evaluate(() => document.querySelectorAll('[data-testid="card"]').length)).toBe(0)
   })
 
   it('renders the overview empty state when there are no drops', async () => {

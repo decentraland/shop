@@ -60,7 +60,7 @@ async function tradeManaPriceWei(trade: Trade): Promise<string> {
   return manaWei.mul(102).div(100).toString() // +2% buffer
 }
 
-async function sendUseCredits(chainId: number, args: unknown, signer: ethers.Signer): Promise<string> {
+export async function sendUseCredits(chainId: number, args: unknown, signer: ethers.Signer): Promise<string> {
   // useCredits is a REAL transaction, so it MUST run on the trade's chain. A restored session (or a
   // user who was last on another network) can leave the wallet on a different chain — without pinning
   // it first the wallet submits useCredits on its active network (e.g. Sepolia), where the

@@ -17,7 +17,7 @@ const session = {
   signer: {} as never,
   web3Provider: {} as never,
   identity: {} as never,
-  providerType: 'injected' as never,
+  providerType: 'injected' as never
 }
 vi.mock('~/store/wallet', () => ({ useWallet: () => ({ session }) }))
 
@@ -29,7 +29,7 @@ vi.mock('~/hooks/useBalance', async orig => ({ ...(await orig<Record<string, unk
 // + cancel. Stub the module so nothing hits the credits-server.
 const { authorizeUsdCredit, cancelUsdIntents } = vi.hoisted(() => ({
   authorizeUsdCredit: vi.fn(),
-  cancelUsdIntents: vi.fn().mockResolvedValue(0),
+  cancelUsdIntents: vi.fn().mockResolvedValue(0)
 }))
 vi.mock('~/lib/credits', () => ({ authorizeUsdCredit, cancelUsdIntents, getUsdBalance: vi.fn(), devMintUsd: vi.fn() }))
 
@@ -43,7 +43,7 @@ const { manaWeiToUsdCents } = vi.hoisted(() => ({ manaWeiToUsdCents: vi.fn(() =>
 vi.mock('~/lib/mana-rate', () => ({
   manaWeiToUsdCents,
   manaWeiToCredits: vi.fn(),
-  manaWeiToUsdWei: vi.fn(),
+  manaWeiToUsdWei: vi.fn()
 }))
 
 vi.mock('~/lib/ownership', () => ({ isOwnTrade: () => false }))
@@ -53,20 +53,19 @@ vi.mock('~/lib/buy-gasless', () => ({
   buyGasless: vi.fn(),
   waitForSettlement: vi.fn(),
   GaslessUnavailableError: class extends Error {},
-  SettlementPendingError: class extends Error {},
+  SettlementPendingError: class extends Error {}
 }))
 
 const { track, errorCode, isUserRejection } = vi.hoisted(() => ({
   track: vi.fn(),
   errorCode: vi.fn(() => 'ERR'),
-  isUserRejection: vi.fn(() => false),
+  isUserRejection: vi.fn(() => false)
 }))
 vi.mock('~/lib/analytics', () => ({ track, errorCode, isUserRejection }))
 
 const navigate = vi.fn()
 vi.mock('react-router-dom', async orig => ({ ...(await orig<Record<string, unknown>>()), useNavigate: () => navigate }))
 
-// eslint-disable-next-line import/first
 import { MarketCheckout } from '~/components/MarketCheckout'
 
 const listing = {
@@ -81,7 +80,7 @@ const listing = {
   network: 'MATIC',
   chainId: 80002,
   thumbnail: '',
-  manaWei: '1000000000000000000',
+  manaWei: '1000000000000000000'
 } as unknown as LegacyListing
 
 const rate: ManaRate = { rate: 26960836n, decimals: 8 }
@@ -103,7 +102,7 @@ beforeEach(() => {
   authorizeUsdCredit.mockResolvedValue({
     credit: { id: 'credit-1' },
     maxCreditedValue: '1000000000000000000',
-    usdCents: 2700,
+    usdCents: 2700
   })
   cancelUsdIntents.mockResolvedValue(0)
 })
@@ -143,7 +142,7 @@ describe('when the buyer does not have enough credits for the locked price', () 
       from: 'item_checkout',
       credits_needed: 270,
       credits_balance: 5,
-      shortfall: 265,
+      shortfall: 265
     })
   })
 

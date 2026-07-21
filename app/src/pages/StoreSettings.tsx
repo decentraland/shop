@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
+import { Button } from '~/components/Button'
+import { Icon } from '~/components/Icon'
+import styled from '@emotion/styled'
 import { useWallet } from '~/store/wallet'
 import { useStore } from '~/hooks/useStore'
 import {
@@ -20,6 +23,12 @@ import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
 import { ErrorNotice } from '~/components/ErrorNotice'
 import './store-settings.css'
+
+const SignInBtn = styled(Button)`
+  align-self: center;
+  min-width: 200px;
+  margin-top: 8px;
+`
 
 const MAX_COVER_BYTES = 1_000_000 // 1 MB, same cap as the classic marketplace.
 
@@ -132,9 +141,9 @@ export function StoreSettings() {
       <section className="store-settings store-settings--signin" aria-label={t('storeSettings.title')}>
         <h1 className="store-settings__title">{t('storeSettings.title')}</h1>
         <p className="muted">{t('storeSettings.signInPrompt')}</p>
-        <button className="btn btn--purple store-settings__signin-btn" onClick={signIn}>
+        <SignInBtn variant="purple" onClick={signIn}>
           {t('storeSettings.signIn')}
-        </button>
+        </SignInBtn>
       </section>
     )
   }
@@ -212,7 +221,7 @@ export function StoreSettings() {
               title={t('storeSettings.back')}
               aria-label={t('storeSettings.back')}
             >
-              <span className="ico ico-arrow-left" aria-hidden />
+              <Icon name="arrow-left" />
             </Link>
           ) : null}
           <h1 className="store-settings__title">{t('storeSettings.title')}</h1>
@@ -225,7 +234,7 @@ export function StoreSettings() {
             rel="noopener noreferrer"
           >
             {t('storeSettings.seeAsGuest')}
-            <span className="ico ico-external" aria-hidden />
+            <Icon name="external-link" />
           </a>
         ) : null}
       </div>
@@ -244,6 +253,8 @@ export function StoreSettings() {
                     key={tpl.name}
                     type="button"
                     className={`cover-picker__tile${selected ? ' is-selected' : ''}`}
+                    data-testid="cover-picker-tile"
+                    data-selected={selected}
                     aria-pressed={selected}
                     onClick={() => pickTemplate(tpl.name, tpl.url)}
                   >
@@ -260,6 +271,9 @@ export function StoreSettings() {
                 <button
                   type="button"
                   className={`cover-picker__tile cover-picker__tile--custom${!selectedTemplate ? ' is-selected' : ''}`}
+                  data-testid="cover-picker-tile"
+                  data-variant="custom"
+                  data-selected={!selectedTemplate}
                   aria-pressed={!selectedTemplate}
                   onClick={pickCustom}
                 >
@@ -270,9 +284,11 @@ export function StoreSettings() {
               <button
                 type="button"
                 className="cover-picker__tile cover-picker__upload"
+                data-testid="cover-picker-tile"
+                data-variant="upload"
                 onClick={() => fileInput.current?.click()}
               >
-                <span className="ico ico-upload" aria-hidden />
+                <Icon name="upload" />
                 <span>{t('storeSettings.upload')}</span>
               </button>
               <input
@@ -280,11 +296,14 @@ export function StoreSettings() {
                 type="file"
                 accept="image/png, image/jpeg, image/webp"
                 className="cover-picker__input"
+                data-testid="cover-picker-input"
                 onChange={onUpload}
               />
             </div>
             {oversize ? (
-              <ErrorNotice message={t('storeSettings.sizeError', { max: mb(MAX_COVER_BYTES), current: mb(coverSize) })} />
+              <ErrorNotice
+                message={t('storeSettings.sizeError', { max: mb(MAX_COVER_BYTES), current: mb(coverSize) })}
+              />
             ) : null}
           </div>
 
@@ -330,9 +349,15 @@ export function StoreSettings() {
           ))}
 
           <div className="store-settings__actions">
-            <button className="btn btn--purple store-settings__save" onClick={() => void save()} disabled={!canSave}>
+            <Button
+              variant="purple"
+              className="store-settings__save"
+              data-testid="store-settings-save"
+              onClick={() => void save()}
+              disabled={!canSave}
+            >
               {saving ? t('storeSettings.saving') : t('storeSettings.save')}
-            </button>
+            </Button>
           </div>
         </>
       )}

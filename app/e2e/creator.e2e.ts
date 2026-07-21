@@ -22,21 +22,21 @@ describe('creator storefront', () => {
     await waitForText(page, 'Galaxy Studio')
     await waitForText(page, 'Handcrafted wearables & emotes.')
     const profileHref = await page.evaluate(
-      () => document.querySelector('.creator-hero__view')?.getAttribute('href') ?? ''
+      () => document.querySelector('[data-testid="creator-hero-view"]')?.getAttribute('href') ?? ''
     )
     expect(profileHref).toContain('/profile/')
     expect(profileHref).toContain(CREATOR_ADDRESS)
 
     // Hero social links: the store's three configured links render as icon buttons linking out.
     const linkHrefs = await page.evaluate(() =>
-      Array.from(document.querySelectorAll('.creator-hero__link')).map(a => a.getAttribute('href'))
+      Array.from(document.querySelectorAll('[data-testid="creator-hero-link"]')).map(a => a.getAttribute('href'))
     )
     expect(linkHrefs).toEqual(['https://galaxy.example', 'https://www.twitter.com/galaxy', 'https://discord.gg/galaxy'])
 
     // Grid: the creator's two listings, from the shop feed.
     await waitForText(page, 'Galaxy Hat')
     await waitForText(page, 'Nebula Jacket')
-    expect(await page.evaluate(() => document.querySelectorAll('.card:not(.card--skeleton)').length)).toBe(2)
+    expect(await page.evaluate(() => document.querySelectorAll('[data-testid="card"]').length)).toBe(2)
     await waitForText(page, '2 items')
   })
 
@@ -47,6 +47,6 @@ describe('creator storefront', () => {
     const { page } = app
 
     await waitForText(page, 'This creator has no items to show yet')
-    expect(await page.evaluate(() => document.querySelectorAll('.card').length)).toBe(0)
+    expect(await page.evaluate(() => document.querySelectorAll('[data-testid="card"]').length)).toBe(0)
   })
 })

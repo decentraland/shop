@@ -133,7 +133,7 @@ function NoFunds({
   selectedPack,
   onSelectPack,
   onBuyPacks,
-  onCancel,
+  onCancel
 }: {
   lines: CheckoutLine[]
   shortfallCredits: number
@@ -228,7 +228,7 @@ function NoFunds({
 function Complete({
   purchased,
   onMyAssets,
-  onTryInWorld,
+  onTryInWorld
 }: {
   purchased: Array<CatalogItem & { quantity?: number }>
   onMyAssets: () => void

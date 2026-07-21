@@ -88,9 +88,7 @@ export default defineConfig({
           // pulls its whole ajv-based validation stack. The app uses a few enums eagerly, so it can't
           // be lazy-loaded — isolate it + ajv into one long-lived cacheable chunk (shared with the
           // lazy routes) instead of baking ~1MB of it into the entry blob.
-          if (
-            /[\\/]node_modules[\\/](@dcl[\\/]schemas|ajv|ajv-keywords|ajv-errors|ajv-formats|fast-uri)[\\/]/.test(id)
-          )
+          if (/[\\/]node_modules[\\/](@dcl[\\/]schemas|ajv|ajv-keywords|ajv-errors|ajv-formats|fast-uri)[\\/]/.test(id))
             return 'dcl-schemas'
           // Sentry loads eagerly (initSentry runs before the first render and App wraps routes in its
           // ErrorBoundary), so it can't be deferred without dropping early-error capture — split it out

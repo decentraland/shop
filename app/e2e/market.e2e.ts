@@ -30,7 +30,7 @@ describe('legacy (fluctuating-price) liquidity in the unified browse', () => {
     await waitForText(page, 'Retro Cap')
 
     // The legacy card's Buy now (native cards render Add to cart) — enabled once the live rate loads.
-    await clickWhenEnabled(page, '.card__cart', /buy now/i)
+    await clickWhenEnabled(page, '[data-testid="card-cart"]', /buy now/i)
 
     // The Buy Now modal opens and locks the price ("Final price" + Confirm purchase).
     await waitForText(page, 'Final price')
@@ -40,6 +40,6 @@ describe('legacy (fluctuating-price) liquidity in the unified browse', () => {
     await page.waitForFunction(() => window.location.pathname === '/success', { timeout: 30000 })
     expect(await page.evaluate(() => window.location.pathname)).toBe('/success')
     // The cart badge never appeared — Buy Now is a direct checkout.
-    expect(await clickByText(page, '.subnav__cart-badge', /\d/)).toBe(false)
+    expect(await clickByText(page, '[data-testid="subnav-cart-badge"]', /\d/)).toBe(false)
   })
 })

@@ -271,9 +271,6 @@
 .imp-dock__spacer {
   flex: 1 1 auto;
 }
-.imp-dock__cta {
-  padding: 13px 24px;
-}
 
 /* empty / signed-out */
 .imp-empty {
@@ -293,10 +290,6 @@
   font-size: 26px;
   font-weight: 800;
   margin: 4px 0 0;
-}
-.imp-empty .btn {
-  margin-top: 10px;
-  text-decoration: none;
 }
 
 /* migrate modal */

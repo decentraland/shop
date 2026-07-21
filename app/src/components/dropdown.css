@@ -46,16 +46,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.dropdown__chev {
-  width: 24px;
-  height: 24px;
-  color: #43404a;
-  flex: none;
-  transition: transform 0.15s ease;
-}
-.dropdown__chev.is-up {
-  transform: rotate(180deg);
-}
 
 .dropdown__menu {
   position: absolute;

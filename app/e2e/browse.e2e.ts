@@ -21,9 +21,11 @@ describe('browse the shop', () => {
     app = await launchApp({ path: '/assets' })
     const { page } = app
     await waitForText(page, 'Nebula Jacket')
-    // The smart-wearable fixture (Nebula Jacket) renders a .chip--smart on its chips row; the
+    // The smart-wearable fixture (Nebula Jacket) renders a [data-testid="chip-smart"] on its chips row; the
     // non-smart one (Galaxy Hat) does not.
-    const smartChips = await page.$$eval('.chip--smart', els => els.map(e => e.textContent?.trim().toUpperCase()))
+    const smartChips = await page.$$eval('[data-testid="chip-smart"]', els =>
+      els.map(e => e.textContent?.trim().toUpperCase())
+    )
     expect(smartChips).toEqual(['SMART'])
   })
 
@@ -41,7 +43,7 @@ describe('browse the shop', () => {
     // Each source drives its own action button (revealed on hover, so read textContent not innerText):
     // native → Add to cart, legacy → Buy now.
     const labels = await page.evaluate(() =>
-      [...document.querySelectorAll('.card__cart')].map(b => (b.textContent || '').trim().toLowerCase())
+      [...document.querySelectorAll('[data-testid="card-cart"]')].map(b => (b.textContent || '').trim().toLowerCase())
     )
     expect(labels.some(l => l.includes('add to cart'))).toBe(true)
     expect(labels.some(l => l.includes('buy now'))).toBe(true)
@@ -53,11 +55,11 @@ describe('browse the shop', () => {
     await waitForText(page, 'Galaxy Hat')
 
     // Clicking the favourite button must NOT navigate (nested control stays independent of the link).
-    await page.click('.card .card__fav')
+    await page.click('[data-testid="card"] [data-testid="card-fav"]')
     expect(await page.evaluate(() => window.location.pathname)).toBe('/assets')
 
     // Clicking the card's overlay link navigates to that item's detail page.
-    await page.click('.card .card__link')
+    await page.click('[data-testid="card"] [data-testid="card-link"]')
     await page.waitForFunction(() => window.location.pathname.startsWith('/item/'), { timeout: 20000 })
     expect(await page.evaluate(() => window.location.pathname.startsWith('/item/'))).toBe(true)
   })
@@ -68,9 +70,9 @@ describe('browse the shop', () => {
     await waitForText(page, 'Galaxy Hat')
 
     // Rarity is a collapsible sidebar section that starts CLOSED — expand it, then check "legendary".
-    expect(await clickByText(page, '.sidebar__section-toggle', /rarity/i)).toBe(true)
-    await page.waitForSelector('.rarity-filter', { timeout: 5000 })
-    expect(await clickByText(page, '.rarity-filter__check', /^legendary$/i)).toBe(true)
+    expect(await clickByText(page, '[data-testid="sidebar-section-toggle"]', /rarity/i)).toBe(true)
+    await page.waitForSelector('[data-testid="rarity-filter"]', { timeout: 5000 })
+    expect(await clickByText(page, '[data-testid="rarity-filter-check"]', /^legendary$/i)).toBe(true)
     // Only the legendary item (Nebula Jacket) remains; the epic one drops out.
     await page.waitForFunction(
       () => document.body.innerText.includes('Nebula Jacket') && !document.body.innerText.includes('Galaxy Hat'),

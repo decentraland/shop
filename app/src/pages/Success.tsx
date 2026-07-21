@@ -6,6 +6,8 @@ import { useWallet } from '~/store/wallet'
 import { useProfile } from '~/hooks/useProfile'
 import { config } from '~/config'
 import { SuccessAnimation } from '~/components/SuccessAnimation'
+import { Button } from '~/components/Button'
+import styled from '@emotion/styled'
 import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import { avatarShape, dominantShape, isCompatible, BASE_MALE } from '~/lib/bodyShape'
 import { itemUrn } from '~/lib/urn'
@@ -27,6 +29,11 @@ import type { CatalogItem } from '~/lib/api'
 type Settlement = 'pending' | 'indexing' | 'confirmed' | 'failed' | 'timed-out'
 
 type OwnershipCheck = { owner: string; contractAddress: string; itemId: string }
+
+const SuccessBtn = styled(Button)`
+  min-width: 160px;
+  text-align: center;
+`
 
 const delay = (ms: number) => new Promise<void>(r => setTimeout(r, ms))
 
@@ -187,21 +194,13 @@ export function Success() {
               {settlement === 'indexing' ? (
                 <>
                   {t('success.indexingBefore')}{' '}
-                  {items.length === 1 ? (
-                    <strong>{hero.name}</strong>
-                  ) : (
-                    t('success.itemCount', { count: items.length })
-                  )}{' '}
+                  {items.length === 1 ? <strong>{hero.name}</strong> : t('success.itemCount', { count: items.length })}{' '}
                   {t('success.indexingAfter')}
                 </>
               ) : (
                 <>
                   {t('success.confirmingBefore')}{' '}
-                  {items.length === 1 ? (
-                    <strong>{hero.name}</strong>
-                  ) : (
-                    t('success.itemCount', { count: items.length })
-                  )}{' '}
+                  {items.length === 1 ? <strong>{hero.name}</strong> : t('success.itemCount', { count: items.length })}{' '}
                   {t('success.confirmingAfter')}
                 </>
               )}
@@ -232,12 +231,12 @@ export function Success() {
               ) : null}
             </div>
             <div className="success__actions">
-              <button className="btn btn--purple" onClick={() => navigate('/my-purchases')}>
+              <SuccessBtn variant="purple" onClick={() => navigate('/my-purchases')}>
                 {t('success.viewMyPurchases')}
-              </button>
-              <button className="btn btn--ghost" onClick={() => navigate('/assets')}>
+              </SuccessBtn>
+              <SuccessBtn variant="ghost" onClick={() => navigate('/assets')}>
                 {t('success.keepShopping')}
-              </button>
+              </SuccessBtn>
             </div>
           </>
         ) : settlement === 'failed' ? (
@@ -252,9 +251,9 @@ export function Success() {
               ) : null}
             </div>
             <div className="success__actions">
-              <button className="btn btn--purple" onClick={() => navigate('/assets')}>
+              <SuccessBtn variant="purple" onClick={() => navigate('/assets')}>
                 {t('success.backToShop')}
-              </button>
+              </SuccessBtn>
             </div>
           </>
         ) : (
@@ -288,12 +287,12 @@ export function Success() {
             </div>
 
             <div className="success__actions">
-              <a className="btn btn--purple" href={JUMP_URL} target="_blank" rel="noreferrer">
+              <SuccessBtn as="a" href={JUMP_URL} target="_blank" rel="noreferrer" variant="purple">
                 {t('success.useItInWorld')}
-              </a>
-              <button className="btn btn--ghost" onClick={() => navigate('/assets')}>
+              </SuccessBtn>
+              <SuccessBtn variant="ghost" onClick={() => navigate('/assets')}>
                 {t('success.keepShopping')}
-              </button>
+              </SuccessBtn>
             </div>
           </>
         )}

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { config } from '~/config'
 import { useProfile } from '~/hooks/useProfile'
 import { getAvatarBackgroundColor, getDisplayName } from '~/lib/avatarColor'
+import { Icon } from '~/components/Icon'
 import { captureError } from '~/lib/monitoring'
 import { shortAddress } from '~/lib/address'
 import { t } from '~/intl/i18n'
@@ -39,7 +40,7 @@ export function CollectionCreatorCard({ address }: { address?: string }) {
   }
 
   return (
-    <div className="creator-card">
+    <div className="creator-card" data-testid="creator-card">
       {face ? (
         <img className="creator-card__ava" src={face} alt="" loading="eager" style={{ backgroundColor: avatarBg }} />
       ) : (
@@ -58,10 +59,16 @@ export function CollectionCreatorCard({ address }: { address?: string }) {
         aria-label={copied ? t('collection.copied') : t('collection.copyAddress')}
       >
         <span className="creator-card__account-text">{shortAddress(address)}</span>
-        <span className="ico ico-copy creator-card__copy" aria-hidden />
+        <Icon name="copy" size={16} />
       </button>
 
-      <a className="creator-card__view" href={profileUrl} target="_blank" rel="noopener noreferrer">
+      <a
+        className="creator-card__view"
+        data-testid="creator-card-view"
+        href={profileUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+      >
         {t('collection.viewProfile')}
       </a>
     </div>

@@ -82,9 +82,7 @@ export function ItemPreview({ item }: { item: CatalogItem }) {
         </div>
       ) : null}
       {incompatible && !itemAlone ? (
-        <p className="item-preview__note">
-          {t('itemPreview.shownOnBody', { shape: shapeLabel(mannequinShape) })}
-        </p>
+        <p className="item-preview__note">{t('itemPreview.shownOnBody', { shape: shapeLabel(mannequinShape) })}</p>
       ) : null}
       {!isEmote ? (
         // On desktop this is a text pill ("On avatar / Item") pinned top-left; on mobile it collapses
@@ -119,7 +117,7 @@ export function ItemPreview({ item }: { item: CatalogItem }) {
           </button>
         </div>
       ) : (
-        <div className="item-preview__emote-controls">
+        <div className="item-preview__emote-controls" data-testid="emote-controls">
           <EmoteControls wearablePreviewId="shop-item-preview" hideFrameInput />
         </div>
       )}

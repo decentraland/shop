@@ -24,8 +24,12 @@ import { fetchCollectionItems, fetchCollection } from '~/lib/collections'
 import { ItemPreview } from '~/components/ItemPreview'
 import { CollectionCarousel } from '~/components/CollectionCarousel'
 import { CreatorBadge } from '~/components/CreatorBadge'
+import { Button } from '~/components/Button'
+import styled from '@emotion/styled'
+import { theme } from '~/styles/theme'
 import { CollectionBadge } from '~/components/CollectionBadge'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
+import { Icon } from '~/components/Icon'
 import { SaleCountdown } from '~/components/SaleCountdown'
 import { rarityTint, rarityInk, rarityDescription } from '~/lib/rarity'
 import { categoryIcon, genderIcon } from '~/lib/itemIcons'
@@ -35,6 +39,34 @@ import { track, itemProps } from '~/lib/analytics'
 import { recordViewed } from '~/lib/recently-viewed'
 import { isOwnListing } from '~/lib/ownership'
 import './item-detail.css'
+
+const NotFoundCta = styled(Button)`
+  margin-top: 6px;
+`
+
+// The PDP Buy-now CTA: full-width, taller, its own type scale. `&&` so font-size/letter-spacing win
+// over the purple variant's data-variant rules. In the mobile sticky bar it sits beside the cart
+// square (the `--dual` parent), where it flexes to share the row.
+const DetailCta = styled(Button)`
+  && {
+    width: 100%;
+    height: 48px;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.46px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  ${theme.media.down('lg')} {
+    .item-detail__ctas--dual && {
+      flex: 1 1 auto;
+      width: auto;
+    }
+  }
+`
 
 function isValidRarity(r: string): r is Rarity {
   return (Object.values(Rarity) as string[]).includes(r)
@@ -196,10 +228,7 @@ export function ItemDetail() {
 
   // Resolve a buyable trade for the current item (needed for BUY NOW + a valid cart entry). Secondary
   // listings carry their tradeId directly; catalog items resolve the cheapest open listing by itemId.
-  const {
-    data: resolvedTradeId,
-    isLoading: resolvingTrade
-  } = useQuery({
+  const { data: resolvedTradeId, isLoading: resolvingTrade } = useQuery({
     queryKey: ['detail-trade', current.id, current.tradeId, current.contractAddress, current.itemId],
     enabled: !!current.contractAddress,
     queryFn: async (): Promise<string | null> => {
@@ -298,7 +327,6 @@ export function ItemDetail() {
     add(cartItem, 'item_detail')
   }
 
-
   const rarity: Rarity = isValidRarity(current.rarity) ? current.rarity : Rarity.COMMON
   const gender = genderLabel(current.gender)
   const catIco = categoryIcon(current)
@@ -365,10 +393,12 @@ export function ItemDetail() {
   if (notFound) {
     return (
       <div className="item-detail item-detail--notfound">
-        <span className="ico ico-cart item-detail__notfound-ico" aria-hidden />
+        <Icon name="cart" className="item-detail__notfound-ico" />
         <h1 className="item-detail__notfound-title">{t('itemDetail.notAvailableTitle')}</h1>
         <p className="muted">{t('itemDetail.notAvailableBody')}</p>
-        <button className="btn btn--purple" onClick={() => navigate('/assets')}>{t('notFound.cta')}</button>
+        <NotFoundCta variant="purple" onClick={() => navigate('/assets')}>
+          {t('notFound.cta')}
+        </NotFoundCta>
       </div>
     )
   }
@@ -384,7 +414,7 @@ export function ItemDetail() {
       </nav>
 
       <div className="item-detail__main">
-        <div className="item-detail__preview">
+        <div className="item-detail__preview" data-testid="item-preview">
           {/* Mount the preview only once the item's identity is resolved (deep-link/refresh hydrate a
               stub first) so the 3D iframe mounts ONCE with the right item — no stub→hydrated remount /
               double-load. Show the same loader meanwhile. */}
@@ -404,7 +434,7 @@ export function ItemDetail() {
             aria-pressed={faved}
             aria-label={faved ? t('assetCard.removeFromFavorites') : t('assetCard.addToFavorites')}
           >
-            <span className={`ico ${faved ? 'ico-heart-solid' : 'ico-heart'}`} aria-hidden />
+            <Icon name={faved ? 'heart-solid' : 'heart'} size={18} />
           </button>
         </div>
 
@@ -413,189 +443,186 @@ export function ItemDetail() {
             <ItemInfoSkeleton />
           ) : (
             <>
-          <div className="item-detail__info-head">
-            <h1 className="item-detail__title">{current.name}</h1>
-            <button
-              className={`item-detail__fav${faved ? ' is-on' : ''}`}
-              onClick={() => toggleFav(current)}
-              aria-pressed={faved}
-              aria-label={faved ? t('assetCard.removeFromFavorites') : t('assetCard.addToFavorites')}
-            >
-              <span className={`ico ${faved ? 'ico-heart-solid' : 'ico-heart'}`} aria-hidden />
-            </button>
-          </div>
-
-          <div className="item-detail__chips">
-            <span
-              className="chip chip--rarity"
-              style={{ background: rarityTint(rarity), color: rarityInk(rarity) }}
-              title={rarityDescription(current.rarity)}
-            >
-              {current.rarity}
-            </span>
-            <span className="chip item-detail__chip">
-              {catIco ? <span className={`ico ico-${catIco} item-detail__chip-ico`} aria-hidden /> : null}
-              {categoryLabel(current)}
-            </span>
-            {gender ? (
-              <span className="chip item-detail__chip">
-                {genderIco ? <span className={`ico ico-${genderIco} item-detail__chip-ico`} aria-hidden /> : null}
-                {gender}
-              </span>
-            ) : null}
-          </div>
-
-          {description ? (
-            <div className="item-detail__section item-detail__description">
-              <div className="item-detail__label">{t('itemDetail.description')}</div>
-              <p className={`item-detail__desc-text${descExpanded ? ' is-expanded' : ''}`}>{description}</p>
-              {description.length > 140 ? (
-                <button className="link item-detail__desc-toggle" onClick={() => setDescExpanded(v => !v)}>
-                  {descExpanded ? t('itemDetail.showLess') : t('itemDetail.readMore')}
+              <div className="item-detail__info-head">
+                <h1 className="item-detail__title">{current.name}</h1>
+                <button
+                  className={`item-detail__fav${faved ? ' is-on' : ''}`}
+                  onClick={() => toggleFav(current)}
+                  aria-pressed={faved}
+                  aria-label={faved ? t('assetCard.removeFromFavorites') : t('assetCard.addToFavorites')}
+                >
+                  <Icon name={faved ? 'heart-solid' : 'heart'} size={18} />
                 </button>
-              ) : null}
-            </div>
-          ) : null}
-
-          {current.creator || collection?.name ? (
-            <div className="item-detail__meta">
-              {current.creator ? (
-                <div className="item-detail__meta-col">
-                  <div className="item-detail__label">{t('itemDetail.creator')}</div>
-                  <CreatorBadge address={current.creator} className="item-detail__creator" linkToProfile hidePrefix />
-                </div>
-              ) : null}
-              {collection?.name ? (
-                <div className="item-detail__meta-col item-detail__meta-col--collection">
-                  <div className="item-detail__label">{t('itemDetail.collection')}</div>
-                  <CollectionBadge
-                    contractAddress={current.contractAddress}
-                    name={collection.name}
-                    items={siblings}
-                    className="item-detail__creator"
-                  />
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-
-          <hr className="item-detail__divider" />
-
-          <div className="item-detail__price-block">
-            <div className="item-detail__price-row">
-              <div className="item-detail__price-col">
-                <div className="item-detail__price-label">{t('itemDetail.price')}</div>
-                {isMarket ? (
-                  <>
-                    <div className="item-detail__price item-detail__price--market">
-                      {marketPriceCredits == null ? (
-                        <span className="item-detail__price-value">—</span>
-                      ) : (
-                        <>
-                          <span className="item-detail__approx" aria-hidden>
-                            ≈
-                          </span>
-                          <CurrencyIcon className="item-detail__diamond" />
-                          <span className="item-detail__price-value">{marketPriceCredits}</span>
-                        </>
-                      )}
-                    </div>
-                    <div className="item-detail__market-note muted">{t('assetCard.marketPrice')}</div>
-                  </>
-                ) : forSale ? (
-                  onSale ? (
-                    <div className="item-detail__price item-detail__price--sale">
-                      <span className="item-detail__price">
-                        <CurrencyIcon className="item-detail__diamond" />
-                        <span className="item-detail__price-value">{current.priceCredits}</span>
-                      </span>
-                      <span className="item-detail__price-was">
-                        <CurrencyIcon className="item-detail__diamond item-detail__diamond--was" />
-                        {current.compareAtCredits}
-                      </span>
-                      {saleDiscountPct(current.compareAtCredits!, current.priceCredits) > 0 ? (
-                        <span className="item-detail__sale-badge">
-                          {t('assetCard.saleWithDiscount', {
-                            pct: saleDiscountPct(current.compareAtCredits!, current.priceCredits)
-                          })}
-                        </span>
-                      ) : null}
-                      <SaleCountdown endsAt={current.saleEndsAt} className="item-detail__countdown" />
-                    </div>
-                  ) : (
-                    <div className="item-detail__price">
-                      <CurrencyIcon className="item-detail__diamond" />
-                      <span className="item-detail__price-value">{current.priceCredits}</span>
-                    </div>
-                  )
-                ) : (
-                  <div className="item-detail__price item-detail__price--none">{t('itemDetail.notForSale')}</div>
-                )}
               </div>
-              {showStock ? (
-                <div className="item-detail__stock-col">
-                  <div className="item-detail__price-label">{t('itemDetail.stock')}</div>
-                  <div className="item-detail__stock-value">
-                    {(current.available ?? 0).toLocaleString()}/{Rarity.getMaxSupply(rarity).toLocaleString()}
-                  </div>
-                </div>
-              ) : null}
-            </div>
-          </div>
 
-          <div
-            className={`item-detail__ctas${showCtaButtons ? ' item-detail__ctas--buttons' : ''}${
-              dualCta ? ' item-detail__ctas--dual' : ''
-            }`}
-          >
-            {isMarket ? (
-              // Market (legacy/MANA) item: a single Buy now that opens the MANA→credits checkout
-              // (MarketCheckout) — never Add to cart / BuyModal.
-              <button
-                className="btn btn--purple item-detail__cta"
-                onClick={() => setShowBuy(true)}
-                disabled={!canBuyMarket}
-              >
-                <span className="item-detail__cta-label">{t('assetCard.buyNow')}</span>
-                {marketPriceCredits != null ? (
-                  <span className="item-detail__cta-price" aria-hidden>
-                    <CurrencyIcon className="item-detail__cta-diamond" />
-                    {marketPriceCredits}
+              <div className="item-detail__chips">
+                <span
+                  className="chip chip--rarity"
+                  style={{ background: rarityTint(rarity), color: rarityInk(rarity) }}
+                  title={rarityDescription(current.rarity)}
+                >
+                  {current.rarity}
+                </span>
+                <span className="chip item-detail__chip">
+                  {catIco ? <Icon name={catIco} size={18} color="var(--text-2)" /> : null}
+                  {categoryLabel(current)}
+                </span>
+                {gender ? (
+                  <span className="chip item-detail__chip">
+                    {genderIco ? <Icon name={genderIco} size={18} color="var(--text-2)" /> : null}
+                    {gender}
                   </span>
                 ) : null}
-              </button>
-            ) : own ? (
-              <p className="item-detail__own-note muted">
-                {t('itemDetail.ownItemPrefix')} <Link to="/my-assets">{t('nav.myAssets')}</Link>
-                {t('itemDetail.ownItemSuffix')}
-              </p>
-            ) : (
-            <>
-            {forSale ? (
-              <button
-                className="btn btn--purple item-detail__cta"
-                onClick={() => setShowBuy(true)}
-                disabled={resolvingTrade}
+              </div>
+
+              {description ? (
+                <div className="item-detail__section item-detail__description">
+                  <div className="item-detail__label">{t('itemDetail.description')}</div>
+                  <p className={`item-detail__desc-text${descExpanded ? ' is-expanded' : ''}`}>{description}</p>
+                  {description.length > 140 ? (
+                    <button className="link item-detail__desc-toggle" onClick={() => setDescExpanded(v => !v)}>
+                      {descExpanded ? t('itemDetail.showLess') : t('itemDetail.readMore')}
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {current.creator || collection?.name ? (
+                <div className="item-detail__meta">
+                  {current.creator ? (
+                    <div className="item-detail__meta-col">
+                      <div className="item-detail__label">{t('itemDetail.creator')}</div>
+                      <CreatorBadge
+                        address={current.creator}
+                        className="item-detail__creator"
+                        linkToProfile
+                        hidePrefix
+                      />
+                    </div>
+                  ) : null}
+                  {collection?.name ? (
+                    <div className="item-detail__meta-col item-detail__meta-col--collection">
+                      <div className="item-detail__label">{t('itemDetail.collection')}</div>
+                      <CollectionBadge
+                        contractAddress={current.contractAddress}
+                        name={collection.name}
+                        items={siblings}
+                        className="item-detail__creator"
+                      />
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
+              <hr className="item-detail__divider" />
+
+              <div className="item-detail__price-block">
+                <div className="item-detail__price-row">
+                  <div className="item-detail__price-col">
+                    <div className="item-detail__price-label">{t('itemDetail.price')}</div>
+                    {isMarket ? (
+                      <>
+                        <div className="item-detail__price item-detail__price--market">
+                          {marketPriceCredits == null ? (
+                            <span className="item-detail__price-value">—</span>
+                          ) : (
+                            <>
+                              <span className="item-detail__approx" aria-hidden>
+                                ≈
+                              </span>
+                              <CurrencyIcon className="item-detail__diamond" />
+                              <span className="item-detail__price-value">{marketPriceCredits}</span>
+                            </>
+                          )}
+                        </div>
+                        <div className="item-detail__market-note muted">{t('assetCard.marketPrice')}</div>
+                      </>
+                    ) : forSale ? (
+                      onSale ? (
+                        <div className="item-detail__price item-detail__price--sale">
+                          <span className="item-detail__price">
+                            <CurrencyIcon className="item-detail__diamond" />
+                            <span className="item-detail__price-value">{current.priceCredits}</span>
+                          </span>
+                          <span className="item-detail__price-was">
+                            <CurrencyIcon className="item-detail__diamond item-detail__diamond--was" />
+                            {current.compareAtCredits}
+                          </span>
+                          {saleDiscountPct(current.compareAtCredits!, current.priceCredits) > 0 ? (
+                            <span className="item-detail__sale-badge">
+                              {t('assetCard.saleWithDiscount', {
+                                pct: saleDiscountPct(current.compareAtCredits!, current.priceCredits)
+                              })}
+                            </span>
+                          ) : null}
+                          <SaleCountdown endsAt={current.saleEndsAt} className="item-detail__countdown" />
+                        </div>
+                      ) : (
+                        <div className="item-detail__price">
+                          <CurrencyIcon className="item-detail__diamond" />
+                          <span className="item-detail__price-value">{current.priceCredits}</span>
+                        </div>
+                      )
+                    ) : (
+                      <div className="item-detail__price item-detail__price--none">{t('itemDetail.notForSale')}</div>
+                    )}
+                  </div>
+                  {showStock ? (
+                    <div className="item-detail__stock-col">
+                      <div className="item-detail__price-label">{t('itemDetail.stock')}</div>
+                      <div className="item-detail__stock-value">
+                        {(current.available ?? 0).toLocaleString()}/{Rarity.getMaxSupply(rarity).toLocaleString()}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+
+              <div
+                className={`item-detail__ctas${showCtaButtons ? ' item-detail__ctas--buttons' : ''}${
+                  dualCta ? ' item-detail__ctas--dual' : ''
+                }`}
               >
-                <span className="item-detail__cta-label">{t('assetCard.buyNow')}</span>
-                <span className="item-detail__cta-price" aria-hidden>
-                  <CurrencyIcon className="item-detail__cta-diamond" />
-                  {current.priceCredits}
-                </span>
-              </button>
-            ) : null}
-            <button
-              className="item-detail__addcart"
-              onClick={handleAddToCart}
-              disabled={!forSale || resolvingTrade || (isPrimary ? atStockCap : inCart)}
-              aria-label={addLabel}
-            >
-              <span className="ico ico-cart-solid item-detail__addcart-ico" aria-hidden />
-              <span className="item-detail__addcart-label">{addLabel}</span>
-            </button>
-            </>
-            )}
-          </div>
+                {isMarket ? (
+                  // Market (legacy/MANA) item: a single Buy now that opens the MANA→credits checkout
+                  // (MarketCheckout) — never Add to cart / BuyModal.
+                  <DetailCta variant="purple" onClick={() => setShowBuy(true)} disabled={!canBuyMarket}>
+                    <span className="item-detail__cta-label">{t('assetCard.buyNow')}</span>
+                    {marketPriceCredits != null ? (
+                      <span className="item-detail__cta-price" aria-hidden>
+                        <CurrencyIcon className="item-detail__cta-diamond" />
+                        {marketPriceCredits}
+                      </span>
+                    ) : null}
+                  </DetailCta>
+                ) : own ? (
+                  <p className="item-detail__own-note muted">
+                    {t('itemDetail.ownItemPrefix')} <Link to="/my-assets">{t('nav.myAssets')}</Link>
+                    {t('itemDetail.ownItemSuffix')}
+                  </p>
+                ) : (
+                  <>
+                    {forSale ? (
+                      <DetailCta variant="purple" onClick={() => setShowBuy(true)} disabled={resolvingTrade}>
+                        <span className="item-detail__cta-label">{t('assetCard.buyNow')}</span>
+                        <span className="item-detail__cta-price" aria-hidden>
+                          <CurrencyIcon className="item-detail__cta-diamond" />
+                          {current.priceCredits}
+                        </span>
+                      </DetailCta>
+                    ) : null}
+                    <button
+                      className="item-detail__addcart"
+                      onClick={handleAddToCart}
+                      disabled={!forSale || resolvingTrade || (isPrimary ? atStockCap : inCart)}
+                      aria-label={addLabel}
+                    >
+                      <Icon name="cart-solid" />
+                      <span className="item-detail__addcart-label">{addLabel}</span>
+                    </button>
+                  </>
+                )}
+              </div>
             </>
           )}
         </div>

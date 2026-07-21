@@ -96,7 +96,7 @@ export function Collection() {
   const anyActive = category !== 'wearable' || !!subCategory || rarities.length > 0 || priceActive
 
   return (
-    <div className="collection-page">
+    <div className="collection-page" data-testid="collection-page">
       <nav className="collection-page__crumbs" aria-label={t('collection.breadcrumbAria')}>
         <button className="collection-page__crumb-link" onClick={() => navigate('/assets')}>
           {t('collection.breadcrumb')}
@@ -107,8 +107,8 @@ export function Collection() {
 
       <CollectionHero name={title} creator={creator} />
 
-      <div className="browse browse--sidebar collection-page__browse">
-        <aside className="browse__sidebar">
+      <div className="browse browse--sidebar collection-page__browse" data-testid="browse">
+        <aside className="browse__sidebar" data-testid="browse-sidebar">
           <CollectionCreatorCard address={creator} />
           <CategoryFilter
             category={category}
@@ -162,7 +162,7 @@ export function Collection() {
 
           {error ? <ErrorNotice message={t('collection.error')} /> : null}
 
-          <div className="grid">
+          <div className="grid" data-testid="grid">
             {isLoading ? (
               <SkeletonCards count={15} />
             ) : (

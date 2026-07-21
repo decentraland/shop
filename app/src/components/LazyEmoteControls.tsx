@@ -19,11 +19,13 @@ import type { EmoteControls as EmoteControlsComponent } from 'decentraland-ui2/d
 // global resets would clobber the shop's own CSS. Provider + theme are lazy-loaded alongside
 // EmoteControls, so none of the MUI theme machinery leaks into any other chunk.
 const EmoteControlsLazy = lazy(async () => {
-  const [{ EmoteControls }, { Experimental_CssVarsProvider: CssVarsProvider }, { light: dclTheme }] = await Promise.all([
-    import('decentraland-ui2/dist/components/WearablePreview/EmoteControls'),
-    import('@mui/material/styles'),
-    import('decentraland-ui2/dist/theme')
-  ])
+  const [{ EmoteControls }, { Experimental_CssVarsProvider: CssVarsProvider }, { light: dclTheme }] = await Promise.all(
+    [
+      import('decentraland-ui2/dist/components/WearablePreview/EmoteControls'),
+      import('@mui/material/styles'),
+      import('decentraland-ui2/dist/theme')
+    ]
+  )
   return {
     default: (props: ComponentProps<typeof EmoteControlsComponent>) => (
       <CssVarsProvider theme={dclTheme}>

@@ -1,4 +1,6 @@
 import { Link } from 'react-router-dom'
+import { Button } from '~/components/Button'
+import { Icon } from '~/components/Icon'
 import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
 
@@ -7,13 +9,13 @@ import { t } from '~/intl/i18n'
 export function NotFound() {
   useSeo({ title: t('seo.notFound.title'), noindex: true })
   return (
-    <div className="notfound">
-      <span className="ico ico-cart notfound__ico" aria-hidden />
+    <div className="notfound" data-testid="notfound">
+      <Icon name="cart" className="notfound__ico" />
       <h1 className="notfound__title">{t('notFound.title')}</h1>
       <p className="muted">{t('notFound.body')}</p>
-      <Link className="btn btn--purple" to="/assets">
+      <Button as={Link} to="/assets" variant="purple">
         {t('notFound.cta')}
-      </Link>
+      </Button>
     </div>
   )
 }
