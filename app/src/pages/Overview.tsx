@@ -1,4 +1,3 @@
-import './overview.css'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
@@ -13,21 +12,8 @@ import carouselArrow from '~/assets/icons/carousel-arrow.svg'
 import heroBanner from '~/assets/overview/hero-fashion-week.png'
 import promoEmotes from '~/assets/overview/promo-best-rated-emotes.png'
 import promoOutfits from '~/assets/overview/promo-week-selected-outfits.png'
-import styled from '@emotion/styled'
-import { Button } from '~/components/Button'
 import { Icon } from '~/components/Icon'
-
-const EmptyCta = styled(Button)`
-  margin-top: 10px;
-`
-
-// Figma hero CTA: the purple button trimmed to the 40px hero spec.
-const HeroCta = styled(Button)`
-  height: 40px;
-  padding: 0 16px;
-  display: inline-flex;
-  align-items: center;
-`
+import * as S from './Overview.styles'
 
 const SKELETON_COUNT = 6
 
@@ -53,7 +39,7 @@ function Carousel({ title, items, loading }: { title: string; items: CatalogItem
     const pages = Math.max(1, Math.ceil((el.scrollWidth - view) / view) + 1)
     setPageCount(pages)
     setPage(Math.min(pages - 1, Math.round(el.scrollLeft / view)))
-    const media = el.querySelector<HTMLElement>('.card__media')
+    const media = el.querySelector<HTMLElement>('[data-testid="card-media"]')
     const viewport = el.parentElement
     // 12px = the track's top padding; center on the media so the chevrons sit over the artwork.
     if (viewport) viewport.style.setProperty('--ov-arrow-top', `${12 + (media ? media.offsetHeight : 150) / 2}px`)
@@ -87,54 +73,54 @@ function Carousel({ title, items, loading }: { title: string; items: CatalogItem
   const showControls = !loading && pageCount > 1
 
   return (
-    <section className="row ov-carousel">
+    <S.Carousel className="row">
       <div className="row__head">
         <h2 className="row__title">{title}</h2>
         <Link className="row__viewall" to="/assets">
           {t('overview.viewAll')} <Icon name="view-all-arrow" size={18} />
         </Link>
       </div>
-      <div className="ov-carousel__viewport">
+      <S.Viewport>
         {showControls ? (
-          <button
-            className="ov-arrow ov-arrow--left"
+          <S.Arrow
+            data-side="left"
             onClick={() => scrollToPage(page - 1)}
             disabled={page <= 0}
             aria-label={t('overview.previous')}
           >
             <img src={carouselArrow} alt="" aria-hidden />
-          </button>
+          </S.Arrow>
         ) : null}
-        <div className="ov-carousel__track" ref={trackRef}>
+        <S.Track ref={trackRef}>
           {loading
             ? Array.from({ length: SKELETON_COUNT }).map((_, i) => <div className="card card--skeleton" key={i} />)
             : items.map(item => <AssetCard key={item.id} item={item} />)}
-        </div>
+        </S.Track>
         {showControls ? (
-          <button
-            className="ov-arrow ov-arrow--right"
+          <S.Arrow
+            data-side="right"
             onClick={() => scrollToPage(page + 1)}
             disabled={page >= pageCount - 1}
             aria-label={t('overview.next')}
           >
             <img src={carouselArrow} alt="" aria-hidden />
-          </button>
+          </S.Arrow>
         ) : null}
-      </div>
+      </S.Viewport>
       {showControls ? (
-        <div className="ov-carousel__dots" aria-label={t('overview.carouselPages', { title })}>
+        <S.Dots aria-label={t('overview.carouselPages', { title })}>
           {Array.from({ length: pageCount }).map((_, i) => (
-            <button
+            <S.Dot
               key={i}
-              className={`ov-dot${i === page ? ' is-active' : ''}`}
+              data-active={i === page || undefined}
               onClick={() => scrollToPage(i)}
               aria-label={t('overview.goToPage', { page: i + 1 })}
               aria-current={i === page ? 'true' : undefined}
             />
           ))}
-        </div>
+        </S.Dots>
       ) : null}
-    </section>
+    </S.Carousel>
   )
 }
 
@@ -147,31 +133,31 @@ export function Overview() {
   const items = data?.items ?? []
 
   return (
-    <div className="overview">
-      <section className="ov-hero">
-        <img className="ov-hero__bg" src={heroBanner} alt="" aria-hidden />
-        <div className="ov-hero__scrim" aria-hidden />
-        <div className="ov-hero__inner">
-          <h1 className="ov-hero__title">{t('overview.heroTitle')}</h1>
-          <HeroCta as={Link} to="/assets" variant="purple">
+    <S.Overview className="overview">
+      <S.Hero>
+        <S.HeroBg src={heroBanner} alt="" aria-hidden />
+        <S.HeroScrim aria-hidden />
+        <S.HeroInner>
+          <S.HeroTitle>{t('overview.heroTitle')}</S.HeroTitle>
+          <S.HeroCta as={Link} to="/assets" variant="purple">
             {t('overview.exploreCollection')}
-          </HeroCta>
-        </div>
-      </section>
+          </S.HeroCta>
+        </S.HeroInner>
+      </S.Hero>
 
       {isLoading || items.length > 0 ? (
         <>
           <Carousel title={t('overview.featuredProducts')} items={items.slice(0, 12)} loading={isLoading} />
 
           {/* Promo tiles (Figma node 913:135589). Placeholder art — see report for production source. */}
-          <section className="ov-promos">
-            <Link className="ov-promo" to="/assets" aria-label={t('overview.promoEmotesAria')}>
+          <S.Promos>
+            <S.Promo to="/assets" aria-label={t('overview.promoEmotesAria')}>
               <img src={promoEmotes} alt={t('overview.promoEmotesAlt')} />
-            </Link>
-            <Link className="ov-promo" to="/assets" aria-label={t('overview.promoOutfitsAria')}>
+            </S.Promo>
+            <S.Promo to="/assets" aria-label={t('overview.promoOutfitsAria')}>
               <img src={promoOutfits} alt={t('overview.promoOutfitsAlt')} />
-            </Link>
-          </section>
+            </S.Promo>
+          </S.Promos>
 
           {/* New Creations carousel — needs a second page of listings (>12) to be worth showing. */}
           {items.length > 12 ? (
@@ -182,9 +168,9 @@ export function Overview() {
         <div className="overview__empty">
           <p className="overview__empty-title">{t('overview.emptyTitle')}</p>
           <p className="muted">{t('overview.emptyBody')}</p>
-          <EmptyCta as={Link} to="/assets" variant="purple">
+          <S.EmptyCta as={Link} to="/assets" variant="purple">
             {t('notFound.cta')}
-          </EmptyCta>
+          </S.EmptyCta>
         </div>
       )}
 
@@ -194,6 +180,6 @@ export function Overview() {
       <RecentlyViewed />
       <FollowedCreatorsRow />
       <WeekTopCreators />
-    </div>
+    </S.Overview>
   )
 }

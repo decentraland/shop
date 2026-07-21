@@ -764,9 +764,9 @@ h2 {
 }
 
 /* ---------------- Card ---------------- */
-/* The AssetCard component's own styles (.card, .card__*) live in
-   components/AssetCard/asset-card.css. Skeleton/load-more/spinner below are shared by the
-   grids/rows that render cards, so they stay here. */
+/* The AssetCard component's own styles are Emotion styled (components/AssetCard/AssetCard.styles.ts).
+   The skeleton/spinner below and the shared .chip* base are used by the grids/rows that render cards
+   (and by other components), so they stay here. */
 
 .card--skeleton,
 .asset-card--skeleton {
@@ -834,79 +834,6 @@ h2 {
   width: 14px;
   height: 14px;
   color: #444;
-}
-
-/* Compact mobile card (Figma New Shop 2026): name/creator on top, price bottom-left + a round add
-   button bottom-right. No chips, no full-width dark button. */
-@media (max-width: 720px) {
-  /* Media is near-square on mobile (Figma card 171×250 = media ~171×181 + info ~74). */
-  .card__media {
-    aspect-ratio: 201 / 213;
-  }
-  .card__name {
-    font-size: 12px;
-  }
-  .card__body {
-    display: grid;
-    height: auto;
-    grid-template-columns: 1fr auto;
-    grid-template-areas: "desc desc" "price add";
-    align-items: center;
-    row-gap: 10px;
-    padding: 8px;
-  }
-  /* The desktop DOM nests name/creator + price inside .card__top and the button inside .card__action.
-     `display: contents` promotes .card__top's children into the card__body grid so they place as the
-     Figma mobile card (Figma 1040-149088): name+creator on row 1, then price (left) + round add (right)
-     on row 2. Without this the flex-row .card__top overflows the narrow card and clips the price. */
-  .card__top {
-    display: contents;
-  }
-  .card__desc {
-    grid-area: desc;
-    min-width: 0;
-  }
-  .card__chips {
-    display: none;
-  }
-  .card__cart {
-    display: none;
-  }
-  .card__price {
-    grid-area: price;
-    align-self: center;
-    justify-self: start;
-  }
-  .card__action {
-    grid-area: add;
-    align-self: center;
-    justify-self: end;
-    min-height: 0;
-  }
-  .card__add-round {
-    align-self: center;
-    justify-self: end;
-    z-index: 4;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    border: 0;
-    padding: 0;
-    background: var(--accent);
-    color: #fff;
-    cursor: pointer;
-  }
-  .card__add-round .ico {
-    width: 18px;
-    height: 18px;
-  }
-  .card__add-round:disabled {
-    opacity: 0.5;
-    cursor: default;
-  }
 }
 
 /* Merchandising price treatment (bundles / discounts): strikethrough "was" + green "Save X%". */
@@ -2630,16 +2557,6 @@ a.purchase:hover {
   .modal-success__check {
     animation: none;
   }
-}
-
-/* Creator badge (avatar + profile name, address fallback) */
-/* Compact creator line inside a card (fixed-height card body). */
-.card__creator[data-testid="creator"] {
-  margin-bottom: 2px;
-}
-.card__creator [data-avatar] {
-  width: 16px;
-  height: 16px;
 }
 
 /* ---------------- Cart popover actions (try-on + checkout) ---------------- */

@@ -4,6 +4,7 @@ import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { formatCredits } from '~/lib/currency'
 import { t } from '~/intl/i18n'
 import { ErrorNotice } from '~/components/ErrorNotice'
+import * as S from './CartCheckoutModal.styles'
 
 // A cart line as the modal displays it: the item + the LIVE credit price it will be charged.
 export type CheckoutLine = { item: CatalogItem; priceCredits: number }
@@ -112,14 +113,14 @@ function Processing({ step, total }: { step: number; total: number }) {
     <div className="buy-modal__body buy-modal__processing">
       <img className="buy-modal__logo" src="/icon-192.png" alt="" width={61} height={61} />
       <div className="buy-modal__processing-text">{t('buyModal.completingTransaction')}</div>
-      <div className="cart-checkout__progress-row">
+      <S.ProgressRow>
         <div className="buy-modal__progress" aria-hidden>
           <span className="buy-modal__progress-fill" />
         </div>
-        <span className="cart-checkout__step">
+        <S.Step>
           {step}/{total}
-        </span>
-      </div>
+        </S.Step>
+      </S.ProgressRow>
     </div>
   )
 }
@@ -159,7 +160,7 @@ function NoFunds({
         </p>
       </div>
 
-      <div className="cart-checkout__scroll">
+      <S.Scroll>
         {lines.map(l => (
           <div className="buy-modal__asset" key={l.item.id}>
             <div className="buy-modal__asset-thumb">
@@ -181,7 +182,7 @@ function NoFunds({
             </div>
           </div>
         ))}
-      </div>
+      </S.Scroll>
 
       <div className="buy-modal__packs">
         {packs.map(p => {
@@ -232,7 +233,7 @@ function Complete({
   onTryInWorld: () => void
 }) {
   return (
-    <div className="buy-modal__body cart-checkout__done-body">
+    <S.DoneBody className="buy-modal__body">
       <div className="buy-modal__success">
         <svg viewBox="0 0 64 64" width="60" height="60" aria-hidden>
           <circle cx="32" cy="32" r="32" fill="#34ce77" />
@@ -250,13 +251,13 @@ function Complete({
         </p>
       </div>
 
-      <div className="cart-checkout__done">
-        <div className="cart-checkout__done-scroll">
+      <S.Done>
+        <S.DoneScroll>
           {purchased.map(item => (
-            <div className="cart-checkout__done-row" key={item.id}>
-              <div className="cart-checkout__done-thumb">
+            <S.DoneRow key={item.id}>
+              <S.DoneThumb>
                 {item.thumbnail ? <img src={item.thumbnail} alt="" /> : null}
-                <span className="cart-checkout__done-check" aria-hidden>
+                <S.DoneCheck aria-hidden>
                   <svg viewBox="0 0 18 18" width="12" height="12">
                     <path
                       d="M4 9l3.5 3.5L14 5"
@@ -267,24 +268,20 @@ function Complete({
                       strokeLinejoin="round"
                     />
                   </svg>
-                </span>
-              </div>
-              <div className="cart-checkout__done-info">
-                <div className="cart-checkout__done-name" title={item.name}>
-                  {item.name || t('buyModal.itemFallback')}
-                </div>
-                {item.creator ? (
-                  <div className="cart-checkout__done-creator">{t('search.byCreator', { name: item.creator })}</div>
-                ) : null}
-              </div>
-              <div className="cart-checkout__done-price">
-                <CurrencyIcon className="cart-checkout__done-price-ico" />
+                </S.DoneCheck>
+              </S.DoneThumb>
+              <S.DoneInfo>
+                <S.DoneName title={item.name}>{item.name || t('buyModal.itemFallback')}</S.DoneName>
+                {item.creator ? <S.DoneCreator>{t('search.byCreator', { name: item.creator })}</S.DoneCreator> : null}
+              </S.DoneInfo>
+              <S.DonePrice>
+                <S.DonePriceIco />
                 <span>{formatCredits(item.priceCredits)}</span>
-              </div>
-            </div>
+              </S.DonePrice>
+            </S.DoneRow>
           ))}
-        </div>
-      </div>
+        </S.DoneScroll>
+      </S.Done>
 
       <div className="buy-modal__ctas">
         <button className="buy-modal__btn buy-modal__btn--outline" onClick={onMyAssets}>
@@ -304,7 +301,7 @@ function Complete({
           </svg>
         </button>
       </div>
-    </div>
+    </S.DoneBody>
   )
 }
 

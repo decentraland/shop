@@ -1,22 +1,19 @@
 import { useEffect, useRef } from 'react'
-import { Link } from 'react-router-dom'
 import { useCart } from '~/store/cart'
 import { useFavorites } from '~/store/favorites'
 import { useHoverPreview } from '~/store/hoverPreview'
 import { useWallet } from '~/store/wallet'
 import { isOwnListing } from '~/lib/ownership'
-import { CreatorBadge } from '~/components/CreatorBadge'
 import { rarityInk, rarityTint, rarityDescription } from '~/lib/rarity'
 import { categoryIcon, genderIcon } from '~/lib/itemIcons'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { Icon } from '~/components/Icon'
-import { SaleCountdown } from '~/components/SaleCountdown'
 import { saleDiscountPct } from '~/lib/sale'
 import { formatCredits, formatCreditsFull } from '~/lib/currency'
 import { t } from '~/intl/i18n'
 import { useSaleActive } from '~/hooks/useSaleActive'
 import type { CatalogItem } from '~/lib/api'
-import './asset-card.css'
+import * as S from './AssetCard.styles'
 
 const HOVER_DELAY_MS = 120
 
@@ -102,8 +99,7 @@ export function AssetCard(props: AssetCardProps) {
   const discountPct = onSale ? saleDiscountPct(item.compareAtCredits!, item.priceCredits) : 0
 
   return (
-    <article
-      className="card"
+    <S.Card
       data-testid="card"
       style={canOpen ? { cursor: 'pointer' } : undefined}
       onMouseEnter={onEnter}
@@ -112,10 +108,9 @@ export function AssetCard(props: AssetCardProps) {
       {/* Whole-card navigation as a SINGLE overlaid link (keyboard + screen-reader reachable), instead
           of an interactive <article role="link"> that wraps the fav/cart/creator buttons — nesting
           interactive controls inside a link is invalid and breaks SR/tab order. The overlay sits below
-          those controls via z-index (see .card__link in index.css) so they stay independently operable. */}
+          those controls via z-index so they stay independently operable. */}
       {canOpen ? (
-        <Link
-          className="card__link"
+        <S.CardLink
           data-testid="card-link"
           to={detailPath}
           // Market cards open the detail page in "market mode": hand it the live-rate credit price and
@@ -129,12 +124,12 @@ export function AssetCard(props: AssetCardProps) {
           aria-label={item.name}
         />
       ) : null}
-      {/* The fav button is a SIBLING of the whole-card link (not nested in .card__media): the media is
-          its own stacking context (isolation: isolate, for the skeleton's z-index), which would trap
-          the button below the z-index:3 overlay link and make the heart navigate instead of toggle.
-          As a direct child of the position:relative card, its z-index:4 sits above the link. */}
-      <button
-        className={`card__fav${faved ? ' is-on' : ''}`}
+      {/* The fav button is a SIBLING of the whole-card link (not nested in the media): the media is its
+          own stacking context (isolation: isolate), which would trap the button below the overlay link
+          and make the heart navigate instead of toggle. As a direct child of the card its z-index sits
+          above the link. */}
+      <S.Fav
+        data-on={faved || undefined}
         data-testid="card-fav"
         onClick={e => {
           e.stopPropagation()
@@ -143,95 +138,73 @@ export function AssetCard(props: AssetCardProps) {
         aria-label={faved ? t('assetCard.removeFromFavorites') : t('assetCard.addToFavorites')}
       >
         <Icon name={faved ? 'heart-solid' : 'heart'} size={18} />
-      </button>
+      </S.Fav>
       {/* The shared 3D preview (HoverPreviewLayer) overlays this element on hover; mediaRef gives it the
-          rect to position over. */}
-      <div className="card__media" ref={mediaRef}>
+          rect to position over. The card does NOT mount its own WearablePreview — it just asks the store
+          to point the one warm iframe here, and the thumbnail crossfades out once that preview is ready. */}
+      <S.Media ref={mediaRef} data-testid="card-media">
         {onSale ? (
-          <span className="card__sale-badge" data-testid="card-sale-badge">
+          <S.SaleBadge data-testid="card-sale-badge">
             {discountPct > 0 ? t('assetCard.saleWithDiscount', { pct: discountPct }) : t('assetCard.sale')}
-          </span>
+          </S.SaleBadge>
         ) : null}
-        {/* Flat thumbnail stays visible the whole time the 3D loads (no empty frame); it only fades out
-            once the shared preview has this item's scene ready, crossfading into the 3D. */}
         {item.thumbnail ? (
-          <img
-            className={`card__img${isPreviewing && previewReady ? ' card__img--hidden' : ''}`}
+          <S.Img
+            data-hidden={(isPreviewing && previewReady) || undefined}
             src={item.thumbnail}
             alt={item.name}
             loading="lazy"
           />
         ) : null}
-        {/* The 3D preview is the ONE shared HoverPreviewLayer overlay (see App.tsx) — the card does NOT
-            mount its own <WearablePreview> (that duplicated the avatar over the shared one, cold-booted a
-            second engine per hover, and doubled the Babylon/Sentry work). On hover the card just asks the
-            store to point the warm iframe here (showPreview); the thumbnail above crossfades out via
-            .card__img--hidden once that shared preview is ready. */}
-      </div>
+      </S.Media>
 
-      <div className="card__body">
-        {/* Title+author sit on one row with the price to their right (Figma). card__desc holds the
-            flexible column (min-width:0 so a long name ellipses instead of shoving the price out or
-            wrapping); the price never shrinks. */}
-        <div className="card__top">
-          <div className="card__desc">
-            <div className="card__name" title={item.name}>
-              {item.name}
-            </div>
+      <S.Body>
+        {/* Title+author on one row with the price to their right (Figma). Desc holds the flexible column
+            (min-width:0 so a long name ellipses instead of shoving the price out); the price never shrinks. */}
+        <S.Top>
+          <S.Desc>
+            <S.Name title={item.name}>{item.name}</S.Name>
             {item.creator ? (
-              <CreatorBadge address={item.creator} className="card__creator" linkToProfile />
+              <S.Creator address={item.creator} linkToProfile />
             ) : (
-              <div className="card__creator">&nbsp;</div>
+              <S.CreatorEmpty>&nbsp;</S.CreatorEmpty>
             )}
-          </div>
+          </S.Desc>
           {isMarket && props.mode === 'market' ? (
-            <div className="card__price card__price--market" data-testid="card-price-market">
-              <span className="card__approx" aria-hidden>
-                ≈
-              </span>
-              <CurrencyIcon className="card__diamond" />
+            <S.Price data-variant="market" data-testid="card-price-market">
+              <S.Approx aria-hidden>≈</S.Approx>
+              <CurrencyIcon size={15} />
               {props.marketPriceCredits == null ? '—' : formatCredits(props.marketPriceCredits)}
-            </div>
+            </S.Price>
           ) : onSale ? (
-            <div className="card__price card__price--sale">
-              <span
-                className="card__price-now"
-                data-testid="card-price-now"
-                title={formatCreditsFull(item.priceCredits)}
-              >
-                <CurrencyIcon className="card__diamond" />
+            <S.Price data-variant="sale">
+              <S.PriceNow data-testid="card-price-now" title={formatCreditsFull(item.priceCredits)}>
+                <CurrencyIcon size={15} />
                 {formatCredits(item.priceCredits)}
-              </span>
-              <span
-                className="card__price-was"
-                data-testid="card-price-was"
-                title={formatCreditsFull(item.compareAtCredits!)}
-              >
-                <CurrencyIcon className="card__diamond card__diamond--was" />
+              </S.PriceNow>
+              <S.PriceWas data-testid="card-price-was" title={formatCreditsFull(item.compareAtCredits!)}>
+                <CurrencyIcon size={13} />
                 {formatCredits(item.compareAtCredits!)}
-              </span>
-              <SaleCountdown endsAt={item.saleEndsAt} className="card__countdown" testId="card-countdown" />
-            </div>
+              </S.PriceWas>
+              <S.Countdown endsAt={item.saleEndsAt} testId="card-countdown" />
+            </S.Price>
           ) : (
-            <div className="card__price" title={formatCreditsFull(item.priceCredits)}>
-              <CurrencyIcon className="card__diamond" />
+            <S.Price title={formatCreditsFull(item.priceCredits)}>
+              <CurrencyIcon size={15} />
               {formatCredits(item.priceCredits)}
-            </div>
+            </S.Price>
           )}
-        </div>
+        </S.Top>
 
-        {/* Chips row and the primary action share one fixed-height slot so the card DOESN'T change
-            size when the action is revealed on hover/focus — the button (40px tall) replaces the chips
-            in place, not below them. Chips show at rest; on hover-capable devices the action is
-            revealed on hover OR keyboard focus, and it's always shown where hover isn't available
-            (touch) so items stay buyable without a mouse (see .card__action in asset-card.css). Both
-            stay in the DOM so the action is keyboard-reachable and touch-tappable. Native cards add to
-            cart; Market (legacy) cards Buy now directly (price locked at checkout). */}
-        <div className="card__action">
-          <div className="card__chips">
-            {/* Market (legacy) tag: the "≈ price is a live-rate market price" indicator. Lives here in
-                the chips row (not the price row) so it's swapped out for the action button on hover like
-                every other chip and never distorts the price row / Buy now button. */}
+        {/* Chips row and the primary action share one fixed-height slot so the card doesn't change size
+            when the action is revealed on hover/focus — the button replaces the chips in place. Chips
+            show at rest; on hover-capable devices the action reveals on hover or keyboard focus, and it's
+            always shown where hover isn't available (touch). Both stay in the DOM so the action is
+            keyboard-reachable and touch-tappable. Native cards add to cart; market cards Buy now. */}
+        <S.Action>
+          <S.Chips data-chips>
+            {/* Market (legacy) tag lives in the chips row (not the price row) so it's swapped out for the
+                action button on hover like every other chip, never distorting the price / Buy now button. */}
             {isMarket ? (
               <span className="chip chip--market" data-testid="chip-market">
                 {t('assetCard.marketPrice')}
@@ -260,13 +233,12 @@ export function AssetCard(props: AssetCardProps) {
                 <Icon name={genderIco} />
               </span>
             ) : null}
-          </div>
+          </S.Chips>
 
           {/* Round add button — the compact mobile card's primary action (Figma). Same behavior as the
-            full-width .card__cart below; only one is visible per breakpoint (CSS). */}
+            full-width Cart below; only one is visible per breakpoint. */}
           {isMarket && props.mode === 'market' ? (
-            <button
-              className="card__add-round"
+            <S.AddRound
               onClick={e => {
                 e.stopPropagation()
                 props.onBuyNow(item)
@@ -274,11 +246,10 @@ export function AssetCard(props: AssetCardProps) {
               disabled={props.marketPriceCredits == null}
               aria-label={props.marketPriceCredits == null ? t('assetCard.unavailable') : t('assetCard.buyNow')}
             >
-              <Icon name="plus" />
-            </button>
+              <Icon name="plus" size={18} />
+            </S.AddRound>
           ) : (
-            <button
-              className={`card__add-round${inCart ? ' is-in' : ''}`}
+            <S.AddRound
               onClick={e => {
                 e.stopPropagation()
                 if (!own) add(item, 'grid')
@@ -286,13 +257,12 @@ export function AssetCard(props: AssetCardProps) {
               disabled={inCart || own}
               aria-label={own ? t('assetCard.yourItem') : inCart ? t('assetCard.inCart') : t('assetCard.addToCart')}
             >
-              <Icon name="plus" />
-            </button>
+              <Icon name="plus" size={18} />
+            </S.AddRound>
           )}
 
           {isMarket && props.mode === 'market' ? (
-            <button
-              className="card__cart"
+            <S.Cart
               data-testid="card-cart"
               onClick={e => {
                 e.stopPropagation()
@@ -301,10 +271,10 @@ export function AssetCard(props: AssetCardProps) {
               disabled={props.marketPriceCredits == null}
             >
               {props.marketPriceCredits == null ? t('assetCard.unavailable') : t('assetCard.buyNow')}
-            </button>
+            </S.Cart>
           ) : (
-            <button
-              className={`card__cart${inCart ? ' is-in' : ''}`}
+            <S.Cart
+              data-in={inCart || undefined}
               data-testid="card-cart"
               onClick={e => {
                 e.stopPropagation()
@@ -314,10 +284,10 @@ export function AssetCard(props: AssetCardProps) {
             >
               {own ? null : <Icon name="cart-solid" />}
               {own ? t('assetCard.yourItem') : inCart ? t('assetCard.inCart') : t('assetCard.addToCart')}
-            </button>
+            </S.Cart>
           )}
-        </div>
-      </div>
-    </article>
+        </S.Action>
+      </S.Body>
+    </S.Card>
   )
 }
