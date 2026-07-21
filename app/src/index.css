@@ -378,8 +378,10 @@ h2 {
   display: flex;
   gap: 16px;
   overflow-x: auto;
-  padding: 12px 10px;
-  margin: 0 -10px;
+  /* Horizontal padding (not a negative margin) reserves room for the first/last card's outward hover
+     glow (2px cerise border + 8px box-shadow) so an overflow-x scroller doesn't crop the ring. */
+  padding: 12px 14px;
+  scroll-padding-inline: 14px;
   scroll-snap-type: x proximity;
 }
 .row__track > * {
