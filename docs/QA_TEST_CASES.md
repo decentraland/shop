@@ -67,7 +67,7 @@ Frontend + capture ✅; the **on-sale trigger that actually sends the email is n
 | NOTIFY-04 | Guest | Signed out | No email field — a single "Sign in to get notified" CTA. |
 | NOTIFY-05 | Already subscribed | Re-open an item you subscribed to | Subscribed/confirmed state on load (no empty form). |
 | NOTIFY-06 | Invalid email | Type "abc" | NOTIFY ME disabled until a valid-looking email. |
-| NOTIFY-07 | **End-to-end** ⛔ | Subscribe to item X → item X is put on sale | Subscriber receives the availability email with a working link to the item. *(blocked on the on-sale trigger)* |
+| NOTIFY-07 | **End-to-end** 🟡 | Subscribe to item X (not for sale) → item X is put on sale, either **(a)** the creator re-lists the primary or **(b)** someone lists a secondary | Subscriber receives ONE availability email with a working link. Fires on the item's first open listing (marketplace-server → shop-server `/notify/item-on-sale`). *(built — PRs pending merge + the shared secret + deploy)* |
 | NOTIFY-08 | Unsubscribe | Use the unsubscribe link / DELETE flow | Status → unsubscribed; no further emails. |
 | NOTIFY-09 | Email safety | Item name contains HTML (e.g. `</strong><img onerror=...>`) | Email renders the name escaped; no markup/script injected. |
 
@@ -89,7 +89,9 @@ Frontend + capture ✅; the **on-sale trigger that actually sends the email is n
 ---
 
 ## Open items feeding this doc
-- **Notify on-sale trigger** (NOTIFY-07): decided approach = marketplace-server POSTs shop-server on trade
-  creation (event-driven, not polling). Until wired, the waitlist captures demand but sends nothing.
+- **Notify on-sale trigger** (NOTIFY-07): BUILT event-driven — marketplace-server best-effort POSTs shop-server
+  `/notify/item-on-sale` on the item's first open listing (primary or secondary; transition via `mv_trades`).
+  PRs: marketplace-server #371, shop-server #6, definitions #1605/#1606. Pending merge + the shared SSM secret
+  (`ops-param-shop-notify-trigger-token`) + deploy. shop-server not on prd yet → mkt prd ping is a safe no-op.
 - **Make an offer** (PDP-03): disabled on purpose; bids are a future contracts epic. The tooltip event
   feeds a "who wants bids" chart (TODO: build the dashboard).
