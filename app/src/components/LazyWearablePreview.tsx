@@ -22,19 +22,17 @@ type Props = ComponentProps<typeof WearablePreviewComponent>
  * error — we transparently fall back to Babylon even though `unity={true}` was passed. When Unity is
  * actually used we also send `unityMode=marketplace`. Omitting `unity` (default) always uses Babylon.
  */
-export function WearablePreview({ unity = false, unityMode, onError, ...props }: Props) {
-  // Decide once per mount whether Unity is actually attempted; an onError then degrades to Babylon.
-  // `unity` is checked first so Babylon-only surfaces never pay for the renderer evaluation.
-  const [useUnity, setUseUnity] = useState(() => unity && pickRenderer().renderer === PreviewRenderer.UNITY)
+export function WearablePreview({ unity = false, unityMode = PreviewUnityMode.MARKETPLACE, onError, ...props }: Props) {
+  const [shouldUseUnity, setShouldUseUnity] = useState(() => unity && pickRenderer().renderer === PreviewRenderer.UNITY)
 
   return (
     <Suspense fallback={null}>
       <WearablePreviewLazy
         {...props}
-        unity={useUnity}
-        unityMode={useUnity ? (unityMode ?? PreviewUnityMode.MARKETPLACE) : undefined}
+        unity={shouldUseUnity}
+        unityMode={unityMode}
         onError={error => {
-          if (useUnity) setUseUnity(false)
+          setShouldUseUnity(false)
           onError?.(error)
         }}
       />
