@@ -9,6 +9,7 @@ import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import { track } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
 import { t } from '~/intl/i18n'
+import * as S from './MigrateModal.styles'
 
 export type MigrateEntry = { item: ImportItem; priceCredits: number }
 // 'unlisted' = the old listing was taken down but re-listing failed → the item now has NO listing and
@@ -143,57 +144,51 @@ export function MigrateModal({
 
   return (
     <div className="modal-backdrop" role="presentation">
-      <div className="modal migrate" data-testid="modal" role="dialog" aria-modal="true" aria-live="polite">
+      <S.Modal className="modal" data-testid="modal" role="dialog" aria-modal="true" aria-live="polite">
         <h2 className="modal__title">{t('migrate.listingTitle')}</h2>
         <p className="muted small" style={{ margin: '0 0 4px' }}>
           {showsConfirmations ? t('migrate.subConfirm') : t('migrate.subManaged')}{' '}
           {activeIndex >= 0 ? t('migrate.progressCount', { current: activeIndex + 1, total: queue.length }) : ''}
         </p>
 
-        <div className="migrate__progress">
-          <div className="migrate__bar" style={{ width: `${progress}%` }} />
-        </div>
+        <S.Progress>
+          <S.Bar style={{ width: `${progress}%` }} />
+        </S.Progress>
 
-        <ul className="migrate__list">
+        <S.List>
           {queue.map((entry, i) => (
-            <li className={`migrate__row migrate__row--${statuses[i]}`} key={entry.item.oldTradeId}>
-              <span className="migrate__thumb">
-                {entry.item.thumbnail ? <img src={entry.item.thumbnail} alt="" /> : null}
-              </span>
-              <span className="migrate__name" title={entry.item.name}>
-                {entry.item.name || t('migrate.itemFallback')}
-              </span>
-              <span className="migrate__price">
+            <S.Row data-status={statuses[i]} key={entry.item.oldTradeId}>
+              <S.Thumb>{entry.item.thumbnail ? <img src={entry.item.thumbnail} alt="" /> : null}</S.Thumb>
+              <S.Name title={entry.item.name}>{entry.item.name || t('migrate.itemFallback')}</S.Name>
+              <S.Price>
                 <CurrencyIcon className="ccy-mark" /> {entry.priceCredits.toLocaleString()}
-              </span>
-              <span className="migrate__status">
+              </S.Price>
+              <S.Status>
                 {statuses[i] === 'active' ? (
                   <>
-                    <span className="spinner migrate__spin" aria-hidden />{' '}
+                    <S.Spin className="spinner" aria-hidden />{' '}
                     {showsConfirmations ? t('migrate.statusConfirm') : t('migrate.statusAdding')}
                   </>
                 ) : statuses[i] === 'done' ? (
-                  <span className="migrate__tick">✓</span>
+                  <S.Tick>✓</S.Tick>
                 ) : statuses[i] === 'skipped' ? (
-                  <span className="migrate__skip">{t('migrate.statusSkipped')}</span>
+                  <S.Skip>{t('migrate.statusSkipped')}</S.Skip>
                 ) : statuses[i] === 'failed' ? (
-                  <span className="migrate__skip">{t('migrate.statusFailed')}</span>
+                  <S.Skip>{t('migrate.statusFailed')}</S.Skip>
                 ) : statuses[i] === 'unlisted' ? (
-                  <span className="migrate__skip" title={t('migrate.unlistedTooltip')}>
-                    {t('migrate.statusUnlisted')}
-                  </span>
+                  <S.Skip title={t('migrate.unlistedTooltip')}>{t('migrate.statusUnlisted')}</S.Skip>
                 ) : (
-                  <span className="migrate__wait">{t('migrate.statusWaiting')}</span>
+                  <S.Wait>{t('migrate.statusWaiting')}</S.Wait>
                 )}
-              </span>
-            </li>
+              </S.Status>
+            </S.Row>
           ))}
-        </ul>
+        </S.List>
 
-        <p className="muted small migrate__hint">
+        <S.Hint className="muted small">
           {showsConfirmations ? t('migrate.hintConfirm') : t('migrate.hintManaged')}
-        </p>
-      </div>
+        </S.Hint>
+      </S.Modal>
     </div>
   )
 }

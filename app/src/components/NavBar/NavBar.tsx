@@ -8,7 +8,6 @@ import { useBalance, balanceLabel } from '~/hooks/useBalance'
 import { useCart } from '~/store/cart'
 import { CartPopover } from '~/components/CartPopover'
 import { SearchDropdown } from '~/components/SearchDropdown'
-import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { CURRENCY } from '~/lib/currency'
 import { getRecentSearches, recordSearch, removeRecentSearch, clearRecentSearches } from '~/lib/recent-searches'
 import { track } from '~/lib/analytics'
@@ -16,6 +15,7 @@ import type { CatalogItem } from '~/lib/api'
 import type { CollectionHit, CreatorHit } from '~/lib/search'
 import { t } from '~/intl/i18n'
 import CloseIcon from '@mui/icons-material/CloseRounded'
+import * as S from './NavBar.styles'
 
 export function NavBar() {
   const { session, connecting, signIn, disconnect, restore } = useWallet()
@@ -168,8 +168,8 @@ export function NavBar() {
       />
 
       {/* Shop sub-nav (sections + search + cart) — the row under the global DCL navbar. */}
-      <div className="subnav">
-        <nav className="subnav__tabs">
+      <S.Subnav>
+        <S.Tabs>
           <NavLink to="/overview">{t('nav.overview')}</NavLink>
           {/* Collectibles stays active across the item detail / collection / creator pages too (they're
               all part of browsing collectibles), not just the /assets grid. */}
@@ -178,8 +178,8 @@ export function NavBar() {
           </NavLink>
           <NavLink to="/my-assets">{t('nav.myAssets')}</NavLink>
           {session ? <NavLink to="/my-purchases">{t('nav.myPurchases')}</NavLink> : null}
-        </nav>
-        <div className="subnav__search" ref={wrapRef}>
+        </S.Tabs>
+        <S.Search ref={wrapRef}>
           <Icon name="search" color="var(--muted)" />
           <input
             value={q}
@@ -190,15 +190,14 @@ export function NavBar() {
             onKeyDown={onSearchKeyDown}
           />
           {q ? (
-            <button
+            <S.SearchClear
               type="button"
-              className="subnav__search-clear"
               data-testid="subnav-search-clear"
               aria-label={t('search.clear')}
               onClick={clearSearch}
             >
               <CloseIcon />
-            </button>
+            </S.SearchClear>
           ) : null}
           {open ? (
             <SearchDropdown
@@ -212,48 +211,35 @@ export function NavBar() {
               onClearRecent={clearRecent}
             />
           ) : null}
-        </div>
+        </S.Search>
         {session ? (
-          <span
-            className="subnav__balance"
-            data-testid="subnav-balance"
-            title={t('nav.yourBalance', { currency: CURRENCY.name })}
-          >
-            <CurrencyIcon className="subnav__balance-ico" />
-            {balanceLoading ? (
-              <span className="skeleton subnav__balance-skel" aria-hidden />
-            ) : (
-              balanceLabel(balance, balanceError)
-            )}
-          </span>
+          <S.Balance data-testid="subnav-balance" title={t('nav.yourBalance', { currency: CURRENCY.name })}>
+            <S.BalanceIco />
+            {balanceLoading ? <S.BalanceSkel className="skeleton" aria-hidden /> : balanceLabel(balance, balanceError)}
+          </S.Balance>
         ) : null}
-        <NavLink to="/credits" className="subnav__credits">
-          <CurrencyIcon className="subnav__credits-ico" />
+        <S.Credits to="/credits">
+          <S.CreditsIco />
           {t('nav.getCredits', { currency: CURRENCY.name })}
-        </NavLink>
-        <NavLink to="/my-favorites" className="subnav__fav" aria-label={t('nav.myFavorites')}>
-          <Icon name="heart" />
-        </NavLink>
-        <div className="subnav__cart-wrap">
+        </S.Credits>
+        <S.Fav to="/my-favorites" aria-label={t('nav.myFavorites')}>
+          <Icon name="heart" size={28} />
+        </S.Fav>
+        <S.CartWrap>
           {/* Cart icon opens the cart drawer (open-on-icon). With an empty cart there's nothing to show,
               so it falls back to navigating to the cart page. */}
-          <button
+          <S.Cart
             type="button"
-            className="subnav__cart"
             data-testid="subnav-cart"
             aria-label={t('nav.cart')}
             onClick={() => (cartCount > 0 ? openCart(true) : navigate('/cart'))}
           >
             <Icon name="cart" size={28} />
-            {cartCount > 0 ? (
-              <span className="subnav__cart-badge" data-testid="subnav-cart-badge">
-                {cartCount}
-              </span>
-            ) : null}
-          </button>
+            {cartCount > 0 ? <S.CartBadge data-testid="subnav-cart-badge">{cartCount}</S.CartBadge> : null}
+          </S.Cart>
           <CartPopover />
-        </div>
-      </div>
+        </S.CartWrap>
+      </S.Subnav>
     </>
   )
 }

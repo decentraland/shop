@@ -4,7 +4,7 @@ import { theme } from '~/styles/theme'
 import { CreatorBadge } from '~/components/CreatorBadge'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 
-const { colors, gradients, radius } = theme
+const { colors, gradients, radius, media } = theme
 
 const pulse = keyframes`
   0%, 100% { opacity: 1; }
@@ -74,7 +74,7 @@ export const Th = styled.th`
     text-align: right;
   }
 
-  @media (max-width: 768px) {
+  ${media.maxWidth('mobile')} {
     padding: 10px 16px;
   }
 `
@@ -94,7 +94,7 @@ export const Row = styled.tr`
     border-radius: 0 8px 8px 0;
   }
 
-  @media (max-width: 768px) {
+  ${media.maxWidth('mobile')} {
     & td {
       padding: 10px 16px;
     }

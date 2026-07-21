@@ -4,7 +4,7 @@
 // becomes the only source.
 //
 // Usage: import this object directly and interpolate it — `styled.span\`color: ${theme.colors.muted}\``,
-// `theme.media.down('mobile')`. It's a plain const, so no ThemeProvider is needed (the app has no
+// `theme.media.maxWidth('mobile')`. It's a plain const, so no ThemeProvider is needed (the app has no
 // runtime theme-switching); this also keeps unit tests provider-free. Components must NOT re-hardcode
 // hexes, radii, or px breakpoints — pull them from here.
 //
@@ -64,16 +64,18 @@ export const breakpoints = {
   mobile: 768,
   sm: 720,
   md: 820,
-  lg: 900
+  lg: 900,
+  xl: 1200
 } as const
 
 export type Breakpoint = keyof typeof breakpoints
 
-// Media-query helpers so components write `${({ theme }) => theme.media.down('mobile')} { … }`
-// instead of hardcoding widths. `down` is max-width (mobile-down); `up` is min-width (the next px up).
+// Media-query helpers so components write `${({ theme }) => theme.media.maxWidth('mobile')} { … }`
+// instead of hardcoding widths. `maxWidth` caps at the breakpoint (mobile-down); `minWidth` starts at
+// the next px up.
 const media = {
-  down: (bp: Breakpoint) => `@media (max-width: ${breakpoints[bp]}px)`,
-  up: (bp: Breakpoint) => `@media (min-width: ${breakpoints[bp] + 1}px)`
+  maxWidth: (bp: Breakpoint) => `@media (max-width: ${breakpoints[bp]}px)`,
+  minWidth: (bp: Breakpoint) => `@media (min-width: ${breakpoints[bp] + 1}px)`
 }
 
 export const theme = { colors, gradients, radius, font, media }

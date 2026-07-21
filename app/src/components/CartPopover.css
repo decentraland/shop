@@ -344,12 +344,3 @@
 .cartd__cta--secondary:hover {
   background: rgba(198, 64, 205, 0.06);
 }
-
-/* Cart icon in the nav becomes a button (opens this drawer) — reset native button chrome so it keeps
-   the .subnav__cart look defined in index.css. */
-button.subnav__cart {
-  border: 0;
-  padding: 0;
-  font: inherit;
-  cursor: pointer;
-}

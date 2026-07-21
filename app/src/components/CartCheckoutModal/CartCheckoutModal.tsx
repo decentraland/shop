@@ -1,9 +1,9 @@
 import type { CatalogItem } from '~/lib/api'
 import type { CreditPack } from '~/lib/payments'
-import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { formatCredits } from '~/lib/currency'
 import { t } from '~/intl/i18n'
 import { ErrorNotice } from '~/components/ErrorNotice'
+import * as M from '~/components/BuyModal/modal.styles'
 import * as S from './CartCheckoutModal.styles'
 
 // A cart line as the modal displays it: the item + the LIVE credit price it will be charged.
@@ -11,9 +11,9 @@ export type CheckoutLine = { item: CatalogItem; priceCredits: number }
 
 // The modal is a PURE presentational view of the checkout flow — all money logic (review, authorize,
 // buy, settle, release) stays in Cart.tsx. It renders the multi-item variants of the four pixel-perfect
-// BuyModal states, reusing the `.buy-modal__*` styling (index.css) plus a few `.cart-checkout__*`
-// additions for the pieces a single-item modal doesn't have (step counter, scrollable list, multi-item
-// success list). Mirrors Figma "New Shop 2026": 1182-218528 / 1182-219697 / 1182-220275.
+// BuyModal states, reusing the shared modal shell (~/components/BuyModal/modal.styles, imported as M)
+// plus a few additions of its own (S: step counter, scrollable list, multi-item success list). Mirrors
+// Figma "New Shop 2026": 1182-218528 / 1182-219697 / 1182-220275.
 export type CheckoutPhase = 'processing' | 'nofunds' | 'complete' | 'error'
 
 type Props = {
@@ -47,29 +47,29 @@ export function CartCheckoutModal(props: Props) {
   const tall = phase === 'processing'
 
   return (
-    <div className="buy-modal" role="dialog" aria-modal="true" aria-label={t('cartCheckout.dialogAria')}>
-      <div className="buy-modal__scrim" onClick={busy ? undefined : onClose} aria-hidden />
-      <div className={`buy-modal__card${tall ? ' buy-modal__card--tall' : ''}`}>
+    <M.Modal role="dialog" aria-modal="true" aria-label={t('cartCheckout.dialogAria')}>
+      <M.Scrim onClick={busy ? undefined : onClose} aria-hidden />
+      <M.Card data-tall={tall || undefined}>
         {showHead && (
-          <div className="buy-modal__head">
-            <div className="buy-modal__head-row">
-              <h2 className="buy-modal__title">{title}</h2>
+          <M.Head>
+            <M.HeadRow>
+              <M.Title>{title}</M.Title>
               {!busy && (
-                <button className="buy-modal__x" onClick={onClose} aria-label={t('buyModal.close')}>
+                <M.X onClick={onClose} aria-label={t('buyModal.close')}>
                   <svg viewBox="0 0 18 18" width="18" height="18" aria-hidden>
                     <path d="M4 4l10 10M14 4L4 14" stroke="#161518" strokeWidth="1.8" strokeLinecap="round" />
                   </svg>
-                </button>
+                </M.X>
               )}
-            </div>
-            <div className="buy-modal__balance">
-              <span className="buy-modal__balance-label">
+            </M.HeadRow>
+            <M.Balance>
+              <M.BalanceLabel>
                 {phase === 'nofunds' ? t('buyModal.dclBalance') : t('buyModal.myCreditsBalance')}
-              </span>
-              <CurrencyIcon className="buy-modal__balance-ico" />
-              <span className="buy-modal__balance-value">{formatCredits(balanceCredits)}</span>
-            </div>
-          </div>
+              </M.BalanceLabel>
+              <M.BalanceIco />
+              <M.BalanceValue>{formatCredits(balanceCredits)}</M.BalanceValue>
+            </M.Balance>
+          </M.Head>
         )}
 
         {phase === 'processing' && <Processing step={props.step ?? 1} total={props.total ?? 1} />}
@@ -92,17 +92,17 @@ export function CartCheckoutModal(props: Props) {
           />
         )}
         {phase === 'error' && (
-          <div className="buy-modal__body">
+          <M.Body>
             <ErrorNotice message={props.message} />
-            <div className="buy-modal__ctas">
-              <button className="buy-modal__btn buy-modal__btn--gradient" onClick={onClose}>
+            <M.Ctas>
+              <M.Btn data-variant="gradient" onClick={onClose}>
                 {t('buyModal.close')}
-              </button>
-            </div>
-          </div>
+              </M.Btn>
+            </M.Ctas>
+          </M.Body>
         )}
-      </div>
-    </div>
+      </M.Card>
+    </M.Modal>
   )
 }
 
@@ -110,18 +110,18 @@ export function CartCheckoutModal(props: Props) {
 // step counter that advances as each line is authorized.
 function Processing({ step, total }: { step: number; total: number }) {
   return (
-    <div className="buy-modal__body buy-modal__processing">
-      <img className="buy-modal__logo" src="/icon-192.png" alt="" width={61} height={61} />
-      <div className="buy-modal__processing-text">{t('buyModal.completingTransaction')}</div>
+    <M.Body data-processing>
+      <M.Logo src="/icon-192.png" alt="" width={61} height={61} />
+      <M.ProcessingText>{t('buyModal.completingTransaction')}</M.ProcessingText>
       <S.ProgressRow>
-        <div className="buy-modal__progress" aria-hidden>
-          <span className="buy-modal__progress-fill" />
-        </div>
+        <M.Progress aria-hidden>
+          <M.ProgressFill />
+        </M.Progress>
         <S.Step>
           {step}/{total}
         </S.Step>
       </S.ProgressRow>
-    </div>
+    </M.Body>
   )
 }
 
@@ -146,78 +146,70 @@ function NoFunds({
 }) {
   const pack = packs.find(p => p.id === selectedPack)
   return (
-    <div className="buy-modal__body">
-      <div className="buy-modal__warning">
-        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden className="buy-modal__warning-ico">
+    <M.Body>
+      <M.Warning>
+        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden>
           <path d="M12 3L2 20h20L12 3z" fill="none" stroke="#691fa9" strokeWidth="1.8" strokeLinejoin="round" />
           <path d="M12 9v5" stroke="#691fa9" strokeWidth="1.8" strokeLinecap="round" />
           <circle cx="12" cy="17" r="1.1" fill="#691fa9" />
         </svg>
-        <p className="buy-modal__warning-text">
+        <M.WarningText>
           <b>{t('buyModal.insufficientFunds')}</b> {t('buyModal.warningNeedToBuy')}{' '}
           <b>{t('buyModal.warningCreditsAmount', { count: Math.max(0, shortfallCredits) })}</b>{' '}
           {t('buyModal.warningToPurchase', { count: lines.length })}
-        </p>
-      </div>
+        </M.WarningText>
+      </M.Warning>
 
       <S.Scroll>
         {lines.map(l => (
-          <div className="buy-modal__asset" key={l.item.id}>
-            <div className="buy-modal__asset-thumb">
-              {l.item.thumbnail ? <img src={l.item.thumbnail} alt="" /> : null}
-            </div>
-            <div className="buy-modal__asset-info">
+          <M.Asset key={l.item.id}>
+            <M.AssetThumb>{l.item.thumbnail ? <img src={l.item.thumbnail} alt="" /> : null}</M.AssetThumb>
+            <M.AssetInfo>
               <div>
-                <div className="buy-modal__asset-name" title={l.item.name}>
-                  {l.item.name || t('buyModal.itemFallback')}
-                </div>
+                <M.AssetName title={l.item.name}>{l.item.name || t('buyModal.itemFallback')}</M.AssetName>
                 {l.item.creator ? (
-                  <div className="buy-modal__asset-creator">{t('search.byCreator', { name: l.item.creator })}</div>
+                  <M.AssetCreator>{t('search.byCreator', { name: l.item.creator })}</M.AssetCreator>
                 ) : null}
               </div>
-              <div className="buy-modal__asset-price">
-                <CurrencyIcon className="buy-modal__asset-price-ico" />
+              <M.AssetPrice>
+                <M.AssetPriceIco />
                 <span>{formatCredits(l.priceCredits)}</span>
-              </div>
-            </div>
-          </div>
+              </M.AssetPrice>
+            </M.AssetInfo>
+          </M.Asset>
         ))}
       </S.Scroll>
 
-      <div className="buy-modal__packs">
+      <M.Packs>
         {packs.map(p => {
           const on = p.id === selectedPack
           return (
-            <button
-              key={p.id}
-              className={`buy-modal__pack${on ? ' buy-modal__pack--on' : ''}`}
-              onClick={() => onSelectPack(p.id)}
-            >
-              <CurrencyIcon className="buy-modal__pack-ico" />
-              <span className="buy-modal__pack-amount">{formatCredits(p.credits)}</span>
-              <span className="buy-modal__pack-usd">(${p.usd.toFixed(2)})</span>
-            </button>
+            <M.Pack key={p.id} data-on={on || undefined} onClick={() => onSelectPack(p.id)}>
+              <M.PackIco />
+              <M.PackAmount>{formatCredits(p.credits)}</M.PackAmount>
+              <M.PackUsd>(${p.usd.toFixed(2)})</M.PackUsd>
+            </M.Pack>
           )
         })}
-      </div>
+      </M.Packs>
 
-      <div className="buy-modal__total">
-        <div className="buy-modal__total-credits">
-          <CurrencyIcon className="buy-modal__total-ico" />
+      <M.Total>
+        <M.TotalCredits>
+          <M.TotalIco />
           <span>{formatCredits(pack?.credits ?? 0)}</span>
-        </div>
-        <span className="buy-modal__total-usd">${(pack?.usd ?? 0).toFixed(2)}</span>
-      </div>
+        </M.TotalCredits>
+        <M.TotalUsd>${(pack?.usd ?? 0).toFixed(2)}</M.TotalUsd>
+      </M.Total>
 
-      <div className="buy-modal__ctas">
-        <button className="buy-modal__btn buy-modal__btn--outline" onClick={onCancel}>
+      <M.Ctas>
+        <M.Btn data-variant="outline" onClick={onCancel}>
           {t('buyModal.cancel')}
-        </button>
-        <button className="buy-modal__btn buy-modal__btn--gradient" onClick={onBuyPacks}>
+        </M.Btn>
+        <M.Btn data-variant="gradient" onClick={onBuyPacks}>
           {t('buyModal.buy')}
-        </button>
-      </div>
-    </div>
+        </M.Btn>
+      </M.Ctas>
+    </M.Body>
   )
 }
 
@@ -233,8 +225,8 @@ function Complete({
   onTryInWorld: () => void
 }) {
   return (
-    <S.DoneBody className="buy-modal__body">
-      <div className="buy-modal__success">
+    <S.DoneBody>
+      <M.Success data-wide>
         <svg viewBox="0 0 64 64" width="60" height="60" aria-hidden>
           <circle cx="32" cy="32" r="32" fill="#34ce77" />
           <path
@@ -246,10 +238,10 @@ function Complete({
             strokeLinejoin="round"
           />
         </svg>
-        <p className="buy-modal__success-text">
+        <M.SuccessText data-wide>
           <b>{t('getCredits.successTitle')}</b> {t('buyModal.successBody')}
-        </p>
-      </div>
+        </M.SuccessText>
+      </M.Success>
 
       <S.Done>
         <S.DoneScroll>
@@ -283,11 +275,11 @@ function Complete({
         </S.DoneScroll>
       </S.Done>
 
-      <div className="buy-modal__ctas">
-        <button className="buy-modal__btn buy-modal__btn--outline" onClick={onMyAssets}>
+      <M.Ctas>
+        <M.Btn data-variant="outline" onClick={onMyAssets}>
           {t('buyModal.myAssets')}
-        </button>
-        <button className="buy-modal__btn buy-modal__btn--ruby" onClick={onTryInWorld}>
+        </M.Btn>
+        <M.Btn data-variant="ruby" onClick={onTryInWorld}>
           {t('buyModal.tryInWorld')}
           <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden>
             <path
@@ -299,8 +291,8 @@ function Complete({
               strokeLinejoin="round"
             />
           </svg>
-        </button>
-      </div>
+        </M.Btn>
+      </M.Ctas>
     </S.DoneBody>
   )
 }

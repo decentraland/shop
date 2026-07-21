@@ -7,21 +7,9 @@ import { toast } from '~/store/toast'
 import { MigrateModal, type MigrateEntry } from '~/components/MigrateModal'
 import { CURRENCY } from '~/lib/currency'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
-import { Button } from '~/components/Button'
-import styled from '@emotion/styled'
 import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
-import '~/styles/import.css'
-
-// The empty-state CTA sits below the copy (was `.imp-empty .btn { margin-top: 10px }`).
-const ImpEmptyCta = styled(Button)`
-  margin-top: 10px;
-`
-
-// The dock's "List all" CTA is a touch roomier than the base button.
-const DockCta = styled(Button)`
-  padding: 13px 24px;
-`
+import * as S from './ImportListings.styles'
 
 const SECTIONS = [
   {
@@ -104,156 +92,146 @@ export function ImportListings() {
   // ---- states -------------------------------------------------------------
   if (!session) {
     return (
-      <div className="imp-empty">
-        <span className="imp-empty__ico" aria-hidden>
-          📦
-        </span>
-        <h1 className="imp-empty__title">{t('importListings.signInTitle')}</h1>
+      <S.Empty>
+        <S.EmptyIco aria-hidden>📦</S.EmptyIco>
+        <S.EmptyTitle>{t('importListings.signInTitle')}</S.EmptyTitle>
         <p className="muted">{t('importListings.signInBody')}</p>
-        <ImpEmptyCta variant="purple" onClick={() => signIn()}>
+        <S.EmptyCta variant="purple" onClick={() => signIn()}>
           {t('storeSettings.signIn')}
-        </ImpEmptyCta>
-      </div>
+        </S.EmptyCta>
+      </S.Empty>
     )
   }
 
   if (!isLoading && all.length === 0) {
     return (
-      <div className="imp-empty">
-        <span className="imp-empty__ico" aria-hidden>
-          ✨
-        </span>
-        <h1 className="imp-empty__title">{t('importListings.emptyTitle')}</h1>
+      <S.Empty>
+        <S.EmptyIco aria-hidden>✨</S.EmptyIco>
+        <S.EmptyTitle>{t('importListings.emptyTitle')}</S.EmptyTitle>
         <p className="muted">{t('importListings.emptyBody')}</p>
-        <ImpEmptyCta as={Link} to="/my-assets" variant="purple">
+        <S.EmptyCta as={Link} to="/my-assets" variant="purple">
           {t('importListings.goToMyAssets')}
-        </ImpEmptyCta>
-      </div>
+        </S.EmptyCta>
+      </S.Empty>
     )
   }
 
   return (
-    <div className="imp">
-      <header className="imp__head">
-        <span className="imp__eyebrow">{t('importListings.eyebrow')}</span>
-        <h1 className="imp__title">
-          {t('importListings.titleLead')} <span className="imp__grad">{t('importListings.titleAccent')}</span>
-        </h1>
-        <p className="imp__lede">{t('importListings.lede', { currency: CURRENCY.name })}</p>
-      </header>
+    <S.Root>
+      <S.Head>
+        <S.Eyebrow>{t('importListings.eyebrow')}</S.Eyebrow>
+        <S.Title>
+          {t('importListings.titleLead')} <S.Grad>{t('importListings.titleAccent')}</S.Grad>
+        </S.Title>
+        <S.Lede>{t('importListings.lede', { currency: CURRENCY.name })}</S.Lede>
+      </S.Head>
 
-      <div className="imp__ratebar">
-        <CurrencyIcon className="ccy-mark imp__diamond" />{' '}
+      <S.Ratebar>
+        <CurrencyIcon className="ccy-mark" color="var(--accent)" />{' '}
         {t('importListings.rate', { currency: CURRENCY.nameSingular })}
-      </div>
+      </S.Ratebar>
 
       {isLoading ? (
-        <div className="imp__list">
+        <S.List>
           {Array.from({ length: 4 }).map((_, i) => (
-            <div className="imp-row imp-row--skeleton" key={i} />
+            <S.SkeletonRow key={i} />
           ))}
-        </div>
+        </S.List>
       ) : (
         SECTIONS.map(sec => {
           const items = data?.[sec.key] ?? []
           if (items.length === 0) return null
           return (
-            <section className="imp__section" key={sec.key}>
-              <div className="imp__section-head">
-                <h2 className="imp__section-title">{t(sec.title)}</h2>
-                <span className="imp__section-sub">{t(sec.sub)}</span>
-              </div>
-              <div className="imp__list">
+            <S.Section key={sec.key}>
+              <S.SectionHead>
+                <S.SectionTitle>{t(sec.title)}</S.SectionTitle>
+                <S.SectionSub>{t(sec.sub)}</S.SectionSub>
+              </S.SectionHead>
+              <S.List>
                 {items.map(item => {
                   const credits = priceOf(item)
                   const edited = credits !== item.suggestedCredits
                   return (
-                    <article className={`imp-row${isSelected(item.oldTradeId) ? '' : ' is-off'}`} key={item.oldTradeId}>
-                      <input
+                    <S.Row data-off={isSelected(item.oldTradeId) ? undefined : true} key={item.oldTradeId}>
+                      <S.Check
                         type="checkbox"
-                        className="imp-check"
                         checked={isSelected(item.oldTradeId)}
                         onChange={() => toggle(item.oldTradeId)}
                         aria-label={t('importListings.includeItem', { name: item.name })}
                       />
-                      <div className="imp-thumb">{item.thumbnail ? <img src={item.thumbnail} alt="" /> : null}</div>
-                      <div className="imp-meta">
-                        <div className="imp-name" title={item.name}>
-                          {item.name || t('importListings.itemFallback')}
-                        </div>
-                        <span className="imp-chip">{item.rarity}</span>
-                      </div>
-                      <div className="imp-price">
-                        <div className="imp-price__field">
-                          <CurrencyIcon className="ccy-mark imp-price__diamond" />
-                          <input
-                            className="imp-price__input"
+                      <S.Thumb>{item.thumbnail ? <img src={item.thumbnail} alt="" /> : null}</S.Thumb>
+                      <S.Meta>
+                        <S.Name title={item.name}>{item.name || t('importListings.itemFallback')}</S.Name>
+                        <S.Chip>{item.rarity}</S.Chip>
+                      </S.Meta>
+                      <S.Price>
+                        <S.PriceField>
+                          <CurrencyIcon size={15} color="var(--accent)" />
+                          <S.PriceInput
                             data-testid="imp-price-input"
                             inputMode="numeric"
                             value={credits.toLocaleString()}
                             onChange={e => setPrice(item.oldTradeId, e.target.value)}
                             aria-label={t('importListings.priceAria', { currency: CURRENCY.name, name: item.name })}
                           />
-                        </div>
-                        <div className="imp-price__sub">
+                        </S.PriceField>
+                        <S.PriceSub>
                           <span>${(credits * 0.1).toFixed(2)}</span>
                           {edited ? (
-                            <button
-                              className="imp-price__reset"
+                            <S.PriceReset
                               onClick={() => setPrices(p => ({ ...p, [item.oldTradeId]: item.suggestedCredits }))}
                             >
                               {t('importListings.resetTo')} <CurrencyIcon className="ccy-mark" />
                               {item.suggestedCredits.toLocaleString()}
-                            </button>
+                            </S.PriceReset>
                           ) : null}
-                        </div>
-                      </div>
-                      <div className="imp-action">
-                        <Button
+                        </S.PriceSub>
+                      </S.Price>
+                      <S.Action>
+                        <S.ListBtn
                           size="sm"
-                          className="imp-row__list"
                           disabled={!isSelected(item.oldTradeId)}
                           onClick={() => setQueue(buildQueue([item]))}
                         >
                           {t('importListings.list')}
-                        </Button>
-                      </div>
-                    </article>
+                        </S.ListBtn>
+                      </S.Action>
+                    </S.Row>
                   )
                 })}
-              </div>
-            </section>
+              </S.List>
+            </S.Section>
           )
         })
       )}
 
-      <div className="imp-dock">
-        <div className="imp-dock__inner">
-          <div className="imp-dock__summary">
-            <div className="imp-dock__total">
-              <CurrencyIcon className="ccy-mark imp__diamond" /> {total.toLocaleString()}
-            </div>
-            <div className="imp-dock__sub">
+      <S.Dock>
+        <S.DockInner>
+          <div>
+            <S.DockTotal>
+              <CurrencyIcon className="ccy-mark" color="var(--accent)" /> {total.toLocaleString()}
+            </S.DockTotal>
+            <S.DockSub>
               {t('importListings.selectedSummary', {
                 count: selectedItems.length,
                 usd: (total * 0.1).toFixed(2)
               })}
-            </div>
+            </S.DockSub>
           </div>
-          <span className="imp-dock__spacer" />
-          <DockCta
+          <S.DockSpacer />
+          <S.DockCta
             variant="purple"
             disabled={selectedItems.length === 0}
             onClick={() => setQueue(buildQueue(selectedItems))}
           >
             {t('importListings.listAll', { count: selectedItems.length })}
-          </DockCta>
-        </div>
-      </div>
+          </S.DockCta>
+        </S.DockInner>
+      </S.Dock>
 
       {queue && session ? (
         <MigrateModal queue={queue} session={session} onClose={() => setQueue(null)} onDone={afterMigrate} />
       ) : null}
-    </div>
+    </S.Root>
   )
 }

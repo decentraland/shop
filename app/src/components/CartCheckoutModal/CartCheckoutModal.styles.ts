@@ -1,11 +1,12 @@
 import styled from '@emotion/styled'
 import { theme } from '~/styles/theme'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
+import { Body } from '~/components/BuyModal/modal.styles'
 
 const { colors, radius } = theme
 
-// The multi-item additions to the shared `.buy-modal__*` shell (index.css): a step counter, a
-// scrollable line list, and the multi-item "purchase complete" list. Cart-specific breakpoint.
+// The multi-item additions to the shared BuyModal shell (see ~/components/BuyModal/modal.styles): a
+// step counter, a scrollable line list, and the multi-item "purchase complete" list. Cart-specific breakpoint.
 const mobile = '@media (max-width: 600px)'
 
 export const ProgressRow = styled.div`
@@ -174,37 +175,8 @@ export const DonePriceIco = styled(CurrencyIcon)`
   }
 `
 
-// The multi-item success banner mirrors BuyModal's success with a wider list layout. It composes the
-// still-global `.buy-modal__*` shell classes, so the tweaks target those as descendants.
-export const DoneBody = styled.div`
-  display: flex;
-  flex-direction: column;
+// The multi-item success body: the shared modal Body with a tighter gap. The success banner's wide
+// layout is driven by `data-wide` on the shell's Success/SuccessText (see modal.styles), not descendants.
+export const DoneBody = styled(Body)`
   gap: 12px;
-
-  /* Success banner: check to the LEFT of the text on desktop, stacked on mobile. */
-  & .buy-modal__success {
-    flex-direction: row;
-    align-items: center;
-    gap: 24px;
-    padding: 16px 24px;
-  }
-  & .buy-modal__success-text {
-    text-align: left;
-    font-size: 18px;
-  }
-  /* Let the two CTAs shrink so their min-content can't widen the modal past the viewport. */
-  & .buy-modal__btn {
-    min-width: 0;
-  }
-
-  ${mobile} {
-    & .buy-modal__success {
-      flex-direction: column;
-      gap: 12px;
-      padding: 16px;
-    }
-    & .buy-modal__success-text {
-      text-align: center;
-    }
-  }
 `

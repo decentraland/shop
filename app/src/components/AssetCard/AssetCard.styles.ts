@@ -79,7 +79,7 @@ export const Media = styled.div`
   background: ${colors.media};
   overflow: hidden;
 
-  ${media.down('sm')} {
+  ${media.maxWidth('sm')} {
     aspect-ratio: 201 / 213;
   }
 `
@@ -135,7 +135,7 @@ export const Body = styled.div`
     }
   }
 
-  ${media.down('sm')} {
+  ${media.maxWidth('sm')} {
     display: grid;
     height: auto;
     grid-template-columns: 1fr auto;
@@ -153,7 +153,7 @@ export const Top = styled.div`
   align-items: flex-start;
   gap: 10px;
 
-  ${media.down('sm')} {
+  ${media.maxWidth('sm')} {
     display: contents;
   }
 `
@@ -165,7 +165,7 @@ export const Desc = styled.div`
   display: flex;
   flex-direction: column;
 
-  ${media.down('sm')} {
+  ${media.maxWidth('sm')} {
     grid-area: desc;
     min-width: 0;
   }
@@ -180,7 +180,7 @@ export const Name = styled.div`
   overflow: hidden;
   text-overflow: ellipsis;
 
-  ${media.down('sm')} {
+  ${media.maxWidth('sm')} {
     font-size: 12px;
   }
 `
@@ -227,7 +227,7 @@ export const Price = styled.div`
     gap: 4px;
   }
 
-  ${media.down('sm')} {
+  ${media.maxWidth('sm')} {
     grid-area: price;
     align-self: center;
     justify-self: start;
@@ -277,7 +277,7 @@ export const Action = styled.div`
   display: flex;
   align-items: center;
 
-  ${media.down('sm')} {
+  ${media.maxWidth('sm')} {
     grid-area: add;
     align-self: center;
     justify-self: end;
@@ -324,7 +324,7 @@ export const Chips = styled.div`
     letter-spacing: 0.02em;
   }
 
-  ${media.down('sm')} {
+  ${media.maxWidth('sm')} {
     display: none;
   }
 `
@@ -333,7 +333,7 @@ export const Chips = styled.div`
 export const AddRound = styled.button`
   display: none;
 
-  ${media.down('sm')} {
+  ${media.maxWidth('sm')} {
     align-self: center;
     justify-self: end;
     z-index: 4;
@@ -391,7 +391,7 @@ export const Cart = styled.button`
     cursor: default;
   }
 
-  ${media.down('sm')} {
+  ${media.maxWidth('sm')} {
     display: none;
   }
 `

@@ -1,9 +1,8 @@
 import { useNavigate } from 'react-router-dom'
 import { type CollectionMeta } from '~/lib/collections'
-import { CreatorBadge } from '~/components/CreatorBadge'
-import { CollectionMosaic, useCollectionPreview } from '~/components/CollectionThumb'
+import { useCollectionPreview } from '~/components/CollectionThumb'
 import { t } from '~/intl/i18n'
-import './collection-card.css'
+import * as S from './CollectionCard.styles'
 
 export type CollectionCardProps = {
   collection: CollectionMeta
@@ -35,8 +34,7 @@ export function CollectionCard({ collection, cover, itemCount }: CollectionCardP
   }
 
   return (
-    <article
-      className="coll-card"
+    <S.Card
       role="link"
       tabIndex={0}
       onClick={open}
@@ -47,28 +45,22 @@ export function CollectionCard({ collection, cover, itemCount }: CollectionCardP
         }
       }}
     >
-      <div className="coll-card__media">
+      <S.Media>
         {cover ? (
-          <img className="coll-card__img" data-testid="coll-card-img" src={cover} alt="" loading="lazy" />
+          <S.Img data-testid="coll-card-img" src={cover} alt="" loading="lazy" />
         ) : mosaic.length > 0 ? (
-          <CollectionMosaic items={mosaic} className="coll-card__cover" />
+          <S.Cover items={mosaic} />
         ) : null}
-      </div>
+      </S.Media>
 
-      <div className="coll-card__body">
-        <h3 className="coll-card__name" title={name}>
-          {name}
-        </h3>
-        <div className="coll-card__meta">
-          {creator ? (
-            <CreatorBadge address={creator} className="coll-card__creator" linkToProfile />
-          ) : (
-            <span className="coll-card__creator">&nbsp;</span>
-          )}
-          <span className="coll-card__count">{count == null ? '…' : t('collectionCard.itemCount', { count })}</span>
-        </div>
-        <button
-          className="coll-card__view"
+      <S.Body>
+        <S.Name title={name}>{name}</S.Name>
+        <S.Meta>
+          {creator ? <S.Creator address={creator} linkToProfile /> : <S.CreatorEmpty>&nbsp;</S.CreatorEmpty>}
+          <S.Count>{count == null ? '…' : t('collectionCard.itemCount', { count })}</S.Count>
+        </S.Meta>
+        <S.View
+          data-view
           onClick={e => {
             e.stopPropagation()
             open()
@@ -76,9 +68,9 @@ export function CollectionCard({ collection, cover, itemCount }: CollectionCardP
           tabIndex={-1}
         >
           {t('collectionCard.viewCollection')}
-        </button>
-      </div>
-    </article>
+        </S.View>
+      </S.Body>
+    </S.Card>
   )
 }
 

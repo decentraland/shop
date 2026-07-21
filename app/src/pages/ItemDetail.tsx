@@ -60,7 +60,7 @@ const DetailCta = styled(Button)`
     gap: 8px;
   }
 
-  ${theme.media.down('lg')} {
+  ${theme.media.maxWidth('lg')} {
     .item-detail__ctas--dual && {
       flex: 1 1 auto;
       width: auto;

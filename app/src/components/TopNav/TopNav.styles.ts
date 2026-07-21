@@ -13,7 +13,7 @@ export const Skeleton = styled.div`
   background: #16141a;
   z-index: 50;
 
-  ${theme.media.down('mobile')} {
+  ${theme.media.maxWidth('mobile')} {
     height: 64px;
   }
 `

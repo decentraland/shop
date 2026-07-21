@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { theme } from '~/styles/theme'
 import { Button } from '~/components/Button'
 
-const { colors, radius } = theme
+const { colors, radius, media } = theme
 
 export const EmptyCta = styled(Button)`
   margin-top: 10px;
@@ -27,17 +27,17 @@ export const Overview = styled.div`
     padding: 12px 0;
     margin: 0;
   }
-  @media (max-width: 1200px) {
+  ${media.maxWidth('xl')} {
     & .row__track {
       grid-auto-columns: calc((100% - 48px) / 4);
     }
   }
-  @media (max-width: 900px) {
+  ${media.maxWidth('lg')} {
     & .row__track {
       grid-auto-columns: calc((100% - 32px) / 3);
     }
   }
-  @media (max-width: 720px) {
+  ${media.maxWidth('sm')} {
     & .row__track {
       grid-auto-columns: calc((100% - 16px) / 2);
     }
@@ -56,7 +56,7 @@ export const Hero = styled.section`
   border-radius: ${radius.banner};
   background: #14161b;
 
-  @media (max-width: 768px) {
+  ${media.maxWidth('mobile')} {
     aspect-ratio: auto;
     min-height: 200px;
     max-height: none;
@@ -89,7 +89,7 @@ export const HeroInner = styled.div`
   gap: 24px;
   padding: 0 64px;
 
-  @media (max-width: 768px) {
+  ${media.maxWidth('mobile')} {
     padding: 0 24px;
   }
 `
@@ -154,7 +154,7 @@ export const Arrow = styled.button`
     pointer-events: none;
   }
 
-  @media (max-width: 900px) {
+  ${media.maxWidth('lg')} {
     display: none;
   }
 `
@@ -182,13 +182,13 @@ export const Track = styled.div`
     scroll-snap-align: start;
   }
 
-  @media (max-width: 1200px) {
+  ${media.maxWidth('xl')} {
     grid-auto-columns: calc((100% - 48px) / 4);
   }
-  @media (max-width: 900px) {
+  ${media.maxWidth('lg')} {
     grid-auto-columns: calc((100% - 32px) / 3);
   }
-  @media (max-width: 720px) {
+  ${media.maxWidth('sm')} {
     grid-auto-columns: calc((100% - 16px) / 2);
   }
 `
@@ -221,7 +221,7 @@ export const Promos = styled.section`
   gap: 24px;
   margin: 0 0 40px;
 
-  @media (max-width: 768px) {
+  ${media.maxWidth('mobile')} {
     grid-template-columns: 1fr;
   }
 `
