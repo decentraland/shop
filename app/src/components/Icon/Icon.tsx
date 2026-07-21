@@ -74,15 +74,18 @@ type IconProps = {
   name: IconName
   /** Square px size. Omit to inherit the CSS default (20px) or a context override. */
   size?: number
+  /** Tint. The glyph is a mask over `currentColor`, so this sets the span's color. Omit to inherit. */
+  color?: string
 } & ComponentPropsWithoutRef<'span'>
 
-export function Icon({ name, size, className, style, ...rest }: IconProps) {
+export function Icon({ name, size, color, className, style, ...rest }: IconProps) {
   const url = SRC[name]
   if (import.meta.env.DEV && !url) console.warn(`Icon: no SVG found for "${name}" — check assets/icons/`)
 
   const vars = {
     '--icon-url': url ? `url("${url}")` : undefined,
     ...(size != null ? { width: size, height: size } : null),
+    ...(color != null ? { color } : null),
     ...style
   } as CSSProperties
   // Decorative by default; a caller-supplied label/role marks it meaningful, so don't hide it then.
