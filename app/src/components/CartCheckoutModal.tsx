@@ -28,6 +28,9 @@ type Props = {
   stage?: CheckoutStage
   step?: number
   total?: number
+  // Self-custody (MetaMask etc.) users get a "confirm to continue" prompt; managed (social) users sign
+  // transparently, so they never see a confirmation step. Never leak "wallet/transaction" — see CONVENTIONS.
+  isSelfCustody?: boolean
   // nofunds
   lines?: CheckoutLine[]
   shortfallCredits?: number
@@ -84,7 +87,12 @@ export function CartCheckoutModal(props: Props) {
         )}
 
         {phase === 'processing' && (
-          <Processing stage={props.stage ?? 'reserving'} step={props.step ?? 1} total={props.total ?? 1} />
+          <Processing
+            stage={props.stage ?? 'reserving'}
+            step={props.step ?? 1}
+            total={props.total ?? 1}
+            isSelfCustody={!!props.isSelfCustody}
+          />
         )}
         {phase === 'nofunds' && (
           <NoFunds
@@ -138,12 +146,26 @@ export function CartCheckoutModal(props: Props) {
 //  - awaiting-signature: ONE wallet prompt to sign/confirm the purchase → an INDETERMINATE bar (the
 //    buyer hasn't acted yet, so showing a near-full bar would be a lie).
 //  - settling: the single tx confirms on-chain → INDETERMINATE bar, "Completing transaction…".
-function Processing({ stage, step, total }: { stage: CheckoutStage; step: number; total: number }) {
+function Processing({
+  stage,
+  step,
+  total,
+  isSelfCustody
+}: {
+  stage: CheckoutStage
+  step: number
+  total: number
+  isSelfCustody: boolean
+}) {
   const reserving = stage === 'reserving'
   const pct = total > 0 ? Math.min(100, Math.round((step / total) * 100)) : 0
+  // Managed (social) users never confirm anything, so they never see a "confirm" prompt — they go
+  // straight to "completing". Copy is web2-first: no "wallet"/"transaction" for anyone (see CONVENTIONS).
   const text =
     stage === 'awaiting-signature'
-      ? t('buyModal.confirmInWallet')
+      ? isSelfCustody
+        ? t('buyModal.confirmToContinue')
+        : t('buyModal.completingTransaction')
       : stage === 'settling'
         ? t('buyModal.completingTransaction')
         : t('cartCheckout.preparing')
