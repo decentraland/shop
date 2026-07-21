@@ -77,9 +77,9 @@ export async function restoreSession(): Promise<Session | null> {
   }
 }
 
-// Best-effort account email from the connected provider — managed/social (Magic) sign-ins expose the
-// user's email once a future decentraland-connect release ships `connection.getEmail()`. Optional-
-// chained so this is simply `undefined` until then (the field stays empty/editable); never throws.
+// Best-effort account email from the connected provider — managed/social (Magic) and Thirdweb sign-ins
+// expose it via `connection.getEmail()` (decentraland-connect >= 12.1.0). Optional-chained + guarded so
+// it's simply `undefined` for providers without an email (the field stays empty/editable); never throws.
 export async function getConnectionEmail(): Promise<string | undefined> {
   try {
     const connection = (await getConnection()) as { getEmail?: () => Promise<string | undefined> | string | undefined }
