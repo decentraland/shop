@@ -224,6 +224,10 @@
     "subscribedBody": "We'll let you know when it's available.",
     "error": "Couldn't save that — please try again."
   },
+  "makeOffer": {
+    "cta": "Make an offer",
+    "comingSoon": "Coming soon — you'll be able to make an offer on items that aren't for sale."
+  },
   "buyModal": {
     "titleBuy": "Buy Asset",
     "titleNoFunds": "Buy Credits and Item",
@@ -300,6 +304,7 @@
     "price": "Price",
     "stock": "Stock",
     "outOfStock": "Out of stock",
+    "notForSaleHint": "This item isn't listed for sale right now. Get notified when it becomes available.",
     "ownItemPrefix": "This is your item — manage it in",
     "ownItemSuffix": ".",
     "manageList": "List for sale",

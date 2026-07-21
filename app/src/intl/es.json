@@ -224,6 +224,10 @@
     "subscribedBody": "Te avisaremos cuando esté disponible.",
     "error": "No pudimos guardarlo: inténtalo de nuevo."
   },
+  "makeOffer": {
+    "cta": "Hacer una oferta",
+    "comingSoon": "Muy pronto — vas a poder hacer una oferta por artículos que no están a la venta."
+  },
   "buyModal": {
     "titleBuy": "Comprar artículo",
     "titleNoFunds": "Comprar créditos y artículo",
