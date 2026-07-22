@@ -17,7 +17,7 @@ import { AssetCard } from '~/components/AssetCard'
 import { SkeletonCards } from '~/components/SkeletonCards'
 import { LoadMore } from '~/components/LoadMore'
 import { FilterBar, RARITIES, type FilterChip } from '~/components/FilterBar'
-import { CATEGORIES } from '~/components/CategoryFilter'
+import { CATEGORIES, CategoryFilter } from '~/components/CategoryFilter'
 import { FilterSection, type FilterStatus } from '~/components/Filters'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
 import { SUBCAT_MAP } from '~/lib/categories'
@@ -51,16 +51,24 @@ const MY_SORTS: { key: string; label: string; server: 'newest' | 'name' | 'cheap
   { key: 'cheapest', label: 'filterBar.sortCheapest', server: 'cheapest' }
 ]
 
-// Rarity/Category filters only make sense for wearables & emotes (Names/Creations don't carry them).
+// Rarity filter only makes sense for wearables & emotes (Names/Creations don't carry rarities).
 function hasRarityAndCategory(section: SectionKey) {
   return section === 'wearables' || section === 'emotes'
 }
 
-// The sub-categories to offer for the active section (wearable vs. emote), pulled from the shared
-// CategoryFilter definition so My Assets and Collectibles stay in lockstep.
-function subsFor(section: SectionKey) {
-  const key = section === 'emotes' ? 'emote' : 'wearable'
-  return CATEGORIES.find(c => c.key === key)?.subs ?? []
+// The section nav reuses Collectibles' CategoryFilter, which is keyed by 'wearable'/'emote'/'names'.
+// Map between that and My Assets' section keys ('creations' has no CategoryFilter entry — it's the
+// relabelled "extra" slot).
+const CATEGORY_OF_SECTION: Record<SectionKey, string> = {
+  wearables: 'wearable',
+  emotes: 'emote',
+  names: 'names',
+  creations: ''
+}
+const SECTION_OF_CATEGORY: Record<string, SectionKey> = {
+  wearable: 'wearables',
+  emote: 'emotes',
+  names: 'names'
 }
 
 // Owned NFT (secondary) → the CatalogItem shape AssetCard renders (carries tokenId so the card links to
@@ -124,7 +132,6 @@ export function MyAssets() {
   // Collapsible filter groups — same defaults as Collectibles (rarity starts collapsed).
   const [openStatus, setOpenStatus] = useState(true)
   const [openRarity, setOpenRarity] = useState(false)
-  const [openCategory, setOpenCategory] = useState(true)
 
   const [selling, setSelling] = useState<MyAsset | null>(null)
   const [publishing, setPublishing] = useState<PublishableItem | null>(null)
@@ -167,8 +174,6 @@ export function MyAssets() {
   const raritySummary = RARITIES.filter(r => rarities.includes(r))
     .map(capitalizeFirst)
     .join(', ')
-  const activeSub = subsFor(section).find(s => s.key === subCategory)
-  const categorySummary = activeSub ? t(activeSub.labelKey) : ''
 
   // Reset the contextual filters when moving to a section that doesn't use them.
   function pickSection(next: SectionKey) {
@@ -186,6 +191,11 @@ export function MyAssets() {
   }
   function toggleRarity(r: string) {
     setRarities(rs => (rs.includes(r) ? rs.filter(x => x !== r) : [...rs, r]))
+  }
+  // CategoryFilter drives the section nav — translate its category key back to a My Assets section.
+  function pickCategory(catKey: string) {
+    const next = SECTION_OF_CATEGORY[catKey]
+    if (next) pickSection(next)
   }
 
   // ---------------- Owned sections (wearables / emotes / names) ----------------
@@ -328,7 +338,7 @@ export function MyAssets() {
       if (rarities.includes(r))
         chips.push({ key: `rarity-${r}`, label: capitalizeFirst(r), onRemove: () => toggleRarity(r) })
   if (showRarityCat && subCategory) {
-    const sub = subsFor(section).find(s => s.key === subCategory)
+    const sub = CATEGORIES.find(c => c.key === CATEGORY_OF_SECTION[section])?.subs?.find(s => s.key === subCategory)
     chips.push({ key: 'sub', label: sub ? t(sub.labelKey) : subCategory, onRemove: () => setSubCategory(null) })
   }
   function clearFilters() {
@@ -340,48 +350,19 @@ export function MyAssets() {
   // ---------------- Sidebar (shared between desktop + mobile drawer) ----------------
   const sidebar = (
     <>
-      <S.Group>
-        <S.GroupTitle>{t('myAssets.assetsHeading')}</S.GroupTitle>
-        {SECTIONS.map(s => (
-          <S.SectionButton
-            key={s.key}
-            type="button"
-            selected={section === s.key}
-            aria-pressed={section === s.key}
-            onClick={() => pickSection(s.key)}
-          >
-            {t(s.labelKey)}
-          </S.SectionButton>
-        ))}
-      </S.Group>
-
-      <F.Divider />
-
-      <FilterSection
-        title={t('filter.status')}
-        open={openStatus}
-        onToggle={() => setOpenStatus(o => !o)}
-        summary={statusSummary}
-        desktopStatic
-      >
-        {(
-          [
-            ['all', t('filter.statusAll')],
-            ['on_sale', t('filter.onSale')],
-            ['not_for_sale', t('filter.notForSale')]
-          ] as [FilterStatus, string][]
-        ).map(([value, label]) => (
-          <F.StatusRow key={value}>
-            <F.StatusRadio
-              type="radio"
-              name="myassets-status"
-              checked={status === value}
-              onChange={() => setStatus(value)}
-            />
-            <F.StatusLabel>{label}</F.StatusLabel>
-          </F.StatusRow>
-        ))}
-      </FilterSection>
+      {/* Section nav = the SAME CategoryFilter as Collectibles (Wearables/Emotes expand to sub-cats),
+          minus "Shop All" and with "My Creations" as the extra entry. */}
+      <CategoryFilter
+        title={t('myAssets.assetsHeading')}
+        category={CATEGORY_OF_SECTION[section]}
+        subCategory={subCategory}
+        onCategory={pickCategory}
+        onSub={setSubCategory}
+        onCollections={() => pickSection('creations')}
+        collections={section === 'creations'}
+        extraLabelKey="myAssets.sectionCreations"
+        hideAll
+      />
 
       {showRarityCat ? (
         <>
@@ -391,7 +372,7 @@ export function MyAssets() {
             open={openRarity}
             onToggle={() => setOpenRarity(o => !o)}
             summary={raritySummary}
-            desktopStatic
+            headerTestId="sidebar-section-toggle"
           >
             <F.RarityChips data-testid="rarity-filter">
               {RARITIES.map(r => {
@@ -414,34 +395,34 @@ export function MyAssets() {
               })}
             </F.RarityChips>
           </FilterSection>
-
-          <F.Divider />
-          <FilterSection
-            title={t('assets.category')}
-            open={openCategory}
-            onToggle={() => setOpenCategory(o => !o)}
-            summary={categorySummary}
-            desktopStatic
-          >
-            <S.SubPills data-testid="category-filter">
-              {subsFor(section).map(sub => {
-                const selected = subCategory === sub.key
-                return (
-                  <S.SubPill
-                    key={sub.key}
-                    type="button"
-                    selected={selected}
-                    aria-pressed={selected}
-                    onClick={() => setSubCategory(selected ? null : sub.key)}
-                  >
-                    {t(sub.labelKey)}
-                  </S.SubPill>
-                )
-              })}
-            </S.SubPills>
-          </FilterSection>
         </>
       ) : null}
+
+      <F.Divider />
+      <FilterSection
+        title={t('filter.status')}
+        open={openStatus}
+        onToggle={() => setOpenStatus(o => !o)}
+        summary={statusSummary}
+      >
+        {(
+          [
+            ['all', t('filter.statusAll')],
+            ['on_sale', t('filter.onSale')],
+            ['not_for_sale', t('filter.notForSale')]
+          ] as [FilterStatus, string][]
+        ).map(([value, label]) => (
+          <F.StatusRow key={value}>
+            <F.StatusRadio
+              type="radio"
+              name="myassets-status"
+              checked={status === value}
+              onChange={() => setStatus(value)}
+            />
+            <F.StatusLabel>{label}</F.StatusLabel>
+          </F.StatusRow>
+        ))}
+      </FilterSection>
     </>
   )
 

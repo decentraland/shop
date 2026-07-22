@@ -59,7 +59,9 @@ export function CategoryFilter({
   title,
   flat = false,
   collections = false,
-  onCollections
+  onCollections,
+  hideAll = false,
+  extraLabelKey = 'categories.collections'
 }: {
   category: string
   subCategory: string | null
@@ -73,6 +75,10 @@ export function CategoryFilter({
   // the active mode (mutually exclusive with the category selection); `onCollections` toggles it.
   collections?: boolean
   onCollections?: () => void
+  // My Assets: hide the "Shop All" entry (owned sections only) and relabel the onCollections entry
+  // (e.g. "My Creations") so the same category nav can be reused across pages.
+  hideAll?: boolean
+  extraLabelKey?: string
 }) {
   // Accordion state is separate from the active category so clicking an open header collapses it
   // (the old derive-from-category approach couldn't close). Wearables starts open when it's active.
@@ -94,7 +100,7 @@ export function CategoryFilter({
   return (
     <S.Root>
       {title ? <S.Title>{title}</S.Title> : null}
-      {CATEGORIES.map(top => {
+      {CATEGORIES.filter(top => !(hideAll && top.key === 'all')).map(top => {
         const open = expandedKey === top.key && !!top.subs
         // In collections mode nothing in the normal category list is highlighted.
         const selected = !collections && top.key === category
@@ -140,7 +146,7 @@ export function CategoryFilter({
       {onCollections ? (
         <S.Group>
           <S.CatButton type="button" flat={flat} className={collections ? 'is-selected' : ''} onClick={onCollections}>
-            <S.CatLabel>{t('categories.collections')}</S.CatLabel>
+            <S.CatLabel>{t(extraLabelKey)}</S.CatLabel>
           </S.CatButton>
         </S.Group>
       ) : null}

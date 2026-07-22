@@ -93,9 +93,9 @@ describe('when the My Assets page loads for a connected user', () => {
     renderPage()
     expect(await screen.findByText('Cool Hat')).toBeInTheDocument()
     expect(fetchMyAssets).toHaveBeenCalledWith(session.address, expect.objectContaining({ category: 'wearable' }))
-    // Rarity + Category filters are visible for wearables.
+    // Rarity filter + the wearable sub-categories (via the reused CategoryFilter) are visible.
     expect(screen.getByTestId('rarity-filter')).toBeInTheDocument()
-    expect(screen.getByTestId('category-filter')).toBeInTheDocument()
+    expect(screen.getByText('Upper Body')).toBeInTheDocument()
   })
 })
 
