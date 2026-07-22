@@ -53,11 +53,7 @@ function OrderLine({ item }: { item: OrderLineItem }) {
         <S.Thumb>{thumbnail ? <img src={thumbnail} alt={name} /> : <Icon name="cart" size={20} />}</S.Thumb>
       )}
       <S.LineInfo>
-        {resolving ? (
-          <S.LineNamePlaceholder />
-        ) : (
-          <S.LineName title={name}>{name}</S.LineName>
-        )}
+        {resolving ? <S.LineNamePlaceholder /> : <S.LineName title={name}>{name}</S.LineName>}
         {item.quantity > 1 ? <S.LineMeta>{t('myPurchases.quantity', { count: item.quantity })}</S.LineMeta> : null}
       </S.LineInfo>
       <S.LinePrice>
@@ -106,7 +102,7 @@ function OrderCard({ order }: { order: PurchaseOrder }) {
 
 export function MyPurchases() {
   useSeo({ title: t('nav.myPurchases'), noindex: true })
-  const { session } = useWallet()
+  const { session, signIn } = useWallet()
   const { items, isLoading, hasNextPage, isFetchingNextPage, fetchNextPage } = useInfiniteGrid(
     ['purchases', session?.address],
     skip => fetchUserPurchases(session!.address, session!.identity, { all: true, first: PAGE_SIZE, skip }),
@@ -119,6 +115,9 @@ export function MyPurchases() {
         <Icon name="cart" size={40} color="var(--muted-2)" />
         <S.EmptyTitle>{t('myPurchases.signInTitle')}</S.EmptyTitle>
         <p className="muted">{t('myPurchases.signInBody')}</p>
+        <S.EmptyCta variant="purple" onClick={() => signIn()}>
+          {t('storeSettings.signIn')}
+        </S.EmptyCta>
       </S.Empty>
     )
   }

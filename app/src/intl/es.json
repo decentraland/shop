@@ -147,6 +147,7 @@
     "purchaseSummary": "Resumen de compra",
     "totalItems": "Total: {count, plural, one {# artículo} other {# artículos}}",
     "working": "Procesando…",
+    "signInHint": "Te pediremos que inicies sesión primero.",
     "priceChanged": "Los precios o la disponibilidad cambiaron desde que los agregaste. Revisa el total actualizado y confirma para comprar.",
     "youMightAlsoLike": "También te puede gustar",
     "status": {

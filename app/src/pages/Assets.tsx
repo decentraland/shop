@@ -12,6 +12,7 @@ import { SkeletonCards } from '~/components/SkeletonCards'
 import { listingKey } from '~/lib/listingKey'
 import { LoadMore } from '~/components/LoadMore'
 import { MarketCheckout } from '~/components/MarketCheckout'
+import { useWallet } from '~/store/wallet'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
 import { useSeo } from '~/hooks/useSeo'
 import { SUBCAT_MAP } from '~/lib/categories'
@@ -56,6 +57,7 @@ export function Assets() {
   const [searchParams] = useSearchParams()
   const q = (searchParams.get('q') ?? '').trim().toLowerCase()
   const qc = useQueryClient()
+  const { session, signIn } = useWallet()
 
   // Collectibles grid SEO. Fold the (case-preserved) search term into the title when present; the
   // description stays generic. Canonical/og:url naturally drop the ?q= (the hook uses the pathname),
@@ -207,7 +209,15 @@ export function Assets() {
   }
   function openCheckout(card: CatalogItem) {
     const item = items.find(i => i.id === card.id) as UnifiedListing | undefined
-    if (item && item.source === 'legacy' && item.manaWei) setCheckout(toLegacyListing(item))
+    if (!item || item.source !== 'legacy' || !item.manaWei) return
+    // Signed out → into sign-in (returns to this browse page) rather than opening a checkout that can
+    // only dead-end. Legacy grid selection isn't restorable across the redirect, so no auto-resume —
+    // they land back here signed in and can buy in one click.
+    if (!session) {
+      signIn()
+      return
+    }
+    setCheckout(toLegacyListing(item))
   }
   function refreshGrid() {
     void qc.invalidateQueries({ queryKey: ['unified-listings'] })

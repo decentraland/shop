@@ -147,6 +147,7 @@
     "purchaseSummary": "Purchase Summary",
     "totalItems": "Total: {count, plural, one {# item} other {# items}}",
     "working": "Working…",
+    "signInHint": "You'll be asked to sign in first.",
     "priceChanged": "Prices or availability changed since you added these — review the updated total and confirm to buy.",
     "youMightAlsoLike": "You might also like",
     "status": {
