@@ -362,10 +362,11 @@ export const ownTrade = {
 }
 
 // --- Purchase history (credits-server GET /users/:addr/purchases) ---
-// The raw response shape fetchUserPurchases reads ({ purchases, total }). One SETTLED + one PENDING
-// row are rendered (with "Completed"/"Processing" badges); the EXPIRED row is filtered out by
-// MyPurchases, so only 2 rows show. tradeId is null so PurchaseRow renders the "Item" fallback name
-// without a follow-up trade-display fetch (kept deterministic). Used by the my-purchases e2e.
+// The raw response shape fetchUserPurchases reads ({ purchases, total }). One SETTLED + one PENDING row
+// become two distinct order cards (different status → not the same cart) with "Completed"/"Processing"
+// pills; the EXPIRED row is filtered out by MyPurchases. tradeId is null so the lines render the "Item"
+// fallback name without a follow-up trade-display fetch (kept deterministic). Used by the my-purchases
+// e2e.
 export const purchasesResponse = {
   purchases: [
     { id: 'purchase-1', tradeId: null, usdCents: 13500, credits: 135, status: 'SETTLED', createdAt: 1_700_000_000_000, manaSettledWei: null },
