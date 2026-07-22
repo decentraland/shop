@@ -4,7 +4,9 @@
    carousel carries its own look wherever it's rendered (pages are lazy-loaded, so relying on another
    page's CSS would leave it unstyled when reached directly). */
 .collection-carousel {
-  margin-top: 64px;
+  /* Gap above the rail on the item-detail page. The cart zeroes this in cart.css and supplies its
+     own spacing, so this value only affects the PDP. */
+  margin-top: 40px;
 }
 .collection-carousel__head {
   display: flex;
