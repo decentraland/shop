@@ -1975,6 +1975,13 @@ h2 {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* "× N" quantity badge beside the name when a primary line was bought in multiples. */
+.success-row__qty {
+  margin-left: 8px;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--muted, #716b7c);
+}
 .success-row__creator {
   position: relative;
   z-index: 1;

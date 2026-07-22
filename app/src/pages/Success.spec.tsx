@@ -5,10 +5,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 const session = { address: '0xabc0000000000000000000000000000000000abc', providerType: 'injected' as never }
 vi.mock('~/store/wallet', () => ({ useWallet: () => ({ session }) }))
+// CreatorBadge (rendered on the confirmed screen for the item's creator) reads a profile via
+// react-query — stub it so the row renders without a network fetch.
 vi.mock('~/hooks/useProfile', () => ({ useProfile: () => ({ data: undefined }) }))
-// Avoid the lazy 3D iframe (decentraland-ui2 ESM) + the confetti animation in jsdom.
-vi.mock('~/components/LazyWearablePreview', () => ({ WearablePreview: () => <div data-testid="preview" /> }))
-vi.mock('~/components/SuccessAnimation', () => ({ SuccessAnimation: () => <div data-testid="success-anim" /> }))
 
 // Real SettlementPendingError class (the hook branches on `instanceof`) + a mockable waitForSettlement.
 // vi.hoisted so both exist before the hoisted vi.mock factory runs, and are usable in the tests.
@@ -77,6 +76,27 @@ describe('Success settlement gating', () => {
     expect(screen.getByText('Snowy Panama Hat')).toBeTruthy()
     expect(screen.getByRole('button', { name: /my assets/i })).toBeTruthy()
     expect(screen.getByRole('link', { name: /try in world/i })).toBeTruthy()
+  })
+
+  it('shows the line total (per-unit × qty) and a "× N" badge for a multi-quantity line', async () => {
+    waitForSettlement.mockResolvedValue(undefined)
+    fetchOwnsItem.mockResolvedValue(true)
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    // priceCredits 5 × quantity 3 = 15 shown on the row, plus a "× 3" badge.
+    render(
+      <QueryClientProvider client={qc}>
+        <MemoryRouter
+          initialEntries={[{ pathname: '/success', state: { items: [{ ...item, quantity: 3 }], txHash: '0xabc' } }]}
+        >
+          <Routes>
+            <Route path="/success" element={<Success />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+    await waitFor(() => expect(screen.getByText(/your purchase was successful/i)).toBeTruthy())
+    expect(screen.getByText('15')).toBeTruthy()
+    expect(screen.getByText(/×\s*3/)).toBeTruthy()
   })
 
   it('routes the MY ASSETS CTA to /my-assets', async () => {

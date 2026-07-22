@@ -282,7 +282,11 @@ export function Cart() {
       // (settled:true) — it lands straight on the confirmed screen instead of a floating in-cart modal.
       setModal(null)
       setBusy(false)
-      navigate('/success', { state: { items: purchasedLines, txHash: hashes[0] ?? undefined, settled: true } })
+      // replace:true — the cart is now emptied, so Back from /success should not return to it.
+      navigate('/success', {
+        state: { items: purchasedLines, txHash: hashes[0] ?? undefined, settled: true },
+        replace: true
+      })
     } catch (e) {
       if (!isUserRejection(e)) captureError(e, { flow: 'cart_checkout', step, cart_size: lines.length })
       track(isUserRejection(e) ? 'Shop Purchase Cancelled' : 'Shop Purchase Failed', {

@@ -100,7 +100,8 @@ const EXPLORER_TX = config.chainId === 80002 ? 'https://amoy.polygonscan.com/tx/
 
 export function Success() {
   const { state } = useLocation() as {
-    state?: { items?: CatalogItem[]; txHash?: string; settled?: boolean }
+    // The cart sends per-line entries carrying `quantity` (a primary/mint line can be bought × N).
+    state?: { items?: Array<CatalogItem & { quantity?: number }>; txHash?: string; settled?: boolean }
   }
   const navigate = useNavigate()
   const { session } = useWallet()
@@ -237,40 +238,48 @@ export function Success() {
         </div>
 
         <div className="success-list">
-          {items.map((item, i) => (
-            <div className="success-list__row" key={item.id}>
-              {i > 0 ? <span className="success-list__divider" aria-hidden /> : null}
-              <div className="success-row">
-                <div className="success-row__thumb">
-                  {item.thumbnail ? <img src={item.thumbnail} alt="" /> : null}
-                  <span className="success-row__check" aria-hidden>
-                    <svg viewBox="0 0 18 18" width="12" height="12">
-                      <path
-                        d="M4 9l3.5 3.5L14 5"
-                        fill="none"
-                        stroke="#fff"
-                        strokeWidth="2.4"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </span>
-                </div>
-                <div className="success-row__info">
-                  <div className="success-row__name" title={item.name}>
-                    {item.name}
+          {items.map((item, i) => {
+            // A primary/mint line can be bought × N — show the line total (per-unit × qty) plus a
+            // "× N" badge, mirroring the old in-cart complete modal.
+            const qty = item.quantity ?? 1
+            return (
+              <div className="success-list__row" key={item.id}>
+                {i > 0 ? <span className="success-list__divider" aria-hidden /> : null}
+                <div className="success-row">
+                  <div className="success-row__thumb">
+                    {item.thumbnail ? <img src={item.thumbnail} alt="" /> : null}
+                    <span className="success-row__check" aria-hidden>
+                      <svg viewBox="0 0 18 18" width="12" height="12">
+                        <path
+                          d="M4 9l3.5 3.5L14 5"
+                          fill="none"
+                          stroke="#fff"
+                          strokeWidth="2.4"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </span>
                   </div>
-                  {item.creator ? (
-                    <CreatorBadge address={item.creator} className="success-row__creator" linkToProfile />
-                  ) : null}
-                </div>
-                <div className="success-row__price">
-                  <CurrencyIcon className="success-row__price-ico" />
-                  <span>{formatCredits(item.priceCredits)}</span>
+                  <div className="success-row__info">
+                    <div className="success-row__name" title={item.name}>
+                      {item.name || t('buyModal.itemFallback')}
+                      {qty > 1 ? (
+                        <span className="success-row__qty">{t('cartCheckout.qty', { count: qty })}</span>
+                      ) : null}
+                    </div>
+                    {item.creator ? (
+                      <CreatorBadge address={item.creator} className="success-row__creator" linkToProfile />
+                    ) : null}
+                  </div>
+                  <div className="success-row__price">
+                    <CurrencyIcon className="success-row__price-ico" />
+                    <span>{formatCredits(item.priceCredits * qty)}</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
 
         {receiptLink ? <div className="success__links success-done__receipt">{receiptLink}</div> : null}
