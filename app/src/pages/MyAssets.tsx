@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Icon } from '~/components/Icon'
 import { config } from '~/config'
@@ -108,7 +109,11 @@ export function MyAssets() {
   const { session, error, signIn, restore } = useWallet()
   const qc = useQueryClient()
 
-  const [section, setSection] = useState<SectionKey>('wearables')
+  // The active section lives in the URL (?section=…) so it survives refresh + is shareable. Fall back to
+  // 'wearables' for a missing/unknown value.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const sectionParam = searchParams.get('section')
+  const section: SectionKey = SECTIONS.some(s => s.key === sectionParam) ? (sectionParam as SectionKey) : 'wearables'
   const [status, setStatus] = useState<FilterStatus>('all')
   const [rarities, setRarities] = useState<string[]>([])
   const [subCategory, setSubCategory] = useState<string | null>(null)
@@ -154,7 +159,14 @@ export function MyAssets() {
 
   // Reset the contextual filters when moving to a section that doesn't use them.
   function pickSection(next: SectionKey) {
-    setSection(next)
+    setSearchParams(
+      prev => {
+        const p = new URLSearchParams(prev)
+        p.set('section', next)
+        return p
+      },
+      { replace: true }
+    )
     setSubCategory(null)
     if (!hasRarityAndCategory(next)) setRarities([])
     setFiltersOpen(false)
