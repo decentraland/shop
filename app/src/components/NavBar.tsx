@@ -10,6 +10,7 @@ import { CartPopover } from '~/components/CartPopover'
 import { SearchDropdown } from '~/components/SearchDropdown'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { CURRENCY } from '~/lib/currency'
+import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import { getRecentSearches, recordSearch, removeRecentSearch, clearRecentSearches } from '~/lib/recent-searches'
 import { track } from '~/lib/analytics'
 import type { CatalogItem } from '~/lib/api'
@@ -178,6 +179,11 @@ export function NavBar() {
           </NavLink>
           <NavLink to="/my-assets">{t('nav.myAssets')}</NavLink>
           {session ? <NavLink to="/my-purchases">{t('nav.myPurchases')}</NavLink> : null}
+          {/* Approvals are only meaningful for self-custody wallets; managed (web2) users never see wallet
+              jargon (CONVENTIONS.md), so the entry point is hidden for them. */}
+          {session && showsWalletConfirmations(session.providerType) ? (
+            <NavLink to="/authorizations">{t('nav.authorizations')}</NavLink>
+          ) : null}
         </nav>
         <div className="subnav__search" ref={wrapRef}>
           <Icon name="search" color="var(--muted)" />
