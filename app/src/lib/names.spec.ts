@@ -8,13 +8,35 @@ import type { ethers } from 'ethers'
 const { signedFetch } = vi.hoisted(() => ({ signedFetch: vi.fn() }))
 vi.mock('decentraland-crypto-fetch', () => ({ default: signedFetch }))
 
-// Pin the credits-server base URL so asserted URLs are env-independent.
-vi.mock('~/config', () => ({ config: { creditsServerUrl: 'https://credits.example' } }))
+// Pin the server base URLs so asserted URLs are env-independent.
+vi.mock('~/config', () => ({
+  config: { creditsServerUrl: 'https://credits.example', nftApiUrl: 'https://nft.example', chainId: 137 }
+}))
+
+// checkNameAvailability reads DCLRegistrar.available on-chain. Stub only ethers.Contract (+ the
+// provider ctor) so we can drive `available`; everything else (BigNumber, used by the register tests)
+// stays the real implementation.
+const availableMock = vi.hoisted(() => vi.fn())
+vi.mock('ethers', async importOriginal => {
+  const actual = await importOriginal<typeof import('ethers')>()
+  return {
+    ...actual,
+    ethers: {
+      ...actual.ethers,
+      providers: { ...actual.ethers.providers, JsonRpcProvider: vi.fn(() => ({})) },
+      Contract: vi.fn(() => ({ available: availableMock }))
+    }
+  }
+})
 
 // ~/lib/trade-encoding (idToSalt) and ~/lib/mana-rate both pull decentraland-transactions at module
 // load; stub it so its ESM/cross-chain deps don't get evaluated. Real ethers stays.
 vi.mock('decentraland-transactions', () => ({
-  ContractName: { OffChainMarketplaceV2: 'OffChainMarketplaceV2', MANAToken: 'MANAToken', CreditsManager: 'CreditsManager' },
+  ContractName: {
+    OffChainMarketplaceV2: 'OffChainMarketplaceV2',
+    MANAToken: 'MANAToken',
+    CreditsManager: 'CreditsManager'
+  },
   getContract: () => ({ address: '0x0000000000000000000000000000000000000000', name: 'x', version: '1', abi: [] }),
   getContractName: () => 'DecentralandMarketplacePolygon'
 }))
@@ -59,15 +81,24 @@ const { GaslessUnavailableError, SettlementPendingError, useCreditsGasless, wait
   }
   return { GaslessUnavailableError, SettlementPendingError, useCreditsGasless: vi.fn(), waitForSettlement: vi.fn() }
 })
-vi.mock('~/lib/buy-gasless', () => ({ GaslessUnavailableError, SettlementPendingError, useCreditsGasless, waitForSettlement }))
+vi.mock('~/lib/buy-gasless', () => ({
+  GaslessUnavailableError,
+  SettlementPendingError,
+  useCreditsGasless,
+  waitForSettlement
+}))
 
 import {
+  NAME_MAX_LENGTH,
   NAME_PRICE_IN_WEI,
   NameRouteCostTooHighError,
   buildNameUseCreditsArgs,
+  checkNameAvailability,
   fetchNameCreditRoute,
   registerNameWithUsdCredits,
+  sanitizeNameInput,
   sizeNameUsdCents,
+  validateName,
   type NameCreditRoute
 } from '~/lib/names'
 
@@ -236,9 +267,9 @@ describe('registerNameWithUsdCredits', () => {
     useCreditsGasless.mockRejectedValueOnce(new GaslessUnavailableError('off', 'disabled'))
     sendUseCredits.mockRejectedValueOnce(new Error('boom'))
 
-    await expect(
-      registerNameWithUsdCredits({ name: 'my-name', identity: IDENTITY, signer: SIGNER })
-    ).rejects.toThrow("Couldn't register the name")
+    await expect(registerNameWithUsdCredits({ name: 'my-name', identity: IDENTITY, signer: SIGNER })).rejects.toThrow(
+      "Couldn't register the name"
+    )
 
     expect(cancelUsdIntents).toHaveBeenCalledWith(IDENTITY, ['0x' + 'ab'.repeat(32)])
   })
@@ -249,9 +280,9 @@ describe('registerNameWithUsdCredits', () => {
     // Server sized only 99 MANA — a rate swing left it below the 100 MANA price.
     authorizeUsdCredit.mockResolvedValueOnce(authorized('99000000000000000000'))
 
-    await expect(
-      registerNameWithUsdCredits({ name: 'my-name', identity: IDENTITY, signer: SIGNER })
-    ).rejects.toThrow("Couldn't register the name")
+    await expect(registerNameWithUsdCredits({ name: 'my-name', identity: IDENTITY, signer: SIGNER })).rejects.toThrow(
+      "Couldn't register the name"
+    )
 
     expect(cancelUsdIntents).toHaveBeenCalledWith(IDENTITY, ['0x' + 'ab'.repeat(32)])
     // Never attempted to submit a doomed tx.
@@ -328,5 +359,64 @@ describe('registerNameWithUsdCredits', () => {
 
     expect(authorizeUsdCredit).not.toHaveBeenCalled()
     expect(cancelUsdIntents).not.toHaveBeenCalled()
+  })
+})
+
+describe('validateName', () => {
+  it('should accept a 2–15 char alphanumeric name', () => {
+    expect(validateName('bob')).toEqual({ ok: true })
+    expect(validateName('MyName123')).toEqual({ ok: true })
+    expect(validateName('a'.repeat(NAME_MAX_LENGTH))).toEqual({ ok: true })
+  })
+
+  it('should reject an empty name', () => {
+    expect(validateName('   ')).toEqual({ ok: false, reason: 'empty' })
+  })
+
+  it('should reject a name shorter than 2 chars', () => {
+    expect(validateName('a')).toEqual({ ok: false, reason: 'too-short' })
+  })
+
+  it('should reject a name longer than 15 chars', () => {
+    expect(validateName('a'.repeat(16))).toEqual({ ok: false, reason: 'too-long' })
+  })
+
+  it('should reject spaces and symbols before length', () => {
+    expect(validateName('bad name')).toEqual({ ok: false, reason: 'invalid-chars' })
+    expect(validateName('hi!')).toEqual({ ok: false, reason: 'invalid-chars' })
+    expect(validateName('emoji😀')).toEqual({ ok: false, reason: 'invalid-chars' })
+  })
+})
+
+describe('sanitizeNameInput', () => {
+  it('should strip disallowed characters and spaces', () => {
+    expect(sanitizeNameInput('Hello World!')).toBe('HelloWorld')
+    expect(sanitizeNameInput('a.b-c_d')).toBe('abcd')
+  })
+
+  it('should cap the length at NAME_MAX_LENGTH', () => {
+    expect(sanitizeNameInput('a'.repeat(30))).toHaveLength(NAME_MAX_LENGTH)
+  })
+})
+
+describe('checkNameAvailability', () => {
+  beforeEach(() => availableMock.mockReset())
+
+  it('reports available when DCLRegistrar.available returns true', async () => {
+    availableMock.mockResolvedValue(true)
+    await expect(checkNameAvailability('freeName')).resolves.toBe('available')
+    expect(availableMock).toHaveBeenCalledWith('freeName')
+  })
+
+  it('reports taken when DCLRegistrar.available returns false', async () => {
+    availableMock.mockResolvedValue(false)
+    await expect(checkNameAvailability('takenname')).resolves.toBe('taken')
+  })
+
+  it('discards a superseded (aborted) check', async () => {
+    availableMock.mockResolvedValue(true)
+    const ctrl = new AbortController()
+    ctrl.abort()
+    await expect(checkNameAvailability('bob', { signal: ctrl.signal })).rejects.toThrow(/abort/i)
   })
 })

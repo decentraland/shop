@@ -50,6 +50,74 @@ import { friendlyError } from '~/lib/errors'
 // credits-server's NAME_PRICE_IN_WEI and the marketplace webapp's PRICE_IN_WEI.
 export const NAME_PRICE_IN_WEI = '100000000000000000000'
 
+// ---------------------------------------------------------------------------
+// NAME string validation + availability (advisory search-time check)
+// ---------------------------------------------------------------------------
+// Decentraland NAME rules, mirroring the marketplace webapp's claim validation: 2–15 characters,
+// ASCII alphanumeric only (a–z, A–Z, 0–9). No spaces, punctuation, emoji or unicode. The `.dcl.eth`
+// suffix is presentation only — it's never part of the stored/registered name.
+
+export const NAME_MIN_LENGTH = 2
+export const NAME_MAX_LENGTH = 15
+const NAME_ALLOWED = /^[a-zA-Z0-9]+$/
+
+export type NameInvalidReason = 'empty' | 'too-short' | 'too-long' | 'invalid-chars'
+export type NameValidation = { ok: true } | { ok: false; reason: NameInvalidReason }
+
+// Validate a raw NAME the user typed. Order matters: an invalid character is reported before a
+// length problem so the user sees the most specific fix first.
+export function validateName(raw: string): NameValidation {
+  const name = raw.trim()
+  if (name.length === 0) return { ok: false, reason: 'empty' }
+  if (!NAME_ALLOWED.test(name)) return { ok: false, reason: 'invalid-chars' }
+  if (name.length < NAME_MIN_LENGTH) return { ok: false, reason: 'too-short' }
+  if (name.length > NAME_MAX_LENGTH) return { ok: false, reason: 'too-long' }
+  return { ok: true }
+}
+
+// Normalize keystrokes as the user types: drop anything that isn't allowed (incl. spaces) and cap the
+// length. Keeps the input from ever holding a value that couldn't be registered.
+export function sanitizeNameInput(raw: string): string {
+  return raw.replace(/[^a-zA-Z0-9]/g, '').slice(0, NAME_MAX_LENGTH)
+}
+
+export type NameAvailability = 'available' | 'taken'
+
+// DCLRegistrar on Ethereum — the SAME contract the register hits. Its `available(name)` view is the
+// authoritative availability check (the marketplace webapp reads this contract too). The read is public
+// so it runs straight from the browser (no sign-in). WHICH Ethereum depends on the shop env: prod
+// (config.chainId = Polygon mainnet) → Ethereum mainnet; dev/stg (Amoy) → Sepolia. Availability MUST be
+// checked on the same network the register targets, or a name looks free/taken on the wrong chain.
+const DCL_REGISTRAR_ABI = ['function available(string _subdomain) view returns (bool)']
+const NAME_REGISTRAR = {
+  mainnet: { rpc: 'https://rpc.decentraland.org/mainnet', address: '0x2a187453064356c898cae034eaed119e1663acb8' },
+  sepolia: { rpc: 'https://rpc.decentraland.org/sepolia', address: '0x7518456ae93eb98f3e64571b689c626616bb7f30' }
+}
+function nameRegistrar() {
+  return config.chainId === ChainId.MATIC_MAINNET ? NAME_REGISTRAR.mainnet : NAME_REGISTRAR.sepolia
+}
+
+/**
+ * Authoritative availability check: `DCLRegistrar.available(name)` on Ethereum L1 — the exact gate the
+ * on-chain register enforces, so it never disagrees with what you can actually claim. (The previous
+ * NFT-index probe was fuzzy and reported taken names as available.) `true` → claimable, `false` → taken.
+ */
+export async function checkNameAvailability(
+  name: string,
+  opts: { signal?: AbortSignal } = {}
+): Promise<NameAvailability> {
+  const { rpc, address } = nameRegistrar()
+  const provider = new ethers.providers.JsonRpcProvider(rpc)
+  const registrar = new ethers.Contract(address, DCL_REGISTRAR_ABI, provider)
+  console.info(`[names] availability check → DCLRegistrar(${address}).available("${name}") on ${rpc}`)
+  const isAvailable = (await registrar.available(name)) as boolean
+  // ethers has no AbortSignal, so a stale (superseded) check can still resolve — mimic fetch's abort so
+  // the caller's AbortError guard discards it and only the latest keystroke's result is applied.
+  if (opts.signal?.aborted) throw new DOMException('Aborted', 'AbortError')
+  console.info(`[names] "${name}" available=${isAvailable}`)
+  return isAvailable ? 'available' : 'taken'
+}
+
 // Across public app API base (deposit-status polling). Public value; overridable for tests/local.
 const ACROSS_API_URL = 'https://app.across.to/api'
 
@@ -104,7 +172,7 @@ export async function fetchNameCreditRoute(
   name: string,
   opts: { chainId?: ChainId; provider?: NameRouteProvider } = {}
 ): Promise<NameCreditRoute> {
-  const chainId = opts.chainId ?? ChainId.MATIC_MAINNET
+  const chainId = opts.chainId ?? config.chainId
   const provider = opts.provider ?? 'across'
   const url =
     `${config.creditsServerUrl}/credits-name-route` +
@@ -233,24 +301,36 @@ export async function registerNameWithUsdCredits(opts: {
   acrossPoll?: { intervalMs?: number; maxAttempts?: number }
 }): Promise<NameRegistrationResult> {
   const { name, identity, signer } = opts
-  const chainId = opts.chainId ?? ChainId.MATIC_MAINNET
+  const chainId = opts.chainId ?? config.chainId
   const provider = opts.provider ?? 'across'
   const buyer = (opts.beneficiary ?? (await signer.getAddress())).toLowerCase()
 
   let creditSalt: string | null = null
   let originConfirmed = false
 
+  console.info('[names] register start', { name, buyer, chainId, provider })
   try {
     // 1) Size the USD reservation from the fixed name price at the live oracle rate.
     const rate = await readManaUsdRate(chainId)
     const usdCents = sizeNameUsdCents(rate)
+    console.info('[names] step 1/6 sized reservation', { usdCents, manaRate: rate })
 
     // 2) Fetch the signed cross-chain route (independent of sizing; short-lived quote).
     const route = await fetchNameCreditRoute(identity, name, { chainId, provider })
+    console.info('[names] step 2/6 route fetched', {
+      target: route.externalCall.target,
+      selector: route.externalCall.selector,
+      provider: route.provider,
+      quoteId: route.quoteId
+    })
 
     // 3) Reserve the dollars + get the ephemeral credit (PENDING intent keyed by the credit salt).
     const authorized = await authorizeUsdCredit(identity, usdCents)
     creditSalt = authorized.credit.id
+    console.info('[names] step 3/6 credit authorized', {
+      creditId: authorized.credit.id,
+      maxCreditedValue: authorized.maxCreditedValue
+    })
 
     // Invariant: the credit must cover the 100 MANA name price, or useCredits would try to charge the
     // buyer the shortfall in MANA (which they don't have) and revert. A rare rate swing between our
@@ -270,14 +350,18 @@ export async function registerNameWithUsdCredits(opts: {
       originTxHash = await sendUseCredits(chainId, args, signer)
     }
 
+    console.info('[names] step 4/6 useCredits submitted (Polygon origin tx)', { originTxHash })
+
     // 5) Wait for the origin (Polygon) useCredits tx. Throws SettlementPendingError on timeout (keep
     // the reservation) or Error on revert (safe to release — no credit consumed).
     await waitForSettlement(originTxHash)
     originConfirmed = true
+    console.info('[names] step 5/6 origin tx confirmed', { originTxHash })
 
     // 6) Poll Across for the destination fill + register.
     if (provider === 'across') {
       const across = await pollAcrossNameStatus(originTxHash, opts.acrossPoll)
+      console.info('[names] step 6/6 across status', across)
       if (across.status === 'pending') {
         // Bridge still in flight past our window — the origin tx is confirmed, so the credit is
         // consumed and the reconciler will settle. Report pending; DON'T release.
@@ -294,6 +378,8 @@ export async function registerNameWithUsdCredits(opts: {
     // is confirmed and the reconciler settles; report pending so the caller can track it elsewhere.
     return { status: 'pending', originTxHash }
   } catch (e) {
+    // Surface the RAW error for debugging (the UI only shows the friendly message below).
+    console.error('[names] register failed — raw error:', e, { name, buyer, originConfirmed })
     // Origin tx still in flight → keep the reservation and surface it as pending, not a failure.
     if (e instanceof SettlementPendingError) {
       return { status: 'pending', originTxHash: e.txHash }

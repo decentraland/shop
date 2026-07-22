@@ -69,6 +69,42 @@
   display: block;
   transition: opacity 0.25s ease;
 }
+/* NAME card media (My Assets → Names): typographic @name tile, violet, centered (Figma 696-33957). */
+.card__name-media {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  height: 100%;
+  padding: 8px;
+  color: #a524b3;
+  text-align: center;
+}
+.card__name-at {
+  font-weight: 700;
+  font-size: 36px;
+  line-height: 1;
+}
+/* Owned NAME footer: "@name" + violet verified badge (Figma 696-34036). */
+.card__name--verified {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.card__verified {
+  flex: none;
+}
+.card__name-value {
+  max-width: 100%;
+  font-weight: 700;
+  font-size: 24px;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .card__img--hidden {
   opacity: 0;
 }
@@ -177,6 +213,14 @@
   justify-content: space-between;
   gap: 4px;
 }
+/* NAME card footer hugs its single row (@name + NOT FOR SALE), with a bit more vertical breathing room
+   so it doesn't read as cramped — the @name tile media still gets the extra height. */
+.card__body--name {
+  flex: 0 0 auto;
+  height: auto;
+  padding-top: 14px;
+  padding-bottom: 14px;
+}
 /* Title+author column on the left, price on the right, top-aligned (the price lines up with the
    title, not the vertical centre of the two-line block). */
 .card__top {
@@ -213,6 +257,12 @@
    elsewhere: cart, collection, item detail). */
 .card__creator [data-avatar] {
   display: none;
+}
+/* Owned-copy mint index (e.g. "#5013") shown in the creator slot on manage cards — a subtle,
+   tabular-number tag so the digits align and identical copies are easy to tell apart. */
+.card__issued {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.2px;
 }
 /* Price never shrinks or wraps — the name yields space to it, not the reverse. */
 .card__price {
@@ -367,6 +417,47 @@
 .card__view .ico {
   width: 20px;
   height: 20px;
+}
+
+/* ---------------- Manage card (My Assets — owner list / unlist control) ---------------- */
+/* Full-width action on an owned/created card: "List for sale" (dark) or "Remove from sale" (ghost).
+   ALWAYS visible (like .card__view) but — unlike .card__view — it carries a real click handler, so it
+   must sit ABOVE the whole-card overlay link (z-index 3): z-index 4 keeps it independently clickable. */
+.card__manage {
+  position: relative;
+  z-index: 4;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 0;
+  border-radius: var(--radius-btn);
+  height: 40px;
+  font-weight: 600;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.046em;
+  cursor: pointer;
+  background: var(--black-btn);
+  color: var(--soft-white);
+  transition: background 0.15s ease;
+}
+.card__manage:hover:not(:disabled) {
+  background: #43404a;
+}
+.card__manage:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+/* Ghost variant for "Remove from sale" — a lighter, secondary treatment vs. the dark "List". */
+.card__manage--ghost {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--line-strong);
+}
+.card__manage--ghost:hover:not(:disabled) {
+  background: var(--media);
 }
 
 /* ---------------- Flash sale (time-boxed discounted listing — see lib/sale.ts) ---------------- */

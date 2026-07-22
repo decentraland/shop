@@ -1,1 +1,1 @@
-export { Filters, type FilterStatus } from './Filters'
+export { Filters, FilterSection, type FilterStatus } from './Filters'

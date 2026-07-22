@@ -55,6 +55,7 @@
     "shopAll": "Ver todo",
     "wearables": "Wearables",
     "emotes": "Emotes",
+    "names": "NAMEs",
     "collections": "Colecciones",
     "head": "Cabeza",
     "upperBody": "Torso",
@@ -373,14 +374,26 @@
     "viewItem": "Ver {name}",
     "onSale": "A la venta",
     "removing": "Quitando…",
-    "removeListing": "Quitar publicación",
+    "removeListing": "Quitar de la venta",
     "putOnSale": "Poner a la venta",
-    "ownedEmpty": "Todavía no tienes artículos en tu armario.",
+    "ownedEmpty": "Los artículos que tengas aparecerán acá. Explorá la tienda y armá tu colección.",
+    "namesEmpty": "Reclamá un NAME único para destacarte en Decentraland — va a aparecer acá cuando sea tuyo.",
+    "emptyOwnedTitle": "Todavía no hay nada acá",
+    "emptyNamesTitle": "Todavía no tenés NAMEs",
+    "emptyCreationsTitle": "Todavía no hay creaciones",
+    "emptyBrowse": "Ver coleccionables",
     "creationsTitle": "Tus creaciones",
     "creationsSub": "Artículos que creaste. Ponlos a la venta en la tienda: fija un precio en {currency} y los compradores pagan con {currency}.",
     "collectionsError": "No pudimos cargar tus colecciones en este momento. Inténtalo de nuevo en un momento.",
     "nothingToPublish": "Todavía no tienes artículos para publicar.",
-    "available": "{count, plural, one {# disponible} other {# disponibles}}"
+    "available": "{count, plural, one {# disponible} other {# disponibles}}",
+    "assetsHeading": "Activos",
+    "sectionWearables": "Wearables",
+    "sectionEmotes": "Emotes",
+    "sectionNames": "Nombres",
+    "sectionCreations": "Mis creaciones",
+    "searchPlaceholder": "Busca tus artículos",
+    "clearSearch": "Borrar búsqueda"
   },
   "myPurchases": {
     "processing": "Procesando",
@@ -390,7 +403,9 @@
     "signInBody": "Tu historial de pedidos aparecerá aquí cuando inicies sesión.",
     "emptyTitle": "Aún no tienes compras",
     "emptyBody": "Cuando compres algo, aparecerá aquí.",
-    "orderCount": "{count, plural, one {# pedido} other {# pedidos}}"
+    "orderCount": "{count, plural, one {# pedido} other {# pedidos}}",
+    "itemCount": "{count, plural, one {# artículo} other {# artículos}}",
+    "quantity": "×{count}"
   },
   "myFavorites": {
     "emptyTitle": "Aún no tienes favoritos",
@@ -624,6 +639,46 @@
     "male": "Masculino",
     "female": "Femenino"
   },
+  "names": {
+    "breadcrumbAria": "Ruta de navegación",
+    "breadcrumbCollectibles": "Coleccionables",
+    "breadcrumbCurrent": "NAMEs",
+    "heroTitle": "¡Consigue tu NAME único!",
+    "heroSubtitle": "Activa todo el potencial de la ciudadanía de Decentraland con un NAME único y tu propio World.",
+    "inputPlaceholder": "tunombre",
+    "inputAria": "Busca un NAME",
+    "suffix": ".dcl.eth",
+    "claim": "Reclamar NAME",
+    "checking": "Comprobando disponibilidad…",
+    "available": "¡{name} está disponible!",
+    "taken": "Este NAME ya está en uso. Elegí otro o hacele una oferta al dueño.",
+    "takenMakeOffer": "Hacer oferta",
+    "tooShort": "Los NAMEs deben tener al menos {min} caracteres.",
+    "checkError": "No pudimos comprobar ese NAME ahora mismo; aún puedes intentar reclamarlo.",
+    "whyTitle": "¿Por qué comprar un NAME?",
+    "why1": "Destaca con un alias único para tu avatar",
+    "why2": "Desbloquea tu World y personaliza tu propio espacio 3D para organizar eventos",
+    "why2Link": "Más información",
+    "why3": "Una URL exclusiva para tus espacios virtuales que guía a los visitantes hasta tu LAND",
+    "why3Link": "http://tunombre.dcl.eth",
+    "buyTitle": "Comprar NAME",
+    "myCreditsBalance": "Mi saldo de créditos:",
+    "subtitle": "Decentraland NAMEs",
+    "confirmTitle": "Confirma tu NAME",
+    "confirmBody": "Has elegido {name}. Vuelve a escribir el NAME para confirmar tu selección y continuar con la compra.",
+    "reenterAria": "Vuelve a escribir el NAME para confirmar",
+    "buyCta": "Comprar NAME",
+    "completing": "Completando tu compra…",
+    "confirming": "Confirma para continuar…",
+    "successHeaderTitle": "¡Compra completada!",
+    "successBannerBold": "¡Tu compra se realizó con éxito!",
+    "successBannerRest": "Puedes encontrar tu NAME en la pestaña Mis artículos.",
+    "myItems": "Mis artículos",
+    "assignToAvatar": "Asignar NAME al avatar",
+    "errorTitle": "Algo salió mal",
+    "errorGeneric": "No pudimos completar tu compra. Inténtalo de nuevo.",
+    "tryAgain": "Reintentar"
+  },
   "seo": {
     "collectibles": {
       "title": "Explorar coleccionables",
@@ -651,6 +706,10 @@
     },
     "notFound": {
       "title": "Página no encontrada"
+    },
+    "names": {
+      "title": "Consigue un NAME de Decentraland",
+      "description": "Reclama tu NAME único de Decentraland con créditos: un alias personal para tu avatar y tu propio World."
     }
   }
 }

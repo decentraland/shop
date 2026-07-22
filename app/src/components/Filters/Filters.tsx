@@ -27,7 +27,8 @@ function subCategoryLabel(key: string): string {
   return key
 }
 
-function FilterSection({
+// Exported so other sidebars (e.g. My Assets) render IDENTICAL collapsible filter groups.
+export function FilterSection({
   title,
   open,
   onToggle,

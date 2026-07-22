@@ -20,11 +20,10 @@ describe('owner management on the item detail page', () => {
     })
     const { page } = app
 
-    await waitForText(page, 'Items you own')
     await waitForText(page, 'Galaxy Hat #42')
 
-    // Open the owned card's detail page (the whole-card overlay button; icon-only, matched by aria).
-    expect(await clickByAria(page, /view galaxy hat #42/i)).toBe(true)
+    // Open the owned card's detail page (the whole-card link is aria-labelled with the item name).
+    expect(await clickByAria(page, /galaxy hat #42/i)).toBe(true)
 
     // On the detail page the management actions render instead of Buy now / Add to cart: a listed item
     // you own offers "Update price" + "Remove from sale".

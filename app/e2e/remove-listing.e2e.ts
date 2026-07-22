@@ -20,13 +20,13 @@ describe('remove (cancel) a listing', () => {
     })
     const { page } = app
 
-    // Session restored (else My Assets shows a sign-in prompt) + the on-sale card shows.
-    await waitForText(page, 'Items you own')
-    await waitForText(page, 'Galaxy Hat #42')
-    await waitForText(page, 'On sale')
+    // Redesigned My Assets: no "Items you own" heading. The owned wearables grid is the default
+    // section; the already-on-sale card renders a "Remove from sale" control (proving it's listed).
+    await waitForText(page, 'Galaxy Hat')
+    await waitForText(page, 'Remove from sale')
 
     // Take it down.
-    expect(await clickByText(page, 'button', /remove listing/i)).toBe(true)
+    expect(await clickByText(page, 'button', /remove from sale/i)).toBe(true)
 
     // Success toast — and no error surfaced (the encode/tx succeeded).
     await waitForText(page, 'no longer for sale')

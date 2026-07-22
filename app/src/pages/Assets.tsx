@@ -19,6 +19,7 @@ import { capitalizeFirst } from '~/lib/text'
 import { track } from '~/lib/analytics'
 import { t } from '~/intl/i18n'
 import { ErrorNotice } from '~/components/ErrorNotice'
+import { NamesPage } from '~/pages/NamesPage'
 import * as S from './Assets.styles'
 
 // Items fetched per page (infinite scroll pages by cumulative offset — see useInfiniteGrid).
@@ -133,7 +134,9 @@ export function Assets() {
       skip =>
         isUnified
           ? fetchUnified({ ...filters, first: PAGE_SIZE, skip })
-          : fetchCatalogItems({ ...catalogFilters, first: PAGE_SIZE, skip })
+          : fetchCatalogItems({ ...catalogFilters, first: PAGE_SIZE, skip }),
+      // NAMEs isn't a grid category — don't fire a bogus catalog fetch when it's selected.
+      { enabled: category !== 'names' }
     )
   const resultCount = total
 
@@ -235,94 +238,113 @@ export function Assets() {
 
   return (
     <S.Root data-testid="browse">
-      {filtersOpen ? <S.Scrim onClick={() => setFiltersOpen(false)} aria-hidden /> : null}
-      <S.Sidebar className={filtersOpen ? 'is-open' : ''} data-testid="browse-sidebar">
-        <S.DrawerHead>
-          <S.DrawerTitle>{t('assets.filters')}</S.DrawerTitle>
-          <S.CloseBtn onClick={() => setFiltersOpen(false)} aria-label={t('assets.closeFilters')}>
-            ✕
-          </S.CloseBtn>
-        </S.DrawerHead>
+      {/* NAMEs is a full-width page (Figma 1368-353269) — no filter sidebar; the breadcrumb returns
+          to the grid. Every other category shows the collectibles filter sidebar. */}
+      {category !== 'names' && (
+        <>
+          {filtersOpen ? <S.Scrim onClick={() => setFiltersOpen(false)} aria-hidden /> : null}
+          <S.Sidebar className={filtersOpen ? 'is-open' : ''} data-testid="browse-sidebar">
+            <S.DrawerHead>
+              <S.DrawerTitle>{t('assets.filters')}</S.DrawerTitle>
+              <S.CloseBtn onClick={() => setFiltersOpen(false)} aria-label={t('assets.closeFilters')}>
+                ✕
+              </S.CloseBtn>
+            </S.DrawerHead>
 
-        <S.SidebarScroll>
-          <Filters
-            category={category}
-            subCategory={subCategory}
-            onCategory={pickCategory}
-            onSub={setSubCategory}
-            priceMin={priceMin}
-            priceMax={priceMax}
-            onPriceMin={setPriceMin}
-            onPriceMax={setPriceMax}
-            rarities={rarities}
-            onToggleRarity={toggleRarity}
-            status={status}
-            onStatus={setStatus}
-            smart={smart}
-            onSmart={setSmart}
-          />
-        </S.SidebarScroll>
+            <S.SidebarScroll>
+              <Filters
+                category={category}
+                subCategory={subCategory}
+                onCategory={pickCategory}
+                onSub={setSubCategory}
+                priceMin={priceMin}
+                priceMax={priceMax}
+                onPriceMin={setPriceMin}
+                onPriceMax={setPriceMax}
+                rarities={rarities}
+                onToggleRarity={toggleRarity}
+                status={status}
+                onStatus={setStatus}
+                smart={smart}
+                onSmart={setSmart}
+              />
+            </S.SidebarScroll>
 
-        {/* Bottom action bar (Figma node 1304-308322) — mobile only. Filters apply live, so this
+            {/* Bottom action bar (Figma node 1304-308322) — mobile only. Filters apply live, so this
             simply dismisses the sheet. */}
-        <S.DrawerFoot>
-          <S.ShowItems type="button" onClick={() => setFiltersOpen(false)}>
-            {t('assets.showItems')}
-          </S.ShowItems>
-        </S.DrawerFoot>
-      </S.Sidebar>
+            <S.DrawerFoot>
+              <S.ShowItems type="button" onClick={() => setFiltersOpen(false)}>
+                {t('assets.showItems')}
+              </S.ShowItems>
+            </S.DrawerFoot>
+          </S.Sidebar>
+        </>
+      )}
 
       <S.Main>
-        <FilterBar
-          sort={sort}
-          onSort={setSort}
-          total={total}
-          loading={isLoading || isPlaceholderData}
-          query={q}
-          onOpenFilters={() => setFiltersOpen(true)}
-          chips={chips}
-          onClearChips={clearFilters}
-        />
+        {category === 'names' ? (
+          // NAMEs is not a grid: full-width purchase page (no sidebar), back via the breadcrumb.
+          <NamesPage onBack={() => pickCategory('wearable')} />
+        ) : (
+          <>
+            <FilterBar
+              sort={sort}
+              onSort={setSort}
+              total={total}
+              loading={isLoading || isPlaceholderData}
+              query={q}
+              onOpenFilters={() => setFiltersOpen(true)}
+              chips={chips}
+              onClearChips={clearFilters}
+            />
 
-        {/* Legacy (market-priced) cards follow the live rate; if the oracle is down, Buy Now is paused.
+            {/* Legacy (market-priced) cards follow the live rate; if the oracle is down, Buy Now is paused.
             Only warn when the current results actually contain a market-priced item, so users browsing
             only fixed-price items aren't shown an irrelevant notice. */}
-        {rateError && isUnified && items.some(i => (i as UnifiedListing).source === 'legacy') ? (
-          <p className="market-banner market-banner--warn">{t('assets.marketUnavailable')}</p>
-        ) : null}
+            {rateError && isUnified && items.some(i => (i as UnifiedListing).source === 'legacy') ? (
+              <p className="market-banner market-banner--warn">{t('assets.marketUnavailable')}</p>
+            ) : null}
 
-        {error ? <ErrorNotice message={t('assets.loadError')} testId="browse-error" /> : null}
+            {error ? <ErrorNotice message={t('assets.loadError')} testId="browse-error" /> : null}
 
-        <div className="grid" data-testid="grid">
-          {showGridSkeletons ? (
-            <SkeletonCards count={gridSkeletonCount} />
-          ) : (
-            <>
-              {items.map(item => {
-                // View-only grids ('all' / 'not_for_sale'): every card is a VIEW card (no inline trade).
-                if (!isUnified) return <AssetCard key={listingKey(item)} item={item} mode="view" />
-                // On-sale unified grid: legacy rows → market (≈ + Buy now), native → Add-to-cart.
-                const unified = item as UnifiedListing
-                return unified.source === 'legacy' ? (
-                  <AssetCard
-                    key={listingKey(item)}
-                    item={unified}
-                    mode="market"
-                    marketPriceCredits={priceOf(unified)}
-                    onBuyNow={openCheckout}
-                  />
-                ) : (
-                  <AssetCard key={listingKey(item)} item={item} />
-                )
-              })}
-              {isFetchingNextPage ? <SkeletonCards count={6} /> : null}
-            </>
-          )}
-        </div>
+            <div className="grid" data-testid="grid">
+              {showGridSkeletons ? (
+                <SkeletonCards count={gridSkeletonCount} />
+              ) : (
+                <>
+                  {items.map(item => {
+                    // View-only grids ('all' / 'not_for_sale'): every card is a VIEW card (no inline trade).
+                    if (!isUnified) return <AssetCard key={listingKey(item)} item={item} mode="view" />
+                    // On-sale unified grid: legacy rows → market (≈ + Buy now), native → Add-to-cart.
+                    const unified = item as UnifiedListing
+                    return unified.source === 'legacy' ? (
+                      <AssetCard
+                        key={listingKey(item)}
+                        item={unified}
+                        mode="market"
+                        marketPriceCredits={priceOf(unified)}
+                        onBuyNow={openCheckout}
+                      />
+                    ) : (
+                      <AssetCard key={listingKey(item)} item={item} />
+                    )
+                  })}
+                  {isFetchingNextPage ? <SkeletonCards count={6} /> : null}
+                </>
+              )}
+            </div>
 
-        <LoadMore hasNextPage={hasNextPage} isFetching={isFetchingNextPage} onLoadMore={() => void fetchNextPage()} />
+            <LoadMore
+              hasNextPage={hasNextPage}
+              isFetching={isFetchingNextPage}
+              onLoadMore={() => void fetchNextPage()}
+            />
 
-        {!isLoading && !isPlaceholderData && items.length === 0 ? <p className="muted">{t('assets.noItems')}</p> : null}
+            {!isLoading && !isPlaceholderData && items.length === 0 ? (
+              <p className="muted">{t('assets.noItems')}</p>
+            ) : null}
+          </>
+        )}
       </S.Main>
 
       {checkout && rate ? (

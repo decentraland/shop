@@ -10,13 +10,18 @@ afterEach(async () => {
 
 describe('publish a created item (primary)', () => {
   it('lists a creation for sale in the Shop', async () => {
-    // No importable listings → no banner; a published collection item is available under "Your creations".
+    // No importable listings → no banner; a published collection item is available under "My Creations".
     app = await launchApp({ path: '/my-assets', fixtures: { importable: { data: [] } } })
     const { page } = app
 
-    // Session restored (else My Assets shows a sign-in prompt) + the creation shows.
-    await waitForText(page, 'Your creations')
+    // Redesigned My Assets: creations no longer have a "Your creations" heading — they live behind the
+    // sidebar "My Creations" section. Land on the owned grid, then switch sections.
     await waitForText(page, 'Galaxy Hat')
+    expect(await clickByText(page, 'button', /my creations/i)).toBe(true)
+
+    // The creation (builder feed) shows in the Creations grid.
+    await waitForText(page, 'Galaxy Hat')
+    await waitForText(page, 'Put on sale')
 
     // Open the publish modal.
     expect(await clickByText(page, 'button', /put on sale/i)).toBe(true)

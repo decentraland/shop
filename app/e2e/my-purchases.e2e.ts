@@ -3,9 +3,10 @@ import { launchApp, type App } from './helpers/app'
 import { waitForText } from './helpers/dom'
 import { purchasesResponse } from './fixtures'
 
-// My Purchases: renders the buyer's purchase history from GET /users/:addr/purchases. The fixture has
-// one SETTLED + one PENDING + one EXPIRED row; EXPIRED is filtered out, so exactly two rows render
-// with their status badges + credit amounts.
+// My Purchases: renders the buyer's purchase history from GET /users/:addr/purchases, grouped into one
+// order card per checkout. The fixture has one SETTLED + one PENDING + one EXPIRED row; EXPIRED is
+// filtered out, and the SETTLED / PENDING rows are distinct orders (different status), so exactly two
+// order cards render with their status pills + credit totals.
 
 let app: App | undefined
 afterEach(async () => {
@@ -14,23 +15,23 @@ afterEach(async () => {
 })
 
 describe('my purchases', () => {
-  it('renders the purchase rows with status badges and credit amounts', async () => {
+  it('renders the order cards with status pills and credit amounts', async () => {
     app = await launchApp({ path: '/my-purchases', fixtures: { purchases: purchasesResponse } })
     const { page } = app
 
     await waitForText(page, 'My Purchases')
 
-    // Two visible rows (the EXPIRED one is filtered out).
-    await page.waitForSelector('.purchase:not(.purchase--skeleton)', { timeout: 20000 })
+    // Two order cards (the EXPIRED one is filtered out).
+    await page.waitForSelector('[data-testid="purchase-order"]', { timeout: 20000 })
     await page.waitForFunction(
-      () => document.querySelectorAll('.purchase:not(.purchase--skeleton)').length === 2,
+      () => document.querySelectorAll('[data-testid="purchase-order"]').length === 2,
       { timeout: 20000 }
     )
     expect(
-      await page.evaluate(() => document.querySelectorAll('.purchase:not(.purchase--skeleton)').length)
+      await page.evaluate(() => document.querySelectorAll('[data-testid="purchase-order"]').length)
     ).toBe(2)
 
-    // Order count reflects the two visible rows.
+    // Order count reflects the two order cards.
     await waitForText(page, '2 orders')
 
     // Status badges: the SETTLED row shows "Completed", the PENDING row shows "Processing".
