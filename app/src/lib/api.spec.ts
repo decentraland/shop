@@ -37,7 +37,7 @@ import {
   fetchTradeDisplay,
   fetchTradeForItem,
   fetchItemResales,
-  fetchLegacyItemOrders,
+  fetchClassicItemOrders,
   resolveLiveTrade,
   TradeNotFoundError,
   postTrade
@@ -890,30 +890,37 @@ describe('when resolving an item to its live trade', () => {
 })
 
 describe('when fetching the open resales for an item', () => {
-  it('should keep only secondary listings with a tokenId, sorted cheapest-first', async () => {
+  it('should keep only secondary rows carrying a tradeId (native + legacy), cheapest-first', async () => {
     fetchMock.mockResolvedValueOnce(
       jsonOk({
         total: 4,
         data: [
-          { tradeId: 't-sec-2', listingType: 'secondary', tokenId: '20', name: 'Hat', thumbnail: 'b.png', priceCredits: 25 },
-          { tradeId: 't-prim', listingType: 'primary', itemId: '9', tokenId: null, priceCredits: 5 },
-          { tradeId: 't-sec-1', listingType: 'secondary', tokenId: '10', name: 'Hat', thumbnail: 'a.png', priceCredits: 12 },
-          { tradeId: 't-sec-none', listingType: 'secondary', tokenId: null, priceCredits: 1 }
+          // native secondary, more expensive
+          { source: 'native', tradeId: 't-native', tokenId: '20', priceCredits: 25, manaWei: null },
+          // primary (no tokenId) → dropped
+          { source: 'native', tradeId: 't-prim', itemId: '9', tokenId: null, priceCredits: 5 },
+          // legacy secondary, cheaper → sorts first
+          { source: 'legacy', tradeId: 't-legacy', tokenId: '10', priceCredits: 12, manaWei: '5000000000000000000' },
+          // secondary with no tradeId (classic on-chain leaking in) → dropped
+          { source: 'native', tokenId: '30', priceCredits: 1 }
         ]
       })
     )
     const resales = await fetchItemResales('0xc', '9')
-    expect(resales).toEqual([
-      { tradeId: 't-sec-1', tokenId: '10', priceCredits: 12, image: 'a.png', name: 'Hat' },
-      { tradeId: 't-sec-2', tokenId: '20', priceCredits: 25, image: 'b.png', name: 'Hat' }
+    expect(resales.map(r => ({ id: r.id, tokenId: r.tokenId, source: r.source, priceCredits: r.priceCredits }))).toEqual([
+      { id: 't-legacy', tokenId: '10', source: 'legacy', priceCredits: 12 },
+      { id: 't-native', tokenId: '20', source: 'native', priceCredits: 25 }
     ])
+    // native rows carry no manaWei; legacy rows do.
+    expect(resales.find(r => r.source === 'native')?.manaWei).toBeNull()
+    expect(resales.find(r => r.source === 'legacy')?.manaWei).toBe('5000000000000000000')
   })
 
-  it('should query the v3 shop feed by contract + item, cheapest-first', async () => {
+  it('should query the v3 UNIFIED feed by contract + item, cheapest-first', async () => {
     fetchMock.mockResolvedValueOnce(jsonOk({ data: [] }))
     await fetchItemResales('0xC0', '7')
     const url = lastUrl()
-    expect(url).toContain('https://market.test/v3/catalog/shop?')
+    expect(url).toContain('https://market.test/v3/catalog/unified?')
     expect(url).toContain('contractAddress=0xC0')
     expect(url).toContain('itemId=7')
     expect(url).toContain('sortBy=cheapest')
@@ -924,37 +931,32 @@ describe('when fetching the open resales for an item', () => {
     expect(await fetchItemResales('0xc', '9')).toEqual([])
   })
 
-  it('should propagate the shop-feed error', async () => {
+  it('should propagate the unified-feed error', async () => {
     fetchMock.mockResolvedValueOnce(httpError(500))
-    await expect(fetchItemResales('0xc', '9')).rejects.toThrow('fetchShopListings 500')
+    await expect(fetchItemResales('0xc', '9')).rejects.toThrow('fetchUnified 500')
   })
 })
 
-describe('when fetching the classic (legacy MANA) orders for an item', () => {
-  it('should map each order to its token, mana price, issued number and seller', async () => {
+describe('when fetching the classic on-chain orders for an item', () => {
+  it('should keep only tradeId-less (classic on-chain) orders and drop off-chain trades', async () => {
     fetchMock.mockResolvedValueOnce(
       jsonOk({
-        total: 1,
+        total: 2,
         data: [
-          {
-            tokenId: '42',
-            issuedId: '7',
-            price: '1000000000000000000',
-            owner: '0xseller',
-            contractAddress: '0xc'
-          }
+          // off-chain trade (has a tradeId) → buyable elsewhere, dropped here
+          { tokenId: '99', issuedId: '3', owner: '0xa', contractAddress: '0xc', tradeId: 'tr-1' },
+          // classic on-chain order (no tradeId) → kept
+          { tokenId: '42', issuedId: '7', owner: '0xseller', contractAddress: '0xc' }
         ]
       })
     )
-    const orders = await fetchLegacyItemOrders('0xc', '9')
-    expect(orders).toEqual([
-      { tokenId: '42', issuedId: '7', manaWei: '1000000000000000000', seller: '0xseller', contractAddress: '0xc' }
-    ])
+    const orders = await fetchClassicItemOrders('0xc', '9')
+    expect(orders).toEqual([{ tokenId: '42', issuedId: '7', seller: '0xseller', contractAddress: '0xc' }])
   })
 
   it('should hit /v1/orders filtered to open + cheapest', async () => {
     fetchMock.mockResolvedValueOnce(jsonOk({ data: [] }))
-    await fetchLegacyItemOrders('0xC0', '7')
+    await fetchClassicItemOrders('0xC0', '7')
     const url = lastUrl()
     expect(url).toContain('https://market.test/v1/orders?')
     expect(url).toContain('contractAddress=0xC0')
@@ -965,11 +967,11 @@ describe('when fetching the classic (legacy MANA) orders for an item', () => {
 
   it('should return an empty array when the item has no classic orders', async () => {
     fetchMock.mockResolvedValueOnce(jsonOk({ data: [] }))
-    expect(await fetchLegacyItemOrders('0xc', '9')).toEqual([])
+    expect(await fetchClassicItemOrders('0xc', '9')).toEqual([])
   })
 
   it('should throw when the orders request fails', async () => {
     fetchMock.mockResolvedValueOnce(httpError(503))
-    await expect(fetchLegacyItemOrders('0xc', '9')).rejects.toThrow('fetchLegacyItemOrders 503')
+    await expect(fetchClassicItemOrders('0xc', '9')).rejects.toThrow('fetchClassicItemOrders 503')
   })
 })

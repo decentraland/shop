@@ -120,6 +120,10 @@
 .resales__legacy {
   margin-top: 24px;
 }
+/* Classic-section rows carry no price element, so push the outbound link to the right edge. */
+.resales__legacy .resales__actions {
+  margin-left: auto;
+}
 .resales__legacy-head {
   display: flex;
   flex-direction: column;
