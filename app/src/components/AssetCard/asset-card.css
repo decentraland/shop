@@ -213,11 +213,13 @@
   justify-content: space-between;
   gap: 4px;
 }
-/* NAME card footer hugs its single row (@name + NOT FOR SALE) — no big empty gap, so the @name tile
-   media gets the extra height. */
+/* NAME card footer hugs its single row (@name + NOT FOR SALE), with a bit more vertical breathing room
+   so it doesn't read as cramped — the @name tile media still gets the extra height. */
 .card__body--name {
   flex: 0 0 auto;
   height: auto;
+  padding-top: 14px;
+  padding-bottom: 14px;
 }
 /* Title+author column on the left, price on the right, top-aligned (the price lines up with the
    title, not the vertical centre of the two-line block). */
