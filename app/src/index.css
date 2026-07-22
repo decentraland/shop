@@ -775,6 +775,14 @@ h2 {
   .card__top {
     display: contents;
   }
+  /* NAME cards have no price/round-add split the wearable grid is built for — keep them a simple stacked
+     column (@name, NOT FOR SALE, then the MANAGE affordance) so the mobile layout stays tidy. */
+  .card__body--name {
+    display: flex;
+  }
+  .card__body--name .card__top {
+    display: flex;
+  }
   .card__desc {
     grid-area: desc;
     min-width: 0;

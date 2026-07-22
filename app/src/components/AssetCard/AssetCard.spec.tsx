@@ -228,3 +228,50 @@ describe('AssetCard view-only mode', () => {
     expect(state.market).toBeUndefined()
   })
 })
+
+describe('AssetCard manage-link mode (owned My Assets card)', () => {
+  it('navigates to the item detail (management view) when MANAGE is clicked on an owned wearable/emote', () => {
+    // A held token carries a tokenId — the MANAGE cta opens /item/:contract/:tokenId with the item seeded.
+    const item = makeItem({ contractAddress: '0xc', tokenId: '9', itemId: null })
+    const { container } = render(
+      <MemoryRouter initialEntries={['/my-assets']}>
+        <Routes>
+          <Route path="/my-assets" element={<AssetCard item={item} mode="manage-link" />} />
+          <Route path="/item/:contractAddress/:seg" element={<LocationProbe />} />
+        </Routes>
+      </MemoryRouter>
+    )
+    const manage = container.querySelector('[data-testid="card-manage"]') as HTMLButtonElement
+    expect(manage.textContent).toMatch(/manage/i)
+    fireEvent.click(manage)
+    const state = JSON.parse(screen.getByTestId('loc-state').textContent || '{}')
+    expect(state.item?.id).toBe(item.id)
+  })
+
+  it('renders an external Builder link (new tab) as the MANAGE cta for an owned NAME', () => {
+    const item = makeItem({ category: 'ens', name: 'CoolName', contractAddress: '0xreg', tokenId: '5' })
+    const { container } = render(
+      <MemoryRouter>
+        <AssetCard
+          item={item}
+          mode="manage-link"
+          manageHref="https://decentraland.zone/builder/names/CoolName"
+        />
+      </MemoryRouter>
+    )
+    const manage = container.querySelector('[data-testid="card-manage"]') as HTMLAnchorElement
+    expect(manage.tagName).toBe('A')
+    expect(manage.getAttribute('href')).toBe('https://decentraland.zone/builder/names/CoolName')
+    expect(manage.getAttribute('target')).toBe('_blank')
+    expect(manage.getAttribute('rel')).toContain('noopener')
+    // The whole card is an external link to the same Builder page (keyboard-reachable + tappable on
+    // mobile, where the MANAGE pill is hidden) — a NAME has no in-app detail page.
+    const link = container.querySelector('[data-testid="card-link"]') as HTMLAnchorElement
+    expect(link.tagName).toBe('A')
+    expect(link.getAttribute('href')).toBe('https://decentraland.zone/builder/names/CoolName')
+    expect(link.getAttribute('target')).toBe('_blank')
+    expect(link.getAttribute('rel')).toContain('noopener')
+    // A NAME can't be favourited in the shop.
+    expect(container.querySelector('[data-testid="card-fav"]')).toBeNull()
+  })
+})

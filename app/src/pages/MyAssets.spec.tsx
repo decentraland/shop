@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, within, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 const session = {
@@ -76,6 +76,27 @@ function renderPage() {
     <QueryClientProvider client={client}>
       <MemoryRouter>
         <MyAssets />
+      </MemoryRouter>
+    </QueryClientProvider>
+  )
+}
+
+// Reads the pathname of wherever the router lands — lets a test assert that MANAGE navigated to the
+// item detail route for the right token.
+function DetailProbe() {
+  const loc = useLocation()
+  return <div data-testid="detail-path">{loc.pathname}</div>
+}
+
+function renderPageWithRoutes() {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter initialEntries={['/my-assets']}>
+        <Routes>
+          <Route path="/my-assets" element={<MyAssets />} />
+          <Route path="/item/:contractAddress/:tokenId" element={<DetailProbe />} />
+        </Routes>
       </MemoryRouter>
     </QueryClientProvider>
   )
@@ -159,57 +180,45 @@ describe('when the Rarity filter changes', () => {
   })
 })
 
-describe('when a connected user lists an owned asset', () => {
-  beforeEach(() => {
-    ensureApproval.mockResolvedValue(undefined)
-    createUsdPeggedListing.mockResolvedValue({ signer: session.address, signature: '0xsig', type: 'public_nft_order' })
-    postTrade.mockResolvedValue({ id: 'trade-1' })
-  })
-
-  it('should approve, sign a USD-pegged listing and publish it via the SellModal', async () => {
-    const user = userEvent.setup()
+describe('when a connected user manages an owned asset', () => {
+  it('should show a MANAGE cta on the owned card and no inline put-on-sale control', async () => {
     renderPage()
 
-    await user.click(await screen.findByRole('button', { name: /put on sale/i }))
+    const manage = await screen.findByTestId('card-manage')
+    expect(manage.textContent).toMatch(/manage/i)
+    // The inline SellModal entry point is gone — listing now happens on the item detail page.
+    expect(screen.queryByRole('button', { name: /put on sale/i })).not.toBeInTheDocument()
+    expect(screen.queryByTestId('card-unlist')).not.toBeInTheDocument()
+  })
 
-    const dialog = await screen.findByRole('dialog')
-    const price = within(dialog).getByLabelText(/price/i)
-    await user.clear(price)
-    await user.type(price, '50') // 50 whole credits = $5.00
-    await user.click(within(dialog).getByRole('button', { name: /put on sale/i }))
+  it('should navigate to the item detail page for that token when MANAGE is clicked (no inline dialog)', async () => {
+    const user = userEvent.setup()
+    renderPageWithRoutes()
 
-    expect(await within(dialog).findByText(/on sale!/i)).toBeInTheDocument()
-    expect(ensureApproval).toHaveBeenCalledTimes(1)
-    expect(createUsdPeggedListing).toHaveBeenCalledWith(
-      expect.objectContaining({
-        usdPrice: 5,
-        nft: expect.objectContaining({ contractAddress: '0xcollection', tokenId: '1', chainId: 80002 })
-      })
-    )
-    expect(postTrade).toHaveBeenCalledWith(expect.objectContaining({ type: 'public_nft_order' }), session.identity)
+    await user.click(await screen.findByTestId('card-manage'))
+
+    // Landed on the item detail route for THIS exact token (contractAddress/tokenId)…
+    expect(await screen.findByTestId('detail-path')).toHaveTextContent('/item/0xcollection/1')
+    // …and no sell dialog was opened from My Assets.
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 })
 
 describe('when an owned asset is already on sale', () => {
-  it('should offer a remove-from-sale control that cancels the listing', async () => {
-    const user = userEvent.setup()
+  it('should still expose only a MANAGE cta (removal now lives on the detail page)', async () => {
     fetchMyAssets.mockResolvedValue({
       assets: [wearable({ isOnSale: true, listingPrice: 30, tradeId: 'trade-9' })],
       total: 1
     })
-    fetchTrade.mockResolvedValue({ id: 'trade-9' })
-    cancelListing.mockResolvedValue(undefined)
     renderPage()
 
-    await user.click(await screen.findByTestId('card-unlist'))
-
-    await waitFor(() => expect(fetchTrade).toHaveBeenCalledWith('trade-9'))
-    expect(cancelListing).toHaveBeenCalledTimes(1)
+    expect(await screen.findByTestId('card-manage')).toBeInTheDocument()
+    expect(screen.queryByTestId('card-unlist')).not.toBeInTheDocument()
   })
 })
 
 describe('when the owner holds multiple copies of the same item', () => {
-  it('should render one manageable card per token, each tagged with its own issued number', async () => {
+  it('should render one MANAGE card per token, each tagged with its own issued number', async () => {
     // Same item (itemId 7), two distinct tokens the wallet owns — the NFT endpoint returns a row per
     // token, so the grid must render TWO cards, not collapse them into one.
     fetchMyAssets.mockResolvedValue({
@@ -223,75 +232,32 @@ describe('when the owner holds multiple copies of the same item', () => {
 
     await screen.findAllByText('Cool Hat')
     expect(screen.getAllByTestId('card')).toHaveLength(2)
-    // Both copies are individually listable and told apart by their mint index.
-    expect(screen.getAllByTestId('card-list')).toHaveLength(2)
+    // Each copy has its own MANAGE cta and is told apart by its mint index.
+    expect(screen.getAllByTestId('card-manage')).toHaveLength(2)
     expect(screen.getByText('#11')).toBeInTheDocument()
     expect(screen.getByText('#412')).toBeInTheDocument()
   })
 })
 
-describe('when the owner lists one of several copies', () => {
-  beforeEach(() => {
-    ensureApproval.mockResolvedValue(undefined)
-    createUsdPeggedListing.mockResolvedValue({ signer: session.address, signature: '0xsig', type: 'public_nft_order' })
-    postTrade.mockResolvedValue({ id: 'trade-1' })
-  })
-
-  it('should sign a listing for the exact token of the clicked card, leaving the other copy untouched', async () => {
+describe('when viewing owned Names', () => {
+  it('should render a MANAGE cta linking to the name’s Builder management page in a new tab', async () => {
     const user = userEvent.setup()
-    fetchMyAssets.mockResolvedValue({
-      assets: [
-        wearable({ id: '0xcollection-11', tokenId: '11', issuedId: '11', itemId: '7' }),
-        wearable({ id: '0xcollection-22', tokenId: '22', issuedId: '412', itemId: '7' })
-      ],
-      total: 2
-    })
-    renderPage()
-
-    // Put the SECOND copy (token 22) on sale.
-    const lists = await screen.findAllByTestId('card-list')
-    await user.click(lists[1])
-
-    const dialog = await screen.findByRole('dialog')
-    const price = within(dialog).getByLabelText(/price/i)
-    await user.clear(price)
-    await user.type(price, '50')
-    await user.click(within(dialog).getByRole('button', { name: /put on sale/i }))
-
-    await waitFor(() => expect(createUsdPeggedListing).toHaveBeenCalled())
-    expect(createUsdPeggedListing).toHaveBeenCalledWith(
-      expect.objectContaining({ nft: expect.objectContaining({ contractAddress: '0xcollection', tokenId: '22' }) })
+    fetchMyAssets.mockImplementation((_addr: string, opts: { category?: string }) =>
+      Promise.resolve(
+        opts.category === 'ens'
+          ? { assets: [wearable({ id: '0xens-5', category: 'ens', name: 'CoolName', tokenId: '5' })], total: 1 }
+          : { assets: [wearable()], total: 1 }
+      )
     )
-  })
-})
-
-describe('when the owner removes one listed copy from sale', () => {
-  it('should cancel only that token’s listing', async () => {
-    const user = userEvent.setup()
-    // Copy 11 is on sale; copy 22 is not — so only one unlist control exists, tied to trade-11.
-    fetchMyAssets.mockResolvedValue({
-      assets: [
-        wearable({
-          id: '0xcollection-11',
-          tokenId: '11',
-          issuedId: '11',
-          itemId: '7',
-          isOnSale: true,
-          listingPrice: 30,
-          tradeId: 'trade-11'
-        }),
-        wearable({ id: '0xcollection-22', tokenId: '22', issuedId: '412', itemId: '7' })
-      ],
-      total: 2
-    })
-    fetchTrade.mockResolvedValue({ id: 'trade-11' })
-    cancelListing.mockResolvedValue(undefined)
     renderPage()
+    await screen.findByText('Cool Hat')
 
-    await user.click(await screen.findByTestId('card-unlist'))
+    await user.click(screen.getByRole('button', { name: /^names$/i }))
 
-    await waitFor(() => expect(fetchTrade).toHaveBeenCalledWith('trade-11'))
-    expect(cancelListing).toHaveBeenCalledTimes(1)
+    const manage = await screen.findByTestId('card-manage')
+    // External deep link to the Builder's per-name management page (matches the classic marketplace).
+    expect(manage.getAttribute('href')).toContain('/builder/names/CoolName')
+    expect(manage.getAttribute('target')).toBe('_blank')
   })
 })
 

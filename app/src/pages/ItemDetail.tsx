@@ -824,7 +824,20 @@ export function ItemDetail() {
                         </RemoveCta>
                       </>
                     ) : (
-                      <DetailCta variant="purple" onClick={openListModal} disabled={managing || !canOpenListModal}>
+                      <DetailCta
+                        variant="purple"
+                        onClick={() => {
+                          // Funnel-entry event for a secondary listing — this is the flow that moved off
+                          // the My Assets card (its "put on sale" fired the same event) onto the PDP.
+                          if (manageAsSecondary)
+                            track('Shop Started Listing', {
+                              listing_type: 'secondary',
+                              item_id: current.itemId ?? current.tokenId ?? null
+                            })
+                          openListModal()
+                        }}
+                        disabled={managing || !canOpenListModal}
+                      >
                         <span className="item-detail__cta-label">{t('itemDetail.manageList')}</span>
                       </DetailCta>
                     )}
