@@ -18,6 +18,7 @@ import { capitalizeFirst } from '~/lib/text'
 import { track } from '~/lib/analytics'
 import { t } from '~/intl/i18n'
 import { ErrorNotice } from '~/components/ErrorNotice'
+import { NamesPage } from '~/pages/NamesPage'
 import * as S from './Assets.styles'
 
 // Items fetched per page (infinite scroll pages by cumulative offset — see useInfiniteGrid).
@@ -132,7 +133,9 @@ export function Assets() {
       skip =>
         isUnified
           ? fetchUnified({ ...filters, first: PAGE_SIZE, skip })
-          : fetchCatalogItems({ ...catalogFilters, first: PAGE_SIZE, skip })
+          : fetchCatalogItems({ ...catalogFilters, first: PAGE_SIZE, skip }),
+      // NAMEs isn't a grid category — don't fire a bogus catalog fetch when it's selected.
+      { enabled: category !== 'names' }
     )
   const resultCount = total
 
@@ -264,56 +267,68 @@ export function Assets() {
       </S.Sidebar>
 
       <S.Main>
-        <FilterBar
-          sort={sort}
-          onSort={setSort}
-          total={total}
-          loading={isLoading}
-          query={q}
-          onOpenFilters={() => setFiltersOpen(true)}
-          chips={chips}
-          onClearChips={clearFilters}
-        />
+        {category === 'names' ? (
+          // NAMEs is not a grid: swap the card grid + grid toolbar for the NAMEs purchase page,
+          // keeping the surrounding layout/nav (the sidebar category list stays so users can leave).
+          <NamesPage onBack={() => pickCategory('wearable')} />
+        ) : (
+          <>
+            <FilterBar
+              sort={sort}
+              onSort={setSort}
+              total={total}
+              loading={isLoading}
+              query={q}
+              onOpenFilters={() => setFiltersOpen(true)}
+              chips={chips}
+              onClearChips={clearFilters}
+            />
 
-        {/* Legacy (market-priced) cards follow the live rate; if the oracle is down, Buy Now is paused.
+            {/* Legacy (market-priced) cards follow the live rate; if the oracle is down, Buy Now is paused.
             Only warn when the current results actually contain a market-priced item, so users browsing
             only fixed-price items aren't shown an irrelevant notice. */}
-        {rateError && isUnified && items.some(i => (i as UnifiedListing).source === 'legacy') ? (
-          <p className="market-banner market-banner--warn">{t('assets.marketUnavailable')}</p>
-        ) : null}
+            {rateError && isUnified && items.some(i => (i as UnifiedListing).source === 'legacy') ? (
+              <p className="market-banner market-banner--warn">{t('assets.marketUnavailable')}</p>
+            ) : null}
 
-        {error ? <ErrorNotice message={t('assets.loadError')} testId="browse-error" /> : null}
+            {error ? <ErrorNotice message={t('assets.loadError')} testId="browse-error" /> : null}
 
-        <div className="grid" data-testid="grid">
-          {isLoading ? (
-            <SkeletonCards count={15} />
-          ) : (
-            <>
-              {items.map(item => {
-                // View-only grids ('all' / 'not_for_sale'): every card is a VIEW card (no inline trade).
-                if (!isUnified) return <AssetCard key={item.id} item={item} mode="view" />
-                // On-sale unified grid: legacy rows → market (≈ + Buy now), native → Add-to-cart.
-                const unified = item as UnifiedListing
-                return unified.source === 'legacy' ? (
-                  <AssetCard
-                    key={item.id}
-                    item={unified}
-                    mode="market"
-                    marketPriceCredits={priceOf(unified)}
-                    onBuyNow={openCheckout}
-                  />
-                ) : (
-                  <AssetCard key={item.id} item={item} />
-                )
-              })}
-              {isFetchingNextPage ? <SkeletonCards count={6} /> : null}
-            </>
-          )}
-        </div>
+            <div className="grid" data-testid="grid">
+              {isLoading ? (
+                <SkeletonCards count={15} />
+              ) : (
+                <>
+                  {items.map(item => {
+                    // View-only grids ('all' / 'not_for_sale'): every card is a VIEW card (no inline trade).
+                    if (!isUnified) return <AssetCard key={item.id} item={item} mode="view" />
+                    // On-sale unified grid: legacy rows → market (≈ + Buy now), native → Add-to-cart.
+                    const unified = item as UnifiedListing
+                    return unified.source === 'legacy' ? (
+                      <AssetCard
+                        key={item.id}
+                        item={unified}
+                        mode="market"
+                        marketPriceCredits={priceOf(unified)}
+                        onBuyNow={openCheckout}
+                      />
+                    ) : (
+                      <AssetCard key={item.id} item={item} />
+                    )
+                  })}
+                  {isFetchingNextPage ? <SkeletonCards count={6} /> : null}
+                </>
+              )}
+            </div>
 
-        <LoadMore hasNextPage={hasNextPage} isFetching={isFetchingNextPage} onLoadMore={() => void fetchNextPage()} />
+            <LoadMore
+              hasNextPage={hasNextPage}
+              isFetching={isFetchingNextPage}
+              onLoadMore={() => void fetchNextPage()}
+            />
 
-        {!isLoading && items.length === 0 ? <p className="muted">{t('assets.noItems')}</p> : null}
+            {!isLoading && items.length === 0 ? <p className="muted">{t('assets.noItems')}</p> : null}
+          </>
+        )}
       </S.Main>
 
       {checkout && rate ? (
