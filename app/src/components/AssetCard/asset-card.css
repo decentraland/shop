@@ -369,6 +369,47 @@
   height: 20px;
 }
 
+/* ---------------- Manage card (My Assets — owner list / unlist control) ---------------- */
+/* Full-width action on an owned/created card: "List for sale" (dark) or "Remove from sale" (ghost).
+   ALWAYS visible (like .card__view) but — unlike .card__view — it carries a real click handler, so it
+   must sit ABOVE the whole-card overlay link (z-index 3): z-index 4 keeps it independently clickable. */
+.card__manage {
+  position: relative;
+  z-index: 4;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 0;
+  border-radius: var(--radius-btn);
+  height: 40px;
+  font-weight: 600;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.046em;
+  cursor: pointer;
+  background: var(--black-btn);
+  color: var(--soft-white);
+  transition: background 0.15s ease;
+}
+.card__manage:hover:not(:disabled) {
+  background: #43404a;
+}
+.card__manage:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+/* Ghost variant for "Remove from sale" — a lighter, secondary treatment vs. the dark "List". */
+.card__manage--ghost {
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--line-strong);
+}
+.card__manage--ghost:hover:not(:disabled) {
+  background: var(--media);
+}
+
 /* ---------------- Flash sale (time-boxed discounted listing — see lib/sale.ts) ---------------- */
 /* Corner ribbon on the card image (fav sits top-right, so this anchors top-left). */
 .card__sale-badge {

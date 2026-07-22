@@ -31,15 +31,29 @@ const HOVER_DELAY_MS = 120
 //   sale (priceCredits > 0) or a small "NOT FOR SALE" tag when it isn't (priceCredits === 0), plus a
 //   full-width dark VIEW button that opens the item detail (Figma 1246-256347). The whole card is the
 //   link, so the VIEW pill is a decorative affordance (aria-hidden) — no duplicate tab stop.
+// - 'manage' (My Assets — the owner/creator view of their own item): renders like a view card (media
+//   + name + price-or-"NOT FOR SALE"), but the footer button is a real control — "List for sale"
+//   (dark) when the item isn't listed, "Remove from sale" (ghost) when it is — wired to onList/onUnlist.
+//   The whole-card link still opens the item detail; the action sits above it (z-index) and stops
+//   propagation. `busy` disables the button while the trade is in flight.
 type AssetCardProps =
   | { item: CatalogItem; mode?: 'shop' }
   | { item: CatalogItem; mode: 'view' }
   | { item: CatalogItem; mode: 'market'; marketPriceCredits: number | null; onBuyNow: (item: CatalogItem) => void }
+  | {
+      item: CatalogItem
+      mode: 'manage'
+      listed: boolean
+      busy?: boolean
+      onList: (item: CatalogItem) => void
+      onUnlist: (item: CatalogItem) => void
+    }
 
 export function AssetCard(props: AssetCardProps) {
   const { item } = props
   const isMarket = props.mode === 'market'
   const isView = props.mode === 'view'
+  const isManage = props.mode === 'manage'
   const navigate = useNavigate()
   const timer = useRef<ReturnType<typeof setTimeout>>()
   const mediaRef = useRef<HTMLDivElement>(null)
@@ -185,7 +199,55 @@ export function AssetCard(props: AssetCardProps) {
             .card__img--hidden once that shared preview is ready. */}
       </div>
 
-      {isView ? (
+      {isManage && props.mode === 'manage' ? (
+        <div className="card__body">
+          {/* Owner/creator footer: name on the left; the listed price (when on sale) or a "NOT FOR SALE"
+              tag on the right — same layout as the view card. */}
+          <div className="card__top">
+            <div className="card__desc">
+              <div className="card__name" title={item.name}>
+                {item.name}
+              </div>
+              <div className="card__creator">&nbsp;</div>
+            </div>
+            {props.listed && item.priceCredits > 0 ? (
+              <div className="card__price" title={formatCreditsFull(item.priceCredits)}>
+                <CurrencyIcon className="card__diamond" />
+                {formatCredits(item.priceCredits)}
+              </div>
+            ) : (
+              <span className="card__nfs" data-testid="card-nfs">
+                {t('assetCard.notForSale')}
+              </span>
+            )}
+          </div>
+          {props.listed ? (
+            <button
+              className="card__manage card__manage--ghost"
+              data-testid="card-unlist"
+              disabled={props.busy}
+              onClick={e => {
+                e.stopPropagation()
+                props.onUnlist(item)
+              }}
+            >
+              {props.busy ? t('myAssets.removing') : t('myAssets.removeListing')}
+            </button>
+          ) : (
+            <button
+              className="card__manage"
+              data-testid="card-list"
+              disabled={props.busy}
+              onClick={e => {
+                e.stopPropagation()
+                props.onList(item)
+              }}
+            >
+              {t('myAssets.putOnSale')}
+            </button>
+          )}
+        </div>
+      ) : isView ? (
         <div className="card__body">
           {/* View-only footer (Figma 1246-256347): name + author on the left; on the right the credit
               price when the item is for sale, or a small "NOT FOR SALE" tag when it isn't. */}
