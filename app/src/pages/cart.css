@@ -444,7 +444,13 @@ a.checkout__name:hover {
    white meets the footer with no gray strip. */
 .cart-upsell {
   position: relative;
-  padding: 40px 0 24px;
+  /* 47px from the top of the cross-sell (where the gray page ends and the white band begins) to the
+     "You might also like" heading — Figma 1182-232377. The shared carousel's own 64px top margin is
+     zeroed below so this padding is the whole gap, not stacked on top of it. */
+  padding: 47px 0 24px;
+}
+.cart-upsell .collection-carousel {
+  margin-top: 0;
 }
 .cart-upsell::before {
   content: '';
