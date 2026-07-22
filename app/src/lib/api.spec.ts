@@ -37,6 +37,8 @@ import {
   fetchTradeDisplay,
   fetchTradeForItem,
   resolveLiveTrade,
+  fetchAssetDisplay,
+  fetchUserSales,
   TradeNotFoundError,
   postTrade
 } from '~/lib/api'
@@ -884,5 +886,74 @@ describe('when resolving an item to its live trade', () => {
   it('should return null when there is neither a tradeId nor an itemId', async () => {
     expect(await resolveLiveTrade({ contractAddress: '0xc' })).toBeNull()
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('when resolving a sold asset for the Activity feed', () => {
+  it('should resolve a secondary token by tokenId (name + image from /v1/nfts)', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ data: [{ nft: { name: 'Galaxy Hat', image: 'hat.png' } }] }))
+    const display = await fetchAssetDisplay('0xc', { tokenId: '42' })
+    expect(display).toMatchObject({ name: 'Galaxy Hat', thumbnail: 'hat.png', contractAddress: '0xc', tokenId: '42' })
+    expect(lastUrl()).toContain('https://nft.test/v1/nfts?')
+  })
+
+  it('should fall back to a "#<tokenId>" name when the token has no metadata', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ data: [] }))
+    const display = await fetchAssetDisplay('0xc', { tokenId: '7' })
+    expect(display?.name).toBe('#7')
+  })
+
+  it('should resolve a primary/mint asset by itemId when there is no tokenId', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ data: [{ name: 'Founder Tee', thumbnail: 'tee.png' }] }))
+    const display = await fetchAssetDisplay('0xc', { itemId: '3' })
+    expect(display).toMatchObject({ name: 'Founder Tee', thumbnail: 'tee.png', itemId: '3' })
+    expect(lastUrl()).toContain('https://nft.test/v1/items?')
+  })
+
+  it('should return null when neither a contract, token, nor item is known', async () => {
+    expect(await fetchAssetDisplay('', {})).toBeNull()
+    expect(await fetchAssetDisplay('0xc', {})).toBeNull()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('when fetching the user secondary sales', () => {
+  it('should hit /v1/sales scoped to the seller and map price/timestamp', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonOk({
+        data: [
+          {
+            id: 'sale-1',
+            buyer: '0xB',
+            seller: '0xS',
+            contractAddress: '0xc',
+            tokenId: '42',
+            itemId: null,
+            price: '15000000000000000000',
+            timestamp: 1_700_000_000_000,
+            txHash: '0xh',
+            category: 'wearable'
+          }
+        ],
+        total: 1
+      })
+    )
+    const { items, total } = await fetchUserSales('0xABC', { role: 'seller' })
+    expect(total).toBe(1)
+    expect(items[0]).toMatchObject({ id: 'sale-1', manaWei: '15000000000000000000', createdAt: 1_700_000_000_000 })
+    const url = lastUrl()
+    expect(url).toContain('https://market.test/v1/sales?')
+    expect(url).toContain('seller=0xabc')
+  })
+
+  it('should scope by buyer when role=buyer', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ data: [], total: 0 }))
+    await fetchUserSales('0xABC', { role: 'buyer' })
+    expect(lastUrl()).toContain('buyer=0xabc')
+  })
+
+  it('should throw on a non-OK response', async () => {
+    fetchMock.mockResolvedValueOnce(httpError(500))
+    await expect(fetchUserSales('0xABC')).rejects.toThrow('fetchUserSales 500')
   })
 })

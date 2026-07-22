@@ -34,6 +34,7 @@ export type Fixtures = {
   trade: unknown
   userStore: unknown
   purchases: unknown
+  sales: unknown
 }
 
 function defaults(): Fixtures {
@@ -65,7 +66,8 @@ function defaults(): Fixtures {
       oracleRate: '26960836'
     },
     trade: null,
-    purchases: { purchases: [] }
+    purchases: { purchases: [] },
+    sales: { data: [], total: 0 }
   }
 }
 
@@ -289,6 +291,9 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
     }
     if (path === '/v1/trades' && method === 'POST') return json(req, { ok: true, data: { id: 'new-trade' } }, 201)
     if (/\/v1\/trades\/.+/.test(path)) return json(req, { ok: true, data: F.trade })
+    // Secondary sales feed (Activity page → fetchUserSales, ?seller=/?buyer=). Return the fixture data
+    // as-is (the address filter is applied server-side in prod; the fixture is already scoped per run).
+    if (path === '/v1/sales') return json(req, F.sales)
     if (path === '/v1/orders') return json(req, { data: [], total: 0 })
     if (path === '/v2/catalog') return json(req, { data: [], total: 0 })
     return json(req, { data: [] })
