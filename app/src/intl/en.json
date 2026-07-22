@@ -335,7 +335,11 @@
     "heroInWardrobe": "is now in your wardrobe.",
     "itemsInWardrobe": "{count, plural, one {# item is now in your wardrobe.} other {# items are now in your wardrobe.}}",
     "viewOrder": "View order",
-    "useItInWorld": "Use it in-world"
+    "useItInWorld": "Use it in-world",
+    "bannerTitle": "Your purchase was successful!",
+    "bannerBody": "You can find your item in the My Assets tab.",
+    "myAssets": "My Assets",
+    "tryInWorld": "Try in World"
   },
   "itemPreview": {
     "loading": "Loading preview",

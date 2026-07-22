@@ -5,7 +5,6 @@ import { useFavorites } from '~/store/favorites'
 import { useHoverPreview } from '~/store/hoverPreview'
 import { useWallet } from '~/store/wallet'
 import { isOwnListing } from '~/lib/ownership'
-import { CreatorBadge } from '~/components/CreatorBadge'
 import { rarityInk, rarityTint, rarityDescription } from '~/lib/rarity'
 import { categoryIcon, genderIcon } from '~/lib/itemIcons'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
@@ -326,11 +325,6 @@ export function AssetCard(props: AssetCardProps) {
               <div className="card__name" title={item.name}>
                 {item.name}
               </div>
-              {item.creator ? (
-                <CreatorBadge address={item.creator} className="card__creator" linkToProfile />
-              ) : (
-                <div className="card__creator">&nbsp;</div>
-              )}
             </div>
             {item.priceCredits > 0 ? (
               <div className="card__price" title={formatCreditsFull(item.priceCredits)}>
@@ -360,11 +354,6 @@ export function AssetCard(props: AssetCardProps) {
               <div className="card__name" title={item.name}>
                 {item.name}
               </div>
-              {item.creator ? (
-                <CreatorBadge address={item.creator} className="card__creator" linkToProfile />
-              ) : (
-                <div className="card__creator">&nbsp;</div>
-              )}
             </div>
             {isMarket && props.mode === 'market' ? (
               <div className="card__price card__price--market" data-testid="card-price-market">

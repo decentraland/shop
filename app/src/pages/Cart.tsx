@@ -21,7 +21,6 @@ import { gaslessEnabled } from '~/lib/gasless-config'
 import { CURRENCY } from '~/lib/currency'
 import { createPackCheckout } from '~/lib/payments'
 import { useCreditPacks } from '~/hooks/useCreditPacks'
-import { config } from '~/config'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { CartCheckoutModal, type CheckoutLine } from '~/components/CartCheckoutModal'
 import { useSeo } from '~/hooks/useSeo'
@@ -56,9 +55,6 @@ function friendlyError(e: unknown): string {
 // have drifted (or listings sold), so we re-review instead of charging a stale total.
 const REVIEW_TTL_MS = 120_000
 
-// In-world launcher deep-link (zone on testnet) — matches the success page.
-const JUMP_URL = config.chainId === 80002 ? 'https://decentraland.zone/jump' : 'https://decentraland.org/jump'
-
 // One-line summary of the rows we pruned so the buyer knows why the cart shrank.
 function dropNotice(review: CartReview): string {
   const parts: string[] = []
@@ -83,7 +79,6 @@ type ProcessingStage = 'reserving' | 'awaiting-signature' | 'settling'
 type ModalState =
   | { phase: 'processing'; stage: ProcessingStage; step: number; total: number }
   | { phase: 'nofunds'; lines: CheckoutLine[]; shortfall: number }
-  | { phase: 'complete'; purchased: Array<CatalogItem & { quantity?: number }> }
   | { phase: 'error'; message: string }
 
 export function Cart() {
@@ -282,7 +277,16 @@ export function Cart() {
         transaction_hash: hashes[0] ?? null
       })
       void qc.invalidateQueries({ queryKey: ['usd-balance'] })
-      setModal({ phase: 'complete', purchased: purchasedLines })
+      // The whole basket has settled on-chain (buyManyGasless/waitForSettlement above), so hand the
+      // standalone success PAGE the purchased lines + tx and tell it settlement is already done
+      // (settled:true) — it lands straight on the confirmed screen instead of a floating in-cart modal.
+      setModal(null)
+      setBusy(false)
+      // replace:true — the cart is now emptied, so Back from /success should not return to it.
+      navigate('/success', {
+        state: { items: purchasedLines, txHash: hashes[0] ?? undefined, settled: true },
+        replace: true
+      })
     } catch (e) {
       if (!isUserRejection(e)) captureError(e, { flow: 'cart_checkout', step, cart_size: lines.length })
       track(isUserRejection(e) ? 'Shop Purchase Cancelled' : 'Shop Purchase Failed', {
@@ -685,9 +689,6 @@ export function Cart() {
           selectedPack={selectedPack}
           onSelectPack={setSelectedPack}
           onBuyPacks={() => void buyCreditsAndItems()}
-          purchased={modal.phase === 'complete' ? modal.purchased : undefined}
-          onMyAssets={() => navigate('/assets?tab=mine')}
-          onTryInWorld={() => window.open(JUMP_URL, '_blank', 'noopener')}
           message={modal.phase === 'error' ? modal.message : undefined}
           onRetry={() => void checkout()}
         />

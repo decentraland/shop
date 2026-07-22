@@ -334,7 +334,11 @@
     "heroInWardrobe": "ya está en tu guardarropa.",
     "itemsInWardrobe": "{count, plural, one {# artículo ya está en tu guardarropa.} other {# artículos ya están en tu guardarropa.}}",
     "viewOrder": "Ver pedido",
-    "useItInWorld": "Úsalo en el mundo"
+    "useItInWorld": "Úsalo en el mundo",
+    "bannerTitle": "¡Tu compra se realizó con éxito!",
+    "bannerBody": "Puedes encontrar tu artículo en la pestaña Mis Activos.",
+    "myAssets": "Mis Activos",
+    "tryInWorld": "Probar en el mundo"
   },
   "itemPreview": {
     "loading": "Cargando vista previa",

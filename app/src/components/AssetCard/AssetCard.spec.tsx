@@ -43,6 +43,16 @@ beforeEach(() => {
   useFavorites.setState({ items: {} })
 })
 
+describe('AssetCard author row', () => {
+  it('does NOT render a creator/author row, even when the item has a creator', () => {
+    // The shop cards intentionally omit the "By {author}" line + avatar (owner request).
+    const { container } = renderCard(makeItem({ creator: '0x' + 'ab'.repeat(20) }))
+    expect(container.querySelector('[data-testid="creator"]')).toBeNull()
+    expect(container.querySelector('.card__creator')).toBeNull()
+    expect(screen.queryByText(/^By\b/i)).toBeNull()
+  })
+})
+
 describe('AssetCard flash-sale treatment', () => {
   it('renders the SALE -X% badge, struck-through compare-at, and a countdown when on sale', () => {
     const { container } = renderCard(

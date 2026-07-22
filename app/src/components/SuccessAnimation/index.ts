@@ -1,1 +1,0 @@
-export { SuccessAnimation } from './SuccessAnimation'
