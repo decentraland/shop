@@ -18,7 +18,9 @@ export type CheckoutLine = { item: CatalogItem; priceCredits: number; quantity?:
 // BuyModal states, reusing the `.buy-modal__*` styling (index.css) plus a few `.cart-checkout__*`
 // additions for the pieces a single-item modal doesn't have (step counter, scrollable list, multi-item
 // success list). Mirrors Figma "New Shop 2026": 1182-218528 / 1182-219697 / 1182-220275.
-export type CheckoutPhase = 'processing' | 'nofunds' | 'complete' | 'error'
+// The success/confirmation state is NOT a modal phase anymore — the cart navigates to the standalone
+// /success page after purchase (Figma 1182-232376). This modal only covers the in-flight states.
+export type CheckoutPhase = 'processing' | 'nofunds' | 'error'
 
 type Props = {
   phase: CheckoutPhase
@@ -38,10 +40,6 @@ type Props = {
   selectedPack?: string
   onSelectPack?: (id: string) => void
   onBuyPacks?: () => void
-  // complete
-  purchased?: Array<CatalogItem & { quantity?: number }>
-  onMyAssets?: () => void
-  onTryInWorld?: () => void
   // error
   message?: string | null
   onRetry?: () => void
@@ -50,8 +48,6 @@ type Props = {
 export function CartCheckoutModal(props: Props) {
   const { phase, balanceCredits, onClose } = props
   const busy = phase === 'processing'
-  // The success state has no header in Figma (1182-220275) — just the green banner + list + CTAs.
-  const showHead = phase !== 'complete'
   const title =
     phase === 'error'
       ? t('cartCheckout.errorTitle')
@@ -64,27 +60,25 @@ export function CartCheckoutModal(props: Props) {
     <div className="buy-modal" role="dialog" aria-modal="true" aria-label={t('cartCheckout.dialogAria')}>
       <div className="buy-modal__scrim" onClick={busy ? undefined : onClose} aria-hidden />
       <div className={`buy-modal__card${tall ? ' buy-modal__card--tall' : ''}`}>
-        {showHead && (
-          <div className="buy-modal__head">
-            <div className="buy-modal__head-row">
-              <h2 className="buy-modal__title">{title}</h2>
-              {!busy && (
-                <button className="buy-modal__x" onClick={onClose} aria-label={t('buyModal.close')}>
-                  <svg viewBox="0 0 18 18" width="18" height="18" aria-hidden>
-                    <path d="M4 4l10 10M14 4L4 14" stroke="#161518" strokeWidth="1.8" strokeLinecap="round" />
-                  </svg>
-                </button>
-              )}
-            </div>
-            <div className="buy-modal__balance">
-              <span className="buy-modal__balance-label">
-                {phase === 'nofunds' ? t('buyModal.dclBalance') : t('buyModal.myCreditsBalance')}
-              </span>
-              <CurrencyIcon className="buy-modal__balance-ico" />
-              <span className="buy-modal__balance-value">{formatCredits(balanceCredits)}</span>
-            </div>
+        <div className="buy-modal__head">
+          <div className="buy-modal__head-row">
+            <h2 className="buy-modal__title">{title}</h2>
+            {!busy && (
+              <button className="buy-modal__x" onClick={onClose} aria-label={t('buyModal.close')}>
+                <svg viewBox="0 0 18 18" width="18" height="18" aria-hidden>
+                  <path d="M4 4l10 10M14 4L4 14" stroke="#161518" strokeWidth="1.8" strokeLinecap="round" />
+                </svg>
+              </button>
+            )}
           </div>
-        )}
+          <div className="buy-modal__balance">
+            <span className="buy-modal__balance-label">
+              {phase === 'nofunds' ? t('buyModal.dclBalance') : t('buyModal.myCreditsBalance')}
+            </span>
+            <CurrencyIcon className="buy-modal__balance-ico" />
+            <span className="buy-modal__balance-value">{formatCredits(balanceCredits)}</span>
+          </div>
+        </div>
 
         {phase === 'processing' && (
           <Processing
@@ -105,13 +99,6 @@ export function CartCheckoutModal(props: Props) {
             onCancel={onClose}
           />
         )}
-        {phase === 'complete' && (
-          <Complete
-            purchased={props.purchased ?? []}
-            onMyAssets={props.onMyAssets ?? onClose}
-            onTryInWorld={props.onTryInWorld ?? onClose}
-          />
-        )}
         {phase === 'error' && (
           <div className="buy-modal__body">
             {/* Figma 1182-196586: pink panel + sad-robot art + reassuring copy, then Cancel / Try again. */}
@@ -125,10 +112,7 @@ export function CartCheckoutModal(props: Props) {
               <button className="buy-modal__btn buy-modal__btn--outline" onClick={onClose}>
                 {t('buyModal.cancel')}
               </button>
-              <button
-                className="buy-modal__btn buy-modal__btn--purple"
-                onClick={props.onRetry ?? onClose}
-              >
+              <button className="buy-modal__btn buy-modal__btn--purple" onClick={props.onRetry ?? onClose}>
                 {t('cartCheckout.tryAgain')}
               </button>
             </div>
@@ -242,9 +226,13 @@ function NoFunds({
                 <div>
                   <div className="buy-modal__asset-name" title={l.item.name}>
                     {l.item.name || t('buyModal.itemFallback')}
-                    {qty > 1 ? <span className="cart-checkout__qty-tag">{t('cartCheckout.qty', { count: qty })}</span> : null}
+                    {qty > 1 ? (
+                      <span className="cart-checkout__qty-tag">{t('cartCheckout.qty', { count: qty })}</span>
+                    ) : null}
                   </div>
-                  {l.item.creator ? <div className="buy-modal__asset-creator">{t('search.byCreator', { name: l.item.creator })}</div> : null}
+                  {l.item.creator ? (
+                    <div className="buy-modal__asset-creator">{t('search.byCreator', { name: l.item.creator })}</div>
+                  ) : null}
                 </div>
                 <div className="buy-modal__asset-price">
                   <CurrencyIcon className="buy-modal__asset-price-ico" />
@@ -287,96 +275,6 @@ function NoFunds({
         </button>
         <button className="buy-modal__btn buy-modal__btn--gradient" onClick={onBuyPacks}>
           {t('buyModal.buy')}
-        </button>
-      </div>
-    </div>
-  )
-}
-
-// Purchase complete (Figma 1182-220275): green banner + a multi-item list of what was bought + the
-// My Assets / Try in world CTAs.
-function Complete({
-  purchased,
-  onMyAssets,
-  onTryInWorld
-}: {
-  purchased: Array<CatalogItem & { quantity?: number }>
-  onMyAssets: () => void
-  onTryInWorld: () => void
-}) {
-  return (
-    <div className="buy-modal__body cart-checkout__done-body">
-      <div className="buy-modal__success">
-        <svg viewBox="0 0 64 64" width="60" height="60" aria-hidden>
-          <circle cx="32" cy="32" r="32" fill="#34ce77" />
-          <path
-            d="M20 33l8 8 16-18"
-            fill="none"
-            stroke="#fff"
-            strokeWidth="5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-        <p className="buy-modal__success-text">
-          <b>{t('getCredits.successTitle')}</b> {t('buyModal.successBody')}
-        </p>
-      </div>
-
-      <div className="cart-checkout__done">
-        <div className="cart-checkout__done-scroll">
-          {purchased.map(item => {
-            const qty = item.quantity ?? 1
-            return (
-              <div className="cart-checkout__done-row" key={item.id}>
-                <div className="cart-checkout__done-thumb">
-                  {item.thumbnail ? <img src={item.thumbnail} alt="" /> : null}
-                  <span className="cart-checkout__done-check" aria-hidden>
-                    <svg viewBox="0 0 18 18" width="12" height="12">
-                      <path
-                        d="M4 9l3.5 3.5L14 5"
-                        fill="none"
-                        stroke="#fff"
-                        strokeWidth="2.2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </span>
-                </div>
-                <div className="cart-checkout__done-info">
-                  <div className="cart-checkout__done-name" title={item.name}>
-                    {item.name || t('buyModal.itemFallback')}
-                    {qty > 1 ? <span className="cart-checkout__qty-tag">{t('cartCheckout.qty', { count: qty })}</span> : null}
-                  </div>
-                  {item.creator ? <div className="cart-checkout__done-creator">{t('search.byCreator', { name: item.creator })}</div> : null}
-                </div>
-                <div className="cart-checkout__done-price">
-                  <CurrencyIcon className="cart-checkout__done-price-ico" />
-                  <span>{formatCredits(item.priceCredits * qty)}</span>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      </div>
-
-      <div className="buy-modal__ctas">
-        <button className="buy-modal__btn buy-modal__btn--outline" onClick={onMyAssets}>
-          {t('buyModal.myAssets')}
-        </button>
-        <button className="buy-modal__btn buy-modal__btn--ruby" onClick={onTryInWorld}>
-          {t('buyModal.tryInWorld')}
-          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden>
-            <path
-              d="M5 12h12M13 7l5 5-5 5"
-              fill="none"
-              stroke="#fcfcfc"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
         </button>
       </div>
     </div>

@@ -1783,28 +1783,20 @@ h2 {
    Success page (post-checkout) + success animation
 --------------------------------------------------------------------------- */
 .success {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 48px;
-  align-items: center;
-  max-width: 1080px;
+  max-width: 895px;
   margin: 0 auto;
-  padding: 32px 24px;
+  padding: 32px 12px;
   min-height: 72vh;
 }
-.success__preview {
-  height: min(560px, 68vh);
-  background: var(--media, #ecebed);
-  border-radius: var(--radius-card, 16px);
-  overflow: hidden;
-  position: relative;
-}
-.success__preview iframe,
-.success__preview > * {
-  width: 100%;
-  height: 100%;
-  border: 0;
-  display: block;
+/* Non-confirmed settlement states (processing / finalizing / failed / timed-out): a simple centered
+   column — the pixel-perfect Figma layout is reserved for the confirmed screen (.success-done). */
+.success__status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  justify-content: center;
+  min-height: 60vh;
 }
 .success__spinner {
   margin: 4px auto 8px;
@@ -1868,15 +1860,220 @@ h2 {
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
+  justify-content: center;
 }
-@media (max-width: 820px) {
-  .success {
-    grid-template-columns: 1fr;
-    gap: 24px;
-    text-align: center;
+
+/* ---------------------------------------------------------------------------
+   Confirmed purchase screen — Figma "Purchase completed" (node 1182-232376)
+--------------------------------------------------------------------------- */
+.success-done {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+/* Green success banner: rounded card, mint fill + green border, 60px check + copy. */
+.success-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 24px 16px;
+  background: #e0f7e7;
+  border: 1px solid #34ce77;
+  border-radius: 16px;
+}
+.success-banner__check {
+  flex-shrink: 0;
+  width: 60px;
+  height: 60px;
+  line-height: 0;
+}
+.success-banner__text {
+  flex: 1;
+  margin: 0;
+  text-align: center;
+  font-size: 20px;
+  line-height: 1.334;
+  color: #242129;
+}
+.success-banner__text b {
+  font-weight: 700;
+}
+/* Bordered card wrapping the purchased-item rows. */
+.success-list {
+  display: flex;
+  flex-direction: column;
+  padding: 24px;
+  background: #fff;
+  border: 1px solid var(--neutrals-gray-4, #cfcdd4);
+  border-radius: 16px;
+}
+.success-list__row {
+  display: flex;
+  flex-direction: column;
+}
+/* Hairline between rows (Figma Line 5) — only between items, never above the first. */
+.success-list__divider {
+  display: block;
+  height: 1px;
+  margin: 12px 0;
+  background: var(--neutrals-gray-4, #cfcdd4);
+}
+.success-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.success-row__thumb {
+  position: relative;
+  flex-shrink: 0;
+  width: 137px;
+  height: 137px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--neutrals-gray-5, #ecebed);
+  border: 0.134px solid var(--neutrals-gray-3, #a09ba8);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.success-row__thumb img {
+  width: 83%;
+  height: 83%;
+  object-fit: contain;
+  filter: drop-shadow(0.56px 2.24px 2.8px rgba(0, 0, 0, 0.1));
+}
+/* "Purchased" check badge in the thumbnail corner (Figma ruby checkbox). */
+.success-row__check {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--dcl-red, #ff2d55);
+  border-radius: 4px;
+  line-height: 0;
+}
+.success-row__info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px;
+}
+.success-row__name {
+  font-weight: 600;
+  font-size: 20px;
+  line-height: 1.57;
+  color: #161518;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.success-row__creator {
+  position: relative;
+  z-index: 1;
+  color: #716b7c;
+  font-size: 10px;
+}
+/* No avatar on the success rows (Figma shows just "By {name}") — the badge still renders it elsewhere. */
+.success-row__creator [data-avatar] {
+  display: none;
+}
+.success-row__price {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px;
+  font-weight: 600;
+  font-size: 21px;
+  color: #242129;
+  white-space: nowrap;
+}
+.success-row__price-ico {
+  width: 22px;
+  height: 22px;
+}
+.success-done__receipt {
+  justify-content: flex-end;
+  margin: 0;
+}
+/* CTA row: ghost MY ASSETS + ruby TRY IN WORLD, right-aligned, each flexes to fill. */
+.success-ctas {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: flex-end;
+}
+.success-cta {
+  flex: 1;
+  min-width: 0;
+  height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 0 24px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    filter 0.15s ease,
+    background 0.15s ease;
+}
+.success-cta--ghost {
+  background: transparent;
+  border: 2px solid var(--accent, #691fa9);
+  color: var(--accent, #691fa9);
+}
+.success-cta--ghost:hover {
+  background: rgba(105, 31, 169, 0.06);
+}
+.success-cta--ruby {
+  background: var(--dcl-red, #ff2d55);
+  border: 0;
+  color: #fcfcfc;
+}
+.success-cta--ruby:hover {
+  filter: brightness(0.95);
+}
+.success-cta__jump {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 2.5px solid rgba(252, 252, 252, 0.5);
+  border-radius: 8px;
+  line-height: 0;
+}
+@media (max-width: 600px) {
+  .success-row__thumb {
+    width: 96px;
+    height: 96px;
   }
-  .success__actions {
-    justify-content: center;
+  .success-row__name {
+    font-size: 16px;
+  }
+  .success-row__price {
+    font-size: 18px;
+  }
+  .success-ctas {
+    flex-direction: column-reverse;
+  }
+  .success-cta {
+    width: 100%;
+    flex: none;
   }
 }
 

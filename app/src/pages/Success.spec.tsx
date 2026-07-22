@@ -66,13 +66,36 @@ describe('Success settlement gating', () => {
     expect(screen.queryByText(/it.s yours/i)).toBeNull()
   })
 
-  it('flips to "It\'s yours!" only once the tx confirms AND the indexer shows ownership', async () => {
+  it('shows the confirmed screen (green banner + item + CTAs) once the tx confirms AND the indexer shows ownership', async () => {
     waitForSettlement.mockResolvedValue(undefined) // confirmed receipt
     fetchOwnsItem.mockResolvedValue(true) // owned + indexed
     renderSuccess()
 
-    await waitFor(() => expect(screen.getByText(/it.s yours/i)).toBeTruthy())
-    expect(screen.getByText(/is now in your wardrobe/i)).toBeTruthy()
+    // Figma "Purchase completed": success banner + the purchased item + the two CTAs.
+    await waitFor(() => expect(screen.getByText(/your purchase was successful/i)).toBeTruthy())
+    expect(screen.getByText(/my assets tab/i)).toBeTruthy()
+    expect(screen.getByText('Snowy Panama Hat')).toBeTruthy()
+    expect(screen.getByRole('button', { name: /my assets/i })).toBeTruthy()
+    expect(screen.getByRole('link', { name: /try in world/i })).toBeTruthy()
+  })
+
+  it('routes the MY ASSETS CTA to /my-assets', async () => {
+    waitForSettlement.mockResolvedValue(undefined)
+    fetchOwnsItem.mockResolvedValue(true)
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={qc}>
+        <MemoryRouter initialEntries={[{ pathname: '/success', state: { items: [item], txHash: '0xabc' } }]}>
+          <Routes>
+            <Route path="/success" element={<Success />} />
+            <Route path="/my-assets" element={<div>My Assets Page</div>} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+    const btn = await screen.findByRole('button', { name: /my assets/i })
+    btn.click()
+    await waitFor(() => expect(screen.getByText('My Assets Page')).toBeTruthy())
   })
 
   it('shows a finalizing state (never "It\'s yours!") while the tx is mined but not yet indexed', async () => {
