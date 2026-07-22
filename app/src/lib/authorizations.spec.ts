@@ -254,6 +254,13 @@ describe('when the gasless relayer is unavailable (fallback to a direct tx)', ()
     expect(setApprovalForAllMock).toHaveBeenCalledWith(MARKET, true)
   })
 
+  it('should fall back to a direct setMinters when the relayer errors', async () => {
+    sendMetaTransactionMock.mockRejectedValue(new Error('relayer down'))
+    setMintersMock.mockResolvedValue({ wait: vi.fn().mockResolvedValue(undefined) })
+    await setAuthorization({ auth: minterAuth, signer: makeSigner(), active: true })
+    expect(setMintersMock).toHaveBeenCalledWith([MARKET], [true])
+  })
+
   it('should switch the wallet chain before the fallback tx when on the wrong network', async () => {
     sendMetaTransactionMock.mockRejectedValue(new Error('relayer down'))
     approveMock.mockResolvedValue({ wait: vi.fn().mockResolvedValue(undefined) })

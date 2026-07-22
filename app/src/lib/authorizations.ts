@@ -167,13 +167,14 @@ async function grantViaMetaTransaction(
 ) {
   const functionData = encodeAuthorizationCall(auth, active)
   const contractData = metaTxContractData(auth)
-  // The wallet's Web3Provider signs; the target-chain RPC only reads the meta-tx nonce.
+  // The wallet's Web3Provider signs; the target-chain RPC reads the meta-tx nonce AND waits for the
+  // relayed receipt — one instance shared for both.
   const walletProvider = signer.provider as unknown as Provider
-  const metaTxProvider = readProvider() as unknown as Provider
-  const txHash = await sendMetaTransaction(walletProvider, metaTxProvider, functionData, contractData, {
+  const rpc = readProvider()
+  const txHash = await sendMetaTransaction(walletProvider, rpc, functionData, contractData, {
     serverURL: gaslessConfig.relayerUrl
   })
-  await readProvider().waitForTransaction(txHash, 1, 120_000)
+  await rpc.waitForTransaction(txHash, 1, 120_000)
 }
 
 // Grant (active=true) or revoke (active=false) an authorization. GASLESS FOR EVERY WALLET: the wallet
@@ -197,7 +198,9 @@ export async function setAuthorization(opts: {
     } catch (e) {
       // User dismissed the signature prompt → surface it, don't silently retry with a direct tx.
       if (e instanceof MetaTransactionError && e.code === ErrorCode.USER_DENIED) throw e
-      // Relayer down / contract account / flag off → fall through to a direct (gas-paying) tx.
+      // Relayer down / contract account / flag off → fall through to a direct (gas-paying) tx. Log it
+      // so the fallback (and any managed wallet that then hits INSUFFICIENT_FUNDS) is diagnosable.
+      console.warn('[authorizations] gasless meta-tx failed, falling back to a direct tx:', e)
     }
   }
 
