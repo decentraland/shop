@@ -9,6 +9,7 @@ import { AssetCard } from '~/components/AssetCard'
 import { Filters, type FilterStatus } from '~/components/Filters'
 import { FilterBar, type FilterChip, RARITIES, SORTS } from '~/components/FilterBar'
 import { SkeletonCards } from '~/components/SkeletonCards'
+import { listingKey } from '~/lib/listingKey'
 import { LoadMore } from '~/components/LoadMore'
 import { MarketCheckout } from '~/components/MarketCheckout'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
@@ -126,7 +127,7 @@ export function Assets() {
     isOnSale: status === 'not_for_sale' ? false : undefined
   }
 
-  const { items, total, isLoading, error, hasNextPage, isFetchingNextPage, fetchNextPage } =
+  const { items, total, isLoading, isPlaceholderData, error, hasNextPage, isFetchingNextPage, fetchNextPage } =
     useInfiniteGrid<CatalogItem>(
       isUnified ? ['unified-listings', filters] : ['catalog-items', catalogFilters],
       skip =>
@@ -135,6 +136,14 @@ export function Assets() {
           : fetchCatalogItems({ ...catalogFilters, first: PAGE_SIZE, skip })
     )
   const resultCount = total
+
+  // Show skeletons both on the first load (no data yet) and while a NEW filter/search/sort set is
+  // in-flight — in that window react-query is still handing us the PREVIOUS results (keepPreviousData),
+  // so without this the grid would keep the now-stale cards on screen until the new data lands. On the
+  // filter-change case keep the skeleton count equal to the number of cards currently shown so the grid
+  // height doesn't jump; on the very first load fall back to a sensible full-ish grid.
+  const showGridSkeletons = isLoading || isPlaceholderData
+  const gridSkeletonCount = isLoading ? 15 : Math.min(Math.max(items.length, 1), PAGE_SIZE)
 
   // The live market rate powers the legacy cards' fluctuating "≈" credit prices. If the oracle is
   // stale/down we still list the items but disable Buy Now with a notice (rather than pricing off a
@@ -147,14 +156,14 @@ export function Assets() {
   // result_count is accurate (see design/SHOP_TRACKING_SPEC.md §5.2). Refs dedupe + skip the initial load.
   const lastSearched = useRef<string | null>(null)
   useEffect(() => {
-    if (isLoading || !q || lastSearched.current === q) return
+    if (isLoading || isPlaceholderData || !q || lastSearched.current === q) return
     lastSearched.current = q
     track('Shop Searched', { query: q, result_count: resultCount })
-  }, [q, isLoading, resultCount])
+  }, [q, isLoading, isPlaceholderData, resultCount])
 
   const lastFilterSig = useRef<string>('__init__')
   useEffect(() => {
-    if (isLoading) return
+    if (isLoading || isPlaceholderData) return
     const sig = JSON.stringify({ category, subCategory, rarities, min, max, sort, status, smart })
     if (lastFilterSig.current === '__init__' || lastFilterSig.current === sig) {
       lastFilterSig.current = sig
@@ -174,7 +183,7 @@ export function Assets() {
       },
       result_count: resultCount
     })
-  }, [category, subCategory, rarities, min, max, sort, status, smart, isLoading, resultCount])
+  }, [category, subCategory, rarities, min, max, sort, status, smart, isLoading, isPlaceholderData, resultCount])
 
   function pickCategory(key: string) {
     setCategory(key)
@@ -268,7 +277,7 @@ export function Assets() {
           sort={sort}
           onSort={setSort}
           total={total}
-          loading={isLoading}
+          loading={isLoading || isPlaceholderData}
           query={q}
           onOpenFilters={() => setFiltersOpen(true)}
           chips={chips}
@@ -285,25 +294,25 @@ export function Assets() {
         {error ? <ErrorNotice message={t('assets.loadError')} testId="browse-error" /> : null}
 
         <div className="grid" data-testid="grid">
-          {isLoading ? (
-            <SkeletonCards count={15} />
+          {showGridSkeletons ? (
+            <SkeletonCards count={gridSkeletonCount} />
           ) : (
             <>
               {items.map(item => {
                 // View-only grids ('all' / 'not_for_sale'): every card is a VIEW card (no inline trade).
-                if (!isUnified) return <AssetCard key={item.id} item={item} mode="view" />
+                if (!isUnified) return <AssetCard key={listingKey(item)} item={item} mode="view" />
                 // On-sale unified grid: legacy rows → market (≈ + Buy now), native → Add-to-cart.
                 const unified = item as UnifiedListing
                 return unified.source === 'legacy' ? (
                   <AssetCard
-                    key={item.id}
+                    key={listingKey(item)}
                     item={unified}
                     mode="market"
                     marketPriceCredits={priceOf(unified)}
                     onBuyNow={openCheckout}
                   />
                 ) : (
-                  <AssetCard key={item.id} item={item} />
+                  <AssetCard key={listingKey(item)} item={item} />
                 )
               })}
               {isFetchingNextPage ? <SkeletonCards count={6} /> : null}
@@ -313,7 +322,7 @@ export function Assets() {
 
         <LoadMore hasNextPage={hasNextPage} isFetching={isFetchingNextPage} onLoadMore={() => void fetchNextPage()} />
 
-        {!isLoading && items.length === 0 ? <p className="muted">{t('assets.noItems')}</p> : null}
+        {!isLoading && !isPlaceholderData && items.length === 0 ? <p className="muted">{t('assets.noItems')}</p> : null}
       </S.Main>
 
       {checkout && rate ? (

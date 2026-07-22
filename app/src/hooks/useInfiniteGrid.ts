@@ -33,6 +33,10 @@ export function useInfiniteGrid<T>(
     items,
     total,
     isLoading: query.isLoading,
+    // True while the CURRENT query key's data is still loading and react-query is showing the PREVIOUS
+    // key's results as a placeholder (keepPreviousData). This is the "filter/search/sort just changed"
+    // window — the grid should show skeletons here instead of the now-stale previous cards.
+    isPlaceholderData: query.isPlaceholderData,
     isError: query.isError,
     error: query.error,
     hasNextPage: query.hasNextPage,
