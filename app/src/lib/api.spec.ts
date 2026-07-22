@@ -36,6 +36,8 @@ import {
   fetchTrade,
   fetchTradeDisplay,
   fetchTradeForItem,
+  fetchItemResales,
+  fetchLegacyItemOrders,
   resolveLiveTrade,
   TradeNotFoundError,
   postTrade
@@ -884,5 +886,90 @@ describe('when resolving an item to its live trade', () => {
   it('should return null when there is neither a tradeId nor an itemId', async () => {
     expect(await resolveLiveTrade({ contractAddress: '0xc' })).toBeNull()
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('when fetching the open resales for an item', () => {
+  it('should keep only secondary listings with a tokenId, sorted cheapest-first', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonOk({
+        total: 4,
+        data: [
+          { tradeId: 't-sec-2', listingType: 'secondary', tokenId: '20', name: 'Hat', thumbnail: 'b.png', priceCredits: 25 },
+          { tradeId: 't-prim', listingType: 'primary', itemId: '9', tokenId: null, priceCredits: 5 },
+          { tradeId: 't-sec-1', listingType: 'secondary', tokenId: '10', name: 'Hat', thumbnail: 'a.png', priceCredits: 12 },
+          { tradeId: 't-sec-none', listingType: 'secondary', tokenId: null, priceCredits: 1 }
+        ]
+      })
+    )
+    const resales = await fetchItemResales('0xc', '9')
+    expect(resales).toEqual([
+      { tradeId: 't-sec-1', tokenId: '10', priceCredits: 12, image: 'a.png', name: 'Hat' },
+      { tradeId: 't-sec-2', tokenId: '20', priceCredits: 25, image: 'b.png', name: 'Hat' }
+    ])
+  })
+
+  it('should query the v3 shop feed by contract + item, cheapest-first', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ data: [] }))
+    await fetchItemResales('0xC0', '7')
+    const url = lastUrl()
+    expect(url).toContain('https://market.test/v3/catalog/shop?')
+    expect(url).toContain('contractAddress=0xC0')
+    expect(url).toContain('itemId=7')
+    expect(url).toContain('sortBy=cheapest')
+  })
+
+  it('should return an empty array when the item has no open resales', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ data: [] }))
+    expect(await fetchItemResales('0xc', '9')).toEqual([])
+  })
+
+  it('should propagate the shop-feed error', async () => {
+    fetchMock.mockResolvedValueOnce(httpError(500))
+    await expect(fetchItemResales('0xc', '9')).rejects.toThrow('fetchShopListings 500')
+  })
+})
+
+describe('when fetching the classic (legacy MANA) orders for an item', () => {
+  it('should map each order to its token, mana price, issued number and seller', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonOk({
+        total: 1,
+        data: [
+          {
+            tokenId: '42',
+            issuedId: '7',
+            price: '1000000000000000000',
+            owner: '0xseller',
+            contractAddress: '0xc'
+          }
+        ]
+      })
+    )
+    const orders = await fetchLegacyItemOrders('0xc', '9')
+    expect(orders).toEqual([
+      { tokenId: '42', issuedId: '7', manaWei: '1000000000000000000', seller: '0xseller', contractAddress: '0xc' }
+    ])
+  })
+
+  it('should hit /v1/orders filtered to open + cheapest', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ data: [] }))
+    await fetchLegacyItemOrders('0xC0', '7')
+    const url = lastUrl()
+    expect(url).toContain('https://market.test/v1/orders?')
+    expect(url).toContain('contractAddress=0xC0')
+    expect(url).toContain('itemId=7')
+    expect(url).toContain('status=open')
+    expect(url).toContain('sortBy=cheapest')
+  })
+
+  it('should return an empty array when the item has no classic orders', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ data: [] }))
+    expect(await fetchLegacyItemOrders('0xc', '9')).toEqual([])
+  })
+
+  it('should throw when the orders request fails', async () => {
+    fetchMock.mockResolvedValueOnce(httpError(503))
+    await expect(fetchLegacyItemOrders('0xc', '9')).rejects.toThrow('fetchLegacyItemOrders 503')
   })
 })

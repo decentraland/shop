@@ -1,0 +1,182 @@
+/* ---------------- Item resales ----------------
+   Open secondary listings for the current item, shown below the main detail. Shop (credit-buyable)
+   resales are first-class rows with Add to cart + Buy; classic (MANA) orders are price-discovery-only
+   rows that link out. Styles live beside the component (the PDP is lazy-loaded). */
+.resales {
+  margin-top: 40px;
+}
+.resales__head {
+  margin-bottom: 16px;
+}
+.resales__title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+}
+.resales__subtitle {
+  margin: 4px 0 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.resales__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.resales__row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  background: var(--panel);
+}
+.resales__id {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 0 0 auto;
+}
+.resales__thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  object-fit: cover;
+  background: var(--skeleton);
+}
+.resales__issued {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--text);
+}
+.resales__issued--muted {
+  font-weight: 600;
+  color: var(--muted);
+}
+.resales__price {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  font-weight: 700;
+  font-size: 17px;
+  color: var(--text);
+}
+.resales__diamond {
+  width: 18px;
+  height: 18px;
+}
+.resales__approx {
+  color: var(--muted);
+  font-weight: 600;
+}
+.resales__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+.resales__add,
+.resales__buy {
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 16px;
+  border-radius: var(--radius-btn);
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+.resales__add {
+  background: var(--black-btn);
+  color: var(--soft-white);
+  border: 0;
+}
+.resales__buy {
+  background: var(--brand-violet);
+  color: #fff;
+  border: 0;
+}
+.resales__add:hover:not(:disabled),
+.resales__buy:hover:not(:disabled) {
+  filter: brightness(1.15);
+}
+.resales__add:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* Legacy (classic MANA) group: visually distinct — muted panel, a "classic marketplace" chip and an
+   outbound link instead of cart/buy (the credits rail can't fulfill these). */
+.resales__legacy {
+  margin-top: 24px;
+}
+.resales__legacy-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 10px;
+}
+.resales__legacy-title {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--text-2);
+}
+.resales__legacy-note {
+  font-size: 13px;
+  color: var(--muted);
+}
+.resales__row--legacy {
+  background: transparent;
+  border-style: dashed;
+}
+.resales__legacy-chip {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--muted);
+}
+.resales__view-market {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 14px;
+  border-radius: var(--radius-btn);
+  border: 1px solid var(--line-strong);
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 14px;
+  text-decoration: none;
+}
+.resales__view-market:hover {
+  background: var(--chip);
+}
+
+@media (max-width: 768px) {
+  .resales__row {
+    flex-wrap: wrap;
+    gap: 10px 12px;
+  }
+  .resales__price {
+    margin-left: auto;
+  }
+  .resales__actions {
+    flex: 1 1 100%;
+  }
+  .resales__add,
+  .resales__buy,
+  .resales__view-market {
+    flex: 1 1 auto;
+    height: 44px;
+  }
+}

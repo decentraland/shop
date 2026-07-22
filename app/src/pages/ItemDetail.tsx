@@ -32,6 +32,7 @@ import { t } from '~/intl/i18n'
 import { fetchCollectionItems, fetchCollection } from '~/lib/collections'
 import { ItemPreview } from '~/components/ItemPreview'
 import { CollectionCarousel } from '~/components/CollectionCarousel'
+import { ItemResales } from '~/components/ItemResales'
 import { NotifyMe } from '~/components/NotifyMe'
 import { MakeOfferButton } from '~/components/MakeOfferButton'
 import { Tooltip } from '~/components/Tooltip'
@@ -178,6 +179,9 @@ export function ItemDetail() {
   })
 
   const [showBuy, setShowBuy] = useState(false)
+  // A specific resale (secondary listing) the buyer clicked Buy on, in the Resales section below the
+  // main detail. Opens the same single-buy flow as the top CTA, but for that listing's trade.
+  const [buyResale, setBuyResale] = useState<CatalogItem | null>(null)
   // Returning from a Stripe top-up started in the buy modal (no-funds flow): auto-open the modal in
   // resume mode so it finishes the purchase with the newly-bought credits.
   const [resumeBuy, setResumeBuy] = useState(!!state?.resumeBuy)
@@ -879,6 +883,8 @@ export function ItemDetail() {
         </div>
       </div>
 
+      {current.itemId ? <ItemResales item={current} onBuy={setBuyResale} /> : null}
+
       <CollectionCarousel
         title={collectionTitle}
         items={carouselItems}
@@ -899,6 +905,17 @@ export function ItemDetail() {
           onClose={() => {
             setShowBuy(false)
             setResumeBuy(false)
+          }}
+        />
+      ) : null}
+
+      {buyResale ? (
+        <BuyModal
+          item={buyResale}
+          onClose={() => {
+            setBuyResale(null)
+            // A completed resale buy retires that token's listing — refresh the section so it drops out.
+            void qc.invalidateQueries({ queryKey: ['item-resales', current.contractAddress, current.itemId] })
           }}
         />
       ) : null}

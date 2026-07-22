@@ -304,6 +304,73 @@ export async function fetchListings({ first = 100, ...filters }: ShopListingFilt
   return { items: listings.map(shopListingToItem), total }
 }
 
+// One currently-open, credit-buyable SECONDARY (resale) listing for a specific item: a single token
+// on sale. `issuedId`/`seller` are optional — the v3 shop feed does NOT carry them for secondary rows
+// (see marketplace-server shop-catalog ShopListing), so they're populated only if a future feed adds
+// them. Never derived/guessed here.
+export type ItemResale = {
+  tradeId: string
+  tokenId: string
+  priceCredits: number
+  image: string
+  name: string
+  issuedId?: string
+  seller?: string
+}
+
+// The open resales (secondary listings) for ONE item from the USD-pegged shop feed, cheapest-first.
+// Reuses the raw shop-listing fetch (same joined+priced feed the rest of the shop reads) and keeps
+// only the secondary rows carrying a tokenId — those are the specific copies a buyer can pay for with
+// credits. Primary (mint) rows are dropped (they're the top-of-page Buy CTA, not a resale).
+export async function fetchItemResales(contractAddress: string, itemId: string): Promise<ItemResale[]> {
+  const { listings } = await fetchShopListingsRaw({ contractAddress, itemId, first: 100, sortBy: 'cheapest' })
+  return listings
+    .filter(l => l.listingType === 'secondary' && !!l.tokenId)
+    .map(l => ({
+      tradeId: l.tradeId,
+      tokenId: l.tokenId as string,
+      priceCredits: l.priceCredits,
+      image: l.thumbnail,
+      name: l.name
+    }))
+    .sort((a, b) => a.priceCredits - b.priceCredits)
+}
+
+// A classic (legacy, MANA-priced) open order for a specific item, from the marketplace /v1/orders
+// endpoint. These are NOT credit-buyable in the shop (the credits rail can't fulfill an ERC20-MANA
+// order), so the UI surfaces them for price discovery only, linking out to the classic marketplace.
+// `manaWei` is the raw MANA price — the caller converts it to indicative credits with the live rate
+// (see lib/mana-rate); never show the raw MANA figure (web2-first, see CONVENTIONS.md).
+export type LegacyItemOrder = {
+  tokenId: string
+  issuedId?: string
+  manaWei: string
+  seller: string
+  contractAddress: string
+}
+
+export async function fetchLegacyItemOrders(contractAddress: string, itemId: string): Promise<LegacyItemOrder[]> {
+  const qs = new URLSearchParams({
+    contractAddress,
+    itemId,
+    status: 'open',
+    sortBy: 'cheapest',
+    first: '100'
+  })
+  const res = await fetch(`${config.marketplaceServerUrl}/v1/orders?${qs.toString()}`)
+  if (!res.ok) throw new Error(`fetchLegacyItemOrders ${res.status}`)
+  const json = (await res.json()) as {
+    data?: Array<{ tokenId: string; issuedId?: string; price: string; owner: string; contractAddress: string }>
+  }
+  return (json.data ?? []).map(o => ({
+    tokenId: o.tokenId,
+    issuedId: o.issuedId,
+    manaWei: o.price,
+    seller: o.owner,
+    contractAddress: o.contractAddress
+  }))
+}
+
 // ---------------------------------------------------------------------------
 // Unified catalog (v3) — the single browse feed that mixes NATIVE (USD-pegged, credit-buyable, Add to
 // cart) and LEGACY (classic MANA-priced) liquidity in one grid. Same query params as /v3/catalog/shop.
