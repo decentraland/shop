@@ -26,6 +26,11 @@ export const Skeleton = styled.div`
 // not stable. `display: contents` keeps this wrapper from generating a box (the navbar itself is
 // position: fixed). Specificity (wrapper class + element/attribute) beats ui2's single-class rules,
 // so no !important is needed.
+//
+// ⚠️ These structural selectors (`nav > div:first-of-type > …`) depend on decentraland-ui2's internal
+// DOM nesting, and the hamburger selectors on its English `aria-label`s ("Open menu" / "Close menu").
+// Validated against decentraland-ui2@3.13.1 — re-check on upgrade (a wrapper div added/removed, or a
+// localized aria-label, would silently drop these overrides).
 export const NavbarViolet = styled.div`
   display: contents;
 
@@ -46,12 +51,12 @@ export const NavbarViolet = styled.div`
   & nav > div:first-of-type > div > a:hover,
   & nav > div:first-of-type > div > div > button:hover {
     color: ${theme.colors.text2};
-    background-color: rgba(255, 255, 255, 0.35);
+    background-color: ${theme.colors.navOverlayHover};
   }
   & nav > div:first-of-type > div > a.active,
   & nav > div:first-of-type > div > div > button.active {
     color: ${theme.colors.text2};
-    background-color: rgba(255, 255, 255, 0.45);
+    background-color: ${theme.colors.navOverlayActive};
   }
 
   /* Sign-in button (signed-out state): dark outline + text instead of ui2's near-white, which would
@@ -61,7 +66,11 @@ export const NavbarViolet = styled.div`
     border-color: ${theme.colors.text2};
   }
   & nav > div:last-of-type > button:not([aria-label]):hover {
-    background-color: rgba(255, 255, 255, 0.35);
+    background-color: ${theme.colors.navOverlayHover};
+    border-color: ${theme.colors.text2};
+  }
+  & nav > div:last-of-type > button:not([aria-label]):active {
+    background-color: ${theme.colors.navOverlayActive};
     border-color: ${theme.colors.text2};
   }
 
