@@ -1,9 +1,11 @@
 import styled from '@emotion/styled'
 import { theme } from '~/styles/theme'
 
-// Assets browse layout: a 265px filter sidebar + the main column (toolbar + grid). Below the `lg`
-// breakpoint the sidebar becomes an off-canvas bottom-sheet Filters drawer (Figma mobile sheet
-// 1304-307965) opened by the toolbar's Filters pill; the grid then takes the full width.
+// Assets browse layout: a 265px filter sidebar + the main column (toolbar + grid). On desktop the
+// sidebar is sticky (pinned below the navbar + sub-nav) and scrolls internally when its sections
+// overflow the viewport, so it accompanies the grid's scroll. Below the `lg` breakpoint the sidebar
+// becomes an off-canvas bottom-sheet Filters drawer (Figma mobile sheet 1304-307965) opened by the
+// toolbar's Filters pill; the grid then takes the full width. MyAssets reuses this same shell.
 
 export const Root = styled.div`
   position: relative;
@@ -28,6 +30,36 @@ export const Main = styled.div`
 export const Sidebar = styled.aside`
   flex: none;
   width: 265px;
+
+  /* Desktop only (mobile is the off-canvas drawer below). Pin the filter column so it accompanies the
+     grid's scroll, and let it scroll internally when every section is expanded instead of overflowing
+     the page. The row's align-items: flex-start (Root) keeps this a content-height item, which is what
+     makes sticky able to move within the row. */
+  ${theme.media.up('lg')} {
+    position: sticky;
+    /* Sit flush below the fixed ui2 navbar (92px) + the sticky shop sub-nav (66px = its height) so the
+       sidebar tracks scroll without hiding under them or floating in a gap (see index.css). */
+    top: 158px;
+    /* Scroll inside the column when the expanded filters exceed the viewport; the 24px keeps the last
+       control clear of the screen edge. */
+    max-height: calc(100vh - 158px - 24px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+
+    /* Subtle scrollbar matching the cart scroll list (cart.css) — only shows when content overflows. */
+    scrollbar-width: thin;
+    scrollbar-color: ${theme.colors.muted2} transparent;
+    &::-webkit-scrollbar {
+      width: 6px;
+    }
+    &::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    &::-webkit-scrollbar-thumb {
+      background: ${theme.colors.muted2};
+      border-radius: 8px;
+    }
+  }
 
   ${theme.media.down('lg')} {
     position: fixed;
