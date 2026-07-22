@@ -50,6 +50,61 @@ import { friendlyError } from '~/lib/errors'
 // credits-server's NAME_PRICE_IN_WEI and the marketplace webapp's PRICE_IN_WEI.
 export const NAME_PRICE_IN_WEI = '100000000000000000000'
 
+// ---------------------------------------------------------------------------
+// NAME string validation + availability (advisory search-time check)
+// ---------------------------------------------------------------------------
+// Decentraland NAME rules, mirroring the marketplace webapp's claim validation: 2–15 characters,
+// ASCII alphanumeric only (a–z, A–Z, 0–9). No spaces, punctuation, emoji or unicode. The `.dcl.eth`
+// suffix is presentation only — it's never part of the stored/registered name.
+
+export const NAME_MIN_LENGTH = 2
+export const NAME_MAX_LENGTH = 15
+const NAME_ALLOWED = /^[a-zA-Z0-9]+$/
+
+export type NameInvalidReason = 'empty' | 'too-short' | 'too-long' | 'invalid-chars'
+export type NameValidation = { ok: true } | { ok: false; reason: NameInvalidReason }
+
+// Validate a raw NAME the user typed. Order matters: an invalid character is reported before a
+// length problem so the user sees the most specific fix first.
+export function validateName(raw: string): NameValidation {
+  const name = raw.trim()
+  if (name.length === 0) return { ok: false, reason: 'empty' }
+  if (!NAME_ALLOWED.test(name)) return { ok: false, reason: 'invalid-chars' }
+  if (name.length < NAME_MIN_LENGTH) return { ok: false, reason: 'too-short' }
+  if (name.length > NAME_MAX_LENGTH) return { ok: false, reason: 'too-long' }
+  return { ok: true }
+}
+
+// Normalize keystrokes as the user types: drop anything that isn't allowed (incl. spaces) and cap the
+// length. Keeps the input from ever holding a value that couldn't be registered.
+export function sanitizeNameInput(raw: string): string {
+  return raw.replace(/[^a-zA-Z0-9]/g, '').slice(0, NAME_MAX_LENGTH)
+}
+
+export type NameAvailability = 'available' | 'taken'
+
+/**
+ * Advisory availability probe used by the search field. A NAME is "taken" when an ENS NFT with that
+ * exact (case-insensitive) name already exists in the marketplace index. This is UNAUTHENTICATED and
+ * cheap so it can run on every (debounced) keystroke without a sign-in.
+ *
+ * It is deliberately advisory: the AUTHORITATIVE checks are the credits-server (fetchNameCreditRoute
+ * validates format + on-chain availability) and the on-chain register itself, both of which reject a
+ * taken name at purchase time. A false "available" here can therefore never mint a duplicate.
+ */
+export async function checkNameAvailability(
+  name: string,
+  opts: { signal?: AbortSignal } = {}
+): Promise<NameAvailability> {
+  const qs = new URLSearchParams({ category: 'ens', search: name, first: '50' })
+  const res = await fetch(`${config.nftApiUrl}/v1/nfts?${qs.toString()}`, { signal: opts.signal })
+  if (!res.ok) throw new Error(`checkNameAvailability ${res.status}`)
+  const body = (await res.json()) as { data?: Array<{ nft?: { name?: string } }> }
+  const target = name.trim().toLowerCase()
+  const taken = (body.data ?? []).some(row => (row.nft?.name ?? '').trim().toLowerCase() === target)
+  return taken ? 'taken' : 'available'
+}
+
 // Across public app API base (deposit-status polling). Public value; overridable for tests/local.
 const ACROSS_API_URL = 'https://app.across.to/api'
 

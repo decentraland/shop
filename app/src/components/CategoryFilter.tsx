@@ -45,7 +45,10 @@ export const CATEGORIES: Top[] = [
       { key: 'Horror', labelKey: 'categories.horror', icon: 'emote-horror' },
       { key: 'Miscellaneous', labelKey: 'categories.miscellaneous', icon: 'emote-misc' }
     ]
-  }
+  },
+  // NAMEs is a distinct destination (not a collectibles filter): selecting it swaps the grid for the
+  // NAMEs purchase page (see Assets.tsx). No sub-categories.
+  { key: 'names', labelKey: 'categories.names' }
 ]
 
 export function CategoryFilter({
@@ -136,12 +139,7 @@ export function CategoryFilter({
 
       {onCollections ? (
         <S.Group>
-          <S.CatButton
-            type="button"
-            flat={flat}
-            className={collections ? 'is-selected' : ''}
-            onClick={onCollections}
-          >
+          <S.CatButton type="button" flat={flat} className={collections ? 'is-selected' : ''} onClick={onCollections}>
             <S.CatLabel>{t('categories.collections')}</S.CatLabel>
           </S.CatButton>
         </S.Group>

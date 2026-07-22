@@ -55,6 +55,7 @@
     "shopAll": "Shop All",
     "wearables": "Wearables",
     "emotes": "Emotes",
+    "names": "NAMEs",
     "collections": "Collections",
     "head": "Head",
     "upperBody": "Upper Body",
@@ -625,6 +626,45 @@
     "male": "Male",
     "female": "Female"
   },
+  "names": {
+    "breadcrumbAria": "Breadcrumb",
+    "breadcrumbCollectibles": "Collectibles",
+    "breadcrumbCurrent": "NAMEs",
+    "heroTitle": "Get your unique NAME!",
+    "heroSubtitle": "Activate the full potential of Decentraland citizenship with a unique NAME & your own World!",
+    "inputPlaceholder": "yourname",
+    "inputAria": "Search for a NAME",
+    "suffix": ".dcl.eth",
+    "claim": "Claim name",
+    "checking": "Checking availability…",
+    "available": "{name} is available!",
+    "taken": "This NAME is taken. Choose another one.",
+    "tooShort": "Names must be at least {min} characters.",
+    "checkError": "We couldn’t check that NAME right now — you can still try to claim it.",
+    "whyTitle": "Why buy a NAME?",
+    "why1": "Stand out with a unique alias for your Avatar",
+    "why2": "Unlock your World and customize your own virtual 3D space to host events",
+    "why2Link": "Learn More",
+    "why3": "A dedicated URL for your virtual spaces to guide visitors with an exclusive URL to your LAND",
+    "why3Link": "http://yourname.dcl.eth",
+    "buyTitle": "Buy NAME",
+    "myCreditsBalance": "My Credits Balance:",
+    "subtitle": "Decentraland NAMEs",
+    "confirmTitle": "Please confirm your NAME",
+    "confirmBody": "You’ve selected {name}. Re-enter the NAME to confirm your selection and continue with your purchase.",
+    "reenterAria": "Re-enter the NAME to confirm",
+    "buyCta": "Buy NAME",
+    "completing": "Completing your purchase…",
+    "confirming": "Confirm to continue…",
+    "successHeaderTitle": "Purchase complete!",
+    "successBannerBold": "Your purchase was successful!",
+    "successBannerRest": "You can find your NAME in the My Items tab.",
+    "myItems": "My Items",
+    "assignToAvatar": "Assign NAME to avatar",
+    "errorTitle": "Something went wrong",
+    "errorGeneric": "We couldn’t complete your purchase. Please try again.",
+    "tryAgain": "Try again"
+  },
   "seo": {
     "collectibles": {
       "title": "Browse Collectibles",
@@ -652,6 +692,10 @@
     },
     "notFound": {
       "title": "Page Not Found"
+    },
+    "names": {
+      "title": "Get a Decentraland NAME",
+      "description": "Claim your unique Decentraland NAME with credits — a personal alias for your avatar and your own World."
     }
   }
 }
