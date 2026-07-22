@@ -28,6 +28,9 @@
   --radius-pill: 50px;
   --radius-banner: 24px;
   --sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  /* Modal/overlay stacking tier — above the global DCL navbar (position: fixed) + the sub-nav so a
+     scrim dims the FULL viewport, navbar included. Shared by every full-screen overlay. */
+  --z-overlay: 10000;
 }
 * {
   box-sizing: border-box;
@@ -1056,7 +1059,8 @@ h2 {
   background: rgba(0, 0, 0, 0.5);
   display: grid;
   place-items: center;
-  z-index: 100;
+  /* Above the global DCL navbar so the backdrop dims the full viewport (navbar included). */
+  z-index: var(--z-overlay);
 }
 .modal {
   background: #fff;
@@ -1920,6 +1924,40 @@ h2 {
   margin: 12px 0;
   background: var(--neutrals-gray-4, #cfcdd4);
 }
+/* Credits-added row (Figma 1231-250927 "Buy credits + item together" success): the topped-up bundle
+   that landed with the purchase, shown as a light-purple pill above the item list. */
+.success-credits {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 109px;
+  margin-bottom: 12px;
+  padding: 8px 24px;
+  border-radius: 8px;
+  background: #f4e9ff;
+  color: var(--text);
+}
+.success-credits__ico {
+  width: 30px;
+  height: 30px;
+  color: var(--accent);
+}
+.success-credits__text {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 0;
+}
+.success-credits__amount {
+  font-size: 24px;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+.success-credits__added {
+  font-size: 14px;
+  font-weight: 400;
+}
 .success-row {
   display: flex;
   align-items: center;
@@ -2692,7 +2730,8 @@ h2 {
 .fitting {
   position: fixed;
   inset: 0;
-  z-index: 70;
+  /* Above the global DCL navbar so the scrim dims the full viewport (navbar included). */
+  z-index: var(--z-overlay);
   display: grid;
   place-items: center;
   padding: 20px;
@@ -3173,7 +3212,9 @@ h2 {
 .buy-modal {
   position: fixed;
   inset: 0;
-  z-index: 60;
+  /* Above the global DCL navbar (position: fixed, high z-index) so the scrim dims the FULL viewport,
+     navbar included. Matches the cart drawer / popover "above everything" tier. */
+  z-index: var(--z-overlay);
   display: grid;
   place-items: center;
   padding: 20px;
@@ -3187,7 +3228,9 @@ h2 {
   position: relative;
   z-index: 1;
   width: 100%;
-  max-width: 560px;
+  /* Widened to fit all 4 credit bundles comfortably in a single row (Figma 1179-182656 shows 3 at
+     ~180px; the credits-server now returns 4). The pack tiles flex to share this width. */
+  max-width: 700px;
   /* Grid-item auto-minimum can otherwise push the card past the viewport on a
      narrow screen (e.g. the cart's multi-item success list); let it shrink. */
   min-width: 0;
@@ -3327,13 +3370,14 @@ h2 {
   font-weight: 600;
   color: #242129;
 }
-/* Warning banner (nofunds) */
+/* Warning banner (nofunds) — Figma 1179-182656 "Insufficient Funds" banner: warm peach fill
+   (rgba(255,162,90,0.3)) with a Brand/Purple (#691fa9) warning glyph and soft-black-2 text. */
 .buy-modal__warning {
   display: flex;
   align-items: center;
   gap: 8px;
   justify-content: center;
-  background: #f0dfff;
+  background: rgba(255, 162, 90, 0.3);
   border-radius: 8px;
   padding: 12px 8px;
 }

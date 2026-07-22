@@ -1,6 +1,8 @@
 import type { CatalogItem } from '~/lib/api'
 import type { CreditPack } from '~/lib/payments'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
+import { CreatorName } from '~/components/CreatorName'
+import { WarningIcon } from '~/components/WarningIcon'
 import { formatCredits } from '~/lib/currency'
 import { t } from '~/intl/i18n'
 import loaderLogo from '~/assets/credits/loader-logo.svg'
@@ -202,11 +204,7 @@ function NoFunds({
   return (
     <div className="buy-modal__body">
       <div className="buy-modal__warning">
-        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden className="buy-modal__warning-ico">
-          <path d="M12 3L2 20h20L12 3z" fill="none" stroke="#691fa9" strokeWidth="1.8" strokeLinejoin="round" />
-          <path d="M12 9v5" stroke="#691fa9" strokeWidth="1.8" strokeLinecap="round" />
-          <circle cx="12" cy="17" r="1.1" fill="#691fa9" />
-        </svg>
+        <WarningIcon className="buy-modal__warning-ico" />
         <p className="buy-modal__warning-text">
           <b>{t('buyModal.insufficientFunds')}</b> {t('buyModal.warningNeedToBuy')}{' '}
           <b>{t('buyModal.warningCreditsAmount', { count: Math.max(0, shortfallCredits) })}</b>{' '}
@@ -231,7 +229,7 @@ function NoFunds({
                     ) : null}
                   </div>
                   {l.item.creator ? (
-                    <div className="buy-modal__asset-creator">{t('search.byCreator', { name: l.item.creator })}</div>
+                    <CreatorName address={l.item.creator} className="buy-modal__asset-creator" />
                   ) : null}
                 </div>
                 <div className="buy-modal__asset-price">

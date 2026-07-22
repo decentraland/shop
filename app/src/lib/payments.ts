@@ -67,6 +67,10 @@ export const CREDIT_PACKS: CreditPack[] = [
   { id: 'pack_50', usd: 50, credits: creditsForUsd(50) }
 ]
 
+// How many top-up packs the no-funds pickers (BuyModal + Cart) offer in one row. The modal is widened
+// to fit them (Figma 1179-182656); a single source so the two pickers can't drift out of sync.
+export const MAX_OFFER_PACKS = 4
+
 // Shape returned by the public credits-server catalogue endpoint (READ-only, no auth, no secrets).
 type ServerCreditPack = { id: string; usd: number; credits: number; recommended?: boolean; order?: number }
 

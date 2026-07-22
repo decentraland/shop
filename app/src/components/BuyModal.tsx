@@ -15,8 +15,10 @@ import { buyWithCredits } from '~/lib/buy'
 import { buyGasless, waitForSettlement, GaslessUnavailableError, SettlementPendingError } from '~/lib/buy-gasless'
 import { gaslessEnabled } from '~/lib/gasless-config'
 import { isOwnTrade } from '~/lib/ownership'
-import { createPackCheckout } from '~/lib/payments'
+import { createPackCheckout, MAX_OFFER_PACKS } from '~/lib/payments'
 import { useCreditPacks } from '~/hooks/useCreditPacks'
+import { CreatorName } from '~/components/CreatorName'
+import { WarningIcon } from '~/components/WarningIcon'
 import { RESUME_BUY_KEY } from '~/lib/resume-buy'
 import { t } from '~/intl/i18n'
 import { friendlyError, isInsufficient } from '~/lib/errors'
@@ -49,10 +51,11 @@ export function BuyModal({
   const { data: balance } = useBalance(session)
   const qc = useQueryClient()
   const navigate = useNavigate()
-  // The three top-up packs offered when the buyer is short on credits. Sourced from the credits-server
+  // The top-up packs offered when the buyer is short on credits (all four the credits-server returns —
+  // the modal is widened to fit them in one row, Figma 1179-182656). Sourced from the credits-server
   // catalogue (single source of truth); falls back to the bundled packs so this critical picker always
   // renders. The cheapest pack that still clears the shortfall is pre-selected.
-  const OFFER_PACKS = useCreditPacks().packs.slice(0, 3)
+  const OFFER_PACKS = useCreditPacks().packs.slice(0, MAX_OFFER_PACKS)
 
   const [phase, setPhase] = useState<Phase>('loading')
   const [error, setError] = useState<string | null>(null)
@@ -306,11 +309,7 @@ export function BuyModal({
         {phase === 'nofunds' && (
           <div className="buy-modal__body">
             <div className="buy-modal__warning">
-              <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden className="buy-modal__warning-ico">
-                <path d="M12 3L2 20h20L12 3z" fill="none" stroke="#691fa9" strokeWidth="1.8" strokeLinejoin="round" />
-                <path d="M12 9v5" stroke="#691fa9" strokeWidth="1.8" strokeLinecap="round" />
-                <circle cx="12" cy="17" r="1.1" fill="#691fa9" />
-              </svg>
+              <WarningIcon className="buy-modal__warning-ico" />
               <p className="buy-modal__warning-text">
                 <b>{t('buyModal.insufficientFunds')}</b> {t('buyModal.warningNeedToBuy')}{' '}
                 <b>{t('buyModal.warningCreditsAmount', { count: Math.max(0, priceCredits - balanceCredits) })}</b>{' '}
@@ -438,7 +437,7 @@ function AssetRow({ item, priceCredits }: { item: CatalogItem; priceCredits: num
             {item.name || t('buyModal.itemFallback')}
           </div>
           {item.creator ? (
-            <div className="buy-modal__asset-creator">{t('search.byCreator', { name: item.creator })}</div>
+            <CreatorName address={item.creator} className="buy-modal__asset-creator" />
           ) : null}
         </div>
         <div className="buy-modal__asset-price">
