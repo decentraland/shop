@@ -517,8 +517,9 @@ export function MyAssets() {
                 ownedAssets.map(asset =>
                   section === 'names' ? (
                     // NAMEs can't be resold through the Shop (the credit rail is Polygon-only, NAMEs are
-                    // on Ethereum L1) — show them view-only, no list control.
-                    <AssetCard key={asset.id} item={assetToItem(asset)} mode="view" />
+                    // on Ethereum L1) — show them view-only, no list control. Force category 'ens' so the
+                    // card renders the typographic "@name" tile (Figma 696-33957).
+                    <AssetCard key={asset.id} item={{ ...assetToItem(asset), category: 'ens' }} mode="view" />
                   ) : (
                     <AssetCard
                       key={asset.id}
@@ -562,9 +563,7 @@ export function MyAssets() {
                   {section === 'names' ? t('myAssets.emptyNamesTitle') : t('myAssets.emptyOwnedTitle')}
                 </S.EmptyTitle>
                 <S.EmptyText>{section === 'names' ? t('myAssets.namesEmpty') : t('myAssets.ownedEmpty')}</S.EmptyText>
-                {section !== 'names' ? (
-                  <S.EmptyCta to="/assets">{t('myAssets.emptyBrowse')}</S.EmptyCta>
-                ) : null}
+                {section !== 'names' ? <S.EmptyCta to="/assets">{t('myAssets.emptyBrowse')}</S.EmptyCta> : null}
               </S.EmptyState>
             ) : null}
           </>

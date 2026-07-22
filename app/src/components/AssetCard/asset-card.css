@@ -69,6 +69,33 @@
   display: block;
   transition: opacity 0.25s ease;
 }
+/* NAME card media (My Assets → Names): typographic @name tile, violet, centered (Figma 696-33957). */
+.card__name-media {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  height: 100%;
+  padding: 8px;
+  color: #a524b3;
+  text-align: center;
+}
+.card__name-at {
+  font-weight: 700;
+  font-size: 36px;
+  line-height: 1;
+}
+.card__name-value {
+  max-width: 100%;
+  font-weight: 700;
+  font-size: 24px;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .card__img--hidden {
   opacity: 0;
 }

@@ -54,6 +54,9 @@ export function AssetCard(props: AssetCardProps) {
   const isMarket = props.mode === 'market'
   const isView = props.mode === 'view'
   const isManage = props.mode === 'manage'
+  // A Decentraland NAME (My Assets → Names): no thumbnail — the media is the typographic "@name" tile
+  // (Figma 696-33957). Uses the same card shell + hover as every other card.
+  const isNameItem = item.category === 'ens'
   const navigate = useNavigate()
   const timer = useRef<ReturnType<typeof setTimeout>>()
   const mediaRef = useRef<HTMLDivElement>(null)
@@ -184,7 +187,12 @@ export function AssetCard(props: AssetCardProps) {
         ) : null}
         {/* Flat thumbnail stays visible the whole time the 3D loads (no empty frame); it only fades out
             once the shared preview has this item's scene ready, crossfading into the 3D. */}
-        {item.thumbnail ? (
+        {isNameItem ? (
+          <div className="card__name-media" aria-hidden>
+            <span className="card__name-at">@</span>
+            <span className="card__name-value">{item.name}</span>
+          </div>
+        ) : item.thumbnail ? (
           <img
             className={`card__img${isPreviewing && previewReady ? ' card__img--hidden' : ''}`}
             src={item.thumbnail}
@@ -281,157 +289,157 @@ export function AssetCard(props: AssetCardProps) {
           </span>
         </div>
       ) : (
-      <div className="card__body">
-        {/* Title+author sit on one row with the price to their right (Figma). card__desc holds the
+        <div className="card__body">
+          {/* Title+author sit on one row with the price to their right (Figma). card__desc holds the
             flexible column (min-width:0 so a long name ellipses instead of shoving the price out or
             wrapping); the price never shrinks. */}
-        <div className="card__top">
-          <div className="card__desc">
-            <div className="card__name" title={item.name}>
-              {item.name}
+          <div className="card__top">
+            <div className="card__desc">
+              <div className="card__name" title={item.name}>
+                {item.name}
+              </div>
+              {item.creator ? (
+                <CreatorBadge address={item.creator} className="card__creator" linkToProfile />
+              ) : (
+                <div className="card__creator">&nbsp;</div>
+              )}
             </div>
-            {item.creator ? (
-              <CreatorBadge address={item.creator} className="card__creator" linkToProfile />
+            {isMarket && props.mode === 'market' ? (
+              <div className="card__price card__price--market" data-testid="card-price-market">
+                <span className="card__approx" aria-hidden>
+                  ≈
+                </span>
+                <CurrencyIcon className="card__diamond" />
+                {props.marketPriceCredits == null ? '—' : formatCredits(props.marketPriceCredits)}
+              </div>
+            ) : onSale ? (
+              <div className="card__price card__price--sale">
+                <span
+                  className="card__price-now"
+                  data-testid="card-price-now"
+                  title={formatCreditsFull(item.priceCredits)}
+                >
+                  <CurrencyIcon className="card__diamond" />
+                  {formatCredits(item.priceCredits)}
+                </span>
+                <span
+                  className="card__price-was"
+                  data-testid="card-price-was"
+                  title={formatCreditsFull(item.compareAtCredits!)}
+                >
+                  <CurrencyIcon className="card__diamond card__diamond--was" />
+                  {formatCredits(item.compareAtCredits!)}
+                </span>
+                <SaleCountdown endsAt={item.saleEndsAt} className="card__countdown" testId="card-countdown" />
+              </div>
             ) : (
-              <div className="card__creator">&nbsp;</div>
-            )}
-          </div>
-          {isMarket && props.mode === 'market' ? (
-            <div className="card__price card__price--market" data-testid="card-price-market">
-              <span className="card__approx" aria-hidden>
-                ≈
-              </span>
-              <CurrencyIcon className="card__diamond" />
-              {props.marketPriceCredits == null ? '—' : formatCredits(props.marketPriceCredits)}
-            </div>
-          ) : onSale ? (
-            <div className="card__price card__price--sale">
-              <span
-                className="card__price-now"
-                data-testid="card-price-now"
-                title={formatCreditsFull(item.priceCredits)}
-              >
+              <div className="card__price" title={formatCreditsFull(item.priceCredits)}>
                 <CurrencyIcon className="card__diamond" />
                 {formatCredits(item.priceCredits)}
-              </span>
-              <span
-                className="card__price-was"
-                data-testid="card-price-was"
-                title={formatCreditsFull(item.compareAtCredits!)}
-              >
-                <CurrencyIcon className="card__diamond card__diamond--was" />
-                {formatCredits(item.compareAtCredits!)}
-              </span>
-              <SaleCountdown endsAt={item.saleEndsAt} className="card__countdown" testId="card-countdown" />
-            </div>
-          ) : (
-            <div className="card__price" title={formatCreditsFull(item.priceCredits)}>
-              <CurrencyIcon className="card__diamond" />
-              {formatCredits(item.priceCredits)}
-            </div>
-          )}
-        </div>
+              </div>
+            )}
+          </div>
 
-        {/* Chips row and the primary action share one fixed-height slot so the card DOESN'T change
+          {/* Chips row and the primary action share one fixed-height slot so the card DOESN'T change
             size when the action is revealed on hover/focus — the button (40px tall) replaces the chips
             in place, not below them. Chips show at rest; on hover-capable devices the action is
             revealed on hover OR keyboard focus, and it's always shown where hover isn't available
             (touch) so items stay buyable without a mouse (see .card__action in asset-card.css). Both
             stay in the DOM so the action is keyboard-reachable and touch-tappable. Native cards add to
             cart; Market (legacy) cards Buy now directly (price locked at checkout). */}
-        <div className="card__action">
-          <div className="card__chips">
-            {/* Market (legacy) tag: the "≈ price is a live-rate market price" indicator. Lives here in
+          <div className="card__action">
+            <div className="card__chips">
+              {/* Market (legacy) tag: the "≈ price is a live-rate market price" indicator. Lives here in
                 the chips row (not the price row) so it's swapped out for the action button on hover like
                 every other chip and never distorts the price row / Buy now button. */}
-            {isMarket ? (
-              <span className="chip chip--market" data-testid="chip-market">
-                {t('assetCard.marketPrice')}
+              {isMarket ? (
+                <span className="chip chip--market" data-testid="chip-market">
+                  {t('assetCard.marketPrice')}
+                </span>
+              ) : null}
+              <span
+                className="chip chip--rarity"
+                style={{ background: rarityTint(item.rarity), color: rarityInk(item.rarity) }}
+                title={rarityDescription(item.rarity)}
+              >
+                {item.rarity}
               </span>
-            ) : null}
-            <span
-              className="chip chip--rarity"
-              style={{ background: rarityTint(item.rarity), color: rarityInk(item.rarity) }}
-              title={rarityDescription(item.rarity)}
-            >
-              {item.rarity}
-            </span>
-            {item.isSmart ? (
-              <span className="chip chip--smart" data-testid="chip-smart">
-                <Icon name="smart" size={13} />
-                {t('assetCard.smart')}
-              </span>
-            ) : null}
-            {catIco ? (
-              <span className="chip chip--icon">
-                <Icon name={catIco} />
-              </span>
-            ) : null}
-            {genderIco ? (
-              <span className="chip chip--icon">
-                <Icon name={genderIco} />
-              </span>
-            ) : null}
-          </div>
+              {item.isSmart ? (
+                <span className="chip chip--smart" data-testid="chip-smart">
+                  <Icon name="smart" size={13} />
+                  {t('assetCard.smart')}
+                </span>
+              ) : null}
+              {catIco ? (
+                <span className="chip chip--icon">
+                  <Icon name={catIco} />
+                </span>
+              ) : null}
+              {genderIco ? (
+                <span className="chip chip--icon">
+                  <Icon name={genderIco} />
+                </span>
+              ) : null}
+            </div>
 
-          {/* Round add button — the compact mobile card's primary action (Figma). Same behavior as the
+            {/* Round add button — the compact mobile card's primary action (Figma). Same behavior as the
             full-width .card__cart below; only one is visible per breakpoint (CSS). */}
-          {isMarket && props.mode === 'market' ? (
-            <button
-              className="card__add-round"
-              onClick={e => {
-                e.stopPropagation()
-                props.onBuyNow(item)
-              }}
-              disabled={props.marketPriceCredits == null}
-              aria-label={props.marketPriceCredits == null ? t('assetCard.unavailable') : t('assetCard.buyNow')}
-            >
-              <Icon name="plus" />
-            </button>
-          ) : (
-            <button
-              className={`card__add-round${!own && inCart ? ' is-in' : ''}`}
-              onClick={e => {
-                if (own) return goManage(e)
-                e.stopPropagation()
-                add(item, 'grid')
-              }}
-              disabled={!own && inCart}
-              aria-label={own ? t('assetCard.manage') : inCart ? t('assetCard.inCart') : t('assetCard.addToCart')}
-            >
-              <Icon name={own ? 'pen' : 'plus'} />
-            </button>
-          )}
+            {isMarket && props.mode === 'market' ? (
+              <button
+                className="card__add-round"
+                onClick={e => {
+                  e.stopPropagation()
+                  props.onBuyNow(item)
+                }}
+                disabled={props.marketPriceCredits == null}
+                aria-label={props.marketPriceCredits == null ? t('assetCard.unavailable') : t('assetCard.buyNow')}
+              >
+                <Icon name="plus" />
+              </button>
+            ) : (
+              <button
+                className={`card__add-round${!own && inCart ? ' is-in' : ''}`}
+                onClick={e => {
+                  if (own) return goManage(e)
+                  e.stopPropagation()
+                  add(item, 'grid')
+                }}
+                disabled={!own && inCart}
+                aria-label={own ? t('assetCard.manage') : inCart ? t('assetCard.inCart') : t('assetCard.addToCart')}
+              >
+                <Icon name={own ? 'pen' : 'plus'} />
+              </button>
+            )}
 
-          {isMarket && props.mode === 'market' ? (
-            <button
-              className="card__cart"
-              data-testid="card-cart"
-              onClick={e => {
-                e.stopPropagation()
-                props.onBuyNow(item)
-              }}
-              disabled={props.marketPriceCredits == null}
-            >
-              {props.marketPriceCredits == null ? t('assetCard.unavailable') : t('assetCard.buyNow')}
-            </button>
-          ) : (
-            <button
-              className={`card__cart${!own && inCart ? ' is-in' : ''}`}
-              data-testid="card-cart"
-              onClick={e => {
-                if (own) return goManage(e)
-                e.stopPropagation()
-                add(item, 'grid')
-              }}
-              disabled={!own && inCart}
-            >
-              <Icon name={own ? 'pen' : 'cart-solid'} />
-              {own ? t('assetCard.manage') : inCart ? t('assetCard.inCart') : t('assetCard.addToCart')}
-            </button>
-          )}
+            {isMarket && props.mode === 'market' ? (
+              <button
+                className="card__cart"
+                data-testid="card-cart"
+                onClick={e => {
+                  e.stopPropagation()
+                  props.onBuyNow(item)
+                }}
+                disabled={props.marketPriceCredits == null}
+              >
+                {props.marketPriceCredits == null ? t('assetCard.unavailable') : t('assetCard.buyNow')}
+              </button>
+            ) : (
+              <button
+                className={`card__cart${!own && inCart ? ' is-in' : ''}`}
+                data-testid="card-cart"
+                onClick={e => {
+                  if (own) return goManage(e)
+                  e.stopPropagation()
+                  add(item, 'grid')
+                }}
+                disabled={!own && inCart}
+              >
+                <Icon name={own ? 'pen' : 'cart-solid'} />
+                {own ? t('assetCard.manage') : inCart ? t('assetCard.inCart') : t('assetCard.addToCart')}
+              </button>
+            )}
+          </div>
         </div>
-      </div>
       )}
     </article>
   )
