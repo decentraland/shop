@@ -403,7 +403,9 @@
     "signInBody": "Tu historial de pedidos aparecerá aquí cuando inicies sesión.",
     "emptyTitle": "Aún no tienes compras",
     "emptyBody": "Cuando compres algo, aparecerá aquí.",
-    "orderCount": "{count, plural, one {# pedido} other {# pedidos}}"
+    "orderCount": "{count, plural, one {# pedido} other {# pedidos}}",
+    "itemCount": "{count, plural, one {# artículo} other {# artículos}}",
+    "quantity": "×{count}"
   },
   "myFavorites": {
     "emptyTitle": "Aún no tienes favoritos",

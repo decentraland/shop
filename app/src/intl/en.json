@@ -404,7 +404,9 @@
     "signInBody": "Your order history shows up here once you sign in.",
     "emptyTitle": "No purchases yet",
     "emptyBody": "When you buy something it’ll appear here.",
-    "orderCount": "{count, plural, one {# order} other {# orders}}"
+    "orderCount": "{count, plural, one {# order} other {# orders}}",
+    "itemCount": "{count, plural, one {# item} other {# items}}",
+    "quantity": "×{count}"
   },
   "myFavorites": {
     "emptyTitle": "No favorites yet",

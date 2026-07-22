@@ -684,19 +684,29 @@ export async function fetchTradeDisplay(tradeId: string): Promise<PurchaseDispla
   } catch {
     return null
   }
-  const sent = trade.sent?.[0] as { assetType?: number; contractAddress?: string; value?: string } | undefined
+  // The off-chain Trade API returns the sold asset's id in `itemId` (COLLECTION_ITEM / primary) or
+  // `tokenId` (ERC721 / secondary); ONLY the on-chain serialization uses a generic `value`. Reading
+  // `value` off the API trade (as this did) always yielded `undefined` → an empty id → the metadata
+  // endpoints silently ignored the empty filter and returned the collection's default-first item (or
+  // nothing), which is exactly why purchases showed a generic "Item" with no image. Prefer the typed
+  // fields, keep `value` as a last-resort fallback for any on-chain-shaped trade.
+  const sent = trade.sent?.[0] as
+    | { assetType?: number; contractAddress?: string; itemId?: string; tokenId?: string; value?: string }
+    | undefined
   const priceAsset = trade.received?.[0] as { amount?: string } | undefined
   const credits = toCredits(priceAsset?.amount)
   const contractAddress = sent?.contractAddress ?? ''
-  const value = sent?.value ?? ''
+  const id = sent?.itemId ?? sent?.tokenId ?? sent?.value ?? ''
   if (!contractAddress) return { name: 'Item', thumbnail: '', credits, contractAddress: '' }
 
   if (sent?.assetType === TradeAssetType.COLLECTION_ITEM) {
-    const meta = await fetchItemMeta(contractAddress, value)
-    return { name: meta?.name ?? 'Item', thumbnail: meta?.thumbnail ?? '', credits, contractAddress, itemId: value }
+    // Guard the empty-id case: an empty `itemId` filter matches the whole collection, so `first:1`
+    // would return an unrelated item. Better to fall back cleanly than to show the wrong wearable.
+    const meta = id ? await fetchItemMeta(contractAddress, id) : null
+    return { name: meta?.name ?? 'Item', thumbnail: meta?.thumbnail ?? '', credits, contractAddress, itemId: id }
   }
-  const meta = await fetchNftMeta(contractAddress, value)
-  return { name: meta?.name ?? `#${value}`, thumbnail: meta?.image ?? '', credits, contractAddress, tokenId: value }
+  const meta = id ? await fetchNftMeta(contractAddress, id) : null
+  return { name: meta?.name ?? (id ? `#${id}` : 'Item'), thumbnail: meta?.image ?? '', credits, contractAddress, tokenId: id }
 }
 
 // Open credit-buyable listing (Trade) for a catalog ITEM (primary/mint), or null if none. Resolves
