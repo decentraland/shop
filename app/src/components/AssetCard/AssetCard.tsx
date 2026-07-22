@@ -260,25 +260,52 @@ export function AssetCard(props: AssetCardProps) {
           )}
         </div>
       ) : isNameItem ? (
-        // Owned NAME (read-only): just the @name + verified badge — no author, price, or CTA.
-        <div className="card__body">
+        // Owned NAME (read-only): @name + verified badge, and the NOT FOR SALE tag (never listable here).
+        <div className="card__body card__body--name">
           <div className="card__top">
             <div className="card__desc">
               <div className="card__name card__name--verified" title={item.name}>
                 <span>@{item.name}</span>
-                <svg className="card__verified" width="18" height="18" viewBox="0 0 20 20" aria-hidden>
-                  <circle cx="10" cy="10" r="9" fill="#a524b3" />
+                {/* DCL verified badge (Figma 696-34036): scalloped Cerise-gradient seal + white check.
+                    Inlined (not the Icon mask) so the gradient renders. */}
+                <svg
+                  className="card__verified"
+                  width="18"
+                  height="18"
+                  viewBox="0 0 14.6921 14.6931"
+                  fill="none"
+                  aria-hidden
+                >
                   <path
-                    d="M5.8 10.2l2.6 2.6 5.2-5.2"
-                    stroke="#fff"
-                    strokeWidth="1.8"
-                    fill="none"
+                    d="M6.285 0.43934C6.87079 -0.146447 7.82128 -0.146447 8.40707 0.43934L9.68051 1.71278H11.4793C12.3078 1.71278 12.9793 2.38435 12.9793 3.21278V5.01161L14.2528 6.28602C14.8386 6.87181 14.8386 7.82133 14.2528 8.40711L12.9793 9.68055V11.4804C12.9793 12.3088 12.3078 12.9804 11.4793 12.9804H9.68051L8.40707 14.2538C7.82128 14.8395 6.87076 14.8396 6.285 14.2538L5.01156 12.9804H3.21176C2.38334 12.9804 1.71177 12.3088 1.71176 11.4804V9.67957L0.439297 8.40711C-0.146461 7.82136 -0.146403 6.87181 0.439297 6.28602L1.71176 5.01258V3.21278C1.71176 2.38435 2.38333 1.71278 3.21176 1.71278H5.01156L6.285 0.43934Z"
+                    fill="url(#dclVerifiedGrad)"
+                  />
+                  <path
+                    d="M4.6 7.5l1.9 1.9 3.6-3.9"
+                    stroke="#FCFCFC"
+                    strokeWidth="1.5"
                     strokeLinecap="round"
                     strokeLinejoin="round"
                   />
+                  <defs>
+                    <linearGradient
+                      id="dclVerifiedGrad"
+                      x1="7.35"
+                      y1="0"
+                      x2="7.35"
+                      y2="14.69"
+                      gradientUnits="userSpaceOnUse"
+                    >
+                      <stop stopColor="#FF2D55" />
+                      <stop offset="1" stopColor="#C640CD" />
+                    </linearGradient>
+                  </defs>
                 </svg>
               </div>
             </div>
+            <span className="card__nfs" data-testid="card-nfs">
+              {t('assetCard.notForSale')}
+            </span>
           </div>
         </div>
       ) : isView ? (
