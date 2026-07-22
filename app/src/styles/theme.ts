@@ -25,7 +25,10 @@ const colors = {
   media: '#ecebed', // Neutrals/Gray 5 — selected/expanded section fill
   panel: '#f5f5f5',
   chip: '#ecebed',
-  accent: '#691fa9', // purple — View all, Sign-in CTA
+  accent: '#691fa9', // purple — View all, Sign-in CTA, global navbar menu button
+  accentHover: '#7a2bbf', // purple hover — global navbar menu button
+  accentActive: '#57178c', // purple pressed — global navbar menu button
+  navViolet: '#e3c9fb', // global (decentraland-ui2) navbar bar background — violet design
   magenta: '#c640cd', // brand magenta — gradient stop, outline-button border, card hover borders
   brandViolet: '#a524b3', // cart badge
   rarity: '#a14bf3',
