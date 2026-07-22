@@ -1,4 +1,4 @@
-import type { UnifiedListing } from '~/lib/api'
+import type { CatalogItem, UnifiedListing } from '~/lib/api'
 
 // A STABLE, UNIQUE React key for a card in the unified browse grid.
 //
@@ -9,7 +9,10 @@ import type { UnifiedListing } from '~/lib/api'
 // of cleanly swapping. Compose the listing source with its trade/item identity so every row is
 // distinct AND the key stays the same for the same listing across re-fetches (so React preserves the
 // right card when results merely reorder).
-export function listingKey(item: UnifiedListing): string {
+// Accepts a unified listing (native/legacy, has `source`) or a plain catalog item (view-only grids,
+// no `source`) — the latter keys under a stable "item" namespace so it can't collide with a listing.
+export function listingKey(item: CatalogItem | UnifiedListing): string {
+  const source = (item as Partial<UnifiedListing>).source ?? 'item'
   const identity = item.tradeId || `${item.contractAddress}-${item.tokenId ?? item.itemId ?? ''}`
-  return `${item.source}:${identity}`
+  return `${source}:${identity}`
 }
