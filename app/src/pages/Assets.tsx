@@ -229,47 +229,52 @@ export function Assets() {
 
   return (
     <S.Root data-testid="browse">
-      {filtersOpen ? <S.Scrim onClick={() => setFiltersOpen(false)} aria-hidden /> : null}
-      <S.Sidebar className={filtersOpen ? 'is-open' : ''} data-testid="browse-sidebar">
-        <S.DrawerHead>
-          <S.DrawerTitle>{t('assets.filters')}</S.DrawerTitle>
-          <S.CloseBtn onClick={() => setFiltersOpen(false)} aria-label={t('assets.closeFilters')}>
-            ✕
-          </S.CloseBtn>
-        </S.DrawerHead>
+      {/* NAMEs is a full-width page (Figma 1368-353269) — no filter sidebar; the breadcrumb returns
+          to the grid. Every other category shows the collectibles filter sidebar. */}
+      {category !== 'names' && (
+        <>
+          {filtersOpen ? <S.Scrim onClick={() => setFiltersOpen(false)} aria-hidden /> : null}
+          <S.Sidebar className={filtersOpen ? 'is-open' : ''} data-testid="browse-sidebar">
+            <S.DrawerHead>
+              <S.DrawerTitle>{t('assets.filters')}</S.DrawerTitle>
+              <S.CloseBtn onClick={() => setFiltersOpen(false)} aria-label={t('assets.closeFilters')}>
+                ✕
+              </S.CloseBtn>
+            </S.DrawerHead>
 
-        <S.SidebarScroll>
-          <Filters
-            category={category}
-            subCategory={subCategory}
-            onCategory={pickCategory}
-            onSub={setSubCategory}
-            priceMin={priceMin}
-            priceMax={priceMax}
-            onPriceMin={setPriceMin}
-            onPriceMax={setPriceMax}
-            rarities={rarities}
-            onToggleRarity={toggleRarity}
-            status={status}
-            onStatus={setStatus}
-            smart={smart}
-            onSmart={setSmart}
-          />
-        </S.SidebarScroll>
+            <S.SidebarScroll>
+              <Filters
+                category={category}
+                subCategory={subCategory}
+                onCategory={pickCategory}
+                onSub={setSubCategory}
+                priceMin={priceMin}
+                priceMax={priceMax}
+                onPriceMin={setPriceMin}
+                onPriceMax={setPriceMax}
+                rarities={rarities}
+                onToggleRarity={toggleRarity}
+                status={status}
+                onStatus={setStatus}
+                smart={smart}
+                onSmart={setSmart}
+              />
+            </S.SidebarScroll>
 
-        {/* Bottom action bar (Figma node 1304-308322) — mobile only. Filters apply live, so this
+            {/* Bottom action bar (Figma node 1304-308322) — mobile only. Filters apply live, so this
             simply dismisses the sheet. */}
-        <S.DrawerFoot>
-          <S.ShowItems type="button" onClick={() => setFiltersOpen(false)}>
-            {t('assets.showItems')}
-          </S.ShowItems>
-        </S.DrawerFoot>
-      </S.Sidebar>
+            <S.DrawerFoot>
+              <S.ShowItems type="button" onClick={() => setFiltersOpen(false)}>
+                {t('assets.showItems')}
+              </S.ShowItems>
+            </S.DrawerFoot>
+          </S.Sidebar>
+        </>
+      )}
 
       <S.Main>
         {category === 'names' ? (
-          // NAMEs is not a grid: swap the card grid + grid toolbar for the NAMEs purchase page,
-          // keeping the surrounding layout/nav (the sidebar category list stays so users can leave).
+          // NAMEs is not a grid: full-width purchase page (no sidebar), back via the breadcrumb.
           <NamesPage onBack={() => pickCategory('wearable')} />
         ) : (
           <>
