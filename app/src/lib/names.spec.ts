@@ -13,6 +13,22 @@ vi.mock('~/config', () => ({
   config: { creditsServerUrl: 'https://credits.example', nftApiUrl: 'https://nft.example' }
 }))
 
+// checkNameAvailability reads DCLRegistrar.available on-chain. Stub only ethers.Contract (+ the
+// provider ctor) so we can drive `available`; everything else (BigNumber, used by the register tests)
+// stays the real implementation.
+const availableMock = vi.hoisted(() => vi.fn())
+vi.mock('ethers', async importOriginal => {
+  const actual = await importOriginal<typeof import('ethers')>()
+  return {
+    ...actual,
+    ethers: {
+      ...actual.ethers,
+      providers: { ...actual.ethers.providers, JsonRpcProvider: vi.fn(() => ({})) },
+      Contract: vi.fn(() => ({ available: availableMock }))
+    }
+  }
+})
+
 // ~/lib/trade-encoding (idToSalt) and ~/lib/mana-rate both pull decentraland-transactions at module
 // load; stub it so its ESM/cross-chain deps don't get evaluated. Real ethers stays.
 vi.mock('decentraland-transactions', () => ({
@@ -384,41 +400,23 @@ describe('sanitizeNameInput', () => {
 })
 
 describe('checkNameAvailability', () => {
-  it('should query the ENS NFT index and report available when no exact match exists', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => ok({ data: [{ nft: { name: 'somethingelse' } }] }))
-    )
+  beforeEach(() => availableMock.mockReset())
 
+  it('reports available when DCLRegistrar.available returns true', async () => {
+    availableMock.mockResolvedValue(true)
     await expect(checkNameAvailability('freeName')).resolves.toBe('available')
-    const [url] = (globalThis.fetch as unknown as { mock: { calls: string[][] } }).mock.calls[0]
-    expect(url).toBe('https://nft.example/v1/nfts?category=ens&search=freeName&first=50')
+    expect(availableMock).toHaveBeenCalledWith('freeName')
   })
 
-  it('should report taken on a case-insensitive exact match', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => ok({ data: [{ nft: { name: 'TakenName' } }] }))
-    )
-
+  it('reports taken when DCLRegistrar.available returns false', async () => {
+    availableMock.mockResolvedValue(false)
     await expect(checkNameAvailability('takenname')).resolves.toBe('taken')
   })
 
-  it('should treat a partial (non-exact) match as available', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => ok({ data: [{ nft: { name: 'bobby' } }] }))
-    )
-
-    await expect(checkNameAvailability('bob')).resolves.toBe('available')
-  })
-
-  it('should throw on a non-ok response', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(async () => fail(500))
-    )
-
-    await expect(checkNameAvailability('bob')).rejects.toThrow('checkNameAvailability 500')
+  it('discards a superseded (aborted) check', async () => {
+    availableMock.mockResolvedValue(true)
+    const ctrl = new AbortController()
+    ctrl.abort()
+    await expect(checkNameAvailability('bob', { signal: ctrl.signal })).rejects.toThrow(/abort/i)
   })
 })

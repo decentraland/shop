@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useWallet } from '~/store/wallet'
 import { useManaRate } from '~/hooks/useManaRate'
 import { manaWeiToCredits } from '~/lib/mana-rate'
@@ -21,6 +21,20 @@ import * as S from './NamesPage.styles'
 // Docs link for the "Learn More" card (Worlds). Public marketing URL — no secrets.
 const WORLDS_DOCS_URL = 'https://docs.decentraland.org/creator/worlds/about/'
 
+// The legacy marketplace's NAMEs browse — where a taken NAME's owner can be offered a secondary buy.
+// The shop is credits-only/primary; secondary NAME trading lives in the classic marketplace. Pick the
+// env by hostname (prod .org / stg .today / everything else incl. localhost → .zone) since the shop is
+// served by-path on the same domain.
+function legacyNamesUrl(name: string): string {
+  const host = typeof window !== 'undefined' ? window.location.hostname : ''
+  const origin = host.endsWith('decentraland.org')
+    ? 'https://decentraland.org'
+    : host.endsWith('decentraland.today')
+      ? 'https://decentraland.today'
+      : 'https://decentraland.zone'
+  return `${origin}/marketplace/names/browse?search=${encodeURIComponent(name)}`
+}
+
 type Status = 'idle' | 'invalid' | 'checking' | 'available' | 'taken' | 'error'
 
 /**
@@ -38,6 +52,14 @@ export function NamesPage({ onBack }: { onBack: () => void }) {
   const [value, setValue] = useState('')
   const [status, setStatus] = useState<Status>('idle')
   const [modalOpen, setModalOpen] = useState(false)
+
+  // Size the input to EXACTLY its text so the NAME sits flush against ".dcl.eth" (a `ch`-based width
+  // over-shoots on a proportional font, leaving a big gap). A hidden sizer mirrors the input's glyphs.
+  const sizerRef = useRef<HTMLSpanElement>(null)
+  const [nameWidth, setNameWidth] = useState<number | undefined>(undefined)
+  useLayoutEffect(() => {
+    if (sizerRef.current) setNameWidth(sizerRef.current.offsetWidth)
+  }, [value])
 
   // Validate + (debounced) availability probe on every change. The probe is advisory — the credits
   // server + the on-chain register are the authoritative gates at purchase time.
@@ -108,7 +130,7 @@ export function NamesPage({ onBack }: { onBack: () => void }) {
           </S.HeroCopy>
 
           <S.SearchBlock>
-            <S.InputRow>
+            <S.InputRow invalid={status === 'taken'}>
               <S.InputField>
                 <S.At aria-hidden>@</S.At>
                 <S.NameInput
@@ -119,8 +141,11 @@ export function NamesPage({ onBack }: { onBack: () => void }) {
                   autoComplete="off"
                   spellCheck={false}
                   maxLength={NAME_MAX_LENGTH}
-                  style={{ width: `${Math.max(value.length || t('names.inputPlaceholder').length, 1)}ch` }}
+                  style={{ width: nameWidth != null ? `${nameWidth}px` : undefined }}
                 />
+                <S.Sizer ref={sizerRef} aria-hidden>
+                  {value || t('names.inputPlaceholder')}
+                </S.Sizer>
                 <S.Suffix>{t('names.suffix')}</S.Suffix>
               </S.InputField>
               {value.length > 0 ? (
@@ -138,10 +163,14 @@ export function NamesPage({ onBack }: { onBack: () => void }) {
             </S.ClaimButtonMobile>
 
             {status === 'taken' ? (
-              <S.Status tone="error" role="status" data-testid="names-taken">
-                <Icon name="info" aria-hidden />
-                {t('names.taken')}
-              </S.Status>
+              <S.TakenBanner role="status" data-testid="names-taken">
+                <Icon name="info" size={16} aria-hidden />
+                <span>{t('names.taken')}</span>
+                <S.TakenOfferLink href={legacyNamesUrl(value)} target="_blank" rel="noopener noreferrer">
+                  {t('names.takenMakeOffer')}
+                  <Icon name="external-link" size={13} aria-hidden />
+                </S.TakenOfferLink>
+              </S.TakenBanner>
             ) : status === 'checking' ? (
               <S.Status tone="muted" role="status" data-testid="names-checking">
                 {t('names.checking')}

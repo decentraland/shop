@@ -1,4 +1,5 @@
 import styled from '@emotion/styled'
+import { noForward } from '~/styles/emotion'
 import { theme } from '~/styles/theme'
 
 // NAMEs purchase page (Figma desktop 1368-353269, mobile 1368-356251). A full-width purple banner
@@ -124,21 +125,78 @@ export const SearchBlock = styled.div`
   gap: 12px;
 `
 
-export const InputRow = styled.div`
+export const InputRow = styled('div', noForward('invalid'))<{ invalid?: boolean }>`
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 8px 8px 8px 16px;
   background: ${theme.colors.softWhite};
-  border: 1.5px solid ${theme.colors.line};
+  border: 1.5px solid ${({ invalid }) => (invalid ? '#ff2d55' : theme.colors.line)};
   border-radius: 20px;
 
   &:focus-within {
-    border-color: ${theme.colors.magenta};
+    border-color: ${({ invalid }) => (invalid ? '#ff2d55' : theme.colors.magenta)};
   }
 
   ${theme.media.down('mobile')} {
     border-radius: 16px;
+  }
+`
+
+// Hidden mirror of the NAME input's text — its measured width sizes the input so the value sits flush
+// against ".dcl.eth". MUST keep the exact same font metrics as NameInput.
+export const Sizer = styled.span`
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  visibility: hidden;
+  pointer-events: none;
+  white-space: pre;
+  font-family: ${theme.font.sans};
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.6;
+
+  ${theme.media.down('mobile')} {
+    font-size: 16px;
+  }
+`
+
+// "This NAME is taken" banner (Figma 1368-354064): red-light bar under the input, with a MAKE OFFER
+// link out to the legacy marketplace's secondary NAME market.
+export const TakenBanner = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #ffcdd4;
+  color: #ec303a;
+  font-family: ${theme.font.sans};
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  text-align: left;
+
+  ${theme.media.down('mobile')} {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+`
+
+export const TakenOfferLink = styled.a`
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  color: #ec303a;
+  font-weight: 600;
+  text-decoration: underline;
+  text-transform: uppercase;
+  white-space: nowrap;
+
+  ${theme.media.down('mobile')} {
+    margin-left: 0;
   }
 `
 
@@ -147,13 +205,14 @@ export const InputField = styled.label`
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 0;
   cursor: text;
   overflow: hidden;
 `
 
 export const At = styled.span`
   flex: none;
+  margin-right: 8px;
   font-family: ${theme.font.sans};
   font-size: 26px;
   font-weight: 500;
@@ -193,6 +252,7 @@ export const NameInput = styled.input`
 
 export const Suffix = styled.span`
   flex: none;
+  margin-left: 2px;
   font-family: ${theme.font.sans};
   font-size: 20px;
   font-weight: 400;

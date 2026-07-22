@@ -83,26 +83,32 @@ export function sanitizeNameInput(raw: string): string {
 
 export type NameAvailability = 'available' | 'taken'
 
+// DCLRegistrar on Ethereum L1 — the SAME contract the register hits. Its `available(name)` view is the
+// authoritative availability check (the marketplace webapp reads this contract too, via getTokenId).
+// NAMEs always live on Ethereum mainnet, even when buying from dev/stg, so this address + RPC are fixed.
+// The read is public, so calling it straight from the browser (no sign-in) is fine.
+const DCL_REGISTRAR_ADDRESS = '0x2a187453064356c898cae034eaed119e1663acb8'
+const ETHEREUM_RPC_URL = 'https://rpc.decentraland.org/mainnet'
+const DCL_REGISTRAR_ABI = ['function available(string _subdomain) view returns (bool)']
+
 /**
- * Advisory availability probe used by the search field. A NAME is "taken" when an ENS NFT with that
- * exact (case-insensitive) name already exists in the marketplace index. This is UNAUTHENTICATED and
- * cheap so it can run on every (debounced) keystroke without a sign-in.
- *
- * It is deliberately advisory: the AUTHORITATIVE checks are the credits-server (fetchNameCreditRoute
- * validates format + on-chain availability) and the on-chain register itself, both of which reject a
- * taken name at purchase time. A false "available" here can therefore never mint a duplicate.
+ * Authoritative availability check: `DCLRegistrar.available(name)` on Ethereum L1 — the exact gate the
+ * on-chain register enforces, so it never disagrees with what you can actually claim. (The previous
+ * NFT-index probe was fuzzy and reported taken names as available.) `true` → claimable, `false` → taken.
  */
 export async function checkNameAvailability(
   name: string,
   opts: { signal?: AbortSignal } = {}
 ): Promise<NameAvailability> {
-  const qs = new URLSearchParams({ category: 'ens', search: name, first: '50' })
-  const res = await fetch(`${config.nftApiUrl}/v1/nfts?${qs.toString()}`, { signal: opts.signal })
-  if (!res.ok) throw new Error(`checkNameAvailability ${res.status}`)
-  const body = (await res.json()) as { data?: Array<{ nft?: { name?: string } }> }
-  const target = name.trim().toLowerCase()
-  const taken = (body.data ?? []).some(row => (row.nft?.name ?? '').trim().toLowerCase() === target)
-  return taken ? 'taken' : 'available'
+  const provider = new ethers.providers.JsonRpcProvider(ETHEREUM_RPC_URL)
+  const registrar = new ethers.Contract(DCL_REGISTRAR_ADDRESS, DCL_REGISTRAR_ABI, provider)
+  console.info(`[names] availability check → DCLRegistrar.available("${name}")`)
+  const isAvailable = (await registrar.available(name)) as boolean
+  // ethers has no AbortSignal, so a stale (superseded) check can still resolve — mimic fetch's abort so
+  // the caller's AbortError guard discards it and only the latest keystroke's result is applied.
+  if (opts.signal?.aborted) throw new DOMException('Aborted', 'AbortError')
+  console.info(`[names] "${name}" available=${isAvailable}`)
+  return isAvailable ? 'available' : 'taken'
 }
 
 // Across public app API base (deposit-status polling). Public value; overridable for tests/local.
@@ -295,17 +301,29 @@ export async function registerNameWithUsdCredits(opts: {
   let creditSalt: string | null = null
   let originConfirmed = false
 
+  console.info('[names] register start', { name, buyer, chainId, provider })
   try {
     // 1) Size the USD reservation from the fixed name price at the live oracle rate.
     const rate = await readManaUsdRate(chainId)
     const usdCents = sizeNameUsdCents(rate)
+    console.info('[names] step 1/6 sized reservation', { usdCents, manaRate: rate })
 
     // 2) Fetch the signed cross-chain route (independent of sizing; short-lived quote).
     const route = await fetchNameCreditRoute(identity, name, { chainId, provider })
+    console.info('[names] step 2/6 route fetched', {
+      target: route.externalCall.target,
+      selector: route.externalCall.selector,
+      provider: route.provider,
+      quoteId: route.quoteId
+    })
 
     // 3) Reserve the dollars + get the ephemeral credit (PENDING intent keyed by the credit salt).
     const authorized = await authorizeUsdCredit(identity, usdCents)
     creditSalt = authorized.credit.id
+    console.info('[names] step 3/6 credit authorized', {
+      creditId: authorized.credit.id,
+      maxCreditedValue: authorized.maxCreditedValue
+    })
 
     // Invariant: the credit must cover the 100 MANA name price, or useCredits would try to charge the
     // buyer the shortfall in MANA (which they don't have) and revert. A rare rate swing between our
@@ -325,14 +343,18 @@ export async function registerNameWithUsdCredits(opts: {
       originTxHash = await sendUseCredits(chainId, args, signer)
     }
 
+    console.info('[names] step 4/6 useCredits submitted (Polygon origin tx)', { originTxHash })
+
     // 5) Wait for the origin (Polygon) useCredits tx. Throws SettlementPendingError on timeout (keep
     // the reservation) or Error on revert (safe to release — no credit consumed).
     await waitForSettlement(originTxHash)
     originConfirmed = true
+    console.info('[names] step 5/6 origin tx confirmed', { originTxHash })
 
     // 6) Poll Across for the destination fill + register.
     if (provider === 'across') {
       const across = await pollAcrossNameStatus(originTxHash, opts.acrossPoll)
+      console.info('[names] step 6/6 across status', across)
       if (across.status === 'pending') {
         // Bridge still in flight past our window — the origin tx is confirmed, so the credit is
         // consumed and the reconciler will settle. Report pending; DON'T release.
@@ -349,6 +371,8 @@ export async function registerNameWithUsdCredits(opts: {
     // is confirmed and the reconciler settles; report pending so the caller can track it elsewhere.
     return { status: 'pending', originTxHash }
   } catch (e) {
+    // Surface the RAW error for debugging (the UI only shows the friendly message below).
+    console.error('[names] register failed — raw error:', e, { name, buyer, originConfirmed })
     // Origin tx still in flight → keep the reservation and surface it as pending, not a failure.
     if (e instanceof SettlementPendingError) {
       return { status: 'pending', originTxHash: e.txHash }
