@@ -45,19 +45,33 @@ export const Sidebar = styled.aside`
     max-height: calc(100vh - 158px - 24px);
     overflow-y: auto;
     overscroll-behavior: contain;
+    /* Reserve the scrollbar gutter so revealing the bar on hover doesn't shift the filter content. */
+    scrollbar-gutter: stable;
 
-    /* Subtle scrollbar matching the cart scroll list (cart.css) — only shows when content overflows. */
-    scrollbar-width: thin;
-    scrollbar-color: ${theme.colors.muted2} transparent;
+    /* Hover-only scrollbar: hidden while the catalog scrolls, revealed only when the cursor is over the
+       filters column (so a subtle bar appears just as you try to scroll within it). Stays scrollable
+       throughout — only the bar's visibility changes. Matches the subtle cart-list treatment (cart.css). */
+    scrollbar-width: none;
+    scrollbar-color: transparent transparent;
+    transition: scrollbar-color 0.2s ease;
     &::-webkit-scrollbar {
-      width: 6px;
+      width: 8px;
     }
     &::-webkit-scrollbar-track {
       background: transparent;
     }
     &::-webkit-scrollbar-thumb {
-      background: ${theme.colors.muted2};
+      background: transparent;
       border-radius: 8px;
+      transition: background 0.2s ease;
+    }
+
+    &:hover {
+      scrollbar-width: thin;
+      scrollbar-color: ${theme.colors.muted2} transparent;
+    }
+    &:hover::-webkit-scrollbar-thumb {
+      background: ${theme.colors.muted2};
     }
   }
 
