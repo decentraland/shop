@@ -7,6 +7,7 @@
   "RPC_URL": "https://rpc.decentraland.org/polygon",
   "CREDITS_SERVER_URL": "https://credits.decentraland.org",
   "BUILDER_SERVER_URL": "https://builder-api.decentraland.org",
+  "BUILDER_URL": "https://decentraland.org/builder",
   "PEER_URL": "https://peer.decentraland.org",
   "PROFILE_URL": "https://decentraland.org/profile",
   "SHOP_SERVER_URL": "",

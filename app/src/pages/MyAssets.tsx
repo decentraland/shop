@@ -11,7 +11,6 @@ import { cancelListing } from '~/lib/buy'
 import { captureError } from '~/lib/monitoring'
 import { toast } from '~/store/toast'
 import { Button } from '~/components/Button'
-import { SellModal } from '~/components/SellModal'
 import { PrimaryListModal } from '~/components/PrimaryListModal'
 import { AssetCard } from '~/components/AssetCard'
 import { SkeletonCards } from '~/components/SkeletonCards'
@@ -69,6 +68,13 @@ const SECTION_OF_CATEGORY: Record<string, SectionKey> = {
   wearable: 'wearables',
   emote: 'emotes',
   names: 'names'
+}
+
+// An owned NAME → its Builder management page (external), mirroring the classic marketplace's
+// `${builderUrl}/names/<name>` deep link. The Builder resolves the bare name to its `.dcl.eth`
+// subdomain, so the raw NAME (as returned by /v1/nfts) is what goes in the path.
+function builderNameUrl(name: string): string {
+  return `${config.builderUrl}/names/${encodeURIComponent(name)}`
 }
 
 // Owned NFT (secondary) → the CatalogItem shape AssetCard renders (carries tokenId so the card links to
@@ -134,7 +140,6 @@ export function MyAssets() {
   const [openStatus, setOpenStatus] = useState(true)
   const [openRarity, setOpenRarity] = useState(false)
 
-  const [selling, setSelling] = useState<MyAsset | null>(null)
   const [publishing, setPublishing] = useState<PublishableItem | null>(null)
   const [cancelling, setCancelling] = useState<string | null>(null)
   const [cancelError, setCancelError] = useState<string | null>(null)
@@ -542,27 +547,20 @@ export function MyAssets() {
                 ownedAssets.map(asset =>
                   section === 'names' ? (
                     // NAMEs can't be resold through the Shop (the credit rail is Polygon-only, NAMEs are
-                    // on Ethereum L1) — show them view-only, no list control. Force category 'ens' so the
-                    // card renders the typographic "@name" tile (Figma 696-33957).
-                    <AssetCard key={asset.id} item={{ ...assetToItem(asset), category: 'ens' }} mode="view" />
-                  ) : (
+                    // on Ethereum L1). The card's action is a MANAGE CTA that opens the name's Builder
+                    // management page (external, like the classic marketplace). Force category 'ens' so
+                    // the card renders the typographic "@name" tile (Figma 696-33957).
                     <AssetCard
                       key={asset.id}
-                      item={assetToItem(asset)}
-                      mode="manage"
-                      listed={asset.isOnSale}
-                      busy={cancelling === asset.id}
-                      onList={() => {
-                        track('Shop Started Listing', {
-                          listing_type: 'secondary',
-                          item_id: asset.itemId ?? asset.tokenId ?? null
-                        })
-                        setSelling(asset)
-                      }}
-                      onUnlist={() => {
-                        if (asset.tradeId) void cancelByTrade(asset.tradeId, asset.name, asset.id)
-                      }}
+                      item={{ ...assetToItem(asset), category: 'ens' }}
+                      mode="manage-link"
+                      manageHref={builderNameUrl(asset.name)}
                     />
+                  ) : (
+                    // Owned wearable/emote: the card's only action is MANAGE → the item detail page for
+                    // this exact token, where listing (List / Update price / Remove) now lives. No inline
+                    // put-on-sale from My Assets anymore.
+                    <AssetCard key={asset.id} item={assetToItem(asset)} mode="manage-link" />
                   )
                 )
               )}
@@ -595,7 +593,6 @@ export function MyAssets() {
         )}
       </A.Main>
 
-      {selling ? <SellModal asset={selling} session={session} onClose={() => setSelling(null)} /> : null}
       {publishing ? <PrimaryListModal item={publishing} session={session} onClose={() => setPublishing(null)} /> : null}
     </A.Root>
   )

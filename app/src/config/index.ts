@@ -36,6 +36,9 @@ export const config = {
   rpcUrl: env.VITE_RPC_URL ?? base.get('RPC_URL'),
   creditsServerUrl: env.VITE_CREDITS_SERVER_URL ?? base.get('CREDITS_SERVER_URL'),
   builderServerUrl: env.VITE_BUILDER_SERVER_URL ?? base.get('BUILDER_SERVER_URL'),
+  // Builder WEB app base (already includes the `/builder` path segment, marketplace-style) — used to
+  // deep-link an owned NAME to its Builder management page (`${builderUrl}/names/<name>`).
+  builderUrl: env.VITE_BUILDER_URL ?? base.get('BUILDER_URL'),
   peerUrl: env.VITE_PEER_URL ?? base.get('PEER_URL'),
   profileUrl: env.VITE_PROFILE_URL ?? base.get('PROFILE_URL'),
   shopServerUrl: env.VITE_SHOP_SERVER_URL ?? base.get('SHOP_SERVER_URL'),

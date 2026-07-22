@@ -7,6 +7,7 @@
   "RPC_URL": "https://rpc.decentraland.org/amoy",
   "CREDITS_SERVER_URL": "https://credits.decentraland.zone",
   "BUILDER_SERVER_URL": "https://builder-api.decentraland.zone",
+  "BUILDER_URL": "https://decentraland.zone/builder",
   "PEER_URL": "https://peer.decentraland.zone",
   "PROFILE_URL": "https://decentraland.zone/profile",
   "SHOP_SERVER_URL": "",

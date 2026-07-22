@@ -30,11 +30,16 @@ const HOVER_DELAY_MS = 120
 //   sale (priceCredits > 0) or a small "NOT FOR SALE" tag when it isn't (priceCredits === 0), plus a
 //   full-width dark VIEW button that opens the item detail (Figma 1246-256347). The whole card is the
 //   link, so the VIEW pill is a decorative affordance (aria-hidden) — no duplicate tab stop.
-// - 'manage' (My Assets — the owner/creator view of their own item): renders like a view card (media
-//   + name + price-or-"NOT FOR SALE"), but the footer button is a real control — "List for sale"
-//   (dark) when the item isn't listed, "Remove from sale" (ghost) when it is — wired to onList/onUnlist.
-//   The whole-card link still opens the item detail; the action sits above it (z-index) and stops
-//   propagation. `busy` disables the button while the trade is in flight.
+// - 'manage' (My Creations — the creator view of a PRIMARY item they published): renders like a view
+//   card (media + name + price-or-"NOT FOR SALE"), but the footer button is a real control — "List for
+//   sale" (dark) when the item isn't listed, "Remove from sale" (ghost) when it is — wired to
+//   onList/onUnlist. The whole-card link still opens the item detail; the action sits above it
+//   (z-index) and stops propagation. `busy` disables the button while the trade is in flight.
+// - 'manage-link' (My Assets — the owner view of a SECONDARY token they hold, or an owned NAME): the
+//   card's ONLY action is a "MANAGE" CTA revealed on hover (mirrors the browse card's Add-to-cart
+//   reveal). For a wearable/emote it navigates to the item detail page (where List / Update price /
+//   Remove live, per token); for a NAME it's an external link to the Builder's name management page
+//   (`manageHref`). No inline listing happens from the My Assets card anymore.
 type AssetCardProps =
   | { item: CatalogItem; mode?: 'shop' }
   | { item: CatalogItem; mode: 'view' }
@@ -47,12 +52,14 @@ type AssetCardProps =
       onList: (item: CatalogItem) => void
       onUnlist: (item: CatalogItem) => void
     }
+  | { item: CatalogItem; mode: 'manage-link'; manageHref?: string }
 
 export function AssetCard(props: AssetCardProps) {
   const { item } = props
   const isMarket = props.mode === 'market'
   const isView = props.mode === 'view'
   const isManage = props.mode === 'manage'
+  const isManageLink = props.mode === 'manage-link'
   // A Decentraland NAME (My Assets → Names): no thumbnail — the media is the typographic "@name" tile
   // (Figma 696-33957). Uses the same card shell + hover as every other card.
   const isNameItem = item.category === 'ens'
@@ -160,6 +167,20 @@ export function AssetCard(props: AssetCardProps) {
               ? { item, market: true, marketPriceCredits: props.marketPriceCredits }
               : { item, tradeId: item.tradeId }
           }
+          aria-label={item.name}
+        />
+      ) : null}
+      {/* Owned NAME (manage-link): the whole card is an EXTERNAL overlay link to the name's Builder
+          management page. Unlike a wearable the name has no in-app detail page, so this is what makes the
+          card keyboard-reachable AND tappable on mobile (where the hover-revealed MANAGE pill is hidden);
+          the visible MANAGE controls below sit above it (z-index) and point at the same URL. */}
+      {isNameItem && props.mode === 'manage-link' && props.manageHref ? (
+        <a
+          className="card__link"
+          data-testid="card-link"
+          href={props.manageHref}
+          target="_blank"
+          rel="noopener noreferrer"
           aria-label={item.name}
         />
       ) : null}
@@ -314,6 +335,93 @@ export function AssetCard(props: AssetCardProps) {
             <span className="card__nfs" data-testid="card-nfs">
               {t('assetCard.notForSale')}
             </span>
+          </div>
+          {/* Owned NAME → MANAGE the name in the Builder (external). Uses the same hover-revealed slot as
+              the browse card's action so the reveal treatment matches; the empty chips row keeps the
+              slot height reserved so revealing MANAGE on hover causes no layout shift. */}
+          {isManageLink && props.mode === 'manage-link' && props.manageHref ? (
+            <div className="card__action">
+              <div className="card__chips" />
+              {/* Compact round MANAGE for the mobile card (the full-width pill is hidden there) — same
+                  swap the browse card makes between .card__cart and .card__add-round. */}
+              <a
+                className="card__add-round"
+                href={props.manageHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={t('assetCard.manage')}
+                onClick={e => e.stopPropagation()}
+              >
+                <Icon name="pen" />
+              </a>
+              <a
+                className="card__cart"
+                data-testid="card-manage"
+                href={props.manageHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={e => e.stopPropagation()}
+              >
+                <Icon name="pen" size={20} />
+                {t('assetCard.manage')}
+              </a>
+            </div>
+          ) : null}
+        </div>
+      ) : isManageLink && props.mode === 'manage-link' ? (
+        // Owned SECONDARY token (wearable/emote): the footer mirrors the view card (name + mint index +
+        // listed-price-or-"NOT FOR SALE"), and the action is a hover-revealed MANAGE CTA that opens the
+        // item detail page (where List / Update price / Remove live). Chips show at rest and swap out for
+        // MANAGE on hover — the exact reveal treatment of the browse card's Add-to-cart.
+        <div className="card__body">
+          <div className="card__top">
+            <div className="card__desc">
+              <div className="card__name" title={item.name}>
+                {item.name}
+              </div>
+              {item.issuedId ? (
+                <div className="card__creator card__issued" data-testid="card-issued">
+                  #{item.issuedId}
+                </div>
+              ) : (
+                <div className="card__creator">&nbsp;</div>
+              )}
+            </div>
+            {item.priceCredits > 0 ? (
+              <div className="card__price" title={formatCreditsFull(item.priceCredits)}>
+                <CurrencyIcon className="card__diamond" />
+                {formatCredits(item.priceCredits)}
+              </div>
+            ) : (
+              <span className="card__nfs" data-testid="card-nfs">
+                {t('assetCard.notForSale')}
+              </span>
+            )}
+          </div>
+          <div className="card__action">
+            <div className="card__chips">
+              <span
+                className="chip chip--rarity"
+                style={{ background: rarityTint(item.rarity), color: rarityInk(item.rarity) }}
+                title={rarityDescription(item.rarity)}
+              >
+                {item.rarity}
+              </span>
+              {catIco ? (
+                <span className="chip chip--icon">
+                  <Icon name={catIco} />
+                </span>
+              ) : null}
+            </div>
+            {/* Compact round MANAGE for the mobile card (the full-width pill is hidden there) — same swap
+                the browse card makes between .card__cart and .card__add-round. */}
+            <button className="card__add-round" onClick={goManage} aria-label={t('assetCard.manage')}>
+              <Icon name="pen" />
+            </button>
+            <button className="card__cart" data-testid="card-manage" onClick={goManage}>
+              <Icon name="pen" size={20} />
+              {t('assetCard.manage')}
+            </button>
           </div>
         </div>
       ) : isView ? (
