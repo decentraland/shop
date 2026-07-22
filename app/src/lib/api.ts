@@ -596,6 +596,27 @@ export async function fetchOwnedToken(
   }
 }
 
+// PUBLIC lookup of ONE specific token by (contract, tokenId) — NOT scoped to a viewer/owner. Powers
+// deep links / refreshes / shared URLs of a secondary token's detail page: unlike fetchOwnedToken this
+// resolves for anyone (logged out, or a viewer who doesn't own the token), so the page renders instead
+// of falling through to a "Not Found" stub. Same /v1/nfts row → MyAsset mapping, so it carries the
+// token's open listing (isOnSale + listingPrice + tradeId) when it's on sale. Returns null if the token
+// doesn't exist or on any error.
+export async function fetchTokenById(contractAddress: string, tokenId: string): Promise<MyAsset | null> {
+  try {
+    const qs = new URLSearchParams({ contractAddress, tokenId, first: '1' })
+    const res = await fetch(`${NFT_V1}/nfts?${qs.toString()}`)
+    if (!res.ok) return null
+    const { data } = (await res.json()) as { data: NFTResult[] }
+    const r = data?.[0]
+    // The endpoint filters server-side, but only trust a row that actually matches the requested token.
+    if (!r || r.nft.tokenId !== tokenId) return null
+    return toMyAsset(r)
+  } catch {
+    return null
+  }
+}
+
 // The metadata "signer" is the APP identifier (server validates it ∈ ['dcl:marketplace','dcl:builder']),
 // NOT the wallet — the wallet is proven via the auth-chain headers built from `identity`.
 const API_SIGNER = 'dcl:marketplace'
@@ -699,8 +720,7 @@ export async function fetchTradeDisplay(tradeId: string): Promise<PurchaseDispla
   // nothing), which is exactly why purchases showed a generic "Item" with no image. Prefer the typed
   // fields, keep `value` as a last-resort fallback for any on-chain-shaped trade.
   const sent = trade.sent?.[0] as
-    | { assetType?: number; contractAddress?: string; itemId?: string; tokenId?: string; value?: string }
-    | undefined
+    { assetType?: number; contractAddress?: string; itemId?: string; tokenId?: string; value?: string } | undefined
   const priceAsset = trade.received?.[0] as { amount?: string } | undefined
   const credits = toCredits(priceAsset?.amount)
   const contractAddress = sent?.contractAddress ?? ''
@@ -714,7 +734,13 @@ export async function fetchTradeDisplay(tradeId: string): Promise<PurchaseDispla
     return { name: meta?.name ?? 'Item', thumbnail: meta?.thumbnail ?? '', credits, contractAddress, itemId: id }
   }
   const meta = id ? await fetchNftMeta(contractAddress, id) : null
-  return { name: meta?.name ?? (id ? `#${id}` : 'Item'), thumbnail: meta?.image ?? '', credits, contractAddress, tokenId: id }
+  return {
+    name: meta?.name ?? (id ? `#${id}` : 'Item'),
+    thumbnail: meta?.image ?? '',
+    credits,
+    contractAddress,
+    tokenId: id
+  }
 }
 
 // Open credit-buyable listing (Trade) for a catalog ITEM (primary/mint), or null if none. Resolves
