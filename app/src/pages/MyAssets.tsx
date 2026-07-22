@@ -18,7 +18,7 @@ import { SkeletonCards } from '~/components/SkeletonCards'
 import { LoadMore } from '~/components/LoadMore'
 import { FilterBar, RARITIES, type FilterChip } from '~/components/FilterBar'
 import { CATEGORIES } from '~/components/CategoryFilter'
-import { type FilterStatus } from '~/components/Filters'
+import { FilterSection, type FilterStatus } from '~/components/Filters'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
 import { SUBCAT_MAP } from '~/lib/categories'
 import { capitalizeFirst } from '~/lib/text'
@@ -121,6 +121,10 @@ export function MyAssets() {
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('') // debounced
   const [filtersOpen, setFiltersOpen] = useState(false) // mobile sidebar drawer
+  // Collapsible filter groups — same defaults as Collectibles (rarity starts collapsed).
+  const [openStatus, setOpenStatus] = useState(true)
+  const [openRarity, setOpenRarity] = useState(false)
+  const [openCategory, setOpenCategory] = useState(true)
 
   const [selling, setSelling] = useState<MyAsset | null>(null)
   const [publishing, setPublishing] = useState<PublishableItem | null>(null)
@@ -156,6 +160,15 @@ export function MyAssets() {
   const active = SECTIONS.find(s => s.key === section)!
   const showRarityCat = hasRarityAndCategory(section)
   const serverSort = (MY_SORTS.find(s => s.key === sort) ?? MY_SORTS[0]).server
+
+  // Collapsed-group summaries (shown next to the header when a group is closed) — mirrors Collectibles.
+  const statusSummary =
+    status === 'on_sale' ? t('filter.onSale') : status === 'not_for_sale' ? t('filter.notForSale') : ''
+  const raritySummary = RARITIES.filter(r => rarities.includes(r))
+    .map(capitalizeFirst)
+    .join(', ')
+  const activeSub = subsFor(section).find(s => s.key === subCategory)
+  const categorySummary = activeSub ? t(activeSub.labelKey) : ''
 
   // Reset the contextual filters when moving to a section that doesn't use them.
   function pickSection(next: SectionKey) {
@@ -344,8 +357,13 @@ export function MyAssets() {
 
       <F.Divider />
 
-      <S.FilterGroup>
-        <S.FilterTitle>{t('filter.status')}</S.FilterTitle>
+      <FilterSection
+        title={t('filter.status')}
+        open={openStatus}
+        onToggle={() => setOpenStatus(o => !o)}
+        summary={statusSummary}
+        desktopStatic
+      >
         {(
           [
             ['all', t('filter.statusAll')],
@@ -363,13 +381,18 @@ export function MyAssets() {
             <F.StatusLabel>{label}</F.StatusLabel>
           </F.StatusRow>
         ))}
-      </S.FilterGroup>
+      </FilterSection>
 
       {showRarityCat ? (
         <>
           <F.Divider />
-          <S.FilterGroup>
-            <S.FilterTitle>{t('assets.rarity')}</S.FilterTitle>
+          <FilterSection
+            title={t('assets.rarity')}
+            open={openRarity}
+            onToggle={() => setOpenRarity(o => !o)}
+            summary={raritySummary}
+            desktopStatic
+          >
             <F.RarityChips data-testid="rarity-filter">
               {RARITIES.map(r => {
                 const selected = rarities.includes(r)
@@ -390,11 +413,16 @@ export function MyAssets() {
                 )
               })}
             </F.RarityChips>
-          </S.FilterGroup>
+          </FilterSection>
 
           <F.Divider />
-          <S.FilterGroup>
-            <S.FilterTitle>{t('assets.category')}</S.FilterTitle>
+          <FilterSection
+            title={t('assets.category')}
+            open={openCategory}
+            onToggle={() => setOpenCategory(o => !o)}
+            summary={categorySummary}
+            desktopStatic
+          >
             <S.SubPills data-testid="category-filter">
               {subsFor(section).map(sub => {
                 const selected = subCategory === sub.key
@@ -411,7 +439,7 @@ export function MyAssets() {
                 )
               })}
             </S.SubPills>
-          </S.FilterGroup>
+          </FilterSection>
         </>
       ) : null}
     </>
