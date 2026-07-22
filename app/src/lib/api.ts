@@ -168,6 +168,23 @@ export async function fetchCollectionSaleState(
   return map
 }
 
+// Per-TOKEN secondary sale state for a collection, from the v3 shop feed. Keyed by tokenId, carrying
+// the credit price + tradeId. The indexer's /v1/nfts `order` is a legacy on-chain (MANA) field and is
+// absent for a shop (USD-pegged, off-chain trade) resale, so an on-sale owned token has no credit price
+// there — this resolves it from the authoritative shop feed, mirroring fetchCollectionSaleState for
+// primary listings. Only USD-pegged (credit-buyable) secondary listings appear here.
+export async function fetchSecondarySaleState(
+  contractAddress: string
+): Promise<Record<string, { priceCredits: number; tradeId: string }>> {
+  const { listings } = await fetchShopListingsRaw({ contractAddress, first: 200 })
+  const map: Record<string, { priceCredits: number; tradeId: string }> = {}
+  for (const l of listings) {
+    if (l.listingType !== 'secondary' || l.tokenId == null) continue
+    map[String(l.tokenId)] = { priceCredits: l.priceCredits, tradeId: l.tradeId }
+  }
+  return map
+}
+
 type NftMeta = {
   name: string
   image: string
@@ -699,8 +716,7 @@ export async function fetchTradeDisplay(tradeId: string): Promise<PurchaseDispla
   // nothing), which is exactly why purchases showed a generic "Item" with no image. Prefer the typed
   // fields, keep `value` as a last-resort fallback for any on-chain-shaped trade.
   const sent = trade.sent?.[0] as
-    | { assetType?: number; contractAddress?: string; itemId?: string; tokenId?: string; value?: string }
-    | undefined
+    { assetType?: number; contractAddress?: string; itemId?: string; tokenId?: string; value?: string } | undefined
   const priceAsset = trade.received?.[0] as { amount?: string } | undefined
   const credits = toCredits(priceAsset?.amount)
   const contractAddress = sent?.contractAddress ?? ''
@@ -714,7 +730,13 @@ export async function fetchTradeDisplay(tradeId: string): Promise<PurchaseDispla
     return { name: meta?.name ?? 'Item', thumbnail: meta?.thumbnail ?? '', credits, contractAddress, itemId: id }
   }
   const meta = id ? await fetchNftMeta(contractAddress, id) : null
-  return { name: meta?.name ?? (id ? `#${id}` : 'Item'), thumbnail: meta?.image ?? '', credits, contractAddress, tokenId: id }
+  return {
+    name: meta?.name ?? (id ? `#${id}` : 'Item'),
+    thumbnail: meta?.image ?? '',
+    credits,
+    contractAddress,
+    tokenId: id
+  }
 }
 
 // Open credit-buyable listing (Trade) for a catalog ITEM (primary/mint), or null if none. Resolves
