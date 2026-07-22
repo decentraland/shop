@@ -125,6 +125,11 @@ export const SearchBlock = styled.div`
   gap: 12px;
 `
 
+// Positioning context so the "taken" banner can drop below the input without growing the hero.
+export const InputWrap = styled.div`
+  position: relative;
+`
+
 export const InputRow = styled('div', noForward('invalid'))<{ invalid?: boolean }>`
   display: flex;
   align-items: center;
@@ -165,6 +170,11 @@ export const Sizer = styled.span`
 // "This NAME is taken" banner (Figma 1368-354064): red-light bar under the input, with a MAKE OFFER
 // link out to the legacy marketplace's secondary NAME market.
 export const TakenBanner = styled.div`
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  z-index: 2;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -179,6 +189,8 @@ export const TakenBanner = styled.div`
   text-align: left;
 
   ${theme.media.down('mobile')} {
+    position: static;
+    margin-top: 8px;
     align-items: flex-start;
     flex-wrap: wrap;
   }

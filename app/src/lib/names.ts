@@ -83,13 +83,19 @@ export function sanitizeNameInput(raw: string): string {
 
 export type NameAvailability = 'available' | 'taken'
 
-// DCLRegistrar on Ethereum L1 — the SAME contract the register hits. Its `available(name)` view is the
-// authoritative availability check (the marketplace webapp reads this contract too, via getTokenId).
-// NAMEs always live on Ethereum mainnet, even when buying from dev/stg, so this address + RPC are fixed.
-// The read is public, so calling it straight from the browser (no sign-in) is fine.
-const DCL_REGISTRAR_ADDRESS = '0x2a187453064356c898cae034eaed119e1663acb8'
-const ETHEREUM_RPC_URL = 'https://rpc.decentraland.org/mainnet'
+// DCLRegistrar on Ethereum — the SAME contract the register hits. Its `available(name)` view is the
+// authoritative availability check (the marketplace webapp reads this contract too). The read is public
+// so it runs straight from the browser (no sign-in). WHICH Ethereum depends on the shop env: prod
+// (config.chainId = Polygon mainnet) → Ethereum mainnet; dev/stg (Amoy) → Sepolia. Availability MUST be
+// checked on the same network the register targets, or a name looks free/taken on the wrong chain.
 const DCL_REGISTRAR_ABI = ['function available(string _subdomain) view returns (bool)']
+const NAME_REGISTRAR = {
+  mainnet: { rpc: 'https://rpc.decentraland.org/mainnet', address: '0x2a187453064356c898cae034eaed119e1663acb8' },
+  sepolia: { rpc: 'https://rpc.decentraland.org/sepolia', address: '0x7518456ae93eb98f3e64571b689c626616bb7f30' }
+}
+function nameRegistrar() {
+  return config.chainId === ChainId.MATIC_MAINNET ? NAME_REGISTRAR.mainnet : NAME_REGISTRAR.sepolia
+}
 
 /**
  * Authoritative availability check: `DCLRegistrar.available(name)` on Ethereum L1 — the exact gate the
@@ -100,9 +106,10 @@ export async function checkNameAvailability(
   name: string,
   opts: { signal?: AbortSignal } = {}
 ): Promise<NameAvailability> {
-  const provider = new ethers.providers.JsonRpcProvider(ETHEREUM_RPC_URL)
-  const registrar = new ethers.Contract(DCL_REGISTRAR_ADDRESS, DCL_REGISTRAR_ABI, provider)
-  console.info(`[names] availability check → DCLRegistrar.available("${name}")`)
+  const { rpc, address } = nameRegistrar()
+  const provider = new ethers.providers.JsonRpcProvider(rpc)
+  const registrar = new ethers.Contract(address, DCL_REGISTRAR_ABI, provider)
+  console.info(`[names] availability check → DCLRegistrar(${address}).available("${name}") on ${rpc}`)
   const isAvailable = (await registrar.available(name)) as boolean
   // ethers has no AbortSignal, so a stale (superseded) check can still resolve — mimic fetch's abort so
   // the caller's AbortError guard discards it and only the latest keystroke's result is applied.
@@ -165,7 +172,7 @@ export async function fetchNameCreditRoute(
   name: string,
   opts: { chainId?: ChainId; provider?: NameRouteProvider } = {}
 ): Promise<NameCreditRoute> {
-  const chainId = opts.chainId ?? ChainId.MATIC_MAINNET
+  const chainId = opts.chainId ?? config.chainId
   const provider = opts.provider ?? 'across'
   const url =
     `${config.creditsServerUrl}/credits-name-route` +
@@ -294,7 +301,7 @@ export async function registerNameWithUsdCredits(opts: {
   acrossPoll?: { intervalMs?: number; maxAttempts?: number }
 }): Promise<NameRegistrationResult> {
   const { name, identity, signer } = opts
-  const chainId = opts.chainId ?? ChainId.MATIC_MAINNET
+  const chainId = opts.chainId ?? config.chainId
   const provider = opts.provider ?? 'across'
   const buyer = (opts.beneficiary ?? (await signer.getAddress())).toLowerCase()
 

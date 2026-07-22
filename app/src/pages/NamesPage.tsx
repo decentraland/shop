@@ -130,48 +130,53 @@ export function NamesPage({ onBack }: { onBack: () => void }) {
           </S.HeroCopy>
 
           <S.SearchBlock>
-            <S.InputRow invalid={status === 'taken'}>
-              <S.InputField>
-                <S.At aria-hidden>@</S.At>
-                <S.NameInput
-                  value={value}
-                  onChange={e => setValue(sanitizeNameInput(e.target.value))}
-                  placeholder={t('names.inputPlaceholder')}
-                  aria-label={t('names.inputAria')}
-                  autoComplete="off"
-                  spellCheck={false}
-                  maxLength={NAME_MAX_LENGTH}
-                  style={{ width: nameWidth != null ? `${nameWidth}px` : undefined }}
-                />
-                <S.Sizer ref={sizerRef} aria-hidden>
-                  {value || t('names.inputPlaceholder')}
-                </S.Sizer>
-                <S.Suffix>{t('names.suffix')}</S.Suffix>
-              </S.InputField>
-              {value.length > 0 ? (
-                <S.Counter aria-hidden>
-                  {value.length}/{NAME_MAX_LENGTH}
-                </S.Counter>
+            <S.InputWrap>
+              <S.InputRow invalid={status === 'taken'}>
+                <S.InputField>
+                  <S.At aria-hidden>@</S.At>
+                  <S.NameInput
+                    value={value}
+                    onChange={e => setValue(sanitizeNameInput(e.target.value))}
+                    placeholder={t('names.inputPlaceholder')}
+                    aria-label={t('names.inputAria')}
+                    autoComplete="off"
+                    spellCheck={false}
+                    maxLength={NAME_MAX_LENGTH}
+                    style={{ width: nameWidth != null ? `${nameWidth}px` : undefined }}
+                  />
+                  <S.Sizer ref={sizerRef} aria-hidden>
+                    {value || t('names.inputPlaceholder')}
+                  </S.Sizer>
+                  <S.Suffix>{t('names.suffix')}</S.Suffix>
+                </S.InputField>
+                {value.length > 0 ? (
+                  <S.Counter aria-hidden>
+                    {value.length}/{NAME_MAX_LENGTH}
+                  </S.Counter>
+                ) : null}
+                <S.ClaimButton onClick={claim} disabled={!canClaim} data-testid="names-claim">
+                  {claimBtnContent}
+                </S.ClaimButton>
+              </S.InputRow>
+
+              {/* Absolute so it drops below the input WITHOUT growing the hero (Figma 1368-354064). */}
+              {status === 'taken' ? (
+                <S.TakenBanner role="status" data-testid="names-taken">
+                  <Icon name="info" size={16} aria-hidden />
+                  <span>{t('names.taken')}</span>
+                  <S.TakenOfferLink href={legacyNamesUrl(value)} target="_blank" rel="noopener noreferrer">
+                    {t('names.takenMakeOffer')}
+                    <Icon name="external-link" size={13} aria-hidden />
+                  </S.TakenOfferLink>
+                </S.TakenBanner>
               ) : null}
-              <S.ClaimButton onClick={claim} disabled={!canClaim} data-testid="names-claim">
-                {claimBtnContent}
-              </S.ClaimButton>
-            </S.InputRow>
+            </S.InputWrap>
 
             <S.ClaimButtonMobile onClick={claim} disabled={!canClaim}>
               {claimBtnContent}
             </S.ClaimButtonMobile>
 
-            {status === 'taken' ? (
-              <S.TakenBanner role="status" data-testid="names-taken">
-                <Icon name="info" size={16} aria-hidden />
-                <span>{t('names.taken')}</span>
-                <S.TakenOfferLink href={legacyNamesUrl(value)} target="_blank" rel="noopener noreferrer">
-                  {t('names.takenMakeOffer')}
-                  <Icon name="external-link" size={13} aria-hidden />
-                </S.TakenOfferLink>
-              </S.TakenBanner>
-            ) : status === 'checking' ? (
+            {status === 'checking' ? (
               <S.Status tone="muted" role="status" data-testid="names-checking">
                 {t('names.checking')}
               </S.Status>

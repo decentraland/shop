@@ -10,7 +10,7 @@ vi.mock('decentraland-crypto-fetch', () => ({ default: signedFetch }))
 
 // Pin the server base URLs so asserted URLs are env-independent.
 vi.mock('~/config', () => ({
-  config: { creditsServerUrl: 'https://credits.example', nftApiUrl: 'https://nft.example' }
+  config: { creditsServerUrl: 'https://credits.example', nftApiUrl: 'https://nft.example', chainId: 137 }
 }))
 
 // checkNameAvailability reads DCLRegistrar.available on-chain. Stub only ethers.Contract (+ the
