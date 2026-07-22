@@ -502,18 +502,58 @@ export async function fetchOwnsItem(owner: string, contractAddress: string, item
   }
 }
 
+// Sort keys accepted by the /v1/nfts endpoint (subset we expose in My Assets — see @dcl/schemas
+// NFTSortBy). Newest is the default; name + cheapest cover the rest of the My Assets sort menu.
+export type MyAssetsSort = 'newest' | 'name' | 'cheapest'
+
+export type MyAssetsFilters = {
+  category?: string
+  first?: number
+  skip?: number
+  // Free-text search over the owner's items (server-side, same `search` param the browse grid uses).
+  search?: string
+  // Rarity filter (repeated `itemRarity` params). Only meaningful for wearables/emotes.
+  rarities?: string[]
+  // On-chain wearable/emote sub-categories (from SUBCAT_MAP). Only meaningful for wearables/emotes.
+  wearableCategories?: string[]
+  emoteCategories?: string[]
+  // Listing status: true = only items currently on sale. The endpoint has no "not for sale" flag, so
+  // the caller filters the not-for-sale case client-side from each row's `isOnSale` (see MyAssets).
+  onlyOnSale?: boolean
+  sortBy?: MyAssetsSort
+}
+
+// The connected account's owned NFTs (wearables/emotes/names), from the indexer's /v1/nfts endpoint.
+// `category` selects the section: 'wearable' | 'emote' | 'ens' (owned NAMEs). Filtering (search,
+// rarity, sub-category, on-sale) + sort happen server-side; each row carries its open listing (order)
+// so the UI can show "on sale" + take a listing down. Paginated by cumulative offset (see useInfiniteGrid).
 export async function fetchMyAssets(
   owner: string,
-  { category = 'wearable', first = 48, skip = 0 }: { category?: string; first?: number; skip?: number } = {}
+  {
+    category = 'wearable',
+    first = 48,
+    skip = 0,
+    search,
+    rarities,
+    wearableCategories,
+    emoteCategories,
+    onlyOnSale,
+    sortBy = 'newest'
+  }: MyAssetsFilters = {}
 ): Promise<{ assets: MyAsset[]; total: number }> {
   const qs = new URLSearchParams({
     owner: owner.toLowerCase(),
     category,
     first: String(first),
     skip: String(skip),
-    sortBy: 'newest',
+    sortBy,
     orderDirection: 'desc'
   })
+  if (search) qs.set('search', search)
+  for (const r of rarities ?? []) qs.append('itemRarity', r)
+  for (const c of wearableCategories ?? []) qs.append('wearableCategory', c)
+  for (const c of emoteCategories ?? []) qs.append('emoteCategory', c)
+  if (onlyOnSale) qs.set('isOnSale', 'true')
   const res = await fetch(`${NFT_V1}/nfts?${qs.toString()}`)
   if (!res.ok) throw new Error(`Failed to fetch assets (${res.status})`)
   const { data, total } = (await res.json()) as { data: NFTResult[]; total: number }
