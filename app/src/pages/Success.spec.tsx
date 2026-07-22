@@ -135,6 +135,42 @@ describe('Success settlement gating', () => {
     expect(screen.queryByText(/it.s yours/i)).toBeNull()
   })
 
+  it('shows the added-credits row alongside the items for a buy-credits-and-item-together success', async () => {
+    // settled:true → the cart already waited for settlement, so the confirmed screen renders straight away.
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={qc}>
+        <MemoryRouter
+          initialEntries={[{ pathname: '/success', state: { items: [item], settled: true, creditsAdded: 200 } }]}
+        >
+          <Routes>
+            <Route path="/success" element={<Success />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+    const credits = await screen.findByTestId('success-credits')
+    expect(credits.textContent).toMatch(/200/)
+    expect(credits.textContent).toMatch(/added to your account/i)
+    // Both the credits AND the purchased item are shown (Figma 1231-250927 combined view).
+    expect(screen.getByText('Snowy Panama Hat')).toBeTruthy()
+  })
+
+  it('omits the added-credits row for a plain purchase (no top-up)', async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={qc}>
+        <MemoryRouter initialEntries={[{ pathname: '/success', state: { items: [item], settled: true } }]}>
+          <Routes>
+            <Route path="/success" element={<Success />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+    await screen.findByText('Snowy Panama Hat')
+    expect(screen.queryByTestId('success-credits')).toBeNull()
+  })
+
   it('lands on a timed-out state (not a false success or failure) when every attempt stays pending', async () => {
     waitForSettlement.mockRejectedValue(new SettlementPendingError('pending'))
     renderSuccess()

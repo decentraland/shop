@@ -9,7 +9,7 @@ import styled from '@emotion/styled'
 import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import { waitForSettlement, SettlementPendingError } from '~/lib/buy-gasless'
 import { fetchOwnsItem } from '~/lib/api'
-import { formatCredits } from '~/lib/currency'
+import { formatCredits, CURRENCY } from '~/lib/currency'
 import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
 import type { CatalogItem } from '~/lib/api'
@@ -26,6 +26,20 @@ import type { CatalogItem } from '~/lib/api'
 type Settlement = 'pending' | 'indexing' | 'confirmed' | 'failed' | 'timed-out'
 
 type OwnershipCheck = { owner: string; contractAddress: string; itemId: string }
+
+// Router state handed to the /success page by every purchase flow (cart checkout, direct MarketCheckout
+// buy, and the credits-topup resume). Exported so the producers share the EXACT shape — a renamed or
+// dropped field is then a TS error at the navigate() call, not a silent runtime miss.
+export type SuccessNavState = {
+  // The cart sends per-line entries carrying `quantity` (a primary/mint line can be bought × N).
+  items?: Array<CatalogItem & { quantity?: number }>
+  txHash?: string
+  // The cart already waited for full settlement before routing here → skip re-polling.
+  settled?: boolean
+  // Credits that landed with a mid-checkout top-up (buy-credits-and-item-together) — shown above the
+  // item list on the combined success (Figma 1231-250927).
+  creditsAdded?: number
+}
 
 const SuccessBtn = styled(Button)`
   min-width: 160px;
@@ -99,15 +113,15 @@ const JUMP_URL = config.chainId === 80002 ? 'https://decentraland.zone/jump' : '
 const EXPLORER_TX = config.chainId === 80002 ? 'https://amoy.polygonscan.com/tx/' : 'https://polygonscan.com/tx/'
 
 export function Success() {
-  const { state } = useLocation() as {
-    // The cart sends per-line entries carrying `quantity` (a primary/mint line can be bought × N).
-    state?: { items?: Array<CatalogItem & { quantity?: number }>; txHash?: string; settled?: boolean }
-  }
+  const { state } = useLocation() as { state?: SuccessNavState }
   const navigate = useNavigate()
   const { session } = useWallet()
 
   const txHash = state?.txHash
   const purchasedItems = state?.items ?? []
+  // Credits that landed with a mid-checkout top-up (buy-credits-and-item-together) — shown above the
+  // item list as the bundle added to the account (Figma 1231-250927). Absent for a plain purchase.
+  const creditsAdded = state?.creditsAdded && state.creditsAdded > 0 ? state.creditsAdded : null
   // Gate success on the indexer showing ownership of the first purchased item (all items in a basket
   // settle in the same tx, so one being indexed means the batch is). Only when we have an address + a
   // mint itemId to query by; otherwise fall back to receipt-only confirmation.
@@ -238,6 +252,19 @@ export function Success() {
         </div>
 
         <div className="success-list">
+          {/* Credits that landed with a mid-checkout top-up (buy-credits-and-item-together) — shown
+              above the item list as the bundle added to the account (Figma 1231-250927). */}
+          {creditsAdded ? (
+            <div className="success-credits" data-testid="success-credits">
+              <CurrencyIcon className="success-credits__ico" />
+              <p className="success-credits__text">
+                <span className="success-credits__amount">
+                  {t('getCredits.creditsAmount', { credits: creditsAdded, currency: CURRENCY.name })}
+                </span>{' '}
+                <span className="success-credits__added">{t('getCredits.creditsAdded')}</span>
+              </p>
+            </div>
+          ) : null}
           {items.map((item, i) => {
             // A primary/mint line can be bought × N — show the line total (per-unit × qty) plus a
             // "× N" badge, mirroring the old in-cart complete modal.

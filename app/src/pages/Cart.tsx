@@ -19,7 +19,7 @@ import {
 } from '~/lib/cart-checkout'
 import { gaslessEnabled } from '~/lib/gasless-config'
 import { CURRENCY } from '~/lib/currency'
-import { createPackCheckout } from '~/lib/payments'
+import { createPackCheckout, MAX_OFFER_PACKS } from '~/lib/payments'
 import { useCreditPacks } from '~/hooks/useCreditPacks'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { CartCheckoutModal, type CheckoutLine } from '~/components/CartCheckoutModal'
@@ -35,7 +35,17 @@ import { Button } from '~/components/Button'
 import { Icon } from '~/components/Icon'
 import styled from '@emotion/styled'
 import type { CatalogItem } from '~/lib/api'
+import type { SuccessNavState } from '~/pages/Success'
 import './cart.css'
+
+// Router state handed to /cart by the /credits return handler to resume a checkout after a mid-checkout
+// top-up. Exported so the producer (GetCredits) shares the exact shape — a renamed field is then a TS
+// error at its navigate() call, not a silent runtime miss.
+export type CartNavState = {
+  resumeCheckout?: boolean
+  // Credits that just landed, forwarded to the /success page for the combined credits+items view.
+  creditsAdded?: number
+}
 
 const EmptyCta = styled(Button)`
   margin-top: 12px;
@@ -93,10 +103,10 @@ export function Cart() {
   const favItems = useFavorites(s => s.items)
   const toggleFav = useFavorites(s => s.toggle)
   const { session } = useWallet()
-  // The three top-up packs offered when the buyer is short on credits (same set the PDP uses).
-  // Sourced from the credits-server catalogue (single source of truth); falls back to the bundled
-  // packs so this critical picker always renders.
-  const OFFER_PACKS = useCreditPacks().packs.slice(0, 3)
+  // The top-up packs offered when the buyer is short on credits (same set the PDP uses — all four the
+  // credits-server returns, shown in one widened row). Sourced from the credits-server catalogue
+  // (single source of truth); falls back to the bundled packs so this critical picker always renders.
+  const OFFER_PACKS = useCreditPacks().packs.slice(0, MAX_OFFER_PACKS)
 
   // Paint the whole page gray while the cart is open (Figma 1182-216274) so the white cart cards get
   // the focus. Toggled on <body> so the gray is full-bleed under the sticky sub-nav; reverted on leave.
@@ -117,7 +127,7 @@ export function Cart() {
   const { data: balance } = useBalance(session)
   const qc = useQueryClient()
   const navigate = useNavigate()
-  const { state: navState } = useLocation() as { state?: { resumeCheckout?: boolean } }
+  const { state: navState } = useLocation() as { state?: CartNavState }
 
   const [status, setStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -131,6 +141,11 @@ export function Cart() {
   // The charge overlay (processing / no-funds / complete / error). null = closed.
   const [modal, setModal] = useState<ModalState | null>(null)
   const [selectedPack, setSelectedPack] = useState('')
+  // Credits that landed with a mid-checkout top-up (buy-credits-and-item-together). Carried from the
+  // /credits return handler through the resume, then handed to the /success page so it can show the
+  // bundle that was added alongside the purchased items (Figma 1231-250927). A ref (not state) so the
+  // resume's deferred checkout() closure reads the current value, not a stale render capture.
+  const creditsAddedRef = useRef<number | null>(null)
 
   const shownTotal = items.reduce((sum, i) => sum + i.priceCredits * i.quantity, 0)
   // Total units across all lines (Σ quantity) — the "N items" the summary/count reflect.
@@ -280,13 +295,20 @@ export function Cart() {
       // The whole basket has settled on-chain (buyManyGasless/waitForSettlement above), so hand the
       // standalone success PAGE the purchased lines + tx and tell it settlement is already done
       // (settled:true) — it lands straight on the confirmed screen instead of a floating in-cart modal.
+      // When this checkout auto-resumed after a mid-checkout top-up, also pass the credits that landed
+      // so the success page shows the "buy credits + item together" combined view (Figma 1231-250927).
+      const creditsAdded = creditsAddedRef.current
+      creditsAddedRef.current = null
       setModal(null)
       setBusy(false)
+      const successState: SuccessNavState = {
+        items: purchasedLines,
+        txHash: hashes[0] ?? undefined,
+        settled: true,
+        ...(creditsAdded ? { creditsAdded } : {})
+      }
       // replace:true — the cart is now emptied, so Back from /success should not return to it.
-      navigate('/success', {
-        state: { items: purchasedLines, txHash: hashes[0] ?? undefined, settled: true },
-        replace: true
-      })
+      navigate('/success', { state: successState, replace: true })
     } catch (e) {
       if (!isUserRejection(e)) captureError(e, { flow: 'cart_checkout', step, cart_size: lines.length })
       track(isUserRejection(e) ? 'Shop Purchase Cancelled' : 'Shop Purchase Failed', {
@@ -433,6 +455,9 @@ export function Cart() {
   useEffect(() => {
     if (!navState?.resumeCheckout || resumedRef.current) return
     resumedRef.current = true
+    // Remember the topped-up credits so the /success page can show them alongside the items once the
+    // resumed checkout settles (buy-credits-and-item-together combined success).
+    creditsAddedRef.current = navState.creditsAdded ?? null
     try {
       const snap = sessionStorage.getItem(RESUME_CART_KEY)
       if (snap) {

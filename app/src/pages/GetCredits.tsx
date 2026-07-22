@@ -11,6 +11,7 @@ import { captureError } from '~/lib/monitoring'
 import { t } from '~/intl/i18n'
 import { RESUME_BUY_KEY } from '~/lib/resume-buy'
 import { RESUME_CART_KEY } from '~/lib/cart-checkout'
+import type { CartNavState } from '~/pages/Cart'
 import type { CatalogItem } from '~/lib/api'
 import packChips from '~/assets/credits/pack-chips.webp'
 import creditCoin from '~/assets/credits/credit-coin.webp'
@@ -112,7 +113,13 @@ export function GetCredits() {
           // The cart consumes RESUME_CART_KEY itself (we only detect + route here).
           try {
             if (sessionStorage.getItem(RESUME_CART_KEY)) {
-              navigate('/cart', { state: { resumeCheckout: true } })
+              // Carry the credits that just landed so the cart's resumed checkout can hand them to the
+              // /success page for the combined "credits + items" view (Figma 1231-250927).
+              const cartState: CartNavState = {
+                resumeCheckout: true,
+                ...(creditsGranted > 0 ? { creditsAdded: creditsGranted } : {})
+              }
+              navigate('/cart', { state: cartState })
               return
             }
           } catch {
