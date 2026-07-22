@@ -48,12 +48,13 @@ export const Sidebar = styled.aside`
     /* Reserve the scrollbar gutter so revealing the bar on hover doesn't shift the filter content. */
     scrollbar-gutter: stable;
 
-    /* Hover-only scrollbar: hidden while the catalog scrolls, revealed only when the cursor is over the
-       filters column (so a subtle bar appears just as you try to scroll within it). Stays scrollable
-       throughout — only the bar's visibility changes. Matches the subtle cart-list treatment (cart.css). */
-    scrollbar-width: none;
+    /* Subtle scrollbar (matches the cart scroll list). The track width is reserved CONSTANTLY — the same
+       8px at rest and on hover — so revealing the scrollbar never consumes space and pushes the sidebar
+       content left. Only the THUMB fades in on hover; at rest both thumb and track are transparent, so
+       the gutter is invisible but its space is already held. Firefox keeps scrollbar-width: thin (not
+       none -> thin, which would also shift) and just recolours the thumb on hover. */
+    scrollbar-width: thin;
     scrollbar-color: transparent transparent;
-    transition: scrollbar-color 0.2s ease;
     &::-webkit-scrollbar {
       width: 8px;
     }
@@ -65,9 +66,7 @@ export const Sidebar = styled.aside`
       border-radius: 8px;
       transition: background 0.2s ease;
     }
-
     &:hover {
-      scrollbar-width: thin;
       scrollbar-color: ${theme.colors.muted2} transparent;
     }
     &:hover::-webkit-scrollbar-thumb {
