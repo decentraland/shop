@@ -87,6 +87,15 @@
   font-size: 36px;
   line-height: 1;
 }
+/* Owned NAME footer: "@name" + violet verified badge (Figma 696-34036). */
+.card__name--verified {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.card__verified {
+  flex: none;
+}
 .card__name-value {
   max-width: 100%;
   font-weight: 700;

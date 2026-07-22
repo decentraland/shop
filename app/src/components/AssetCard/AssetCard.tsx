@@ -76,7 +76,9 @@ export function AssetCard(props: AssetCardProps) {
   const isPreviewing = useHoverPreview(s => s.item?.id === item.id)
   const previewReady = useHoverPreview(s => (s.item?.id === item.id ? s.ready : false))
 
-  const canPreview = !!item.contractAddress && !!item.itemId
+  // NAMEs are read-only in the Shop: no whole-card link (the detail page loads a wearable preview,
+  // wrong for a NAME), no favourite, no 3D hover preview. Only the standard visual hover (red border).
+  const canPreview = !!item.contractAddress && !!item.itemId && !isNameItem
   // Secondary listings carry tokenId; catalog items carry itemId — use whichever is present so the
   // /item/:contractAddress/:tokenId route segment is always populated.
   const routeSeg = item.tokenId ?? item.itemId
@@ -138,7 +140,7 @@ export function AssetCard(props: AssetCardProps) {
     <article
       className="card"
       data-testid="card"
-      style={canOpen ? { cursor: 'pointer' } : undefined}
+      style={canOpen && !isNameItem ? { cursor: 'pointer' } : undefined}
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}
     >
@@ -146,7 +148,7 @@ export function AssetCard(props: AssetCardProps) {
           of an interactive <article role="link"> that wraps the fav/cart/creator buttons — nesting
           interactive controls inside a link is invalid and breaks SR/tab order. The overlay sits below
           those controls via z-index (see .card__link in index.css) so they stay independently operable. */}
-      {canOpen ? (
+      {canOpen && !isNameItem ? (
         <Link
           className="card__link"
           data-testid="card-link"
@@ -166,17 +168,19 @@ export function AssetCard(props: AssetCardProps) {
           its own stacking context (isolation: isolate, for the skeleton's z-index), which would trap
           the button below the z-index:3 overlay link and make the heart navigate instead of toggle.
           As a direct child of the position:relative card, its z-index:4 sits above the link. */}
-      <button
-        className={`card__fav${faved ? ' is-on' : ''}`}
-        data-testid="card-fav"
-        onClick={e => {
-          e.stopPropagation()
-          toggleFav(item)
-        }}
-        aria-label={faved ? t('assetCard.removeFromFavorites') : t('assetCard.addToFavorites')}
-      >
-        <Icon name={faved ? 'heart-solid' : 'heart'} size={18} />
-      </button>
+      {!isNameItem ? (
+        <button
+          className={`card__fav${faved ? ' is-on' : ''}`}
+          data-testid="card-fav"
+          onClick={e => {
+            e.stopPropagation()
+            toggleFav(item)
+          }}
+          aria-label={faved ? t('assetCard.removeFromFavorites') : t('assetCard.addToFavorites')}
+        >
+          <Icon name={faved ? 'heart-solid' : 'heart'} size={18} />
+        </button>
+      ) : null}
       {/* The shared 3D preview (HoverPreviewLayer) overlays this element on hover; mediaRef gives it the
           rect to position over. */}
       <div className="card__media" ref={mediaRef}>
@@ -254,6 +258,28 @@ export function AssetCard(props: AssetCardProps) {
               {t('myAssets.putOnSale')}
             </button>
           )}
+        </div>
+      ) : isNameItem ? (
+        // Owned NAME (read-only): just the @name + verified badge — no author, price, or CTA.
+        <div className="card__body">
+          <div className="card__top">
+            <div className="card__desc">
+              <div className="card__name card__name--verified" title={item.name}>
+                <span>@{item.name}</span>
+                <svg className="card__verified" width="18" height="18" viewBox="0 0 20 20" aria-hidden>
+                  <circle cx="10" cy="10" r="9" fill="#a524b3" />
+                  <path
+                    d="M5.8 10.2l2.6 2.6 5.2-5.2"
+                    stroke="#fff"
+                    strokeWidth="1.8"
+                    fill="none"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </div>
+            </div>
+          </div>
         </div>
       ) : isView ? (
         <div className="card__body">
