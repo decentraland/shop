@@ -88,7 +88,8 @@ function assetToItem(a: MyAsset): CatalogItem {
     priceCredits: a.listingPrice ?? 0,
     gender: null,
     isSmart: false,
-    tokenId: a.tokenId
+    tokenId: a.tokenId,
+    issuedId: a.issuedId
   }
 }
 
@@ -535,6 +536,9 @@ export function MyAssets() {
               {ownedLoading || isPlaceholderData ? (
                 <SkeletonCards count={12} />
               ) : (
+                // One card PER OWNED TOKEN: /v1/nfts returns a distinct row per tokenId, so N copies of
+                // the same item render as N cards. Keyed by `asset.id` (= contractAddress-tokenId), which
+                // is unique per copy (raw tokenId can repeat across collections) — never collapse copies.
                 ownedAssets.map(asset =>
                   section === 'names' ? (
                     // NAMEs can't be resold through the Shop (the credit rail is Polygon-only, NAMEs are

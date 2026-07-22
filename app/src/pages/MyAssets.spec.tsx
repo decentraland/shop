@@ -208,6 +208,93 @@ describe('when an owned asset is already on sale', () => {
   })
 })
 
+describe('when the owner holds multiple copies of the same item', () => {
+  it('should render one manageable card per token, each tagged with its own issued number', async () => {
+    // Same item (itemId 7), two distinct tokens the wallet owns — the NFT endpoint returns a row per
+    // token, so the grid must render TWO cards, not collapse them into one.
+    fetchMyAssets.mockResolvedValue({
+      assets: [
+        wearable({ id: '0xcollection-11', tokenId: '11', issuedId: '11', itemId: '7' }),
+        wearable({ id: '0xcollection-22', tokenId: '22', issuedId: '412', itemId: '7' })
+      ],
+      total: 2
+    })
+    renderPage()
+
+    await screen.findAllByText('Cool Hat')
+    expect(screen.getAllByTestId('card')).toHaveLength(2)
+    // Both copies are individually listable and told apart by their mint index.
+    expect(screen.getAllByTestId('card-list')).toHaveLength(2)
+    expect(screen.getByText('#11')).toBeInTheDocument()
+    expect(screen.getByText('#412')).toBeInTheDocument()
+  })
+})
+
+describe('when the owner lists one of several copies', () => {
+  beforeEach(() => {
+    ensureApproval.mockResolvedValue(undefined)
+    createUsdPeggedListing.mockResolvedValue({ signer: session.address, signature: '0xsig', type: 'public_nft_order' })
+    postTrade.mockResolvedValue({ id: 'trade-1' })
+  })
+
+  it('should sign a listing for the exact token of the clicked card, leaving the other copy untouched', async () => {
+    const user = userEvent.setup()
+    fetchMyAssets.mockResolvedValue({
+      assets: [
+        wearable({ id: '0xcollection-11', tokenId: '11', issuedId: '11', itemId: '7' }),
+        wearable({ id: '0xcollection-22', tokenId: '22', issuedId: '412', itemId: '7' })
+      ],
+      total: 2
+    })
+    renderPage()
+
+    // Put the SECOND copy (token 22) on sale.
+    const lists = await screen.findAllByTestId('card-list')
+    await user.click(lists[1])
+
+    const dialog = await screen.findByRole('dialog')
+    const price = within(dialog).getByLabelText(/price/i)
+    await user.clear(price)
+    await user.type(price, '50')
+    await user.click(within(dialog).getByRole('button', { name: /put on sale/i }))
+
+    await waitFor(() => expect(createUsdPeggedListing).toHaveBeenCalled())
+    expect(createUsdPeggedListing).toHaveBeenCalledWith(
+      expect.objectContaining({ nft: expect.objectContaining({ contractAddress: '0xcollection', tokenId: '22' }) })
+    )
+  })
+})
+
+describe('when the owner removes one listed copy from sale', () => {
+  it('should cancel only that token’s listing', async () => {
+    const user = userEvent.setup()
+    // Copy 11 is on sale; copy 22 is not — so only one unlist control exists, tied to trade-11.
+    fetchMyAssets.mockResolvedValue({
+      assets: [
+        wearable({
+          id: '0xcollection-11',
+          tokenId: '11',
+          issuedId: '11',
+          itemId: '7',
+          isOnSale: true,
+          listingPrice: 30,
+          tradeId: 'trade-11'
+        }),
+        wearable({ id: '0xcollection-22', tokenId: '22', issuedId: '412', itemId: '7' })
+      ],
+      total: 2
+    })
+    fetchTrade.mockResolvedValue({ id: 'trade-11' })
+    cancelListing.mockResolvedValue(undefined)
+    renderPage()
+
+    await user.click(await screen.findByTestId('card-unlist'))
+
+    await waitFor(() => expect(fetchTrade).toHaveBeenCalledWith('trade-11'))
+    expect(cancelListing).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe('when viewing My Creations', () => {
   const creation = {
     id: 'builder-uuid-1',

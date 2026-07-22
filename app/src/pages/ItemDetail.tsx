@@ -391,12 +391,42 @@ export function ItemDetail() {
   const [managing, setManaging] = useState(false)
   const [manageError, setManageError] = useState<string | null>(null)
 
-  const { data: ownedAsset } = useQuery({
+  const { data: ownedAsset, isLoading: ownedAssetLoading } = useQuery({
     queryKey: ['owned-token', current.contractAddress, current.tokenId, session?.address],
     enabled: !isMarket && !!session?.address && !!current.contractAddress && !!current.tokenId,
     queryFn: () =>
       session ? fetchOwnedToken(session.address, current.contractAddress, current.tokenId as string) : null
   })
+
+  // Deep-link / refresh of a SECONDARY owned token: the route segment is a tokenId (NOT an itemId), so
+  // the primary shop-listing hydrate + sibling fallback above can't resolve it and `current` stays a
+  // bare stub (empty name → Not Found). Fill the view from the owner's authoritative holding of THIS
+  // exact token once it resolves, so the page renders the copy (and its per-token manage actions). Only
+  // when nothing else hydrated `current`; for an already-seeded item just backfill the issued number.
+  useEffect(() => {
+    if (!ownedAsset) return
+    setCurrent(prev => {
+      if (prev.name) return prev.issuedId ? prev : { ...prev, issuedId: ownedAsset.issuedId }
+      return {
+        id: ownedAsset.id,
+        name: ownedAsset.name,
+        creator: '',
+        contractAddress: ownedAsset.contractAddress,
+        itemId: ownedAsset.itemId,
+        category: ownedAsset.category,
+        rarity: ownedAsset.rarity ?? 'common',
+        network: ownedAsset.network,
+        chainId: ownedAsset.chainId,
+        thumbnail: ownedAsset.image,
+        priceCredits: ownedAsset.listingPrice ?? 0,
+        gender: null,
+        isSmart: false,
+        tokenId: ownedAsset.tokenId,
+        issuedId: ownedAsset.issuedId,
+        tradeId: ownedAsset.tradeId
+      }
+    })
+  }, [ownedAsset])
 
   // The creator's builder record for this primary item — needed to open PrimaryListModal (it carries
   // the collection name, remaining supply, and minter prereq). Only fetched for your own primary item.
@@ -508,7 +538,10 @@ export function ItemDetail() {
   // Nothing hydrated the item (bad/stale deep link, or an item that isn't in the shop feed — e.g. a
   // legacy/market piece). Once every resolution path has settled and there's still no name, show a
   // graceful not-found instead of a permanent "Loading…" blank.
-  const stillResolving = deepLinkLoading || (!!current.contractAddress && !siblingsFetched)
+  // Also wait on the owned-token lookup while it's still resolving and nothing else has hydrated the
+  // item yet — otherwise a secondary deep-link would flash Not Found before ownership backfills it.
+  const stillResolving =
+    deepLinkLoading || (!!current.contractAddress && !siblingsFetched) || (!current.name && ownedAssetLoading)
   const notFound = !current.name && !stillResolving
 
   // Per-page SEO. Called unconditionally (before the not-found early return) so hook order stays stable
@@ -618,6 +651,13 @@ export function ItemDetail() {
                   <span className="chip item-detail__chip">
                     {genderIco ? <Icon name={genderIco} size={18} color="var(--text-2)" /> : null}
                     {gender}
+                  </span>
+                ) : null}
+                {/* Which specific copy this is (secondary token only) — the mint index, so an owner
+                    managing one of several identical copies knows exactly which token they're on. */}
+                {current.issuedId ? (
+                  <span className="chip item-detail__chip" data-testid="detail-issued">
+                    #{current.issuedId}
                   </span>
                 ) : null}
               </div>

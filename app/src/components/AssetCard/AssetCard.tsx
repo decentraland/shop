@@ -220,7 +220,16 @@ export function AssetCard(props: AssetCardProps) {
               <div className="card__name" title={item.name}>
                 {item.name}
               </div>
-              <div className="card__creator">&nbsp;</div>
+              {/* Mint index of THIS copy (e.g. "#5013") — lets the owner tell otherwise-identical copies
+                  apart and know which one they're listing. Absent for creations (primary), so falls back
+                  to the empty spacer that keeps the footer height. */}
+              {item.issuedId ? (
+                <div className="card__creator card__issued" data-testid="card-issued">
+                  #{item.issuedId}
+                </div>
+              ) : (
+                <div className="card__creator">&nbsp;</div>
+              )}
             </div>
             {props.listed && item.priceCredits > 0 ? (
               <div className="card__price" title={formatCreditsFull(item.priceCredits)}>

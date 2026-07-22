@@ -258,6 +258,12 @@
 .card__creator [data-avatar] {
   display: none;
 }
+/* Owned-copy mint index (e.g. "#5013") shown in the creator slot on manage cards — a subtle,
+   tabular-number tag so the digits align and identical copies are easy to tell apart. */
+.card__issued {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.2px;
+}
 /* Price never shrinks or wraps — the name yields space to it, not the reverse. */
 .card__price {
   flex-shrink: 0;

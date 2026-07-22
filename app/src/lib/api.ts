@@ -29,6 +29,9 @@ export type CatalogItem = {
   // Checkout uses `tradeId` directly instead of resolving by itemId.
   tradeId?: string
   tokenId?: string
+  // The token's mint index within its item (e.g. "5013" → the 5013th ever minted). Present only for a
+  // specific owned/secondary token; lets the UI tell otherwise-identical copies apart ("#5013").
+  issuedId?: string
   // Remaining mintable supply for a PRIMARY listing (from the shop feed). Absent for secondary
   // listings (a specific token has no stock concept) and for catalog-only items. Surfaces the STOCK
   // figure next to the price on the item detail page.
@@ -436,6 +439,9 @@ export type MyAsset = {
   id: string
   contractAddress: string
   tokenId: string
+  // Mint index of this token within its item ("5013" = the 5013th minted). Distinguishes copies the
+  // owner holds of the same item, so each owned card/detail can be identified individually.
+  issuedId?: string
   itemId: string | null
   name: string
   category: string
@@ -454,6 +460,7 @@ type NFTResult = {
     id: string
     contractAddress: string
     tokenId: string
+    issuedId?: string
     itemId: string | null
     name: string
     category: string
@@ -473,6 +480,7 @@ function toMyAsset(r: NFTResult): MyAsset {
     id: r.nft.id,
     contractAddress: r.nft.contractAddress,
     tokenId: r.nft.tokenId,
+    issuedId: r.nft.issuedId,
     itemId: r.nft.itemId ?? null,
     name: r.nft.name,
     category: r.nft.category,
