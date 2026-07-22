@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { Icon } from '~/components/Icon'
 import { config } from '~/config'
 import { useWallet } from '~/store/wallet'
 import { fetchCollectionSaleState, fetchMyAssets, fetchTrade, type CatalogItem, type MyAsset } from '~/lib/api'
@@ -24,7 +25,6 @@ import { track } from '~/lib/analytics'
 import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
 import { theme } from '~/styles/theme'
-import { type IconName } from '~/components/Icon'
 import { ErrorNotice } from '~/components/ErrorNotice'
 import * as A from './Assets.styles'
 import * as F from '~/components/Filters/Filters.styles'
@@ -35,11 +35,11 @@ const PAGE_SIZE = 48
 // The four owned-asset sections in the sidebar. `category` is the /v1/nfts category for the owned
 // sections (wearable/emote/ens); 'creations' has no NFT category — it reads the builder feed instead.
 type SectionKey = 'wearables' | 'emotes' | 'names' | 'creations'
-const SECTIONS: { key: SectionKey; labelKey: string; icon: IconName; category?: string }[] = [
-  { key: 'wearables', labelKey: 'myAssets.sectionWearables', icon: 'cat-upper', category: 'wearable' },
-  { key: 'emotes', labelKey: 'myAssets.sectionEmotes', icon: 'emote-dance', category: 'emote' },
-  { key: 'names', labelKey: 'myAssets.sectionNames', icon: 'website', category: 'ens' },
-  { key: 'creations', labelKey: 'myAssets.sectionCreations', icon: 'pen' }
+const SECTIONS: { key: SectionKey; labelKey: string; category?: string }[] = [
+  { key: 'wearables', labelKey: 'myAssets.sectionWearables', category: 'wearable' },
+  { key: 'emotes', labelKey: 'myAssets.sectionEmotes', category: 'emote' },
+  { key: 'names', labelKey: 'myAssets.sectionNames', category: 'ens' },
+  { key: 'creations', labelKey: 'myAssets.sectionCreations' }
 ]
 
 // Sort menu shown in the toolbar. Server values are a subset of the NFT endpoint's NFTSortBy; the same
@@ -208,10 +208,7 @@ export function MyAssets() {
     retry: false
   })
 
-  const contractAddresses = useMemo(
-    () => [...new Set((publishable ?? []).map(p => p.contractAddress))],
-    [publishable]
-  )
+  const contractAddresses = useMemo(() => [...new Set((publishable ?? []).map(p => p.contractAddress))], [publishable])
   const { data: saleState } = useQuery({
     queryKey: ['collection-sale-state', address, contractAddresses],
     enabled: contractAddresses.length > 0,
@@ -292,12 +289,7 @@ export function MyAssets() {
 
   // ---------------- Toolbar count + applied-filter chips ----------------
   const loading = section === 'creations' ? publishableLoading : ownedLoading || isPlaceholderData
-  const total =
-    section === 'creations'
-      ? creations.length
-      : status === 'not_for_sale'
-        ? ownedAssets.length
-        : ownedTotal
+  const total = section === 'creations' ? creations.length : status === 'not_for_sale' ? ownedAssets.length : ownedTotal
 
   const chips: FilterChip[] = []
   if (status !== 'all')
@@ -308,7 +300,8 @@ export function MyAssets() {
     })
   if (showRarityCat)
     for (const r of RARITIES)
-      if (rarities.includes(r)) chips.push({ key: `rarity-${r}`, label: capitalizeFirst(r), onRemove: () => toggleRarity(r) })
+      if (rarities.includes(r))
+        chips.push({ key: `rarity-${r}`, label: capitalizeFirst(r), onRemove: () => toggleRarity(r) })
   if (showRarityCat && subCategory) {
     const sub = subsFor(section).find(s => s.key === subCategory)
     chips.push({ key: 'sub', label: sub ? t(sub.labelKey) : subCategory, onRemove: () => setSubCategory(null) })
@@ -332,7 +325,6 @@ export function MyAssets() {
             aria-pressed={section === s.key}
             onClick={() => pickSection(s.key)}
           >
-            <S.SectionIcon name={s.icon} aria-hidden />
             {t(s.labelKey)}
           </S.SectionButton>
         ))}
@@ -442,11 +434,7 @@ export function MyAssets() {
             onChange={e => setSearchInput(e.target.value)}
           />
           {searchInput ? (
-            <S.SearchClear
-              type="button"
-              aria-label={t('myAssets.clearSearch')}
-              onClick={() => setSearchInput('')}
-            >
+            <S.SearchClear type="button" aria-label={t('myAssets.clearSearch')} onClick={() => setSearchInput('')}>
               <S.ClearIcon name="close" aria-hidden />
             </S.SearchClear>
           ) : null}
@@ -510,7 +498,13 @@ export function MyAssets() {
               )}
             </S.Grid>
             {!publishableLoading && creations.length === 0 ? (
-              <S.Empty>{t('myAssets.nothingToPublish')}</S.Empty>
+              <S.EmptyState>
+                <S.EmptyIcon>
+                  <Icon name="pen" size={30} aria-hidden />
+                </S.EmptyIcon>
+                <S.EmptyTitle>{t('myAssets.emptyCreationsTitle')}</S.EmptyTitle>
+                <S.EmptyText>{t('myAssets.nothingToPublish')}</S.EmptyText>
+              </S.EmptyState>
             ) : null}
           </>
         ) : (
@@ -556,7 +550,22 @@ export function MyAssets() {
               />
             ) : null}
             {!ownedLoading && !isPlaceholderData && ownedAssets.length === 0 ? (
-              <S.Empty>{section === 'names' ? t('myAssets.namesEmpty') : t('myAssets.ownedEmpty')}</S.Empty>
+              <S.EmptyState>
+                <S.EmptyIcon>
+                  <Icon
+                    name={section === 'names' ? 'website' : section === 'emotes' ? 'emote-dance' : 'cat-upper'}
+                    size={30}
+                    aria-hidden
+                  />
+                </S.EmptyIcon>
+                <S.EmptyTitle>
+                  {section === 'names' ? t('myAssets.emptyNamesTitle') : t('myAssets.emptyOwnedTitle')}
+                </S.EmptyTitle>
+                <S.EmptyText>{section === 'names' ? t('myAssets.namesEmpty') : t('myAssets.ownedEmpty')}</S.EmptyText>
+                {section !== 'names' ? (
+                  <S.EmptyCta to="/assets">{t('myAssets.emptyBrowse')}</S.EmptyCta>
+                ) : null}
+              </S.EmptyState>
             ) : null}
           </>
         )}

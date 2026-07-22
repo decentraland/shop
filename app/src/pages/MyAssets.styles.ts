@@ -100,8 +100,7 @@ export const SubPill = styled('button', noForward('selected'))<{ selected?: bool
   padding: 4px 10px;
   border-radius: 6px;
   background: ${({ selected }) => (selected ? theme.colors.text : theme.colors.softWhite)};
-  border: ${({ selected }) =>
-    selected ? `1px solid ${theme.colors.text}` : `0.5px solid ${theme.colors.gray4}`};
+  border: ${({ selected }) => (selected ? `1px solid ${theme.colors.text}` : `0.5px solid ${theme.colors.gray4}`)};
   color: ${({ selected }) => (selected ? theme.colors.white : theme.colors.gray0)};
   font-family: ${theme.font.sans};
   font-weight: ${({ selected }) => (selected ? 600 : 400)};
@@ -203,6 +202,62 @@ export const Empty = styled.p`
   font-family: ${theme.font.sans};
   font-size: 14px;
   color: ${theme.colors.muted};
+`
+
+// Friendly empty state (centered card) shown when a section has no items.
+export const EmptyState = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 72px 24px;
+  text-align: center;
+`
+export const EmptyIcon = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+  margin-bottom: 10px;
+  border-radius: 50%;
+  background: ${theme.colors.navViolet};
+  color: ${theme.colors.accent};
+`
+export const EmptyTitle = styled.p`
+  margin: 0;
+  font-family: ${theme.font.sans};
+  font-size: 18px;
+  font-weight: 600;
+  color: ${theme.colors.text};
+`
+export const EmptyText = styled.p`
+  margin: 0;
+  max-width: 360px;
+  font-family: ${theme.font.sans};
+  font-size: 14px;
+  line-height: 1.5;
+  color: ${theme.colors.muted};
+`
+export const EmptyCta = styled(Link)`
+  margin-top: 12px;
+  display: inline-flex;
+  align-items: center;
+  height: 40px;
+  padding: 0 20px;
+  border-radius: 8px;
+  background: ${theme.colors.accent};
+  color: #fff;
+  font-family: ${theme.font.sans};
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+
+  &:hover {
+    background: ${theme.colors.accentHover};
+  }
 `
 
 // Sign-in gate (no connected account).
