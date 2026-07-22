@@ -449,7 +449,7 @@ a.checkout__name:hover {
      background — extending the gray zone so the page reads more balanced. */
   margin-top: 48px;
   /* 47px from the top of the cross-sell (where the gray page ends and the white band begins) to the
-     "You might also like" heading — Figma 1182-232377. The shared carousel's own 64px top margin is
+     "You might also like" heading — Figma 1182-232377. The shared carousel's own top margin is
      zeroed below so this padding is the whole gap, not stacked on top of it. */
   padding: 47px 0 24px;
 }
