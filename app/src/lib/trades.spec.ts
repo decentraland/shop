@@ -13,7 +13,11 @@ const jsonRpcProviderCtor = vi.fn()
 // The signing helpers only need contract address/name/version; stub the package so its ESM/cross-chain
 // deps don't get loaded when importing ~/lib/trades.
 vi.mock('decentraland-transactions', () => ({
-  ContractName: { OffChainMarketplaceV2: 'OffChainMarketplaceV2', MANAToken: 'MANAToken' },
+  ContractName: {
+    OffChainMarketplaceV2: 'OffChainMarketplaceV2',
+    MANAToken: 'MANAToken',
+    ERC721CollectionV2: 'ERC721CollectionV2'
+  },
   getContract: (name: string) => ({
     address:
       name === 'MANAToken'
@@ -22,10 +26,26 @@ vi.mock('decentraland-transactions', () => ({
     name: 'DecentralandMarketplacePolygon',
     version: '1.0.0',
     abi: []
-  })
+  }),
+  sendMetaTransaction: vi.fn(),
+  MetaTransactionError: class MetaTransactionError extends Error {
+    constructor(
+      message: string,
+      readonly code: string
+    ) {
+      super(message)
+    }
+  },
+  ErrorCode: { USER_DENIED: 'user_denied' }
 }))
 
 vi.mock('~/config', () => ({ config: { rpcUrl: 'http://localhost:9999' } }))
+// Gasless off here so these tests exercise the DIRECT on-chain path (chain switch + setApprovalForAll /
+// setMinters). The gasless meta-tx path is covered in authorizations.spec.ts.
+vi.mock('~/lib/gasless-config', () => ({
+  gaslessConfig: { enabled: false, relayerUrl: '' },
+  gaslessEnabled: () => false
+}))
 
 // Keep real ethers utils/BigNumber; swap Contract + JsonRpcProvider so nothing hits a chain.
 vi.mock('ethers', async importOriginal => {
@@ -246,7 +266,11 @@ describe('when ensuring the marketplace is approved as operator', () => {
     isApprovedForAllMock.mockResolvedValue(true)
     const signer = makeSigner()
 
-    await ensureApproval({ signer, contractAddress: NFT, chainId: ChainId.MATIC_AMOY })
+    await ensureApproval({
+      signer,
+      contractAddress: NFT,
+      chainId: ChainId.MATIC_AMOY
+    })
 
     expect(isApprovedForAllMock).toHaveBeenCalledWith(SELLER, MARKET)
     expect(setApprovalForAllMock).not.toHaveBeenCalled()
@@ -259,7 +283,11 @@ describe('when ensuring the marketplace is approved as operator', () => {
     setApprovalForAllMock.mockResolvedValue({ wait })
     const signer = makeSigner()
 
-    await ensureApproval({ signer, contractAddress: NFT, chainId: ChainId.MATIC_AMOY })
+    await ensureApproval({
+      signer,
+      contractAddress: NFT,
+      chainId: ChainId.MATIC_AMOY
+    })
 
     expect(setApprovalForAllMock).toHaveBeenCalledWith(MARKET, true)
     expect(wait).toHaveBeenCalledOnce()
@@ -272,7 +300,11 @@ describe('when ensuring the marketplace is approved as operator', () => {
     const getNetwork = vi.fn().mockResolvedValue({ chainId: ChainId.ETHEREUM_MAINNET })
     const signer = makeSigner({ provider: { getNetwork, send } })
 
-    await ensureApproval({ signer, contractAddress: NFT, chainId: ChainId.MATIC_AMOY })
+    await ensureApproval({
+      signer,
+      contractAddress: NFT,
+      chainId: ChainId.MATIC_AMOY
+    })
 
     expect(send).toHaveBeenCalledWith('wallet_switchEthereumChain', [{ chainId: '0x13882' }])
   })
@@ -284,7 +316,11 @@ describe('when ensuring the marketplace is approved as operator', () => {
     const getNetwork = vi.fn().mockResolvedValue({ chainId: ChainId.ETHEREUM_MAINNET })
     const signer = makeSigner({ provider: { getNetwork, send } })
 
-    await ensureApproval({ signer, contractAddress: NFT, chainId: ChainId.MATIC_AMOY })
+    await ensureApproval({
+      signer,
+      contractAddress: NFT,
+      chainId: ChainId.MATIC_AMOY
+    })
 
     expect(send).toHaveBeenNthCalledWith(2, 'wallet_addEthereumChain', expect.any(Array))
     const addCall = send.mock.calls[1][1][0]
@@ -305,7 +341,11 @@ describe('when ensuring the marketplace is approved as operator', () => {
 
   it('should read approval from the target-chain RPC provider', async () => {
     isApprovedForAllMock.mockResolvedValue(true)
-    await ensureApproval({ signer: makeSigner(), contractAddress: NFT, chainId: ChainId.MATIC_AMOY })
+    await ensureApproval({
+      signer: makeSigner(),
+      contractAddress: NFT,
+      chainId: ChainId.MATIC_AMOY
+    })
     expect(jsonRpcProviderCtor).toHaveBeenCalledWith('http://localhost:9999')
   })
 })
@@ -428,7 +468,11 @@ describe('when ensuring the marketplace is a minter', () => {
     globalMintersMock.mockResolvedValue(true)
     const signer = makeSigner()
 
-    await ensureMinter({ signer, contractAddress: COLLECTION, chainId: ChainId.MATIC_AMOY })
+    await ensureMinter({
+      signer,
+      contractAddress: COLLECTION,
+      chainId: ChainId.MATIC_AMOY
+    })
 
     expect(setMintersMock).not.toHaveBeenCalled()
     expect(signer.provider.send).not.toHaveBeenCalled()
@@ -440,7 +484,11 @@ describe('when ensuring the marketplace is a minter', () => {
     setMintersMock.mockResolvedValue({ wait })
     const signer = makeSigner()
 
-    await ensureMinter({ signer, contractAddress: COLLECTION, chainId: ChainId.MATIC_AMOY })
+    await ensureMinter({
+      signer,
+      contractAddress: COLLECTION,
+      chainId: ChainId.MATIC_AMOY
+    })
 
     expect(setMintersMock).toHaveBeenCalledWith([MARKET], [true])
     expect(wait).toHaveBeenCalledOnce()
@@ -451,7 +499,11 @@ describe('when ensuring the marketplace is a minter', () => {
     const wait = vi.fn().mockResolvedValue(undefined)
     setMintersMock.mockResolvedValue({ wait })
 
-    await ensureMinter({ signer: makeSigner(), contractAddress: COLLECTION, chainId: ChainId.MATIC_AMOY })
+    await ensureMinter({
+      signer: makeSigner(),
+      contractAddress: COLLECTION,
+      chainId: ChainId.MATIC_AMOY
+    })
 
     expect(setMintersMock).toHaveBeenCalledOnce()
   })
@@ -463,7 +515,11 @@ describe('when ensuring the marketplace is a minter', () => {
     const getNetwork = vi.fn().mockResolvedValue({ chainId: ChainId.ETHEREUM_MAINNET })
     const signer = makeSigner({ provider: { getNetwork, send } })
 
-    await ensureMinter({ signer, contractAddress: COLLECTION, chainId: ChainId.MATIC_AMOY })
+    await ensureMinter({
+      signer,
+      contractAddress: COLLECTION,
+      chainId: ChainId.MATIC_AMOY
+    })
 
     expect(send).toHaveBeenCalledWith('wallet_switchEthereumChain', [{ chainId: '0x13882' }])
   })

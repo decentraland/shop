@@ -1,7 +1,16 @@
 import { ethers } from 'ethers'
 import { ChainId, ProviderType } from '@dcl/schemas'
-import { ContractName, getContract } from 'decentraland-transactions'
+import {
+  ContractName,
+  getContract,
+  sendMetaTransaction,
+  MetaTransactionError,
+  ErrorCode,
+  type ContractData,
+  type Provider
+} from 'decentraland-transactions'
 import { config } from '~/config'
+import { gaslessConfig } from '~/lib/gasless-config'
 import { showsWalletConfirmations } from '~/lib/wallet-kind'
 
 // The shop's on-chain approvals ("authorizations"). Mirrors the marketplace's decentraland-dapps
@@ -116,16 +125,85 @@ export async function getAuthorizationStatus(auth: ShopAuthorization, owner: str
   }
 }
 
-// Grant (active=true) or revoke (active=false) an authorization on-chain. Switches the wallet to the
-// target chain just-in-time (the only step that needs the right network), sends the tx and waits for
-// it. For managed (web2) wallets this executes gaslessly with no popup; for self-custody wallets it
-// pops the wallet's confirmation. Grant of an ALLOWANCE uses an unlimited amount; revoke sets it to 0.
+// The ERC-712 domain the meta-tx is signed against depends on the target contract. MANA carries its
+// own name/version in decentraland-transactions; every DCL collection (ERC721 or the minter surface)
+// shares the fixed ERC721CollectionV2 domain (name "Decentraland Collection", version "2") — only the
+// address differs, so we take that template and override the address with the specific collection.
+function metaTxContractData(auth: ShopAuthorization): ContractData {
+  if (auth.kind === AuthorizationKind.Allowance) {
+    return getContract(ContractName.MANAToken, auth.chainId)
+  }
+  return { ...getContract(ContractName.ERC721CollectionV2, auth.chainId), address: auth.contractAddress }
+}
+
+// The calldata the meta-tx wraps — the same call the direct-tx path below would send.
+function encodeAuthorizationCall(auth: ShopAuthorization, active: boolean): string {
+  const iface = new ethers.utils.Interface(
+    auth.kind === AuthorizationKind.Allowance
+      ? ERC20_ABI
+      : auth.kind === AuthorizationKind.Approval
+        ? ERC721_ABI
+        : COLLECTION_MINTER_ABI
+  )
+  switch (auth.kind) {
+    case AuthorizationKind.Allowance:
+      return iface.encodeFunctionData('approve', [auth.spenderAddress, active ? MAX_ALLOWANCE : ethers.constants.Zero])
+    case AuthorizationKind.Approval:
+      return iface.encodeFunctionData('setApprovalForAll', [auth.spenderAddress, active])
+    case AuthorizationKind.Minter:
+      return iface.encodeFunctionData('setMinters', [[auth.spenderAddress], [active]])
+  }
+}
+
+// Submit the grant/revoke as a Polygon native meta-transaction: the wallet signs an off-chain EIP-712
+// message and DCL's relayer submits it and pays the gas. Mirrors the gasless buy path (lib/buy-gasless)
+// and uses decentraland-transactions' sendMetaTransaction, which picks the right meta-tx variant from
+// the contract ABI (MANA/collection classic type vs the CreditsManager offchain type). Throws if the
+// relayer/flow is unavailable so the caller can fall back to a direct tx.
+async function grantViaMetaTransaction(
+  auth: ShopAuthorization,
+  signer: ethers.providers.JsonRpcSigner,
+  active: boolean
+) {
+  const functionData = encodeAuthorizationCall(auth, active)
+  const contractData = metaTxContractData(auth)
+  // The wallet's Web3Provider signs; the target-chain RPC reads the meta-tx nonce AND waits for the
+  // relayed receipt — one instance shared for both.
+  const walletProvider = signer.provider as unknown as Provider
+  const rpc = readProvider()
+  const txHash = await sendMetaTransaction(walletProvider, rpc, functionData, contractData, {
+    serverURL: gaslessConfig.relayerUrl
+  })
+  await rpc.waitForTransaction(txHash, 1, 120_000)
+}
+
+// Grant (active=true) or revoke (active=false) an authorization. GASLESS FOR EVERY WALLET: the wallet
+// signs an off-chain meta-transaction and DCL's relayer submits it and pays the gas, so nobody needs
+// POL — this mirrors how the marketplace relays Polygon actions. Managed (Magic/thirdweb) wallets hold
+// no gas at all, so this is the only path that works for them (a direct tx reverts with
+// INSUFFICIENT_FUNDS). If the relayer is off (flag) / unreachable / the signer is a contract account,
+// we fall back to a direct (gas-paying) tx — unless the user rejected the signature, which propagates.
+// Grant of an ALLOWANCE uses an unlimited amount; revoke sets it to 0.
 export async function setAuthorization(opts: {
   auth: ShopAuthorization
   signer: ethers.providers.JsonRpcSigner
   active: boolean
 }): Promise<void> {
   const { auth, signer, active } = opts
+
+  if (gaslessConfig.enabled) {
+    try {
+      await grantViaMetaTransaction(auth, signer, active)
+      return
+    } catch (e) {
+      // User dismissed the signature prompt → surface it, don't silently retry with a direct tx.
+      if (e instanceof MetaTransactionError && e.code === ErrorCode.USER_DENIED) throw e
+      // Relayer down / contract account / flag off → fall through to a direct (gas-paying) tx. Log it
+      // so the fallback (and any managed wallet that then hits INSUFFICIENT_FUNDS) is diagnosable.
+      console.warn('[authorizations] gasless meta-tx failed, falling back to a direct tx:', e)
+    }
+  }
+
   await ensureChain(signer.provider as ethers.providers.Web3Provider, auth.chainId)
   switch (auth.kind) {
     case AuthorizationKind.Allowance: {
@@ -154,9 +232,9 @@ export async function setAuthorization(opts: {
 }
 
 // Pre-action guard: make sure an authorization is in place before running an action. Reads the current
-// state via the target-chain RPC and, only if missing, sends the grant tx. Identical code path for
-// every wallet: self-custody users see the wallet confirmation, managed (Magic/thirdweb) users have it
-// granted under the hood with no popup. No-op when already authorized.
+// state via the target-chain RPC and, only if missing, sends the grant (a gasless meta-tx, so no wallet
+// needs POL). No-op when already authorized — this is the fetch-then-grant guard, so we never ask for
+// an approval that's already in place.
 export async function ensureAuthorization(opts: {
   auth: ShopAuthorization
   signer: ethers.providers.JsonRpcSigner

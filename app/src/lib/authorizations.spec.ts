@@ -9,12 +9,15 @@ const setApprovalForAllMock = vi.fn()
 const globalMintersMock = vi.fn()
 const setMintersMock = vi.fn()
 const jsonRpcProviderCtor = vi.fn()
+const sendMetaTransactionMock = vi.fn()
+const waitForTransactionMock = vi.fn()
 
 vi.mock('decentraland-transactions', () => ({
   ContractName: {
     OffChainMarketplaceV2: 'OffChainMarketplaceV2',
     MANAToken: 'MANAToken',
-    CreditsManager: 'CreditsManager'
+    CreditsManager: 'CreditsManager',
+    ERC721CollectionV2: 'ERC721CollectionV2'
   },
   getContract: (name: string) => ({
     address:
@@ -26,10 +29,24 @@ vi.mock('decentraland-transactions', () => ({
     name: 'DecentralandMarketplacePolygon',
     version: '1.0.0',
     abi: []
-  })
+  }),
+  sendMetaTransaction: (...args: unknown[]) => sendMetaTransactionMock(...args),
+  MetaTransactionError: class MetaTransactionError extends Error {
+    constructor(
+      message: string,
+      readonly code: string
+    ) {
+      super(message)
+    }
+  },
+  ErrorCode: { USER_DENIED: 'user_denied' }
 }))
 
 vi.mock('~/config', () => ({ config: { rpcUrl: 'http://localhost:9999' } }))
+vi.mock('~/lib/gasless-config', () => ({
+  gaslessConfig: { enabled: true, relayerUrl: 'http://relayer.test/v1' },
+  gaslessEnabled: () => true
+}))
 
 // Keep real ethers utils/BigNumber/constants; swap Contract + JsonRpcProvider so nothing hits a chain.
 vi.mock('ethers', async importOriginal => {
@@ -64,6 +81,9 @@ vi.mock('ethers', async importOriginal => {
     constructor(url: string) {
       jsonRpcProviderCtor(url)
     }
+    waitForTransaction(...args: unknown[]) {
+      return waitForTransactionMock(...args)
+    }
   }
 
   return {
@@ -79,6 +99,7 @@ vi.mock('ethers', async importOriginal => {
 })
 
 import { ethers } from 'ethers'
+import { MetaTransactionError, ErrorCode } from 'decentraland-transactions'
 import {
   AuthorizationKind,
   ensureAuthorization,
@@ -166,62 +187,123 @@ describe('when reading an authorization status', () => {
   })
 })
 
-describe('when setting an authorization', () => {
-  it('and granting an allowance it should approve the unlimited amount and wait', async () => {
-    const wait = vi.fn().mockResolvedValue(undefined)
-    approveMock.mockResolvedValue({ wait })
+// Interfaces to decode the calldata the meta-tx wraps (ethers.utils is the real module here).
+const erc20Iface = new ethers.utils.Interface(['function approve(address spender, uint256 amount)'])
+const erc721Iface = new ethers.utils.Interface(['function setApprovalForAll(address operator, bool approved)'])
+const minterIface = new ethers.utils.Interface(['function setMinters(address[] minters, bool[] values)'])
+
+describe('when setting an authorization (gasless meta-tx — the path for every wallet)', () => {
+  beforeEach(() => {
+    sendMetaTransactionMock.mockResolvedValue('0xhash')
+    waitForTransactionMock.mockResolvedValue({ status: 1 })
+  })
+
+  it('should relay an ALLOWANCE grant as approve(MAX) against MANA, never a direct tx', async () => {
+    await setAuthorization({ auth: allowanceAuth, signer: makeSigner(), active: true })
+    expect(approveMock).not.toHaveBeenCalled()
+    expect(sendMetaTransactionMock).toHaveBeenCalledOnce()
+    const [, , functionData, contractData, config] = sendMetaTransactionMock.mock.calls[0]
+    expect(contractData.address).toBe(MANA)
+    const [spender, amount] = erc20Iface.decodeFunctionData('approve', functionData as string)
+    expect(spender.toLowerCase()).toBe(CREDITS_MANAGER)
+    expect(amount).toEqual(ethers.constants.MaxUint256)
+    expect(config).toEqual({ serverURL: 'http://relayer.test/v1' })
+    expect(waitForTransactionMock).toHaveBeenCalledWith('0xhash', 1, 120_000)
+  })
+
+  it('should relay an ALLOWANCE revoke as approve(0)', async () => {
+    await setAuthorization({ auth: allowanceAuth, signer: makeSigner(), active: false })
+    const [, , functionData] = sendMetaTransactionMock.mock.calls[0]
+    const [, amount] = erc20Iface.decodeFunctionData('approve', functionData as string)
+    expect(amount).toEqual(ethers.constants.Zero)
+  })
+
+  it('should relay an APPROVAL as setApprovalForAll against the collection', async () => {
+    await setAuthorization({ auth: approvalAuth, signer: makeSigner(), active: true })
+    expect(setApprovalForAllMock).not.toHaveBeenCalled()
+    const [, , functionData, contractData] = sendMetaTransactionMock.mock.calls[0]
+    expect(contractData.address).toBe(COLLECTION)
+    const [operator, approved] = erc721Iface.decodeFunctionData('setApprovalForAll', functionData as string)
+    expect(operator.toLowerCase()).toBe(MARKET)
+    expect(approved).toBe(true)
+  })
+
+  it('should relay a MINTER grant as setMinters against the collection', async () => {
+    await setAuthorization({ auth: minterAuth, signer: makeSigner(), active: true })
+    expect(setMintersMock).not.toHaveBeenCalled()
+    const [, , functionData, contractData] = sendMetaTransactionMock.mock.calls[0]
+    expect(contractData.address).toBe(COLLECTION)
+    const [minters, values] = minterIface.decodeFunctionData('setMinters', functionData as string)
+    expect(minters[0].toLowerCase()).toBe(MARKET)
+    expect(values[0]).toBe(true)
+  })
+})
+
+describe('when the gasless relayer is unavailable (fallback to a direct tx)', () => {
+  it('should fall back to a direct approve when the relayer errors', async () => {
+    sendMetaTransactionMock.mockRejectedValue(new Error('relayer 502'))
+    approveMock.mockResolvedValue({ wait: vi.fn().mockResolvedValue(undefined) })
     await setAuthorization({ auth: allowanceAuth, signer: makeSigner(), active: true })
     expect(approveMock).toHaveBeenCalledWith(CREDITS_MANAGER, ethers.constants.MaxUint256)
-    expect(wait).toHaveBeenCalledOnce()
   })
 
-  it('and revoking an allowance it should approve zero', async () => {
-    approveMock.mockResolvedValue({ wait: vi.fn().mockResolvedValue(undefined) })
-    await setAuthorization({ auth: allowanceAuth, signer: makeSigner(), active: false })
-    expect(approveMock).toHaveBeenCalledWith(CREDITS_MANAGER, ethers.constants.Zero)
-  })
-
-  it('and granting an approval it should setApprovalForAll true', async () => {
+  it('should fall back to a direct setApprovalForAll when the relayer errors', async () => {
+    sendMetaTransactionMock.mockRejectedValue(new Error('relayer down'))
     setApprovalForAllMock.mockResolvedValue({ wait: vi.fn().mockResolvedValue(undefined) })
     await setAuthorization({ auth: approvalAuth, signer: makeSigner(), active: true })
     expect(setApprovalForAllMock).toHaveBeenCalledWith(MARKET, true)
   })
 
-  it('and revoking an approval it should setApprovalForAll false', async () => {
-    setApprovalForAllMock.mockResolvedValue({ wait: vi.fn().mockResolvedValue(undefined) })
-    await setAuthorization({ auth: approvalAuth, signer: makeSigner(), active: false })
-    expect(setApprovalForAllMock).toHaveBeenCalledWith(MARKET, false)
-  })
-
-  it('and granting a minter it should setMinters true', async () => {
+  it('should fall back to a direct setMinters when the relayer errors', async () => {
+    sendMetaTransactionMock.mockRejectedValue(new Error('relayer down'))
     setMintersMock.mockResolvedValue({ wait: vi.fn().mockResolvedValue(undefined) })
     await setAuthorization({ auth: minterAuth, signer: makeSigner(), active: true })
     expect(setMintersMock).toHaveBeenCalledWith([MARKET], [true])
   })
 
-  it('should switch the wallet chain before sending when on the wrong network', async () => {
+  it('should switch the wallet chain before the fallback tx when on the wrong network', async () => {
+    sendMetaTransactionMock.mockRejectedValue(new Error('relayer down'))
     approveMock.mockResolvedValue({ wait: vi.fn().mockResolvedValue(undefined) })
     const send = vi.fn().mockResolvedValue(undefined)
     const getNetwork = vi.fn().mockResolvedValue({ chainId: ChainId.ETHEREUM_MAINNET })
-    await setAuthorization({ auth: allowanceAuth, signer: makeSigner({ provider: { getNetwork, send } }), active: true })
+    await setAuthorization({
+      auth: allowanceAuth,
+      signer: makeSigner({ provider: { getNetwork, send } }),
+      active: true
+    })
     expect(send).toHaveBeenCalledWith('wallet_switchEthereumChain', [{ chainId: '0x13882' }])
+  })
+
+  it('should NOT fall back and should rethrow when the user rejects the signature', async () => {
+    sendMetaTransactionMock.mockRejectedValue(
+      new MetaTransactionError('User denied message signature', ErrorCode.USER_DENIED)
+    )
+    await expect(setAuthorization({ auth: approvalAuth, signer: makeSigner(), active: true })).rejects.toThrow(
+      /denied/i
+    )
+    expect(setApprovalForAllMock).not.toHaveBeenCalled()
   })
 })
 
 describe('when ensuring an authorization before an action', () => {
-  it('should skip sending a tx when it is already in place', async () => {
-    isApprovedForAllMock.mockResolvedValue(true)
-    const signer = makeSigner()
-    await ensureAuthorization({ auth: approvalAuth, signer })
-    expect(setApprovalForAllMock).not.toHaveBeenCalled()
-    expect((signer as unknown as { provider: { send: ReturnType<typeof vi.fn> } }).provider.send).not.toHaveBeenCalled()
+  beforeEach(() => {
+    sendMetaTransactionMock.mockResolvedValue('0xhash')
+    waitForTransactionMock.mockResolvedValue({ status: 1 })
   })
 
-  it('should grant when missing', async () => {
-    isApprovedForAllMock.mockResolvedValue(false)
-    setApprovalForAllMock.mockResolvedValue({ wait: vi.fn().mockResolvedValue(undefined) })
+  it('should skip granting when it is already in place (fetch-then-grant guard)', async () => {
+    isApprovedForAllMock.mockResolvedValue(true)
     await ensureAuthorization({ auth: approvalAuth, signer: makeSigner() })
-    expect(setApprovalForAllMock).toHaveBeenCalledWith(MARKET, true)
+    // Already authorized → neither a meta-tx nor a direct tx is sent.
+    expect(sendMetaTransactionMock).not.toHaveBeenCalled()
+    expect(setApprovalForAllMock).not.toHaveBeenCalled()
+  })
+
+  it('should grant (gaslessly) when missing', async () => {
+    isApprovedForAllMock.mockResolvedValue(false)
+    await ensureAuthorization({ auth: approvalAuth, signer: makeSigner() })
+    expect(sendMetaTransactionMock).toHaveBeenCalledOnce()
+    expect(setApprovalForAllMock).not.toHaveBeenCalled()
   })
 })
 
