@@ -113,7 +113,7 @@ describe('LazyWearablePreview', () => {
     expect(onRenderer).toHaveBeenLastCalledWith(PreviewRenderer.BABYLON)
   })
 
-  it('forwards onLoad but does not report a renderer when the app provides none', async () => {
+  it('infers Babylon via onRenderer when the app loads without reporting a renderer', async () => {
     mockPick(PreviewRenderer.UNITY)
     const onRenderer = vi.fn()
     const onLoad = vi.fn()
@@ -122,7 +122,7 @@ describe('LazyWearablePreview', () => {
 
     act(() => lastProps.onLoad?.(undefined))
     expect(onLoad).toHaveBeenCalledWith(undefined)
-    expect(onRenderer).not.toHaveBeenCalled()
+    expect(onRenderer).toHaveBeenLastCalledWith(PreviewRenderer.BABYLON)
   })
 
   it('reports Babylon via onRenderer after a runtime load error', async () => {

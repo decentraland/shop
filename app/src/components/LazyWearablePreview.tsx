@@ -51,9 +51,9 @@ export function WearablePreview({
         unity={shouldUseUnity}
         unityMode={shouldUseUnity ? unityMode : undefined}
         onLoad={reported => {
-          // The preview app can degrade to Babylon internally even when we asked for Unity; trust the
-          // renderer it reports over our attempt when it's provided.
-          if (reported) onRenderer?.(reported)
+          // Unity-aware builds report which renderer they used; legacy/Babylon-only builds don't.
+          // Default to Babylon when absent so overlay controls appear for non-Unity previews.
+          onRenderer?.(reported ?? PreviewRenderer.BABYLON)
           onLoad?.(reported)
         }}
         onError={error => {
