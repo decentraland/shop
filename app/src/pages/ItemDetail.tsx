@@ -219,6 +219,84 @@ const ResellersLink = styled('button')`
   }
 `
 
+// Sold-out price block (Figma 1524-298906): the exhausted primary's original price (struck) with a
+// "SOLD OUT" tag, above the cheapest resale price + how many copies are on the secondary market.
+const SoldOutPricing = styled('div')`
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  padding: 16px 0;
+
+  .so-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+  }
+  .so-label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .so-price {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 0 2px;
+  }
+  /* Original (struck-through, muted) row. */
+  .so-original {
+    color: ${theme.colors.muted2};
+  }
+  .so-original .so-label,
+  .so-original .so-tag {
+    color: ${theme.colors.muted2};
+  }
+  .so-original .so-value {
+    font-size: 16px;
+    font-weight: 700;
+    text-decoration: line-through;
+  }
+  .so-original .ico {
+    width: 20px;
+    height: 20px;
+    color: ${theme.colors.muted2};
+  }
+  /* Resale (emphasised) row. */
+  .so-resale .so-label {
+    color: ${theme.colors.text};
+  }
+  .so-resale .so-value {
+    font-size: 25px;
+    font-weight: 700;
+    color: ${theme.colors.text};
+  }
+  .so-resale .ico {
+    width: 24px;
+    height: 24px;
+    color: ${theme.colors.rarity};
+  }
+  .so-tag {
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .so-stock {
+    font-size: 14px;
+    font-weight: 600;
+    color: ${theme.colors.text2};
+  }
+  .so-info {
+    display: inline-flex;
+    width: 12px;
+    height: 12px;
+    color: ${theme.colors.muted2};
+  }
+`
+
 // Owner/creator management actions (replace the buy CTAs when the viewer owns or created this item).
 // Stacked full-width so the primary + secondary actions read as a clear action column.
 const ManageActions = styled('div')`
@@ -465,6 +543,23 @@ export function ItemDetail() {
     queryFn: () => fetchItemResales(current.contractAddress, current.itemId as string)
   })
   const lowestResale = resales.length > 0 ? resales[0].priceCredits : null
+
+  // The cheapest resale as a cart/buy-ready item (Figma 1524-298906 sold-out state buys the resale).
+  // Backfills the display fields secondary rows lack from the PDP item, mirroring <ItemResales>.
+  const cheapestResaleItem: CatalogItem | null = useMemo(() => {
+    const r = resales[0]
+    if (!r) return null
+    return {
+      ...r,
+      name: r.name || current.name,
+      thumbnail: r.thumbnail || current.thumbnail,
+      rarity: r.rarity || current.rarity,
+      category: r.category || current.category,
+      wearableCategory: r.wearableCategory ?? current.wearableCategory,
+      gender: r.gender ?? current.gender
+    }
+  }, [resales, current])
+  const [buyResale, setBuyResale] = useState<CatalogItem | null>(null)
 
   // Internal link target: scroll the on-page Resellers list into view (E / F "View all resellers").
   function scrollToResellers() {
@@ -791,6 +886,10 @@ export function ItemDetail() {
   // price (Figma 1182-203305). Only when we actually know the remaining supply is 0 (secondary tokens
   // and market items have no stock concept).
   const outOfStock = !isMarket && !current.tokenId && current.available === 0
+  // Sold-out primary that still has resellers (Figma 1524-298906): show the original (struck) + resale
+  // price block and let the buyer buy the cheapest resale, instead of the plain out-of-stock/notify state.
+  const soldOutWithResale = outOfStock && !manage && !!cheapestResaleItem
+  const resaleInCart = !!cheapestResaleItem && cartItems.some(i => i.id === cheapestResaleItem.id)
   // Both action buttons present (buyable, not managed by you): on mobile they collapse into a sticky
   // row of a wide Buy-now + a compact cart icon (see Figma 1182-194973). A market item has only Buy now.
   const dualCta = !manage && forSale && !isMarket
@@ -978,97 +1077,134 @@ export function ItemDetail() {
                 </PrimarySaleBanner>
               ) : null}
 
-              <div className="item-detail__price-block">
-                <div className="item-detail__price-row">
-                  <div className="item-detail__price-col">
-                    {isMarket || forSale ? (
-                      <div className="item-detail__price-label">{t('itemDetail.price')}</div>
-                    ) : null}
-                    {isMarket ? (
-                      <>
-                        <div className="item-detail__price item-detail__price--market">
-                          {marketPriceCredits == null ? (
-                            <span className="item-detail__price-value">—</span>
-                          ) : (
-                            <>
-                              <span className="item-detail__approx" aria-hidden>
-                                ≈
-                              </span>
+              {soldOutWithResale ? (
+                // Sold-out primary with resellers (Figma 1524-298906): original (struck) price + SOLD OUT,
+                // then the cheapest resale price + how many copies are on the secondary market.
+                <SoldOutPricing data-testid="sold-out">
+                  <div className="so-row so-original">
+                    <span className="so-label">
+                      {t('itemDetail.originalPrice')}
+                      <span className="so-price">
+                        <CurrencyIcon className="ico" />
+                        <span className="so-value">{current.priceCredits}</span>
+                      </span>
+                      <span className="so-info" aria-hidden>
+                        <Icon name="info" size={12} />
+                      </span>
+                    </span>
+                    <span className="so-tag" data-testid="out-of-stock">
+                      {t('itemDetail.soldOut')}
+                    </span>
+                  </div>
+                  <div className="so-row so-resale">
+                    <span className="so-label">
+                      {t('itemDetail.resalePrice')}
+                      <span className="so-price">
+                        <CurrencyIcon className="ico" />
+                        <span className="so-value">{lowestResale}</span>
+                      </span>
+                      <span className="so-info" aria-hidden>
+                        <Icon name="info" size={12} />
+                      </span>
+                    </span>
+                    <span className="so-stock">
+                      {t('itemDetail.stock')} {resales.length}/{Rarity.getMaxSupply(rarity).toLocaleString()}
+                    </span>
+                  </div>
+                </SoldOutPricing>
+              ) : (
+                <div className="item-detail__price-block">
+                  <div className="item-detail__price-row">
+                    <div className="item-detail__price-col">
+                      {isMarket || forSale ? (
+                        <div className="item-detail__price-label">{t('itemDetail.price')}</div>
+                      ) : null}
+                      {isMarket ? (
+                        <>
+                          <div className="item-detail__price item-detail__price--market">
+                            {marketPriceCredits == null ? (
+                              <span className="item-detail__price-value">—</span>
+                            ) : (
+                              <>
+                                <span className="item-detail__approx" aria-hidden>
+                                  ≈
+                                </span>
+                                <CurrencyIcon className="item-detail__diamond" />
+                                <span className="item-detail__price-value">{marketPriceCredits}</span>
+                              </>
+                            )}
+                          </div>
+                          <div className="item-detail__market-note muted">{t('assetCard.marketPrice')}</div>
+                        </>
+                      ) : forSale ? (
+                        onSale ? (
+                          <div className="item-detail__price item-detail__price--sale">
+                            <span className="item-detail__price">
                               <CurrencyIcon className="item-detail__diamond" />
-                              <span className="item-detail__price-value">{marketPriceCredits}</span>
-                            </>
-                          )}
-                        </div>
-                        <div className="item-detail__market-note muted">{t('assetCard.marketPrice')}</div>
-                      </>
-                    ) : forSale ? (
-                      onSale ? (
-                        <div className="item-detail__price item-detail__price--sale">
-                          <span className="item-detail__price">
+                              <span className="item-detail__price-value">{current.priceCredits}</span>
+                            </span>
+                            <span className="item-detail__price-was">
+                              <CurrencyIcon className="item-detail__diamond item-detail__diamond--was" />
+                              {current.compareAtCredits}
+                            </span>
+                            {saleDiscountPct(current.compareAtCredits!, current.priceCredits) > 0 ? (
+                              <span className="item-detail__sale-badge">
+                                {t('assetCard.saleWithDiscount', {
+                                  pct: saleDiscountPct(current.compareAtCredits!, current.priceCredits)
+                                })}
+                              </span>
+                            ) : null}
+                            <SaleCountdown endsAt={current.saleEndsAt} className="item-detail__countdown" />
+                          </div>
+                        ) : (
+                          <div className="item-detail__price">
                             <CurrencyIcon className="item-detail__diamond" />
                             <span className="item-detail__price-value">{current.priceCredits}</span>
-                          </span>
-                          <span className="item-detail__price-was">
-                            <CurrencyIcon className="item-detail__diamond item-detail__diamond--was" />
-                            {current.compareAtCredits}
-                          </span>
-                          {saleDiscountPct(current.compareAtCredits!, current.priceCredits) > 0 ? (
-                            <span className="item-detail__sale-badge">
-                              {t('assetCard.saleWithDiscount', {
-                                pct: saleDiscountPct(current.compareAtCredits!, current.priceCredits)
-                              })}
-                            </span>
-                          ) : null}
-                          <SaleCountdown endsAt={current.saleEndsAt} className="item-detail__countdown" />
-                        </div>
-                      ) : (
+                          </div>
+                        )
+                      ) : manageListed && managePriceCredits ? (
+                        // Owner viewing their own listed item: show the price from the fresh manage state
+                        // instead of "Not for sale" while the public feed catches up to the MV refresh.
                         <div className="item-detail__price">
                           <CurrencyIcon className="item-detail__diamond" />
-                          <span className="item-detail__price-value">{current.priceCredits}</span>
+                          <span className="item-detail__price-value">{managePriceCredits}</span>
                         </div>
-                      )
-                    ) : manageListed && managePriceCredits ? (
-                      // Owner viewing their own listed item: show the price from the fresh manage state
-                      // instead of "Not for sale" while the public feed catches up to the MV refresh.
-                      <div className="item-detail__price">
-                        <CurrencyIcon className="item-detail__diamond" />
-                        <span className="item-detail__price-value">{managePriceCredits}</span>
+                      ) : (
+                        <div className="item-detail__price item-detail__price--none">
+                          <span>{t('itemDetail.notForSale')}</span>
+                          <Tooltip content={t('itemDetail.notForSaleHint')}>
+                            <span
+                              className="item-detail__price-info"
+                              tabIndex={0}
+                              role="img"
+                              aria-label={t('itemDetail.notForSaleHint')}
+                            >
+                              <Icon name="info" size={14} />
+                            </span>
+                          </Tooltip>
+                        </div>
+                      )}
+                    </div>
+                    {showStock ? (
+                      <div className="item-detail__stock-col">
+                        <div className="item-detail__price-label">{t('itemDetail.stock')}</div>
+                        <div className="item-detail__stock-value">
+                          {(current.available ?? 0).toLocaleString()}/{Rarity.getMaxSupply(rarity).toLocaleString()}
+                        </div>
                       </div>
-                    ) : (
-                      <div className="item-detail__price item-detail__price--none">
-                        <span>{t('itemDetail.notForSale')}</span>
-                        <Tooltip content={t('itemDetail.notForSaleHint')}>
-                          <span
-                            className="item-detail__price-info"
-                            tabIndex={0}
-                            role="img"
-                            aria-label={t('itemDetail.notForSaleHint')}
-                          >
-                            <Icon name="info" size={14} />
-                          </span>
-                        </Tooltip>
+                    ) : outOfStock ? (
+                      <div className="item-detail__stock-col">
+                        <div
+                          className="item-detail__stock-value item-detail__stock-value--out"
+                          data-testid="out-of-stock"
+                        >
+                          {t('itemDetail.outOfStock')}
+                        </div>
                       </div>
-                    )}
+                    ) : null}
                   </div>
-                  {showStock ? (
-                    <div className="item-detail__stock-col">
-                      <div className="item-detail__price-label">{t('itemDetail.stock')}</div>
-                      <div className="item-detail__stock-value">
-                        {(current.available ?? 0).toLocaleString()}/{Rarity.getMaxSupply(rarity).toLocaleString()}
-                      </div>
-                    </div>
-                  ) : outOfStock ? (
-                    <div className="item-detail__stock-col">
-                      <div
-                        className="item-detail__stock-value item-detail__stock-value--out"
-                        data-testid="out-of-stock"
-                      >
-                        {t('itemDetail.outOfStock')}
-                      </div>
-                    </div>
-                  ) : null}
                 </div>
-              </div>
+              )}
 
               <div
                 className={`item-detail__ctas${showCtaButtons ? ' item-detail__ctas--buttons' : ''}${
@@ -1093,10 +1229,7 @@ export function ItemDetail() {
                     {manageListed ? (
                       <>
                         {/* Edit price (Figma 1527-302048): dark-solid CTA with the pen glyph. */}
-                        <DarkCta
-                          onClick={() => void updatePrice()}
-                          disabled={managing !== null || !canOpenListModal}
-                        >
+                        <DarkCta onClick={() => void updatePrice()} disabled={managing !== null || !canOpenListModal}>
                           {managing !== 'update' ? <Icon name="pen" className="ico" /> : null}
                           <span className="item-detail__cta-label">
                             {managing === 'update' ? t('itemDetail.manageWorking') : t('itemDetail.manageUpdatePrice')}
@@ -1159,6 +1292,30 @@ export function ItemDetail() {
                       <span className="item-detail__addcart-label">{addLabel}</span>
                     </button>
                   </>
+                ) : soldOutWithResale && cheapestResaleItem ? (
+                  // Sold-out primary with resellers (Figma 1524-298906): buy the cheapest resale.
+                  <>
+                    <DetailCta variant="purple" onClick={() => (session ? setBuyResale(cheapestResaleItem) : signIn())}>
+                      <span className="item-detail__cta-label">{t('assetCard.buyNow')}</span>
+                      <span className="item-detail__cta-price" aria-hidden>
+                        <CurrencyIcon className="item-detail__cta-diamond" />
+                        {cheapestResaleItem.priceCredits}
+                      </span>
+                    </DetailCta>
+                    <button
+                      className="item-detail__addcart"
+                      onClick={() => {
+                        if (!resaleInCart) add(cheapestResaleItem, 'item_detail')
+                      }}
+                      disabled={resaleInCart}
+                      aria-label={resaleInCart ? t('assetCard.inCart') : t('assetCard.addToCart')}
+                    >
+                      <Icon name="cart-solid" />
+                      <span className="item-detail__addcart-label">
+                        {resaleInCart ? t('assetCard.inCart') : t('assetCard.addToCart')}
+                      </span>
+                    </button>
+                  </>
                 ) : (
                   // No buyable listing → hide buy/add-cart and offer "Notify me when available" + the
                   // (coming-soon) Make an offer CTA.
@@ -1170,14 +1327,18 @@ export function ItemDetail() {
               </div>
 
               {/* Lowest resale price + internal link to the on-page Resellers list (Figma 1524-297513).
-                  Only when there's at least one resale to link to, and not for your own managed item. */}
+                  Only when there's at least one resale to link to, and not for your own managed item. In
+                  the sold-out state the resale price already shows above, so the link is centered alone
+                  (Figma 1524-298906). */}
               {!manage && !isMarket && lowestResale != null ? (
-                <LowestPriceRow data-testid="lowest-price">
-                  <span className="lowest">
-                    {t('itemDetail.lowestPrice')}
-                    <CurrencyIcon className="ico" />
-                    <span className="lowest-value">{lowestResale}</span>
-                  </span>
+                <LowestPriceRow data-testid="lowest-price" data-centered={soldOutWithResale ? 'true' : undefined}>
+                  {!soldOutWithResale ? (
+                    <span className="lowest">
+                      {t('itemDetail.lowestPrice')}
+                      <CurrencyIcon className="ico" />
+                      <span className="lowest-value">{lowestResale}</span>
+                    </span>
+                  ) : null}
                   <ResellersLink onClick={scrollToResellers}>{t('itemDetail.viewAllResellers')}</ResellersLink>
                 </LowestPriceRow>
               ) : null}
@@ -1212,6 +1373,16 @@ export function ItemDetail() {
           onClose={() => {
             setShowBuy(false)
             setResumeBuy(false)
+          }}
+        />
+      ) : null}
+
+      {buyResale ? (
+        <BuyModal
+          item={buyResale}
+          onClose={() => {
+            setBuyResale(null)
+            void refreshManage()
           }}
         />
       ) : null}
