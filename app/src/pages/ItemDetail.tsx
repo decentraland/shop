@@ -98,6 +98,10 @@ const RemoveCta = styled(Button)`
   && {
     width: 100%;
     height: 44px;
+    /* Match the primary manage CTA's all-caps treatment (the ghost variant doesn't uppercase on its
+       own). CSS-only, so the DOM text stays "Remove from sale" for tests/a11y. */
+    text-transform: uppercase;
+    letter-spacing: 0.46px;
   }
 `
 
@@ -233,6 +237,11 @@ export function ItemDetail() {
   const { data: deepLinkItem, isLoading: deepLinkLoading } = useQuery({
     queryKey: ['shop-item', current.contractAddress, tokenId],
     enabled: !isMarket && !!current.contractAddress && !!tokenId && (!state?.item || needsPrimaryStock),
+    // Money-sensitive: a 3rd party's listing/price/stock can change under us. Never serve the 30s-stale
+    // default — revalidate on every (re)mount and tab refocus so a soft revisit re-checks availability.
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
     queryFn: () => fetchShopListingForItem(current.contractAddress, tokenId as string)
   })
   useEffect(() => {
@@ -304,6 +313,11 @@ export function ItemDetail() {
   const { data: resolvedTradeId, isLoading: resolvingTrade } = useQuery({
     queryKey: ['detail-trade', current.id, current.tradeId, current.contractAddress, current.itemId],
     enabled: !!current.contractAddress,
+    // Money-sensitive: buyability can flip when a 3rd party buys/lists/cancels. Always revalidate on
+    // remount + focus rather than serving the 30s-stale default (see shop-item above).
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
     queryFn: async (): Promise<string | null> => {
       if (current.tradeId) return current.tradeId
       if (current.itemId) {
@@ -419,12 +433,18 @@ export function ItemDetail() {
   const qc = useQueryClient()
   const [showSell, setShowSell] = useState(false)
   const [showPrimary, setShowPrimary] = useState(false)
-  const [managing, setManaging] = useState(false)
+  // Which manage action is in flight, so ONLY its button shows a working label (Update price shouldn't
+  // read "Working…" while a Remove is running, and vice-versa). null = idle.
+  const [managing, setManaging] = useState<'update' | 'remove' | null>(null)
   const [manageError, setManageError] = useState<string | null>(null)
 
   const { data: ownedAsset, isLoading: ownedAssetLoading } = useQuery({
     queryKey: ['owned-token', current.contractAddress, current.tokenId, session?.address],
     enabled: !isMarket && !!session?.address && !!current.contractAddress && !!current.tokenId,
+    // Money-sensitive: this token's listing state can change under us — revalidate on remount + focus.
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
     queryFn: () =>
       session ? fetchOwnedToken(session.address, current.contractAddress, current.tokenId as string) : null
   })
@@ -474,6 +494,10 @@ export function ItemDetail() {
       !deepLinkItem &&
       !ownedAssetLoading &&
       !ownedAsset,
+    // Money-sensitive: a 3rd party can buy/relist this token — revalidate on remount + focus.
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
     queryFn: () => fetchTokenById(current.contractAddress, current.tokenId as string)
   })
 
@@ -529,6 +553,10 @@ export function ItemDetail() {
   const manageTradeId = manageAsSecondary ? ownedAsset?.tradeId : buyableTradeId
   // Can we open the list/relist modal? Need the backing record the modal reads its inputs from.
   const canOpenListModal = manageAsSecondary ? !!ownedAsset : !!publishableItem
+  // The owner's own listed price, from the (freshly-refreshed) manage state. Used so the price shows
+  // right after listing: the public `forSale`/feed the price block falls back to lags behind the MV
+  // refresh, which left the owner staring at "Not for sale" while the manage buttons already said listed.
+  const managePriceCredits = manageAsSecondary ? (ownedAsset?.listingPrice ?? 0) : 0
 
   async function refreshManage() {
     await Promise.all([
@@ -536,17 +564,32 @@ export function ItemDetail() {
       qc.invalidateQueries({ queryKey: ['owned-token', current.contractAddress, current.tokenId] }),
       qc.invalidateQueries({ queryKey: ['detail-trade'] }),
       qc.invalidateQueries({ queryKey: ['shop-item'] }),
-      qc.invalidateQueries({ queryKey: ['collection-sale-state'] })
+      qc.invalidateQueries({ queryKey: ['collection-sale-state'] }),
+      // My Assets reads on-sale state from these keys — invalidate them too so listing/cancelling here
+      // is reflected there without waiting for a manual reload (the page may stay mounted behind the PDP).
+      qc.invalidateQueries({ queryKey: ['secondary-sale-state'] }),
+      qc.invalidateQueries({ queryKey: ['my-assets'] }),
+      qc.invalidateQueries({ queryKey: ['publishable-items'] }),
+      // The PDP's OWN creator record is keyed 'publishable-item' (singular) — a different key from My
+      // Assets' 'publishable-items' (plural) above, so it must be invalidated explicitly or the
+      // list/relist modal reads a stale record after listing your own primary from here.
+      qc.invalidateQueries({ queryKey: ['publishable-item', current.contractAddress, current.itemId] }),
+      // The secondary listings table lives on this same PDP — refresh it so a just-cancelled/updated
+      // row of your own doesn't linger until its staleTime lapses.
+      qc.invalidateQueries({ queryKey: ['item-resales', current.contractAddress, current.itemId] })
     ])
   }
 
   // Take the current listing down (invalidates its signature on-chain). Mirrors My Assets' cancel flow.
   // `silent` skips the "no longer for sale" toast when this is the first half of an Update price
   // (cancel-then-relist — see updatePrice).
-  async function takeDown(opts: { silent?: boolean } = {}): Promise<boolean> {
+  // `own` (default true): this call owns the 'remove' working state. Update price calls it with
+  // own:false — that flow owns the 'update' state so takeDown must not stomp it.
+  async function takeDown(opts: { silent?: boolean; own?: boolean } = {}): Promise<boolean> {
+    const own = opts.own !== false
     if (!session || !manageTradeId) return false
     setManageError(null)
-    setManaging(true)
+    if (own) setManaging('remove')
     try {
       const trade = await fetchTrade(manageTradeId)
       await cancelListing({ trade, signer: session.signer })
@@ -559,7 +602,7 @@ export function ItemDetail() {
       setManageError(rejected ? t('getCredits.errorCanceled') : t('myAssets.removeListingError'))
       return false
     } finally {
-      setManaging(false)
+      if (own) setManaging(null)
     }
   }
 
@@ -573,8 +616,13 @@ export function ItemDetail() {
   // price still fulfillable. Take the current listing down first, then open the list modal to re-list
   // at the new price — both halves are the shop's existing, tested flows.
   async function updatePrice() {
-    const ok = await takeDown({ silent: true })
-    if (ok) openListModal()
+    setManaging('update')
+    try {
+      const ok = await takeDown({ silent: true, own: false })
+      if (ok) openListModal()
+    } finally {
+      setManaging(null)
+    }
   }
 
   // Modal closed (after a successful list or a cancel) → refresh the management state so the view
@@ -826,6 +874,13 @@ export function ItemDetail() {
                           <span className="item-detail__price-value">{current.priceCredits}</span>
                         </div>
                       )
+                    ) : manageListed && managePriceCredits ? (
+                      // Owner viewing their own listed item: show the price from the fresh manage state
+                      // instead of "Not for sale" while the public feed catches up to the MV refresh.
+                      <div className="item-detail__price">
+                        <CurrencyIcon className="item-detail__diamond" />
+                        <span className="item-detail__price-value">{managePriceCredits}</span>
+                      </div>
                     ) : (
                       <div className="item-detail__price item-detail__price--none">
                         <span>{t('itemDetail.notForSale')}</span>
@@ -887,14 +942,16 @@ export function ItemDetail() {
                         <DetailCta
                           variant="purple"
                           onClick={() => void updatePrice()}
-                          disabled={managing || !canOpenListModal}
+                          disabled={managing !== null || !canOpenListModal}
                         >
                           <span className="item-detail__cta-label">
-                            {managing ? t('itemDetail.manageWorking') : t('itemDetail.manageUpdatePrice')}
+                            {managing === 'update' ? t('itemDetail.manageWorking') : t('itemDetail.manageUpdatePrice')}
                           </span>
                         </DetailCta>
-                        <RemoveCta variant="ghost" onClick={() => void takeDown()} disabled={managing}>
-                          {managing ? t('myAssets.removing') : t('itemDetail.manageRemove')}
+                        <RemoveCta variant="ghost" onClick={() => void takeDown()} disabled={managing !== null}>
+                          <span className="item-detail__cta-label">
+                            {managing === 'remove' ? t('myAssets.removing') : t('itemDetail.manageRemove')}
+                          </span>
                         </RemoveCta>
                       </>
                     ) : (
@@ -910,7 +967,7 @@ export function ItemDetail() {
                             })
                           openListModal()
                         }}
-                        disabled={managing || !canOpenListModal}
+                        disabled={managing !== null || !canOpenListModal}
                       >
                         <span className="item-detail__cta-label">{t('itemDetail.manageList')}</span>
                       </DetailCta>
