@@ -4,6 +4,9 @@ import { PreviewMessageType, sendMessage } from '@dcl/schemas/dist/dapps/preview
 import { WearablePreview } from '~/components/LazyWearablePreview'
 import { config } from '~/config'
 import { useHoverPreview } from '~/store/hoverPreview'
+import { useWallet } from '~/store/wallet'
+import { useProfile } from '~/hooks/useProfile'
+import { avatarShape, isCompatible } from '~/lib/bodyShape'
 
 // ONE persistent WearablePreview for the whole app. It boots a single 3D engine once (while the
 // browser is idle) and then, on card hover, is repositioned over the hovered card and told to load
@@ -23,6 +26,12 @@ export function HoverPreviewLayer() {
   const token = useHoverPreview(s => s.token)
   const ready = useHoverPreview(s => s.ready)
   const setReady = useHoverPreview(s => s.setReady)
+
+  // Dress the hovered item on the shopper's own avatar when they have a compatible one.
+  // Only pass the address once useProfile confirms a published avatar
+  // (a real address with none renders empty), so signed-out or empty accounts stay on a mannequin.
+  const address = useWallet(s => s.session?.address)
+  const { data: avatar } = useProfile(address)
 
   // Defer mounting the iframe to browser idle so warming never competes with the initial page render.
   const [mounted, setMounted] = useState(false)
@@ -76,11 +85,14 @@ export function HoverPreviewLayer() {
     if (!bootedRef.current) return
     loadingTokenRef.current = token
     const isEmote = item.category === 'emote'
+    // On the connected avatar when it can wear the item (emotes are shape-agnostic, so any avatar works);
+    // otherwise a default mannequin of a shape the item DOES support, so gendered items never render invisible.
+    const onAvatar = !!address && !!avatar && isCompatible(item, avatarShape(avatar))
     sendMessage(iframe.contentWindow, PreviewMessageType.UPDATE, {
       options: {
         contractAddress: item.contractAddress,
         itemId: item.itemId ?? undefined,
-        profile: 'default',
+        profile: onAvatar ? address : 'default',
         // Load straight into the fashion pose (like the per-card previews) so the avatar doesn't flash
         // a T-pose; emotes auto-detect + play their own animation.
         type: isEmote ? undefined : PreviewType.AVATAR,
@@ -89,7 +101,7 @@ export function HoverPreviewLayer() {
         disableFadeEffect: true
       }
     })
-  }, [item, token, booted])
+  }, [item, token, booted, address, avatar])
 
   function handleLoad() {
     // The FIRST LOAD is the default avatar rendering = engine booted; it's not an item load.
