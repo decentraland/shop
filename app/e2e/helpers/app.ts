@@ -34,6 +34,7 @@ export type Fixtures = {
   trade: unknown
   userStore: unknown
   purchases: unknown
+  sales: unknown
 }
 
 function defaults(): Fixtures {
@@ -65,7 +66,8 @@ function defaults(): Fixtures {
       oracleRate: '26960836'
     },
     trade: null,
-    purchases: { purchases: [] }
+    purchases: { purchases: [] },
+    sales: { data: [], total: 0 }
   }
 }
 
@@ -158,12 +160,20 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
   if (u.hostname.includes('transactions-api') && path.endsWith('/transactions')) {
     return json(req, { ok: true, txHash: '0x' + 'ab'.repeat(32) })
   }
-  // WearablePreview iframe → blank page (don't hit the external preview app).
+  // WearablePreview iframe → a blank page that stands in for the external preview app. It can't run the
+  // real Unity/Babylon runtime, so it reports Babylon via the same PreviewMessageType.LOAD message the
+  // real app posts on scene load — driving onLoad/onRenderer so the overlay controls (which mount only
+  // for the Babylon renderer) appear. Posts on a short interval to beat the parent's listener-attach race.
   if (u.hostname.includes('wearable-preview')) {
     return req.respond({
       status: 200,
       headers: { 'content-type': 'text/html', ...CORS },
-      body: '<!doctype html><title>preview</title>'
+      body:
+        '<!doctype html><title>preview</title><script>' +
+        'var m={type:"load",payload:{renderer:"babylon"}};' +
+        'var n=0,i=setInterval(function(){parent.postMessage(m,"*");if(++n>20)clearInterval(i)},100);' +
+        'parent.postMessage(m,"*");' +
+        '</script>'
     })
   }
   // Images / builder content.
@@ -235,8 +245,12 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
       return json(req, { data: items, total: items.length })
     }
     if (path === '/v3/catalog/unified') {
-      // The ONE browse grid: native + legacy in one feed. Honor the same server-side filters so the
-      // browse filter/search/sort e2e stay meaningful (native rows sort by priceCredits, legacy by manaWei).
+      // The ONE browse grid: native + legacy in one feed. `groupBy=item` (the browse grid, fetchShopItems)
+      // asks for one row per item carrying listingCount; the default (per-listing, fetchUnified) is served
+      // the same way here — the fixtures are already one representative row per item, so no server-side
+      // grouping is needed in the mock; any listingCount on a fixture row flows through to the card badge.
+      // Honor the same server-side filters so the browse filter/search/sort e2e stay meaningful (native
+      // rows sort by priceCredits, legacy by manaWei).
       let items = [...((F.unifiedListings as { data: any[] }).data ?? [])]
       const search = u.searchParams.get('search')?.toLowerCase()
       const rarity = u.searchParams.get('rarity')
@@ -289,6 +303,9 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
     }
     if (path === '/v1/trades' && method === 'POST') return json(req, { ok: true, data: { id: 'new-trade' } }, 201)
     if (/\/v1\/trades\/.+/.test(path)) return json(req, { ok: true, data: F.trade })
+    // Secondary sales feed (Activity page → fetchUserSales, ?seller=/?buyer=). Return the fixture data
+    // as-is (the address filter is applied server-side in prod; the fixture is already scoped per run).
+    if (path === '/v1/sales') return json(req, F.sales)
     if (path === '/v1/orders') return json(req, { data: [], total: 0 })
     if (path === '/v2/catalog') return json(req, { data: [], total: 0 })
     return json(req, { data: [] })

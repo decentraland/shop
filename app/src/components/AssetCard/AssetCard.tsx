@@ -209,10 +209,13 @@ export function AssetCard(props: AssetCardProps) {
             {discountPct > 0 ? t('assetCard.saleWithDiscount', { pct: discountPct }) : t('assetCard.sale')}
           </span>
         ) : null}
-        {/* Shimmer behind the (transparent) asset while this card's shared 3D preview boots — sweeps
-            across the media background until the scene is ready and the thumbnail crossfades to 3D. */}
         {canPreview && isPreviewing && !previewReady ? (
           <div className="card__skeleton" data-testid="card-skeleton" aria-hidden />
+        ) : null}
+        {item.listingCount && item.listingCount > 1 ? (
+          <span className="card__listings" data-testid="card-listings">
+            {t('assetCard.onSaleCount', { count: item.listingCount })}
+          </span>
         ) : null}
         {/* Flat thumbnail stays visible the whole time the 3D loads (no empty frame); it only fades out
             once the shared preview has this item's scene ready, crossfading into the 3D. */}

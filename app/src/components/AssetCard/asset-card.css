@@ -447,6 +447,26 @@
   padding: 4px 8px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
 }
+/* "N on sale" badge (item-unified browse feed): flags that an item has multiple copies on sale so the
+   user knows there's a resale list on the item detail page. Anchored bottom-left so it clears the fav
+   button (top-right) and the flash-sale ribbon (top-left). */
+.card__listings {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  background: rgba(22, 20, 27, 0.82);
+  color: #fff;
+  font-weight: 600;
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  border-radius: 6px;
+  padding: 3px 7px;
+}
+
 /* Sale prices carry extra bits (was-price, countdown) that don't fit on one line beside the title —
    let them wrap and align to the right, capped so the title keeps room. */
 .card__price--sale {

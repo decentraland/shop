@@ -35,15 +35,14 @@
   font-weight: 600;
 }
 
-/* Two-column hero: preview left (1045), info right (514), 48px gap. The hero row is inset vs the
-   full-width breadcrumb + collection carousel below (matches the Figma frame). */
+/* Two-column hero: preview left (1045), info right (514), 48px gap. FULL width (no max-width / no
+   centering) so both edges line up vertically with the full-width breadcrumb, Resales rows, and the
+   collection carousel below — the hero shares the same left AND right edge as everything else. */
 .item-detail__main {
   display: grid;
   grid-template-columns: minmax(0, 1045fr) minmax(0, 514fr);
   gap: 48px;
   align-items: start;
-  max-width: 1607px;
-  margin: 0 auto;
 }
 @media (max-width: 900px) {
   .item-detail__main {

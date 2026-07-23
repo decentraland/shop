@@ -95,8 +95,12 @@
   overflow-x: auto;
   overflow-y: hidden;
   /* Horizontal padding reserves room for the first/last card's outward hover glow (2px cerise border +
-     8px box-shadow) — an overflow-x scroller clips both axes, so 0 side padding cropped the ring. */
+     8px box-shadow) — an overflow-x scroller clips both axes, so 0 side padding cropped the ring. The
+     matching negative margin-left pulls the track back by that 14px so the first card lines up with the
+     section title + the page gutter; the glow overflows into the gutter. (The side arrows are sized +
+     positioned to keep an equal gap to the first/last card despite this — see .ov-arrow.) */
   padding: 12px 14px;
+  margin-left: -14px;
   scroll-padding-inline: 14px;
   scroll-snap-type: x mandatory;
   scrollbar-width: none; /* Firefox */
@@ -139,7 +143,17 @@
   grid-auto-columns: calc((100% - 64px) / 5);
   padding: 12px 0;
   margin: 0;
+  /* Hide the native scrollbar so these discovery rails match the Featured / New Creations carousels
+     above (which also hide it) — otherwise the home page shows one rail with a grey scrollbar and the
+     rest without, which reads as an inconsistent style. */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* legacy Edge */
 }
+.overview .row__track::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+} /* Chrome/Safari */
 @media (max-width: 1200px) {
   .overview .row__track {
     grid-auto-columns: calc((100% - 48px) / 4);
@@ -165,8 +179,8 @@
   top: var(--ov-arrow-top, 110px);
   transform: translateY(-50%);
   z-index: 5;
-  width: 53px;
-  height: 53px;
+  width: 44px;
+  height: 44px;
   padding: 0;
   border: 0;
   background: transparent;
@@ -182,13 +196,16 @@
   width: 100%;
   height: 100%;
 }
-/* Arrows sit in the page gutter (nav-aligned 54px), not over the rail — at -40px the 53px arrow's
-   inner edge landed ~13px onto the first/last card (Figma 1179-172512). */
+/* Arrows sit in the page gutter (nav-aligned 54px), not over the rail. The 44px circle + these offsets
+   leave an equal ~8px gap to the first/last card: the track is pulled 14px flush-left (margin-left) so
+   the first card sits at the gutter edge, while the last card keeps its 14px inset — hence the LEFT
+   arrow is pushed out further (-52) than the RIGHT (-38) so both gaps match. Both stay inside the 54px
+   gutter, so nothing clips down to the ~1280px width where the arrows still show. */
 .ov-arrow--right {
-  right: -53px;
+  right: -38px;
 }
 .ov-arrow--left {
-  left: -53px;
+  left: -52px;
 }
 .ov-arrow--left img {
   transform: scaleX(-1);

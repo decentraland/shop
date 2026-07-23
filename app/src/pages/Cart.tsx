@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCart } from '~/store/cart'
 import { useFavorites } from '~/store/favorites'
 import { useWallet } from '~/store/wallet'
+import { stashResumeIntent, takeResumeIntent } from '~/lib/auth-return'
 import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import { useBalance } from '~/hooks/useBalance'
 import { authorizeUsdCredit, cancelUsdIntents } from '~/lib/credits'
@@ -102,7 +103,7 @@ export function Cart() {
   const setFittingOpen = useCart(s => s.setFittingOpen)
   const favItems = useFavorites(s => s.items)
   const toggleFav = useFavorites(s => s.toggle)
-  const { session } = useWallet()
+  const { session, signIn } = useWallet()
   // The top-up packs offered when the buyer is short on credits (same set the PDP uses — all four the
   // credits-server returns, shown in one widened row). Sourced from the credits-server catalogue
   // (single source of truth); falls back to the bundled packs so this critical picker always renders.
@@ -344,7 +345,11 @@ export function Cart() {
 
   async function checkout() {
     if (!session) {
-      setError(t('buyModal.signInToCheckout'))
+      // No dead-end: send them into sign-in (returns to /cart), stashing a resume so the checkout
+      // re-runs automatically once the session is restored. The cart itself is persisted to
+      // localStorage, so it survives the round-trip.
+      stashResumeIntent({ type: 'cart-checkout' })
+      signIn()
       return
     }
     const cartItems = useCart.getState().items // read live so a post-top-up resume sees the restored cart
@@ -399,7 +404,8 @@ export function Cart() {
   async function confirmPurchase() {
     if (!review) return
     if (!session) {
-      setError(t('buyModal.signInToCheckout'))
+      stashResumeIntent({ type: 'cart-checkout' })
+      signIn()
       return
     }
     // A review left sitting too long may be pricing off stale trades (a sale ended, a listing sold).
@@ -448,6 +454,19 @@ export function Cart() {
       setBusy(false)
     }
   }
+
+  // Resume after a sign-in round-trip: a signed-out buyer hit checkout, we sent them to sign in and
+  // stashed the intent; on return the session is restored and we re-run checkout automatically (the
+  // cart persisted to localStorage, so it's intact). Fires once, only after the session lands.
+  const signInResumedRef = useRef(false)
+  useEffect(() => {
+    if (!session || signInResumedRef.current) return
+    if (!takeResumeIntent('cart-checkout')) return
+    signInResumedRef.current = true
+    const id = setTimeout(() => void checkout(), 0)
+    return () => clearTimeout(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session])
 
   // Resume after a Stripe top-up: /credits routed back here with resumeCheckout. Restore the stashed
   // cart (if the redirect wiped the in-memory store) and re-run checkout with the topped-up balance.
@@ -684,6 +703,7 @@ export function Cart() {
                 {working ? t('cart.working') : review ? t('marketCheckout.confirmPurchase') : t('assetCard.buyNow')}
               </button>
 
+              {!session ? <p className="muted checkout__msg">{t('cart.signInHint')}</p> : null}
               {review ? <p className="muted checkout__msg">{t('cart.priceChanged')}</p> : null}
               {notice ? <p className="muted checkout__msg">{notice}</p> : null}
               {status ? <p className="muted checkout__msg">{status}</p> : null}

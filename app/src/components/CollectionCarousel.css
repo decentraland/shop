@@ -105,7 +105,12 @@
    — 5 desktop → 4 → 3 → 2), so an exact integer of cards fills the viewport and NO partial card is ever
    cut off. `overflow-x: auto` also clips overflow-y, so `padding: 12px 14px` reserves room on ALL sides
    for the cards' outward hover glow (2px cerise border + 8px box-shadow) — otherwise the first/last
-   card's ring gets clipped. `scroll-padding-inline` keeps the snap points aligned to that gutter. */
+   card's ring gets clipped. `scroll-padding-inline` keeps the snap points aligned to that gutter. The
+   matching negative margin-left pulls the track back by that 14px so the first card's edge lines up with
+   the section title (and the hero/breadcrumb above) instead of sitting inset; the glow overflows into
+   the left gutter rather than being lost. NOTE: this assumes the carousel's container has >=14px of left
+   padding to overflow into (true for the PDP + cart, which sit inside the page's side gutter). If it's
+   ever placed in a tighter container (modal, sidebar), scope the negative margin back to that context. */
 .collection-carousel__track {
   display: grid;
   grid-auto-flow: column;
@@ -114,6 +119,7 @@
   overflow-x: auto;
   overflow-y: hidden;
   padding: 12px 14px;
+  margin-left: -14px;
   scroll-padding-inline: 14px;
   scroll-snap-type: x mandatory;
   scrollbar-width: none;
