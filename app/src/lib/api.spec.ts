@@ -34,6 +34,7 @@ import {
   fetchListings,
   fetchUnified,
   fetchMyAssets,
+  fetchTokenById,
   fetchTrade,
   fetchTradeDisplay,
   fetchTradeForItem,
@@ -659,6 +660,48 @@ describe('when fetching the owned assets of a wallet', () => {
   it('should throw when the assets request fails', async () => {
     fetchMock.mockResolvedValueOnce(httpError(500))
     await expect(fetchMyAssets('0xowner')).rejects.toThrow('Failed to fetch assets (500)')
+  })
+})
+
+describe('when fetching a single token publicly (deep-link fallback)', () => {
+  it('should hit v1/nfts by contract + token WITHOUT an owner filter and map the listing', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonOk({
+        data: [
+          {
+            nft: {
+              id: 'n1',
+              contractAddress: '0xc',
+              tokenId: '77',
+              itemId: '5',
+              name: 'Resale',
+              category: 'wearable',
+              image: 'img1',
+              network: 'MATIC',
+              chainId: 80002,
+              data: { wearable: { rarity: 'legendary' } }
+            },
+            order: { price: USD1, tradeId: 'trade-x' }
+          }
+        ]
+      })
+    )
+    const asset = await fetchTokenById('0xc', '77')
+    const url = lastUrl()
+    expect(url).toContain('https://nft.test/v1/nfts?')
+    expect(url).toContain('tokenId=77')
+    expect(url).not.toContain('owner=')
+    expect(asset).toMatchObject({ id: 'n1', tokenId: '77', isOnSale: true, listingPrice: 10, tradeId: 'trade-x' })
+  })
+
+  it('should return null when the row does not match the requested token', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ data: [{ nft: { tokenId: '99' }, order: null }] }))
+    expect(await fetchTokenById('0xc', '77')).toBeNull()
+  })
+
+  it('should return null on a failed request', async () => {
+    fetchMock.mockResolvedValueOnce(httpError(500))
+    expect(await fetchTokenById('0xc', '77')).toBeNull()
   })
 })
 

@@ -613,6 +613,27 @@ export async function fetchOwnedToken(
   }
 }
 
+// PUBLIC lookup of ONE specific token by (contract, tokenId) — NOT scoped to a viewer/owner. Powers
+// deep links / refreshes / shared URLs of a secondary token's detail page: unlike fetchOwnedToken this
+// resolves for anyone (logged out, or a viewer who doesn't own the token), so the page renders instead
+// of falling through to a "Not Found" stub. Same /v1/nfts row → MyAsset mapping, so it carries the
+// token's open listing (isOnSale + listingPrice + tradeId) when it's on sale. Returns null if the token
+// doesn't exist or on any error.
+export async function fetchTokenById(contractAddress: string, tokenId: string): Promise<MyAsset | null> {
+  try {
+    const qs = new URLSearchParams({ contractAddress, tokenId, first: '1' })
+    const res = await fetch(`${NFT_V1}/nfts?${qs.toString()}`)
+    if (!res.ok) return null
+    const { data } = (await res.json()) as { data: NFTResult[] }
+    const r = data?.[0]
+    // The endpoint filters server-side, but only trust a row that actually matches the requested token.
+    if (!r || r.nft.tokenId !== tokenId) return null
+    return toMyAsset(r)
+  } catch {
+    return null
+  }
+}
+
 // The metadata "signer" is the APP identifier (server validates it ∈ ['dcl:marketplace','dcl:builder']),
 // NOT the wallet — the wallet is proven via the auth-chain headers built from `identity`.
 const API_SIGNER = 'dcl:marketplace'
