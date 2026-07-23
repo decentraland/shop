@@ -108,38 +108,6 @@
 .card__img--hidden {
   opacity: 0;
 }
-/* pointer-events:none so the preview iframe doesn't swallow clicks — the whole card stays clickable
-   (navigates to detail); the fav + add-to-cart buttons sit outside it and still work. */
-.card__preview {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
-/* Crossfade the 3D preview in over the static thumbnail once it's ready (set by .is-ready). */
-.card__preview iframe {
-  width: 100%;
-  height: 100%;
-  border: 0;
-  display: block;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-.card__preview.is-ready iframe {
-  opacity: 1;
-}
-@media (prefers-reduced-motion: reduce) {
-  .card__preview iframe {
-    transition: none;
-  }
-}
-/* Transparent shield above the iframe: intercepts hover so the cross-origin preview never surfaces
-   its internal content-URL tooltip. Sits below the fav + add-to-cart buttons so those stay usable. */
-.card__preview-shield {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  cursor: pointer;
-}
 /* Skeleton shimmer on the gray media background while the 3D boots. z-index:-1 (within the media's
    isolate stacking context) keeps it above the gray fill but behind the static thumbnail, so the
    loading cue sweeps across the background and shows through/around the (transparent) asset — no

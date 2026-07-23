@@ -1,12 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import type { ReactElement } from 'react'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, act } from '@testing-library/react'
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AssetCard } from './AssetCard'
 import { useCart } from '~/store/cart'
 import { useFavorites } from '~/store/favorites'
 import { useWallet } from '~/store/wallet'
+import { useHoverPreview } from '~/store/hoverPreview'
 import type { CatalogItem } from '~/lib/api'
 
 // A minimal catalog item — creator '' so the card skips CreatorBadge (which would fetch a profile).
@@ -41,6 +42,7 @@ beforeEach(() => {
   // Stores persist to localStorage between tests; reset so cart/fav state doesn't leak.
   useCart.setState({ items: [] })
   useFavorites.setState({ items: {} })
+  useHoverPreview.setState({ item: null, anchor: null, ready: false })
 })
 
 describe('AssetCard author row', () => {
@@ -79,6 +81,31 @@ describe('AssetCard flash-sale treatment', () => {
     const { container } = renderCard(makeItem({ priceCredits: 10, compareAtCredits: 10 }))
     expect(container.querySelector('[data-testid="card-sale-badge"]')).toBeNull()
     expect(container.querySelector('[data-testid="card-price-was"]')).toBeNull()
+  })
+})
+
+describe('AssetCard hover-preview skeleton', () => {
+  it('renders the shimmer skeleton while this card drives the shared preview and it is not ready', () => {
+    const item = makeItem()
+    const { container } = renderCard(item)
+    // At rest (no card driving the shared preview) there is no loading shimmer.
+    expect(container.querySelector('[data-testid="card-skeleton"]')).toBeNull()
+
+    // This card starts driving the shared 3D preview, scene not yet loaded.
+    act(() => useHoverPreview.setState({ item, anchor: null, ready: false }))
+    expect(container.querySelector('[data-testid="card-skeleton"]')).toBeTruthy()
+
+    // Once the scene is ready the shimmer is gone (the 3D crossfades in).
+    act(() => useHoverPreview.setState({ item, anchor: null, ready: true }))
+    expect(container.querySelector('[data-testid="card-skeleton"]')).toBeNull()
+  })
+
+  it('never shows the skeleton for a card that cannot preview (a NAME)', () => {
+    const name = makeItem({ category: 'ens', name: 'CoolName' })
+    const { container } = renderCard(name)
+    // Even if the store somehow points at it, a non-previewable card shows no shimmer.
+    act(() => useHoverPreview.setState({ item: name, anchor: null, ready: false }))
+    expect(container.querySelector('[data-testid="card-skeleton"]')).toBeNull()
   })
 })
 
@@ -262,11 +289,7 @@ describe('AssetCard manage-link mode (owned My Assets card)', () => {
     const item = makeItem({ category: 'ens', name: 'CoolName', contractAddress: '0xreg', tokenId: '5' })
     const { container } = render(
       <MemoryRouter>
-        <AssetCard
-          item={item}
-          mode="manage-link"
-          manageHref="https://decentraland.zone/builder/names/CoolName"
-        />
+        <AssetCard item={item} mode="manage-link" manageHref="https://decentraland.zone/builder/names/CoolName" />
       </MemoryRouter>
     )
     const manage = container.querySelector('[data-testid="card-manage"]') as HTMLAnchorElement
