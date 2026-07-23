@@ -149,6 +149,11 @@
     "working": "Working…",
     "signInHint": "You'll be asked to sign in first.",
     "priceChanged": "Prices or availability changed since you added these — review the updated total and confirm to buy.",
+    "allUnavailable": "None of these items are available anymore. Remove them to keep shopping.",
+    "availability": {
+      "soldOut": "Sold out",
+      "unavailable": "No longer available"
+    },
     "youMightAlsoLike": "You might also like",
     "status": {
       "reviewing": "Reviewing your cart…"

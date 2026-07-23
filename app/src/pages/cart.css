@@ -307,6 +307,20 @@ a.checkout__name:hover {
   color: var(--muted);
   text-decoration: line-through;
 }
+/* A line whose listing is no longer buyable (sold out / gone / expired): calmly dimmed, its media
+   greyed, but still readable and removable. Excluded from the total and from checkout. */
+.checkout__card.is-unavailable {
+  opacity: 0.6;
+}
+.checkout__card.is-unavailable .checkout__thumb img {
+  filter: grayscale(1);
+}
+.checkout__unavailable {
+  margin-left: auto;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+}
 /* Favourite (heart) + delete (trash) group at the top-right of the card (Figma: gap 12, 24px each). */
 .checkout__actions {
   position: absolute;
@@ -457,7 +471,7 @@ a.checkout__name:hover {
   margin-top: 0;
 }
 .cart-upsell::before {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   bottom: -80px; /* eat .page's 80px bottom padding so white reaches the footer */
