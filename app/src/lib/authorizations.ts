@@ -155,6 +155,35 @@ function encodeAuthorizationCall(auth: ShopAuthorization, active: boolean): stri
   }
 }
 
+// RPC methods that MUST go to the connected wallet (signing + account list) — all RPC-free. Everything
+// else is a node read.
+const WALLET_RPC_METHODS = new Set([
+  'eth_signTypedData_v4',
+  'eth_signTypedData',
+  'eth_sign',
+  'personal_sign',
+  'eth_requestAccounts',
+  'eth_accounts',
+  'eth_chainId'
+])
+
+// A provider shim for sendMetaTransaction so the meta-tx NEVER depends on the wallet's current-chain
+// RPC. sendMetaTransaction reads the account (eth_accounts) and does a contract-account check
+// (eth_getCode) through the provider it's given; if that's the wallet's provider and the user is
+// connected to some flaky network (e.g. Sepolia while listing on Amoy), that eth_getCode hits the
+// wallet's rate-limited RPC and fails with -32002, killing an otherwise off-chain-signed gasless tx.
+// So: route signing + account list to the wallet (RPC-free), and every node read to the reliable
+// target-chain RPC. The nonce is read via metaTxProvider (the same rpc) separately.
+export function metaTxProviderShim(
+  wallet: ethers.providers.Web3Provider,
+  rpc: ethers.providers.JsonRpcProvider
+): Provider {
+  return {
+    send: (method: string, params: unknown[] = []) =>
+      WALLET_RPC_METHODS.has(method) ? wallet.send(method, params) : rpc.send(method, params)
+  }
+}
+
 // Submit the grant/revoke as a Polygon native meta-transaction: the wallet signs an off-chain EIP-712
 // message and DCL's relayer submits it and pays the gas. Mirrors the gasless buy path (lib/buy-gasless)
 // and uses decentraland-transactions' sendMetaTransaction, which picks the right meta-tx variant from
@@ -167,11 +196,12 @@ async function grantViaMetaTransaction(
 ) {
   const functionData = encodeAuthorizationCall(auth, active)
   const contractData = metaTxContractData(auth)
-  // The wallet's Web3Provider signs; the target-chain RPC reads the meta-tx nonce AND waits for the
-  // relayed receipt — one instance shared for both.
-  const walletProvider = signer.provider as unknown as Provider
   const rpc = readProvider()
-  const txHash = await sendMetaTransaction(walletProvider, rpc, functionData, contractData, {
+  // The shim signs via the wallet but sends node reads (account-code check, etc.) to `rpc`, so the
+  // meta-tx works regardless of which network the wallet is on. `rpc` also reads the nonce + waits for
+  // the relayed receipt.
+  const provider = metaTxProviderShim(signer.provider as ethers.providers.Web3Provider, rpc)
+  const txHash = await sendMetaTransaction(provider, rpc, functionData, contractData, {
     serverURL: gaslessConfig.relayerUrl
   })
   await rpc.waitForTransaction(txHash, 1, 120_000)

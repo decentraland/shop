@@ -107,6 +107,7 @@ import {
   getAuthorizationStatus,
   getCollectionSellingAuthorization,
   getCreditsAuthorization,
+  metaTxProviderShim,
   needsApprovalStep,
   setAuthorization,
   type ShopAuthorization
@@ -368,5 +369,34 @@ describe('when ensuring the wallet is on the right chain', () => {
     const getNetwork = vi.fn().mockResolvedValue({ chainId: ChainId.ETHEREUM_MAINNET })
     const send = vi.fn().mockRejectedValue({ code: 4001 })
     await expect(ensureChain({ getNetwork, send } as never, ChainId.MATIC_AMOY)).rejects.toMatchObject({ code: 4001 })
+  })
+})
+
+describe('the meta-tx provider shim (keeps the gasless tx off the wallet current-chain RPC)', () => {
+  it('routes node reads to the target-chain rpc and signing/account calls to the wallet', async () => {
+    const wallet = { send: vi.fn().mockResolvedValue('0xwallet') } as never
+    const rpc = { send: vi.fn().mockResolvedValue('0xrpc') } as never
+    const shim = metaTxProviderShim(wallet, rpc) as unknown as { send: (m: string, p?: unknown[]) => Promise<unknown> }
+
+    // eth_getCode (the isContract check that was blowing up on the wallet's flaky Sepolia RPC) → rpc
+    await shim.send('eth_getCode', ['0xabc', 'latest'])
+    // signing + account list → wallet (both RPC-free, so unaffected by the wallet's network)
+    await shim.send('eth_signTypedData_v4', ['0xabc', '{}'])
+    await shim.send('eth_accounts')
+
+    expect((rpc as unknown as { send: ReturnType<typeof vi.fn> }).send).toHaveBeenCalledWith('eth_getCode', [
+      '0xabc',
+      'latest'
+    ])
+    expect((wallet as unknown as { send: ReturnType<typeof vi.fn> }).send).toHaveBeenCalledWith(
+      'eth_signTypedData_v4',
+      ['0xabc', '{}']
+    )
+    expect((wallet as unknown as { send: ReturnType<typeof vi.fn> }).send).toHaveBeenCalledWith('eth_accounts', [])
+    // the wallet's RPC is NEVER used for a node read
+    expect((wallet as unknown as { send: ReturnType<typeof vi.fn> }).send).not.toHaveBeenCalledWith(
+      'eth_getCode',
+      expect.anything()
+    )
   })
 })
