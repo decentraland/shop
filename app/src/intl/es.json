@@ -316,9 +316,28 @@
     "ownItemPrefix": "Este es tu artículo: gestiónalo en",
     "ownItemSuffix": ".",
     "manageList": "Poner a la venta",
-    "manageUpdatePrice": "Actualizar precio",
+    "manageTransfer": "Transferir",
+    "manageUpdatePrice": "Editar precio",
     "manageRemove": "Quitar de la venta",
-    "manageWorking": "Procesando…"
+    "manageWorking": "Procesando…",
+    "buyFromCreator": "Compra directamente del creador",
+    "lowestPrice": "Precio más bajo:",
+    "viewAllResellers": "Ver todos los revendedores",
+    "originalPrice": "Precio original",
+    "resalePrice": "Precio de reventa",
+    "soldOut": "Agotado"
+  },
+  "transfer": {
+    "title": "Transferir artículo",
+    "addressLabel": "Dirección del destinatario",
+    "warning": "La transferencia es irreversible. Verifica la dirección: los artículos enviados a la billetera equivocada no se pueden recuperar.",
+    "invalidAddress": "Introduce una dirección de billetera válida (0x…).",
+    "selfAddress": "Esa es tu propia dirección: introduce otro destinatario.",
+    "transfer": "Transferir",
+    "transferring": "Transfiriendo…",
+    "toastSuccess": "«{name}» fue transferido.",
+    "successBody": "«{name}» está en camino al nuevo propietario.",
+    "errorGeneric": "No se pudo transferir tu artículo. Inténtalo de nuevo."
   },
   "resales": {
     "title": "Revendedores",

@@ -713,7 +713,7 @@
   background: var(--black-btn);
   color: var(--soft-white);
   border: 0;
-  border-radius: 8px;
+  border-radius: 16px;
   font-weight: 600;
   font-size: 15px;
   text-transform: uppercase;

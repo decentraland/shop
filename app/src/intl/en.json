@@ -316,10 +316,29 @@
     "notForSaleHint": "This item isn't listed for sale right now. Get notified when it becomes available.",
     "ownItemPrefix": "This is your item — manage it in",
     "ownItemSuffix": ".",
-    "manageList": "List for sale",
-    "manageUpdatePrice": "Update price",
+    "manageList": "Put up for sale",
+    "manageTransfer": "Transfer",
+    "manageUpdatePrice": "Edit price",
     "manageRemove": "Remove from sale",
-    "manageWorking": "Working…"
+    "manageWorking": "Working…",
+    "buyFromCreator": "Buy directly from creator",
+    "lowestPrice": "Lowest Price:",
+    "viewAllResellers": "View all resellers",
+    "originalPrice": "Original price",
+    "resalePrice": "Resale price",
+    "soldOut": "Sold out"
+  },
+  "transfer": {
+    "title": "Transfer item",
+    "addressLabel": "Recipient address",
+    "warning": "Transferring is irreversible. Double-check the address — items sent to the wrong wallet can't be recovered.",
+    "invalidAddress": "Enter a valid wallet address (0x…).",
+    "selfAddress": "That's your own address — enter a different recipient.",
+    "transfer": "Transfer",
+    "transferring": "Transferring…",
+    "toastSuccess": "“{name}” was transferred.",
+    "successBody": "“{name}” is on its way to the new owner.",
+    "errorGeneric": "Couldn't transfer your item — please try again."
   },
   "resales": {
     "title": "Resellers",

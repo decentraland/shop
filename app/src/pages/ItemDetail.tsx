@@ -22,6 +22,7 @@ import { cancelListing } from '~/lib/buy'
 import { fetchPublishableItems, type PublishableItem } from '~/lib/builder'
 import { BuyModal } from '~/components/BuyModal'
 import { SellModal } from '~/components/SellModal'
+import { TransferModal } from '~/components/TransferModal'
 import { PrimaryListModal } from '~/components/PrimaryListModal'
 import { MarketCheckout } from '~/components/MarketCheckout'
 import { toast } from '~/store/toast'
@@ -60,21 +61,31 @@ const NotFoundCta = styled(Button)`
   margin-top: 6px;
 `
 
-// The PDP Buy-now CTA: full-width, taller, its own type scale. `&&` so font-size/letter-spacing win
-// over the purple variant's data-variant rules. In the mobile sticky bar it sits beside the cart
-// square (the `--dual` parent), where it flexes to share the row.
-const DetailCta = styled(Button)`
+// Shared PDP CTA box — the pixel-perfect button spec from Figma 1527-302810: full-width, 48px tall,
+// 16px radius, Inter 600 15/24 with 0.46px tracking, uppercase, 8px icon gap. `&&` so these win over
+// the Button base + any data-variant rules.
+const ctaBox = `
   && {
     width: 100%;
     height: 48px;
-    font-size: 15px;
-    font-weight: 600;
-    letter-spacing: 0.46px;
+    border-radius: 16px;
+    padding: 0 12px;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 24px;
+    letter-spacing: 0.46px;
+    text-transform: uppercase;
   }
+`
+
+// Buy-now CTA: the Amethyst gradient (Figma 1524-297513). In the mobile sticky bar it sits beside the
+// cart square (the `--dual` parent), where it flexes to share the row.
+const DetailCta = styled(Button)`
+  ${ctaBox}
 
   ${theme.media.down('lg')} {
     .item-detail__ctas--dual && {
@@ -84,25 +95,47 @@ const DetailCta = styled(Button)`
   }
 `
 
+// Dark-solid CTA (#242129 / #fcfcfc) — the primary manage action (Put up for sale / Edit price) and any
+// solid dark button (Figma 1527-302810 / 1527-302048). Overrides the Button base colours via `&&`.
+const DarkCta = styled(Button)`
+  ${ctaBox}
+  && {
+    background: ${theme.colors.blackBtn};
+    color: ${theme.colors.softWhite};
+    border: 0;
+
+    .ico {
+      width: 20px;
+      height: 20px;
+    }
+  }
+  &&:hover:not(:disabled) {
+    background: ${theme.colors.blackBtn};
+    filter: brightness(1.35);
+  }
+`
+
+// Dark-outline CTA (2px #242129, #161518 label) — the secondary manage action (Transfer / Remove from
+// sale) (Figma 1527-302810 / 1527-302048).
+const OutlineCta = styled(Button)`
+  ${ctaBox}
+  && {
+    background: transparent;
+    border: 2px solid ${theme.colors.blackBtn};
+    color: ${theme.colors.text};
+  }
+  &&:hover:not(:disabled) {
+    background: rgba(36, 33, 41, 0.06);
+  }
+`
+
 // Owner/creator management actions (replace the buy CTAs when the viewer owns or created this item).
-// Stacked full-width so List / Update price / Remove read as a clear action column.
+// Stacked full-width so the primary + secondary actions read as a clear action column.
 const ManageActions = styled('div')`
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
   width: 100%;
-`
-
-// The take-down (secondary) action: a full-width ghost button under the primary manage CTA.
-const RemoveCta = styled(Button)`
-  && {
-    width: 100%;
-    height: 44px;
-    /* Match the primary manage CTA's all-caps treatment (the ghost variant doesn't uppercase on its
-       own). CSS-only, so the DOM text stays "Remove from sale" for tests/a11y. */
-    text-transform: uppercase;
-    letter-spacing: 0.46px;
-  }
 `
 
 // "Manage all your items in My Assets" helper, mirroring the old own-note styling.
@@ -433,6 +466,7 @@ export function ItemDetail() {
   const qc = useQueryClient()
   const [showSell, setShowSell] = useState(false)
   const [showPrimary, setShowPrimary] = useState(false)
+  const [showTransfer, setShowTransfer] = useState(false)
   // Which manage action is in flight, so ONLY its button shows a working label (Update price shouldn't
   // read "Working…" while a Remove is running, and vice-versa). null = idle.
   const [managing, setManaging] = useState<'update' | 'remove' | null>(null)
@@ -939,38 +973,48 @@ export function ItemDetail() {
                     <ErrorNotice message={manageError} />
                     {manageListed ? (
                       <>
-                        <DetailCta
-                          variant="purple"
+                        {/* Edit price (Figma 1527-302048): dark-solid CTA with the pen glyph. */}
+                        <DarkCta
                           onClick={() => void updatePrice()}
                           disabled={managing !== null || !canOpenListModal}
                         >
+                          {managing !== 'update' ? <Icon name="pen" className="ico" /> : null}
                           <span className="item-detail__cta-label">
                             {managing === 'update' ? t('itemDetail.manageWorking') : t('itemDetail.manageUpdatePrice')}
                           </span>
-                        </DetailCta>
-                        <RemoveCta variant="ghost" onClick={() => void takeDown()} disabled={managing !== null}>
+                        </DarkCta>
+                        <OutlineCta onClick={() => void takeDown()} disabled={managing !== null}>
                           <span className="item-detail__cta-label">
                             {managing === 'remove' ? t('myAssets.removing') : t('itemDetail.manageRemove')}
                           </span>
-                        </RemoveCta>
+                        </OutlineCta>
                       </>
                     ) : (
-                      <DetailCta
-                        variant="purple"
-                        onClick={() => {
-                          // Funnel-entry event for a secondary listing — this is the flow that moved off
-                          // the My Assets card (its "put on sale" fired the same event) onto the PDP.
-                          if (manageAsSecondary)
-                            track('Shop Started Listing', {
-                              listing_type: 'secondary',
-                              item_id: current.itemId ?? current.tokenId ?? null
-                            })
-                          openListModal()
-                        }}
-                        disabled={managing !== null || !canOpenListModal}
-                      >
-                        <span className="item-detail__cta-label">{t('itemDetail.manageList')}</span>
-                      </DetailCta>
+                      <>
+                        {/* Put up for sale (Figma 1527-302810): dark-solid primary. */}
+                        <DarkCta
+                          onClick={() => {
+                            // Funnel-entry event for a secondary listing — this is the flow that moved off
+                            // the My Assets card (its "put on sale" fired the same event) onto the PDP.
+                            if (manageAsSecondary)
+                              track('Shop Started Listing', {
+                                listing_type: 'secondary',
+                                item_id: current.itemId ?? current.tokenId ?? null
+                              })
+                            openListModal()
+                          }}
+                          disabled={managing !== null || !canOpenListModal}
+                        >
+                          <span className="item-detail__cta-label">{t('itemDetail.manageList')}</span>
+                        </DarkCta>
+                        {/* Transfer (Figma 1527-302810): only for a SECONDARY owned token you actually hold
+                            (a primary/mint listing has no transferable token). Gasless via lib/buy. */}
+                        {manageAsSecondary ? (
+                          <OutlineCta onClick={() => setShowTransfer(true)} disabled={managing !== null}>
+                            <span className="item-detail__cta-label">{t('itemDetail.manageTransfer')}</span>
+                          </OutlineCta>
+                        ) : null}
+                      </>
                     )}
                     <ManageNote>
                       {t('itemDetail.ownItemPrefix')} <Link to="/my-assets">{t('nav.myAssets')}</Link>
@@ -1038,6 +1082,23 @@ export function ItemDetail() {
 
       {showSell && ownedAsset && session ? (
         <SellModal asset={ownedAsset} session={session} onClose={closeManageModal} />
+      ) : null}
+      {showTransfer && session && current.tokenId ? (
+        <TransferModal
+          item={{
+            contractAddress: current.contractAddress,
+            chainId: current.chainId,
+            tokenId: current.tokenId,
+            name: current.name,
+            thumbnail: current.thumbnail
+          }}
+          session={session}
+          onClose={() => {
+            setShowTransfer(false)
+            void refreshManage()
+          }}
+          onTransferred={() => void refreshManage()}
+        />
       ) : null}
       {showPrimary && publishableItem && session ? (
         <PrimaryListModal item={publishableItem} session={session} onClose={closeManageModal} />
