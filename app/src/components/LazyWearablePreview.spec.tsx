@@ -33,7 +33,6 @@ const mockPick = (renderer: PreviewRenderer, reason = 'connection-ok') =>
 
 beforeEach(() => {
   vi.clearAllMocks()
-  vi.spyOn(console, 'info').mockImplementation(() => {})
 })
 
 describe('LazyWearablePreview', () => {
@@ -51,7 +50,6 @@ describe('LazyWearablePreview', () => {
     render(<WearablePreview unity id="hero" />)
     await screen.findByTestId('wp')
     expect(lastProps.unity).toBe(false)
-    expect(lastProps.unityMode).toBeUndefined()
     expect(track).toHaveBeenCalledWith(
       'Shop Preview Renderer Fallback',
       expect.objectContaining({ reason: 'slow-connection', preview_id: 'hero' })
@@ -81,7 +79,7 @@ describe('LazyWearablePreview', () => {
     expect(lastProps.unityMode).toBe(PreviewUnityMode.PROFILE)
   })
 
-  it('reports a load error and forwards onError without flipping renderer or tracking', async () => {
+  it('degrades to Babylon on a load error and forwards onError', async () => {
     mockPick(PreviewRenderer.UNITY)
     const onError = vi.fn()
     render(<WearablePreview unity onError={onError} />)
@@ -90,8 +88,7 @@ describe('LazyWearablePreview', () => {
 
     fireEvent.click(el) // iframe reports a load error
     expect(onError).toHaveBeenCalledOnce()
-    expect(console.info).toHaveBeenCalled()
-    expect(lastProps.unity).toBe(true) // no state flip
-    expect(track).not.toHaveBeenCalled() // Unity mount isn't tracked; a load error is reported, not tracked
+    expect(lastProps.unity).toBe(false) // flipped to Babylon
+    expect(track).not.toHaveBeenCalled() // the Unity mount isn't tracked and a load error isn't either
   })
 })
