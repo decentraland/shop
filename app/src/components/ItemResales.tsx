@@ -269,6 +269,11 @@ export function ItemResales({ item }: { item: CatalogItem }) {
   const { data: resales = [], isLoading } = useQuery({
     queryKey: ['item-resales', contractAddress, itemId],
     enabled: !!contractAddress && !!itemId,
+    // Money-sensitive: secondary listings/prices can change under us (3rd-party buy/list/cancel). Never
+    // serve the 30s-stale default — revalidate on every remount and tab refocus (see ItemDetail PDP).
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
     // Cheapest-first (fetchItemResales sorts ascending by credit price) so the best price is on top.
     queryFn: () => fetchItemResales(contractAddress, itemId as string)
   })

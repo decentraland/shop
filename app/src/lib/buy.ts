@@ -1,7 +1,16 @@
 import { ethers } from 'ethers'
 import { TradeAssetType, type Trade } from '@dcl/schemas'
-import { ContractName, getContract, getContractName } from 'decentraland-transactions'
+import {
+  ContractName,
+  ErrorCode,
+  MetaTransactionError,
+  getContract,
+  getContractName,
+  sendMetaTransaction
+} from 'decentraland-transactions'
 import { config } from '~/config'
+import { metaTxProviderShim, readProvider } from '~/lib/authorizations'
+import { gaslessConfig } from '~/lib/gasless-config'
 import { ensureChain } from '~/lib/trades'
 import {
   amoyGasOverrides,
@@ -98,15 +107,51 @@ export async function sendUseCredits(
  * signer (the seller) can cancel their own. Mirrors decentraland-dapps' TradeService.cancel.
  * Returns the tx hash.
  */
+// Gasless cancel: the seller signs an off-chain meta-tx and DCL's relayer submits it + pays the gas
+// (mirrors grantViaMetaTransaction / the gasless buy path). The metaTxProviderShim routes signing to
+// the wallet but every node read to the reliable target-chain RPC, so it never touches the wallet's
+// flaky chain RPC — that's the -32002 "RPC endpoint returned too many errors" that killed the direct
+// cancel. Managed (Magic/thirdweb) wallets hold no gas, so this is also the only path that works there.
+async function cancelViaMetaTransaction(
+  trade: Trade,
+  signer: ethers.providers.JsonRpcSigner,
+  seller: string
+): Promise<string> {
+  const marketplace = getContract(getContractName(trade.contract), trade.chainId)
+  // beneficiary is irrelevant to the cancel hash (sent assets are signed without one); pass the seller.
+  const onChainTrade = getOnChainTrade(trade, seller)
+  const functionData = new ethers.utils.Interface(marketplace.abi).encodeFunctionData('cancelSignature', [
+    [onChainTrade]
+  ])
+  const rpc = readProvider()
+  const provider = metaTxProviderShim(signer.provider as ethers.providers.Web3Provider, rpc)
+  const txHash = await sendMetaTransaction(provider, rpc, functionData, marketplace, {
+    serverURL: gaslessConfig.relayerUrl
+  })
+  await rpc.waitForTransaction(txHash, 1, 120_000)
+  return txHash
+}
+
 export async function cancelListing(opts: { trade: Trade; signer: ethers.Signer }): Promise<string> {
   const { trade, signer } = opts
   const seller = (await signer.getAddress()).toLowerCase()
-  // cancelSignature is a REAL transaction, so it must run on the trade's chain — a restored session
-  // can leave the wallet on whatever network it last used. Switch just-in-time (mirrors ensureApproval);
-  // the off-chain listing signature itself is never gated on chain (see CONVENTIONS.md).
+
+  // GASLESS FOR ALL (mirrors setAuthorization): relayer submits + pays gas, and it sidesteps the
+  // wallet's chain RPC. Fall back to a direct tx if the relayer is off/unreachable — but let a user
+  // rejection propagate instead of silently retrying with a gas-paying tx.
+  if (gaslessConfig.enabled) {
+    try {
+      return await cancelViaMetaTransaction(trade, signer as ethers.providers.JsonRpcSigner, seller)
+    } catch (e) {
+      if (e instanceof MetaTransactionError && e.code === ErrorCode.USER_DENIED) throw e
+      console.warn('[cancelListing] gasless meta-tx failed, falling back to a direct tx:', e)
+    }
+  }
+
+  // Direct (gas-paying) fallback. cancelSignature is a REAL transaction, so it must run on the trade's
+  // chain — a restored session can leave the wallet on whatever network it last used; switch just-in-time.
   await ensureChain(signer.provider as ethers.providers.Web3Provider, trade.chainId)
   const marketplace = getContract(getContractName(trade.contract), trade.chainId)
-  // beneficiary is irrelevant to the cancel hash (sent assets are signed without one); pass the seller.
   const onChainTrade = getOnChainTrade(trade, seller)
   const contract = new ethers.Contract(marketplace.address, marketplace.abi, signer) as MarketplaceContract
   // cancelSignature takes a Trade[] (mirrors accept([...]) — see TradeService.cancel, which calls
