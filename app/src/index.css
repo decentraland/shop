@@ -382,9 +382,12 @@ h2 {
   display: flex;
   gap: 16px;
   overflow-x: auto;
-  /* Horizontal padding (not a negative margin) reserves room for the first/last card's outward hover
-     glow (2px cerise border + 8px box-shadow) so an overflow-x scroller doesn't crop the ring. */
+  /* Horizontal padding reserves room for the first/last card's outward hover glow (2px cerise border +
+     8px box-shadow) so an overflow-x scroller doesn't crop the ring. The matching negative margin-left
+     then pulls the track back by that 14px so the FIRST card's edge lines up with the section title (and
+     the page gutter) instead of sitting inset — the glow simply overflows into the gutter. */
   padding: 12px 14px;
+  margin-left: -14px;
   scroll-padding-inline: 14px;
   scroll-snap-type: x proximity;
 }
