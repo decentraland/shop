@@ -49,6 +49,15 @@
   border-radius: 8px;
   object-fit: cover;
   background: var(--skeleton);
+  flex: 0 0 auto;
+}
+/* The identity column: issued number on top, the seller (who's selling it) beneath. Takes the free
+   space so the price/actions still align to the right edge. */
+.resales__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
 }
 .resales__issued {
   font-weight: 700;
@@ -58,6 +67,28 @@
 .resales__issued--muted {
   font-weight: 600;
   color: var(--muted);
+}
+.resales__seller {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+}
+.resales__seller-label {
+  font-size: 12px;
+  color: var(--muted);
+  flex: 0 0 auto;
+}
+.resales__seller-badge {
+  min-width: 0;
+}
+/* Your own listing: a muted, non-interactive chip in place of Buy / Add-to-cart (you can't buy it). */
+.resales__own-chip {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--chip);
 }
 .resales__price {
   display: inline-flex;
@@ -113,6 +144,25 @@
 .resales__add:disabled {
   opacity: 0.55;
   cursor: default;
+}
+
+/* "Show more" pager under the list — reveals the next page of resales (PAGE_SIZE at a time). */
+.resales__more {
+  display: block;
+  margin: 14px auto 0;
+  height: 40px;
+  padding: 0 20px;
+  border-radius: var(--radius-btn);
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  color: var(--text);
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.resales__more:hover {
+  background: var(--chip);
 }
 
 /* Legacy (classic MANA) group: visually distinct — muted panel, a "classic marketplace" chip and an
