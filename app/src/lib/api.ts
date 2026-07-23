@@ -32,6 +32,9 @@ export type CatalogItem = {
   // The token's mint index within its item (e.g. "5013" → the 5013th ever minted). Present only for a
   // specific owned/secondary token; lets the UI tell otherwise-identical copies apart ("#5013").
   issuedId?: string
+  // Current owner (the reseller) for a SECONDARY per-token listing, from the shop feed. Lets the PDP
+  // resale list show who's selling without a per-token lookup. Absent for primary/catalog rows.
+  seller?: string
   // Remaining mintable supply for a PRIMARY listing (from the shop feed). Absent for secondary
   // listings (a specific token has no stock concept) and for catalog-only items. Surfaces the STOCK
   // figure next to the price on the item detail page.
@@ -229,6 +232,12 @@ type ShopListingRaw = {
   network: string
   chainId: number
   isSmart?: boolean
+  // Secondary (per-token) rows only: the token's current owner (the reseller) + its mint index. Added
+  // to the shop feed so the PDP resale list can show who's selling + the serial number WITHOUT an N+1
+  // /v1/nfts lookup per row. Absent until the marketplace-server change ships — the PDP falls back to
+  // the per-token lookup for any row still missing them (see ItemResales).
+  seller?: string
+  issuedId?: string
   // Flash sale, when the shop catalog resolves this listing as on-sale: the pre-sale price (whole
   // credits) to compare against + the sale end as a unix expiration in SECONDS (the trade's
   // Checks.expiration). Absent for regular listings. See marketplace-server shop-catalog.
@@ -256,6 +265,10 @@ function shopListingToItem(l: ShopListingRaw): CatalogItem {
     isSmart: l.isSmart ?? false,
     // Only meaningful for primary listings; secondary rows carry a per-token value the PDP ignores.
     available: l.listingType === 'primary' ? l.available : undefined,
+    // Per-token secondary fields (reseller + mint index), when the feed provides them. The PDP prefers
+    // these over its per-token /v1/nfts lookup, so once the server populates them the lookup goes away.
+    seller: l.seller ?? undefined,
+    issuedId: l.issuedId ?? undefined,
     // Only surface a compare-at that's actually above the sale price (the badge/strikethrough guard
     // against a stale or equal value). saleEndsAt arrives as unix seconds → ms for the UI.
     compareAtCredits:

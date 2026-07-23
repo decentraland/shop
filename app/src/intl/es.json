@@ -316,10 +316,12 @@
     "manageWorking": "Procesando…"
   },
   "resales": {
-    "title": "Reventas",
+    "title": "Revendedores",
     "subtitle": "Otras copias de este artículo a la venta ahora mismo.",
     "copy": "Reventa disponible",
     "seller": "Vendedor",
+    "serialLabel": "Copia",
+    "serialOf": "de",
     "yourListing": "Tu publicación",
     "showMore": "Ver más",
     "legacyTitle": "También en el mercado clásico",

@@ -896,11 +896,3 @@
 .item-detail__notfound-title {
   font-size: 22px;
 }
-
-/* Pull the collection carousel's track left by its own glow-padding (14px) so the first card's edge
-   lines up with the section title + the full-width hero above. The track keeps its 12px 14px padding
-   (its overflow-x:auto would otherwise CLIP the cards' hover glow), so the glow simply overflows into
-   the left gutter instead of being lost. Scoped to the PDP — the cart's carousel is unaffected. */
-.item-detail .collection-carousel__track {
-  margin-left: -14px;
-}
