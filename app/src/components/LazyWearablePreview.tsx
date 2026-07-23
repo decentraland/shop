@@ -13,7 +13,10 @@ const WearablePreviewLazy = lazy(() =>
   }))
 )
 
-type Props = ComponentProps<typeof WearablePreviewComponent>
+type Props = ComponentProps<typeof WearablePreviewComponent> & {
+  // Reports the renderer actually in use, so callers can hide overlay controls Unity already provides.
+  onRenderer?: (renderer: PreviewRenderer) => void
+}
 
 // Resolves the mount renderer decision (final for the component's life): tracks a Babylon fallback once —
 // except the by-design, high-volume mobile case — and returns whether to attempt Unity.
@@ -31,7 +34,14 @@ function resolveUnityRenderer(unity: boolean, id?: string): boolean {
  * runtime conditions are met (see `lib/pickRenderer`), otherwise Babylon — and `unityMode=marketplace`
  * is sent when Unity is used. Omitting `unity` (default) always uses Babylon.
  */
-export function WearablePreview({ unity = false, unityMode = PreviewUnityMode.MARKETPLACE, onError, ...props }: Props) {
+export function WearablePreview({
+  unity = false,
+  unityMode = PreviewUnityMode.MARKETPLACE,
+  onError,
+  onLoad,
+  onRenderer,
+  ...props
+}: Props) {
   const [shouldUseUnity, setShouldUseUnity] = useState(() => resolveUnityRenderer(unity, props.id))
 
   return (
@@ -40,8 +50,15 @@ export function WearablePreview({ unity = false, unityMode = PreviewUnityMode.MA
         {...props}
         unity={shouldUseUnity}
         unityMode={shouldUseUnity ? unityMode : undefined}
+        onLoad={reported => {
+          // The preview app can degrade to Babylon internally even when we asked for Unity; trust the
+          // renderer it reports over our attempt when it's provided.
+          if (reported) onRenderer?.(reported)
+          onLoad?.(reported)
+        }}
         onError={error => {
           setShouldUseUnity(false)
+          onRenderer?.(PreviewRenderer.BABYLON)
           onError?.(error)
         }}
       />

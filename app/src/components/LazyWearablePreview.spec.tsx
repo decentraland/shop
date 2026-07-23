@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { act, render, screen, fireEvent } from '@testing-library/react'
 import { PreviewRenderer, PreviewUnityMode } from '@dcl/schemas'
 import { WearablePreview } from '~/components/LazyWearablePreview'
 import { pickRenderer } from '~/lib/pickRenderer'
@@ -90,5 +90,61 @@ describe('LazyWearablePreview', () => {
     expect(onError).toHaveBeenCalledOnce()
     expect(lastProps.unity).toBe(false) // flipped to Babylon
     expect(track).not.toHaveBeenCalled() // the Unity mount isn't tracked and a load error isn't either
+  })
+
+  it('reports the renderer the preview app hands to onLoad', async () => {
+    mockPick(PreviewRenderer.UNITY)
+    const onRenderer = vi.fn()
+    render(<WearablePreview unity onRenderer={onRenderer} />)
+    await screen.findByTestId('wp')
+    expect(onRenderer).not.toHaveBeenCalled() // nothing reported until the scene loads
+
+    act(() => lastProps.onLoad?.(PreviewRenderer.UNITY))
+    expect(onRenderer).toHaveBeenLastCalledWith(PreviewRenderer.UNITY)
+  })
+
+  it('reports Babylon via onRenderer when the preview app loads as Babylon', async () => {
+    mockPick(PreviewRenderer.BABYLON, 'slow-connection')
+    const onRenderer = vi.fn()
+    render(<WearablePreview unity onRenderer={onRenderer} />)
+    await screen.findByTestId('wp')
+
+    act(() => lastProps.onLoad?.(PreviewRenderer.BABYLON))
+    expect(onRenderer).toHaveBeenLastCalledWith(PreviewRenderer.BABYLON)
+  })
+
+  it('forwards onLoad but does not report a renderer when the app provides none', async () => {
+    mockPick(PreviewRenderer.UNITY)
+    const onRenderer = vi.fn()
+    const onLoad = vi.fn()
+    render(<WearablePreview unity onRenderer={onRenderer} onLoad={onLoad} />)
+    await screen.findByTestId('wp')
+
+    act(() => lastProps.onLoad?.(undefined))
+    expect(onLoad).toHaveBeenCalledWith(undefined)
+    expect(onRenderer).not.toHaveBeenCalled()
+  })
+
+  it('reports Babylon via onRenderer after a runtime load error', async () => {
+    mockPick(PreviewRenderer.UNITY)
+    const onRenderer = vi.fn()
+    render(<WearablePreview unity onRenderer={onRenderer} />)
+    const el = await screen.findByTestId('wp')
+
+    fireEvent.click(el) // iframe reports a load error → degrade to Babylon
+    expect(onRenderer).toHaveBeenLastCalledWith(PreviewRenderer.BABYLON)
+  })
+
+  it('trusts the renderer the preview app reports via onLoad over our attempt', async () => {
+    mockPick(PreviewRenderer.UNITY)
+    const onRenderer = vi.fn()
+    const onLoad = vi.fn()
+    render(<WearablePreview unity onRenderer={onRenderer} onLoad={onLoad} />)
+    await screen.findByTestId('wp')
+
+    // We asked for Unity, but the preview app degraded to Babylon internally and reports it on load.
+    act(() => lastProps.onLoad?.(PreviewRenderer.BABYLON))
+    expect(onLoad).toHaveBeenCalledWith(PreviewRenderer.BABYLON)
+    expect(onRenderer).toHaveBeenLastCalledWith(PreviewRenderer.BABYLON)
   })
 })

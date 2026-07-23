@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { WearablePreview } from '~/components/LazyWearablePreview'
 import { EmoteControls } from '~/components/LazyEmoteControls'
-import { PreviewEmote, PreviewType } from '@dcl/schemas'
+import { PreviewEmote, PreviewRenderer, PreviewType } from '@dcl/schemas'
 import { config } from '~/config'
 import { useWallet } from '~/store/wallet'
 import { useProfile } from '~/hooks/useProfile'
@@ -43,6 +43,13 @@ export function ItemPreview({ item }: { item: CatalogItem }) {
     setPreviewLoading(true)
   }, [item.id, itemAlone])
 
+  // Unity ships its own on-avatar/item + emote controls inside the scene, so our overlay controls would
+  // double up on them. Show them only when Babylon is the effective renderer — including when we asked
+  // for Unity but fell back to Babylon (slow link, low memory, or a load error). Undefined until the
+  // preview reports, so the Unity path never briefly flashes the overlay.
+  const [renderer, setRenderer] = useState<PreviewRenderer>(PreviewRenderer.UNITY)
+  const showControls = renderer === PreviewRenderer.BABYLON
+
   // Body-shape compatibility: mount on the CONNECTED avatar only when it supports the item's shape.
   // Otherwise (no avatar, or an incompatible one) preview on a default mannequin of a shape the item
   // DOES support — so a female-only item never renders invisible on a male avatar (and vice-versa).
@@ -74,6 +81,7 @@ export function ItemPreview({ item }: { item: CatalogItem }) {
           wheelStart={isEmote ? 100 : undefined}
           dev={config.chainId === 80002}
           unity
+          onRenderer={setRenderer}
           onLoad={() => setPreviewLoading(false)}
         />
       ) : null}
@@ -85,7 +93,7 @@ export function ItemPreview({ item }: { item: CatalogItem }) {
       {incompatible && !itemAlone ? (
         <p className="item-preview__note">{t('itemPreview.shownOnBody', { shape: shapeLabel(mannequinShape) })}</p>
       ) : null}
-      {!isEmote ? (
+      {!showControls ? null : !isEmote ? (
         // On desktop this is a text pill ("On avatar / Item") pinned top-left; on mobile it collapses
         // to an icon-only pill button-group at the bottom-right (Figma 1182-195374) — the SVG glyphs
         // show and the text labels hide (see item-detail.css). aria-label keeps each button named when
