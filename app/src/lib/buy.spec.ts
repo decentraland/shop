@@ -23,8 +23,23 @@ vi.mock('decentraland-transactions', () => ({
     name,
     version: '1',
     abi: ['function accept(uint256[] x)']
-  })
+  }),
+  sendMetaTransaction: vi.fn(),
+  MetaTransactionError: class MetaTransactionError extends Error {
+    code: string
+    constructor(message: string, code: string) {
+      super(message)
+      this.code = code
+    }
+  },
+  ErrorCode: { USER_DENIED: 'USER_DENIED' }
 }))
+
+// These buy.spec tests cover the DIRECT (gas-paying) paths — sendUseCredits and cancelListing's
+// fallback. Disable gasless so cancelListing skips the relayer branch (its gasless path is covered in
+// cancel-listing.spec.ts). The real ~/lib/authorizations stays (buy.ts's metaTxProviderShim/readProvider
+// are only reached on the gasless branch, which is off here; ensureChain resolves through it as before).
+vi.mock('~/lib/gasless-config', () => ({ gaslessConfig: { enabled: false, relayerUrl: '' } }))
 
 vi.mock('~/config', () => ({ config: { rpcUrl: 'http://localhost', chainId: 80002 } }))
 
