@@ -33,6 +33,9 @@ import {
   fetchListings,
   fetchUnified,
   fetchMyAssets,
+  fetchOwnedToken,
+  fetchResaleTokenInfo,
+  fetchResaleTokenInfos,
   fetchTrade,
   fetchTradeDisplay,
   fetchTradeForItem,
@@ -635,6 +638,98 @@ describe('when fetching the owned assets of a wallet', () => {
   })
 })
 
+describe('when fetching a single owned token', () => {
+  const nftRow = (order: unknown) => ({
+    total: 1,
+    data: [
+      {
+        nft: {
+          id: 'n1',
+          contractAddress: '0xc',
+          tokenId: '7',
+          itemId: '5',
+          name: 'Hat',
+          category: 'wearable',
+          image: 'i',
+          network: 'MATIC',
+          chainId: 80002
+        },
+        order
+      }
+    ]
+  })
+
+  it('should map a listed token with a usable order price without a trade lookup', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk(nftRow({ price: USD1, tradeId: 'trade-x' })))
+    const asset = await fetchOwnedToken('0xOWNER', '0xc', '7')
+    expect(asset).toMatchObject({ tokenId: '7', isOnSale: true, listingPrice: 10, tradeId: 'trade-x' })
+    // Only the /v1/nfts call — no trade fallback needed.
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('should resolve the price from the trade when the order price is missing (never show 0 for a live listing)', async () => {
+    fetchMock
+      // order present (listed) but price is null → MV lag
+      .mockResolvedValueOnce(jsonOk(nftRow({ price: null, tradeId: 'trade-x' })))
+      // the signed trade carries the received (USD-pegged) amount
+      .mockResolvedValueOnce(jsonOk({ data: { received: [{ amount: '2500000000000000000' }] } }))
+    const asset = await fetchOwnedToken('0xOWNER', '0xc', '7')
+    expect(asset?.listingPrice).toBe(25)
+    expect(String(fetchMock.mock.calls[1][0])).toBe('https://market.test/v1/trades/trade-x')
+  })
+
+  it('should keep the listing usable (no throw) when the trade fallback fails', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonOk(nftRow({ price: null, tradeId: 'trade-x' })))
+      .mockResolvedValueOnce(httpError(500))
+    const asset = await fetchOwnedToken('0xOWNER', '0xc', '7')
+    // Ownership + listing state still resolve; the price just stays unresolved (0) until a refetch —
+    // the point is the fallback failure must not throw and blow up the whole ownership check.
+    expect(asset).toMatchObject({ tokenId: '7', isOnSale: true, tradeId: 'trade-x' })
+    expect(asset?.listingPrice).toBe(0)
+  })
+
+  it('should return null when the wallet does not own the token', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ total: 0, data: [] }))
+    expect(await fetchOwnedToken('0xOWNER', '0xc', '7')).toBeNull()
+  })
+})
+
+describe('when resolving a resale token seller and issued number', () => {
+  it('should read the seller (owner) + issued number from /v1/nfts', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonOk({ data: [{ nft: { tokenId: '7', issuedId: '42', owner: '0xSeller' }, order: { owner: '0xOrderOwner' } }] })
+    )
+    const info = await fetchResaleTokenInfo('0xc', '7')
+    expect(info).toEqual({ seller: '0xSeller', issuedId: '42' })
+    expect(lastUrl()).toContain('https://nft.test/v1/nfts?')
+    expect(lastUrl()).toContain('tokenId=7')
+  })
+
+  it('should fall back to the order owner when the nft row carries no owner', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonOk({ data: [{ nft: { tokenId: '7', issuedId: '42' }, order: { owner: '0xOrderOwner' } }] })
+    )
+    expect(await fetchResaleTokenInfo('0xc', '7')).toEqual({ seller: '0xOrderOwner', issuedId: '42' })
+  })
+
+  it('should never attribute a seller from a row that did not match the token, and never throw', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ data: [{ nft: { tokenId: '99', owner: '0xWrong' } }] }))
+    expect(await fetchResaleTokenInfo('0xc', '7')).toEqual({})
+    fetchMock.mockResolvedValueOnce(httpError(500))
+    expect(await fetchResaleTokenInfo('0xc', '7')).toEqual({})
+  })
+
+  it('should batch a bounded set of tokens into a tokenId → info map', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonOk({ data: [{ nft: { tokenId: '10', issuedId: '1', owner: '0xa' } }] }))
+      .mockResolvedValueOnce(jsonOk({ data: [{ nft: { tokenId: '20', issuedId: '2', owner: '0xb' } }] }))
+    const map = await fetchResaleTokenInfos('0xc', ['10', '20'])
+    expect(map).toEqual({ '10': { seller: '0xa', issuedId: '1' }, '20': { seller: '0xb', issuedId: '2' } })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+})
+
 describe('when posting a signed trade', () => {
   it('should construct the TradeService with the app signer and marketplace url and forward addTrade', async () => {
     const trade = { id: 'the-trade' } as never
@@ -909,7 +1004,9 @@ describe('when fetching the open resales for an item', () => {
       })
     )
     const resales = await fetchItemResales('0xc', '9')
-    expect(resales.map(r => ({ id: r.id, tokenId: r.tokenId, source: r.source, priceCredits: r.priceCredits }))).toEqual([
+    expect(
+      resales.map(r => ({ id: r.id, tokenId: r.tokenId, source: r.source, priceCredits: r.priceCredits }))
+    ).toEqual([
       { id: 't-legacy', tokenId: '10', source: 'legacy', priceCredits: 12 },
       { id: 't-native', tokenId: '20', source: 'native', priceCredits: 25 }
     ])

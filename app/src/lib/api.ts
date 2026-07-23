@@ -643,10 +643,63 @@ export async function fetchOwnedToken(
     // Guard on the token id too: the endpoint filters server-side, but never claim ownership of a
     // token the response didn't actually match (defensive against a loose/again-cached row).
     if (!r || r.nft.tokenId !== tokenId) return null
-    return toMyAsset(r)
+    const asset = toMyAsset(r)
+    // The indexer's `order.price` can be transiently null/0 for a live listing (the secondary-listings
+    // materialized view lags the trade). That would show the OWNER a "0" price for their own listing on
+    // the PDP. When the token is on sale but carries no usable price, resolve it authoritatively from
+    // the signed trade's received amount (USD-pegged → credits) so a live listing never reads 0.
+    if (asset.isOnSale && asset.tradeId && !asset.listingPrice) {
+      try {
+        const trade = await fetchTrade(asset.tradeId)
+        const amount = (trade.received?.[0] as { amount?: string } | undefined)?.amount
+        const credits = toCredits(amount)
+        if (credits > 0) asset.listingPrice = credits
+      } catch {
+        // Keep the (missing) price rather than fail the whole ownership check — the manage view still
+        // works; the price just stays unresolved until the next refetch.
+      }
+    }
+    return asset
   } catch {
     return null
   }
+}
+
+// Seller + issued number for a specific listed token, resolved from the indexer's /v1/nfts endpoint.
+// The unified shop feed (fetchItemResales) carries NEITHER — it's a per-trade projection with no owner
+// or mint index — so the resale rows resolve these client-side, per visible (paginated) token. Seller
+// = the token's current owner (the reseller); issuedId = its mint index ("#N"). Best-effort: any miss
+// returns empty so a row still renders (without the seller line / with the generic label) rather than
+// fabricating a value.
+export type ResaleTokenInfo = { seller?: string; issuedId?: string }
+
+export async function fetchResaleTokenInfo(contractAddress: string, tokenId: string): Promise<ResaleTokenInfo> {
+  try {
+    const qs = new URLSearchParams({ contractAddress, tokenId, first: '1' })
+    const res = await fetch(`${NFT_V1}/nfts?${qs.toString()}`)
+    if (!res.ok) return {}
+    const { data } = (await res.json()) as {
+      data?: Array<{ nft?: { tokenId?: string; issuedId?: string; owner?: string }; order?: { owner?: string } | null }>
+    }
+    const row = data?.[0]
+    // Never attribute a seller/issued number from a row the endpoint didn't actually match on tokenId.
+    if (!row?.nft || row.nft.tokenId !== tokenId) return {}
+    return { seller: row.nft.owner ?? row.order?.owner, issuedId: row.nft.issuedId }
+  } catch {
+    return {}
+  }
+}
+
+// Batched seller/issued lookup for the VISIBLE (paginated) resale rows only — never the whole unbounded
+// resale set. Returns a tokenId → info map; missing/failed tokens are simply absent.
+export async function fetchResaleTokenInfos(
+  contractAddress: string,
+  tokenIds: string[]
+): Promise<Record<string, ResaleTokenInfo>> {
+  const entries = await Promise.all(
+    tokenIds.map(async id => [id, await fetchResaleTokenInfo(contractAddress, id)] as const)
+  )
+  return Object.fromEntries(entries)
 }
 
 // The metadata "signer" is the APP identifier (server validates it ∈ ['dcl:marketplace','dcl:builder']),
