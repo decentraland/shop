@@ -29,6 +29,7 @@ import {
   usdWeiToCents,
   fetchCatalog,
   fetchCollectionSaleState,
+  fetchSecondarySaleState,
   fetchShopListingForItem,
   fetchListings,
   fetchUnified,
@@ -37,6 +38,7 @@ import {
   fetchOwnedToken,
   fetchResaleTokenInfo,
   fetchResaleTokenInfos,
+  fetchTokenById,
   fetchTrade,
   fetchTradeDisplay,
   fetchTradeForItem,
@@ -239,6 +241,36 @@ describe('when resolving a collection sale state from the shop feed', () => {
   it('should propagate the shop-feed error', async () => {
     fetchMock.mockResolvedValueOnce(httpError(500))
     await expect(fetchCollectionSaleState('0xcol')).rejects.toThrow('fetchShopListings 500')
+  })
+})
+
+describe('when resolving a secondary sale state from the shop feed', () => {
+  it('should key secondary listings by tokenId and skip primary / tokenId-less rows', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonOk({
+        total: 3,
+        data: [
+          { tradeId: 't1', listingType: 'secondary', tokenId: '42', priceCredits: 135 },
+          { tradeId: 't2', listingType: 'primary', itemId: '2', priceCredits: 20 },
+          { tradeId: 't3', listingType: 'secondary', tokenId: null, priceCredits: 30 }
+        ]
+      })
+    )
+    const map = await fetchSecondarySaleState('0xcol')
+    expect(Object.keys(map)).toEqual(['42'])
+    expect(map['42']).toEqual({ priceCredits: 135, tradeId: 't1' })
+    expect(lastUrl()).toContain('https://market.test/v3/catalog/shop?')
+    expect(lastUrl()).toContain('contractAddress=0xcol')
+  })
+
+  it('should return an empty map when the collection has no secondary listings', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ data: [], total: 0 }))
+    expect(await fetchSecondarySaleState('0xcol')).toEqual({})
+  })
+
+  it('should propagate the shop-feed error', async () => {
+    fetchMock.mockResolvedValueOnce(httpError(500))
+    await expect(fetchSecondarySaleState('0xcol')).rejects.toThrow('fetchShopListings 500')
   })
 })
 
@@ -814,6 +846,48 @@ describe('when resolving a resale token seller and issued number', () => {
     const map = await fetchResaleTokenInfos('0xc', ['10', '20'])
     expect(map).toEqual({ '10': { seller: '0xa', issuedId: '1' }, '20': { seller: '0xb', issuedId: '2' } })
     expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('when fetching a single token publicly (deep-link fallback)', () => {
+  it('should hit v1/nfts by contract + token WITHOUT an owner filter and map the listing', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonOk({
+        data: [
+          {
+            nft: {
+              id: 'n1',
+              contractAddress: '0xc',
+              tokenId: '77',
+              itemId: '5',
+              name: 'Resale',
+              category: 'wearable',
+              image: 'img1',
+              network: 'MATIC',
+              chainId: 80002,
+              data: { wearable: { rarity: 'legendary' } }
+            },
+            order: { price: USD1, tradeId: 'trade-x' }
+          }
+        ]
+      })
+    )
+    const asset = await fetchTokenById('0xc', '77')
+    const url = lastUrl()
+    expect(url).toContain('https://nft.test/v1/nfts?')
+    expect(url).toContain('tokenId=77')
+    expect(url).not.toContain('owner=')
+    expect(asset).toMatchObject({ id: 'n1', tokenId: '77', isOnSale: true, listingPrice: 10, tradeId: 'trade-x' })
+  })
+
+  it('should return null when the row does not match the requested token', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ data: [{ nft: { tokenId: '99' }, order: null }] }))
+    expect(await fetchTokenById('0xc', '77')).toBeNull()
+  })
+
+  it('should return null on a failed request', async () => {
+    fetchMock.mockResolvedValueOnce(httpError(500))
+    expect(await fetchTokenById('0xc', '77')).toBeNull()
   })
 })
 

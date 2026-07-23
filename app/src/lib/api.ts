@@ -172,6 +172,23 @@ export async function fetchCollectionSaleState(
   return map
 }
 
+// Per-TOKEN secondary sale state for a collection, from the v3 shop feed. Keyed by tokenId, carrying
+// the credit price + tradeId. The indexer's /v1/nfts `order` is a legacy on-chain (MANA) field and is
+// absent for a shop (USD-pegged, off-chain trade) resale, so an on-sale owned token has no credit price
+// there — this resolves it from the authoritative shop feed, mirroring fetchCollectionSaleState for
+// primary listings. Only USD-pegged (credit-buyable) secondary listings appear here.
+export async function fetchSecondarySaleState(
+  contractAddress: string
+): Promise<Record<string, { priceCredits: number; tradeId: string }>> {
+  const { listings } = await fetchShopListingsRaw({ contractAddress, first: 200 })
+  const map: Record<string, { priceCredits: number; tradeId: string }> = {}
+  for (const l of listings) {
+    if (l.listingType !== 'secondary' || l.tokenId == null) continue
+    map[String(l.tokenId)] = { priceCredits: l.priceCredits, tradeId: l.tradeId }
+  }
+  return map
+}
+
 type NftMeta = {
   name: string
   image: string
@@ -737,6 +754,27 @@ export async function fetchResaleTokenInfos(
     tokenIds.map(async id => [id, await fetchResaleTokenInfo(contractAddress, id)] as const)
   )
   return Object.fromEntries(entries)
+}
+
+// PUBLIC lookup of ONE specific token by (contract, tokenId) — NOT scoped to a viewer/owner. Powers
+// deep links / refreshes / shared URLs of a secondary token's detail page: unlike fetchOwnedToken this
+// resolves for anyone (logged out, or a viewer who doesn't own the token), so the page renders instead
+// of falling through to a "Not Found" stub. Same /v1/nfts row → MyAsset mapping, so it carries the
+// token's open listing (isOnSale + listingPrice + tradeId) when it's on sale. Returns null if the token
+// doesn't exist or on any error.
+export async function fetchTokenById(contractAddress: string, tokenId: string): Promise<MyAsset | null> {
+  try {
+    const qs = new URLSearchParams({ contractAddress, tokenId, first: '1' })
+    const res = await fetch(`${NFT_V1}/nfts?${qs.toString()}`)
+    if (!res.ok) return null
+    const { data } = (await res.json()) as { data: NFTResult[] }
+    const r = data?.[0]
+    // The endpoint filters server-side, but only trust a row that actually matches the requested token.
+    if (!r || r.nft.tokenId !== tokenId) return null
+    return toMyAsset(r)
+  } catch {
+    return null
+  }
 }
 
 // The metadata "signer" is the APP identifier (server validates it ∈ ['dcl:marketplace','dcl:builder']),

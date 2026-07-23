@@ -12,6 +12,7 @@ import {
   fetchTradeForItem,
   fetchItemDescription,
   fetchOwnedToken,
+  fetchTokenById,
   fetchTrade,
   type CatalogItem,
   type LegacyListing,
@@ -457,6 +458,49 @@ export function ItemDetail() {
       }
     })
   }, [ownedAsset])
+
+  // PUBLIC deep-link fallback for a SECONDARY token: when the segment is a tokenId that neither the
+  // primary itemId hydrate (deepLinkItem) nor a sibling matched, AND the owner-scoped owned-token query
+  // didn't resolve it (viewer is logged out, or doesn't own this token), resolve the token publicly so
+  // the page renders for ANYONE (shared links, refresh, non-owners) instead of a "Not Found" stub. Only
+  // fires once those paths have settled empty; harmless on an itemId URL (no token matches → null).
+  const { data: publicToken } = useQuery({
+    queryKey: ['public-token', current.contractAddress, current.tokenId],
+    enabled:
+      !isMarket &&
+      !!current.contractAddress &&
+      !!current.tokenId &&
+      !current.name &&
+      !deepLinkItem &&
+      !ownedAssetLoading &&
+      !ownedAsset,
+    queryFn: () => fetchTokenById(current.contractAddress, current.tokenId as string)
+  })
+
+  useEffect(() => {
+    if (!publicToken) return
+    setCurrent(prev => {
+      if (prev.name) return prev.issuedId ? prev : { ...prev, issuedId: publicToken.issuedId }
+      return {
+        id: publicToken.id,
+        name: publicToken.name,
+        creator: '',
+        contractAddress: publicToken.contractAddress,
+        itemId: publicToken.itemId,
+        category: publicToken.category,
+        rarity: publicToken.rarity ?? 'common',
+        network: publicToken.network,
+        chainId: publicToken.chainId,
+        thumbnail: publicToken.image,
+        priceCredits: publicToken.listingPrice ?? 0,
+        gender: null,
+        isSmart: false,
+        tokenId: publicToken.tokenId,
+        issuedId: publicToken.issuedId,
+        tradeId: publicToken.tradeId
+      }
+    })
+  }, [publicToken])
 
   // The creator's builder record for this primary item — needed to open PrimaryListModal (it carries
   // the collection name, remaining supply, and minter prereq). Only fetched for your own primary item.
