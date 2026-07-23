@@ -1,83 +1,102 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { PreviewRenderer } from '@dcl/schemas'
 import { pickRenderer } from '~/lib/pickRenderer'
-import { estimateConnection, type ConnectionEstimate } from '~/lib/estimateConnection'
 
-vi.mock('~/lib/estimateConnection', () => ({ estimateConnection: vi.fn() }))
+type Entry = Partial<PerformanceResourceTiming>
 
-const mockEstimate = (e: Partial<ConnectionEstimate>) =>
-  vi.mocked(estimateConnection).mockReturnValue({ mbps: 100, saveData: false, source: 'resource-timing', ...e })
-
-// hover:hover matches on desktop (precise pointer), never on mobile/touch.
-function setDesktop(isDesktop: boolean) {
-  Object.defineProperty(window, 'matchMedia', {
-    configurable: true,
-    value: (query: string) => ({ matches: query.includes('hover: hover') ? isDesktop : false })
-  })
+function setResources(entries: Entry[]) {
+  vi.spyOn(performance, 'getEntriesByType').mockReturnValue(entries as PerformanceResourceTiming[])
 }
 
-function setWebGL2(available: boolean) {
-  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(((type: string) =>
-    type === 'webgl2' && available ? ({} as object) : null) as never)
+// A single sizable transfer that yields ~`mbps` (duration fixed at 100ms).
+function setMeasuredMbps(mbps: number) {
+  setResources([{ transferSize: mbps * 12_500, duration: 100 }])
+}
+
+function setConnection(value: unknown) {
+  Object.defineProperty(navigator, 'connection', { value, configurable: true })
 }
 
 function setDeviceMemory(gb: number | undefined) {
   Object.defineProperty(navigator, 'deviceMemory', { value: gb, configurable: true })
 }
 
+// The max-width breakpoint query matches on mobile-width viewports, not on wider desktop ones.
+function setMobileViewport(isMobile: boolean) {
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    value: (query: string) => ({ matches: query.includes('max-width') ? isMobile : false })
+  })
+}
+
 beforeEach(() => {
-  setDesktop(true)
-  setWebGL2(true)
+  setMobileViewport(false)
   setDeviceMemory(8)
-  mockEstimate({})
+  setResources([])
 })
 
 afterEach(() => {
   vi.restoreAllMocks()
+  delete (navigator as { connection?: unknown }).connection
   delete (navigator as { deviceMemory?: unknown }).deviceMemory
   delete (window as { matchMedia?: unknown }).matchMedia
 })
 
 describe('pickRenderer', () => {
-  it('always uses Babylon on mobile, regardless of other signals', () => {
-    setDesktop(false)
-    mockEstimate({ mbps: 100 })
+  it('always uses Babylon on mobile viewports', () => {
+    setMobileViewport(true)
+    setMeasuredMbps(100)
     expect(pickRenderer()).toEqual({ renderer: PreviewRenderer.BABYLON, reason: 'mobile' })
   })
 
-  it('prefers Unity on desktop when connection and device clear the bar', () => {
-    mockEstimate({ mbps: 50 })
-    expect(pickRenderer()).toEqual({ renderer: PreviewRenderer.UNITY, reason: 'connection-ok' })
-  })
-
-  it('stays optimistic (Unity) on desktop when bandwidth is unknown', () => {
-    mockEstimate({ mbps: null })
-    expect(pickRenderer()).toEqual({ renderer: PreviewRenderer.UNITY, reason: 'optimistic-default' })
-  })
-
   it('degrades to Babylon when saveData is on', () => {
-    mockEstimate({ mbps: 100, saveData: true })
+    setMeasuredMbps(100)
+    setConnection({ saveData: true })
     expect(pickRenderer()).toEqual({ renderer: PreviewRenderer.BABYLON, reason: 'save-data' })
   })
 
-  it('degrades to Babylon without WebGL2', () => {
-    setWebGL2(false)
-    expect(pickRenderer().reason).toBe('no-webgl2')
+  describe('measured throughput uses the 10 Mbps bar', () => {
+    it('prefers Unity from the fastest sizable transfer, ignoring small/cached entries', () => {
+      setResources([
+        { transferSize: 100_000, duration: 200 }, // 4 Mbps
+        { transferSize: 50 * 12_500, duration: 100 }, // 50 Mbps ← peak
+        { transferSize: 5_000, duration: 50 }, // too small, ignored
+        { transferSize: 0, duration: 30 } // cached / cross-origin, ignored
+      ])
+      expect(pickRenderer()).toEqual({ renderer: PreviewRenderer.UNITY, reason: 'connection-ok' })
+    })
+
+    it('degrades to Babylon below 10 Mbps', () => {
+      setMeasuredMbps(8)
+      expect(pickRenderer()).toEqual({ renderer: PreviewRenderer.BABYLON, reason: 'slow-connection' })
+    })
+  })
+
+  describe('browser downlink uses the lower 4 Mbps bar when nothing is measurable', () => {
+    it('prefers Unity at or above 4 Mbps', () => {
+      setConnection({ downlink: 5 })
+      expect(pickRenderer()).toEqual({ renderer: PreviewRenderer.UNITY, reason: 'connection-ok' })
+    })
+
+    it('degrades to Babylon below 4 Mbps', () => {
+      setConnection({ downlink: 3 })
+      expect(pickRenderer()).toEqual({ renderer: PreviewRenderer.BABYLON, reason: 'slow-connection' })
+    })
+  })
+
+  it('stays optimistic (Unity) when no bandwidth signal is available', () => {
+    expect(pickRenderer()).toEqual({ renderer: PreviewRenderer.UNITY, reason: 'optimistic-default' })
   })
 
   it('degrades to Babylon on low-memory devices', () => {
+    setMeasuredMbps(100)
     setDeviceMemory(2)
     expect(pickRenderer()).toEqual({ renderer: PreviewRenderer.BABYLON, reason: 'low-device-memory' })
   })
 
   it('does not disqualify when deviceMemory is unavailable', () => {
+    setMeasuredMbps(50)
     setDeviceMemory(undefined)
-    mockEstimate({ mbps: 50 })
     expect(pickRenderer().renderer).toBe(PreviewRenderer.UNITY)
-  })
-
-  it('degrades to Babylon below the 10 Mbps bar', () => {
-    mockEstimate({ mbps: 8 })
-    expect(pickRenderer()).toEqual({ renderer: PreviewRenderer.BABYLON, reason: 'slow-connection' })
   })
 })

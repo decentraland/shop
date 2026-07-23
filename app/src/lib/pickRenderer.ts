@@ -1,71 +1,85 @@
 import { PreviewRenderer } from '@dcl/schemas'
-import { estimateConnection } from '~/lib/estimateConnection'
+import { breakpoints } from '~/styles/theme'
 
-// The item preview PREFERS Unity (higher fidelity + accuracy) and degrades to Babylon when a condition
-// is unmet. Policy:
-//   - Mobile → always Babylon. Unity's heavy WebGL runtime is a poor fit for mobile hardware/networks.
-//   - Desktop → attempt Unity only when the passive metrics clear the bar (fast enough link + enough
-//     memory + WebGL2 + no data-saver); unknown signals stay optimistic (Unity).
-// The preview app itself paints Babylon first and upgrades to Unity, so attempting Unity is never a
-// blank wait; this gate is about not spending a heavy Unity download/runtime where it won't pay off.
-
-// Minimum estimated downlink (Mbps) to attempt Unity on desktop. Benchmark: Unity ~2.8s at ~300Mbps vs
-// ~15.7s at ~4Mbps — require a comfortable link before committing to the large WebGL bundle.
+// Benchmark: Unity ~2.8s at ~300Mbps vs ~15.7s at ~4Mbps — require a comfortable link for the big bundle.
 export const UNITY_MIN_MBPS = 10
+// navigator.connection.downlink is a coarse browser estimate, capped differently than a real transfer,
+// so it gets its own lower, non-comparable bar.
+export const UNITY_MIN_DOWNLINK_MBPS = 4
+export const UNITY_MIN_DEVICE_MEMORY = 4 // in GB
 
-// Minimum device memory (GB) to attempt Unity; below this the Unity WebGL runtime risks stalling/OOM.
-// navigator.deviceMemory is coarse and Chromium-only — when absent it is NOT treated as a disqualifier.
-export const UNITY_MIN_DEVICE_MEMORY = 4
+// Transfers smaller than this are dominated by latency/slow-start and skew the throughput estimate.
+const MIN_SAMPLE_BYTES = 30_000
 
 export type RendererReason =
-  | 'mobile'
-  | 'save-data'
-  | 'no-webgl2'
-  | 'low-device-memory'
-  | 'slow-connection'
-  | 'connection-ok'
-  | 'optimistic-default'
+  'mobile' | 'save-data' | 'slow-connection' | 'low-device-memory' | 'connection-ok' | 'optimistic-default'
 
-export type RendererDecision = {
-  renderer: PreviewRenderer
-  reason: RendererReason
+export type RendererDecision = { renderer: PreviewRenderer; reason: RendererReason }
+
+type NavigatorConnection = { downlink?: number; saveData?: boolean }
+
+/**
+ * Returns the navigator.connection object, if available.
+ * Note: navigator.connection is not available in all browsers, and its properties may be undefined.
+ */
+function connection(): NavigatorConnection | undefined {
+  if (typeof navigator === 'undefined') return undefined
+  return (navigator as unknown as { connection?: NavigatorConnection }).connection
 }
 
-// Mobile/touch devices lack a precise hover pointer; the app already uses this signal to gate
-// hover-only affordances (see AssetCard). Treated as the desktop-vs-mobile split for the renderer.
-function isMobile(): boolean {
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false
-  return !window.matchMedia('(hover: hover)').matches
-}
-
-function hasWebGL2(): boolean {
-  if (typeof document === 'undefined') return true
-  try {
-    return !!document.createElement('canvas').getContext('webgl2')
-  } catch {
-    return false
-  }
-}
-
+/**
+ * Returns the device memory in GB, if available.
+ * Note: deviceMemory is not available in all browsers.
+ */
 function deviceMemory(): number | undefined {
   if (typeof navigator === 'undefined') return undefined
   return (navigator as unknown as { deviceMemory?: number }).deviceMemory
 }
 
+// theme.ts `mobile` = 768px; Unity's heavier runtime is reserved for wider (desktop) viewports.
+function isMobile(): boolean {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false
+  return window.matchMedia(`(max-width: ${breakpoints.mobile}px)`).matches
+}
+
+// Peak downlink (Mbps) from same-origin assets already fetched, so no extra request. transferSize is 0
+// for cache hits and cross-origin-without-TAO (both dropped); parallel loads only depress a sample, so
+// the max is the least-contended estimate. null when nothing usable has loaded yet.
+function measuredMbps(): number | null {
+  if (typeof performance === 'undefined' || typeof performance.getEntriesByType !== 'function') return null
+  let best: number | null = null
+  for (const e of performance.getEntriesByType('resource') as PerformanceResourceTiming[]) {
+    if (e.transferSize >= MIN_SAMPLE_BYTES && e.duration > 0) {
+      const mbps = (e.transferSize * 8) / 1e6 / (e.duration / 1000)
+      if (best === null || mbps > best) best = mbps
+    }
+  }
+  return best
+}
+
+/**
+ * Chooses the item-preview renderer. Prefers Unity (higher fidelity), degrading to Babylon on mobile,
+ * data-saver, a slow link, or low memory; unknown signals stay optimistic.
+ */
 export function pickRenderer(): RendererDecision {
   const babylon = (reason: RendererReason): RendererDecision => ({ renderer: PreviewRenderer.BABYLON, reason })
 
   if (isMobile()) return babylon('mobile')
 
-  const { mbps, saveData } = estimateConnection()
+  const conn = connection()
+  if (conn?.saveData) return babylon('save-data')
 
-  if (saveData) return babylon('save-data')
-  if (!hasWebGL2()) return babylon('no-webgl2')
+  // A real transfer measurement wins; only fall back to the browser's downlink estimate when we have none.
+  const measured = measuredMbps()
+  const downlink = conn?.downlink
+  if (measured !== null && measured < UNITY_MIN_MBPS) return babylon('slow-connection')
+  else if (measured === null && typeof downlink === 'number' && downlink > 0 && downlink < UNITY_MIN_DOWNLINK_MBPS) {
+    return babylon('slow-connection')
+  }
 
   const mem = deviceMemory()
   if (mem !== undefined && mem < UNITY_MIN_DEVICE_MEMORY) return babylon('low-device-memory')
 
-  if (mbps !== null && mbps < UNITY_MIN_MBPS) return babylon('slow-connection')
-
-  return { renderer: PreviewRenderer.UNITY, reason: mbps === null ? 'optimistic-default' : 'connection-ok' }
+  const hasReading = measured !== null || typeof downlink === 'number'
+  return { renderer: PreviewRenderer.UNITY, reason: hasReading ? 'connection-ok' : 'optimistic-default' }
 }
