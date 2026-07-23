@@ -1,5 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { Rarity } from '@dcl/schemas'
 import { config } from '~/config'
 import { useCart } from '~/store/cart'
 import { useWallet } from '~/store/wallet'
@@ -12,16 +14,17 @@ import {
   type UnifiedListing
 } from '~/lib/api'
 import { useManaRate } from '~/hooks/useManaRate'
+import { useProfile } from '~/hooks/useProfile'
 import { formatCredits } from '~/lib/currency'
+import { capitalizeFirst } from '~/lib/text'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { Icon } from '~/components/Icon'
-import { CreatorBadge } from '~/components/CreatorBadge'
 import { BuyModal } from '~/components/BuyModal'
 import { MarketCheckout } from '~/components/MarketCheckout'
 import { t } from '~/intl/i18n'
 import './item-resales.css'
 
-// How many resale rows to show before "Show more". Keeps a hot item's long tail of listings from
+// How many resale rows to show before "See more". Keeps a hot item's long tail of listings from
 // blowing up the page (and bounds the per-token seller/issued lookup to the visible rows).
 const PAGE_SIZE = 8
 
@@ -40,6 +43,34 @@ function marketplaceItemUrl(contractAddress: string, tokenId: string): string {
     // keep the production default
   }
   return `${origin}/marketplace/contracts/${contractAddress}/tokens/${tokenId}`
+}
+
+// The item's total supply = its rarity's max supply (the classic marketplace shows serials as
+// "#N / maxSupply"). Rarity-derived, so no extra fetch. Undefined for an unknown rarity → the serial
+// line drops the "of N" suffix rather than showing a wrong total.
+function totalSupplyFor(rarity?: string): number | undefined {
+  if (!rarity) return undefined
+  try {
+    return Rarity.getMaxSupply(rarity as Rarity)
+  } catch {
+    return undefined
+  }
+}
+
+function shortAddress(addr: string): string {
+  return /^0x[a-fA-F0-9]{40}$/.test(addr) ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : addr
+}
+
+// Deterministic, readable color from the address so a seller without a face snapshot keeps a stable
+// hue (mid lightness so the white initial stays legible). Mirrors CreatorBadge.
+function colorForAddress(addr: string): string {
+  let hash = 0
+  for (let i = 0; i < addr.length; i++) hash = (hash * 31 + addr.charCodeAt(i)) >>> 0
+  return `hsl(${hash % 360}, 52%, 45%)`
+}
+
+function initialFor(name: string | undefined, address: string): string {
+  return (name?.trim()?.[0] || address.replace(/^0x/i, '')[0] || '?').toUpperCase()
 }
 
 // A legacy (MANA-priced) resale row → the LegacyListing shape MarketCheckout consumes. The money flow
@@ -65,11 +96,161 @@ function resaleToLegacyListing(r: UnifiedListing): LegacyListing {
   }
 }
 
-// Open resales (secondary listings) for THIS item, shown below the main detail. Every row sourced from
-// the unified feed is a credit-buyable off-chain trade: NATIVE rows (fixed credits) buy via the shop's
-// BuyModal + Add to cart; LEGACY rows (MANA, "≈ credits") buy via the market/credits MarketCheckout
-// (Buy-only, mirroring the browse grid, which never carts legacy). Classic on-chain orders (no trade)
-// are non-buyable and hidden by default (SHOW_LEGACY_RESALES).
+// One reseller row: the seller's avatar leads, then their name + serial number, then price + actions.
+// `useProfile` (per row, deduped by react-query) resolves the seller's face + display name.
+function ResellerRow({
+  r,
+  seller,
+  issuedId,
+  total,
+  isOwn,
+  isLegacy,
+  inCart,
+  fallbackImage,
+  onAdd,
+  onBuyNative,
+  onBuyLegacy
+}: {
+  r: UnifiedListing
+  seller?: string
+  issuedId?: string
+  total?: number
+  isOwn: boolean
+  isLegacy: boolean
+  inCart: boolean
+  fallbackImage?: string
+  onAdd: () => void
+  onBuyNative: () => void
+  onBuyLegacy: () => void
+}) {
+  const navigate = useNavigate()
+  const { data: profile } = useProfile(seller)
+  const face = profile?.avatar?.snapshots?.face256
+  // `broken` resets when the face url changes because rows reuse component instances across sellers.
+  const [broken, setBroken] = useState(false)
+  useEffect(() => setBroken(false), [face])
+
+  const showFace = !!face && !broken
+  const name = seller ? (profile?.name ? capitalizeFirst(profile.name) : shortAddress(seller)) : undefined
+
+  const avatar = showFace ? (
+    <img className="resales__ava" src={face} alt="" loading="lazy" onError={() => setBroken(true)} />
+  ) : seller ? (
+    <span
+      className="resales__ava resales__ava--letter"
+      style={{ backgroundColor: colorForAddress(seller) }}
+      aria-hidden
+    >
+      {initialFor(profile?.name, seller)}
+    </span>
+  ) : fallbackImage ? (
+    <img className="resales__ava" src={fallbackImage} alt="" aria-hidden />
+  ) : (
+    <span className="resales__ava resales__ava--empty" aria-hidden />
+  )
+
+  const ident = (
+    <span className="resales__ident">
+      {name ? (
+        <span className="resales__name" data-testid="resale-seller">
+          {name}
+        </span>
+      ) : null}
+      {issuedId ? (
+        <span className="resales__serial">
+          {t('resales.serialLabel')}{' '}
+          <span className="resales__issued" data-testid="resale-issued">
+            #{issuedId}
+          </span>
+          {total ? ` ${t('resales.serialOf')} ${total.toLocaleString('en-US')}` : ''}
+        </span>
+      ) : (
+        <span className="resales__serial resales__serial--muted">{t('resales.copy')}</span>
+      )}
+    </span>
+  )
+
+  const who = seller ? (
+    <button
+      type="button"
+      className="resales__who resales__who--link"
+      onClick={() => navigate(`/assets/creator/${seller}`)}
+    >
+      {avatar}
+      {ident}
+    </button>
+  ) : (
+    <div className="resales__who">
+      {avatar}
+      {ident}
+    </div>
+  )
+
+  return (
+    <li
+      className={`resales__row${isLegacy ? ' resales__row--legacy' : ''}`}
+      data-testid="resale-row"
+      data-source={r.source}
+      data-own={isOwn ? 'true' : undefined}
+    >
+      {who}
+      <div className={`resales__price${isLegacy ? ' resales__price--approx' : ''}`}>
+        {isLegacy ? (
+          <span className="resales__approx" aria-hidden>
+            ≈
+          </span>
+        ) : null}
+        <CurrencyIcon className="resales__diamond" />
+        <span className="resales__price-value">{formatCredits(r.priceCredits)}</span>
+      </div>
+      <div className="resales__actions">
+        {isOwn ? (
+          <span className="chip resales__own-chip" data-testid="resale-own">
+            {t('resales.yourListing')}
+          </span>
+        ) : isLegacy ? (
+          // Legacy (MANA) resale: Buy-only via the market/credits checkout (no cart — the cart assumes
+          // fixed credit prices; a MANA line's price floats with the rate).
+          <button
+            className="resales__buy"
+            onClick={onBuyLegacy}
+            aria-label={t('assetCard.buyNow')}
+            data-testid="resale-buy"
+          >
+            {t('assetCard.buyNow')}
+          </button>
+        ) : (
+          <>
+            <button
+              className="resales__add"
+              onClick={onAdd}
+              disabled={inCart}
+              aria-label={inCart ? t('assetCard.inCart') : t('assetCard.addToCart')}
+              data-testid="resale-add"
+            >
+              <Icon name="cart-solid" size={16} />
+              <span>{inCart ? t('assetCard.inCart') : t('assetCard.addToCart')}</span>
+            </button>
+            <button
+              className="resales__buy"
+              onClick={onBuyNative}
+              aria-label={t('assetCard.buyNow')}
+              data-testid="resale-buy"
+            >
+              {t('assetCard.buyNow')}
+            </button>
+          </>
+        )}
+      </div>
+    </li>
+  )
+}
+
+// Open resales (secondary listings) for THIS item, shown below the main detail as a "Resellers" table.
+// Every row sourced from the unified feed is a credit-buyable off-chain trade: NATIVE rows (fixed
+// credits) buy via the shop's BuyModal + Add to cart; LEGACY rows (MANA, "≈ credits") buy via the
+// market/credits MarketCheckout (Buy-only, mirroring the browse grid, which never carts legacy).
+// Classic on-chain orders (no trade) are non-buyable and hidden by default (SHOW_LEGACY_RESALES).
 export function ItemResales({ item }: { item: CatalogItem }) {
   const contractAddress = item.contractAddress
   const itemId = item.itemId
@@ -83,6 +264,8 @@ export function ItemResales({ item }: { item: CatalogItem }) {
   const [buyLegacy, setBuyLegacy] = useState<LegacyListing | null>(null)
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
 
+  const total = totalSupplyFor(item.rarity)
+
   const { data: resales = [], isLoading } = useQuery({
     queryKey: ['item-resales', contractAddress, itemId],
     enabled: !!contractAddress && !!itemId,
@@ -90,18 +273,21 @@ export function ItemResales({ item }: { item: CatalogItem }) {
     queryFn: () => fetchItemResales(contractAddress, itemId as string)
   })
 
-  // Only the current page is rendered — and only its tokens are looked up for seller/issued number.
   const visibleResales = resales.slice(0, visibleCount)
-  const visibleTokenIds = visibleResales.map(r => r.tokenId).filter((id): id is string => !!id)
 
-  // The unified feed carries NEITHER seller NOR issued number, so resolve them per visible token from
-  // /v1/nfts (bounded to the page). Recommended follow-up: have the feed expose seller/issuedId so this
-  // extra round-trip goes away.
+  // The feed now carries seller + issued number per secondary row. Only rows STILL missing either
+  // (older server, or a gap in the feed) fall back to the per-token /v1/nfts lookup — so once the
+  // server populates them for every row this N+1 goes away on its own (the list becomes empty).
+  const lookupTokenIds = visibleResales
+    .filter(r => !r.seller || !r.issuedId)
+    .map(r => r.tokenId)
+    .filter((id): id is string => !!id)
+
   const { data: tokenInfo = {} } = useQuery({
-    queryKey: ['resale-token-info', contractAddress, visibleTokenIds.join(',')],
-    enabled: !!contractAddress && visibleTokenIds.length > 0,
+    queryKey: ['resale-token-info', contractAddress, lookupTokenIds.join(',')],
+    enabled: !!contractAddress && lookupTokenIds.length > 0,
     staleTime: 60_000,
-    queryFn: () => fetchResaleTokenInfos(contractAddress, visibleTokenIds)
+    queryFn: () => fetchResaleTokenInfos(contractAddress, lookupTokenIds)
   })
 
   const { data: classicOrders = [] } = useQuery({
@@ -137,84 +323,41 @@ export function ItemResales({ item }: { item: CatalogItem }) {
               const isLegacy = r.source === 'legacy'
               const inCart = cartItems.some(i => i.id === r.id)
               const info = (r.tokenId && tokenInfo[r.tokenId]) || {}
-              const issuedId = info.issuedId ?? r.issuedId
-              const seller = info.seller
+              // Prefer the feed's own fields; fall back to the per-token lookup only where the feed is
+              // missing them.
+              const issuedId = r.issuedId ?? info.issuedId
+              const seller = r.seller ?? info.seller
+              // Secondary (per-token) feed rows don't carry the item's name/thumbnail (that metadata
+              // lives on the item, not the token), so a resale added to the cart would show a blank
+              // name. Every resale here is a copy of THIS item, so backfill the display fields from the
+              // PDP item before it goes into the cart / buy modal.
+              const display: UnifiedListing = {
+                ...r,
+                name: r.name || item.name,
+                thumbnail: r.thumbnail || item.thumbnail,
+                rarity: r.rarity || item.rarity,
+                category: r.category || item.category,
+                wearableCategory: r.wearableCategory ?? item.wearableCategory,
+                gender: r.gender ?? item.gender
+              }
               // Your own resale: never buyable (you already own the token). Render it clearly as your
               // listing with no Buy / Add-to-cart, instead of hiding it (so you can see it's listed).
               const isOwn = !!seller && !!address && seller.toLowerCase() === address
               return (
-                <li
+                <ResellerRow
                   key={r.tradeId ?? r.id}
-                  className={`resales__row${isLegacy ? ' resales__row--legacy' : ''}`}
-                  data-testid="resale-row"
-                  data-source={r.source}
-                  data-own={isOwn ? 'true' : undefined}
-                >
-                  {r.thumbnail ? <img className="resales__thumb" src={r.thumbnail} alt="" aria-hidden /> : null}
-                  <div className="resales__meta">
-                    {issuedId ? (
-                      <span className="resales__issued" data-testid="resale-issued">
-                        #{issuedId}
-                      </span>
-                    ) : (
-                      <span className="resales__issued resales__issued--muted">{t('resales.copy')}</span>
-                    )}
-                    {seller ? (
-                      <div className="resales__seller" data-testid="resale-seller">
-                        <span className="resales__seller-label">{t('resales.seller')}</span>
-                        <CreatorBadge address={seller} className="resales__seller-badge" linkToProfile hidePrefix />
-                      </div>
-                    ) : null}
-                  </div>
-                  <div className={`resales__price${isLegacy ? ' resales__price--approx' : ''}`}>
-                    {isLegacy ? (
-                      <span className="resales__approx" aria-hidden>
-                        ≈
-                      </span>
-                    ) : null}
-                    <CurrencyIcon className="resales__diamond" />
-                    <span className="resales__price-value">{formatCredits(r.priceCredits)}</span>
-                  </div>
-                  <div className="resales__actions">
-                    {isOwn ? (
-                      <span className="chip resales__own-chip" data-testid="resale-own">
-                        {t('resales.yourListing')}
-                      </span>
-                    ) : isLegacy ? (
-                      // Legacy (MANA) resale: Buy-only via the market/credits checkout (no cart — the cart
-                      // assumes fixed credit prices; a MANA line's price floats with the rate).
-                      <button
-                        className="resales__buy"
-                        onClick={() => setBuyLegacy(resaleToLegacyListing(r))}
-                        aria-label={t('assetCard.buyNow')}
-                        data-testid="resale-buy"
-                      >
-                        {t('assetCard.buyNow')}
-                      </button>
-                    ) : (
-                      <>
-                        <button
-                          className="resales__add"
-                          onClick={() => add(r, 'item_detail')}
-                          disabled={inCart}
-                          aria-label={inCart ? t('assetCard.inCart') : t('assetCard.addToCart')}
-                          data-testid="resale-add"
-                        >
-                          <Icon name="cart-solid" size={16} />
-                          <span>{inCart ? t('assetCard.inCart') : t('assetCard.addToCart')}</span>
-                        </button>
-                        <button
-                          className="resales__buy"
-                          onClick={() => setBuyNative(r)}
-                          aria-label={t('assetCard.buyNow')}
-                          data-testid="resale-buy"
-                        >
-                          {t('assetCard.buyNow')}
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </li>
+                  r={display}
+                  seller={seller}
+                  issuedId={issuedId}
+                  total={total}
+                  isOwn={isOwn}
+                  isLegacy={isLegacy}
+                  inCart={inCart}
+                  fallbackImage={display.thumbnail}
+                  onAdd={() => add(display, 'item_detail')}
+                  onBuyNative={() => setBuyNative(display)}
+                  onBuyLegacy={() => setBuyLegacy(resaleToLegacyListing(display))}
+                />
               )
             })}
           </ul>

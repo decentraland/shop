@@ -317,12 +317,14 @@
     "manageWorking": "Working…"
   },
   "resales": {
-    "title": "Resales",
+    "title": "Resellers",
     "subtitle": "Other copies of this item on sale right now.",
     "copy": "Open resale",
     "seller": "Seller",
+    "serialLabel": "Copy",
+    "serialOf": "of",
     "yourListing": "Your listing",
-    "showMore": "Show more",
+    "showMore": "See more",
     "legacyTitle": "Also on the classic marketplace",
     "legacyNote": "These copies aren't available to buy here — open the classic marketplace to purchase them.",
     "classicBadge": "Classic marketplace",

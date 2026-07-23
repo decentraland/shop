@@ -23,65 +23,81 @@
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  border-top: 1px solid var(--line);
 }
+/* A divider row (no card box): the seller AVATAR leads, then their name + serial number, then price +
+   Buy pushed to the right edge. */
 .resales__row {
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 12px 16px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-card);
-  background: var(--panel);
+  padding: 12px 4px;
+  border-bottom: 1px solid var(--line);
 }
-.resales__id {
+/* The seller identity: big circular avatar + name/serial. Takes the free space so price/actions align
+   to the right edge. When the seller is known it's a link to their storefront. */
+.resales__who {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 14px;
   min-width: 0;
-  flex: 0 0 auto;
+  flex: 1 1 auto;
+  text-align: left;
 }
-.resales__thumb {
-  width: 44px;
-  height: 44px;
-  border-radius: 8px;
+.resales__who--link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+.resales__who--link:hover .resales__name {
+  text-decoration: underline;
+}
+.resales__ava {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
   object-fit: cover;
   background: var(--skeleton);
   flex: 0 0 auto;
-}
-/* The identity column: issued number on top, the seller (who's selling it) beneath. Takes the free
-   space so the price/actions still align to the right edge. */
-.resales__meta {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-}
-.resales__issued {
-  font-weight: 700;
-  font-size: 15px;
-  color: var(--text);
-}
-.resales__issued--muted {
-  font-weight: 600;
-  color: var(--muted);
-}
-.resales__seller {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+}
+.resales__ava--letter {
+  color: #fff;
+  font-weight: 700;
+  font-size: 21px;
+}
+.resales__ava--empty {
+  background: var(--skeleton);
+}
+.resales__ident {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   min-width: 0;
+}
+.resales__name {
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   max-width: 100%;
 }
-.resales__seller-label {
-  font-size: 12px;
+.resales__serial {
+  font-size: 14px;
   color: var(--muted);
-  flex: 0 0 auto;
 }
-.resales__seller-badge {
-  min-width: 0;
+.resales__serial--muted {
+  font-weight: 600;
+}
+.resales__issued {
+  color: var(--text-2);
+  font-weight: 600;
 }
 /* Your own listing: a muted, non-interactive chip in place of Buy / Add-to-cart (you can't buy it). */
 .resales__own-chip {
@@ -146,23 +162,34 @@
   cursor: default;
 }
 
-/* "Show more" pager under the list — reveals the next page of resales (PAGE_SIZE at a time). */
+/* "See more" pager under the list — a full-width bar (matching the reference) that reveals the next
+   page of resales (PAGE_SIZE at a time). */
 .resales__more {
   display: block;
-  margin: 14px auto 0;
-  height: 40px;
+  width: 100%;
+  margin: 12px 0 0;
+  height: 48px;
   padding: 0 20px;
   border-radius: var(--radius-btn);
-  border: 1px solid var(--line-strong);
-  background: transparent;
+  border: 0;
+  background: var(--chip);
   color: var(--text);
   font-weight: 600;
-  font-size: 14px;
+  font-size: 15px;
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: filter 0.15s ease;
 }
 .resales__more:hover {
-  background: var(--chip);
+  filter: brightness(0.96);
+}
+
+/* Classic (MANA) group rows use a compact id column instead of the seller identity. */
+.resales__id {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 /* Legacy (classic MANA) group: visually distinct — muted panel, a "classic marketplace" chip and an
@@ -217,15 +244,20 @@
 }
 
 @media (max-width: 768px) {
+  /* Stack: seller identity on its own row, then price + actions on a second row below. */
   .resales__row {
     flex-wrap: wrap;
-    gap: 10px 12px;
+    gap: 12px;
+  }
+  .resales__who {
+    flex: 1 1 100%;
   }
   .resales__price {
-    margin-left: auto;
+    margin-left: 0;
   }
   .resales__actions {
     flex: 1 1 100%;
+    margin-left: auto;
   }
   .resales__add,
   .resales__buy,
