@@ -4,7 +4,14 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Icon } from '~/components/Icon'
 import { config } from '~/config'
 import { useWallet } from '~/store/wallet'
-import { fetchCollectionSaleState, fetchMyAssets, fetchTrade, type CatalogItem, type MyAsset } from '~/lib/api'
+import {
+  fetchCollectionSaleState,
+  fetchMyAssets,
+  fetchSecondarySaleState,
+  fetchTrade,
+  type CatalogItem,
+  type MyAsset
+} from '~/lib/api'
 import { fetchImportable } from '~/lib/import'
 import { fetchPublishableItems, type PublishableItem } from '~/lib/builder'
 import { cancelListing } from '~/lib/buy'
@@ -78,8 +85,10 @@ function builderNameUrl(name: string): string {
 }
 
 // Owned NFT (secondary) → the CatalogItem shape AssetCard renders (carries tokenId so the card links to
-// the item detail). `priceCredits` reflects the open listing when on sale (else 0 → "not for sale").
-function assetToItem(a: MyAsset): CatalogItem {
+// the item detail). `priceCredits`/`tradeId` reflect the open listing when on sale (else 0 → "not for
+// sale"). The authoritative shop (USD-pegged) listing — resolved from the shop feed by tokenId — wins
+// over the row's legacy `order` fields, which don't carry the credit price for a shop resale.
+function assetToItem(a: MyAsset, sale?: { priceCredits: number; tradeId: string }): CatalogItem {
   return {
     id: a.id,
     name: a.name,
@@ -91,11 +100,12 @@ function assetToItem(a: MyAsset): CatalogItem {
     network: a.network,
     chainId: a.chainId,
     thumbnail: a.image,
-    priceCredits: a.listingPrice ?? 0,
+    priceCredits: sale?.priceCredits ?? a.listingPrice ?? 0,
     gender: null,
     isSmart: false,
     tokenId: a.tokenId,
-    issuedId: a.issuedId
+    issuedId: a.issuedId,
+    tradeId: sale?.tradeId ?? a.tradeId
   }
 }
 
@@ -231,10 +241,36 @@ export function MyAssets() {
     { enabled: !!address && section !== 'creations' }
   )
 
-  // The endpoint has no "not for sale" flag, so that case is filtered here from each row's isOnSale.
+  // An owned wearable/emote on sale via a shop (USD-pegged) trade has no credit price on its /v1/nfts
+  // `order` (that's a legacy on-chain MANA field, absent for an off-chain shop resale). Resolve the
+  // authoritative price + tradeId from the shop feed by tokenId — the secondary counterpart to the
+  // creations `saleState` merge (fetchCollectionSaleState) for primary listings.
+  const ownedContracts = useMemo(
+    () => (section === 'wearables' || section === 'emotes' ? [...new Set(ownedRaw.map(a => a.contractAddress))] : []),
+    [ownedRaw, section]
+  )
+  const { data: secondarySale } = useQuery({
+    queryKey: ['secondary-sale-state', ownedContracts],
+    enabled: ownedContracts.length > 0,
+    queryFn: async () => {
+      const maps = await Promise.all(ownedContracts.map(async ca => [ca, await fetchSecondarySaleState(ca)] as const))
+      const merged: Record<string, { priceCredits: number; tradeId: string }> = {}
+      for (const [ca, m] of maps) {
+        for (const [tokenId, v] of Object.entries(m)) merged[`${ca}-${tokenId}`] = v
+      }
+      return merged
+    }
+  })
+  const saleForToken = (a: MyAsset) => secondarySale?.[`${a.contractAddress}-${a.tokenId}`]
+  // On sale if the shop feed lists this token (authoritative for credits) OR the row carries a legacy
+  // order — so the "not for sale" client filter never hides a shop-listed token.
+  const isTokenOnSale = (a: MyAsset) => !!saleForToken(a) || a.isOnSale
+
+  // The endpoint has no "not for sale" flag, so that case is filtered here from each row's sale state.
   const ownedAssets = useMemo(
-    () => (status === 'not_for_sale' ? ownedRaw.filter(a => !a.isOnSale) : ownedRaw),
-    [ownedRaw, status]
+    () => (status === 'not_for_sale' ? ownedRaw.filter(a => !isTokenOnSale(a)) : ownedRaw),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [ownedRaw, status, secondarySale]
   )
 
   // ---------------- Creations (builder feed) ----------------
@@ -302,6 +338,7 @@ export function MyAssets() {
       toast.success(t('myAssets.removedFromSale', { name }))
       await qc.invalidateQueries({ queryKey: ['my-assets', session.address] })
       await qc.invalidateQueries({ queryKey: ['collection-sale-state'] })
+      await qc.invalidateQueries({ queryKey: ['secondary-sale-state'] })
       await qc.invalidateQueries({ queryKey: ['publishable-items'] })
     } catch (e) {
       const err = e as { code?: number; message?: string }
@@ -560,7 +597,7 @@ export function MyAssets() {
                     // Owned wearable/emote: the card's only action is MANAGE → the item detail page for
                     // this exact token, where listing (List / Update price / Remove) now lives. No inline
                     // put-on-sale from My Assets anymore.
-                    <AssetCard key={asset.id} item={assetToItem(asset)} mode="manage-link" />
+                    <AssetCard key={asset.id} item={assetToItem(asset, saleForToken(asset))} mode="manage-link" />
                   )
                 )
               )}
