@@ -40,7 +40,7 @@ type RawCollection = {
 // Matching collections by name. Small page — this feeds a preview dropdown, not a grid.
 export async function fetchCollectionSuggestions(search: string, first = 4): Promise<CollectionHit[]> {
   const qs = new URLSearchParams({ search, first: String(first) })
-  const res = await fetch(`${config.nftApiUrl}/v1/collections?${qs.toString()}`)
+  const res = await fetch(`${config.marketplaceServerUrl}/v1/collections?${qs.toString()}`)
   if (!res.ok) throw new Error(`fetchCollectionSuggestions ${res.status}`)
   const { data } = (await res.json()) as { data?: RawCollection[] }
   return (data ?? [])
@@ -55,7 +55,7 @@ type Account = { address: string; collections?: number }
 // the creator's display name). First name wins per owner (names come back best-match first).
 async function fetchNameOwners(search: string, first: number): Promise<Map<string, string>> {
   const qs = new URLSearchParams({ category: 'ens', search, first: String(first) })
-  const res = await fetch(`${config.nftApiUrl}/v1/nfts?${qs.toString()}`)
+  const res = await fetch(`${config.marketplaceServerUrl}/v1/nfts?${qs.toString()}`)
   if (!res.ok) throw new Error(`fetchNameOwners ${res.status}`)
   const { data } = (await res.json()) as { data?: EnsNft[] }
   const owners = new Map<string, string>()
@@ -73,7 +73,7 @@ async function fetchSellerCounts(addresses: string[]): Promise<Map<string, numbe
   if (addresses.length === 0) return new Map()
   const qs = new URLSearchParams({ sortBy: 'most_collections' })
   for (const a of addresses) qs.append('address', a)
-  const res = await fetch(`${config.nftApiUrl}/v1/accounts?${qs.toString()}`)
+  const res = await fetch(`${config.marketplaceServerUrl}/v1/accounts?${qs.toString()}`)
   if (!res.ok) throw new Error(`fetchSellerCounts ${res.status}`)
   const { data } = (await res.json()) as { data?: Account[] }
   const counts = new Map<string, number>()

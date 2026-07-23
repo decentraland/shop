@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
-vi.mock('~/config', () => ({ config: { marketplaceServerUrl: 'http://mps.test', nftApiUrl: 'http://nft.test' } }))
+vi.mock('~/config', () => ({ config: { marketplaceServerUrl: 'http://mps.test' } }))
 
 import {
   fetchCollection,
@@ -215,7 +215,7 @@ describe('when fetching a single collection by contract', () => {
     const meta = await fetchCollection('0xabc')
 
     const url = new URL(fetchMock.mock.calls[0][0] as string)
-    expect(url.origin + url.pathname).toBe('http://nft.test/v1/collections')
+    expect(url.origin + url.pathname).toBe('http://mps.test/v1/collections')
     expect(url.searchParams.get('contractAddress')).toBe('0xabc')
     expect(meta).toEqual({ contractAddress: '0xabc', name: 'Black Dragon', creator: '0xartist' })
   })
@@ -246,7 +246,7 @@ describe('when fetching a creator’s published collections', () => {
     await fetchCreatorCollections('0xArtist', { first: 12, skip: 24 })
 
     const url = new URL(fetchMock.mock.calls[0][0] as string)
-    expect(url.origin + url.pathname).toBe('http://nft.test/v1/collections')
+    expect(url.origin + url.pathname).toBe('http://mps.test/v1/collections')
     expect(url.searchParams.get('creator')).toBe('0xArtist')
     expect(url.searchParams.get('sortBy')).toBe('newest')
     expect(url.searchParams.get('first')).toBe('12')

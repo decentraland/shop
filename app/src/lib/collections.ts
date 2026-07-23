@@ -191,7 +191,7 @@ export async function fetchCreatorCollections(
     skip: String(skip),
     sortBy: 'newest'
   })
-  const res = await fetch(`${config.nftApiUrl}/v1/collections?${qs.toString()}`)
+  const res = await fetch(`${config.marketplaceServerUrl}/v1/collections?${qs.toString()}`)
   if (!res.ok) throw new Error(`fetchCreatorCollections ${res.status}`)
   const { data, total } = (await res.json()) as { data?: RawCollection[]; total?: number }
   const collections = (data ?? []).map(c => ({
@@ -208,7 +208,7 @@ export async function fetchCreatorCollections(
 // here (mirrors the marketplace's collectionAPI.fetchOne). Null if the collection isn't found.
 export async function fetchCollection(contractAddress: string): Promise<CollectionMeta | null> {
   const qs = new URLSearchParams({ contractAddress, first: '1' })
-  const res = await fetch(`${config.nftApiUrl}/v1/collections?${qs.toString()}`)
+  const res = await fetch(`${config.marketplaceServerUrl}/v1/collections?${qs.toString()}`)
   if (!res.ok) throw new Error(`fetchCollection ${res.status}`)
   const { data } = (await res.json()) as { data?: RawCollection[] }
   const c = data?.[0]
