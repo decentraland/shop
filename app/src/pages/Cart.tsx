@@ -19,6 +19,8 @@ import {
   type TradeResolver
 } from '~/lib/cart-checkout'
 import { gaslessEnabled } from '~/lib/gasless-config'
+import { useCartAvailability } from '~/hooks/useCartAvailability'
+import { isLineBuyable } from '~/lib/cart-availability'
 import { CURRENCY } from '~/lib/currency'
 import { createPackCheckout, MAX_OFFER_PACKS } from '~/lib/payments'
 import { useCreditPacks } from '~/hooks/useCreditPacks'
@@ -148,9 +150,20 @@ export function Cart() {
   // resume's deferred checkout() closure reads the current value, not a stale render capture.
   const creditsAddedRef = useRef<number | null>(null)
 
-  const shownTotal = items.reduce((sum, i) => sum + i.priceCredits * i.quantity, 0)
-  // Total units across all lines (Σ quantity) — the "N items" the summary/count reflect.
+  // Validate each line's live trade when the cart page is open (optimistic — every line renders as
+  // buyable until its trade actually resolves as sold-out / gone / expired). Bounded to the cart's
+  // lines, cached ~30s, revalidated on refocus.
+  const availability = useCartAvailability(items)
+  const isBuyable = (i: CatalogItem) => isLineBuyable(availability[i.id])
+  // Everything below counts / sums only the lines still buyable — an unavailable line is excluded from
+  // the total and from checkout, but stays visible (with its reason) so the buyer can remove it.
+  const buyableItems = items.filter(isBuyable)
+  const allUnavailable = items.length > 0 && buyableItems.length === 0
+
+  const shownTotal = buyableItems.reduce((sum, i) => sum + i.priceCredits * i.quantity, 0)
+  // Total buyable units (Σ quantity over available lines) — the "N items" the summary total reflects.
   const totalUnits = items.reduce((n, i) => n + i.quantity, 0)
+  const buyableUnits = buyableItems.reduce((n, i) => n + i.quantity, 0)
   // While a review is pending the total reflects the live (re-resolved) prices of what's still buyable.
   const total = review ? review.liveTotalCredits : shownTotal
   const inCart = new Set(items.map(i => i.id))
@@ -352,7 +365,10 @@ export function Cart() {
       signIn()
       return
     }
-    const cartItems = useCart.getState().items // read live so a post-top-up resume sees the restored cart
+    // Read live so a post-top-up resume sees the restored cart, then drop any line already known to be
+    // unavailable (sold-out / gone / expired) so checkout never even attempts a stale line. reviewCart
+    // below remains the authority and re-prunes against the live trades.
+    const cartItems = useCart.getState().items.filter(isBuyable)
     if (cartItems.length === 0) return
     setError(null)
     setNotice(null)
@@ -559,8 +575,13 @@ export function Cart() {
                   const routeSeg = item.tokenId ?? item.itemId
                   const detailPath =
                     item.contractAddress && routeSeg ? `/item/${item.contractAddress}/${routeSeg}` : null
+                  // Live availability (optimistically 'available' until the trade resolves otherwise).
+                  const status = availability[item.id]
+                  const unavailable = !isLineBuyable(status)
+                  const unavailableLabel =
+                    status === 'sold-out' ? t('cart.availability.soldOut') : t('cart.availability.unavailable')
                   return (
-                    <div className="checkout__card" key={item.id}>
+                    <div className={`checkout__card${unavailable ? ' is-unavailable' : ''}`} key={item.id}>
                       <div className="checkout__thumb">
                         {detailPath ? (
                           <Link
@@ -608,43 +629,58 @@ export function Cart() {
                           ) : null}
                         </div>
                         <div className="checkout__foot">
-                          {/* Quantity stepper. PRIMARY (mint) lines can buy multiple copies: minus decrements
+                          {unavailable ? (
+                            /* Calm inline state — no price/stepper, just the reason. The trash button in
+                               checkout__actions is the one-tap remove. */
+                            <span className="checkout__unavailable">{unavailableLabel}</span>
+                          ) : (
+                            <>
+                              {/* Quantity stepper. PRIMARY (mint) lines can buy multiple copies: minus decrements
                           (floored at 1 — the trash button removes), plus increments up to remaining stock.
                           SECONDARY lines are a single unique token, so the stepper is hidden (qty is 1). */}
-                          {isPrimary ? (
-                            <div className="checkout__stepper">
-                              <button
-                                className="checkout__step"
-                                onClick={() => editCart(() => decrement(item.id))}
-                                disabled={working || qty <= 1}
-                                aria-label={t('cart.decreaseQuantity', { name: item.name })}
-                              >
-                                <svg viewBox="0 0 16 16" fill="none" aria-hidden focusable="false">
-                                  <path d="M3.5 8h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                                </svg>
-                              </button>
-                              <span className="checkout__qty">{qty}</span>
-                              <button
-                                className="checkout__step"
-                                onClick={() => editCart(() => increment(item.id))}
-                                disabled={working || atStockCap}
-                                aria-label={t('cart.increaseQuantity')}
-                              >
-                                <svg viewBox="0 0 16 16" fill="none" aria-hidden focusable="false">
-                                  <path
-                                    d="M8 3.5v9M3.5 8h9"
-                                    stroke="currentColor"
-                                    strokeWidth="1.5"
-                                    strokeLinecap="round"
-                                  />
-                                </svg>
-                              </button>
-                            </div>
-                          ) : null}
-                          <div className="checkout__price">
-                            <CurrencyIcon className="checkout__price-ico" /> {lineSubtotal}
-                            {changed ? <span className="checkout__price-was">{item.priceCredits * qty}</span> : null}
-                          </div>
+                              {isPrimary ? (
+                                <div className="checkout__stepper">
+                                  <button
+                                    className="checkout__step"
+                                    onClick={() => editCart(() => decrement(item.id))}
+                                    disabled={working || qty <= 1}
+                                    aria-label={t('cart.decreaseQuantity', { name: item.name })}
+                                  >
+                                    <svg viewBox="0 0 16 16" fill="none" aria-hidden focusable="false">
+                                      <path
+                                        d="M3.5 8h9"
+                                        stroke="currentColor"
+                                        strokeWidth="1.5"
+                                        strokeLinecap="round"
+                                      />
+                                    </svg>
+                                  </button>
+                                  <span className="checkout__qty">{qty}</span>
+                                  <button
+                                    className="checkout__step"
+                                    onClick={() => editCart(() => increment(item.id))}
+                                    disabled={working || atStockCap}
+                                    aria-label={t('cart.increaseQuantity')}
+                                  >
+                                    <svg viewBox="0 0 16 16" fill="none" aria-hidden focusable="false">
+                                      <path
+                                        d="M8 3.5v9M3.5 8h9"
+                                        stroke="currentColor"
+                                        strokeWidth="1.5"
+                                        strokeLinecap="round"
+                                      />
+                                    </svg>
+                                  </button>
+                                </div>
+                              ) : null}
+                              <div className="checkout__price">
+                                <CurrencyIcon className="checkout__price-ico" /> {lineSubtotal}
+                                {changed ? (
+                                  <span className="checkout__price-was">{item.priceCredits * qty}</span>
+                                ) : null}
+                              </div>
+                            </>
+                          )}
                         </div>
                       </div>
                       <div className="checkout__actions">
@@ -689,7 +725,7 @@ export function Cart() {
             <h2 className="checkout__summary-title">{t('cart.purchaseSummary')}</h2>
             <div className="checkout__summary-body">
               <div className="checkout__total-line">
-                <span className="checkout__total-label">{t('cart.totalItems', { count: totalUnits })}</span>
+                <span className="checkout__total-label">{t('cart.totalItems', { count: buyableUnits })}</span>
                 <span className="checkout__total-value">
                   <CurrencyIcon className="checkout__total-ico" /> {total}
                 </span>
@@ -698,11 +734,12 @@ export function Cart() {
               <button
                 className="checkout__cta"
                 onClick={() => void (review ? confirmPurchase() : checkout())}
-                disabled={working}
+                disabled={working || allUnavailable}
               >
                 {working ? t('cart.working') : review ? t('marketCheckout.confirmPurchase') : t('assetCard.buyNow')}
               </button>
 
+              {allUnavailable ? <p className="muted checkout__msg">{t('cart.allUnavailable')}</p> : null}
               {!session ? <p className="muted checkout__msg">{t('cart.signInHint')}</p> : null}
               {review ? <p className="muted checkout__msg">{t('cart.priceChanged')}</p> : null}
               {notice ? <p className="muted checkout__msg">{notice}</p> : null}

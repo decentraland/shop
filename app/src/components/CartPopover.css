@@ -253,6 +253,19 @@
   height: 22px;
   color: #a14bf3;
 }
+/* A line whose listing is no longer buyable (sold out / gone / expired): dimmed, greyed media, still
+   readable and removable. Excluded from the drawer total and unit count. */
+.cartd__card.is-unavailable {
+  opacity: 0.6;
+}
+.cartd__card.is-unavailable .cartd__thumb img {
+  filter: grayscale(1);
+}
+.cartd__unavailable {
+  font-size: 14px;
+  font-weight: 600;
+  color: #716b7c;
+}
 .cartd__del {
   position: absolute;
   top: 9px;

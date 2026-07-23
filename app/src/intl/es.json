@@ -149,6 +149,11 @@
     "working": "Procesando…",
     "signInHint": "Te pediremos que inicies sesión primero.",
     "priceChanged": "Los precios o la disponibilidad cambiaron desde que los agregaste. Revisa el total actualizado y confirma para comprar.",
+    "allUnavailable": "Ninguno de estos artículos está disponible. Elimínalos para seguir comprando.",
+    "availability": {
+      "soldOut": "Agotado",
+      "unavailable": "Ya no está disponible"
+    },
     "youMightAlsoLike": "También te puede gustar",
     "status": {
       "reviewing": "Revisando tu carrito…"

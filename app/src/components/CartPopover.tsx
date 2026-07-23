@@ -7,6 +7,8 @@ import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { CreatorBadge } from '~/components/CreatorBadge'
 import { t } from '~/intl/i18n'
 import { formatCredits, formatCreditsFull } from '~/lib/currency'
+import { useCartAvailability } from '~/hooks/useCartAvailability'
+import { isLineBuyable, type CartLineAvailability } from '~/lib/cart-availability'
 import './CartPopover.css'
 
 // Green check-in-circle used by the success banner and each cart line's thumbnail (Figma Icn/Check).
@@ -25,11 +27,13 @@ function CheckCircle() {
 // token, so the stepper is hidden (qty is always 1). The trash button removes the whole line.
 function CartRow({
   item,
+  status,
   onRemove,
   onIncrement,
   onDecrement
 }: {
   item: CartItem
+  status: CartLineAvailability
   onRemove: (id: string) => void
   onIncrement: (id: string) => void
   onDecrement: (id: string) => void
@@ -38,8 +42,10 @@ function CartRow({
   const qty = item.quantity
   const atStockCap = typeof item.available === 'number' && qty >= item.available
   const subtotal = item.priceCredits * qty
+  const unavailable = !isLineBuyable(status)
+  const unavailableLabel = status === 'sold-out' ? t('cart.availability.soldOut') : t('cart.availability.unavailable')
   return (
-    <li className="cartd__card">
+    <li className={`cartd__card${unavailable ? ' is-unavailable' : ''}`}>
       <div className="cartd__thumb">
         {item.thumbnail ? <img src={item.thumbnail} alt={item.name} /> : null}
         <span className="cartd__thumb-check">
@@ -54,35 +60,42 @@ function CartRow({
           {item.creator ? <CreatorBadge address={item.creator} className="cartd__by" /> : null}
         </div>
         <div className="cartd__rowbottom">
-          {isPrimary ? (
-            <div className="cartd__stepper">
-              <button
-                className="cartd__step"
-                onClick={() => onDecrement(item.id)}
-                disabled={qty <= 1}
-                aria-label={t('cartPopover.decreaseQuantity', { name: item.name })}
-              >
-                <svg viewBox="0 0 16 16" fill="none" aria-hidden focusable="false">
-                  <path d="M3.5 8h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                </svg>
-              </button>
-              <span className="cartd__qty">{qty}</span>
-              <button
-                className="cartd__step"
-                onClick={() => onIncrement(item.id)}
-                disabled={atStockCap}
-                aria-label={t('cartPopover.increaseQuantity')}
-              >
-                <svg viewBox="0 0 16 16" fill="none" aria-hidden focusable="false">
-                  <path d="M8 3.5v9M3.5 8h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                </svg>
-              </button>
-            </div>
-          ) : null}
-          <div className="cartd__price" title={formatCreditsFull(subtotal)}>
-            <CurrencyIcon className="cartd__diamond" />
-            {formatCredits(subtotal)}
-          </div>
+          {unavailable ? (
+            /* Calm inline state — the trash button remains the one-tap remove. */
+            <span className="cartd__unavailable">{unavailableLabel}</span>
+          ) : (
+            <>
+              {isPrimary ? (
+                <div className="cartd__stepper">
+                  <button
+                    className="cartd__step"
+                    onClick={() => onDecrement(item.id)}
+                    disabled={qty <= 1}
+                    aria-label={t('cartPopover.decreaseQuantity', { name: item.name })}
+                  >
+                    <svg viewBox="0 0 16 16" fill="none" aria-hidden focusable="false">
+                      <path d="M3.5 8h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                    </svg>
+                  </button>
+                  <span className="cartd__qty">{qty}</span>
+                  <button
+                    className="cartd__step"
+                    onClick={() => onIncrement(item.id)}
+                    disabled={atStockCap}
+                    aria-label={t('cartPopover.increaseQuantity')}
+                  >
+                    <svg viewBox="0 0 16 16" fill="none" aria-hidden focusable="false">
+                      <path d="M8 3.5v9M3.5 8h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                    </svg>
+                  </button>
+                </div>
+              ) : null}
+              <div className="cartd__price" title={formatCreditsFull(subtotal)}>
+                <CurrencyIcon className="cartd__diamond" />
+                {formatCredits(subtotal)}
+              </div>
+            </>
+          )}
         </div>
       </div>
       <button
@@ -110,9 +123,14 @@ export function CartPopover() {
   const decrement = useCart(s => s.decrement)
   const panelRef = useRef<HTMLDivElement>(null)
 
-  const total = items.reduce((sum, i) => sum + i.priceCredits * i.quantity, 0)
-  // Count reflects total units across all lines (Σ quantity), not the number of distinct lines.
-  const count = items.reduce((n, i) => n + i.quantity, 0)
+  // Validate each line's live trade while the drawer is open (optimistic until resolved). Unavailable
+  // lines stay visible with their reason but are excluded from the total and the unit count.
+  const availability = useCartAvailability(items, open)
+
+  const buyable = items.filter(i => isLineBuyable(availability[i.id]))
+  const total = buyable.reduce((sum, i) => sum + i.priceCredits * i.quantity, 0)
+  // Count reflects total buyable units (Σ quantity), not the number of distinct lines.
+  const count = buyable.reduce((n, i) => n + i.quantity, 0)
 
   // Escape closes the drawer (outside-click is handled by the scrim). No auto-dismiss: a full drawer
   // stays until the user dismisses it.
@@ -125,7 +143,9 @@ export function CartPopover() {
     return () => document.removeEventListener('keydown', onKey)
   }, [open, setOpen])
 
-  if (!open || count === 0) return null
+  // Guard on the raw cart contents (not the buyable count) so an all-unavailable cart still shows the
+  // drawer with each line's reason, rather than silently vanishing.
+  if (!open || items.length === 0) return null
 
   // Portal to <body> so the drawer escapes the nav's stacking context and overlays the whole viewport
   // (including the fixed global top nav), instead of being trapped under it.
@@ -157,7 +177,14 @@ export function CartPopover() {
 
           <ul className="cartd__list">
             {items.map(i => (
-              <CartRow key={i.id} item={i} onRemove={remove} onIncrement={increment} onDecrement={decrement} />
+              <CartRow
+                key={i.id}
+                item={i}
+                status={availability[i.id]}
+                onRemove={remove}
+                onIncrement={increment}
+                onDecrement={decrement}
+              />
             ))}
           </ul>
         </div>
