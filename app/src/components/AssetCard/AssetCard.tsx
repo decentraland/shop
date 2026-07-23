@@ -209,8 +209,9 @@ export function AssetCard(props: AssetCardProps) {
             {discountPct > 0 ? t('assetCard.saleWithDiscount', { pct: discountPct }) : t('assetCard.sale')}
           </span>
         ) : null}
-        {/* Item-unified browse feed: this item has more than one copy on sale — flag it so the user
-            knows there's a resale list to see on the item detail page (only that feed sets listingCount). */}
+        {canPreview && isPreviewing && !previewReady ? (
+          <div className="card__skeleton" data-testid="card-skeleton" aria-hidden />
+        ) : null}
         {item.listingCount && item.listingCount > 1 ? (
           <span className="card__listings" data-testid="card-listings">
             {t('assetCard.onSaleCount', { count: item.listingCount })}
