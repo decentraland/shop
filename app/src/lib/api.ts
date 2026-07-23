@@ -3,7 +3,7 @@ import type { AuthIdentity } from '@dcl/crypto'
 import { TradeAssetType, type Trade, type TradeCreation } from '@dcl/schemas'
 import { config } from '~/config'
 
-const NFT_V1 = `${config.nftApiUrl}/v1`
+const NFT_V1 = `${config.marketplaceServerUrl}/v1`
 
 // ---------------------------------------------------------------------------
 // Catalog (browse grid)
@@ -136,7 +136,7 @@ export async function fetchCatalog({
     sortBy: 'newest',
     includeSocialEmotes: 'false'
   })
-  const res = await fetch(`${config.nftApiUrl}/v2/catalog?${qs.toString()}`)
+  const res = await fetch(`${config.marketplaceServerUrl}/v2/catalog?${qs.toString()}`)
   if (!res.ok) throw new Error(`Failed to fetch catalog (${res.status})`)
   const { data, total } = (await res.json()) as { data: RawCatalogItem[]; total: number }
   return { items: data.map(toCatalogItem), total: total ?? data.length }
@@ -147,7 +147,7 @@ export async function fetchCatalog({
 export async function fetchItemDescription(contractAddress: string, itemId: string): Promise<string> {
   const qs = new URLSearchParams({ contractAddresses: contractAddress, itemId, first: '1' })
   try {
-    const res = await fetch(`${config.nftApiUrl}/v2/catalog?${qs.toString()}`)
+    const res = await fetch(`${config.marketplaceServerUrl}/v2/catalog?${qs.toString()}`)
     if (!res.ok) return ''
     const { data } = (await res.json()) as { data?: RawCatalogItem[] }
     const d = data?.[0]?.data

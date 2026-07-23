@@ -5,7 +5,6 @@ import { TradeAssetType } from '@dcl/schemas'
 vi.mock('~/config', () => ({
   config: {
     marketplaceServerUrl: 'https://market.test',
-    nftApiUrl: 'https://nft.test',
     chainId: 80002
   }
 }))
@@ -151,7 +150,7 @@ describe('when fetching the browse catalog', () => {
     fetchMock.mockResolvedValueOnce(jsonOk({ total: 0, data: [] }))
     await fetchCatalog({ category: 'emote', first: 5, skip: 10 })
     const url = lastUrl()
-    expect(url).toContain('https://nft.test/v2/catalog?')
+    expect(url).toContain('https://market.test/v2/catalog?')
     expect(url).toContain('category=emote')
     expect(url).toContain('first=5')
     expect(url).toContain('skip=10')
@@ -686,7 +685,7 @@ describe('when fetching the owned assets of a wallet', () => {
     fetchMock.mockResolvedValueOnce(jsonOk({ total: 0, data: [] }))
     await fetchMyAssets('0xABCDEF', { category: 'emote', first: 10, skip: 2 })
     const url = lastUrl()
-    expect(url).toContain('https://nft.test/v1/nfts?')
+    expect(url).toContain('https://market.test/v1/nfts?')
     expect(url).toContain('owner=0xabcdef')
     expect(url).toContain('category=emote')
     expect(url).toContain('first=10')
@@ -821,7 +820,7 @@ describe('when resolving a resale token seller and issued number', () => {
     )
     const info = await fetchResaleTokenInfo('0xc', '7')
     expect(info).toEqual({ seller: '0xSeller', issuedId: '42' })
-    expect(lastUrl()).toContain('https://nft.test/v1/nfts?')
+    expect(lastUrl()).toContain('https://market.test/v1/nfts?')
     expect(lastUrl()).toContain('tokenId=7')
   })
 
@@ -874,7 +873,7 @@ describe('when fetching a single token publicly (deep-link fallback)', () => {
     )
     const asset = await fetchTokenById('0xc', '77')
     const url = lastUrl()
-    expect(url).toContain('https://nft.test/v1/nfts?')
+    expect(url).toContain('https://market.test/v1/nfts?')
     expect(url).toContain('tokenId=77')
     expect(url).not.toContain('owner=')
     expect(asset).toMatchObject({ id: 'n1', tokenId: '77', isOnSale: true, listingPrice: 10, tradeId: 'trade-x' })
@@ -965,7 +964,7 @@ describe('when resolving a purchased trade for display', () => {
     })
     // second call hits the /items metadata endpoint WITH the real itemId (regression guard: an empty
     // itemId filter used to silently return the collection's first item).
-    expect(lastUrl()).toContain('https://nft.test/v1/items?')
+    expect(lastUrl()).toContain('https://market.test/v1/items?')
     expect(lastUrl()).toContain('contractAddress=0xc')
     expect(lastUrl()).toContain('itemId=7')
   })
@@ -990,7 +989,7 @@ describe('when resolving a purchased trade for display', () => {
       contractAddress: '0xc',
       tokenId: '42'
     })
-    expect(lastUrl()).toContain('https://nft.test/v1/nfts?')
+    expect(lastUrl()).toContain('https://market.test/v1/nfts?')
     expect(lastUrl()).toContain('tokenId=42')
   })
 
@@ -1241,7 +1240,7 @@ describe('when resolving a sold asset for the Activity feed', () => {
     fetchMock.mockResolvedValueOnce(jsonOk({ data: [{ nft: { name: 'Galaxy Hat', image: 'hat.png' } }] }))
     const display = await fetchAssetDisplay('0xc', { tokenId: '42' })
     expect(display).toMatchObject({ name: 'Galaxy Hat', thumbnail: 'hat.png', contractAddress: '0xc', tokenId: '42' })
-    expect(lastUrl()).toContain('https://nft.test/v1/nfts?')
+    expect(lastUrl()).toContain('https://market.test/v1/nfts?')
   })
 
   it('should fall back to a "#<tokenId>" name when the token has no metadata', async () => {
@@ -1254,7 +1253,7 @@ describe('when resolving a sold asset for the Activity feed', () => {
     fetchMock.mockResolvedValueOnce(jsonOk({ data: [{ name: 'Founder Tee', thumbnail: 'tee.png' }] }))
     const display = await fetchAssetDisplay('0xc', { itemId: '3' })
     expect(display).toMatchObject({ name: 'Founder Tee', thumbnail: 'tee.png', itemId: '3' })
-    expect(lastUrl()).toContain('https://nft.test/v1/items?')
+    expect(lastUrl()).toContain('https://market.test/v1/items?')
   })
 
   it('should return null when neither a contract, token, nor item is known', async () => {

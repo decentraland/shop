@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
-vi.mock('~/config', () => ({ config: { nftApiUrl: 'http://nft.test', peerUrl: 'http://peer.test' } }))
+vi.mock('~/config', () => ({ config: { marketplaceServerUrl: 'http://market.test', peerUrl: 'http://peer.test' } }))
 
 import { fetchCollectionSuggestions, fetchCreatorSuggestions } from '~/lib/search'
 
@@ -54,7 +54,7 @@ describe('when fetching collection suggestions', () => {
     await fetchCollectionSuggestions('dragon')
 
     const url = new URL(fetchMock.mock.calls[0][0])
-    expect(url.origin + url.pathname).toBe('http://nft.test/v1/collections')
+    expect(url.origin + url.pathname).toBe('http://market.test/v1/collections')
     expect(url.searchParams.get('search')).toBe('dragon')
     expect(url.searchParams.get('first')).toBe('4')
   })
