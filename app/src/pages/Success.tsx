@@ -6,8 +6,6 @@ import { useWallet } from '~/store/wallet'
 import { useProfile } from '~/hooks/useProfile'
 import { config } from '~/config'
 import { SuccessAnimation } from '~/components/SuccessAnimation'
-import { Button } from '~/components/Button'
-import styled from '@emotion/styled'
 import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import { avatarShape, dominantShape, isCompatible, BASE_MALE } from '~/lib/bodyShape'
 import { itemUrn } from '~/lib/urn'
@@ -16,6 +14,7 @@ import { fetchOwnsItem } from '~/lib/api'
 import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
 import type { CatalogItem } from '~/lib/api'
+import * as S from './Success.styles'
 
 // Settlement of the purchase, watched on this page so we NEVER claim "It's yours!" before the item is
 // actually the buyer's AND queryable. Two gates:
@@ -29,11 +28,6 @@ import type { CatalogItem } from '~/lib/api'
 type Settlement = 'pending' | 'indexing' | 'confirmed' | 'failed' | 'timed-out'
 
 type OwnershipCheck = { owner: string; contractAddress: string; itemId: string }
-
-const SuccessBtn = styled(Button)`
-  min-width: 160px;
-  text-align: center;
-`
 
 const delay = (ms: number) => new Promise<void>(r => setTimeout(r, ms))
 
@@ -154,8 +148,8 @@ export function Success() {
   const showExplorer = !!txHash && showsWalletConfirmations(session?.providerType)
 
   return (
-    <div className="success">
-      <div className="success__preview">
+    <S.Root>
+      <S.Preview>
         {urns.length > 0 ? (
           <WearablePreview
             key={hero.id}
@@ -181,16 +175,14 @@ export function Success() {
             dev={config.chainId === 80002}
           />
         )}
-      </div>
+      </S.Preview>
 
-      <div className="success__panel">
+      <S.Panel>
         {settlement === 'pending' || settlement === 'indexing' ? (
           <>
-            <span className="spinner success__spinner" aria-hidden />
-            <h1 className="success__title">
-              {settlement === 'indexing' ? t('success.finalizing') : t('success.processing')}
-            </h1>
-            <p className="success__sub">
+            <S.Spinner className="spinner" aria-hidden />
+            <S.Title>{settlement === 'indexing' ? t('success.finalizing') : t('success.processing')}</S.Title>
+            <S.Sub>
               {settlement === 'indexing' ? (
                 <>
                   {t('success.indexingBefore')}{' '}
@@ -204,100 +196,98 @@ export function Success() {
                   {t('success.confirmingAfter')}
                 </>
               )}
-            </p>
+            </S.Sub>
             {showExplorer ? (
-              <div className="success__links">
-                <a className="success__receipt" href={`${EXPLORER_TX}${txHash}`} target="_blank" rel="noreferrer">
+              <S.Links>
+                <S.Receipt href={`${EXPLORER_TX}${txHash}`} target="_blank" rel="noreferrer">
                   {t('success.viewTransaction')}
-                </a>
-              </div>
+                </S.Receipt>
+              </S.Links>
             ) : null}
           </>
         ) : settlement === 'timed-out' ? (
           <>
-            <h1 className="success__title">{t('success.stillProcessingTitle')}</h1>
-            <p className="success__sub">
+            <S.Title>{t('success.stillProcessingTitle')}</S.Title>
+            <S.Sub>
               {t('success.timedOutBefore')}{' '}
               <button className="link" onClick={() => navigate('/my-purchases')}>
                 {t('nav.myPurchases')}
               </button>{' '}
               {t('success.timedOutAfter')}
-            </p>
-            <div className="success__links">
+            </S.Sub>
+            <S.Links>
               {showExplorer ? (
-                <a className="success__receipt" href={`${EXPLORER_TX}${txHash}`} target="_blank" rel="noreferrer">
+                <S.Receipt href={`${EXPLORER_TX}${txHash}`} target="_blank" rel="noreferrer">
                   {t('success.viewTransaction')}
-                </a>
+                </S.Receipt>
               ) : null}
-            </div>
-            <div className="success__actions">
-              <SuccessBtn variant="purple" onClick={() => navigate('/my-purchases')}>
+            </S.Links>
+            <S.Actions>
+              <S.SuccessBtn variant="purple" onClick={() => navigate('/my-purchases')}>
                 {t('success.viewMyPurchases')}
-              </SuccessBtn>
-              <SuccessBtn variant="ghost" onClick={() => navigate('/assets')}>
+              </S.SuccessBtn>
+              <S.SuccessBtn variant="ghost" onClick={() => navigate('/assets')}>
                 {t('success.keepShopping')}
-              </SuccessBtn>
-            </div>
+              </S.SuccessBtn>
+            </S.Actions>
           </>
         ) : settlement === 'failed' ? (
           <>
-            <h1 className="success__title">{t('success.failedTitle')}</h1>
-            <p className="success__sub">{t('success.failedBody')}</p>
-            <div className="success__links">
+            <S.Title>{t('success.failedTitle')}</S.Title>
+            <S.Sub>{t('success.failedBody')}</S.Sub>
+            <S.Links>
               {showExplorer ? (
-                <a className="success__receipt" href={`${EXPLORER_TX}${txHash}`} target="_blank" rel="noreferrer">
+                <S.Receipt href={`${EXPLORER_TX}${txHash}`} target="_blank" rel="noreferrer">
                   {t('success.viewTransaction')}
-                </a>
+                </S.Receipt>
               ) : null}
-            </div>
-            <div className="success__actions">
-              <SuccessBtn variant="purple" onClick={() => navigate('/assets')}>
+            </S.Links>
+            <S.Actions>
+              <S.SuccessBtn variant="purple" onClick={() => navigate('/assets')}>
                 {t('success.backToShop')}
-              </SuccessBtn>
-            </div>
+              </S.SuccessBtn>
+            </S.Actions>
           </>
         ) : (
           <>
             <SuccessAnimation />
-            <h1 className="success__title">{t('success.title')}</h1>
+            <S.Title>{t('success.title')}</S.Title>
             {items.length === 1 ? (
-              <p className="success__sub">
+              <S.Sub>
                 <strong>{hero.name}</strong> {t('success.heroInWardrobe')}
-              </p>
+              </S.Sub>
             ) : (
               <>
-                <p className="success__sub">{t('success.itemsInWardrobe', { count: items.length })}</p>
-                <ul className="success__list">
+                <S.Sub>{t('success.itemsInWardrobe', { count: items.length })}</S.Sub>
+                <S.List>
                   {items.map(i => (
                     <li key={i.id}>{i.name}</li>
                   ))}
-                </ul>
+                </S.List>
               </>
             )}
 
-            <div className="success__links">
-              <button className="success__receipt" onClick={() => navigate('/my-purchases')}>
-                {t('success.viewOrder')}
-              </button>
+            <S.Links>
+              <S.ReceiptButton onClick={() => navigate('/my-purchases')}>{t('success.viewOrder')}</S.ReceiptButton>
               {showExplorer ? (
-                <a className="success__receipt" href={`${EXPLORER_TX}${txHash}`} target="_blank" rel="noreferrer">
+                <S.Receipt href={`${EXPLORER_TX}${txHash}`} target="_blank" rel="noreferrer">
                   {t('success.viewTransaction')}
-                </a>
+                </S.Receipt>
               ) : null}
-            </div>
+            </S.Links>
 
-            <div className="success__actions">
-              <SuccessBtn as="a" href={JUMP_URL} target="_blank" rel="noreferrer" variant="purple">
+            <S.Actions>
+              <S.SuccessBtn as="a" href={JUMP_URL} target="_blank" rel="noreferrer" variant="purple">
                 {t('success.useItInWorld')}
-              </SuccessBtn>
-              <SuccessBtn variant="ghost" onClick={() => navigate('/assets')}>
+              </S.SuccessBtn>
+              <S.SuccessBtn variant="ghost" onClick={() => navigate('/assets')}>
                 {t('success.keepShopping')}
-              </SuccessBtn>
-            </div>
+              </S.SuccessBtn>
+            </S.Actions>
           </>
         )}
-      </div>
-    </div>
+      </S.Panel>
+    </S.Root>
   )
 }
 

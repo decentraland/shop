@@ -1,13 +1,14 @@
 import styled from '@emotion/styled'
 import { theme } from '~/styles/theme'
+import { Modal as BaseModal } from '~/styles/modal.styles'
 
 const { colors, gradients, radius } = theme
 
-// The migrate progress modal. Composes the global `.modal*` chrome + `.spinner` + `.muted` (index.css);
-// these styled parts are the migrate-specific additions.
+// The migrate progress modal. Composes the shared modal chrome + the global `.spinner`/`.muted`
+// (index.css); the parts below are the migrate-specific additions.
 
-// Applied alongside the global `modal` class: width + left-aligned stretch layout.
-export const Modal = styled.div`
+// Widens the shared modal and left-aligns/stretches its content for the progress list.
+export const Modal = styled(BaseModal)`
   width: min(460px, 94vw);
   text-align: left;
   align-items: stretch;

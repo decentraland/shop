@@ -19,6 +19,7 @@ import { toast } from '~/store/toast'
 import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
 import { ErrorNotice } from '~/components/ErrorNotice'
+import { Field } from '~/styles/field.styles'
 import * as S from './StoreSettings.styles'
 
 const MAX_COVER_BYTES = 1_000_000 // 1 MB, same cap as the classic marketplace.
@@ -228,7 +229,7 @@ export function StoreSettings() {
         <S.Loading size="large" label={t('storeSettings.loading')} />
       ) : (
         <>
-          <div className="field">
+          <Field>
             <span className="field__label">{t('storeSettings.cover')}</span>
             <S.Picker role="group" aria-label={t('storeSettings.cover')}>
               {COVER_TEMPLATES.map(tpl => {
@@ -286,9 +287,9 @@ export function StoreSettings() {
                 message={t('storeSettings.sizeError', { max: mb(MAX_COVER_BYTES), current: mb(coverSize) })}
               />
             ) : null}
-          </div>
+          </Field>
 
-          <label className="field">
+          <Field as="label">
             <span className="field__label">{t('storeSettings.description')}</span>
             <textarea
               value={draft.description}
@@ -296,9 +297,9 @@ export function StoreSettings() {
               disabled={saving}
               onChange={e => setDraft(d => ({ ...d, description: e.target.value }))}
             />
-          </label>
+          </Field>
 
-          <label className="field">
+          <Field as="label">
             <span className="field__label">{t('storeSettings.website')}</span>
             <input
               type="url"
@@ -312,10 +313,10 @@ export function StoreSettings() {
             {!isValidLink('website', draft.links.website) ? (
               <ErrorNotice message={t('storeSettings.linkError', { value: LINK_PREFIX.website })} />
             ) : null}
-          </label>
+          </Field>
 
           {(['twitter', 'discord', 'facebook'] as const).map(type => (
-            <label className="field" key={type}>
+            <Field as="label" key={type}>
               <span className="field__label">{t(`storeSettings.${type}`)}</span>
               <S.Prefixed>
                 <S.Prefix>{LINK_PREFIX[type]}</S.Prefix>
@@ -326,7 +327,7 @@ export function StoreSettings() {
                   onChange={e => setLink(type, e.target.value)}
                 />
               </S.Prefixed>
-            </label>
+            </Field>
           ))}
 
           <S.Actions>

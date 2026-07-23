@@ -7,14 +7,9 @@ import { fetchTradeDisplay } from '~/lib/api'
 import { LoadMore } from '~/components/LoadMore'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
-import { Button } from '~/components/Button'
 import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
-import styled from '@emotion/styled'
-
-const EmptyCta = styled(Button)`
-  margin-top: 12px;
-`
+import * as S from './MyPurchases.styles'
 
 const PAGE_SIZE = 24
 
@@ -27,9 +22,8 @@ function formatDate(ms: number): string {
 }
 
 function StatusBadge({ status }: { status: PurchaseRecord['status'] }) {
-  if (status === 'PENDING')
-    return <span className="purchase__badge purchase__badge--pending">{t('myPurchases.processing')}</span>
-  return <span className="purchase__badge purchase__badge--done">{t('myPurchases.completed')}</span>
+  if (status === 'PENDING') return <S.Badge data-status="pending">{t('myPurchases.processing')}</S.Badge>
+  return <S.Badge data-status="done">{t('myPurchases.completed')}</S.Badge>
 }
 
 function PurchaseRow({ purchase }: { purchase: PurchaseRecord }) {
@@ -50,27 +44,19 @@ function PurchaseRow({ purchase }: { purchase: PurchaseRecord }) {
 
   const body = (
     <>
-      <div className="purchase__thumb">{thumbnail ? <img src={thumbnail} alt={name} /> : null}</div>
-      <div className="purchase__info">
-        <div className="purchase__name" title={name}>
-          {name}
-        </div>
-        <div className="muted purchase__date">{formatDate(purchase.createdAt)}</div>
-      </div>
+      <S.Thumb>{thumbnail ? <img src={thumbnail} alt={name} /> : null}</S.Thumb>
+      <S.Info>
+        <S.Name title={name}>{name}</S.Name>
+        <S.Date className="muted">{formatDate(purchase.createdAt)}</S.Date>
+      </S.Info>
       <StatusBadge status={purchase.status} />
-      <div className="purchase__price">
+      <S.Price>
         <CurrencyIcon className="ccy-mark" /> {purchase.credits}
-      </div>
+      </S.Price>
     </>
   )
 
-  return to ? (
-    <Link className="purchase" to={to}>
-      {body}
-    </Link>
-  ) : (
-    <div className="purchase">{body}</div>
-  )
+  return to ? <S.Row to={to}>{body}</S.Row> : <S.RowStatic>{body}</S.RowStatic>
 }
 
 export function MyPurchases() {
@@ -84,11 +70,11 @@ export function MyPurchases() {
 
   if (!session) {
     return (
-      <div className="purchases-empty">
+      <S.Empty>
         <Icon name="cart" size={40} color="var(--muted-2)" />
-        <p className="purchases-empty__title">{t('myPurchases.signInTitle')}</p>
+        <S.EmptyTitle>{t('myPurchases.signInTitle')}</S.EmptyTitle>
         <p className="muted">{t('myPurchases.signInBody')}</p>
-      </div>
+      </S.Empty>
     )
   }
 
@@ -97,40 +83,36 @@ export function MyPurchases() {
 
   if (!isLoading && purchases.length === 0) {
     return (
-      <div className="purchases-empty">
+      <S.Empty>
         <Icon name="cart" size={40} color="var(--muted-2)" />
-        <p className="purchases-empty__title">{t('myPurchases.emptyTitle')}</p>
+        <S.EmptyTitle>{t('myPurchases.emptyTitle')}</S.EmptyTitle>
         <p className="muted">{t('myPurchases.emptyBody')}</p>
-        <EmptyCta as={Link} to="/assets" variant="purple">
+        <S.EmptyCta as={Link} to="/assets" variant="purple">
           {t('notFound.cta')}
-        </EmptyCta>
-      </div>
+        </S.EmptyCta>
+      </S.Empty>
     )
   }
 
   return (
-    <section className="purchases">
-      <div className="purchases__head">
+    <S.Root>
+      <S.Head>
         <h1>{t('nav.myPurchases')}</h1>
-        {!isLoading ? (
-          <span className="purchases__count">{t('myPurchases.orderCount', { count: purchases.length })}</span>
-        ) : null}
-      </div>
-      <div className="purchases__list">
+        {!isLoading ? <S.Count>{t('myPurchases.orderCount', { count: purchases.length })}</S.Count> : null}
+      </S.Head>
+      <S.List>
         {isLoading ? (
-          Array.from({ length: 4 }).map((_, i) => <div className="purchase purchase--skeleton" key={i} />)
+          Array.from({ length: 4 }).map((_, i) => <S.Skeleton key={i} />)
         ) : (
           <>
             {purchases.map(p => (
               <PurchaseRow key={p.id} purchase={p} />
             ))}
-            {isFetchingNextPage
-              ? Array.from({ length: 2 }).map((_, i) => <div className="purchase purchase--skeleton" key={`m-${i}`} />)
-              : null}
+            {isFetchingNextPage ? Array.from({ length: 2 }).map((_, i) => <S.Skeleton key={`m-${i}`} />) : null}
           </>
         )}
-      </div>
+      </S.List>
       <LoadMore hasNextPage={hasNextPage} isFetching={isFetchingNextPage} onLoadMore={() => void fetchNextPage()} />
-    </section>
+    </S.Root>
   )
 }

@@ -16,8 +16,8 @@ export const SignInBtn = styled(Button)`
   margin-top: 8px;
 `
 
-// The store editor page. `data-signin` = the compact fully-centered signed-out prompt. Composes the
-// global `.field*` form primitive (index.css); the label/textarea tweaks below target it as descendants.
+// The store editor page. `data-signin` = the compact fully-centered signed-out prompt. Uses the shared
+// Field primitive (~/styles/field.styles); the label/textarea tweaks below target its descendants.
 export const Root = styled.section`
   max-width: 640px;
   margin: 0 auto;

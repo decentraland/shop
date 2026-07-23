@@ -18,6 +18,8 @@ import { t } from '~/intl/i18n'
 import { friendlyError } from '~/lib/errors'
 import { ErrorNotice } from '~/components/ErrorNotice'
 import { CheckmarkIcon } from '~/components/Icons/CheckmarkIcon'
+import * as M from '~/styles/modal.styles'
+import * as F from '~/styles/field.styles'
 
 const SIX_MONTHS_MS = 1000 * 60 * 60 * 24 * 182
 
@@ -132,14 +134,14 @@ export function PrimaryListModal({
   // ---- Success view ----------------------------------------------------------------------------
   if (listedCredits !== null) {
     return (
-      <div className="modal-backdrop" onClick={onClose} role="presentation">
-        <div className="modal modal--success" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
-          <div className="modal-success__check" aria-hidden>
+      <M.Backdrop onClick={onClose} role="presentation">
+        <M.Modal data-success onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
+          <M.SuccessCheck aria-hidden>
             <CheckmarkIcon size={30} />
-          </div>
-          <h2 className="modal__title">{t('primaryList.successTitle')}</h2>
-          {item.thumbnail ? <img className="modal__img" src={item.thumbnail} alt={item.name} /> : null}
-          <p className="modal-success__name">{item.name}</p>
+          </M.SuccessCheck>
+          <M.Title>{t('primaryList.successTitle')}</M.Title>
+          {item.thumbnail ? <M.Img src={item.thumbnail} alt={item.name} /> : null}
+          <M.SuccessName>{item.name}</M.SuccessName>
           <p className="muted small">
             {t('primaryList.listedFor')}{' '}
             <strong>
@@ -147,24 +149,24 @@ export function PrimaryListModal({
             </strong>{' '}
             {t('primaryList.dotAvailable', { count: item.remainingSupply })}
           </p>
-          <div className="modal__actions">
+          <M.Actions data-actions>
             <Button variant="ghost" onClick={onClose}>
               {t('getCredits.done')}
             </Button>
             <Button variant="purple" onClick={viewInShop}>
               {t('primaryList.viewInShop')}
             </Button>
-          </div>
-        </div>
-      </div>
+          </M.Actions>
+        </M.Modal>
+      </M.Backdrop>
     )
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose} role="presentation">
-      <div className="modal" data-testid="modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
-        <h2 className="modal__title">{t('primaryList.publishTitle', { name: item.name })}</h2>
-        {item.thumbnail ? <img className="modal__img" src={item.thumbnail} alt={item.name} /> : null}
+    <M.Backdrop onClick={onClose} role="presentation">
+      <M.Modal data-testid="modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
+        <M.Title>{t('primaryList.publishTitle', { name: item.name })}</M.Title>
+        {item.thumbnail ? <M.Img src={item.thumbnail} alt={item.name} /> : null}
 
         <p className="muted small">
           {t('primaryList.fromCollection', {
@@ -173,7 +175,7 @@ export function PrimaryListModal({
           })}
         </p>
 
-        <label className="field">
+        <F.Field as="label">
           <span>{t('primaryList.priceLabel', { currency: CURRENCY.name })}</span>
           <input
             type="number"
@@ -183,7 +185,7 @@ export function PrimaryListModal({
             onChange={e => setPrice(e.target.value)}
             disabled={busy}
           />
-        </label>
+        </F.Field>
         <p className="muted small">
           {t('primaryList.pricedInWhole', { currency: CURRENCY.name, currencySingular: CURRENCY.nameSingular })}
         </p>
@@ -209,15 +211,15 @@ export function PrimaryListModal({
         {status ? <p className="muted">{status}</p> : null}
         <ErrorNotice message={error} />
 
-        <div className="modal__actions">
+        <M.Actions data-actions>
           <Button variant="ghost" onClick={onClose} disabled={busy}>
             {t('primaryList.cancel')}
           </Button>
           <Button onClick={() => void publish()} disabled={busy || enabled === null}>
             {enabled === null ? t('primaryList.checking') : cta}
           </Button>
-        </div>
-      </div>
-    </div>
+        </M.Actions>
+      </M.Modal>
+    </M.Backdrop>
   )
 }

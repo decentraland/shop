@@ -10,6 +10,7 @@ import { track } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
 import { t } from '~/intl/i18n'
 import { CheckmarkIcon } from '~/components/Icons/CheckmarkIcon'
+import * as M from '~/styles/modal.styles'
 import * as S from './MigrateModal.styles'
 
 export type MigrateEntry = { item: ImportItem; priceCredits: number }
@@ -97,12 +98,12 @@ export function MigrateModal({
     const skipped = statuses.filter(s => s === 'skipped' || s === 'failed').length
     const unlisted = statuses.filter(s => s === 'unlisted').length
     return (
-      <div className="modal-backdrop" role="presentation">
-        <div className="modal modal--success" role="dialog" aria-modal="true">
-          <div className="modal-success__check" aria-hidden>
+      <M.Backdrop role="presentation">
+        <M.Modal data-success role="dialog" aria-modal="true">
+          <M.SuccessCheck aria-hidden>
             <CheckmarkIcon size={30} />
-          </div>
-          <h2 className="modal__title">{listedCount > 0 ? t('migrate.successTitle') : t('migrate.nothingTitle')}</h2>
+          </M.SuccessCheck>
+          <M.Title>{listedCount > 0 ? t('migrate.successTitle') : t('migrate.nothingTitle')}</M.Title>
           <p className="muted" style={{ margin: 0 }}>
             {listedCount > 0
               ? t('migrate.listedSummary', { count: listedCount, currency: CURRENCY.name })
@@ -110,7 +111,7 @@ export function MigrateModal({
             {skipped > 0 ? ' ' + t('migrate.skippedSummary', { count: skipped }) : ''}
             {unlisted > 0 ? ' ' + t('migrate.unlistedSummary', { count: unlisted }) : ''}
           </p>
-          <div className="modal__actions">
+          <M.Actions data-actions>
             <Button variant="ghost" onClick={finish}>
               {t('getCredits.done')}
             </Button>
@@ -137,16 +138,16 @@ export function MigrateModal({
                 {t('migrate.viewInShop')}
               </Button>
             ) : null}
-          </div>
-        </div>
-      </div>
+          </M.Actions>
+        </M.Modal>
+      </M.Backdrop>
     )
   }
 
   return (
-    <div className="modal-backdrop" role="presentation">
-      <S.Modal className="modal" data-testid="modal" role="dialog" aria-modal="true" aria-live="polite">
-        <h2 className="modal__title">{t('migrate.listingTitle')}</h2>
+    <M.Backdrop role="presentation">
+      <S.Modal data-testid="modal" role="dialog" aria-modal="true" aria-live="polite">
+        <M.Title>{t('migrate.listingTitle')}</M.Title>
         <p className="muted small" style={{ margin: '0 0 4px' }}>
           {showsConfirmations ? t('migrate.subConfirm') : t('migrate.subManaged')}{' '}
           {activeIndex >= 0 ? t('migrate.progressCount', { current: activeIndex + 1, total: queue.length }) : ''}
@@ -192,6 +193,6 @@ export function MigrateModal({
           {showsConfirmations ? t('migrate.hintConfirm') : t('migrate.hintManaged')}
         </S.Hint>
       </S.Modal>
-    </div>
+    </M.Backdrop>
   )
 }

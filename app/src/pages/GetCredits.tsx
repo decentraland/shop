@@ -4,7 +4,6 @@ import { useQueryClient } from '@tanstack/react-query'
 import { CircularProgress } from 'decentraland-ui2'
 import { useWallet } from '~/store/wallet'
 import { Icon } from '~/components/Icon'
-import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { CURRENCY, formatAmount } from '~/lib/currency'
 import { useSeo } from '~/hooks/useSeo'
 import { track, errorCode } from '~/lib/analytics'
@@ -18,6 +17,7 @@ import creditCoin from '~/assets/credits/credit-coin.webp'
 import checkCircle from '~/assets/credits/check-circle.svg'
 import loaderLogo from '~/assets/credits/loader-logo.svg'
 import { CREDIT_PACKS, createPackCheckout, pollCreditGrant, isMockPayments, type CreditPack } from '~/lib/payments'
+import * as S from './GetCredits.styles'
 
 // Live Stripe when real payments are configured; otherwise the built-in mock (dev). Single source of
 // truth via isMockPayments() (which gates on the publishable key) — don't reimplement the gate here.
@@ -247,149 +247,145 @@ export function GetCredits() {
   const showHeader = phase === 'select'
 
   return (
-    <div className="getcredits">
+    <S.Root>
       {showHeader && (
-        <header className="getcredits__head">
-          <h1 className="getcredits__title">{t('getCredits.title', { currency: CURRENCY.name })}</h1>
-          <p className="getcredits__sub">
+        <S.Head>
+          <S.Title>{t('getCredits.title', { currency: CURRENCY.name })}</S.Title>
+          <S.Sub>
             {t('getCredits.subtitle', { currency: CURRENCY.name })}{' '}
-            <a className="getcredits__learn" href={LEARN_MORE_URL} target="_blank" rel="noreferrer">
+            <S.Learn href={LEARN_MORE_URL} target="_blank" rel="noreferrer">
               {t('getCredits.learnMore')}
-              <Icon name="arrow-up-right" className="getcredits__learn-ico" size={13} />
-            </a>
-          </p>
-        </header>
+              <Icon name="arrow-up-right" size={13} />
+            </S.Learn>
+          </S.Sub>
+        </S.Head>
       )}
 
       {phase === 'select' && (
         <>
           {canceledNote && (
-            <p className="getcredits__note muted" role="status">
+            <S.Note className="muted" role="status">
               {t('getCredits.canceledNote')}
-            </p>
+            </S.Note>
           )}
           <PackGrid onSelect={pack => void startCheckout(pack)} />
         </>
       )}
 
       {phase === 'redirecting' && (
-        <div className="getcredits__status" role="status" aria-live="polite">
+        <S.Redirect role="status" aria-live="polite">
           <CircularProgress size={32} />
           <p className="muted">{t('getCredits.redirecting')}</p>
-        </div>
+        </S.Redirect>
       )}
 
       {phase === 'processing' && (
-        <div className="gc-processing" role="status" aria-live="polite">
-          <img className="gc-processing__logo" src={loaderLogo} alt="" width={61} height={61} />
-          <div className="gc-processing__body">
-            <p className="gc-processing__title">
+        <S.Processing role="status" aria-live="polite">
+          <S.ProcessingLogo src={loaderLogo} alt="" width={61} height={61} />
+          <S.ProcessingBody>
+            <S.ProcessingTitle>
               <strong>{t('getCredits.processing')}</strong>…
-            </p>
-            <div className="gc-progress" aria-hidden>
-              <span className="gc-progress__track">
-                <span className="gc-progress__fill" />
-              </span>
-              <span className="gc-progress__count">1/1</span>
-            </div>
-          </div>
-        </div>
+            </S.ProcessingTitle>
+            <S.Progress aria-hidden>
+              <S.Track>
+                <S.Fill />
+              </S.Track>
+              <S.Count>1/1</S.Count>
+            </S.Progress>
+          </S.ProcessingBody>
+        </S.Processing>
       )}
 
       {phase === 'success' && (
-        <div className="gc-success" role="status" aria-live="polite">
-          <div className="gc-banner">
-            <img className="gc-banner__icon" src={checkCircle} alt="" width={60} height={60} />
-            <p className="gc-banner__text">
+        <S.Success role="status" aria-live="polite">
+          <S.Banner>
+            <S.BannerIcon src={checkCircle} alt="" width={60} height={60} />
+            <S.BannerText>
               <strong>{t('getCredits.successTitle')}</strong> {t('getCredits.successBody', { currency: CURRENCY.name })}
-            </p>
-          </div>
+            </S.BannerText>
+          </S.Banner>
 
           {granted != null && (
-            <div className="gc-credits">
-              <div className="gc-credits__row">
-                <img className="gc-credits__coin" src={creditCoin} alt="" width={93} height={93} />
-                <p className="gc-credits__text">
-                  <CurrencyIcon className="gc-credits__diamond" />
+            <S.Credits>
+              <S.CreditsRow>
+                <S.Coin src={creditCoin} alt="" width={93} height={93} />
+                <S.CreditsText>
+                  <S.Diamond />
                   <span>
-                    <strong className="gc-credits__amount">
-                      {t('getCredits.creditsAmount', { credits: granted, currency: CURRENCY.name })}
-                    </strong>{' '}
-                    <span className="gc-credits__added">{t('getCredits.creditsAdded')}</span>
+                    <S.Amount>{t('getCredits.creditsAmount', { credits: granted, currency: CURRENCY.name })}</S.Amount>{' '}
+                    <S.Added>{t('getCredits.creditsAdded')}</S.Added>
                   </span>
-                </p>
-              </div>
-            </div>
+                </S.CreditsText>
+              </S.CreditsRow>
+            </S.Credits>
           )}
 
-          <div className="gc-actions">
-            <button className="gc-actions__btn gc-actions__btn--outline" onClick={reset}>
+          <S.Actions>
+            <S.GcBtn data-variant="outline" onClick={reset}>
               {t('getCredits.buyMore', { currency: CURRENCY.name })}
-            </button>
-            <button className="gc-actions__btn gc-actions__btn--solid" onClick={() => navigate('/assets')}>
+            </S.GcBtn>
+            <S.GcBtn data-variant="solid" onClick={() => navigate('/assets')}>
               {t('getCredits.startShopping')}
-            </button>
-          </div>
-        </div>
+            </S.GcBtn>
+          </S.Actions>
+        </S.Success>
       )}
 
       {phase === 'pending' && (
-        <div className="gc-status" role="status" aria-live="polite">
-          <p className="gc-status__title">{t('getCredits.pendingTitle', { currency: CURRENCY.name })}</p>
+        <S.Status role="status" aria-live="polite">
+          <S.StatusTitle data-title>{t('getCredits.pendingTitle', { currency: CURRENCY.name })}</S.StatusTitle>
           <p className="muted">{t('getCredits.pendingBody')}</p>
-          <div className="gc-status__actions">
-            <button className="gc-actions__btn gc-actions__btn--solid" onClick={() => navigate('/assets')}>
+          <S.StatusActions>
+            <S.GcBtn data-variant="solid" onClick={() => navigate('/assets')}>
               {t('getCredits.startShopping')}
-            </button>
-            <button className="gc-actions__btn gc-actions__btn--outline" onClick={reset}>
+            </S.GcBtn>
+            <S.GcBtn data-variant="outline" onClick={reset}>
               {t('getCredits.done')}
-            </button>
-          </div>
-        </div>
+            </S.GcBtn>
+          </S.StatusActions>
+        </S.Status>
       )}
 
       {phase === 'error' && (
-        <div className="gc-status gc-status--err" role="alert">
-          <p className="gc-status__title">{t('getCredits.errorTitle')}</p>
+        <S.Status data-err role="alert">
+          <S.StatusTitle data-title>{t('getCredits.errorTitle')}</S.StatusTitle>
           <p className="error">{error}</p>
-          <div className="gc-status__actions">
-            <button className="gc-actions__btn gc-actions__btn--solid" onClick={reset}>
+          <S.StatusActions>
+            <S.GcBtn data-variant="solid" onClick={reset}>
               {t('getCredits.tryAgain')}
-            </button>
-          </div>
-        </div>
+            </S.GcBtn>
+          </S.StatusActions>
+        </S.Status>
       )}
-    </div>
+    </S.Root>
   )
 }
 
 function PackGrid({ onSelect }: { onSelect: (pack: CreditPack) => void }) {
   return (
-    <div className="packs">
+    <S.Packs>
       {CREDIT_PACKS.map(pack => (
-        <button
+        <S.Pack
           key={pack.id}
           type="button"
-          className={`pack${pack.bestValue ? ' pack--best' : ''}`}
+          data-best={pack.bestValue || undefined}
           data-testid="pack"
           onClick={() => onSelect(pack)}
           aria-label={t('getCredits.packAria', { amount: formatAmount(pack.credits), usd: pack.usd })}
         >
-          {pack.bestValue && <span className="pack__badge">{t('getCredits.packBadge')}</span>}
-          <span className="pack__inner">
-            <span className="pack__label">
-              {t('getCredits.creditsAmount', { credits: pack.credits, currency: CURRENCY.name })}
-            </span>
-            <span className="pack__art">
+          {pack.bestValue && <S.Badge>{t('getCredits.packBadge')}</S.Badge>}
+          <S.Inner data-inner>
+            <S.Label>{t('getCredits.creditsAmount', { credits: pack.credits, currency: CURRENCY.name })}</S.Label>
+            <S.Art>
               <img src={PACK_IMAGES[pack.id] ?? packChips} alt="" loading="lazy" />
-            </span>
-            <span className="pack__cta-wrap">
-              <span className="pack__cta">${pack.usd.toFixed(2)}</span>
-            </span>
-          </span>
-        </button>
+            </S.Art>
+            <S.CtaWrap>
+              <S.Cta data-cta>${pack.usd.toFixed(2)}</S.Cta>
+            </S.CtaWrap>
+          </S.Inner>
+        </S.Pack>
       ))}
-    </div>
+    </S.Packs>
   )
 }
 

@@ -6,24 +6,18 @@ import { useCart } from '~/store/cart'
 import { useWallet } from '~/store/wallet'
 import { useProfile } from '~/hooks/useProfile'
 import { config } from '~/config'
-import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { CURRENCY } from '~/lib/currency'
 import { track } from '~/lib/analytics'
 import { isWearable, slotOf, slotRegion, defaultWorn, toggleWorn, conflictingIds, wornUrns } from '~/lib/outfit'
 import { avatarShape, dominantShape, itemShapes, shapeLabel, isCompatible, BASE_MALE } from '~/lib/bodyShape'
-import { Button } from '~/components/Button'
 import { Icon, type IconName } from '~/components/Icon'
 import type { SlotRegion } from '~/lib/outfit'
-import styled from '@emotion/styled'
 import { t } from '~/intl/i18n'
+import * as S from './FittingRoom.styles'
 
 // Lazy so the WebGL backdrop (+ its shader and pattern texture) only loads when the room opens —
 // it never touches the main bundle.
 const AnimatedBackground = lazy(() => import('~/components/AnimatedBackground/AnimatedBackground'))
-
-const CheckoutBtn = styled(Button)`
-  flex: none;
-`
 
 const SLOT_ICON: Record<SlotRegion, IconName> = {
   head: 'slot-head',
@@ -123,22 +117,22 @@ export function FittingRoom() {
   if (!open || items.length === 0) return null
 
   return (
-    <div className="fitting" role="dialog" aria-modal="true" aria-label={t('fittingRoom.title')}>
-      <div className="fitting__scrim" onClick={() => setOpen(false)} />
-      <div className="fitting__panel">
-        <button className="fitting__close" onClick={() => setOpen(false)} aria-label={t('fittingRoom.close')}>
+    <S.Modal role="dialog" aria-modal="true" aria-label={t('fittingRoom.title')}>
+      <S.Scrim onClick={() => setOpen(false)} />
+      <S.Panel>
+        <S.Close onClick={() => setOpen(false)} aria-label={t('fittingRoom.close')}>
           <Icon name="close" size={18} />
-        </button>
+        </S.Close>
 
-        <div className="fitting__stage">
+        <S.Stage>
           {/* Animated purple vignette behind the avatar (transparent WearablePreview sits on top). */}
           <Suspense fallback={null}>
             <AnimatedBackground />
           </Suspense>
           {!profileResolved ? (
-            <div className="fitting__loading" aria-hidden>
-              <span className="fitting__spinner" />
-            </div>
+            <S.Loading aria-hidden>
+              <S.Spinner />
+            </S.Loading>
           ) : urns.length > 0 ? (
             <>
               {/* Stable key (profile) so toggling an item updates the SAME iframe (one reload, masked by
@@ -158,26 +152,26 @@ export function FittingRoom() {
                 onLoad={() => setPreviewReady(true)}
               />
               {!previewReady ? (
-                <div className="fitting__loading" aria-hidden>
-                  <span className="fitting__spinner" />
-                </div>
+                <S.Loading aria-hidden>
+                  <S.Spinner />
+                </S.Loading>
               ) : null}
             </>
           ) : (
-            <div className="fitting__empty-stage">
+            <S.EmptyStage>
               <p>{t('fittingRoom.emptyStageTitle')}</p>
               <p className="muted">{t('fittingRoom.emptyStageBody')}</p>
-            </div>
+            </S.EmptyStage>
           )}
-        </div>
+        </S.Stage>
 
-        <div className="fitting__side">
-          <div className="fitting__head">
-            <h2 className="fitting__title">{t('fittingRoom.title')}</h2>
-            <p className="fitting__sub muted">{t('fittingRoom.sub')}</p>
-          </div>
+        <S.Side>
+          <S.Head>
+            <S.Title>{t('fittingRoom.title')}</S.Title>
+            <S.Sub className="muted">{t('fittingRoom.sub')}</S.Sub>
+          </S.Head>
 
-          <div className="fitting__items">
+          <S.Items>
             {items.map(item => {
               const wearable = isWearable(item)
               // Wearable the target body can't wear → it can't be equipped (would render invisible); flag it.
@@ -185,28 +179,25 @@ export function FittingRoom() {
               const on = worn.has(item.id)
               const conflicted = conflicts.has(item.id)
               return (
-                <div
-                  className={`fitting-row${on ? ' is-on' : ''}${incompatible ? ' is-incompatible' : ''}`}
+                <S.Row
+                  data-on={on || undefined}
+                  data-incompatible={incompatible || undefined}
                   data-testid="fitting-row"
                   key={item.id}
                 >
-                  <label className="fitting-row__toggle">
+                  <S.Toggle>
                     <input
                       type="checkbox"
                       checked={on}
                       disabled={!wearable || incompatible}
                       onChange={() => setWorn(prev => toggleWorn(prev, item, items))}
                     />
-                    <span className="fitting-row__box" aria-hidden />
-                  </label>
-                  <div className="fitting-row__thumb">
-                    {item.thumbnail ? <img src={item.thumbnail} alt={item.name} /> : null}
-                  </div>
-                  <div className="fitting-row__info">
-                    <div className="fitting-row__name" title={item.name}>
-                      {item.name}
-                    </div>
-                    <div className="fitting-row__meta">
+                    <S.Box data-box aria-hidden />
+                  </S.Toggle>
+                  <S.Thumb>{item.thumbnail ? <img src={item.thumbnail} alt={item.name} /> : null}</S.Thumb>
+                  <S.Info>
+                    <S.Name title={item.name}>{item.name}</S.Name>
+                    <S.Meta>
                       <Icon
                         name={SLOT_ICON[wearable ? slotRegion(item) : 'item']}
                         size={16}
@@ -216,45 +207,39 @@ export function FittingRoom() {
                         aria-label={wearable ? slotLabel(slotOf(item)) : t('fittingRoom.emote')}
                       />
                       {conflicted && !incompatible ? (
-                        <span className="fitting-row__conflict" title={t('fittingRoom.conflictTooltip')}>
-                          {t('fittingRoom.onePerSlot')}
-                        </span>
+                        <S.Conflict title={t('fittingRoom.conflictTooltip')}>{t('fittingRoom.onePerSlot')}</S.Conflict>
                       ) : null}
                       {incompatible ? (
-                        <span
-                          className="fitting-row__incompat"
-                          title={t('fittingRoom.madeForShape', { shape: shapeLabel(itemShapes(item)[0]) })}
-                        >
+                        <S.Incompat title={t('fittingRoom.madeForShape', { shape: shapeLabel(itemShapes(item)[0]) })}>
                           {t('fittingRoom.shapeOnly', { shape: shapeLabel(itemShapes(item)[0]) })}
-                        </span>
+                        </S.Incompat>
                       ) : null}
-                    </div>
-                  </div>
-                  <div className="fitting-row__price">
-                    <CurrencyIcon className="fitting-row__diamond" />
+                    </S.Meta>
+                  </S.Info>
+                  <S.Price>
+                    <S.Diamond />
                     {item.priceCredits}
-                  </div>
-                  <button
-                    className="fitting-row__remove"
+                  </S.Price>
+                  <S.Remove
                     onClick={() => remove(item.id)}
                     aria-label={t('fittingRoom.removeFromCart', { name: item.name })}
                     title={t('fittingRoom.remove')}
                   >
                     <Icon name="trash" size={18} />
-                  </button>
-                </div>
+                  </S.Remove>
+                </S.Row>
               )
             })}
-          </div>
+          </S.Items>
 
-          <div className="fitting__foot">
-            <div className="fitting__total">
+          <S.Foot>
+            <S.Total>
               {t('fittingRoom.itemCount', { count: items.length })} ·{' '}
               <strong>
                 {CURRENCY.symbol} {total}
               </strong>
-            </div>
-            <CheckoutBtn
+            </S.Total>
+            <S.CheckoutBtn
               variant="purple"
               onClick={() => {
                 setOpen(false)
@@ -262,10 +247,10 @@ export function FittingRoom() {
               }}
             >
               {t('fittingRoom.checkout')}
-            </CheckoutBtn>
-          </div>
-        </div>
-      </div>
-    </div>
+            </S.CheckoutBtn>
+          </S.Foot>
+        </S.Side>
+      </S.Panel>
+    </S.Modal>
   )
 }

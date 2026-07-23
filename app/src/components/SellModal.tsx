@@ -16,6 +16,8 @@ import { t } from '~/intl/i18n'
 import { friendlyError } from '~/lib/errors'
 import { ErrorNotice } from '~/components/ErrorNotice'
 import { CheckmarkIcon } from '~/components/Icons/CheckmarkIcon'
+import * as M from '~/styles/modal.styles'
+import * as F from '~/styles/field.styles'
 
 const SIX_MONTHS_MS = 1000 * 60 * 60 * 24 * 182
 
@@ -89,40 +91,40 @@ export function SellModal({ asset, session, onClose }: { asset: MyAsset; session
 
   if (listedCredits !== null) {
     return (
-      <div className="modal-backdrop" onClick={onClose} role="presentation">
-        <div className="modal modal--success" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
-          <div className="modal-success__check" aria-hidden>
+      <M.Backdrop onClick={onClose} role="presentation">
+        <M.Modal data-success onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
+          <M.SuccessCheck aria-hidden>
             <CheckmarkIcon size={30} />
-          </div>
-          <h2 className="modal__title">{t('sellModal.successTitle')}</h2>
-          {asset.image ? <img className="modal__img" src={asset.image} alt={asset.name} /> : null}
-          <p className="modal-success__name">{asset.name}</p>
+          </M.SuccessCheck>
+          <M.Title>{t('sellModal.successTitle')}</M.Title>
+          {asset.image ? <M.Img src={asset.image} alt={asset.name} /> : null}
+          <M.SuccessName>{asset.name}</M.SuccessName>
           <p className="muted small">
             {t('sellModal.listedFor')}{' '}
             <strong>
               <CurrencyIcon className="ccy-mark" /> {listedCredits}
             </strong>
           </p>
-          <div className="modal__actions">
+          <M.Actions data-actions>
             <Button variant="ghost" onClick={onClose}>
               {t('getCredits.done')}
             </Button>
             <Button variant="purple" onClick={viewInShop}>
               {t('sellModal.viewInShop')}
             </Button>
-          </div>
-        </div>
-      </div>
+          </M.Actions>
+        </M.Modal>
+      </M.Backdrop>
     )
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose} role="presentation">
-      <div className="modal" data-testid="modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
-        <h2 className="modal__title">{t('sellModal.listTitle', { name: asset.name })}</h2>
-        {asset.image ? <img className="modal__img" src={asset.image} alt={asset.name} /> : null}
+    <M.Backdrop onClick={onClose} role="presentation">
+      <M.Modal data-testid="modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
+        <M.Title>{t('sellModal.listTitle', { name: asset.name })}</M.Title>
+        {asset.image ? <M.Img src={asset.image} alt={asset.name} /> : null}
 
-        <label className="field">
+        <F.Field as="label">
           <span>{t('sellModal.priceLabel', { currency: CURRENCY.name })}</span>
           <input
             type="number"
@@ -132,7 +134,7 @@ export function SellModal({ asset, session, onClose }: { asset: MyAsset; session
             onChange={e => setPrice(e.target.value)}
             disabled={busy}
           />
-        </label>
+        </F.Field>
         <p className="muted small">
           {t('sellModal.pricedInWhole', { currency: CURRENCY.name, currencySingular: CURRENCY.nameSingular })}
         </p>
@@ -140,15 +142,15 @@ export function SellModal({ asset, session, onClose }: { asset: MyAsset; session
         {status ? <p className="muted">{status}</p> : null}
         <ErrorNotice message={error} />
 
-        <div className="modal__actions">
+        <M.Actions data-actions>
           <Button variant="ghost" onClick={onClose} disabled={busy}>
             {t('sellModal.cancel')}
           </Button>
           <Button onClick={() => void list()} disabled={busy}>
             {busy ? t('sellModal.listing') : t('sellModal.putOnSale')}
           </Button>
-        </div>
-      </div>
-    </div>
+        </M.Actions>
+      </M.Modal>
+    </M.Backdrop>
   )
 }
