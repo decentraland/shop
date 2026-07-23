@@ -15,7 +15,7 @@
 
 import { ethers } from 'ethers'
 import { type Trade } from '@dcl/schemas'
-import { ContractName, getContract, getContractName } from 'decentraland-transactions'
+import { ContractName, ErrorCode, MetaTransactionError, getContract, getContractName } from 'decentraland-transactions'
 import { config } from '~/config'
 import { gaslessConfig } from '~/lib/gasless-config'
 import { buildUseCreditsArgs, type CreditPurchase, type SpendableCredit } from '~/lib/trade-encoding'
@@ -119,9 +119,18 @@ async function relay(
       message
     )
   } catch (e) {
-    const msg = (e as Error)?.message ?? 'signature failed'
-    // A contract wallet that can't personal-sign → fall back to normal checkout.
-    throw new GaslessUnavailableError(msg, /denied/i.test(msg) ? 'unknown' : 'contract-account')
+    const err = e as { code?: unknown; message?: string }
+    const msg = err?.message ?? 'signature failed'
+    // The buyer DISMISSED the signature prompt — that's a cancellation, not a "gasless unavailable"
+    // condition. Throwing GaslessUnavailableError here made every caller silently retry with a DIRECT
+    // gas-paying useCredits: a no-gas managed (Magic/thirdweb) wallet then reverts with
+    // INSUFFICIENT_FUNDS, and a self-custody wallet gets a surprise second (gas) prompt. Surface it as
+    // MetaTransactionError(USER_DENIED) so it propagates as a cancel (matches setAuthorization / cancel).
+    if (err?.code === 4001 || err?.code === 'ACTION_REJECTED' || /denied|reject|cancel/i.test(msg)) {
+      throw new MetaTransactionError(msg, ErrorCode.USER_DENIED)
+    }
+    // A contract wallet that can't personal-sign → fall back to normal (gas-paying) checkout.
+    throw new GaslessUnavailableError(msg, 'contract-account')
   }
   // Signature obtained (the wallet prompt is dismissed) — the purchase now settles on-chain. Callers
   // use this to flip the UI from "confirm in your wallet" to "completing transaction".
