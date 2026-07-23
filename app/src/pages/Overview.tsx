@@ -142,9 +142,12 @@ export function Overview() {
   // Home page: the hook's site-wide default title/description is the best fit here (its title tail is
   // "Wearables & Emotes for Your Avatar", which we don't want to override), so pass nothing. Indexable.
   useSeo({})
-  // Only credit-buyable (USD-pegged) listings — not the primary mint catalog.
-  const { data, isLoading } = useQuery({ queryKey: ['overview-listings'], queryFn: () => fetchListings({ first: 24 }) })
-  const items = data?.items ?? []
+  // Featured / New Creations promote CREATORS, so they show PRIMARY (mint) listings only — no resales.
+  // The shop feed carries both, and a secondary (resale) row is the only kind with a per-token tokenId
+  // (it also carries no item name, which is why those cards rendered blank), so filter them out. Fetch
+  // a bigger page than we show so 24 primary rows survive the filter.
+  const { data, isLoading } = useQuery({ queryKey: ['overview-listings'], queryFn: () => fetchListings({ first: 48 }) })
+  const items = (data?.items ?? []).filter(i => !i.tokenId)
 
   return (
     <div className="overview">
