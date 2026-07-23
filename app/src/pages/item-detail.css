@@ -120,10 +120,8 @@
   color: var(--text);
 }
 /* Icon glyphs live in the toggle for the mobile icon-only pill; hidden on desktop (text shows). */
-.item-preview__toggle-ico {
+.item-preview__toggle .item-preview__toggle-ico {
   display: none;
-  width: 18px;
-  height: 18px;
 }
 /* Emote play/pause + sound + scrub controls, pinned to the bottom of the preview (emotes only).
    The bar itself is the shop-styled pill; the decentraland-ui2 <EmoteControls> renders inside it. That
@@ -833,7 +831,7 @@
   .item-preview__toggle-label {
     display: none;
   }
-  .item-preview__toggle-ico {
+  .item-preview__toggle .item-preview__toggle-ico {
     display: block;
   }
   .item-preview__toggle button {

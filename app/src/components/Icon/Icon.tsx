@@ -17,7 +17,9 @@ for (const [path, url] of Object.entries(SVG_URLS)) {
 // hand-maintained list of valid icons. Keep it in sync with assets/icons: add the file's basename here
 // when you add an SVG, and remove it here when you delete one.
 export type IconName =
+  | 'alert'
   | 'arrow-left'
+  | 'arrow-up-right'
   | 'bell'
   | 'carousel-arrow'
   | 'cart'
@@ -32,6 +34,7 @@ export type IconName =
   | 'category-eyewear'
   | 'chevron-down'
   | 'clock'
+  | 'close'
   | 'copy'
   | 'credits'
   | 'discord'
@@ -54,8 +57,10 @@ export type IconName =
   | 'heart'
   | 'heart-solid'
   | 'mana-logo'
+  | 'minus'
   | 'pen'
   | 'plus'
+  | 'plus-thin'
   | 'search'
   | 'slot-feet'
   | 'slot-hands'
@@ -68,6 +73,8 @@ export type IconName =
   | 'twitter'
   | 'upload'
   | 'view-all-arrow'
+  | 'view-avatar'
+  | 'view-item'
   | 'website'
 
 type IconProps = {

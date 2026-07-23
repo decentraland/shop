@@ -57,7 +57,7 @@ export const Img = styled.img`
 export const Cover = styled(CollectionMosaic)`
   gap: 2px;
 
-  & .coll-thumb__cell img {
+  & [data-testid='coll-thumb-cell'] img {
     object-fit: contain;
     padding: 10px;
   }

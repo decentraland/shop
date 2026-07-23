@@ -21,6 +21,7 @@ import { CURRENCY } from '~/lib/currency'
 import { CREDIT_PACKS, createPackCheckout } from '~/lib/payments'
 import { config } from '~/config'
 import { CartCheckoutModal, type CheckoutLine } from '~/components/CartCheckoutModal'
+import { CheckmarkIcon } from '~/components/Icons/CheckmarkIcon'
 import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
 import { isRejection, isInsufficient } from '~/lib/errors'
@@ -470,16 +471,7 @@ export function Cart() {
                       <img src={item.thumbnail} alt={item.name} />
                     ) : null}
                     <S.ThumbCheck aria-hidden>
-                      <svg viewBox="0 0 20 20" width="12" height="12">
-                        <path
-                          d="M5 10.5l3 3 7-7.5"
-                          fill="none"
-                          stroke="#fff"
-                          strokeWidth="2.4"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
+                      <CheckmarkIcon />
                     </S.ThumbCheck>
                   </S.Thumb>
                   <S.Info>
@@ -502,15 +494,11 @@ export function Cart() {
                           disabled={working}
                           aria-label={t('cart.removeFromCart', { name: item.name })}
                         >
-                          <svg viewBox="0 0 16 16" fill="none" aria-hidden focusable="false">
-                            <path d="M3.5 8h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                          </svg>
+                          <Icon name="minus" size={16} />
                         </S.Step>
                         <S.Qty>1</S.Qty>
                         <S.Step disabled aria-label={t('cart.increaseQuantity')}>
-                          <svg viewBox="0 0 16 16" fill="none" aria-hidden focusable="false">
-                            <path d="M8 3.5v9M3.5 8h9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                          </svg>
+                          <Icon name="plus-thin" size={16} />
                         </S.Step>
                       </S.Stepper>
                       <S.Price>

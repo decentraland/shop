@@ -4,6 +4,7 @@ import { AssetCard } from '~/components/AssetCard'
 import { useFollows } from '~/store/follows'
 import { t } from '~/intl/i18n'
 import type { CatalogItem } from '~/lib/api'
+import * as Row from '~/styles/row.styles'
 
 // Bound the fan-out so a visitor following many creators doesn't fire dozens of requests.
 const MAX_CREATORS = 8
@@ -40,16 +41,16 @@ export function FollowedCreatorsRow() {
   if (!isLoading && items.length === 0) return null
 
   return (
-    <section className="row">
-      <div className="row__head">
-        <h2 className="row__title">{t('followedCreators.title')}</h2>
-      </div>
-      <div className="row__track">
+    <Row.Root>
+      <Row.Head>
+        <Row.Title>{t('followedCreators.title')}</Row.Title>
+      </Row.Head>
+      <Row.Track data-rail>
         {isLoading
           ? Array.from({ length: 6 }).map((_, i) => <div className="card card--skeleton" key={i} />)
           : items.map(item => <AssetCard key={item.id} item={item} />)}
-      </div>
-    </section>
+      </Row.Track>
+    </Row.Root>
   )
 }
 

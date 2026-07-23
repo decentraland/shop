@@ -127,7 +127,7 @@ export function FittingRoom() {
       <div className="fitting__scrim" onClick={() => setOpen(false)} />
       <div className="fitting__panel">
         <button className="fitting__close" onClick={() => setOpen(false)} aria-label={t('fittingRoom.close')}>
-          ×
+          <Icon name="close" size={18} />
         </button>
 
         <div className="fitting__stage">

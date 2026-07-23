@@ -3,6 +3,11 @@ import type { CreditPack } from '~/lib/payments'
 import { formatCredits } from '~/lib/currency'
 import { t } from '~/intl/i18n'
 import { ErrorNotice } from '~/components/ErrorNotice'
+import { CloseIcon } from '~/components/Icons/CloseIcon'
+import { WarningTriangleIcon } from '~/components/Icons/WarningTriangleIcon'
+import { SuccessCheckIcon } from '~/components/Icons/SuccessCheckIcon'
+import { CheckmarkIcon } from '~/components/Icons/CheckmarkIcon'
+import { ArrowRightIcon } from '~/components/Icons/ArrowRightIcon'
 import * as M from '~/components/BuyModal/modal.styles'
 import * as S from './CartCheckoutModal.styles'
 
@@ -56,9 +61,7 @@ export function CartCheckoutModal(props: Props) {
               <M.Title>{title}</M.Title>
               {!busy && (
                 <M.X onClick={onClose} aria-label={t('buyModal.close')}>
-                  <svg viewBox="0 0 18 18" width="18" height="18" aria-hidden>
-                    <path d="M4 4l10 10M14 4L4 14" stroke="#161518" strokeWidth="1.8" strokeLinecap="round" />
-                  </svg>
+                  <CloseIcon />
                 </M.X>
               )}
             </M.HeadRow>
@@ -148,11 +151,7 @@ function NoFunds({
   return (
     <M.Body>
       <M.Warning>
-        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden>
-          <path d="M12 3L2 20h20L12 3z" fill="none" stroke="#691fa9" strokeWidth="1.8" strokeLinejoin="round" />
-          <path d="M12 9v5" stroke="#691fa9" strokeWidth="1.8" strokeLinecap="round" />
-          <circle cx="12" cy="17" r="1.1" fill="#691fa9" />
-        </svg>
+        <WarningTriangleIcon />
         <M.WarningText>
           <b>{t('buyModal.insufficientFunds')}</b> {t('buyModal.warningNeedToBuy')}{' '}
           <b>{t('buyModal.warningCreditsAmount', { count: Math.max(0, shortfallCredits) })}</b>{' '}
@@ -227,17 +226,7 @@ function Complete({
   return (
     <S.DoneBody>
       <M.Success data-wide>
-        <svg viewBox="0 0 64 64" width="60" height="60" aria-hidden>
-          <circle cx="32" cy="32" r="32" fill="#34ce77" />
-          <path
-            d="M20 33l8 8 16-18"
-            fill="none"
-            stroke="#fff"
-            strokeWidth="5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
+        <SuccessCheckIcon size={60} />
         <M.SuccessText data-wide>
           <b>{t('getCredits.successTitle')}</b> {t('buyModal.successBody')}
         </M.SuccessText>
@@ -250,16 +239,7 @@ function Complete({
               <S.DoneThumb>
                 {item.thumbnail ? <img src={item.thumbnail} alt="" /> : null}
                 <S.DoneCheck aria-hidden>
-                  <svg viewBox="0 0 18 18" width="12" height="12">
-                    <path
-                      d="M4 9l3.5 3.5L14 5"
-                      fill="none"
-                      stroke="#fff"
-                      strokeWidth="2.2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
+                  <CheckmarkIcon />
                 </S.DoneCheck>
               </S.DoneThumb>
               <S.DoneInfo>
@@ -281,16 +261,7 @@ function Complete({
         </M.Btn>
         <M.Btn data-variant="ruby" onClick={onTryInWorld}>
           {t('buyModal.tryInWorld')}
-          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden>
-            <path
-              d="M5 12h12M13 7l5 5-5 5"
-              fill="none"
-              stroke="#fcfcfc"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
+          <ArrowRightIcon />
         </M.Btn>
       </M.Ctas>
     </S.DoneBody>

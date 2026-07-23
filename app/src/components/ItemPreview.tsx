@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Icon } from '~/components/Icon'
 import { WearablePreview } from '~/components/LazyWearablePreview'
 import { EmoteControls } from '~/components/LazyEmoteControls'
 import { PreviewEmote, PreviewType } from '@dcl/schemas'
@@ -97,10 +98,7 @@ export function ItemPreview({ item }: { item: CatalogItem }) {
             aria-label={t('itemPreview.onAvatar')}
             onClick={() => setView('avatar')}
           >
-            <svg className="item-preview__toggle-ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-              <circle cx="12" cy="7.5" r="4" />
-              <path d="M4 20c0-4.2 3.6-6.5 8-6.5s8 2.3 8 6.5v.5H4z" />
-            </svg>
+            <Icon name="view-avatar" className="item-preview__toggle-ico" size={18} />
             <span className="item-preview__toggle-label">{t('itemPreview.onAvatar')}</span>
           </button>
           <button
@@ -110,9 +108,7 @@ export function ItemPreview({ item }: { item: CatalogItem }) {
             aria-label={t('itemPreview.item')}
             onClick={() => setView('item')}
           >
-            <svg className="item-preview__toggle-ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-              <path d="M8.5 3 3 6l1.8 3.8 2.2-1V21h10V8.8l2.2 1L22 6l-5.5-3a2.6 2.6 0 0 1-4.5 1.4A2.6 2.6 0 0 1 8.5 3z" />
-            </svg>
+            <Icon name="view-item" className="item-preview__toggle-ico" size={18} />
             <span className="item-preview__toggle-label">{t('itemPreview.item')}</span>
           </button>
         </div>

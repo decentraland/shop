@@ -161,59 +161,6 @@ h2 {
   margin-bottom: 22px;
 }
 
-/* ---------------- Rows (carousels) ---------------- */
-/* ⚠️ Card rails + the hover glow: cards have an OUTWARD hover glow (box-shadow — see .card--hover). An
-   `overflow-x: auto` scroller ALSO clips overflow-y, so any rail must reserve room for that glow or it
-   gets cropped flat (top/bottom). .row__track reserves it with vertical PADDING — not a negative vertical
-   margin, which would tuck the glow behind the previous row and re-clip it (that was the "still cut off in
-   the cart / Featured" bug). Only the horizontal margin is negative, so the side glow bleeds into the
-   page's 40px padding. The head/row bottom margins are trimmed by the padding so the vertical rhythm is
-   unchanged. EVERY horizontal rail of <AssetCard> already uses .row__track (Overview, Cart upsell,
-   Recently viewed, Followed creators) — any NEW one MUST reuse it (or copy this padding) or the glow
-   will be cut off again. */
-.row {
-  margin-bottom: 40px;
-}
-.row__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-}
-.row__title {
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--text);
-}
-.row__viewall {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--accent);
-  font-weight: 600;
-  font-size: 15px;
-  letter-spacing: 0.046em;
-  text-transform: uppercase;
-}
-.row__track {
-  display: flex;
-  gap: 16px;
-  overflow-x: auto;
-  padding: 12px 10px;
-  margin: 0 -10px;
-  scroll-snap-type: x proximity;
-}
-.row__track > * {
-  flex: 0 0 281px;
-  scroll-snap-align: start;
-}
-/* Mobile: rail cards shrink to a 2-up width (~2 cards + a peek) instead of a single oversized 281px card. */
-@media (max-width: 720px) {
-  .row__track > * {
-    flex: 0 0 44vw;
-  }
-}
-
 /* ---------------- Assets (sidebar + grid) ---------------- */
 .assets {
   display: grid;
@@ -341,6 +288,10 @@ h2 {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
   gap: 16px;
+}
+/* Wider tracks for the CollectionCard grid (Creator → Collections view). */
+.grid--collections {
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
 }
 /* Mobile: two compact columns (Figma), ~171px each (> the 150px min). */
 @media (max-width: 720px) {
@@ -717,105 +668,6 @@ h2 {
 .market-banner--warn {
   background: rgba(211, 51, 51, 0.1);
   color: var(--err);
-}
-
-/* Buy Now checkout modal (legacy items are bought directly, never added to the cart). */
-.mkt-modal {
-  position: fixed;
-  inset: 0;
-  z-index: 60;
-  display: grid;
-  place-items: center;
-  padding: 20px;
-}
-.mkt-modal__scrim {
-  position: absolute;
-  inset: 0;
-  background: rgba(22, 21, 24, 0.45);
-}
-.mkt-modal__card {
-  position: relative;
-  z-index: 1;
-  width: 100%;
-  max-width: 420px;
-  background: #fff;
-  border-radius: var(--radius-banner);
-  padding: 24px;
-  box-shadow: 0 24px 60px rgba(22, 21, 24, 0.28);
-  animation: cart-pop-in 0.16s ease;
-}
-.mkt-modal__head {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  margin-bottom: 18px;
-}
-.mkt-modal__thumb {
-  width: 64px;
-  height: 64px;
-  flex: none;
-  border-radius: 12px;
-  overflow: hidden;
-  background: var(--media);
-}
-.mkt-modal__thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-.mkt-modal__name {
-  font-weight: 700;
-  font-size: 16px;
-  color: var(--text);
-  margin-bottom: 6px;
-}
-.mkt-modal__price {
-  background: var(--panel);
-  border-radius: 14px;
-  padding: 16px;
-  margin-bottom: 14px;
-}
-.mkt-modal__price-label {
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 600;
-  margin-bottom: 6px;
-}
-.mkt-modal__price-value {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 700;
-  font-size: 24px;
-  color: var(--text);
-}
-.mkt-modal__price-value--approx {
-  color: var(--text-2);
-}
-.mkt-modal__approx {
-  color: var(--muted);
-}
-.mkt-modal__diamond {
-  width: 20px;
-  height: 20px;
-  color: var(--accent);
-}
-.mkt-modal__price-sub {
-  margin-top: 6px;
-  font-size: 13px;
-}
-.mkt-modal__balance {
-  font-size: 13px;
-  margin-bottom: 6px;
-}
-.mkt-modal__note {
-  margin: 6px 0 0;
-  font-size: 13px;
-}
-.mkt-modal__actions {
-  display: flex;
-  gap: 10px;
-  margin-top: 18px;
 }
 
 /* ---------------- My Assets (sell flow) ---------------- */

@@ -16,7 +16,7 @@ import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
 import { useSeo } from '~/hooks/useSeo'
 import { SUBCAT_MAP } from '~/lib/categories'
 import { CURRENCY } from '~/lib/currency'
-import './collection.css'
+import * as CP from '~/styles/collectionPage.styles'
 
 const PAGE_SIZE = 48
 
@@ -96,18 +96,16 @@ export function Collection() {
   const anyActive = category !== 'wearable' || !!subCategory || rarities.length > 0 || priceActive
 
   return (
-    <div className="collection-page" data-testid="collection-page">
-      <nav className="collection-page__crumbs" aria-label={t('collection.breadcrumbAria')}>
-        <button className="collection-page__crumb-link" onClick={() => navigate('/assets')}>
-          {t('collection.breadcrumb')}
-        </button>
-        <span className="collection-page__crumb-sep">/</span>
-        <span className="collection-page__crumb-current">{title}</span>
-      </nav>
+    <CP.Page data-testid="collection-page">
+      <CP.Crumbs aria-label={t('collection.breadcrumbAria')}>
+        <CP.CrumbLink onClick={() => navigate('/assets')}>{t('collection.breadcrumb')}</CP.CrumbLink>
+        <span>/</span>
+        <CP.CrumbCurrent>{title}</CP.CrumbCurrent>
+      </CP.Crumbs>
 
       <CollectionHero name={title} creator={creator} />
 
-      <div className="browse browse--sidebar collection-page__browse" data-testid="browse">
+      <div className="browse browse--sidebar" data-testid="browse">
         <aside className="browse__sidebar" data-testid="browse-sidebar">
           <CollectionCreatorCard address={creator} />
           <CategoryFilter
@@ -180,7 +178,7 @@ export function Collection() {
           {!isLoading && !error && items.length === 0 ? <p className="muted">{t('collection.empty')}</p> : null}
         </div>
       </div>
-    </div>
+    </CP.Page>
   )
 }
 

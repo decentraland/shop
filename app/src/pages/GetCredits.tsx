@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { CircularProgress } from 'decentraland-ui2'
 import { useWallet } from '~/store/wallet'
+import { Icon } from '~/components/Icon'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { CURRENCY, formatAmount } from '~/lib/currency'
 import { useSeo } from '~/hooks/useSeo'
@@ -254,22 +255,7 @@ export function GetCredits() {
             {t('getCredits.subtitle', { currency: CURRENCY.name })}{' '}
             <a className="getcredits__learn" href={LEARN_MORE_URL} target="_blank" rel="noreferrer">
               {t('getCredits.learnMore')}
-              <svg className="getcredits__learn-ico" viewBox="0 0 13 13" aria-hidden fill="none">
-                <path
-                  d="M4 2h7v7"
-                  stroke="currentColor"
-                  strokeWidth="1.6"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-                <path
-                  d="M11 2 2 11"
-                  stroke="currentColor"
-                  strokeWidth="1.6"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
+              <Icon name="arrow-up-right" className="getcredits__learn-ico" size={13} />
             </a>
           </p>
         </header>

@@ -1,5 +1,4 @@
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
-import CloseIcon from '@mui/icons-material/CloseRounded'
 import { fetchListings, type CatalogItem } from '~/lib/api'
 import { Icon } from '~/components/Icon'
 import { fetchCollectionSuggestions, fetchCreatorSuggestions, type CollectionHit, type CreatorHit } from '~/lib/search'
@@ -127,7 +126,7 @@ export function SearchDropdown({
                 aria-label={t('search.removeRecent', { query: term })}
                 onClick={() => onRemoveRecent(term)}
               >
-                <CloseIcon />
+                <Icon name="close" size={14} />
               </button>
             </li>
           ))}

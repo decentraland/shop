@@ -13,6 +13,7 @@ import heroBanner from '~/assets/overview/hero-fashion-week.png'
 import promoEmotes from '~/assets/overview/promo-best-rated-emotes.png'
 import promoOutfits from '~/assets/overview/promo-week-selected-outfits.png'
 import { Icon } from '~/components/Icon'
+import * as Row from '~/styles/row.styles'
 import * as S from './Overview.styles'
 
 const SKELETON_COUNT = 6
@@ -73,13 +74,13 @@ function Carousel({ title, items, loading }: { title: string; items: CatalogItem
   const showControls = !loading && pageCount > 1
 
   return (
-    <S.Carousel className="row">
-      <div className="row__head">
-        <h2 className="row__title">{title}</h2>
-        <Link className="row__viewall" to="/assets">
+    <S.Carousel>
+      <Row.Head>
+        <Row.Title>{title}</Row.Title>
+        <Row.ViewAll to="/assets">
           {t('overview.viewAll')} <Icon name="view-all-arrow" size={18} />
-        </Link>
-      </div>
+        </Row.ViewAll>
+      </Row.Head>
       <S.Viewport>
         {showControls ? (
           <S.Arrow

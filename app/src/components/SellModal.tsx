@@ -15,6 +15,7 @@ import { captureError } from '~/lib/monitoring'
 import { t } from '~/intl/i18n'
 import { friendlyError } from '~/lib/errors'
 import { ErrorNotice } from '~/components/ErrorNotice'
+import { CheckmarkIcon } from '~/components/Icons/CheckmarkIcon'
 
 const SIX_MONTHS_MS = 1000 * 60 * 60 * 24 * 182
 
@@ -91,7 +92,7 @@ export function SellModal({ asset, session, onClose }: { asset: MyAsset; session
       <div className="modal-backdrop" onClick={onClose} role="presentation">
         <div className="modal modal--success" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
           <div className="modal-success__check" aria-hidden>
-            ✓
+            <CheckmarkIcon size={30} />
           </div>
           <h2 className="modal__title">{t('sellModal.successTitle')}</h2>
           {asset.image ? <img className="modal__img" src={asset.image} alt={asset.name} /> : null}

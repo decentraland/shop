@@ -17,10 +17,11 @@ export const HeroCta = styled(Button)`
   align-items: center;
 `
 
-// The page scopes an override of the shared rail grid (RecentlyViewed / FollowedCreators use the global
-// `.row__track`) so every rail on this page shows the same fixed-N-per-view card width as the carousels.
+// The page scopes an override of the shared rail (RecentlyViewed / FollowedCreators render Row.Track,
+// which carries data-rail) so every rail on this page shows the same fixed-N-per-view card width as the
+// carousels.
 export const Overview = styled.div`
-  & .row__track {
+  & [data-rail] {
     display: grid;
     grid-auto-flow: column;
     grid-auto-columns: calc((100% - 64px) / 5);
@@ -28,17 +29,17 @@ export const Overview = styled.div`
     margin: 0;
   }
   ${media.maxWidth('xl')} {
-    & .row__track {
+    & [data-rail] {
       grid-auto-columns: calc((100% - 48px) / 4);
     }
   }
   ${media.maxWidth('lg')} {
-    & .row__track {
+    & [data-rail] {
       grid-auto-columns: calc((100% - 32px) / 3);
     }
   }
   ${media.maxWidth('sm')} {
-    & .row__track {
+    & [data-rail] {
       grid-auto-columns: calc((100% - 16px) / 2);
     }
   }

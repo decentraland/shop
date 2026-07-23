@@ -337,10 +337,6 @@ export const Step = styled.button`
     color: ${colors.muted2};
     cursor: default;
   }
-  & svg {
-    width: 16px;
-    height: 16px;
-  }
 `
 
 export const Qty = styled.span`

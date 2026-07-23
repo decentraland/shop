@@ -19,6 +19,10 @@ import { RESUME_BUY_KEY } from '~/lib/resume-buy'
 import { t } from '~/intl/i18n'
 import { friendlyError, isInsufficient } from '~/lib/errors'
 import { ErrorNotice } from '~/components/ErrorNotice'
+import { CloseIcon } from '~/components/Icons/CloseIcon'
+import { WarningTriangleIcon } from '~/components/Icons/WarningTriangleIcon'
+import { SuccessCheckIcon } from '~/components/Icons/SuccessCheckIcon'
+import { ArrowRightIcon } from '~/components/Icons/ArrowRightIcon'
 import * as M from './modal.styles'
 
 // The three top-up packs offered when the buyer is short on credits. The cheapest one that still
@@ -259,9 +263,7 @@ export function BuyModal({
             <M.Title>{title}</M.Title>
             {!busy && (
               <M.X onClick={onClose} aria-label={t('buyModal.close')}>
-                <svg viewBox="0 0 18 18" width="18" height="18" aria-hidden>
-                  <path d="M4 4l10 10M14 4L4 14" stroke="#161518" strokeWidth="1.8" strokeLinecap="round" />
-                </svg>
+                <CloseIcon />
               </M.X>
             )}
           </M.HeadRow>
@@ -297,11 +299,7 @@ export function BuyModal({
         {phase === 'nofunds' && (
           <M.Body>
             <M.Warning>
-              <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden>
-                <path d="M12 3L2 20h20L12 3z" fill="none" stroke="#691fa9" strokeWidth="1.8" strokeLinejoin="round" />
-                <path d="M12 9v5" stroke="#691fa9" strokeWidth="1.8" strokeLinecap="round" />
-                <circle cx="12" cy="17" r="1.1" fill="#691fa9" />
-              </svg>
+              <WarningTriangleIcon />
               <M.WarningText>
                 <b>{t('buyModal.insufficientFunds')}</b> {t('buyModal.warningNeedToBuy')}{' '}
                 <b>{t('buyModal.warningCreditsAmount', { count: Math.max(0, priceCredits - balanceCredits) })}</b>{' '}
@@ -369,17 +367,7 @@ export function BuyModal({
         {phase === 'complete' && (
           <M.Body>
             <M.Success>
-              <svg viewBox="0 0 64 64" width="64" height="64" aria-hidden>
-                <circle cx="32" cy="32" r="32" fill="#34ce74" />
-                <path
-                  d="M20 33l8 8 16-18"
-                  fill="none"
-                  stroke="#fff"
-                  strokeWidth="5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
+              <SuccessCheckIcon />
               <M.SuccessText>
                 <b>{t('getCredits.successTitle')}</b> {t('buyModal.successBody')}
               </M.SuccessText>
@@ -390,16 +378,7 @@ export function BuyModal({
               </M.Btn>
               <M.Btn data-variant="ruby" onClick={onClose}>
                 {t('buyModal.tryInWorld')}
-                <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden>
-                  <path
-                    d="M5 12h12M13 7l5 5-5 5"
-                    fill="none"
-                    stroke="#fcfcfc"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
+                <ArrowRightIcon />
               </M.Btn>
             </M.Ctas>
           </M.Body>

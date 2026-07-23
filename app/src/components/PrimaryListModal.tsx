@@ -17,6 +17,7 @@ import { captureError } from '~/lib/monitoring'
 import { t } from '~/intl/i18n'
 import { friendlyError } from '~/lib/errors'
 import { ErrorNotice } from '~/components/ErrorNotice'
+import { CheckmarkIcon } from '~/components/Icons/CheckmarkIcon'
 
 const SIX_MONTHS_MS = 1000 * 60 * 60 * 24 * 182
 
@@ -134,7 +135,7 @@ export function PrimaryListModal({
       <div className="modal-backdrop" onClick={onClose} role="presentation">
         <div className="modal modal--success" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
           <div className="modal-success__check" aria-hidden>
-            ✓
+            <CheckmarkIcon size={30} />
           </div>
           <h2 className="modal__title">{t('primaryList.successTitle')}</h2>
           {item.thumbnail ? <img className="modal__img" src={item.thumbnail} alt={item.name} /> : null}

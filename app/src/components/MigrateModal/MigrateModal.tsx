@@ -9,6 +9,7 @@ import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import { track } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
 import { t } from '~/intl/i18n'
+import { CheckmarkIcon } from '~/components/Icons/CheckmarkIcon'
 import * as S from './MigrateModal.styles'
 
 export type MigrateEntry = { item: ImportItem; priceCredits: number }
@@ -99,7 +100,7 @@ export function MigrateModal({
       <div className="modal-backdrop" role="presentation">
         <div className="modal modal--success" role="dialog" aria-modal="true">
           <div className="modal-success__check" aria-hidden>
-            ✓
+            <CheckmarkIcon size={30} />
           </div>
           <h2 className="modal__title">{listedCount > 0 ? t('migrate.successTitle') : t('migrate.nothingTitle')}</h2>
           <p className="muted" style={{ margin: 0 }}>
@@ -170,7 +171,9 @@ export function MigrateModal({
                     {showsConfirmations ? t('migrate.statusConfirm') : t('migrate.statusAdding')}
                   </>
                 ) : statuses[i] === 'done' ? (
-                  <S.Tick>✓</S.Tick>
+                  <S.Tick>
+                    <CheckmarkIcon />
+                  </S.Tick>
                 ) : statuses[i] === 'skipped' ? (
                   <S.Skip>{t('migrate.statusSkipped')}</S.Skip>
                 ) : statuses[i] === 'failed' ? (

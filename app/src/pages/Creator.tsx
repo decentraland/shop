@@ -18,7 +18,7 @@ import { CURRENCY } from '~/lib/currency'
 import { shortAddress } from '~/lib/address'
 import { t } from '~/intl/i18n'
 import { ErrorNotice } from '~/components/ErrorNotice'
-import './collection.css'
+import * as CP from '~/styles/collectionPage.styles'
 
 const PAGE_SIZE = 48
 
@@ -117,14 +117,12 @@ export function Creator() {
   const anyActive = category !== 'wearable' || !!subCategory || rarities.length > 0 || priceActive
 
   return (
-    <div className="collection-page">
-      <nav className="collection-page__crumbs" aria-label={t('creator.breadcrumbAria')}>
-        <button className="collection-page__crumb-link" onClick={() => navigate('/assets')}>
-          {t('creator.breadcrumb')}
-        </button>
-        <span className="collection-page__crumb-sep">/</span>
-        <span className="collection-page__crumb-current">{name}</span>
-      </nav>
+    <CP.Page>
+      <CP.Crumbs aria-label={t('creator.breadcrumbAria')}>
+        <CP.CrumbLink onClick={() => navigate('/assets')}>{t('creator.breadcrumb')}</CP.CrumbLink>
+        <span>/</span>
+        <CP.CrumbCurrent>{name}</CP.CrumbCurrent>
+      </CP.Crumbs>
 
       {address ? <CreatorHero address={address} /> : null}
 
@@ -147,11 +145,11 @@ export function Creator() {
         <div className="browse__main">
           {collectionsMode ? (
             <>
-              <div className="creator-collections__bar">
+              <CP.CollectionsBar>
                 <span className="assets__count">
                   {collections.isLoading ? '…' : t('creator.collectionsCount', { count: collections.total })}
                 </span>
-              </div>
+              </CP.CollectionsBar>
 
               {collections.error ? <ErrorNotice message={t('creator.error')} /> : null}
 
@@ -243,7 +241,7 @@ export function Creator() {
           )}
         </div>
       </div>
-    </div>
+    </CP.Page>
   )
 }
 

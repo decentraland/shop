@@ -14,7 +14,6 @@ import { track } from '~/lib/analytics'
 import type { CatalogItem } from '~/lib/api'
 import type { CollectionHit, CreatorHit } from '~/lib/search'
 import { t } from '~/intl/i18n'
-import CloseIcon from '@mui/icons-material/CloseRounded'
 import * as S from './NavBar.styles'
 
 export function NavBar() {
@@ -196,7 +195,7 @@ export function NavBar() {
               aria-label={t('search.clear')}
               onClick={clearSearch}
             >
-              <CloseIcon />
+              <Icon name="close" size={14} />
             </S.SearchClear>
           ) : null}
           {open ? (

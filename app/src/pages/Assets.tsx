@@ -12,6 +12,7 @@ import { SkeletonCards } from '~/components/SkeletonCards'
 import { LoadMore } from '~/components/LoadMore'
 import { MarketCheckout } from '~/components/MarketCheckout'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
+import { Icon } from '~/components/Icon'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
 import { useSeo } from '~/hooks/useSeo'
 import { SUBCAT_MAP } from '~/lib/categories'
@@ -79,7 +80,7 @@ export function Assets() {
   const [filtersOpen, setFiltersOpen] = useState(false) // mobile filters drawer
   const [checkout, setCheckout] = useState<LegacyListing | null>(null)
 
-  // Close the mobile filters drawer on Escape (it already closes on scrim tap / ✕).
+  // Close the mobile filters drawer on Escape (it already closes on scrim tap / close button).
   useEffect(() => {
     if (!filtersOpen) return
     const onKey = (e: KeyboardEvent) => {
@@ -199,7 +200,7 @@ export function Assets() {
             onClick={() => setFiltersOpen(false)}
             aria-label={t('assets.closeFilters')}
           >
-            ✕
+            <Icon name="close" size={16} />
           </button>
         </div>
         <div className="sidebar__section-label">{t('assets.category')}</div>
