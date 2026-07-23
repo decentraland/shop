@@ -10,6 +10,7 @@ import { stashResumeIntent, takeResumeIntent } from '~/lib/auth-return'
 import {
   fetchShopListingForItem,
   fetchTradeForItem,
+  fetchItemResales,
   fetchItemDescription,
   fetchOwnedToken,
   fetchTokenById,
@@ -126,6 +127,95 @@ const OutlineCta = styled(Button)`
   }
   &&:hover:not(:disabled) {
     background: rgba(36, 33, 41, 0.06);
+  }
+`
+
+// Primary-sale banner (Figma 1524-297513): a lavender pill above the price telling the buyer they're
+// buying a fresh mint straight from the creator. Only shown for a primary (mint) listing.
+const PrimarySaleBanner = styled('div')`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px;
+  margin-bottom: 16px;
+  border-radius: 8px;
+  background: #f4e9ff;
+
+  .from-creator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    line-height: 14px;
+    color: ${theme.colors.text};
+  }
+  .from-creator .ico {
+    width: 20px;
+    height: 20px;
+    color: ${theme.colors.accent};
+  }
+  .check {
+    width: 24px;
+    height: 24px;
+    color: ${theme.colors.accent};
+  }
+`
+
+// Lowest-price + resellers link (Figma 1524-297513 / 1524-298906): a row below the CTAs. Left shows the
+// cheapest resale price; right is an internal link that scrolls to the Resellers list on this page.
+const LowestPriceRow = styled('div')`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  margin-top: 16px;
+
+  &[data-centered='true'] {
+    justify-content: center;
+  }
+
+  .lowest {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    font-size: 14px;
+    font-weight: 600;
+    color: ${theme.colors.muted};
+  }
+  .lowest .ico {
+    width: 20px;
+    height: 20px;
+    color: ${theme.colors.muted};
+  }
+  .lowest-value {
+    font-size: 16px;
+    font-weight: 700;
+    padding-left: 2px;
+  }
+`
+
+const ResellersLink = styled('button')`
+  border: 0;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: ${theme.font.sans};
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.46px;
+  text-transform: uppercase;
+  text-decoration: underline;
+  color: ${theme.colors.accent};
+
+  &:hover {
+    color: ${theme.colors.accentHover};
+  }
+  &:focus-visible {
+    outline: 2px solid ${theme.colors.accent};
+    outline-offset: 2px;
+    border-radius: 4px;
   }
 `
 
@@ -363,6 +453,23 @@ export function ItemDetail() {
 
   const buyableTradeId = current.tradeId ?? resolvedTradeId ?? undefined
   const forSale = !!buyableTradeId
+
+  // Cheapest open resale for this item — powers the "Lowest Price" line + resellers link (Figma
+  // 1524-297513). Shares react-query's cache with <ItemResales> (identical key), so no extra fetch.
+  const { data: resales = [] } = useQuery({
+    queryKey: ['item-resales', current.contractAddress, current.itemId],
+    enabled: !isMarket && !!current.contractAddress && !!current.itemId,
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+    queryFn: () => fetchItemResales(current.contractAddress, current.itemId as string)
+  })
+  const lowestResale = resales.length > 0 ? resales[0].priceCredits : null
+
+  // Internal link target: scroll the on-page Resellers list into view (E / F "View all resellers").
+  function scrollToResellers() {
+    document.getElementById('resellers')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
 
   // Market (legacy) checkout: the live MANA→USD rate (read only in market mode) + the LegacyListing
   // projection MarketCheckout expects, built from the UnifiedListing the grid passed in router state.
@@ -859,6 +966,18 @@ export function ItemDetail() {
 
               <hr className="item-detail__divider" />
 
+              {/* Primary-sale banner (Figma 1524-297513): buying a fresh mint straight from the creator.
+                  Only for a primary (mint) listing that's actually on sale. */}
+              {!manage && !isMarket && forSale && !current.tokenId ? (
+                <PrimarySaleBanner data-testid="buy-from-creator">
+                  <span className="from-creator">
+                    <Icon name="credits" className="ico" />
+                    {t('itemDetail.buyFromCreator')}
+                  </span>
+                  <Icon name="check" className="check" />
+                </PrimarySaleBanner>
+              ) : null}
+
               <div className="item-detail__price-block">
                 <div className="item-detail__price-row">
                   <div className="item-detail__price-col">
@@ -1049,12 +1168,29 @@ export function ItemDetail() {
                   </>
                 )}
               </div>
+
+              {/* Lowest resale price + internal link to the on-page Resellers list (Figma 1524-297513).
+                  Only when there's at least one resale to link to, and not for your own managed item. */}
+              {!manage && !isMarket && lowestResale != null ? (
+                <LowestPriceRow data-testid="lowest-price">
+                  <span className="lowest">
+                    {t('itemDetail.lowestPrice')}
+                    <CurrencyIcon className="ico" />
+                    <span className="lowest-value">{lowestResale}</span>
+                  </span>
+                  <ResellersLink onClick={scrollToResellers}>{t('itemDetail.viewAllResellers')}</ResellersLink>
+                </LowestPriceRow>
+              ) : null}
             </>
           )}
         </div>
       </div>
 
-      {current.itemId ? <ItemResales item={current} /> : null}
+      {current.itemId ? (
+        <div id="resellers">
+          <ItemResales item={current} />
+        </div>
+      ) : null}
 
       <CollectionCarousel
         title={collectionTitle}
