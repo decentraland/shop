@@ -197,6 +197,19 @@ export function BuyModal({
         transaction_hash: txHash ?? null
       })
       void qc.invalidateQueries({ queryKey: ['usd-balance'] })
+      // A successful buy changes the item's listing/availability and the buyer's holdings, so refresh
+      // the PDP money queries, the browse grids, My Assets and Activity — otherwise the PDP keeps
+      // showing a Buy CTA for the token just bought and it's absent from My Assets/Activity until the
+      // 30s staleTime lapses. Mirrors ItemDetail.refreshManage's key set.
+      void qc.invalidateQueries({ queryKey: ['detail-trade'] })
+      void qc.invalidateQueries({ queryKey: ['shop-item'] })
+      void qc.invalidateQueries({ queryKey: ['owned-token', item.contractAddress, item.tokenId] })
+      void qc.invalidateQueries({ queryKey: ['public-token', item.contractAddress, item.tokenId] })
+      void qc.invalidateQueries({ queryKey: ['item-resales', item.contractAddress, item.itemId] })
+      void qc.invalidateQueries({ queryKey: ['shop-items'] })
+      void qc.invalidateQueries({ queryKey: ['catalog-items'] })
+      void qc.invalidateQueries({ queryKey: ['my-assets'] })
+      void qc.invalidateQueries({ queryKey: ['purchases'] })
       setPhase('complete')
     } catch (e) {
       if (!isUserRejection(e)) captureError(e, { flow: 'buy', step: 'submit', gasless: usedGasless })

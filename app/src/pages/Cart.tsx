@@ -293,6 +293,19 @@ export function Cart() {
         transaction_hash: hashes[0] ?? null
       })
       void qc.invalidateQueries({ queryKey: ['usd-balance'] })
+      // The basket settled on-chain, changing listings/availability and the buyer's holdings — refresh
+      // the browse grids, PDP money queries, My Assets and Activity so a revisited item drops its Buy
+      // CTA and the purchases show up without a manual reload (checkout nav to /success hides the PDP,
+      // but the pages behind it may stay mounted). Broad keys since a basket spans many items.
+      void qc.invalidateQueries({ queryKey: ['detail-trade'] })
+      void qc.invalidateQueries({ queryKey: ['shop-item'] })
+      void qc.invalidateQueries({ queryKey: ['owned-token'] })
+      void qc.invalidateQueries({ queryKey: ['public-token'] })
+      void qc.invalidateQueries({ queryKey: ['item-resales'] })
+      void qc.invalidateQueries({ queryKey: ['shop-items'] })
+      void qc.invalidateQueries({ queryKey: ['catalog-items'] })
+      void qc.invalidateQueries({ queryKey: ['my-assets'] })
+      void qc.invalidateQueries({ queryKey: ['purchases'] })
       // The whole basket has settled on-chain (buyManyGasless/waitForSettlement above), so hand the
       // standalone success PAGE the purchased lines + tx and tell it settlement is already done
       // (settled:true) — it lands straight on the confirmed screen instead of a floating in-cart modal.

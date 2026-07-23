@@ -73,6 +73,9 @@ export function NameBuyModal({
         value_credits: priceCredits ?? null
       })
       void qc.invalidateQueries({ queryKey: ['usd-balance'] })
+      // A freshly registered NAME is a new owned asset — refresh My Assets (the Names section reads the
+      // 'my-assets' family) so it shows up without waiting for the 30s staleTime or a manual reload.
+      void qc.invalidateQueries({ queryKey: ['my-assets'] })
       setPhase('success')
     } catch (e) {
       track(isUserRejection(e) ? 'Shop Purchase Cancelled' : 'Shop Purchase Failed', {

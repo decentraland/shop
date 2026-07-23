@@ -93,9 +93,13 @@ export function ImportListings() {
   function afterMigrate() {
     // Fire-and-forget cache invalidations — the refetch happens in the background, nothing here awaits it.
     void qc.invalidateQueries({ queryKey: ['importable'] })
-    // The browse grid is keyed on 'unified-listings' (see Assets.tsx); refresh it so freshly imported
-    // listings show up. 'overview-listings'/'upsell-listings' refresh on their own staleTime.
-    void qc.invalidateQueries({ queryKey: ['unified-listings'] })
+    // The browse grids are keyed on 'shop-items'/'catalog-items' (see Assets.tsx) and the homepage on
+    // 'overview-listings' (cart cross-sell on 'upsell-listings'); refresh them so freshly imported
+    // listings show up without waiting for their staleTime to lapse or a hard reload.
+    void qc.invalidateQueries({ queryKey: ['shop-items'] })
+    void qc.invalidateQueries({ queryKey: ['catalog-items'] })
+    void qc.invalidateQueries({ queryKey: ['overview-listings'] })
+    void qc.invalidateQueries({ queryKey: ['upsell-listings'] })
     void qc.invalidateQueries({ queryKey: ['my-assets'] })
     void qc.invalidateQueries({ queryKey: ['collection-sale-state'] })
     toast.success(t('importListings.toastUpdated'))

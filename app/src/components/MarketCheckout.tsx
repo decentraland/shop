@@ -238,6 +238,16 @@ export function MarketCheckout({
         transaction_hash: txHash ?? null
       })
       void qc.invalidateQueries({ queryKey: ['usd-balance'] })
+      // The legacy listing was consumed — refresh the browse grids, the PDP money queries, My Assets
+      // and Activity so the bought item stops showing as buyable and appears as owned/purchased without
+      // a manual reload (mirrors the shop BuyModal success path).
+      void qc.invalidateQueries({ queryKey: ['detail-trade'] })
+      void qc.invalidateQueries({ queryKey: ['shop-item'] })
+      void qc.invalidateQueries({ queryKey: ['item-resales', listing.contractAddress, listing.itemId] })
+      void qc.invalidateQueries({ queryKey: ['shop-items'] })
+      void qc.invalidateQueries({ queryKey: ['catalog-items'] })
+      void qc.invalidateQueries({ queryKey: ['my-assets'] })
+      void qc.invalidateQueries({ queryKey: ['purchases'] })
       const successState: SuccessNavState = { items: [toCatalogItem(listing)], txHash }
       navigate('/success', { state: successState })
     } catch (e) {
