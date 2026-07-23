@@ -6,6 +6,7 @@ import { config } from '~/config'
 import { useCart } from '~/store/cart'
 import { useFavorites } from '~/store/favorites'
 import { useWallet } from '~/store/wallet'
+import { stashResumeIntent, takeResumeIntent } from '~/lib/auth-return'
 import {
   fetchShopListingForItem,
   fetchTradeForItem,
@@ -131,7 +132,8 @@ function categoryLabel(item: CatalogItem): string {
 
 export function ItemDetail() {
   const { contractAddress, tokenId } = useParams<{ contractAddress: string; tokenId: string }>()
-  const { state } = useLocation() as {
+  const location = useLocation() as {
+    pathname: string
     state?: {
       item?: CatalogItem
       tradeId?: string
@@ -142,6 +144,7 @@ export function ItemDetail() {
       marketPriceCredits?: number | null
     }
   }
+  const state = location.state
   const navigate = useNavigate()
 
   // Market (legacy/MANA) mode is decided entirely by the router state the grid passes — there's no
@@ -152,7 +155,7 @@ export function ItemDetail() {
   const add = useCart(s => s.add)
   const cartItems = useCart(s => s.items)
   const toggleFav = useFavorites(s => s.toggle)
-  const { session } = useWallet()
+  const { session, signIn } = useWallet()
 
   // The currently-displayed item. Seeded from router state (fast path from the grid); swapped in place
   // when a carousel sibling is tapped (no full reload). Falls back to a stub for deep links/refresh
@@ -185,6 +188,32 @@ export function ItemDetail() {
   useEffect(() => {
     if (state?.resumeBuy) setShowBuy(true)
   }, [state?.resumeBuy])
+
+  // Buy now: signed in → open the checkout; signed out → into sign-in (returns to this exact page)
+  // instead of a dead-end. For a shop item we stash a resume so the buy modal reopens and completes on
+  // return; a legacy/market item's mode lives in router state (lost on the full-page redirect), so it
+  // just lands back here signed in.
+  function handleBuyNow() {
+    if (session) {
+      setShowBuy(true)
+      return
+    }
+    if (!isMarket) stashResumeIntent({ type: 'item-buy', path: location.pathname })
+    signIn()
+  }
+
+  // Resume the buy after a sign-in round-trip (shop items). Match on the pathname so we only reopen for
+  // the item the buyer actually clicked. Fires once, after the session is restored.
+  const buyResumedRef = useRef(false)
+  useEffect(() => {
+    if (!session || buyResumedRef.current) return
+    const intent = takeResumeIntent('item-buy')
+    if (!intent || intent.path !== location.pathname) return
+    buyResumedRef.current = true
+    setResumeBuy(true)
+    setShowBuy(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session])
 
   // Sibling items of the same collection (the "more from this collection" carousel).
   const { data: siblings = [], isFetched: siblingsFetched } = useQuery({
@@ -797,7 +826,7 @@ export function ItemDetail() {
                 {isMarket ? (
                   // Market (legacy/MANA) item: a single Buy now that opens the MANA→credits checkout
                   // (MarketCheckout) — never Add to cart / BuyModal.
-                  <DetailCta variant="purple" onClick={() => setShowBuy(true)} disabled={!canBuyMarket}>
+                  <DetailCta variant="purple" onClick={handleBuyNow} disabled={!canBuyMarket}>
                     <span className="item-detail__cta-label">{t('assetCard.buyNow')}</span>
                     {marketPriceCredits != null ? (
                       <span className="item-detail__cta-price" aria-hidden>
@@ -849,7 +878,7 @@ export function ItemDetail() {
                   </ManageActions>
                 ) : forSale ? (
                   <>
-                    <DetailCta variant="purple" onClick={() => setShowBuy(true)} disabled={resolvingTrade}>
+                    <DetailCta variant="purple" onClick={handleBuyNow} disabled={resolvingTrade}>
                       <span className="item-detail__cta-label">{t('assetCard.buyNow')}</span>
                       <span className="item-detail__cta-price" aria-hidden>
                         <CurrencyIcon className="item-detail__cta-diamond" />
