@@ -253,7 +253,9 @@ export const unifiedListings = {
       network: 'MATIC',
       chainId: 80002,
       source: 'native',
-      manaWei: null
+      manaWei: null,
+      // Item-unified browse feed: this item has 3 open listings → the card shows a "3 on sale" badge.
+      listingCount: 3
     },
     {
       tradeId: 'trade-2',

@@ -235,8 +235,12 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
       return json(req, { data: items, total: items.length })
     }
     if (path === '/v3/catalog/unified') {
-      // The ONE browse grid: native + legacy in one feed. Honor the same server-side filters so the
-      // browse filter/search/sort e2e stay meaningful (native rows sort by priceCredits, legacy by manaWei).
+      // The ONE browse grid: native + legacy in one feed. `groupBy=item` (the browse grid, fetchShopItems)
+      // asks for one row per item carrying listingCount; the default (per-listing, fetchUnified) is served
+      // the same way here — the fixtures are already one representative row per item, so no server-side
+      // grouping is needed in the mock; any listingCount on a fixture row flows through to the card badge.
+      // Honor the same server-side filters so the browse filter/search/sort e2e stay meaningful (native
+      // rows sort by priceCredits, legacy by manaWei).
       let items = [...((F.unifiedListings as { data: any[] }).data ?? [])]
       const search = u.searchParams.get('search')?.toLowerCase()
       const rarity = u.searchParams.get('rarity')

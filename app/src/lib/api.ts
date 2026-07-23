@@ -36,6 +36,10 @@ export type CatalogItem = {
   // listings (a specific token has no stock concept) and for catalog-only items. Surfaces the STOCK
   // figure next to the price on the item detail page.
   available?: number
+  // How many open credit-buyable listings this item has, from the item-unified browse feed
+  // (/v3/catalog/unified?groupBy=item). Present only on that feed's rows; > 1 surfaces a badge on the
+  // card telling the user there are more copies to see on the item detail page. Absent everywhere else.
+  listingCount?: number
   // Flash sale (see lib/sale.ts). Present only when the listing is a live, discounted, time-boxed
   // trade. `compareAtCredits` is the pre-sale price to strike through; `saleEndsAt` is epoch MS (the
   // mapper converts the trade's expiration seconds once). Both absent for a regular listing.
@@ -295,7 +299,7 @@ export async function fetchShopListingForItem(contractAddress: string, itemId: s
 
 // Credit-buyable listings for the browse grid (primary + secondary, USD-pegged). All filtering
 // (category, rarity, price, sub-category, search, sort) happens server-side on /v3/catalog/shop.
-// Still used by the Overview drops row + the Cart upsell; the main browse grid uses fetchUnified.
+// Still used by the Overview drops row + the Cart upsell; the main browse grid uses fetchShopItems.
 export async function fetchListings({ first = 100, ...filters }: ShopListingFilters = {}): Promise<{
   items: CatalogItem[]
   total: number
@@ -332,13 +336,9 @@ function unifiedListingToItem(l: UnifiedListingRaw): UnifiedListing {
   return { ...shopListingToItem(l), source: l.source, manaWei: l.manaWei ?? null }
 }
 
-// The unified browse grid: native + legacy listings in one feed. All filtering/sort/search happens
-// server-side on /v3/catalog/unified (same params as fetchListings). Native rows render Add to cart at
-// their fixed priceCredits; legacy rows render an "≈" live-rate price + Buy Now (see pages/Assets).
-export async function fetchUnified({ first = 100, ...filters }: ShopListingFilters = {}): Promise<{
-  items: UnifiedListing[]
-  total: number
-}> {
+// Shared query string for the /v3/catalog/unified feed (same params as fetchListings). `groupBy='item'`
+// switches the server to ONE row per item (the browse grid); omitted keeps the default one-row-per-listing.
+function unifiedSearchParams(first: number, filters: ShopListingFilters, groupBy?: 'item'): URLSearchParams {
   const qs = new URLSearchParams()
   if (filters.category === 'wearable' || filters.category === 'emote') qs.set('category', filters.category)
   qs.set('first', String(first))
@@ -354,11 +354,48 @@ export async function fetchUnified({ first = 100, ...filters }: ShopListingFilte
   if (filters.sortBy) qs.set('sortBy', filters.sortBy)
   if (filters.isSmart) qs.set('isSmart', 'true')
   if (filters.onSale != null) qs.set('onSale', String(filters.onSale))
+  if (groupBy) qs.set('groupBy', groupBy)
+  return qs
+}
+
+// The per-LISTING unified feed: native + legacy listings, one row per open trade. All filtering/sort/
+// search happens server-side on /v3/catalog/unified (same params as fetchListings). Native rows render
+// Add to cart at their fixed priceCredits; legacy rows render an "≈" live-rate price + Buy Now (see
+// pages/Assets). Still used where a per-listing view is needed (e.g. the PDP resale column).
+export async function fetchUnified({ first = 100, ...filters }: ShopListingFilters = {}): Promise<{
+  items: UnifiedListing[]
+  total: number
+}> {
+  const qs = unifiedSearchParams(first, filters)
   const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/unified?${qs.toString()}`)
   if (!res.ok) throw new Error(`fetchUnified ${res.status}`)
   const json = (await res.json()) as { data?: UnifiedListingRaw[]; total?: number }
   const data = json.data ?? []
   return { items: data.map(unifiedListingToItem), total: json.total ?? data.length }
+}
+
+// One item-unified row: the same shape as a UnifiedListing row plus the per-item listingCount.
+type ShopItemRaw = UnifiedListingRaw & { listingCount?: number }
+
+function shopItemToItem(l: ShopItemRaw): UnifiedListing {
+  return { ...unifiedListingToItem(l), listingCount: l.listingCount }
+}
+
+// The item-unified BROWSE grid: /v3/catalog/unified?groupBy=item — ONE card per item (not per listing),
+// priced primary-if-present else cheapest credit-buyable secondary, carrying a listingCount so an item
+// with multiple copies shows a single card (with a "N on sale" badge) instead of one card per listing.
+// Same server-side filtering/sort/search/pagination as fetchUnified; the card still deep-links to the
+// PDP, which shows the full resale list.
+export async function fetchShopItems({ first = 100, ...filters }: ShopListingFilters = {}): Promise<{
+  items: UnifiedListing[]
+  total: number
+}> {
+  const qs = unifiedSearchParams(first, filters, 'item')
+  const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/unified?${qs.toString()}`)
+  if (!res.ok) throw new Error(`fetchShopItems ${res.status}`)
+  const json = (await res.json()) as { data?: ShopItemRaw[]; total?: number }
+  const data = json.data ?? []
+  return { items: data.map(shopItemToItem), total: json.total ?? data.length }
 }
 
 // The legacy (classic MANA-priced) listing shape that MarketCheckout (Buy Now) consumes. A legacy row
