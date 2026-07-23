@@ -626,7 +626,17 @@
     "pricedInWhole": "Priced in whole {currency} (1 {currencySingular} = $0.10).",
     "cancel": "Cancel",
     "listing": "Listing…",
-    "putOnSale": "Put on sale"
+    "putOnSale": "Put on sale",
+    "sellProduct": "Sell Product",
+    "subtitle": "Set a price for your item and choose an expiration date.",
+    "priceShort": "Price",
+    "expirationLabel": "Expiration Date",
+    "invalidDate": "Choose an expiration date in the future.",
+    "putUpForSale": "Put up for sale",
+    "successHeader": "Your item is on sale",
+    "successOnSale": "Your item is now on sale!",
+    "successManage": "You can manage your sale from My Items.",
+    "myItems": "My items"
   },
   "primaryList": {
     "errorGeneric": "Couldn't publish your item — please try again.",
