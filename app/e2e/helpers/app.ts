@@ -158,12 +158,20 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
   if (u.hostname.includes('transactions-api') && path.endsWith('/transactions')) {
     return json(req, { ok: true, txHash: '0x' + 'ab'.repeat(32) })
   }
-  // WearablePreview iframe → blank page (don't hit the external preview app).
+  // WearablePreview iframe → a blank page that stands in for the external preview app. It can't run the
+  // real Unity/Babylon runtime, so it reports Babylon via the same PreviewMessageType.LOAD message the
+  // real app posts on scene load — driving onLoad/onRenderer so the overlay controls (which mount only
+  // for the Babylon renderer) appear. Posts on a short interval to beat the parent's listener-attach race.
   if (u.hostname.includes('wearable-preview')) {
     return req.respond({
       status: 200,
       headers: { 'content-type': 'text/html', ...CORS },
-      body: '<!doctype html><title>preview</title>'
+      body:
+        '<!doctype html><title>preview</title><script>' +
+        'var m={type:"load",payload:{renderer:"babylon"}};' +
+        'var n=0,i=setInterval(function(){parent.postMessage(m,"*");if(++n>20)clearInterval(i)},100);' +
+        'parent.postMessage(m,"*");' +
+        '</script>'
     })
   }
   // Images / builder content.
