@@ -50,11 +50,11 @@ function marketplaceItemUrl(contractAddress: string, tokenId: string): string {
 // line drops the "of N" suffix rather than showing a wrong total.
 function totalSupplyFor(rarity?: string): number | undefined {
   if (!rarity) return undefined
-  try {
-    return Rarity.getMaxSupply(rarity as Rarity)
-  } catch {
-    return undefined
-  }
+  const key = rarity.toLowerCase()
+  // Guard against an unknown rarity explicitly (instead of catching getMaxSupply throwing): only call
+  // it for a value that's actually one of the schema's rarities.
+  const isRarity = (Object.values(Rarity) as unknown[]).includes(key)
+  return isRarity ? Rarity.getMaxSupply(key as Rarity) : undefined
 }
 
 function shortAddress(addr: string): string {
@@ -330,7 +330,8 @@ export function ItemResales({ item }: { item: CatalogItem }) {
               // Secondary (per-token) feed rows don't carry the item's name/thumbnail (that metadata
               // lives on the item, not the token), so a resale added to the cart would show a blank
               // name. Every resale here is a copy of THIS item, so backfill the display fields from the
-              // PDP item before it goes into the cart / buy modal.
+              // PDP item before it goes into the cart / buy modal. (|| for display strings — an empty
+              // string counts as absent; ?? for the nullable enums where null is a meaningful "unset".)
               const display: UnifiedListing = {
                 ...r,
                 name: r.name || item.name,

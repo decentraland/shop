@@ -108,7 +108,9 @@
    card's ring gets clipped. `scroll-padding-inline` keeps the snap points aligned to that gutter. The
    matching negative margin-left pulls the track back by that 14px so the first card's edge lines up with
    the section title (and the hero/breadcrumb above) instead of sitting inset; the glow overflows into
-   the left gutter rather than being lost. */
+   the left gutter rather than being lost. NOTE: this assumes the carousel's container has >=14px of left
+   padding to overflow into (true for the PDP + cart, which sit inside the page's side gutter). If it's
+   ever placed in a tighter container (modal, sidebar), scope the negative margin back to that context. */
 .collection-carousel__track {
   display: grid;
   grid-auto-flow: column;
