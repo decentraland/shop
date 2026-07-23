@@ -277,29 +277,6 @@ h2 {
   font-size: 13px;
   letter-spacing: 0.03em;
 }
-/* Fixed 281px columns so each card is exactly the Figma 281×300 (media 281×204 + info 96), instead of
-   stretching to fill and coming out narrower. auto-fill wraps as many 281px cards as fit; the row is
-   left-aligned with any leftover space on the right (matches the Figma grid). */
-/* Cards are FLUID (designer spec: max 350px, min ~150 on mobile, ideally ≤5 per row). auto-fill packs
-   as many ≥250px columns as fit and 1fr stretches them to fill the row exactly — so the gap stays 16px
-   AND the last card's right edge lines up with the toolbar's Sort By pill. The page is capped at
-   1760px (see .page max-width), which keeps this at 4–5 columns (never 6+) and cards well under 350px. */
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: 16px;
-}
-/* Wider tracks for the CollectionCard grid (Creator → Collections view). */
-.grid--collections {
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-}
-/* Mobile: two compact columns (Figma), ~171px each (> the 150px min). */
-@media (max-width: 720px) {
-  .grid {
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
-  }
-}
 
 /* ---------------- Browse: main-area toolbar (count + Rarity/Sort pills) ---------------- */
 .browse {

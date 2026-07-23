@@ -17,6 +17,7 @@ import { useSeo } from '~/hooks/useSeo'
 import { SUBCAT_MAP } from '~/lib/categories'
 import { CURRENCY } from '~/lib/currency'
 import * as CP from '~/styles/collectionPage.styles'
+import { Grid } from '~/styles/grid.styles'
 
 const PAGE_SIZE = 48
 
@@ -160,7 +161,7 @@ export function Collection() {
 
           {error ? <ErrorNotice message={t('collection.error')} /> : null}
 
-          <div className="grid" data-testid="grid">
+          <Grid data-testid="grid">
             {isLoading ? (
               <SkeletonCards count={15} />
             ) : (
@@ -171,7 +172,7 @@ export function Collection() {
                 {isFetchingNextPage ? <SkeletonCards count={6} /> : null}
               </>
             )}
-          </div>
+          </Grid>
 
           <LoadMore hasNextPage={hasNextPage} isFetching={isFetchingNextPage} onLoadMore={() => void fetchNextPage()} />
 

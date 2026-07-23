@@ -19,6 +19,7 @@ import { SUBCAT_MAP } from '~/lib/categories'
 import { track } from '~/lib/analytics'
 import { t } from '~/intl/i18n'
 import { ErrorNotice } from '~/components/ErrorNotice'
+import { Grid } from '~/styles/grid.styles'
 
 // Items fetched per page (infinite scroll pages by cumulative offset — see useInfiniteGrid).
 const PAGE_SIZE = 48
@@ -343,7 +344,7 @@ export function Assets() {
 
         {error ? <ErrorNotice message={t('assets.loadError')} testId="browse-error" /> : null}
 
-        <div className="grid" data-testid="grid">
+        <Grid data-testid="grid">
           {isLoading ? (
             <SkeletonCards count={15} />
           ) : (
@@ -364,7 +365,7 @@ export function Assets() {
               {isFetchingNextPage ? <SkeletonCards count={6} /> : null}
             </>
           )}
-        </div>
+        </Grid>
 
         <LoadMore hasNextPage={hasNextPage} isFetching={isFetchingNextPage} onLoadMore={() => void fetchNextPage()} />
 

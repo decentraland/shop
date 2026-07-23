@@ -19,6 +19,7 @@ import { shortAddress } from '~/lib/address'
 import { t } from '~/intl/i18n'
 import { ErrorNotice } from '~/components/ErrorNotice'
 import * as CP from '~/styles/collectionPage.styles'
+import { Grid } from '~/styles/grid.styles'
 
 const PAGE_SIZE = 48
 
@@ -153,7 +154,7 @@ export function Creator() {
 
               {collections.error ? <ErrorNotice message={t('creator.error')} /> : null}
 
-              <div className="grid grid--collections">
+              <Grid data-variant="collections">
                 {collections.isLoading ? (
                   <SkeletonCards count={9} />
                 ) : (
@@ -164,7 +165,7 @@ export function Creator() {
                     {collections.isFetchingNextPage ? <SkeletonCards count={6} /> : null}
                   </>
                 )}
-              </div>
+              </Grid>
 
               <LoadMore
                 hasNextPage={collections.hasNextPage}
@@ -217,7 +218,7 @@ export function Creator() {
 
               {error ? <ErrorNotice message={t('creator.error')} /> : null}
 
-              <div className="grid">
+              <Grid>
                 {isLoading ? (
                   <SkeletonCards count={15} />
                 ) : (
@@ -228,7 +229,7 @@ export function Creator() {
                     {isFetchingNextPage ? <SkeletonCards count={6} /> : null}
                   </>
                 )}
-              </div>
+              </Grid>
 
               <LoadMore
                 hasNextPage={hasNextPage}

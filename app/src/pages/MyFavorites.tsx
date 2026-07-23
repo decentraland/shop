@@ -7,6 +7,7 @@ import { LoadMore } from '~/components/LoadMore'
 import { Button } from '~/components/Button'
 import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
+import { Grid } from '~/styles/grid.styles'
 import styled from '@emotion/styled'
 
 const EmptyCta = styled(Button)`
@@ -41,11 +42,11 @@ export function MyFavorites() {
         <h1>{t('nav.myFavorites')}</h1>
         <span className="favorites__count">{t('myFavorites.itemCount', { count: items.length })}</span>
       </div>
-      <div className="grid">
+      <Grid>
         {items.slice(0, visible).map(item => (
           <AssetCard key={item.id} item={item} />
         ))}
-      </div>
+      </Grid>
       <LoadMore
         hasNextPage={visible < items.length}
         isFetching={false}
