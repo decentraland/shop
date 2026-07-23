@@ -19,7 +19,7 @@ const PAGE_NAMES: Record<string, string> = {
   '/assets': 'assets',
   '/my-assets': 'my_assets',
   '/my-favorites': 'favorites',
-  '/my-purchases': 'my_purchases',
+  '/activity': 'activity',
   '/import': 'import',
   '/store-settings': 'store_settings',
   '/cart': 'cart',
@@ -37,7 +37,7 @@ const Creator = lazy(() => import('~/pages/Creator').then(m => ({ default: m.Cre
 const StoreSettings = lazy(() => import('~/pages/StoreSettings').then(m => ({ default: m.StoreSettings })))
 const MyAssets = lazy(() => import('~/pages/MyAssets').then(m => ({ default: m.MyAssets })))
 const MyFavorites = lazy(() => import('~/pages/MyFavorites').then(m => ({ default: m.MyFavorites })))
-const MyPurchases = lazy(() => import('~/pages/MyPurchases').then(m => ({ default: m.MyPurchases })))
+const Activity = lazy(() => import('~/pages/Activity').then(m => ({ default: m.Activity })))
 const ImportListings = lazy(() => import('~/pages/ImportListings').then(m => ({ default: m.ImportListings })))
 const Cart = lazy(() => import('~/pages/Cart').then(m => ({ default: m.Cart })))
 const Authorizations = lazy(() => import('~/pages/Authorizations').then(m => ({ default: m.Authorizations })))
@@ -115,7 +115,10 @@ export function App() {
               <Route path="/store-settings" element={<StoreSettings />} />
               <Route path="/my-assets" element={<MyAssets />} />
               <Route path="/my-favorites" element={<MyFavorites />} />
-              <Route path="/my-purchases" element={<MyPurchases />} />
+              <Route path="/activity" element={<Activity />} />
+              {/* Activity absorbed the old My Purchases page — keep the old path as a redirect so
+                  existing links (e.g. the Success page, bookmarks) don't 404. */}
+              <Route path="/my-purchases" element={<Navigate to="/activity" replace />} />
               <Route path="/import" element={<ImportListings />} />
               <Route path="/cart" element={<Cart />} />
               <Route path="/authorizations" element={<Authorizations />} />

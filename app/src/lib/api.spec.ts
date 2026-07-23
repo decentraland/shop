@@ -33,12 +33,20 @@ import {
   fetchShopListingForItem,
   fetchListings,
   fetchUnified,
+  fetchShopItems,
   fetchMyAssets,
+  fetchOwnedToken,
+  fetchResaleTokenInfo,
+  fetchResaleTokenInfos,
   fetchTokenById,
   fetchTrade,
   fetchTradeDisplay,
   fetchTradeForItem,
+  fetchItemResales,
+  fetchClassicItemOrders,
   resolveLiveTrade,
+  fetchAssetDisplay,
+  fetchUserSales,
   TradeNotFoundError,
   postTrade
 } from '~/lib/api'
@@ -587,6 +595,92 @@ describe('when fetching the unified browse listings', () => {
   })
 })
 
+describe('when fetching the item-unified browse feed', () => {
+  // A representative item row: same shape as a unified listing row plus the per-item listingCount.
+  const itemRow = {
+    tradeId: 'i-native',
+    listingType: 'primary',
+    contractAddress: '0x1',
+    itemId: '1',
+    tokenId: null,
+    name: 'Native Hat',
+    thumbnail: '',
+    rarity: 'epic',
+    category: 'wearable',
+    wearableCategory: 'hat',
+    creator: '0xa',
+    priceCredits: 270,
+    available: 100,
+    network: 'MATIC',
+    chainId: 80002,
+    source: 'native',
+    manaWei: null,
+    listingCount: 3
+  }
+
+  it('should hit /v3/catalog/unified with groupBy=item and carry listingCount onto the card model', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ total: 1, data: [itemRow] }))
+    const { items, total } = await fetchShopItems()
+    expect(total).toBe(1)
+    const url = lastUrl()
+    expect(url).toContain('https://market.test/v3/catalog/unified?')
+    expect(url).toContain('groupBy=item')
+    expect(items[0]).toMatchObject({
+      id: 'i-native',
+      tradeId: 'i-native',
+      name: 'Native Hat',
+      source: 'native',
+      manaWei: null,
+      priceCredits: 270,
+      listingCount: 3
+    })
+  })
+
+  it('should serialise every supported filter alongside groupBy=item', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ total: 0, data: [] }))
+    await fetchShopItems({
+      category: 'wearable',
+      first: 12,
+      skip: 24,
+      rarities: ['epic', 'legendary'],
+      wearableCategories: ['hat', 'hair'],
+      minPriceCredits: 1,
+      maxPriceCredits: 100,
+      search: 'dragon',
+      sortBy: 'cheapest',
+      isSmart: true
+    })
+    const url = lastUrl()
+    expect(url).toContain('groupBy=item')
+    expect(url).toContain('category=wearable')
+    expect(url).toContain('first=12')
+    expect(url).toContain('skip=24')
+    expect(url).toContain('rarity=epic%2Clegendary')
+    expect(url).toContain('wearableCategory=hat%2Chair')
+    expect(url).toContain('minPriceCredits=1')
+    expect(url).toContain('maxPriceCredits=100')
+    expect(url).toContain('search=dragon')
+    expect(url).toContain('sortBy=cheapest')
+    expect(url).toContain('isSmart=true')
+  })
+
+  it('should leave listingCount undefined when the row omits it, and default first to 100', async () => {
+    const { listingCount, ...noCount } = itemRow
+    void listingCount
+    fetchMock.mockResolvedValueOnce(jsonOk({ data: [noCount] }))
+    const { items, total } = await fetchShopItems()
+    expect(lastUrl()).toContain('first=100')
+    expect(items[0].listingCount).toBeUndefined()
+    // total falls back to data.length when omitted.
+    expect(total).toBe(1)
+  })
+
+  it('should throw when the item-unified request fails', async () => {
+    fetchMock.mockResolvedValueOnce(httpError(502))
+    await expect(fetchShopItems()).rejects.toThrow('fetchShopItems 502')
+  })
+})
+
 describe('when fetching the owned assets of a wallet', () => {
   it('should lowercase the owner and hit the v1 nfts endpoint', async () => {
     fetchMock.mockResolvedValueOnce(jsonOk({ total: 0, data: [] }))
@@ -660,6 +754,98 @@ describe('when fetching the owned assets of a wallet', () => {
   it('should throw when the assets request fails', async () => {
     fetchMock.mockResolvedValueOnce(httpError(500))
     await expect(fetchMyAssets('0xowner')).rejects.toThrow('Failed to fetch assets (500)')
+  })
+})
+
+describe('when fetching a single owned token', () => {
+  const nftRow = (order: unknown) => ({
+    total: 1,
+    data: [
+      {
+        nft: {
+          id: 'n1',
+          contractAddress: '0xc',
+          tokenId: '7',
+          itemId: '5',
+          name: 'Hat',
+          category: 'wearable',
+          image: 'i',
+          network: 'MATIC',
+          chainId: 80002
+        },
+        order
+      }
+    ]
+  })
+
+  it('should map a listed token with a usable order price without a trade lookup', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk(nftRow({ price: USD1, tradeId: 'trade-x' })))
+    const asset = await fetchOwnedToken('0xOWNER', '0xc', '7')
+    expect(asset).toMatchObject({ tokenId: '7', isOnSale: true, listingPrice: 10, tradeId: 'trade-x' })
+    // Only the /v1/nfts call — no trade fallback needed.
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('should resolve the price from the trade when the order price is missing (never show 0 for a live listing)', async () => {
+    fetchMock
+      // order present (listed) but price is null → MV lag
+      .mockResolvedValueOnce(jsonOk(nftRow({ price: null, tradeId: 'trade-x' })))
+      // the signed trade carries the received (USD-pegged) amount
+      .mockResolvedValueOnce(jsonOk({ data: { received: [{ amount: '2500000000000000000' }] } }))
+    const asset = await fetchOwnedToken('0xOWNER', '0xc', '7')
+    expect(asset?.listingPrice).toBe(25)
+    expect(String(fetchMock.mock.calls[1][0])).toBe('https://market.test/v1/trades/trade-x')
+  })
+
+  it('should keep the listing usable (no throw) when the trade fallback fails', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonOk(nftRow({ price: null, tradeId: 'trade-x' })))
+      .mockResolvedValueOnce(httpError(500))
+    const asset = await fetchOwnedToken('0xOWNER', '0xc', '7')
+    // Ownership + listing state still resolve; the price just stays unresolved (0) until a refetch —
+    // the point is the fallback failure must not throw and blow up the whole ownership check.
+    expect(asset).toMatchObject({ tokenId: '7', isOnSale: true, tradeId: 'trade-x' })
+    expect(asset?.listingPrice).toBe(0)
+  })
+
+  it('should return null when the wallet does not own the token', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ total: 0, data: [] }))
+    expect(await fetchOwnedToken('0xOWNER', '0xc', '7')).toBeNull()
+  })
+})
+
+describe('when resolving a resale token seller and issued number', () => {
+  it('should read the seller (owner) + issued number from /v1/nfts', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonOk({ data: [{ nft: { tokenId: '7', issuedId: '42', owner: '0xSeller' }, order: { owner: '0xOrderOwner' } }] })
+    )
+    const info = await fetchResaleTokenInfo('0xc', '7')
+    expect(info).toEqual({ seller: '0xSeller', issuedId: '42' })
+    expect(lastUrl()).toContain('https://nft.test/v1/nfts?')
+    expect(lastUrl()).toContain('tokenId=7')
+  })
+
+  it('should fall back to the order owner when the nft row carries no owner', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonOk({ data: [{ nft: { tokenId: '7', issuedId: '42' }, order: { owner: '0xOrderOwner' } }] })
+    )
+    expect(await fetchResaleTokenInfo('0xc', '7')).toEqual({ seller: '0xOrderOwner', issuedId: '42' })
+  })
+
+  it('should never attribute a seller from a row that did not match the token, and never throw', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ data: [{ nft: { tokenId: '99', owner: '0xWrong' } }] }))
+    expect(await fetchResaleTokenInfo('0xc', '7')).toEqual({})
+    fetchMock.mockResolvedValueOnce(httpError(500))
+    expect(await fetchResaleTokenInfo('0xc', '7')).toEqual({})
+  })
+
+  it('should batch a bounded set of tokens into a tokenId → info map', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonOk({ data: [{ nft: { tokenId: '10', issuedId: '1', owner: '0xa' } }] }))
+      .mockResolvedValueOnce(jsonOk({ data: [{ nft: { tokenId: '20', issuedId: '2', owner: '0xb' } }] }))
+    const map = await fetchResaleTokenInfos('0xc', ['10', '20'])
+    expect(map).toEqual({ '10': { seller: '0xa', issuedId: '1' }, '20': { seller: '0xb', issuedId: '2' } })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 })
 
@@ -958,5 +1144,163 @@ describe('when resolving an item to its live trade', () => {
   it('should return null when there is neither a tradeId nor an itemId', async () => {
     expect(await resolveLiveTrade({ contractAddress: '0xc' })).toBeNull()
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('when fetching the open resales for an item', () => {
+  it('should keep only secondary rows carrying a tradeId (native + legacy), cheapest-first', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonOk({
+        total: 4,
+        data: [
+          // native secondary, more expensive
+          { source: 'native', tradeId: 't-native', tokenId: '20', priceCredits: 25, manaWei: null },
+          // primary (no tokenId) → dropped
+          { source: 'native', tradeId: 't-prim', itemId: '9', tokenId: null, priceCredits: 5 },
+          // legacy secondary, cheaper → sorts first
+          { source: 'legacy', tradeId: 't-legacy', tokenId: '10', priceCredits: 12, manaWei: '5000000000000000000' },
+          // secondary with no tradeId (classic on-chain leaking in) → dropped
+          { source: 'native', tokenId: '30', priceCredits: 1 }
+        ]
+      })
+    )
+    const resales = await fetchItemResales('0xc', '9')
+    expect(
+      resales.map(r => ({ id: r.id, tokenId: r.tokenId, source: r.source, priceCredits: r.priceCredits }))
+    ).toEqual([
+      { id: 't-legacy', tokenId: '10', source: 'legacy', priceCredits: 12 },
+      { id: 't-native', tokenId: '20', source: 'native', priceCredits: 25 }
+    ])
+    // native rows carry no manaWei; legacy rows do.
+    expect(resales.find(r => r.source === 'native')?.manaWei).toBeNull()
+    expect(resales.find(r => r.source === 'legacy')?.manaWei).toBe('5000000000000000000')
+  })
+
+  it('should query the v3 UNIFIED feed by contract + item, cheapest-first', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ data: [] }))
+    await fetchItemResales('0xC0', '7')
+    const url = lastUrl()
+    expect(url).toContain('https://market.test/v3/catalog/unified?')
+    expect(url).toContain('contractAddress=0xC0')
+    expect(url).toContain('itemId=7')
+    expect(url).toContain('sortBy=cheapest')
+  })
+
+  it('should return an empty array when the item has no open resales', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ data: [] }))
+    expect(await fetchItemResales('0xc', '9')).toEqual([])
+  })
+
+  it('should propagate the unified-feed error', async () => {
+    fetchMock.mockResolvedValueOnce(httpError(500))
+    await expect(fetchItemResales('0xc', '9')).rejects.toThrow('fetchUnified 500')
+  })
+})
+
+describe('when fetching the classic on-chain orders for an item', () => {
+  it('should keep only tradeId-less (classic on-chain) orders and drop off-chain trades', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonOk({
+        total: 2,
+        data: [
+          // off-chain trade (has a tradeId) → buyable elsewhere, dropped here
+          { tokenId: '99', issuedId: '3', owner: '0xa', contractAddress: '0xc', tradeId: 'tr-1' },
+          // classic on-chain order (no tradeId) → kept
+          { tokenId: '42', issuedId: '7', owner: '0xseller', contractAddress: '0xc' }
+        ]
+      })
+    )
+    const orders = await fetchClassicItemOrders('0xc', '9')
+    expect(orders).toEqual([{ tokenId: '42', issuedId: '7', seller: '0xseller', contractAddress: '0xc' }])
+  })
+
+  it('should hit /v1/orders filtered to open + cheapest', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ data: [] }))
+    await fetchClassicItemOrders('0xC0', '7')
+    const url = lastUrl()
+    expect(url).toContain('https://market.test/v1/orders?')
+    expect(url).toContain('contractAddress=0xC0')
+    expect(url).toContain('itemId=7')
+    expect(url).toContain('status=open')
+    expect(url).toContain('sortBy=cheapest')
+  })
+
+  it('should return an empty array when the item has no classic orders', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ data: [] }))
+    expect(await fetchClassicItemOrders('0xc', '9')).toEqual([])
+  })
+
+  it('should throw when the orders request fails', async () => {
+    fetchMock.mockResolvedValueOnce(httpError(503))
+    await expect(fetchClassicItemOrders('0xc', '9')).rejects.toThrow('fetchClassicItemOrders 503')
+  })
+})
+
+describe('when resolving a sold asset for the Activity feed', () => {
+  it('should resolve a secondary token by tokenId (name + image from /v1/nfts)', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ data: [{ nft: { name: 'Galaxy Hat', image: 'hat.png' } }] }))
+    const display = await fetchAssetDisplay('0xc', { tokenId: '42' })
+    expect(display).toMatchObject({ name: 'Galaxy Hat', thumbnail: 'hat.png', contractAddress: '0xc', tokenId: '42' })
+    expect(lastUrl()).toContain('https://nft.test/v1/nfts?')
+  })
+
+  it('should fall back to a "#<tokenId>" name when the token has no metadata', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ data: [] }))
+    const display = await fetchAssetDisplay('0xc', { tokenId: '7' })
+    expect(display?.name).toBe('#7')
+  })
+
+  it('should resolve a primary/mint asset by itemId when there is no tokenId', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ data: [{ name: 'Founder Tee', thumbnail: 'tee.png' }] }))
+    const display = await fetchAssetDisplay('0xc', { itemId: '3' })
+    expect(display).toMatchObject({ name: 'Founder Tee', thumbnail: 'tee.png', itemId: '3' })
+    expect(lastUrl()).toContain('https://nft.test/v1/items?')
+  })
+
+  it('should return null when neither a contract, token, nor item is known', async () => {
+    expect(await fetchAssetDisplay('', {})).toBeNull()
+    expect(await fetchAssetDisplay('0xc', {})).toBeNull()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('when fetching the user secondary sales', () => {
+  it('should hit /v1/sales scoped to the seller and map price/timestamp', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonOk({
+        data: [
+          {
+            id: 'sale-1',
+            buyer: '0xB',
+            seller: '0xS',
+            contractAddress: '0xc',
+            tokenId: '42',
+            itemId: null,
+            price: '15000000000000000000',
+            timestamp: 1_700_000_000_000,
+            txHash: '0xh',
+            category: 'wearable'
+          }
+        ],
+        total: 1
+      })
+    )
+    const { items, total } = await fetchUserSales('0xABC', { role: 'seller' })
+    expect(total).toBe(1)
+    expect(items[0]).toMatchObject({ id: 'sale-1', manaWei: '15000000000000000000', createdAt: 1_700_000_000_000 })
+    const url = lastUrl()
+    expect(url).toContain('https://market.test/v1/sales?')
+    expect(url).toContain('seller=0xabc')
+  })
+
+  it('should scope by buyer when role=buyer', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ data: [], total: 0 }))
+    await fetchUserSales('0xABC', { role: 'buyer' })
+    expect(lastUrl()).toContain('buyer=0xabc')
+  })
+
+  it('should throw on a non-OK response', async () => {
+    fetchMock.mockResolvedValueOnce(httpError(500))
+    await expect(fetchUserSales('0xABC')).rejects.toThrow('fetchUserSales 500')
   })
 })

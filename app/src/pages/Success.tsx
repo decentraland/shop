@@ -194,15 +194,15 @@ export function Success() {
               <h1 className="success__title">{t('success.stillProcessingTitle')}</h1>
               <p className="success__sub">
                 {t('success.timedOutBefore')}{' '}
-                <button className="link" onClick={() => navigate('/my-purchases')}>
-                  {t('nav.myPurchases')}
+                <button className="link" onClick={() => navigate('/activity')}>
+                  {t('nav.activity')}
                 </button>{' '}
                 {t('success.timedOutAfter')}
               </p>
               {receiptLink ? <div className="success__links">{receiptLink}</div> : null}
               <div className="success__actions">
-                <SuccessBtn variant="purple" onClick={() => navigate('/my-purchases')}>
-                  {t('success.viewMyPurchases')}
+                <SuccessBtn variant="purple" onClick={() => navigate('/activity')}>
+                  {t('success.viewActivity')}
                 </SuccessBtn>
                 <SuccessBtn variant="ghost" onClick={() => navigate('/assets')}>
                   {t('success.keepShopping')}

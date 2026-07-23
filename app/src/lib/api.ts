@@ -36,6 +36,10 @@ export type CatalogItem = {
   // listings (a specific token has no stock concept) and for catalog-only items. Surfaces the STOCK
   // figure next to the price on the item detail page.
   available?: number
+  // How many open credit-buyable listings this item has, from the item-unified browse feed
+  // (/v3/catalog/unified?groupBy=item). Present only on that feed's rows; > 1 surfaces a badge on the
+  // card telling the user there are more copies to see on the item detail page. Absent everywhere else.
+  listingCount?: number
   // Flash sale (see lib/sale.ts). Present only when the listing is a live, discounted, time-boxed
   // trade. `compareAtCredits` is the pre-sale price to strike through; `saleEndsAt` is epoch MS (the
   // mapper converts the trade's expiration seconds once). Both absent for a regular listing.
@@ -312,13 +316,66 @@ export async function fetchShopListingForItem(contractAddress: string, itemId: s
 
 // Credit-buyable listings for the browse grid (primary + secondary, USD-pegged). All filtering
 // (category, rarity, price, sub-category, search, sort) happens server-side on /v3/catalog/shop.
-// Still used by the Overview drops row + the Cart upsell; the main browse grid uses fetchUnified.
+// Still used by the Overview drops row + the Cart upsell; the main browse grid uses fetchShopItems.
 export async function fetchListings({ first = 100, ...filters }: ShopListingFilters = {}): Promise<{
   items: CatalogItem[]
   total: number
 }> {
   const { listings, total } = await fetchShopListingsRaw({ ...filters, first })
   return { items: listings.map(shopListingToItem), total }
+}
+
+// The currently-open resales (secondary listings) for ONE item, cheapest-first, from the UNIFIED v3
+// feed. The unified feed mixes NATIVE (USD-pegged, fixed credits) and LEGACY (classic MANA, converted
+// to credits server-side at the live rate) liquidity — both are OFF-CHAIN signed trades that carry a
+// `tradeId`, so BOTH are credit-buyable (see lib/buy + MarketCheckout). We keep only secondary rows (a
+// specific token → `tokenId` present) that carry a `tradeId`. A native row has `manaWei: null`; a
+// legacy row has `manaWei` set (drives the market/credits checkout).
+//
+// NOTE: the server's unified LEGACY branch is PRIMARY-ONLY (marketplace-server shop-catalog
+// getUnifiedListings → unifiedBranch({ source: 'legacy', primaryOnly: true })), so in practice every
+// secondary row this returns is NATIVE. The legacy branch below is kept so a legacy secondary row is
+// handled correctly the moment the feed starts returning them, but it is dormant today.
+export async function fetchItemResales(contractAddress: string, itemId: string): Promise<UnifiedListing[]> {
+  const { items } = await fetchUnified({ contractAddress, itemId, first: 100, sortBy: 'cheapest' })
+  return items.filter(i => !!i.tokenId && !!i.tradeId).sort((a, b) => a.priceCredits - b.priceCredits)
+}
+
+// A CLASSIC ON-CHAIN order for a specific item, from the marketplace /v1/orders endpoint. These come
+// from the old Marketplace.sol and have NO off-chain trade (`tradeId` is empty), so the credits rail's
+// useCredits(accept([trade])) genuinely can't fulfill them — they're non-buyable here. We keep ONLY
+// the tradeId-less rows: /v1/orders also returns off-chain public_nft_order trades (which DO carry a
+// tradeId and ARE credit-buyable), but those are surfaced as buyable resales via the unified feed, so
+// including them here would double-list them. No price is exposed (they settle in MANA on the classic
+// marketplace; web2-first hides MANA).
+export type ClassicOrder = {
+  tokenId: string
+  issuedId?: string
+  seller: string
+  contractAddress: string
+}
+
+export async function fetchClassicItemOrders(contractAddress: string, itemId: string): Promise<ClassicOrder[]> {
+  const qs = new URLSearchParams({
+    contractAddress,
+    itemId,
+    status: 'open',
+    sortBy: 'cheapest',
+    first: '100'
+  })
+  const res = await fetch(`${config.marketplaceServerUrl}/v1/orders?${qs.toString()}`)
+  if (!res.ok) throw new Error(`fetchClassicItemOrders ${res.status}`)
+  const json = (await res.json()) as {
+    data?: Array<{ tokenId: string; issuedId?: string; owner: string; contractAddress: string; tradeId?: string }>
+  }
+  return (json.data ?? [])
+    .filter(o => !o.tradeId)
+    .map(o => ({
+      tokenId: o.tokenId,
+      issuedId: o.issuedId,
+      seller: o.owner,
+      contractAddress: o.contractAddress
+    }))
 }
 
 // ---------------------------------------------------------------------------
@@ -349,13 +406,9 @@ function unifiedListingToItem(l: UnifiedListingRaw): UnifiedListing {
   return { ...shopListingToItem(l), source: l.source, manaWei: l.manaWei ?? null }
 }
 
-// The unified browse grid: native + legacy listings in one feed. All filtering/sort/search happens
-// server-side on /v3/catalog/unified (same params as fetchListings). Native rows render Add to cart at
-// their fixed priceCredits; legacy rows render an "≈" live-rate price + Buy Now (see pages/Assets).
-export async function fetchUnified({ first = 100, ...filters }: ShopListingFilters = {}): Promise<{
-  items: UnifiedListing[]
-  total: number
-}> {
+// Shared query string for the /v3/catalog/unified feed (same params as fetchListings). `groupBy='item'`
+// switches the server to ONE row per item (the browse grid); omitted keeps the default one-row-per-listing.
+function unifiedSearchParams(first: number, filters: ShopListingFilters, groupBy?: 'item'): URLSearchParams {
   const qs = new URLSearchParams()
   if (filters.category === 'wearable' || filters.category === 'emote') qs.set('category', filters.category)
   qs.set('first', String(first))
@@ -371,11 +424,48 @@ export async function fetchUnified({ first = 100, ...filters }: ShopListingFilte
   if (filters.sortBy) qs.set('sortBy', filters.sortBy)
   if (filters.isSmart) qs.set('isSmart', 'true')
   if (filters.onSale != null) qs.set('onSale', String(filters.onSale))
+  if (groupBy) qs.set('groupBy', groupBy)
+  return qs
+}
+
+// The per-LISTING unified feed: native + legacy listings, one row per open trade. All filtering/sort/
+// search happens server-side on /v3/catalog/unified (same params as fetchListings). Native rows render
+// Add to cart at their fixed priceCredits; legacy rows render an "≈" live-rate price + Buy Now (see
+// pages/Assets). Still used where a per-listing view is needed (e.g. the PDP resale column).
+export async function fetchUnified({ first = 100, ...filters }: ShopListingFilters = {}): Promise<{
+  items: UnifiedListing[]
+  total: number
+}> {
+  const qs = unifiedSearchParams(first, filters)
   const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/unified?${qs.toString()}`)
   if (!res.ok) throw new Error(`fetchUnified ${res.status}`)
   const json = (await res.json()) as { data?: UnifiedListingRaw[]; total?: number }
   const data = json.data ?? []
   return { items: data.map(unifiedListingToItem), total: json.total ?? data.length }
+}
+
+// One item-unified row: the same shape as a UnifiedListing row plus the per-item listingCount.
+type ShopItemRaw = UnifiedListingRaw & { listingCount?: number }
+
+function shopItemToItem(l: ShopItemRaw): UnifiedListing {
+  return { ...unifiedListingToItem(l), listingCount: l.listingCount }
+}
+
+// The item-unified BROWSE grid: /v3/catalog/unified?groupBy=item — ONE card per item (not per listing),
+// priced primary-if-present else cheapest credit-buyable secondary, carrying a listingCount so an item
+// with multiple copies shows a single card (with a "N on sale" badge) instead of one card per listing.
+// Same server-side filtering/sort/search/pagination as fetchUnified; the card still deep-links to the
+// PDP, which shows the full resale list.
+export async function fetchShopItems({ first = 100, ...filters }: ShopListingFilters = {}): Promise<{
+  items: UnifiedListing[]
+  total: number
+}> {
+  const qs = unifiedSearchParams(first, filters, 'item')
+  const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/unified?${qs.toString()}`)
+  if (!res.ok) throw new Error(`fetchShopItems ${res.status}`)
+  const json = (await res.json()) as { data?: ShopItemRaw[]; total?: number }
+  const data = json.data ?? []
+  return { items: data.map(shopItemToItem), total: json.total ?? data.length }
 }
 
 // The legacy (classic MANA-priced) listing shape that MarketCheckout (Buy Now) consumes. A legacy row
@@ -607,10 +697,63 @@ export async function fetchOwnedToken(
     // Guard on the token id too: the endpoint filters server-side, but never claim ownership of a
     // token the response didn't actually match (defensive against a loose/again-cached row).
     if (!r || r.nft.tokenId !== tokenId) return null
-    return toMyAsset(r)
+    const asset = toMyAsset(r)
+    // The indexer's `order.price` can be transiently null/0 for a live listing (the secondary-listings
+    // materialized view lags the trade). That would show the OWNER a "0" price for their own listing on
+    // the PDP. When the token is on sale but carries no usable price, resolve it authoritatively from
+    // the signed trade's received amount (USD-pegged → credits) so a live listing never reads 0.
+    if (asset.isOnSale && asset.tradeId && !asset.listingPrice) {
+      try {
+        const trade = await fetchTrade(asset.tradeId)
+        const amount = (trade.received?.[0] as { amount?: string } | undefined)?.amount
+        const credits = toCredits(amount)
+        if (credits > 0) asset.listingPrice = credits
+      } catch {
+        // Keep the (missing) price rather than fail the whole ownership check — the manage view still
+        // works; the price just stays unresolved until the next refetch.
+      }
+    }
+    return asset
   } catch {
     return null
   }
+}
+
+// Seller + issued number for a specific listed token, resolved from the indexer's /v1/nfts endpoint.
+// The unified shop feed (fetchItemResales) carries NEITHER — it's a per-trade projection with no owner
+// or mint index — so the resale rows resolve these client-side, per visible (paginated) token. Seller
+// = the token's current owner (the reseller); issuedId = its mint index ("#N"). Best-effort: any miss
+// returns empty so a row still renders (without the seller line / with the generic label) rather than
+// fabricating a value.
+export type ResaleTokenInfo = { seller?: string; issuedId?: string }
+
+export async function fetchResaleTokenInfo(contractAddress: string, tokenId: string): Promise<ResaleTokenInfo> {
+  try {
+    const qs = new URLSearchParams({ contractAddress, tokenId, first: '1' })
+    const res = await fetch(`${NFT_V1}/nfts?${qs.toString()}`)
+    if (!res.ok) return {}
+    const { data } = (await res.json()) as {
+      data?: Array<{ nft?: { tokenId?: string; issuedId?: string; owner?: string }; order?: { owner?: string } | null }>
+    }
+    const row = data?.[0]
+    // Never attribute a seller/issued number from a row the endpoint didn't actually match on tokenId.
+    if (!row?.nft || row.nft.tokenId !== tokenId) return {}
+    return { seller: row.nft.owner ?? row.order?.owner, issuedId: row.nft.issuedId }
+  } catch {
+    return {}
+  }
+}
+
+// Batched seller/issued lookup for the VISIBLE (paginated) resale rows only — never the whole unbounded
+// resale set. Returns a tokenId → info map; missing/failed tokens are simply absent.
+export async function fetchResaleTokenInfos(
+  contractAddress: string,
+  tokenIds: string[]
+): Promise<Record<string, ResaleTokenInfo>> {
+  const entries = await Promise.all(
+    tokenIds.map(async id => [id, await fetchResaleTokenInfo(contractAddress, id)] as const)
+  )
+  return Object.fromEntries(entries)
 }
 
 // PUBLIC lookup of ONE specific token by (contract, tokenId) — NOT scoped to a viewer/owner. Powers
@@ -766,4 +909,89 @@ export async function fetchTradeForItem(contractAddress: string, itemId: string)
   const { listings } = await fetchShopListingsRaw({ contractAddress, itemId, first: 1 })
   const tradeId = listings[0]?.tradeId
   return tradeId ? fetchTrade(tradeId) : null
+}
+
+// Name + thumbnail for a sold asset (a secondary sale carries a tokenId; a primary/mint sale an
+// itemId). Reuses the same metadata endpoints the purchase-history resolver uses so the Activity feed
+// renders sale rows the same way it renders purchases. Falls back gracefully — an unresolvable row
+// still shows a generic name rather than crashing. `credits` is unused here (a sale carries its own
+// settlement price); it's kept only so the shape matches PurchaseDisplay.
+export async function fetchAssetDisplay(
+  contractAddress: string,
+  { tokenId, itemId }: { tokenId?: string | null; itemId?: string | null }
+): Promise<PurchaseDisplay | null> {
+  if (!contractAddress) return null
+  if (tokenId) {
+    const meta = await fetchNftMeta(contractAddress, tokenId)
+    return { name: meta?.name ?? `#${tokenId}`, thumbnail: meta?.image ?? '', credits: 0, contractAddress, tokenId }
+  }
+  if (itemId) {
+    const meta = await fetchItemMeta(contractAddress, itemId)
+    return { name: meta?.name ?? 'Item', thumbnail: meta?.thumbnail ?? '', credits: 0, contractAddress, itemId }
+  }
+  return null
+}
+
+// A completed secondary sale the connected account took part in (marketplace-server /v1/sales). Note
+// secondary sales settle in MANA (not credits), so `manaWei` is the on-chain price — the Activity feed
+// converts it to INDICATIVE credits at the live display rate (see lib/activity + lib/mana-rate).
+export type SaleRecord = {
+  id: string
+  buyer: string
+  seller: string
+  contractAddress: string
+  tokenId: string
+  itemId: string | null
+  manaWei: string
+  createdAt: number // epoch MS (the API already returns ms)
+  txHash: string
+  category: string
+}
+
+type RawSale = {
+  id: string
+  buyer: string
+  seller: string
+  contractAddress: string
+  tokenId: string
+  itemId: string | null
+  price: string
+  timestamp: number
+  txHash: string
+  category?: string
+}
+
+function toSaleRecord(s: RawSale): SaleRecord {
+  return {
+    id: s.id,
+    buyer: s.buyer,
+    seller: s.seller,
+    contractAddress: s.contractAddress,
+    tokenId: s.tokenId,
+    itemId: s.itemId ?? null,
+    manaWei: s.price,
+    createdAt: s.timestamp,
+    txHash: s.txHash,
+    category: s.category ?? ''
+  }
+}
+
+// The connected account's completed secondary sales, newest first. `role` picks the side: 'seller' =
+// items the user sold, 'buyer' = items the user bought on the secondary market. Public GET (no auth);
+// paginated by cumulative offset (see useInfiniteGrid). Prices are MANA wei.
+export async function fetchUserSales(
+  address: string,
+  { role = 'seller', first = 24, skip = 0 }: { role?: 'seller' | 'buyer'; first?: number; skip?: number } = {}
+): Promise<{ items: SaleRecord[]; total: number }> {
+  const qs = new URLSearchParams({
+    [role]: address.toLowerCase(),
+    first: String(first),
+    skip: String(skip),
+    sortBy: 'recently_sold'
+  })
+  const res = await fetch(`${config.marketplaceServerUrl}/v1/sales?${qs.toString()}`)
+  if (!res.ok) throw new Error(`fetchUserSales ${res.status}`)
+  const json = (await res.json()) as { data?: RawSale[]; total?: number }
+  const items = (json.data ?? []).map(toSaleRecord)
+  return { items, total: json.total ?? items.length }
 }

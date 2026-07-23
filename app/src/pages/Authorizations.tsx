@@ -63,7 +63,9 @@ function AuthorizationRow({
       await setAuthorization({ auth: descriptor, signer, active: next })
       await refetch()
       queryClient.setQueryData(['authorization', descriptor.id, owner], next)
-      toast.success(next ? t('authorizations.toastActivated', { name }) : t('authorizations.toastDeactivated', { name }))
+      toast.success(
+        next ? t('authorizations.toastActivated', { name }) : t('authorizations.toastDeactivated', { name })
+      )
     } catch (e) {
       captureError(e, { flow: 'authorizations', step: next ? 'grant' : 'revoke' })
       toast.error(friendlyError(e, t('authorizations.errorGeneric')))
@@ -96,7 +98,9 @@ function AuthorizationRow({
             data-active={!!active}
             role="switch"
             aria-checked={!!active}
-            aria-label={active ? t('authorizations.deactivateAria', { name }) : t('authorizations.activateAria', { name })}
+            aria-label={
+              active ? t('authorizations.deactivateAria', { name }) : t('authorizations.activateAria', { name })
+            }
             disabled={isLoading}
             onClick={() => void toggle()}
           />
@@ -129,7 +133,7 @@ function useOwnedCollections(owner: string | undefined) {
 
 export function Authorizations() {
   useSeo({ title: t('authorizations.title'), noindex: true })
-  const { session } = useWallet()
+  const { session, signIn } = useWallet()
   const chainId = config.chainId
   const selfCustody = showsWalletConfirmations(session?.providerType)
 
@@ -143,6 +147,9 @@ export function Authorizations() {
         <Icon name="info" size={40} color="var(--muted-2)" />
         <S.EmptyTitle>{t('authorizations.signInTitle')}</S.EmptyTitle>
         <p className="muted">{t('authorizations.signInBody')}</p>
+        <S.EmptyCta variant="purple" onClick={() => signIn()}>
+          {t('storeSettings.signIn')}
+        </S.EmptyCta>
       </S.Empty>
     )
   }

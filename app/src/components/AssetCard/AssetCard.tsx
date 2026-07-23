@@ -209,6 +209,13 @@ export function AssetCard(props: AssetCardProps) {
             {discountPct > 0 ? t('assetCard.saleWithDiscount', { pct: discountPct }) : t('assetCard.sale')}
           </span>
         ) : null}
+        {/* Item-unified browse feed: this item has more than one copy on sale — flag it so the user
+            knows there's a resale list to see on the item detail page (only that feed sets listingCount). */}
+        {item.listingCount && item.listingCount > 1 ? (
+          <span className="card__listings" data-testid="card-listings">
+            {t('assetCard.onSaleCount', { count: item.listingCount })}
+          </span>
+        ) : null}
         {/* Flat thumbnail stays visible the whole time the 3D loads (no empty frame); it only fades out
             once the shared preview has this item's scene ready, crossfading into the 3D. */}
         {isNameItem ? (
