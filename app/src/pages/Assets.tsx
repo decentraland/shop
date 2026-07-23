@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { fetchUnified, type CatalogItem, type LegacyListing, type UnifiedListing } from '~/lib/api'
+import { fetchShopItems, type CatalogItem, type LegacyListing, type UnifiedListing } from '~/lib/api'
 import { fetchCatalogItems } from '~/lib/collections'
 import { manaWeiToCredits } from '~/lib/mana-rate'
 import { useManaRate } from '~/hooks/useManaRate'
@@ -96,8 +96,9 @@ export function Assets() {
   }, [filtersOpen])
 
   // Browse is routed by the Status filter:
-  //  • 'on_sale' (DEFAULT) → the fast unified MV (/v3/catalog/unified) — native + legacy on-sale
-  //    liquidity, with Add-to-cart / Buy-now cards.
+  //  • 'on_sale' (DEFAULT) → the item-unified feed (/v3/catalog/unified?groupBy=item) — native + legacy
+  //    on-sale liquidity collapsed to ONE card per item (primary-preferred price + listingCount), with
+  //    Add-to-cart / Buy-now cards.
   //  • 'all' / 'not_for_sale' → the full catalog (/v3/catalog/items, via fetchCatalogItems) — every
   //    item incl. those not for sale, rendered as VIEW-only cards (no inline trade). 'not_for_sale'
   //    passes isOnSale:false; 'all' leaves it unset (both).
@@ -106,7 +107,8 @@ export function Assets() {
   const max = priceMax && !Number.isNaN(Number(priceMax)) ? Number(priceMax) : undefined
   const wearableCategories = subCategory ? SUBCAT_MAP[subCategory] : undefined
   const sortBy = (SORTS.find(s => s.key === sort) ?? SORTS[0]).server
-  // Unified (on-sale) grid filter set — /v3/catalog/unified does the filtering + sort + search.
+  // Item-unified (on-sale) grid filter set — /v3/catalog/unified?groupBy=item does the filtering + sort
+  // + search, one card per item.
   const filters = {
     category,
     rarities: rarities.length ? rarities : undefined,
@@ -132,10 +134,10 @@ export function Assets() {
 
   const { items, total, isLoading, isPlaceholderData, error, hasNextPage, isFetchingNextPage, fetchNextPage } =
     useInfiniteGrid<CatalogItem>(
-      isUnified ? ['unified-listings', filters] : ['catalog-items', catalogFilters],
+      isUnified ? ['shop-items', filters] : ['catalog-items', catalogFilters],
       skip =>
         isUnified
-          ? fetchUnified({ ...filters, first: PAGE_SIZE, skip })
+          ? fetchShopItems({ ...filters, first: PAGE_SIZE, skip })
           : fetchCatalogItems({ ...catalogFilters, first: PAGE_SIZE, skip }),
       // NAMEs isn't a grid category — don't fire a bogus catalog fetch when it's selected.
       { enabled: category !== 'names' }
@@ -220,7 +222,7 @@ export function Assets() {
     setCheckout(toLegacyListing(item))
   }
   function refreshGrid() {
-    void qc.invalidateQueries({ queryKey: ['unified-listings'] })
+    void qc.invalidateQueries({ queryKey: ['shop-items'] })
   }
 
   // Applied-filter chips (Figma top-bar 1304-310186 / desktop 1256-293193): price, each selected

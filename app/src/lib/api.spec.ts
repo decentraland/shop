@@ -32,6 +32,7 @@ import {
   fetchShopListingForItem,
   fetchListings,
   fetchUnified,
+  fetchShopItems,
   fetchMyAssets,
   fetchOwnedToken,
   fetchResaleTokenInfo,
@@ -559,6 +560,92 @@ describe('when fetching the unified browse listings', () => {
   it('should throw when the unified request fails', async () => {
     fetchMock.mockResolvedValueOnce(httpError(502))
     await expect(fetchUnified()).rejects.toThrow('fetchUnified 502')
+  })
+})
+
+describe('when fetching the item-unified browse feed', () => {
+  // A representative item row: same shape as a unified listing row plus the per-item listingCount.
+  const itemRow = {
+    tradeId: 'i-native',
+    listingType: 'primary',
+    contractAddress: '0x1',
+    itemId: '1',
+    tokenId: null,
+    name: 'Native Hat',
+    thumbnail: '',
+    rarity: 'epic',
+    category: 'wearable',
+    wearableCategory: 'hat',
+    creator: '0xa',
+    priceCredits: 270,
+    available: 100,
+    network: 'MATIC',
+    chainId: 80002,
+    source: 'native',
+    manaWei: null,
+    listingCount: 3
+  }
+
+  it('should hit /v3/catalog/unified with groupBy=item and carry listingCount onto the card model', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ total: 1, data: [itemRow] }))
+    const { items, total } = await fetchShopItems()
+    expect(total).toBe(1)
+    const url = lastUrl()
+    expect(url).toContain('https://market.test/v3/catalog/unified?')
+    expect(url).toContain('groupBy=item')
+    expect(items[0]).toMatchObject({
+      id: 'i-native',
+      tradeId: 'i-native',
+      name: 'Native Hat',
+      source: 'native',
+      manaWei: null,
+      priceCredits: 270,
+      listingCount: 3
+    })
+  })
+
+  it('should serialise every supported filter alongside groupBy=item', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ total: 0, data: [] }))
+    await fetchShopItems({
+      category: 'wearable',
+      first: 12,
+      skip: 24,
+      rarities: ['epic', 'legendary'],
+      wearableCategories: ['hat', 'hair'],
+      minPriceCredits: 1,
+      maxPriceCredits: 100,
+      search: 'dragon',
+      sortBy: 'cheapest',
+      isSmart: true
+    })
+    const url = lastUrl()
+    expect(url).toContain('groupBy=item')
+    expect(url).toContain('category=wearable')
+    expect(url).toContain('first=12')
+    expect(url).toContain('skip=24')
+    expect(url).toContain('rarity=epic%2Clegendary')
+    expect(url).toContain('wearableCategory=hat%2Chair')
+    expect(url).toContain('minPriceCredits=1')
+    expect(url).toContain('maxPriceCredits=100')
+    expect(url).toContain('search=dragon')
+    expect(url).toContain('sortBy=cheapest')
+    expect(url).toContain('isSmart=true')
+  })
+
+  it('should leave listingCount undefined when the row omits it, and default first to 100', async () => {
+    const { listingCount, ...noCount } = itemRow
+    void listingCount
+    fetchMock.mockResolvedValueOnce(jsonOk({ data: [noCount] }))
+    const { items, total } = await fetchShopItems()
+    expect(lastUrl()).toContain('first=100')
+    expect(items[0].listingCount).toBeUndefined()
+    // total falls back to data.length when omitted.
+    expect(total).toBe(1)
+  })
+
+  it('should throw when the item-unified request fails', async () => {
+    fetchMock.mockResolvedValueOnce(httpError(502))
+    await expect(fetchShopItems()).rejects.toThrow('fetchShopItems 502')
   })
 })
 

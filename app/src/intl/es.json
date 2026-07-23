@@ -208,6 +208,7 @@
     "addToFavorites": "Agregar a favoritos",
     "removeFromFavorites": "Quitar de favoritos",
     "marketPrice": "Precio de mercado",
+    "onSaleCount": "{count, plural, one {# en venta} other {# en venta}}",
     "unavailable": "No disponible",
     "buyNow": "Comprar ahora",
     "yourItem": "Tu artículo",

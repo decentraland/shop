@@ -82,6 +82,21 @@ describe('AssetCard flash-sale treatment', () => {
   })
 })
 
+describe('AssetCard listings badge (item-unified feed)', () => {
+  it('shows a "N on sale" badge when the item has more than one listing', () => {
+    const { container } = renderCard(makeItem({ listingCount: 3 }))
+    const badge = container.querySelector('[data-testid="card-listings"]')
+    expect(badge?.textContent).toMatch(/3 on sale/i)
+  })
+
+  it('shows no badge for a single-listing item or when listingCount is absent', () => {
+    const { container: single } = renderCard(makeItem({ listingCount: 1 }))
+    expect(single.querySelector('[data-testid="card-listings"]')).toBeNull()
+    const { container: none } = renderCard(makeItem())
+    expect(none.querySelector('[data-testid="card-listings"]')).toBeNull()
+  })
+})
+
 // Probe component mounted at the detail route so a test can read the router state the card handed over.
 function LocationProbe() {
   const loc = useLocation()

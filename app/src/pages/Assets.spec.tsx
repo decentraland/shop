@@ -7,7 +7,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 // Assets pulls a lot of heavy ESM transitively (checkout + names libs → decentraland-transactions
 // cross-chain), which doesn't resolve under vitest — mock those seams. We only care that selecting
 // the NAMEs category swaps the grid for the NAMEs page.
-vi.mock('~/lib/api', () => ({ fetchUnified: vi.fn().mockResolvedValue({ items: [], total: 0 }), fetchTrade: vi.fn() }))
+vi.mock('~/lib/api', () => ({ fetchShopItems: vi.fn().mockResolvedValue({ items: [], total: 0 }), fetchTrade: vi.fn() }))
 vi.mock('~/lib/collections', () => ({ fetchCatalogItems: vi.fn().mockResolvedValue({ items: [], total: 0 }) }))
 vi.mock('~/lib/mana-rate', () => ({ manaWeiToCredits: () => 10, manaWeiToUsdCents: () => 100 }))
 vi.mock('~/hooks/useManaRate', () => ({ useManaRate: () => ({ data: undefined, isError: false }) }))
