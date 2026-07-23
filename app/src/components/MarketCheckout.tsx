@@ -18,6 +18,7 @@ import { Button } from '~/components/Button'
 import { t } from '~/intl/i18n'
 import { isRejection } from '~/lib/errors'
 import { ErrorNotice } from '~/components/ErrorNotice'
+import type { SuccessNavState } from '~/pages/Success'
 import styled from '@emotion/styled'
 
 // The two modal-footer buttons split the row evenly (was `.mkt-modal__actions .btn { flex: 1 }`).
@@ -237,7 +238,8 @@ export function MarketCheckout({
         transaction_hash: txHash ?? null
       })
       void qc.invalidateQueries({ queryKey: ['usd-balance'] })
-      navigate('/success', { state: { items: [toCatalogItem(listing)], txHash } })
+      const successState: SuccessNavState = { items: [toCatalogItem(listing)], txHash }
+      navigate('/success', { state: successState })
     } catch (e) {
       console.error('[market] buy now failed', e)
       // Release the reserved dollars so the balance isn't stuck until the TTL.

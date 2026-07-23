@@ -1,12 +1,19 @@
 import { ethers } from 'ethers'
 import { ChainId, Network, TradeAssetType, TradeType, type TradeCreation } from '@dcl/schemas'
 import { ContractName, getContract } from 'decentraland-transactions'
-import { config } from '~/config'
+import {
+  AuthorizationKind,
+  ensureAuthorization,
+  ensureChain,
+  getAuthorizationStatus,
+  getCollectionSellingAuthorization,
+  readProvider,
+  type ShopAuthorization
+} from '~/lib/authorizations'
 
-// Read-only provider for the target chain — contract reads must not depend on the wallet's network.
-function readProvider() {
-  return new ethers.providers.JsonRpcProvider(config.rpcUrl)
-}
+// The on-chain approval plumbing now lives in ~/lib/authorizations (the first-class module). Re-export
+// ensureChain so existing importers (e.g. ~/lib/buy) keep working without churn.
+export { ensureChain }
 
 const toSeconds = (ms: number) => Math.floor(ms / 1000)
 
@@ -107,76 +114,36 @@ const INDEX_ABI = [
   'function signerSignatureIndex(address) view returns (uint256)'
 ]
 
-const ERC721_ABI = [
-  'function isApprovedForAll(address owner, address operator) view returns (bool)',
-  'function setApprovalForAll(address operator, bool approved)'
-]
-
-// A published collection lets its creator grant "minters". A primary (mint) listing only works if
-// the offchain marketplace is a minter of the collection — the trade signature alone doesn't grant
-// mint rights (BUILDER_LISTING_SPEC §4.2).
-const COLLECTION_MINTER_ABI = [
-  'function globalMinters(address minter) view returns (bool)',
-  'function setMinters(address[] minters, bool[] values)'
-]
-
 // ethers v5 `Contract` exposes dynamically-named ABI methods through an `any` index signature. Narrow
 // each contract to the fragments its ABI declares so reads/txs above stay type-checked.
 type IndexContract = ethers.Contract & {
   contractSignatureIndex(): Promise<ethers.BigNumber>
   signerSignatureIndex(address: string): Promise<ethers.BigNumber>
 }
-type Erc721Contract = ethers.Contract & {
-  isApprovedForAll(owner: string, operator: string): Promise<boolean>
-  setApprovalForAll(operator: string, approved: boolean): Promise<ethers.ContractTransaction>
-}
-type CollectionMinterContract = ethers.Contract & {
-  globalMinters(minter: string): Promise<boolean>
-  setMinters(minters: string[], values: boolean[]): Promise<ethers.ContractTransaction>
-}
 
-const AMOY_ADD_PARAMS = {
-  chainId: '0x13882',
-  chainName: 'Polygon Amoy',
-  nativeCurrency: { name: 'POL', symbol: 'POL', decimals: 18 },
-  rpcUrls: ['https://rpc-amoy.polygon.technology'],
-  blockExplorerUrls: ['https://amoy.polygonscan.com']
-}
-
-// Silently move the wallet to the asset's chain — only needed before an actual on-chain tx.
-export async function ensureChain(provider: ethers.providers.Web3Provider, chainId: number): Promise<void> {
-  const net = await provider.getNetwork()
-  if (net.chainId === chainId) return
-  const hexChain = ethers.utils.hexValue(chainId)
-  try {
-    await provider.send('wallet_switchEthereumChain', [{ chainId: hexChain }])
-  } catch (e) {
-    if ((e as { code?: number }).code === 4902 && chainId === 80002) {
-      await provider.send('wallet_addEthereumChain', [AMOY_ADD_PARAMS])
-    } else {
-      throw e
-    }
+// A published collection lets its creator grant "minters". A primary (mint) listing only works if the
+// offchain marketplace is a minter of the collection — the trade signature alone doesn't grant mint
+// rights (BUILDER_LISTING_SPEC §4.2).
+function minterAuthorization(contractAddress: string, chainId: ChainId): ShopAuthorization {
+  const market = getContract(ContractName.OffChainMarketplaceV2, chainId)
+  return {
+    kind: AuthorizationKind.Minter,
+    contractAddress,
+    spenderAddress: market.address,
+    chainId
   }
 }
 
 // The listing signature doesn't grant transfer rights — the seller must approve the marketplace as
-// operator once. Reads approval via the target-chain RPC; sends the tx only if missing (switching
-// the wallet to the asset's chain just-in-time — this is the only step that needs the right chain).
+// operator once. Delegates to the authorizations module: reads approval via the target-chain RPC and
+// sends setApprovalForAll only if missing (switching the wallet to the asset's chain just-in-time).
 export async function ensureApproval(opts: {
   signer: ethers.providers.JsonRpcSigner
   contractAddress: string
   chainId: ChainId
 }): Promise<void> {
-  const market = getContract(ContractName.OffChainMarketplaceV2, opts.chainId)
-  const owner = await opts.signer.getAddress()
-  const erc721Read = new ethers.Contract(opts.contractAddress, ERC721_ABI, readProvider()) as Erc721Contract
-  const approved = await erc721Read.isApprovedForAll(owner, market.address)
-  if (approved) return
-
-  await ensureChain(opts.signer.provider as ethers.providers.Web3Provider, opts.chainId)
-  const erc721 = new ethers.Contract(opts.contractAddress, ERC721_ABI, opts.signer) as Erc721Contract
-  const tx = await erc721.setApprovalForAll(market.address, true)
-  await tx.wait()
+  const auth = getCollectionSellingAuthorization(opts.contractAddress, opts.chainId)
+  await ensureAuthorization({ auth, signer: opts.signer })
 }
 
 /**
@@ -258,17 +225,8 @@ export async function createUsdPeggedListing(opts: {
  * listing works with no extra one-time action; when false, the creator must enable it once.
  */
 export async function isMarketplaceMinter(opts: { contractAddress: string; chainId: ChainId }): Promise<boolean> {
-  const market = getContract(ContractName.OffChainMarketplaceV2, opts.chainId)
-  const collection = new ethers.Contract(
-    opts.contractAddress,
-    COLLECTION_MINTER_ABI,
-    readProvider()
-  ) as CollectionMinterContract
-  try {
-    return await collection.globalMinters(market.address)
-  } catch {
-    return false
-  }
+  // globalMinters ignores the owner argument, so an empty address is fine here.
+  return getAuthorizationStatus(minterAuthorization(opts.contractAddress, opts.chainId), '')
 }
 
 /**
@@ -281,28 +239,7 @@ export async function ensureMinter(opts: {
   contractAddress: string
   chainId: ChainId
 }): Promise<void> {
-  const market = getContract(ContractName.OffChainMarketplaceV2, opts.chainId)
-  const collectionRead = new ethers.Contract(
-    opts.contractAddress,
-    COLLECTION_MINTER_ABI,
-    readProvider()
-  ) as CollectionMinterContract
-  let already: boolean
-  try {
-    already = await collectionRead.globalMinters(market.address)
-  } catch {
-    already = false
-  }
-  if (already) return
-
-  await ensureChain(opts.signer.provider as ethers.providers.Web3Provider, opts.chainId)
-  const collection = new ethers.Contract(
-    opts.contractAddress,
-    COLLECTION_MINTER_ABI,
-    opts.signer
-  ) as CollectionMinterContract
-  const tx = await collection.setMinters([market.address], [true])
-  await tx.wait()
+  await ensureAuthorization({ auth: minterAuthorization(opts.contractAddress, opts.chainId), signer: opts.signer })
 }
 
 /**

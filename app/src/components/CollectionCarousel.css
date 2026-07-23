@@ -4,7 +4,9 @@
    carousel carries its own look wherever it's rendered (pages are lazy-loaded, so relying on another
    page's CSS would leave it unstyled when reached directly). */
 .collection-carousel {
-  margin-top: 64px;
+  /* Gap above the rail on the item-detail page. The cart zeroes this in cart.css and supplies its
+     own spacing, so this value only affects the PDP. */
+  margin-top: 40px;
 }
 .collection-carousel__head {
   display: flex;
@@ -70,11 +72,13 @@
   width: 100%;
   height: 100%;
 }
+/* Sit the 53px arrows in the page gutter (aligned to the nav's 54px), not over the cards — at -40px
+   their inner edge landed ~13px onto the first/last card (Figma 1179-172512: arrows live beside the rail). */
 .collection-carousel__arrow--left {
-  left: -40px;
+  left: -53px;
 }
 .collection-carousel__arrow--right {
-  right: -40px;
+  right: -53px;
 }
 .collection-carousel__arrow--left img {
   transform: scaleX(-1);
@@ -97,32 +101,42 @@
   }
 }
 
+/* A grid showing a FIXED whole number of cards per view (mirrors the Overview rail `.ov-carousel__track`
+   — 5 desktop → 4 → 3 → 2), so an exact integer of cards fills the viewport and NO partial card is ever
+   cut off. `overflow-x: auto` also clips overflow-y, so `padding: 12px 14px` reserves room on ALL sides
+   for the cards' outward hover glow (2px cerise border + 8px box-shadow) — otherwise the first/last
+   card's ring gets clipped. `scroll-padding-inline` keeps the snap points aligned to that gutter. */
 .collection-carousel__track {
-  display: flex;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: calc((100% - 64px) / 5);
   gap: 16px;
   overflow-x: auto;
-  /* Reserve room for the cards' outward hover/active glow (box-shadow ring): an overflow-x scroller
-     also clips overflow-y, so without vertical padding the ring crops flat top/bottom. Vertical
-     padding for the glow, negative horizontal margin so the side glow bleeds into the page padding. */
-  padding: 12px 10px;
-  margin: 0 -10px;
-  scroll-snap-type: x proximity;
+  overflow-y: hidden;
+  padding: 12px 14px;
+  scroll-padding-inline: 14px;
+  scroll-snap-type: x mandatory;
   scrollbar-width: none;
 }
 .collection-carousel__track::-webkit-scrollbar {
   display: none;
 }
-/* Each slide is the SHARED <AssetCard> (root class .card) — sized identically to the browse grid /
-   Overview rails (Figma 281×300) so a card here is indistinguishable from a card anywhere else. This
-   mirrors index.css `.row__track > *`. */
 .collection-carousel__track > .card {
-  flex: 0 0 281px;
   scroll-snap-align: start;
 }
-/* Mobile: show one full card plus a peek of the next (Figma 1182-190397), not multiple cramped cards. */
+@media (max-width: 1200px) {
+  .collection-carousel__track {
+    grid-auto-columns: calc((100% - 48px) / 4);
+  }
+}
+@media (max-width: 900px) {
+  .collection-carousel__track {
+    grid-auto-columns: calc((100% - 32px) / 3);
+  }
+}
 @media (max-width: 720px) {
-  .collection-carousel__track > .card {
-    flex: 0 0 85%;
+  .collection-carousel__track {
+    grid-auto-columns: calc((100% - 16px) / 2);
   }
 }
 

@@ -681,12 +681,14 @@ describe('when resolving a purchased trade for display', () => {
     expect(await fetchTradeDisplay('gone')).toBeNull()
   })
 
-  it('should resolve a primary (collection item) purchase via the items endpoint', async () => {
+  it('should resolve a primary (collection item) purchase by its itemId via the items endpoint', async () => {
+    // The off-chain Trade API carries the sold item's id in `itemId` (NOT a generic `value`); the
+    // resolver must read that field and pass it to the /items lookup.
     fetchMock
       .mockResolvedValueOnce(
         jsonOk({
           data: {
-            sent: [{ assetType: TradeAssetType.COLLECTION_ITEM, contractAddress: '0xc', value: '7' }],
+            sent: [{ assetType: TradeAssetType.COLLECTION_ITEM, contractAddress: '0xc', itemId: '7' }],
             received: [{ amount: USD1 }]
           }
         })
@@ -701,17 +703,19 @@ describe('when resolving a purchased trade for display', () => {
       contractAddress: '0xc',
       itemId: '7'
     })
-    // second call hits the /items metadata endpoint.
+    // second call hits the /items metadata endpoint WITH the real itemId (regression guard: an empty
+    // itemId filter used to silently return the collection's first item).
     expect(lastUrl()).toContain('https://nft.test/v1/items?')
     expect(lastUrl()).toContain('contractAddress=0xc')
+    expect(lastUrl()).toContain('itemId=7')
   })
 
-  it('should resolve a secondary (ERC721 token) purchase via the nfts endpoint', async () => {
+  it('should resolve a secondary (ERC721 token) purchase by its tokenId via the nfts endpoint', async () => {
     fetchMock
       .mockResolvedValueOnce(
         jsonOk({
           data: {
-            sent: [{ assetType: TradeAssetType.ERC721, contractAddress: '0xc', value: '42' }],
+            sent: [{ assetType: TradeAssetType.ERC721, contractAddress: '0xc', tokenId: '42' }],
             received: [{ amount: USD1 }]
           }
         })
@@ -727,6 +731,24 @@ describe('when resolving a purchased trade for display', () => {
       tokenId: '42'
     })
     expect(lastUrl()).toContain('https://nft.test/v1/nfts?')
+    expect(lastUrl()).toContain('tokenId=42')
+  })
+
+  it('should still read a generic on-chain `value` field as a fallback', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonOk({
+          data: {
+            sent: [{ assetType: TradeAssetType.COLLECTION_ITEM, contractAddress: '0xc', value: '5' }],
+            received: [{ amount: USD1 }]
+          }
+        })
+      )
+      .mockResolvedValueOnce(jsonOk({ data: [{ name: 'Legacy Item', thumbnail: 't.png' }] }))
+
+    const display = await fetchTradeDisplay('pt')
+    expect(display?.itemId).toBe('5')
+    expect(lastUrl()).toContain('itemId=5')
   })
 
   it('should fall back to placeholder name/image when metadata lookup fails', async () => {
@@ -734,7 +756,7 @@ describe('when resolving a purchased trade for display', () => {
       .mockResolvedValueOnce(
         jsonOk({
           data: {
-            sent: [{ assetType: TradeAssetType.ERC721, contractAddress: '0xc', value: '99' }],
+            sent: [{ assetType: TradeAssetType.ERC721, contractAddress: '0xc', tokenId: '99' }],
             received: [{ amount: USD1 }]
           }
         })
@@ -751,11 +773,28 @@ describe('when resolving a purchased trade for display', () => {
     })
   })
 
+  it('should NOT query metadata with an empty id, returning a clean fallback instead', async () => {
+    // A collection-item trade with no itemId/tokenId/value at all: querying /items with an empty
+    // filter returns an unrelated item, so the resolver must skip the lookup and fall back cleanly.
+    fetchMock.mockResolvedValueOnce(
+      jsonOk({
+        data: {
+          sent: [{ assetType: TradeAssetType.COLLECTION_ITEM, contractAddress: '0xc' }],
+          received: [{ amount: USD1 }]
+        }
+      })
+    )
+    const display = await fetchTradeDisplay('pt')
+    expect(display).toEqual({ name: 'Item', thumbnail: '', credits: 10, contractAddress: '0xc', itemId: '' })
+    // only the trade was fetched — no metadata call with a blank id.
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
   it('should return a generic item with no metadata lookup when the contract address is missing', async () => {
     fetchMock.mockResolvedValueOnce(
       jsonOk({
         data: {
-          sent: [{ assetType: TradeAssetType.ERC721, value: '1' }],
+          sent: [{ assetType: TradeAssetType.ERC721, tokenId: '1' }],
           received: [{ amount: USD1 }]
         }
       })

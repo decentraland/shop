@@ -29,6 +29,9 @@ export type CatalogItem = {
   // Checkout uses `tradeId` directly instead of resolving by itemId.
   tradeId?: string
   tokenId?: string
+  // The token's mint index within its item (e.g. "5013" → the 5013th ever minted). Present only for a
+  // specific owned/secondary token; lets the UI tell otherwise-identical copies apart ("#5013").
+  issuedId?: string
   // Remaining mintable supply for a PRIMARY listing (from the shop feed). Absent for secondary
   // listings (a specific token has no stock concept) and for catalog-only items. Surfaces the STOCK
   // figure next to the price on the item detail page.
@@ -255,6 +258,10 @@ export type ShopListingFilters = {
   maxPriceCredits?: number
   search?: string
   sortBy?: ShopSort
+  // Smart-wearables only (Figma "Smart" toggle). Omitted = no smart constraint.
+  isSmart?: boolean
+  // Listing status (Figma "Status" filter): true = on sale, false = not for sale, undefined = all.
+  onSale?: boolean
 }
 
 async function fetchShopListingsRaw(
@@ -345,6 +352,8 @@ export async function fetchUnified({ first = 100, ...filters }: ShopListingFilte
   if (filters.maxPriceCredits != null) qs.set('maxPriceCredits', String(filters.maxPriceCredits))
   if (filters.search) qs.set('search', filters.search)
   if (filters.sortBy) qs.set('sortBy', filters.sortBy)
+  if (filters.isSmart) qs.set('isSmart', 'true')
+  if (filters.onSale != null) qs.set('onSale', String(filters.onSale))
   const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/unified?${qs.toString()}`)
   if (!res.ok) throw new Error(`fetchUnified ${res.status}`)
   const json = (await res.json()) as { data?: UnifiedListingRaw[]; total?: number }
@@ -430,6 +439,9 @@ export type MyAsset = {
   id: string
   contractAddress: string
   tokenId: string
+  // Mint index of this token within its item ("5013" = the 5013th minted). Distinguishes copies the
+  // owner holds of the same item, so each owned card/detail can be identified individually.
+  issuedId?: string
   itemId: string | null
   name: string
   category: string
@@ -448,6 +460,7 @@ type NFTResult = {
     id: string
     contractAddress: string
     tokenId: string
+    issuedId?: string
     itemId: string | null
     name: string
     category: string
@@ -457,6 +470,28 @@ type NFTResult = {
     data?: { wearable?: { rarity?: string }; emote?: { rarity?: string } }
   }
   order: { price?: string | null; tradeId?: string } | null
+}
+
+// Maps one indexer NFT row to the flattened MyAsset shape the UI consumes. Shared by fetchMyAssets
+// (the My Assets grid) and fetchOwnedToken (single-token ownership check) so the field mapping —
+// including the isOnSale / listingPrice / tradeId derivation from `order` — stays in one place.
+function toMyAsset(r: NFTResult): MyAsset {
+  return {
+    id: r.nft.id,
+    contractAddress: r.nft.contractAddress,
+    tokenId: r.nft.tokenId,
+    issuedId: r.nft.issuedId,
+    itemId: r.nft.itemId ?? null,
+    name: r.nft.name,
+    category: r.nft.category,
+    image: r.nft.image,
+    rarity: r.nft.data?.wearable?.rarity ?? r.nft.data?.emote?.rarity,
+    network: r.nft.network,
+    chainId: r.nft.chainId,
+    isOnSale: r.order != null,
+    listingPrice: r.order ? toCredits(r.order.price) : undefined,
+    tradeId: r.order?.tradeId
+  }
 }
 
 // Has `owner` received a token of this item yet, according to the indexer? The purchase tx confirming
@@ -475,39 +510,90 @@ export async function fetchOwnsItem(owner: string, contractAddress: string, item
   }
 }
 
+// Sort keys accepted by the /v1/nfts endpoint (subset we expose in My Assets — see @dcl/schemas
+// NFTSortBy). Newest is the default; name + cheapest cover the rest of the My Assets sort menu.
+export type MyAssetsSort = 'newest' | 'name' | 'cheapest'
+
+export type MyAssetsFilters = {
+  category?: string
+  first?: number
+  skip?: number
+  // Free-text search over the owner's items (server-side, same `search` param the browse grid uses).
+  search?: string
+  // Rarity filter (repeated `itemRarity` params). Only meaningful for wearables/emotes.
+  rarities?: string[]
+  // On-chain wearable/emote sub-categories (from SUBCAT_MAP). Only meaningful for wearables/emotes.
+  wearableCategories?: string[]
+  emoteCategories?: string[]
+  // Listing status: true = only items currently on sale. The endpoint has no "not for sale" flag, so
+  // the caller filters the not-for-sale case client-side from each row's `isOnSale` (see MyAssets).
+  onlyOnSale?: boolean
+  sortBy?: MyAssetsSort
+}
+
+// The connected account's owned NFTs (wearables/emotes/names), from the indexer's /v1/nfts endpoint.
+// `category` selects the section: 'wearable' | 'emote' | 'ens' (owned NAMEs). Filtering (search,
+// rarity, sub-category, on-sale) + sort happen server-side; each row carries its open listing (order)
+// so the UI can show "on sale" + take a listing down. Paginated by cumulative offset (see useInfiniteGrid).
 export async function fetchMyAssets(
   owner: string,
-  { category = 'wearable', first = 48, skip = 0 }: { category?: string; first?: number; skip?: number } = {}
+  {
+    category = 'wearable',
+    first = 48,
+    skip = 0,
+    search,
+    rarities,
+    wearableCategories,
+    emoteCategories,
+    onlyOnSale,
+    sortBy = 'newest'
+  }: MyAssetsFilters = {}
 ): Promise<{ assets: MyAsset[]; total: number }> {
   const qs = new URLSearchParams({
     owner: owner.toLowerCase(),
     category,
     first: String(first),
     skip: String(skip),
-    sortBy: 'newest',
+    sortBy,
     orderDirection: 'desc'
   })
+  if (search) qs.set('search', search)
+  for (const r of rarities ?? []) qs.append('itemRarity', r)
+  for (const c of wearableCategories ?? []) qs.append('wearableCategory', c)
+  for (const c of emoteCategories ?? []) qs.append('emoteCategory', c)
+  if (onlyOnSale) qs.set('isOnSale', 'true')
   const res = await fetch(`${NFT_V1}/nfts?${qs.toString()}`)
   if (!res.ok) throw new Error(`Failed to fetch assets (${res.status})`)
   const { data, total } = (await res.json()) as { data: NFTResult[]; total: number }
 
-  const assets = data.map(r => ({
-    id: r.nft.id,
-    contractAddress: r.nft.contractAddress,
-    tokenId: r.nft.tokenId,
-    itemId: r.nft.itemId ?? null,
-    name: r.nft.name,
-    category: r.nft.category,
-    image: r.nft.image,
-    rarity: r.nft.data?.wearable?.rarity ?? r.nft.data?.emote?.rarity,
-    network: r.nft.network,
-    chainId: r.nft.chainId,
-    isOnSale: r.order != null,
-    listingPrice: r.order ? toCredits(r.order.price) : undefined,
-    tradeId: r.order?.tradeId
-  }))
+  const assets = data.map(toMyAsset)
 
   return { assets, total }
+}
+
+// Ownership + listing state of ONE specific token for a viewer. The item detail page uses it to decide
+// whether to show owner-management actions (List / Update price / Remove) for a secondary NFT the
+// connected wallet holds. Hits the same /v1/nfts endpoint (filtered by owner + token) fetchMyAssets
+// uses and maps the single row to a MyAsset — so it carries isOnSale + the open trade id (to cancel).
+// Returns null when the viewer doesn't own that token, or on any error (treat as "not the owner").
+export async function fetchOwnedToken(
+  owner: string,
+  contractAddress: string,
+  tokenId: string
+): Promise<MyAsset | null> {
+  try {
+    const qs = new URLSearchParams({ owner: owner.toLowerCase(), contractAddress, tokenId, first: '1' })
+    const res = await fetch(`${NFT_V1}/nfts?${qs.toString()}`)
+    if (!res.ok) return null
+    const { data } = (await res.json()) as { data: NFTResult[] }
+    const r = data?.[0]
+    // Guard on the token id too: the endpoint filters server-side, but never claim ownership of a
+    // token the response didn't actually match (defensive against a loose/again-cached row).
+    if (!r || r.nft.tokenId !== tokenId) return null
+    return toMyAsset(r)
+  } catch {
+    return null
+  }
 }
 
 // The metadata "signer" is the APP identifier (server validates it ∈ ['dcl:marketplace','dcl:builder']),
@@ -606,19 +692,29 @@ export async function fetchTradeDisplay(tradeId: string): Promise<PurchaseDispla
   } catch {
     return null
   }
-  const sent = trade.sent?.[0] as { assetType?: number; contractAddress?: string; value?: string } | undefined
+  // The off-chain Trade API returns the sold asset's id in `itemId` (COLLECTION_ITEM / primary) or
+  // `tokenId` (ERC721 / secondary); ONLY the on-chain serialization uses a generic `value`. Reading
+  // `value` off the API trade (as this did) always yielded `undefined` → an empty id → the metadata
+  // endpoints silently ignored the empty filter and returned the collection's default-first item (or
+  // nothing), which is exactly why purchases showed a generic "Item" with no image. Prefer the typed
+  // fields, keep `value` as a last-resort fallback for any on-chain-shaped trade.
+  const sent = trade.sent?.[0] as
+    | { assetType?: number; contractAddress?: string; itemId?: string; tokenId?: string; value?: string }
+    | undefined
   const priceAsset = trade.received?.[0] as { amount?: string } | undefined
   const credits = toCredits(priceAsset?.amount)
   const contractAddress = sent?.contractAddress ?? ''
-  const value = sent?.value ?? ''
+  const id = sent?.itemId ?? sent?.tokenId ?? sent?.value ?? ''
   if (!contractAddress) return { name: 'Item', thumbnail: '', credits, contractAddress: '' }
 
   if (sent?.assetType === TradeAssetType.COLLECTION_ITEM) {
-    const meta = await fetchItemMeta(contractAddress, value)
-    return { name: meta?.name ?? 'Item', thumbnail: meta?.thumbnail ?? '', credits, contractAddress, itemId: value }
+    // Guard the empty-id case: an empty `itemId` filter matches the whole collection, so `first:1`
+    // would return an unrelated item. Better to fall back cleanly than to show the wrong wearable.
+    const meta = id ? await fetchItemMeta(contractAddress, id) : null
+    return { name: meta?.name ?? 'Item', thumbnail: meta?.thumbnail ?? '', credits, contractAddress, itemId: id }
   }
-  const meta = await fetchNftMeta(contractAddress, value)
-  return { name: meta?.name ?? `#${value}`, thumbnail: meta?.image ?? '', credits, contractAddress, tokenId: value }
+  const meta = id ? await fetchNftMeta(contractAddress, id) : null
+  return { name: meta?.name ?? (id ? `#${id}` : 'Item'), thumbnail: meta?.image ?? '', credits, contractAddress, tokenId: id }
 }
 
 // Open credit-buyable listing (Trade) for a catalog ITEM (primary/mint), or null if none. Resolves

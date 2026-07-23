@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import type { CatalogItem } from '~/lib/api'
 
 // Mock the analytics module so we can assert the tracking side-effects without hitting Segment.
 // creditsToUsd keeps its real behaviour (1 credit = $0.10) so cart_value_usd assertions are meaningful.
@@ -8,12 +7,14 @@ vi.mock('~/lib/analytics', () => ({
   creditsToUsd: (credits: number) => Math.round(credits * 10) / 100
 }))
 
-import { useCart } from './cart'
+import { useCart, type CartItem } from './cart'
 import { track } from '~/lib/analytics'
 
 const trackMock = vi.mocked(track)
 
-const item = (over: Partial<CatalogItem> = {}): CatalogItem => ({
+// A cart line (CartItem = CatalogItem + quantity). Defaults to a primary line (itemId, no tokenId),
+// quantity 1; override any field per test. add() ignores the seeded quantity (it manages its own).
+const item = (over: Partial<CartItem> = {}): CartItem => ({
   id: 't1',
   name: 'Hat',
   creator: '0xcreator',
@@ -27,6 +28,7 @@ const item = (over: Partial<CatalogItem> = {}): CatalogItem => ({
   priceCredits: 20,
   gender: null,
   isSmart: false,
+  quantity: 1,
   ...over
 })
 
@@ -87,17 +89,76 @@ describe('when adding an item to the cart', () => {
     expect(trackMock.mock.calls[1][1]).toMatchObject({ cart_size: 2, cart_value_usd: 3.9 })
   })
 
-  it('and the same item is added again it should open the popover but not duplicate or track', () => {
-    useCart.getState().add(item())
+  it('and the same PRIMARY item is added again it should increment its quantity and track another add', () => {
+    useCart.getState().add(item({ available: 100 }))
     trackMock.mockClear()
     useCart.setState({ open: false })
 
-    useCart.getState().add(item())
+    useCart.getState().add(item({ available: 100 }))
 
     const state = useCart.getState()
     expect(state.items).toHaveLength(1)
+    expect(state.items[0].quantity).toBe(2)
+    expect(state.open).toBe(true)
+    expect(trackMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('and the same SECONDARY listing is added again it should stay at quantity 1 and not track', () => {
+    useCart.getState().add(item({ itemId: null, tokenId: '9' }))
+    trackMock.mockClear()
+    useCart.setState({ open: false })
+
+    useCart.getState().add(item({ itemId: null, tokenId: '9' }))
+
+    const state = useCart.getState()
+    expect(state.items).toHaveLength(1)
+    expect(state.items[0].quantity).toBe(1)
     expect(state.open).toBe(true)
     expect(trackMock).not.toHaveBeenCalled()
+  })
+
+  it('should default a new line to quantity 1', () => {
+    useCart.getState().add(item())
+    expect(useCart.getState().items[0].quantity).toBe(1)
+  })
+
+  it('should not increment a PRIMARY line past its remaining stock (available)', () => {
+    useCart.getState().add(item({ available: 2 }))
+    useCart.getState().add(item({ available: 2 }))
+    useCart.getState().add(item({ available: 2 })) // third add is a no-op at the cap
+    expect(useCart.getState().items[0].quantity).toBe(2)
+  })
+})
+
+describe('when changing a line quantity', () => {
+  it('increment/decrement move a PRIMARY line within [1, stock]', () => {
+    useCart.setState({ items: [{ ...item({ available: 3 }), quantity: 1 }] })
+
+    useCart.getState().increment('t1')
+    expect(useCart.getState().items[0].quantity).toBe(2)
+    useCart.getState().increment('t1')
+    useCart.getState().increment('t1') // capped at 3
+    expect(useCart.getState().items[0].quantity).toBe(3)
+    useCart.getState().decrement('t1')
+    expect(useCart.getState().items[0].quantity).toBe(2)
+  })
+
+  it('decrement never drops below 1 (removal is a separate action)', () => {
+    useCart.setState({ items: [{ ...item({ available: 3 }), quantity: 1 }] })
+    useCart.getState().decrement('t1')
+    expect(useCart.getState().items[0].quantity).toBe(1)
+  })
+
+  it('setQuantity clamps to [1, stock] and is a no-op for a SECONDARY line', () => {
+    useCart.setState({ items: [{ ...item({ available: 5 }), quantity: 1 }] })
+    useCart.getState().setQuantity('t1', 99)
+    expect(useCart.getState().items[0].quantity).toBe(5)
+    useCart.getState().setQuantity('t1', 0)
+    expect(useCart.getState().items[0].quantity).toBe(1)
+
+    useCart.setState({ items: [{ ...item({ itemId: null, tokenId: '9' }), quantity: 1 }] })
+    useCart.getState().increment('t1')
+    expect(useCart.getState().items[0].quantity).toBe(1) // secondary locked at 1
   })
 })
 
@@ -182,17 +243,19 @@ describe('when the cart is persisted to localStorage', () => {
     const persisted = JSON.parse(raw as string)
 
     // zustand-persist envelope: { state, version }. partialize keeps only `items`.
-    expect(persisted.version).toBe(1)
+    expect(persisted.version).toBe(2)
     expect(Object.keys(persisted.state)).toEqual(['items'])
     expect(persisted.state.items).toHaveLength(1)
     expect(persisted.state.items[0].id).toBe('t1')
+    expect(persisted.state.items[0].quantity).toBe(1)
     // A reload must not reopen the drawer or re-show the "N added" banner.
     expect(persisted.state).not.toHaveProperty('open')
     expect(persisted.state).not.toHaveProperty('justAddedCount')
     expect(persisted.state).not.toHaveProperty('fittingOpen')
   })
 
-  it('should rehydrate items from a pre-seeded snapshot on a fresh store, leaving the UI at its defaults', async () => {
+  it('should rehydrate a legacy (v1, no quantity) snapshot and migrate every line to quantity 1', async () => {
+    // A cart persisted before quantity existed: version 1, items with no `quantity` field.
     localStorage.setItem('dcl_shop_cart', JSON.stringify({ state: { items: [item({ id: 'seed' })] }, version: 1 }))
 
     // Simulate a page reload: reset the module registry and re-import so the store is created from
@@ -204,6 +267,8 @@ describe('when the cart is persisted to localStorage', () => {
     const state = freshCart.getState()
     expect(state.items).toHaveLength(1)
     expect(state.items[0].id).toBe('seed')
+    // The migration defaults a missing quantity to 1 so totals/steppers never see `undefined`.
+    expect(state.items[0].quantity).toBe(1)
     // Transient UI is NOT restored — it comes from the initializer defaults, not from storage.
     expect(state.open).toBe(false)
     expect(state.justAddedCount).toBe(0)

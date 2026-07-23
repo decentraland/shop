@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Rarity } from '@dcl/schemas'
 import { config } from '~/config'
 import { useCart } from '~/store/cart'
@@ -10,12 +10,21 @@ import {
   fetchShopListingForItem,
   fetchTradeForItem,
   fetchItemDescription,
+  fetchOwnedToken,
+  fetchTrade,
   type CatalogItem,
   type LegacyListing,
   type UnifiedListing
 } from '~/lib/api'
+import { cancelListing } from '~/lib/buy'
+import { fetchPublishableItems, type PublishableItem } from '~/lib/builder'
 import { BuyModal } from '~/components/BuyModal'
+import { SellModal } from '~/components/SellModal'
+import { PrimaryListModal } from '~/components/PrimaryListModal'
 import { MarketCheckout } from '~/components/MarketCheckout'
+import { toast } from '~/store/toast'
+import { captureError } from '~/lib/monitoring'
+import { isRejection } from '~/lib/errors'
 import { useManaRate } from '~/hooks/useManaRate'
 import { useSeo } from '~/hooks/useSeo'
 import { shortAddress } from '~/lib/address'
@@ -23,11 +32,15 @@ import { t } from '~/intl/i18n'
 import { fetchCollectionItems, fetchCollection } from '~/lib/collections'
 import { ItemPreview } from '~/components/ItemPreview'
 import { CollectionCarousel } from '~/components/CollectionCarousel'
+import { NotifyMe } from '~/components/NotifyMe'
+import { MakeOfferButton } from '~/components/MakeOfferButton'
+import { Tooltip } from '~/components/Tooltip'
 import { CreatorBadge } from '~/components/CreatorBadge'
 import { Button } from '~/components/Button'
 import styled from '@emotion/styled'
 import { theme } from '~/styles/theme'
 import { CollectionBadge } from '~/components/CollectionBadge'
+import { ErrorNotice } from '~/components/ErrorNotice'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { Icon } from '~/components/Icon'
 import { SaleCountdown } from '~/components/SaleCountdown'
@@ -65,6 +78,35 @@ const DetailCta = styled(Button)`
       flex: 1 1 auto;
       width: auto;
     }
+  }
+`
+
+// Owner/creator management actions (replace the buy CTAs when the viewer owns or created this item).
+// Stacked full-width so List / Update price / Remove read as a clear action column.
+const ManageActions = styled('div')`
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+`
+
+// The take-down (secondary) action: a full-width ghost button under the primary manage CTA.
+const RemoveCta = styled(Button)`
+  && {
+    width: 100%;
+    height: 44px;
+  }
+`
+
+// "Manage all your items in My Assets" helper, mirroring the old own-note styling.
+const ManageNote = styled('p')`
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: ${theme.colors.muted};
+
+  a {
+    color: ${theme.colors.accent};
+    font-weight: 600;
   }
 `
 
@@ -284,6 +326,12 @@ export function ItemDetail() {
     [current, buyableTradeId]
   )
   const inCart = cartItems.some(i => i.id === cartItem.id)
+  // Quantity support is PRIMARY-only: a primary (mint) line can hold multiple copies up to stock, so
+  // Add-to-cart stays enabled and re-clicking adds another. A secondary listing is a single unique
+  // token (tokenId), so it keeps the add-once ("In cart") behaviour.
+  const isPrimary = !cartItem.tokenId
+  const cartQty = cartItems.find(i => i.id === cartItem.id)?.quantity ?? 0
+  const atStockCap = isPrimary && typeof current.available === 'number' && cartQty >= current.available
   const faved = useFavorites(s => !!s.items[current.id])
 
   // KR5 denominator: fire 'Shop Viewed Item' once per hydrated item (deduped across re-renders and the
@@ -314,7 +362,10 @@ export function ItemDetail() {
   }, [routeKey])
 
   function handleAddToCart() {
-    if (!forSale || inCart || own) return
+    if (!forSale || own || resolvingTrade) return
+    // Secondary: only ever one copy of a unique token. Primary: don't exceed remaining stock.
+    if (!isPrimary && inCart) return
+    if (atStockCap) return
     add(cartItem, 'item_detail')
   }
 
@@ -329,28 +380,168 @@ export function ItemDetail() {
   // caught authoritatively at buy time by isOwnTrade.
   const own = isOwnListing(current, session?.address)
 
+  // ---- Owner / creator management -----------------------------------------------------------------
+  // Two roles manage this item instead of buying it:
+  //  • CREATOR of a PRIMARY (mint) listing they published — `own` (isOwnListing) already flags it.
+  //  • OWNER of a SECONDARY token they hold — resolved by querying the connected wallet's holding of
+  //    this exact token (also reports whether it's listed + the trade id to take it down).
+  const qc = useQueryClient()
+  const [showSell, setShowSell] = useState(false)
+  const [showPrimary, setShowPrimary] = useState(false)
+  const [managing, setManaging] = useState(false)
+  const [manageError, setManageError] = useState<string | null>(null)
+
+  const { data: ownedAsset, isLoading: ownedAssetLoading } = useQuery({
+    queryKey: ['owned-token', current.contractAddress, current.tokenId, session?.address],
+    enabled: !isMarket && !!session?.address && !!current.contractAddress && !!current.tokenId,
+    queryFn: () =>
+      session ? fetchOwnedToken(session.address, current.contractAddress, current.tokenId as string) : null
+  })
+
+  // Deep-link / refresh of a SECONDARY owned token: the route segment is a tokenId (NOT an itemId), so
+  // the primary shop-listing hydrate + sibling fallback above can't resolve it and `current` stays a
+  // bare stub (empty name → Not Found). Fill the view from the owner's authoritative holding of THIS
+  // exact token once it resolves, so the page renders the copy (and its per-token manage actions). Only
+  // when nothing else hydrated `current`; for an already-seeded item just backfill the issued number.
+  useEffect(() => {
+    if (!ownedAsset) return
+    setCurrent(prev => {
+      if (prev.name) return prev.issuedId ? prev : { ...prev, issuedId: ownedAsset.issuedId }
+      return {
+        id: ownedAsset.id,
+        name: ownedAsset.name,
+        creator: '',
+        contractAddress: ownedAsset.contractAddress,
+        itemId: ownedAsset.itemId,
+        category: ownedAsset.category,
+        rarity: ownedAsset.rarity ?? 'common',
+        network: ownedAsset.network,
+        chainId: ownedAsset.chainId,
+        thumbnail: ownedAsset.image,
+        priceCredits: ownedAsset.listingPrice ?? 0,
+        gender: null,
+        isSmart: false,
+        tokenId: ownedAsset.tokenId,
+        issuedId: ownedAsset.issuedId,
+        tradeId: ownedAsset.tradeId
+      }
+    })
+  }, [ownedAsset])
+
+  // The creator's builder record for this primary item — needed to open PrimaryListModal (it carries
+  // the collection name, remaining supply, and minter prereq). Only fetched for your own primary item.
+  const { data: publishableItem } = useQuery({
+    queryKey: ['publishable-item', current.contractAddress, current.itemId, session?.address],
+    enabled: own && !!session && !!current.itemId,
+    queryFn: async (): Promise<PublishableItem | null> => {
+      if (!session) return null
+      const items = await fetchPublishableItems(session.address, session.identity)
+      return (
+        items.find(
+          p =>
+            p.contractAddress.toLowerCase() === current.contractAddress.toLowerCase() &&
+            p.blockchainItemId === current.itemId
+        ) ?? null
+      )
+    }
+  })
+
+  const manageAsSecondary = !!ownedAsset
+  const manageAsPrimary = own
+  // Never over the market (legacy) flow — legacy items aren't managed through the shop's trade flows.
+  const manage = !isMarket && (manageAsPrimary || manageAsSecondary)
+  // Listed? Secondary uses the token's authoritative order; primary uses the resolved buyable trade.
+  const manageListed = manageAsSecondary ? !!ownedAsset?.isOnSale : forSale
+  const manageTradeId = manageAsSecondary ? ownedAsset?.tradeId : buyableTradeId
+  // Can we open the list/relist modal? Need the backing record the modal reads its inputs from.
+  const canOpenListModal = manageAsSecondary ? !!ownedAsset : !!publishableItem
+
+  async function refreshManage() {
+    await Promise.all([
+      // Scope to THIS token (prefix match), not every owned-token query in the cache.
+      qc.invalidateQueries({ queryKey: ['owned-token', current.contractAddress, current.tokenId] }),
+      qc.invalidateQueries({ queryKey: ['detail-trade'] }),
+      qc.invalidateQueries({ queryKey: ['shop-item'] }),
+      qc.invalidateQueries({ queryKey: ['collection-sale-state'] })
+    ])
+  }
+
+  // Take the current listing down (invalidates its signature on-chain). Mirrors My Assets' cancel flow.
+  // `silent` skips the "no longer for sale" toast when this is the first half of an Update price
+  // (cancel-then-relist — see updatePrice).
+  async function takeDown(opts: { silent?: boolean } = {}): Promise<boolean> {
+    if (!session || !manageTradeId) return false
+    setManageError(null)
+    setManaging(true)
+    try {
+      const trade = await fetchTrade(manageTradeId)
+      await cancelListing({ trade, signer: session.signer })
+      if (!opts.silent) toast.success(t('myAssets.removedFromSale', { name: current.name }))
+      await refreshManage()
+      return true
+    } catch (e) {
+      const rejected = isRejection(e)
+      if (!rejected) captureError(e, { flow: 'remove-listing', tradeId: manageTradeId })
+      setManageError(rejected ? t('getCredits.errorCanceled') : t('myAssets.removeListingError'))
+      return false
+    } finally {
+      setManaging(false)
+    }
+  }
+
+  function openListModal() {
+    if (manageAsSecondary) setShowSell(true)
+    else setShowPrimary(true)
+  }
+
+  // Update price: the shop's listings are independent signed trades (unlike the classic marketplace's
+  // single order slot that a re-list overwrites), so re-listing WITHOUT cancelling would leave the old
+  // price still fulfillable. Take the current listing down first, then open the list modal to re-list
+  // at the new price — both halves are the shop's existing, tested flows.
+  async function updatePrice() {
+    const ok = await takeDown({ silent: true })
+    if (ok) openListModal()
+  }
+
+  // Modal closed (after a successful list or a cancel) → refresh the management state so the view
+  // reflects the new listing / price.
+  function closeManageModal() {
+    setShowSell(false)
+    setShowPrimary(false)
+    void refreshManage()
+  }
+
   const addLabel = !forSale
     ? t('itemDetail.notForSale')
-    : inCart
-      ? t('assetCard.inCart')
-      : resolvingTrade
-        ? t('itemDetail.checking')
-        : t('assetCard.addToCart')
+    : resolvingTrade
+      ? t('itemDetail.checking')
+      : atStockCap
+        ? t('itemDetail.maxInCart')
+        : !isPrimary && inCart
+          ? t('assetCard.inCart')
+          : t('assetCard.addToCart')
 
   // Stock (primary/mint listings only): the shop feed carries the remaining mintable supply. Secondary
   // listings (a specific token) have no stock concept, so we hide it there (see Figma 1052-151285).
   const showStock = typeof current.available === 'number' && current.available > 0 && !current.tokenId && !isMarket
-  // Both action buttons present (buyable, not your own): on mobile they collapse into a sticky row of
-  // a wide Buy-now + a compact cart icon (see Figma 1182-194973). A market item has only Buy now.
-  const dualCta = !own && forSale && !isMarket
+  // Primary (mint) listing whose supply is exhausted → surface "OUT OF STOCK" next to the not-for-sale
+  // price (Figma 1182-203305). Only when we actually know the remaining supply is 0 (secondary tokens
+  // and market items have no stock concept).
+  const outOfStock = !isMarket && !current.tokenId && current.available === 0
+  // Both action buttons present (buyable, not managed by you): on mobile they collapse into a sticky
+  // row of a wide Buy-now + a compact cart icon (see Figma 1182-194973). A market item has only Buy now.
+  const dualCta = !manage && forSale && !isMarket
   // The CTA block renders action buttons for a market item too (single Buy now), or for any listing
-  // that isn't your own (the "manage in My Assets" note replaces them only for your own native item).
-  const showCtaButtons = isMarket || !own
+  // you don't manage (the owner/creator management actions replace them when you own/created it).
+  const showCtaButtons = isMarket || !manage
 
   // Nothing hydrated the item (bad/stale deep link, or an item that isn't in the shop feed — e.g. a
   // legacy/market piece). Once every resolution path has settled and there's still no name, show a
   // graceful not-found instead of a permanent "Loading…" blank.
-  const stillResolving = deepLinkLoading || (!!current.contractAddress && !siblingsFetched)
+  // Also wait on the owned-token lookup while it's still resolving and nothing else has hydrated the
+  // item yet — otherwise a secondary deep-link would flash Not Found before ownership backfills it.
+  const stillResolving =
+    deepLinkLoading || (!!current.contractAddress && !siblingsFetched) || (!current.name && ownedAssetLoading)
   const notFound = !current.name && !stillResolving
 
   // Per-page SEO. Called unconditionally (before the not-found early return) so hook order stays stable
@@ -462,6 +653,13 @@ export function ItemDetail() {
                     {gender}
                   </span>
                 ) : null}
+                {/* Which specific copy this is (secondary token only) — the mint index, so an owner
+                    managing one of several identical copies knows exactly which token they're on. */}
+                {current.issuedId ? (
+                  <span className="chip item-detail__chip" data-testid="detail-issued">
+                    #{current.issuedId}
+                  </span>
+                ) : null}
               </div>
 
               {description ? (
@@ -508,7 +706,9 @@ export function ItemDetail() {
               <div className="item-detail__price-block">
                 <div className="item-detail__price-row">
                   <div className="item-detail__price-col">
-                    <div className="item-detail__price-label">{t('itemDetail.price')}</div>
+                    {isMarket || forSale ? (
+                      <div className="item-detail__price-label">{t('itemDetail.price')}</div>
+                    ) : null}
                     {isMarket ? (
                       <>
                         <div className="item-detail__price item-detail__price--market">
@@ -553,7 +753,19 @@ export function ItemDetail() {
                         </div>
                       )
                     ) : (
-                      <div className="item-detail__price item-detail__price--none">{t('itemDetail.notForSale')}</div>
+                      <div className="item-detail__price item-detail__price--none">
+                        <span>{t('itemDetail.notForSale')}</span>
+                        <Tooltip content={t('itemDetail.notForSaleHint')}>
+                          <span
+                            className="item-detail__price-info"
+                            tabIndex={0}
+                            role="img"
+                            aria-label={t('itemDetail.notForSaleHint')}
+                          >
+                            <Icon name="info" size={14} />
+                          </span>
+                        </Tooltip>
+                      </div>
                     )}
                   </div>
                   {showStock ? (
@@ -561,6 +773,15 @@ export function ItemDetail() {
                       <div className="item-detail__price-label">{t('itemDetail.stock')}</div>
                       <div className="item-detail__stock-value">
                         {(current.available ?? 0).toLocaleString()}/{Rarity.getMaxSupply(rarity).toLocaleString()}
+                      </div>
+                    </div>
+                  ) : outOfStock ? (
+                    <div className="item-detail__stock-col">
+                      <div
+                        className="item-detail__stock-value item-detail__stock-value--out"
+                        data-testid="out-of-stock"
+                      >
+                        {t('itemDetail.outOfStock')}
                       </div>
                     </div>
                   ) : null}
@@ -584,31 +805,72 @@ export function ItemDetail() {
                       </span>
                     ) : null}
                   </DetailCta>
-                ) : own ? (
-                  <p className="item-detail__own-note muted">
-                    {t('itemDetail.ownItemPrefix')} <Link to="/my-assets">{t('nav.myAssets')}</Link>
-                    {t('itemDetail.ownItemSuffix')}
-                  </p>
-                ) : (
-                  <>
-                    {forSale ? (
-                      <DetailCta variant="purple" onClick={() => setShowBuy(true)} disabled={resolvingTrade}>
-                        <span className="item-detail__cta-label">{t('assetCard.buyNow')}</span>
-                        <span className="item-detail__cta-price" aria-hidden>
-                          <CurrencyIcon className="item-detail__cta-diamond" />
-                          {current.priceCredits}
-                        </span>
+                ) : manage ? (
+                  <ManageActions data-testid="manage-actions">
+                    <ErrorNotice message={manageError} />
+                    {manageListed ? (
+                      <>
+                        <DetailCta
+                          variant="purple"
+                          onClick={() => void updatePrice()}
+                          disabled={managing || !canOpenListModal}
+                        >
+                          <span className="item-detail__cta-label">
+                            {managing ? t('itemDetail.manageWorking') : t('itemDetail.manageUpdatePrice')}
+                          </span>
+                        </DetailCta>
+                        <RemoveCta variant="ghost" onClick={() => void takeDown()} disabled={managing}>
+                          {managing ? t('myAssets.removing') : t('itemDetail.manageRemove')}
+                        </RemoveCta>
+                      </>
+                    ) : (
+                      <DetailCta
+                        variant="purple"
+                        onClick={() => {
+                          // Funnel-entry event for a secondary listing — this is the flow that moved off
+                          // the My Assets card (its "put on sale" fired the same event) onto the PDP.
+                          if (manageAsSecondary)
+                            track('Shop Started Listing', {
+                              listing_type: 'secondary',
+                              item_id: current.itemId ?? current.tokenId ?? null
+                            })
+                          openListModal()
+                        }}
+                        disabled={managing || !canOpenListModal}
+                      >
+                        <span className="item-detail__cta-label">{t('itemDetail.manageList')}</span>
                       </DetailCta>
-                    ) : null}
+                    )}
+                    <ManageNote>
+                      {t('itemDetail.ownItemPrefix')} <Link to="/my-assets">{t('nav.myAssets')}</Link>
+                      {t('itemDetail.ownItemSuffix')}
+                    </ManageNote>
+                  </ManageActions>
+                ) : forSale ? (
+                  <>
+                    <DetailCta variant="purple" onClick={() => setShowBuy(true)} disabled={resolvingTrade}>
+                      <span className="item-detail__cta-label">{t('assetCard.buyNow')}</span>
+                      <span className="item-detail__cta-price" aria-hidden>
+                        <CurrencyIcon className="item-detail__cta-diamond" />
+                        {current.priceCredits}
+                      </span>
+                    </DetailCta>
                     <button
                       className="item-detail__addcart"
                       onClick={handleAddToCart}
-                      disabled={!forSale || inCart || resolvingTrade}
+                      disabled={resolvingTrade || (isPrimary ? atStockCap : inCart)}
                       aria-label={addLabel}
                     >
                       <Icon name="cart-solid" />
                       <span className="item-detail__addcart-label">{addLabel}</span>
                     </button>
+                  </>
+                ) : (
+                  // No buyable listing → hide buy/add-cart and offer "Notify me when available" + the
+                  // (coming-soon) Make an offer CTA.
+                  <>
+                    <NotifyMe item={current} />
+                    <MakeOfferButton item={current} />
                   </>
                 )}
               </div>
@@ -639,6 +901,13 @@ export function ItemDetail() {
             setResumeBuy(false)
           }}
         />
+      ) : null}
+
+      {showSell && ownedAsset && session ? (
+        <SellModal asset={ownedAsset} session={session} onClose={closeManageModal} />
+      ) : null}
+      {showPrimary && publishableItem && session ? (
+        <PrimaryListModal item={publishableItem} session={session} onClose={closeManageModal} />
       ) : null}
     </div>
   )

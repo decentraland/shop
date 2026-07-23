@@ -4,6 +4,7 @@
   --text: #161518;
   --text-2: #242129;
   --muted: #716b7c;
+  --muted-1: #5e5b67; /* gray-1: uppercase labels (price / stock) */
   --muted-2: #a09ba8;
   --line: #e6e4ea; /* subtle card border (approx 0.25px #a09ba8) */
   --line-strong: #a09ba8; /* search field / defined borders */
@@ -27,6 +28,9 @@
   --radius-pill: 50px;
   --radius-banner: 24px;
   --sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  /* Modal/overlay stacking tier — above the global DCL navbar (position: fixed) + the sub-nav so a
+     scrim dims the FULL viewport, navbar included. Shared by every full-screen overlay. */
+  --z-overlay: 10000;
 }
 * {
   box-sizing: border-box;
@@ -118,7 +122,8 @@ h2 {
   align-items: center;
   gap: 24px;
   height: 66px;
-  padding: 0 40px;
+  /* 54px matches the ui2 Navbar's desktop side padding so the sub-nav aligns with the top nav. */
+  padding: 0 54px;
   background: #fff;
   border-bottom: 1px solid var(--line);
 }
@@ -284,7 +289,9 @@ h2 {
 
 /* ---------------- Page ---------------- */
 .page {
-  padding: 28px 40px 80px;
+  /* 54px side gutter matches the ui2 Navbar's desktop padding (16px 54px, full-width) so the shop
+     content lines up with the top nav instead of sitting ~14px wider. Mobile matches its 16px below. */
+  padding: 28px 54px 80px;
   max-width: 1760px;
   margin: 0 auto;
   width: 100%;
@@ -368,12 +375,17 @@ h2 {
   letter-spacing: 0.046em;
   text-transform: uppercase;
 }
+.row__viewall:hover {
+  text-decoration: underline;
+}
 .row__track {
   display: flex;
   gap: 16px;
   overflow-x: auto;
-  padding: 12px 10px;
-  margin: 0 -10px;
+  /* Horizontal padding (not a negative margin) reserves room for the first/last card's outward hover
+     glow (2px cerise border + 8px box-shadow) so an overflow-x scroller doesn't crop the ring. */
+  padding: 12px 14px;
+  scroll-padding-inline: 14px;
   scroll-snap-type: x proximity;
 }
 .row__track > * {
@@ -523,108 +535,12 @@ h2 {
   }
 }
 
-/* ---------------- Browse: main-area toolbar (count + Rarity/Sort pills) ---------------- */
+/* ---------------- Browse layout shell (shared by Assets/Collection/Creator) ---------------- */
+/* The toolbar, filter sidebar, rarity/price/category controls and mobile drawer are now
+   styled-components (FilterBar.styles, Filters, CategoryFilter.styles, Assets.styles). Only the
+   layout classes Collection/Creator still reference in JSX remain here. */
 .browse {
   position: relative;
-}
-.browse__toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 20px;
-}
-@media (max-width: 768px) {
-  .browse__toolbar {
-    flex-wrap: wrap;
-  }
-}
-/* Item count (Figma typography/body2): Inter Regular 14px, line-height 1.43, gray-2. */
-.browse__count {
-  color: var(--muted);
-  font-weight: 400;
-  font-size: 14px;
-  line-height: 1.43;
-  white-space: nowrap;
-}
-.browse__dropdowns {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.filterbar__item {
-  position: relative;
-}
-.filterbar__trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: none;
-  border: 0;
-  padding: 8px 10px;
-  border-radius: 8px;
-  color: #6b6873;
-  font-weight: 600;
-  font-size: 14px;
-  white-space: nowrap;
-}
-.filterbar__trigger:hover {
-  background: #f5f4f7;
-  color: #3f3c47;
-}
-.filterbar__trigger.is-open,
-.filterbar__trigger.is-active {
-  color: #3f3c47;
-}
-/* Dropdown pill (Rarity, Sort By): white, 0.5px hairline, chevron on the right. */
-/* Toolbar pills (Sort By / Filters) — Figma node 1052-154074: white, 0.5px gray-3 hairline, fully
-   rounded (32px), Inter Medium 12px gray-2. Sort By is uppercase (per design). */
-.filterbar__sort {
-  display: inline-flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  background: #fff;
-  border: 0.5px solid var(--muted-2);
-  border-radius: 32px;
-  height: 40px;
-  padding: 4px 8px 4px 12px;
-  min-width: 120px;
-  color: var(--text-2);
-  font-weight: 500;
-  font-size: 12px;
-  white-space: nowrap;
-  text-transform: uppercase;
-}
-.filterbar__sort:hover {
-  background: #f5f4f7;
-}
-/* Figma "Open" state (node 898:119672): the pill fills with gray-5 while its popover is open. */
-.filterbar__sort.is-open {
-  background: var(--chip);
-  border-color: var(--muted-2);
-}
-.filterbar__badge {
-  display: inline-grid;
-  place-items: center;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: 999px;
-  background: var(--accent);
-  color: #fff;
-  font-size: 11px;
-  font-weight: 700;
-}
-.filterbar__scrim {
-  position: fixed;
-  inset: 0;
-  z-index: 34;
-}
-/* Both pills sit on the right, so their popovers anchor to the right edge (avoids overflowing off-screen). */
-.browse__dropdowns .filter-pop {
-  right: 0;
-  left: auto;
 }
 
 .filter-pop {
@@ -861,6 +777,14 @@ h2 {
      on row 2. Without this the flex-row .card__top overflows the narrow card and clips the price. */
   .card__top {
     display: contents;
+  }
+  /* NAME cards have no price/round-add split the wearable grid is built for — keep them a simple stacked
+     column (@name, NOT FOR SALE, then the MANAGE affordance) so the mobile layout stays tidy. */
+  .card__body--name {
+    display: flex;
+  }
+  .card__body--name .card__top {
+    display: flex;
   }
   .card__desc {
     grid-area: desc;
@@ -1143,7 +1067,8 @@ h2 {
   background: rgba(0, 0, 0, 0.5);
   display: grid;
   place-items: center;
-  z-index: 100;
+  /* Above the global DCL navbar so the backdrop dims the full viewport (navbar included). */
+  z-index: var(--z-overlay);
 }
 .modal {
   background: #fff;
@@ -1542,6 +1467,38 @@ h2 {
   filter: brightness(1.08);
 }
 
+/* Loading placeholders for the pack grid while the catalogue loads (GET /credits/packs). Same dark
+   card shell as a real pack, with content-shaped .skeleton shimmer blocks where the label, artwork
+   and price CTA go — so the grid keeps its shape instead of flashing a bare spinner. */
+.pack--skeleton {
+  cursor: default;
+}
+.pack--skeleton:hover {
+  transform: none;
+}
+.pack--skeleton:hover .pack__inner {
+  box-shadow: none;
+}
+.pack__label-sk {
+  display: block;
+  width: 60%;
+  height: 24px;
+  margin: 40px auto 4px;
+}
+.pack__art-sk {
+  display: block;
+  width: calc(100% - 24px);
+  margin: 4px 12px 0;
+  aspect-ratio: 1 / 1;
+  border-radius: 16px;
+}
+.pack__cta-sk {
+  display: block;
+  height: 48px;
+  margin: 20px 24px 40px;
+  border-radius: 8px;
+}
+
 /* Status panels (redirecting / processing / success / error) */
 .getcredits__status {
   display: flex;
@@ -1838,28 +1795,20 @@ h2 {
    Success page (post-checkout) + success animation
 --------------------------------------------------------------------------- */
 .success {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 48px;
-  align-items: center;
-  max-width: 1080px;
+  max-width: 895px;
   margin: 0 auto;
-  padding: 32px 24px;
+  padding: 32px 12px;
   min-height: 72vh;
 }
-.success__preview {
-  height: min(560px, 68vh);
-  background: var(--media, #ecebed);
-  border-radius: var(--radius-card, 16px);
-  overflow: hidden;
-  position: relative;
-}
-.success__preview iframe,
-.success__preview > * {
-  width: 100%;
-  height: 100%;
-  border: 0;
-  display: block;
+/* Non-confirmed settlement states (processing / finalizing / failed / timed-out): a simple centered
+   column — the pixel-perfect Figma layout is reserved for the confirmed screen (.success-done). */
+.success__status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  justify-content: center;
+  min-height: 60vh;
 }
 .success__spinner {
   margin: 4px auto 8px;
@@ -1923,15 +1872,261 @@ h2 {
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
+  justify-content: center;
 }
-@media (max-width: 820px) {
-  .success {
-    grid-template-columns: 1fr;
-    gap: 24px;
-    text-align: center;
+
+/* ---------------------------------------------------------------------------
+   Confirmed purchase screen — Figma "Purchase completed" (node 1182-232376)
+--------------------------------------------------------------------------- */
+.success-done {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+/* Green success banner: rounded card, mint fill + green border, 60px check + copy. */
+.success-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 24px 16px;
+  background: #e0f7e7;
+  border: 1px solid #34ce77;
+  border-radius: 16px;
+}
+.success-banner__check {
+  flex-shrink: 0;
+  width: 60px;
+  height: 60px;
+  line-height: 0;
+}
+.success-banner__text {
+  flex: 1;
+  margin: 0;
+  text-align: center;
+  font-size: 20px;
+  line-height: 1.334;
+  color: #242129;
+}
+.success-banner__text b {
+  font-weight: 700;
+}
+/* Bordered card wrapping the purchased-item rows. */
+.success-list {
+  display: flex;
+  flex-direction: column;
+  padding: 24px;
+  background: #fff;
+  border: 1px solid var(--neutrals-gray-4, #cfcdd4);
+  border-radius: 16px;
+}
+.success-list__row {
+  display: flex;
+  flex-direction: column;
+}
+/* Hairline between rows (Figma Line 5) — only between items, never above the first. */
+.success-list__divider {
+  display: block;
+  height: 1px;
+  margin: 12px 0;
+  background: var(--neutrals-gray-4, #cfcdd4);
+}
+/* Credits-added row (Figma 1231-250927 "Buy credits + item together" success): the topped-up bundle
+   that landed with the purchase, shown as a light-purple pill above the item list. */
+.success-credits {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 109px;
+  margin-bottom: 12px;
+  padding: 8px 24px;
+  border-radius: 8px;
+  background: #f4e9ff;
+  color: var(--text);
+}
+.success-credits__ico {
+  width: 30px;
+  height: 30px;
+  color: var(--accent);
+}
+.success-credits__text {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 0;
+}
+.success-credits__amount {
+  font-size: 24px;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+.success-credits__added {
+  font-size: 14px;
+  font-weight: 400;
+}
+.success-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.success-row__thumb {
+  position: relative;
+  flex-shrink: 0;
+  width: 137px;
+  height: 137px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--neutrals-gray-5, #ecebed);
+  border: 0.134px solid var(--neutrals-gray-3, #a09ba8);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.success-row__thumb img {
+  width: 83%;
+  height: 83%;
+  object-fit: contain;
+  filter: drop-shadow(0.56px 2.24px 2.8px rgba(0, 0, 0, 0.1));
+}
+/* "Purchased" check badge in the thumbnail corner (Figma ruby checkbox). */
+.success-row__check {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--dcl-red, #ff2d55);
+  border-radius: 4px;
+  line-height: 0;
+}
+.success-row__info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px;
+}
+.success-row__name {
+  font-weight: 600;
+  font-size: 20px;
+  line-height: 1.57;
+  color: #161518;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* "× N" quantity badge beside the name when a primary line was bought in multiples. */
+.success-row__qty {
+  margin-left: 8px;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--muted, #716b7c);
+}
+.success-row__creator {
+  position: relative;
+  z-index: 1;
+  color: #716b7c;
+  font-size: 10px;
+}
+/* No avatar on the success rows (Figma shows just "By {name}") — the badge still renders it elsewhere. */
+.success-row__creator [data-avatar] {
+  display: none;
+}
+.success-row__price {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px;
+  font-weight: 600;
+  font-size: 21px;
+  color: #242129;
+  white-space: nowrap;
+}
+.success-row__price-ico {
+  width: 22px;
+  height: 22px;
+}
+.success-done__receipt {
+  justify-content: flex-end;
+  margin: 0;
+}
+/* CTA row: ghost MY ASSETS + ruby TRY IN WORLD, right-aligned, each flexes to fill. */
+.success-ctas {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: flex-end;
+}
+.success-cta {
+  flex: 1;
+  min-width: 0;
+  height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 0 24px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 15px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    filter 0.15s ease,
+    background 0.15s ease;
+}
+.success-cta--ghost {
+  background: transparent;
+  border: 2px solid var(--accent, #691fa9);
+  color: var(--accent, #691fa9);
+}
+.success-cta--ghost:hover {
+  background: rgba(105, 31, 169, 0.06);
+}
+.success-cta--ruby {
+  background: var(--dcl-red, #ff2d55);
+  border: 0;
+  color: #fcfcfc;
+}
+.success-cta--ruby:hover {
+  filter: brightness(0.95);
+}
+.success-cta__jump {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 2.5px solid rgba(252, 252, 252, 0.5);
+  border-radius: 8px;
+  line-height: 0;
+}
+@media (max-width: 600px) {
+  .success-row__thumb {
+    width: 96px;
+    height: 96px;
   }
-  .success__actions {
-    justify-content: center;
+  .success-row__name {
+    font-size: 16px;
+  }
+  .success-row__price {
+    font-size: 18px;
+  }
+  .success-ctas {
+    flex-direction: column-reverse;
+  }
+  .success-cta {
+    width: 100%;
+    flex: none;
   }
 }
 
@@ -2478,116 +2673,7 @@ h2 {
   margin: 6px 0 0;
 }
 
-/* ---------------------------------------------------------------------------
-   Group B — My Purchases (order history)
---------------------------------------------------------------------------- */
-.purchases__head {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  margin-bottom: 20px;
-}
-.purchases__count {
-  color: var(--muted);
-  font-size: 14px;
-}
-.purchases__list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  max-width: 760px;
-}
-.purchase {
-  display: grid;
-  grid-template-columns: 56px 1fr auto auto;
-  align-items: center;
-  gap: 16px;
-  background: #fff;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  padding: 12px 16px;
-  text-decoration: none;
-  color: var(--text);
-  transition:
-    box-shadow 0.15s,
-    transform 0.15s;
-}
-a.purchase:hover {
-  box-shadow: 0 8px 22px rgba(20, 20, 30, 0.1);
-  transform: translateY(-1px);
-}
-.purchase__thumb {
-  width: 56px;
-  height: 56px;
-  border-radius: 10px;
-  background: var(--media, #f2f0f7);
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.purchase__thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-.purchase__info {
-  min-width: 0;
-}
-.purchase__name {
-  font-weight: 700;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.purchase__date {
-  font-size: 13px;
-  margin-top: 2px;
-}
-.purchase__badge {
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  padding: 4px 10px;
-  border-radius: 999px;
-  white-space: nowrap;
-}
-.purchase__badge--done {
-  background: rgba(46, 160, 90, 0.14);
-  color: #1f8a4c;
-}
-.purchase__badge--pending {
-  background: rgba(245, 166, 35, 0.16);
-  color: #b5790a;
-}
-.purchase__price {
-  font-weight: 800;
-  white-space: nowrap;
-}
-.purchase--skeleton {
-  display: block;
-  height: 82px;
-  border-color: transparent;
-  background: linear-gradient(100deg, #ededed 30%, #f7f7f7 50%, #ededed 70%);
-  background-size: 200% 100%;
-  animation: shimmer 1.3s infinite linear;
-}
-
-.purchases-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  text-align: center;
-  padding: 90px 20px;
-  min-height: 50vh;
-}
-.purchases-empty__title {
-  font-size: 22px;
-  font-weight: 700;
-  margin: 6px 0 0;
-}
+/* My Purchases (order history) fully migrated to styled-components — see pages/MyPurchases.styles.ts */
 
 /* Listing success view (inside the publish / sell modal) */
 .modal--success {
@@ -2652,7 +2738,8 @@ a.purchase:hover {
 .fitting {
   position: fixed;
   inset: 0;
-  z-index: 70;
+  /* Above the global DCL navbar so the scrim dims the full viewport (navbar included). */
+  z-index: var(--z-overlay);
   display: grid;
   place-items: center;
   padding: 20px;
@@ -2964,326 +3051,6 @@ a.purchase:hover {
   }
 }
 
-/* ---------------- Sidebar: category filter + price range (Figma "Marketplace-UX-Improvements") ---- */
-/* Section label above each sidebar group: Inter 12px, UPPERCASE, tracked, soft-black. */
-.sidebar__section-label {
-  font-family: var(--sans);
-  font-weight: 400;
-  font-size: 12px;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  color: var(--text);
-  margin: 0 4px 12px;
-}
-.sidebar__divider {
-  height: 1px;
-  background: var(--media);
-  margin: 20px 0;
-}
-
-/* Collapsible sidebar section header (Rarity) — reuses the section-label look with a chevron toggle,
-   matching the Figma sidebar dropdowns. */
-.sidebar__section-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  width: 100%;
-  background: none;
-  border: 0;
-  padding: 0;
-  cursor: pointer;
-  margin-bottom: 12px;
-}
-.sidebar__section-toggle .sidebar__section-label {
-  margin: 0;
-}
-/* Rarity multi-select in the sidebar: a checkbox per rarity, one per row (capitalized). */
-.rarity-filter {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 0 4px;
-}
-.rarity-filter__check {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 6px;
-  border-radius: 8px;
-  font-size: 14px;
-  color: var(--text);
-  text-transform: capitalize;
-  cursor: pointer;
-}
-.rarity-filter__check:hover {
-  background: #f5f4f7;
-}
-.rarity-filter__check.is-on {
-  color: var(--accent);
-  font-weight: 600;
-}
-.rarity-filter__check input {
-  accent-color: var(--accent);
-  width: 15px;
-  height: 15px;
-  flex: none;
-}
-
-/* Category list — a plain white column (no gray container): 40px rows, semibold 14px, chevron to open
-   sub-categories. Animate expand/collapse to content height via grid-template-rows 0fr↔1fr. */
-.catfilter {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.catfilter__group {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.catfilter__subs {
-  display: grid;
-  grid-template-rows: 0fr;
-  transition: grid-template-rows 0.22s ease;
-}
-.catfilter__subs.is-open {
-  grid-template-rows: 1fr;
-}
-.catfilter__subs-inner {
-  overflow: hidden;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-@media (prefers-reduced-motion: reduce) {
-  .catfilter__subs {
-    transition: none;
-  }
-}
-.catfilter__cat,
-.catfilter__sub {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  height: 40px;
-  padding: 4px 8px;
-  border: 0;
-  border-radius: 8px;
-  background: none;
-  width: 100%;
-  text-align: left;
-  cursor: pointer;
-}
-.catfilter__cat-label {
-  font-family: var(--sans);
-  font-weight: 600;
-  font-size: 14px;
-  line-height: 1.57;
-  color: var(--text);
-}
-.catfilter__cat:hover,
-.catfilter__sub:hover {
-  background: #f5f4f7;
-}
-.catfilter__cat.is-selected,
-.catfilter__cat.is-expanded {
-  background: var(--media);
-}
-.catfilter__sub.is-active {
-  background: var(--rarity-bg);
-}
-.catfilter__sub.is-active .catfilter__sub-label {
-  color: var(--rarity);
-  font-weight: 600;
-}
-.catfilter__sub-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-.catfilter__sub-label {
-  font-family: var(--sans);
-  font-weight: 400;
-  font-size: 14px;
-  line-height: 1.5;
-  color: #43404a;
-}
-/* Section heading above the list (creator page). */
-.catfilter__title {
-  font-family: var(--sans);
-  font-weight: 600;
-  font-size: 13px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #6a6a6a;
-  margin: 0 0 4px;
-  padding: 8px 16px 0;
-}
-/* Flat variant: no gray container. Selected/hover read as a light-gray pill on the page background. */
-.catfilter--flat {
-  background: none;
-  padding: 0;
-  width: auto;
-}
-.catfilter--flat .catfilter__cat:hover,
-.catfilter--flat .catfilter__sub:hover {
-  background: rgba(0, 0, 0, 0.04);
-}
-.catfilter--flat .catfilter__cat.is-selected,
-.catfilter--flat .catfilter__sub.is-active {
-  background: #ececec;
-}
-
-/* Price range: Min/Max boxes (0.5px black border, credits coin prefix) + a dual-handle slider +
-   the range read-out. The slider is two overlapping <input type=range> so both handles are draggable;
-   the purple fill between them is positioned from the --min-pct/--max-pct set inline. */
-/* padding 0 4px lines the Min box + slider + range read-out up with the "PRICE" label (also inset 4px). */
-.price-filter {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding: 0 4px;
-}
-.price-filter__inputs {
-  display: flex;
-  align-items: flex-end;
-  gap: 8px;
-}
-.price-filter__field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  flex: 1;
-  min-width: 0;
-}
-.price-filter__field-label {
-  font-family: var(--sans);
-  font-weight: 400;
-  font-size: 12px;
-  color: var(--muted);
-}
-.price-filter__box {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  height: 42px;
-  padding: 8px;
-  border: 0.5px solid #000;
-  border-radius: 8px;
-  background: #fff;
-}
-.price-filter__box:focus-within {
-  border-color: var(--rarity);
-}
-.price-filter__coin {
-  width: 15px;
-  height: 15px;
-  color: var(--rarity);
-  flex: none;
-}
-.price-filter__box input {
-  width: 100%;
-  min-width: 0;
-  border: 0;
-  background: none;
-  padding: 0;
-  font-family: var(--sans);
-  font-size: 13px;
-  color: var(--text);
-}
-.price-filter__box input:focus {
-  outline: 0;
-}
-.price-filter__box input::-webkit-outer-spin-button,
-.price-filter__box input::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-.price-filter__to {
-  padding-bottom: 12px;
-  color: var(--muted);
-  font-size: 13px;
-}
-
-/* Dual-range slider. Both inputs stack in the same 20px-tall box; their tracks are transparent so the
-   shared .price-filter__track (rail) + .price-filter__fill (selected span) show through. pointer-events
-   are re-enabled only on the thumbs so both handles stay grabbable. */
-.price-filter__slider {
-  position: relative;
-  height: 20px;
-}
-.price-filter__track {
-  position: absolute;
-  top: 50%;
-  left: 0;
-  right: 0;
-  height: 3px;
-  transform: translateY(-50%);
-  background: var(--media);
-  border-radius: 3px;
-}
-.price-filter__fill {
-  position: absolute;
-  top: 50%;
-  height: 3px;
-  transform: translateY(-50%);
-  left: var(--min-pct, 0%);
-  right: calc(100% - var(--max-pct, 100%));
-  background: var(--rarity);
-  border-radius: 3px;
-}
-.price-filter__slider input[type="range"] {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 20px;
-  margin: 0;
-  -webkit-appearance: none;
-  appearance: none;
-  background: none;
-  pointer-events: none;
-}
-.price-filter__slider input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  pointer-events: auto;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: #fff;
-  border: 2px solid var(--rarity);
-  box-shadow: 0 1px 3px rgba(22, 21, 24, 0.25);
-  cursor: pointer;
-}
-.price-filter__slider input[type="range"]::-moz-range-thumb {
-  pointer-events: auto;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: #fff;
-  border: 2px solid var(--rarity);
-  box-shadow: 0 1px 3px rgba(22, 21, 24, 0.25);
-  cursor: pointer;
-}
-.price-filter__range {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.price-filter__range-val {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-family: var(--sans);
-  font-size: 13px;
-  color: var(--text);
-}
-
 /* Assets browse: sidebar (265px) + main column (toolbar + grid). */
 .browse--sidebar {
   display: flex;
@@ -3453,7 +3220,9 @@ a.purchase:hover {
 .buy-modal {
   position: fixed;
   inset: 0;
-  z-index: 60;
+  /* Above the global DCL navbar (position: fixed, high z-index) so the scrim dims the FULL viewport,
+     navbar included. Matches the cart drawer / popover "above everything" tier. */
+  z-index: var(--z-overlay);
   display: grid;
   place-items: center;
   padding: 20px;
@@ -3467,7 +3236,9 @@ a.purchase:hover {
   position: relative;
   z-index: 1;
   width: 100%;
-  max-width: 560px;
+  /* Widened to fit all 4 credit bundles comfortably in a single row (Figma 1179-182656 shows 3 at
+     ~180px; the credits-server now returns 4). The pack tiles flex to share this width. */
+  max-width: 700px;
   /* Grid-item auto-minimum can otherwise push the card past the viewport on a
      narrow screen (e.g. the cart's multi-item success list); let it shrink. */
   min-width: 0;
@@ -3607,13 +3378,14 @@ a.purchase:hover {
   font-weight: 600;
   color: #242129;
 }
-/* Warning banner (nofunds) */
+/* Warning banner (nofunds) — Figma 1179-182656 "Insufficient Funds" banner: warm peach fill
+   (rgba(255,162,90,0.3)) with a Brand/Purple (#691fa9) warning glyph and soft-black-2 text. */
 .buy-modal__warning {
   display: flex;
   align-items: center;
   gap: 8px;
   justify-content: center;
-  background: #f0dfff;
+  background: rgba(255, 162, 90, 0.3);
   border-radius: 8px;
   padding: 12px 8px;
 }
@@ -3730,9 +3502,41 @@ a.purchase:hover {
   font-size: 13px;
   letter-spacing: 0.61px;
 }
+/* Solid purple CTA (Figma "Try again" — DCL/Purple #691fa9 fill, white label). */
+.buy-modal__btn--purple {
+  background: #691fa9;
+  color: #fcfcfc;
+  font-size: 13px;
+}
 .buy-modal__btn:disabled {
   opacity: 0.6;
   cursor: default;
+}
+/* Error state (Figma 1182-196586): a light-pink panel with the sad-robot art + reassuring copy. */
+.buy-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  background: rgba(255, 201, 213, 0.5);
+  border-radius: 16px;
+  padding: 24px 16px;
+}
+.buy-error__art {
+  width: 64px;
+  height: 80px;
+  object-fit: contain;
+}
+.buy-error__text {
+  margin: 0;
+  text-align: center;
+  font-size: 20px;
+  line-height: 1.334;
+  font-weight: 400;
+  color: #242129;
+}
+.buy-error__text b {
+  font-weight: 700;
 }
 /* Processing */
 .buy-modal__processing {
@@ -3774,6 +3578,32 @@ a.purchase:hover {
   }
   100% {
     transform: translateX(320%);
+  }
+}
+/* Determinate variant (cart multi-item, Figma 1182-232610): the fill width reflects step/total, set
+   inline, so it advances as each unit is authorized instead of the indeterminate slide above. */
+.buy-modal__progress-fill--step {
+  animation: none;
+  min-width: 12px;
+  transition: width 0.35s ease;
+}
+/* While the single settlement tx confirms (all units authorized), the bar is full and pulses so it
+   reads as "working", never frozen. */
+.buy-modal__progress-fill--pulsing {
+  animation: buy-modal-fill-pulse 1.2s ease-in-out infinite;
+}
+@keyframes buy-modal-fill-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .buy-modal__progress-fill--pulsing {
+    animation: none;
   }
 }
 /* Success */

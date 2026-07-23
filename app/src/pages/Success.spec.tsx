@@ -5,10 +5,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 const session = { address: '0xabc0000000000000000000000000000000000abc', providerType: 'injected' as never }
 vi.mock('~/store/wallet', () => ({ useWallet: () => ({ session }) }))
+// CreatorBadge (rendered on the confirmed screen for the item's creator) reads a profile via
+// react-query — stub it so the row renders without a network fetch.
 vi.mock('~/hooks/useProfile', () => ({ useProfile: () => ({ data: undefined }) }))
-// Avoid the lazy 3D iframe (decentraland-ui2 ESM) + the confetti animation in jsdom.
-vi.mock('~/components/LazyWearablePreview', () => ({ WearablePreview: () => <div data-testid="preview" /> }))
-vi.mock('~/components/SuccessAnimation', () => ({ SuccessAnimation: () => <div data-testid="success-anim" /> }))
 
 // Real SettlementPendingError class (the hook branches on `instanceof`) + a mockable waitForSettlement.
 // vi.hoisted so both exist before the hoisted vi.mock factory runs, and are usable in the tests.
@@ -66,13 +65,57 @@ describe('Success settlement gating', () => {
     expect(screen.queryByText(/it.s yours/i)).toBeNull()
   })
 
-  it('flips to "It\'s yours!" only once the tx confirms AND the indexer shows ownership', async () => {
+  it('shows the confirmed screen (green banner + item + CTAs) once the tx confirms AND the indexer shows ownership', async () => {
     waitForSettlement.mockResolvedValue(undefined) // confirmed receipt
     fetchOwnsItem.mockResolvedValue(true) // owned + indexed
     renderSuccess()
 
-    await waitFor(() => expect(screen.getByText(/it.s yours/i)).toBeTruthy())
-    expect(screen.getByText(/is now in your wardrobe/i)).toBeTruthy()
+    // Figma "Purchase completed": success banner + the purchased item + the two CTAs.
+    await waitFor(() => expect(screen.getByText(/your purchase was successful/i)).toBeTruthy())
+    expect(screen.getByText(/my assets tab/i)).toBeTruthy()
+    expect(screen.getByText('Snowy Panama Hat')).toBeTruthy()
+    expect(screen.getByRole('button', { name: /my assets/i })).toBeTruthy()
+    expect(screen.getByRole('link', { name: /try in world/i })).toBeTruthy()
+  })
+
+  it('shows the line total (per-unit × qty) and a "× N" badge for a multi-quantity line', async () => {
+    waitForSettlement.mockResolvedValue(undefined)
+    fetchOwnsItem.mockResolvedValue(true)
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    // priceCredits 5 × quantity 3 = 15 shown on the row, plus a "× 3" badge.
+    render(
+      <QueryClientProvider client={qc}>
+        <MemoryRouter
+          initialEntries={[{ pathname: '/success', state: { items: [{ ...item, quantity: 3 }], txHash: '0xabc' } }]}
+        >
+          <Routes>
+            <Route path="/success" element={<Success />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+    await waitFor(() => expect(screen.getByText(/your purchase was successful/i)).toBeTruthy())
+    expect(screen.getByText('15')).toBeTruthy()
+    expect(screen.getByText(/×\s*3/)).toBeTruthy()
+  })
+
+  it('routes the MY ASSETS CTA to /my-assets', async () => {
+    waitForSettlement.mockResolvedValue(undefined)
+    fetchOwnsItem.mockResolvedValue(true)
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={qc}>
+        <MemoryRouter initialEntries={[{ pathname: '/success', state: { items: [item], txHash: '0xabc' } }]}>
+          <Routes>
+            <Route path="/success" element={<Success />} />
+            <Route path="/my-assets" element={<div>My Assets Page</div>} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+    const btn = await screen.findByRole('button', { name: /my assets/i })
+    btn.click()
+    await waitFor(() => expect(screen.getByText('My Assets Page')).toBeTruthy())
   })
 
   it('shows a finalizing state (never "It\'s yours!") while the tx is mined but not yet indexed', async () => {
@@ -90,6 +133,42 @@ describe('Success settlement gating', () => {
 
     await waitFor(() => expect(screen.getByText(/didn.t go through/i)).toBeTruthy())
     expect(screen.queryByText(/it.s yours/i)).toBeNull()
+  })
+
+  it('shows the added-credits row alongside the items for a buy-credits-and-item-together success', async () => {
+    // settled:true → the cart already waited for settlement, so the confirmed screen renders straight away.
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={qc}>
+        <MemoryRouter
+          initialEntries={[{ pathname: '/success', state: { items: [item], settled: true, creditsAdded: 200 } }]}
+        >
+          <Routes>
+            <Route path="/success" element={<Success />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+    const credits = await screen.findByTestId('success-credits')
+    expect(credits.textContent).toMatch(/200/)
+    expect(credits.textContent).toMatch(/added to your account/i)
+    // Both the credits AND the purchased item are shown (Figma 1231-250927 combined view).
+    expect(screen.getByText('Snowy Panama Hat')).toBeTruthy()
+  })
+
+  it('omits the added-credits row for a plain purchase (no top-up)', async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={qc}>
+        <MemoryRouter initialEntries={[{ pathname: '/success', state: { items: [item], settled: true } }]}>
+          <Routes>
+            <Route path="/success" element={<Success />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+    await screen.findByText('Snowy Panama Hat')
+    expect(screen.queryByTestId('success-credits')).toBeNull()
   })
 
   it('lands on a timed-out state (not a false success or failure) when every attempt stays pending', async () => {

@@ -94,7 +94,10 @@
   gap: 16px;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 12px 0;
+  /* Horizontal padding reserves room for the first/last card's outward hover glow (2px cerise border +
+     8px box-shadow) — an overflow-x scroller clips both axes, so 0 side padding cropped the ring. */
+  padding: 12px 14px;
+  scroll-padding-inline: 14px;
   scroll-snap-type: x mandatory;
   scrollbar-width: none; /* Firefox */
   -ms-overflow-style: none; /* legacy Edge */
@@ -179,11 +182,13 @@
   width: 100%;
   height: 100%;
 }
+/* Arrows sit in the page gutter (nav-aligned 54px), not over the rail — at -40px the 53px arrow's
+   inner edge landed ~13px onto the first/last card (Figma 1179-172512). */
 .ov-arrow--right {
-  right: -40px;
+  right: -53px;
 }
 .ov-arrow--left {
-  left: -40px;
+  left: -53px;
 }
 .ov-arrow--left img {
   transform: scaleX(-1);

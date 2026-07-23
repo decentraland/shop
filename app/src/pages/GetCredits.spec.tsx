@@ -41,9 +41,15 @@ vi.mock('~/lib/credits', () => ({
 }))
 
 import { GetCredits } from '~/pages/GetCredits'
+import { CREDIT_PACKS } from '~/lib/payments'
 
-function renderPage(initialEntry = '/') {
+// The pack grid is sourced from the credits-server via useCreditPacks (GET /credits/packs). In unit
+// tests we seed the react-query cache with the bundled catalogue so the grid renders synchronously
+// (no network) — the real fetch + skeleton loading state is exercised by the loading test below and
+// the credits e2e.
+function renderPage(initialEntry = '/', { seedPacks = true } = {}) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  if (seedPacks) queryClient.setQueryData(['credit-packs'], CREDIT_PACKS)
   return render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={[initialEntry]}>
@@ -81,6 +87,25 @@ describe('when a signed-in user opens the get-credits page', () => {
     expect(await screen.findByText(/purchase was successful/i, {}, { timeout: 4000 })).toBeInTheDocument()
     expect(screen.getByText(/250/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /start shopping/i })).toBeInTheDocument()
+  })
+})
+
+describe('when the pack catalogue is still loading', () => {
+  beforeEach(() => vi.clearAllMocks())
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('should show content-shaped pack skeletons (not the packs) until the fetch resolves', () => {
+    // Never-resolving fetch → the useCreditPacks query stays in its loading state.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => new Promise(() => {}))
+    )
+    // Don't seed the cache: force the real loading path.
+    const { container } = renderPage('/', { seedPacks: false })
+
+    expect(container.querySelectorAll('.pack--skeleton').length).toBe(4)
+    // The real (clickable) packs are not rendered yet.
+    expect(screen.queryByRole('button', { name: /250 credits for \$25/i })).not.toBeInTheDocument()
   })
 })
 

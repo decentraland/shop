@@ -89,6 +89,11 @@ export type PurchaseRecord = {
   status: 'PENDING' | 'SETTLED' | 'EXPIRED'
   createdAt: number
   manaSettledWei: string | null
+  // Settlement tx hash, when the server exposes it. A cart of N items authorizes N separate intents
+  // but settles them in ONE on-chain accept([...]) tx, so all lines of one cart share this hash — the
+  // strongest signal for grouping them back into a single order (see lib/purchases.ts). Optional
+  // because older servers don't serialize it; grouping falls back to createdAt proximity then.
+  txHash: string | null
 }
 
 // The buyer's purchase history (paginated). Defaults to confirmed purchases; `all` also returns
@@ -107,8 +112,14 @@ export async function fetchUserPurchases(
   const url = `${config.creditsServerUrl}/users/${address.toLowerCase()}/purchases${q ? `?${q}` : ''}`
   const res = await signedFetch(url, { method: 'GET', identity, metadata: {} })
   if (!res.ok) throw new Error(`fetchUserPurchases ${res.status}: ${await res.text()}`)
-  const json = (await res.json()) as { purchases?: PurchaseRecord[]; total?: number }
-  const items = json.purchases ?? []
+  type RawPurchase = PurchaseRecord & { transactionHash?: string | null; txHash?: string | null }
+  const json = (await res.json()) as { purchases?: RawPurchase[]; total?: number }
+  // Normalise the settlement hash across the two field names servers have used (`txHash` /
+  // `transactionHash`) so grouping has one field to read; null when neither is present.
+  const items: PurchaseRecord[] = (json.purchases ?? []).map(p => ({
+    ...p,
+    txHash: p.txHash ?? p.transactionHash ?? null
+  }))
   const skip = opts?.skip ?? 0
   const first = opts?.first ?? items.length
   const total =

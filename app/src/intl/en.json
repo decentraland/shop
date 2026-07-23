@@ -11,6 +11,7 @@
     "myAssets": "My Assets",
     "myFavorites": "My Favorites",
     "myPurchases": "My Purchases",
+    "authorizations": "Approvals",
     "searchPlaceholder": "Search items…",
     "searchAria": "Search the shop",
     "yourBalance": "Your {currency}",
@@ -55,6 +56,7 @@
     "shopAll": "Shop All",
     "wearables": "Wearables",
     "emotes": "Emotes",
+    "names": "NAMEs",
     "collections": "Collections",
     "head": "Head",
     "upperBody": "Upper Body",
@@ -136,6 +138,7 @@
     "fittingRoom": "Fitting Room",
     "removeFromCart": "Remove {name} from cart",
     "increaseQuantity": "Increase quantity",
+    "decreaseQuantity": "Decrease quantity of {name}",
     "removeFromFavorites": "Remove {name} from favorites",
     "addToFavorites": "Add {name} to favorites",
     "remove": "Remove {name}",
@@ -168,6 +171,7 @@
     "canceledNote": "Payment canceled — no charge was made. Pick a pack whenever you’re ready.",
     "packBadge": "Recommended",
     "packAria": "Get {amount} for ${usd}",
+    "packsLoading": "Loading {currency} packs…",
     "creditsAmount": "{credits} {currency}",
     "redirecting": "Redirecting to secure checkout…",
     "processing": "Completing purchase",
@@ -188,7 +192,13 @@
     "errorGrant": "Couldn’t add your {currency} — please try again."
   },
   "filter": {
-    "price": "Price"
+    "price": "Price",
+    "status": "Status",
+    "statusAll": "All",
+    "onSale": "On Sale",
+    "notForSale": "Not for Sale",
+    "smart": "Smart",
+    "smartHint": "Smart wearables add interactive, in-world utility."
   },
   "assetCard": {
     "sale": "SALE",
@@ -200,8 +210,25 @@
     "unavailable": "Unavailable",
     "buyNow": "Buy now",
     "yourItem": "Your item",
+    "manage": "Manage",
     "inCart": "In cart",
-    "addToCart": "Add to cart"
+    "addToCart": "Add to cart",
+    "notForSale": "Not for Sale",
+    "view": "View"
+  },
+  "notifyMe": {
+    "label": "Notify me when available",
+    "placeholder": "Enter your email",
+    "cta": "Notify me",
+    "working": "Sending…",
+    "signInCta": "Sign in to get notified",
+    "subscribedTitle": "You're on the list",
+    "subscribedBody": "You'll be notified when it's available again.",
+    "error": "Couldn't save that — please try again."
+  },
+  "makeOffer": {
+    "cta": "Make an offer",
+    "comingSoon": "Coming soon — you'll be able to make an offer on items that aren't for sale."
   },
   "buyModal": {
     "titleBuy": "Buy Asset",
@@ -219,7 +246,8 @@
     "cancel": "Cancel",
     "buy": "Buy",
     "completingPurchase": "Completing Purchase…",
-    "completingTransaction": "Completing transaction…",
+    "completingTransaction": "Completing your purchase…",
+    "confirmToContinue": "Confirm to continue…",
     "successBody": "You can find your item in the My Assets tab.",
     "myAssets": "My assets",
     "tryInWorld": "Try in world",
@@ -232,7 +260,13 @@
   "cartCheckout": {
     "titleBuy": "Buy Assets",
     "titleNoFunds": "Buy Credits and Items",
-    "dialogAria": "Check out your cart"
+    "dialogAria": "Check out your cart",
+    "qty": "× {count}",
+    "preparing": "Preparing your purchase…",
+    "errorTitle": "Oops! Something went wrong",
+    "errorHeadline": "We couldn't complete your purchase this time.",
+    "errorBody": "Don't worry, your credits are safe. Please try again in a moment.",
+    "tryAgain": "Try again"
   },
   "marketCheckout": {
     "finalPrice": "Final price",
@@ -259,6 +293,7 @@
     "moreFromCollection": "More from this collection",
     "notForSale": "Not for sale",
     "checking": "Checking…",
+    "maxInCart": "Max in cart",
     "notAvailableTitle": "This item isn’t available",
     "notAvailableBody": "It may have been delisted or moved. Browse Collectibles for something else.",
     "breadcrumbAria": "Breadcrumb",
@@ -270,8 +305,14 @@
     "collection": "Collection",
     "price": "Price",
     "stock": "Stock",
+    "outOfStock": "Out of stock",
+    "notForSaleHint": "This item isn't listed for sale right now. Get notified when it becomes available.",
     "ownItemPrefix": "This is your item — manage it in",
-    "ownItemSuffix": "."
+    "ownItemSuffix": ".",
+    "manageList": "List for sale",
+    "manageUpdatePrice": "Update price",
+    "manageRemove": "Remove from sale",
+    "manageWorking": "Working…"
   },
   "success": {
     "finalizing": "Finalizing your purchase…",
@@ -279,22 +320,26 @@
     "indexingBefore": "Payment confirmed — adding",
     "indexingAfter": "to your wardrobe. Almost there.",
     "confirmingBefore": "Confirming",
-    "confirmingAfter": "on-chain. This usually takes a few seconds — keep this tab open.",
+    "confirmingAfter": "— this usually takes a few seconds. Keep this tab open.",
     "itemCount": "{count, plural, one {# item} other {# items}}",
-    "viewTransaction": "View transaction ↗",
+    "viewTransaction": "View receipt ↗",
     "stillProcessingTitle": "Still processing…",
     "timedOutBefore": "This is taking longer than usual to confirm. Your purchase may still complete — check",
     "timedOutAfter": "in a few minutes to see the final status. No need to buy again.",
     "viewMyPurchases": "View my purchases",
     "keepShopping": "Keep shopping",
     "failedTitle": "Your purchase didn’t go through",
-    "failedBody": "The transaction failed on-chain, so nothing was delivered. Your credits weren’t spent (any hold is released shortly) — you can try again.",
+    "failedBody": "The purchase couldn’t be completed, so nothing was delivered. Your credits weren’t spent (any hold is released shortly) — you can try again.",
     "backToShop": "Back to shop",
     "title": "It’s yours!",
     "heroInWardrobe": "is now in your wardrobe.",
     "itemsInWardrobe": "{count, plural, one {# item is now in your wardrobe.} other {# items are now in your wardrobe.}}",
     "viewOrder": "View order",
-    "useItInWorld": "Use it in-world"
+    "useItInWorld": "Use it in-world",
+    "bannerTitle": "Your purchase was successful!",
+    "bannerBody": "You can find your item in the My Assets tab.",
+    "myAssets": "My Assets",
+    "tryInWorld": "Try in World"
   },
   "itemPreview": {
     "loading": "Loading preview",
@@ -317,6 +362,7 @@
     "rarity": "Rarity",
     "clearFilters": "Clear Filters",
     "apply": "Apply",
+    "showItems": "Show items",
     "marketUnavailable": "Some market prices are temporarily unavailable — buying those items is paused for a moment. Please try again shortly.",
     "loadError": "Couldn’t load items — please try again.",
     "noItems": "No items match your filters."
@@ -334,14 +380,26 @@
     "viewItem": "View {name}",
     "onSale": "On sale",
     "removing": "Removing…",
-    "removeListing": "Remove listing",
+    "removeListing": "Remove from sale",
     "putOnSale": "Put on sale",
-    "ownedEmpty": "No items in your wardrobe yet.",
+    "ownedEmpty": "Items you own will show up here. Explore the shop and start your collection.",
+    "namesEmpty": "Claim a unique NAME to stand out in Decentraland — it’ll appear here once it’s yours.",
+    "emptyOwnedTitle": "Nothing here yet",
+    "emptyNamesTitle": "No NAMEs yet",
+    "emptyCreationsTitle": "No creations yet",
+    "emptyBrowse": "Browse Collectibles",
     "creationsTitle": "Your creations",
     "creationsSub": "Items you made. Put them on sale in the Shop — set a price in {currency} and buyers pay with {currency}.",
     "collectionsError": "We couldn’t load your collections right now. Please try again in a moment.",
     "nothingToPublish": "You don’t have any items to publish yet.",
-    "available": "{count, number} available"
+    "available": "{count, number} available",
+    "assetsHeading": "Assets",
+    "sectionWearables": "Wearables",
+    "sectionEmotes": "Emotes",
+    "sectionNames": "Names",
+    "sectionCreations": "My Creations",
+    "searchPlaceholder": "Search your items",
+    "clearSearch": "Clear search"
   },
   "myPurchases": {
     "processing": "Processing",
@@ -351,7 +409,9 @@
     "signInBody": "Your order history shows up here once you sign in.",
     "emptyTitle": "No purchases yet",
     "emptyBody": "When you buy something it’ll appear here.",
-    "orderCount": "{count, plural, one {# order} other {# orders}}"
+    "orderCount": "{count, plural, one {# order} other {# orders}}",
+    "itemCount": "{count, plural, one {# item} other {# items}}",
+    "quantity": "×{count}"
   },
   "myFavorites": {
     "emptyTitle": "No favorites yet",
@@ -385,6 +445,7 @@
   "cartPopover": {
     "removeFromCart": "Remove {name} from cart",
     "increaseQuantity": "Increase quantity",
+    "decreaseQuantity": "Decrease quantity of {name}",
     "removeItem": "Remove {name}",
     "remove": "Remove",
     "dialogLabel": "Shopping cart",
@@ -406,7 +467,8 @@
     "rarity": "Rarity",
     "clearAll": "Clear all",
     "filters": "Filters",
-    "sortBy": "Sort by"
+    "sortBy": "Sort by",
+    "removeFilter": "Remove {filter} filter"
   },
   "addAll": {
     "added": "Added {count, plural, one {# item} other {# items}} to your cart.",
@@ -583,6 +645,71 @@
     "male": "Male",
     "female": "Female"
   },
+  "names": {
+    "breadcrumbAria": "Breadcrumb",
+    "breadcrumbCollectibles": "Collectibles",
+    "breadcrumbCurrent": "NAMEs",
+    "heroTitle": "Get your unique NAME!",
+    "heroSubtitle": "Activate the full potential of Decentraland citizenship with a unique NAME & your own World!",
+    "inputPlaceholder": "yourname",
+    "inputAria": "Search for a NAME",
+    "suffix": ".dcl.eth",
+    "claim": "Claim name",
+    "checking": "Checking availability…",
+    "available": "{name} is available!",
+    "taken": "This NAME is taken. Choose another NAME or make an offer to the owner.",
+    "takenMakeOffer": "Make offer",
+    "tooShort": "Names must be at least {min} characters.",
+    "checkError": "We couldn’t check that NAME right now — you can still try to claim it.",
+    "whyTitle": "Why buy a NAME?",
+    "why1": "Stand out with a unique alias for your Avatar",
+    "why2": "Unlock your World and customize your own virtual 3D space to host events",
+    "why2Link": "Learn More",
+    "why3": "A dedicated URL for your virtual spaces to guide visitors with an exclusive URL to your LAND",
+    "why3Link": "http://yourname.dcl.eth",
+    "buyTitle": "Buy NAME",
+    "myCreditsBalance": "My Credits Balance:",
+    "subtitle": "Decentraland NAMEs",
+    "confirmTitle": "Please confirm your NAME",
+    "confirmBody": "You’ve selected {name}. Re-enter the NAME to confirm your selection and continue with your purchase.",
+    "reenterAria": "Re-enter the NAME to confirm",
+    "buyCta": "Buy NAME",
+    "completing": "Completing your purchase…",
+    "confirming": "Confirm to continue…",
+    "successHeaderTitle": "Purchase complete!",
+    "successBannerBold": "Your purchase was successful!",
+    "successBannerRest": "You can find your NAME in the My Items tab.",
+    "myItems": "My Items",
+    "assignToAvatar": "Assign NAME to avatar",
+    "errorTitle": "Something went wrong",
+    "errorGeneric": "We couldn’t complete your purchase. Please try again.",
+    "tryAgain": "Try again"
+  },
+  "authorizations": {
+    "title": "Approvals",
+    "intro": "One-time approvals let the Shop act on your behalf. You stay in control — turn any of them off whenever you like.",
+    "buyingTitle": "For buying",
+    "sellingTitle": "For selling",
+    "creditsName": "Cover purchases from your balance",
+    "creditsDesc": "Lets the Shop top up a purchase from your balance when your credits don’t fully cover it.",
+    "sellingDesc": "Lets the Shop hand over an item from this collection when it sells.",
+    "sellingEmpty": "Nothing to approve yet. Approvals for selling appear here once you own collectibles.",
+    "collectionFallback": "Your collection",
+    "active": "On",
+    "inactive": "Off",
+    "checking": "Checking…",
+    "working": "Working…",
+    "activateAria": "Turn on “{name}”",
+    "deactivateAria": "Turn off “{name}”",
+    "toastActivated": "“{name}” is on.",
+    "toastDeactivated": "“{name}” is off.",
+    "errorGeneric": "Couldn’t update that — please try again.",
+    "signInTitle": "Sign in to manage approvals",
+    "signInBody": "Sign in to see and manage the approvals on your account.",
+    "managedTitle": "You’re all set",
+    "managedBody": "Your account handles everything automatically — there’s nothing here to manage. Buying and selling just work.",
+    "managedCta": "Browse collectibles"
+  },
   "seo": {
     "collectibles": {
       "title": "Browse Collectibles",
@@ -610,6 +737,10 @@
     },
     "notFound": {
       "title": "Page Not Found"
+    },
+    "names": {
+      "title": "Get a Decentraland NAME",
+      "description": "Claim your unique Decentraland NAME with credits — a personal alias for your avatar and your own World."
     }
   }
 }

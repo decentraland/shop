@@ -24,7 +24,8 @@ const PAGE_NAMES: Record<string, string> = {
   '/store-settings': 'store_settings',
   '/cart': 'cart',
   '/credits': 'credits',
-  '/success': 'success'
+  '/success': 'success',
+  '/authorizations': 'authorizations'
 }
 
 // Overview (home) stays eager for the fastest first paint; every other route is code-split so it
@@ -39,6 +40,7 @@ const MyFavorites = lazy(() => import('~/pages/MyFavorites').then(m => ({ defaul
 const MyPurchases = lazy(() => import('~/pages/MyPurchases').then(m => ({ default: m.MyPurchases })))
 const ImportListings = lazy(() => import('~/pages/ImportListings').then(m => ({ default: m.ImportListings })))
 const Cart = lazy(() => import('~/pages/Cart').then(m => ({ default: m.Cart })))
+const Authorizations = lazy(() => import('~/pages/Authorizations').then(m => ({ default: m.Authorizations })))
 const GetCredits = lazy(() => import('~/pages/GetCredits').then(m => ({ default: m.GetCredits })))
 const Success = lazy(() => import('~/pages/Success').then(m => ({ default: m.Success })))
 const NotFound = lazy(() => import('~/pages/NotFound').then(m => ({ default: m.NotFound })))
@@ -116,6 +118,7 @@ export function App() {
               <Route path="/my-purchases" element={<MyPurchases />} />
               <Route path="/import" element={<ImportListings />} />
               <Route path="/cart" element={<Cart />} />
+              <Route path="/authorizations" element={<Authorizations />} />
               <Route path="/credits" element={<GetCredits />} />
               <Route path="/success" element={<Success />} />
               <Route path="*" element={<NotFound />} />
