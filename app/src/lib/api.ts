@@ -752,8 +752,7 @@ export async function fetchTradeDisplay(tradeId: string): Promise<PurchaseDispla
   // nothing), which is exactly why purchases showed a generic "Item" with no image. Prefer the typed
   // fields, keep `value` as a last-resort fallback for any on-chain-shaped trade.
   const sent = trade.sent?.[0] as
-    | { assetType?: number; contractAddress?: string; itemId?: string; tokenId?: string; value?: string }
-    | undefined
+    { assetType?: number; contractAddress?: string; itemId?: string; tokenId?: string; value?: string } | undefined
   const priceAsset = trade.received?.[0] as { amount?: string } | undefined
   const credits = toCredits(priceAsset?.amount)
   const contractAddress = sent?.contractAddress ?? ''
@@ -767,7 +766,13 @@ export async function fetchTradeDisplay(tradeId: string): Promise<PurchaseDispla
     return { name: meta?.name ?? 'Item', thumbnail: meta?.thumbnail ?? '', credits, contractAddress, itemId: id }
   }
   const meta = id ? await fetchNftMeta(contractAddress, id) : null
-  return { name: meta?.name ?? (id ? `#${id}` : 'Item'), thumbnail: meta?.image ?? '', credits, contractAddress, tokenId: id }
+  return {
+    name: meta?.name ?? (id ? `#${id}` : 'Item'),
+    thumbnail: meta?.image ?? '',
+    credits,
+    contractAddress,
+    tokenId: id
+  }
 }
 
 // Open credit-buyable listing (Trade) for a catalog ITEM (primary/mint), or null if none. Resolves
@@ -776,4 +781,89 @@ export async function fetchTradeForItem(contractAddress: string, itemId: string)
   const { listings } = await fetchShopListingsRaw({ contractAddress, itemId, first: 1 })
   const tradeId = listings[0]?.tradeId
   return tradeId ? fetchTrade(tradeId) : null
+}
+
+// Name + thumbnail for a sold asset (a secondary sale carries a tokenId; a primary/mint sale an
+// itemId). Reuses the same metadata endpoints the purchase-history resolver uses so the Activity feed
+// renders sale rows the same way it renders purchases. Falls back gracefully — an unresolvable row
+// still shows a generic name rather than crashing. `credits` is unused here (a sale carries its own
+// settlement price); it's kept only so the shape matches PurchaseDisplay.
+export async function fetchAssetDisplay(
+  contractAddress: string,
+  { tokenId, itemId }: { tokenId?: string | null; itemId?: string | null }
+): Promise<PurchaseDisplay | null> {
+  if (!contractAddress) return null
+  if (tokenId) {
+    const meta = await fetchNftMeta(contractAddress, tokenId)
+    return { name: meta?.name ?? `#${tokenId}`, thumbnail: meta?.image ?? '', credits: 0, contractAddress, tokenId }
+  }
+  if (itemId) {
+    const meta = await fetchItemMeta(contractAddress, itemId)
+    return { name: meta?.name ?? 'Item', thumbnail: meta?.thumbnail ?? '', credits: 0, contractAddress, itemId }
+  }
+  return null
+}
+
+// A completed secondary sale the connected account took part in (marketplace-server /v1/sales). Note
+// secondary sales settle in MANA (not credits), so `manaWei` is the on-chain price — the Activity feed
+// converts it to INDICATIVE credits at the live display rate (see lib/activity + lib/mana-rate).
+export type SaleRecord = {
+  id: string
+  buyer: string
+  seller: string
+  contractAddress: string
+  tokenId: string
+  itemId: string | null
+  manaWei: string
+  createdAt: number // epoch MS (the API already returns ms)
+  txHash: string
+  category: string
+}
+
+type RawSale = {
+  id: string
+  buyer: string
+  seller: string
+  contractAddress: string
+  tokenId: string
+  itemId: string | null
+  price: string
+  timestamp: number
+  txHash: string
+  category?: string
+}
+
+function toSaleRecord(s: RawSale): SaleRecord {
+  return {
+    id: s.id,
+    buyer: s.buyer,
+    seller: s.seller,
+    contractAddress: s.contractAddress,
+    tokenId: s.tokenId,
+    itemId: s.itemId ?? null,
+    manaWei: s.price,
+    createdAt: s.timestamp,
+    txHash: s.txHash,
+    category: s.category ?? ''
+  }
+}
+
+// The connected account's completed secondary sales, newest first. `role` picks the side: 'seller' =
+// items the user sold, 'buyer' = items the user bought on the secondary market. Public GET (no auth);
+// paginated by cumulative offset (see useInfiniteGrid). Prices are MANA wei.
+export async function fetchUserSales(
+  address: string,
+  { role = 'seller', first = 24, skip = 0 }: { role?: 'seller' | 'buyer'; first?: number; skip?: number } = {}
+): Promise<{ items: SaleRecord[]; total: number }> {
+  const qs = new URLSearchParams({
+    [role]: address.toLowerCase(),
+    first: String(first),
+    skip: String(skip),
+    sortBy: 'recently_sold'
+  })
+  const res = await fetch(`${config.marketplaceServerUrl}/v1/sales?${qs.toString()}`)
+  if (!res.ok) throw new Error(`fetchUserSales ${res.status}`)
+  const json = (await res.json()) as { data?: RawSale[]; total?: number }
+  const items = (json.data ?? []).map(toSaleRecord)
+  return { items, total: json.total ?? items.length }
 }

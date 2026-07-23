@@ -175,10 +175,10 @@ describe('Success settlement gating', () => {
     waitForSettlement.mockRejectedValue(new SettlementPendingError('pending'))
     renderSuccess()
 
-    // All attempts pending → no dead-end: surface "still processing, check My Purchases" — never a
+    // All attempts pending → no dead-end: surface "still processing, check your Activity" — never a
     // false "It's yours!" and never a false "didn't go through" (the tx may still land).
     await waitFor(() => expect(screen.getByText(/still processing/i)).toBeTruthy())
-    expect(screen.getByText(/view my purchases/i)).toBeTruthy()
+    expect(screen.getByText(/view your activity/i)).toBeTruthy()
     expect(screen.queryByText(/it.s yours/i)).toBeNull()
     expect(screen.queryByText(/didn.t go through/i)).toBeNull()
   })

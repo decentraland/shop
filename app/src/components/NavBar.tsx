@@ -178,7 +178,7 @@ export function NavBar() {
             {t('nav.collectibles')}
           </NavLink>
           <NavLink to="/my-assets">{t('nav.myAssets')}</NavLink>
-          {session ? <NavLink to="/my-purchases">{t('nav.myPurchases')}</NavLink> : null}
+          {session ? <NavLink to="/activity">{t('nav.activity')}</NavLink> : null}
           {/* Approvals are only meaningful for self-custody wallets; managed (web2) users never see wallet
               jargon (CONVENTIONS.md), so the entry point is hidden for them. */}
           {session && showsWalletConfirmations(session.providerType) ? (

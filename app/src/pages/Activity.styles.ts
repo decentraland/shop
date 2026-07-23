@@ -3,9 +3,10 @@ import { keyframes } from '@emotion/react'
 import { theme } from '~/styles/theme'
 import { Button } from '~/components/Button'
 
-// My Purchases — a clean list of ORDER cards (one card per checkout), each with a header (date,
-// status, total in credits) and its line items (thumbnail, name, per-item price). Styled to match the
-// shop's rounded white cards, hairline borders, and violet accent; no Figma for this page, so it
+// Activity — a chronological feed of the signed-in user's shop actions (purchases + secondary sales),
+// with type filters. Purchases render as ORDER cards (one card per checkout: header with date, status,
+// total in credits + its line items); sales render as a matching card (date, "Sold" pill, +amount +
+// the sold item). Styled to match the shop's rounded white cards, hairline borders, and violet accent;
 // borrows the AssetCard/list vocabulary already used across the app.
 
 const shimmer = keyframes`
@@ -33,6 +34,46 @@ export const Title = styled.h1`
 export const Count = styled.span`
   color: ${theme.colors.muted};
   font-size: 14px;
+`
+
+// Type filters (All / Purchases / Sales). Segmented pill row; the active tab is selected via
+// `data-active` so no style-only prop reaches the DOM.
+export const Tabs = styled.div`
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+`
+
+export const Tab = styled.button`
+  appearance: none;
+  border: 1px solid ${theme.colors.line};
+  background: ${theme.colors.white};
+  color: ${theme.colors.text};
+  font-family: ${theme.font.sans};
+  font-size: 14px;
+  font-weight: 600;
+  padding: 8px 16px;
+  min-height: 40px;
+  border-radius: ${theme.radius.pill};
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    color 0.15s;
+
+  &:hover {
+    background: ${theme.colors.media};
+  }
+  &:focus-visible {
+    outline: 2px solid ${theme.colors.accent};
+    outline-offset: 2px;
+  }
+  &[data-active='true'] {
+    background: ${theme.colors.accent};
+    border-color: ${theme.colors.accent};
+    color: ${theme.colors.white};
+  }
 `
 
 export const List = styled.div`
@@ -105,6 +146,10 @@ export const Pill = styled.span`
     background: rgba(245, 166, 35, 0.16);
     color: #b5790a;
   }
+  &[data-status='SOLD'] {
+    background: rgba(103, 58, 183, 0.14);
+    color: ${theme.colors.accent};
+  }
 `
 
 export const Total = styled.div`
@@ -118,6 +163,11 @@ export const Total = styled.div`
   .ccy-mark {
     width: 16px;
     height: 16px;
+  }
+
+  // Money received (a sale) reads as income in the shop's success green.
+  &[data-kind='income'] {
+    color: ${theme.colors.okStrong};
   }
 `
 
