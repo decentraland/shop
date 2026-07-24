@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { NavLink, useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { Icon } from '~/components/Icon'
 import { TopNav } from '~/components/TopNav'
@@ -18,6 +18,12 @@ import type { CatalogItem } from '~/lib/api'
 import type { CollectionHit, CreatorHit } from '~/lib/search'
 import { t } from '~/intl/i18n'
 import CloseIcon from '@mui/icons-material/CloseRounded'
+
+// The notifications bell pulls in the heavy ui2 Notifications feature — lazy-load it (like TopNav does
+// for the Navbar) so it stays out of the entry chunk and only loads for a signed-in session.
+const NotificationsBell = lazy(() =>
+  import('~/components/NotificationsBell').then(m => ({ default: m.NotificationsBell }))
+)
 
 export function NavBar() {
   const { session, connecting, signIn, disconnect, restore } = useWallet()
@@ -167,6 +173,13 @@ export function NavBar() {
         avatar={avatar}
         onClickSignIn={() => signIn()}
         onClickSignOut={() => void disconnect()}
+        notificationSlot={
+          session ? (
+            <Suspense fallback={null}>
+              <NotificationsBell />
+            </Suspense>
+          ) : undefined
+        }
       />
 
       {/* Shop sub-nav (sections + search + cart) — the row under the global DCL navbar. */}
