@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { Button } from '~/components/Button'
 import { Network } from '@dcl/schemas'
 import type { Session } from '~/lib/auth'
 import type { PublishableItem } from '~/lib/builder'
@@ -12,12 +11,17 @@ import { toast } from '~/store/toast'
 import { config } from '~/config'
 import { CURRENCY } from '~/lib/currency'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
-import { showsWalletConfirmations } from '~/lib/wallet-kind'
+import { Icon } from '~/components/Icon'
+import { isManagedWallet } from '~/lib/wallet'
+import { useProfile } from '~/hooks/useProfile'
+import { capitalizeFirst } from '~/lib/text'
+import { shortAddress } from '~/lib/address'
 import { track, errorCode } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
 import { t } from '~/intl/i18n'
 import { friendlyError } from '~/lib/errors'
 import { ErrorNotice } from '~/components/ErrorNotice'
+import * as S from './PrimaryListModal.styles'
 
 const SIX_MONTHS_MS = 1000 * 60 * 60 * 24 * 182
 
@@ -43,8 +47,19 @@ export function PrimaryListModal({
 
   const chainId = config.chainId
   // Self-custody wallets pop approvals/confirmations; managed wallets (Magic, thirdweb) don't — gate
-  // the wallet-flow wording so managed users never see MetaMask-style "two confirmations" copy.
-  const showsConfirmations = showsWalletConfirmations(session.providerType)
+  // the wallet-flow wording so managed users never see MetaMask-style "two confirmations" copy. Shared
+  // helper so the classification stays consistent across the buy/sell/publish flows.
+  const isManaged = isManagedWallet(session)
+
+  // The creator is the viewer themselves (this modal only opens for your own collection item) — show
+  // their profile name (or short address) as "By {creator}" on the asset card, matching SellModal.
+  const { data: creatorProfile } = useProfile(session.address)
+  const creatorName = creatorProfile?.name ? capitalizeFirst(creatorProfile.name) : shortAddress(session.address)
+
+  const priceValue = Number(price)
+  const priceValid = Number.isInteger(priceValue) && priceValue > 0
+  // USD equivalent hint (1 credit = $0.10).
+  const usdHint = priceValid ? `$${(priceValue / 10).toFixed(2)}` : '$0'
 
   useEffect(() => {
     let cancelled = false
@@ -124,101 +139,130 @@ export function PrimaryListModal({
     navigate(itemRoute(item.contractAddress, item.blockchainItemId))
   }
 
-  const cta = busy
-    ? t('primaryList.listing')
-    : enabled === false
-      ? t('primaryList.enableAndPutOnSale')
-      : t('primaryList.putOnSale')
+  // Wallet-aware CTA. Idle wording still reflects the minter prereq (first listing from a collection
+  // enables it); the busy label mirrors SellModal — managed wallets publish silently ("Publishing…"),
+  // self-custody wallets must confirm in-wallet ("Confirm listing").
+  const cta =
+    enabled === null
+      ? t('primaryList.checking')
+      : busy
+        ? isManaged
+          ? t('primaryList.publishing')
+          : t('primaryList.confirmListing')
+        : enabled === false
+          ? t('primaryList.enableAndPutOnSale')
+          : t('primaryList.putOnSale')
 
   // ---- Success view ----------------------------------------------------------------------------
   if (listedCredits !== null) {
     return (
-      <div className="modal-backdrop" onClick={onClose} role="presentation">
-        <div className="modal modal--success" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
-          <div className="modal-success__check" aria-hidden>
-            ✓
-          </div>
-          <h2 className="modal__title">{t('primaryList.successTitle')}</h2>
-          {item.thumbnail ? <img className="modal__img" src={item.thumbnail} alt={item.name} /> : null}
-          <p className="modal-success__name">{item.name}</p>
-          <p className="muted small">
-            {t('primaryList.listedFor')}{' '}
-            <strong>
-              <CurrencyIcon className="ccy-mark" /> {listedCredits}
-            </strong>{' '}
-            {t('primaryList.dotAvailable', { count: item.remainingSupply })}
-          </p>
-          <div className="modal__actions">
-            <Button variant="ghost" onClick={onClose}>
-              {t('getCredits.done')}
-            </Button>
-            <Button variant="purple" onClick={viewInShop}>
-              {t('primaryList.viewInShop')}
-            </Button>
-          </div>
-        </div>
-      </div>
+      <S.Scrim onClick={onClose} role="presentation">
+        <S.Card
+          onClick={e => e.stopPropagation()}
+          role="dialog"
+          aria-modal="true"
+          aria-label={t('primaryList.successTitle')}
+        >
+          <S.Head>
+            <S.Title>{t('primaryList.successTitle')}</S.Title>
+            <S.Close onClick={onClose} aria-label={t('getCredits.done')}>
+              <Icon name="close" className="ico" />
+            </S.Close>
+          </S.Head>
+          <S.SuccessBanner>
+            <S.SuccessCheck aria-hidden>
+              <Icon name="check" className="ico" />
+            </S.SuccessCheck>
+            <S.SuccessText>
+              <b>{item.name}</b>
+            </S.SuccessText>
+            <S.SuccessDetail>
+              {t('primaryList.listedFor')}{' '}
+              <strong>
+                <CurrencyIcon className="ccy-mark" /> {listedCredits}
+              </strong>{' '}
+              {t('primaryList.dotAvailable', { count: item.remainingSupply })}
+            </S.SuccessDetail>
+          </S.SuccessBanner>
+          <S.Actions>
+            <S.OutlineBtn onClick={onClose}>{t('getCredits.done')}</S.OutlineBtn>
+            <S.PurpleBtn onClick={viewInShop}>{t('primaryList.viewInShop')}</S.PurpleBtn>
+          </S.Actions>
+        </S.Card>
+      </S.Scrim>
     )
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose} role="presentation">
-      <div className="modal" data-testid="modal" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true">
-        <h2 className="modal__title">{t('primaryList.publishTitle', { name: item.name })}</h2>
-        {item.thumbnail ? <img className="modal__img" src={item.thumbnail} alt={item.name} /> : null}
+    <S.Scrim onClick={busy ? undefined : onClose} role="presentation">
+      <S.Card
+        data-testid="modal"
+        onClick={e => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label={t('primaryList.publishTitle', { name: item.name })}
+      >
+        <S.Head>
+          <S.Title>{t('primaryList.publishTitle', { name: item.name })}</S.Title>
+          <S.Close onClick={onClose} disabled={busy} aria-label={t('primaryList.cancel')}>
+            <Icon name="close" className="ico" />
+          </S.Close>
+        </S.Head>
 
-        <p className="muted small">
+        <S.Subtitle>
           {t('primaryList.fromCollection', {
             collectionName: item.collectionName,
             count: item.remainingSupply
           })}
-        </p>
+        </S.Subtitle>
 
-        <label className="field">
-          <span>{t('primaryList.priceLabel', { currency: CURRENCY.name })}</span>
-          <input
-            type="number"
-            min="1"
-            step="1"
-            value={price}
-            onChange={e => setPrice(e.target.value)}
-            disabled={busy}
-          />
-        </label>
-        <p className="muted small">
+        <S.AssetCard>
+          <S.Thumb>{item.thumbnail ? <img src={item.thumbnail} alt="" /> : null}</S.Thumb>
+          <S.AssetInfo>
+            <S.AssetName>{item.name}</S.AssetName>
+            {creatorName ? <S.AssetBy>{t('primaryList.byCreator', { name: creatorName })}</S.AssetBy> : null}
+          </S.AssetInfo>
+        </S.AssetCard>
+
+        <S.Field>
+          <S.FieldLabel>{t('primaryList.priceShort')}</S.FieldLabel>
+          <S.InputBox aria-invalid={price.length > 0 && !priceValid}>
+            <CurrencyIcon className="ccy" />
+            <S.PriceInput
+              type="number"
+              min="1"
+              step="1"
+              inputMode="numeric"
+              value={price}
+              onChange={e => setPrice(e.target.value)}
+              disabled={busy}
+              aria-label={t('primaryList.priceLabel', { currency: CURRENCY.name })}
+            />
+            <S.UsdHint aria-hidden>{usdHint}</S.UsdHint>
+          </S.InputBox>
+        </S.Field>
+
+        <S.Note>
           {t('primaryList.pricedInWhole', { currency: CURRENCY.name, currencySingular: CURRENCY.nameSingular })}
-        </p>
+        </S.Note>
 
         {enabled === false && !busy ? (
-          showsConfirmations ? (
-            <p className="muted small primary-note">
-              {t('primaryList.firstTimeConfirm', { collectionName: item.collectionName })}
-            </p>
-          ) : (
-            <p className="muted small primary-note">
-              {t('primaryList.firstTimeManaged', { collectionName: item.collectionName })}
-            </p>
-          )
+          <S.Note>
+            {isManaged
+              ? t('primaryList.firstTimeManaged', { collectionName: item.collectionName })
+              : t('primaryList.firstTimeConfirm', { collectionName: item.collectionName })}
+          </S.Note>
         ) : enabled === true && !busy ? (
-          showsConfirmations ? (
-            <p className="muted small primary-note">{t('primaryList.readyConfirm')}</p>
-          ) : (
-            <p className="muted small primary-note">{t('primaryList.readyManaged')}</p>
-          )
+          <S.Note>{isManaged ? t('primaryList.readyManaged') : t('primaryList.readyConfirm')}</S.Note>
         ) : null}
 
-        {status ? <p className="muted">{status}</p> : null}
+        {status ? <S.Status>{status}</S.Status> : null}
         <ErrorNotice message={error} />
 
-        <div className="modal__actions">
-          <Button variant="ghost" onClick={onClose} disabled={busy}>
-            {t('primaryList.cancel')}
-          </Button>
-          <Button onClick={() => void publish()} disabled={busy || enabled === null}>
-            {enabled === null ? t('primaryList.checking') : cta}
-          </Button>
-        </div>
-      </div>
-    </div>
+        <S.PrimaryBtn onClick={() => void publish()} disabled={busy || enabled === null || !priceValid}>
+          {cta}
+        </S.PrimaryBtn>
+      </S.Card>
+    </S.Scrim>
   )
 }
