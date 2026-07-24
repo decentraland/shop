@@ -195,7 +195,11 @@ export function Authorizations() {
       <S.Group>
         <S.GroupTitle>{t('authorizations.sellingTitle')}</S.GroupTitle>
         {loadingCollections ? (
-          <S.EmptyHint>{t('authorizations.checking')}</S.EmptyHint>
+          <S.List aria-busy="true" aria-label={t('authorizations.checking')}>
+            {Array.from({ length: 3 }).map((_, i) => (
+              <S.RowSkeleton key={i} aria-hidden />
+            ))}
+          </S.List>
         ) : collections && collections.length > 0 ? (
           <S.List>
             {collections.map(asset => (

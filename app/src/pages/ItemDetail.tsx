@@ -140,6 +140,7 @@ const PrimarySaleBanner = styled('div')`
   justify-content: space-between;
   gap: 8px;
   padding: 8px;
+  margin-top: 16px;
   margin-bottom: 16px;
   border-radius: 8px;
   background: #f4e9ff;

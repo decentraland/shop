@@ -7,6 +7,10 @@ const spin = keyframes`
   to { transform: rotate(360deg); }
 `
 
+const shimmer = keyframes`
+  to { background-position: -200% 0; }
+`
+
 export const Section = styled.section`
   width: 100%;
   min-width: 0;
@@ -63,6 +67,20 @@ export const Row = styled.div`
   ${theme.media.down('mobile')} {
     grid-template-columns: 44px 1fr;
     grid-row-gap: 10px;
+  }
+`
+
+// Placeholder row shown while the owned collections resolve — same footprint as a real Row so the
+// selling section (and the sticky footer) don't jump when the list arrives. Decorative, aria-hidden.
+export const RowSkeleton = styled.div`
+  height: 74px;
+  border-radius: 16px;
+  background: linear-gradient(100deg, #efeef2 30%, #e2e0e7 50%, #efeef2 70%);
+  background-size: 200% 100%;
+  animation: ${shimmer} 1.4s infinite linear;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
   }
 `
 

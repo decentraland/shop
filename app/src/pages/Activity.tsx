@@ -269,7 +269,7 @@ export function Activity() {
       </S.Tabs>
       {isLoading ? (
         <S.List>
-          {Array.from({ length: 3 }).map((_, i) => (
+          {Array.from({ length: 5 }).map((_, i) => (
             <S.CardSkeleton key={i} />
           ))}
         </S.List>

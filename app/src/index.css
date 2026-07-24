@@ -308,11 +308,12 @@ h2 {
   font-size: 18px;
   padding: 40px 0;
 }
-/* Suspense fallback while a lazy-loaded route chunk downloads. */
+/* Suspense fallback while a lazy-loaded route chunk downloads. Height matches the in-page loaders
+   (~60vh) so the transition Suspense fallback → page loader → content doesn't reposition the footer. */
 .page-loading {
   display: grid;
   place-items: center;
-  min-height: 46vh;
+  min-height: 60vh;
 }
 
 /* Buttons live in the `Button` component (components/Button) — styled, variants on data-*. */
