@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { NavLink, useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import { Icon } from '~/components/Icon'
 import { TopNav } from '~/components/TopNav'
@@ -19,11 +19,9 @@ import type { CollectionHit, CreatorHit } from '~/lib/search'
 import { t } from '~/intl/i18n'
 import CloseIcon from '@mui/icons-material/CloseRounded'
 
-// The notifications bell pulls in the heavy ui2 Notifications feature — lazy-load it (like TopNav does
-// for the Navbar) so it stays out of the entry chunk and only loads for a signed-in session.
-const NotificationsBell = lazy(() =>
-  import('~/components/NotificationsBell').then(m => ({ default: m.NotificationsBell }))
-)
+// Notifications bell (ui2 Notifications feature) is temporarily NOT mounted — see the notificationSlot
+// TODO in the render. `components/NotificationsBell.tsx` + `lib/notifications.ts` are kept for the
+// follow-up (they need a MUI ThemeProvider + the notifications-server URL wired before re-enabling).
 
 export function NavBar() {
   const { session, connecting, signIn, disconnect, restore } = useWallet()
@@ -173,13 +171,11 @@ export function NavBar() {
         avatar={avatar}
         onClickSignIn={() => signIn()}
         onClickSignOut={() => void disconnect()}
-        notificationSlot={
-          session ? (
-            <Suspense fallback={null}>
-              <NotificationsBell />
-            </Suspense>
-          ) : undefined
-        }
+        // TODO(notifications): the ui2 Notifications feature is MUI-based and reads `theme.breakpoints.down`
+        // from a MUI ThemeProvider the shop doesn't mount (we use emotion + our own theme), so rendering it
+        // here throws "Cannot read properties of undefined (reading 'down')" and white-screens the whole app.
+        // Disabled until the bell is wrapped in the proper ui2/MUI ThemeProvider (and the notifications-server
+        // URL is wired via config). NotificationsBell.tsx + lib/notifications.ts are kept for that follow-up.
       />
 
       {/* Shop sub-nav (sections + search + cart) — the row under the global DCL navbar. */}
