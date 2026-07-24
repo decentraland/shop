@@ -74,7 +74,7 @@ export const Tabs = styled.nav`
   }
 `
 
-// position:relative is the offset parent for the SearchDropdown's absolutely-positioned `.search-pop`.
+// position:relative is the offset parent for the SearchDropdown's absolutely-positioned panel.
 export const Search = styled.div`
   position: relative;
   margin-left: auto;

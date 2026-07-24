@@ -2,10 +2,10 @@ import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { fetchListings, type CatalogItem } from '~/lib/api'
 import { Icon } from '~/components/Icon'
 import { fetchCollectionSuggestions, fetchCreatorSuggestions, type CollectionHit, type CreatorHit } from '~/lib/search'
-import { CollectionThumb } from '~/components/CollectionThumb'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { useProfile } from '~/hooks/useProfile'
 import { t } from '~/intl/i18n'
+import * as S from './SearchDropdown.styles'
 
 function shortAddress(addr: string): string {
   return /^0x[a-fA-F0-9]{40}$/.test(addr) ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : addr
@@ -14,23 +14,22 @@ function shortAddress(addr: string): string {
 // Text-only "By {creator}" subline for item/collection rows. Resolves the address → DCL profile
 // name via the shared useProfile query (dedupes with the cards elsewhere), falls back to a short
 // address. Mirrors the marketplace's <Profile textOnly> in the suggestion rows.
-function CreatorName({ address, className }: { address: string; className?: string }) {
+function CreatorName({ address }: { address: string }) {
   const { data } = useProfile(address)
   const name = data?.name || shortAddress(address)
-  return <span className={className}>{t('search.byCreator', { name })}</span>
+  return <S.Sub>{t('search.byCreator', { name })}</S.Sub>
 }
 
 // The collection suggestion row's thumbnail is the shared mosaic (CollectionThumb) sized as a small
 // rounded tile, falling back to the neutral icon tile while loading or when the collection is empty.
 function CollectionRowThumb({ contractAddress }: { contractAddress: string }) {
   return (
-    <CollectionThumb
+    <S.CollThumb
       contractAddress={contractAddress}
-      className="search-pop__collthumb"
       fallback={
-        <span className="search-pop__thumb search-pop__thumb--icon">
+        <S.Thumb data-variant="icon">
           <Icon name="search" />
-        </span>
+        </S.Thumb>
       }
     />
   )
@@ -106,145 +105,131 @@ export function SearchDropdown({
   if (!enabled) {
     if (recent.length === 0) return null
     return (
-      <div className="search-pop" data-testid="search-pop" role="listbox" aria-label={t('search.suggestions')}>
-        <div className="search-pop__section-head">
+      <S.Pop data-testid="search-pop" role="listbox" aria-label={t('search.suggestions')}>
+        <S.SectionHead>
           <span>{t('search.recent')}</span>
-          <button type="button" className="search-pop__clear" onClick={onClearRecent}>
+          <S.Clear type="button" onClick={onClearRecent}>
             {t('search.clearRecent')}
-          </button>
-        </div>
-        <ul className="search-pop__list">
+          </S.Clear>
+        </S.SectionHead>
+        <S.List>
           {recent.map(term => (
-            <li key={term} className="search-pop__recent">
-              <button type="button" className="search-pop__recent-btn" onClick={() => onRunSearch(term)}>
+            <S.Recent key={term}>
+              <S.RecentBtn type="button" onClick={() => onRunSearch(term)}>
                 <Icon name="search" size={16} color="var(--muted)" />
-                <span className="search-pop__recent-text">{term}</span>
-              </button>
-              <button
+                <S.RecentText>{term}</S.RecentText>
+              </S.RecentBtn>
+              <S.RecentRemove
                 type="button"
-                className="search-pop__recent-remove"
                 aria-label={t('search.removeRecent', { query: term })}
                 onClick={() => onRemoveRecent(term)}
               >
                 <Icon name="close" size={14} />
-              </button>
-            </li>
+              </S.RecentRemove>
+            </S.Recent>
           ))}
-        </ul>
-      </div>
+        </S.List>
+      </S.Pop>
     )
   }
 
   const nothing = items.length === 0 && collections.length === 0 && creators.length === 0
 
   return (
-    <div className="search-pop" data-testid="search-pop" role="listbox" aria-label={t('search.suggestions')}>
+    <S.Pop data-testid="search-pop" role="listbox" aria-label={t('search.suggestions')}>
       {nothing ? (
-        <p className="search-pop__empty">{itemsFetching ? t('search.searching') : t('search.noResults', { query })}</p>
+        <S.Empty>{itemsFetching ? t('search.searching') : t('search.noResults', { query })}</S.Empty>
       ) : (
         <>
           {items.length > 0 ? (
             <>
-              <div className="search-pop__section-head">
+              <S.SectionHead>
                 <span>{t('search.items')}</span>
-              </div>
-              <ul className="search-pop__list">
+              </S.SectionHead>
+              <S.List>
                 {items.map(item => (
                   <li key={item.id}>
-                    <button
+                    <S.Row
                       type="button"
-                      className="search-pop__row"
                       data-testid="search-pop-row"
                       data-kind="item"
                       onClick={() => onSelectItem(item)}
                     >
-                      <span className="search-pop__thumb">
-                        {item.thumbnail ? <img src={item.thumbnail} alt="" /> : null}
-                      </span>
-                      <span className="search-pop__text">
-                        <span className="search-pop__name" title={item.name}>
-                          {item.name}
-                        </span>
-                        {item.creator ? <CreatorName address={item.creator} className="search-pop__sub" /> : null}
-                      </span>
-                      <span className="search-pop__price">
+                      <S.Thumb>{item.thumbnail ? <img src={item.thumbnail} alt="" /> : null}</S.Thumb>
+                      <S.Text>
+                        <S.Name title={item.name}>{item.name}</S.Name>
+                        {item.creator ? <CreatorName address={item.creator} /> : null}
+                      </S.Text>
+                      <S.Price>
                         <CurrencyIcon className="ccy-mark" /> {item.priceCredits}
-                      </span>
-                    </button>
+                      </S.Price>
+                    </S.Row>
                   </li>
                 ))}
-              </ul>
+              </S.List>
             </>
           ) : null}
 
           {collections.length > 0 ? (
             <>
-              <div className="search-pop__section-head">
+              <S.SectionHead>
                 <span>{t('search.collections')}</span>
-              </div>
-              <ul className="search-pop__list">
+              </S.SectionHead>
+              <S.List>
                 {collections.map(collection => (
                   <li key={collection.contractAddress}>
-                    <button
+                    <S.Row
                       type="button"
-                      className="search-pop__row search-pop__row--collection"
                       data-testid="search-pop-row"
                       data-kind="collection"
                       onClick={() => onSelectCollection(collection)}
                     >
                       <CollectionRowThumb contractAddress={collection.contractAddress} />
-                      <span className="search-pop__text">
-                        <span className="search-pop__name" title={collection.name}>
-                          {collection.name}
-                        </span>
-                        {collection.creator ? (
-                          <CreatorName address={collection.creator} className="search-pop__sub" />
-                        ) : null}
-                      </span>
-                    </button>
+                      <S.Text>
+                        <S.Name title={collection.name}>{collection.name}</S.Name>
+                        {collection.creator ? <CreatorName address={collection.creator} /> : null}
+                      </S.Text>
+                    </S.Row>
                   </li>
                 ))}
-              </ul>
+              </S.List>
             </>
           ) : null}
 
           {creators.length > 0 ? (
             <>
-              <div className="search-pop__section-head">
+              <S.SectionHead>
                 <span>{t('search.creators')}</span>
-              </div>
-              <ul className="search-pop__list">
+              </S.SectionHead>
+              <S.List>
                 {creators.map(creator => (
                   <li key={creator.address}>
-                    <button
+                    <S.Row
                       type="button"
-                      className="search-pop__row search-pop__row--creator"
                       data-testid="search-pop-row"
                       data-kind="creator"
                       onClick={() => onSelectCreator(creator)}
                     >
-                      <span className="search-pop__thumb search-pop__thumb--round">
-                        {creator.face ? <img src={creator.face} alt="" /> : null}
-                      </span>
-                      <span className="search-pop__text">
-                        <span className="search-pop__name" title={creator.name}>
-                          {creator.name}
-                        </span>
-                      </span>
-                    </button>
+                      <S.Thumb data-variant="round">{creator.face ? <img src={creator.face} alt="" /> : null}</S.Thumb>
+                      <S.Text>
+                        <S.Name title={creator.name}>{creator.name}</S.Name>
+                      </S.Text>
+                    </S.Row>
                   </li>
                 ))}
-              </ul>
+              </S.List>
             </>
           ) : null}
 
           {total > 0 ? (
-            <button type="button" className="search-pop__seeall" onClick={() => onRunSearch(query)}>
+            <S.SeeAll type="button" onClick={() => onRunSearch(query)}>
               {t('search.seeAll', { count: total.toLocaleString() })}
-            </button>
+            </S.SeeAll>
           ) : null}
         </>
       )}
-    </div>
+    </S.Pop>
   )
 }
+
+export default SearchDropdown
