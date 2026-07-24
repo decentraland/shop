@@ -501,7 +501,9 @@
     "emptySalesTitle": "No sales yet",
     "emptySalesBody": "When someone buys one of your items it’ll appear here.",
     "itemCount": "{count, plural, one {# item} other {# items}}",
-    "quantity": "×{count}"
+    "quantity": "×{count}",
+    "creditPurchaseLabel": "Credit purchase",
+    "creditPaid": "Paid {usd}"
   },
   "myFavorites": {
     "emptyTitle": "No favorites yet",

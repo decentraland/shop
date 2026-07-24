@@ -500,7 +500,9 @@
     "emptySalesTitle": "Aún no tienes ventas",
     "emptySalesBody": "Cuando alguien compre uno de tus artículos, aparecerá aquí.",
     "itemCount": "{count, plural, one {# artículo} other {# artículos}}",
-    "quantity": "×{count}"
+    "quantity": "×{count}",
+    "creditPurchaseLabel": "Compra de créditos",
+    "creditPaid": "Pagaste {usd}"
   },
   "myFavorites": {
     "emptyTitle": "Aún no tienes favoritos",

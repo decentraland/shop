@@ -36,8 +36,10 @@ vi.mock('~/store/wallet', () => ({
 }))
 
 const fetchUserPurchases = vi.fn()
+const fetchUserCreditOrders = vi.fn()
 vi.mock('~/lib/credits', () => ({
-  fetchUserPurchases: (...args: unknown[]) => fetchUserPurchases(...args)
+  fetchUserPurchases: (...args: unknown[]) => fetchUserPurchases(...args),
+  fetchUserCreditOrders: (...args: unknown[]) => fetchUserCreditOrders(...args)
 }))
 
 const fetchTradeDisplay = vi.fn()
@@ -121,6 +123,7 @@ beforeEach(() => {
     disconnect: vi.fn()
   }
   fetchUserPurchases.mockResolvedValue({ items: [], total: 0 })
+  fetchUserCreditOrders.mockResolvedValue({ items: [], total: 0 })
   fetchUserSales.mockResolvedValue({ items: [], total: 0 })
   fetchTradeDisplay.mockResolvedValue(null)
   fetchAssetDisplay.mockResolvedValue(null)

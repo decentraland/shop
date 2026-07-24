@@ -9,7 +9,7 @@ vi.mock('decentraland-transactions', () => ({
 }))
 
 import { buildActivityFeed, filterActivity, toActivitySale } from '~/lib/activity'
-import type { PurchaseRecord } from '~/lib/credits'
+import type { PurchaseRecord, CreditOrder } from '~/lib/credits'
 import type { SaleRecord } from '~/lib/api'
 import type { ManaRate } from '~/lib/mana-rate'
 
@@ -42,6 +42,17 @@ function sale(overrides: Partial<SaleRecord> = {}): SaleRecord {
     createdAt: 2_000,
     txHash: '0xhash',
     category: 'wearable',
+    ...overrides
+  }
+}
+
+function creditOrder(overrides: Partial<CreditOrder> = {}): CreditOrder {
+  return {
+    id: 'co-' + Math.random().toString(36).slice(2),
+    credits: 100,
+    usdCents: 1000,
+    status: 'SETTLED',
+    createdAt: 3_000,
     ...overrides
   }
 }
@@ -103,6 +114,24 @@ describe('buildActivityFeed', () => {
     }
     expect(buildActivityFeed(input).map(e => e.id)).toEqual(buildActivityFeed(input).map(e => e.id))
   })
+
+  it('should merge credit-pack purchases into the feed as credit entries, newest first', () => {
+    const feed = buildActivityFeed({
+      purchases: [purchase({ txHash: '0xp', createdAt: 1_000 })],
+      sales: [sale({ createdAt: 2_000 })],
+      creditOrders: [creditOrder({ createdAt: 3_000 })]
+    })
+    expect(feed.map(e => e.kind)).toEqual(['credit', 'sale', 'purchase'])
+  })
+
+  it('should drop EXPIRED credit orders (released, never paid)', () => {
+    const feed = buildActivityFeed({
+      purchases: [],
+      sales: [],
+      creditOrders: [creditOrder({ status: 'EXPIRED' })]
+    })
+    expect(feed).toHaveLength(0)
+  })
 })
 
 describe('filterActivity', () => {
@@ -126,5 +155,17 @@ describe('filterActivity', () => {
     const result = filterActivity(feed, 'sales')
     expect(result).toHaveLength(1)
     expect(result[0].kind).toBe('sale')
+  })
+
+  it('should include credit-pack purchases under the "purchases" filter (a credit buy is a purchase)', () => {
+    const withCredit = buildActivityFeed({
+      purchases: [purchase({ txHash: '0xp', createdAt: 1_000 })],
+      sales: [sale({ createdAt: 2_000 })],
+      creditOrders: [creditOrder({ createdAt: 3_000 })]
+    })
+    const purchases = filterActivity(withCredit, 'purchases')
+    expect(purchases.map(e => e.kind).sort()).toEqual(['credit', 'purchase'])
+    // …and never leak into the sales tab.
+    expect(filterActivity(withCredit, 'sales').map(e => e.kind)).toEqual(['sale'])
   })
 })

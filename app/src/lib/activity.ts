@@ -1,4 +1,4 @@
-import type { PurchaseRecord } from '~/lib/credits'
+import type { PurchaseRecord, CreditOrder } from '~/lib/credits'
 import type { SaleRecord } from '~/lib/api'
 import { groupPurchases, type PurchaseOrder } from '~/lib/purchases'
 import { manaWeiToCredits, type ManaRate } from '~/lib/mana-rate'
@@ -24,6 +24,7 @@ export type ActivitySale = {
 export type ActivityEntry =
   | { kind: 'purchase'; id: string; createdAt: number; order: PurchaseOrder }
   | { kind: 'sale'; id: string; createdAt: number; sale: ActivitySale }
+  | { kind: 'credit'; id: string; createdAt: number; order: CreditOrder }
 
 export function toActivitySale(sale: SaleRecord, rate?: ManaRate): ActivitySale {
   return {
@@ -44,6 +45,7 @@ export function toActivitySale(sale: SaleRecord, rate?: ManaRate): ActivitySale 
 export function buildActivityFeed(input: {
   purchases: PurchaseRecord[]
   sales: SaleRecord[]
+  creditOrders?: CreditOrder[]
   rate?: ManaRate
 }): ActivityEntry[] {
   const orders = groupPurchases(input.purchases.filter(p => p.status !== 'EXPIRED'))
@@ -57,12 +59,20 @@ export function buildActivityFeed(input: {
     const sale = toActivitySale(s, input.rate)
     return { kind: 'sale', id: `sale:${sale.id}`, createdAt: sale.createdAt, sale }
   })
+  // Credit-pack top-ups. Drop EXPIRED (released, never paid) — mirrors the purchase-intent handling.
+  const creditEntries: ActivityEntry[] = (input.creditOrders ?? [])
+    .filter(o => o.status !== 'EXPIRED')
+    .map(order => ({ kind: 'credit', id: `credit:${order.id}`, createdAt: order.createdAt, order }))
   // Stable tiebreak on id so entries sharing a timestamp keep a deterministic order across renders.
-  return [...purchaseEntries, ...saleEntries].sort((a, b) => b.createdAt - a.createdAt || (a.id < b.id ? -1 : 1))
+  return [...purchaseEntries, ...saleEntries, ...creditEntries].sort(
+    (a, b) => b.createdAt - a.createdAt || (a.id < b.id ? -1 : 1)
+  )
 }
 
 export function filterActivity(entries: ActivityEntry[], filter: ActivityFilter): ActivityEntry[] {
   if (filter === 'all') return entries
-  const kind = filter === 'purchases' ? 'purchase' : 'sale'
-  return entries.filter(e => e.kind === kind)
+  // "Sales" is the seller side; "Purchases" is everything the user bought — item orders AND credit-pack
+  // top-ups (a credit purchase is still a purchase).
+  if (filter === 'sales') return entries.filter(e => e.kind === 'sale')
+  return entries.filter(e => e.kind === 'purchase' || e.kind === 'credit')
 }

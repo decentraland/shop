@@ -127,6 +127,51 @@ export async function fetchUserPurchases(
   return { items, total }
 }
 
+// One credit-pack (top-up) purchase: the buyer paid money (via the Stripe pack checkout) and received
+// `credits`. Distinct from an item PurchaseRecord — a top-up carries no tradeId; it credits the USD
+// balance. `usdCents` is what they paid; `credits` is what they got.
+export type CreditOrder = {
+  id: string
+  credits: number
+  usdCents: number
+  status: 'PENDING' | 'SETTLED' | 'EXPIRED'
+  createdAt: number
+}
+
+// The buyer's credit-pack purchase (top-up) history, paginated, newest first.
+//
+// GAP: the credits-server does NOT yet expose a LIST of a user's credit purchases. It has
+// `POST /credits/checkout` (start one) and `GET /credits/orders/:orderId` (poll ONE by id) — but no
+// per-user history endpoint. This targets the list endpoint the Activity feed needs, following the
+// existing `/users/:address/purchases` convention: `GET /users/:address/credit-orders` returning
+// `{ orders: CreditOrder[], total }`. Until that ships, ANY non-OK (incl. 404) resolves to an empty
+// list, so the feed simply shows no credit rows instead of erroring. See the PR notes for the full
+// contract the backend needs to expose.
+export async function fetchUserCreditOrders(
+  address: string,
+  identity: AuthIdentity,
+  opts?: { first?: number; skip?: number }
+): Promise<{ items: CreditOrder[]; total: number }> {
+  const qs = new URLSearchParams()
+  if (opts?.first != null) qs.set('limit', String(opts.first))
+  if (opts?.skip != null) qs.set('offset', String(opts.skip))
+  const q = qs.toString()
+  const url = `${config.creditsServerUrl}/users/${address.toLowerCase()}/credit-orders${q ? `?${q}` : ''}`
+  try {
+    const res = await signedFetch(url, { method: 'GET', identity, metadata: {} })
+    if (!res.ok) return { items: [], total: 0 }
+    const json = (await res.json()) as { orders?: CreditOrder[]; total?: number }
+    const items = json.orders ?? []
+    const skip = opts?.skip ?? 0
+    const first = opts?.first ?? items.length
+    const total =
+      typeof json.total === 'number' ? json.total : skip + items.length + (first > 0 && items.length >= first ? 1 : 0)
+    return { items, total }
+  } catch {
+    return { items: [], total: 0 }
+  }
+}
+
 // Releases reserved dollars from PENDING intents (by ephemeral credit id / salt) when a client-side
 // checkout fails — so the balance isn't stuck until the TTL. No-op for an empty list.
 export async function cancelUsdIntents(identity: AuthIdentity, salts: string[]): Promise<number> {
