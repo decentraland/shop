@@ -48,9 +48,10 @@ export function SellModal({
   session: Session
   // The item's creator address (passed from the PDP). Shown as "By {name}" on the asset card.
   creator?: string
-  // Fired with the whole-credit price the moment the listing is published — lets the PDP show the new
-  // price immediately and refetch its money/manage queries authoritatively (fixes the stale-price bug).
-  onListed?: (credits: number) => void
+  // Fired with the whole-credit price (and the new listing's tradeId) the moment the listing is published
+  // — lets the PDP show the new price immediately and optimistically patch its money/manage caches (the
+  // tradeId lets the optimistic on-sale state also carry a working "remove" target). Fixes the stale-price bug.
+  onListed?: (credits: number, tradeId?: string) => void
   onClose: () => void
 }) {
   const queryClient = useQueryClient()
@@ -156,7 +157,9 @@ export function SellModal({
         expiresAtMs: expiresMs
       })
 
-      await postTrade(trade, session.identity)
+      // The persisted trade carries the new tradeId — hand it to onListed so the PDP's optimistic on-sale
+      // state also gets a working "remove" target (avoids a no-op remove right after listing).
+      const created = (await postTrade(trade, session.identity)) as { id?: string } | undefined
 
       setListedCredits(priceValue) // already whole credits
       track('Shop Listed Item', {
@@ -169,8 +172,8 @@ export function SellModal({
       })
       toast.success(t('sellModal.toastOnSale', { name: asset.name }))
       void queryClient.invalidateQueries({ queryKey: ['my-assets', session.address] })
-      // Let the PDP show the new price at once and refetch its own money/manage queries.
-      onListed?.(priceValue)
+      // Let the PDP show the new price at once and optimistically patch its own money/manage caches.
+      onListed?.(priceValue, created?.id)
     } catch (e) {
       captureError(e, { flow: 'list_secondary' })
       track('Shop Listing Failed', { listing_type: 'secondary', error_code: errorCode(e) })

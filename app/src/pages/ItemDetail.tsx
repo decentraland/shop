@@ -21,6 +21,7 @@ import {
   type UnifiedListing
 } from '~/lib/api'
 import { itemIdFromTokenId } from '~/lib/token-id'
+import { patchManageCaches } from '~/lib/manage-cache'
 import { isSaleSectionLoading } from '~/lib/pdp-loading'
 import { cancelListing } from '~/lib/buy'
 import { fetchPublishableItems, type PublishableItem } from '~/lib/builder'
@@ -1000,7 +1001,18 @@ export function ItemDetail() {
       const trade = await fetchTrade(manageTradeId)
       await cancelListing({ trade, signer: session.signer })
       if (!opts.silent) toast.success(t('myAssets.removedFromSale', { name: current.name }))
-      await refreshManage()
+      // Optimistically flip this token to NOT-for-sale everywhere it's rendered (PDP owned-token, the My
+      // Assets grid, the shop-feed price map) the instant the cancel confirms — the feed's MV lags, so an
+      // invalidate→refetch alone would read back the STALE still-listed price (previously it only
+      // corrected on the next window focus). Runs for the silent edit-price cancel too, so the old listing
+      // disappears immediately before the relist modal reopens. refreshManage then reconciles.
+      setJustListedCredits(null)
+      void refreshManage()
+      patchManageCaches(
+        qc,
+        { address: session.address, contractAddress: current.contractAddress, tokenId: current.tokenId },
+        { kind: 'removed' }
+      )
       return true
     } catch (e) {
       const rejected = isRejection(e)
@@ -1640,10 +1652,19 @@ export function ItemDetail() {
           asset={ownedAsset}
           session={session}
           creator={current.creator}
-          onListed={credits => {
-            // Show the new price immediately, then refetch the PDP money/manage queries authoritatively.
+          onListed={(credits, tradeId) => {
+            // Show the new price immediately on THIS page (justListedCredits), and optimistically patch every
+            // cache that renders this token's sale state (PDP owned-token → no re-entry flash, My Assets grid,
+            // shop-feed price map) so a fresh list / edit-price shows on-sale at the new price at once. The
+            // feed's MV lags, so refreshManage's refetch alone would read back stale data — invalidation only
+            // reconciles authoritatively afterwards.
             setJustListedCredits(credits)
             void refreshManage()
+            patchManageCaches(
+              qc,
+              { address: session.address, contractAddress: current.contractAddress, tokenId: current.tokenId },
+              { kind: 'listed', priceCredits: credits, tradeId }
+            )
           }}
           onClose={closeManageModal}
         />
