@@ -171,18 +171,13 @@ h2 {
    The skeleton/spinner below and the shared .chip* base are used by the grids/rows that render cards
    (and by other components), so they stay here. */
 
-.card--skeleton,
-.asset-card--skeleton {
+.card--skeleton {
   min-height: 300px;
   border: 1px solid var(--line);
   border-radius: var(--radius-card);
   background: linear-gradient(100deg, #efeef2 30%, #e2e0e7 50%, #efeef2 70%);
   background-size: 200% 100%;
   animation: shimmer 1.4s infinite linear;
-}
-.asset-card--skeleton {
-  min-height: 260px;
-  border-radius: 12px;
 }
 @keyframes shimmer {
   to {
@@ -205,8 +200,7 @@ h2 {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .card--skeleton,
-  .asset-card--skeleton {
+  .card--skeleton {
     animation: none;
   }
   .spinner {
@@ -275,78 +269,6 @@ h2 {
 
 /* ---------------- Market tab (legacy, fluctuating-price liquidity) ---------------- */
 /* Header banner: prices follow the live market. Amethyst-tinted (reskin theme), web2-friendly copy. */
-
-/* ---------------- My Assets (sell flow) ---------------- */
-.myassets__head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  margin-bottom: 16px;
-}
-.connect-row {
-  display: flex;
-  gap: 12px;
-  margin-top: 12px;
-}
-/* My Assets / grids of AssetCard: fixed 281px columns so every card is the same Figma 281×300 as the
-   Collectibles page. */
-.asset-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, 281px);
-  gap: 16px;
-  margin-top: 20px;
-  justify-content: start;
-}
-@media (max-width: 640px) {
-  .asset-grid {
-    grid-template-columns: repeat(auto-fill, minmax(0, 1fr));
-  }
-}
-.asset-card {
-  background: #fff;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.asset-card__img {
-  aspect-ratio: 1;
-  background: var(--media);
-  border-radius: 8px;
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-}
-.asset-card__img img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-.asset-card__name {
-  font-weight: 700;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.badge {
-  font-size: 12px;
-  color: var(--ok);
-  border: 1px solid var(--ok);
-  border-radius: 999px;
-  padding: 3px 10px;
-}
-.asset-card__listed {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-.asset-card__price {
-  font-weight: 800;
-  font-size: 16px;
-}
 
 /* ---------------- Cart ---------------- */
 .cart {

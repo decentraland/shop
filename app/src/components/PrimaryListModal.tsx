@@ -20,8 +20,20 @@ import { ErrorNotice } from '~/components/ErrorNotice'
 import { CheckmarkIcon } from '~/components/Icons/CheckmarkIcon'
 import * as M from '~/styles/modal.styles'
 import * as F from '~/styles/field.styles'
+import styled from '@emotion/styled'
+import { theme } from '~/styles/theme'
 
 const SIX_MONTHS_MS = 1000 * 60 * 60 * 24 * 182
+
+// The one-time-enable / ready note inside the publish modal.
+const Note = styled.p`
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: ${theme.colors.rarityBg};
+  color: ${theme.colors.accent};
+  font-size: 13px;
+`
 
 export function PrimaryListModal({
   item,
@@ -192,19 +204,15 @@ export function PrimaryListModal({
 
         {enabled === false && !busy ? (
           showsConfirmations ? (
-            <p className="muted small primary-note">
-              {t('primaryList.firstTimeConfirm', { collectionName: item.collectionName })}
-            </p>
+            <Note>{t('primaryList.firstTimeConfirm', { collectionName: item.collectionName })}</Note>
           ) : (
-            <p className="muted small primary-note">
-              {t('primaryList.firstTimeManaged', { collectionName: item.collectionName })}
-            </p>
+            <Note>{t('primaryList.firstTimeManaged', { collectionName: item.collectionName })}</Note>
           )
         ) : enabled === true && !busy ? (
           showsConfirmations ? (
-            <p className="muted small primary-note">{t('primaryList.readyConfirm')}</p>
+            <Note>{t('primaryList.readyConfirm')}</Note>
           ) : (
-            <p className="muted small primary-note">{t('primaryList.readyManaged')}</p>
+            <Note>{t('primaryList.readyManaged')}</Note>
           )
         ) : null}
 

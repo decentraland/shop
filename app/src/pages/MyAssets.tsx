@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button } from '~/components/Button'
-import styled from '@emotion/styled'
 import { config } from '~/config'
 import { useWallet } from '~/store/wallet'
 import { fetchCollectionSaleState, fetchMyAssets, fetchTrade, type CatalogItem, type MyAsset } from '~/lib/api'
@@ -21,17 +20,7 @@ import { track } from '~/lib/analytics'
 import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
 import { ErrorNotice } from '~/components/ErrorNotice'
-import '~/styles/my-listings.css'
-
-const RemoveBtn = styled(Button)`
-  margin-top: 8px;
-  width: 100%;
-`
-
-const PublishCta = styled(Button)`
-  margin-top: auto;
-  width: 100%;
-`
+import * as S from './MyAssets.styles'
 
 const PAGE_SIZE = 48
 
@@ -193,75 +182,67 @@ export function MyAssets() {
 
   if (!session) {
     return (
-      <section className="myassets">
+      <section>
         <h1>{t('nav.myAssets')}</h1>
         <p className="muted">{t('myAssets.signInPrompt')}</p>
-        <div className="connect-row">
+        <S.ConnectRow>
           <Button variant="purple" onClick={() => signIn()}>
             {t('storeSettings.signIn')}
           </Button>
-        </div>
+        </S.ConnectRow>
         <ErrorNotice message={error} />
       </section>
     )
   }
 
   return (
-    <section className="myassets">
+    <section>
       <h1>{t('nav.myAssets')}</h1>
 
       {importCount > 0 ? (
-        <Link className="import-banner" to="/import">
-          <span className="import-banner__ico" aria-hidden>
-            📦
-          </span>
-          <span className="import-banner__text">
+        <S.ImportBanner to="/import">
+          <S.BannerIco aria-hidden>📦</S.BannerIco>
+          <S.BannerText>
             <strong>{t('myAssets.importTitle')}</strong>
-            <span className="import-banner__sub">{t('myAssets.importSub', { count: importCount })}</span>
-          </span>
-          <span className="import-banner__cta">{t('myAssets.import')}</span>
-        </Link>
+            <S.BannerSub>{t('myAssets.importSub', { count: importCount })}</S.BannerSub>
+          </S.BannerText>
+          <S.BannerCta>{t('myAssets.import')}</S.BannerCta>
+        </S.ImportBanner>
       ) : null}
 
       {/* ---------------- Section 1: Items you own (secondary market) ---------------- */}
-      <div className="myassets__section">
-        <div className="myassets__section-head">
-          <h2 className="myassets__section-title">{t('myAssets.ownedTitle')}</h2>
-          <p className="myassets__section-sub">{t('myAssets.ownedSub')}</p>
-        </div>
+      <S.Section>
+        <S.SectionHead>
+          <S.SectionTitle>{t('myAssets.ownedTitle')}</S.SectionTitle>
+          <S.SectionSub>{t('myAssets.ownedSub')}</S.SectionSub>
+        </S.SectionHead>
 
         {queryError ? <ErrorNotice message={t('myAssets.ownedError')} /> : null}
         <ErrorNotice message={cancelError} />
 
-        <div className="asset-grid">
+        <S.AssetGrid>
           {isLoading
-            ? Array.from({ length: 8 }).map((_, i) => (
-                <div className="asset-card asset-card--skeleton" key={`sk-${i}`} />
-              ))
+            ? Array.from({ length: 8 }).map((_, i) => <S.Skeleton key={`sk-${i}`} />)
             : ownedAssets.map(asset => (
-                <article className="asset-card asset-card--link" key={asset.id}>
+                <S.Card key={asset.id}>
                   {/* Whole-card open as a single overlaid button (keyboard + SR reachable), under the
                       row's action button (z-index) so nested controls aren't inside a clickable link. */}
-                  <button
-                    className="card-link-overlay"
+                  <S.LinkOverlay
+                    data-overlay
                     aria-label={t('myAssets.viewItem', { name: asset.name })}
                     onClick={() => openDetail(assetToItem(asset))}
                   />
-                  <div className="asset-card__img">
-                    {asset.image ? <img src={asset.image} alt={asset.name} /> : null}
-                  </div>
-                  <div className="asset-card__name" title={asset.name}>
-                    {asset.name}
-                  </div>
+                  <S.CardImg>{asset.image ? <img src={asset.image} alt={asset.name} /> : null}</S.CardImg>
+                  <S.CardName title={asset.name}>{asset.name}</S.CardName>
                   {asset.isOnSale ? (
                     <>
-                      <div className="asset-card__listed">
-                        <span className="asset-card__price">
+                      <S.Listed>
+                        <S.Price>
                           <CurrencyIcon className="ccy-mark" /> {asset.listingPrice}
-                        </span>
-                        <span className="badge">{t('myAssets.onSale')}</span>
-                      </div>
-                      <RemoveBtn
+                        </S.Price>
+                        <S.Badge>{t('myAssets.onSale')}</S.Badge>
+                      </S.Listed>
+                      <S.RemoveBtn
                         size="sm"
                         variant="ghost"
                         disabled={cancelling === asset.id || !asset.tradeId}
@@ -271,7 +252,7 @@ export function MyAssets() {
                         }}
                       >
                         {cancelling === asset.id ? t('myAssets.removing') : t('myAssets.removeListing')}
-                      </RemoveBtn>
+                      </S.RemoveBtn>
                     </>
                   ) : (
                     <Button
@@ -288,67 +269,56 @@ export function MyAssets() {
                       {t('myAssets.putOnSale')}
                     </Button>
                   )}
-                </article>
+                </S.Card>
               ))}
-          {isFetchingNextPage
-            ? Array.from({ length: 4 }).map((_, i) => (
-                <div className="asset-card asset-card--skeleton" key={`msk-${i}`} />
-              ))
-            : null}
-        </div>
+          {isFetchingNextPage ? Array.from({ length: 4 }).map((_, i) => <S.Skeleton key={`msk-${i}`} />) : null}
+        </S.AssetGrid>
 
         <LoadMore hasNextPage={hasNextPage} isFetching={isFetchingNextPage} onLoadMore={() => void fetchNextPage()} />
 
         {!isLoading && ownedAssets.length === 0 ? <p className="muted">{t('myAssets.ownedEmpty')}</p> : null}
-      </div>
+      </S.Section>
 
       {/* ---------------- Section 2: Items you created (primary), grouped by collection ---------------- */}
-      <div className="myassets__section">
-        <div className="myassets__section-head">
-          <h2 className="myassets__section-title">{t('myAssets.creationsTitle')}</h2>
-          <p className="myassets__section-sub">{t('myAssets.creationsSub', { currency: CURRENCY.name })}</p>
-        </div>
+      <S.Section>
+        <S.SectionHead>
+          <S.SectionTitle>{t('myAssets.creationsTitle')}</S.SectionTitle>
+          <S.SectionSub>{t('myAssets.creationsSub', { currency: CURRENCY.name })}</S.SectionSub>
+        </S.SectionHead>
 
         {publishableLoading ? (
-          <div className="publish-grid">
+          <S.PublishGrid>
             {Array.from({ length: 4 }).map((_, i) => (
-              <div className="asset-card asset-card--skeleton" key={`pub-sk-${i}`} />
+              <S.Skeleton key={`pub-sk-${i}`} />
             ))}
-          </div>
+          </S.PublishGrid>
         ) : publishableError ? (
-          <p className="publish-empty">{t('myAssets.collectionsError')}</p>
+          <S.PublishEmpty>{t('myAssets.collectionsError')}</S.PublishEmpty>
         ) : onSaleItems.length === 0 && collections.length === 0 ? (
-          <p className="publish-empty">{t('myAssets.nothingToPublish')}</p>
+          <S.PublishEmpty>{t('myAssets.nothingToPublish')}</S.PublishEmpty>
         ) : (
           <>
             {/* Already on sale */}
             {onSaleItems.length > 0 ? (
-              <div className="creations-collection">
-                <h3 className="creations-collection__name">{t('myAssets.onSale')}</h3>
-                <div className="publish-grid">
+              <S.CreationsCollection>
+                <S.CreationsName>{t('myAssets.onSale')}</S.CreationsName>
+                <S.PublishGrid>
                   {onSaleItems.map(item => (
-                    <article
-                      className="publish-card publish-card--link"
-                      key={`${item.contractAddress}-${item.blockchainItemId}`}
-                    >
-                      <button
-                        className="card-link-overlay"
+                    <S.Card key={`${item.contractAddress}-${item.blockchainItemId}`}>
+                      <S.LinkOverlay
+                        data-overlay
                         aria-label={t('myAssets.viewItem', { name: item.name })}
                         onClick={() => openDetail(publishableToItem(item))}
                       />
-                      <div className="publish-card__img">
-                        {item.thumbnail ? <img src={item.thumbnail} alt={item.name} /> : null}
-                      </div>
-                      <div className="publish-card__name" title={item.name}>
-                        {item.name}
-                      </div>
-                      <div className="publish-card__listed">
-                        <span className="publish-card__price">
+                      <S.CardImg>{item.thumbnail ? <img src={item.thumbnail} alt={item.name} /> : null}</S.CardImg>
+                      <S.CardName title={item.name}>{item.name}</S.CardName>
+                      <S.Listed data-push>
+                        <S.Price data-sm>
                           <CurrencyIcon className="ccy-mark" /> {saleFor(item)?.priceCredits ?? 0}
-                        </span>
-                        <span className="badge">{t('myAssets.onSale')}</span>
-                      </div>
-                      <PublishCta
+                        </S.Price>
+                        <S.Badge>{t('myAssets.onSale')}</S.Badge>
+                      </S.Listed>
+                      <S.PublishCta
                         size="sm"
                         variant="ghost"
                         disabled={cancelling === item.id}
@@ -359,41 +329,32 @@ export function MyAssets() {
                         }}
                       >
                         {cancelling === item.id ? t('myAssets.removing') : t('myAssets.removeListing')}
-                      </PublishCta>
-                    </article>
+                      </S.PublishCta>
+                    </S.Card>
                   ))}
-                </div>
-              </div>
+                </S.PublishGrid>
+              </S.CreationsCollection>
             ) : null}
 
             {/* Ready to publish, grouped by collection */}
             {collections.map(group => (
-              <div className="creations-collection" key={group.id}>
-                <h3 className="creations-collection__name">{group.name}</h3>
-                <div className="publish-grid">
+              <S.CreationsCollection key={group.id}>
+                <S.CreationsName>{group.name}</S.CreationsName>
+                <S.PublishGrid>
                   {group.items.map(item => (
-                    <article
-                      className="publish-card publish-card--link"
-                      key={`${item.contractAddress}-${item.blockchainItemId}`}
-                    >
-                      <button
-                        className="card-link-overlay"
+                    <S.Card key={`${item.contractAddress}-${item.blockchainItemId}`}>
+                      <S.LinkOverlay
+                        data-overlay
                         aria-label={t('myAssets.viewItem', { name: item.name })}
                         onClick={() => openDetail(publishableToItem(item))}
                       />
-                      <div className="publish-card__img">
-                        {item.thumbnail ? <img src={item.thumbnail} alt={item.name} /> : null}
-                      </div>
-                      <div className="publish-card__name" title={item.name}>
-                        {item.name}
-                      </div>
-                      <div className="publish-card__meta">
-                        <span className="publish-chip publish-chip--rarity">{item.rarity}</span>
-                        <span className="publish-card__supply">
-                          {t('myAssets.available', { count: item.remainingSupply })}
-                        </span>
-                      </div>
-                      <PublishCta
+                      <S.CardImg>{item.thumbnail ? <img src={item.thumbnail} alt={item.name} /> : null}</S.CardImg>
+                      <S.CardName title={item.name}>{item.name}</S.CardName>
+                      <S.PublishMeta>
+                        <S.PublishChip data-rarity>{item.rarity}</S.PublishChip>
+                        <S.PublishSupply>{t('myAssets.available', { count: item.remainingSupply })}</S.PublishSupply>
+                      </S.PublishMeta>
+                      <S.PublishCta
                         size="sm"
                         variant="purple"
                         onClick={e => {
@@ -403,15 +364,15 @@ export function MyAssets() {
                         }}
                       >
                         {t('myAssets.putOnSale')}
-                      </PublishCta>
-                    </article>
+                      </S.PublishCta>
+                    </S.Card>
                   ))}
-                </div>
-              </div>
+                </S.PublishGrid>
+              </S.CreationsCollection>
             ))}
           </>
         )}
-      </div>
+      </S.Section>
 
       {selling ? <SellModal asset={selling} session={session} onClose={() => setSelling(null)} /> : null}
       {publishing ? <PrimaryListModal item={publishing} session={session} onClose={() => setPublishing(null)} /> : null}
