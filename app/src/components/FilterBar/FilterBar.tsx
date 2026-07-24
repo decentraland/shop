@@ -3,7 +3,9 @@ import type { ShopSort } from '~/lib/api'
 import { Icon } from '~/components/Icon'
 import { Chevron } from '~/components/Chevron'
 import { Dropdown } from '~/components/Dropdown'
+import { Pop, Check } from '~/styles/filterPop.styles'
 import { t } from '~/intl/i18n'
+import * as S from './FilterBar.styles'
 
 // Main-area toolbar for the unified browse grid: the result count on the left + the Sort By dropdown
 // "pill" on the right (Figma "New Shop 2026"). Owns the single-open-panel state + the click-away
@@ -52,16 +54,16 @@ export function FilterPanel({
 }) {
   const isOpen = panel.open === panelKey
   return (
-    <div className="filterbar__item">
-      <button
-        className={`filterbar__trigger${isOpen ? ' is-open' : ''}${active ? ' is-active' : ''}`}
+    <S.Item>
+      <S.Trigger
+        data-open={isOpen || undefined}
+        data-active={active || undefined}
         onClick={() => panel.toggle(panelKey)}
       >
-        {label} {badge ? <span className="filterbar__badge">{badge}</span> : null}{' '}
-        <Chevron up={isOpen} size={24} color="var(--text-2)" />
-      </button>
+        {label} {badge ? <S.Badge>{badge}</S.Badge> : null} <Chevron up={isOpen} size={24} color="var(--text-2)" />
+      </S.Trigger>
       {isOpen ? children : null}
-    </div>
+    </S.Item>
   )
 }
 
@@ -114,15 +116,15 @@ export function FilterBar({
 
   return (
     <>
-      {open ? <div className="filterbar__scrim" onClick={panel.close} aria-hidden /> : null}
-      <div className="browse__toolbar" data-testid="browse-toolbar">
-        <span className="browse__count" data-testid="browse-count">
+      {open ? <S.Scrim onClick={panel.close} aria-hidden /> : null}
+      <S.Toolbar data-testid="browse-toolbar">
+        <S.Count data-testid="browse-count">
           {loading ? '…' : t('filterBar.count', { count: total })}
           {query ? ` ${t('filterBar.forQuery', { query })}` : ''}
-        </span>
+        </S.Count>
 
         {hasInlineFilters ? (
-          <div className="filterbar__filters">
+          <S.Filters>
             {renderLeading?.(panel)}
 
             {onToggleRarity ? (
@@ -133,51 +135,45 @@ export function FilterBar({
                 badge={rarities?.length || undefined}
                 panel={panel}
               >
-                <div className="filter-pop filter-pop--rarity">
+                <Pop data-variant="rarity">
                   {rarityOptions.map(r => (
-                    <label key={r} className="filter-pop__check">
+                    <Check key={r}>
                       <input
                         type="checkbox"
                         checked={rarities?.includes(r) ?? false}
                         onChange={() => onToggleRarity(r)}
                       />
                       <span>{r}</span>
-                    </label>
+                    </Check>
                   ))}
-                </div>
+                </Pop>
               </FilterPanel>
             ) : null}
 
             {renderTrailing?.(panel)}
 
             {anyActive ? (
-              <button
-                className="filterbar__clear"
+              <S.Clear
                 onClick={() => {
                   onClear?.()
                   panel.close()
                 }}
               >
                 {t('filterBar.clearAll')}
-              </button>
+              </S.Clear>
             ) : null}
-          </div>
+          </S.Filters>
         ) : (
-          <div className="browse__dropdowns">
+          <S.Dropdowns>
             {onOpenFilters ? (
-              <button
-                type="button"
-                className="browse__filters-btn"
-                onClick={onOpenFilters}
-                aria-label={t('filterBar.filters')}
-              >
+              <S.FiltersBtn type="button" onClick={onOpenFilters} aria-label={t('filterBar.filters')}>
                 <Icon name="filter" color="var(--text-2)" />
-              </button>
+              </S.FiltersBtn>
             ) : null}
-          </div>
+          </S.Dropdowns>
         )}
 
-        <div className="filterbar__right">
+        <S.Right>
           <Dropdown
             label={t('filterBar.sortBy')}
             ariaLabel={t('filterBar.sortBy')}
@@ -188,8 +184,8 @@ export function FilterBar({
             open={panel.open === 'sort'}
             onOpenChange={next => (next ? panel.toggle('sort') : panel.close())}
           />
-        </div>
-      </div>
+        </S.Right>
+      </S.Toolbar>
     </>
   )
 }

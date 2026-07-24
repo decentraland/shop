@@ -19,6 +19,7 @@ import { shortAddress } from '~/lib/address'
 import { t } from '~/intl/i18n'
 import { ErrorNotice } from '~/components/ErrorNotice'
 import * as CP from '~/styles/collectionPage.styles'
+import * as FP from '~/styles/filterPop.styles'
 import { Grid } from '~/styles/grid.styles'
 
 const PAGE_SIZE = 48
@@ -190,8 +191,8 @@ export function Creator() {
                 onClear={reset}
                 renderTrailing={panel => (
                   <FilterPanel panelKey="price" label={priceLabel} active={priceActive} panel={panel}>
-                    <div className="filter-pop filter-pop--price">
-                      <div className="filter-pop__price-row">
+                    <FP.Pop data-variant="price">
+                      <FP.PriceRow>
                         <input
                           type="number"
                           min="0"
@@ -209,9 +210,9 @@ export function Creator() {
                           value={priceMax}
                           onChange={e => setPriceMax(e.target.value)}
                         />
-                      </div>
-                      <p className="filter-pop__hint">{t('creator.priceHint', { currency: CURRENCY.name })}</p>
-                    </div>
+                      </FP.PriceRow>
+                      <FP.Hint>{t('creator.priceHint', { currency: CURRENCY.name })}</FP.Hint>
+                    </FP.Pop>
                   </FilterPanel>
                 )}
               />
