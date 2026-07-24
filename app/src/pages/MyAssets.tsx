@@ -105,11 +105,15 @@ function assetToItem(a: MyAsset, sale?: { priceCredits: number; tradeId: string 
 
 // Created collection item (primary) → CatalogItem (itemId = on-chain blockchain item id). `price` is
 // the listed credit price when the item is currently on sale.
-function publishableToItem(p: PublishableItem, price = 0): CatalogItem {
+// `creator` is the connected user's address: My Creations only ever lists items the user made
+// (fetchPublishableItems is scoped to them), and the item-detail page relies on `creator === you` to
+// recognize you as the creator and offer "Put up for sale" (isOwnListing). Passing '' left the detail
+// page treating you as a stranger, so the publish CTA never showed after MANAGE.
+function publishableToItem(p: PublishableItem, price = 0, creator = ''): CatalogItem {
   return {
     id: `${p.contractAddress}-${p.blockchainItemId}`,
     name: p.name,
-    creator: '',
+    creator,
     contractAddress: p.contractAddress,
     itemId: p.blockchainItemId,
     category: p.category,
@@ -511,7 +515,7 @@ export function MyAssets() {
                     // longer happens inline from the My Creations card.
                     <AssetCard
                       key={`${item.contractAddress}-${item.blockchainItemId}`}
-                      item={publishableToItem(item, sale?.priceCredits ?? 0)}
+                      item={publishableToItem(item, sale?.priceCredits ?? 0, address ?? '')}
                       mode="manage-link"
                     />
                   )
