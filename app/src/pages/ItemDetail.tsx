@@ -29,6 +29,7 @@ import { BuyModal } from '~/components/BuyModal'
 import { SellModal } from '~/components/SellModal'
 import { TransferModal } from '~/components/TransferModal'
 import { PrimaryListModal } from '~/components/PrimaryListModal'
+import { IssueModal } from '~/components/IssueModal'
 import { MarketCheckout } from '~/components/MarketCheckout'
 import { toast } from '~/store/toast'
 import { captureError } from '~/lib/monitoring'
@@ -801,6 +802,8 @@ export function ItemDetail() {
   const [showSell, setShowSell] = useState(false)
   const [showPrimary, setShowPrimary] = useState(false)
   const [showTransfer, setShowTransfer] = useState(false)
+  // Creator "Issue copies" modal — assign fresh copies of your own published item to wallets (gasless).
+  const [showIssue, setShowIssue] = useState(false)
   // Optimistic just-listed price: the owned-token feed lags a moment behind a fresh (re)list, so show the
   // price the SellModal just submitted immediately, then let the authoritative ownedAsset refetch take
   // over (cleared below once it reports the matching listing). Bridges the MV lag on the Edit-price flow.
@@ -1506,6 +1509,14 @@ export function ItemDetail() {
                             ) : null}
                           </>
                         )}
+                        {/* Issue copies (creator only): assign fresh mints of your own published item to
+                        wallets. Shown alongside the primary CTAs whenever this item is still mintable
+                        (published + remaining supply > 0 → publishableItem is present). Gasless. */}
+                        {manageAsPrimary && publishableItem ? (
+                          <OutlineCta onClick={() => setShowIssue(true)} disabled={managing !== null}>
+                            <span className="item-detail__cta-label">{t('itemDetail.manageIssue')}</span>
+                          </OutlineCta>
+                        ) : null}
                         {managing === 'update' ? (
                           // Only note kept in the manage view: explain the two-step nature while the
                           // current listing is being taken down. The "manage it in My Assets" note was
@@ -1683,6 +1694,23 @@ export function ItemDetail() {
       ) : null}
       {showPrimary && publishableItem && session ? (
         <PrimaryListModal item={publishableItem} session={session} onClose={closeManageModal} />
+      ) : null}
+      {showIssue && publishableItem && session ? (
+        <IssueModal
+          item={{
+            contractAddress: publishableItem.contractAddress,
+            chainId: config.chainId,
+            itemId: publishableItem.blockchainItemId,
+            name: publishableItem.name,
+            thumbnail: publishableItem.thumbnail,
+            available: publishableItem.remainingSupply
+          }}
+          session={session}
+          onClose={() => {
+            setShowIssue(false)
+            void refreshManage()
+          }}
+        />
       ) : null}
     </div>
   )

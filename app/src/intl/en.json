@@ -332,6 +332,7 @@
     "ownItemSuffix": ".",
     "manageList": "Put up for sale",
     "manageTransfer": "Transfer",
+    "manageIssue": "Issue copies",
     "manageUpdatePrice": "Edit price",
     "manageRemove": "Remove from sale",
     "manageWorking": "Working…",
@@ -357,6 +358,24 @@
     "toastSuccess": "“{name}” was transferred.",
     "successBody": "“{name}” is on its way to the new owner.",
     "errorGeneric": "Couldn't transfer your item — please try again."
+  },
+  "issue": {
+    "title": "Issue copies",
+    "subtitle": "Send fresh copies of this item to any wallet. Add a row for each recipient.",
+    "addressLabel": "Wallet address",
+    "amountLabel": "Amount",
+    "invalidAddress": "Enter a valid wallet address (0x…).",
+    "addRow": "Add recipient",
+    "removeRow": "Remove recipient",
+    "itemsToIssue": "copies to issue",
+    "overCap": "You can issue at most {available} more copies of this item.",
+    "issue": "Issue",
+    "issueCount": "Issue {count} {count, plural, one {copy} other {copies}}",
+    "confirm": "Confirm",
+    "issuing": "Issuing…",
+    "toastSuccess": "Issued {count} {count, plural, one {copy} other {copies}} of “{name}”.",
+    "successBody": "Issued {count} {count, plural, one {copy} other {copies}} of “{name}”.",
+    "errorGeneric": "Couldn't issue your copies — please try again."
   },
   "resales": {
     "title": "Resellers",

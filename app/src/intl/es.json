@@ -331,6 +331,7 @@
     "ownItemSuffix": ".",
     "manageList": "Poner a la venta",
     "manageTransfer": "Transferir",
+    "manageIssue": "Emitir copias",
     "manageUpdatePrice": "Editar precio",
     "manageRemove": "Quitar de la venta",
     "manageWorking": "Procesando…",
@@ -356,6 +357,24 @@
     "toastSuccess": "«{name}» fue transferido.",
     "successBody": "«{name}» está en camino al nuevo propietario.",
     "errorGeneric": "No se pudo transferir tu artículo. Inténtalo de nuevo."
+  },
+  "issue": {
+    "title": "Emitir copias",
+    "subtitle": "Envía copias nuevas de este artículo a cualquier billetera. Añade una fila por destinatario.",
+    "addressLabel": "Dirección de billetera",
+    "amountLabel": "Cantidad",
+    "invalidAddress": "Introduce una dirección de billetera válida (0x…).",
+    "addRow": "Añadir destinatario",
+    "removeRow": "Quitar destinatario",
+    "itemsToIssue": "copias a emitir",
+    "overCap": "Puedes emitir como máximo {available} copias más de este artículo.",
+    "issue": "Emitir",
+    "issueCount": "Emitir {count} {count, plural, one {copia} other {copias}}",
+    "confirm": "Confirmar",
+    "issuing": "Emitiendo…",
+    "toastSuccess": "Se {count, plural, one {emitió} other {emitieron}} {count} {count, plural, one {copia} other {copias}} de «{name}».",
+    "successBody": "Se {count, plural, one {emitió} other {emitieron}} {count} {count, plural, one {copia} other {copias}} de «{name}».",
+    "errorGeneric": "No se pudieron emitir tus copias. Inténtalo de nuevo."
   },
   "resales": {
     "title": "Revendedores",
