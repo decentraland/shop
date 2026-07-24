@@ -248,4 +248,25 @@ describe('initAnalytics', () => {
     expect(appendChild).not.toHaveBeenCalled()
     appendChild.mockRestore()
   })
+
+  it('loads the Segment script (positive path) when a write key IS present', async () => {
+    // The other tests exercise the empty-key path (test env blanks the key). Here we force a key via
+    // a scoped config mock + a fresh module import so `initialized` is reset, and assert the loader runs.
+    vi.resetModules()
+    vi.doMock('~/config', () => ({
+      config: { segmentWriteKey: 'wk_test', chainId: 80002, network: 'polygon', appEnv: 'test' }
+    }))
+    const appendChild = vi.spyOn(document.head, 'appendChild').mockImplementation((n) => n as never)
+
+    const mod = await import('./analytics')
+    mod.initAnalytics()
+
+    expect(appendChild).toHaveBeenCalledTimes(1)
+    expect((window as unknown as { analytics?: unknown }).analytics).toBeDefined()
+
+    appendChild.mockRestore()
+    vi.doUnmock('~/config')
+    vi.resetModules()
+    ;(window as unknown as { analytics?: unknown }).analytics = undefined
+  })
 })
