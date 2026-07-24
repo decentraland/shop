@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { NavLink, useNavigate, useSearchParams, useLocation } from 'react-router-dom'
+import { Experimental_CssVarsProvider as CssVarsProvider } from '@mui/material/styles'
+import { light as ui2Light } from 'decentraland-ui2/dist/theme'
 import { Icon } from '~/components/Icon'
 import { TopNav } from '~/components/TopNav'
 import { useWallet } from '~/store/wallet'
@@ -19,9 +21,13 @@ import type { CollectionHit, CreatorHit } from '~/lib/search'
 import { t } from '~/intl/i18n'
 import CloseIcon from '@mui/icons-material/CloseRounded'
 
-// Notifications bell (ui2 Notifications feature) is temporarily NOT mounted — see the notificationSlot
-// TODO in the render. `components/NotificationsBell.tsx` + `lib/notifications.ts` are kept for the
-// follow-up (they need a MUI ThemeProvider + the notifications-server URL wired before re-enabling).
+// The ui2 Notifications feature is MUI-based (it reads `theme.breakpoints`/palette from a MUI theme
+// context), while the shop styles with emotion + its own tokens and mounts no MUI provider. So the
+// bell is lazy-loaded (the heavy ui2 feature only when signed in) and wrapped in a scoped MUI
+// CssVarsProvider carrying ui2's own theme — NOT ui2's ThemeProvider, which also injects a global
+// CssBaseline reset that would clobber the shop's styles. The provider only defines namespaced
+// `--mui-*` vars, so it doesn't leak into the rest of the app.
+const NotificationsBell = lazy(() => import('~/components/NotificationsBell'))
 
 export function NavBar() {
   const { session, connecting, signIn, disconnect, restore } = useWallet()
@@ -171,11 +177,15 @@ export function NavBar() {
         avatar={avatar}
         onClickSignIn={() => signIn()}
         onClickSignOut={() => void disconnect()}
-        // TODO(notifications): the ui2 Notifications feature is MUI-based and reads `theme.breakpoints.down`
-        // from a MUI ThemeProvider the shop doesn't mount (we use emotion + our own theme), so rendering it
-        // here throws "Cannot read properties of undefined (reading 'down')" and white-screens the whole app.
-        // Disabled until the bell is wrapped in the proper ui2/MUI ThemeProvider (and the notifications-server
-        // URL is wired via config). NotificationsBell.tsx + lib/notifications.ts are kept for that follow-up.
+        notificationSlot={
+          session ? (
+            <CssVarsProvider theme={ui2Light} defaultMode="light">
+              <Suspense fallback={null}>
+                <NotificationsBell />
+              </Suspense>
+            </CssVarsProvider>
+          ) : undefined
+        }
       />
 
       {/* Shop sub-nav (sections + search + cart) — the row under the global DCL navbar. */}

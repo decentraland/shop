@@ -1237,9 +1237,10 @@ export function ItemDetail() {
                     {gender}
                   </span>
                 ) : null}
-                {/* Which specific copy this is (secondary token only) — the mint index, so an owner
-                    managing one of several identical copies knows exactly which token they're on. */}
-                {current.issuedId ? (
+                {/* Which specific copy this is (the mint index). Only shown when the title itself
+                    doesn't already carry it: on the /token route the heading is "Name #N", so the
+                    chip would be redundant — it's kept only for the generic /item view. */}
+                {!isTokenRoute && current.issuedId ? (
                   <span className="chip item-detail__chip" data-testid="detail-issued">
                     #{current.issuedId}
                   </span>
@@ -1418,13 +1419,11 @@ export function ItemDetail() {
                               <CurrencyIcon className="item-detail__diamond" />
                               <span className="item-detail__price-value">{managePriceCredits}</span>
                             </div>
-                          ) : manage ? (
-                            // Owner/creator viewing their own UNLISTED item: the manage CTAs below (Put up
-                            // for sale / Transfer) already convey the state, so the redundant "Not for sale"
-                            // label is hidden here. It stays for the NON-owner public view, where it's the
-                            // only signal the item can't be bought.
-                            null
-                          ) : (
+                          ) : manage ? // Owner/creator viewing their own UNLISTED item: the manage CTAs below (Put up
+                          // for sale / Transfer) already convey the state, so the redundant "Not for sale"
+                          // label is hidden here. It stays for the NON-owner public view, where it's the
+                          // only signal the item can't be bought.
+                          null : (
                             <div className="item-detail__price item-detail__price--none">
                               <span>{t('itemDetail.notForSale')}</span>
                               <Tooltip content={t('itemDetail.notForSaleHint')}>

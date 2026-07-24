@@ -6,23 +6,19 @@ import { config } from '~/config'
 // ---------------------------------------------------------------------------
 // DCL push-notifications service client (address/identity-based, ADR-44 signed-fetch).
 //
-// The shop's per-env config JSONs don't (yet) carry a NOTIFICATIONS_SERVER_URL, so the host is derived
-// from the committed Sentry environment tag — the one client-safe env signal already in config — with a
-// VITE override for local stacks. This is the documented gap for full wiring: promote the URL to the
-// config JSONs (see the PR notes). The service response shape is exactly ui2's DCLNotificationProps
-// (`{ id, type, address, timestamp, read, created_at, updated_at, metadata }`), so no mapping is needed.
+// Host comes from the per-env config (NOTIFICATIONS_SERVER_URL — notifications.decentraland.zone on
+// dev/stg, .org on prod), the same service the marketplace uses; a VITE_NOTIFICATIONS_SERVER_URL
+// override (handled in config) points at a local stack. The service response shape is exactly ui2's
+// DCLNotificationProps (`{ id, type, address, timestamp, read, created_at, updated_at, metadata }`),
+// so no mapping is needed.
 //
 // Every call degrades gracefully: on any non-OK / network / auth error the fetch resolves to an empty
 // list and mark-read resolves silently, so the navbar bell renders (empty) instead of throwing.
 // ---------------------------------------------------------------------------
 
 function notificationsBaseUrl(): string | null {
-  const override = import.meta.env.VITE_NOTIFICATIONS_SERVER_URL
-  if (override) return override.replace(/\/+$/, '')
-  // 'development' | 'staging' | 'production' → prod hits .org, everything else the .zone stack.
-  return config.sentryEnvironment === 'production'
-    ? 'https://notifications.decentraland.org'
-    : 'https://notifications.decentraland.zone'
+  const base = config.notificationsServerUrl
+  return base ? base.replace(/\/+$/, '') : null
 }
 
 // The connected user's notifications, newest first. Signed-fetch: the service authorizes the caller as
