@@ -654,9 +654,15 @@ export const Status = styled.p`
   }
 `
 
+// "This is your item" note shown instead of the buy CTAs — a bordered card, not bare text.
 export const OwnNote = styled.p`
   margin: 0;
   font-size: 14px;
+  padding: 16px;
+  border: 1px solid ${colors.line};
+  border-radius: ${radius.card};
+  background: #fff;
+  color: ${colors.muted};
 
   & a {
     color: ${colors.accent};

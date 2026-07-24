@@ -137,30 +137,6 @@ h2 {
 
 /* Buttons live in the `Button` component (components/Button) — styled, variants on data-*. */
 
-/* ---------------- Hero / banner ---------------- */
-.hero {
-  border-radius: var(--radius-banner);
-  overflow: hidden;
-  margin-bottom: 40px;
-  min-height: 304px;
-  display: flex;
-  align-items: center;
-  background:
-    radial-gradient(120% 120% at 85% 20%, rgba(163, 255, 60, 0.35), transparent 45%),
-    linear-gradient(120deg, #14161b 0%, #23262e 60%, #14161b 100%);
-}
-.hero__inner {
-  padding: 0 56px;
-}
-.hero__title {
-  color: #fff;
-  font-size: clamp(28px, 4vw, 36px);
-  font-weight: 700;
-  text-transform: uppercase;
-  line-height: 1.235;
-  margin-bottom: 22px;
-}
-
 /* ---------------- Assets (sidebar + grid) ---------------- */
 .assets__count {
   color: var(--muted);
@@ -208,24 +184,6 @@ h2 {
   }
 }
 
-/* Merchandising price treatment (bundles / discounts): strikethrough "was" + green "Save X%". */
-.price-was {
-  color: var(--muted);
-  text-decoration: line-through;
-  font-weight: 600;
-}
-.save-badge {
-  display: inline-flex;
-  align-items: center;
-  background: rgba(26, 143, 76, 0.12);
-  color: #1a8f4c;
-  font-weight: 700;
-  font-size: 12px;
-  border-radius: 6px;
-  padding: 2px 8px;
-  white-space: nowrap;
-}
-
 /* ---------------- Flash sale (time-boxed discounted listing — see lib/sale.ts) ---------------- */
 /* The card's own sale treatment (.card__sale-badge, .card__price--sale, etc.) lives in
    components/AssetCard/asset-card.css. .sale-countdown is the shared SaleCountdown component. */
@@ -254,145 +212,6 @@ h2 {
   font-size: 18px;
   padding: 60px 0;
 }
-/* Two-column checkout: cart items on the left, a sticky order summary on the right. The
-   "You might also like" row lives outside this grid so it spans the full width below. */
-.cart__body {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
-  gap: 28px;
-  align-items: start;
-  margin: 20px 0;
-}
-.cart__main {
-  min-width: 0;
-}
-.cart__list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin: 0 0 14px;
-}
-.cart__row {
-  display: grid;
-  grid-template-columns: 64px 1fr auto auto;
-  align-items: center;
-  gap: 16px;
-  background: #fff;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 12px 16px;
-}
-.cart__thumb {
-  width: 64px;
-  height: 64px;
-  background: var(--media);
-  border-radius: 8px;
-  overflow: hidden;
-}
-.cart__thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-.cart__name {
-  font-weight: 700;
-}
-.cart__price {
-  font-weight: 800;
-}
-.cart__summary {
-  position: sticky;
-  top: 88px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  background: #fff;
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  padding: 20px;
-}
-.cart__summary-title {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 800;
-}
-.cart__total {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 16px;
-}
-.cart__total-line {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.cart__total strong {
-  font-size: 22px;
-}
-.cart__actions {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.cart__msg {
-  margin: 0;
-  font-size: 13px;
-}
-
-.cart__balance {
-  margin-top: 4px;
-}
-.cart__info {
-  min-width: 0;
-}
-.cart__creator {
-  margin-top: 3px;
-}
-.cart__remove {
-  border: 0;
-  background: none;
-  color: var(--muted-2);
-  cursor: pointer;
-  padding: 8px;
-  border-radius: 8px;
-  display: grid;
-  place-items: center;
-  transition:
-    color 0.12s ease,
-    background 0.12s ease;
-}
-.cart__remove:hover:not(:disabled) {
-  color: var(--dcl-red);
-  background: rgba(255, 45, 85, 0.1);
-}
-.cart__remove:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-/* Utility actions (Clear / dev) kept as subtle links below the primary action row. */
-.cart__utils {
-  display: flex;
-  gap: 20px;
-  margin-top: 14px;
-}
-/* Below the two-column breakpoint the summary drops under the items and stops sticking. */
-@media (max-width: 880px) {
-  .cart__body {
-    grid-template-columns: 1fr;
-  }
-  .cart__summary {
-    position: static;
-  }
-}
-.cart__utils .link {
-  font-size: 13px;
-  color: var(--muted);
-  font-weight: 600;
-}
-.cart__utils .link:hover:not(:disabled) {
-  color: var(--text);
-}
 
 /* Shared content-shaped skeleton: same shimmer as .card--skeleton, for non-card placeholders
    (balance chip, item-detail info column, …). Pair sized modifiers with it. */
@@ -408,34 +227,8 @@ h2 {
   }
 }
 
-/* ---------------------------------------------------------------------------
-   T2 — cart popover (auto-opens on add)  +  T3 — checkout upsell
---------------------------------------------------------------------------- */
-.cart-pop {
-  position: absolute;
-  top: calc(100% + 12px);
-  right: 0;
-  z-index: 60;
-  width: 320px;
-  background: #fff;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-card, 12px);
-  box-shadow: 0 14px 36px rgba(20, 20, 30, 0.18);
-  padding: 14px;
-  animation: cart-pop-in 0.18s ease;
-}
-.cart-pop::before {
-  content: "";
-  position: absolute;
-  top: -6px;
-  right: 14px;
-  width: 12px;
-  height: 12px;
-  background: #fff;
-  border-left: 1px solid var(--line);
-  border-top: 1px solid var(--line);
-  transform: rotate(45deg);
-}
+/* Shared pop-in used by several popovers/menus/modals (Dropdown, FittingRoom, BuyModal, filter/market
+   popovers) — referenced by name from their styled defs. */
 @keyframes cart-pop-in {
   from {
     opacity: 0;
@@ -445,62 +238,6 @@ h2 {
     opacity: 1;
     transform: none;
   }
-}
-.cart-pop__head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 700;
-  font-size: 14px;
-  margin-bottom: 12px;
-}
-.cart-pop__list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  max-height: 264px;
-  overflow-y: auto;
-}
-.cart-pop__row {
-  display: grid;
-  grid-template-columns: 40px 1fr auto;
-  gap: 10px;
-  align-items: center;
-}
-.cart-pop__thumb {
-  width: 40px;
-  height: 40px;
-  border-radius: 8px;
-  background: var(--media);
-  overflow: hidden;
-}
-.cart-pop__thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.cart-pop__name {
-  font-size: 13px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.cart-pop__price {
-  font-size: 13px;
-  font-weight: 700;
-}
-.cart-pop__foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid var(--line);
-}
-.cart-pop__total {
-  font-size: 13px;
-  color: var(--muted);
 }
 
 /* ---------------- Search autocomplete ---------------- */
@@ -717,53 +454,6 @@ h2 {
   color: var(--text);
 }
 
-.cart-upsell {
-  margin-top: 44px;
-}
-.cart-upsell__title {
-  font-size: 18px;
-  font-weight: 700;
-  margin-bottom: 14px;
-}
-.cart-upsell__row {
-  display: flex;
-  gap: 14px;
-  overflow-x: auto;
-  padding-bottom: 6px;
-}
-.cart-upsell__card {
-  flex: 0 0 150px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-card, 12px);
-  padding: 10px;
-}
-.cart-upsell__thumb {
-  aspect-ratio: 1 / 1;
-  background: var(--media);
-  border-radius: 8px;
-  overflow: hidden;
-  margin-bottom: 8px;
-}
-.cart-upsell__thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.cart-upsell__name {
-  font-size: 13px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.cart-upsell__price {
-  font-size: 14px;
-  font-weight: 700;
-  margin: 4px 0 8px;
-}
-.cart-upsell__add {
-  width: 100%;
-}
-
 /* Empty states (overview + cart) */
 .overview__empty {
   display: flex;
@@ -796,80 +486,7 @@ h2 {
   margin: 6px 0 0;
 }
 
-/* ---------------------------------------------------------------------------
-   Group A — Assets filters + sort, My Favorites
---------------------------------------------------------------------------- */
-.filters__panel-title {
-  font-weight: 700;
-  font-size: 14px;
-  margin: 0 2px 10px;
-}
-.filters__sub {
-  list-style: none;
-  margin: 0 0 8px;
-  padding: 0 4px;
-}
-.filters__sub-item {
-  background: none;
-  border: 0;
-  padding: 7px 8px;
-  color: #555;
-  font-size: 14px;
-  text-align: left;
-  width: 100%;
-  border-radius: 6px;
-  cursor: pointer;
-}
-.filters__sub-item:hover {
-  background: rgba(0, 0, 0, 0.04);
-}
-.filters__sub-item.is-active {
-  color: var(--accent);
-  font-weight: 700;
-  background: var(--rarity-bg);
-}
-.filters__rarities {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.rarity-pill {
-  text-transform: capitalize;
-  font-size: 12px;
-  font-weight: 600;
-  padding: 5px 11px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: #fff;
-  color: var(--muted);
-  cursor: pointer;
-}
-.rarity-pill.is-on {
-  background: var(--rarity-bg);
-  color: var(--accent);
-  border-color: transparent;
-}
-.filters__price-inputs {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.filters__price-inputs input {
-  width: 100%;
-  border: 1px solid var(--line-strong);
-  border-radius: 8px;
-  padding: 8px 10px;
-  font-size: 14px;
-}
-.filters__price-inputs input::-webkit-outer-spin-button,
-.filters__price-inputs input::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-.toggle.is-on {
-  background: var(--accent);
-}
-
+/* ---------------- My Favorites ---------------- */
 .favorites__head {
   display: flex;
   align-items: baseline;
@@ -893,27 +510,4 @@ h2 {
   font-size: 22px;
   font-weight: 700;
   margin: 6px 0 0;
-}
-
-/* ---------------- Cart popover actions (try-on + checkout) ---------------- */
-.cart-pop__actions {
-  display: flex;
-  gap: 8px;
-}
-
-/* ---------------- Sidebar: category filter + price range (Figma "Marketplace-UX-Improvements") ---- */
-/* Section label above each sidebar group: Inter 12px, UPPERCASE, tracked, soft-black. */
-
-/* "This is your item" note on the PDP — a bordered card, not bare text (Figma). */
-.item-detail__own-note {
-  margin: 0;
-  padding: 16px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-card, 12px);
-  background: var(--surface, #fff);
-  color: var(--muted);
-}
-.item-detail__own-note a {
-  color: var(--accent, #691fa9);
-  font-weight: 600;
 }
