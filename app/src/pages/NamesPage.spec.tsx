@@ -79,7 +79,8 @@ describe('NamesPage', () => {
   it('should show the "why buy a NAME?" info section', () => {
     renderPage()
     expect(screen.getByRole('heading', { name: 'Why buy a NAME?' })).toBeInTheDocument()
-    expect(screen.getByText('Stand out with a unique alias for your Avatar')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Own your identity' })).toBeInTheDocument()
+    expect(screen.getByText('Stand out with a unique NAME that is unmistakably yours.')).toBeInTheDocument()
   })
 
   it('should hint the minimum length while the name is too short', async () => {
