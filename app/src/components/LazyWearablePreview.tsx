@@ -18,12 +18,16 @@ type Props = ComponentProps<typeof WearablePreviewComponent> & {
   onRenderer?: (renderer: PreviewRenderer) => void
 }
 
-// Resolves the mount renderer decision (final for the component's life): tracks a Babylon fallback once —
-// except the by-design, high-volume mobile case — and returns whether to attempt Unity.
+// Reasons that are NOT capability fallbacks and would just spam analytics: the by-design, high-volume
+// mobile case and the intentional Babylon kill-switch default (Unity off everywhere until aang perf caps ship).
+const UNTRACKED_FALLBACK_REASONS = new Set(['mobile', 'default-babylon'])
+
+// Resolves the mount renderer decision (final for the component's life): tracks a real Babylon capability
+// fallback once (see UNTRACKED_FALLBACK_REASONS for the excluded cases) and returns whether to attempt Unity.
 function resolveUnityRenderer(unity: boolean, id?: string): boolean {
   if (!unity) return false
   const decision = pickRenderer()
-  if (decision.renderer === PreviewRenderer.BABYLON && decision.reason !== 'mobile') {
+  if (decision.renderer === PreviewRenderer.BABYLON && !UNTRACKED_FALLBACK_REASONS.has(decision.reason)) {
     track('Shop Preview Renderer Fallback', { reason: decision.reason, preview_id: id ?? null })
   }
   return decision.renderer === PreviewRenderer.UNITY

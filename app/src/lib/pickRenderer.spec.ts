@@ -29,17 +29,32 @@ function setMobileViewport(isMobile: boolean) {
   })
 }
 
+function setDevicePixelRatio(dpr: number | undefined) {
+  Object.defineProperty(window, 'devicePixelRatio', { value: dpr, configurable: true })
+}
+
+function setHardwareConcurrency(cores: number | undefined) {
+  Object.defineProperty(navigator, 'hardwareConcurrency', { value: cores, configurable: true })
+}
+
 beforeEach(() => {
   setMobileViewport(false)
   setDeviceMemory(8)
+  // A standard (non-hi-DPI) desktop with plenty of cores — the GPU/DPR gate stays out of the way
+  // unless a test opts into a hi-DPI + low-core combo.
+  setDevicePixelRatio(1)
+  setHardwareConcurrency(16)
   setResources([])
 })
 
 afterEach(() => {
   vi.restoreAllMocks()
+  vi.unstubAllEnvs()
   delete (navigator as { connection?: unknown }).connection
   delete (navigator as { deviceMemory?: unknown }).deviceMemory
+  delete (navigator as { hardwareConcurrency?: unknown }).hardwareConcurrency
   delete (window as { matchMedia?: unknown }).matchMedia
+  delete (window as { devicePixelRatio?: unknown }).devicePixelRatio
 })
 
 describe('pickRenderer', () => {
@@ -100,9 +115,44 @@ describe('pickRenderer', () => {
     expect(pickRenderer().renderer).toBe(PreviewRenderer.UNITY)
   })
 
-  describe('env override', () => {
-    afterEach(() => vi.unstubAllEnvs())
+  describe('GPU/DPR gate', () => {
+    it('degrades to Babylon on a hi-DPI screen with a modest core count', () => {
+      setMeasuredMbps(100)
+      setDevicePixelRatio(2)
+      setHardwareConcurrency(4)
+      expect(pickRenderer()).toEqual({ renderer: PreviewRenderer.BABYLON, reason: 'gpu-capability' })
+    })
 
+    it('keeps Unity on a hi-DPI screen backed by plenty of cores', () => {
+      setMeasuredMbps(100)
+      setDevicePixelRatio(3)
+      setHardwareConcurrency(16)
+      expect(pickRenderer().renderer).toBe(PreviewRenderer.UNITY)
+    })
+
+    it('keeps Unity on a standard-DPI screen even with a modest core count', () => {
+      setMeasuredMbps(100)
+      setDevicePixelRatio(1)
+      setHardwareConcurrency(4)
+      expect(pickRenderer().renderer).toBe(PreviewRenderer.UNITY)
+    })
+
+    it('does not disqualify when devicePixelRatio is unavailable', () => {
+      setMeasuredMbps(100)
+      setDevicePixelRatio(undefined)
+      setHardwareConcurrency(4)
+      expect(pickRenderer().renderer).toBe(PreviewRenderer.UNITY)
+    })
+
+    it('does not disqualify when hardwareConcurrency is unavailable', () => {
+      setMeasuredMbps(100)
+      setDevicePixelRatio(3)
+      setHardwareConcurrency(undefined)
+      expect(pickRenderer().renderer).toBe(PreviewRenderer.UNITY)
+    })
+  })
+
+  describe('env override', () => {
     it('forces Babylon when VITE_PREVIEW_RENDERER=babylon, ignoring a fast desktop link', () => {
       vi.stubEnv('VITE_PREVIEW_RENDERER', 'babylon')
       setMeasuredMbps(100)
@@ -113,8 +163,31 @@ describe('pickRenderer', () => {
     it('leaves the device/connection logic intact when the override is unset', () => {
       setMeasuredMbps(100)
       setDeviceMemory(16)
-      // MODE is 'test' here, so the dev-default does not kick in — the real logic still runs.
+      // MODE is 'test' here, so the production default does not kick in — the real logic still runs.
       expect(pickRenderer().renderer).toBe(PreviewRenderer.UNITY)
+    })
+  })
+
+  describe('production default (kill switch)', () => {
+    it('defaults to Babylon in a non-test build when the override is unset', () => {
+      vi.stubEnv('MODE', 'production')
+      setMeasuredMbps(100)
+      setDeviceMemory(16)
+      expect(pickRenderer()).toEqual({ renderer: PreviewRenderer.BABYLON, reason: 'default-babylon' })
+    })
+
+    it('opts back into the device/connection heuristic when VITE_PREVIEW_RENDERER=unity', () => {
+      vi.stubEnv('MODE', 'production')
+      vi.stubEnv('VITE_PREVIEW_RENDERER', 'unity')
+      setMeasuredMbps(100)
+      setDeviceMemory(16)
+      expect(pickRenderer().renderer).toBe(PreviewRenderer.UNITY)
+    })
+
+    it('still honours VITE_PREVIEW_RENDERER=babylon in a non-test build', () => {
+      vi.stubEnv('MODE', 'production')
+      vi.stubEnv('VITE_PREVIEW_RENDERER', 'babylon')
+      expect(pickRenderer()).toEqual({ renderer: PreviewRenderer.BABYLON, reason: 'env-override' })
     })
   })
 })

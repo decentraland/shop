@@ -8,6 +8,12 @@ export const UNITY_MIN_MBPS = 10
 export const UNITY_MIN_DOWNLINK_MBPS = 4
 export const UNITY_MIN_DEVICE_MEMORY = 4 // in GB
 
+// A hi-DPI screen renders Unity at full devicePixelRatio (there's no DPR cap yet), which is GPU-heavy.
+// Pair a high DPR with a modest logical-core count as a proxy for a mid-tier integrated/mobile GPU and
+// fall back to Babylon — so a Retina/4K laptop with a middling GPU doesn't get full-DPR Unity.
+export const UNITY_MIN_DPR = 2
+export const UNITY_HIDPI_MIN_HW_CONCURRENCY = 8 // need at least this many cores to pair with a hi-DPI screen
+
 // Transfers smaller than this are dominated by latency/slow-start and skew the throughput estimate.
 const MIN_SAMPLE_BYTES = 30_000
 
@@ -16,10 +22,11 @@ export type RendererReason =
   | 'save-data'
   | 'slow-connection'
   | 'low-device-memory'
+  | 'gpu-capability'
   | 'connection-ok'
   | 'optimistic-default'
   | 'env-override'
-  | 'dev-default'
+  | 'default-babylon'
 
 export type RendererDecision = { renderer: PreviewRenderer; reason: RendererReason }
 
@@ -41,6 +48,22 @@ function connection(): NavigatorConnection | undefined {
 function deviceMemory(): number | undefined {
   if (typeof navigator === 'undefined') return undefined
   return (navigator as unknown as { deviceMemory?: number }).deviceMemory
+}
+
+/**
+ * Logical CPU cores, if reported. A coarse GPU-tier proxy (paired with devicePixelRatio below).
+ */
+function hardwareConcurrency(): number | undefined {
+  if (typeof navigator === 'undefined') return undefined
+  return (navigator as unknown as { hardwareConcurrency?: number }).hardwareConcurrency
+}
+
+/**
+ * The device pixel ratio, if available. Higher means more pixels for Unity to render each frame.
+ */
+function devicePixelRatio(): number | undefined {
+  if (typeof window === 'undefined') return undefined
+  return typeof window.devicePixelRatio === 'number' ? window.devicePixelRatio : undefined
 }
 
 // theme.ts `mobile` = 768px; Unity's heavier runtime is reserved for wider (desktop) viewports.
@@ -71,14 +94,18 @@ function measuredMbps(): number | null {
 export function pickRenderer(): RendererDecision {
   const babylon = (reason: RendererReason): RendererDecision => ({ renderer: PreviewRenderer.BABYLON, reason })
 
-  // Renderer override (local .env): the Unity runtime pegs GPU/CPU and makes local dev painful, so a
-  // developer can force the lightweight Babylon preview. `VITE_PREVIEW_RENDERER=babylon` forces Babylon
-  // everywhere; in local `vite dev` we DEFAULT to Babylon (don't load the heavy Unity bundle) unless the
-  // dev opts back in with `VITE_PREVIEW_RENDERER=unity`. Mode-gated so unit tests still exercise the
-  // real device/connection logic below. Production is unaffected (unless the env explicitly forces it).
+  // Code-level kill switch. The Unity/aang runtime currently pegs GPU/CPU on the PDP (full
+  // devicePixelRatio, uncapped framerate, no off-screen pause) so we DEFAULT to the lightweight Babylon
+  // preview in ALL environments (dev + production) until the aang-renderer perf caps ship.
+  // `VITE_PREVIEW_RENDERER=babylon` forces Babylon regardless; `VITE_PREVIEW_RENDERER=unity` opts back
+  // into the device/connection heuristic below (per-build Unity re-enable). Mode-gated so unit tests
+  // still exercise the real heuristic.
+  // TODO(follow-up): promote this to a RUNTIME per-env config knob (ui-env JSON) so Unity can be flipped
+  // on/off per environment without a rebuild. Deferred here on purpose — it's blocked on in-flight
+  // changes to `config/*` owned by other work; do not couple this switch to those files yet.
   const forced = import.meta.env.VITE_PREVIEW_RENDERER as string | undefined
   if (forced === 'babylon') return babylon('env-override')
-  if (import.meta.env.MODE !== 'test' && import.meta.env.DEV && forced !== 'unity') return babylon('dev-default')
+  if (import.meta.env.MODE !== 'test' && forced !== 'unity') return babylon('default-babylon')
 
   if (isMobile()) return babylon('mobile')
 
@@ -95,6 +122,15 @@ export function pickRenderer(): RendererDecision {
 
   const mem = deviceMemory()
   if (mem !== undefined && mem < UNITY_MIN_DEVICE_MEMORY) return babylon('low-device-memory')
+
+  // GPU/DPR gate: a hi-DPI screen (≥ 2x) paired with a modest core count is a good proxy for a mid-tier
+  // GPU that would struggle to drive full-DPR Unity. Only disqualifies when BOTH signals are known —
+  // an unknown DPR or core count stays optimistic (like deviceMemory above).
+  const dpr = devicePixelRatio()
+  const cores = hardwareConcurrency()
+  if (dpr !== undefined && dpr >= UNITY_MIN_DPR && cores !== undefined && cores < UNITY_HIDPI_MIN_HW_CONCURRENCY) {
+    return babylon('gpu-capability')
+  }
 
   const hasReading = measured !== null || typeof downlink === 'number'
   return { renderer: PreviewRenderer.UNITY, reason: hasReading ? 'connection-ok' : 'optimistic-default' }
