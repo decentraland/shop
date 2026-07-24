@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { NavLink, useNavigate, useSearchParams, useLocation } from 'react-router-dom'
+import * as Sentry from '@sentry/react'
 import { Experimental_CssVarsProvider as CssVarsProvider } from '@mui/material/styles'
 import { light as ui2Light } from 'decentraland-ui2/dist/theme'
 import { Icon } from '~/components/Icon'
@@ -179,11 +180,16 @@ export function NavBar() {
         onClickSignOut={() => void disconnect()}
         notificationSlot={
           session ? (
-            <CssVarsProvider theme={ui2Light} defaultMode="light">
-              <Suspense fallback={null}>
-                <NotificationsBell />
-              </Suspense>
-            </CssVarsProvider>
+            // The ui2 Notifications feature can throw while rendering (e.g. a notification with an
+            // unparseable date → formatDistanceToNow "Invalid time value"). Isolate it so a bad item
+            // renders nothing instead of white-screening the whole navbar/app.
+            <Sentry.ErrorBoundary fallback={<></>}>
+              <CssVarsProvider theme={ui2Light} defaultMode="light">
+                <Suspense fallback={null}>
+                  <NotificationsBell />
+                </Suspense>
+              </CssVarsProvider>
+            </Sentry.ErrorBoundary>
           ) : undefined
         }
       />

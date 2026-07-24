@@ -21,6 +21,22 @@ function notificationsBaseUrl(): string | null {
   return base ? base.replace(/\/+$/, '') : null
 }
 
+// Coerce a notification date field to a valid epoch-ms number, or null if it can't be. Accepts ms/sec
+// numbers (values below ~1e12 are treated as seconds), numeric strings, and ISO/date strings.
+function toMillis(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const ms = value < 1e12 ? value * 1000 : value
+    return Number.isNaN(new Date(ms).getTime()) ? null : ms
+  }
+  if (typeof value === 'string' && value.trim() !== '') {
+    const asNum = Number(value)
+    if (Number.isFinite(asNum)) return toMillis(asNum)
+    const parsed = Date.parse(value)
+    return Number.isNaN(parsed) ? null : parsed
+  }
+  return null
+}
+
 // The connected user's notifications, newest first. Signed-fetch: the service authorizes the caller as
 // the identity's address (address-based, no per-request address param needed).
 export async function fetchNotifications(_address: string, identity: AuthIdentity): Promise<DCLNotificationProps[]> {
@@ -30,7 +46,15 @@ export async function fetchNotifications(_address: string, identity: AuthIdentit
     const res = await signedFetch(`${base}/notifications?limit=50`, { method: 'GET', identity, metadata: {} })
     if (!res.ok) return []
     const json = (await res.json()) as { notifications?: DCLNotificationProps[] }
-    return json.notifications ?? []
+    // ui2's Notifications renders each item's `timestamp` via formatDistanceToNow; a missing/unparseable
+    // value throws "Invalid time value" and crashes the whole panel. Normalize the timestamp (seconds →
+    // ms, numeric strings, ISO strings) and DROP any item we can't resolve to a valid date, so the panel
+    // only ever gets renderable items.
+    return (json.notifications ?? []).flatMap(n => {
+      const ts =
+        toMillis((n as { timestamp?: unknown }).timestamp) ?? toMillis((n as { created_at?: unknown }).created_at)
+      return ts === null ? [] : [{ ...n, timestamp: ts }]
+    })
   } catch {
     return []
   }
