@@ -40,8 +40,8 @@ describe('search bar', () => {
 
     expect(await clickByText(page, '[data-testid="search-pop-row"]', /nebula jacket/i)).toBe(true)
 
-    // Nebula Jacket is a secondary listing (tokenId 7) → routed to /item/<collection>/7.
-    await page.waitForFunction(() => /\/item\//.test(location.pathname))
+    // Nebula Jacket is a secondary listing (tokenId 7) → routed to /token/<collection>/7.
+    await page.waitForFunction(() => /\/token\//.test(location.pathname))
     await waitForText(page, 'Nebula Jacket')
   })
 
