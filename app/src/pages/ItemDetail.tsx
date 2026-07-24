@@ -153,12 +153,12 @@ const PrimarySaleBanner = styled('div')`
   .from-creator .ico {
     width: 20px;
     height: 20px;
-    color: ${theme.colors.accent};
+    color: ${theme.colors.rarity};
   }
   .check {
     width: 24px;
     height: 24px;
-    color: ${theme.colors.accent};
+    color: ${theme.colors.rarity};
   }
 `
 
@@ -479,6 +479,15 @@ export function ItemDetail() {
     staleTime: 5 * 60_000,
     queryFn: () => fetchCollection(current.contractAddress)
   })
+
+  // Backfill the creator — item stubs/rows (deep-link, owned-token, sibling) frequently lack it, so the
+  // PDP + Sell modal would otherwise show no creator. Prefer the authoritative shop listing's creator,
+  // else the collection's (both already fetched — no extra request). Never clobber a creator we have.
+  useEffect(() => {
+    const resolved = deepLinkItem?.creator || collection?.creator
+    if (!resolved) return
+    setCurrent(prev => (prev.creator ? prev : { ...prev, creator: resolved }))
+  }, [deepLinkItem, collection])
 
   // Fallback backfill: if still unhydrated (e.g. not currently on sale), fill from the matching
   // sibling once the collection resolves. Skip it when the authoritative shop listing (deepLinkItem)
@@ -1070,10 +1079,10 @@ export function ItemDetail() {
               {!manage && !isMarket && forSale && !current.tokenId ? (
                 <PrimarySaleBanner data-testid="buy-from-creator">
                   <span className="from-creator">
-                    <Icon name="credits" className="ico" />
+                    <Icon name="buy-from-creator" className="ico" />
                     {t('itemDetail.buyFromCreator')}
                   </span>
-                  <Icon name="check" className="check" />
+                  <Icon name="check-rounded" className="check" />
                 </PrimarySaleBanner>
               ) : null}
 
@@ -1388,7 +1397,7 @@ export function ItemDetail() {
       ) : null}
 
       {showSell && ownedAsset && session ? (
-        <SellModal asset={ownedAsset} session={session} onClose={closeManageModal} />
+        <SellModal asset={ownedAsset} session={session} creator={current.creator} onClose={closeManageModal} />
       ) : null}
       {showTransfer && session && current.tokenId ? (
         <TransferModal

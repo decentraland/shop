@@ -1,11 +1,15 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Network } from '@dcl/schemas'
 import type { Session } from '~/lib/auth'
 import type { MyAsset } from '~/lib/api'
 import { postTrade } from '~/lib/api'
 import { createUsdPeggedListing, ensureApproval } from '~/lib/trades'
+import { fetchCollection } from '~/lib/collections'
+import { useProfile } from '~/hooks/useProfile'
+import { capitalizeFirst } from '~/lib/text'
+import { shortAddress } from '~/lib/address'
 import { toast } from '~/store/toast'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { Icon } from '~/components/Icon'
@@ -34,9 +38,36 @@ function daysFromNow(days: number): string {
   return toDateInputValue(d)
 }
 
-export function SellModal({ asset, session, onClose }: { asset: MyAsset; session: Session; onClose: () => void }) {
+export function SellModal({
+  asset,
+  session,
+  creator,
+  onClose
+}: {
+  asset: MyAsset
+  session: Session
+  // The item's creator address (passed from the PDP). Shown as "By {name}" on the asset card.
+  creator?: string
+  onClose: () => void
+}) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+
+  // Creator name for the asset card. Prefer the address the PDP passes; only if it's absent (modal opened
+  // without a creator in scope) fall back to the collection's creator (one extra cached lookup).
+  const { data: collectionMeta } = useQuery({
+    queryKey: ['collection-meta', asset.contractAddress],
+    enabled: !creator && !!asset.contractAddress,
+    staleTime: 5 * 60_000,
+    queryFn: () => fetchCollection(asset.contractAddress)
+  })
+  const creatorAddress = creator || collectionMeta?.creator
+  const { data: creatorProfile } = useProfile(creatorAddress)
+  const creatorName = creatorAddress
+    ? creatorProfile?.name
+      ? capitalizeFirst(creatorProfile.name)
+      : shortAddress(creatorAddress)
+    : null
   const [price, setPrice] = useState('10') // whole credits
   const [expiresAt, setExpiresAt] = useState(() => daysFromNow(DEFAULT_EXPIRATION_IN_DAYS)) // yyyy-MM-dd
   const [status, setStatus] = useState<string | null>(null)
@@ -168,7 +199,10 @@ export function SellModal({ asset, session, onClose }: { asset: MyAsset; session
 
         <S.AssetCard>
           <S.Thumb>{asset.image ? <img src={asset.image} alt="" /> : null}</S.Thumb>
-          <S.AssetName>{asset.name}</S.AssetName>
+          <S.AssetInfo>
+            <S.AssetName>{asset.name}</S.AssetName>
+            {creatorName ? <S.AssetBy>{t('sellModal.byCreator', { name: creatorName })}</S.AssetBy> : null}
+          </S.AssetInfo>
         </S.AssetCard>
 
         <S.Fields>
@@ -201,7 +235,6 @@ export function SellModal({ asset, session, onClose }: { asset: MyAsset; session
                 disabled={busy}
                 aria-label={t('sellModal.expirationLabel')}
               />
-              <Icon name="clock" className="cal" aria-hidden />
             </S.InputBox>
           </S.Field>
         </S.Fields>

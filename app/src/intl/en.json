@@ -628,6 +628,7 @@
     "listing": "Listing…",
     "putOnSale": "Put on sale",
     "sellProduct": "Sell Product",
+    "byCreator": "By {name}",
     "subtitle": "Set a price for your item and choose an expiration date.",
     "priceShort": "Price",
     "expirationLabel": "Expiration Date",

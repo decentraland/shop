@@ -117,6 +117,15 @@ export const Thumb = styled.div`
   }
 `
 
+export const AssetInfo = styled.div`
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+`
+
 export const AssetName = styled.p`
   margin: 0;
   font-family: ${theme.font.sans};
@@ -124,6 +133,14 @@ export const AssetName = styled.p`
   font-size: 20px;
   line-height: 1.57;
   color: ${theme.colors.text};
+`
+
+export const AssetBy = styled.p`
+  margin: 0;
+  font-family: ${theme.font.sans};
+  font-size: 10px;
+  line-height: 1.43;
+  color: ${theme.colors.muted};
 `
 
 // Price + Expiration fields, side by side.
@@ -224,6 +241,14 @@ export const DateInput = styled.input`
   font-family: ${theme.font.sans};
   font-size: 13px;
   color: ${theme.colors.text};
+  /* Force the native browser calendar + controls to render light/white regardless of OS dark mode. */
+  color-scheme: light;
+
+  /* Keep the built-in calendar indicator dark on the white field (Figma shows a dark calendar glyph). */
+  &::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    opacity: 0.85;
+  }
 `
 
 // Full-width primary action (Put up for sale) — dark-solid, matching the PDP button spec.

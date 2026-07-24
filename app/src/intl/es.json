@@ -627,6 +627,7 @@
     "listing": "Publicando…",
     "putOnSale": "Poner a la venta",
     "sellProduct": "Vender producto",
+    "byCreator": "Por {name}",
     "subtitle": "Establece un precio para tu artículo y elige una fecha de expiración.",
     "priceShort": "Precio",
     "expirationLabel": "Fecha de expiración",
