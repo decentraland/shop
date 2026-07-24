@@ -350,8 +350,8 @@
   "transfer": {
     "title": "Transfer item",
     "addressLabel": "Recipient address",
-    "warning": "Transferring is irreversible. Double-check the address — items sent to the wrong wallet can't be recovered.",
-    "invalidAddress": "Enter a valid wallet address (0x…).",
+    "warning": "Transferring is irreversible. Double-check the address — items sent to the wrong User ID can't be recovered.",
+    "invalidAddress": "Enter a valid User ID (0x…).",
     "selfAddress": "That's your own address — enter a different recipient.",
     "transfer": "Transfer",
     "transferring": "Transferring…",
@@ -361,10 +361,10 @@
   },
   "issue": {
     "title": "Issue copies",
-    "subtitle": "Send fresh copies of this item to any wallet. Add a row for each recipient.",
-    "addressLabel": "Wallet address",
+    "subtitle": "Send fresh copies of this item to any User ID. Add a row for each recipient.",
+    "addressLabel": "User ID",
     "amountLabel": "Amount",
-    "invalidAddress": "Enter a valid wallet address (0x…).",
+    "invalidAddress": "Enter a valid User ID (0x…).",
     "addRow": "Add recipient",
     "removeRow": "Remove recipient",
     "itemsToIssue": "copies to issue",
@@ -487,6 +487,7 @@
     "processing": "Processing",
     "completed": "Completed",
     "sold": "Sold",
+    "polygonMana": "Polygon MANA",
     "purchaseLabel": "Purchase",
     "saleLabel": "Sale",
     "soldTo": "Sold to {account}",
@@ -501,7 +502,9 @@
     "emptySalesTitle": "No sales yet",
     "emptySalesBody": "When someone buys one of your items it’ll appear here.",
     "itemCount": "{count, plural, one {# item} other {# items}}",
-    "quantity": "×{count}"
+    "quantity": "×{count}",
+    "creditPurchaseLabel": "Credit purchase",
+    "creditPaid": "Paid {usd}"
   },
   "myFavorites": {
     "emptyTitle": "No favorites yet",

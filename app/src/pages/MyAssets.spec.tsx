@@ -283,7 +283,7 @@ describe('when viewing My Creations', () => {
     minters: []
   }
 
-  it('should list the creator’s publishable items with a list control', async () => {
+  it('should show a MANAGE cta on each creation (listing happens on the item detail page)', async () => {
     const user = userEvent.setup()
     fetchPublishableItems.mockResolvedValue([creation])
     fetchCollectionSaleState.mockResolvedValue({}) // nothing on sale yet
@@ -293,22 +293,28 @@ describe('when viewing My Creations', () => {
     await user.click(screen.getByRole('button', { name: /my creations/i }))
 
     expect(await screen.findByText('My Sword')).toBeInTheDocument()
-    // Not on sale → the card exposes a "list" control (put on sale), not an unlist one.
-    expect(await screen.findByTestId('card-list')).toBeInTheDocument()
+    // Creations share the owned-asset MANAGE cta: it opens the item detail page, where publishing /
+    // editing / removing live. No inline list/unlist control is rendered from the My Creations card.
+    const manage = await screen.findByTestId('card-manage')
+    expect(manage.textContent).toMatch(/manage/i)
+    expect(screen.queryByTestId('card-list')).not.toBeInTheDocument()
     expect(screen.queryByTestId('card-unlist')).not.toBeInTheDocument()
   })
 
-  it('should show an unlist control for a creation already on sale', async () => {
+  it('should navigate to the creation’s item detail page when MANAGE is clicked', async () => {
     const user = userEvent.setup()
     fetchPublishableItems.mockResolvedValue([creation])
-    fetchCollectionSaleState.mockResolvedValue({ '4': { isOnSale: true, priceCredits: 20, tradeId: 'trade-7' } })
-    renderPage()
+    fetchCollectionSaleState.mockResolvedValue({
+      '0xcreated-4': { isOnSale: true, priceCredits: 20, tradeId: 'trade-7' }
+    })
+    renderPageWithRoutes()
     await screen.findByText('Cool Hat')
 
     await user.click(screen.getByRole('button', { name: /my creations/i }))
+    await user.click(await screen.findByTestId('card-manage'))
 
-    expect(await screen.findByText('My Sword')).toBeInTheDocument()
-    expect(await screen.findByTestId('card-unlist')).toBeInTheDocument()
-    expect(screen.queryByTestId('card-list')).not.toBeInTheDocument()
+    // A creation has no specific tokenId, so MANAGE opens the generic /item detail route (by itemId),
+    // not a /token route.
+    expect(await screen.findByTestId('detail-path')).toHaveTextContent('/item/0xcreated/4')
   })
 })

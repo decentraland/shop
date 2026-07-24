@@ -129,6 +129,28 @@ export const HeadRight = styled.div`
   display: flex;
   align-items: center;
   gap: 14px;
+  /* Pin to the right regardless of how many elements sit on the left (the credit-purchase card adds a
+     leading thumbnail, giving the head three children instead of two). */
+  margin-left: auto;
+`
+
+// Leading product thumbnail for a credit-pack purchase — the credits mark itself (the "product" bought),
+// mirroring how item purchases show the NFT image.
+export const CreditThumb = styled.div`
+  flex: 0 0 auto;
+  width: 52px;
+  height: 52px;
+  border-radius: 10px;
+  background: ${theme.colors.media};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  img {
+    width: 30px;
+    height: 30px;
+    display: block;
+  }
 `
 
 // Status pill. `data-status` selects the palette so no style-only prop reaches the DOM.
@@ -172,6 +194,42 @@ export const Total = styled.div`
   &[data-kind='income'] {
     color: ${theme.colors.okStrong};
   }
+`
+
+// The Polygon MANA symbol next to a sale's settlement amount (sales pay MANA, not credits). This is the
+// exact icon the marketplace uses for MATIC MANA (decentraland-ui <Mana network="MATIC">), rendered as an
+// <img> with a "Polygon MANA" tooltip to match the marketplace.
+export const ManaSymbol = styled.img`
+  width: 16px;
+  height: 16px;
+  vertical-align: -0.15em;
+`
+
+// "Polygon MANA" tooltip trigger, mirroring the marketplace's Mana popup. The bubble itself is portaled
+// to <body> (see ManaTipBubble) because the card is overflow:hidden — a CSS bubble here (any z-index)
+// would be clipped at the card edges. `cursor: pointer` signals the hover affordance.
+export const ManaTip = styled.span`
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+`
+
+// The floating tooltip bubble. Rendered via a portal to <body> and positioned with fixed coords, so it's
+// never clipped by the card's overflow. Non-interactive.
+export const ManaTipBubble = styled.span`
+  position: fixed;
+  transform: translateX(-50%);
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: #16141a;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  pointer-events: none;
+  z-index: 9999;
 `
 
 export const Lines = styled.div`

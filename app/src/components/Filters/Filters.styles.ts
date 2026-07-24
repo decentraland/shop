@@ -32,10 +32,7 @@ export const Section = styled.div`
 // hover tint appears only while the pointer is actually over the header (never after a tap, since we
 // don't style :focus). `desktopStatic` hides the chevron and stops it reading as interactive on
 // desktop (Category/Price are always shown there).
-export const Header = styled(
-  'button',
-  noForward('desktopStatic')
-)<{ desktopStatic?: boolean }>`
+export const Header = styled('button', noForward('desktopStatic'))<{ desktopStatic?: boolean }>`
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -108,16 +105,12 @@ export const Summary = styled('p', noForward('desktopHidden'))<{ desktopHidden?:
 
 // Collapsible content: animate to content height via grid-template-rows 0fr↔1fr. `desktopStatic`
 // sections stay open on desktop regardless of the collapse state.
-export const Content = styled(
-  'div',
-  noForward('open', 'desktopStatic')
-)<{ open?: boolean; desktopStatic?: boolean }>`
+export const Content = styled('div', noForward('open', 'desktopStatic'))<{ open?: boolean; desktopStatic?: boolean }>`
   display: grid;
   grid-template-rows: ${({ open }) => (open ? '1fr' : '0fr')};
   transition: grid-template-rows 0.22s ease;
 
-  ${({ desktopStatic }) =>
-    desktopStatic ? `${theme.media.up('lg')} { grid-template-rows: 1fr; }` : ''}
+  ${({ desktopStatic }) => (desktopStatic ? `${theme.media.up('lg')} { grid-template-rows: 1fr; }` : '')}
 
   @media (prefers-reduced-motion: reduce) {
     transition: none;
@@ -172,7 +165,7 @@ export const PriceBox = styled.span`
 export const PriceCoin = styled(Icon)`
   width: 16px;
   height: 16px;
-  color: ${theme.colors.rarity};
+  color: ${theme.colors.text};
 `
 
 export const PriceInput = styled.input`

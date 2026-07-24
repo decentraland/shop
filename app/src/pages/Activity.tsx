@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useWallet } from '~/store/wallet'
-import { fetchUserPurchases } from '~/lib/credits'
+import { fetchUserPurchases, fetchUserCreditOrders, type CreditOrder } from '~/lib/credits'
 import { detailRouteFor } from '~/lib/routes'
 import { fetchTradeDisplay, fetchAssetDisplay, fetchUserSales } from '~/lib/api'
 import { foldOrderLines, type PurchaseOrder, type OrderLineItem } from '~/lib/purchases'
@@ -11,6 +12,8 @@ import { useManaRate } from '~/hooks/useManaRate'
 import { LoadMore } from '~/components/LoadMore'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
+import creditsProduct from '~/assets/credits-product.svg'
+import manaSymbol from '~/assets/mana-matic.svg'
 import { Icon } from '~/components/Icon'
 import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
@@ -36,6 +39,45 @@ function formatDate(ms: number): string {
 // never a "wallet address").
 function shortAccount(address: string): string {
   return address.length > 10 ? `${address.slice(0, 6)}…${address.slice(-4)}` : address
+}
+
+// MANA wei (1e18) → a compact MANA amount for display (up to 2 decimals, trailing zeros trimmed). Sale
+// proceeds are small, so Number precision is fine here.
+function formatMana(wei: string): string {
+  const n = Number(wei) / 1e18
+  return Number.isFinite(n) ? n.toLocaleString('en', { maximumFractionDigits: 2 }) : '0'
+}
+
+// "Polygon MANA" hover tooltip that mirrors the marketplace's Mana popup. The bubble is portaled to
+// <body> and fixed-positioned under the trigger, so the card's overflow:hidden never clips it (z-index
+// alone can't escape an overflow-clip). Hover-only, like the marketplace.
+function ManaTooltip({ children }: { children: React.ReactNode }) {
+  const ref = useRef<HTMLSpanElement>(null)
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
+  const open = () => {
+    const r = ref.current?.getBoundingClientRect()
+    if (r) setPos({ top: r.bottom + 8, left: r.left + r.width / 2 })
+  }
+  return (
+    <S.ManaTip
+      ref={ref}
+      tabIndex={0}
+      onMouseEnter={open}
+      onMouseLeave={() => setPos(null)}
+      onFocus={open}
+      onBlur={() => setPos(null)}
+    >
+      {children}
+      {pos
+        ? createPortal(
+            <S.ManaTipBubble style={{ top: pos.top, left: pos.left }} role="tooltip">
+              {t('activity.polygonMana')}
+            </S.ManaTipBubble>,
+            document.body
+          )
+        : null}
+    </S.ManaTip>
+  )
 }
 
 // One rendered line of a purchase order. Resolves name + thumbnail from the trade (reads the real
@@ -154,11 +196,14 @@ function SaleCard({ sale }: { sale: ActivitySale }) {
         </S.HeadLeft>
         <S.HeadRight>
           <S.Pill data-status="SOLD">{t('activity.sold')}</S.Pill>
-          {sale.credits != null ? (
-            <S.Total data-kind="income" title={t('activity.approxValue')}>
-              +<CurrencyIcon className="ccy-mark" /> {sale.credits}
-            </S.Total>
-          ) : null}
+          {/* Secondary sales settle in MANA and the seller received MANA — show the exact MANA amount
+              with the MANA symbol, never credits (they never got credits for a past sale). */}
+          <S.Total data-kind="income">
+            +{formatMana(sale.manaWei)}{' '}
+            <ManaTooltip>
+              <S.ManaSymbol src={manaSymbol} alt="MANA" />
+            </ManaTooltip>
+          </S.Total>
         </S.HeadRight>
       </S.CardHead>
       <S.Lines>
@@ -170,6 +215,38 @@ function SaleCard({ sale }: { sale: ActivitySale }) {
           <S.Line>{body}</S.Line>
         )}
       </S.Lines>
+    </S.Card>
+  )
+}
+
+// One credit-pack top-up: the buyer paid money and received credits. No item metadata to resolve — a
+// self-contained row showing what they got (+credits) and what they paid (USD), mirroring the sale
+// card's income treatment.
+function CreditPurchaseCard({ order }: { order: CreditOrder }) {
+  const usd = `$${(order.usdCents / 100).toFixed(2)}`
+  return (
+    <S.Card data-testid="credit-order">
+      <S.CardHead>
+        {/* The "product" bought here is credits themselves — show the credits mark as the thumbnail
+            (mirrors item purchases showing the NFT image), not a generic/NFT placeholder. */}
+        <S.CreditThumb>
+          <img src={creditsProduct} alt="" aria-hidden />
+        </S.CreditThumb>
+        <S.HeadLeft>
+          <S.DateText>{formatDate(order.createdAt)}</S.DateText>
+          <S.SubCount>
+            {t('activity.creditPurchaseLabel')} · {t('activity.creditPaid', { usd })}
+          </S.SubCount>
+        </S.HeadLeft>
+        <S.HeadRight>
+          <S.Pill data-status={order.status}>
+            {order.status === 'PENDING' ? t('activity.processing') : t('activity.completed')}
+          </S.Pill>
+          <S.Total data-kind="income">
+            +<CurrencyIcon className="ccy-mark" /> {order.credits}
+          </S.Total>
+        </S.HeadRight>
+      </S.CardHead>
     </S.Card>
   )
 }
@@ -213,6 +290,14 @@ export function Activity() {
     skip => fetchUserSales(session!.address, { role: 'seller', first: PAGE_SIZE, skip }),
     { enabled: salesEnabled }
   )
+  // Credit-pack (top-up) purchases, shown alongside item purchases. NOTE: the credits-server list
+  // endpoint isn't live yet (see fetchUserCreditOrders) — this resolves to an empty page until it ships,
+  // so no credit rows appear today and nothing is faked.
+  const creditOrders = useInfiniteGrid(
+    ['credit-orders', session?.address],
+    skip => fetchUserCreditOrders(session!.address, session!.identity, { first: PAGE_SIZE, skip }),
+    { enabled: purchasesEnabled }
+  )
 
   // The oracle read is only needed to price sales in credits — skip it entirely on the purchases-only
   // view. When it errors/stales the sale rows just omit the amount (credits → null).
@@ -232,18 +317,23 @@ export function Activity() {
     buildActivityFeed({
       purchases: purchasesEnabled ? purchases.items : [],
       sales: salesEnabled ? sales.items : [],
+      creditOrders: purchasesEnabled ? creditOrders.items : [],
       rate
     }),
     filter
   )
 
-  const isLoading = (purchasesEnabled && purchases.isLoading) || (salesEnabled && sales.isLoading)
+  const isLoading =
+    (purchasesEnabled && (purchases.isLoading || creditOrders.isLoading)) || (salesEnabled && sales.isLoading)
   const isFetchingNextPage =
-    (purchasesEnabled && purchases.isFetchingNextPage) || (salesEnabled && sales.isFetchingNextPage)
-  const hasNextPage = (purchasesEnabled && purchases.hasNextPage) || (salesEnabled && sales.hasNextPage)
+    (purchasesEnabled && (purchases.isFetchingNextPage || creditOrders.isFetchingNextPage)) ||
+    (salesEnabled && sales.isFetchingNextPage)
+  const hasNextPage =
+    (purchasesEnabled && (purchases.hasNextPage || creditOrders.hasNextPage)) || (salesEnabled && sales.hasNextPage)
 
   function loadMore() {
     if (purchasesEnabled && purchases.hasNextPage) void purchases.fetchNextPage()
+    if (purchasesEnabled && creditOrders.hasNextPage) void creditOrders.fetchNextPage()
     if (salesEnabled && sales.hasNextPage) void sales.fetchNextPage()
   }
 
@@ -281,6 +371,8 @@ export function Activity() {
             {feed.map(entry =>
               entry.kind === 'purchase' ? (
                 <OrderCard key={entry.id} order={entry.order} />
+              ) : entry.kind === 'credit' ? (
+                <CreditPurchaseCard key={entry.id} order={entry.order} />
               ) : (
                 <SaleCard key={entry.id} sale={entry.sale} />
               )

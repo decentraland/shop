@@ -1,14 +1,15 @@
-import type { PurchaseRecord } from '~/lib/credits'
+import type { PurchaseRecord, CreditOrder } from '~/lib/credits'
 import type { SaleRecord } from '~/lib/api'
 import { groupPurchases, type PurchaseOrder } from '~/lib/purchases'
 import { manaWeiToCredits, type ManaRate } from '~/lib/mana-rate'
 
 export type ActivityFilter = 'all' | 'purchases' | 'sales'
 
-// A completed secondary sale, normalized for the feed. `credits` is the MANA settlement price
-// converted to INDICATIVE credits at the current display rate (null when the rate is unavailable — the
-// row then omits the amount rather than showing a fake value). Sales settle in MANA, so this figure is
-// approximate, unlike a purchase's exact credit price.
+// A completed secondary sale, normalized for the feed. Secondary sales settle on-chain in MANA and the
+// seller RECEIVES MANA, so the feed shows the exact `manaWei` amount — NOT credits. (Showing credits
+// here was misleading: the seller never got credits for past sales. When proceeds-to-treasury ships,
+// sellers will be credited instead, and future sales can switch to a credit amount.) `credits` is the
+// legacy indicative conversion, kept for compatibility but no longer displayed.
 export type ActivitySale = {
   id: string
   contractAddress: string
@@ -16,6 +17,7 @@ export type ActivitySale = {
   itemId: string | null
   counterparty: string // the buyer's account
   credits: number | null
+  manaWei: string // exact MANA settlement (wei) the seller received — the displayed amount
   createdAt: number
 }
 
@@ -24,6 +26,7 @@ export type ActivitySale = {
 export type ActivityEntry =
   | { kind: 'purchase'; id: string; createdAt: number; order: PurchaseOrder }
   | { kind: 'sale'; id: string; createdAt: number; sale: ActivitySale }
+  | { kind: 'credit'; id: string; createdAt: number; order: CreditOrder }
 
 export function toActivitySale(sale: SaleRecord, rate?: ManaRate): ActivitySale {
   return {
@@ -33,6 +36,7 @@ export function toActivitySale(sale: SaleRecord, rate?: ManaRate): ActivitySale 
     itemId: sale.itemId,
     counterparty: sale.buyer,
     credits: rate ? manaWeiToCredits(sale.manaWei, rate) : null,
+    manaWei: sale.manaWei,
     createdAt: sale.createdAt
   }
 }
@@ -44,6 +48,7 @@ export function toActivitySale(sale: SaleRecord, rate?: ManaRate): ActivitySale 
 export function buildActivityFeed(input: {
   purchases: PurchaseRecord[]
   sales: SaleRecord[]
+  creditOrders?: CreditOrder[]
   rate?: ManaRate
 }): ActivityEntry[] {
   const orders = groupPurchases(input.purchases.filter(p => p.status !== 'EXPIRED'))
@@ -57,12 +62,20 @@ export function buildActivityFeed(input: {
     const sale = toActivitySale(s, input.rate)
     return { kind: 'sale', id: `sale:${sale.id}`, createdAt: sale.createdAt, sale }
   })
+  // Credit-pack top-ups. Drop EXPIRED (released, never paid) — mirrors the purchase-intent handling.
+  const creditEntries: ActivityEntry[] = (input.creditOrders ?? [])
+    .filter(o => o.status !== 'EXPIRED')
+    .map(order => ({ kind: 'credit', id: `credit:${order.id}`, createdAt: order.createdAt, order }))
   // Stable tiebreak on id so entries sharing a timestamp keep a deterministic order across renders.
-  return [...purchaseEntries, ...saleEntries].sort((a, b) => b.createdAt - a.createdAt || (a.id < b.id ? -1 : 1))
+  return [...purchaseEntries, ...saleEntries, ...creditEntries].sort(
+    (a, b) => b.createdAt - a.createdAt || (a.id < b.id ? -1 : 1)
+  )
 }
 
 export function filterActivity(entries: ActivityEntry[], filter: ActivityFilter): ActivityEntry[] {
   if (filter === 'all') return entries
-  const kind = filter === 'purchases' ? 'purchase' : 'sale'
-  return entries.filter(e => e.kind === kind)
+  // "Sales" is the seller side; "Purchases" is everything the user bought — item orders AND credit-pack
+  // top-ups (a credit purchase is still a purchase).
+  if (filter === 'sales') return entries.filter(e => e.kind === 'sale')
+  return entries.filter(e => e.kind === 'purchase' || e.kind === 'credit')
 }

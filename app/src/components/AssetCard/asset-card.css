@@ -438,6 +438,20 @@
 .card__manage--ghost:hover:not(:disabled) {
   background: var(--media);
 }
+/* My Creations card: the List / Remove control lives in the swap slot (.card__action) and is hidden at
+   rest — the chips row shows instead — then revealed on hover OR keyboard focus, mirroring .card__cart
+   on the owned card. Gated to hover-capable devices; on touch (no hover) the base display:flex keeps it
+   visible so it stays operable without a mouse. Always in the DOM (display-only reveal) → keyboard/SR
+   reachable. */
+@media (hover: hover) {
+  .card__action .card__manage {
+    display: none;
+  }
+  .card:hover .card__action .card__manage,
+  .card__body:focus-within .card__action .card__manage {
+    display: flex;
+  }
+}
 
 /* ---------------- Flash sale (time-boxed discounted listing — see lib/sale.ts) ---------------- */
 /* Corner ribbon on the card image (fav sits top-right, so this anchors top-left). */

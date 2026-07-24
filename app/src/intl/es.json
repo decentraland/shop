@@ -349,8 +349,8 @@
   "transfer": {
     "title": "Transferir artículo",
     "addressLabel": "Dirección del destinatario",
-    "warning": "La transferencia es irreversible. Verifica la dirección: los artículos enviados a la billetera equivocada no se pueden recuperar.",
-    "invalidAddress": "Introduce una dirección de billetera válida (0x…).",
+    "warning": "La transferencia es irreversible. Verifica la dirección: los artículos enviados al ID de usuario equivocado no se pueden recuperar.",
+    "invalidAddress": "Introduce un ID de usuario válido (0x…).",
     "selfAddress": "Esa es tu propia dirección: introduce otro destinatario.",
     "transfer": "Transferir",
     "transferring": "Transfiriendo…",
@@ -360,10 +360,10 @@
   },
   "issue": {
     "title": "Emitir copias",
-    "subtitle": "Envía copias nuevas de este artículo a cualquier billetera. Añade una fila por destinatario.",
-    "addressLabel": "Dirección de billetera",
+    "subtitle": "Envía copias nuevas de este artículo a cualquier ID de usuario. Añade una fila por destinatario.",
+    "addressLabel": "ID de usuario",
     "amountLabel": "Cantidad",
-    "invalidAddress": "Introduce una dirección de billetera válida (0x…).",
+    "invalidAddress": "Introduce un ID de usuario válido (0x…).",
     "addRow": "Añadir destinatario",
     "removeRow": "Quitar destinatario",
     "itemsToIssue": "copias a emitir",
@@ -486,6 +486,7 @@
     "processing": "Procesando",
     "completed": "Completada",
     "sold": "Vendido",
+    "polygonMana": "Polygon MANA",
     "purchaseLabel": "Compra",
     "saleLabel": "Venta",
     "soldTo": "Vendido a {account}",
@@ -500,7 +501,9 @@
     "emptySalesTitle": "Aún no tienes ventas",
     "emptySalesBody": "Cuando alguien compre uno de tus artículos, aparecerá aquí.",
     "itemCount": "{count, plural, one {# artículo} other {# artículos}}",
-    "quantity": "×{count}"
+    "quantity": "×{count}",
+    "creditPurchaseLabel": "Compra de créditos",
+    "creditPaid": "Pagaste {usd}"
   },
   "myFavorites": {
     "emptyTitle": "Aún no tienes favoritos",

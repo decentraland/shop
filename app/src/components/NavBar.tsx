@@ -1,5 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { NavLink, useNavigate, useSearchParams, useLocation } from 'react-router-dom'
+import * as Sentry from '@sentry/react'
+import { Experimental_CssVarsProvider as CssVarsProvider } from '@mui/material/styles'
+import { light as ui2Light } from 'decentraland-ui2/dist/theme'
 import { Icon } from '~/components/Icon'
 import { TopNav } from '~/components/TopNav'
 import { useWallet } from '~/store/wallet'
@@ -18,6 +21,14 @@ import type { CatalogItem } from '~/lib/api'
 import type { CollectionHit, CreatorHit } from '~/lib/search'
 import { t } from '~/intl/i18n'
 import CloseIcon from '@mui/icons-material/CloseRounded'
+
+// The ui2 Notifications feature is MUI-based (it reads `theme.breakpoints`/palette from a MUI theme
+// context), while the shop styles with emotion + its own tokens and mounts no MUI provider. So the
+// bell is lazy-loaded (the heavy ui2 feature only when signed in) and wrapped in a scoped MUI
+// CssVarsProvider carrying ui2's own theme — NOT ui2's ThemeProvider, which also injects a global
+// CssBaseline reset that would clobber the shop's styles. The provider only defines namespaced
+// `--mui-*` vars, so it doesn't leak into the rest of the app.
+const NotificationsBell = lazy(() => import('~/components/NotificationsBell'))
 
 export function NavBar() {
   const { session, connecting, signIn, disconnect, restore } = useWallet()
@@ -167,6 +178,20 @@ export function NavBar() {
         avatar={avatar}
         onClickSignIn={() => signIn()}
         onClickSignOut={() => void disconnect()}
+        notificationSlot={
+          session ? (
+            // The ui2 Notifications feature can throw while rendering (e.g. a notification with an
+            // unparseable date → formatDistanceToNow "Invalid time value"). Isolate it so a bad item
+            // renders nothing instead of white-screening the whole navbar/app.
+            <Sentry.ErrorBoundary fallback={<></>}>
+              <CssVarsProvider theme={ui2Light} defaultMode="light">
+                <Suspense fallback={null}>
+                  <NotificationsBell />
+                </Suspense>
+              </CssVarsProvider>
+            </Sentry.ErrorBoundary>
+          ) : undefined
+        }
       />
 
       {/* Shop sub-nav (sections + search + cart) — the row under the global DCL navbar. */}
