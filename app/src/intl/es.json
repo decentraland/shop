@@ -129,9 +129,9 @@
   },
   "cart": {
     "empty": {
-      "title": "Tu carrito está vacío",
-      "body": "Encuentra algo que te guste y aparecerá aquí.",
-      "cta": "Ver coleccionables"
+      "title": "¡Aquí no hay nada... todavía!",
+      "body": "Explora el Marketplace y descubre tu próximo artículo favorito.",
+      "cta": "Empieza a comprar"
     },
     "panelTitle": "Carrito: {count, plural, one {# artículo} other {# artículos}}",
     "goBack": "Volver",

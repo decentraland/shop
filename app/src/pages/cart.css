@@ -53,6 +53,78 @@ body.shop-cart-bg {
   height: 18px;
 }
 
+/* Empty cart: the same white-card-on-gray shell as the populated cart (`.checkout__panel`), with a
+   centered cart glyph, message and a purple CTA. */
+.cart-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  min-height: 420px;
+  padding: 48px 16px;
+  text-align: center;
+  color: var(--text);
+}
+.cart-empty__text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 16px;
+}
+.cart-empty__title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.6;
+}
+.cart-empty__body {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 400;
+  line-height: 1.6;
+}
+.cart-empty__cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 310px;
+  max-width: 100%;
+  height: 56px;
+  padding: 0 12px;
+  border-radius: 12px;
+  background: var(--accent);
+  color: var(--soft-white);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 24px;
+  letter-spacing: 0.46px;
+  text-transform: uppercase;
+  text-decoration: none;
+  transition: background 0.15s ease;
+}
+.cart-empty__cta:hover {
+  background: #7a2bbf;
+}
+.cart-empty__cta:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (max-width: 768px) {
+  .cart-empty {
+    min-height: 320px;
+    padding: 32px 16px;
+  }
+  .cart-empty__title {
+    font-size: 20px;
+  }
+  .cart-empty__body {
+    font-size: 16px;
+  }
+}
+
 /* Two columns: the cart panel on the left, a sticky purchase summary on the
    right (Figma left 871 / right 615 / gap 24 → left flexes, right fixed). The
    upsell row lives outside this grid so it spans full width below. */

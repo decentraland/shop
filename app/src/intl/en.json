@@ -129,9 +129,9 @@
   },
   "cart": {
     "empty": {
-      "title": "Your cart is empty",
-      "body": "Find something you love and it’ll show up here.",
-      "cta": "Browse Collectibles"
+      "title": "Nothing here... yet!",
+      "body": "Explore the Marketplace and discover your next favorite item.",
+      "cta": "Start shopping"
     },
     "panelTitle": "Cart: {count, plural, one {# Item} other {# Items}}",
     "goBack": "Go back",
