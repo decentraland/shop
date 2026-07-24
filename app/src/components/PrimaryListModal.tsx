@@ -28,10 +28,14 @@ const SIX_MONTHS_MS = 1000 * 60 * 60 * 24 * 182
 export function PrimaryListModal({
   item,
   session,
+  onListed,
   onClose
 }: {
   item: PublishableItem
   session: Session
+  // Fired the instant the primary listing goes live (mirrors SellModal.onListed). The PDP uses it to show
+  // the just-listed price immediately instead of flashing "not for sale" while the feed's MV catches up.
+  onListed?: (credits: number) => void
   onClose: () => void
 }) {
   const queryClient = useQueryClient()
@@ -121,8 +125,16 @@ export function PrimaryListModal({
         is_primary: true
       })
       toast.success(t('primaryList.toastOnSale', { name: item.name }))
+      onListed?.(value)
       void queryClient.invalidateQueries({ queryKey: ['publishable-items'] })
       void queryClient.invalidateQueries({ queryKey: ['collection-sale-state'] })
+      // A freshly-published item must appear (and be buyable) in the browse/catalog grids, the homepage
+      // featured row and the cart cross-sell right away — without these it stays hidden until each list's
+      // staleTime lapses. Mirrors ImportListings.afterMigrate.
+      void queryClient.invalidateQueries({ queryKey: ['shop-items'] })
+      void queryClient.invalidateQueries({ queryKey: ['catalog-items'] })
+      void queryClient.invalidateQueries({ queryKey: ['overview-listings'] })
+      void queryClient.invalidateQueries({ queryKey: ['upsell-listings'] })
     } catch (e) {
       captureError(e, { flow: 'list_primary' })
       track('Shop Listing Failed', { listing_type: 'primary', error_code: errorCode(e) })

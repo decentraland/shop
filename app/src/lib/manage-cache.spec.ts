@@ -132,6 +132,49 @@ describe('patchManageCaches', () => {
     })
   })
 
+  describe('when a token is gone (transferred out of the wallet)', () => {
+    beforeEach(() => {
+      // Start owned + on-sale across every cache, plus a second row that must survive the delete.
+      qc.setQueryData<MyAsset | null>(['owned-token', CONTRACT, TOKEN, ADDRESS], asset({ isOnSale: true, listingPrice: 5, tradeId: 'trade-1' }))
+      qc.setQueryData<InfiniteData<MyAssetsPage>>(
+        ['my-assets', ADDRESS, 'wearables', 'all', [], null, '', 'newest'],
+        { pages: [{ items: [asset({ id: 'other', tokenId: '7' }), asset({ isOnSale: true, listingPrice: 5, tradeId: 'trade-1' })], total: 2 }], pageParams: [0] }
+      )
+      qc.setQueryData<SecondarySaleMap>(['secondary-sale-state', [CONTRACT]], { [KEY]: { priceCredits: 5, tradeId: 'trade-1' } })
+    })
+
+    it('should null the owned-token detail cache so the PDP drops the manage view', () => {
+      patchManageCaches(qc, { address: ADDRESS, contractAddress: CONTRACT, tokenId: TOKEN }, { kind: 'gone' })
+      const detail = qc.getQueryData<MyAsset | null>(['owned-token', CONTRACT, TOKEN, ADDRESS])
+      expect(detail).toBeNull()
+    })
+
+    it('should delete the matching row from the My Assets grid, decrement the total, and keep other rows', () => {
+      patchManageCaches(qc, { address: ADDRESS, contractAddress: CONTRACT, tokenId: TOKEN }, { kind: 'gone' })
+      const grid = qc.getQueryData<InfiniteData<MyAssetsPage>>([
+        'my-assets',
+        ADDRESS,
+        'wearables',
+        'all',
+        [],
+        null,
+        '',
+        'newest'
+      ])
+      const page = grid!.pages[0]
+      expect(page.items.find(r => r.tokenId === TOKEN)).toBeUndefined()
+      expect(page.items.find(r => r.tokenId === '7')).toBeDefined()
+      expect(page.items).toHaveLength(1)
+      expect(page.total).toBe(1)
+    })
+
+    it('should drop the token from the shop-feed secondary sale map', () => {
+      patchManageCaches(qc, { address: ADDRESS, contractAddress: CONTRACT, tokenId: TOKEN }, { kind: 'gone' })
+      const map = qc.getQueryData<SecondarySaleMap>(['secondary-sale-state', [CONTRACT]])
+      expect(map![KEY]).toBeUndefined()
+    })
+  })
+
   describe('when the target has no token id', () => {
     it('should not touch any cache', () => {
       patchManageCaches(qc, { address: ADDRESS, contractAddress: CONTRACT, tokenId: undefined }, { kind: 'removed' })

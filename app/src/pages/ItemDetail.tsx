@@ -979,6 +979,10 @@ export function ItemDetail() {
       // is reflected there without waiting for a manual reload (the page may stay mounted behind the PDP).
       qc.invalidateQueries({ queryKey: ['secondary-sale-state'] }),
       qc.invalidateQueries({ queryKey: ['my-assets'] }),
+      // A secondary list / remove here changes this item's lowest resale price, which the browse + catalog
+      // grids derive per card — refresh them so a returning browse card doesn't show a stale lowest price.
+      qc.invalidateQueries({ queryKey: ['shop-items'] }),
+      qc.invalidateQueries({ queryKey: ['catalog-items'] }),
       qc.invalidateQueries({ queryKey: ['publishable-items'] }),
       // The PDP's OWN creator record is keyed 'publishable-item' (singular) — a different key from My
       // Assets' 'publishable-items' (plural) above, so it must be invalidated explicitly or the
@@ -1689,11 +1693,29 @@ export function ItemDetail() {
             setShowTransfer(false)
             void refreshManage()
           }}
-          onTransferred={() => void refreshManage()}
+          onTransferred={() => {
+            // The token just left this wallet: reconcile authoritatively (refreshManage) AND optimistically
+            // drop it from every cache that still renders it as owned — the My Assets grid row, the PDP's
+            // owned-token detail (nulled → the manage view collapses to the public/buy view), and any
+            // secondary sale entry. Without this the token lingers as owned (Edit/Remove/Transfer stay) until
+            // the eventually-consistent feed catches up on the next focus/remount.
+            setJustListedCredits(null)
+            void refreshManage()
+            patchManageCaches(
+              qc,
+              { address: session.address, contractAddress: current.contractAddress, tokenId: current.tokenId },
+              { kind: 'gone' }
+            )
+          }}
         />
       ) : null}
       {showPrimary && publishableItem && session ? (
-        <PrimaryListModal item={publishableItem} session={session} onClose={closeManageModal} />
+        <PrimaryListModal
+          item={publishableItem}
+          session={session}
+          onListed={credits => setJustListedCredits(credits)}
+          onClose={closeManageModal}
+        />
       ) : null}
       {showIssue && publishableItem && session ? (
         <IssueModal

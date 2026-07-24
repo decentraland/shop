@@ -320,6 +320,12 @@ export function Cart() {
       void qc.invalidateQueries({ queryKey: ['catalog-items'] })
       void qc.invalidateQueries({ queryKey: ['my-assets'] })
       void qc.invalidateQueries({ queryKey: ['purchases'] })
+      // The PDP's "You own N of this" note ('owned-item-count') must reflect the copies just bought, and
+      // the homepage featured row ('overview-listings') + cart cross-sell ('upsell-listings') should drop
+      // any just-sold last copy instead of keeping it on offer.
+      void qc.invalidateQueries({ queryKey: ['owned-item-count'] })
+      void qc.invalidateQueries({ queryKey: ['overview-listings'] })
+      void qc.invalidateQueries({ queryKey: ['upsell-listings'] })
       // The whole basket has settled on-chain (buyManyGasless/waitForSettlement above), so hand the
       // standalone success PAGE the purchased lines + tx and tell it settlement is already done
       // (settled:true) — it lands straight on the confirmed screen instead of a floating in-cart modal.

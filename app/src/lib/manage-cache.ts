@@ -12,10 +12,13 @@ export type ManageTarget = {
 // The optimistic outcome of a manage action, applied to the caches BEFORE the eventually-consistent
 // server feed catches up:
 //   listed  → the token is now on sale at `priceCredits` (fresh list, or the new price after edit)
-//   removed → the token is no longer for sale
+//   removed → the token is no longer for sale (still owned, just delisted)
+//   gone    → the token left the wallet entirely (transferred): drop it from the grid, null the detail
+//             query, and clear any sale entry — the viewer no longer owns it
 export type ManagePatch =
   | { kind: 'listed'; priceCredits: number; tradeId?: string }
   | { kind: 'removed' }
+  | { kind: 'gone' }
 
 // A page of the offset-paginated My Assets grid (mirrors useInfiniteGrid's Page<T>).
 type MyAssetsPage = { items: MyAsset[]; total: number }
@@ -26,15 +29,17 @@ type SecondarySaleMap = Record<string, { priceCredits: number; tradeId: string }
 // detail query). The /v1/nfts `order` fields (isOnSale/listingPrice/tradeId) are what the UI reads, so
 // patch all three so the card price + the "not for sale" client filter both reflect the change at once.
 function applyToAsset(asset: MyAsset, patch: ManagePatch): MyAsset {
-  if (patch.kind === 'removed') {
-    return { ...asset, isOnSale: false, listingPrice: undefined, tradeId: undefined }
+  if (patch.kind === 'listed') {
+    return {
+      ...asset,
+      isOnSale: true,
+      listingPrice: patch.priceCredits,
+      tradeId: patch.tradeId ?? asset.tradeId
+    }
   }
-  return {
-    ...asset,
-    isOnSale: true,
-    listingPrice: patch.priceCredits,
-    tradeId: patch.tradeId ?? asset.tradeId
-  }
+  // 'removed' | 'gone' → not for sale. ('gone' rows are deleted from the grid by the caller; this is
+  // the safe fallback for any row that survives.)
+  return { ...asset, isOnSale: false, listingPrice: undefined, tradeId: undefined }
 }
 
 /**
@@ -63,34 +68,49 @@ export function patchManageCaches(qc: QueryClient, target: ManageTarget, patch: 
   void qc.cancelQueries({ queryKey: ['secondary-sale-state'] })
   if (address) void qc.cancelQueries({ queryKey: ['my-assets', address] })
 
+  const gone = patch.kind === 'gone'
+
   // (a) The PDP's single-token ownership query (['owned-token', contract, tokenId, address]) — matched by
-  // prefix so it hits regardless of the trailing address segment.
-  qc.setQueriesData<MyAsset | null>({ queryKey: ['owned-token', contractAddress, tokenId] }, prev =>
-    prev ? applyToAsset(prev, patch) : prev
-  )
+  // prefix so it hits regardless of the trailing address segment. A transferred token is no longer owned,
+  // so null the detail cache: the PDP then drops its manage view and falls back to the public/buy view.
+  qc.setQueriesData<MyAsset | null>({ queryKey: ['owned-token', contractAddress, tokenId] }, prev => {
+    if (!prev) return prev
+    return gone ? null : applyToAsset(prev, patch)
+  })
 
   // (b) The My Assets grid (['my-assets', address, section, status, …]) — an infinite query, so walk every
   // page and patch the matching token in place. Prefix-matched so all section/filter/sort variants update.
+  // A 'gone' token is removed from the wallet entirely, so DELETE its row (and decrement the page total)
+  // rather than flip its sale flag.
   const myAssetsKey = address ? ['my-assets', address] : ['my-assets']
   qc.setQueriesData<InfiniteData<MyAssetsPage>>({ queryKey: myAssetsKey }, prev => {
     if (!prev?.pages) return prev
     return {
       ...prev,
-      pages: prev.pages.map(page => ({
-        ...page,
-        items: page.items.map(a =>
-          a.contractAddress === contractAddress && a.tokenId === tokenId ? applyToAsset(a, patch) : a
-        )
-      }))
+      pages: prev.pages.map(page => {
+        if (gone) {
+          const items = page.items.filter(
+            a => !(a.contractAddress === contractAddress && a.tokenId === tokenId)
+          )
+          return { ...page, items, total: Math.max(0, page.total - (page.items.length - items.length)) }
+        }
+        return {
+          ...page,
+          items: page.items.map(a =>
+            a.contractAddress === contractAddress && a.tokenId === tokenId ? applyToAsset(a, patch) : a
+          )
+        }
+      })
     }
   })
 
   // (c) The shop-feed secondary sale map the owned card reads its authoritative credit price from — the
   // /v1/nfts `order` above never carries an off-chain shop listing, so this map is the primary source.
+  // Both 'removed' (delisted) and 'gone' (transferred) clear the entry.
   qc.setQueriesData<SecondarySaleMap>({ queryKey: ['secondary-sale-state'] }, prev => {
     if (!prev) return prev
     const next = { ...prev }
-    if (patch.kind === 'removed') {
+    if (patch.kind === 'removed' || patch.kind === 'gone') {
       delete next[key]
     } else {
       next[key] = { priceCredits: patch.priceCredits, tradeId: patch.tradeId ?? next[key]?.tradeId ?? '' }
