@@ -166,7 +166,10 @@ function SaleCard({ sale }: { sale: ActivitySale }) {
           {/* Secondary sales settle in MANA and the seller received MANA — show the exact MANA amount
               with the MANA symbol, never credits (they never got credits for a past sale). */}
           <S.Total data-kind="income">
-            +{formatMana(sale.manaWei)} <S.ManaSymbol src={manaSymbol} alt="MANA" title="Polygon MANA" />
+            +{formatMana(sale.manaWei)}{' '}
+            <S.ManaTip data-tip="Polygon MANA">
+              <S.ManaSymbol src={manaSymbol} alt="MANA" />
+            </S.ManaTip>
           </S.Total>
         </S.HeadRight>
       </S.CardHead>
