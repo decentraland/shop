@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Rarity } from '@dcl/schemas'
+import { ProviderType, Rarity } from '@dcl/schemas'
 import { config } from '~/config'
 import { useCart } from '~/store/cart'
 import { useFavorites } from '~/store/favorites'
@@ -392,6 +392,11 @@ export function ItemDetail() {
   const cartItems = useCart(s => s.items)
   const toggleFav = useFavorites(s => s.toggle)
   const { session, signIn } = useWallet()
+  // Managed (web2) wallets — Magic — sign transparently (no popup); self-custody wallets (MetaMask,
+  // WalletConnect…) show a confirmation prompt. Used to word the Edit-price "cancel first" step
+  // appropriately: "confirm in your wallet" vs a plain "canceling…" progress state.
+  const isManagedWallet =
+    session?.providerType === ProviderType.MAGIC || session?.providerType === ProviderType.MAGIC_TEST
 
   // The currently-displayed item. Seeded from router state (fast path from the grid); swapped in place
   // when a carousel sibling is tapped (no full reload). Falls back to a stub for deep links/refresh
@@ -1308,7 +1313,11 @@ export function ItemDetail() {
                         <DarkCta onClick={() => void updatePrice()} disabled={managing !== null || !canOpenListModal}>
                           {managing !== 'update' ? <Icon name="pen" className="ico" /> : null}
                           <span className="item-detail__cta-label">
-                            {managing === 'update' ? t('itemDetail.manageWorking') : t('itemDetail.manageUpdatePrice')}
+                            {managing === 'update'
+                              ? isManagedWallet
+                                ? t('itemDetail.updateCanceling')
+                                : t('itemDetail.updateConfirmCancel')
+                              : t('itemDetail.manageUpdatePrice')}
                           </span>
                         </DarkCta>
                         <OutlineCta onClick={() => void takeDown()} disabled={managing !== null}>
@@ -1344,10 +1353,17 @@ export function ItemDetail() {
                         ) : null}
                       </>
                     )}
-                    <ManageNote>
-                      {t('itemDetail.ownItemPrefix')} <Link to="/my-assets">{t('nav.myAssets')}</Link>
-                      {t('itemDetail.ownItemSuffix')}
-                    </ManageNote>
+                    {managing === 'update' ? (
+                      // Explain the two-step nature while the current listing is being taken down.
+                      <ManageNote>{t('itemDetail.updateHelper')}</ManageNote>
+                    ) : manageAsSecondary ? null : (
+                      // Redundant on a /token page (you're already managing here); only useful on the
+                      // item page where a creator manages their primary listing.
+                      <ManageNote>
+                        {t('itemDetail.ownItemPrefix')} <Link to="/my-assets">{t('nav.myAssets')}</Link>
+                        {t('itemDetail.ownItemSuffix')}
+                      </ManageNote>
+                    )}
                   </ManageActions>
                 ) : forSale ? (
                   <>
