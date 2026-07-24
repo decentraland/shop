@@ -514,8 +514,9 @@
     "creditPaid": "Pagaste {usd}"
   },
   "myFavorites": {
-    "emptyTitle": "Aún no tienes favoritos",
-    "emptyBody": "Toca el corazón en cualquier artículo para guardarlo aquí.",
+    "emptyTitle": "¡Aquí no hay nada... todavía!",
+    "emptyBody": "Empieza a explorar y guarda los artículos que te gusten para tenerlos a mano más tarde.",
+    "emptyCta": "Empieza a explorar",
     "itemCount": "{count, plural, one {# artículo} other {# artículos}}"
   },
   "overview": {

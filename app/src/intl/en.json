@@ -514,8 +514,9 @@
     "creditPaid": "Paid {usd}"
   },
   "myFavorites": {
-    "emptyTitle": "No favorites yet",
-    "emptyBody": "Tap the heart on any item to save it here.",
+    "emptyTitle": "Nothing here... yet!",
+    "emptyBody": "Start exploring and save the items you love to keep them close for later.",
+    "emptyCta": "Start exploring",
     "itemCount": "{count, plural, one {# item} other {# items}}"
   },
   "overview": {
