@@ -237,6 +237,20 @@
     "cta": "Hacer una oferta",
     "comingSoon": "Muy pronto — vas a poder hacer una oferta por artículos que no están a la venta."
   },
+  "authorizeStep": {
+    "close": "Cerrar",
+    "cancel": "Cancelar",
+    "authorize": "Autorizar",
+    "authorizing": "Autorizando…",
+    "sellTitle": "Una aprobación rápida primero",
+    "sellReason": "Permite que la Shop entregue «{name}» cuando se venda. Es una aprobación única para esta colección — no te lo volveremos a pedir.",
+    "buyTitle": "Una aprobación rápida primero",
+    "buyReason": "Permite que la Shop cubra las compras con tu saldo. Es una aprobación única — no te lo volveremos a pedir.",
+    "buyName": "Cubrir compras con tu saldo",
+    "note": "Sin comisiones de gas, y tú mantienes el control — puedes desactivarla cuando quieras desde Autorizaciones.",
+    "errorRejected": "Descartaste la aprobación. Haz clic en Autorizar para intentarlo de nuevo.",
+    "errorGeneric": "No se pudo completar la aprobación. Inténtalo de nuevo."
+  },
   "buyModal": {
     "titleBuy": "Comprar artículo",
     "titleNoFunds": "Comprar créditos y artículo",

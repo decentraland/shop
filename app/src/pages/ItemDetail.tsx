@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { ProviderType, Rarity } from '@dcl/schemas'
+import { Rarity } from '@dcl/schemas'
 import { config } from '~/config'
 import { useCart } from '~/store/cart'
 import { useFavorites } from '~/store/favorites'
@@ -32,6 +32,7 @@ import { MarketCheckout } from '~/components/MarketCheckout'
 import { toast } from '~/store/toast'
 import { captureError } from '~/lib/monitoring'
 import { isRejection } from '~/lib/errors'
+import { isManagedWallet } from '~/lib/wallet'
 import { useManaRate } from '~/hooks/useManaRate'
 import { useSeo } from '~/hooks/useSeo'
 import { shortAddress } from '~/lib/address'
@@ -454,11 +455,11 @@ export function ItemDetail() {
   const cartItems = useCart(s => s.items)
   const toggleFav = useFavorites(s => s.toggle)
   const { session, signIn } = useWallet()
-  // Managed (web2) wallets — Magic — sign transparently (no popup); self-custody wallets (MetaMask,
+  // Managed (web2) wallets sign transparently (no popup); self-custody wallets (MetaMask,
   // WalletConnect…) show a confirmation prompt. Used to word the Edit-price "cancel first" step
-  // appropriately: "confirm in your wallet" vs a plain "canceling…" progress state.
-  const isManagedWallet =
-    session?.providerType === ProviderType.MAGIC || session?.providerType === ProviderType.MAGIC_TEST
+  // appropriately: "confirm in your wallet" vs a plain "canceling…" progress state. Shared helper so
+  // the classification stays consistent with the buy/sell modals (lib/wallet).
+  const isManaged = isManagedWallet(session)
 
   // The currently-displayed item. Seeded from router state (fast path from the grid); swapped in place
   // when a carousel sibling is tapped (no full reload). Falls back to a stub for deep links/refresh
@@ -1454,7 +1455,7 @@ export function ItemDetail() {
                               {managing !== 'update' ? <Icon name="pen" className="ico" /> : null}
                               <span className="item-detail__cta-label">
                                 {managing === 'update'
-                                  ? isManagedWallet
+                                  ? isManaged
                                     ? t('itemDetail.updateCanceling')
                                     : t('itemDetail.updateConfirmCancel')
                                   : t('itemDetail.manageUpdatePrice')}

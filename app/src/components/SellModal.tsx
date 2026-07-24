@@ -1,13 +1,16 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Network, ProviderType } from '@dcl/schemas'
+import { Network } from '@dcl/schemas'
 import DatePicker from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 import type { Session } from '~/lib/auth'
 import type { MyAsset } from '~/lib/api'
 import { postTrade } from '~/lib/api'
 import { createUsdPeggedListing, ensureApproval } from '~/lib/trades'
+import { getAuthorizationStatus, getCollectionSellingAuthorization } from '~/lib/authorizations'
+import { isManagedWallet } from '~/lib/wallet'
+import { AuthorizeStep } from '~/components/AuthorizeStep'
 import { fetchCollection } from '~/lib/collections'
 import { useProfile } from '~/hooks/useProfile'
 import { capitalizeFirst } from '~/lib/text'
@@ -73,11 +76,13 @@ export function SellModal({
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [listedCredits, setListedCredits] = useState<number | null>(null)
+  // 'form' = the price/expiration form; 'authorize' = the first-time approval STEP (self-custody only).
+  const [step, setStep] = useState<'form' | 'authorize'>('form')
 
-  // Managed (web2/OTP) wallets sign with no popup — never show them "confirm in wallet" language; a
-  // self-custody wallet must approve, so it does. (Same rule as the Edit-price CTA in ItemDetail.)
-  const isManagedWallet =
-    session.providerType === ProviderType.MAGIC || session.providerType === ProviderType.MAGIC_TEST
+  // Managed (web2/OTP) wallets sign with no popup — never show them "confirm in wallet" language and
+  // never a discrete approval step; a self-custody wallet must approve, so it sees both. Shared helper
+  // so the classification stays consistent across the buy/sell flows.
+  const isManaged = isManagedWallet(session)
 
   const priceValue = Number(price)
   const priceValid = Number.isInteger(priceValue) && priceValue > 0
@@ -87,6 +92,39 @@ export function SellModal({
   const minDate = midnightDaysFromNow(1) // "must be in the future"
   // USD equivalent hint (1 credit = $0.10).
   const usdHint = priceValid ? `$${(priceValue / 10).toFixed(2)}` : '$0'
+
+  // Entry point from the "Put up for sale" button: validate, then for self-custody surface a first-time
+  // approval STEP when the marketplace isn't yet approved to transfer this collection. Managed wallets
+  // (and already-approved self-custody wallets) skip straight to list(), which authorizes silently
+  // (a no-op when already approved).
+  async function handleSubmit() {
+    setError(null)
+    if (!priceValid) {
+      setError(t('sellModal.errorWholeNumber'))
+      return
+    }
+    if (!dateValid) {
+      setError(t('sellModal.invalidDate'))
+      return
+    }
+    if (!isManaged) {
+      setBusy(true)
+      try {
+        const auth = getCollectionSellingAuthorization(asset.contractAddress, asset.chainId)
+        const authorized = await getAuthorizationStatus(auth, session.address)
+        setBusy(false)
+        if (!authorized) {
+          setStep('authorize')
+          return
+        }
+      } catch {
+        // Fail-open: couldn't read the approval status → don't block the sale. list() re-checks via
+        // ensureApproval, which is the on-chain authority anyway.
+        setBusy(false)
+      }
+    }
+    await list()
+  }
 
   async function list() {
     setError(null)
@@ -180,6 +218,28 @@ export function SellModal({
     )
   }
 
+  // First-time approval STEP (self-custody only): authorize the marketplace to transfer this
+  // collection, then advance to publishing the listing.
+  if (step === 'authorize') {
+    return (
+      <AuthorizeStep
+        auth={getCollectionSellingAuthorization(asset.contractAddress, asset.chainId)}
+        signer={session.signer}
+        title={t('authorizeStep.sellTitle')}
+        name={asset.name}
+        image={asset.image}
+        icon={<Icon name="pen" className="ico" />}
+        reason={t('authorizeStep.sellReason', { name: asset.name })}
+        onAuthorized={() => {
+          setStep('form')
+          void list()
+        }}
+        onCancel={() => setStep('form')}
+        onClose={onClose}
+      />
+    )
+  }
+
   return (
     <S.Scrim onClick={busy ? undefined : onClose} role="presentation">
       <S.Card
@@ -247,9 +307,9 @@ export function SellModal({
 
         <ErrorNotice message={error} />
 
-        <S.PrimaryBtn onClick={() => void list()} disabled={busy || !priceValid || !dateValid}>
+        <S.PrimaryBtn onClick={() => void handleSubmit()} disabled={busy || !priceValid || !dateValid}>
           {busy
-            ? isManagedWallet
+            ? isManaged
               ? t('sellModal.puttingOnSale')
               : t('sellModal.confirmListing')
             : t('sellModal.putUpForSale')}

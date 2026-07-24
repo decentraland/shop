@@ -237,6 +237,20 @@
     "cta": "Make an offer",
     "comingSoon": "Coming soon — you'll be able to make an offer on items that aren't for sale."
   },
+  "authorizeStep": {
+    "close": "Close",
+    "cancel": "Cancel",
+    "authorize": "Authorize",
+    "authorizing": "Authorizing…",
+    "sellTitle": "One quick approval first",
+    "sellReason": "Let the Shop hand over “{name}” when it sells. This is a one-time approval for this collection — you won’t be asked again.",
+    "buyTitle": "One quick approval first",
+    "buyReason": "Let the Shop cover purchases from your balance. This is a one-time approval — you won’t be asked again.",
+    "buyName": "Cover purchases from your balance",
+    "note": "No gas fees, and you stay in control — you can turn this off anytime from Approvals.",
+    "errorRejected": "You dismissed the approval. Click Authorize to try again.",
+    "errorGeneric": "Couldn’t complete the approval — please try again."
+  },
   "buyModal": {
     "titleBuy": "Buy Asset",
     "titleNoFunds": "Buy Credits and Item",

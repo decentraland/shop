@@ -5,7 +5,11 @@ import { useQueryClient } from '@tanstack/react-query'
 import type { Trade } from '@dcl/schemas'
 import { useWallet } from '~/store/wallet'
 import { useBalance } from '~/hooks/useBalance'
+import { config } from '~/config'
 import { resolveLiveTrade, usdWeiToCents, type CatalogItem } from '~/lib/api'
+import { getAuthorizationStatus, getCreditsAuthorization } from '~/lib/authorizations'
+import { isManagedWallet } from '~/lib/wallet'
+import { AuthorizeStep } from '~/components/AuthorizeStep'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { formatCredits } from '~/lib/currency'
 import { track, errorCode, isUserRejection, purchaseItemsProps } from '~/lib/analytics'
@@ -25,7 +29,7 @@ import { friendlyError, isInsufficient } from '~/lib/errors'
 import { ErrorNotice } from '~/components/ErrorNotice'
 import loaderLogo from '~/assets/credits/loader-logo.svg'
 
-type Phase = 'loading' | 'ready' | 'nofunds' | 'processing' | 'complete' | 'error'
+type Phase = 'loading' | 'ready' | 'authorize' | 'nofunds' | 'processing' | 'complete' | 'error'
 
 /**
  * Buy Now modal for the item detail page — the pixel-perfect purchase flow (Figma "Buy Asset directly
@@ -69,6 +73,13 @@ export function BuyModal({
     usdCents: number
   } | null>(null)
   const reservedCreditIdRef = useRef<string | null>(null)
+  // Guards the Buy button while we read the on-chain approval status (a quick RPC read before we know
+  // whether to show the approval step) so a double-click can't fire two buys.
+  const [preparing, setPreparing] = useState(false)
+
+  // Managed (web2) wallets authorize silently — they never see the discrete approval step. Self-custody
+  // wallets do, but only when the Credits Manager approval is actually missing (checked in handleBuy).
+  const isManaged = isManagedWallet(session)
 
   const priceCredits = locked?.credits ?? itemCredits
   const balanceCredits = balance?.credits ?? 0
@@ -225,6 +236,30 @@ export function BuyModal({
     }
   }
 
+  // The "Buy" click: for self-custody wallets, surface a first-time approval STEP when the Credits
+  // Manager isn't yet approved to cover purchases from the buyer's balance; then advance to the buy.
+  // Managed wallets (and already-approved self-custody wallets) go straight to confirm().
+  async function handleBuy() {
+    if (!session || !locked || preparing) return
+    if (isManaged) {
+      void confirm()
+      return
+    }
+    setPreparing(true)
+    try {
+      const authorized = await getAuthorizationStatus(getCreditsAuthorization(config.chainId), session.address)
+      if (!authorized) {
+        setPreparing(false)
+        setPhase('authorize')
+        return
+      }
+    } catch {
+      // Fail-open: never block a buy on a flaky approval read — the on-chain buy still guards itself.
+    }
+    setPreparing(false)
+    void confirm()
+  }
+
   // No funds → buy the selected pack on Stripe directly, then resume THIS item purchase with the new
   // credits. Stash the item so the /credits return handler picks it up and re-opens this modal in
   // resume mode; then send the buyer straight to the Stripe hosted checkout (never the /credits page).
@@ -266,6 +301,24 @@ export function BuyModal({
       : phase === 'nofunds'
         ? t('buyModal.titleNoFunds')
         : t('buyModal.titleBuy')
+
+  // First-time approval STEP (self-custody only): authorize the Credits Manager to cover purchases
+  // from the buyer's balance, then advance to the buy.
+  if (phase === 'authorize' && session && locked) {
+    return (
+      <AuthorizeStep
+        auth={getCreditsAuthorization(config.chainId)}
+        signer={session.signer}
+        title={t('authorizeStep.buyTitle')}
+        name={t('authorizeStep.buyName')}
+        icon={<CurrencyIcon className="ccy-mark" />}
+        reason={t('authorizeStep.buyReason')}
+        onAuthorized={() => void confirm()}
+        onCancel={() => setPhase('ready')}
+        onClose={onClose}
+      />
+    )
+  }
 
   return (
     <div
@@ -374,7 +427,8 @@ export function BuyModal({
             <div className="buy-modal__ctas">
               <button
                 className="buy-modal__btn buy-modal__btn--gradient buy-modal__btn--full"
-                onClick={() => void confirm()}
+                onClick={() => void handleBuy()}
+                disabled={preparing}
               >
                 {t('buyModal.buy')}
               </button>
