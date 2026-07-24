@@ -196,11 +196,12 @@ export const Total = styled.div`
   }
 `
 
-// "MANA" unit label next to a sale's settlement amount (sales pay MANA, not credits).
-export const ManaUnit = styled.span`
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
+// The Polygon MANA symbol next to a sale's settlement amount (sales pay MANA, not credits). Rendered as
+// an <img> so the logo keeps its own colors — the mask-based Icon would flatten it to a monochrome tint.
+export const ManaSymbol = styled.img`
+  width: 16px;
+  height: 16px;
+  vertical-align: -0.15em;
 `
 
 export const Lines = styled.div`

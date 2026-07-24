@@ -12,6 +12,7 @@ import { LoadMore } from '~/components/LoadMore'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import creditsProduct from '~/assets/credits-product.svg'
+import manaSymbol from '~/assets/icons/mana-logo.svg'
 import { Icon } from '~/components/Icon'
 import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
@@ -162,10 +163,10 @@ function SaleCard({ sale }: { sale: ActivitySale }) {
         </S.HeadLeft>
         <S.HeadRight>
           <S.Pill data-status="SOLD">{t('activity.sold')}</S.Pill>
-          {/* Secondary sales settle in MANA and the seller received MANA — show the exact MANA amount,
-              never credits (they never got credits for a past sale). */}
+          {/* Secondary sales settle in MANA and the seller received MANA — show the exact MANA amount
+              with the MANA symbol, never credits (they never got credits for a past sale). */}
           <S.Total data-kind="income">
-            +{formatMana(sale.manaWei)} <S.ManaUnit>MANA</S.ManaUnit>
+            +{formatMana(sale.manaWei)} <S.ManaSymbol src={manaSymbol} alt="MANA" />
           </S.Total>
         </S.HeadRight>
       </S.CardHead>
