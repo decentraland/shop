@@ -4,24 +4,38 @@ import type { ethers as Ethers } from 'ethers'
 
 // Mutable flag/relayer, ABIs and programmable on-chain read stubs. vi.hoisted lets the vi.mock
 // factories (hoisted to the top of the file) safely reference these shared handles.
-const { gasless, nonceMock, waitForTransactionMock, CM_ABI, MARKET_ABI } = vi.hoisted(() => ({
-  gasless: { enabled: true, relayerUrl: 'https://relayer.test/v1' },
-  // getNonce(buyer) → a BigNumber-like value (only .toString() is read by the target).
-  nonceMock: vi.fn(async (_user: string): Promise<{ toString(): string }> => ({ toString: () => '7' })),
-  // waitForTransaction(hash, confirmations, timeout) → a receipt-like value (only .status is read).
-  waitForTransactionMock: vi.fn(async (..._args: unknown[]): Promise<{ status: number } | null> => ({ status: 1 })),
-  // A realistic CreditsManager ABI: enough for Interface.encodeFunctionData('useCredits') and
-  // ('executeMetaTransaction') to resolve real selectors + encode real bytes (real ethers utils).
-  CM_ABI: [
-    'function executeMetaTransaction(address userAddress, bytes functionData, bytes signature) returns (bytes)',
-    'function getNonce(address user) view returns (uint256)',
-    'function useCredits(tuple(tuple(uint256 value,uint256 expiresAt,bytes32 salt)[] credits, bytes[] creditsSignatures, tuple(address target, bytes4 selector, bytes data, uint256 expiresAt, bytes32 salt) externalCall, bytes customExternalCallSignature, uint256 maxUncreditedValue, uint256 maxCreditedValue) args)'
-  ],
-  // A minimal marketplace ABI with an `accept` fragment so buildAcceptCalldata resolves its selector.
-  MARKET_ABI: [
-    'function accept(tuple(address signer,bytes signature,tuple(uint256 uses,uint256 expiration,uint256 effective,bytes32 salt,uint256 contractSignatureIndex,uint256 signerSignatureIndex,bytes32 allowedRoot,bytes32[] allowedProof,tuple(address contractAddress,bytes4 selector,bytes value,bool required)[] externalChecks) checks,tuple(uint256 assetType,address contractAddress,uint256 value,address beneficiary,bytes extra)[] sent,tuple(uint256 assetType,address contractAddress,uint256 value,address beneficiary,bytes extra)[] received)[] trades)'
-  ]
-}))
+const { gasless, nonceMock, waitForTransactionMock, CM_ABI, MARKET_ABI, MetaTxError, ErrCode } = vi.hoisted(() => {
+  // Minimal stand-ins for decentraland-transactions' MetaTransactionError / ErrorCode so buy-gasless's
+  // `new MetaTransactionError(msg, ErrorCode.USER_DENIED)` resolves against the mock.
+  class MetaTxError extends Error {
+    code: string
+    constructor(message: string, code: string) {
+      super(message)
+      this.name = 'MetaTransactionError'
+      this.code = code
+    }
+  }
+  return {
+    gasless: { enabled: true, relayerUrl: 'https://relayer.test/v1' },
+    MetaTxError,
+    ErrCode: { USER_DENIED: 'USER_DENIED' },
+    // getNonce(buyer) → a BigNumber-like value (only .toString() is read by the target).
+    nonceMock: vi.fn(async (_user: string): Promise<{ toString(): string }> => ({ toString: () => '7' })),
+    // waitForTransaction(hash, confirmations, timeout) → a receipt-like value (only .status is read).
+    waitForTransactionMock: vi.fn(async (..._args: unknown[]): Promise<{ status: number } | null> => ({ status: 1 })),
+    // A realistic CreditsManager ABI: enough for Interface.encodeFunctionData('useCredits') and
+    // ('executeMetaTransaction') to resolve real selectors + encode real bytes (real ethers utils).
+    CM_ABI: [
+      'function executeMetaTransaction(address userAddress, bytes functionData, bytes signature) returns (bytes)',
+      'function getNonce(address user) view returns (uint256)',
+      'function useCredits(tuple(tuple(uint256 value,uint256 expiresAt,bytes32 salt)[] credits, bytes[] creditsSignatures, tuple(address target, bytes4 selector, bytes data, uint256 expiresAt, bytes32 salt) externalCall, bytes customExternalCallSignature, uint256 maxUncreditedValue, uint256 maxCreditedValue) args)'
+    ],
+    // A minimal marketplace ABI with an `accept` fragment so buildAcceptCalldata resolves its selector.
+    MARKET_ABI: [
+      'function accept(tuple(address signer,bytes signature,tuple(uint256 uses,uint256 expiration,uint256 effective,bytes32 salt,uint256 contractSignatureIndex,uint256 signerSignatureIndex,bytes32 allowedRoot,bytes32[] allowedProof,tuple(address contractAddress,bytes4 selector,bytes value,bool required)[] externalChecks) checks,tuple(uint256 assetType,address contractAddress,uint256 value,address beneficiary,bytes extra)[] sent,tuple(uint256 assetType,address contractAddress,uint256 value,address beneficiary,bytes extra)[] received)[] trades)'
+    ]
+  }
+})
 
 vi.mock('~/lib/gasless-config', () => ({
   gaslessConfig: gasless,
@@ -36,7 +50,9 @@ vi.mock('decentraland-transactions', () => ({
   getContract: (name: string) =>
     name === 'CreditsManager'
       ? { address: '0x' + 'cc'.repeat(20), name: 'CreditsManager', version: '1', abi: CM_ABI }
-      : { address: '0x' + 'ee'.repeat(20), name: 'DecentralandMarketplacePolygon', version: '1', abi: MARKET_ABI }
+      : { address: '0x' + 'ee'.repeat(20), name: 'DecentralandMarketplacePolygon', version: '1', abi: MARKET_ABI },
+  MetaTransactionError: MetaTxError,
+  ErrorCode: ErrCode
 }))
 
 // Keep real ethers utils/BigNumber/Interface; swap only the network-touching Contract + provider.
@@ -282,12 +298,12 @@ describe('when the buyer wallet cannot sign off-chain', () => {
     ).rejects.toMatchObject({ name: 'GaslessUnavailableError', reason: 'contract-account' })
   })
 
-  it('maps a user-denied signature to an unknown-reason GaslessUnavailableError', async () => {
-    stubFetch({ txHash: '0xrelayed' })
+  it('maps a user-denied signature to a USER_DENIED MetaTransactionError (never a gasless-unavailable fallback)', async () => {
+    const fetchMock = stubFetch({ txHash: '0xrelayed' })
     const signer = makeSigner(async () => {
-      throw new Error('user denied message signature')
+      throw Object.assign(new Error('user denied message signature'), { code: 4001 })
     })
-    await expect(
+    const run = () =>
       buyGasless({
         trade: fakeTrade('0xmarket'),
         buyer: BUYER,
@@ -295,7 +311,13 @@ describe('when the buyer wallet cannot sign off-chain', () => {
         credits: [credit(B32('1'), '100')],
         maxCreditedValue: '100'
       })
-    ).rejects.toMatchObject({ name: 'GaslessUnavailableError', reason: 'unknown' })
+    // A dismissed prompt is a cancel, not a gasless-unavailable condition: callers only fall back to a
+    // gas-paying direct tx on GaslessUnavailableError, so this must be a distinct rejection type that
+    // propagates as a cancel — and it must never reach the relayer.
+    await expect(run()).rejects.toBeInstanceOf(MetaTxError)
+    await expect(run()).rejects.not.toBeInstanceOf(GaslessUnavailableError)
+    await expect(run()).rejects.toMatchObject({ code: ErrCode.USER_DENIED })
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 })
 
