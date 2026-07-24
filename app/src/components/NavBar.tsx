@@ -10,6 +10,7 @@ import { CartPopover } from '~/components/CartPopover'
 import { SearchDropdown } from '~/components/SearchDropdown'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { CURRENCY } from '~/lib/currency'
+import { detailRouteFor } from '~/lib/routes'
 import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import { getRecentSearches, recordSearch, removeRecentSearch, clearRecentSearches } from '~/lib/recent-searches'
 import { track } from '~/lib/analytics'
@@ -88,12 +89,10 @@ export function NavBar() {
       type: 'item',
       item_id: item.id
     })
-    // Secondary listings carry tokenId; catalog items carry itemId — mirror AssetCard's route segment.
-    const routeSeg = item.tokenId ?? item.itemId
-    if (item.contractAddress && routeSeg) {
-      navigate(`/item/${item.contractAddress}/${routeSeg}`, {
-        state: { item, tradeId: item.tradeId }
-      })
+    // A token row → /token, a catalog row → /item (see lib/routes detailRouteFor).
+    const detailPath = detailRouteFor(item)
+    if (detailPath) {
+      navigate(detailPath, { state: { item, tradeId: item.tradeId } })
     } else {
       runSearch(q)
     }

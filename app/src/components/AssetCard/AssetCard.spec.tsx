@@ -283,13 +283,13 @@ describe('AssetCard view-only mode', () => {
 
 describe('AssetCard manage-link mode (owned My Assets card)', () => {
   it('navigates to the item detail (management view) when MANAGE is clicked on an owned wearable/emote', () => {
-    // A held token carries a tokenId — the MANAGE cta opens /item/:contract/:tokenId with the item seeded.
+    // A held token carries a tokenId — the MANAGE cta opens the specific /token/:contract/:tokenId page.
     const item = makeItem({ contractAddress: '0xc', tokenId: '9', itemId: null })
     const { container } = render(
       <MemoryRouter initialEntries={['/my-assets']}>
         <Routes>
           <Route path="/my-assets" element={<AssetCard item={item} mode="manage-link" />} />
-          <Route path="/item/:contractAddress/:seg" element={<LocationProbe />} />
+          <Route path="/token/:contractAddress/:seg" element={<LocationProbe />} />
         </Routes>
       </MemoryRouter>
     )

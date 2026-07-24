@@ -325,7 +325,8 @@
     "viewAllResellers": "Ver todos los revendedores",
     "originalPrice": "Precio original",
     "resalePrice": "Precio de reventa",
-    "soldOut": "Agotado"
+    "soldOut": "Agotado",
+    "youOwnN": "Tienes {count, plural, one {# copia} other {# copias}} de este — gestiónalas en"
   },
   "transfer": {
     "title": "Transferir artículo",

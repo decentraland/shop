@@ -5,6 +5,7 @@ import { useCart } from '~/store/cart'
 import { useFavorites } from '~/store/favorites'
 import { useWallet } from '~/store/wallet'
 import { stashResumeIntent, takeResumeIntent } from '~/lib/auth-return'
+import { detailRouteFor } from '~/lib/routes'
 import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import { useBalance } from '~/hooks/useBalance'
 import { authorizeUsdCredit, cancelUsdIntents } from '~/lib/credits'
@@ -582,12 +583,9 @@ export function Cart() {
                   const atStockCap = typeof item.available === 'number' && qty >= item.available
                   const lineSubtotal = livePrice * qty
                   const faved = !!favItems[item.id]
-                  // Whole-item deep link (same route the browse cards use): cart lines carry the listing's
-                  // contractAddress + itemId/tokenId, so the thumbnail + name navigate to the detail page
-                  // client-side (the PDP re-hydrates from the passed router state).
-                  const routeSeg = item.tokenId ?? item.itemId
-                  const detailPath =
-                    item.contractAddress && routeSeg ? `/item/${item.contractAddress}/${routeSeg}` : null
+                  // Whole-item deep link (same route the browse cards use): a token line → /token, a
+                  // catalog line → /item (see lib/routes). The PDP re-hydrates from the passed state.
+                  const detailPath = detailRouteFor(item)
                   // Live availability (optimistically 'available' until the trade resolves otherwise).
                   const status = availability[item.id]
                   const unavailable = !isLineBuyable(status)

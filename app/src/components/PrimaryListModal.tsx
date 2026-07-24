@@ -6,6 +6,7 @@ import { Network } from '@dcl/schemas'
 import type { Session } from '~/lib/auth'
 import type { PublishableItem } from '~/lib/builder'
 import { postTrade } from '~/lib/api'
+import { itemRoute } from '~/lib/routes'
 import { createPrimaryUsdPeggedListing, ensureMinter, isMarketplaceMinter } from '~/lib/trades'
 import { toast } from '~/store/toast'
 import { config } from '~/config'
@@ -119,7 +120,8 @@ export function PrimaryListModal({
 
   function viewInShop() {
     onClose()
-    navigate(`/item/${item.contractAddress}/${item.blockchainItemId}`)
+    // A primary listing is item-level → the generic /item page (blockchainItemId is an itemId).
+    navigate(itemRoute(item.contractAddress, item.blockchainItemId))
   }
 
   const cta = busy

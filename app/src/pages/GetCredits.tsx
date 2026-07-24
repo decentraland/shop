@@ -5,6 +5,7 @@ import { CircularProgress } from 'decentraland-ui2'
 import { useWallet } from '~/store/wallet'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { CURRENCY, formatAmount } from '~/lib/currency'
+import { detailRouteFor } from '~/lib/routes'
 import { useSeo } from '~/hooks/useSeo'
 import { track, errorCode } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
@@ -133,11 +134,9 @@ export function GetCredits() {
             if (pending) {
               sessionStorage.removeItem(RESUME_BUY_KEY)
               const pendingItem = JSON.parse(pending) as CatalogItem
-              const seg = pendingItem.tokenId ?? pendingItem.itemId
-              if (pendingItem.contractAddress && seg) {
-                navigate(`/item/${pendingItem.contractAddress}/${seg}`, {
-                  state: { item: pendingItem, resumeBuy: true }
-                })
+              const detailPath = detailRouteFor(pendingItem)
+              if (detailPath) {
+                navigate(detailPath, { state: { item: pendingItem, resumeBuy: true } })
                 return
               }
             }

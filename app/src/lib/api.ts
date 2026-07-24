@@ -732,6 +732,21 @@ export async function fetchOwnedToken(
   }
 }
 
+// How many copies of an ITEM the viewer owns — powers the item page's "You own N of this" note. Hits
+// the same /v1/nfts endpoint filtered by owner + itemId and reads the server-side `total` (first: 1, we
+// only need the count). Best-effort: any error → 0 so the note simply doesn't show.
+export async function fetchOwnedItemCount(owner: string, contractAddress: string, itemId: string): Promise<number> {
+  try {
+    const qs = new URLSearchParams({ owner: owner.toLowerCase(), contractAddress, itemId, first: '1' })
+    const res = await fetch(`${NFT_V1}/nfts?${qs.toString()}`)
+    if (!res.ok) return 0
+    const { total } = (await res.json()) as { total?: number }
+    return typeof total === 'number' ? total : 0
+  } catch {
+    return 0
+  }
+}
+
 // Seller + issued number for a specific listed token, resolved from the indexer's /v1/nfts endpoint.
 // The unified shop feed (fetchItemResales) carries NEITHER — it's a per-trade projection with no owner
 // or mint index — so the resale rows resolve these client-side, per visible (paginated) token. Seller

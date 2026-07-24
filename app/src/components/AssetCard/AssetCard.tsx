@@ -5,6 +5,7 @@ import { useFavorites } from '~/store/favorites'
 import { useHoverPreview } from '~/store/hoverPreview'
 import { useWallet } from '~/store/wallet'
 import { isOwnListing } from '~/lib/ownership'
+import { detailRouteFor } from '~/lib/routes'
 import { rarityInk, rarityTint, rarityDescription } from '~/lib/rarity'
 import { categoryIcon, genderIcon } from '~/lib/itemIcons'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
@@ -85,21 +86,21 @@ export function AssetCard(props: AssetCardProps) {
   // NAMEs are read-only in the Shop: no whole-card link (the detail page loads a wearable preview,
   // wrong for a NAME), no favourite, no 3D hover preview. Only the standard visual hover (red border).
   const canPreview = !!item.contractAddress && !!item.itemId && !isNameItem
-  // Secondary listings carry tokenId; catalog items carry itemId — use whichever is present so the
-  // /item/:contractAddress/:tokenId route segment is always populated.
-  const routeSeg = item.tokenId ?? item.itemId
-  // The whole card opens the item-detail page — market (legacy) cards included: they carry a valid
+  // A secondary listing (carries tokenId) → the specific /token page; a primary/catalog row (itemId
+  // only) → the generic /item page. detailRouteFor picks the right one so a token never lands on the
+  // ambiguous item route (see lib/routes).
+  // The whole card opens the detail page — market (legacy) cards included: they carry a valid
   // contractAddress + tokenId/itemId, and the detail page renders them in "market mode" (live-rate
   // price + Buy now) from the router state handed over on the link below.
-  const canOpen = !!item.contractAddress && !!routeSeg
-  const detailPath = `/item/${item.contractAddress}/${routeSeg}`
+  const detailPath = detailRouteFor(item)
+  const canOpen = !!detailPath
 
   // Own item → the card's action becomes MANAGE: it opens the item's detail page (same route + seeded
   // state as the whole-card link) where the owner/creator management actions (List / Update price /
   // Remove) live. Navigates explicitly (the button sits above the card link and stops propagation).
   function goManage(e: React.MouseEvent) {
     e.stopPropagation()
-    if (canOpen) navigate(detailPath, { state: { item, tradeId: item.tradeId } })
+    if (detailPath) navigate(detailPath, { state: { item, tradeId: item.tradeId } })
   }
 
   function onEnter() {
@@ -154,7 +155,7 @@ export function AssetCard(props: AssetCardProps) {
           of an interactive <article role="link"> that wraps the fav/cart/creator buttons — nesting
           interactive controls inside a link is invalid and breaks SR/tab order. The overlay sits below
           those controls via z-index (see .card__link in index.css) so they stay independently operable. */}
-      {canOpen && !isNameItem ? (
+      {detailPath && !isNameItem ? (
         <Link
           className="card__link"
           data-testid="card-link"

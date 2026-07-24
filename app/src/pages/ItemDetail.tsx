@@ -13,12 +13,14 @@ import {
   fetchItemResales,
   fetchItemDescription,
   fetchOwnedToken,
+  fetchOwnedItemCount,
   fetchTokenById,
   fetchTrade,
   type CatalogItem,
   type LegacyListing,
   type UnifiedListing
 } from '~/lib/api'
+import { itemIdFromTokenId } from '~/lib/token-id'
 import { cancelListing } from '~/lib/buy'
 import { fetchPublishableItems, type PublishableItem } from '~/lib/builder'
 import { BuyModal } from '~/components/BuyModal'
@@ -306,6 +308,19 @@ const ManageActions = styled('div')`
   width: 100%;
 `
 
+// "You own N of this" note on the generic item page (Gap B): the item page never manages a token, so
+// this points owners to My Assets instead of showing Edit/Remove. Subtle, sits under the buy CTAs.
+const OwnNote = styled('p')`
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: ${theme.colors.muted};
+
+  a {
+    color: ${theme.colors.accent};
+    font-weight: 600;
+  }
+`
+
 // "Manage all your items in My Assets" helper, mirroring the old own-note styling.
 const ManageNote = styled('p')`
   margin: 4px 0 0;
@@ -337,7 +352,21 @@ function categoryLabel(item: CatalogItem): string {
 }
 
 export function ItemDetail() {
-  const { contractAddress, tokenId } = useParams<{ contractAddress: string; tokenId: string }>()
+  // TWO routes render this page (see App.tsx): /item/:contractAddress/:itemId (generic buy view) and
+  // /token/:contractAddress/:tokenId (a specific copy). react-router populates whichever param matched.
+  const {
+    contractAddress,
+    itemId: routeItemId,
+    tokenId: routeTokenId
+  } = useParams<{
+    contractAddress: string
+    itemId?: string
+    tokenId?: string
+  }>()
+  const isTokenRoute = !!routeTokenId
+  // The itemId this page is about: the route itemId, or decoded from the token (itemId = tokenId >> 216).
+  // Both routes fetch the generic item data (name, resales, siblings, description) by this itemId.
+  const pageItemId = routeItemId ?? itemIdFromTokenId(routeTokenId) ?? null
   const location = useLocation() as {
     pathname: string
     state?: {
@@ -367,13 +396,21 @@ export function ItemDetail() {
   // when a carousel sibling is tapped (no full reload). Falls back to a stub for deep links/refresh
   // (name/thumbnail/price then fill in from the collection fetch below).
   const [current, setCurrent] = useState<CatalogItem>(() => {
-    if (state?.item) return { ...state.item, tradeId: state.tradeId ?? state.item.tradeId }
+    if (state?.item) {
+      const seed = { ...state.item, tradeId: state.tradeId ?? state.item.tradeId }
+      // Pin identity to the ROUTE, not the passed state: on the item route force tokenId undefined (a
+      // stale link could hand over a token-carrying item — it must NOT put a specific token on the
+      // generic page); on the token route pin the exact tokenId. This is what kills the wrong-item bug.
+      return isTokenRoute
+        ? { ...seed, tokenId: routeTokenId, itemId: seed.itemId ?? pageItemId }
+        : { ...seed, tokenId: undefined, itemId: routeItemId ?? seed.itemId }
+    }
     return {
-      id: `${contractAddress}-${tokenId}`,
+      id: `${contractAddress}-${routeTokenId ?? routeItemId}`,
       name: '',
       creator: '',
       contractAddress: contractAddress ?? '',
-      itemId: null,
+      itemId: pageItemId,
       category: 'wearable',
       rarity: 'common',
       network: 'MATIC',
@@ -382,7 +419,7 @@ export function ItemDetail() {
       priceCredits: 0,
       gender: null,
       isSmart: false,
-      tokenId: tokenId ?? undefined,
+      tokenId: routeTokenId ?? undefined,
       tradeId: state?.tradeId
     }
   })
@@ -428,22 +465,26 @@ export function ItemDetail() {
     queryFn: () => fetchCollectionItems(current.contractAddress, { first: 20 }).then(r => r.items)
   })
 
-  // Deep-link / refresh: the route segment is the itemId for primary listings. Hydrate the item
-  // (name, price, tradeId) straight from the shop feed so it resolves correctly (a primary itemId is
-  // NOT a tokenId — the sibling fallback below would otherwise mis-match).
-  // Also runs when a PRIMARY item was seeded from router state (grid nav) or a sibling but is missing
-  // its stock (`available`) — siblings/grid rows don't carry it — so the authoritative shop listing
-  // can backfill it (see the effect below). Never for a market/legacy item (not in this feed).
+  // Hydrate the generic item (name, price, tradeId, stock) from the shop feed by its ITEM id. Resolved
+  // by `pageItemId` — the route itemId, or the itemId DECODED from the token on the token route. This is
+  // the bug fix: the old code fed the raw route segment (a tokenId on a secondary URL) to
+  // fetchShopListingForItem, which treats its 2nd arg as an itemId → the server matched nothing and
+  // returned the collection's first listing (a WRONG item) on a cold load. Never pass a tokenId here.
+  // Also runs when a seeded item (grid nav / sibling) is missing its stock (`available`) so the
+  // authoritative listing can backfill it. Never for a market/legacy item (not in this feed).
+  // ITEM ROUTE ONLY: the token route hydrates from the specific token (ownedAsset / publicToken) and
+  // must not be overwritten by the generic item listing (which carries no tokenId).
   const needsPrimaryStock = current.available == null && !current.tokenId
   const { data: deepLinkItem, isLoading: deepLinkLoading } = useQuery({
-    queryKey: ['shop-item', current.contractAddress, tokenId],
-    enabled: !isMarket && !!current.contractAddress && !!tokenId && (!state?.item || needsPrimaryStock),
+    queryKey: ['shop-item', current.contractAddress, pageItemId],
+    enabled:
+      !isMarket && !isTokenRoute && !!current.contractAddress && !!pageItemId && (!state?.item || needsPrimaryStock),
     // Money-sensitive: a 3rd party's listing/price/stock can change under us. Never serve the 30s-stale
     // default — revalidate on every (re)mount and tab refocus so a soft revisit re-checks availability.
     staleTime: 0,
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
-    queryFn: () => fetchShopListingForItem(current.contractAddress, tokenId as string)
+    queryFn: () => fetchShopListingForItem(current.contractAddress, pageItemId as string)
   })
   useEffect(() => {
     if (!deepLinkItem) return
@@ -493,10 +534,12 @@ export function ItemDetail() {
   // sibling once the collection resolves. Skip it when the authoritative shop listing (deepLinkItem)
   // is available — that carries the fields siblings lack (stock, wearableCategory) and would otherwise
   // be clobbered if both resolve in the same React batch (the guard below reads a stale `current`).
+  // ITEM ROUTE ONLY: the token route hydrates from the specific token (ownedAsset / publicToken), so a
+  // generic catalog sibling (which has no tokenId) must never replace it.
   useEffect(() => {
-    if (current.name || deepLinkItem || siblings.length === 0) return
+    if (isTokenRoute || current.name || deepLinkItem || siblings.length === 0) return
     const match =
-      (tokenId && siblings.find(s => s.tokenId === tokenId || s.itemId === tokenId)) ||
+      (pageItemId && siblings.find(s => s.itemId === pageItemId)) ||
       siblings.find(s => s.contractAddress === current.contractAddress)
     if (match) setCurrent(prev => ({ ...match, tradeId: prev.tradeId ?? match.tradeId }))
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -638,13 +681,19 @@ export function ItemDetail() {
   // reuses this same component instance — the useState initializer above only runs on the first mount,
   // so re-seed the shown item from the freshly-passed router state and scroll back to the top. Skips
   // the initial route (already seeded) so it never clobbers in-flight hydration on a deep link.
-  const routeKey = `${contractAddress}/${tokenId}`
+  const routeKey = `${contractAddress}/${routeTokenId ?? routeItemId}`
   const seededRoute = useRef(routeKey)
   useEffect(() => {
     if (seededRoute.current === routeKey) return
     seededRoute.current = routeKey
     if (state?.item) {
-      setCurrent({ ...state.item, tradeId: state.tradeId ?? state.item.tradeId })
+      const seed = { ...state.item, tradeId: state.tradeId ?? state.item.tradeId }
+      // Same route-pinned identity as the initial seed: never let a token onto the item page.
+      setCurrent(
+        isTokenRoute
+          ? { ...seed, tokenId: routeTokenId, itemId: seed.itemId ?? pageItemId }
+          : { ...seed, tokenId: undefined, itemId: routeItemId ?? seed.itemId }
+      )
     }
     if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' })
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -789,8 +838,15 @@ export function ItemDetail() {
     }
   })
 
-  const manageAsSecondary = !!ownedAsset
-  const manageAsPrimary = own
+  // Secondary (token-owner) management is a TOKEN-ROUTE-ONLY affordance: Edit/Remove/Transfer act on a
+  // SPECIFIC token, so they only ever show on /token/:tokenId for a token the viewer actually owns.
+  // Owning copies never flips the generic /item page into manage mode (that showed the wrong actions —
+  // the item page always stays the buy view and instead surfaces a "you own N" note). See lib/routes
+  // canManageToken. `ownedAsset` only resolves on the token route anyway (current.tokenId is undefined
+  // on the item route), but gate explicitly so the intent is unmistakable.
+  const manageAsSecondary = isTokenRoute && !!ownedAsset
+  // Primary (creator) management of a mint listing is item-level — it belongs on the /item page only.
+  const manageAsPrimary = !isTokenRoute && own
   // Never over the market (legacy) flow — legacy items aren't managed through the shop's trade flows.
   const manage = !isMarket && (manageAsPrimary || manageAsSecondary)
   // Listed? Secondary uses the token's authoritative order; primary uses the resolved buyable trade.
@@ -802,6 +858,16 @@ export function ItemDetail() {
   // right after listing: the public `forSale`/feed the price block falls back to lags behind the MV
   // refresh, which left the owner staring at "Not for sale" while the manage buttons already said listed.
   const managePriceCredits = manageAsSecondary ? (ownedAsset?.listingPrice ?? 0) : 0
+
+  // Item route only: how many copies of THIS item the viewer owns, for the "You own N of this" note.
+  // The item page never manages a token, so this replaces the (removed) secondary-manage leak with a
+  // gentle pointer to My Assets. Cheap (reads the server-side total).
+  const { data: ownedItemCount = 0 } = useQuery({
+    queryKey: ['owned-item-count', current.contractAddress, routeItemId, session?.address],
+    enabled: !isTokenRoute && !isMarket && !!session?.address && !!current.contractAddress && !!routeItemId,
+    staleTime: 30_000,
+    queryFn: () => (session ? fetchOwnedItemCount(session.address, current.contractAddress, routeItemId as string) : 0)
+  })
 
   async function refreshManage() {
     await Promise.all([
@@ -1350,6 +1416,15 @@ export function ItemDetail() {
                   ) : null}
                   <ResellersLink onClick={scrollToResellers}>{t('itemDetail.viewAllResellers')}</ResellersLink>
                 </LowestPriceRow>
+              ) : null}
+
+              {/* Gap B: the item page never manages a token. If the viewer owns copies, point them to
+                  My Assets to manage/resell them instead of showing Edit/Remove here. */}
+              {!manage && !isMarket && ownedItemCount > 0 ? (
+                <OwnNote data-testid="you-own-note">
+                  {t('itemDetail.youOwnN', { count: ownedItemCount })} <Link to="/my-assets">{t('nav.myAssets')}</Link>
+                  {/* TODO: deep-link to My Assets filtered by this collection once that filter exists. */}
+                </OwnNote>
               ) : null}
             </>
           )}

@@ -95,7 +95,8 @@ function renderPageWithRoutes() {
       <MemoryRouter initialEntries={['/my-assets']}>
         <Routes>
           <Route path="/my-assets" element={<MyAssets />} />
-          <Route path="/item/:contractAddress/:tokenId" element={<DetailProbe />} />
+          <Route path="/item/:contractAddress/:itemId" element={<DetailProbe />} />
+          <Route path="/token/:contractAddress/:tokenId" element={<DetailProbe />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>
@@ -197,8 +198,9 @@ describe('when a connected user manages an owned asset', () => {
 
     await user.click(await screen.findByTestId('card-manage'))
 
-    // Landed on the item detail route for THIS exact token (contractAddress/tokenId)…
-    expect(await screen.findByTestId('detail-path')).toHaveTextContent('/item/0xcollection/1')
+    // Landed on the TOKEN detail route for THIS exact token (contractAddress/tokenId) — an owned copy
+    // opens the specific /token page, not the generic /item page.
+    expect(await screen.findByTestId('detail-path')).toHaveTextContent('/token/0xcollection/1')
     // …and no sell dialog was opened from My Assets.
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
