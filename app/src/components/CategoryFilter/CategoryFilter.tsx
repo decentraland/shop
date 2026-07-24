@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { t } from '~/intl/i18n'
 import { Icon, type IconName } from '~/components/Icon'
 import { Chevron } from '~/components/Chevron'
+import * as S from './CategoryFilter.styles'
 
 // Category filter panel (Figma "Categories Dropdown", node 696:34701). Top categories with an
 // animated accordion; Wearables and Emotes each expand into icon'd sub-categories. Wired to the
@@ -88,57 +89,56 @@ export function CategoryFilter({
   }
 
   return (
-    <div className={`catfilter${flat ? ' catfilter--flat' : ''}`}>
-      {title ? <p className="catfilter__title">{title}</p> : null}
+    <S.Root data-flat={flat || undefined}>
+      {title ? <S.Title>{title}</S.Title> : null}
       {CATEGORIES.map(top => {
         const open = expandedKey === top.key && !!top.subs
         // In collections mode nothing in the normal category list is highlighted.
         const selected = !collections && top.key === category
         return (
-          <div key={top.key} className="catfilter__group">
-            <button
+          <S.Group key={top.key}>
+            <S.Cat
               type="button"
-              className={`catfilter__cat${open ? ' is-expanded' : ''}${selected ? ' is-selected' : ''}`}
+              data-cat
+              data-expanded={open || undefined}
+              data-selected={selected || undefined}
               onClick={() => clickTop(top)}
             >
-              <span className="catfilter__cat-label">{t(top.labelKey)}</span>
+              <S.CatLabel>{t(top.labelKey)}</S.CatLabel>
               {top.expandable ? <Chevron up={open} size={24} color="var(--text)" /> : null}
-            </button>
+            </S.Cat>
 
             {top.subs ? (
-              <div className={`catfilter__subs${open ? ' is-open' : ''}`}>
-                <div className="catfilter__subs-inner">
+              <S.Subs data-open={open || undefined}>
+                <S.SubsInner>
                   {top.subs.map(sub => (
-                    <button
+                    <S.Sub
                       key={sub.key}
                       type="button"
-                      className={`catfilter__sub${subCategory === sub.key ? ' is-active' : ''}`}
+                      data-sub
+                      data-active={subCategory === sub.key || undefined}
                       onClick={() => onSub(subCategory === sub.key ? null : sub.key)}
                     >
-                      <span className="catfilter__sub-left">
+                      <S.SubLeft>
                         <Icon name={sub.icon} color="#43404a" />
-                        <span className="catfilter__sub-label">{t(sub.labelKey)}</span>
-                      </span>
-                    </button>
+                        <S.SubLabel data-sub-label>{t(sub.labelKey)}</S.SubLabel>
+                      </S.SubLeft>
+                    </S.Sub>
                   ))}
-                </div>
-              </div>
+                </S.SubsInner>
+              </S.Subs>
             ) : null}
-          </div>
+          </S.Group>
         )
       })}
 
       {onCollections ? (
-        <div className="catfilter__group">
-          <button
-            type="button"
-            className={`catfilter__cat${collections ? ' is-selected' : ''}`}
-            onClick={onCollections}
-          >
-            <span className="catfilter__cat-label">{t('categories.collections')}</span>
-          </button>
-        </div>
+        <S.Group>
+          <S.Cat type="button" data-cat data-selected={collections || undefined} onClick={onCollections}>
+            <S.CatLabel>{t('categories.collections')}</S.CatLabel>
+          </S.Cat>
+        </S.Group>
       ) : null}
-    </div>
+    </S.Root>
   )
 }
