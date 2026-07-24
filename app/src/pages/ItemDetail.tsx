@@ -1507,16 +1507,11 @@ export function ItemDetail() {
                           </>
                         )}
                         {managing === 'update' ? (
-                          // Explain the two-step nature while the current listing is being taken down.
+                          // Only note kept in the manage view: explain the two-step nature while the
+                          // current listing is being taken down. The "manage it in My Assets" note was
+                          // removed — you're already managing right here (on both /item and /token).
                           <ManageNote>{t('itemDetail.updateHelper')}</ManageNote>
-                        ) : manageAsSecondary ? null : (
-                          // Redundant on a /token page (you're already managing here); only useful on the
-                          // item page where a creator manages their primary listing.
-                          <ManageNote>
-                            {t('itemDetail.ownItemPrefix')} <Link to="/my-assets">{t('nav.myAssets')}</Link>
-                            {t('itemDetail.ownItemSuffix')}
-                          </ManageNote>
-                        )}
+                        ) : null}
                       </ManageActions>
                     ) : forSale ? (
                       <>
