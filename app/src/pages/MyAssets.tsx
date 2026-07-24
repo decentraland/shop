@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { Icon } from '~/components/Icon'
 import { config } from '~/config'
 import { useWallet } from '~/store/wallet'
@@ -8,18 +8,12 @@ import {
   fetchCollectionSaleState,
   fetchMyAssets,
   fetchSecondarySaleState,
-  fetchTrade,
   type CatalogItem,
   type MyAsset
 } from '~/lib/api'
 import { fetchImportable } from '~/lib/import'
 import { fetchPublishableItems, type PublishableItem } from '~/lib/builder'
-import { cancelListing } from '~/lib/buy'
-import { patchManageCaches } from '~/lib/manage-cache'
-import { captureError } from '~/lib/monitoring'
-import { toast } from '~/store/toast'
 import { Button } from '~/components/Button'
-import { PrimaryListModal } from '~/components/PrimaryListModal'
 import { AssetCard } from '~/components/AssetCard'
 import { SkeletonCards } from '~/components/SkeletonCards'
 import { LoadMore } from '~/components/LoadMore'
@@ -29,7 +23,6 @@ import { FilterSection, type FilterStatus } from '~/components/Filters'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
 import { SUBCAT_MAP } from '~/lib/categories'
 import { capitalizeFirst } from '~/lib/text'
-import { track } from '~/lib/analytics'
 import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
 import { theme } from '~/styles/theme'
@@ -133,7 +126,6 @@ function publishableToItem(p: PublishableItem, price = 0): CatalogItem {
 export function MyAssets() {
   useSeo({ title: t('nav.myAssets'), noindex: true })
   const { session, error, signIn, restore } = useWallet()
-  const qc = useQueryClient()
 
   // The active section lives in the URL (?section=…) so it survives refresh + is shareable. Fall back to
   // 'wearables' for a missing/unknown value.
@@ -150,10 +142,6 @@ export function MyAssets() {
   // Collapsible filter groups — same defaults as Collectibles (rarity starts collapsed).
   const [openStatus, setOpenStatus] = useState(true)
   const [openRarity, setOpenRarity] = useState(false)
-
-  const [publishing, setPublishing] = useState<PublishableItem | null>(null)
-  const [cancelling, setCancelling] = useState<string | null>(null)
-  const [cancelError, setCancelError] = useState<string | null>(null)
 
   useEffect(() => {
     void restore()
@@ -327,49 +315,6 @@ export function MyAssets() {
     enabled: !!address
   })
   const importCount = (importable?.creations.length ?? 0) + (importable?.owned.length ?? 0)
-
-  // Take a listing down (owned secondary OR created primary). Refreshes the affected grids on success.
-  // `token` identifies the underlying NFT when this is a secondary (owned-token) listing, so the caches
-  // that render its sale state can be patched optimistically (mirrors ItemDetail's remove flow); primary
-  // listings carry no tokenId and rely on the invalidations below.
-  async function cancelByTrade(
-    tradeId: string,
-    name: string,
-    key: string,
-    token?: { contractAddress: string; tokenId?: string }
-  ) {
-    if (!session) return
-    setCancelError(null)
-    setCancelling(key)
-    try {
-      const trade = await fetchTrade(tradeId)
-      await cancelListing({ trade, signer: session.signer })
-      toast.success(t('myAssets.removedFromSale', { name }))
-      await qc.invalidateQueries({ queryKey: ['my-assets', session.address] })
-      await qc.invalidateQueries({ queryKey: ['collection-sale-state'] })
-      await qc.invalidateQueries({ queryKey: ['secondary-sale-state'] })
-      await qc.invalidateQueries({ queryKey: ['publishable-items'] })
-      // The feed's MV lags the on-chain cancel, so an invalidate→refetch alone would read back the stale
-      // still-listed row. Optimistically flip the token to not-for-sale in every cache that renders it
-      // (My Assets grid, PDP owned-token, shop-feed price map) so the change shows at once. Guarded: a
-      // primary listing has no tokenId, so patchManageCaches no-ops and the invalidations above cover it.
-      if (token) {
-        patchManageCaches(
-          qc,
-          { address: session.address, contractAddress: token.contractAddress, tokenId: token.tokenId },
-          { kind: 'removed' }
-        )
-      }
-    } catch (e) {
-      const err = e as { code?: number; message?: string }
-      const msg = (err.message ?? '').toLowerCase()
-      const rejected = err.code === 4001 || msg.includes('reject') || msg.includes('denied')
-      if (!rejected) captureError(e, { flow: 'remove-listing', tradeId })
-      setCancelError(rejected ? t('getCredits.errorCanceled') : t('myAssets.removeListingError'))
-    } finally {
-      setCancelling(null)
-    }
-  }
 
   // ---------------- Sign-in gate ----------------
   if (!session) {
@@ -550,7 +495,6 @@ export function MyAssets() {
         {(section === 'creations' ? publishableError : !!ownedError) ? (
           <ErrorNotice message={t('myAssets.ownedError')} testId="my-assets-error" />
         ) : null}
-        <ErrorNotice message={cancelError} />
 
         {/* ---- Creations grid ---- */}
         {section === 'creations' ? (
@@ -561,24 +505,14 @@ export function MyAssets() {
               ) : (
                 creations.map(item => {
                   const sale = saleFor(item)
-                  const listed = !!sale?.isOnSale
                   return (
+                    // Creations use the same MANAGE cta as owned assets: it navigates to the item's
+                    // detail page, where listing / editing / removing / issuing live. Publishing no
+                    // longer happens inline from the My Creations card.
                     <AssetCard
                       key={`${item.contractAddress}-${item.blockchainItemId}`}
                       item={publishableToItem(item, sale?.priceCredits ?? 0)}
-                      mode="manage"
-                      listed={listed}
-                      busy={cancelling === item.id}
-                      onList={() => {
-                        track('Shop Started Listing', { listing_type: 'primary', item_id: item.blockchainItemId })
-                        setPublishing(item)
-                      }}
-                      onUnlist={() => {
-                        if (sale?.tradeId)
-                          void cancelByTrade(sale.tradeId, item.name, item.id, {
-                            contractAddress: item.contractAddress
-                          })
-                      }}
+                      mode="manage-link"
                     />
                   )
                 })
@@ -652,8 +586,6 @@ export function MyAssets() {
           </>
         )}
       </A.Main>
-
-      {publishing ? <PrimaryListModal item={publishing} session={session} onClose={() => setPublishing(null)} /> : null}
     </A.Root>
   )
 }

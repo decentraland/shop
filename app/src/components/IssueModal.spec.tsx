@@ -79,7 +79,7 @@ describe('IssueModal', () => {
   it('should batch all rows into ONE issueTokens call with repeated beneficiaries', async () => {
     renderModal('injected')
 
-    const addresses = screen.getAllByLabelText(/wallet address/i)
+    const addresses = screen.getAllByLabelText(/user id/i)
     const amounts = screen.getAllByLabelText(/amount/i)
     await userEvent.type(addresses[0], A)
     await userEvent.clear(amounts[0])
@@ -87,7 +87,7 @@ describe('IssueModal', () => {
 
     // Add a second recipient.
     await userEvent.click(screen.getByRole('button', { name: /add recipient/i }))
-    const addresses2 = screen.getAllByLabelText(/wallet address/i)
+    const addresses2 = screen.getAllByLabelText(/user id/i)
     const amounts2 = screen.getAllByLabelText(/amount/i)
     await userEvent.type(addresses2[1], B)
     await userEvent.clear(amounts2[1])
@@ -118,7 +118,7 @@ describe('IssueModal', () => {
 
   it('should keep submit disabled when the total exceeds the available supply', async () => {
     renderModal('injected')
-    const addresses = screen.getAllByLabelText(/wallet address/i)
+    const addresses = screen.getAllByLabelText(/user id/i)
     const amounts = screen.getAllByLabelText(/amount/i)
     await userEvent.type(addresses[0], A)
     await userEvent.clear(amounts[0])
@@ -134,7 +134,7 @@ describe('IssueModal', () => {
     issueTokens.mockReturnValue(new Promise(res => (resolve = res)))
     renderModal('magic')
 
-    await userEvent.type(screen.getAllByLabelText(/wallet address/i)[0], A)
+    await userEvent.type(screen.getAllByLabelText(/user id/i)[0], A)
     await userEvent.click(screen.getByRole('button', { name: /issue 1 copy/i }))
 
     await screen.findByRole('button', { name: /issuing…/i })
@@ -148,7 +148,7 @@ describe('IssueModal', () => {
     issueTokens.mockReturnValue(new Promise(res => (resolve = res)))
     renderModal('injected')
 
-    await userEvent.type(screen.getAllByLabelText(/wallet address/i)[0], A)
+    await userEvent.type(screen.getAllByLabelText(/user id/i)[0], A)
     await userEvent.click(screen.getByRole('button', { name: /issue 1 copy/i }))
 
     await screen.findByRole('button', { name: /^confirm$/i })
