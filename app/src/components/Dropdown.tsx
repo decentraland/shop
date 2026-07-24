@@ -80,7 +80,7 @@ export function Dropdown({
         onClick={() => setOpen(!open)}
       >
         <span className="dropdown__label">{triggerLabel}</span>
-        <Chevron up={open} size={24} color="#43404a" />
+        <Chevron up={open} size={24} color="#242129" />
       </button>
 
       {open ? (
