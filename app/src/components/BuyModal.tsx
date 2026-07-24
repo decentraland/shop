@@ -5,13 +5,17 @@ import { useQueryClient } from '@tanstack/react-query'
 import type { Trade } from '@dcl/schemas'
 import { useWallet } from '~/store/wallet'
 import { useBalance } from '~/hooks/useBalance'
+import { useManaBalance } from '~/hooks/useManaBalance'
 import { resolveLiveTrade, usdWeiToCents, type CatalogItem } from '~/lib/api'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { formatCredits } from '~/lib/currency'
+import { readTradeManaPriceWei } from '~/lib/mana'
+import { PaymentMethodStep, type PaymentMethod } from '~/components/PaymentMethodStep'
 import { track, errorCode, isUserRejection, purchaseItemsProps } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
 import { authorizeUsdCredit, cancelUsdIntents } from '~/lib/credits'
 import { buyWithCredits } from '~/lib/buy'
+import { buyWithMana } from '~/lib/buy-mana'
 import { buyGasless, waitForSettlement, GaslessUnavailableError, SettlementPendingError } from '~/lib/buy-gasless'
 import { gaslessEnabled } from '~/lib/gasless-config'
 import { isOwnTrade } from '~/lib/ownership'
@@ -49,6 +53,8 @@ export function BuyModal({
 }) {
   const { session } = useWallet()
   const { data: balance } = useBalance(session)
+  // The buyer's on-chain MANA balance — drives whether we OFFER the "pay with MANA" step at all.
+  const { data: manaBalanceWei } = useManaBalance(session)
   const qc = useQueryClient()
   const navigate = useNavigate()
   // The top-up packs offered when the buyer is short on credits (all four the credits-server returns —
@@ -61,6 +67,11 @@ export function BuyModal({
   const [error, setError] = useState<string | null>(null)
   const [selectedPack, setSelectedPack] = useState<string>('')
   const [itemCredits, setItemCredits] = useState(item.priceCredits)
+  // The MANA (wei) this trade costs, read from the oracle once the price locks — null until read (or
+  // if the read fails, in which case MANA simply isn't offered and the credits path is unaffected).
+  const [manaPriceWei, setManaPriceWei] = useState<bigint | null>(null)
+  // Which rail the buyer picked in the payment-method step. Credits is the default.
+  const [payMethod, setPayMethod] = useState<PaymentMethod>('credits')
   const [locked, setLocked] = useState<{
     trade: Trade
     credit: Awaited<ReturnType<typeof authorizeUsdCredit>>['credit']
@@ -158,6 +169,26 @@ export function BuyModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Once the price is locked AND the buyer holds MANA, read the trade's MANA price so we can offer the
+  // "pay with MANA" step. Runs off the loading path so it never blocks/gates the default credits flow;
+  // a failed oracle read just leaves manaPriceWei null (MANA not offered).
+  useEffect(() => {
+    if (phase !== 'ready' || !locked) return
+    if (manaBalanceWei == null || manaBalanceWei <= 0n) return
+    if (manaPriceWei !== null) return
+    let cancelled = false
+    void readTradeManaPriceWei(locked.trade)
+      .then(wei => {
+        if (!cancelled) setManaPriceWei(wei)
+      })
+      .catch(err => {
+        if (import.meta.env.DEV) console.warn('[buyModal] mana price read failed', err)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [phase, locked, manaBalanceWei, manaPriceWei])
+
   async function confirm(lk = locked) {
     if (!session || !lk) return
     setPhase('processing')
@@ -231,6 +262,56 @@ export function BuyModal({
     }
   }
 
+  // Pay directly in MANA (the alternative rail chosen in the payment-method step). We're NOT spending
+  // credits, so release the reserved credit intent that locked the price, then settle on-chain via the
+  // marketplace (buyWithMana). Same post-purchase cache refresh + analytics as the credits path.
+  async function confirmMana() {
+    if (!session || !locked) return
+    if (reservedCreditIdRef.current) {
+      void cancelUsdIntents(session.identity, [reservedCreditIdRef.current]).catch(() => {})
+      reservedCreditIdRef.current = null
+    }
+    setPhase('processing')
+    setError(null)
+    try {
+      const txHash = await buyWithMana({
+        trade: locked.trade,
+        buyer: session.address,
+        signer: session.signer
+      })
+      track('Shop Completed Purchase', {
+        ...purchaseItemsProps([item]),
+        payment_type: 'mana',
+        transaction_hash: txHash ?? null
+      })
+      // Mirror confirm()'s invalidations so the PDP, grids, My Assets and Activity refresh; also bump
+      // the MANA balance since it was just spent.
+      void qc.invalidateQueries({ queryKey: ['mana-balance'] })
+      void qc.invalidateQueries({ queryKey: ['usd-balance'] })
+      void qc.invalidateQueries({ queryKey: ['detail-trade'] })
+      void qc.invalidateQueries({ queryKey: ['shop-item'] })
+      void qc.invalidateQueries({ queryKey: ['owned-token', item.contractAddress, item.tokenId] })
+      void qc.invalidateQueries({ queryKey: ['public-token', item.contractAddress, item.tokenId] })
+      void qc.invalidateQueries({ queryKey: ['item-resales', item.contractAddress, item.itemId] })
+      void qc.invalidateQueries({ queryKey: ['shop-items'] })
+      void qc.invalidateQueries({ queryKey: ['catalog-items'] })
+      void qc.invalidateQueries({ queryKey: ['my-assets'] })
+      void qc.invalidateQueries({ queryKey: ['purchases'] })
+      void qc.invalidateQueries({ queryKey: ['owned-item-count'] })
+      void qc.invalidateQueries({ queryKey: ['overview-listings'] })
+      void qc.invalidateQueries({ queryKey: ['upsell-listings'] })
+      setPhase('complete')
+    } catch (e) {
+      if (!isUserRejection(e)) captureError(e, { flow: 'buy_mana', step: 'submit' })
+      track(isUserRejection(e) ? 'Shop Purchase Cancelled' : 'Shop Purchase Failed', {
+        step: 'submit',
+        error_code: errorCode(e)
+      })
+      setError(friendlyError(e, t('buyModal.error.generic'), { sale: true }))
+      setPhase('error')
+    }
+  }
+
   // No funds → buy the selected pack on Stripe directly, then resume THIS item purchase with the new
   // credits. Stash the item so the /credits return handler picks it up and re-opens this modal in
   // resume mode; then send the buyer straight to the Stripe hosted checkout (never the /credits page).
@@ -265,6 +346,15 @@ export function BuyModal({
     }
   }
 
+  // Offer the "pay with MANA" step only to buyers who actually hold MANA and once we know the price.
+  // manaSufficient gates the MANA option itself (greyed with a hint when short). We only reach the
+  // 'ready' phase from the enough-credits branch, so Credits is always affordable in this step.
+  const manaBal = manaBalanceWei ?? 0n
+  const manaPrice = manaPriceWei ?? 0n
+  const manaEligible = manaBalanceWei != null && manaBalanceWei > 0n && manaPriceWei !== null
+  const manaSufficient = manaEligible && manaBal >= manaPrice
+  const methodMode = phase === 'ready' && manaEligible
+
   const busy = phase === 'processing'
   const title =
     phase === 'complete'
@@ -284,6 +374,21 @@ export function BuyModal({
       <div
         className={`buy-modal__card${phase === 'processing' || phase === 'loading' ? ' buy-modal__card--tall' : ''}`}
       >
+        {methodMode ? (
+          <PaymentMethodStep
+            item={item}
+            priceCredits={priceCredits}
+            creditsBalance={balanceCredits}
+            priceManaWei={manaPrice}
+            manaBalanceWei={manaBal}
+            manaSufficient={manaSufficient}
+            selected={payMethod}
+            onSelect={setPayMethod}
+            onBuy={() => void (payMethod === 'mana' ? confirmMana() : confirm())}
+            onClose={onClose}
+          />
+        ) : (
+          <>
         {/* Header: title + balance + divider */}
         <div className="buy-modal__head">
           <div className="buy-modal__head-row">
@@ -439,6 +544,8 @@ export function BuyModal({
               </button>
             </div>
           </div>
+        )}
+          </>
         )}
       </div>
     </div>
