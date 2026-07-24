@@ -166,13 +166,13 @@ export function Overview() {
           ) : null}
         </>
       ) : (
-        <div className="overview__empty">
-          <p className="overview__empty-title">{t('overview.emptyTitle')}</p>
+        <S.Empty>
+          <S.EmptyTitle>{t('overview.emptyTitle')}</S.EmptyTitle>
           <p className="muted">{t('overview.emptyBody')}</p>
           <S.EmptyCta as={Link} to="/assets" variant="purple">
             {t('notFound.cta')}
           </S.EmptyCta>
-        </div>
+        </S.Empty>
       )}
 
       {/* Discovery rows, then the Week Top Creators ranking table dead last — matching the Figma frame

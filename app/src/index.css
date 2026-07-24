@@ -137,11 +137,6 @@ h2 {
 
 /* Buttons live in the `Button` component (components/Button) — styled, variants on data-*. */
 
-/* ---------------- Assets (sidebar + grid) ---------------- */
-.assets__count {
-  color: var(--muted);
-  font-weight: 600;
-}
 /* ---------------- Card ---------------- */
 /* The AssetCard component's own styles are Emotion styled (components/AssetCard/AssetCard.styles.ts).
    The skeleton/spinner below are used by the grids/rows that render cards (and other components), so
@@ -182,35 +177,6 @@ h2 {
   .spinner {
     animation-duration: 2s;
   }
-}
-
-/* ---------------- Flash sale (time-boxed discounted listing — see lib/sale.ts) ---------------- */
-/* The card's own sale treatment (.card__sale-badge, .card__price--sale, etc.) lives in
-   components/AssetCard/asset-card.css. .sale-countdown is the shared SaleCountdown component. */
-.sale-countdown {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  background: var(--rarity-bg);
-  color: var(--accent);
-  font-size: 11px;
-  font-weight: 700;
-  border-radius: 6px;
-  padding: 2px 8px;
-  white-space: nowrap;
-}
-
-/* ---------------- Market tab (legacy, fluctuating-price liquidity) ---------------- */
-/* Header banner: prices follow the live market. Amethyst-tinted (reskin theme), web2-friendly copy. */
-
-/* ---------------- Cart ---------------- */
-.cart {
-  max-width: 1120px;
-}
-.cart--empty {
-  color: var(--muted);
-  font-size: 18px;
-  padding: 60px 0;
 }
 
 /* Shared content-shaped skeleton: same shimmer as .card--skeleton, for non-card placeholders
@@ -452,62 +418,4 @@ h2 {
 }
 .search-pop__recent-remove:hover {
   color: var(--text);
-}
-
-/* Empty states (overview + cart) */
-.overview__empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  text-align: center;
-  padding: 80px 20px;
-}
-.overview__empty-title {
-  font-size: 22px;
-  font-weight: 700;
-  margin: 0;
-}
-/* Empty state spans the full page (not the 920px cart column) so it's centered on screen, not left-of-center. */
-.cart--empty {
-  max-width: none;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  text-align: center;
-  padding: 90px 20px;
-  min-height: 50vh;
-}
-.cart-empty__title {
-  font-size: 22px;
-  font-weight: 700;
-  margin: 6px 0 0;
-}
-
-/* ---------------- My Favorites ---------------- */
-.favorites__head {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  margin-bottom: 20px;
-}
-.favorites__count {
-  color: var(--muted);
-  font-size: 14px;
-}
-.favorites-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  text-align: center;
-  padding: 90px 20px;
-  min-height: 50vh;
-}
-.favorites-empty__title {
-  font-size: 22px;
-  font-weight: 700;
-  margin: 6px 0 0;
 }

@@ -5,6 +5,22 @@ import { Button } from '~/components/Button'
 
 const { colors, radius, media } = theme
 
+// Empty/crash state — also reused by App's CrashFallback.
+export const Empty = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+  padding: 80px 20px;
+`
+
+export const EmptyTitle = styled.p`
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0;
+`
+
 export const EmptyCta = styled(Button)`
   margin-top: 10px;
 `

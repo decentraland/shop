@@ -43,3 +43,8 @@ export const CollectionsBar = styled.div`
   min-height: 44px;
   margin-bottom: 16px;
 `
+
+export const Count = styled.span`
+  color: ${colors.muted};
+  font-weight: 600;
+`

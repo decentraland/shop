@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { saleTimeLeft, formatCountdown, countdownTickMs } from '~/lib/sale'
 import { Icon } from '~/components/Icon'
+import * as S from './SaleCountdown.styles'
 
 // Live "ends in 2d 4h" label for a flash sale. Repaints on a self-adjusting timer — once a minute
 // while the end is far off, once a second in the final hour (see countdownTickMs) — so a whole grid
@@ -36,9 +37,11 @@ export function SaleCountdown({
   const label = formatCountdown(left)
   if (!label) return null
   return (
-    <span className={className ?? 'sale-countdown'} data-testid={testId}>
+    <S.Root className={className} data-testid={testId}>
       <Icon name="clock" size={iconSize} />
       {label}
-    </span>
+    </S.Root>
   )
 }
+
+export default SaleCountdown

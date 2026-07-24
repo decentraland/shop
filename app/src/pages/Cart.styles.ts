@@ -14,6 +14,26 @@ const { colors, gradients, radius } = theme
 const twoCol = '@media (max-width: 1080px)'
 const mobile = '@media (max-width: 880px)'
 
+// Empty cart: full-page centered (not the 1120px cart column) so it sits mid-screen.
+export const Empty = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-align: center;
+  padding: 90px 20px;
+  min-height: 50vh;
+  color: ${colors.muted};
+  font-size: 18px;
+`
+
+export const EmptyTitle = styled.p`
+  font-size: 22px;
+  font-weight: 700;
+  margin: 6px 0 0;
+`
+
 export const EmptyCta = styled(Button)`
   margin-top: 12px;
 `

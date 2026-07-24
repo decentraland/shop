@@ -416,14 +416,14 @@ export function Cart() {
 
   if (items.length === 0 && !modal) {
     return (
-      <div className="cart cart--empty">
+      <S.Empty>
         <Icon name="cart" size={44} color="var(--muted-2)" />
-        <p className="cart-empty__title">{t('cart.empty.title')}</p>
+        <S.EmptyTitle>{t('cart.empty.title')}</S.EmptyTitle>
         <p className="muted">{t('cart.empty.body')}</p>
         <S.EmptyCta as={Link} to="/assets" variant="purple">
           {t('cart.empty.cta')}
         </S.EmptyCta>
-      </div>
+      </S.Empty>
     )
   }
 

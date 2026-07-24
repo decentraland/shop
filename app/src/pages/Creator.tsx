@@ -149,9 +149,9 @@ export function Creator() {
           {collectionsMode ? (
             <>
               <CP.CollectionsBar>
-                <span className="assets__count">
+                <CP.Count>
                   {collections.isLoading ? '…' : t('creator.collectionsCount', { count: collections.total })}
-                </span>
+                </CP.Count>
               </CP.CollectionsBar>
 
               {collections.error ? <ErrorNotice message={t('creator.error')} /> : null}
