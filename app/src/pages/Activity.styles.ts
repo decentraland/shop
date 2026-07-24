@@ -205,52 +205,31 @@ export const ManaSymbol = styled.img`
   vertical-align: -0.15em;
 `
 
-// "Polygon MANA" tooltip on hover, mirroring the marketplace's Mana popup. A CSS bubble (no extra dep);
-// positioned BELOW the symbol because the card is overflow:hidden and an upward bubble would be clipped
-// at the card's top edge. The label comes from the wrapper's data-tip.
+// "Polygon MANA" tooltip trigger, mirroring the marketplace's Mana popup. The bubble itself is portaled
+// to <body> (see ManaTipBubble) because the card is overflow:hidden — a CSS bubble here (any z-index)
+// would be clipped at the card edges. `cursor: help` signals the hover affordance.
 export const ManaTip = styled.span`
-  position: relative;
   display: inline-flex;
   align-items: center;
+  cursor: help;
+`
 
-  &::after {
-    content: attr(data-tip);
-    position: absolute;
-    top: calc(100% + 8px);
-    left: 50%;
-    transform: translateX(-50%);
-    padding: 6px 8px;
-    border-radius: 6px;
-    background: #16141a;
-    color: #fff;
-    font-size: 12px;
-    font-weight: 600;
-    line-height: 1;
-    white-space: nowrap;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.12s ease;
-    z-index: 3;
-  }
-  /* up-caret between the symbol and the bubble */
-  &::before {
-    content: '';
-    position: absolute;
-    top: calc(100% + 3px);
-    left: 50%;
-    transform: translateX(-50%);
-    border: 5px solid transparent;
-    border-bottom-color: #16141a;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.12s ease;
-    z-index: 3;
-  }
-  &:hover::after,
-  &:hover::before {
-    opacity: 1;
-  }
+// The floating tooltip bubble. Rendered via a portal to <body> and positioned with fixed coords, so it's
+// never clipped by the card's overflow. Non-interactive.
+export const ManaTipBubble = styled.span`
+  position: fixed;
+  transform: translateX(-50%);
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: #16141a;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  pointer-events: none;
+  z-index: 9999;
 `
 
 export const Lines = styled.div`

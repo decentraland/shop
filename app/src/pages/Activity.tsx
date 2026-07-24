@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useWallet } from '~/store/wallet'
@@ -45,6 +46,31 @@ function shortAccount(address: string): string {
 function formatMana(wei: string): string {
   const n = Number(wei) / 1e18
   return Number.isFinite(n) ? n.toLocaleString('en', { maximumFractionDigits: 2 }) : '0'
+}
+
+// "Polygon MANA" hover tooltip that mirrors the marketplace's Mana popup. The bubble is portaled to
+// <body> and fixed-positioned under the trigger, so the card's overflow:hidden never clips it (z-index
+// alone can't escape an overflow-clip). Hover-only, like the marketplace.
+function ManaTooltip({ children }: { children: React.ReactNode }) {
+  const ref = useRef<HTMLSpanElement>(null)
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
+  const open = () => {
+    const r = ref.current?.getBoundingClientRect()
+    if (r) setPos({ top: r.bottom + 8, left: r.left + r.width / 2 })
+  }
+  return (
+    <S.ManaTip ref={ref} onMouseEnter={open} onMouseLeave={() => setPos(null)}>
+      {children}
+      {pos
+        ? createPortal(
+            <S.ManaTipBubble style={{ top: pos.top, left: pos.left }} role="tooltip">
+              Polygon MANA
+            </S.ManaTipBubble>,
+            document.body
+          )
+        : null}
+    </S.ManaTip>
+  )
 }
 
 // One rendered line of a purchase order. Resolves name + thumbnail from the trade (reads the real
@@ -167,9 +193,9 @@ function SaleCard({ sale }: { sale: ActivitySale }) {
               with the MANA symbol, never credits (they never got credits for a past sale). */}
           <S.Total data-kind="income">
             +{formatMana(sale.manaWei)}{' '}
-            <S.ManaTip data-tip="Polygon MANA">
+            <ManaTooltip>
               <S.ManaSymbol src={manaSymbol} alt="MANA" />
-            </S.ManaTip>
+            </ManaTooltip>
           </S.Total>
         </S.HeadRight>
       </S.CardHead>
