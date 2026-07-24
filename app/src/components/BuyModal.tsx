@@ -210,6 +210,12 @@ export function BuyModal({
       void qc.invalidateQueries({ queryKey: ['catalog-items'] })
       void qc.invalidateQueries({ queryKey: ['my-assets'] })
       void qc.invalidateQueries({ queryKey: ['purchases'] })
+      // The PDP's "You own N of this" note is keyed 'owned-item-count' — bump it so it reflects the copy
+      // just bought. The homepage featured row ('overview-listings') and cart cross-sell ('upsell-listings')
+      // should drop a just-sold last copy rather than keep offering it.
+      void qc.invalidateQueries({ queryKey: ['owned-item-count'] })
+      void qc.invalidateQueries({ queryKey: ['overview-listings'] })
+      void qc.invalidateQueries({ queryKey: ['upsell-listings'] })
       setPhase('complete')
     } catch (e) {
       if (!isUserRejection(e)) captureError(e, { flow: 'buy', step: 'submit', gasless: usedGasless })

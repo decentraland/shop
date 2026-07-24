@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useWallet } from '~/store/wallet'
 import { fetchUserPurchases } from '~/lib/credits'
+import { detailRouteFor } from '~/lib/routes'
 import { fetchTradeDisplay, fetchAssetDisplay, fetchUserSales } from '~/lib/api'
 import { foldOrderLines, type PurchaseOrder, type OrderLineItem } from '~/lib/purchases'
 import { buildActivityFeed, filterActivity, type ActivityFilter, type ActivitySale } from '~/lib/activity'
@@ -53,8 +54,9 @@ function OrderLine({ item }: { item: OrderLineItem }) {
   const thumbnail = display?.thumbnail ?? ''
   // Only link when we can build a resolvable detail URL: BOTH a contract AND an id segment. A missing
   // id would produce a dead `/item/<contract>/` that renders nothing, so those stay plain rows.
-  const seg = display?.tokenId ?? display?.itemId ?? ''
-  const to = display?.contractAddress && seg ? `/item/${display.contractAddress}/${seg}` : undefined
+  const to =
+    detailRouteFor({ contractAddress: display?.contractAddress, tokenId: display?.tokenId, itemId: display?.itemId }) ??
+    undefined
 
   const body = (
     <>
@@ -126,8 +128,8 @@ function SaleCard({ sale }: { sale: ActivitySale }) {
 
   const name = display?.name ?? t('activity.itemFallback')
   const thumbnail = display?.thumbnail ?? ''
-  const seg = sale.tokenId || sale.itemId || ''
-  const to = sale.contractAddress && seg ? `/item/${sale.contractAddress}/${seg}` : undefined
+  const to =
+    detailRouteFor({ contractAddress: sale.contractAddress, tokenId: sale.tokenId, itemId: sale.itemId }) ?? undefined
 
   const body = (
     <>
@@ -267,7 +269,7 @@ export function Activity() {
       </S.Tabs>
       {isLoading ? (
         <S.List>
-          {Array.from({ length: 3 }).map((_, i) => (
+          {Array.from({ length: 5 }).map((_, i) => (
             <S.CardSkeleton key={i} />
           ))}
         </S.List>

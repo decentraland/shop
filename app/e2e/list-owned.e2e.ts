@@ -19,14 +19,14 @@ describe('list an owned item (secondary) from its detail page', () => {
     // (display:none at rest) so it's clickable via its DOM text even before it's painted.
     await waitForText(page, 'Galaxy Hat #42')
 
-    // MANAGE → the item detail page for this exact token, where "List for sale" lives.
+    // MANAGE → the token detail page for this exact token, where "Put up for sale" lives.
     expect(await clickByText(page, 'button', /manage/i)).toBe(true)
-    await waitForText(page, 'List for sale')
+    await waitForText(page, 'Put up for sale')
 
     // Open the sell modal from the detail page…
-    expect(await clickByText(page, 'button', /list for sale/i)).toBe(true)
+    expect(await clickByText(page, 'button', /put up for sale/i)).toBe(true)
     // …then confirm the listing in the modal.
-    await clickWhenEnabled(page, '[data-testid="modal"] button', /put on sale/i)
+    await clickWhenEnabled(page, '[data-testid="modal"] button', /put up for sale/i)
 
     await waitForText(page, 'on sale!')
     expect(await page.evaluate(() => /on sale!/i.test(document.body.innerText))).toBe(true)

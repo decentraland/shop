@@ -26,8 +26,8 @@ describe('owner management on the item detail page', () => {
     expect(await clickByAria(page, /galaxy hat #42/i)).toBe(true)
 
     // On the detail page the management actions render instead of Buy now / Add to cart: a listed item
-    // you own offers "Update price" + "Remove from sale".
-    await waitForText(page, 'Update price')
+    // you own offers "Edit price" + "Remove from sale".
+    await waitForText(page, 'Edit price')
     await waitForText(page, 'Remove from sale')
     // The OWNER's CTA area shows management actions, not buy CTAs. The Resales section BELOW may show
     // "Buy now" for OTHER copies on sale — that's expected — so scope the check to the item's own info

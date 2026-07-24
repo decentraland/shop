@@ -287,7 +287,7 @@ export function needsApprovalStep(providerType: ProviderType | null | undefined,
 // grouping; `id` is a stable key for i18n + react-query.
 export type ShopAuthorizationDescriptor = ShopAuthorization & {
   id: string
-  group: 'buying' | 'selling'
+  group: 'buying' | 'selling' | 'minting'
 }
 
 // The one fixed, account-level authorization the shop uses: letting the CreditsManager spend your
@@ -316,6 +316,25 @@ export function getCollectionSellingAuthorization(
     id: `selling:${contractAddress.toLowerCase()}`,
     group: 'selling',
     kind: AuthorizationKind.Approval,
+    contractAddress,
+    spenderAddress: market.address,
+    chainId
+  }
+}
+
+// The per-collection minting authorization: letting the marketplace mint items from this collection
+// when a primary/mint listing sells. One row per collection the creator PUBLISHES from. Mirrors the
+// silent grant `ensureMinter` (lib/trades) does at publish time — the operator is the same offchain
+// marketplace that mints — so surfacing it here lets a creator SEE and REVOKE that mint right.
+export function getCollectionMintingAuthorization(
+  contractAddress: string,
+  chainId: ChainId
+): ShopAuthorizationDescriptor {
+  const market = getContract(ContractName.OffChainMarketplaceV2, chainId)
+  return {
+    id: `minting:${contractAddress.toLowerCase()}`,
+    group: 'minting',
+    kind: AuthorizationKind.Minter,
     contractAddress,
     spenderAddress: market.address,
     chainId

@@ -6,7 +6,8 @@ import {
   MetaTransactionError,
   getContract,
   getContractName,
-  sendMetaTransaction
+  sendMetaTransaction,
+  type ContractData
 } from 'decentraland-transactions'
 import { config } from '~/config'
 import { metaTxProviderShim, readProvider } from '~/lib/authorizations'
@@ -130,6 +131,85 @@ async function cancelViaMetaTransaction(
   })
   await rpc.waitForTransaction(txHash, 1, 120_000)
   return txHash
+}
+
+// The minimal ERC721 surface we send. DCL collection contracts (ERC721CollectionV2) implement native
+// meta-transactions, so `transferFrom` can be relayed exactly like `setApprovalForAll` / `cancelSignature`.
+const ERC721_TRANSFER_ABI = ['function transferFrom(address from, address to, uint256 tokenId)']
+
+// Gasless ERC721 transfer: the owner signs an off-chain meta-tx and DCL's relayer submits it + pays the
+// gas. Mirrors cancelViaMetaTransaction. The meta-tx is signed against the collection's fixed
+// ERC721CollectionV2 domain (name "Decentraland Collection", version "2") — same domain the gasless
+// setApprovalForAll uses (see lib/authorizations metaTxContractData), only the address differs. This is
+// the ONLY path that works for managed (Magic/thirdweb) wallets, which hold no gas.
+async function transferViaMetaTransaction(opts: {
+  contractAddress: string
+  chainId: number
+  from: string
+  to: string
+  tokenId: string
+  signer: ethers.providers.JsonRpcSigner
+}): Promise<string> {
+  const { contractAddress, chainId, from, to, tokenId, signer } = opts
+  const collection: ContractData = {
+    ...getContract(ContractName.ERC721CollectionV2, chainId),
+    address: contractAddress
+  }
+  const functionData = new ethers.utils.Interface(ERC721_TRANSFER_ABI).encodeFunctionData('transferFrom', [
+    from,
+    to,
+    tokenId
+  ])
+  const rpc = readProvider()
+  const provider = metaTxProviderShim(signer.provider as ethers.providers.Web3Provider, rpc)
+  const txHash = await sendMetaTransaction(provider, rpc, functionData, collection, {
+    serverURL: gaslessConfig.relayerUrl
+  })
+  await rpc.waitForTransaction(txHash, 1, 120_000)
+  return txHash
+}
+
+/**
+ * Transfer an owned collectible to another address. GASLESS FOR ALL (mirrors cancelListing): the relayer
+ * submits + pays gas, so managed wallets (no POL) can transfer too, and it sidesteps the wallet's flaky
+ * chain RPC. Falls back to a direct (gas-paying) tx only if the relayer is off/unreachable — but a user
+ * rejection propagates instead of silently retrying with a gas tx. Returns the tx hash.
+ */
+export async function transferItem(opts: {
+  contractAddress: string
+  chainId: number
+  tokenId: string
+  to: string
+  signer: ethers.Signer
+}): Promise<string> {
+  const { contractAddress, chainId, tokenId, to, signer } = opts
+  const from = (await signer.getAddress()).toLowerCase()
+
+  if (gaslessConfig.enabled) {
+    try {
+      return await transferViaMetaTransaction({
+        contractAddress,
+        chainId,
+        from,
+        to,
+        tokenId,
+        signer: signer as ethers.providers.JsonRpcSigner
+      })
+    } catch (e) {
+      if (e instanceof MetaTransactionError && e.code === ErrorCode.USER_DENIED) throw e
+      console.warn('[transferItem] gasless meta-tx failed, falling back to a direct tx:', e)
+    }
+  }
+
+  // Direct (gas-paying) fallback. transferFrom is a REAL transaction, so it must run on the collection's
+  // chain — a restored session can leave the wallet on whatever network it last used; switch just-in-time.
+  await ensureChain(signer.provider as ethers.providers.Web3Provider, chainId)
+  const contract = new ethers.Contract(contractAddress, ERC721_TRANSFER_ABI, signer) as ethers.Contract & {
+    transferFrom(from: string, to: string, tokenId: string, overrides?: ethers.Overrides): Promise<ethers.ContractTransaction>
+  }
+  const tx = await contract.transferFrom(from, to, tokenId, amoyGasOverrides(chainId))
+  const receipt = await tx.wait()
+  return receipt.transactionHash
 }
 
 export async function cancelListing(opts: { trade: Trade; signer: ethers.Signer }): Promise<string> {

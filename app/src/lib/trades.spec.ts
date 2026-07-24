@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { ChainId, Network, TradeAssetType, TradeType, type TradeCreation } from '@dcl/schemas'
+import { ChainId, Network, TradeAssetType, TradeType, type Trade, type TradeCreation } from '@dcl/schemas'
 
 // Track calls into the mocked ethers Contract so we can assert on the on-chain paths without a chain.
 const isApprovedForAllMock = vi.fn()
@@ -105,6 +105,7 @@ import {
   ensureMinter,
   createPrimaryUsdPeggedListing
 } from '~/lib/trades'
+import { getOnChainTrade } from '~/lib/trade-encoding'
 
 const MARKET = '0x0000000000000000000000000000000000000000'
 const MANA = '0x0000000000000000000000000000000000000123'
@@ -602,5 +603,51 @@ describe('when creating a USD-pegged primary (mint) listing', () => {
     const [, , message] = signer._signTypedData.mock.calls[0]
     expect(message.sent[0].value).toBe('5')
     expect(message.sent[0].assetType).toBe(TradeAssetType.COLLECTION_ITEM)
+  })
+})
+
+// Regression guard for the ms-vs-seconds expiration bug. The Sell modal passes the listing expiration
+// in MILLISECONDS (createUsdPeggedListing → checks.expiration = expiresAtMs). It MUST be SIGNED in
+// seconds (generateTradeValues → toSeconds) and ENCODED on-chain in seconds (trade-encoding
+// toChainSeconds, guard > 1e12); passing ms makes the contract read the trade as expired/not-effective.
+describe('when handling a listing expiration set in milliseconds', () => {
+  const expiresAtMs = Date.now() + 30 * 24 * 60 * 60 * 1000 // the Sell modal's 30-day default, in ms
+  const expectedSeconds = Math.floor(expiresAtMs / 1000)
+
+  const trade: Omit<TradeCreation, 'signature'> = {
+    signer: '0xseller',
+    network: Network.MATIC,
+    chainId: ChainId.MATIC_AMOY,
+    type: TradeType.PUBLIC_NFT_ORDER,
+    checks: {
+      uses: 1,
+      expiration: expiresAtMs,
+      effective: Date.now(),
+      salt: '0x',
+      contractSignatureIndex: 0,
+      signerSignatureIndex: 0,
+      allowedRoot: '0x',
+      externalChecks: []
+    },
+    sent: [{ assetType: TradeAssetType.ERC721, contractAddress: '0xnft', tokenId: '42', extra: '' }],
+    received: [
+      {
+        assetType: TradeAssetType.USD_PEGGED_MANA,
+        contractAddress: '0xmana',
+        amount: '1000000000000000000',
+        extra: '',
+        beneficiary: '0xseller'
+      }
+    ]
+  }
+
+  it('should SIGN the expiration converted to seconds', () => {
+    expect(generateTradeValues(trade).checks.expiration).toBe(expectedSeconds)
+  })
+
+  it('should ENCODE the on-chain expiration in seconds (never the raw ms value)', () => {
+    const onChain = getOnChainTrade(trade as unknown as Trade, '0xbuyer')
+    expect(onChain.checks.expiration).toBe(expectedSeconds)
+    expect(onChain.checks.expiration).toBeLessThan(1e12)
   })
 })

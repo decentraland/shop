@@ -64,6 +64,14 @@ describe('LazyWearablePreview', () => {
     expect(track).not.toHaveBeenCalled()
   })
 
+  it('does not track the intentional Babylon kill-switch default', async () => {
+    mockPick(PreviewRenderer.BABYLON, 'default-babylon')
+    render(<WearablePreview unity id="hero" />)
+    await screen.findByTestId('wp')
+    expect(lastProps.unity).toBe(false)
+    expect(track).not.toHaveBeenCalled()
+  })
+
   it('never evaluates the gate, sends unity, or reports when unity is not requested', async () => {
     render(<WearablePreview />)
     await screen.findByTestId('wp')

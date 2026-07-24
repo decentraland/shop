@@ -14,9 +14,12 @@ const shimmer = keyframes`
   100% { background-position: -200% 0; }
 `
 
+// Reserve a screenful so the loading skeletons, the empty state and a short feed all occupy roughly
+// the same height — the sticky footer stays put across loading → loaded and page → page.
 export const Section = styled.section`
   width: 100%;
   min-width: 0;
+  min-height: 60vh;
 `
 
 export const Head = styled.div`

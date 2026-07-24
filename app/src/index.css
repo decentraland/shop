@@ -296,11 +296,17 @@ h2 {
   margin: 0 auto;
   width: 100%;
   flex: 1 0 auto;
+  /* The CONTENT (not the shell) fills the first viewport below the fixed navbar, so a short page
+     (e.g. a 2-row grid) keeps the heavy branded footer just BELOW the fold instead of pulling it a
+     third of the way up the screen. The footer still sits right after the content on tall pages. */
+  min-height: calc(100vh - 92px);
 }
 /* Mobile gutters are 16px (Figma node 1040-149085: cards at x=16, gap 16), not the desktop 40px. */
 @media (max-width: 768px) {
   .page {
     padding: 16px 16px 56px;
+    /* Navbar is 64px on mobile (see body padding-top). */
+    min-height: calc(100vh - 64px);
   }
 }
 .placeholder {
@@ -308,11 +314,12 @@ h2 {
   font-size: 18px;
   padding: 40px 0;
 }
-/* Suspense fallback while a lazy-loaded route chunk downloads. */
+/* Suspense fallback while a lazy-loaded route chunk downloads. Height matches the in-page loaders
+   (~60vh) so the transition Suspense fallback → page loader → content doesn't reposition the footer. */
 .page-loading {
   display: grid;
   place-items: center;
-  min-height: 46vh;
+  min-height: 60vh;
 }
 
 /* Buttons live in the `Button` component (components/Button) — styled, variants on data-*. */

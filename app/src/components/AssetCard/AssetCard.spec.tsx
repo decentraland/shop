@@ -1,9 +1,17 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import type { ReactElement } from 'react'
 import { render, screen, fireEvent, act } from '@testing-library/react'
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AssetCard } from './AssetCard'
+
+// The author line resolves the creator address → profile name via useProfile. Mock it so the tests
+// drive the resolved-name / short-address-fallback states directly (no real Catalyst fetch), and so
+// cards WITHOUT a creator (the default makeItem) never touch it.
+const { useProfile } = vi.hoisted(() => ({
+  useProfile: vi.fn((): { data?: { name?: string } } => ({ data: undefined }))
+}))
+vi.mock('~/hooks/useProfile', () => ({ useProfile }))
 import { useCart } from '~/store/cart'
 import { useFavorites } from '~/store/favorites'
 import { useWallet } from '~/store/wallet'
@@ -43,15 +51,32 @@ beforeEach(() => {
   useCart.setState({ items: [] })
   useFavorites.setState({ items: {} })
   useHoverPreview.setState({ item: null, anchor: null, ready: false })
+  useProfile.mockReset().mockReturnValue({ data: undefined })
 })
 
 describe('AssetCard author row', () => {
-  it('does NOT render a creator/author row, even when the item has a creator', () => {
-    // The shop cards intentionally omit the "By {author}" line + avatar (owner request).
+  it('renders the resolved "By {creator}" line (capitalised) under the title', () => {
+    useProfile.mockReturnValue({ data: { name: 'soul magic' } })
     const { container } = renderCard(makeItem({ creator: '0x' + 'ab'.repeat(20) }))
-    expect(container.querySelector('[data-testid="creator"]')).toBeNull()
-    expect(container.querySelector('.card__creator')).toBeNull()
+    const author = container.querySelector('.card__author')
+    expect(author).not.toBeNull()
+    expect(author?.textContent).toBe('By Soul magic')
+  })
+
+  it('falls back to a short address (never the raw 42-char wallet) while the profile has no name', () => {
+    const addr = '0x' + 'ab'.repeat(20)
+    const { container } = renderCard(makeItem({ creator: addr }))
+    const author = container.querySelector('.card__author')
+    expect(author?.textContent).toMatch(/^By 0x/i)
+    expect(author?.textContent).not.toContain(addr)
+  })
+
+  it('renders no author line when the item has no creator address', () => {
+    const { container } = renderCard(makeItem({ creator: '' }))
+    expect(container.querySelector('.card__author')).toBeNull()
     expect(screen.queryByText(/^By\b/i)).toBeNull()
+    // A creatorless card never resolves a profile.
+    expect(useProfile).not.toHaveBeenCalled()
   })
 })
 
@@ -283,13 +308,13 @@ describe('AssetCard view-only mode', () => {
 
 describe('AssetCard manage-link mode (owned My Assets card)', () => {
   it('navigates to the item detail (management view) when MANAGE is clicked on an owned wearable/emote', () => {
-    // A held token carries a tokenId — the MANAGE cta opens /item/:contract/:tokenId with the item seeded.
+    // A held token carries a tokenId — the MANAGE cta opens the specific /token/:contract/:tokenId page.
     const item = makeItem({ contractAddress: '0xc', tokenId: '9', itemId: null })
     const { container } = render(
       <MemoryRouter initialEntries={['/my-assets']}>
         <Routes>
           <Route path="/my-assets" element={<AssetCard item={item} mode="manage-link" />} />
-          <Route path="/item/:contractAddress/:seg" element={<LocationProbe />} />
+          <Route path="/token/:contractAddress/:seg" element={<LocationProbe />} />
         </Routes>
       </MemoryRouter>
     )

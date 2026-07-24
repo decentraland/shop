@@ -10,23 +10,31 @@ import { stashResumeIntent, takeResumeIntent } from '~/lib/auth-return'
 import {
   fetchShopListingForItem,
   fetchTradeForItem,
+  fetchItemResales,
   fetchItemDescription,
   fetchOwnedToken,
+  fetchOwnedItemCount,
   fetchTokenById,
   fetchTrade,
   type CatalogItem,
   type LegacyListing,
   type UnifiedListing
 } from '~/lib/api'
+import { itemIdFromTokenId } from '~/lib/token-id'
+import { patchManageCaches } from '~/lib/manage-cache'
+import { isSaleSectionLoading } from '~/lib/pdp-loading'
 import { cancelListing } from '~/lib/buy'
 import { fetchPublishableItems, type PublishableItem } from '~/lib/builder'
 import { BuyModal } from '~/components/BuyModal'
 import { SellModal } from '~/components/SellModal'
+import { TransferModal } from '~/components/TransferModal'
 import { PrimaryListModal } from '~/components/PrimaryListModal'
+import { IssueModal } from '~/components/IssueModal'
 import { MarketCheckout } from '~/components/MarketCheckout'
 import { toast } from '~/store/toast'
 import { captureError } from '~/lib/monitoring'
 import { isRejection } from '~/lib/errors'
+import { isManagedWallet } from '~/lib/wallet'
 import { useManaRate } from '~/hooks/useManaRate'
 import { useSeo } from '~/hooks/useSeo'
 import { shortAddress } from '~/lib/address'
@@ -60,21 +68,31 @@ const NotFoundCta = styled(Button)`
   margin-top: 6px;
 `
 
-// The PDP Buy-now CTA: full-width, taller, its own type scale. `&&` so font-size/letter-spacing win
-// over the purple variant's data-variant rules. In the mobile sticky bar it sits beside the cart
-// square (the `--dual` parent), where it flexes to share the row.
-const DetailCta = styled(Button)`
+// Shared PDP CTA box — the pixel-perfect button spec from Figma 1527-302810: full-width, 48px tall,
+// 16px radius, Inter 600 15/24 with 0.46px tracking, uppercase, 8px icon gap. `&&` so these win over
+// the Button base + any data-variant rules.
+const ctaBox = `
   && {
     width: 100%;
     height: 48px;
-    font-size: 15px;
-    font-weight: 600;
-    letter-spacing: 0.46px;
+    border-radius: 16px;
+    padding: 0 12px;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 24px;
+    letter-spacing: 0.46px;
+    text-transform: uppercase;
   }
+`
+
+// Buy-now CTA: the Amethyst gradient (Figma 1524-297513). In the mobile sticky bar it sits beside the
+// cart square (the `--dual` parent), where it flexes to share the row.
+const DetailCta = styled(Button)`
+  ${ctaBox}
 
   ${theme.media.down('lg')} {
     .item-detail__ctas--dual && {
@@ -84,24 +102,288 @@ const DetailCta = styled(Button)`
   }
 `
 
+// Dark-solid CTA (#242129 / #fcfcfc) — the primary manage action (Put up for sale / Edit price) and any
+// solid dark button (Figma 1527-302810 / 1527-302048). Overrides the Button base colours via `&&`.
+const DarkCta = styled(Button)`
+  ${ctaBox}
+  && {
+    background: ${theme.colors.blackBtn};
+    color: ${theme.colors.softWhite};
+    border: 0;
+
+    .ico {
+      width: 20px;
+      height: 20px;
+    }
+  }
+  &&:hover:not(:disabled) {
+    background: ${theme.colors.blackBtn};
+    filter: brightness(1.35);
+  }
+`
+
+// Dark-outline CTA (2px #242129, #161518 label) — the secondary manage action (Transfer / Remove from
+// sale) (Figma 1527-302810 / 1527-302048).
+const OutlineCta = styled(Button)`
+  ${ctaBox}
+  && {
+    background: transparent;
+    border: 2px solid ${theme.colors.blackBtn};
+    color: ${theme.colors.text};
+  }
+  &&:hover:not(:disabled) {
+    background: rgba(36, 33, 41, 0.06);
+  }
+`
+
+// Primary-sale banner (Figma 1524-297513): a lavender pill above the price telling the buyer they're
+// buying a fresh mint straight from the creator. Only shown for a primary (mint) listing.
+const PrimarySaleBanner = styled('div')`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px;
+  margin-top: 16px;
+  margin-bottom: 16px;
+  border-radius: 8px;
+  background: #f4e9ff;
+
+  .from-creator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    line-height: 14px;
+    color: ${theme.colors.text};
+  }
+  .from-creator .ico {
+    width: 20px;
+    height: 20px;
+    color: ${theme.colors.rarity};
+  }
+  .check {
+    width: 24px;
+    height: 24px;
+    color: ${theme.colors.rarity};
+  }
+`
+
+// Lowest-price + resellers link (Figma 1524-297513 / 1524-298906): a row below the CTAs. Left shows the
+// cheapest resale price; right is an internal link that scrolls to the Resellers list on this page.
+const LowestPriceRow = styled('div')`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  margin-top: 16px;
+
+  &[data-centered='true'] {
+    justify-content: center;
+  }
+
+  .lowest {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    font-size: 14px;
+    font-weight: 600;
+    color: ${theme.colors.muted};
+  }
+  .lowest .ico {
+    width: 20px;
+    height: 20px;
+    color: ${theme.colors.muted};
+  }
+  .lowest-value {
+    font-size: 16px;
+    font-weight: 700;
+    padding-left: 2px;
+  }
+`
+
+const ResellersLink = styled('button')`
+  border: 0;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: ${theme.font.sans};
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.46px;
+  text-transform: uppercase;
+  text-decoration: underline;
+  color: ${theme.colors.accent};
+
+  &:hover {
+    color: ${theme.colors.accentHover};
+  }
+  &:focus-visible {
+    outline: 2px solid ${theme.colors.accent};
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+`
+
+// Sold-out price block (Figma 1524-298906): the exhausted primary's original price (struck) with a
+// "SOLD OUT" tag, above the cheapest resale price + how many copies are on the secondary market.
+const SoldOutPricing = styled('div')`
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  padding: 16px 0;
+
+  .so-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+  }
+  .so-label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .so-price {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 0 2px;
+  }
+  /* Original (struck-through, muted) row. */
+  .so-original {
+    color: ${theme.colors.muted2};
+  }
+  .so-original .so-label,
+  .so-original .so-tag {
+    color: ${theme.colors.muted2};
+  }
+  .so-original .so-value {
+    font-size: 16px;
+    font-weight: 700;
+    text-decoration: line-through;
+  }
+  .so-original .ico {
+    width: 20px;
+    height: 20px;
+    color: ${theme.colors.muted2};
+  }
+  /* Resale (emphasised) row. */
+  .so-resale .so-label {
+    color: ${theme.colors.text};
+  }
+  .so-resale .so-value {
+    font-size: 25px;
+    font-weight: 700;
+    color: ${theme.colors.text};
+  }
+  .so-resale .ico {
+    width: 24px;
+    height: 24px;
+    color: ${theme.colors.rarity};
+  }
+  .so-tag {
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .so-stock {
+    font-size: 14px;
+    font-weight: 600;
+    color: ${theme.colors.text2};
+  }
+  .so-info {
+    display: inline-flex;
+    width: 12px;
+    height: 12px;
+    color: ${theme.colors.muted2};
+  }
+`
+
 // Owner/creator management actions (replace the buy CTAs when the viewer owns or created this item).
-// Stacked full-width so List / Update price / Remove read as a clear action column.
+// Stacked full-width so the primary + secondary actions read as a clear action column.
 const ManageActions = styled('div')`
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
   width: 100%;
 `
 
-// The take-down (secondary) action: a full-width ghost button under the primary manage CTA.
-const RemoveCta = styled(Button)`
-  && {
-    width: 100%;
-    height: 44px;
-    /* Match the primary manage CTA's all-caps treatment (the ghost variant doesn't uppercase on its
-       own). CSS-only, so the DOM text stays "Remove from sale" for tests/a11y. */
-    text-transform: uppercase;
-    letter-spacing: 0.46px;
+// Loading skeletons for the sale section (price + CTAs) and the creator/collection badges. They reuse
+// the global `shimmer` keyframe (index.css) and are reduced-motion-safe, sized to the final content so
+// the sector already occupies its eventual height — no reflow when the data lands.
+const skeletonFill = `
+  display: block;
+  background: linear-gradient(100deg, #efeef2 30%, #e2e0e7 50%, #efeef2 70%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite linear;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+`
+
+const SaleSkeleton = styled('div')`
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  /* Reserve the divider→CTA rhythm so the block is the same height loading vs loaded. */
+  padding-top: 4px;
+`
+
+// Price-line placeholder.
+const SkPrice = styled('span')`
+  ${skeletonFill}
+  width: 120px;
+  height: 30px;
+  border-radius: 8px;
+  margin-bottom: 4px;
+`
+
+// Full-width CTA-button placeholder (matches the 48px dark/outline buttons).
+const SkCta = styled('span')`
+  ${skeletonFill}
+  width: 100%;
+  height: 48px;
+  border-radius: 16px;
+`
+
+// Creator/collection badge placeholder: circular avatar + name bar (matches CreatorBadge's layout).
+const SkBadge = styled('div')`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  .sk-ava {
+    ${skeletonFill}
+    flex: none;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+  }
+  .sk-name {
+    ${skeletonFill}
+    width: 96px;
+    height: 16px;
+    border-radius: 6px;
+  }
+`
+
+// "You own N of this" note on the generic item page (Gap B): the item page never manages a token, so
+// this points owners to My Assets instead of showing Edit/Remove. Subtle, sits under the buy CTAs.
+const OwnNote = styled('p')`
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: ${theme.colors.muted};
+
+  a {
+    color: ${theme.colors.accent};
+    font-weight: 600;
   }
 `
 
@@ -136,7 +418,21 @@ function categoryLabel(item: CatalogItem): string {
 }
 
 export function ItemDetail() {
-  const { contractAddress, tokenId } = useParams<{ contractAddress: string; tokenId: string }>()
+  // TWO routes render this page (see App.tsx): /item/:contractAddress/:itemId (generic buy view) and
+  // /token/:contractAddress/:tokenId (a specific copy). react-router populates whichever param matched.
+  const {
+    contractAddress,
+    itemId: routeItemId,
+    tokenId: routeTokenId
+  } = useParams<{
+    contractAddress: string
+    itemId?: string
+    tokenId?: string
+  }>()
+  const isTokenRoute = !!routeTokenId
+  // The itemId this page is about: the route itemId, or decoded from the token (itemId = tokenId >> 216).
+  // Both routes fetch the generic item data (name, resales, siblings, description) by this itemId.
+  const pageItemId = routeItemId ?? itemIdFromTokenId(routeTokenId) ?? null
   const location = useLocation() as {
     pathname: string
     state?: {
@@ -161,18 +457,31 @@ export function ItemDetail() {
   const cartItems = useCart(s => s.items)
   const toggleFav = useFavorites(s => s.toggle)
   const { session, signIn } = useWallet()
+  // Managed (web2) wallets sign transparently (no popup); self-custody wallets (MetaMask,
+  // WalletConnect…) show a confirmation prompt. Used to word the Edit-price "cancel first" step
+  // appropriately: "confirm in your wallet" vs a plain "canceling…" progress state. Shared helper so
+  // the classification stays consistent with the buy/sell modals (lib/wallet).
+  const isManaged = isManagedWallet(session)
 
   // The currently-displayed item. Seeded from router state (fast path from the grid); swapped in place
   // when a carousel sibling is tapped (no full reload). Falls back to a stub for deep links/refresh
   // (name/thumbnail/price then fill in from the collection fetch below).
   const [current, setCurrent] = useState<CatalogItem>(() => {
-    if (state?.item) return { ...state.item, tradeId: state.tradeId ?? state.item.tradeId }
+    if (state?.item) {
+      const seed = { ...state.item, tradeId: state.tradeId ?? state.item.tradeId }
+      // Pin identity to the ROUTE, not the passed state: on the item route force tokenId undefined (a
+      // stale link could hand over a token-carrying item — it must NOT put a specific token on the
+      // generic page); on the token route pin the exact tokenId. This is what kills the wrong-item bug.
+      return isTokenRoute
+        ? { ...seed, tokenId: routeTokenId, itemId: seed.itemId ?? pageItemId }
+        : { ...seed, tokenId: undefined, itemId: routeItemId ?? seed.itemId }
+    }
     return {
-      id: `${contractAddress}-${tokenId}`,
+      id: `${contractAddress}-${routeTokenId ?? routeItemId}`,
       name: '',
       creator: '',
       contractAddress: contractAddress ?? '',
-      itemId: null,
+      itemId: pageItemId,
       category: 'wearable',
       rarity: 'common',
       network: 'MATIC',
@@ -181,7 +490,7 @@ export function ItemDetail() {
       priceCredits: 0,
       gender: null,
       isSmart: false,
-      tokenId: tokenId ?? undefined,
+      tokenId: routeTokenId ?? undefined,
       tradeId: state?.tradeId
     }
   })
@@ -227,22 +536,26 @@ export function ItemDetail() {
     queryFn: () => fetchCollectionItems(current.contractAddress, { first: 20 }).then(r => r.items)
   })
 
-  // Deep-link / refresh: the route segment is the itemId for primary listings. Hydrate the item
-  // (name, price, tradeId) straight from the shop feed so it resolves correctly (a primary itemId is
-  // NOT a tokenId — the sibling fallback below would otherwise mis-match).
-  // Also runs when a PRIMARY item was seeded from router state (grid nav) or a sibling but is missing
-  // its stock (`available`) — siblings/grid rows don't carry it — so the authoritative shop listing
-  // can backfill it (see the effect below). Never for a market/legacy item (not in this feed).
+  // Hydrate the generic item (name, price, tradeId, stock) from the shop feed by its ITEM id. Resolved
+  // by `pageItemId` — the route itemId, or the itemId DECODED from the token on the token route. This is
+  // the bug fix: the old code fed the raw route segment (a tokenId on a secondary URL) to
+  // fetchShopListingForItem, which treats its 2nd arg as an itemId → the server matched nothing and
+  // returned the collection's first listing (a WRONG item) on a cold load. Never pass a tokenId here.
+  // Also runs when a seeded item (grid nav / sibling) is missing its stock (`available`) so the
+  // authoritative listing can backfill it. Never for a market/legacy item (not in this feed).
+  // ITEM ROUTE ONLY: the token route hydrates from the specific token (ownedAsset / publicToken) and
+  // must not be overwritten by the generic item listing (which carries no tokenId).
   const needsPrimaryStock = current.available == null && !current.tokenId
   const { data: deepLinkItem, isLoading: deepLinkLoading } = useQuery({
-    queryKey: ['shop-item', current.contractAddress, tokenId],
-    enabled: !isMarket && !!current.contractAddress && !!tokenId && (!state?.item || needsPrimaryStock),
+    queryKey: ['shop-item', current.contractAddress, pageItemId],
+    enabled:
+      !isMarket && !isTokenRoute && !!current.contractAddress && !!pageItemId && (!state?.item || needsPrimaryStock),
     // Money-sensitive: a 3rd party's listing/price/stock can change under us. Never serve the 30s-stale
     // default — revalidate on every (re)mount and tab refocus so a soft revisit re-checks availability.
     staleTime: 0,
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
-    queryFn: () => fetchShopListingForItem(current.contractAddress, tokenId as string)
+    queryFn: () => fetchShopListingForItem(current.contractAddress, pageItemId as string)
   })
   useEffect(() => {
     if (!deepLinkItem) return
@@ -272,21 +585,32 @@ export function ItemDetail() {
 
   // Collection name — item records don't carry it (it lives on the collections entity), so resolve it
   // by contract for the "Collection" badge shown beside the creator (see Figma 1052-151285).
-  const { data: collection } = useQuery({
+  const { data: collection, isLoading: collectionLoading } = useQuery({
     queryKey: ['collection-meta', current.contractAddress],
     enabled: !!current.contractAddress,
     staleTime: 5 * 60_000,
     queryFn: () => fetchCollection(current.contractAddress)
   })
 
+  // Backfill the creator — item stubs/rows (deep-link, owned-token, sibling) frequently lack it, so the
+  // PDP + Sell modal would otherwise show no creator. Prefer the authoritative shop listing's creator,
+  // else the collection's (both already fetched — no extra request). Never clobber a creator we have.
+  useEffect(() => {
+    const resolved = deepLinkItem?.creator || collection?.creator
+    if (!resolved) return
+    setCurrent(prev => (prev.creator ? prev : { ...prev, creator: resolved }))
+  }, [deepLinkItem, collection])
+
   // Fallback backfill: if still unhydrated (e.g. not currently on sale), fill from the matching
   // sibling once the collection resolves. Skip it when the authoritative shop listing (deepLinkItem)
   // is available — that carries the fields siblings lack (stock, wearableCategory) and would otherwise
   // be clobbered if both resolve in the same React batch (the guard below reads a stale `current`).
+  // ITEM ROUTE ONLY: the token route hydrates from the specific token (ownedAsset / publicToken), so a
+  // generic catalog sibling (which has no tokenId) must never replace it.
   useEffect(() => {
-    if (current.name || deepLinkItem || siblings.length === 0) return
+    if (isTokenRoute || current.name || deepLinkItem || siblings.length === 0) return
     const match =
-      (tokenId && siblings.find(s => s.tokenId === tokenId || s.itemId === tokenId)) ||
+      (pageItemId && siblings.find(s => s.itemId === pageItemId)) ||
       siblings.find(s => s.contractAddress === current.contractAddress)
     if (match) setCurrent(prev => ({ ...match, tradeId: prev.tradeId ?? match.tradeId }))
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -320,7 +644,11 @@ export function ItemDetail() {
     refetchOnWindowFocus: true,
     queryFn: async (): Promise<string | null> => {
       if (current.tradeId) return current.tradeId
-      if (current.itemId) {
+      // Item route only: resolve the cheapest open listing by itemId. On a TOKEN route the buyable trade
+      // is the token's OWN listing (carried on current.tradeId from ownedAsset/publicToken) — never the
+      // item-level fallback, which would resurrect a stale "for sale" after the token's listing is
+      // cancelled (the stale-price / stuck-listed bug).
+      if (!isTokenRoute && current.itemId) {
         const trade = await fetchTradeForItem(current.contractAddress, current.itemId)
         return trade?.id ?? null
       }
@@ -330,6 +658,40 @@ export function ItemDetail() {
 
   const buyableTradeId = current.tradeId ?? resolvedTradeId ?? undefined
   const forSale = !!buyableTradeId
+
+  // Cheapest open resale for this item — powers the "Lowest Price" line + resellers link (Figma
+  // 1524-297513). Shares react-query's cache with <ItemResales> (identical key), so no extra fetch.
+  const { data: resales = [] } = useQuery({
+    queryKey: ['item-resales', current.contractAddress, current.itemId],
+    enabled: !isMarket && !!current.contractAddress && !!current.itemId,
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+    queryFn: () => fetchItemResales(current.contractAddress, current.itemId as string)
+  })
+  const lowestResale = resales.length > 0 ? resales[0].priceCredits : null
+
+  // The cheapest resale as a cart/buy-ready item (Figma 1524-298906 sold-out state buys the resale).
+  // Backfills the display fields secondary rows lack from the PDP item, mirroring <ItemResales>.
+  const cheapestResaleItem: CatalogItem | null = useMemo(() => {
+    const r = resales[0]
+    if (!r) return null
+    return {
+      ...r,
+      name: r.name || current.name,
+      thumbnail: r.thumbnail || current.thumbnail,
+      rarity: r.rarity || current.rarity,
+      category: r.category || current.category,
+      wearableCategory: r.wearableCategory ?? current.wearableCategory,
+      gender: r.gender ?? current.gender
+    }
+  }, [resales, current])
+  const [buyResale, setBuyResale] = useState<CatalogItem | null>(null)
+
+  // Internal link target: scroll the on-page Resellers list into view (E / F "View all resellers").
+  function scrollToResellers() {
+    document.getElementById('resellers')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
 
   // Market (legacy) checkout: the live MANA→USD rate (read only in market mode) + the LegacyListing
   // projection MarketCheckout expects, built from the UnifiedListing the grid passed in router state.
@@ -394,13 +756,19 @@ export function ItemDetail() {
   // reuses this same component instance — the useState initializer above only runs on the first mount,
   // so re-seed the shown item from the freshly-passed router state and scroll back to the top. Skips
   // the initial route (already seeded) so it never clobbers in-flight hydration on a deep link.
-  const routeKey = `${contractAddress}/${tokenId}`
+  const routeKey = `${contractAddress}/${routeTokenId ?? routeItemId}`
   const seededRoute = useRef(routeKey)
   useEffect(() => {
     if (seededRoute.current === routeKey) return
     seededRoute.current = routeKey
     if (state?.item) {
-      setCurrent({ ...state.item, tradeId: state.tradeId ?? state.item.tradeId })
+      const seed = { ...state.item, tradeId: state.tradeId ?? state.item.tradeId }
+      // Same route-pinned identity as the initial seed: never let a token onto the item page.
+      setCurrent(
+        isTokenRoute
+          ? { ...seed, tokenId: routeTokenId, itemId: seed.itemId ?? pageItemId }
+          : { ...seed, tokenId: undefined, itemId: routeItemId ?? seed.itemId }
+      )
     }
     if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' })
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -433,6 +801,13 @@ export function ItemDetail() {
   const qc = useQueryClient()
   const [showSell, setShowSell] = useState(false)
   const [showPrimary, setShowPrimary] = useState(false)
+  const [showTransfer, setShowTransfer] = useState(false)
+  // Creator "Issue copies" modal — assign fresh copies of your own published item to wallets (gasless).
+  const [showIssue, setShowIssue] = useState(false)
+  // Optimistic just-listed price: the owned-token feed lags a moment behind a fresh (re)list, so show the
+  // price the SellModal just submitted immediately, then let the authoritative ownedAsset refetch take
+  // over (cleared below once it reports the matching listing). Bridges the MV lag on the Edit-price flow.
+  const [justListedCredits, setJustListedCredits] = useState<number | null>(null)
   // Which manage action is in flight, so ONLY its button shows a working label (Update price shouldn't
   // read "Working…" while a Remove is running, and vice-versa). null = idle.
   const [managing, setManaging] = useState<'update' | 'remove' | null>(null)
@@ -457,7 +832,19 @@ export function ItemDetail() {
   useEffect(() => {
     if (!ownedAsset) return
     setCurrent(prev => {
-      if (prev.name) return prev.issuedId ? prev : { ...prev, issuedId: ownedAsset.issuedId }
+      // Already hydrated: still REFRESH the token's money/listing fields from a newer ownedAsset. After an
+      // Edit-price (cancel → relist) or a Remove, the price + trade change; without this the old value
+      // (e.g. 999) stuck because the effect short-circuited on `prev.name` and never re-read them. Clearing
+      // tradeId when the listing is gone also flips the page back to "not for sale" (no stale price behind
+      // the modal). This is the fix for the stale-price / stuck-"listed" bug.
+      if (prev.name) {
+        return {
+          ...prev,
+          issuedId: prev.issuedId ?? ownedAsset.issuedId,
+          priceCredits: ownedAsset.listingPrice ?? 0,
+          tradeId: ownedAsset.tradeId
+        }
+      }
       return {
         id: ownedAsset.id,
         name: ownedAsset.name,
@@ -478,6 +865,12 @@ export function ItemDetail() {
       }
     })
   }, [ownedAsset])
+
+  // Drop the optimistic just-listed price once the authoritative feed reports the matching live listing.
+  useEffect(() => {
+    if (justListedCredits == null) return
+    if (ownedAsset?.isOnSale && ownedAsset.listingPrice === justListedCredits) setJustListedCredits(null)
+  }, [ownedAsset, justListedCredits])
 
   // PUBLIC deep-link fallback for a SECONDARY token: when the segment is a tokenId that neither the
   // primary itemId hydrate (deepLinkItem) nor a sibling matched, AND the owner-scoped owned-token query
@@ -544,19 +937,36 @@ export function ItemDetail() {
     }
   })
 
-  const manageAsSecondary = !!ownedAsset
-  const manageAsPrimary = own
+  // Secondary (token-owner) management is a TOKEN-ROUTE-ONLY affordance: Edit/Remove/Transfer act on a
+  // SPECIFIC token, so they only ever show on /token/:tokenId for a token the viewer actually owns.
+  // Owning copies never flips the generic /item page into manage mode (that showed the wrong actions —
+  // the item page always stays the buy view and instead surfaces a "you own N" note). See lib/routes
+  // canManageToken. `ownedAsset` only resolves on the token route anyway (current.tokenId is undefined
+  // on the item route), but gate explicitly so the intent is unmistakable.
+  const manageAsSecondary = isTokenRoute && !!ownedAsset
+  // Primary (creator) management of a mint listing is item-level — it belongs on the /item page only.
+  const manageAsPrimary = !isTokenRoute && own
   // Never over the market (legacy) flow — legacy items aren't managed through the shop's trade flows.
   const manage = !isMarket && (manageAsPrimary || manageAsSecondary)
   // Listed? Secondary uses the token's authoritative order; primary uses the resolved buyable trade.
-  const manageListed = manageAsSecondary ? !!ownedAsset?.isOnSale : forSale
+  const manageListed = justListedCredits != null ? true : manageAsSecondary ? !!ownedAsset?.isOnSale : forSale
   const manageTradeId = manageAsSecondary ? ownedAsset?.tradeId : buyableTradeId
   // Can we open the list/relist modal? Need the backing record the modal reads its inputs from.
   const canOpenListModal = manageAsSecondary ? !!ownedAsset : !!publishableItem
   // The owner's own listed price, from the (freshly-refreshed) manage state. Used so the price shows
   // right after listing: the public `forSale`/feed the price block falls back to lags behind the MV
   // refresh, which left the owner staring at "Not for sale" while the manage buttons already said listed.
-  const managePriceCredits = manageAsSecondary ? (ownedAsset?.listingPrice ?? 0) : 0
+  const managePriceCredits = justListedCredits ?? (manageAsSecondary ? (ownedAsset?.listingPrice ?? 0) : 0)
+
+  // Item route only: how many copies of THIS item the viewer owns, for the "You own N of this" note.
+  // The item page never manages a token, so this replaces the (removed) secondary-manage leak with a
+  // gentle pointer to My Assets. Cheap (reads the server-side total).
+  const { data: ownedItemCount = 0 } = useQuery({
+    queryKey: ['owned-item-count', current.contractAddress, routeItemId, session?.address],
+    enabled: !isTokenRoute && !isMarket && !!session?.address && !!current.contractAddress && !!routeItemId,
+    staleTime: 30_000,
+    queryFn: () => (session ? fetchOwnedItemCount(session.address, current.contractAddress, routeItemId as string) : 0)
+  })
 
   async function refreshManage() {
     await Promise.all([
@@ -569,6 +979,10 @@ export function ItemDetail() {
       // is reflected there without waiting for a manual reload (the page may stay mounted behind the PDP).
       qc.invalidateQueries({ queryKey: ['secondary-sale-state'] }),
       qc.invalidateQueries({ queryKey: ['my-assets'] }),
+      // A secondary list / remove here changes this item's lowest resale price, which the browse + catalog
+      // grids derive per card — refresh them so a returning browse card doesn't show a stale lowest price.
+      qc.invalidateQueries({ queryKey: ['shop-items'] }),
+      qc.invalidateQueries({ queryKey: ['catalog-items'] }),
       qc.invalidateQueries({ queryKey: ['publishable-items'] }),
       // The PDP's OWN creator record is keyed 'publishable-item' (singular) — a different key from My
       // Assets' 'publishable-items' (plural) above, so it must be invalidated explicitly or the
@@ -594,7 +1008,18 @@ export function ItemDetail() {
       const trade = await fetchTrade(manageTradeId)
       await cancelListing({ trade, signer: session.signer })
       if (!opts.silent) toast.success(t('myAssets.removedFromSale', { name: current.name }))
-      await refreshManage()
+      // Optimistically flip this token to NOT-for-sale everywhere it's rendered (PDP owned-token, the My
+      // Assets grid, the shop-feed price map) the instant the cancel confirms — the feed's MV lags, so an
+      // invalidate→refetch alone would read back the STALE still-listed price (previously it only
+      // corrected on the next window focus). Runs for the silent edit-price cancel too, so the old listing
+      // disappears immediately before the relist modal reopens. refreshManage then reconciles.
+      setJustListedCredits(null)
+      void refreshManage()
+      patchManageCaches(
+        qc,
+        { address: session.address, contractAddress: current.contractAddress, tokenId: current.tokenId },
+        { kind: 'removed' }
+      )
       return true
     } catch (e) {
       const rejected = isRejection(e)
@@ -650,6 +1075,10 @@ export function ItemDetail() {
   // price (Figma 1182-203305). Only when we actually know the remaining supply is 0 (secondary tokens
   // and market items have no stock concept).
   const outOfStock = !isMarket && !current.tokenId && current.available === 0
+  // Sold-out primary that still has resellers (Figma 1524-298906): show the original (struck) + resale
+  // price block and let the buyer buy the cheapest resale, instead of the plain out-of-stock/notify state.
+  const soldOutWithResale = outOfStock && !manage && !!cheapestResaleItem
+  const resaleInCart = !!cheapestResaleItem && cartItems.some(i => i.id === cheapestResaleItem.id)
   // Both action buttons present (buyable, not managed by you): on mobile they collapse into a sticky
   // row of a wide Buy-now + a compact cart icon (see Figma 1182-194973). A market item has only Buy now.
   const dualCta = !manage && forSale && !isMarket
@@ -665,6 +1094,28 @@ export function ItemDetail() {
   const stillResolving =
     deepLinkLoading || (!!current.contractAddress && !siblingsFetched) || (!current.name && ownedAssetLoading)
   const notFound = !current.name && !stillResolving
+
+  // Sale section (price + CTAs): render skeletons — never the "not for sale / notify / make offer"
+  // fallback — until the sale/ownership/price state can actually be concluded (see lib/pdp-loading).
+  const saleSectionLoading =
+    !!current.name &&
+    isSaleSectionLoading({
+      isMarket,
+      forSale,
+      manage,
+      soldOutWithResale,
+      stillResolving,
+      resolvingTrade,
+      isTokenRoute,
+      ownedAssetLoading,
+      deepLinkLoading
+    })
+
+  // Creator/collection badges: skeleton while the address/name is still being resolved (both are
+  // backfilled from the shop listing + collection fetch), so the meta row keeps its height. A genuinely
+  // absent creator/collection (settled, still empty) simply shows nothing rather than a hanging shimmer.
+  const creatorPending = !current.creator && (deepLinkLoading || collectionLoading || ownedAssetLoading)
+  const collectionPending = !collection?.name && collectionLoading
 
   // Per-page SEO. Called unconditionally (before the not-found early return) so hook order stays stable
   // across renders. The title is set ONLY once the item hydrates (`current.name`) so a deep-link/refresh
@@ -796,7 +1247,7 @@ export function ItemDetail() {
                 </div>
               ) : null}
 
-              {current.creator || collection?.name ? (
+              {current.creator || collection?.name || creatorPending || collectionPending ? (
                 <div className="item-detail__meta">
                   {current.creator ? (
                     <div className="item-detail__meta-col">
@@ -807,6 +1258,14 @@ export function ItemDetail() {
                         linkToProfile
                         hidePrefix
                       />
+                    </div>
+                  ) : creatorPending ? (
+                    <div className="item-detail__meta-col">
+                      <div className="item-detail__label">{t('itemDetail.creator')}</div>
+                      <SkBadge aria-hidden data-testid="creator-loading">
+                        <span className="sk-ava" />
+                        <span className="sk-name" />
+                      </SkBadge>
                     </div>
                   ) : null}
                   {collection?.name ? (
@@ -819,198 +1278,350 @@ export function ItemDetail() {
                         className="item-detail__creator"
                       />
                     </div>
+                  ) : collectionPending ? (
+                    <div className="item-detail__meta-col item-detail__meta-col--collection">
+                      <div className="item-detail__label">{t('itemDetail.collection')}</div>
+                      <SkBadge aria-hidden data-testid="collection-loading">
+                        <span className="sk-ava" />
+                        <span className="sk-name" />
+                      </SkBadge>
+                    </div>
                   ) : null}
                 </div>
               ) : null}
 
               <hr className="item-detail__divider" />
 
-              <div className="item-detail__price-block">
-                <div className="item-detail__price-row">
-                  <div className="item-detail__price-col">
-                    {isMarket || forSale ? (
-                      <div className="item-detail__price-label">{t('itemDetail.price')}</div>
-                    ) : null}
-                    {isMarket ? (
-                      <>
-                        <div className="item-detail__price item-detail__price--market">
-                          {marketPriceCredits == null ? (
-                            <span className="item-detail__price-value">—</span>
-                          ) : (
+              {saleSectionLoading ? (
+                // The sale/ownership/price state isn't decided yet — show a skeleton (price line + two
+                // full-width CTA placeholders) instead of the data-dependent branch tree. Rendering the
+                // "not for sale / notify" fallback here would conflate loading with "no data".
+                <SaleSkeleton aria-hidden data-testid="sale-loading">
+                  <SkPrice />
+                  <SkCta />
+                  <SkCta />
+                </SaleSkeleton>
+              ) : (
+                <>
+                  {/* Primary-sale banner (Figma 1524-297513): buying a fresh mint straight from the creator.
+                      Only for a primary (mint) listing that's actually on sale. */}
+                  {!manage && !isMarket && forSale && !current.tokenId ? (
+                    <PrimarySaleBanner data-testid="buy-from-creator">
+                      <span className="from-creator">
+                        <Icon name="buy-from-creator" className="ico" />
+                        {t('itemDetail.buyFromCreator')}
+                      </span>
+                      <Icon name="check-rounded" className="check" />
+                    </PrimarySaleBanner>
+                  ) : null}
+
+                  {soldOutWithResale ? (
+                    // Sold-out primary with resellers (Figma 1524-298906): original (struck) price + SOLD OUT,
+                    // then the cheapest resale price + how many copies are on the secondary market.
+                    <SoldOutPricing data-testid="sold-out">
+                      <div className="so-row so-original">
+                        <span className="so-label">
+                          {t('itemDetail.originalPrice')}
+                          <span className="so-price">
+                            <CurrencyIcon className="ico" />
+                            <span className="so-value">{current.priceCredits}</span>
+                          </span>
+                          <span className="so-info" aria-hidden>
+                            <Icon name="info" size={12} />
+                          </span>
+                        </span>
+                        <span className="so-tag" data-testid="out-of-stock">
+                          {t('itemDetail.soldOut')}
+                        </span>
+                      </div>
+                      <div className="so-row so-resale">
+                        <span className="so-label">
+                          {t('itemDetail.resalePrice')}
+                          <span className="so-price">
+                            <CurrencyIcon className="ico" />
+                            <span className="so-value">{lowestResale}</span>
+                          </span>
+                          <span className="so-info" aria-hidden>
+                            <Icon name="info" size={12} />
+                          </span>
+                        </span>
+                        <span className="so-stock">
+                          {t('itemDetail.stock')} {resales.length}/{Rarity.getMaxSupply(rarity).toLocaleString()}
+                        </span>
+                      </div>
+                    </SoldOutPricing>
+                  ) : (
+                    <div className="item-detail__price-block">
+                      <div className="item-detail__price-row">
+                        <div className="item-detail__price-col">
+                          {isMarket || forSale ? (
+                            <div className="item-detail__price-label">{t('itemDetail.price')}</div>
+                          ) : null}
+                          {isMarket ? (
                             <>
-                              <span className="item-detail__approx" aria-hidden>
-                                ≈
-                              </span>
-                              <CurrencyIcon className="item-detail__diamond" />
-                              <span className="item-detail__price-value">{marketPriceCredits}</span>
+                              <div className="item-detail__price item-detail__price--market">
+                                {marketPriceCredits == null ? (
+                                  <span className="item-detail__price-value">—</span>
+                                ) : (
+                                  <>
+                                    <span className="item-detail__approx" aria-hidden>
+                                      ≈
+                                    </span>
+                                    <CurrencyIcon className="item-detail__diamond" />
+                                    <span className="item-detail__price-value">{marketPriceCredits}</span>
+                                  </>
+                                )}
+                              </div>
+                              <div className="item-detail__market-note muted">{t('assetCard.marketPrice')}</div>
                             </>
+                          ) : forSale ? (
+                            onSale ? (
+                              <div className="item-detail__price item-detail__price--sale">
+                                <span className="item-detail__price">
+                                  <CurrencyIcon className="item-detail__diamond" />
+                                  <span className="item-detail__price-value">{current.priceCredits}</span>
+                                </span>
+                                <span className="item-detail__price-was">
+                                  <CurrencyIcon className="item-detail__diamond item-detail__diamond--was" />
+                                  {current.compareAtCredits}
+                                </span>
+                                {saleDiscountPct(current.compareAtCredits!, current.priceCredits) > 0 ? (
+                                  <span className="item-detail__sale-badge">
+                                    {t('assetCard.saleWithDiscount', {
+                                      pct: saleDiscountPct(current.compareAtCredits!, current.priceCredits)
+                                    })}
+                                  </span>
+                                ) : null}
+                                <SaleCountdown endsAt={current.saleEndsAt} className="item-detail__countdown" />
+                              </div>
+                            ) : (
+                              <div className="item-detail__price">
+                                <CurrencyIcon className="item-detail__diamond" />
+                                <span className="item-detail__price-value">{current.priceCredits}</span>
+                              </div>
+                            )
+                          ) : manageListed && managePriceCredits ? (
+                            // Owner viewing their own listed item: show the price from the fresh manage state
+                            // instead of "Not for sale" while the public feed catches up to the MV refresh.
+                            <div className="item-detail__price">
+                              <CurrencyIcon className="item-detail__diamond" />
+                              <span className="item-detail__price-value">{managePriceCredits}</span>
+                            </div>
+                          ) : (
+                            <div className="item-detail__price item-detail__price--none">
+                              <span>{t('itemDetail.notForSale')}</span>
+                              <Tooltip content={t('itemDetail.notForSaleHint')}>
+                                <span
+                                  className="item-detail__price-info"
+                                  tabIndex={0}
+                                  role="img"
+                                  aria-label={t('itemDetail.notForSaleHint')}
+                                >
+                                  <Icon name="info" size={14} />
+                                </span>
+                              </Tooltip>
+                            </div>
                           )}
                         </div>
-                        <div className="item-detail__market-note muted">{t('assetCard.marketPrice')}</div>
-                      </>
-                    ) : forSale ? (
-                      onSale ? (
-                        <div className="item-detail__price item-detail__price--sale">
-                          <span className="item-detail__price">
-                            <CurrencyIcon className="item-detail__diamond" />
-                            <span className="item-detail__price-value">{current.priceCredits}</span>
-                          </span>
-                          <span className="item-detail__price-was">
-                            <CurrencyIcon className="item-detail__diamond item-detail__diamond--was" />
-                            {current.compareAtCredits}
-                          </span>
-                          {saleDiscountPct(current.compareAtCredits!, current.priceCredits) > 0 ? (
-                            <span className="item-detail__sale-badge">
-                              {t('assetCard.saleWithDiscount', {
-                                pct: saleDiscountPct(current.compareAtCredits!, current.priceCredits)
-                              })}
-                            </span>
-                          ) : null}
-                          <SaleCountdown endsAt={current.saleEndsAt} className="item-detail__countdown" />
-                        </div>
-                      ) : (
-                        <div className="item-detail__price">
-                          <CurrencyIcon className="item-detail__diamond" />
-                          <span className="item-detail__price-value">{current.priceCredits}</span>
-                        </div>
-                      )
-                    ) : manageListed && managePriceCredits ? (
-                      // Owner viewing their own listed item: show the price from the fresh manage state
-                      // instead of "Not for sale" while the public feed catches up to the MV refresh.
-                      <div className="item-detail__price">
-                        <CurrencyIcon className="item-detail__diamond" />
-                        <span className="item-detail__price-value">{managePriceCredits}</span>
-                      </div>
-                    ) : (
-                      <div className="item-detail__price item-detail__price--none">
-                        <span>{t('itemDetail.notForSale')}</span>
-                        <Tooltip content={t('itemDetail.notForSaleHint')}>
-                          <span
-                            className="item-detail__price-info"
-                            tabIndex={0}
-                            role="img"
-                            aria-label={t('itemDetail.notForSaleHint')}
-                          >
-                            <Icon name="info" size={14} />
-                          </span>
-                        </Tooltip>
-                      </div>
-                    )}
-                  </div>
-                  {showStock ? (
-                    <div className="item-detail__stock-col">
-                      <div className="item-detail__price-label">{t('itemDetail.stock')}</div>
-                      <div className="item-detail__stock-value">
-                        {(current.available ?? 0).toLocaleString()}/{Rarity.getMaxSupply(rarity).toLocaleString()}
+                        {showStock ? (
+                          <div className="item-detail__stock-col">
+                            <div className="item-detail__price-label">{t('itemDetail.stock')}</div>
+                            <div className="item-detail__stock-value">
+                              {(current.available ?? 0).toLocaleString()}/{Rarity.getMaxSupply(rarity).toLocaleString()}
+                            </div>
+                          </div>
+                        ) : outOfStock ? (
+                          <div className="item-detail__stock-col">
+                            <div
+                              className="item-detail__stock-value item-detail__stock-value--out"
+                              data-testid="out-of-stock"
+                            >
+                              {t('itemDetail.outOfStock')}
+                            </div>
+                          </div>
+                        ) : null}
                       </div>
                     </div>
-                  ) : outOfStock ? (
-                    <div className="item-detail__stock-col">
-                      <div
-                        className="item-detail__stock-value item-detail__stock-value--out"
-                        data-testid="out-of-stock"
-                      >
-                        {t('itemDetail.outOfStock')}
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
-              </div>
+                  )}
 
-              <div
-                className={`item-detail__ctas${showCtaButtons ? ' item-detail__ctas--buttons' : ''}${
-                  dualCta ? ' item-detail__ctas--dual' : ''
-                }`}
-              >
-                {isMarket ? (
-                  // Market (legacy/MANA) item: a single Buy now that opens the MANA→credits checkout
-                  // (MarketCheckout) — never Add to cart / BuyModal.
-                  <DetailCta variant="purple" onClick={handleBuyNow} disabled={!canBuyMarket}>
-                    <span className="item-detail__cta-label">{t('assetCard.buyNow')}</span>
-                    {marketPriceCredits != null ? (
-                      <span className="item-detail__cta-price" aria-hidden>
-                        <CurrencyIcon className="item-detail__cta-diamond" />
-                        {marketPriceCredits}
-                      </span>
-                    ) : null}
-                  </DetailCta>
-                ) : manage ? (
-                  <ManageActions data-testid="manage-actions">
-                    <ErrorNotice message={manageError} />
-                    {manageListed ? (
+                  <div
+                    className={`item-detail__ctas${showCtaButtons ? ' item-detail__ctas--buttons' : ''}${
+                      dualCta ? ' item-detail__ctas--dual' : ''
+                    }`}
+                  >
+                    {isMarket ? (
+                      // Market (legacy/MANA) item: a single Buy now that opens the MANA→credits checkout
+                      // (MarketCheckout) — never Add to cart / BuyModal.
+                      <DetailCta variant="purple" onClick={handleBuyNow} disabled={!canBuyMarket}>
+                        <span className="item-detail__cta-label">{t('assetCard.buyNow')}</span>
+                        {marketPriceCredits != null ? (
+                          <span className="item-detail__cta-price" aria-hidden>
+                            <CurrencyIcon className="item-detail__cta-diamond" />
+                            {marketPriceCredits}
+                          </span>
+                        ) : null}
+                      </DetailCta>
+                    ) : manage ? (
+                      <ManageActions data-testid="manage-actions">
+                        <ErrorNotice message={manageError} />
+                        {manageListed ? (
+                          <>
+                            {/* Edit price (Figma 1527-302048): dark-solid CTA with the pen glyph. */}
+                            <DarkCta
+                              onClick={() => void updatePrice()}
+                              disabled={managing !== null || !canOpenListModal}
+                            >
+                              {managing !== 'update' ? <Icon name="pen" className="ico" /> : null}
+                              <span className="item-detail__cta-label">
+                                {managing === 'update'
+                                  ? isManaged
+                                    ? t('itemDetail.updateCanceling')
+                                    : t('itemDetail.updateConfirmCancel')
+                                  : t('itemDetail.manageUpdatePrice')}
+                              </span>
+                            </DarkCta>
+                            <OutlineCta onClick={() => void takeDown()} disabled={managing !== null}>
+                              <span className="item-detail__cta-label">
+                                {managing === 'remove' ? t('myAssets.removing') : t('itemDetail.manageRemove')}
+                              </span>
+                            </OutlineCta>
+                          </>
+                        ) : (
+                          <>
+                            {/* Put up for sale (Figma 1527-302810): dark-solid primary. */}
+                            <DarkCta
+                              onClick={() => {
+                                // Funnel-entry event for a secondary listing — this is the flow that moved off
+                                // the My Assets card (its "put on sale" fired the same event) onto the PDP.
+                                if (manageAsSecondary)
+                                  track('Shop Started Listing', {
+                                    listing_type: 'secondary',
+                                    item_id: current.itemId ?? current.tokenId ?? null
+                                  })
+                                openListModal()
+                              }}
+                              disabled={managing !== null || !canOpenListModal}
+                            >
+                              <span className="item-detail__cta-label">{t('itemDetail.manageList')}</span>
+                            </DarkCta>
+                            {/* Transfer (Figma 1527-302810): only for a SECONDARY owned token you actually hold
+                            (a primary/mint listing has no transferable token). Gasless via lib/buy. */}
+                            {manageAsSecondary ? (
+                              <OutlineCta onClick={() => setShowTransfer(true)} disabled={managing !== null}>
+                                <span className="item-detail__cta-label">{t('itemDetail.manageTransfer')}</span>
+                              </OutlineCta>
+                            ) : null}
+                          </>
+                        )}
+                        {/* Issue copies (creator only): assign fresh mints of your own published item to
+                        wallets. Shown alongside the primary CTAs whenever this item is still mintable
+                        (published + remaining supply > 0 → publishableItem is present). Gasless. */}
+                        {manageAsPrimary && publishableItem ? (
+                          <OutlineCta onClick={() => setShowIssue(true)} disabled={managing !== null}>
+                            <span className="item-detail__cta-label">{t('itemDetail.manageIssue')}</span>
+                          </OutlineCta>
+                        ) : null}
+                        {managing === 'update' ? (
+                          // Only note kept in the manage view: explain the two-step nature while the
+                          // current listing is being taken down. The "manage it in My Assets" note was
+                          // removed — you're already managing right here (on both /item and /token).
+                          <ManageNote>{t('itemDetail.updateHelper')}</ManageNote>
+                        ) : null}
+                      </ManageActions>
+                    ) : forSale ? (
+                      <>
+                        <DetailCta variant="purple" onClick={handleBuyNow} disabled={resolvingTrade}>
+                          <span className="item-detail__cta-label">{t('assetCard.buyNow')}</span>
+                          <span className="item-detail__cta-price" aria-hidden>
+                            <CurrencyIcon className="item-detail__cta-diamond" />
+                            {current.priceCredits}
+                          </span>
+                        </DetailCta>
+                        <button
+                          className="item-detail__addcart"
+                          onClick={handleAddToCart}
+                          disabled={resolvingTrade || (isPrimary ? atStockCap : inCart)}
+                          aria-label={addLabel}
+                        >
+                          <Icon name="cart-solid" />
+                          <span className="item-detail__addcart-label">{addLabel}</span>
+                        </button>
+                      </>
+                    ) : soldOutWithResale && cheapestResaleItem ? (
+                      // Sold-out primary with resellers (Figma 1524-298906): buy the cheapest resale.
                       <>
                         <DetailCta
                           variant="purple"
-                          onClick={() => void updatePrice()}
-                          disabled={managing !== null || !canOpenListModal}
+                          onClick={() => (session ? setBuyResale(cheapestResaleItem) : signIn())}
                         >
-                          <span className="item-detail__cta-label">
-                            {managing === 'update' ? t('itemDetail.manageWorking') : t('itemDetail.manageUpdatePrice')}
+                          <span className="item-detail__cta-label">{t('assetCard.buyNow')}</span>
+                          <span className="item-detail__cta-price" aria-hidden>
+                            <CurrencyIcon className="item-detail__cta-diamond" />
+                            {cheapestResaleItem.priceCredits}
                           </span>
                         </DetailCta>
-                        <RemoveCta variant="ghost" onClick={() => void takeDown()} disabled={managing !== null}>
-                          <span className="item-detail__cta-label">
-                            {managing === 'remove' ? t('myAssets.removing') : t('itemDetail.manageRemove')}
+                        <button
+                          className="item-detail__addcart"
+                          onClick={() => {
+                            if (!resaleInCart) add(cheapestResaleItem, 'item_detail')
+                          }}
+                          disabled={resaleInCart}
+                          aria-label={resaleInCart ? t('assetCard.inCart') : t('assetCard.addToCart')}
+                        >
+                          <Icon name="cart-solid" />
+                          <span className="item-detail__addcart-label">
+                            {resaleInCart ? t('assetCard.inCart') : t('assetCard.addToCart')}
                           </span>
-                        </RemoveCta>
+                        </button>
                       </>
                     ) : (
-                      <DetailCta
-                        variant="purple"
-                        onClick={() => {
-                          // Funnel-entry event for a secondary listing — this is the flow that moved off
-                          // the My Assets card (its "put on sale" fired the same event) onto the PDP.
-                          if (manageAsSecondary)
-                            track('Shop Started Listing', {
-                              listing_type: 'secondary',
-                              item_id: current.itemId ?? current.tokenId ?? null
-                            })
-                          openListModal()
-                        }}
-                        disabled={managing !== null || !canOpenListModal}
-                      >
-                        <span className="item-detail__cta-label">{t('itemDetail.manageList')}</span>
-                      </DetailCta>
+                      // No buyable listing → hide buy/add-cart and offer "Notify me when available" + the
+                      // (coming-soon) Make an offer CTA.
+                      <>
+                        <NotifyMe item={current} />
+                        <MakeOfferButton item={current} />
+                      </>
                     )}
-                    <ManageNote>
-                      {t('itemDetail.ownItemPrefix')} <Link to="/my-assets">{t('nav.myAssets')}</Link>
-                      {t('itemDetail.ownItemSuffix')}
-                    </ManageNote>
-                  </ManageActions>
-                ) : forSale ? (
-                  <>
-                    <DetailCta variant="purple" onClick={handleBuyNow} disabled={resolvingTrade}>
-                      <span className="item-detail__cta-label">{t('assetCard.buyNow')}</span>
-                      <span className="item-detail__cta-price" aria-hidden>
-                        <CurrencyIcon className="item-detail__cta-diamond" />
-                        {current.priceCredits}
-                      </span>
-                    </DetailCta>
-                    <button
-                      className="item-detail__addcart"
-                      onClick={handleAddToCart}
-                      disabled={resolvingTrade || (isPrimary ? atStockCap : inCart)}
-                      aria-label={addLabel}
-                    >
-                      <Icon name="cart-solid" />
-                      <span className="item-detail__addcart-label">{addLabel}</span>
-                    </button>
-                  </>
-                ) : (
-                  // No buyable listing → hide buy/add-cart and offer "Notify me when available" + the
-                  // (coming-soon) Make an offer CTA.
-                  <>
-                    <NotifyMe item={current} />
-                    <MakeOfferButton item={current} />
-                  </>
-                )}
-              </div>
+                  </div>
+
+                  {/* Lowest resale price + internal link to the on-page Resellers list (Figma 1524-297513).
+                  Only when there's at least one resale to link to, and not for your own managed item. In
+                  the sold-out state the resale price already shows above, so the link is centered alone
+                  (Figma 1524-298906). */}
+                  {!manage && !isMarket && lowestResale != null ? (
+                    <LowestPriceRow data-testid="lowest-price" data-centered={soldOutWithResale ? 'true' : undefined}>
+                      {!soldOutWithResale ? (
+                        <span className="lowest">
+                          {t('itemDetail.lowestPrice')}
+                          <CurrencyIcon className="ico" />
+                          <span className="lowest-value">{lowestResale}</span>
+                        </span>
+                      ) : null}
+                      <ResellersLink onClick={scrollToResellers}>{t('itemDetail.viewAllResellers')}</ResellersLink>
+                    </LowestPriceRow>
+                  ) : null}
+
+                  {/* Gap B: the item page never manages a token. If the viewer owns copies, point them to
+                  My Assets to manage/resell them instead of showing Edit/Remove here. */}
+                  {!manage && !isMarket && ownedItemCount > 0 ? (
+                    <OwnNote data-testid="you-own-note">
+                      {t('itemDetail.youOwnN', { count: ownedItemCount })}{' '}
+                      <Link to="/my-assets">{t('nav.myAssets')}</Link>
+                      {/* TODO: deep-link to My Assets filtered by this collection once that filter exists. */}
+                    </OwnNote>
+                  ) : null}
+                </>
+              )}
             </>
           )}
         </div>
       </div>
 
-      {current.itemId ? <ItemResales item={current} /> : null}
+      {current.itemId ? (
+        <div id="resellers">
+          <ItemResales item={current} />
+        </div>
+      ) : null}
 
       <CollectionCarousel
         title={collectionTitle}
@@ -1036,11 +1647,92 @@ export function ItemDetail() {
         />
       ) : null}
 
+      {buyResale ? (
+        <BuyModal
+          item={buyResale}
+          onClose={() => {
+            setBuyResale(null)
+            void refreshManage()
+          }}
+        />
+      ) : null}
+
       {showSell && ownedAsset && session ? (
-        <SellModal asset={ownedAsset} session={session} onClose={closeManageModal} />
+        <SellModal
+          asset={ownedAsset}
+          session={session}
+          creator={current.creator}
+          onListed={(credits, tradeId) => {
+            // Show the new price immediately on THIS page (justListedCredits), and optimistically patch every
+            // cache that renders this token's sale state (PDP owned-token → no re-entry flash, My Assets grid,
+            // shop-feed price map) so a fresh list / edit-price shows on-sale at the new price at once. The
+            // feed's MV lags, so refreshManage's refetch alone would read back stale data — invalidation only
+            // reconciles authoritatively afterwards.
+            setJustListedCredits(credits)
+            void refreshManage()
+            patchManageCaches(
+              qc,
+              { address: session.address, contractAddress: current.contractAddress, tokenId: current.tokenId },
+              { kind: 'listed', priceCredits: credits, tradeId }
+            )
+          }}
+          onClose={closeManageModal}
+        />
+      ) : null}
+      {showTransfer && session && current.tokenId ? (
+        <TransferModal
+          item={{
+            contractAddress: current.contractAddress,
+            chainId: current.chainId,
+            tokenId: current.tokenId,
+            name: current.name,
+            thumbnail: current.thumbnail
+          }}
+          session={session}
+          onClose={() => {
+            setShowTransfer(false)
+            void refreshManage()
+          }}
+          onTransferred={() => {
+            // The token just left this wallet: reconcile authoritatively (refreshManage) AND optimistically
+            // drop it from every cache that still renders it as owned — the My Assets grid row, the PDP's
+            // owned-token detail (nulled → the manage view collapses to the public/buy view), and any
+            // secondary sale entry. Without this the token lingers as owned (Edit/Remove/Transfer stay) until
+            // the eventually-consistent feed catches up on the next focus/remount.
+            setJustListedCredits(null)
+            void refreshManage()
+            patchManageCaches(
+              qc,
+              { address: session.address, contractAddress: current.contractAddress, tokenId: current.tokenId },
+              { kind: 'gone' }
+            )
+          }}
+        />
       ) : null}
       {showPrimary && publishableItem && session ? (
-        <PrimaryListModal item={publishableItem} session={session} onClose={closeManageModal} />
+        <PrimaryListModal
+          item={publishableItem}
+          session={session}
+          onListed={credits => setJustListedCredits(credits)}
+          onClose={closeManageModal}
+        />
+      ) : null}
+      {showIssue && publishableItem && session ? (
+        <IssueModal
+          item={{
+            contractAddress: publishableItem.contractAddress,
+            chainId: config.chainId,
+            itemId: publishableItem.blockchainItemId,
+            name: publishableItem.name,
+            thumbnail: publishableItem.thumbnail,
+            available: publishableItem.remainingSupply
+          }}
+          session={session}
+          onClose={() => {
+            setShowIssue(false)
+            void refreshManage()
+          }}
+        />
       ) : null}
     </div>
   )

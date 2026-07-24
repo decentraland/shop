@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { useLocation } from 'react-router-dom'
 import { PreviewEmote, PreviewType } from '@dcl/schemas'
 import { PreviewMessageType, sendMessage } from '@dcl/schemas/dist/dapps/preview'
 import { WearablePreview } from '~/components/LazyWearablePreview'
@@ -21,6 +22,13 @@ import { avatarShape, isCompatible } from '~/lib/bodyShape'
 const IFRAME_ID = 'hover-preview'
 
 export function HoverPreviewLayer() {
+  // The detail page (PDP) mounts its own heavy WearablePreview, so don't keep a SECOND engine warm
+  // off-screen while a PDP is open — that stacked two (sometimes three, with the Fitting Room) live
+  // WebGL contexts and pegged the GPU. Unmount the warm hover layer on /item/* and /token/* (it
+  // re-boots on idle when the shopper returns to a browse grid, where hover previews are used).
+  const { pathname } = useLocation()
+  const onDetailPage = pathname.startsWith('/item/') || pathname.startsWith('/token/')
+
   const item = useHoverPreview(s => s.item)
   const anchor = useHoverPreview(s => s.anchor)
   const token = useHoverPreview(s => s.token)
@@ -117,7 +125,7 @@ export function HoverPreviewLayer() {
     if (s.item && s.token === loadingTokenRef.current) setReady()
   }
 
-  if (!mounted) return null
+  if (!mounted || onDetailPage) return null
 
   const active = !!item && !!rect
   const wrapStyle: CSSProperties = active

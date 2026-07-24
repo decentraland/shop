@@ -10,6 +10,7 @@ import { CartPopover } from '~/components/CartPopover'
 import { SearchDropdown } from '~/components/SearchDropdown'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { CURRENCY } from '~/lib/currency'
+import { detailRouteFor } from '~/lib/routes'
 import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import { getRecentSearches, recordSearch, removeRecentSearch, clearRecentSearches } from '~/lib/recent-searches'
 import { track } from '~/lib/analytics'
@@ -28,9 +29,11 @@ export function NavBar() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { pathname } = useLocation()
-  // The Collectibles tab covers the whole browse surface: the grid + an item's detail page + a
-  // collection/creator page (a NavLink to /assets alone wouldn't light up on those routes).
-  const collectiblesActive = /^\/(assets|item|collection|creator)(\/|$)/.test(pathname)
+  // The Collectibles tab covers the whole browse surface: the grid (/assets), an item's detail page
+  // (/item/* and /token/* — both render ItemDetail), a collection page (/collection/*) and a creator
+  // page (/assets/creator/*, already under /assets). A NavLink to /assets alone wouldn't light up on
+  // any of the detail/collection routes, so match them explicitly here.
+  const collectiblesActive = /^\/(assets|item|token|collection)(\/|$)/.test(pathname)
   const urlQuery = searchParams.get('q') ?? ''
 
   // What the input shows (drives the box) and what the dropdown queries (debounced) are separate:
@@ -88,12 +91,10 @@ export function NavBar() {
       type: 'item',
       item_id: item.id
     })
-    // Secondary listings carry tokenId; catalog items carry itemId — mirror AssetCard's route segment.
-    const routeSeg = item.tokenId ?? item.itemId
-    if (item.contractAddress && routeSeg) {
-      navigate(`/item/${item.contractAddress}/${routeSeg}`, {
-        state: { item, tradeId: item.tradeId }
-      })
+    // A token row → /token, a catalog row → /item (see lib/routes detailRouteFor).
+    const detailPath = detailRouteFor(item)
+    if (detailPath) {
+      navigate(detailPath, { state: { item, tradeId: item.tradeId } })
     } else {
       runSearch(q)
     }

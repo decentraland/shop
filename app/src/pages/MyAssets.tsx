@@ -15,6 +15,7 @@ import {
 import { fetchImportable } from '~/lib/import'
 import { fetchPublishableItems, type PublishableItem } from '~/lib/builder'
 import { cancelListing } from '~/lib/buy'
+import { patchManageCaches } from '~/lib/manage-cache'
 import { captureError } from '~/lib/monitoring'
 import { toast } from '~/store/toast'
 import { Button } from '~/components/Button'
@@ -328,7 +329,15 @@ export function MyAssets() {
   const importCount = (importable?.creations.length ?? 0) + (importable?.owned.length ?? 0)
 
   // Take a listing down (owned secondary OR created primary). Refreshes the affected grids on success.
-  async function cancelByTrade(tradeId: string, name: string, key: string) {
+  // `token` identifies the underlying NFT when this is a secondary (owned-token) listing, so the caches
+  // that render its sale state can be patched optimistically (mirrors ItemDetail's remove flow); primary
+  // listings carry no tokenId and rely on the invalidations below.
+  async function cancelByTrade(
+    tradeId: string,
+    name: string,
+    key: string,
+    token?: { contractAddress: string; tokenId?: string }
+  ) {
     if (!session) return
     setCancelError(null)
     setCancelling(key)
@@ -340,6 +349,17 @@ export function MyAssets() {
       await qc.invalidateQueries({ queryKey: ['collection-sale-state'] })
       await qc.invalidateQueries({ queryKey: ['secondary-sale-state'] })
       await qc.invalidateQueries({ queryKey: ['publishable-items'] })
+      // The feed's MV lags the on-chain cancel, so an invalidate→refetch alone would read back the stale
+      // still-listed row. Optimistically flip the token to not-for-sale in every cache that renders it
+      // (My Assets grid, PDP owned-token, shop-feed price map) so the change shows at once. Guarded: a
+      // primary listing has no tokenId, so patchManageCaches no-ops and the invalidations above cover it.
+      if (token) {
+        patchManageCaches(
+          qc,
+          { address: session.address, contractAddress: token.contractAddress, tokenId: token.tokenId },
+          { kind: 'removed' }
+        )
+      }
     } catch (e) {
       const err = e as { code?: number; message?: string }
       const msg = (err.message ?? '').toLowerCase()
@@ -554,7 +574,10 @@ export function MyAssets() {
                         setPublishing(item)
                       }}
                       onUnlist={() => {
-                        if (sale?.tradeId) void cancelByTrade(sale.tradeId, item.name, item.id)
+                        if (sale?.tradeId)
+                          void cancelByTrade(sale.tradeId, item.name, item.id, {
+                            contractAddress: item.contractAddress
+                          })
                       }}
                     />
                   )

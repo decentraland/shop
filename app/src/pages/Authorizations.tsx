@@ -8,8 +8,11 @@ import {
   setAuthorization,
   getCreditsAuthorization,
   getCollectionSellingAuthorization,
+  getCollectionMintingAuthorization,
   type ShopAuthorizationDescriptor
 } from '~/lib/authorizations'
+import { fetchCreatorCollections, type CreatorCollection } from '~/lib/builder'
+import type { AuthIdentity } from '@dcl/crypto'
 import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import { config } from '~/config'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
@@ -131,6 +134,26 @@ function useOwnedCollections(owner: string | undefined) {
   })
 }
 
+// The published collections the owner PUBLISHES from — one minting authorization per collection.
+// Same source the primary-publish flow (PrimaryListModal / ItemDetail) reads, deduped by on-chain
+// collection address so a creator sees exactly one "For minting" row per collection.
+function usePublishableCollections(owner: string | undefined, identity: AuthIdentity | undefined) {
+  return useQuery({
+    queryKey: ['creator-collections', owner],
+    enabled: !!owner && !!identity,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const collections = await fetchCreatorCollections(owner!, identity!)
+      const byCollection = new Map<string, CreatorCollection>()
+      for (const collection of collections) {
+        const key = collection.contractAddress.toLowerCase()
+        if (!byCollection.has(key)) byCollection.set(key, collection)
+      }
+      return [...byCollection.values()]
+    }
+  })
+}
+
 export function Authorizations() {
   useSeo({ title: t('authorizations.title'), noindex: true })
   const { session, signIn } = useWallet()
@@ -139,6 +162,11 @@ export function Authorizations() {
 
   const { data: collections, isLoading: loadingCollections } = useOwnedCollections(
     selfCustody ? session?.address : undefined
+  )
+
+  const { data: publishableCollections, isLoading: loadingPublishable } = usePublishableCollections(
+    selfCustody ? session?.address : undefined,
+    selfCustody ? session?.identity : undefined
   )
 
   if (!session) {
@@ -195,7 +223,11 @@ export function Authorizations() {
       <S.Group>
         <S.GroupTitle>{t('authorizations.sellingTitle')}</S.GroupTitle>
         {loadingCollections ? (
-          <S.EmptyHint>{t('authorizations.checking')}</S.EmptyHint>
+          <S.List aria-busy="true" aria-label={t('authorizations.checking')}>
+            {Array.from({ length: 3 }).map((_, i) => (
+              <S.RowSkeleton key={i} aria-hidden />
+            ))}
+          </S.List>
         ) : collections && collections.length > 0 ? (
           <S.List>
             {collections.map(asset => (
@@ -213,6 +245,33 @@ export function Authorizations() {
           </S.List>
         ) : (
           <S.EmptyHint>{t('authorizations.sellingEmpty')}</S.EmptyHint>
+        )}
+      </S.Group>
+
+      <S.Group>
+        <S.GroupTitle>{t('authorizations.mintingTitle')}</S.GroupTitle>
+        {loadingPublishable ? (
+          <S.List aria-busy="true" aria-label={t('authorizations.checking')}>
+            {Array.from({ length: 3 }).map((_, i) => (
+              <S.RowSkeleton key={i} aria-hidden />
+            ))}
+          </S.List>
+        ) : publishableCollections && publishableCollections.length > 0 ? (
+          <S.List>
+            {publishableCollections.map(collection => (
+              <AuthorizationRow
+                key={collection.contractAddress}
+                descriptor={getCollectionMintingAuthorization(collection.contractAddress, chainId)}
+                owner={session.address}
+                signer={session.signer}
+                name={collection.name || t('authorizations.collectionFallback')}
+                description={t('authorizations.mintingDesc')}
+                icon={<Icon name="pen" size={18} />}
+              />
+            ))}
+          </S.List>
+        ) : (
+          <S.EmptyHint>{t('authorizations.mintingEmpty')}</S.EmptyHint>
         )}
       </S.Group>
     </S.Section>
