@@ -11,4 +11,23 @@ export const Collage = styled(Ava)`
   overflow: hidden;
   gap: 1px;
   background: ${theme.colors.lineStrong};
+
+  /* Rows stack; each cell (<img>) covers its share. A single row (≤2 thumbnails) spans full height. */
+  & .collection-collage__row {
+    display: flex;
+    flex: 1 1 50%;
+    min-height: 0;
+    gap: 1px;
+  }
+  & .collection-collage__row--full {
+    flex-basis: 100%;
+  }
+  & .collection-collage__row img {
+    flex: 1 1 0;
+    min-width: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
 `

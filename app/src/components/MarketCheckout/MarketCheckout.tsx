@@ -266,7 +266,7 @@ export function MarketCheckout({
           <S.Thumb>{listing.thumbnail ? <img src={listing.thumbnail} alt="" /> : null}</S.Thumb>
           <div>
             <S.Name title={listing.name}>{listing.name || t('buyModal.itemFallback')}</S.Name>
-            <span className="chip chip--rarity">{listing.rarity}</span>
+            <S.Chip data-variant="rarity">{listing.rarity}</S.Chip>
           </div>
         </S.Head>
 

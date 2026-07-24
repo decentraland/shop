@@ -1,6 +1,7 @@
 import styled from '@emotion/styled'
 import { Link } from 'react-router-dom'
 import { theme } from '~/styles/theme'
+import { Chip } from '~/styles/chip.styles'
 import { CreatorBadge } from '~/components/CreatorBadge'
 import { SaleCountdown } from '~/components/SaleCountdown'
 
@@ -285,31 +286,36 @@ export const Action = styled.div`
   }
 `
 
-// Marketplace-style chips. All share one fixed height so they line up. The context rules target the
-// shared global `.chip*` / `.ico` classes the children still carry. Hidden on mobile (round add is used).
+// Marketplace-style chips. All share one fixed height so they line up. Hidden on mobile (round add is used).
 export const Chips = styled.div`
   display: flex;
   align-items: center;
   gap: 6px;
   flex-wrap: wrap;
 
-  & .chip {
-    height: 18px;
-    font-size: 10px;
-    line-height: 1;
-    font-weight: 600;
-    padding: 0 6.5px;
-    letter-spacing: 0.01em;
-    border-radius: 4px;
+  ${media.maxWidth('sm')} {
+    display: none;
   }
-  & .chip--icon {
+`
+
+// The card's compact chip: smaller and denser than the shared base, with the smart/market variants.
+export const CardChip = styled(Chip)`
+  height: 18px;
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 600;
+  padding: 0 6.5px;
+  letter-spacing: 0.01em;
+  border-radius: 4px;
+
+  &[data-variant='icon'] {
     padding: 0 5px;
   }
-  & .chip--icon .ico {
+  &[data-variant='icon'] .ico {
     width: 14.6px;
     height: 14.6px;
   }
-  & .chip--smart {
+  &[data-variant='smart'] {
     gap: 2px;
     padding: 4px 4px 4px 2px;
     background: ${colors.chip};
@@ -317,15 +323,11 @@ export const Chips = styled.div`
     text-transform: uppercase;
     letter-spacing: 0.02em;
   }
-  & .chip--market {
+  &[data-variant='market'] {
     background: ${colors.rarityBg};
     color: ${colors.accent};
     text-transform: uppercase;
     letter-spacing: 0.02em;
-  }
-
-  ${media.maxWidth('sm')} {
-    display: none;
   }
 `
 

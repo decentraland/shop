@@ -5,6 +5,8 @@ import { Button } from '~/components/Button'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { ErrorNotice } from '~/components/ErrorNotice'
 
+export { Chip } from '~/styles/chip.styles'
+
 const { colors, radius } = theme
 
 // Buy Now checkout modal for legacy (market) items — bought directly, never added to the cart.

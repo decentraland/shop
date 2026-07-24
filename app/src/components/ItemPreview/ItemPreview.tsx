@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { Icon } from '~/components/Icon'
 import { WearablePreview } from '~/components/LazyWearablePreview'
 import { EmoteControls } from '~/components/LazyEmoteControls'
 import { PreviewEmote, PreviewType } from '@dcl/schemas'
@@ -9,6 +8,7 @@ import { useProfile } from '~/hooks/useProfile'
 import { avatarShape, isCompatible, itemShapes, shapeLabel } from '~/lib/bodyShape'
 import { t } from '~/intl/i18n'
 import type { CatalogItem } from '~/lib/api'
+import * as S from './ItemPreview.styles'
 
 // The hero preview. Wearables DEFAULT to the item shown ALONE (PreviewType.WEARABLE — no avatar, no
 // emote), exactly how the marketplace item page loads (its try-on state starts OFF), so there's no odd
@@ -78,44 +78,43 @@ export function ItemPreview({ item }: { item: CatalogItem }) {
         />
       ) : null}
       {!profileReady || previewLoading ? (
-        <div className="item-preview__loading" aria-busy="true" aria-label={t('itemPreview.loading')}>
-          <span className="item-preview__spinner" aria-hidden />
-        </div>
+        <S.Loading data-preview-loading aria-busy="true" aria-label={t('itemPreview.loading')}>
+          <S.Spinner aria-hidden />
+        </S.Loading>
       ) : null}
       {incompatible && !itemAlone ? (
-        <p className="item-preview__note">{t('itemPreview.shownOnBody', { shape: shapeLabel(mannequinShape) })}</p>
+        <S.Note data-preview-note>{t('itemPreview.shownOnBody', { shape: shapeLabel(mannequinShape) })}</S.Note>
       ) : null}
       {!isEmote ? (
         // On desktop this is a text pill ("On avatar / Item") pinned top-left; on mobile it collapses
-        // to an icon-only pill button-group at the bottom-right (Figma 1182-195374) — the SVG glyphs
-        // show and the text labels hide (see item-detail.css). aria-label keeps each button named when
-        // its visible text is hidden.
-        <div className="item-preview__toggle" role="group" aria-label={t('itemPreview.previewMode')}>
-          <button
+        // to an icon-only pill button-group at the bottom-right — the SVG glyphs show and the text
+        // labels hide. aria-label keeps each button named when its visible text is hidden.
+        <S.Toggle data-preview-toggle role="group" aria-label={t('itemPreview.previewMode')}>
+          <S.ToggleButton
             type="button"
-            className={view === 'avatar' ? 'is-active' : ''}
+            data-active={view === 'avatar' || undefined}
             aria-pressed={view === 'avatar'}
             aria-label={t('itemPreview.onAvatar')}
             onClick={() => setView('avatar')}
           >
-            <Icon name="view-avatar" className="item-preview__toggle-ico" size={18} />
-            <span className="item-preview__toggle-label">{t('itemPreview.onAvatar')}</span>
-          </button>
-          <button
+            <S.ToggleIcon name="view-avatar" size={18} />
+            <S.ToggleLabel>{t('itemPreview.onAvatar')}</S.ToggleLabel>
+          </S.ToggleButton>
+          <S.ToggleButton
             type="button"
-            className={view === 'item' ? 'is-active' : ''}
+            data-active={view === 'item' || undefined}
             aria-pressed={view === 'item'}
             aria-label={t('itemPreview.item')}
             onClick={() => setView('item')}
           >
-            <Icon name="view-item" className="item-preview__toggle-ico" size={18} />
-            <span className="item-preview__toggle-label">{t('itemPreview.item')}</span>
-          </button>
-        </div>
+            <S.ToggleIcon name="view-item" size={18} />
+            <S.ToggleLabel>{t('itemPreview.item')}</S.ToggleLabel>
+          </S.ToggleButton>
+        </S.Toggle>
       ) : (
-        <div className="item-preview__emote-controls" data-testid="emote-controls">
+        <S.EmoteControls data-preview-controls data-testid="emote-controls">
           <EmoteControls wearablePreviewId="shop-item-preview" hideFrameInput />
-        </div>
+        </S.EmoteControls>
       )}
     </>
   )

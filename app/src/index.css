@@ -168,8 +168,8 @@ h2 {
 }
 /* ---------------- Card ---------------- */
 /* The AssetCard component's own styles are Emotion styled (components/AssetCard/AssetCard.styles.ts).
-   The skeleton/spinner below and the shared .chip* base are used by the grids/rows that render cards
-   (and by other components), so they stay here. */
+   The skeleton/spinner below are used by the grids/rows that render cards (and other components), so
+   they stay here. */
 
 .card--skeleton {
   min-height: 300px;
@@ -206,31 +206,6 @@ h2 {
   .spinner {
     animation-duration: 2s;
   }
-}
-
-.chip {
-  display: inline-flex;
-  align-items: center;
-  font-size: 11px;
-  font-weight: 700;
-  border-radius: var(--radius-chip);
-  padding: 3px 8px;
-  background: var(--chip);
-  color: #555;
-}
-.chip--rarity {
-  background: var(--rarity-bg);
-  color: var(--rarity);
-  text-transform: uppercase;
-}
-.chip--icon {
-  padding: 3px 6px;
-  font-size: 13px;
-}
-.chip--icon .ico {
-  width: 14px;
-  height: 14px;
-  color: #444;
 }
 
 /* Merchandising price treatment (bundles / discounts): strikethrough "was" + green "Save X%". */

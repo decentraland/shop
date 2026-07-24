@@ -206,32 +206,32 @@ export function AssetCard(props: AssetCardProps) {
             {/* Market (legacy) tag lives in the chips row (not the price row) so it's swapped out for the
                 action button on hover like every other chip, never distorting the price / Buy now button. */}
             {isMarket ? (
-              <span className="chip chip--market" data-testid="chip-market">
+              <S.CardChip data-variant="market" data-testid="chip-market">
                 {t('assetCard.marketPrice')}
-              </span>
+              </S.CardChip>
             ) : null}
-            <span
-              className="chip chip--rarity"
+            <S.CardChip
+              data-variant="rarity"
               style={{ background: rarityTint(item.rarity), color: rarityInk(item.rarity) }}
               title={rarityDescription(item.rarity)}
             >
               {item.rarity}
-            </span>
+            </S.CardChip>
             {item.isSmart ? (
-              <span className="chip chip--smart" data-testid="chip-smart">
+              <S.CardChip data-variant="smart" data-testid="chip-smart">
                 <Icon name="smart" size={13} />
                 {t('assetCard.smart')}
-              </span>
+              </S.CardChip>
             ) : null}
             {catIco ? (
-              <span className="chip chip--icon">
+              <S.CardChip data-variant="icon">
                 <Icon name={catIco} />
-              </span>
+              </S.CardChip>
             ) : null}
             {genderIco ? (
-              <span className="chip chip--icon">
+              <S.CardChip data-variant="icon">
                 <Icon name={genderIco} />
-              </span>
+              </S.CardChip>
             ) : null}
           </S.Chips>
 
