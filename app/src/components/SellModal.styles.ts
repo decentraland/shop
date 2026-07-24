@@ -78,7 +78,7 @@ export const Subtitle = styled.p`
   font-size: 14px;
   line-height: 1.57;
   color: ${theme.colors.text};
-  text-align: center;
+  text-align: left;
 `
 
 // Asset summary card: a large square thumbnail beside the item name.
@@ -232,34 +232,113 @@ export const UsdHint = styled.span`
   color: ${theme.colors.muted2};
 `
 
-export const DateInput = styled.input`
-  flex: 1 1 auto;
-  min-width: 0;
-  border: 0;
-  outline: none;
-  background: transparent;
-  font-family: ${theme.font.sans};
-  font-size: 13px;
-  color: ${theme.colors.text};
-  /* Force the native browser calendar + controls to render light/white regardless of OS dark mode. */
-  color-scheme: light;
-
-  /* Keep the built-in calendar indicator dark on the white field (Figma shows a dark calendar glyph). */
-  &::-webkit-calendar-picker-indicator {
-    cursor: pointer;
+// Wrapper around react-datepicker. Styles BOTH the input (to match the price InputBox: border, radius,
+// height) AND the calendar popup to a WHITE, on-brand theme — the library's default CSS is imported in
+// SellModal, this overrides it. (A native <input type="date"> can't be themed like this — hence the lib.)
+export const DateField = styled.div`
+  .react-datepicker-wrapper {
+    display: block;
+    width: 100%;
+  }
+  .react-datepicker__input-container {
+    display: flex;
+    align-items: center;
+  }
+  .react-datepicker__input-container input {
+    width: 100%;
+    height: 42px;
+    padding: 0 8px;
+    border: 0.5px solid ${theme.colors.text};
+    border-radius: 8px;
+    background: ${theme.colors.white};
+    font-family: ${theme.font.sans};
+    font-size: 13px;
+    color: ${theme.colors.text};
+    outline: none;
+  }
+  .react-datepicker__input-container input:focus {
+    border-color: ${theme.colors.magenta};
+  }
+  &[data-invalid='true'] .react-datepicker__input-container input {
+    border-color: ${theme.colors.err};
+  }
+  /* The showIcon calendar glyph inside the field. */
+  .react-datepicker__calendar-icon {
+    fill: ${theme.colors.text};
     opacity: 0.85;
+  }
+
+  /* ---- Calendar popup: white / on-brand (override react-datepicker defaults) ---- */
+  .react-datepicker-popper {
+    z-index: 40;
+  }
+  .react-datepicker {
+    font-family: ${theme.font.sans};
+    font-size: 13px;
+    color: ${theme.colors.text};
+    background: ${theme.colors.white};
+    border: 1px solid rgba(22, 21, 24, 0.1);
+    border-radius: 12px;
+    box-shadow: 0 12px 32px rgba(22, 21, 24, 0.14);
+    overflow: hidden;
+  }
+  .react-datepicker__triangle {
+    display: none;
+  }
+  .react-datepicker__header {
+    background: ${theme.colors.white};
+    border-bottom: 1px solid rgba(22, 21, 24, 0.1);
+    padding-top: 12px;
+  }
+  .react-datepicker__current-month {
+    color: ${theme.colors.text};
+    font-weight: 600;
+    font-size: 14px;
+  }
+  .react-datepicker__day-name {
+    color: ${theme.colors.muted2};
+  }
+  .react-datepicker__day {
+    color: ${theme.colors.text};
+    border-radius: 8px;
+  }
+  .react-datepicker__day:hover {
+    background: rgba(105, 31, 169, 0.1);
+  }
+  .react-datepicker__day--selected,
+  .react-datepicker__day--keyboard-selected {
+    background: ${theme.colors.accent};
+    color: ${theme.colors.white};
+  }
+  .react-datepicker__day--today {
+    font-weight: 700;
+  }
+  .react-datepicker__day--disabled {
+    color: ${theme.colors.muted2};
+    opacity: 0.5;
+  }
+  .react-datepicker__navigation-icon::before {
+    border-color: ${theme.colors.accent};
+  }
+  .react-datepicker__today-button {
+    background: ${theme.colors.white};
+    border-top: 1px solid rgba(22, 21, 24, 0.1);
+    color: ${theme.colors.accent};
+    font-weight: 600;
+    padding: 10px;
   }
 `
 
-// Full-width primary action (Put up for sale) — dark-solid, matching the PDP button spec.
+// Full-width primary action (Put up for sale) — solid purple (Figma 1528-305251; the disabled state
+// is the same purple at 20%, so the enabled fill is the solid accent, not the dark PDP button).
 export const PrimaryBtn = styled.button`
   width: 100%;
   height: 48px;
   border: 0;
   border-radius: 16px;
   cursor: pointer;
-  background: ${theme.colors.blackBtn};
-  color: ${theme.colors.softWhite};
+  background: ${theme.colors.accent};
+  color: ${theme.colors.white};
   font-family: ${theme.font.sans};
   font-weight: 600;
   font-size: 15px;
@@ -268,7 +347,7 @@ export const PrimaryBtn = styled.button`
   text-transform: uppercase;
 
   &:hover:not(:disabled) {
-    filter: brightness(1.35);
+    background: ${theme.colors.accentHover};
   }
   &:focus-visible {
     outline: 2px solid ${theme.colors.accent};
@@ -277,7 +356,7 @@ export const PrimaryBtn = styled.button`
   &:disabled {
     cursor: not-allowed;
     background: rgba(105, 31, 169, 0.2);
-    color: ${theme.colors.softWhite};
+    color: ${theme.colors.white};
   }
 `
 

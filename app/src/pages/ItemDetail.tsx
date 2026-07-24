@@ -579,7 +579,11 @@ export function ItemDetail() {
     refetchOnWindowFocus: true,
     queryFn: async (): Promise<string | null> => {
       if (current.tradeId) return current.tradeId
-      if (current.itemId) {
+      // Item route only: resolve the cheapest open listing by itemId. On a TOKEN route the buyable trade
+      // is the token's OWN listing (carried on current.tradeId from ownedAsset/publicToken) — never the
+      // item-level fallback, which would resurrect a stale "for sale" after the token's listing is
+      // cancelled (the stale-price / stuck-listed bug).
+      if (!isTokenRoute && current.itemId) {
         const trade = await fetchTradeForItem(current.contractAddress, current.itemId)
         return trade?.id ?? null
       }
@@ -733,6 +737,10 @@ export function ItemDetail() {
   const [showSell, setShowSell] = useState(false)
   const [showPrimary, setShowPrimary] = useState(false)
   const [showTransfer, setShowTransfer] = useState(false)
+  // Optimistic just-listed price: the owned-token feed lags a moment behind a fresh (re)list, so show the
+  // price the SellModal just submitted immediately, then let the authoritative ownedAsset refetch take
+  // over (cleared below once it reports the matching listing). Bridges the MV lag on the Edit-price flow.
+  const [justListedCredits, setJustListedCredits] = useState<number | null>(null)
   // Which manage action is in flight, so ONLY its button shows a working label (Update price shouldn't
   // read "Working…" while a Remove is running, and vice-versa). null = idle.
   const [managing, setManaging] = useState<'update' | 'remove' | null>(null)
@@ -757,7 +765,19 @@ export function ItemDetail() {
   useEffect(() => {
     if (!ownedAsset) return
     setCurrent(prev => {
-      if (prev.name) return prev.issuedId ? prev : { ...prev, issuedId: ownedAsset.issuedId }
+      // Already hydrated: still REFRESH the token's money/listing fields from a newer ownedAsset. After an
+      // Edit-price (cancel → relist) or a Remove, the price + trade change; without this the old value
+      // (e.g. 999) stuck because the effect short-circuited on `prev.name` and never re-read them. Clearing
+      // tradeId when the listing is gone also flips the page back to "not for sale" (no stale price behind
+      // the modal). This is the fix for the stale-price / stuck-"listed" bug.
+      if (prev.name) {
+        return {
+          ...prev,
+          issuedId: prev.issuedId ?? ownedAsset.issuedId,
+          priceCredits: ownedAsset.listingPrice ?? 0,
+          tradeId: ownedAsset.tradeId
+        }
+      }
       return {
         id: ownedAsset.id,
         name: ownedAsset.name,
@@ -778,6 +798,12 @@ export function ItemDetail() {
       }
     })
   }, [ownedAsset])
+
+  // Drop the optimistic just-listed price once the authoritative feed reports the matching live listing.
+  useEffect(() => {
+    if (justListedCredits == null) return
+    if (ownedAsset?.isOnSale && ownedAsset.listingPrice === justListedCredits) setJustListedCredits(null)
+  }, [ownedAsset, justListedCredits])
 
   // PUBLIC deep-link fallback for a SECONDARY token: when the segment is a tokenId that neither the
   // primary itemId hydrate (deepLinkItem) nor a sibling matched, AND the owner-scoped owned-token query
@@ -856,14 +882,14 @@ export function ItemDetail() {
   // Never over the market (legacy) flow — legacy items aren't managed through the shop's trade flows.
   const manage = !isMarket && (manageAsPrimary || manageAsSecondary)
   // Listed? Secondary uses the token's authoritative order; primary uses the resolved buyable trade.
-  const manageListed = manageAsSecondary ? !!ownedAsset?.isOnSale : forSale
+  const manageListed = justListedCredits != null ? true : manageAsSecondary ? !!ownedAsset?.isOnSale : forSale
   const manageTradeId = manageAsSecondary ? ownedAsset?.tradeId : buyableTradeId
   // Can we open the list/relist modal? Need the backing record the modal reads its inputs from.
   const canOpenListModal = manageAsSecondary ? !!ownedAsset : !!publishableItem
   // The owner's own listed price, from the (freshly-refreshed) manage state. Used so the price shows
   // right after listing: the public `forSale`/feed the price block falls back to lags behind the MV
   // refresh, which left the owner staring at "Not for sale" while the manage buttons already said listed.
-  const managePriceCredits = manageAsSecondary ? (ownedAsset?.listingPrice ?? 0) : 0
+  const managePriceCredits = justListedCredits ?? (manageAsSecondary ? (ownedAsset?.listingPrice ?? 0) : 0)
 
   // Item route only: how many copies of THIS item the viewer owns, for the "You own N of this" note.
   // The item page never manages a token, so this replaces the (removed) secondary-manage leak with a
@@ -1489,7 +1515,17 @@ export function ItemDetail() {
       ) : null}
 
       {showSell && ownedAsset && session ? (
-        <SellModal asset={ownedAsset} session={session} creator={current.creator} onClose={closeManageModal} />
+        <SellModal
+          asset={ownedAsset}
+          session={session}
+          creator={current.creator}
+          onListed={credits => {
+            // Show the new price immediately, then refetch the PDP money/manage queries authoritatively.
+            setJustListedCredits(credits)
+            void refreshManage()
+          }}
+          onClose={closeManageModal}
+        />
       ) : null}
       {showTransfer && session && current.tokenId ? (
         <TransferModal
