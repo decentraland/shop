@@ -978,7 +978,7 @@ h2 {
 .mkt-modal__diamond {
   width: 20px;
   height: 20px;
-  color: var(--accent);
+  color: var(--text);
 }
 .mkt-modal__price-sub {
   margin-top: 6px;
@@ -1263,7 +1263,7 @@ h2 {
 .subnav__balance-ico {
   width: 20px;
   height: 20px;
-  color: var(--accent);
+  color: var(--text);
 }
 /* Content-shaped placeholder for the balance number while the credits query loads (no flash of "0"). */
 .subnav__balance-skel {
@@ -1694,7 +1694,7 @@ h2 {
 .gc-credits__diamond {
   width: 30px;
   height: 30px;
-  color: var(--accent);
+  color: var(--text);
 }
 .gc-credits__amount {
   font-size: 24px;

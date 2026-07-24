@@ -140,13 +140,12 @@ export type CreditOrder = {
 
 // The buyer's credit-pack purchase (top-up) history, paginated, newest first.
 //
-// GAP: the credits-server does NOT yet expose a LIST of a user's credit purchases. It has
-// `POST /credits/checkout` (start one) and `GET /credits/orders/:orderId` (poll ONE by id) — but no
-// per-user history endpoint. This targets the list endpoint the Activity feed needs, following the
-// existing `/users/:address/purchases` convention: `GET /users/:address/credit-orders` returning
-// `{ orders: CreditOrder[], total }`. Until that ships, ANY non-OK (incl. 404) resolves to an empty
-// list, so the feed simply shows no credit rows instead of erroring. See the PR notes for the full
-// contract the backend needs to expose.
+// Backed by credits-server `GET /users/:address/credit-orders` (signed fetch, ADR-44), which mirrors
+// the `/users/:address/purchases` convention and returns `{ orders: CreditOrder[], total }`. The
+// request is signed so the history stays private — the server 403s unless the path address matches
+// the authenticated signer. Defensive: ANY non-OK (incl. a 404 on an env where the endpoint isn't
+// deployed yet) resolves to an empty list, so the Activity feed just shows no credit rows instead of
+// erroring.
 export async function fetchUserCreditOrders(
   address: string,
   identity: AuthIdentity,

@@ -251,7 +251,7 @@
 .cartd__diamond {
   width: 22px;
   height: 22px;
-  color: #a14bf3;
+  color: var(--text);
 }
 /* A line whose listing is no longer buyable (sold out / gone / expired): dimmed, greyed media, still
    readable and removable. Excluded from the drawer total and unit count. */
@@ -319,7 +319,7 @@
 .cartd__total-diamond {
   width: 28px;
   height: 28px;
-  color: #a14bf3;
+  color: var(--text);
 }
 .cartd__ctas {
   display: flex;
