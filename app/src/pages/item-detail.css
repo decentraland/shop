@@ -274,6 +274,15 @@
 /* Loader overlay while the profile settles / the preview iframe loads — masks the load so it never
    flickers raw. Overrides the greedy `> *` sizing; sits above the iframe (z-index 1) but below the
    controls (z-index 2). Background stays transparent so the surface shows through. */
+/* Invisible viewport sentinel for the IntersectionObserver (pauses the preview off-screen). Absolute +
+   pointer-events:none so it neither takes layout space (undoing the greedy `> *` sizing) nor blocks the
+   preview controls / whole-card interactions. */
+.item-detail__preview > .item-preview__vp {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
 .item-detail__preview > .item-preview__loading {
   position: absolute;
   inset: 0;
