@@ -20,6 +20,7 @@ import { t } from '~/intl/i18n'
 import { ErrorNotice } from '~/components/ErrorNotice'
 import * as CP from '~/styles/collectionPage.styles'
 import * as FP from '~/styles/filterPop.styles'
+import * as BL from '~/styles/browseLayout.styles'
 import { Grid } from '~/styles/grid.styles'
 
 const PAGE_SIZE = 48
@@ -130,8 +131,8 @@ export function Creator() {
 
       {!collectionsMode && !isLoading && items.length > 0 ? <AddAllToCart items={items} source="creator" /> : null}
 
-      <div className="browse browse--sidebar">
-        <aside className="browse__sidebar">
+      <BL.Browse>
+        <BL.Sidebar>
           <CategoryFilter
             category={category}
             subCategory={subCategory}
@@ -142,9 +143,9 @@ export function Creator() {
             collections={collectionsMode}
             onCollections={toggleCollections}
           />
-        </aside>
+        </BL.Sidebar>
 
-        <div className="browse__main">
+        <BL.Main>
           {collectionsMode ? (
             <>
               <CP.CollectionsBar>
@@ -241,8 +242,8 @@ export function Creator() {
               {!isLoading && !error && items.length === 0 ? <p className="muted">{t('creator.empty')}</p> : null}
             </>
           )}
-        </div>
-      </div>
+        </BL.Main>
+      </BL.Browse>
     </CP.Page>
   )
 }

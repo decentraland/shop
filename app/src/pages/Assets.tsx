@@ -11,7 +11,7 @@ import { FilterBar, RARITIES, SORTS } from '~/components/FilterBar'
 import { SkeletonCards } from '~/components/SkeletonCards'
 import { LoadMore } from '~/components/LoadMore'
 import { MarketCheckout } from '~/components/MarketCheckout'
-import { CurrencyIcon } from '~/components/CurrencyIcon'
+import * as S from './Assets.styles'
 import { Icon } from '~/components/Icon'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
 import { useSeo } from '~/hooks/useSeo'
@@ -191,20 +191,16 @@ export function Assets() {
   }
 
   return (
-    <div className="browse browse--sidebar" data-testid="browse">
-      {filtersOpen ? <div className="browse__scrim" onClick={() => setFiltersOpen(false)} aria-hidden /> : null}
-      <aside className={`browse__sidebar${filtersOpen ? ' is-open' : ''}`} data-testid="browse-sidebar">
-        <div className="browse__sidebar-head">
-          <span className="browse__sidebar-title">{t('assets.filters')}</span>
-          <button
-            className="browse__sidebar-close"
-            onClick={() => setFiltersOpen(false)}
-            aria-label={t('assets.closeFilters')}
-          >
+    <S.Browse data-testid="browse">
+      {filtersOpen ? <S.Scrim onClick={() => setFiltersOpen(false)} aria-hidden /> : null}
+      <S.Sidebar data-open={filtersOpen || undefined} data-testid="browse-sidebar">
+        <S.SidebarHead>
+          <S.SidebarTitle>{t('assets.filters')}</S.SidebarTitle>
+          <S.SidebarClose onClick={() => setFiltersOpen(false)} aria-label={t('assets.closeFilters')}>
             <Icon name="close" size={16} />
-          </button>
-        </div>
-        <div className="sidebar__section-label">{t('assets.category')}</div>
+          </S.SidebarClose>
+        </S.SidebarHead>
+        <S.SectionLabel>{t('assets.category')}</S.SectionLabel>
         <CategoryFilter
           category={category}
           subCategory={subCategory}
@@ -212,15 +208,15 @@ export function Assets() {
           onSub={setSubCategory}
         />
 
-        <div className="sidebar__divider" />
+        <S.Divider />
 
-        <div className="sidebar__section-label">{t('filter.price')}</div>
-        <div className="price-filter">
-          <div className="price-filter__inputs">
-            <label className="price-filter__field">
-              <span className="price-filter__field-label">{t('assets.min')}</span>
-              <span className="price-filter__box">
-                <CurrencyIcon className="price-filter__coin" />
+        <S.SectionLabel>{t('filter.price')}</S.SectionLabel>
+        <S.PriceFilter>
+          <S.PriceInputs>
+            <S.PriceField>
+              <S.PriceFieldLabel>{t('assets.min')}</S.PriceFieldLabel>
+              <S.PriceBox>
+                <S.PriceCoin />
                 <input
                   type="number"
                   min="0"
@@ -229,13 +225,13 @@ export function Assets() {
                   value={priceMin}
                   onChange={e => setPriceMin(e.target.value)}
                 />
-              </span>
-            </label>
-            <span className="price-filter__to">{t('assets.priceTo')}</span>
-            <label className="price-filter__field">
-              <span className="price-filter__field-label">{t('assets.max')}</span>
-              <span className="price-filter__box">
-                <CurrencyIcon className="price-filter__coin" />
+              </S.PriceBox>
+            </S.PriceField>
+            <S.PriceTo>{t('assets.priceTo')}</S.PriceTo>
+            <S.PriceField>
+              <S.PriceFieldLabel>{t('assets.max')}</S.PriceFieldLabel>
+              <S.PriceBox>
+                <S.PriceCoin />
                 <input
                   type="number"
                   min="0"
@@ -244,16 +240,13 @@ export function Assets() {
                   value={priceMax}
                   onChange={e => setPriceMax(e.target.value)}
                 />
-              </span>
-            </label>
-          </div>
+              </S.PriceBox>
+            </S.PriceField>
+          </S.PriceInputs>
 
-          <div
-            className="price-filter__slider"
-            style={{ '--min-pct': `${minPct}%`, '--max-pct': `${maxPct}%` } as CSSProperties}
-          >
-            <div className="price-filter__track" aria-hidden />
-            <div className="price-filter__fill" aria-hidden />
+          <S.PriceSlider style={{ '--min-pct': `${minPct}%`, '--max-pct': `${maxPct}%` } as CSSProperties}>
+            <S.PriceTrack aria-hidden />
+            <S.PriceFill aria-hidden />
             <input
               type="range"
               min={0}
@@ -270,62 +263,59 @@ export function Assets() {
               aria-label={t('assets.maxPriceSliderAria')}
               onChange={e => onSlideMax(Number(e.target.value))}
             />
-          </div>
+          </S.PriceSlider>
 
-          <div className="price-filter__range">
-            <span className="price-filter__range-val">
-              <CurrencyIcon className="price-filter__coin" />
+          <S.PriceRange>
+            <S.PriceRangeVal>
+              <S.PriceCoin />
               {sliderMin.toLocaleString()}
-            </span>
-            <span className="price-filter__range-val">
-              <CurrencyIcon className="price-filter__coin" />
+            </S.PriceRangeVal>
+            <S.PriceRangeVal>
+              <S.PriceCoin />
               {sliderMax.toLocaleString()}
-            </span>
-          </div>
-        </div>
+            </S.PriceRangeVal>
+          </S.PriceRange>
+        </S.PriceFilter>
 
-        <div className="sidebar__divider" />
+        <S.Divider />
 
         {/* Rarity now lives at the bottom-left of the sidebar (Figma New Shop 2026) instead of a
             top-right pill — a collapsible section over the shared RARITIES multi-select. */}
-        <button
+        <S.SectionToggle
           type="button"
-          className="sidebar__section-toggle"
           data-testid="sidebar-section-toggle"
           aria-expanded={rarityOpen}
           onClick={() => setRarityOpen(o => !o)}
         >
-          <span className="sidebar__section-label">{t('assets.rarity')}</span>
+          <S.SectionLabel as="span" data-section-label>
+            {t('assets.rarity')}
+          </S.SectionLabel>
           <Chevron up={rarityOpen} size={20} color="var(--muted)" />
-        </button>
+        </S.SectionToggle>
         {rarityOpen ? (
-          <div className="rarity-filter" data-testid="rarity-filter">
+          <S.RarityFilter data-testid="rarity-filter">
             {RARITIES.map(r => (
-              <label
-                key={r}
-                className={`rarity-filter__check${rarities.includes(r) ? ' is-on' : ''}`}
-                data-testid="rarity-filter-check"
-              >
+              <S.RarityCheck key={r} data-on={rarities.includes(r) || undefined} data-testid="rarity-filter-check">
                 <input type="checkbox" checked={rarities.includes(r)} onChange={() => toggleRarity(r)} />
                 <span>{r}</span>
-              </label>
+              </S.RarityCheck>
             ))}
-          </div>
+          </S.RarityFilter>
         ) : null}
 
         {/* Drawer action bar (Figma node 1059-158189) — mobile only (CSS). Filters apply live, so
             Apply simply dismisses the drawer; Clear Filters resets them all. */}
-        <div className="browse__sidebar-foot">
-          <button type="button" className="browse__clear" onClick={clearFilters}>
+        <S.SidebarFoot>
+          <S.Clear type="button" onClick={clearFilters}>
             {t('assets.clearFilters')}
-          </button>
-          <button type="button" className="browse__apply" onClick={() => setFiltersOpen(false)}>
+          </S.Clear>
+          <S.Apply type="button" onClick={() => setFiltersOpen(false)}>
             {t('assets.apply')}
-          </button>
-        </div>
-      </aside>
+          </S.Apply>
+        </S.SidebarFoot>
+      </S.Sidebar>
 
-      <div className="browse__main">
+      <S.Main>
         <FilterBar
           sort={sort}
           onSort={setSort}
@@ -339,7 +329,7 @@ export function Assets() {
             Only warn when the current results actually contain a market-priced item, so users browsing
             only fixed-price items aren't shown an irrelevant notice. */}
         {rateError && items.some(i => i.source === 'legacy') ? (
-          <p className="market-banner market-banner--warn">{t('assets.marketUnavailable')}</p>
+          <S.MarketBanner data-variant="warn">{t('assets.marketUnavailable')}</S.MarketBanner>
         ) : null}
 
         {error ? <ErrorNotice message={t('assets.loadError')} testId="browse-error" /> : null}
@@ -370,7 +360,7 @@ export function Assets() {
         <LoadMore hasNextPage={hasNextPage} isFetching={isFetchingNextPage} onLoadMore={() => void fetchNextPage()} />
 
         {!isLoading && items.length === 0 ? <p className="muted">{t('assets.noItems')}</p> : null}
-      </div>
+      </S.Main>
 
       {checkout && rate ? (
         <MarketCheckout
@@ -383,6 +373,6 @@ export function Assets() {
           }}
         />
       ) : null}
-    </div>
+    </S.Browse>
   )
 }
