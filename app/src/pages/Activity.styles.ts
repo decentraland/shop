@@ -211,7 +211,7 @@ export const ManaSymbol = styled.img`
 export const ManaTip = styled.span`
   display: inline-flex;
   align-items: center;
-  cursor: help;
+  cursor: pointer;
 `
 
 // The floating tooltip bubble. Rendered via a portal to <body> and positioned with fixed coords, so it's
