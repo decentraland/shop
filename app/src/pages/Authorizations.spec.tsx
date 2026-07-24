@@ -54,7 +54,20 @@ vi.mock('~/lib/authorizations', () => ({
     contractAddress,
     spenderAddress: '0xmarket',
     chainId
+  }),
+  getCollectionMintingAuthorization: (contractAddress: string, chainId: number) => ({
+    id: `minting:${contractAddress.toLowerCase()}`,
+    group: 'minting',
+    kind: 'minter',
+    contractAddress,
+    spenderAddress: '0xmarket',
+    chainId
   })
+}))
+
+const fetchCreatorCollections = vi.fn()
+vi.mock('~/lib/builder', () => ({
+  fetchCreatorCollections: (...args: unknown[]) => fetchCreatorCollections(...args)
 }))
 
 import { Authorizations } from '~/pages/Authorizations'
@@ -81,6 +94,7 @@ beforeEach(() => {
     disconnect: vi.fn()
   }
   fetchMyAssets.mockResolvedValue({ assets: [], total: 0 })
+  fetchCreatorCollections.mockResolvedValue([])
   getAuthorizationStatus.mockResolvedValue(false)
   setAuthorization.mockResolvedValue(undefined)
 })
@@ -137,5 +151,20 @@ describe('when the visitor uses a self-custody (web3) wallet', () => {
     fetchMyAssets.mockResolvedValueOnce({ assets: [], total: 0 })
     renderPage()
     expect(await screen.findByTestId('authorization-toggle-selling:0xcoll')).toBeInTheDocument()
+  })
+
+  it('should list one minting approval per publishable collection', async () => {
+    fetchCreatorCollections.mockResolvedValueOnce([
+      { id: 'c1', name: '3Dium x TOTF', contractAddress: '0xMINT', isPublished: true, isApproved: true, minters: [] }
+    ])
+    renderPage()
+    expect(await screen.findByTestId('authorization-toggle-minting:0xmint')).toBeInTheDocument()
+    expect(screen.getByText('3Dium x TOTF')).toBeInTheDocument()
+  })
+
+  it('should show the minting empty hint when there are no publishable collections', async () => {
+    fetchCreatorCollections.mockResolvedValueOnce([])
+    renderPage()
+    expect(await screen.findByText(/Approvals for minting appear here/)).toBeInTheDocument()
   })
 })

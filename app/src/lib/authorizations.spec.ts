@@ -105,6 +105,7 @@ import {
   ensureAuthorization,
   ensureChain,
   getAuthorizationStatus,
+  getCollectionMintingAuthorization,
   getCollectionSellingAuthorization,
   getCreditsAuthorization,
   metaTxProviderShim,
@@ -347,6 +348,15 @@ describe('when building the shop authorization descriptors', () => {
     expect(auth.spenderAddress).toBe(MARKET)
     expect(auth.group).toBe('selling')
     expect(auth.id).toBe(`selling:${COLLECTION.toLowerCase()}`)
+  })
+
+  it('should point a minting authorization at the marketplace as a minter grant', () => {
+    const auth = getCollectionMintingAuthorization(COLLECTION, ChainId.MATIC_AMOY)
+    expect(auth.kind).toBe(AuthorizationKind.Minter)
+    expect(auth.contractAddress).toBe(COLLECTION)
+    expect(auth.spenderAddress).toBe(MARKET)
+    expect(auth.group).toBe('minting')
+    expect(auth.id).toBe(`minting:${COLLECTION.toLowerCase()}`)
   })
 })
 
