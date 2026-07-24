@@ -196,8 +196,9 @@ export const Total = styled.div`
   }
 `
 
-// The Polygon MANA symbol next to a sale's settlement amount (sales pay MANA, not credits). Rendered as
-// an <img> so the logo keeps its own colors — the mask-based Icon would flatten it to a monochrome tint.
+// The Polygon MANA symbol next to a sale's settlement amount (sales pay MANA, not credits). This is the
+// exact icon the marketplace uses for MATIC MANA (decentraland-ui <Mana network="MATIC">), rendered as an
+// <img> with a "Polygon MANA" tooltip to match the marketplace.
 export const ManaSymbol = styled.img`
   width: 16px;
   height: 16px;
