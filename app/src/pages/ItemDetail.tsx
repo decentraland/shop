@@ -975,10 +975,15 @@ export function ItemDetail() {
       qc.invalidateQueries({ queryKey: ['detail-trade'] }),
       qc.invalidateQueries({ queryKey: ['shop-item'] }),
       qc.invalidateQueries({ queryKey: ['collection-sale-state'] }),
-      // My Assets reads on-sale state from these keys — invalidate them too so listing/cancelling here
-      // is reflected there without waiting for a manual reload (the page may stay mounted behind the PDP).
-      qc.invalidateQueries({ queryKey: ['secondary-sale-state'] }),
-      qc.invalidateQueries({ queryKey: ['my-assets'] }),
+      // NOTE: My Assets reads its owned-card sale state from ['my-assets'] + ['secondary-sale-state'].
+      // We deliberately do NOT invalidate those here: patchManageCaches (called right after this) writes
+      // the new sale state into both optimistically, which bumps their dataUpdatedAt so they read as
+      // fresh. Invalidating them would flip on react-query's isInvalidated flag, and since My Assets
+      // unmounts while this PDP is open, it would refetch the (eventually-consistent) shop feed on the
+      // way back — the MV lags a moment, so that refetch reads back the STALE "not for sale" row and
+      // clobbers the optimistic patch (the bug where a fresh PDP listing still showed "NOT FOR SALE" in
+      // My Assets). The optimistic write stands and reconciles naturally when it next goes stale (30s) or
+      // is refetched. The removed listing / transfer paths patch these caches the same way.
       // A secondary list / remove here changes this item's lowest resale price, which the browse + catalog
       // grids derive per card — refresh them so a returning browse card doesn't show a stale lowest price.
       qc.invalidateQueries({ queryKey: ['shop-items'] }),
@@ -1197,7 +1202,13 @@ export function ItemDetail() {
           ) : (
             <>
               <div className="item-detail__info-head">
-                <h1 className="item-detail__title">{current.name}</h1>
+                {/* Token route: append the specific copy's mint index to the title (e.g. "Ruby Red
+                    Fascinator #1") so the owner/viewer sees exactly which copy this page is about. The
+                    generic /item route has no single issuedId, so the title stays the plain item name there. */}
+                <h1 className="item-detail__title">
+                  {current.name}
+                  {isTokenRoute && current.issuedId ? ` #${current.issuedId}` : ''}
+                </h1>
                 <button
                   className={`item-detail__fav${faved ? ' is-on' : ''}`}
                   onClick={() => toggleFav(current)}
@@ -1407,6 +1418,12 @@ export function ItemDetail() {
                               <CurrencyIcon className="item-detail__diamond" />
                               <span className="item-detail__price-value">{managePriceCredits}</span>
                             </div>
+                          ) : manage ? (
+                            // Owner/creator viewing their own UNLISTED item: the manage CTAs below (Put up
+                            // for sale / Transfer) already convey the state, so the redundant "Not for sale"
+                            // label is hidden here. It stays for the NON-owner public view, where it's the
+                            // only signal the item can't be bought.
+                            null
                           ) : (
                             <div className="item-detail__price item-detail__price--none">
                               <span>{t('itemDetail.notForSale')}</span>

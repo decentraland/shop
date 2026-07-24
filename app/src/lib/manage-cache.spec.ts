@@ -91,6 +91,25 @@ describe('patchManageCaches', () => {
       const map = qc.getQueryData<SecondarySaleMap>(['secondary-sale-state', [CONTRACT]])
       expect(map![KEY]).toEqual({ priceCredits: 5, tradeId: 'trade-1' })
     })
+
+    it('writes the entry under the exact key the My Assets owned card reads it back by', () => {
+      // Regression guard for the "listed from the PDP still shows NOT FOR SALE in My Assets" bug: the
+      // owned card resolves its credit price from the secondary-sale-state map via
+      //   saleForToken(a) = secondarySale[`${a.contractAddress}-${a.tokenId}`]
+      // and assetToItem then reads `sale.priceCredits`. Replicate that lookup verbatim so the test breaks
+      // if patchManageCaches ever writes a key shape (or value shape) the card can't read.
+      patchManageCaches(qc, { address: ADDRESS, contractAddress: CONTRACT, tokenId: TOKEN }, {
+        kind: 'listed',
+        priceCredits: 5,
+        tradeId: 'trade-1'
+      })
+      const map = qc.getQueryData<SecondarySaleMap>(['secondary-sale-state', [CONTRACT]])!
+      const row = asset() // an owned row for the same contract + token
+      const sale = map[`${row.contractAddress}-${row.tokenId}`]
+      expect(sale).toEqual({ priceCredits: 5, tradeId: 'trade-1' })
+      // The card shows the price only when priceCredits > 0 (else the "NOT FOR SALE" tag).
+      expect(sale.priceCredits).toBeGreaterThan(0)
+    })
   })
 
   describe('when a token is removed from sale', () => {
