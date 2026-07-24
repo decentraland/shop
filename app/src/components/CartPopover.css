@@ -253,18 +253,46 @@
   height: 22px;
   color: var(--text);
 }
-/* A line whose listing is no longer buyable (sold out / gone / expired): dimmed, greyed media, still
-   readable and removable. Excluded from the drawer total and unit count. */
-.cartd__card.is-unavailable {
-  opacity: 0.6;
+/* A line whose listing is no longer buyable (sold out / gone / expired): the media and description
+   dim, and the price/stepper are replaced by a warning + a link to the item's resales. Still
+   readable and removable; excluded from the drawer total and unit count. */
+.cartd__card.is-unavailable .cartd__thumb {
+  opacity: 0.5;
 }
-.cartd__card.is-unavailable .cartd__thumb img {
-  filter: grayscale(1);
+.cartd__card.is-unavailable .cartd__thumb-check {
+  display: none;
+}
+.cartd__card.is-unavailable .cartd__desc {
+  opacity: 0.7;
 }
 .cartd__unavailable {
-  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
   font-weight: 600;
-  color: #716b7c;
+  line-height: 1;
+  text-transform: uppercase;
+  color: #242129;
+}
+.cartd__warn {
+  color: #f48221;
+}
+.cartd__resales {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 24px;
+  letter-spacing: 0.46px;
+  text-transform: uppercase;
+  text-decoration: underline;
+  color: #691fa9;
+}
+.cartd__resales:hover {
+  color: #7a2bbf;
+}
+.cartd__resales:focus-visible {
+  outline: 2px solid #691fa9;
+  outline-offset: 2px;
 }
 .cartd__del {
   position: absolute;

@@ -76,6 +76,7 @@ export type IconName =
   | 'twitter'
   | 'upload'
   | 'view-all-arrow'
+  | 'warning-fill'
   | 'website'
 
 type IconProps = {

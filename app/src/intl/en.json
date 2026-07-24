@@ -151,8 +151,9 @@
     "priceChanged": "Prices or availability changed since you added these — review the updated total and confirm to buy.",
     "allUnavailable": "None of these items are available anymore. Remove them to keep shopping.",
     "availability": {
-      "soldOut": "Sold out",
-      "unavailable": "No longer available"
+      "soldOut": "Out of stock",
+      "unavailable": "No longer available",
+      "viewResales": "View Resales"
     },
     "youMightAlsoLike": "You might also like",
     "status": {

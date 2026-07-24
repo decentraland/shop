@@ -652,9 +652,23 @@ export function Cart() {
                         </div>
                         <div className="checkout__foot">
                           {unavailable ? (
-                            /* Calm inline state — no price/stepper, just the reason. The trash button in
-                               checkout__actions is the one-tap remove. */
-                            <span className="checkout__unavailable">{unavailableLabel}</span>
+                            /* No price/stepper: a warning + the reason, plus a link to the item's resales.
+                               The trash button in checkout__actions is the one-tap remove. */
+                            <>
+                              <span className="checkout__unavailable">
+                                <Icon name="warning-fill" size={24} className="checkout__warn" aria-hidden />
+                                {unavailableLabel}
+                              </span>
+                              {detailPath ? (
+                                <Link
+                                  className="checkout__resales"
+                                  to={detailPath}
+                                  state={{ item, tradeId: item.tradeId }}
+                                >
+                                  {t('cart.availability.viewResales')}
+                                </Link>
+                              ) : null}
+                            </>
                           ) : (
                             <>
                               {/* Quantity stepper. PRIMARY (mint) lines can buy multiple copies: minus decrements
