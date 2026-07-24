@@ -77,11 +77,31 @@ export function scrubEvent(event: Sentry.Event): Sentry.Event {
 let initialized = false
 
 /**
- * Initialise Sentry. NO-OP unless VITE_SENTRY_DSN is set, so local/dev never sends. Safe to call
- * once at startup. Once live, every captureError(...) is forwarded to Sentry (scrubbed).
+ * True on local hosts (dev server, `vite preview`, e2e). localhost shares dev.json's config, so
+ * without this guard it would report to the dev/zone Sentry DSN — we never want local noise in Sentry.
+ */
+export function isLocalhost(hostname: string = typeof location !== 'undefined' ? location.hostname : ''): boolean {
+  return (
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname === '0.0.0.0' ||
+    hostname === '[::1]' ||
+    hostname.endsWith('.local')
+  )
+}
+
+/**
+ * Initialise Sentry. NO-OP on localhost (dev server / preview / e2e) and unless a DSN is set, so
+ * local never sends. Deployed zone/stg/prod each report with their own `environment` tag. Safe to
+ * call once at startup. Once live, every captureError(...) is forwarded to Sentry (scrubbed).
  */
 export function initSentry(): void {
   if (initialized) return
+  // localhost shares dev.json (which now carries the dev/zone DSN) — never report from local.
+  if (isLocalhost()) {
+    if (import.meta.env.DEV) console.debug('[monitoring] localhost → Sentry disabled')
+    return
+  }
   const dsn = config.sentryDsn
   if (!dsn) {
     if (import.meta.env.DEV) console.debug('[monitoring] no VITE_SENTRY_DSN → error reporting disabled')
