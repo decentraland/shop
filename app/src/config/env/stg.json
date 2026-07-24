@@ -11,6 +11,6 @@
   "PROFILE_URL": "https://decentraland.zone/profile",
   "SHOP_SERVER_URL": "",
   "STRIPE_PUBLISHABLE_KEY": "pk_test_51TtW4PBS62I2c52AfO6XxarHwrACg9Zbacgeai73klSZbUleKajNN9gkSwRSlwCZHfWrdKZQyVhH0komsYEDB5ub00j4pzRj4c",
-  "SEGMENT_WRITE_KEY": "",
-  "SENTRY_DSN": ""
+  "SEGMENT_WRITE_KEY": "Hip6yFNl1d8c82RMx0l5oWxesleuX6P6",
+  "SENTRY_DSN": "https://734376fbe845d08ef24e2b2d0481b3f4@o4504361728212992.ingest.us.sentry.io/4511789233209344"
 }
