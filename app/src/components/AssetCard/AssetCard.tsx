@@ -272,31 +272,51 @@ export function AssetCard(props: AssetCardProps) {
               </span>
             )}
           </div>
-          {props.listed ? (
-            <button
-              className="card__manage card__manage--ghost"
-              data-testid="card-unlist"
-              disabled={props.busy}
-              onClick={e => {
-                e.stopPropagation()
-                props.onUnlist(item)
-              }}
-            >
-              {props.busy ? t('myAssets.removing') : t('myAssets.removeListing')}
-            </button>
-          ) : (
-            <button
-              className="card__manage"
-              data-testid="card-list"
-              disabled={props.busy}
-              onClick={e => {
-                e.stopPropagation()
-                props.onList(item)
-              }}
-            >
-              {t('myAssets.putOnSale')}
-            </button>
-          )}
+          {/* Action slot: chips at rest, the List / Remove control revealed on hover or keyboard focus —
+              the same reveal treatment as the owned card's MANAGE (.card__cart), so the creations grid no
+              longer shows a permanently-visible button. The control stays in the DOM (display-only reveal)
+              so it's always keyboard-reachable, and on touch (no hover) it stays visible. */}
+          <div className="card__action">
+            <div className="card__chips">
+              <span
+                className="chip chip--rarity"
+                style={{ background: rarityTint(item.rarity), color: rarityInk(item.rarity) }}
+                title={rarityDescription(item.rarity)}
+              >
+                {item.rarity}
+              </span>
+              {catIco ? (
+                <span className="chip chip--icon">
+                  <Icon name={catIco} />
+                </span>
+              ) : null}
+            </div>
+            {props.listed ? (
+              <button
+                className="card__manage card__manage--ghost"
+                data-testid="card-unlist"
+                disabled={props.busy}
+                onClick={e => {
+                  e.stopPropagation()
+                  props.onUnlist(item)
+                }}
+              >
+                {props.busy ? t('myAssets.removing') : t('myAssets.removeListing')}
+              </button>
+            ) : (
+              <button
+                className="card__manage"
+                data-testid="card-list"
+                disabled={props.busy}
+                onClick={e => {
+                  e.stopPropagation()
+                  props.onList(item)
+                }}
+              >
+                {t('myAssets.putOnSale')}
+              </button>
+            )}
+          </div>
         </div>
       ) : isNameItem ? (
         // Owned NAME (read-only): @name + verified badge, and the NOT FOR SALE tag (never listable here).
