@@ -12,7 +12,14 @@ export const UNITY_MIN_DEVICE_MEMORY = 4 // in GB
 const MIN_SAMPLE_BYTES = 30_000
 
 export type RendererReason =
-  'mobile' | 'save-data' | 'slow-connection' | 'low-device-memory' | 'connection-ok' | 'optimistic-default'
+  | 'mobile'
+  | 'save-data'
+  | 'slow-connection'
+  | 'low-device-memory'
+  | 'connection-ok'
+  | 'optimistic-default'
+  | 'env-override'
+  | 'dev-default'
 
 export type RendererDecision = { renderer: PreviewRenderer; reason: RendererReason }
 
@@ -63,6 +70,15 @@ function measuredMbps(): number | null {
  */
 export function pickRenderer(): RendererDecision {
   const babylon = (reason: RendererReason): RendererDecision => ({ renderer: PreviewRenderer.BABYLON, reason })
+
+  // Renderer override (local .env): the Unity runtime pegs GPU/CPU and makes local dev painful, so a
+  // developer can force the lightweight Babylon preview. `VITE_PREVIEW_RENDERER=babylon` forces Babylon
+  // everywhere; in local `vite dev` we DEFAULT to Babylon (don't load the heavy Unity bundle) unless the
+  // dev opts back in with `VITE_PREVIEW_RENDERER=unity`. Mode-gated so unit tests still exercise the
+  // real device/connection logic below. Production is unaffected (unless the env explicitly forces it).
+  const forced = import.meta.env.VITE_PREVIEW_RENDERER as string | undefined
+  if (forced === 'babylon') return babylon('env-override')
+  if (import.meta.env.MODE !== 'test' && import.meta.env.DEV && forced !== 'unity') return babylon('dev-default')
 
   if (isMobile()) return babylon('mobile')
 

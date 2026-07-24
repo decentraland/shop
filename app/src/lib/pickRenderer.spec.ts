@@ -99,4 +99,22 @@ describe('pickRenderer', () => {
     setDeviceMemory(undefined)
     expect(pickRenderer().renderer).toBe(PreviewRenderer.UNITY)
   })
+
+  describe('env override', () => {
+    afterEach(() => vi.unstubAllEnvs())
+
+    it('forces Babylon when VITE_PREVIEW_RENDERER=babylon, ignoring a fast desktop link', () => {
+      vi.stubEnv('VITE_PREVIEW_RENDERER', 'babylon')
+      setMeasuredMbps(100)
+      setDeviceMemory(16)
+      expect(pickRenderer()).toEqual({ renderer: PreviewRenderer.BABYLON, reason: 'env-override' })
+    })
+
+    it('leaves the device/connection logic intact when the override is unset', () => {
+      setMeasuredMbps(100)
+      setDeviceMemory(16)
+      // MODE is 'test' here, so the dev-default does not kick in — the real logic still runs.
+      expect(pickRenderer().renderer).toBe(PreviewRenderer.UNITY)
+    })
+  })
 })
