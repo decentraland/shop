@@ -368,6 +368,16 @@ export const Status = styled.p`
   text-align: center;
 `
 
+// Small informational line under the price field (e.g. the credits-proceeds hint shown when
+// PROCEEDS_TO_TREASURY is on). Mirrors PrimaryListModal's Note.
+export const Note = styled.p`
+  margin: 0;
+  font-family: ${theme.font.sans};
+  font-size: 12px;
+  line-height: 1.5;
+  color: ${theme.colors.muted};
+`
+
 // ---- Success state (Figma 1528-306276) ----------------------------------------------------------
 
 export const SuccessBanner = styled.div`

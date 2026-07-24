@@ -258,6 +258,13 @@ export function PrimaryListModal({
           {t('primaryList.pricedInWhole', { currency: CURRENCY.name, currencySingular: CURRENCY.nameSingular })}
         </S.Note>
 
+        {/* When PROCEEDS_TO_TREASURY is on, each mint settles into closed-loop shop credits (never MANA),
+            so the creator is told what they'll receive per unit. Wallet-agnostic credits wording — no
+            MANA/crypto terms — so managed (web2) wallets never see crypto language. */}
+        {config.proceedsToTreasury && priceValid ? (
+          <S.Note>{t('primaryList.proceedsCredits', { count: priceValue })}</S.Note>
+        ) : null}
+
         {enabled === false && !busy ? (
           <S.Note>
             {isManaged

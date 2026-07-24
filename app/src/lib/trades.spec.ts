@@ -39,7 +39,17 @@ vi.mock('decentraland-transactions', () => ({
   ErrorCode: { USER_DENIED: 'user_denied' }
 }))
 
-vi.mock('~/config', () => ({ config: { rpcUrl: 'http://localhost:9999' } }))
+// Mutable config so a test can toggle the PROCEEDS_TO_TREASURY flag / treasury address without
+// re-mocking. Hoisted (vi.mock factories run before top-level consts) and reset in beforeEach so the
+// flag never leaks between tests — default is OFF (today's behavior).
+const { mockConfig } = vi.hoisted(() => ({
+  mockConfig: { rpcUrl: 'http://localhost:9999' } as {
+    rpcUrl: string
+    proceedsToTreasury: boolean
+    treasuryAddress: string
+  }
+}))
+vi.mock('~/config', () => ({ config: mockConfig }))
 // Gasless off here so these tests exercise the DIRECT on-chain path (chain switch + setApprovalForAll /
 // setMinters). The gasless meta-tx path is covered in authorizations.spec.ts.
 vi.mock('~/lib/gasless-config', () => ({
@@ -103,7 +113,8 @@ import {
   createUsdPeggedListing,
   isMarketplaceMinter,
   ensureMinter,
-  createPrimaryUsdPeggedListing
+  createPrimaryUsdPeggedListing,
+  proceedsBeneficiary
 } from '~/lib/trades'
 import { getOnChainTrade } from '~/lib/trade-encoding'
 
@@ -126,8 +137,13 @@ function makeSigner(overrides: Record<string, unknown> = {}) {
   } as any
 }
 
+const TREASURY = '0x00000000000000000000000000000000000000EE'
+
 beforeEach(() => {
   vi.clearAllMocks()
+  // Reset the treasury flag to OFF before every test so flag-ON cases can't leak.
+  mockConfig.proceedsToTreasury = false
+  mockConfig.treasuryAddress = ''
 })
 
 describe('when getting the signed value for a trade asset', () => {
@@ -649,5 +665,86 @@ describe('when handling a listing expiration set in milliseconds', () => {
     const onChain = getOnChainTrade(trade as unknown as Trade, '0xbuyer')
     expect(onChain.checks.expiration).toBe(expectedSeconds)
     expect(onChain.checks.expiration).toBeLessThan(1e12)
+  })
+})
+
+// PROCEEDS_TO_TREASURY: with the flag OFF (default, and always in prod) the seller/creator stays the
+// beneficiary — today's behavior. With it ON (testnet) the proceeds route to the configured treasury,
+// so the credits-server can later credit the signer in closed-loop credits.
+describe('when routing sale proceeds under the PROCEEDS_TO_TREASURY flag', () => {
+  beforeEach(() => {
+    contractSignatureIndexMock.mockResolvedValue({ toNumber: () => 3 })
+    signerSignatureIndexMock.mockResolvedValue({ toNumber: () => 7 })
+  })
+
+  describe('and resolving the beneficiary directly', () => {
+    it('should return the fallback (seller/creator) when the flag is OFF', () => {
+      mockConfig.proceedsToTreasury = false
+      mockConfig.treasuryAddress = TREASURY
+      expect(proceedsBeneficiary(SELLER)).toBe(SELLER)
+    })
+
+    it('should return the treasury address when the flag is ON and an address is set', () => {
+      mockConfig.proceedsToTreasury = true
+      mockConfig.treasuryAddress = TREASURY
+      expect(proceedsBeneficiary(SELLER)).toBe(TREASURY)
+    })
+
+    it('should fall back to the seller/creator when the flag is ON but no treasury is set', () => {
+      mockConfig.proceedsToTreasury = true
+      mockConfig.treasuryAddress = ''
+      expect(proceedsBeneficiary(SELLER)).toBe(SELLER)
+    })
+  })
+
+  describe('and building a secondary listing', () => {
+    it('should keep the seller as beneficiary when the flag is OFF', async () => {
+      const trade = await createUsdPeggedListing({
+        signer: makeSigner(),
+        nft: { contractAddress: NFT, tokenId: '42', network: Network.MATIC, chainId: ChainId.MATIC_AMOY },
+        usdPrice: 1,
+        expiresAtMs: 2_000_000
+      })
+      expect((trade.received[0] as any).beneficiary).toBe(SELLER.toLowerCase())
+    })
+
+    it('should route the beneficiary to the treasury when the flag is ON', async () => {
+      mockConfig.proceedsToTreasury = true
+      mockConfig.treasuryAddress = TREASURY
+      const trade = await createUsdPeggedListing({
+        signer: makeSigner(),
+        nft: { contractAddress: NFT, tokenId: '42', network: Network.MATIC, chainId: ChainId.MATIC_AMOY },
+        usdPrice: 1,
+        expiresAtMs: 2_000_000
+      })
+      expect((trade.received[0] as any).beneficiary).toBe(TREASURY)
+      // The signer (seller) is unchanged — the credits-server credits the signer, not the beneficiary.
+      expect(trade.signer).toBe(SELLER.toLowerCase())
+    })
+  })
+
+  describe('and building a primary (mint) listing', () => {
+    it('should keep the creator as beneficiary when the flag is OFF', async () => {
+      const trade = await createPrimaryUsdPeggedListing({
+        signer: makeSigner(),
+        item: { contractAddress: COLLECTION, itemId: '5', network: Network.MATIC, chainId: ChainId.MATIC_AMOY },
+        usdPrice: 1,
+        expiresAtMs: 2_000_000
+      })
+      expect((trade.received[0] as any).beneficiary).toBe(SELLER.toLowerCase())
+    })
+
+    it('should route the beneficiary to the treasury when the flag is ON', async () => {
+      mockConfig.proceedsToTreasury = true
+      mockConfig.treasuryAddress = TREASURY
+      const trade = await createPrimaryUsdPeggedListing({
+        signer: makeSigner(),
+        item: { contractAddress: COLLECTION, itemId: '5', network: Network.MATIC, chainId: ChainId.MATIC_AMOY },
+        usdPrice: 1,
+        expiresAtMs: 2_000_000
+      })
+      expect((trade.received[0] as any).beneficiary).toBe(TREASURY)
+      expect(trade.signer).toBe(SELLER.toLowerCase())
+    })
   })
 })

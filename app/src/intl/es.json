@@ -327,6 +327,7 @@
     "price": "Precio",
     "stock": "Stock",
     "outOfStock": "Agotado",
+    "notForSaleHint": "Este artículo no está a la venta en este momento. Recibe una notificación cuando esté disponible.",
     "ownItemPrefix": "Este es tu artículo: gestiónalo en",
     "ownItemSuffix": ".",
     "manageList": "Poner a la venta",
@@ -676,7 +677,8 @@
     "successHeader": "Tu artículo está a la venta",
     "successOnSale": "¡Tu artículo ya está a la venta!",
     "successManage": "Puedes gestionar tu venta desde Mis artículos.",
-    "myItems": "Mis artículos"
+    "myItems": "Mis artículos",
+    "proceedsCredits": "Recibirás {count, plural, one {# credit} other {# credits}} cuando se venda."
   },
   "primaryList": {
     "errorGeneric": "No pudimos publicar tu artículo. Inténtalo de nuevo.",
@@ -705,7 +707,8 @@
     "readyConfirm": "Esta colección está lista — publicar es una sola confirmación.",
     "readyManaged": "Esta colección está lista — publicar es instantáneo.",
     "cancel": "Cancelar",
-    "checking": "Comprobando…"
+    "checking": "Comprobando…",
+    "proceedsCredits": "Recibirás {count, plural, one {# credit} other {# credits}} por venta."
   },
   "migrate": {
     "successTitle": "¡Estás en la Tienda! 🎉",

@@ -10,6 +10,7 @@ import { postTrade } from '~/lib/api'
 import { createUsdPeggedListing, ensureApproval } from '~/lib/trades'
 import { getAuthorizationStatus, getCollectionSellingAuthorization } from '~/lib/authorizations'
 import { isManagedWallet } from '~/lib/wallet'
+import { config } from '~/config'
 import { AuthorizeStep } from '~/components/AuthorizeStep'
 import { fetchCollection } from '~/lib/collections'
 import { useProfile } from '~/hooks/useProfile'
@@ -307,6 +308,13 @@ export function SellModal({
             </S.DateField>
           </S.Field>
         </S.Fields>
+
+        {/* When PROCEEDS_TO_TREASURY is on, the sale settles into closed-loop shop credits (never MANA),
+            so the seller is told exactly what they'll receive. The credits wording is wallet-agnostic —
+            it carries no MANA/crypto terms, so managed (web2) wallets never see crypto language. */}
+        {config.proceedsToTreasury && priceValid ? (
+          <S.Note>{t('sellModal.proceedsCredits', { count: priceValue })}</S.Note>
+        ) : null}
 
         <ErrorNotice message={error} />
 

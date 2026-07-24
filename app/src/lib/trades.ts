@@ -10,12 +10,23 @@ import {
   readProvider,
   type ShopAuthorization
 } from '~/lib/authorizations'
+import { config } from '~/config'
 
 // The on-chain approval plumbing now lives in ~/lib/authorizations (the first-class module). Re-export
 // ensureChain so existing importers (e.g. ~/lib/buy) keep working without churn.
 export { ensureChain }
 
 const toSeconds = (ms: number) => Math.floor(ms / 1000)
+
+// Who receives the sale proceeds on a listing Trade. Default (flag OFF, and always in prod) is the
+// seller/creator — today's behavior, unchanged. When PROCEEDS_TO_TREASURY is ON (testnet only) the
+// proceeds are routed to TREASURY_ADDRESS instead; the credits-server later observes the executed
+// trade, resolves the signer, and credits them in closed-loop shop credits — so resellers never touch
+// MANA. Guarded on a non-empty configured address: an ON flag with no treasury set falls back to the
+// seller/creator, so proceeds can never be routed to an empty beneficiary by misconfiguration.
+export function proceedsBeneficiary(fallback: string): string {
+  return config.proceedsToTreasury && config.treasuryAddress ? config.treasuryAddress : fallback
+}
 
 // USD_PEGGED_MANA-aware value extractor. decentraland-dapps' getValueForTradeAsset has no case for
 // USD_PEGGED_MANA and returns '' (invalid signature), so we own the signing path here.
@@ -198,7 +209,7 @@ export async function createUsdPeggedListing(opts: {
         contractAddress: mana.address,
         amount: ethers.utils.parseEther(String(usdPrice)).toString(),
         extra: '',
-        beneficiary: seller
+        beneficiary: proceedsBeneficiary(seller)
       }
     ]
   }
@@ -305,7 +316,7 @@ export async function createPrimaryUsdPeggedListing(opts: {
         contractAddress: mana.address,
         amount: ethers.utils.parseEther(String(usdPrice)).toString(),
         extra: '',
-        beneficiary: creator
+        beneficiary: proceedsBeneficiary(creator)
       }
     ]
   }
