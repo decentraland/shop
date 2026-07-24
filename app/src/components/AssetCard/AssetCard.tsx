@@ -10,6 +10,7 @@ import { rarityInk, rarityTint, rarityDescription } from '~/lib/rarity'
 import { categoryIcon, genderIcon } from '~/lib/itemIcons'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { Icon } from '~/components/Icon'
+import { CreatorName } from '~/components/CreatorName'
 import { SaleCountdown } from '~/components/SaleCountdown'
 import { saleDiscountPct } from '~/lib/sale'
 import { formatCredits, formatCreditsFull } from '~/lib/currency'
@@ -471,6 +472,11 @@ export function AssetCard(props: AssetCardProps) {
               <div className="card__name" title={item.name}>
                 {item.name}
               </div>
+              {/* "by {creator}" line under the title (Figma 1256-291026): resolves the creator address
+                  to a DCL profile name (short-address fallback while loading / when unnamed) via the
+                  shared useProfile query, so many cards with the same creator dedupe to one fetch. Only
+                  rendered when there's a real creator address. */}
+              {item.creator ? <CreatorName address={item.creator} className="card__author" /> : null}
             </div>
             {isMarket && props.mode === 'market' ? (
               <div className="card__price card__price--market" data-testid="card-price-market">
