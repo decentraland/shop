@@ -29,9 +29,11 @@ export function NavBar() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { pathname } = useLocation()
-  // The Collectibles tab covers the whole browse surface: the grid + an item's detail page + a
-  // collection/creator page (a NavLink to /assets alone wouldn't light up on those routes).
-  const collectiblesActive = /^\/(assets|item|collection|creator)(\/|$)/.test(pathname)
+  // The Collectibles tab covers the whole browse surface: the grid (/assets), an item's detail page
+  // (/item/* and /token/* — both render ItemDetail), a collection page (/collection/*) and a creator
+  // page (/assets/creator/*, already under /assets). A NavLink to /assets alone wouldn't light up on
+  // any of the detail/collection routes, so match them explicitly here.
+  const collectiblesActive = /^\/(assets|item|token|collection)(\/|$)/.test(pathname)
   const urlQuery = searchParams.get('q') ?? ''
 
   // What the input shows (drives the box) and what the dropdown queries (debounced) are separate:
