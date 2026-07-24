@@ -207,7 +207,7 @@ export const ManaSymbol = styled.img`
 
 // "Polygon MANA" tooltip trigger, mirroring the marketplace's Mana popup. The bubble itself is portaled
 // to <body> (see ManaTipBubble) because the card is overflow:hidden — a CSS bubble here (any z-index)
-// would be clipped at the card edges. `cursor: help` signals the hover affordance.
+// would be clipped at the card edges. `cursor: pointer` signals the hover affordance.
 export const ManaTip = styled.span`
   display: inline-flex;
   align-items: center;

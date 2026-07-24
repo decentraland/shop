@@ -44,7 +44,10 @@ export async function fetchNotifications(_address: string, identity: AuthIdentit
   if (!base) return []
   try {
     const res = await signedFetch(`${base}/notifications?limit=50`, { method: 'GET', identity, metadata: {} })
-    if (!res.ok) return []
+    if (!res.ok) {
+      void res.body?.cancel()
+      return []
+    }
     const json = (await res.json()) as { notifications?: DCLNotificationProps[] }
     // ui2's Notifications renders each item's `timestamp` via formatDistanceToNow; a missing/unparseable
     // value throws "Invalid time value" and crashes the whole panel. Normalize the timestamp (seconds →
@@ -65,13 +68,14 @@ export async function markNotificationsRead(identity: AuthIdentity, notification
   const base = notificationsBaseUrl()
   if (!base || notificationIds.length === 0) return
   try {
-    await signedFetch(`${base}/notifications/read`, {
+    const res = await signedFetch(`${base}/notifications/read`, {
       method: 'PUT',
       identity,
       metadata: {},
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ notificationIds })
     })
+    void res.body?.cancel()
   } catch {
     // Best-effort: the optimistic read flip already happened client-side; a failed sync just reconciles
     // on the next fetch.

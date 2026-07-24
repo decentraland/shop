@@ -59,12 +59,19 @@ function ManaTooltip({ children }: { children: React.ReactNode }) {
     if (r) setPos({ top: r.bottom + 8, left: r.left + r.width / 2 })
   }
   return (
-    <S.ManaTip ref={ref} onMouseEnter={open} onMouseLeave={() => setPos(null)}>
+    <S.ManaTip
+      ref={ref}
+      tabIndex={0}
+      onMouseEnter={open}
+      onMouseLeave={() => setPos(null)}
+      onFocus={open}
+      onBlur={() => setPos(null)}
+    >
       {children}
       {pos
         ? createPortal(
             <S.ManaTipBubble style={{ top: pos.top, left: pos.left }} role="tooltip">
-              Polygon MANA
+              {t('activity.polygonMana')}
             </S.ManaTipBubble>,
             document.body
           )

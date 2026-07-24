@@ -486,6 +486,7 @@
     "processing": "Procesando",
     "completed": "Completada",
     "sold": "Vendido",
+    "polygonMana": "Polygon MANA",
     "purchaseLabel": "Compra",
     "saleLabel": "Venta",
     "soldTo": "Vendido a {account}",

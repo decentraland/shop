@@ -158,7 +158,10 @@ export async function fetchUserCreditOrders(
   const url = `${config.creditsServerUrl}/users/${address.toLowerCase()}/credit-orders${q ? `?${q}` : ''}`
   try {
     const res = await signedFetch(url, { method: 'GET', identity, metadata: {} })
-    if (!res.ok) return { items: [], total: 0 }
+    if (!res.ok) {
+      void res.body?.cancel()
+      return { items: [], total: 0 }
+    }
     const json = (await res.json()) as { orders?: CreditOrder[]; total?: number }
     const items = json.orders ?? []
     const skip = opts?.skip ?? 0

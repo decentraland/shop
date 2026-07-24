@@ -109,7 +109,7 @@ function assetToItem(a: MyAsset, sale?: { priceCredits: number; tradeId: string 
 // (fetchPublishableItems is scoped to them), and the item-detail page relies on `creator === you` to
 // recognize you as the creator and offer "Put up for sale" (isOwnListing). Passing '' left the detail
 // page treating you as a stranger, so the publish CTA never showed after MANAGE.
-function publishableToItem(p: PublishableItem, price = 0, creator = ''): CatalogItem {
+function publishableToItem(p: PublishableItem, price: number, creator: string): CatalogItem {
   return {
     id: `${p.contractAddress}-${p.blockchainItemId}`,
     name: p.name,
