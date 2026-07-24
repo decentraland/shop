@@ -129,6 +129,28 @@ export const HeadRight = styled.div`
   display: flex;
   align-items: center;
   gap: 14px;
+  /* Pin to the right regardless of how many elements sit on the left (the credit-purchase card adds a
+     leading thumbnail, giving the head three children instead of two). */
+  margin-left: auto;
+`
+
+// Leading product thumbnail for a credit-pack purchase — the credits mark itself (the "product" bought),
+// mirroring how item purchases show the NFT image.
+export const CreditThumb = styled.div`
+  flex: 0 0 auto;
+  width: 52px;
+  height: 52px;
+  border-radius: 10px;
+  background: ${theme.colors.media};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  img {
+    width: 30px;
+    height: 30px;
+    display: block;
+  }
 `
 
 // Status pill. `data-status` selects the palette so no style-only prop reaches the DOM.
@@ -172,6 +194,13 @@ export const Total = styled.div`
   &[data-kind='income'] {
     color: ${theme.colors.okStrong};
   }
+`
+
+// "MANA" unit label next to a sale's settlement amount (sales pay MANA, not credits).
+export const ManaUnit = styled.span`
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
 `
 
 export const Lines = styled.div`

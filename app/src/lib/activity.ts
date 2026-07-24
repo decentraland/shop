@@ -5,10 +5,11 @@ import { manaWeiToCredits, type ManaRate } from '~/lib/mana-rate'
 
 export type ActivityFilter = 'all' | 'purchases' | 'sales'
 
-// A completed secondary sale, normalized for the feed. `credits` is the MANA settlement price
-// converted to INDICATIVE credits at the current display rate (null when the rate is unavailable — the
-// row then omits the amount rather than showing a fake value). Sales settle in MANA, so this figure is
-// approximate, unlike a purchase's exact credit price.
+// A completed secondary sale, normalized for the feed. Secondary sales settle on-chain in MANA and the
+// seller RECEIVES MANA, so the feed shows the exact `manaWei` amount — NOT credits. (Showing credits
+// here was misleading: the seller never got credits for past sales. When proceeds-to-treasury ships,
+// sellers will be credited instead, and future sales can switch to a credit amount.) `credits` is the
+// legacy indicative conversion, kept for compatibility but no longer displayed.
 export type ActivitySale = {
   id: string
   contractAddress: string
@@ -16,6 +17,7 @@ export type ActivitySale = {
   itemId: string | null
   counterparty: string // the buyer's account
   credits: number | null
+  manaWei: string // exact MANA settlement (wei) the seller received — the displayed amount
   createdAt: number
 }
 
@@ -34,6 +36,7 @@ export function toActivitySale(sale: SaleRecord, rate?: ManaRate): ActivitySale 
     itemId: sale.itemId,
     counterparty: sale.buyer,
     credits: rate ? manaWeiToCredits(sale.manaWei, rate) : null,
+    manaWei: sale.manaWei,
     createdAt: sale.createdAt
   }
 }

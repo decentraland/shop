@@ -11,6 +11,7 @@ import { useManaRate } from '~/hooks/useManaRate'
 import { LoadMore } from '~/components/LoadMore'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
+import creditsProduct from '~/assets/credits-product.svg'
 import { Icon } from '~/components/Icon'
 import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
@@ -36,6 +37,13 @@ function formatDate(ms: number): string {
 // never a "wallet address").
 function shortAccount(address: string): string {
   return address.length > 10 ? `${address.slice(0, 6)}…${address.slice(-4)}` : address
+}
+
+// MANA wei (1e18) → a compact MANA amount for display (up to 2 decimals, trailing zeros trimmed). Sale
+// proceeds are small, so Number precision is fine here.
+function formatMana(wei: string): string {
+  const n = Number(wei) / 1e18
+  return Number.isFinite(n) ? n.toLocaleString('en', { maximumFractionDigits: 2 }) : '0'
 }
 
 // One rendered line of a purchase order. Resolves name + thumbnail from the trade (reads the real
@@ -154,11 +162,11 @@ function SaleCard({ sale }: { sale: ActivitySale }) {
         </S.HeadLeft>
         <S.HeadRight>
           <S.Pill data-status="SOLD">{t('activity.sold')}</S.Pill>
-          {sale.credits != null ? (
-            <S.Total data-kind="income" title={t('activity.approxValue')}>
-              +<CurrencyIcon className="ccy-mark" /> {sale.credits}
-            </S.Total>
-          ) : null}
+          {/* Secondary sales settle in MANA and the seller received MANA — show the exact MANA amount,
+              never credits (they never got credits for a past sale). */}
+          <S.Total data-kind="income">
+            +{formatMana(sale.manaWei)} <S.ManaUnit>MANA</S.ManaUnit>
+          </S.Total>
         </S.HeadRight>
       </S.CardHead>
       <S.Lines>
@@ -182,6 +190,11 @@ function CreditPurchaseCard({ order }: { order: CreditOrder }) {
   return (
     <S.Card data-testid="credit-order">
       <S.CardHead>
+        {/* The "product" bought here is credits themselves — show the credits mark as the thumbnail
+            (mirrors item purchases showing the NFT image), not a generic/NFT placeholder. */}
+        <S.CreditThumb>
+          <img src={creditsProduct} alt="" aria-hidden />
+        </S.CreditThumb>
         <S.HeadLeft>
           <S.DateText>{formatDate(order.createdAt)}</S.DateText>
           <S.SubCount>

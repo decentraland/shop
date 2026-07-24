@@ -225,10 +225,13 @@ describe('when purchases and a sale are interleaved', () => {
     await screen.findByText('Purchased Thing')
     expect(screen.getByTestId('purchase-order')).toBeInTheDocument()
     expect(screen.getByTestId('activity-sale')).toBeInTheDocument()
-    // The sale shows its "Sold" pill, the counterparty account, and the rate-converted credits (50).
+    // The sale shows its "Sold" pill, the counterparty account, and the MANA it settled in (10 MANA) —
+    // sales pay MANA, not credits.
     expect(screen.getByText('Sold')).toBeInTheDocument()
     expect(screen.getByText(/Sold to 0xb0b0/)).toBeInTheDocument()
-    expect(screen.getByTestId('activity-sale').textContent).toContain('50')
+    const saleText = screen.getByTestId('activity-sale').textContent ?? ''
+    expect(saleText).toContain('10')
+    expect(saleText).toContain('MANA')
   })
 
   it('should hide purchases when the Sales filter is selected', async () => {
