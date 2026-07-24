@@ -442,7 +442,13 @@
     "showItems": "Show items",
     "marketUnavailable": "Some market prices are temporarily unavailable — buying those items is paused for a moment. Please try again shortly.",
     "loadError": "Couldn’t load items — please try again.",
-    "noItems": "No items match your filters."
+    "empty": {
+      "title": "Oops! Nothing found.",
+      "searchBefore": "We couldn’t find any results for “",
+      "searchAfter": "”. Try a different search or explore the Shop.",
+      "filters": "We couldn’t find any results for the selected filters. Try adjusting your filters or explore the Shop.",
+      "cta": "Explore Shop"
+    }
   },
   "myAssets": {
     "signInPrompt": "Sign in to sell your items.",

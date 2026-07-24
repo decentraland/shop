@@ -442,7 +442,13 @@
     "showItems": "Mostrar artículos",
     "marketUnavailable": "Algunos precios de mercado no están disponibles temporalmente; la compra de esos artículos está pausada por un momento. Inténtalo de nuevo en breve.",
     "loadError": "No pudimos cargar los artículos. Inténtalo de nuevo.",
-    "noItems": "Ningún artículo coincide con tus filtros."
+    "empty": {
+      "title": "¡Vaya! No encontramos nada.",
+      "searchBefore": "No encontramos resultados para “",
+      "searchAfter": "”. Prueba con otra búsqueda o explora la Tienda.",
+      "filters": "No encontramos resultados para los filtros seleccionados. Ajusta los filtros o explora la Tienda.",
+      "cta": "Explorar la Tienda"
+    }
   },
   "myAssets": {
     "signInPrompt": "Inicia sesión para vender tus artículos.",
