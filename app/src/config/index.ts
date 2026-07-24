@@ -45,10 +45,12 @@ export const config = {
   segmentWriteKey: env.VITE_SEGMENT_WRITE_KEY ?? base.get('SEGMENT_WRITE_KEY'),
   // Sentry error monitoring. Empty DSN → monitoring no-ops (errors only hit the console). The DSN is a
   // public ingest key (ships in the bundle), NEVER a secret — it lives in the per-env JSONs like the
-  // other client-safe values. Environment/release are derived (no per-env JSON key needed).
+  // other client-safe values.
   sentryDsn: env.VITE_SENTRY_DSN ?? base.get('SENTRY_DSN'),
-  sentryEnvironment:
-    env.VITE_SENTRY_ENVIRONMENT ?? (Number(env.VITE_CHAIN_ID ?? base.get('CHAIN_ID')) === 80002 ? 'dev' : 'prod'),
+  // Per-env tag so dev/zone, staging and prod are distinguishable in Sentry. From each JSON's
+  // ENVIRONMENT field ('development' | 'staging' | 'production') — NOT chainId, since dev+stg both
+  // run on 80002 and would collapse into a single tag.
+  sentryEnvironment: env.VITE_SENTRY_ENVIRONMENT ?? base.get('ENVIRONMENT'),
   // Release tag — MUST match the source-map upload's release (vite plugin / CI). e.g. "shop@1.2.3".
   sentryRelease: env.VITE_SENTRY_RELEASE ?? `shop@${env.VITE_APP_VERSION ?? '0.0.0-dev'}`
 }
