@@ -139,3 +139,14 @@ export function hasPayableOption(o: PaymentOptions): boolean {
 export function findOption(o: PaymentOptions, method: PaymentMethod): PaymentOption | null {
   return o.options.find(opt => opt.method === method) ?? null
 }
+
+/**
+ * How much MANA one credit is worth right now, for the "1 credit = X MANA" caption (Figma 1653-368866).
+ * Derived from the SAME numbers the buttons charge (the purchase's cents and its MANA price), so the
+ * caption can never disagree with the amounts above it. Returns null when the MANA price is unknown.
+ */
+export function manaPerCredit(priceCents: number, priceManaWei: bigint): number | null {
+  if (!Number.isFinite(priceCents) || priceCents <= 0 || priceManaWei <= 0n) return null
+  const credits = priceCents / 10 // 1 credit = 10 cents
+  return Number(priceManaWei) / 1e18 / credits
+}

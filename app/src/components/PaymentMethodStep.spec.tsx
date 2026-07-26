@@ -20,32 +20,24 @@ const PRICE_CENTS = 1000
 const PRICE_MANA = 500n * 10n ** 18n
 const mana = (n: number) => BigInt(n) * 10n ** 18n
 
-function setup(over: { balanceCents?: number; manaBalanceWei?: bigint; selected?: 'credits' | 'mana' | 'combined' }) {
+function setup(over: { balanceCents?: number; manaBalanceWei?: bigint; priceManaWei?: bigint }) {
   const balanceCents = over.balanceCents ?? 0
   const manaBalanceWei = over.manaBalanceWei ?? 0n
-  const computed = computePaymentOptions({
-    priceCents: PRICE_CENTS,
-    priceManaWei: PRICE_MANA,
-    balanceCents,
-    manaBalanceWei
-  })
-  const onSelect = vi.fn()
+  const priceManaWei = over.priceManaWei ?? PRICE_MANA
+  const computed = computePaymentOptions({ priceCents: PRICE_CENTS, priceManaWei, balanceCents, manaBalanceWei })
   const onBuy = vi.fn()
   render(
     <PaymentMethodStep
       item={item}
       priceCredits={100}
       priceCents={PRICE_CENTS}
-      balanceCents={balanceCents}
-      manaBalanceWei={manaBalanceWei}
       options={computed.options}
-      selected={over.selected ?? computed.preferred ?? 'credits'}
-      onSelect={onSelect}
+      priceManaWei={priceManaWei}
       onBuy={onBuy}
       onClose={vi.fn()}
     />
   )
-  return { onSelect, onBuy }
+  return { onBuy }
 }
 
 const rows = () => ['credits', 'combined', 'mana'].filter(m => screen.queryByTestId(`pay-with-${m}`))
@@ -89,41 +81,47 @@ describe('PaymentMethodStep', () => {
       expect(row.textContent).toContain('300')
     })
 
-    it('should label itself as the mixed rail', () => {
+    it('should read as one payment made of both legs', () => {
       setup({ balanceCents: 400, manaBalanceWei: mana(400) })
-      expect(screen.getByTestId('pay-with-combined').textContent).toMatch(/credits \+ mana/i)
+      // "Buy with ◈40 + 300" — the label plus each leg, so the split is explicit on the button itself.
+      const label = screen.getByTestId('pay-with-combined').textContent ?? ''
+      expect(label).toMatch(/buy with/i)
+      expect(label).toContain('40')
+      expect(label).toContain('300')
+      expect(label).toContain('+')
     })
   })
 
-  describe('selection', () => {
-    it('should mark the selected row as checked and the others as not', () => {
-      setup({ balanceCents: PRICE_CENTS, manaBalanceWei: PRICE_MANA, selected: 'mana' })
-      expect(screen.getByTestId('pay-with-mana')).toHaveAttribute('aria-checked', 'true')
-      expect(screen.getByTestId('pay-with-credits')).toHaveAttribute('aria-checked', 'false')
-    })
-
-    it('should report the clicked method', () => {
-      const { onSelect } = setup({ balanceCents: PRICE_CENTS, manaBalanceWei: PRICE_MANA })
-      fireEvent.click(screen.getByTestId('pay-with-mana'))
-      expect(onSelect).toHaveBeenCalledWith('mana')
-    })
-
-    it('should pre-select credits when both single rails are available', () => {
-      setup({ balanceCents: PRICE_CENTS, manaBalanceWei: PRICE_MANA })
-      expect(screen.getByTestId('pay-with-credits')).toHaveAttribute('aria-checked', 'true')
-    })
-
-    it('should pre-select combined when the credits alone fall short', () => {
-      setup({ balanceCents: 400, manaBalanceWei: PRICE_MANA })
-      expect(screen.getByTestId('pay-with-combined')).toHaveAttribute('aria-checked', 'true')
-    })
-  })
-
-  describe('the confirm button', () => {
-    it('should fire onBuy', () => {
+  describe('one-click payment', () => {
+    it('should buy with credits when the credits CTA is pressed (no separate confirm step)', () => {
       const { onBuy } = setup({ balanceCents: PRICE_CENTS })
-      fireEvent.click(screen.getByTestId('pay-confirm'))
-      expect(onBuy).toHaveBeenCalled()
+      fireEvent.click(screen.getByTestId('pay-with-credits'))
+      expect(onBuy).toHaveBeenCalledWith('credits')
+    })
+
+    it('should buy with MANA when the MANA CTA is pressed', () => {
+      const { onBuy } = setup({ balanceCents: PRICE_CENTS, manaBalanceWei: PRICE_MANA })
+      fireEvent.click(screen.getByTestId('pay-with-mana'))
+      expect(onBuy).toHaveBeenCalledWith('mana')
+    })
+
+    it('should buy with the mixed rail when the combined CTA is pressed', () => {
+      const { onBuy } = setup({ balanceCents: 400, manaBalanceWei: mana(400) })
+      fireEvent.click(screen.getByTestId('pay-with-combined'))
+      expect(onBuy).toHaveBeenCalledWith('combined')
+    })
+  })
+
+  describe('the exchange-rate caption', () => {
+    it('should state how much MANA one credit is worth', () => {
+      // 1000 cents = 100 credits costs 500 MANA → 1 credit = 5 MANA.
+      setup({ balanceCents: PRICE_CENTS, manaBalanceWei: PRICE_MANA })
+      expect(screen.getByTestId('mana-rate-note').textContent).toMatch(/1 credit = 5 MANA/i)
+    })
+
+    it('should omit the caption when the MANA price is unknown', () => {
+      setup({ balanceCents: PRICE_CENTS, priceManaWei: 0n })
+      expect(screen.queryByTestId('mana-rate-note')).toBeNull()
     })
   })
 })

@@ -63,10 +63,8 @@ describe('paying with MANA in the buy flow', () => {
     expect(await has(page, 'pay-with-mana')).toBe(true)
     // Credits alone cover it, so the mixed rail is pointless and must NOT be offered.
     expect(await has(page, 'pay-with-combined')).toBe(false)
-    // Credits is the pre-selected default.
-    expect(await page.$eval('[data-testid="pay-with-credits"]', el => el.getAttribute('aria-checked'))).toBe('true')
-
-    await clickWhenEnabled(page, '[data-testid="pay-confirm"]', /.*/)
+    // Pressing the credits CTA buys straight away (one click, no separate confirm step).
+    await clickWhenEnabled(page, '[data-testid="pay-with-credits"]', /.*/)
     await waitForText(page, 'Purchase complete!', 30000)
   })
 
@@ -78,10 +76,7 @@ describe('paying with MANA in the buy flow', () => {
     await clickWhenEnabled(page, 'button', /buy now/i)
     await page.waitForSelector('[data-testid="pay-with-mana"]', { timeout: 20000 })
 
-    expect(await clickByText(page, '[data-testid="pay-with-mana"]', /.*/)).toBe(true)
-    expect(await page.$eval('[data-testid="pay-with-mana"]', el => el.getAttribute('aria-checked'))).toBe('true')
-
-    await clickWhenEnabled(page, '[data-testid="pay-confirm"]', /.*/)
+    await clickWhenEnabled(page, '[data-testid="pay-with-mana"]', /.*/)
     await waitForText(page, 'Purchase complete!', 30000)
   })
 
@@ -99,14 +94,13 @@ describe('paying with MANA in the buy flow', () => {
     // Short on credits used to be a dead end (top-up pack picker); with MANA in the wallet it becomes a
     // payable purchase: credits first + MANA for the remainder.
     await page.waitForSelector('[data-testid="pay-with-combined"]', { timeout: 20000 })
-    expect(await page.$eval('[data-testid="pay-with-combined"]', el => el.getAttribute('aria-checked'))).toBe('true')
-    // 40 MANA covers the ≈10 MANA remainder but not the ≈50 MANA full price → no MANA-only row.
+    // 40 MANA covers the ≈10 MANA remainder but not the ≈50 MANA full price → no MANA-only CTA.
     expect(await has(page, 'pay-with-mana')).toBe(false)
     // The row shows both legs of the split: 40 credits + the MANA remainder.
     const row = await page.$eval('[data-testid="pay-with-combined"]', el => el.textContent ?? '')
     expect(row).toContain('40')
 
-    await clickWhenEnabled(page, '[data-testid="pay-confirm"]', /.*/)
+    await clickWhenEnabled(page, '[data-testid="pay-with-combined"]', /.*/)
     await waitForText(page, 'Purchase complete!', 30000)
   })
 
@@ -125,7 +119,7 @@ describe('paying with MANA in the buy flow', () => {
     expect(await has(page, 'pay-with-credits')).toBe(false)
     expect(await has(page, 'pay-with-combined')).toBe(false)
 
-    await clickWhenEnabled(page, '[data-testid="pay-confirm"]', /.*/)
+    await clickWhenEnabled(page, '[data-testid="pay-with-mana"]', /.*/)
     await waitForText(page, 'Purchase complete!', 30000)
   })
 
@@ -179,7 +173,6 @@ describe('paying with MANA in the cart checkout', () => {
     expect(await has(page, 'pay-with-combined')).toBe(false)
 
     expect(await clickByText(page, '[data-testid="pay-with-mana"]', /.*/)).toBe(true)
-    expect(await clickByText(page, '[data-testid="cart-pay-confirm"]', /.*/)).toBe(true)
     await page.waitForFunction(() => window.location.pathname === '/success', { timeout: 30000 })
   })
 
@@ -198,7 +191,7 @@ describe('paying with MANA in the cart checkout', () => {
     expect(row).toMatch(/MANA/)
     expect(row).toContain('40')
 
-    expect(await clickByText(page, '[data-testid="cart-pay-confirm"]', /.*/)).toBe(true)
+    expect(await clickByText(page, '[data-testid="pay-with-combined"]', /.*/)).toBe(true)
     await page.waitForFunction(() => window.location.pathname === '/success', { timeout: 30000 })
   })
 })
