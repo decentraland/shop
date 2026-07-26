@@ -54,13 +54,14 @@ export const config = {
   sentryEnvironment: env.VITE_SENTRY_ENVIRONMENT ?? base.get('ENVIRONMENT'),
   // Release tag — MUST match the source-map upload's release (vite plugin / CI). e.g. "shop@1.2.3".
   sentryRelease: env.VITE_SENTRY_RELEASE ?? `shop@${env.VITE_APP_VERSION ?? '0.0.0-dev'}`,
-  // PROCEEDS_TO_TREASURY (default OFF): when ON, a shop-native sale routes its MANA proceeds to
-  // TREASURY_ADDRESS instead of the seller/creator, and the seller is later credited in closed-loop
-  // shop credits (USD) by the credits-server — so resellers never touch MANA. Testnet-only for now
-  // (dev/Amoy); prod stays OFF. OFF preserves today's behavior exactly (beneficiary = seller/creator).
-  // Stored as a "true"/"false" string in the per-env JSONs (like every other value there); parsed to a
-  // boolean here. String() is defensive in case @dcl/ui-env hands back a real JSON boolean.
-  proceedsToTreasury: (env.VITE_PROCEEDS_TO_TREASURY ?? String(base.get('PROCEEDS_TO_TREASURY'))) === 'true',
+  // Decentraland feature-flag service. Per-env (dev/stg → .zone, prod → .org) rather than the hardcoded
+  // `.org` the decentraland-dapps helper uses, because the point of a flag here is enabling on Amoy while
+  // prod stays off. See lib/featureFlags.ts.
+  // `String()` for the same reason as treasuryAddress below: @dcl/ui-env's `get` is untyped.
+  featureFlagsUrl: String(env.VITE_FEATURE_FLAGS_URL ?? base.get('FEATURE_FLAGS_URL') ?? ''),
+  // ORDERING, if this is ever enabled from scratch: credits-server's consumer must be live and armed FIRST.
+  // With routing on here and the consumer off, listings route their MANA to the treasury and nobody credits
+  // the seller — recoverable on a testnet, not on mainnet.
   // Checksum address that receives sale proceeds when the flag is ON — ops-provided per env. Empty when
   // the flag is OFF (never read in that case). The signing path guards on a non-empty value, so a
   // misconfigured ON flag can never route proceeds to an empty beneficiary.
