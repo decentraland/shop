@@ -35,6 +35,7 @@ export type Fixtures = {
   userStore: unknown
   purchases: unknown
   sales: unknown
+  notifications: unknown
 }
 
 function defaults(): Fixtures {
@@ -67,7 +68,34 @@ function defaults(): Fixtures {
     },
     trade: null,
     purchases: { purchases: [] },
-    sales: { data: [], total: 0 }
+    sales: { data: [], total: 0 },
+    // Two notifications, one unread — enough to prove the badge, the panel list and the mark-read flip.
+    // Timestamps are epoch MILLISECONDS here; notifications.e2e.ts overrides this to cover the seconds /
+    // ISO / unparseable shapes the real service has been seen to return.
+    notifications: {
+      notifications: [
+        {
+          id: 'ntf-1',
+          type: 'item_sold',
+          address: '0x0000000000000000000000000000000000000001',
+          timestamp: 1750000000000,
+          read: false,
+          created_at: 1750000000000,
+          updated_at: 1750000000000,
+          metadata: { link: '/activity', title: 'Item sold', description: 'Nebula Jacket was sold', nftName: 'Nebula Jacket' }
+        },
+        {
+          id: 'ntf-2',
+          type: 'royalties_earned',
+          address: '0x0000000000000000000000000000000000000001',
+          timestamp: 1749000000000,
+          read: true,
+          created_at: 1749000000000,
+          updated_at: 1749000000000,
+          metadata: { link: '/activity', title: 'Royalties earned', description: 'You earned royalties', nftName: 'Nebula Jacket' }
+        }
+      ]
+    }
   }
 }
 
@@ -311,6 +339,13 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
     return json(req, { data: [] })
   }
 
+  // DCL push-notifications service (signed-fetch). GET lists them, PUT marks them read.
+  if (u.hostname.includes('notifications.decentraland')) {
+    if (path === '/notifications/read') return json(req, { ok: true })
+    if (path === '/notifications') return json(req, F.notifications)
+    return json(req, {})
+  }
+
   // builder-server
   if (u.hostname.includes('builder-api')) {
     if (/\/v1\/collections\/.+\/items/.test(path)) return json(req, F.builderItems)
@@ -369,6 +404,16 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
       return json(req, method === 'POST' ? [body] : body)
     }
     return req.respond({ status: 200, headers: { 'content-type': 'image/png', ...CORS }, body: PNG })
+  }
+
+  // External scripts/styles → an EMPTY module with the CORRECT MIME type. The shared DCL navbar/footer
+  // bundle (cdn.decentraland.org/@dcl/sites/…) is pulled by the page shell, and the JSON fallback below
+  // made the browser refuse it ("Expected a JavaScript-or-Wasm module script"). On a hard load of a route
+  // whose shell fetches it, that left the whole page BLANK — a harness artefact that looks exactly like an
+  // app crash. Empty is fine: the shop renders its own navbar; the CDN bundle only decorates the shell.
+  if (/\.(m?js|css)$/.test(path)) {
+    const type = path.endsWith('.css') ? 'text/css' : 'application/javascript'
+    return req.respond({ status: 200, headers: { 'content-type': type, ...CORS }, body: '' })
   }
 
   // Anything else external → empty (and log, so we notice a missing mock).
