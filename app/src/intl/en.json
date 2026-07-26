@@ -171,11 +171,12 @@
     }
   },
   "getCredits": {
-    "title": "Purchase {currency}",
-    "subtitle": "Get {currency} and start shopping in the Marketplace!",
+    "title": "Get {currency}!",
+    "subtitle": "Pick your {currency} pack and get ready to shop!",
     "learnMore": "Learn more",
     "canceledNote": "Payment canceled — no charge was made. Pick a pack whenever you’re ready.",
     "packBadge": "Recommended",
+    "packUnit": "{currency}",
     "packAria": "Get {amount} for ${usd}",
     "packsLoading": "Loading {currency} packs…",
     "creditsAmount": "{credits} {currency}",

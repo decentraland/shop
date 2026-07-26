@@ -1,0 +1,728 @@
+import styled from '@emotion/styled'
+import { keyframes } from '@emotion/react'
+import { theme } from '~/styles/theme'
+import backdrop from '~/assets/credits/packs-backdrop.webp'
+
+// Get credits page (Figma 1654-374586). The pack picker lives inside ONE full-bleed purple card
+// (Figma 1654-374620) that holds the heading and the pack row; the post-checkout states below stay on
+// the light page, where their own Figma frames (1208-242158 / 1208-243058) put them.
+
+// The 1px / 6px gradient outlines are painted as masked pseudo-elements — CSS can't gradient-fill a
+// `border` directly, and `background-clip` would fight the card's translucent fill.
+const RING_MASK = `linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)`
+
+export const Root = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+`
+
+export const Hero = styled.section`
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border-radius: ${theme.radius.banner};
+  overflow: hidden;
+  padding: 82px clamp(16px, 7.06%, 122px) 129px;
+
+  ${theme.media.down('lg')} {
+    padding: 48px 24px 56px;
+  }
+  ${theme.media.down('mobile')} {
+    padding: 32px 16px 40px;
+  }
+`
+
+export const HeroBackdrop = styled.div`
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  opacity: 0.9;
+  pointer-events: none;
+  background-image: url(${backdrop});
+  background-size: cover;
+  background-position: 50% 96%;
+  background-repeat: no-repeat;
+`
+
+export const HeroInner = styled.div`
+  width: 100%;
+  max-width: 1478px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 52px;
+
+  ${theme.media.down('lg')} {
+    gap: 32px;
+  }
+`
+
+export const Head = styled.header`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: center;
+`
+
+export const Title = styled.h1`
+  margin: 0;
+  font-family: ${theme.font.sans};
+  font-size: 40px;
+  font-weight: 700;
+  line-height: 1.167;
+  color: ${theme.colors.white};
+  text-transform: capitalize;
+
+  ${theme.media.down('mobile')} {
+    font-size: 28px;
+  }
+`
+
+export const SubRow = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+`
+
+export const Sub = styled.p`
+  margin: 0;
+  font-family: ${theme.font.sans};
+  font-size: 24px;
+  font-weight: 500;
+  line-height: 1.334;
+  color: ${theme.colors.media};
+
+  ${theme.media.down('mobile')} {
+    font-size: 16px;
+  }
+`
+
+export const Learn = styled.a`
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-family: ${theme.font.sans};
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 30px;
+  color: ${theme.colors.white};
+  text-decoration: underline;
+  text-underline-offset: 2px;
+
+  .ico {
+    width: 26px;
+    height: 26px;
+  }
+  &:hover {
+    opacity: 0.85;
+  }
+  &:focus-visible {
+    outline: 2px solid ${theme.colors.white};
+    outline-offset: 3px;
+    border-radius: ${theme.radius.chip};
+  }
+
+  ${theme.media.down('mobile')} {
+    font-size: 15px;
+    line-height: 22px;
+
+    .ico {
+      width: 18px;
+      height: 18px;
+    }
+  }
+`
+
+export const Note = styled.p`
+  margin: 0;
+  padding: 10px 16px;
+  border-radius: ${theme.radius.btn};
+  background: rgba(21, 21, 21, 0.4);
+  font-family: ${theme.font.sans};
+  font-size: 14px;
+  line-height: 1.6;
+  color: ${theme.colors.media};
+  text-align: center;
+`
+
+// minmax(0, …) so the fixed-width artwork can't push the tracks past the container and get clipped.
+export const Grid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 24px;
+  width: 100%;
+
+  @media (max-width: 980px) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: 40px;
+  }
+  @media (max-width: 520px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+`
+
+export const PackCard = styled.button`
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 48px;
+  min-width: 0;
+  padding: 24px 16px 16px;
+  border: 0;
+  border-radius: ${theme.radius.banner};
+  background: rgba(21, 21, 21, 0.4);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  color: ${theme.colors.white};
+  cursor: pointer;
+  text-align: center;
+  transition:
+    background 0.15s ease,
+    box-shadow 0.15s ease;
+
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+    border-radius: inherit;
+    pointer-events: none;
+    -webkit-mask: ${RING_MASK};
+    -webkit-mask-composite: xor;
+    mask: ${RING_MASK};
+    mask-composite: exclude;
+    transition: opacity 0.15s ease;
+  }
+  /* Hairline outline (Figma: 1px Flare stroke). */
+  &::before {
+    inset: 0;
+    padding: 1px;
+    background: ${theme.gradients.flare};
+  }
+  /* Hover ring: a 6px warm outline floating in the 4px gutter outside the card. */
+  &::after {
+    inset: -10px;
+    padding: 6px;
+    border-radius: 30px;
+    background: ${theme.gradients.ember};
+    opacity: 0;
+  }
+
+  &:hover,
+  &:focus-visible,
+  &:active {
+    background: ${theme.colors.accent};
+    box-shadow: 0 0 8px ${theme.colors.brandViolet};
+  }
+  &:hover::before,
+  &:focus-visible::before,
+  &:active::before {
+    opacity: 0;
+  }
+  &:hover::after,
+  &:focus-visible::after,
+  &:active::after {
+    opacity: 1;
+  }
+  &:focus-visible {
+    outline: none;
+  }
+
+  /* Loading placeholder shell — same card, none of the interaction. */
+  &[data-skeleton='true'] {
+    cursor: default;
+  }
+  &[data-skeleton='true']:hover {
+    background: rgba(21, 21, 21, 0.4);
+    box-shadow: none;
+  }
+  &[data-skeleton='true']:hover::before {
+    opacity: 1;
+  }
+  &[data-skeleton='true']:hover::after {
+    opacity: 0;
+  }
+
+  ${theme.media.down('mobile')} {
+    gap: 24px;
+  }
+`
+
+export const PackBadge = styled.span`
+  position: absolute;
+  top: -18px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px 6px 8px;
+  border-radius: ${theme.radius.pill};
+  background: ${theme.gradients.flare};
+  font-family: ${theme.font.sans};
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 24px;
+  color: ${theme.colors.white};
+  white-space: nowrap;
+
+  .ico {
+    width: 24px;
+    height: 24px;
+  }
+
+  ${theme.media.down('mobile')} {
+    top: -14px;
+    padding: 4px 10px 4px 6px;
+    font-size: 14px;
+    line-height: 20px;
+
+    .ico {
+      width: 18px;
+      height: 18px;
+    }
+  }
+`
+
+export const PackTop = styled.span`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding-top: 32px;
+
+  ${theme.media.down('mobile')} {
+    padding-top: 16px;
+  }
+`
+
+export const PackHeading = styled.span`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+`
+
+// The currency mark keeps the amount's own colour (soft white here) — never an accent tint.
+export const PackAmountRow = styled.span`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  .ico {
+    width: 28.21px;
+    height: 29.79px;
+    color: ${theme.colors.softWhite};
+  }
+`
+
+// Figma trims the text box to the cap height, so the line box is shorter than the font size.
+export const PackAmount = styled.span`
+  font-family: ${theme.font.sans};
+  font-size: 40px;
+  font-weight: 800;
+  line-height: 30px;
+  color: ${theme.colors.white};
+`
+
+export const PackUnit = styled.span`
+  font-family: ${theme.font.sans};
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 15px;
+  color: ${theme.colors.media};
+  text-transform: uppercase;
+`
+
+export const PackArt = styled.span`
+  display: block;
+  width: 253.5px;
+  max-width: 100%;
+  aspect-ratio: 1;
+
+  img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  /* One column: a full-size render per card would make the page absurdly tall. */
+  @media (max-width: 520px) {
+    width: 200px;
+  }
+`
+
+export const PackPrice = styled.span`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 48px;
+  padding: 0 12px;
+  border-radius: ${theme.radius.card};
+  background: ${theme.colors.white};
+  font-family: ${theme.font.sans};
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 24px;
+  letter-spacing: 0.46px;
+  color: ${theme.colors.text2};
+  text-transform: uppercase;
+`
+
+const shimmer = keyframes`
+  to {
+    background-position: -200% 0;
+  }
+`
+
+const Shimmer = styled.span`
+  display: block;
+  background: linear-gradient(
+    100deg,
+    rgba(255, 255, 255, 0.08) 30%,
+    rgba(255, 255, 255, 0.2) 50%,
+    rgba(255, 255, 255, 0.08) 70%
+  );
+  background-size: 200% 100%;
+  animation: ${shimmer} 1.4s infinite linear;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+`
+
+export const SkAmount = styled(Shimmer)`
+  width: 60%;
+  height: 30px;
+  border-radius: ${theme.radius.chip};
+`
+
+export const SkArt = styled(Shimmer)`
+  width: 253.5px;
+  max-width: 100%;
+  aspect-ratio: 1;
+  border-radius: 16px;
+`
+
+export const SkPrice = styled(Shimmer)`
+  width: 100%;
+  height: 48px;
+  border-radius: ${theme.radius.card};
+`
+
+export const Muted = styled.p`
+  margin: 0;
+  font-family: ${theme.font.sans};
+  color: ${theme.colors.muted};
+`
+
+export const RedirectStatus = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 48px 24px;
+  text-align: center;
+`
+
+const pulse = keyframes`
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(0.88);
+    opacity: 0.7;
+  }
+`
+
+export const Processing = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+  padding: 64px 24px;
+  min-height: 42vh;
+`
+
+export const ProcessingLogo = styled.img`
+  width: 61px;
+  height: 61px;
+  animation: ${pulse} 1.2s ease-in-out infinite;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+`
+
+export const ProcessingBody = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+`
+
+export const ProcessingTitle = styled.p`
+  margin: 0;
+  font-family: ${theme.font.sans};
+  font-size: 20px;
+  line-height: 1.6;
+  color: ${theme.colors.text2};
+
+  strong {
+    font-weight: 700;
+  }
+`
+
+export const Progress = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`
+
+const indeterminate = keyframes`
+  0% {
+    left: -40%;
+  }
+  100% {
+    left: 100%;
+  }
+`
+
+export const ProgressTrack = styled.span`
+  position: relative;
+  width: 456px;
+  max-width: 60vw;
+  height: 12px;
+  border-radius: ${theme.radius.pill};
+  background: ${theme.colors.chip};
+  overflow: hidden;
+`
+
+export const ProgressFill = styled.span`
+  position: absolute;
+  top: 0;
+  left: -40%;
+  width: 40%;
+  height: 100%;
+  border-radius: ${theme.radius.pill};
+  background: ${theme.gradients.amethyst};
+  animation: ${indeterminate} 1.4s ease-in-out infinite;
+
+  @media (prefers-reduced-motion: reduce) {
+    left: 0;
+    width: 30%;
+    animation: none;
+  }
+`
+
+export const ProgressCount = styled.span`
+  font-family: ${theme.font.sans};
+  font-size: 16px;
+  line-height: 22px;
+  color: ${theme.colors.text2};
+`
+
+export const Success = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 895px;
+  margin: 0 auto;
+`
+
+export const Banner = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 24px 16px;
+  border-radius: 16px;
+  background: #e0f7e7;
+  border: 1px solid #34ce77;
+
+  @media (max-width: 560px) {
+    flex-direction: column;
+    text-align: center;
+  }
+`
+
+export const BannerIcon = styled.img`
+  flex: none;
+  width: 60px;
+  height: 60px;
+`
+
+export const BannerText = styled.p`
+  flex: 1;
+  margin: 0;
+  font-family: ${theme.font.sans};
+  font-size: 20px;
+  line-height: 1.334;
+  color: ${theme.colors.text2};
+  text-align: center;
+
+  strong {
+    font-weight: 700;
+  }
+`
+
+export const CreditsPanel = styled.div`
+  padding: 24px;
+  border-radius: 16px;
+  background: ${theme.colors.white};
+  border: 1px solid ${theme.colors.gray4};
+`
+
+export const CreditsRow = styled.div`
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 109px;
+  padding: 8px 24px 8px 150px;
+  border-radius: ${theme.radius.btn};
+  background: #f4e9ff;
+
+  @media (max-width: 560px) {
+    flex-direction: column;
+    gap: 10px;
+    padding: 120px 16px 16px;
+  }
+`
+
+export const CreditsCoin = styled.img`
+  position: absolute;
+  left: 35px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 93px;
+  height: 93px;
+  filter: drop-shadow(5px 7px 14px rgba(0, 0, 0, 0.17));
+
+  @media (max-width: 560px) {
+    left: 50%;
+    top: 16px;
+    transform: translateX(-50%);
+  }
+`
+
+export const CreditsText = styled.p`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-family: ${theme.font.sans};
+  color: ${theme.colors.text};
+
+  .ico {
+    width: 30px;
+    height: 30px;
+    color: ${theme.colors.text};
+  }
+`
+
+export const CreditsAmount = styled.strong`
+  font-size: 24px;
+  font-weight: 700;
+  text-transform: capitalize;
+`
+
+export const CreditsAdded = styled.span`
+  font-size: 14px;
+  font-weight: 400;
+`
+
+export const Actions = styled.div`
+  display: flex;
+  gap: 12px;
+
+  @media (max-width: 560px) {
+    flex-direction: column;
+  }
+`
+
+export const ActionButton = styled.button`
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 48px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: ${theme.radius.btn};
+  background: ${theme.colors.accent};
+  font-family: ${theme.font.sans};
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.046em;
+  color: ${theme.colors.softWhite};
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    filter 0.15s ease;
+
+  &:hover {
+    filter: brightness(1.08);
+  }
+  &[data-variant='outline'] {
+    background: ${theme.colors.white};
+    border: 2px solid ${theme.colors.accent};
+    color: ${theme.colors.accent};
+  }
+  &[data-variant='outline']:hover {
+    background: rgba(105, 31, 169, 0.06);
+    filter: none;
+  }
+  &:focus-visible {
+    outline: 2px solid ${theme.colors.accent};
+    outline-offset: 2px;
+  }
+`
+
+export const StatusPanel = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 48px 24px;
+  text-align: center;
+`
+
+export const StatusTitle = styled.p`
+  margin: 0;
+  font-family: ${theme.font.sans};
+  font-size: 20px;
+  font-weight: 700;
+  color: ${theme.colors.text};
+
+  &[data-tone='error'] {
+    color: ${theme.colors.err};
+  }
+`
+
+export const StatusActions = styled.div`
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+`
+
+export const ErrorText = styled.p`
+  margin: 0;
+  font-family: ${theme.font.sans};
+  color: ${theme.colors.err};
+`
