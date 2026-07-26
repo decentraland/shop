@@ -64,11 +64,11 @@ export const config = {
   // Checksum address that receives sale proceeds when the flag is ON — ops-provided per env. Empty when
   // the flag is OFF (never read in that case). The signing path guards on a non-empty value, so a
   // misconfigured ON flag can never route proceeds to an empty beneficiary.
-  // dev/Amoy points at the real testnet treasury and has the flag ON, for end-to-end validation of the
-  // flow. stg/prod stay OFF with an empty address until the feature is signed off.
+  // dev/Amoy points at the real testnet treasury; stg/prod stay empty until the feature is signed off.
   //
-  // ORDERING, if this is ever re-enabled from scratch: credits-server's consumer must be live with
-  // PROCEEDS_TO_TREASURY=true FIRST. With the flag on here and the consumer off, listings route their MANA
-  // to the treasury and nobody credits the seller — recoverable on a testnet, not on mainnet.
+  // The ADDRESS is all this file needs to contribute. Whether proceeds are actually routed is decided at
+  // runtime by the `dapps-proceeds-to-treasury` feature flag, so the flow can be started and stopped without
+  // a deploy — and an empty address here makes routing impossible regardless of that flag, which is what
+  // keeps stg/prod safe.
   treasuryAddress: String(env.VITE_TREASURY_ADDRESS ?? base.get('TREASURY_ADDRESS') ?? '')
 }
