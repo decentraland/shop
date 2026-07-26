@@ -130,9 +130,9 @@
   },
   "cart": {
     "empty": {
-      "title": "Tu carrito está vacío",
-      "body": "Encuentra algo que te guste y aparecerá aquí.",
-      "cta": "Ver coleccionables"
+      "title": "¡Aquí no hay nada... todavía!",
+      "body": "Explora el Marketplace y descubre tu próximo artículo favorito.",
+      "cta": "Empieza a comprar"
     },
     "panelTitle": "Carrito: {count, plural, one {# artículo} other {# artículos}}",
     "goBack": "Volver",
@@ -153,7 +153,8 @@
     "allUnavailable": "Ninguno de estos artículos está disponible. Elimínalos para seguir comprando.",
     "availability": {
       "soldOut": "Agotado",
-      "unavailable": "Ya no está disponible"
+      "unavailable": "Ya no está disponible",
+      "viewResales": "Ver reventas"
     },
     "youMightAlsoLike": "También te puede gustar",
     "status": {
@@ -452,7 +453,13 @@
     "showItems": "Mostrar artículos",
     "marketUnavailable": "Algunos precios de mercado no están disponibles temporalmente; la compra de esos artículos está pausada por un momento. Inténtalo de nuevo en breve.",
     "loadError": "No pudimos cargar los artículos. Inténtalo de nuevo.",
-    "noItems": "Ningún artículo coincide con tus filtros."
+    "empty": {
+      "title": "¡Vaya! No encontramos nada.",
+      "searchBefore": "No encontramos resultados para “",
+      "searchAfter": "”. Prueba con otra búsqueda o explora la Tienda.",
+      "filters": "No encontramos resultados para los filtros seleccionados. Ajusta los filtros o explora la Tienda.",
+      "cta": "Explorar la Tienda"
+    }
   },
   "myAssets": {
     "signInPrompt": "Inicia sesión para vender tus artículos.",
@@ -517,8 +524,9 @@
     "creditPaid": "Pagaste {usd}"
   },
   "myFavorites": {
-    "emptyTitle": "Aún no tienes favoritos",
-    "emptyBody": "Toca el corazón en cualquier artículo para guardarlo aquí.",
+    "emptyTitle": "¡Aquí no hay nada... todavía!",
+    "emptyBody": "Empieza a explorar y guarda los artículos que te gusten para tenerlos a mano más tarde.",
+    "emptyCta": "Empieza a explorar",
     "itemCount": "{count, plural, one {# artículo} other {# artículos}}"
   },
   "overview": {
@@ -785,11 +793,17 @@
     "tooShort": "Los NAMEs deben tener al menos {min} caracteres.",
     "checkError": "No pudimos comprobar ese NAME ahora mismo; aún puedes intentar reclamarlo.",
     "whyTitle": "¿Por qué comprar un NAME?",
-    "why1": "Destaca con un alias único para tu avatar",
-    "why2": "Desbloquea tu World y personaliza tu propio espacio 3D para organizar eventos",
-    "why2Link": "Más información",
-    "why3": "Una URL exclusiva para tus espacios virtuales que guía a los visitantes hasta tu LAND",
-    "why3Link": "http://tunombre.dcl.eth",
+    "whyIntro": "Tu NAME es tu identidad única en Decentraland. Aparece sobre tu avatar, en el chat y en las fotos, ayudando a que la gente te reconozca y te recuerde vayas donde vayas.",
+    "why1Title": "Haz tuya tu identidad",
+    "why1": "Destaca con un NAME único que es inconfundiblemente tuyo.",
+    "why2Title": "Desbloquea tu propio World",
+    "why2": "Crea y personaliza un espacio 3D propio con una dirección como",
+    "why2Address": "yourname.dcl.eth.",
+    "why3Title": "Invita a tus amigos y gana",
+    "why3": "Comparte tu enlace de invitación y gana recompensas cuando tus amigos se unan.",
+    "why4Title": "Ten voz en el futuro de Decentraland",
+    "why4": "Participa en las decisiones de la comunidad y ayuda a definir lo que viene.",
+    "learnMore": "Más información",
     "buyTitle": "Comprar NAME",
     "myCreditsBalance": "Mi saldo de créditos:",
     "subtitle": "Decentraland NAMEs",

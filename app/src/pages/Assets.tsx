@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { fetchShopItems, type CatalogItem, type LegacyListing, type UnifiedListing } from '~/lib/api'
 import { fetchCatalogItems } from '~/lib/collections'
@@ -21,6 +21,7 @@ import { track } from '~/lib/analytics'
 import { t } from '~/intl/i18n'
 import { ErrorNotice } from '~/components/ErrorNotice'
 import { NamesPage } from '~/pages/NamesPage'
+import emptyIllustration from '~/assets/error/search-empty.svg'
 import * as S from './Assets.styles'
 
 // Items fetched per page (infinite scroll pages by cumulative offset — see useInfiniteGrid).
@@ -55,6 +56,7 @@ function toLegacyListing(item: UnifiedListing): LegacyListing {
 
 export function Assets() {
   const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
   const q = (searchParams.get('q') ?? '').trim().toLowerCase()
   const qc = useQueryClient()
   const { session, signIn } = useWallet()
@@ -319,42 +321,65 @@ export function Assets() {
 
             {error ? <ErrorNotice message={t('assets.loadError')} testId="browse-error" /> : null}
 
-            <div className="grid" data-testid="grid">
-              {showGridSkeletons ? (
-                <SkeletonCards count={gridSkeletonCount} />
-              ) : (
-                <>
-                  {items.map(item => {
-                    // View-only grids ('all' / 'not_for_sale'): every card is a VIEW card (no inline trade).
-                    if (!isUnified) return <AssetCard key={listingKey(item)} item={item} mode="view" />
-                    // On-sale unified grid: legacy rows → market (≈ + Buy now), native → Add-to-cart.
-                    const unified = item as UnifiedListing
-                    return unified.source === 'legacy' ? (
-                      <AssetCard
-                        key={listingKey(item)}
-                        item={unified}
-                        mode="market"
-                        marketPriceCredits={priceOf(unified)}
-                        onBuyNow={openCheckout}
-                      />
+            {!showGridSkeletons && items.length === 0 && !error ? (
+              <S.EmptyState data-testid="browse-empty">
+                <S.EmptyIcon src={emptyIllustration} alt="" />
+                <S.EmptyText>
+                  <S.EmptyTitle>{t('assets.empty.title')}</S.EmptyTitle>
+                  <S.EmptyBody>
+                    {rawQuery ? (
+                      <>
+                        {t('assets.empty.searchBefore')}
+                        <b>{rawQuery}</b>
+                        {t('assets.empty.searchAfter')}
+                      </>
                     ) : (
-                      <AssetCard key={listingKey(item)} item={item} />
-                    )
-                  })}
-                  {isFetchingNextPage ? <SkeletonCards count={6} /> : null}
-                </>
-              )}
-            </div>
+                      t('assets.empty.filters')
+                    )}
+                  </S.EmptyBody>
+                </S.EmptyText>
+                <S.EmptyCta>
+                  <S.EmptyBtn type="button" onClick={() => navigate('/overview')}>
+                    {t('assets.empty.cta')}
+                  </S.EmptyBtn>
+                </S.EmptyCta>
+              </S.EmptyState>
+            ) : (
+              <>
+                <div className="grid" data-testid="grid">
+                  {showGridSkeletons ? (
+                    <SkeletonCards count={gridSkeletonCount} />
+                  ) : (
+                    <>
+                      {items.map(item => {
+                        // View-only grids ('all' / 'not_for_sale'): every card is a VIEW card (no inline trade).
+                        if (!isUnified) return <AssetCard key={listingKey(item)} item={item} mode="view" />
+                        // On-sale unified grid: legacy rows → market (≈ + Buy now), native → Add-to-cart.
+                        const unified = item as UnifiedListing
+                        return unified.source === 'legacy' ? (
+                          <AssetCard
+                            key={listingKey(item)}
+                            item={unified}
+                            mode="market"
+                            marketPriceCredits={priceOf(unified)}
+                            onBuyNow={openCheckout}
+                          />
+                        ) : (
+                          <AssetCard key={listingKey(item)} item={item} />
+                        )
+                      })}
+                      {isFetchingNextPage ? <SkeletonCards count={6} /> : null}
+                    </>
+                  )}
+                </div>
 
-            <LoadMore
-              hasNextPage={hasNextPage}
-              isFetching={isFetchingNextPage}
-              onLoadMore={() => void fetchNextPage()}
-            />
-
-            {!isLoading && !isPlaceholderData && items.length === 0 ? (
-              <p className="muted">{t('assets.noItems')}</p>
-            ) : null}
+                <LoadMore
+                  hasNextPage={hasNextPage}
+                  isFetching={isFetchingNextPage}
+                  onLoadMore={() => void fetchNextPage()}
+                />
+              </>
+            )}
           </>
         )}
       </S.Main>

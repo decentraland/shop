@@ -49,9 +49,7 @@ import { track, purchaseItemsProps, errorCode, isUserRejection, creditsToUsd } f
 import { captureError } from '~/lib/monitoring'
 import { CollectionCarousel } from '~/components/CollectionCarousel'
 import { CreatorBadge } from '~/components/CreatorBadge'
-import { Button } from '~/components/Button'
 import { Icon } from '~/components/Icon'
-import styled from '@emotion/styled'
 import type { CatalogItem } from '~/lib/api'
 import type { SuccessNavState } from '~/pages/Success'
 import './cart.css'
@@ -64,10 +62,6 @@ export type CartNavState = {
   // Credits that just landed, forwarded to the /success page for the combined credits+items view.
   creditsAdded?: number
 }
-
-const EmptyCta = styled(Button)`
-  margin-top: 12px;
-`
 
 // Cart-specific mapping: the "listing changed" message is plural (a multi-item cart), so it maps
 // locally rather than via the shared singular soldOrRemoved/cantBuyOwn.
@@ -770,13 +764,24 @@ export function Cart() {
 
   if (items.length === 0 && !modal) {
     return (
-      <div className="cart cart--empty">
-        <Icon name="cart" size={44} color="var(--muted-2)" />
-        <p className="cart-empty__title">{t('cart.empty.title')}</p>
-        <p className="muted">{t('cart.empty.body')}</p>
-        <EmptyCta as={Link} to="/assets" variant="purple">
-          {t('cart.empty.cta')}
-        </EmptyCta>
+      <div className="checkout checkout--empty">
+        <div className="checkout__top">
+          <button className="checkout__back" onClick={() => navigate(-1)} type="button">
+            <Icon name="arrow-left" />
+            {t('nav.cart')}
+          </button>
+
+          <section className="checkout__panel cart-empty" data-testid="cart-empty">
+            <Icon name="cart-plus" size={110} className="cart-empty__icon" />
+            <div className="cart-empty__text">
+              <p className="cart-empty__title">{t('cart.empty.title')}</p>
+              <p className="cart-empty__body">{t('cart.empty.body')}</p>
+            </div>
+            <Link className="cart-empty__cta" to="/assets">
+              {t('cart.empty.cta')}
+            </Link>
+          </section>
+        </div>
       </div>
     )
   }
@@ -883,9 +888,23 @@ export function Cart() {
                         </div>
                         <div className="checkout__foot">
                           {unavailable ? (
-                            /* Calm inline state — no price/stepper, just the reason. The trash button in
-                               checkout__actions is the one-tap remove. */
-                            <span className="checkout__unavailable">{unavailableLabel}</span>
+                            /* No price/stepper: a warning + the reason, plus a link to the item's resales.
+                               The trash button in checkout__actions is the one-tap remove. */
+                            <>
+                              <span className="checkout__unavailable">
+                                <Icon name="warning-fill" size={24} className="checkout__warn" aria-hidden />
+                                {unavailableLabel}
+                              </span>
+                              {detailPath ? (
+                                <Link
+                                  className="checkout__resales"
+                                  to={detailPath}
+                                  state={{ item, tradeId: item.tradeId }}
+                                >
+                                  {t('cart.availability.viewResales')}
+                                </Link>
+                              ) : null}
+                            </>
                           ) : (
                             <>
                               {/* Quantity stepper. PRIMARY (mint) lines can buy multiple copies: minus decrements

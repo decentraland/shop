@@ -21,6 +21,7 @@ export type IconName =
   | 'bell'
   | 'carousel-arrow'
   | 'cart'
+  | 'cart-plus'
   | 'buy-from-creator'
   | 'cart-solid'
   | 'check'
@@ -75,6 +76,7 @@ export type IconName =
   | 'twitter'
   | 'upload'
   | 'view-all-arrow'
+  | 'warning-fill'
   | 'website'
 
 type IconProps = {

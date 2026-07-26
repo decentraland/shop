@@ -10,11 +10,13 @@ afterEach(async () => {
 
 describe('browse with no listings', () => {
   it('renders the empty state on the assets grid', async () => {
-    // No unified listings → Assets renders "No items match your filters." (see src/pages/Assets.tsx).
+    // No unified listings → Assets renders its zero-results card (Figma empty state, see
+    // src/pages/Assets.tsx): "Oops! Nothing found." + the filters variant of the body + "Explore Shop".
     app = await launchApp({ path: '/assets', fixtures: { unifiedListings: { data: [], total: 0 } } })
     const { page } = app
 
-    await waitForText(page, 'No items match your filters')
+    await waitForText(page, 'Oops! Nothing found.')
+    await waitForText(page, 'Explore Shop')
     // The grid has no cards.
     expect(await page.evaluate(() => document.querySelectorAll('[data-testid="card"]').length)).toBe(0)
   })
