@@ -8,6 +8,9 @@ import { TopNav } from '~/components/TopNav'
 import { useWallet } from '~/store/wallet'
 import { useProfile } from '~/hooks/useProfile'
 import { useBalance, balanceLabel } from '~/hooks/useBalance'
+import { useManaBalance } from '~/hooks/useManaBalance'
+import { formatMana } from '~/lib/mana'
+import manaSymbol from '~/assets/mana-matic.svg'
 import { useCart } from '~/store/cart'
 import { CartPopover } from '~/components/CartPopover'
 import { SearchDropdown } from '~/components/SearchDropdown'
@@ -35,6 +38,9 @@ export function NavBar() {
   const address = session?.address
   const { data: avatar, isLoading: isLoadingProfile } = useProfile(address)
   const { data: balance, isError: balanceError, isLoading: balanceLoading } = useBalance(session)
+  // Polygon MANA the wallet already holds. Drives the navbar chip (rendered only when > 0) and, in the
+  // buy flow, which payment rails are offered. No skeleton: an absent/zero balance renders nothing.
+  const { data: manaBalanceWei } = useManaBalance(session)
   const cartCount = useCart(s => s.items.reduce((n, i) => n + i.quantity, 0))
   const openCart = useCart(s => s.setOpen)
   const navigate = useNavigate()
@@ -245,6 +251,16 @@ export function NavBar() {
             />
           ) : null}
         </div>
+        {/* Polygon MANA balance — shown ONLY when the wallet actually holds MANA (any wallet type,
+            managed ones included: a Magic/thirdweb account can hold MANA someone sent it). Sits to the
+            LEFT of the credits balance: credits stay the headline currency, MANA is the extra the buyer
+            happens to have. Hidden entirely at zero so the web2-first navbar shows no crypto by default. */}
+        {session && manaBalanceWei != null && manaBalanceWei > 0n ? (
+          <span className="subnav__mana" data-testid="subnav-mana-balance" title={t('nav.polygonMana')}>
+            <img className="subnav__mana-ico" src={manaSymbol} alt="" aria-hidden />
+            {formatMana(manaBalanceWei)}
+          </span>
+        ) : null}
         {session ? (
           <span
             className="subnav__balance"

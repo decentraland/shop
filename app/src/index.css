@@ -1265,6 +1265,26 @@ h2 {
   height: 20px;
   color: var(--text);
 }
+/* Polygon MANA balance chip — same metrics as the credits balance so the pair reads as one row. Only
+   rendered when the wallet holds MANA (see NavBar). */
+.subnav__mana {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 40px;
+  padding: 0 4px;
+  border-radius: 4px;
+  color: #242129;
+  font-weight: 600;
+  font-size: 16px;
+  letter-spacing: -0.03em;
+  white-space: nowrap;
+}
+.subnav__mana-ico {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
 /* Content-shaped placeholder for the balance number while the credits query loads (no flash of "0"). */
 .subnav__balance-skel {
   display: inline-block;
