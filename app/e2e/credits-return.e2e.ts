@@ -47,8 +47,8 @@ describe('get credits — Stripe return handling', () => {
 
     // The canceled note renders and the pack grid stays intact (all four packs).
     await waitForText(page, 'Payment canceled')
-    await page.waitForSelector('.pack', { timeout: 20000 })
-    expect(await page.evaluate(() => document.querySelectorAll('.pack').length)).toBe(4)
+    await page.waitForSelector('[data-testid="pack"]', { timeout: 20000 })
+    expect(await page.evaluate(() => document.querySelectorAll('[data-testid="pack"]').length)).toBe(4)
 
     // A cancel is not an error state.
     expect(await page.$('.error-notice')).toBeNull()

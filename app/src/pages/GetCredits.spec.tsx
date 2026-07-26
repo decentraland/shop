@@ -103,7 +103,7 @@ describe('when the pack catalogue is still loading', () => {
     // Don't seed the cache: force the real loading path.
     const { container } = renderPage('/', { seedPacks: false })
 
-    expect(container.querySelectorAll('.pack--skeleton').length).toBe(4)
+    expect(container.querySelectorAll('[data-testid="pack-skeleton"]').length).toBe(4)
     // The real (clickable) packs are not rendered yet.
     expect(screen.queryByRole('button', { name: /250 credits for \$25/i })).not.toBeInTheDocument()
   })
