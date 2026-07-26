@@ -79,13 +79,14 @@ describe('useProceedsToTreasury', () => {
     await waitFor(() => expect(result.current).toBe(false))
   })
 
-  it('should be false regardless of the flag when the build is not provisioned', async () => {
-    // The AND with the per-env config: stg/prod ship with an empty treasury address, so even a globally
-    // enabled flag must not make those builds claim credits.
+  it('should follow the flag only when a treasury address is configured', async () => {
+    // The address is the remaining provisioning guard: stg/prod ship with it empty, so a globally enabled
+    // flag must not make those builds claim credits. It is NOT a second switch — the flag is the only switch;
+    // an empty address simply makes routing impossible.
     mockFlag(true)
-    const provisioned = config.proceedsToTreasury && !!config.treasuryAddress
+    const hasAddress = !!config.treasuryAddress
     const { result } = renderHook(() => useProceedsToTreasury(), { wrapper })
 
-    await waitFor(() => expect(result.current).toBe(provisioned))
+    await waitFor(() => expect(result.current).toBe(hasAddress))
   })
 })
