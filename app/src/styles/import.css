@@ -48,7 +48,7 @@
   gap: 7px;
 }
 .imp__diamond {
-  color: var(--accent);
+  color: var(--text);
 }
 
 .imp__section {
@@ -196,7 +196,7 @@
   box-shadow: 0 0 0 3px var(--rarity-bg);
 }
 .imp-price__diamond {
-  color: var(--accent);
+  color: var(--text);
   font-size: 15px;
 }
 .imp-price__input {
