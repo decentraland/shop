@@ -5,7 +5,7 @@
   "NFT_API_URL": "https://marketplace-api.decentraland.zone",
   "AUTH_URL": "/auth",
   "RPC_URL": "https://rpc.decentraland.org/amoy",
-  "CREDITS_SERVER_URL": "https://credits.decentraland.zone",
+  "CREDITS_SERVER_URL": "http://localhost:",
   "BUILDER_SERVER_URL": "https://builder-api.decentraland.zone",
   "PEER_URL": "https://peer.decentraland.zone",
   "PROFILE_URL": "https://decentraland.zone/profile",
