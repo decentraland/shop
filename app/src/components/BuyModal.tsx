@@ -279,6 +279,7 @@ export function BuyModal({
       role="dialog"
       aria-modal="true"
       aria-label={t('buyModal.dialogAria', { name: item.name })}
+      data-testid="buy-modal"
     >
       <div className="buy-modal__scrim" onClick={busy ? undefined : onClose} aria-hidden />
       <div
@@ -455,9 +456,7 @@ function AssetRow({ item, priceCredits }: { item: CatalogItem; priceCredits: num
           <div className="buy-modal__asset-name" title={item.name}>
             {item.name || t('buyModal.itemFallback')}
           </div>
-          {item.creator ? (
-            <CreatorName address={item.creator} className="buy-modal__asset-creator" />
-          ) : null}
+          {item.creator ? <CreatorName address={item.creator} className="buy-modal__asset-creator" /> : null}
         </div>
         <div className="buy-modal__asset-price">
           <CurrencyIcon className="buy-modal__asset-price-ico" />
