@@ -235,7 +235,7 @@ type ShopListingRaw = {
   // Secondary (per-token) rows only: the token's current owner (the reseller) + its mint index. Added
   // to the shop feed so the PDP resale list can show who's selling + the serial number WITHOUT an N+1
   // /v1/nfts lookup per row. Absent until the marketplace-server change ships — the PDP falls back to
-  // the per-token lookup for any row still missing them (see ItemResales).
+  // the per-token lookup for any row still missing them (see ResellersModal).
   seller?: string
   issuedId?: string
   // Flash sale, when the shop catalog resolves this listing as on-sale: the pre-sale price (whole

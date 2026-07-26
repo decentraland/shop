@@ -521,6 +521,7 @@ export function BuyModal({
       role="dialog"
       aria-modal="true"
       aria-label={t('buyModal.dialogAria', { name: item.name })}
+      data-testid="buy-modal"
     >
       <div className="buy-modal__scrim" onClick={busy ? undefined : onClose} aria-hidden />
       <div
