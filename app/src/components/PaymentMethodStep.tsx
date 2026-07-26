@@ -2,35 +2,30 @@ import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { CreatorName } from '~/components/CreatorName'
 import { Icon } from '~/components/Icon'
 import { formatCredits } from '~/lib/currency'
-import { formatMana } from '~/lib/mana'
+import { formatMana } from '~/lib/mana-format'
+import { creditsFromCents, type PaymentMethod, type PaymentOption } from '~/lib/payment-options'
 import { t } from '~/intl/i18n'
 import type { CatalogItem } from '~/lib/api'
+import manaSymbol from '~/assets/mana-matic.svg'
 import * as S from './PaymentMethodStep.styles'
 
-export type PaymentMethod = 'credits' | 'mana'
+export type { PaymentMethod }
 
 /**
- * The "Choose your payment method" step (Figma 1552-316605). Shown only to buyers who ALREADY hold
- * MANA — it lets them settle the purchase directly in MANA instead of the default credits rail.
+ * The "Choose your payment method" step of the Buy Now flow (Figma 1552-316605). Shown only to buyers
+ * who already hold MANA; it lets them settle with credits, with MANA, or with BOTH.
  *
- * Single-select for this iteration (a radio-style choice). Credits is the default and is always
- * affordable here (the modal only reaches this step from the enough-credits branch). The MANA row is
- * greyed + non-selectable when the wallet's MANA doesn't cover the price ("Not enough MANA"), steering
- * the buyer to credits.
- *
- * COMBINED credits + MANA (stretch, NOT built): the checkbox styling is intentional — a future
- * iteration could allow BOTH rows checked and split payment (credits leg + MANA remainder via
- * CreditsManager.useCredits maxUncreditedValue). To wire it: lift `selected` to a Set<PaymentMethod>,
- * allow toggling both, and branch the parent's Buy handler to a combined settlement (see the NOTE in
- * lib/buy-mana.ts). Kept single-select here so the two simple rails ship first.
+ * The rows are whatever `options` says the buyer's balances actually support (see lib/payment-options):
+ * credits alone, credits + MANA for the remainder, and/or MANA alone. Nothing unaffordable is rendered
+ * — no greyed dead ends — so every row shown is a payment the buyer can actually complete.
+ * Single-select; the caller pre-selects `preferred` (credits first, MANA last).
  */
 export function PaymentMethodStep({
   item,
   priceCredits,
-  creditsBalance,
-  priceManaWei,
+  balanceCents,
   manaBalanceWei,
-  manaSufficient,
+  options,
   selected,
   onSelect,
   onBuy,
@@ -39,16 +34,92 @@ export function PaymentMethodStep({
 }: {
   item: CatalogItem
   priceCredits: number
-  creditsBalance: number
-  priceManaWei: bigint
+  /** The buyer's credit balance in cents (shown on the credits / combined rows). */
+  balanceCents: number
+  /** The buyer's MANA balance in wei (shown on the MANA / combined rows). */
   manaBalanceWei: bigint
-  manaSufficient: boolean
+  /** The offerable options, already filtered + ordered by lib/payment-options. */
+  options: PaymentOption[]
   selected: PaymentMethod
   onSelect: (method: PaymentMethod) => void
   onBuy: () => void
   onClose: () => void
   busy?: boolean
 }) {
+  const creditsBalance = creditsFromCents(balanceCents)
+
+  // Label, marks and amounts per row — one place so the three rows stay visually consistent.
+  function rowContent(option: PaymentOption) {
+    if (option.method === 'credits') {
+      return {
+        label: t('buyModal.methodCredits'),
+        logo: (
+          <S.Logo>
+            <CurrencyIcon />
+          </S.Logo>
+        ),
+        balance: (
+          <>
+            {t('buyModal.creditsBalanceLabel')} <CurrencyIcon />
+            <S.BalanceValue>{formatCredits(creditsBalance)}</S.BalanceValue>
+          </>
+        ),
+        price: (
+          <S.Price>
+            <CurrencyIcon />
+            <span>{formatCredits(creditsFromCents(option.creditsCents))}</span>
+          </S.Price>
+        )
+      }
+    }
+    if (option.method === 'mana') {
+      return {
+        label: t('buyModal.methodMana'),
+        logo: <S.ManaLogo src={manaSymbol} alt="" aria-hidden />,
+        balance: (
+          <>
+            {t('buyModal.manaBalanceLabel')} <S.ManaMini src={manaSymbol} alt="" aria-hidden />
+            <S.BalanceValue>{formatMana(manaBalanceWei)}</S.BalanceValue>
+          </>
+        ),
+        price: (
+          <S.Price>
+            <S.ManaPriceIco src={manaSymbol} alt="" aria-hidden />
+            <span>{formatMana(option.manaWei)}</span>
+          </S.Price>
+        )
+      }
+    }
+    // Combined: the whole credit balance goes first, MANA covers the remainder.
+    return {
+      label: t('buyModal.methodCombined'),
+      logo: (
+        <S.DualLogo>
+          <CurrencyIcon />
+          <img src={manaSymbol} alt="" aria-hidden />
+        </S.DualLogo>
+      ),
+      balance: (
+        <>
+          {t('buyModal.creditsBalanceLabel')} <CurrencyIcon />
+          <S.BalanceValue>{formatCredits(creditsBalance)}</S.BalanceValue>
+          <S.Plus>+</S.Plus>
+          <S.ManaMini src={manaSymbol} alt="" aria-hidden />
+          <S.BalanceValue>{formatMana(manaBalanceWei)}</S.BalanceValue>
+        </>
+      ),
+      price: (
+        <S.SplitPrice>
+          <CurrencyIcon />
+          <span>{formatCredits(creditsFromCents(option.creditsCents))}</span>
+          <S.Plus>+</S.Plus>
+          <img src={manaSymbol} alt="" aria-hidden />
+          <span>{formatMana(option.manaWei)}</span>
+        </S.SplitPrice>
+      )
+    }
+  }
+
   return (
     <S.Root>
       <S.Head>
@@ -77,84 +148,38 @@ export function PaymentMethodStep({
       </S.AssetCard>
 
       <S.Options role="radiogroup" aria-label={t('buyModal.choosePayment')}>
-        {/* Credits — the default rail (always affordable at this step). */}
-        <S.OptionRow
-          type="button"
-          role="radio"
-          aria-checked={selected === 'credits'}
-          data-selected={selected === 'credits'}
-          onClick={() => onSelect('credits')}
-        >
-          <S.LeftSlot>
-            <S.CheckBox data-checked={selected === 'credits'}>
-              {selected === 'credits' ? <Icon name="check" /> : null}
-            </S.CheckBox>
-          </S.LeftSlot>
-          <S.Content>
-            <S.InfoGroup>
-              <S.Logo>
-                <CurrencyIcon />
-              </S.Logo>
-              <S.TextBlock>
-                <S.Label>{t('buyModal.methodCredits')}</S.Label>
-                <S.BalanceRow>
-                  {t('buyModal.creditsBalanceLabel')} <CurrencyIcon />
-                  <S.BalanceValue>{formatCredits(creditsBalance)}</S.BalanceValue>
-                </S.BalanceRow>
-              </S.TextBlock>
-            </S.InfoGroup>
-            <S.Price>
-              <CurrencyIcon />
-              <span>{formatCredits(priceCredits)}</span>
-            </S.Price>
-          </S.Content>
-        </S.OptionRow>
-
-        {/* MANA — direct on-chain settlement; greyed + non-selectable when the balance is short. */}
-        <S.OptionRow
-          type="button"
-          role="radio"
-          aria-checked={selected === 'mana'}
-          aria-disabled={!manaSufficient}
-          data-selected={selected === 'mana'}
-          data-disabled={!manaSufficient}
-          onClick={() => {
-            if (manaSufficient) onSelect('mana')
-          }}
-        >
-          <S.LeftSlot>
-            <S.CheckBox data-checked={selected === 'mana'}>
-              {selected === 'mana' ? <Icon name="check" /> : null}
-            </S.CheckBox>
-          </S.LeftSlot>
-          <S.Content>
-            <S.InfoGroup>
-              <S.Logo>
-                <Icon name="mana-logo" />
-              </S.Logo>
-              <S.TextBlock>
-                <S.Label>{t('buyModal.methodMana')}</S.Label>
-                <S.BalanceRow>
-                  {manaSufficient ? (
-                    <>
-                      {t('buyModal.manaBalanceLabel')} <Icon name="mana-logo" />
-                      <S.BalanceValue>{formatMana(manaBalanceWei)}</S.BalanceValue>
-                    </>
-                  ) : (
-                    <S.Hint>{t('buyModal.notEnoughMana')}</S.Hint>
-                  )}
-                </S.BalanceRow>
-              </S.TextBlock>
-            </S.InfoGroup>
-            <S.Price>
-              <Icon name="mana-logo" />
-              <span>{formatMana(priceManaWei)}</span>
-            </S.Price>
-          </S.Content>
-        </S.OptionRow>
+        {options.map(option => {
+          const { label, logo, balance, price } = rowContent(option)
+          const isSelected = selected === option.method
+          return (
+            <S.OptionRow
+              key={option.method}
+              type="button"
+              role="radio"
+              aria-checked={isSelected}
+              data-selected={isSelected}
+              data-testid={`pay-with-${option.method}`}
+              onClick={() => onSelect(option.method)}
+            >
+              <S.LeftSlot>
+                <S.CheckBox data-checked={isSelected}>{isSelected ? <Icon name="check" /> : null}</S.CheckBox>
+              </S.LeftSlot>
+              <S.Content>
+                <S.InfoGroup>
+                  {logo}
+                  <S.TextBlock>
+                    <S.Label>{label}</S.Label>
+                    <S.BalanceRow>{balance}</S.BalanceRow>
+                  </S.TextBlock>
+                </S.InfoGroup>
+                {price}
+              </S.Content>
+            </S.OptionRow>
+          )
+        })}
       </S.Options>
 
-      <S.BuyBtn type="button" onClick={onBuy} disabled={busy}>
+      <S.BuyBtn type="button" data-testid="pay-confirm" onClick={onBuy} disabled={busy}>
         {t('buyModal.buy')}
       </S.BuyBtn>
     </S.Root>

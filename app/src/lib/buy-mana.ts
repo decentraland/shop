@@ -15,6 +15,7 @@ import {
   metaTxProviderShim,
   readProvider
 } from '~/lib/authorizations'
+import { buyWithCredits, type SpendableCredit } from '~/lib/buy'
 import { gaslessConfig } from '~/lib/gasless-config'
 import { amoyGasOverrides, getOnChainTrade } from '~/lib/trade-encoding'
 
@@ -97,4 +98,60 @@ export async function buyWithMana(opts: {
   onSigned?.()
   const receipt = await tx.wait()
   return receipt.transactionHash
+}
+
+/**
+ * Buy a listing paying with CREDITS FIRST and covering the remainder in MANA — one signature, one tx.
+ *
+ * This is the CreditsManager's own mixed-payment rail, not a second settlement path: useCredits()
+ * takes a `maxUncreditedValue`, the MANA the buyer covers out of pocket when the credits don't reach
+ * the price. The contract pulls that MANA up front, runs accept([trade]), and refunds whatever it
+ * didn't need — so an over-estimated gap costs the buyer nothing.
+ *
+ * Two things make it work:
+ *   • The credit is sized to the buyer's BALANCE (not the item price) by the credits-server, so its
+ *     value is short of the trade — the gap is exactly what MANA must cover.
+ *   • maxCreditedValue is set to `credits + gap`, which is how buildUseCreditsArgs derives
+ *     maxUncreditedValue = gap.
+ *
+ * The MANA allowance points at the CREDITSMANAGER here (the marketplace never touches the buyer's
+ * MANA in this rail) — the same account-level 'credits' allowance the top-up flow grants, so a buyer
+ * who has ever used credits is already approved. Contrast buyWithMana above, which approves the
+ * MARKETPLACE because it calls accept() directly.
+ *
+ * Note this rail CANNOT be used for a pure-MANA purchase: useCredits reverts with NoCredits() when
+ * given an empty credits array, which is why buyWithMana exists.
+ */
+export async function buyWithCreditsAndMana(opts: {
+  trade: Trade
+  buyer: string
+  signer: ethers.providers.JsonRpcSigner
+  /** The ephemeral credit(s) the server signed, sized to the buyer's credit balance. */
+  credits: SpendableCredit[]
+  /** MANA (wei) the buyer covers out of pocket. MUST be <= their balance; unused MANA is refunded. */
+  manaGapWei: bigint
+}): Promise<string> {
+  const { trade, buyer, signer, credits, manaGapWei } = opts
+  if (credits.length === 0) throw new Error('No credits to spend — use buyWithMana for a MANA-only purchase')
+  if (manaGapWei <= 0n) throw new Error('No MANA gap to cover — use buyWithCredits for a credits-only purchase')
+
+  const mana = getContract(ContractName.MANAToken, trade.chainId)
+  const creditsManager = getContract(ContractName.CreditsManager, trade.chainId)
+
+  // Let the CreditsManager pull the MANA leg (gasless; no-op when already approved).
+  await ensureAuthorization({
+    auth: {
+      kind: AuthorizationKind.Allowance,
+      contractAddress: mana.address,
+      spenderAddress: creditsManager.address,
+      chainId: trade.chainId
+    },
+    signer
+  })
+
+  // maxCreditedValue = the credits' value + the MANA gap, so the contract's uncredited leg is the gap.
+  const creditsValue = credits.reduce((acc, c) => acc + BigInt(c.availableAmount), 0n)
+  const maxCreditedValue = (creditsValue + manaGapWei).toString()
+
+  return buyWithCredits({ trade, buyer, signer, credits, maxCreditedValue })
 }

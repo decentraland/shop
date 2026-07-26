@@ -270,6 +270,7 @@
     "choosePayment": "Choose your payment method",
     "methodCredits": "Credits",
     "methodMana": "MANA",
+    "methodCombined": "Credits + MANA",
     "creditsBalanceLabel": "Credits Balance:",
     "manaBalanceLabel": "Mana Balance:",
     "notEnoughMana": "Not enough MANA",

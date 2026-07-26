@@ -104,6 +104,11 @@ export function computePaymentOptions(input: {
   return { options, preferred }
 }
 
+/** Cents → whole credits (1 credit = 10 cents), for display next to a MANA amount. */
+export function creditsFromCents(cents: number): number {
+  return Number.isFinite(cents) ? Math.max(0, cents) / 10 : 0
+}
+
 /** Convenience: does the buyer have any way to pay for this item right now? */
 export function hasPayableOption(o: PaymentOptions): boolean {
   return o.options.length > 0

@@ -314,3 +314,80 @@ export const BuyBtn = styled.button`
     cursor: default;
   }
 `
+
+// ---- MANA marks -------------------------------------------------------------------------------
+// The MANA symbol is the marketplace's full-colour Polygon MANA logo, so it renders as an <img>
+// (the mask-based Icon would flatten it to a monochrome tint). Three sizes to match the credits
+// mark in each slot: row logo, balance line, price.
+
+export const ManaLogo = styled.img`
+  flex: none;
+  width: 32px;
+  height: 32px;
+  display: block;
+`
+
+export const ManaMini = styled.img`
+  width: 11px;
+  height: 11px;
+  display: block;
+`
+
+export const ManaPriceIco = styled.img`
+  width: 20px;
+  height: 20px;
+  display: block;
+`
+
+// Two stacked marks for the combined row (credits over MANA), keeping the 32px logo footprint.
+export const DualLogo = styled.span`
+  flex: none;
+  width: 32px;
+  display: grid;
+  gap: 2px;
+  place-items: center;
+
+  .ico {
+    width: 15px;
+    height: 15px;
+    background: ${theme.colors.text2};
+  }
+  img {
+    width: 15px;
+    height: 15px;
+    display: block;
+  }
+`
+
+// The combined row's price: "◈ 40 + 300 MANA" on one line, same type scale as a single price.
+export const SplitPrice = styled.div`
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+
+  .ico {
+    width: 18px;
+    height: 18px;
+    background: ${theme.colors.text2};
+  }
+  img {
+    width: 18px;
+    height: 18px;
+    display: block;
+  }
+  span {
+    font-family: ${theme.font.sans};
+    font-weight: 600;
+    font-size: 17px;
+    color: ${theme.colors.text2};
+  }
+`
+
+// The "+" between the two legs of a combined payment.
+export const Plus = styled.span`
+  font-family: ${theme.font.sans};
+  font-weight: 600;
+  font-size: 15px;
+  color: ${theme.colors.muted};
+`

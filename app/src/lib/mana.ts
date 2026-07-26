@@ -74,15 +74,6 @@ export function hasEnoughMana(balanceWei: bigint, priceWei: bigint): boolean {
   return balanceWei >= priceWei
 }
 
-// wei → whole-MANA number (lossy for display only; never used for on-chain math).
-export function manaWeiToNumber(wei: bigint): number {
-  return Number(wei) / 1e18
-}
-
-// Compact MANA amount for the option rows: whole thousands grouped, up to 2 decimals for sub-unit
-// prices (e.g. 1000000000000000000n → "1", 1500000000000000000000n → "1,500"). Mirrors the credits
-// display convention so both payment options read the same.
-const manaFormatter = Intl.NumberFormat('en', { maximumFractionDigits: 2 })
-export function formatMana(wei: bigint): string {
-  return manaFormatter.format(manaWeiToNumber(wei))
-}
+// Display helpers live in lib/mana-format (pure, no contract imports) — re-exported here so existing
+// callers of ~/lib/mana keep working.
+export { manaWeiToNumber, formatMana } from '~/lib/mana-format'
