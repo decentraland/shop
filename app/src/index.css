@@ -1979,7 +1979,7 @@ h2 {
 .success-credits__ico {
   width: 30px;
   height: 30px;
-  color: var(--accent);
+  color: var(--text);
 }
 .success-credits__text {
   display: inline-flex;
