@@ -27,4 +27,15 @@ describe('i18n', () => {
   it('falls back to the key id for a missing message', () => {
     expect(t('does.not.exist')).toBe('does.not.exist')
   })
+
+  // Parity guard: every locale must define exactly the same set of keys, so a string added in one
+  // language can never ship missing in another (it would silently fall back to the raw key id).
+  it('has identical key sets across all locales (en/es parity)', () => {
+    const enKeys = Object.keys(MESSAGES.en).sort()
+    const esKeys = Object.keys(MESSAGES.es).sort()
+    const missingInEs = enKeys.filter(k => !(k in MESSAGES.es))
+    const missingInEn = esKeys.filter(k => !(k in MESSAGES.en))
+    expect(missingInEs, `keys missing in es: ${missingInEs.join(', ')}`).toEqual([])
+    expect(missingInEn, `keys missing in en: ${missingInEn.join(', ')}`).toEqual([])
+  })
 })

@@ -680,7 +680,8 @@
     "successHeader": "Your item is on sale",
     "successOnSale": "Your item is now on sale!",
     "successManage": "You can manage your sale from My Items.",
-    "myItems": "My items"
+    "myItems": "My items",
+    "proceedsCredits": "You'll receive {count, plural, one {# credit} other {# credits}} when it sells."
   },
   "primaryList": {
     "errorGeneric": "Couldn't publish your item — please try again.",
@@ -709,7 +710,8 @@
     "readyConfirm": "This collection is ready — publishing is a single confirmation.",
     "readyManaged": "This collection is ready — publishing is instant.",
     "cancel": "Cancel",
-    "checking": "Checking…"
+    "checking": "Checking…",
+    "proceedsCredits": "You'll receive {count, plural, one {# credit} other {# credits}} per sale."
   },
   "migrate": {
     "successTitle": "You're in the Shop! 🎉",
