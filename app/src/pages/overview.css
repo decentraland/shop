@@ -414,7 +414,7 @@
   height: 16px;
   margin-right: 6px;
   vertical-align: -2px;
-  background-color: var(--accent);
+  background-color: var(--text);
 }
 
 /* Loading skeleton bars */

@@ -370,7 +370,7 @@ a.checkout__name:hover {
 .checkout__price-ico {
   width: 24px;
   height: 24px;
-  background: var(--accent);
+  background: var(--text);
 }
 .checkout__price-was {
   margin-left: 6px;
@@ -518,7 +518,7 @@ a.checkout__name:hover {
 .checkout__total-ico {
   width: 30px;
   height: 30px;
-  background: var(--accent);
+  background: var(--text);
 }
 .checkout__cta {
   width: 100%;
@@ -819,7 +819,7 @@ a.checkout__name:hover {
 .cart-checkout__done-price-ico {
   width: 24px;
   height: 24px;
-  background: var(--accent);
+  background: var(--text);
 }
 
 /* The multi-item success banner mirrors BuyModal's success, wider list layout. */
