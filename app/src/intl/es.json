@@ -271,6 +271,8 @@
     "methodCredits": "Créditos",
     "methodMana": "MANA",
     "methodCombined": "Créditos + MANA",
+    "manaDetail": "Paga el precio completo de {credits} créditos con {mana} MANA",
+    "combinedDetail": "{credits} de tus créditos + {mana} MANA por los {remainder} restantes",
     "creditsBalanceLabel": "Saldo de créditos:",
     "manaBalanceLabel": "Saldo de MANA:",
     "notEnoughMana": "MANA insuficiente",

@@ -391,3 +391,11 @@ export const Plus = styled.span`
   font-size: 15px;
   color: ${theme.colors.muted};
 `
+
+// Per-row clarification line: what each leg of the payment actually covers (mixed payments especially).
+export const Detail = styled.span`
+  font-family: ${theme.font.sans};
+  font-size: 11px;
+  line-height: 1.35;
+  color: ${theme.colors.muted};
+`

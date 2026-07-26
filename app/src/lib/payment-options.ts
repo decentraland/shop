@@ -104,6 +104,27 @@ export function computePaymentOptions(input: {
   return { options, preferred }
 }
 
+/**
+ * Spread a credit balance across the units of a CART, in order, for a combined payment.
+ *
+ * A basket settles as one accept([...]) with one ephemeral credit per unit, so the credit legs have to
+ * be sized per unit — not as one lump. Each unit takes as much of the remaining balance as its own
+ * price needs; the unit that exhausts the balance takes a PARTIAL credit, and every unit after it takes
+ * none (0) because MANA covers them. The MANA gap is whatever the credits didn't pay for the basket.
+ *
+ * Returns one cents amount per unit (same order/length as `unitCents`). Sums to
+ * min(balanceCents, Σ unitCents), so the caller can derive the gap as Σ unitCents − Σ result.
+ */
+export function distributeCreditsAcrossUnits(unitCents: number[], balanceCents: number): number[] {
+  let remaining = Number.isFinite(balanceCents) ? Math.max(0, Math.trunc(balanceCents)) : 0
+  return unitCents.map(raw => {
+    const price = Number.isFinite(raw) ? Math.max(0, Math.trunc(raw)) : 0
+    const take = Math.min(price, remaining)
+    remaining -= take
+    return take
+  })
+}
+
 /** Cents → whole credits (1 credit = 10 cents), for display next to a MANA amount. */
 export function creditsFromCents(cents: number): number {
   return Number.isFinite(cents) ? Math.max(0, cents) / 10 : 0

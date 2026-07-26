@@ -3686,3 +3686,21 @@ h2 {
   color: var(--accent, #691fa9);
   font-weight: 600;
 }
+/* Cart checkout → payment-rail chooser: the basket total above the rail rows. */
+.cart-checkout__choose-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 0 12px;
+  font-size: 14px;
+  color: var(--muted);
+}
+.cart-checkout__choose-total strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+}

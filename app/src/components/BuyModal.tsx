@@ -468,6 +468,7 @@ export function BuyModal({
           <PaymentMethodStep
             item={item}
             priceCredits={priceCredits}
+            priceCents={priceCents}
             balanceCents={balance?.balanceCents ?? 0}
             manaBalanceWei={manaBal}
             options={paymentOptions.options}

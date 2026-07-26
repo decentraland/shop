@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { computePaymentOptions, findOption, hasPayableOption, manaForRemainder } from '~/lib/payment-options'
+import {
+  computePaymentOptions,
+  distributeCreditsAcrossUnits,
+  findOption,
+  hasPayableOption,
+  manaForRemainder
+} from '~/lib/payment-options'
 
 // 1 credit = 10 cents. A 100-credit item costs 1000 cents.
 const PRICE_CENTS = 1000
@@ -175,5 +181,50 @@ describe('computePaymentOptions', () => {
       expect(findOption(o, 'combined')).toBeNull()
       expect(findOption(o, 'credits')).not.toBeNull()
     })
+  })
+})
+
+describe('distributeCreditsAcrossUnits (combined payment across a cart)', () => {
+  it('should fully fund every unit when the balance covers the basket', () => {
+    expect(distributeCreditsAcrossUnits([300, 500, 200], 1000)).toEqual([300, 500, 200])
+  })
+
+  it('should fund units in order and leave a PARTIAL credit on the unit that exhausts the balance', () => {
+    // 650 of a 1000-cent basket: 300 (full) + 350 (partial, of 500) + 0 (MANA covers it).
+    expect(distributeCreditsAcrossUnits([300, 500, 200], 650)).toEqual([300, 350, 0])
+  })
+
+  it('should give every unit zero when there is no credit balance (a MANA-only basket)', () => {
+    expect(distributeCreditsAcrossUnits([300, 500], 0)).toEqual([0, 0])
+  })
+
+  it('should never allocate more than the basket costs, even with a huge balance', () => {
+    const alloc = distributeCreditsAcrossUnits([300, 500], 999_999)
+    expect(alloc).toEqual([300, 500])
+    expect(alloc.reduce((a, b) => a + b, 0)).toBe(800)
+  })
+
+  it('should sum to min(balance, basket) so the caller can derive the MANA gap', () => {
+    const units = [120, 340, 55, 900]
+    const basket = units.reduce((a, b) => a + b, 0)
+    for (const balance of [0, 1, 119, 120, 121, 460, basket - 1, basket, basket + 500]) {
+      const total = distributeCreditsAcrossUnits(units, balance).reduce((a, b) => a + b, 0)
+      expect(total, `balance ${balance}`).toBe(Math.min(balance, basket))
+    }
+  })
+
+  it('should never allocate more to a unit than that unit costs', () => {
+    const units = [100, 20, 5]
+    distributeCreditsAcrossUnits(units, 1000).forEach((take, i) => expect(take).toBeLessThanOrEqual(units[i]))
+  })
+
+  it('should coerce junk inputs instead of drifting', () => {
+    expect(distributeCreditsAcrossUnits([100.7, -5, Number.NaN], 1000)).toEqual([100, 0, 0])
+    expect(distributeCreditsAcrossUnits([100], Number.NaN)).toEqual([0])
+    expect(distributeCreditsAcrossUnits([100], -50)).toEqual([0])
+  })
+
+  it('should return an empty allocation for an empty cart', () => {
+    expect(distributeCreditsAcrossUnits([], 500)).toEqual([])
   })
 })

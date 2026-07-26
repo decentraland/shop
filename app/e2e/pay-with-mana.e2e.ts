@@ -146,3 +146,59 @@ describe('paying with MANA in the buy flow', () => {
     expect(await has(page, 'pay-with-combined')).toBe(false)
   })
 })
+
+describe('paying with MANA in the cart checkout', () => {
+  // Seed the cart the way a buyer does: add from the PDP, go to the cart, then start the checkout.
+  const goToCartCheckout = async (page: App['page']) => {
+    await waitForText(page, 'Nebula Jacket')
+    expect(await clickByText(page, 'button', /add to cart/i)).toBe(true)
+    await waitForText(page, 'successfully added to cart')
+    expect(await clickByText(page, 'a', /go to cart/i)).toBe(true)
+    await waitForText(page, 'Purchase Summary')
+    expect(await clickByText(page, 'button', /^buy now$/i)).toBe(true)
+  }
+
+  it('keeps the credits-only checkout when the wallet holds no MANA', async () => {
+    app = await launchApp({ path: ITEM_PATH, fixtures: { trade: buyTrade } })
+    const { page } = app
+    await goToCartCheckout(page)
+
+    // No rail chooser — it settles with credits and lands on the success page.
+    await page.waitForFunction(() => window.location.pathname === '/success', { timeout: 30000 })
+    expect(await has(page, 'pay-with-mana')).toBe(false)
+  })
+
+  it('offers the rails when the wallet holds MANA, and completes a MANA-only basket', async () => {
+    app = await launchApp({ path: ITEM_PATH, fixtures: { trade: buyTrade }, manaBalanceWei: PLENTY_OF_MANA })
+    const { page } = app
+    await goToCartCheckout(page)
+
+    await page.waitForSelector('[data-testid="pay-with-mana"]', { timeout: 20000 })
+    // Credits cover the basket too, so both single rails are offered (no mixed rail needed).
+    expect(await has(page, 'pay-with-credits')).toBe(true)
+    expect(await has(page, 'pay-with-combined')).toBe(false)
+
+    expect(await clickByText(page, '[data-testid="pay-with-mana"]', /.*/)).toBe(true)
+    expect(await clickByText(page, '[data-testid="cart-pay-confirm"]', /.*/)).toBe(true)
+    await page.waitForFunction(() => window.location.pathname === '/success', { timeout: 30000 })
+  })
+
+  it('offers the mixed rail with an explicit split when the credits fall short', async () => {
+    app = await launchApp({
+      path: ITEM_PATH,
+      fixtures: { trade: buyTrade, credits: PARTIAL_CREDITS },
+      manaBalanceWei: PLENTY_OF_MANA
+    })
+    const { page } = app
+    await goToCartCheckout(page)
+
+    await page.waitForSelector('[data-testid="pay-with-combined"]', { timeout: 20000 })
+    // The row states both legs: the credits it spends and the MANA covering the remainder.
+    const row = await page.$eval('[data-testid="pay-with-combined"]', el => el.textContent ?? '')
+    expect(row).toMatch(/MANA/)
+    expect(row).toContain('40')
+
+    expect(await clickByText(page, '[data-testid="cart-pay-confirm"]', /.*/)).toBe(true)
+    await page.waitForFunction(() => window.location.pathname === '/success', { timeout: 30000 })
+  })
+})

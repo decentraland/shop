@@ -35,6 +35,7 @@ function setup(over: { balanceCents?: number; manaBalanceWei?: bigint; selected?
     <PaymentMethodStep
       item={item}
       priceCredits={100}
+      priceCents={PRICE_CENTS}
       balanceCents={balanceCents}
       manaBalanceWei={manaBalanceWei}
       options={computed.options}

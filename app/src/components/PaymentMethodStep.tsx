@@ -1,12 +1,11 @@
 import { CurrencyIcon } from '~/components/CurrencyIcon'
+import { PaymentOptionRows } from '~/components/PaymentOptionRows'
 import { CreatorName } from '~/components/CreatorName'
 import { Icon } from '~/components/Icon'
 import { formatCredits } from '~/lib/currency'
-import { formatMana } from '~/lib/mana-format'
-import { creditsFromCents, type PaymentMethod, type PaymentOption } from '~/lib/payment-options'
+import type { PaymentMethod, PaymentOption } from '~/lib/payment-options'
 import { t } from '~/intl/i18n'
 import type { CatalogItem } from '~/lib/api'
-import manaSymbol from '~/assets/mana-matic.svg'
 import * as S from './PaymentMethodStep.styles'
 
 export type { PaymentMethod }
@@ -23,6 +22,7 @@ export type { PaymentMethod }
 export function PaymentMethodStep({
   item,
   priceCredits,
+  priceCents,
   balanceCents,
   manaBalanceWei,
   options,
@@ -34,6 +34,8 @@ export function PaymentMethodStep({
 }: {
   item: CatalogItem
   priceCredits: number
+  /** The item's exact price in cents — spells out what each leg of a split covers. */
+  priceCents: number
   /** The buyer's credit balance in cents (shown on the credits / combined rows). */
   balanceCents: number
   /** The buyer's MANA balance in wei (shown on the MANA / combined rows). */
@@ -46,80 +48,6 @@ export function PaymentMethodStep({
   onClose: () => void
   busy?: boolean
 }) {
-  const creditsBalance = creditsFromCents(balanceCents)
-
-  // Label, marks and amounts per row — one place so the three rows stay visually consistent.
-  function rowContent(option: PaymentOption) {
-    if (option.method === 'credits') {
-      return {
-        label: t('buyModal.methodCredits'),
-        logo: (
-          <S.Logo>
-            <CurrencyIcon />
-          </S.Logo>
-        ),
-        balance: (
-          <>
-            {t('buyModal.creditsBalanceLabel')} <CurrencyIcon />
-            <S.BalanceValue>{formatCredits(creditsBalance)}</S.BalanceValue>
-          </>
-        ),
-        price: (
-          <S.Price>
-            <CurrencyIcon />
-            <span>{formatCredits(creditsFromCents(option.creditsCents))}</span>
-          </S.Price>
-        )
-      }
-    }
-    if (option.method === 'mana') {
-      return {
-        label: t('buyModal.methodMana'),
-        logo: <S.ManaLogo src={manaSymbol} alt="" aria-hidden />,
-        balance: (
-          <>
-            {t('buyModal.manaBalanceLabel')} <S.ManaMini src={manaSymbol} alt="" aria-hidden />
-            <S.BalanceValue>{formatMana(manaBalanceWei)}</S.BalanceValue>
-          </>
-        ),
-        price: (
-          <S.Price>
-            <S.ManaPriceIco src={manaSymbol} alt="" aria-hidden />
-            <span>{formatMana(option.manaWei)}</span>
-          </S.Price>
-        )
-      }
-    }
-    // Combined: the whole credit balance goes first, MANA covers the remainder.
-    return {
-      label: t('buyModal.methodCombined'),
-      logo: (
-        <S.DualLogo>
-          <CurrencyIcon />
-          <img src={manaSymbol} alt="" aria-hidden />
-        </S.DualLogo>
-      ),
-      balance: (
-        <>
-          {t('buyModal.creditsBalanceLabel')} <CurrencyIcon />
-          <S.BalanceValue>{formatCredits(creditsBalance)}</S.BalanceValue>
-          <S.Plus>+</S.Plus>
-          <S.ManaMini src={manaSymbol} alt="" aria-hidden />
-          <S.BalanceValue>{formatMana(manaBalanceWei)}</S.BalanceValue>
-        </>
-      ),
-      price: (
-        <S.SplitPrice>
-          <CurrencyIcon />
-          <span>{formatCredits(creditsFromCents(option.creditsCents))}</span>
-          <S.Plus>+</S.Plus>
-          <img src={manaSymbol} alt="" aria-hidden />
-          <span>{formatMana(option.manaWei)}</span>
-        </S.SplitPrice>
-      )
-    }
-  }
-
   return (
     <S.Root>
       <S.Head>
@@ -147,37 +75,14 @@ export function PaymentMethodStep({
         </S.AssetInfo>
       </S.AssetCard>
 
-      <S.Options role="radiogroup" aria-label={t('buyModal.choosePayment')}>
-        {options.map(option => {
-          const { label, logo, balance, price } = rowContent(option)
-          const isSelected = selected === option.method
-          return (
-            <S.OptionRow
-              key={option.method}
-              type="button"
-              role="radio"
-              aria-checked={isSelected}
-              data-selected={isSelected}
-              data-testid={`pay-with-${option.method}`}
-              onClick={() => onSelect(option.method)}
-            >
-              <S.LeftSlot>
-                <S.CheckBox data-checked={isSelected}>{isSelected ? <Icon name="check" /> : null}</S.CheckBox>
-              </S.LeftSlot>
-              <S.Content>
-                <S.InfoGroup>
-                  {logo}
-                  <S.TextBlock>
-                    <S.Label>{label}</S.Label>
-                    <S.BalanceRow>{balance}</S.BalanceRow>
-                  </S.TextBlock>
-                </S.InfoGroup>
-                {price}
-              </S.Content>
-            </S.OptionRow>
-          )
-        })}
-      </S.Options>
+      <PaymentOptionRows
+        options={options}
+        selected={selected}
+        onSelect={onSelect}
+        balanceCents={balanceCents}
+        manaBalanceWei={manaBalanceWei}
+        totalCents={priceCents}
+      />
 
       <S.BuyBtn type="button" data-testid="pay-confirm" onClick={onBuy} disabled={busy}>
         {t('buyModal.buy')}

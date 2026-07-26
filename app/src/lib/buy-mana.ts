@@ -54,7 +54,51 @@ export async function buyWithMana(opts: {
   /** Fired once the buyer confirms in their wallet, before on-chain settlement (UI: "completing…"). */
   onSigned?: () => void
 }): Promise<string> {
-  const { trade, buyer, signer, onSigned } = opts
+  const [hash] = await buyManyWithMana({ ...opts, trades: [opts.trade] })
+  return hash
+}
+
+/**
+ * Buy a whole CART with MANA — the MANA-only rail for a basket. Trades on the same marketplace settle
+ * in ONE accept([...]) (one signature/tx), mirroring how buyManyWithCredits batches the credits rail;
+ * trades on different marketplaces split into one tx each. No credits are spent, so nothing is
+ * authorized or reserved. Returns the tx hash(es).
+ */
+export async function buyManyWithMana(opts: {
+  trades: Trade[]
+  buyer: string
+  signer: ethers.providers.JsonRpcSigner
+  onSigned?: () => void
+}): Promise<string[]> {
+  const { trades, buyer, signer, onSigned } = opts
+  if (trades.length === 0) throw new Error('No items to buy')
+
+  // Group by (chain, marketplace) so each group is one accept([...]).
+  const groups = new Map<string, Trade[]>()
+  for (const t of trades) {
+    const key = `${t.chainId}:${t.contract.toLowerCase()}`
+    const g = groups.get(key)
+    if (g) g.push(t)
+    else groups.set(key, [t])
+  }
+
+  const hashes: string[] = []
+  for (const group of groups.values()) {
+    hashes.push(await acceptPayingMana({ trades: group, buyer, signer, onSigned }))
+  }
+  return hashes
+}
+
+// One accept([...]) settled with the buyer's MANA: approve the marketplace, then submit (gasless first,
+// direct tx as the fallback). Shared by the single-item and cart rails.
+async function acceptPayingMana(opts: {
+  trades: Trade[]
+  buyer: string
+  signer: ethers.providers.JsonRpcSigner
+  onSigned?: () => void
+}): Promise<string> {
+  const { trades, buyer, signer, onSigned } = opts
+  const trade = trades[0] // same chain + marketplace across the group
   const marketplace = getContract(getContractName(trade.contract), trade.chainId)
   const mana = getContract(ContractName.MANAToken, trade.chainId)
 
@@ -69,12 +113,12 @@ export async function buyWithMana(opts: {
     signer
   })
 
-  const onChainTrade = getOnChainTrade(trade, buyer)
+  const onChainTrades = trades.map(t => getOnChainTrade(t, buyer))
 
   // 2. Fulfil the trade paying MANA directly: marketplace.accept([trade]).
   if (gaslessConfig.enabled) {
     try {
-      const functionData = new ethers.utils.Interface(marketplace.abi).encodeFunctionData('accept', [[onChainTrade]])
+      const functionData = new ethers.utils.Interface(marketplace.abi).encodeFunctionData('accept', [onChainTrades])
       const rpc = readProvider()
       const provider = metaTxProviderShim(signer.provider as ethers.providers.Web3Provider, rpc)
       const txHash = await sendMetaTransaction(provider, rpc, functionData, marketplace, {
@@ -94,7 +138,7 @@ export async function buyWithMana(opts: {
   // a restored session can leave the wallet on another network; switch just-in-time (mirrors buy.ts).
   await ensureChain(signer.provider as ethers.providers.Web3Provider, trade.chainId)
   const contract = new ethers.Contract(marketplace.address, marketplace.abi, signer) as MarketplaceAcceptContract
-  const tx = await contract.accept([onChainTrade], amoyGasOverrides(trade.chainId))
+  const tx = await contract.accept(onChainTrades, amoyGasOverrides(trade.chainId))
   onSigned?.()
   const receipt = await tx.wait()
   return receipt.transactionHash
