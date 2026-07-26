@@ -10,6 +10,8 @@ const abi = ethers.utils.defaultAbiCoder
 const sel = (sig: string) => ethers.utils.id(sig).slice(0, 10)
 
 const SELECTORS = {
+  balanceOf: sel('balanceOf(address)'),
+  allowance: sel('allowance(address,address)'),
   contractSignatureIndex: sel('contractSignatureIndex()'),
   signerSignatureIndex: sel('signerSignatureIndex(address)'),
   globalMinters: sel('globalMinters(address)'),
@@ -18,6 +20,14 @@ const SELECTORS = {
   decimals: sel('decimals()'),
   latestRoundData: sel('latestRoundData()'),
   getNonce: sel('getNonce(address)') // CreditsManager meta-tx nonce (gasless checkout)
+}
+
+// The MANA balance the mocked ERC20 reports for balanceOf — set per test via launchApp({ manaBalanceWei }).
+// '0' (the default) means the wallet holds no MANA, so the MANA payment rails are never offered and the
+// shop behaves exactly as it did before they existed.
+let manaBalanceWei = '0'
+export function setManaBalanceWei(wei: string) {
+  manaBalanceWei = wei
 }
 
 function ethCall(params: any[]): string {
@@ -29,6 +39,11 @@ function ethCall(params: any[]): string {
     case SELECTORS.signerSignatureIndex:
     case SELECTORS.getNonce:
       return abi.encode(['uint256'], [0])
+    case SELECTORS.balanceOf:
+      return abi.encode(['uint256'], [manaBalanceWei])
+    case SELECTORS.allowance:
+      // Already approved (max uint256) → the MANA rails never need an approve tx in the happy path.
+      return abi.encode(['uint256'], [ethers.constants.MaxUint256])
     case SELECTORS.globalMinters:
     case SELECTORS.isApprovedForAll:
       return abi.encode(['bool'], [true]) // already enabled → no tx needed

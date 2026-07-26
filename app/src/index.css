@@ -1265,6 +1265,26 @@ h2 {
   height: 20px;
   color: var(--text);
 }
+/* Polygon MANA balance chip — same metrics as the credits balance so the pair reads as one row. Only
+   rendered when the wallet holds MANA (see NavBar). */
+.subnav__mana {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 40px;
+  padding: 0 4px;
+  border-radius: 4px;
+  color: #242129;
+  font-weight: 600;
+  font-size: 16px;
+  letter-spacing: -0.03em;
+  white-space: nowrap;
+}
+.subnav__mana-ico {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
 /* Content-shaped placeholder for the balance number while the credits query loads (no flash of "0"). */
 .subnav__balance-skel {
   display: inline-block;
@@ -3665,4 +3685,22 @@ h2 {
 .item-detail__own-note a {
   color: var(--accent, #691fa9);
   font-weight: 600;
+}
+/* Cart checkout → payment-rail chooser: the basket total above the rail rows. */
+.cart-checkout__choose-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 0 12px;
+  font-size: 14px;
+  color: var(--muted);
+}
+.cart-checkout__choose-total strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
 }

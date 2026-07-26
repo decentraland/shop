@@ -5,13 +5,18 @@ import { useQueryClient } from '@tanstack/react-query'
 import type { Trade } from '@dcl/schemas'
 import { useWallet } from '~/store/wallet'
 import { useBalance } from '~/hooks/useBalance'
+import { useManaBalance } from '~/hooks/useManaBalance'
 import { resolveLiveTrade, usdWeiToCents, type CatalogItem } from '~/lib/api'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { formatCredits } from '~/lib/currency'
+import { readTradeManaPriceWei } from '~/lib/mana'
+import { PaymentMethodStep } from '~/components/PaymentMethodStep'
+import { computePaymentOptions, findOption, type PaymentMethod } from '~/lib/payment-options'
 import { track, errorCode, isUserRejection, purchaseItemsProps } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
 import { authorizeUsdCredit, cancelUsdIntents } from '~/lib/credits'
 import { buyWithCredits } from '~/lib/buy'
+import { buyWithMana, buyWithCreditsAndMana } from '~/lib/buy-mana'
 import { buyGasless, waitForSettlement, GaslessUnavailableError, SettlementPendingError } from '~/lib/buy-gasless'
 import { gaslessEnabled } from '~/lib/gasless-config'
 import { isOwnTrade } from '~/lib/ownership'
@@ -49,6 +54,8 @@ export function BuyModal({
 }) {
   const { session } = useWallet()
   const { data: balance } = useBalance(session)
+  // The buyer's on-chain MANA balance — drives whether we OFFER the "pay with MANA" step at all.
+  const { data: manaBalanceWei } = useManaBalance(session)
   const qc = useQueryClient()
   const navigate = useNavigate()
   // The top-up packs offered when the buyer is short on credits (all four the credits-server returns —
@@ -61,6 +68,17 @@ export function BuyModal({
   const [error, setError] = useState<string | null>(null)
   const [selectedPack, setSelectedPack] = useState<string>('')
   const [itemCredits, setItemCredits] = useState(item.priceCredits)
+  // The MANA (wei) this trade costs, read from the oracle once the price locks — null until read (or
+  // if the read fails, in which case MANA simply isn't offered and the credits path is unaffected).
+  const [manaPriceWei, setManaPriceWei] = useState<bigint | null>(null)
+  // Which rail the buyer picked in the payment-method step. Re-synced to the preferred option once the
+  // balances resolve (see the effect below).
+  const [payMethod, setPayMethod] = useState<PaymentMethod>('credits')
+  // The live trade + its USD price, kept even when the credits balance falls short. The MANA rails need
+  // them in the 'nofunds' phase too — that's exactly where paying with MANA (alone or mixed) rescues a
+  // purchase the credits alone can't cover, so we must not throw the trade away like the old flow did.
+  const [resolvedTrade, setResolvedTrade] = useState<Trade | null>(null)
+  const [priceCents, setPriceCents] = useState(0)
   const [locked, setLocked] = useState<{
     trade: Trade
     credit: Awaited<ReturnType<typeof authorizeUsdCredit>>['credit']
@@ -105,6 +123,9 @@ export function BuyModal({
         const credits = Math.ceil(usdCents / 10)
         if (cancelled) return
         setItemCredits(credits)
+        // Keep the trade + exact price around for the MANA rails, whichever branch we take next.
+        setResolvedTrade(trade)
+        setPriceCents(usdCents)
         // Known-and-short → straight to the pack picker; don't reserve dollars we can't spend.
         if (balance != null && balance.credits < credits) {
           goNoFunds(credits)
@@ -157,6 +178,47 @@ export function BuyModal({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Once the price is locked AND the buyer holds MANA, read the trade's MANA price so we can offer the
+  // "pay with MANA" step. Runs off the loading path so it never blocks/gates the default credits flow;
+  // a failed oracle read just leaves manaPriceWei null (MANA not offered).
+  useEffect(() => {
+    const trade = locked?.trade ?? resolvedTrade
+    if (!trade) return
+    if (phase !== 'ready' && phase !== 'nofunds') return
+    if (manaBalanceWei == null || manaBalanceWei <= 0n) return
+    if (manaPriceWei !== null) return
+    let cancelled = false
+    void readTradeManaPriceWei(trade)
+      .then(wei => {
+        if (!cancelled) setManaPriceWei(wei)
+      })
+      .catch(err => {
+        if (import.meta.env.DEV) console.warn('[buyModal] mana price read failed', err)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [phase, locked, resolvedTrade, manaBalanceWei, manaPriceWei])
+
+  // Which rails the buyer's balances actually support (pure — see lib/payment-options). MANA rails
+  // appear only once both the MANA balance and the MANA price are known; until then this is just the
+  // credits rail (or nothing), which keeps the default flow untouched.
+  const paymentOptions = computePaymentOptions({
+    priceCents,
+    priceManaWei: manaPriceWei ?? 0n,
+    balanceCents: balance?.balanceCents ?? 0,
+    manaBalanceWei: manaBalanceWei ?? 0n
+  })
+  // Keep the selection valid: pre-select the preferred rail, and never leave a method selected that
+  // stopped being offerable (e.g. the MANA price resolved and the balance no longer covers it).
+  useEffect(() => {
+    if (paymentOptions.options.length === 0) return
+    if (!paymentOptions.options.some(o => o.method === payMethod)) {
+      setPayMethod(paymentOptions.preferred ?? paymentOptions.options[0].method)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paymentOptions.options.map(o => o.method).join(','), paymentOptions.preferred])
 
   async function confirm(lk = locked) {
     if (!session || !lk) return
@@ -231,6 +293,113 @@ export function BuyModal({
     }
   }
 
+  // Post-purchase cache refresh shared by the MANA rails (mirrors confirm()'s invalidations so the PDP,
+  // grids, My Assets and Activity all reflect the sale). Also bumps the MANA balance, which both rails
+  // spend, and the USD balance, which the combined rail spends.
+  function refreshAfterPurchase() {
+    void qc.invalidateQueries({ queryKey: ['mana-balance'] })
+    void qc.invalidateQueries({ queryKey: ['usd-balance'] })
+    void qc.invalidateQueries({ queryKey: ['detail-trade'] })
+    void qc.invalidateQueries({ queryKey: ['shop-item'] })
+    void qc.invalidateQueries({ queryKey: ['owned-token', item.contractAddress, item.tokenId] })
+    void qc.invalidateQueries({ queryKey: ['public-token', item.contractAddress, item.tokenId] })
+    void qc.invalidateQueries({ queryKey: ['item-resales', item.contractAddress, item.itemId] })
+    void qc.invalidateQueries({ queryKey: ['shop-items'] })
+    void qc.invalidateQueries({ queryKey: ['catalog-items'] })
+    void qc.invalidateQueries({ queryKey: ['my-assets'] })
+    void qc.invalidateQueries({ queryKey: ['purchases'] })
+    void qc.invalidateQueries({ queryKey: ['owned-item-count'] })
+    void qc.invalidateQueries({ queryKey: ['overview-listings'] })
+    void qc.invalidateQueries({ queryKey: ['upsell-listings'] })
+  }
+
+  // Pay directly in MANA (the alternative rail chosen in the payment-method step). We're NOT spending
+  // credits, so release the reserved credit intent that locked the price, then settle on-chain via the
+  // marketplace (buyWithMana). Same post-purchase cache refresh + analytics as the credits path.
+  async function confirmMana() {
+    // Works from BOTH phases: 'ready' (price locked, buyer chose MANA anyway) and 'nofunds' (credits
+    // don't cover it, so MANA is the only way) — hence the fallback to the plain resolved trade.
+    const trade = locked?.trade ?? resolvedTrade
+    if (!session || !trade) return
+    if (reservedCreditIdRef.current) {
+      void cancelUsdIntents(session.identity, [reservedCreditIdRef.current]).catch(() => {})
+      reservedCreditIdRef.current = null
+    }
+    setPhase('processing')
+    setError(null)
+    try {
+      const txHash = await buyWithMana({
+        trade,
+        buyer: session.address,
+        signer: session.signer
+      })
+      track('Shop Completed Purchase', {
+        ...purchaseItemsProps([item]),
+        payment_type: 'mana',
+        transaction_hash: txHash ?? null
+      })
+      refreshAfterPurchase()
+      setPhase('complete')
+    } catch (e) {
+      if (!isUserRejection(e)) captureError(e, { flow: 'buy_mana', step: 'submit' })
+      track(isUserRejection(e) ? 'Shop Purchase Cancelled' : 'Shop Purchase Failed', {
+        step: 'submit',
+        error_code: errorCode(e)
+      })
+      setError(friendlyError(e, t('buyModal.error.generic'), { sale: true }))
+      setPhase('error')
+    }
+  }
+
+  // Pay with CREDITS FIRST + MANA for the remainder — one signature via CreditsManager.useCredits (see
+  // lib/buy-mana buyWithCreditsAndMana). The credit must be sized to the buyer's BALANCE, not the item
+  // price, so we authorize it here rather than reusing the price-lock (which is either absent in
+  // 'nofunds' or sized to the full price in 'ready'): the credits-server signs a credit worth the
+  // balance, and the contract's uncredited leg is the MANA gap.
+  async function confirmCombined() {
+    const trade = locked?.trade ?? resolvedTrade
+    const combined = findOption(paymentOptions, 'combined')
+    if (!session || !trade || !combined) return
+    setPhase('processing')
+    setError(null)
+    // Release the full-price reservation (if the 'ready' path made one) before reserving the partial.
+    if (reservedCreditIdRef.current) {
+      void cancelUsdIntents(session.identity, [reservedCreditIdRef.current]).catch(() => {})
+      reservedCreditIdRef.current = null
+    }
+    let partialCreditId: string | null = null
+    try {
+      const { credit } = await authorizeUsdCredit(session.identity, combined.creditsCents, trade.id)
+      partialCreditId = credit.id
+      const txHash = await buyWithCreditsAndMana({
+        trade,
+        buyer: session.address,
+        signer: session.signer,
+        credits: [credit],
+        manaGapWei: combined.manaWei
+      })
+      partialCreditId = null // consumed on-chain
+      track('Shop Completed Purchase', {
+        ...purchaseItemsProps([item]),
+        payment_type: 'credits_and_mana',
+        transaction_hash: txHash ?? null
+      })
+      refreshAfterPurchase()
+      setPhase('complete')
+    } catch (e) {
+      // The partial reservation never settled → release the dollars instead of stranding them.
+      if (partialCreditId) void cancelUsdIntents(session.identity, [partialCreditId]).catch(() => {})
+      if (!isUserRejection(e)) captureError(e, { flow: 'buy_credits_and_mana', step: 'submit' })
+      track(isUserRejection(e) ? 'Shop Purchase Cancelled' : 'Shop Purchase Failed', {
+        step: 'submit',
+        error_code: errorCode(e)
+      })
+      void qc.invalidateQueries({ queryKey: ['usd-balance'] })
+      setError(friendlyError(e, t('buyModal.error.generic'), { sale: true }))
+      setPhase('error')
+    }
+  }
+
   // No funds → buy the selected pack on Stripe directly, then resume THIS item purchase with the new
   // credits. Stash the item so the /credits return handler picks it up and re-opens this modal in
   // resume mode; then send the buyer straight to the Stripe hosted checkout (never the /credits page).
@@ -265,6 +434,17 @@ export function BuyModal({
     }
   }
 
+  // Show the payment-method step only when a MANA rail is actually on the table (paying in MANA, or
+  // credits + MANA). Without one there's nothing to choose: a credits-only buyer keeps the conventional
+  // single-CTA flow, and a buyer who can't cover it at all keeps the top-up pack picker.
+  //
+  // It replaces BOTH end states, which is the point: in 'ready' it adds "pay in MANA instead", and in
+  // 'nofunds' it turns a dead end into a purchase the buyer can complete with the MANA they already
+  // hold (alone, or mixed with the credits they have).
+  const manaBal = manaBalanceWei ?? 0n
+  const hasManaRail = paymentOptions.options.some(o => o.method === 'mana' || o.method === 'combined')
+  const methodMode = (phase === 'ready' || phase === 'nofunds') && hasManaRail
+
   const busy = phase === 'processing'
   const title =
     phase === 'complete'
@@ -284,161 +464,184 @@ export function BuyModal({
       <div
         className={`buy-modal__card${phase === 'processing' || phase === 'loading' ? ' buy-modal__card--tall' : ''}`}
       >
-        {/* Header: title + balance + divider */}
-        <div className="buy-modal__head">
-          <div className="buy-modal__head-row">
-            <h2 className="buy-modal__title">{title}</h2>
-            {!busy && (
-              <button className="buy-modal__x" onClick={onClose} aria-label={t('buyModal.close')}>
-                <svg viewBox="0 0 18 18" width="18" height="18" aria-hidden>
-                  <path d="M4 4l10 10M14 4L4 14" stroke="#161518" strokeWidth="1.8" strokeLinecap="round" />
-                </svg>
-              </button>
-            )}
-          </div>
-          <div className="buy-modal__balance">
-            <span className="buy-modal__balance-label">
-              {phase === 'nofunds' ? t('buyModal.dclBalance') : t('buyModal.myCreditsBalance')}
-            </span>
-            <CurrencyIcon className="buy-modal__balance-ico" />
-            <span className="buy-modal__balance-value">{formatCredits(balanceCredits)}</span>
-          </div>
-        </div>
-
-        {/* Loading (resolving + authorizing) */}
-        {phase === 'loading' && (
-          <div className="buy-modal__body buy-modal__processing">
-            <CircularProgress size={44} />
-          </div>
-        )}
-
-        {/* Error */}
-        {phase === 'error' && (
-          <div className="buy-modal__body">
-            <ErrorNotice message={error} />
-            <div className="buy-modal__ctas">
-              <button className="buy-modal__btn buy-modal__btn--gradient" onClick={onClose}>
-                {t('buyModal.close')}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Not enough credits — insufficient warning + pack picker */}
-        {phase === 'nofunds' && (
-          <div className="buy-modal__body">
-            <div className="buy-modal__warning">
-              <WarningIcon className="buy-modal__warning-ico" />
-              <p className="buy-modal__warning-text">
-                <b>{t('buyModal.insufficientFunds')}</b> {t('buyModal.warningNeedToBuy')}{' '}
-                <b>{t('buyModal.warningCreditsAmount', { count: Math.max(0, priceCredits - balanceCredits) })}</b>{' '}
-                {t('buyModal.warningToPurchase', { count: 1 })}
-              </p>
-            </div>
-            <AssetRow item={item} priceCredits={priceCredits} />
-            <div className="buy-modal__packs">
-              {OFFER_PACKS.map(p => {
-                const packCredits = p.credits
-                const on = p.id === selectedPack
-                return (
-                  <button
-                    key={p.id}
-                    className={`buy-modal__pack${on ? ' buy-modal__pack--on' : ''}`}
-                    onClick={() => setSelectedPack(p.id)}
-                  >
-                    <CurrencyIcon className="buy-modal__pack-ico" />
-                    <span className="buy-modal__pack-amount">{formatCredits(packCredits)}</span>
-                    <span className="buy-modal__pack-usd">(${p.usd.toFixed(2)})</span>
+        {methodMode ? (
+          <PaymentMethodStep
+            item={item}
+            priceCredits={priceCredits}
+            priceCents={priceCents}
+            balanceCents={balance?.balanceCents ?? 0}
+            manaBalanceWei={manaBal}
+            options={paymentOptions.options}
+            selected={payMethod}
+            onSelect={setPayMethod}
+            onBuy={() =>
+              void (payMethod === 'mana' ? confirmMana() : payMethod === 'combined' ? confirmCombined() : confirm())
+            }
+            onClose={onClose}
+            busy={busy}
+          />
+        ) : (
+          <>
+            {/* Header: title + balance + divider */}
+            <div className="buy-modal__head">
+              <div className="buy-modal__head-row">
+                <h2 className="buy-modal__title">{title}</h2>
+                {!busy && (
+                  <button className="buy-modal__x" onClick={onClose} aria-label={t('buyModal.close')}>
+                    <svg viewBox="0 0 18 18" width="18" height="18" aria-hidden>
+                      <path d="M4 4l10 10M14 4L4 14" stroke="#161518" strokeWidth="1.8" strokeLinecap="round" />
+                    </svg>
                   </button>
-                )
-              })}
-            </div>
-            <div className="buy-modal__total">
-              <div className="buy-modal__total-credits">
-                <CurrencyIcon className="buy-modal__total-ico" />
-                <span>{formatCredits(OFFER_PACKS.find(p => p.id === selectedPack)?.credits ?? 0)}</span>
+                )}
               </div>
-              <span className="buy-modal__total-usd">
-                ${(OFFER_PACKS.find(p => p.id === selectedPack)?.usd ?? 0).toFixed(2)}
-              </span>
+              <div className="buy-modal__balance">
+                <span className="buy-modal__balance-label">
+                  {phase === 'nofunds' ? t('buyModal.dclBalance') : t('buyModal.myCreditsBalance')}
+                </span>
+                <CurrencyIcon className="buy-modal__balance-ico" />
+                <span className="buy-modal__balance-value">{formatCredits(balanceCredits)}</span>
+              </div>
             </div>
-            <div className="buy-modal__ctas">
-              <button className="buy-modal__btn buy-modal__btn--outline" onClick={onClose}>
-                {t('buyModal.cancel')}
-              </button>
-              <button className="buy-modal__btn buy-modal__btn--gradient" onClick={() => void buyCreditsAndItem()}>
-                {t('buyModal.buy')}
-              </button>
-            </div>
-          </div>
-        )}
 
-        {/* Enough credits — Buy Asset */}
-        {phase === 'ready' && (
-          <div className="buy-modal__body">
-            <AssetRow item={item} priceCredits={priceCredits} />
-            <div className="buy-modal__ctas">
-              <button
-                className="buy-modal__btn buy-modal__btn--gradient buy-modal__btn--full"
-                onClick={() => void confirm()}
-              >
-                {t('buyModal.buy')}
-              </button>
-            </div>
-          </div>
-        )}
+            {/* Loading (resolving + authorizing) */}
+            {phase === 'loading' && (
+              <div className="buy-modal__body buy-modal__processing">
+                <CircularProgress size={44} />
+              </div>
+            )}
 
-        {/* Processing — completing transaction */}
-        {phase === 'processing' && (
-          <div className="buy-modal__body buy-modal__processing">
-            <img className="buy-modal__logo" src={loaderLogo} alt="" width={61} height={61} />
-            <div className="buy-modal__processing-text">
-              {resume ? t('buyModal.completingPurchase') : t('buyModal.completingTransaction')}
-            </div>
-            <div className="buy-modal__progress" aria-hidden>
-              <span className="buy-modal__progress-fill" />
-            </div>
-          </div>
-        )}
+            {/* Error */}
+            {phase === 'error' && (
+              <div className="buy-modal__body">
+                <ErrorNotice message={error} />
+                <div className="buy-modal__ctas">
+                  <button className="buy-modal__btn buy-modal__btn--gradient" onClick={onClose}>
+                    {t('buyModal.close')}
+                  </button>
+                </div>
+              </div>
+            )}
 
-        {/* Complete */}
-        {phase === 'complete' && (
-          <div className="buy-modal__body">
-            <div className="buy-modal__success">
-              <svg viewBox="0 0 64 64" width="64" height="64" aria-hidden>
-                <circle cx="32" cy="32" r="32" fill="#34ce74" />
-                <path
-                  d="M20 33l8 8 16-18"
-                  fill="none"
-                  stroke="#fff"
-                  strokeWidth="5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-              <p className="buy-modal__success-text">
-                <b>{t('getCredits.successTitle')}</b> {t('buyModal.successBody')}
-              </p>
-            </div>
-            <div className="buy-modal__ctas">
-              <button className="buy-modal__btn buy-modal__btn--outline" onClick={() => navigate('/assets?tab=mine')}>
-                {t('buyModal.myAssets')}
-              </button>
-              <button className="buy-modal__btn buy-modal__btn--ruby" onClick={onClose}>
-                {t('buyModal.tryInWorld')}
-                <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden>
-                  <path
-                    d="M5 12h12M13 7l5 5-5 5"
-                    fill="none"
-                    stroke="#fcfcfc"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </button>
-            </div>
-          </div>
+            {/* Not enough credits — insufficient warning + pack picker */}
+            {phase === 'nofunds' && (
+              <div className="buy-modal__body">
+                <div className="buy-modal__warning">
+                  <WarningIcon className="buy-modal__warning-ico" />
+                  <p className="buy-modal__warning-text">
+                    <b>{t('buyModal.insufficientFunds')}</b> {t('buyModal.warningNeedToBuy')}{' '}
+                    <b>{t('buyModal.warningCreditsAmount', { count: Math.max(0, priceCredits - balanceCredits) })}</b>{' '}
+                    {t('buyModal.warningToPurchase', { count: 1 })}
+                  </p>
+                </div>
+                <AssetRow item={item} priceCredits={priceCredits} />
+                <div className="buy-modal__packs">
+                  {OFFER_PACKS.map(p => {
+                    const packCredits = p.credits
+                    const on = p.id === selectedPack
+                    return (
+                      <button
+                        key={p.id}
+                        className={`buy-modal__pack${on ? ' buy-modal__pack--on' : ''}`}
+                        onClick={() => setSelectedPack(p.id)}
+                      >
+                        <CurrencyIcon className="buy-modal__pack-ico" />
+                        <span className="buy-modal__pack-amount">{formatCredits(packCredits)}</span>
+                        <span className="buy-modal__pack-usd">(${p.usd.toFixed(2)})</span>
+                      </button>
+                    )
+                  })}
+                </div>
+                <div className="buy-modal__total">
+                  <div className="buy-modal__total-credits">
+                    <CurrencyIcon className="buy-modal__total-ico" />
+                    <span>{formatCredits(OFFER_PACKS.find(p => p.id === selectedPack)?.credits ?? 0)}</span>
+                  </div>
+                  <span className="buy-modal__total-usd">
+                    ${(OFFER_PACKS.find(p => p.id === selectedPack)?.usd ?? 0).toFixed(2)}
+                  </span>
+                </div>
+                <div className="buy-modal__ctas">
+                  <button className="buy-modal__btn buy-modal__btn--outline" onClick={onClose}>
+                    {t('buyModal.cancel')}
+                  </button>
+                  <button className="buy-modal__btn buy-modal__btn--gradient" onClick={() => void buyCreditsAndItem()}>
+                    {t('buyModal.buy')}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Enough credits — Buy Asset */}
+            {phase === 'ready' && (
+              <div className="buy-modal__body">
+                <AssetRow item={item} priceCredits={priceCredits} />
+                <div className="buy-modal__ctas">
+                  <button
+                    className="buy-modal__btn buy-modal__btn--gradient buy-modal__btn--full"
+                    onClick={() => void confirm()}
+                  >
+                    {t('buyModal.buy')}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Processing — completing transaction */}
+            {phase === 'processing' && (
+              <div className="buy-modal__body buy-modal__processing">
+                <img className="buy-modal__logo" src={loaderLogo} alt="" width={61} height={61} />
+                <div className="buy-modal__processing-text">
+                  {resume ? t('buyModal.completingPurchase') : t('buyModal.completingTransaction')}
+                </div>
+                <div className="buy-modal__progress" aria-hidden>
+                  <span className="buy-modal__progress-fill" />
+                </div>
+              </div>
+            )}
+
+            {/* Complete */}
+            {phase === 'complete' && (
+              <div className="buy-modal__body">
+                <div className="buy-modal__success">
+                  <svg viewBox="0 0 64 64" width="64" height="64" aria-hidden>
+                    <circle cx="32" cy="32" r="32" fill="#34ce74" />
+                    <path
+                      d="M20 33l8 8 16-18"
+                      fill="none"
+                      stroke="#fff"
+                      strokeWidth="5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                  <p className="buy-modal__success-text">
+                    <b>{t('getCredits.successTitle')}</b> {t('buyModal.successBody')}
+                  </p>
+                </div>
+                <div className="buy-modal__ctas">
+                  <button
+                    className="buy-modal__btn buy-modal__btn--outline"
+                    onClick={() => navigate('/assets?tab=mine')}
+                  >
+                    {t('buyModal.myAssets')}
+                  </button>
+                  <button className="buy-modal__btn buy-modal__btn--ruby" onClick={onClose}>
+                    {t('buyModal.tryInWorld')}
+                    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden>
+                      <path
+                        d="M5 12h12M13 7l5 5-5 5"
+                        fill="none"
+                        stroke="#fcfcfc"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
@@ -455,9 +658,7 @@ function AssetRow({ item, priceCredits }: { item: CatalogItem; priceCredits: num
           <div className="buy-modal__asset-name" title={item.name}>
             {item.name || t('buyModal.itemFallback')}
           </div>
-          {item.creator ? (
-            <CreatorName address={item.creator} className="buy-modal__asset-creator" />
-          ) : null}
+          {item.creator ? <CreatorName address={item.creator} className="buy-modal__asset-creator" /> : null}
         </div>
         <div className="buy-modal__asset-price">
           <CurrencyIcon className="buy-modal__asset-price-ico" />

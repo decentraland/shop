@@ -1,6 +1,6 @@
 import puppeteer, { type Browser, type HTTPRequest, type Page } from 'puppeteer'
 import { buildTestSession, sessionInitScript, type TestSession } from './session'
-import { handleRpc } from './rpc'
+import { handleRpc, setManaBalanceWei } from './rpc'
 import * as fx from '../fixtures'
 
 export const BASE = process.env.E2E_BASE_URL ?? 'http://localhost:5273'
@@ -386,11 +386,19 @@ export type App = { browser: Browser; page: Page; close: () => Promise<void> }
  * - errors: per-run forced error responses keyed by URL pathname (e.g. { '/credits/authorize': { status: 402 } }).
  */
 export async function launchApp(
-  opts: { path?: string; fixtures?: Partial<Fixtures>; signedOut?: boolean; errors?: ErrorMap } = {}
+  opts: {
+    path?: string
+    fixtures?: Partial<Fixtures>
+    signedOut?: boolean
+    errors?: ErrorMap
+    /** MANA (wei, as a decimal string) the mocked ERC20 reports — drives the MANA payment rails. */
+    manaBalanceWei?: string
+  } = {}
 ): Promise<App> {
   const F = { ...defaults(), ...opts.fixtures }
   const errors = opts.errors ?? {}
   mintedCents = 0 // reset the per-run top-up accumulator so balances don't leak between tests
+  setManaBalanceWei(opts.manaBalanceWei ?? '0') // no MANA unless a test asks for it
   const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] })
   const page = await browser.newPage()
   // Default to a desktop viewport so the browse sidebar (Category/Price/Rarity) renders inline; below

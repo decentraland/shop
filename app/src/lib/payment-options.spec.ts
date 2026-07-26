@@ -1,0 +1,230 @@
+import { describe, it, expect } from 'vitest'
+import {
+  computePaymentOptions,
+  distributeCreditsAcrossUnits,
+  findOption,
+  hasPayableOption,
+  manaForRemainder
+} from '~/lib/payment-options'
+
+// 1 credit = 10 cents. A 100-credit item costs 1000 cents.
+const PRICE_CENTS = 1000
+// …and 500 MANA at the rate used in these fixtures (so 1 cent = 0.5 MANA).
+const PRICE_MANA = 500n * 10n ** 18n
+const mana = (whole: number) => BigInt(whole) * 10n ** 18n
+
+function opts(over: Partial<Parameters<typeof computePaymentOptions>[0]> = {}) {
+  return computePaymentOptions({
+    priceCents: PRICE_CENTS,
+    priceManaWei: PRICE_MANA,
+    balanceCents: 0,
+    manaBalanceWei: 0n,
+    ...over
+  })
+}
+const methods = (o: ReturnType<typeof computePaymentOptions>) => o.options.map(x => x.method)
+
+describe('computePaymentOptions', () => {
+  describe('when the buyer holds no MANA', () => {
+    it('should offer only the credits rail when credits cover the price', () => {
+      const o = opts({ balanceCents: PRICE_CENTS })
+      expect(methods(o)).toEqual(['credits'])
+      expect(o.preferred).toBe('credits')
+      expect(findOption(o, 'credits')).toEqual({ method: 'credits', creditsCents: PRICE_CENTS, manaWei: 0n })
+    })
+
+    it('should offer nothing when credits fall short (caller falls back to the top-up flow)', () => {
+      const o = opts({ balanceCents: PRICE_CENTS - 1 })
+      expect(o.options).toEqual([])
+      expect(o.preferred).toBeNull()
+      expect(hasPayableOption(o)).toBe(false)
+    })
+  })
+
+  describe('when the buyer holds MANA but no credits', () => {
+    it('should offer only the MANA rail when MANA covers the price', () => {
+      const o = opts({ manaBalanceWei: PRICE_MANA })
+      expect(methods(o)).toEqual(['mana'])
+      expect(o.preferred).toBe('mana')
+      expect(findOption(o, 'mana')).toEqual({ method: 'mana', creditsCents: 0, manaWei: PRICE_MANA })
+    })
+
+    it('should offer nothing when the MANA balance is one wei short', () => {
+      const o = opts({ manaBalanceWei: PRICE_MANA - 1n })
+      expect(o.options).toEqual([])
+      expect(o.preferred).toBeNull()
+    })
+
+    it('should NOT offer the combined rail (there are no credits to spend first)', () => {
+      const o = opts({ balanceCents: 0, manaBalanceWei: PRICE_MANA })
+      expect(methods(o)).not.toContain('combined')
+    })
+  })
+
+  describe('when the buyer holds partial credits plus MANA', () => {
+    it('should offer the combined rail with credits first and MANA for the exact remainder', () => {
+      // 400 of 1000 cents in credits → 600 cents remain → 600/1000 × 500 MANA = 300 MANA. The balance
+      // (400 MANA) covers that remainder but NOT the full 500-MANA price, so combined is the only rail.
+      const o = opts({ balanceCents: 400, manaBalanceWei: mana(400) })
+      expect(methods(o)).toEqual(['combined'])
+      expect(findOption(o, 'combined')).toEqual({ method: 'combined', creditsCents: 400, manaWei: mana(300) })
+      expect(o.preferred).toBe('combined')
+    })
+
+    it('should offer combined when the MANA balance covers the remainder EXACTLY', () => {
+      const o = opts({ balanceCents: 400, manaBalanceWei: mana(300) })
+      expect(methods(o)).toContain('combined')
+    })
+
+    it('should NOT offer combined when the MANA balance is one wei short of the remainder', () => {
+      const o = opts({ balanceCents: 400, manaBalanceWei: mana(300) - 1n })
+      expect(methods(o)).not.toContain('combined')
+      expect(o.options).toEqual([])
+    })
+
+    it('should offer combined AND mana when the MANA balance also covers the whole price', () => {
+      const o = opts({ balanceCents: 400, manaBalanceWei: PRICE_MANA })
+      expect(methods(o)).toEqual(['combined', 'mana'])
+      // Combined is preferred: it spends the credits the buyer already holds first.
+      expect(o.preferred).toBe('combined')
+    })
+  })
+
+  describe('when the buyer holds enough of both', () => {
+    it('should offer credits and mana but NOT combined (a full credit balance leaves no remainder)', () => {
+      const o = opts({ balanceCents: PRICE_CENTS, manaBalanceWei: PRICE_MANA })
+      expect(methods(o)).toEqual(['credits', 'mana'])
+      expect(methods(o)).not.toContain('combined')
+      expect(o.preferred).toBe('credits')
+    })
+
+    it('should keep the display order credits → combined → mana', () => {
+      // Credits short by 1 cent so all three could theoretically apply; combined + mana are offered.
+      const o = opts({ balanceCents: PRICE_CENTS - 10, manaBalanceWei: PRICE_MANA })
+      expect(methods(o)).toEqual(['combined', 'mana'])
+    })
+  })
+
+  describe('when the MANA price is unknown (oracle read failed)', () => {
+    it('should offer only the credits rail, never a MANA one', () => {
+      const o = opts({ priceManaWei: 0n, balanceCents: PRICE_CENTS, manaBalanceWei: mana(10_000) })
+      expect(methods(o)).toEqual(['credits'])
+    })
+
+    it('should offer nothing when credits are also short', () => {
+      const o = opts({ priceManaWei: 0n, balanceCents: 500, manaBalanceWei: mana(10_000) })
+      expect(o.options).toEqual([])
+    })
+  })
+
+  describe('guards', () => {
+    it('should offer nothing for a zero or negative price', () => {
+      expect(opts({ priceCents: 0, balanceCents: 5000 }).options).toEqual([])
+      expect(opts({ priceCents: -100, balanceCents: 5000 }).options).toEqual([])
+    })
+
+    it('should treat a negative MANA balance as zero', () => {
+      const o = opts({ balanceCents: PRICE_CENTS, manaBalanceWei: -5n })
+      expect(methods(o)).toEqual(['credits'])
+    })
+
+    it('should truncate fractional cent inputs instead of drifting', () => {
+      // 999.9 cents of balance against a 1000-cent price is still short.
+      const o = opts({ balanceCents: 999.9 })
+      expect(o.options).toEqual([])
+      // …and a fractional price truncates to 1000, which a 1000-cent balance covers.
+      expect(methods(opts({ priceCents: 1000.7, balanceCents: 1000 }))).toEqual(['credits'])
+    })
+
+    it('should treat NaN balances as zero rather than throwing', () => {
+      const o = opts({ balanceCents: Number.NaN, manaBalanceWei: PRICE_MANA })
+      expect(methods(o)).toEqual(['mana'])
+    })
+  })
+
+  describe('the combined split never under-funds the price', () => {
+    it('should round the MANA leg UP when the remainder does not divide evenly', () => {
+      // 1 cent of 3 remains → 1/3 of 1 wei rounds up to 1 wei (never 0).
+      expect(manaForRemainder(1, 3, 1n)).toBe(1n)
+      // 7 of 999 cents against an odd MANA price: ceil, not floor.
+      const exact = (7n * 1_000_000_000_000_001n) / 999n
+      expect(manaForRemainder(7, 999, 1_000_000_000_000_001n)).toBe(exact + 1n)
+    })
+
+    it('should cover credits + MANA >= the price for every partial balance', () => {
+      // Sweep every 10-cent step of a partial balance: the two legs must always sum to the full price.
+      for (let bal = 10; bal < PRICE_CENTS; bal += 10) {
+        const o = opts({ balanceCents: bal, manaBalanceWei: PRICE_MANA })
+        const combined = findOption(o, 'combined')
+        expect(combined, `balance ${bal}`).not.toBeNull()
+        const manaLegCents = (combined!.manaWei * BigInt(PRICE_CENTS)) / PRICE_MANA
+        expect(BigInt(combined!.creditsCents) + manaLegCents).toBeGreaterThanOrEqual(BigInt(PRICE_CENTS))
+      }
+    })
+
+    it('should return the whole MANA price when the remainder is the whole price', () => {
+      expect(manaForRemainder(PRICE_CENTS, PRICE_CENTS, PRICE_MANA)).toBe(PRICE_MANA)
+      expect(manaForRemainder(PRICE_CENTS + 50, PRICE_CENTS, PRICE_MANA)).toBe(PRICE_MANA)
+    })
+
+    it('should return zero MANA for a non-positive remainder or price', () => {
+      expect(manaForRemainder(0, PRICE_CENTS, PRICE_MANA)).toBe(0n)
+      expect(manaForRemainder(-5, PRICE_CENTS, PRICE_MANA)).toBe(0n)
+      expect(manaForRemainder(100, 0, PRICE_MANA)).toBe(0n)
+    })
+  })
+
+  describe('findOption', () => {
+    it('should return null for a method that is not offerable', () => {
+      const o = opts({ balanceCents: PRICE_CENTS })
+      expect(findOption(o, 'mana')).toBeNull()
+      expect(findOption(o, 'combined')).toBeNull()
+      expect(findOption(o, 'credits')).not.toBeNull()
+    })
+  })
+})
+
+describe('distributeCreditsAcrossUnits (combined payment across a cart)', () => {
+  it('should fully fund every unit when the balance covers the basket', () => {
+    expect(distributeCreditsAcrossUnits([300, 500, 200], 1000)).toEqual([300, 500, 200])
+  })
+
+  it('should fund units in order and leave a PARTIAL credit on the unit that exhausts the balance', () => {
+    // 650 of a 1000-cent basket: 300 (full) + 350 (partial, of 500) + 0 (MANA covers it).
+    expect(distributeCreditsAcrossUnits([300, 500, 200], 650)).toEqual([300, 350, 0])
+  })
+
+  it('should give every unit zero when there is no credit balance (a MANA-only basket)', () => {
+    expect(distributeCreditsAcrossUnits([300, 500], 0)).toEqual([0, 0])
+  })
+
+  it('should never allocate more than the basket costs, even with a huge balance', () => {
+    const alloc = distributeCreditsAcrossUnits([300, 500], 999_999)
+    expect(alloc).toEqual([300, 500])
+    expect(alloc.reduce((a, b) => a + b, 0)).toBe(800)
+  })
+
+  it('should sum to min(balance, basket) so the caller can derive the MANA gap', () => {
+    const units = [120, 340, 55, 900]
+    const basket = units.reduce((a, b) => a + b, 0)
+    for (const balance of [0, 1, 119, 120, 121, 460, basket - 1, basket, basket + 500]) {
+      const total = distributeCreditsAcrossUnits(units, balance).reduce((a, b) => a + b, 0)
+      expect(total, `balance ${balance}`).toBe(Math.min(balance, basket))
+    }
+  })
+
+  it('should never allocate more to a unit than that unit costs', () => {
+    const units = [100, 20, 5]
+    distributeCreditsAcrossUnits(units, 1000).forEach((take, i) => expect(take).toBeLessThanOrEqual(units[i]))
+  })
+
+  it('should coerce junk inputs instead of drifting', () => {
+    expect(distributeCreditsAcrossUnits([100.7, -5, Number.NaN], 1000)).toEqual([100, 0, 0])
+    expect(distributeCreditsAcrossUnits([100], Number.NaN)).toEqual([0])
+    expect(distributeCreditsAcrossUnits([100], -50)).toEqual([0])
+  })
+
+  it('should return an empty allocation for an empty cart', () => {
+    expect(distributeCreditsAcrossUnits([], 500)).toEqual([])
+  })
+})
