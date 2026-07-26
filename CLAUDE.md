@@ -47,6 +47,7 @@ The spec for all of Decentraland's public APIs is available at https://docs.dece
 - Prettier: config in `.prettierrc`. Match the surrounding style.
 - TypeScript strict, `noUnusedLocals` / `noUnusedParameters` on. Prefer `type` imports.
 - Never surface a raw error to the user (web2-first + PII rule) — report it to Sentry via `captureError` and show human-friendly copy.
+- **Styling is Emotion `styled`** (see `src/styles/theme.ts` for tokens; `src/styles/*.styles.ts` and co-located `Foo.styles.ts` for defs). Pull hexes/radii/breakpoints from `theme`, never re-hardcode. **Design tokens are duplicated in `theme.ts` (JS) and `styles/index.css` (`:root` CSS vars) and MUST be kept in sync one-for-one** — both are live (index.css utility rules + a few runtime `var(--…)` strings in components). Change one, change the other. (Single-sourcing them is a possible future cleanup: generate `:root` from `theme.ts`, or drop the `var()` usages.)
 
 ## Commenting Guidelines
 

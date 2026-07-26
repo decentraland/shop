@@ -1,7 +1,10 @@
-// The single source of truth for design tokens as the app migrates from `index.css` to Emotion
-// `styled`. Values mirror the CSS custom properties in `index.css` (`:root`) one-for-one — until a
-// given class is fully migrated and removed, both must agree. Once `index.css` is gone, this file
-// becomes the only source.
+// Design tokens for the Emotion `styled` layer. These values are DUPLICATED in `styles/index.css`
+// (`:root` custom properties) and MUST be kept in sync one-for-one, because both are still live:
+//   1. the remaining utility rules in index.css use `var(--muted)` etc., and
+//   2. a handful of components emit raw `var(--…)` strings at runtime (e.g. `<Icon color="var(--muted)">`).
+// So when you change a color/radius/gradient here, change the matching `--var` there too (and vice-versa).
+// theme.ts may hold EXTRA tokens with no `--var` (e.g. `magenta`, `okStrong`) — that's fine; only tokens
+// that exist in BOTH must agree. (Collapsing to a single source is possible later — see CLAUDE.md.)
 //
 // Usage: import this object directly and interpolate it — `styled.span\`color: ${theme.colors.muted}\``,
 // `theme.media.maxWidth('mobile')`. It's a plain const, so no ThemeProvider is needed (the app has no

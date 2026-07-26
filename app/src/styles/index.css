@@ -1,3 +1,6 @@
+/* These custom properties are DUPLICATED in styles/theme.ts (the `colors`/`radius`/`gradients`/`font`
+   tokens) and MUST stay in sync one-for-one. Both are live: index.css rules below + component styled
+   defs read theme.ts, and some components emit raw `var(--…)` strings. Change one → change the other. */
 :root {
   /* Brand / accent (from Figma) */
   --bg: #ffffff;
