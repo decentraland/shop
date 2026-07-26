@@ -11,7 +11,17 @@ import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { formatCredits } from '~/lib/currency'
 import { readTradeManaPriceWei } from '~/lib/mana'
 import { PaymentMethodStep } from '~/components/PaymentMethodStep'
-import { computePaymentOptions, findOption } from '~/lib/payment-options'
+import { PaymentCtas } from '~/components/PaymentCtas'
+import { AuthorizeStep } from '~/components/AuthorizeStep'
+import { ContractName, getContract, getContractName } from 'decentraland-transactions'
+import manaLight from '~/assets/mana-matic-light.svg'
+import {
+  getAuthorizationStatus,
+  getManaSpendingAuthorization,
+  needsApprovalStep,
+  type ShopAuthorization
+} from '~/lib/authorizations'
+import { computePaymentOptions, findOption, type PaymentMethod } from '~/lib/payment-options'
 import { track, errorCode, isUserRejection, purchaseItemsProps } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
 import { authorizeUsdCredit, cancelUsdIntents } from '~/lib/credits'
@@ -429,8 +439,50 @@ export function BuyModal({
   // It replaces BOTH end states, which is the point: in 'ready' it adds "pay in MANA instead", and in
   // 'nofunds' it turns a dead end into a purchase the buyer can complete with the MANA they already
   // hold (alone, or mixed with the credits they have).
+  // A MANA rail needs the buyer's permission to move their MANA. Self-custody wallets are TOLD about it
+  // first, through the same approval step the sell and top-up flows use, so the extra wallet prompt is
+  // explained instead of arriving unannounced next to the purchase prompt. Managed (web2) wallets never
+  // see approval wording — lib/buy-mana grants it silently for them (CONVENTIONS.md).
+  const [authStep, setAuthStep] = useState<{ auth: ShopAuthorization; rail: 'mana' | 'combined' } | null>(null)
+
+  /** The MANA allowance a rail needs: the marketplace moves it for MANA-only, the CreditsManager for mixed. */
+  function manaAuthFor(rail: 'mana' | 'combined', trade: Trade): ShopAuthorization {
+    const spender =
+      rail === 'mana'
+        ? getContract(getContractName(trade.contract), trade.chainId).address
+        : getContract(ContractName.CreditsManager, trade.chainId).address
+    return getManaSpendingAuthorization(trade.chainId, spender)
+  }
+
+  function runRail(rail: PaymentMethod) {
+    if (rail === 'mana') void confirmMana()
+    else if (rail === 'combined') void confirmCombined()
+    else void confirm()
+  }
+
+  async function startPurchase(rail: PaymentMethod) {
+    const trade = locked?.trade ?? resolvedTrade
+    if (rail === 'credits' || !trade || !session) {
+      runRail(rail)
+      return
+    }
+    const auth = manaAuthFor(rail, trade)
+    // On a failed status read, assume approved and let the lib's ensureAuthorization handle it: that is
+    // the pre-existing behaviour, so a flaky RPC degrades to "unannounced prompt", never to a blocked buy.
+    const authorized = await getAuthorizationStatus(auth, session.address).catch(() => true)
+    if (needsApprovalStep(session.providerType, authorized)) {
+      setAuthStep({ auth, rail })
+      return
+    }
+    runRail(rail)
+  }
+
   const hasManaRail = paymentOptions.options.some(o => o.method === 'mana' || o.method === 'combined')
-  const methodMode = (phase === 'ready' || phase === 'nofunds') && hasManaRail
+  // A buyer holding MANA that can't cover the item still gets the CTA step in 'ready': it renders the
+  // credits button plus the MANA one disabled, with what their balance is worth. 'nofunds' is excluded on
+  // purpose — with no payable rail at all, the pack picker is the only way forward, so the disabled button
+  // is rendered inside that state instead (below) rather than replacing it.
+  const methodMode = (phase === 'ready' && (hasManaRail || paymentOptions.manaShortfall != null)) || (phase === 'nofunds' && hasManaRail)
 
   const busy = phase === 'processing'
   const title =
@@ -439,6 +491,29 @@ export function BuyModal({
       : phase === 'nofunds'
         ? t('buyModal.titleNoFunds')
         : t('buyModal.titleBuy')
+
+  if (authStep && session) {
+    return (
+      <AuthorizeStep
+        auth={authStep.auth}
+        signer={session.signer}
+        title={t(authStep.rail === 'mana' ? 'authorizeStep.manaTitle' : 'authorizeStep.buyTitle')}
+        name={t(authStep.rail === 'mana' ? 'authorizeStep.manaName' : 'authorizeStep.buyName')}
+        reason={t(authStep.rail === 'mana' ? 'authorizeStep.manaReason' : 'authorizeStep.buyReason')}
+        icon={<img src={manaLight} width={24} height={24} alt="" aria-hidden />}
+        onAuthorized={() => {
+          const { rail } = authStep
+          setAuthStep(null)
+          runRail(rail)
+        }}
+        onCancel={() => setAuthStep(null)}
+        onClose={() => {
+          setAuthStep(null)
+          onClose()
+        }}
+      />
+    )
+  }
 
   return (
     <div
@@ -458,11 +533,10 @@ export function BuyModal({
             priceCents={priceCents}
             options={paymentOptions.options}
             priceManaWei={manaPriceWei ?? 0n}
-            onBuy={method =>
-              void (method === 'mana' ? confirmMana() : method === 'combined' ? confirmCombined() : confirm())
-            }
+            onBuy={method => void startPurchase(method)}
             onClose={onClose}
             busy={busy}
+            shortfall={paymentOptions.manaShortfall}
           />
         ) : (
           <>
@@ -518,7 +592,15 @@ export function BuyModal({
                   </p>
                 </div>
                 <AssetRow item={item} priceCredits={priceCredits} />
-                <div className="buy-modal__packs">
+                {paymentOptions.manaShortfall ? (
+                  <PaymentCtas
+                    options={[]}
+                    totalCents={priceCents}
+                    onPay={() => undefined}
+                    shortfall={paymentOptions.manaShortfall}
+                  />
+                ) : null}
+                <div className="buy-modal__packs" data-testid="credit-packs">
                   {OFFER_PACKS.map(p => {
                     const packCredits = p.credits
                     const on = p.id === selectedPack

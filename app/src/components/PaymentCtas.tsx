@@ -1,7 +1,12 @@
 import { CurrencyIcon } from '~/components/CurrencyIcon'
-import { formatCredits } from '~/lib/currency'
+import { CURRENCY, formatCredits } from '~/lib/currency'
 import { formatMana } from '~/lib/mana-format'
-import { creditsFromCents, type PaymentMethod, type PaymentOption } from '~/lib/payment-options'
+import {
+  creditsFromCents,
+  type ManaShortfall,
+  type PaymentMethod,
+  type PaymentOption
+} from '~/lib/payment-options'
 import { t } from '~/intl/i18n'
 import manaLight from '~/assets/mana-matic-light.svg'
 import * as S from './PaymentCtas.styles'
@@ -16,8 +21,12 @@ import * as S from './PaymentCtas.styles'
  *   • mana      — "BUY WITH MANA ◈50.07"     (dark, per the Figma)
  *   • combined  — "BUY WITH ◈40 + 35.2 MANA" (dark; credits first, MANA covers the remainder)
  *
- * There are never three at once: `combined` only exists when the credits alone fall short, which is
- * exactly when the credits-only rail is unavailable — so at most two buttons ever render.
+ * There are never three enabled at once: `combined` only exists when the credits alone fall short, which
+ * is exactly when the credits-only rail is unavailable — so at most two payable buttons ever render.
+ *
+ * A buyer holding MANA that can't cover the purchase gets the MANA button anyway, DISABLED, captioned
+ * with what their balance is worth (`shortfall`). Hiding it instead reads as a bug — the navbar shows a
+ * MANA balance, so its absence here needs a reason on screen, not silence.
  *
  * `rateNote` (Figma 1653-368866) spells out the exchange rate underneath, so the MANA amounts above are
  * never a mystery number.
@@ -28,7 +37,8 @@ export function PaymentCtas({
   onPay,
   busy = false,
   rateNote,
-  creditsLabel
+  creditsLabel,
+  shortfall
 }: {
   /** The offerable options, already filtered + ordered by lib/payment-options. */
   options: PaymentOption[]
@@ -40,6 +50,8 @@ export function PaymentCtas({
   rateNote?: string | null
   /** Label for the credits button (the item flow says "Buy asset", the cart says "Buy"). */
   creditsLabel?: string
+  /** Held MANA that can't pay for this purchase — renders the disabled MANA button. */
+  shortfall?: ManaShortfall | null
 }) {
   return (
     <S.Root>
@@ -72,7 +84,9 @@ export function PaymentCtas({
             >
               <span>{t('buyModal.buyWithMana')}</span>
               <S.Amount>
-                <S.ManaMark src={manaLight} alt="" aria-hidden />
+                <S.ManaMark>
+                  <img src={manaLight} alt="" aria-hidden />
+                </S.ManaMark>
                 <span>{formatMana(option.manaWei)}</span>
               </S.Amount>
             </S.ManaBtn>
@@ -93,7 +107,9 @@ export function PaymentCtas({
               <CurrencyIcon />
               <span>{formatCredits(creditsFromCents(option.creditsCents))}</span>
               <S.Plus>+</S.Plus>
-              <S.ManaMark src={manaLight} alt="" aria-hidden />
+              <S.ManaMark>
+                  <img src={manaLight} alt="" aria-hidden />
+                </S.ManaMark>
               <span>{formatMana(option.manaWei)}</span>
               {/* The unit is spelled out on the mixed CTA: unlike the MANA-only button (whose label
                   already says "Buy with MANA"), here two marks sit side by side and the icons alone
@@ -103,6 +119,31 @@ export function PaymentCtas({
           </S.ManaBtn>
         )
       })}
+      {/* MANA the buyer holds that still can't pay for this. Shown, not hidden: the balance is visible in
+          the navbar, so the button's absence needs a stated reason. The caption converts the balance into
+          credits at this purchase's own rate, which IS the explanation — MANA is oracle-priced, so a
+          balance that looks large next to a credits price can be worth a fraction of it. */}
+      {shortfall ? (
+        <>
+          <S.ManaBtn key="mana-short" type="button" data-testid="pay-with-mana-disabled" disabled>
+            <span>{t('buyModal.buyWithMana')}</span>
+            <S.Amount>
+              <S.ManaMark>
+                <img src={manaLight} alt="" aria-hidden />
+              </S.ManaMark>
+              <span>{formatMana(shortfall.manaWei)}</span>
+            </S.Amount>
+          </S.ManaBtn>
+          <S.ShortfallNote data-testid="mana-shortfall-note">
+            {t('buyModal.manaWorth', {
+              mana: formatMana(shortfall.manaWei),
+              credits: formatCredits(creditsFromCents(shortfall.manaCents)),
+              price: formatCredits(creditsFromCents(shortfall.priceCents)),
+              currency: CURRENCY.name
+            })}
+          </S.ShortfallNote>
+        </>
+      ) : null}
       {rateNote ? <S.RateNote data-testid="mana-rate-note">{rateNote}</S.RateNote> : null}
       {/* The cents total is what the legs are derived from; kept out of the DOM text so the buttons stay
           the single source of truth for what gets charged. */}

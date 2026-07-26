@@ -397,29 +397,72 @@ a.checkout__name:hover {
   flex-direction: column;
   gap: 12px;
 }
+/* "Creator" chip on a primary (mint) line — Figma node 1602:357031 "Tag-Creator". */
+.checkout__creator-tag {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  background: #f4e9ff;
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 14px;
+  color: var(--text);
+}
+/* The glyph keeps the design's leaf size (11.31 × 10.94) rather than a square icon box. */
+.checkout__creator-tag-ico {
+  width: 11.31px;
+  height: 10.94px;
+  background: var(--text);
+}
+
+/* The summary's total row — Figma node 1553:317181 "Price". */
 .checkout__total-line {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
 }
+/* typography/subtitle2: Inter SemiBold 14/1.57, gray-1. */
 .checkout__total-label {
-  font-size: 16px;
-  font-weight: 400;
-  color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.57;
+  color: #5e5b67;
 }
 .checkout__total-value {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   font-size: 24px;
-  font-weight: 600;
-  color: var(--text-2);
+  font-weight: 700;
+  color: var(--text);
+}
+/* Total + the exchange rate stacked under it, both flush right. */
+.checkout__total-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 4px;
+}
+/* typography/caption: Inter Regular 12/1, gray-2. */
+.checkout__total-rate {
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1;
+  color: var(--muted);
 }
 .checkout__total-ico {
   width: 30px;
   height: 30px;
-  background: var(--accent);
+  background: var(--text);
+  -webkit-mask-size: 24px 24px;
+  mask-size: 24px 24px;
+  -webkit-mask-position: left top;
+  mask-position: left top;
 }
 .checkout__cta {
   width: 100%;

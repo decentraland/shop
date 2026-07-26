@@ -26,11 +26,34 @@ export type PaymentOption =
   /** Spend `creditsCents` (the whole credit balance) + `manaWei` MANA for the remainder. */
   | { method: 'combined'; creditsCents: number; manaWei: bigint }
 
+/**
+ * Why no MANA rail is on the table for a buyer who DOES hold MANA — enough to say so on screen.
+ *
+ * Silently dropping the MANA button reads as a bug ("I have MANA, where did the option go?"), so the UI
+ * shows it disabled with what the balance is actually worth. That number is the whole explanation: MANA
+ * is priced by an oracle, so a balance the navbar shows as 194.51 can be worth far less than the credits
+ * price it's being compared against.
+ */
+export type ManaShortfall = {
+  /** The buyer's MANA balance, in wei. */
+  manaWei: bigint
+  /** What that balance is worth in cents at this purchase's rate. Floored — never overstate it. */
+  manaCents: number
+  /** What the purchase costs, in cents. */
+  priceCents: number
+}
+
 export type PaymentOptions = {
   /** Offerable options, in display order: credits, combined, mana. Empty when nothing covers the price. */
   options: PaymentOption[]
   /** The option to pre-select: credits > combined > mana (prefer the credits rail, use MANA last). */
   preferred: PaymentMethod | null
+  /**
+   * Set only when the buyer holds MANA that still can't pay for this purchase (alone or mixed) — i.e.
+   * exactly when a MANA button is missing and the buyer would expect one. Null whenever a MANA rail is
+   * offerable, when the balance is zero, or when the rate is unknown (then there is nothing to state).
+   */
+  manaShortfall: ManaShortfall | null
 }
 
 /** Ceiling division for bigints — we round the MANA leg UP so a split can never under-fund the price. */
@@ -68,7 +91,7 @@ export function computePaymentOptions(input: {
 
   // A priceless item (or an unresolved price) has no payable rail — the caller keeps its loading /
   // error state rather than offering a bogus choice.
-  if (priceCents <= 0) return { options: [], preferred: null }
+  if (priceCents <= 0) return { options: [], preferred: null, manaShortfall: null }
 
   const options: PaymentOption[] = []
 
@@ -101,7 +124,24 @@ export function computePaymentOptions(input: {
     options.find(o => o.method === 'mana')?.method ??
     null
 
-  return { options, preferred }
+  // Held MANA that buys nothing here. Reported only when a MANA rail is genuinely absent, so a UI can
+  // render the disabled button off this field alone without re-deriving the condition.
+  const hasManaRail = options.some(o => o.method === 'mana' || o.method === 'combined')
+  const manaShortfall: ManaShortfall | null =
+    !hasManaRail && priceManaWei > 0n && manaBalanceWei > 0n
+      ? { manaWei: manaBalanceWei, manaCents: manaBalanceToCents(manaBalanceWei, priceCents, priceManaWei), priceCents }
+      : null
+
+  return { options, preferred, manaShortfall }
+}
+
+/**
+ * What a MANA balance is worth in cents, priced off this purchase (its cents ÷ its MANA price) so the
+ * figure can never disagree with the amounts the buttons charge. Floored: a balance shown as worth N
+ * must actually cover N.
+ */
+function manaBalanceToCents(manaBalanceWei: bigint, priceCents: number, priceManaWei: bigint): number {
+  return Number((manaBalanceWei * BigInt(priceCents)) / priceManaWei)
 }
 
 /**

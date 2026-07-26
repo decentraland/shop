@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { launchApp, type App } from './helpers/app'
-import { clickByAria, clickByText, waitForText } from './helpers/dom'
+import { clickByAria, clickByText, startCartCheckout, waitForText } from './helpers/dom'
 import { COLLECTION, buyTrade, primaryTrade, creditsResponse } from './fixtures'
 
 let app: App | undefined
@@ -22,9 +22,8 @@ describe('cart checkout', () => {
     // (client-side nav keeps the cart state) and check out.
     await waitForText(page, 'successfully added to cart')
     expect(await clickByText(page, 'a', /go to cart/i)).toBe(true)
-    await waitForText(page, 'Buy now')
     await waitForText(page, 'Nebula Jacket')
-    expect(await clickByText(page, 'button', /^buy now$/i)).toBe(true)
+    await startCartCheckout(page)
 
     // The checkout modal runs review → authorize → gasless buy → settlement, then navigates to the
     // standalone /success page (Figma 1182-232376) with the purchased line — no floating in-cart modal.
@@ -57,7 +56,7 @@ describe('cart checkout', () => {
     expect(await clickByText(page, 'a', /go to cart/i)).toBe(true)
     await waitForText(page, 'Galaxy Hat')
     await waitForText(page, '540') // qty-2 line subtotal + summary total
-    expect(await clickByText(page, 'button', /^buy now$/i)).toBe(true)
+    await startCartCheckout(page)
 
     // Checkout expands the qty-2 primary line into 2 per-unit authorizes + one accept([trade × 2]),
     // then lands on the standalone /success page.
@@ -81,11 +80,13 @@ describe('cart checkout', () => {
     await waitForText(page, 'Buy now')
     expect(await clickByText(page, 'button', /add to cart/i)).toBe(true)
 
-    // Adding opens the cart drawer; go to the cart page from its CTA, then check out.
+    // Adding opens the cart drawer; go to the cart page from its CTA, then check out. Wait for the LINE
+    // to render first: the summary CTA paints before the cart store finishes hydrating, and checkout()
+    // reads the store directly — clicking earlier is a no-op against an empty basket.
     await waitForText(page, 'successfully added to cart')
     expect(await clickByText(page, 'a', /go to cart/i)).toBe(true)
-    await waitForText(page, 'Buy now')
-    expect(await clickByText(page, 'button', /^buy now$/i)).toBe(true)
+    await waitForText(page, 'Nebula Jacket')
+    await startCartCheckout(page)
 
     await waitForText(page, 'Buy Credits and Items')
     await waitForText(page, 'Insufficient Funds')

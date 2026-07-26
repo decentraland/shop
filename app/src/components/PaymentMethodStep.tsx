@@ -3,7 +3,7 @@ import { PaymentCtas } from '~/components/PaymentCtas'
 import { CreatorName } from '~/components/CreatorName'
 import { Icon } from '~/components/Icon'
 import { formatCredits } from '~/lib/currency'
-import { manaPerCredit, type PaymentMethod, type PaymentOption } from '~/lib/payment-options'
+import { manaPerCredit, type ManaShortfall, type PaymentMethod, type PaymentOption } from '~/lib/payment-options'
 import { t } from '~/intl/i18n'
 import type { CatalogItem } from '~/lib/api'
 import * as S from './PaymentMethodStep.styles'
@@ -14,10 +14,13 @@ export type { PaymentMethod }
  * The "Choose your payment method" step of the Buy Now flow (Figma 1552-316605). Shown only to buyers
  * who already hold MANA; it lets them settle with credits, with MANA, or with BOTH.
  *
- * The rows are whatever `options` says the buyer's balances actually support (see lib/payment-options):
- * credits alone, credits + MANA for the remainder, and/or MANA alone. Nothing unaffordable is rendered
- * — no greyed dead ends — so every row shown is a payment the buyer can actually complete.
- * Single-select; the caller pre-selects `preferred` (credits first, MANA last).
+ * The buttons are whatever `options` says the buyer's balances actually support (see lib/payment-options):
+ * credits alone, credits + MANA for the remainder, and/or MANA alone. Every enabled button is a payment
+ * the buyer can complete in one click.
+ *
+ * The one deliberate exception to "nothing unaffordable is rendered" is `shortfall`: a buyer who HOLDS
+ * MANA that can't cover this item gets the MANA button disabled, captioned with what their balance is
+ * worth. Their MANA balance is on screen in the navbar, so its silent absence here reads as a bug.
  */
 export function PaymentMethodStep({
   item,
@@ -27,7 +30,8 @@ export function PaymentMethodStep({
   priceManaWei,
   onBuy,
   onClose,
-  busy = false
+  busy = false,
+  shortfall
 }: {
   item: CatalogItem
   priceCredits: number
@@ -41,6 +45,8 @@ export function PaymentMethodStep({
   onBuy: (method: PaymentMethod) => void
   onClose: () => void
   busy?: boolean
+  /** Held MANA that can't pay for this item — renders the MANA button disabled and says why. */
+  shortfall?: ManaShortfall | null
 }) {
   const rate = manaPerCredit(priceCents, priceManaWei)
   return (
@@ -75,6 +81,7 @@ export function PaymentMethodStep({
         totalCents={priceCents}
         onPay={onBuy}
         busy={busy}
+        shortfall={shortfall}
         creditsLabel={t('buyModal.buyAsset')}
         rateNote={
           rate != null
