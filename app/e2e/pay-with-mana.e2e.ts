@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { launchApp, type App } from './helpers/app'
-import { clickByText, clickWhenEnabled, waitForText } from './helpers/dom'
+import { bodyText, clickByText, clickWhenEnabled, waitForText } from './helpers/dom'
 import { COLLECTION, buyTrade, creditsResponse } from './fixtures'
 
 let app: App | undefined
@@ -123,7 +123,7 @@ describe('paying with MANA in the buy flow', () => {
     await waitForText(page, 'Purchase complete!', 30000)
   })
 
-  it('keeps the top-up pack picker when the MANA held is too small for any rail', async () => {
+  it('keeps the top-up pack picker when the MANA held is too small for any rail, and says why', async () => {
     app = await launchApp({
       path: ITEM_PATH,
       fixtures: { trade: buyTrade, credits: PARTIAL_CREDITS },
@@ -134,43 +134,64 @@ describe('paying with MANA in the buy flow', () => {
     await waitForText(page, 'Nebula Jacket')
     await clickWhenEnabled(page, 'button', /buy now/i)
 
-    // No rail is payable → the conventional short-on-credits flow, never a MANA row.
+    // No rail is payable → the top-up flow stays, and no MANA button is clickable...
     await waitForText(page, 'Buy Credits')
     expect(await has(page, 'pay-with-mana')).toBe(false)
     expect(await has(page, 'pay-with-combined')).toBe(false)
+    // ...but the MANA the buyer DOES hold is accounted for on screen, disabled, with its worth in
+    // credits. Silently dropping it is what made this state read as broken.
+    await page.waitForSelector('[data-testid="pay-with-mana-disabled"]', { timeout: 20000 })
+    expect(
+      await page.$eval('[data-testid="pay-with-mana-disabled"]', el => (el as HTMLButtonElement).disabled)
+    ).toBe(true)
+    expect(await page.$eval('[data-testid="mana-shortfall-note"]', el => el.textContent ?? '')).toMatch(
+      /worth about [\d.,]+ credits/i
+    )
+    // The pack picker is still the way forward.
+    expect(await has(page, 'credit-packs')).toBe(true)
   })
 })
 
 describe('paying with MANA in the cart checkout', () => {
-  // Seed the cart the way a buyer does: add from the PDP, go to the cart, then start the checkout.
-  const goToCartCheckout = async (page: App['page']) => {
+  // Seed the cart the way a buyer does: add from the PDP, then open the cart. The rails live in the
+  // Purchase Summary panel itself (Figma 1558-320257), so there is no intermediate "buy now" step —
+  // reaching the cart page IS reaching the checkout.
+  const goToCart = async (page: App['page']) => {
     await waitForText(page, 'Nebula Jacket')
     expect(await clickByText(page, 'button', /add to cart/i)).toBe(true)
     await waitForText(page, 'successfully added to cart')
     expect(await clickByText(page, 'a', /go to cart/i)).toBe(true)
     await waitForText(page, 'Purchase Summary')
-    expect(await clickByText(page, 'button', /^buy now$/i)).toBe(true)
   }
 
   it('keeps the credits-only checkout when the wallet holds no MANA', async () => {
     app = await launchApp({ path: ITEM_PATH, fixtures: { trade: buyTrade } })
     const { page } = app
-    await goToCartCheckout(page)
+    await goToCart(page)
 
-    // No rail chooser — it settles with credits and lands on the success page.
-    await page.waitForFunction(() => window.location.pathname === '/success', { timeout: 30000 })
+    // Only the credits CTA — no MANA button, and no rate note to explain one.
+    await page.waitForSelector('[data-testid="pay-with-credits"]', { timeout: 20000 })
     expect(await has(page, 'pay-with-mana')).toBe(false)
+    expect(await has(page, 'pay-with-mana-disabled')).toBe(false)
+    expect(await has(page, 'cart-mana-rate')).toBe(false)
+
+    expect(await clickByText(page, '[data-testid="pay-with-credits"]', /.*/)).toBe(true)
+    await page.waitForFunction(() => window.location.pathname === '/success', { timeout: 30000 })
   })
 
-  it('offers the rails when the wallet holds MANA, and completes a MANA-only basket', async () => {
+  it('offers the rails in the summary panel, with the rate, and completes a MANA-only basket', async () => {
     app = await launchApp({ path: ITEM_PATH, fixtures: { trade: buyTrade }, manaBalanceWei: PLENTY_OF_MANA })
     const { page } = app
-    await goToCartCheckout(page)
+    await goToCart(page)
 
     await page.waitForSelector('[data-testid="pay-with-mana"]', { timeout: 20000 })
     // Credits cover the basket too, so both single rails are offered (no mixed rail needed).
     expect(await has(page, 'pay-with-credits')).toBe(true)
     expect(await has(page, 'pay-with-combined')).toBe(false)
+    // The exchange rate is stated next to the total, so the MANA amount is not a mystery number.
+    expect(await page.$eval('[data-testid="cart-mana-rate"]', el => el.textContent ?? '')).toMatch(
+      /1 credit = [\d.]+ MANA/i
+    )
 
     expect(await clickByText(page, '[data-testid="pay-with-mana"]', /.*/)).toBe(true)
     await page.waitForFunction(() => window.location.pathname === '/success', { timeout: 30000 })
@@ -183,15 +204,78 @@ describe('paying with MANA in the cart checkout', () => {
       manaBalanceWei: PLENTY_OF_MANA
     })
     const { page } = app
-    await goToCartCheckout(page)
+    await goToCart(page)
 
     await page.waitForSelector('[data-testid="pay-with-combined"]', { timeout: 20000 })
-    // The row states both legs: the credits it spends and the MANA covering the remainder.
+    // The button states both legs: the credits it spends and the MANA covering the remainder.
     const row = await page.$eval('[data-testid="pay-with-combined"]', el => el.textContent ?? '')
     expect(row).toMatch(/MANA/)
     expect(row).toContain('40')
 
     expect(await clickByText(page, '[data-testid="pay-with-combined"]', /.*/)).toBe(true)
     await page.waitForFunction(() => window.location.pathname === '/success', { timeout: 30000 })
+  })
+
+  it('shows the MANA rail disabled, with what the balance is worth, when the MANA cannot pay', async () => {
+    // 1 MANA against a $13.50 basket: no MANA rail is payable, but the buyer HOLDS MANA — so the button
+    // renders disabled with its worth in credits instead of silently vanishing.
+    app = await launchApp({ path: ITEM_PATH, fixtures: { trade: buyTrade }, manaBalanceWei: DUST_MANA })
+    const { page } = app
+    await goToCart(page)
+
+    await page.waitForSelector('[data-testid="pay-with-mana-disabled"]', { timeout: 20000 })
+    expect(await has(page, 'pay-with-mana')).toBe(false)
+    expect(await has(page, 'pay-with-combined')).toBe(false)
+    expect(
+      await page.$eval('[data-testid="pay-with-mana-disabled"]', el => (el as HTMLButtonElement).disabled)
+    ).toBe(true)
+    // The caption converts the balance to credits — that number IS the explanation.
+    expect(await page.$eval('[data-testid="mana-shortfall-note"]', el => el.textContent ?? '')).toMatch(
+      /worth about [\d.,]+ credits/i
+    )
+    // Credits still cover it, so the purchase is not blocked.
+    expect(await has(page, 'pay-with-credits')).toBe(true)
+  })
+})
+
+describe('approving the MANA spend', () => {
+  // A self-custody wallet with no allowance yet. Paying in MANA needs the buyer's permission to move it,
+  // and that permission is a SEPARATE wallet prompt — so it gets explained first (the same approval step
+  // the sell and top-up flows use) instead of arriving unannounced next to the purchase prompt.
+  it('explains the approval before the purchase, then completes once granted', async () => {
+    app = await launchApp({
+      path: ITEM_PATH,
+      fixtures: { trade: buyTrade },
+      manaBalanceWei: PLENTY_OF_MANA,
+      manaAllowanceWei: '0'
+    })
+    const { page } = app
+
+    await waitForText(page, 'Nebula Jacket')
+    await clickWhenEnabled(page, 'button', /buy now/i)
+    await page.waitForSelector('[data-testid="pay-with-mana"]', { timeout: 20000 })
+    await clickWhenEnabled(page, '[data-testid="pay-with-mana"]', /.*/)
+
+    // The approval step, not the purchase: it names what is being approved and that it happens once.
+    await page.waitForSelector('[data-testid="authorize-step-row"]', { timeout: 20000 })
+    expect(await bodyText(page)).toMatch(/pay with your mana/i)
+    expect(await bodyText(page)).toMatch(/one-time approval/i)
+
+    await clickWhenEnabled(page, '[data-testid="authorize-step-action"]', /.*/)
+    await waitForText(page, 'Purchase complete!', 30000)
+  })
+
+  it('goes straight to the purchase when the allowance is already granted', async () => {
+    app = await launchApp({ path: ITEM_PATH, fixtures: { trade: buyTrade }, manaBalanceWei: PLENTY_OF_MANA })
+    const { page } = app
+
+    await waitForText(page, 'Nebula Jacket')
+    await clickWhenEnabled(page, 'button', /buy now/i)
+    await page.waitForSelector('[data-testid="pay-with-mana"]', { timeout: 20000 })
+    await clickWhenEnabled(page, '[data-testid="pay-with-mana"]', /.*/)
+
+    // No approval step in the way — the buyer already granted it.
+    await waitForText(page, 'Purchase complete!', 30000)
+    expect(await has(page, 'authorize-step-row')).toBe(false)
   })
 })

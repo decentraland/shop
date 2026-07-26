@@ -729,10 +729,11 @@
   text-transform: uppercase;
   letter-spacing: 0.46px;
   cursor: pointer;
-  transition: filter 0.15s ease;
+  transition: background 0.15s ease;
 }
+/* Hover is the design's gray-0 (node 738:53264), not a brightness lift. */
 .item-detail__addcart:hover:not(:disabled) {
-  filter: brightness(1.35);
+  background: var(--gray-0, #43404a);
 }
 .item-detail__addcart:disabled {
   opacity: 0.55;

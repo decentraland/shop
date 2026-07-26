@@ -290,6 +290,17 @@ export type ShopAuthorizationDescriptor = ShopAuthorization & {
   group: 'buying' | 'selling' | 'minting'
 }
 
+/**
+ * Letting a contract pull the buyer's MANA. The spender depends on the rail: the MARKETPLACE for a
+ * MANA-only purchase (it moves the MANA itself), the CREDITSMANAGER for a mixed credits + MANA one (see
+ * getCreditsAuthorization). Callers pass the spender their rail actually uses, so the approval the UI
+ * announces is byte-for-byte the one the purchase needs.
+ */
+export function getManaSpendingAuthorization(chainId: ChainId, spenderAddress: string): ShopAuthorization {
+  const mana = getContract(ContractName.MANAToken, chainId)
+  return { kind: AuthorizationKind.Allowance, contractAddress: mana.address, spenderAddress, chainId }
+}
+
 // The one fixed, account-level authorization the shop uses: letting the CreditsManager spend your
 // balance to top up a purchase that credits don't fully cover. Always shown on the page.
 export function getCreditsAuthorization(chainId: ChainId): ShopAuthorizationDescriptor {

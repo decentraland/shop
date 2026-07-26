@@ -228,3 +228,50 @@ describe('distributeCreditsAcrossUnits (combined payment across a cart)', () => 
     expect(distributeCreditsAcrossUnits([], 500)).toEqual([])
   })
 })
+
+describe('manaShortfall — held MANA that cannot pay', () => {
+  // $10.00 item, and the buyer's MANA is worth $2.00 at this purchase's rate (5 MANA of a needed 25).
+  const price = { priceCents: 1000, priceManaWei: 25n * 10n ** 18n }
+
+  it('reports what the balance is worth when MANA alone falls short and there are no credits', () => {
+    const o = computePaymentOptions({ ...price, balanceCents: 0, manaBalanceWei: 5n * 10n ** 18n })
+    expect(o.options).toEqual([])
+    expect(o.manaShortfall).toEqual({ manaWei: 5n * 10n ** 18n, manaCents: 200, priceCents: 1000 })
+  })
+
+  it('reports it when credits + MANA together still fall short', () => {
+    // $3 of credits + $2 of MANA = $5 against a $10 price: no rail, and the buyer needs to know why.
+    const o = computePaymentOptions({ ...price, balanceCents: 300, manaBalanceWei: 5n * 10n ** 18n })
+    expect(o.options).toEqual([])
+    expect(o.manaShortfall?.manaCents).toBe(200)
+  })
+
+  it('is null when a MANA rail IS offerable — the enabled button is the explanation', () => {
+    expect(computePaymentOptions({ ...price, balanceCents: 0, manaBalanceWei: 25n * 10n ** 18n }).manaShortfall).toBeNull()
+    // Combined: $9 of credits leaves a $1 remainder that 2.5 MANA covers.
+    expect(computePaymentOptions({ ...price, balanceCents: 900, manaBalanceWei: 3n * 10n ** 18n }).manaShortfall).toBeNull()
+  })
+
+  it('is null when the buyer holds no MANA, and when the rate is unknown', () => {
+    expect(computePaymentOptions({ ...price, balanceCents: 0, manaBalanceWei: 0n }).manaShortfall).toBeNull()
+    expect(
+      computePaymentOptions({ priceCents: 1000, priceManaWei: 0n, balanceCents: 0, manaBalanceWei: 5n * 10n ** 18n })
+        .manaShortfall
+    ).toBeNull()
+  })
+
+  it('reports it alongside a payable credits rail', () => {
+    // Credits cover the price, so the purchase is not blocked — but the buyer still holds MANA that
+    // isn't being offered, and "I have MANA, why is there no MANA button?" needs an answer whether or
+    // not they can pay another way.
+    const o = computePaymentOptions({ ...price, balanceCents: 1000, manaBalanceWei: 1n * 10n ** 18n })
+    expect(o.options.map(x => x.method)).toEqual(['credits'])
+    expect(o.manaShortfall?.manaCents).toBe(40)
+  })
+
+  it('floors the worth so a stated value is always actually covered', () => {
+    // 1 wei short of $2.00 worth must not round up to 200 cents.
+    const o = computePaymentOptions({ ...price, balanceCents: 0, manaBalanceWei: 5n * 10n ** 18n - 1n })
+    expect(o.manaShortfall?.manaCents).toBe(199)
+  })
+})

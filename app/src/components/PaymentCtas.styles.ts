@@ -27,6 +27,9 @@ const buttonBase = `
   border: 0;
   border-radius: 12px;
   cursor: pointer;
+  transition:
+    background 0.15s ease,
+    filter 0.15s ease;
   font-family: ${theme.font.sans};
   font-weight: 600;
   font-size: 15px;
@@ -34,11 +37,7 @@ const buttonBase = `
   letter-spacing: 0.46px;
   text-transform: uppercase;
   color: ${theme.colors.softWhite};
-  transition: filter 0.15s ease;
 
-  &:hover:not(:disabled) {
-    filter: brightness(1.08);
-  }
   &:focus-visible {
     outline: 2px solid ${theme.colors.accent};
     outline-offset: 2px;
@@ -52,11 +51,21 @@ const buttonBase = `
 export const CreditsBtn = styled.button`
   ${buttonBase}
   background: ${theme.gradients.amethyst};
+
+  &:hover:not(:disabled) {
+    filter: brightness(1.08);
+  }
 `
 
+// The dark rail's hover is a defined colour in the design (node 738:53264 "Button / status=Hover" →
+// neutrals/gray-0), not a brightness lift — a filter on #242129 washes toward grey-blue instead.
 export const ManaBtn = styled.button`
   ${buttonBase}
   background: ${theme.colors.text2};
+
+  &:hover:not(:disabled) {
+    background: ${theme.colors.gray0};
+  }
 `
 
 // The amount block inside a button: mark + number at 20px (Figma), separate from the 15px label.
@@ -79,10 +88,24 @@ export const Amount = styled.span`
   }
 `
 
-export const ManaMark = styled.img`
-  width: 24px;
-  height: 24px;
+// The MANA mark keeps the design's two-box geometry (node 1558:320284): a 30px slot with the 24px glyph
+// pinned to its top-left. Collapsing it to a flat 24px would shift the amount 6px left of the design and
+// drop the optical lead-in the 30px slot gives the number beside it.
+export const ManaMark = styled.span`
+  position: relative;
   display: block;
+  width: 30px;
+  height: 30px;
+  flex: none;
+
+  img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 24px;
+    height: 24px;
+    display: block;
+  }
 `
 
 // Explicit "MANA" unit next to the MANA leg of a mixed payment.
@@ -107,6 +130,18 @@ export const RateNote = styled.p`
   font-weight: 400;
   font-size: 12px;
   line-height: 1;
+  color: ${theme.colors.muted};
+  text-align: center;
+`
+
+// Why the disabled MANA button can't be used. Sits directly under it (not with the rate note) because it
+// explains that one button, and it needs two lines of room at narrow widths — hence the 1.4 leading.
+export const ShortfallNote = styled.p`
+  margin: -4px 0 0;
+  font-family: ${theme.font.sans};
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 1.4;
   color: ${theme.colors.muted};
   text-align: center;
 `

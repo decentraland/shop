@@ -30,6 +30,14 @@ export function setManaBalanceWei(wei: string) {
   manaBalanceWei = wei
 }
 
+// The MANA allowance the mocked ERC20 reports — set per test via launchApp({ manaAllowanceWei }). Max
+// uint256 (the default) means already approved, so the MANA rails go straight to the purchase; '0' makes
+// a self-custody wallet see the approval step first.
+let manaAllowanceWei: string | null = null
+export function setManaAllowanceWei(wei: string | null) {
+  manaAllowanceWei = wei
+}
+
 function ethCall(params: any[]): string {
   const data: string = params?.[0]?.data ?? '0x'
   const s = data.slice(0, 10)
@@ -42,8 +50,8 @@ function ethCall(params: any[]): string {
     case SELECTORS.balanceOf:
       return abi.encode(['uint256'], [manaBalanceWei])
     case SELECTORS.allowance:
-      // Already approved (max uint256) → the MANA rails never need an approve tx in the happy path.
-      return abi.encode(['uint256'], [ethers.constants.MaxUint256])
+      // Already approved (max uint256) by default → the MANA rails never need an approve in the happy path.
+      return abi.encode(['uint256'], [manaAllowanceWei ?? ethers.constants.MaxUint256])
     case SELECTORS.globalMinters:
     case SELECTORS.isApprovedForAll:
       return abi.encode(['bool'], [true]) // already enabled → no tx needed

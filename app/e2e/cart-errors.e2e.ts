@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { launchApp, type App } from './helpers/app'
-import { clickByText, waitForText } from './helpers/dom'
+import { clickByText, startCartCheckout, waitForText } from './helpers/dom'
 import { COLLECTION, buyTrade } from './fixtures'
 
 // Cart checkout error path: a hard authorize failure (500, NOT a 402 insufficient) drives the
@@ -30,7 +30,7 @@ describe('cart checkout error path', () => {
     await waitForText(page, 'successfully added to cart')
     expect(await clickByText(page, 'a', /go to cart/i)).toBe(true)
     await waitForText(page, 'Nebula Jacket')
-    expect(await clickByText(page, 'button', /^buy now$/i)).toBe(true)
+    await startCartCheckout(page)
 
     // Review passes (default balance covers the item) → charge → authorize 500 → error phase modal.
     await page.waitForSelector('.buy-error', { timeout: 30000 })
