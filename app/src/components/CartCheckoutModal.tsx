@@ -4,8 +4,8 @@ import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { CreatorName } from '~/components/CreatorName'
 import { WarningIcon } from '~/components/WarningIcon'
 import { formatCredits } from '~/lib/currency'
-import { PaymentOptionRows } from '~/components/PaymentOptionRows'
-import type { PaymentMethod, PaymentOption } from '~/lib/payment-options'
+import { PaymentCtas } from '~/components/PaymentCtas'
+import { manaPerCredit, type PaymentMethod, type PaymentOption } from '~/lib/payment-options'
 import { t } from '~/intl/i18n'
 import loaderLogo from '~/assets/credits/loader-logo.svg'
 import buyErrorAvatar from '~/assets/error/buy-error.png'
@@ -46,12 +46,11 @@ type Props = {
   onBuyPacks?: () => void
   // choose (payment rails — only when the buyer holds MANA, see lib/payment-options)
   options?: PaymentOption[]
-  selectedMethod?: PaymentMethod
-  onSelectMethod?: (m: PaymentMethod) => void
-  onConfirmMethod?: () => void
-  balanceCents?: number
-  manaBalanceWei?: bigint
+  /** Buy with the rail the buyer pressed (each CTA is the payment — no separate confirm). */
+  onPay?: (m: PaymentMethod) => void
   totalCents?: number
+  /** What the basket costs in MANA right now (0n when unknown) — drives the rate caption. */
+  totalManaWei?: bigint
   totalCredits?: number
   // error
   message?: string | null
@@ -98,7 +97,7 @@ export function CartCheckoutModal(props: Props) {
         {phase === 'choose' && (
           <div className="buy-modal__body">
             {/* The basket total, then one row per payable rail. Each row spells out exactly what it
-                charges (and, for a mixed payment, what each leg covers) — see PaymentOptionRows. */}
+                charges (and, for a mixed payment, what each leg covers) — see PaymentCtas. */}
             <div className="cart-checkout__choose-total">
               <span>{t('cart.purchaseSummary')}</span>
               <strong>
@@ -106,26 +105,17 @@ export function CartCheckoutModal(props: Props) {
                 {formatCredits(props.totalCredits ?? 0)}
               </strong>
             </div>
-            <PaymentOptionRows
+            <PaymentCtas
               options={props.options ?? []}
-              selected={props.selectedMethod ?? 'credits'}
-              onSelect={props.onSelectMethod ?? (() => {})}
-              balanceCents={props.balanceCents ?? 0}
-              manaBalanceWei={props.manaBalanceWei ?? 0n}
               totalCents={props.totalCents ?? 0}
+              onPay={props.onPay ?? (() => {})}
+              rateNote={(() => {
+                const r = manaPerCredit(props.totalCents ?? 0, props.totalManaWei ?? 0n)
+                return r != null
+                  ? t('buyModal.manaRate', { mana: r.toLocaleString('en', { maximumFractionDigits: 2 }) })
+                  : null
+              })()}
             />
-            <div className="buy-modal__ctas">
-              <button className="buy-modal__btn buy-modal__btn--outline" onClick={onClose}>
-                {t('buyModal.cancel')}
-              </button>
-              <button
-                className="buy-modal__btn buy-modal__btn--purple"
-                data-testid="cart-pay-confirm"
-                onClick={props.onConfirmMethod ?? (() => {})}
-              >
-                {t('buyModal.buy')}
-              </button>
-            </div>
           </div>
         )}
         {phase === 'processing' && (

@@ -1,9 +1,9 @@
 import { CurrencyIcon } from '~/components/CurrencyIcon'
-import { PaymentOptionRows } from '~/components/PaymentOptionRows'
+import { PaymentCtas } from '~/components/PaymentCtas'
 import { CreatorName } from '~/components/CreatorName'
 import { Icon } from '~/components/Icon'
 import { formatCredits } from '~/lib/currency'
-import type { PaymentMethod, PaymentOption } from '~/lib/payment-options'
+import { manaPerCredit, type PaymentMethod, type PaymentOption } from '~/lib/payment-options'
 import { t } from '~/intl/i18n'
 import type { CatalogItem } from '~/lib/api'
 import * as S from './PaymentMethodStep.styles'
@@ -23,11 +23,8 @@ export function PaymentMethodStep({
   item,
   priceCredits,
   priceCents,
-  balanceCents,
-  manaBalanceWei,
   options,
-  selected,
-  onSelect,
+  priceManaWei,
   onBuy,
   onClose,
   busy = false
@@ -36,18 +33,16 @@ export function PaymentMethodStep({
   priceCredits: number
   /** The item's exact price in cents — spells out what each leg of a split covers. */
   priceCents: number
-  /** The buyer's credit balance in cents (shown on the credits / combined rows). */
-  balanceCents: number
-  /** The buyer's MANA balance in wei (shown on the MANA / combined rows). */
-  manaBalanceWei: bigint
   /** The offerable options, already filtered + ordered by lib/payment-options. */
   options: PaymentOption[]
-  selected: PaymentMethod
-  onSelect: (method: PaymentMethod) => void
-  onBuy: () => void
+  /** What the item costs in MANA right now (0n when unknown) — drives the rate caption. */
+  priceManaWei: bigint
+  /** Buy with the rail the buyer pressed. */
+  onBuy: (method: PaymentMethod) => void
   onClose: () => void
   busy?: boolean
 }) {
+  const rate = manaPerCredit(priceCents, priceManaWei)
   return (
     <S.Root>
       <S.Head>
@@ -75,18 +70,18 @@ export function PaymentMethodStep({
         </S.AssetInfo>
       </S.AssetCard>
 
-      <PaymentOptionRows
+      <PaymentCtas
         options={options}
-        selected={selected}
-        onSelect={onSelect}
-        balanceCents={balanceCents}
-        manaBalanceWei={manaBalanceWei}
         totalCents={priceCents}
+        onPay={onBuy}
+        busy={busy}
+        creditsLabel={t('buyModal.buyAsset')}
+        rateNote={
+          rate != null
+            ? t('buyModal.manaRate', { mana: rate.toLocaleString('en', { maximumFractionDigits: 2 }) })
+            : null
+        }
       />
-
-      <S.BuyBtn type="button" data-testid="pay-confirm" onClick={onBuy} disabled={busy}>
-        {t('buyModal.buy')}
-      </S.BuyBtn>
     </S.Root>
   )
 }

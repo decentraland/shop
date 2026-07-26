@@ -11,7 +11,7 @@ import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { formatCredits } from '~/lib/currency'
 import { readTradeManaPriceWei } from '~/lib/mana'
 import { PaymentMethodStep } from '~/components/PaymentMethodStep'
-import { computePaymentOptions, findOption, type PaymentMethod } from '~/lib/payment-options'
+import { computePaymentOptions, findOption } from '~/lib/payment-options'
 import { track, errorCode, isUserRejection, purchaseItemsProps } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
 import { authorizeUsdCredit, cancelUsdIntents } from '~/lib/credits'
@@ -71,9 +71,6 @@ export function BuyModal({
   // The MANA (wei) this trade costs, read from the oracle once the price locks — null until read (or
   // if the read fails, in which case MANA simply isn't offered and the credits path is unaffected).
   const [manaPriceWei, setManaPriceWei] = useState<bigint | null>(null)
-  // Which rail the buyer picked in the payment-method step. Re-synced to the preferred option once the
-  // balances resolve (see the effect below).
-  const [payMethod, setPayMethod] = useState<PaymentMethod>('credits')
   // The live trade + its USD price, kept even when the credits balance falls short. The MANA rails need
   // them in the 'nofunds' phase too — that's exactly where paying with MANA (alone or mixed) rescues a
   // purchase the credits alone can't cover, so we must not throw the trade away like the old flow did.
@@ -210,15 +207,6 @@ export function BuyModal({
     balanceCents: balance?.balanceCents ?? 0,
     manaBalanceWei: manaBalanceWei ?? 0n
   })
-  // Keep the selection valid: pre-select the preferred rail, and never leave a method selected that
-  // stopped being offerable (e.g. the MANA price resolved and the balance no longer covers it).
-  useEffect(() => {
-    if (paymentOptions.options.length === 0) return
-    if (!paymentOptions.options.some(o => o.method === payMethod)) {
-      setPayMethod(paymentOptions.preferred ?? paymentOptions.options[0].method)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [paymentOptions.options.map(o => o.method).join(','), paymentOptions.preferred])
 
   async function confirm(lk = locked) {
     if (!session || !lk) return
@@ -441,7 +429,6 @@ export function BuyModal({
   // It replaces BOTH end states, which is the point: in 'ready' it adds "pay in MANA instead", and in
   // 'nofunds' it turns a dead end into a purchase the buyer can complete with the MANA they already
   // hold (alone, or mixed with the credits they have).
-  const manaBal = manaBalanceWei ?? 0n
   const hasManaRail = paymentOptions.options.some(o => o.method === 'mana' || o.method === 'combined')
   const methodMode = (phase === 'ready' || phase === 'nofunds') && hasManaRail
 
@@ -469,13 +456,10 @@ export function BuyModal({
             item={item}
             priceCredits={priceCredits}
             priceCents={priceCents}
-            balanceCents={balance?.balanceCents ?? 0}
-            manaBalanceWei={manaBal}
             options={paymentOptions.options}
-            selected={payMethod}
-            onSelect={setPayMethod}
-            onBuy={() =>
-              void (payMethod === 'mana' ? confirmMana() : payMethod === 'combined' ? confirmCombined() : confirm())
+            priceManaWei={manaPriceWei ?? 0n}
+            onBuy={method =>
+              void (method === 'mana' ? confirmMana() : method === 'combined' ? confirmCombined() : confirm())
             }
             onClose={onClose}
             busy={busy}

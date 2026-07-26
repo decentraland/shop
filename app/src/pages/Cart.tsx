@@ -165,7 +165,6 @@ export function Cart() {
   // decide which rails the checkout can offer. Both are read-only; neither gates the credits path.
   const { data: manaBalanceWei } = useManaBalance(session)
   const { data: manaRate } = useManaRate(true)
-  const [payMethod, setPayMethod] = useState<PaymentMethod>('credits')
   const [selectedPack, setSelectedPack] = useState('')
   // Credits that landed with a mid-checkout top-up (buy-credits-and-item-together). Carried from the
   // /credits return handler through the resume, then handed to the /success page so it can show the
@@ -482,7 +481,6 @@ export function Cart() {
     // A MANA rail on the table (pay in MANA, or credits + MANA) → let the buyer choose. This is also what
     // turns a short-on-credits basket into a payable one instead of a top-up dead end.
     if (options.options.some(o => o.method === 'mana' || o.method === 'combined')) {
-      setPayMethod(options.preferred ?? 'credits')
       setModal({ phase: 'choose', lines, totalCents, manaWei })
       setBusy(false)
       return
@@ -507,11 +505,11 @@ export function Cart() {
   }
 
   // Route the chooser's confirmation to the picked rail.
-  function confirmMethod() {
+  function confirmMethod(method: PaymentMethod) {
     if (modal?.phase !== 'choose') return
     const { lines } = modal
-    if (payMethod === 'mana') void chargeWithMana(lines)
-    else if (payMethod === 'combined') void chargeCombined(lines, modal.totalCents, modal.manaWei)
+    if (method === 'mana') void chargeWithMana(lines)
+    else if (method === 'combined') void chargeCombined(lines, modal.totalCents, modal.manaWei)
     else void charge(lines)
   }
 
@@ -1019,12 +1017,9 @@ export function Cart() {
           total={modal.phase === 'processing' ? modal.total : undefined}
           isSelfCustody={showsWalletConfirmations(session?.providerType)}
           options={modal.phase === 'choose' ? chooseOptions(modal).options : undefined}
-          selectedMethod={payMethod}
-          onSelectMethod={setPayMethod}
-          onConfirmMethod={confirmMethod}
-          balanceCents={balance?.balanceCents ?? 0}
-          manaBalanceWei={manaBalanceWei ?? 0n}
+          onPay={confirmMethod}
           totalCents={modal.phase === 'choose' ? modal.totalCents : undefined}
+          totalManaWei={modal.phase === 'choose' ? modal.manaWei : undefined}
           totalCredits={modal.phase === 'choose' ? sumLineCredits(modal.lines) : undefined}
           lines={modal.phase === 'nofunds' ? modal.lines : undefined}
           shortfallCredits={modal.phase === 'nofunds' ? modal.shortfall : undefined}
