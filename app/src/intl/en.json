@@ -539,7 +539,10 @@
     "creditPurchaseLabel": "Credit purchase",
     "creditPaid": "Paid {usd}",
     "boughtFrom": "Bought from {account}",
-    "paidWithMana": "Purchase · paid with MANA"
+    "paidWithMana": "Purchase · paid with MANA",
+    "payoutPending": "Pending",
+    "payoutPendingOn": "Credits available {date}",
+    "payoutCredited": "Paid in credits"
   },
   "myFavorites": {
     "emptyTitle": "Nothing here... yet!",

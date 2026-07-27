@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
@@ -8,10 +8,12 @@ import { detailRouteFor } from '~/lib/routes'
 import { fetchTradeDisplay, fetchAssetDisplay, fetchUserSales, type SaleRecord } from '~/lib/api'
 import { foldOrderLines, type PurchaseOrder, type OrderLineItem } from '~/lib/purchases'
 import { buildActivityFeed, filterActivity, type ActivityFilter, type ActivitySale } from '~/lib/activity'
+import { indexPayouts, payoutForSale, type SalePayout } from '~/lib/payouts'
 import { useManaRate } from '~/hooks/useManaRate'
 import { LoadMore } from '~/components/LoadMore'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
+import { formatCredits } from '~/lib/currency'
 import creditsProduct from '~/assets/credits-product.svg'
 import manaSymbol from '~/assets/mana-matic.svg'
 import { Icon } from '~/components/Icon'
@@ -220,7 +222,7 @@ function ManaPurchaseCard({ sale }: { sale: SaleRecord }) {
 // One secondary sale the user made: the sold item + who bought it + what they earned (in indicative
 // credits at the current rate). Item metadata is resolved from the contract + token (sales carry no
 // tradeId), same fallback behavior as a purchase line.
-function SaleCard({ sale }: { sale: ActivitySale }) {
+function SaleCard({ sale, payout }: { sale: ActivitySale; payout: SalePayout }) {
   const { data: display, isLoading } = useQuery({
     queryKey: ['asset-display', sale.contractAddress, sale.tokenId, sale.itemId],
     queryFn: () => fetchAssetDisplay(sale.contractAddress, { tokenId: sale.tokenId, itemId: sale.itemId }),
@@ -242,7 +244,12 @@ function SaleCard({ sale }: { sale: ActivitySale }) {
       )}
       <S.LineInfo>
         {isLoading ? <S.LineNamePlaceholder /> : <S.LineName title={name}>{name}</S.LineName>}
-        <S.LineMeta>{t('activity.soldTo', { account: shortAccount(sale.counterparty) })}</S.LineMeta>
+        <S.LineMeta>
+          {t('activity.soldTo', { account: shortAccount(sale.counterparty) })}
+          {payout.kind === 'pending'
+            ? ` · ${t('activity.payoutPendingOn', { date: formatDate(payout.availableAt) })}`
+            : ''}
+        </S.LineMeta>
       </S.LineInfo>
     </>
   )
@@ -255,15 +262,29 @@ function SaleCard({ sale }: { sale: ActivitySale }) {
           <S.SubCount>{t('activity.saleLabel')}</S.SubCount>
         </S.HeadLeft>
         <S.HeadRight>
-          <S.Pill data-status="SOLD">{t('activity.sold')}</S.Pill>
-          {/* Secondary sales settle in MANA and the seller received MANA — show the exact MANA amount
-              with the MANA symbol, never credits (they never got credits for a past sale). */}
-          <S.Total data-kind="income">
-            +{formatMana(sale.manaWei)}{' '}
-            <ManaTooltip>
-              <S.ManaSymbol src={manaSymbol} alt="MANA" />
-            </ManaTooltip>
-          </S.Total>
+          <S.Pill data-status={payout.kind === 'pending' ? 'PENDING' : 'SOLD'}>
+            {payout.kind === 'pending' ? t('activity.payoutPending') : t('activity.sold')}
+          </S.Pill>
+          {/* WHAT THE SELLER ACTUALLY RECEIVED, which is no longer one thing. A sale whose proceeds were
+              routed to the treasury pays the seller in credits and never sends them MANA, so showing the
+              MANA figure there would report income they did not get. Only a sale with no payout row was
+              settled directly in MANA — that is the pre-treasury behaviour, unchanged. */}
+          {payout.kind === 'direct' ? (
+            <S.Total data-kind="income">
+              +{formatMana(sale.manaWei)}{' '}
+              <ManaTooltip>
+                <S.ManaSymbol src={manaSymbol} alt="MANA" />
+              </ManaTooltip>
+            </S.Total>
+          ) : payout.credits !== null ? (
+            <S.Total data-kind="income">
+              <CurrencyIcon className="ccy-mark" /> +{formatCredits(payout.credits)}
+            </S.Total>
+          ) : (
+            // One transaction, several of this seller's payouts: the state is certain, the per-sale
+            // amount is not (see lib/payouts). Saying nothing beats attributing the wrong figure.
+            <S.Total data-kind="income">{t('activity.payoutCredited')}</S.Total>
+          )}
         </S.HeadRight>
       </S.CardHead>
       <S.Lines>
@@ -366,6 +387,20 @@ export function Activity() {
     { enabled: purchasesEnabled }
   )
 
+  // The seller's treasury payouts, for matching against the sale rows. A SEPARATE read from the
+  // paginated credit-orders grid above: that one walks pages alongside purchases, and a sale on page 2
+  // needs a payout that may live on page 1. One flat read keeps the match independent of scroll.
+  //
+  // Capped at the endpoint's 200-row maximum. A seller past 200 payouts would see their oldest sales
+  // fall back to the direct-MANA display; paging this is the follow-up.
+  const { data: payouts } = useQuery({
+    queryKey: ['sale-payouts', session?.address],
+    queryFn: () => fetchUserCreditOrders(session!.address, session!.identity, { first: 200 }).then(r => r.payouts),
+    enabled: salesEnabled,
+    staleTime: 60_000
+  })
+  const payoutIndex = useMemo(() => indexPayouts(payouts), [payouts])
+
   // The oracle read is only needed to price sales in credits — skip it entirely on the purchases-only
   // view. When it errors/stales the sale rows just omit the amount (credits → null).
   const { data: rate } = useManaRate(salesEnabled)
@@ -448,7 +483,7 @@ export function Activity() {
               ) : entry.kind === 'mana-purchase' ? (
                 <ManaPurchaseCard key={entry.id} sale={entry.sale} />
               ) : (
-                <SaleCard key={entry.id} sale={entry.sale} />
+                <SaleCard key={entry.id} sale={entry.sale} payout={payoutForSale(payoutIndex, entry.sale)} />
               )
             )}
             {isFetchingNextPage ? <S.CardSkeleton /> : null}

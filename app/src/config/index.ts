@@ -54,18 +54,22 @@ export const config = {
   sentryEnvironment: env.VITE_SENTRY_ENVIRONMENT ?? base.get('ENVIRONMENT'),
   // Release tag — MUST match the source-map upload's release (vite plugin / CI). e.g. "shop@1.2.3".
   sentryRelease: env.VITE_SENTRY_RELEASE ?? `shop@${env.VITE_APP_VERSION ?? '0.0.0-dev'}`,
-  // PROCEEDS_TO_TREASURY (default OFF): when ON, a shop-native sale routes its MANA proceeds to
-  // TREASURY_ADDRESS instead of the seller/creator, and the seller is later credited in closed-loop
-  // shop credits (USD) by the credits-server — so resellers never touch MANA. Testnet-only for now
-  // (dev/Amoy); prod stays OFF. OFF preserves today's behavior exactly (beneficiary = seller/creator).
-  // Stored as a "true"/"false" string in the per-env JSONs (like every other value there); parsed to a
-  // boolean here. String() is defensive in case @dcl/ui-env hands back a real JSON boolean.
-  proceedsToTreasury: (env.VITE_PROCEEDS_TO_TREASURY ?? String(base.get('PROCEEDS_TO_TREASURY'))) === 'true',
+  // Decentraland feature-flag service. Per-env (dev/stg → .zone, prod → .org) rather than the hardcoded
+  // `.org` the decentraland-dapps helper uses, because the point of a flag here is enabling on Amoy while
+  // prod stays off. See lib/featureFlags.ts.
+  // `String()` for the same reason as treasuryAddress below: @dcl/ui-env's `get` is untyped.
+  featureFlagsUrl: String(env.VITE_FEATURE_FLAGS_URL ?? base.get('FEATURE_FLAGS_URL') ?? ''),
+  // ORDERING, if this is ever enabled from scratch: credits-server's consumer must be live and armed FIRST.
+  // With routing on here and the consumer off, listings route their MANA to the treasury and nobody credits
+  // the seller — recoverable on a testnet, not on mainnet.
   // Checksum address that receives sale proceeds when the flag is ON — ops-provided per env. Empty when
   // the flag is OFF (never read in that case). The signing path guards on a non-empty value, so a
   // misconfigured ON flag can never route proceeds to an empty beneficiary.
-  // TODO(ops): dev.json currently holds a PLACEHOLDER Amoy address (0x1111…1111). Replace it with the
-  // real testnet treasury and flip PROCEEDS_TO_TREASURY to "true" in dev (or set VITE_* locally) before
-  // validating the flow on Amoy. stg/prod stay OFF with an empty address until the feature is signed off.
+  // dev/Amoy points at the real testnet treasury; stg/prod stay empty until the feature is signed off.
+  //
+  // The ADDRESS is all this file needs to contribute. Whether proceeds are actually routed is decided at
+  // runtime by the `dapps-proceeds-to-treasury` feature flag, so the flow can be started and stopped without
+  // a deploy — and an empty address here makes routing impossible regardless of that flag, which is what
+  // keeps stg/prod safe.
   treasuryAddress: String(env.VITE_TREASURY_ADDRESS ?? base.get('TREASURY_ADDRESS') ?? '')
 }

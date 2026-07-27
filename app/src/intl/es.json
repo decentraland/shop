@@ -539,7 +539,10 @@
     "creditPurchaseLabel": "Compra de créditos",
     "creditPaid": "Pagaste {usd}",
     "boughtFrom": "Comprado a {account}",
-    "paidWithMana": "Compra · pagada con MANA"
+    "paidWithMana": "Compra · pagada con MANA",
+    "payoutPending": "Pendiente",
+    "payoutPendingOn": "Credits disponibles el {date}",
+    "payoutCredited": "Cobrado en credits"
   },
   "myFavorites": {
     "emptyTitle": "¡Aquí no hay nada... todavía!",

@@ -1,6 +1,7 @@
 import signedFetch from 'decentraland-crypto-fetch'
 import type { AuthIdentity } from '@dcl/crypto'
 import { config } from '~/config'
+import type { Payout } from '~/lib/payouts'
 
 export type ServerCredit = {
   id: string
@@ -150,7 +151,7 @@ export async function fetchUserCreditOrders(
   address: string,
   identity: AuthIdentity,
   opts?: { first?: number; skip?: number }
-): Promise<{ items: CreditOrder[]; total: number }> {
+): Promise<{ items: CreditOrder[]; total: number; payouts: Payout[] }> {
   const qs = new URLSearchParams()
   if (opts?.first != null) qs.set('limit', String(opts.first))
   if (opts?.skip != null) qs.set('offset', String(opts.skip))
@@ -160,17 +161,26 @@ export async function fetchUserCreditOrders(
     const res = await signedFetch(url, { method: 'GET', identity, metadata: {} })
     if (!res.ok) {
       void res.body?.cancel()
-      return { items: [], total: 0 }
+      return { items: [], total: 0, payouts: [] }
     }
-    const json = (await res.json()) as { orders?: CreditOrder[]; total?: number }
+    // `earnings` is credits-server's additive seller-payout block (see its get-user-credit-orders
+    // handler). It is absent on an older deployment, which reads the same as "this seller has no
+    // treasury payouts" — sale rows then fall back to the direct-MANA display, which is what those
+    // sales actually were.
+    const json = (await res.json()) as {
+      orders?: CreditOrder[]
+      total?: number
+      earnings?: { items?: Payout[] }
+    }
     const items = json.orders ?? []
+    const payouts = json.earnings?.items ?? []
     const skip = opts?.skip ?? 0
     const first = opts?.first ?? items.length
     const total =
       typeof json.total === 'number' ? json.total : skip + items.length + (first > 0 && items.length >= first ? 1 : 0)
-    return { items, total }
+    return { items, total, payouts }
   } catch {
-    return { items: [], total: 0 }
+    return { items: [], total: 0, payouts: [] }
   }
 }
 

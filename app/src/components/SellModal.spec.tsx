@@ -31,7 +31,7 @@ vi.mock('~/lib/authorizations', () => ({
 
 // PROCEEDS_TO_TREASURY defaults OFF here so these tests exercise today's behavior; the flag's
 // beneficiary routing is covered in trades.spec.ts.
-vi.mock('~/config', () => ({ config: { chainId: 80002, proceedsToTreasury: false, treasuryAddress: '' } }))
+vi.mock('~/config', () => ({ config: { chainId: 80002, treasuryAddress: '' } }))
 vi.mock('~/hooks/useProfile', () => ({ useProfile: () => ({ data: undefined }) }))
 vi.mock('~/lib/collections', () => ({ fetchCollection: vi.fn() }))
 vi.mock('~/store/toast', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))

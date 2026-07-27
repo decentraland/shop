@@ -677,6 +677,16 @@ export function ItemDetail() {
   })
   const lowestResale = resales.length > 0 ? resales[0].priceCredits : null
 
+  /**
+   * The shop's own listing for THIS exact token. The token hydration paths take their money fields from
+   * the legacy MANA order on /v1/nfts, and a shop listing is an off-chain USD-pegged TRADE that never
+   * appears there — so a shop-listed token arrived with priceCredits 0 while the resolved trade still
+   * made it buyable. The unified feed (already fetched for the resellers list, same cache key) is where
+   * that price actually lives. No extra request.
+   */
+  const shopListingForToken =
+    isTokenRoute && current.tokenId ? (resales.find(r => r.tokenId === current.tokenId) ?? null) : null
+
   // The cheapest resale as a cart/buy-ready item (Figma 1524-298906 sold-out state buys the resale).
   // Backfills the display fields secondary rows lack from the PDP item, mirroring <ResellersModal>.
   const cheapestResaleItem: CatalogItem | null = useMemo(() => {
@@ -867,6 +877,20 @@ export function ItemDetail() {
       }
     })
   }, [ownedAsset])
+
+  // Backfill the token's price (and its trade) from the shop's listing for that exact copy. Runs after the
+  // hydration effects above so it corrects whatever the legacy-order path left at 0.
+  useEffect(() => {
+    if (!shopListingForToken) return
+    setCurrent(prev => {
+      if (prev.priceCredits === shopListingForToken.priceCredits && prev.tradeId) return prev
+      return {
+        ...prev,
+        priceCredits: shopListingForToken.priceCredits,
+        tradeId: prev.tradeId ?? shopListingForToken.tradeId
+      }
+    })
+  }, [shopListingForToken])
 
   // Drop the optimistic just-listed price once the authoritative feed reports the matching live listing.
   useEffect(() => {
@@ -1123,6 +1147,7 @@ export function ItemDetail() {
     isSaleSectionLoading({
       isMarket,
       forSale,
+      priceKnown: current.priceCredits > 0 || manage,
       manage,
       soldOutWithResale,
       stillResolving,

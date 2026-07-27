@@ -17,8 +17,10 @@ export type ActivitySale = {
   itemId: string | null
   counterparty: string // the buyer's account
   credits: number | null
-  manaWei: string // exact MANA settlement (wei) the seller received — the displayed amount
+  manaWei: string // exact MANA settlement (wei) for the trade
   createdAt: number
+  /** The settling transaction — the key a treasury payout is matched on (see lib/payouts). */
+  txHash: string
 }
 
 // One entry in the chronological Activity feed. A purchase keeps the existing per-checkout grouping
@@ -43,7 +45,8 @@ export function toActivitySale(sale: SaleRecord, rate?: ManaRate): ActivitySale 
     counterparty: sale.buyer,
     credits: rate ? manaWeiToCredits(sale.manaWei, rate) : null,
     manaWei: sale.manaWei,
-    createdAt: sale.createdAt
+    createdAt: sale.createdAt,
+    txHash: sale.txHash
   }
 }
 
