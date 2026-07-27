@@ -108,8 +108,12 @@ export default defineConfig({
   server: {
     port: 5173,
     // Proxy the auth app so sign-in works on localhost (same-origin → shared identity storage).
+    //
+    // The key is a REGEXP, not a plain prefix, and that matters: a plain '/auth' also matches
+    // /authorizations, so the Approvals page got proxied to decentraland.zone and a hard load (or a
+    // refresh, or a shared link) rendered that site's shell instead of the app — a blank page.
     proxy: {
-      '/auth': {
+      '^/auth(/|$)': {
         target: 'https://decentraland.zone',
         changeOrigin: true,
         secure: false,

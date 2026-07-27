@@ -50,20 +50,25 @@ export function NotificationsBell() {
     }
   }
 
+  // The bell button itself is rendered inside ui2's Notifications feature, which exposes no id, testid or
+  // accessible name — so a wrapper is the only stable handle for tests (and the only place to hang one).
+  // NOTE: the button still has no accessible name for screen readers; that needs a fix in ui2.
   return (
-    <Notifications
-      isOpen={isOpen}
-      items={items}
-      isLoading={isLoading}
-      locale={locale}
-      isOnboarding={false}
-      activeTab={activeTab}
-      renderProfile={address => shortAddress(address)}
-      onClick={toggle}
-      onChangeTab={(_e, tab) => setActiveTab(tab)}
-      onBegin={() => undefined}
-      onClose={() => setIsOpen(false)}
-    />
+    <span data-testid="notifications-bell">
+      <Notifications
+        isOpen={isOpen}
+        items={items}
+        isLoading={isLoading}
+        locale={locale}
+        isOnboarding={false}
+        activeTab={activeTab}
+        renderProfile={address => shortAddress(address)}
+        onClick={toggle}
+        onChangeTab={(_e, tab) => setActiveTab(tab)}
+        onBegin={() => undefined}
+        onClose={() => setIsOpen(false)}
+        />
+    </span>
   )
 }
 
