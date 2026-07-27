@@ -879,16 +879,17 @@ export function ItemDetail() {
   // didn't resolve it (viewer is logged out, or doesn't own this token), resolve the token publicly so
   // the page renders for ANYONE (shared links, refresh, non-owners) instead of a "Not Found" stub. Only
   // fires once those paths have settled empty; harmless on an itemId URL (no token matches → null).
-  const { data: publicToken } = useQuery({
+  const publicTokenEnabled =
+    !isMarket &&
+    !!current.contractAddress &&
+    !!current.tokenId &&
+    !current.name &&
+    !deepLinkItem &&
+    !ownedAssetLoading &&
+    !ownedAsset
+  const { data: publicToken, isFetched: publicTokenFetched } = useQuery({
     queryKey: ['public-token', current.contractAddress, current.tokenId],
-    enabled:
-      !isMarket &&
-      !!current.contractAddress &&
-      !!current.tokenId &&
-      !current.name &&
-      !deepLinkItem &&
-      !ownedAssetLoading &&
-      !ownedAsset,
+    enabled: publicTokenEnabled,
     // Money-sensitive: a 3rd party can buy/relist this token — revalidate on remount + focus.
     staleTime: 0,
     refetchOnMount: 'always',
@@ -1098,8 +1099,21 @@ export function ItemDetail() {
   // graceful not-found instead of a permanent "Loading…" blank.
   // Also wait on the owned-token lookup while it's still resolving and nothing else has hydrated the
   // item yet — otherwise a secondary deep-link would flash Not Found before ownership backfills it.
+  // A source that has RESOLVED but whose data hasn't landed in `current` yet. Every hydration path here
+  // applies its result in an effect, so there is always one render where the query reports "fetched" and
+  // the name is still blank — long enough to paint Not Found over a perfectly good item. Loading flags
+  // alone cannot close that window; the presence of unapplied data can.
+  const hydrationPending = !current.name && (!!deepLinkItem || !!ownedAsset || !!publicToken)
   const stillResolving =
-    deepLinkLoading || (!!current.contractAddress && !siblingsFetched) || (!current.name && ownedAssetLoading)
+    deepLinkLoading ||
+    (!!current.contractAddress && !siblingsFetched) ||
+    (!current.name && ownedAssetLoading) ||
+    hydrationPending ||
+    // The public-token fallback is the only path that hydrates a token for someone who does NOT own it,
+    // and it starts LAST — it waits for the owner-scoped query to settle empty first. Without this a
+    // buyer opening a /token/… link had a window with nothing flagged as loading and a blank name.
+    // `isFetched` (not isLoading) is what keeps a genuinely missing token from hanging forever.
+    (publicTokenEnabled && !publicTokenFetched)
   const notFound = !current.name && !stillResolving
 
   // Sale section (price + CTAs): render skeletons — never the "not for sale / notify / make offer"

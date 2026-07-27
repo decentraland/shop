@@ -27,6 +27,8 @@ export type Fixtures = {
   legacyListings: unknown
   unifiedListings: unknown
   ownedNfts: unknown
+  /** Rows served for a PUBLIC token lookup (no owner filter). Defaults to ownedNfts. */
+  publicNfts: unknown
   builderCollections: unknown
   builderItems: unknown
   profile: unknown
@@ -49,6 +51,7 @@ function defaults(): Fixtures {
     legacyListings: fx.legacyListings,
     unifiedListings: fx.unifiedListings,
     ownedNfts: fx.ownedNfts,
+    publicNfts: fx.ownedNfts,
     builderCollections: fx.builderCollections,
     builderItems: fx.builderItems,
     profile: fx.profile,
@@ -319,6 +322,15 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
         const search = u.searchParams.get('search')?.toLowerCase()
         if (search) names = names.filter(n => String(n.nft.name).toLowerCase().includes(search))
         return json(req, { data: names, total: names.length })
+      }
+      // Owner-scoped (?owner=) vs PUBLIC token lookup (?contractAddress=&tokenId=) are different
+      // questions: a buyer owns nothing yet the token still exists. Answering both from one fixture made
+      // the non-owner path untestable — the viewer always looked like the owner.
+      const tokenId = u.searchParams.get('tokenId')
+      if (!u.searchParams.get('owner') && tokenId) {
+        const rows = ((F.publicNfts ?? F.ownedNfts) as { data: any[] }).data ?? []
+        const match = rows.filter(r => String(r.nft?.tokenId) === tokenId)
+        return json(req, { data: match, total: match.length })
       }
       return json(req, F.ownedNfts)
     }
