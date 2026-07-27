@@ -40,12 +40,11 @@ type MarketplaceAcceptContract = ethers.Contract & {
  * pay with MANA too. Falls back to a direct (gas-paying) accept only if the relayer is off/unreachable;
  * a user rejection propagates instead of silently retrying. Returns the tx hash.
  *
- * NOTE (combined credits + MANA — STRETCH, not built): the CreditsManager.useCredits() path already
- * supports a `maxUncreditedValue` — the MANA the buyer covers out of pocket when credits don't fully
- * pay. A combined payment would go through useCredits() (NOT this direct accept): size the credit leg,
- * set maxUncreditedValue to the MANA remainder, and keep the MANA allowance pointed at the
- * CreditsManager (getCreditsAuthorization) rather than the marketplace. See PaymentMethodStep for the
- * UI seam. Left out here on purpose so the two single-rail paths stay simple to reason about.
+ * WHY NOT THROUGH THE CREDITSMANAGER: every other purchase in the shop settles via
+ * CreditsManager.useCredits(), and a MANA-only one cannot — useCredits() reverts with `NoCredits()` when
+ * handed an empty credit array, so there is no way to route a zero-credit purchase through it. The mixed
+ * rail DOES go through it (see buyWithCreditsAndMana below), which is why the two rails approve DIFFERENT
+ * spenders: the marketplace here, the CreditsManager there.
  */
 export async function buyWithMana(opts: {
   trade: Trade
