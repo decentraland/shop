@@ -61,7 +61,11 @@ const rarities = {
 
 const gradients = {
   amethyst: 'linear-gradient(180deg, #c640cd 0%, #691fa9 100%)',
-  cerise: 'linear-gradient(135deg, #ff2d55 0%, #c640cd 100%)' // card hover border
+  cerise: 'linear-gradient(135deg, #ff2d55 0%, #c640cd 100%)', // card hover border
+  // Figma "DCL/Gradients/Flare" — the amber→red→magenta diagonal on the credit-pack hairline and the
+  // "Recommended" pill. `ember` is its warm half, used for the thicker hover ring (no magenta stop).
+  flare: 'linear-gradient(157.44deg, #ffbc5b 0%, #ff2d55 50.52%, #c640cd 100%)',
+  ember: 'linear-gradient(69deg, #ffbc5b 0%, #ff2d55 100%)'
 } as const
 
 const radius = {

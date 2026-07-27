@@ -5,6 +5,7 @@ import { Icon } from '~/components/Icon'
 import { useCart, type CartItem } from '~/store/cart'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { CreatorBadge } from '~/components/CreatorBadge'
+import { detailRouteFor } from '~/lib/routes'
 import { t } from '~/intl/i18n'
 import { formatCredits, formatCreditsFull } from '~/lib/currency'
 import { useCartAvailability } from '~/hooks/useCartAvailability'
@@ -30,13 +31,15 @@ function CartRow({
   status,
   onRemove,
   onIncrement,
-  onDecrement
+  onDecrement,
+  onNavigate
 }: {
   item: CartItem
   status: CartLineAvailability
   onRemove: (id: string) => void
   onIncrement: (id: string) => void
   onDecrement: (id: string) => void
+  onNavigate: () => void
 }) {
   const isPrimary = !item.tokenId
   const qty = item.quantity
@@ -44,6 +47,7 @@ function CartRow({
   const subtotal = item.priceCredits * qty
   const unavailable = !isLineBuyable(status)
   const unavailableLabel = status === 'sold-out' ? t('cart.availability.soldOut') : t('cart.availability.unavailable')
+  const detailPath = detailRouteFor(item)
   return (
     <li className={`cartd__card${unavailable ? ' is-unavailable' : ''}`}>
       <div className="cartd__thumb">
@@ -53,7 +57,7 @@ function CartRow({
         </span>
       </div>
       <div className="cartd__info">
-        <div>
+        <div className="cartd__desc">
           <div className="cartd__name" title={item.name}>
             {item.name}
           </div>
@@ -61,8 +65,24 @@ function CartRow({
         </div>
         <div className="cartd__rowbottom">
           {unavailable ? (
-            /* Calm inline state — the trash button remains the one-tap remove. */
-            <span className="cartd__unavailable">{unavailableLabel}</span>
+            /* Warning + reason, plus a link to the item's resales. The trash button remains the
+               one-tap remove. */
+            <>
+              <span className="cartd__unavailable">
+                <Icon name="warning-fill" size={24} className="cartd__warn" aria-hidden />
+                {unavailableLabel}
+              </span>
+              {detailPath ? (
+                <Link
+                  className="cartd__resales"
+                  to={detailPath}
+                  state={{ item, tradeId: item.tradeId }}
+                  onClick={onNavigate}
+                >
+                  {t('cart.availability.viewResales')}
+                </Link>
+              ) : null}
+            </>
           ) : (
             <>
               {isPrimary ? (
@@ -184,6 +204,7 @@ export function CartPopover() {
                 onRemove={remove}
                 onIncrement={increment}
                 onDecrement={decrement}
+                onNavigate={() => setOpen(false)}
               />
             ))}
           </ul>

@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useWallet } from '~/store/wallet'
 import { fetchUserPurchases, fetchUserCreditOrders, type CreditOrder } from '~/lib/credits'
 import { detailRouteFor } from '~/lib/routes'
-import { fetchTradeDisplay, fetchAssetDisplay, fetchUserSales } from '~/lib/api'
+import { fetchTradeDisplay, fetchAssetDisplay, fetchUserSales, type SaleRecord } from '~/lib/api'
 import { foldOrderLines, type PurchaseOrder, type OrderLineItem } from '~/lib/purchases'
 import { buildActivityFeed, filterActivity, type ActivityFilter, type ActivitySale } from '~/lib/activity'
 import { indexPayouts, payoutForSale, type SalePayout } from '~/lib/payouts'
@@ -154,6 +154,66 @@ function OrderCard({ order }: { order: PurchaseOrder }) {
         {lineItems.map(item => (
           <OrderLine key={item.key} item={item} />
         ))}
+      </S.Lines>
+    </S.Card>
+  )
+}
+
+// One item the user bought by paying MANA. It has no credits-server intent behind it (none is created
+// when no credits are spent), so this is built from the BUYER side of the on-chain settlement — the only
+// record such a purchase leaves. Shows the MANA actually paid, not an indicative credits figure.
+function ManaPurchaseCard({ sale }: { sale: SaleRecord }) {
+  const { data: display, isLoading } = useQuery({
+    queryKey: ['asset-display', sale.contractAddress, sale.tokenId, sale.itemId],
+    queryFn: () => fetchAssetDisplay(sale.contractAddress, { tokenId: sale.tokenId, itemId: sale.itemId }),
+    enabled: !!sale.contractAddress,
+    staleTime: 5 * 60_000
+  })
+
+  const name = display?.name ?? t('activity.itemFallback')
+  const thumbnail = display?.thumbnail ?? ''
+  const to =
+    detailRouteFor({ contractAddress: sale.contractAddress, tokenId: sale.tokenId, itemId: sale.itemId }) ?? undefined
+
+  const body = (
+    <>
+      {isLoading ? (
+        <S.ThumbSkeleton />
+      ) : (
+        <S.Thumb>{thumbnail ? <img src={thumbnail} alt={name} /> : <Icon name="offer" size={20} />}</S.Thumb>
+      )}
+      <S.LineInfo>
+        {isLoading ? <S.LineNamePlaceholder /> : <S.LineName title={name}>{name}</S.LineName>}
+        <S.LineMeta>{t('activity.boughtFrom', { account: shortAccount(sale.seller) })}</S.LineMeta>
+      </S.LineInfo>
+    </>
+  )
+
+  return (
+    <S.Card data-testid="activity-mana-purchase">
+      <S.CardHead>
+        <S.HeadLeft>
+          <S.DateText>{formatDate(sale.createdAt)}</S.DateText>
+          <S.SubCount>{t('activity.paidWithMana')}</S.SubCount>
+        </S.HeadLeft>
+        <S.HeadRight>
+          <S.Pill data-status="SETTLED">{t('activity.completed')}</S.Pill>
+          <S.Total>
+            {formatMana(sale.manaWei)}{' '}
+            <ManaTooltip>
+              <S.ManaSymbol src={manaSymbol} alt="MANA" />
+            </ManaTooltip>
+          </S.Total>
+        </S.HeadRight>
+      </S.CardHead>
+      <S.Lines>
+        {to ? (
+          <LineLink to={to} data-link="true">
+            {body}
+          </LineLink>
+        ) : (
+          <S.Line>{body}</S.Line>
+        )}
       </S.Lines>
     </S.Card>
   )
@@ -319,6 +379,13 @@ export function Activity() {
     skip => fetchUserCreditOrders(session!.address, session!.identity, { first: PAGE_SIZE, skip }),
     { enabled: purchasesEnabled }
   )
+  // MANA-paid purchases. The credits-server feed above only knows about credit SPENDS, so a purchase
+  // settled entirely in MANA is invisible to it — this reads the buyer side of the chain instead.
+  const manaPurchases = useInfiniteGrid(
+    ['mana-purchases', session?.address],
+    skip => fetchUserSales(session!.address, { role: 'buyer', first: PAGE_SIZE, skip }),
+    { enabled: purchasesEnabled }
+  )
 
   // The seller's treasury payouts, for matching against the sale rows. A SEPARATE read from the
   // paginated credit-orders grid above: that one walks pages alongside purchases, and a sale on page 2
@@ -353,22 +420,27 @@ export function Activity() {
       purchases: purchasesEnabled ? purchases.items : [],
       sales: salesEnabled ? sales.items : [],
       creditOrders: purchasesEnabled ? creditOrders.items : [],
+      manaPurchases: purchasesEnabled ? manaPurchases.items : [],
       rate
     }),
     filter
   )
 
   const isLoading =
-    (purchasesEnabled && (purchases.isLoading || creditOrders.isLoading)) || (salesEnabled && sales.isLoading)
+    (purchasesEnabled && (purchases.isLoading || creditOrders.isLoading || manaPurchases.isLoading)) ||
+    (salesEnabled && sales.isLoading)
   const isFetchingNextPage =
-    (purchasesEnabled && (purchases.isFetchingNextPage || creditOrders.isFetchingNextPage)) ||
+    (purchasesEnabled &&
+      (purchases.isFetchingNextPage || creditOrders.isFetchingNextPage || manaPurchases.isFetchingNextPage)) ||
     (salesEnabled && sales.isFetchingNextPage)
   const hasNextPage =
-    (purchasesEnabled && (purchases.hasNextPage || creditOrders.hasNextPage)) || (salesEnabled && sales.hasNextPage)
+    (purchasesEnabled && (purchases.hasNextPage || creditOrders.hasNextPage || manaPurchases.hasNextPage)) ||
+    (salesEnabled && sales.hasNextPage)
 
   function loadMore() {
     if (purchasesEnabled && purchases.hasNextPage) void purchases.fetchNextPage()
     if (purchasesEnabled && creditOrders.hasNextPage) void creditOrders.fetchNextPage()
+    if (purchasesEnabled && manaPurchases.hasNextPage) void manaPurchases.fetchNextPage()
     if (salesEnabled && sales.hasNextPage) void sales.fetchNextPage()
   }
 
@@ -408,6 +480,8 @@ export function Activity() {
                 <OrderCard key={entry.id} order={entry.order} />
               ) : entry.kind === 'credit' ? (
                 <CreditPurchaseCard key={entry.id} order={entry.order} />
+              ) : entry.kind === 'mana-purchase' ? (
+                <ManaPurchaseCard key={entry.id} sale={entry.sale} />
               ) : (
                 <SaleCard key={entry.id} sale={entry.sale} payout={payoutForSale(payoutIndex, entry.sale)} />
               )

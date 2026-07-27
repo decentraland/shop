@@ -21,6 +21,7 @@ export type IconName =
   | 'bell'
   | 'carousel-arrow'
   | 'cart'
+  | 'cart-plus'
   | 'buy-from-creator'
   | 'cart-solid'
   | 'check'
@@ -59,6 +60,7 @@ export type IconName =
   | 'heart'
   | 'heart-solid'
   | 'info'
+  | 'link-out'
   | 'mana-logo'
   | 'offer'
   | 'pen'
@@ -71,10 +73,12 @@ export type IconName =
   | 'slot-lower'
   | 'slot-upper'
   | 'smart'
+  | 'star-rounded'
   | 'trash'
   | 'twitter'
   | 'upload'
   | 'view-all-arrow'
+  | 'warning-fill'
   | 'website'
 
 type IconProps = {

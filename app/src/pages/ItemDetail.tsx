@@ -42,7 +42,7 @@ import { t } from '~/intl/i18n'
 import { fetchCollectionItems, fetchCollection } from '~/lib/collections'
 import { ItemPreview } from '~/components/ItemPreview'
 import { CollectionCarousel } from '~/components/CollectionCarousel'
-import { ItemResales } from '~/components/ItemResales'
+import { ResellersModal } from '~/components/ResellersModal'
 import { NotifyMe } from '~/components/NotifyMe'
 import { MakeOfferButton } from '~/components/MakeOfferButton'
 import { Tooltip } from '~/components/Tooltip'
@@ -170,7 +170,7 @@ const PrimarySaleBanner = styled('div')`
 `
 
 // Lowest-price + resellers link (Figma 1524-297513 / 1524-298906): a row below the CTAs. Left shows the
-// cheapest resale price; right is an internal link that scrolls to the Resellers list on this page.
+// cheapest resale price; right opens the Other Resellers modal.
 const LowestPriceRow = styled('div')`
   display: flex;
   align-items: center;
@@ -311,6 +311,12 @@ const ManageActions = styled('div')`
   flex-direction: column;
   gap: 12px;
   width: 100%;
+`
+
+// The resellers trigger under the manage CTAs (Figma 1527-302810), centered on its own line.
+const ManageResellers = styled('div')`
+  display: flex;
+  justify-content: center;
 `
 
 // Loading skeletons for the sale section (price + CTAs) and the creator/collection badges. They reuse
@@ -660,7 +666,7 @@ export function ItemDetail() {
   const forSale = !!buyableTradeId
 
   // Cheapest open resale for this item — powers the "Lowest Price" line + resellers link (Figma
-  // 1524-297513). Shares react-query's cache with <ItemResales> (identical key), so no extra fetch.
+  // 1524-297513). Shares react-query's cache with <ResellersModal> (identical key), so no extra fetch.
   const { data: resales = [] } = useQuery({
     queryKey: ['item-resales', current.contractAddress, current.itemId],
     enabled: !isMarket && !!current.contractAddress && !!current.itemId,
@@ -682,7 +688,7 @@ export function ItemDetail() {
     isTokenRoute && current.tokenId ? (resales.find(r => r.tokenId === current.tokenId) ?? null) : null
 
   // The cheapest resale as a cart/buy-ready item (Figma 1524-298906 sold-out state buys the resale).
-  // Backfills the display fields secondary rows lack from the PDP item, mirroring <ItemResales>.
+  // Backfills the display fields secondary rows lack from the PDP item, mirroring <ResellersModal>.
   const cheapestResaleItem: CatalogItem | null = useMemo(() => {
     const r = resales[0]
     if (!r) return null
@@ -697,11 +703,7 @@ export function ItemDetail() {
     }
   }, [resales, current])
   const [buyResale, setBuyResale] = useState<CatalogItem | null>(null)
-
-  // Internal link target: scroll the on-page Resellers list into view (E / F "View all resellers").
-  function scrollToResellers() {
-    document.getElementById('resellers')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }
+  const [showResellers, setShowResellers] = useState(false)
 
   // Market (legacy) checkout: the live MANA→USD rate (read only in market mode) + the LegacyListing
   // projection MarketCheckout expects, built from the UnifiedListing the grid passed in router state.
@@ -901,16 +903,17 @@ export function ItemDetail() {
   // didn't resolve it (viewer is logged out, or doesn't own this token), resolve the token publicly so
   // the page renders for ANYONE (shared links, refresh, non-owners) instead of a "Not Found" stub. Only
   // fires once those paths have settled empty; harmless on an itemId URL (no token matches → null).
-  const { data: publicToken } = useQuery({
+  const publicTokenEnabled =
+    !isMarket &&
+    !!current.contractAddress &&
+    !!current.tokenId &&
+    !current.name &&
+    !deepLinkItem &&
+    !ownedAssetLoading &&
+    !ownedAsset
+  const { data: publicToken, isFetched: publicTokenFetched } = useQuery({
     queryKey: ['public-token', current.contractAddress, current.tokenId],
-    enabled:
-      !isMarket &&
-      !!current.contractAddress &&
-      !!current.tokenId &&
-      !current.name &&
-      !deepLinkItem &&
-      !ownedAssetLoading &&
-      !ownedAsset,
+    enabled: publicTokenEnabled,
     // Money-sensitive: a 3rd party can buy/relist this token — revalidate on remount + focus.
     staleTime: 0,
     refetchOnMount: 'always',
@@ -1120,8 +1123,21 @@ export function ItemDetail() {
   // graceful not-found instead of a permanent "Loading…" blank.
   // Also wait on the owned-token lookup while it's still resolving and nothing else has hydrated the
   // item yet — otherwise a secondary deep-link would flash Not Found before ownership backfills it.
+  // A source that has RESOLVED but whose data hasn't landed in `current` yet. Every hydration path here
+  // applies its result in an effect, so there is always one render where the query reports "fetched" and
+  // the name is still blank — long enough to paint Not Found over a perfectly good item. Loading flags
+  // alone cannot close that window; the presence of unapplied data can.
+  const hydrationPending = !current.name && (!!deepLinkItem || !!ownedAsset || !!publicToken)
   const stillResolving =
-    deepLinkLoading || (!!current.contractAddress && !siblingsFetched) || (!current.name && ownedAssetLoading)
+    deepLinkLoading ||
+    (!!current.contractAddress && !siblingsFetched) ||
+    (!current.name && ownedAssetLoading) ||
+    hydrationPending ||
+    // The public-token fallback is the only path that hydrates a token for someone who does NOT own it,
+    // and it starts LAST — it waits for the owner-scoped query to settle empty first. Without this a
+    // buyer opening a /token/… link had a window with nothing flagged as loading and a blank name.
+    // `isFetched` (not isLoading) is what keeps a genuinely missing token from hanging forever.
+    (publicTokenEnabled && !publicTokenFetched)
   const notFound = !current.name && !stillResolving
 
   // Sale section (price + CTAs): render skeletons — never the "not for sale / notify / make offer"
@@ -1568,6 +1584,13 @@ export function ItemDetail() {
                           // removed — you're already managing right here (on both /item and /token).
                           <ManageNote>{t('itemDetail.updateHelper')}</ManageNote>
                         ) : null}
+                        {lowestResale != null ? (
+                          <ManageResellers>
+                            <ResellersLink onClick={() => setShowResellers(true)} data-testid="view-resellers">
+                              {t('itemDetail.viewAllResellers')}
+                            </ResellersLink>
+                          </ManageResellers>
+                        ) : null}
                       </ManageActions>
                     ) : forSale ? (
                       <>
@@ -1625,10 +1648,10 @@ export function ItemDetail() {
                     )}
                   </div>
 
-                  {/* Lowest resale price + internal link to the on-page Resellers list (Figma 1524-297513).
-                  Only when there's at least one resale to link to, and not for your own managed item. In
-                  the sold-out state the resale price already shows above, so the link is centered alone
-                  (Figma 1524-298906). */}
+                  {/* Lowest resale price + the trigger for the Other Resellers modal (Figma 1524-297513).
+                  Only when there's at least one resale to show, and not for your own managed item (the
+                  manage view carries its own trigger below the manage CTAs). In the sold-out state the
+                  resale price already shows above, so the link is centered alone (Figma 1524-298906). */}
                   {!manage && !isMarket && lowestResale != null ? (
                     <LowestPriceRow data-testid="lowest-price" data-centered={soldOutWithResale ? 'true' : undefined}>
                       {!soldOutWithResale ? (
@@ -1638,7 +1661,9 @@ export function ItemDetail() {
                           <span className="lowest-value">{lowestResale}</span>
                         </span>
                       ) : null}
-                      <ResellersLink onClick={scrollToResellers}>{t('itemDetail.viewAllResellers')}</ResellersLink>
+                      <ResellersLink onClick={() => setShowResellers(true)} data-testid="view-resellers">
+                        {t('itemDetail.viewAllResellers')}
+                      </ResellersLink>
                     </LowestPriceRow>
                   ) : null}
 
@@ -1657,12 +1682,6 @@ export function ItemDetail() {
           )}
         </div>
       </div>
-
-      {current.itemId ? (
-        <div id="resellers">
-          <ItemResales item={current} />
-        </div>
-      ) : null}
 
       <CollectionCarousel
         title={collectionTitle}
@@ -1696,6 +1715,10 @@ export function ItemDetail() {
             void refreshManage()
           }}
         />
+      ) : null}
+
+      {showResellers && current.itemId ? (
+        <ResellersModal item={current} onClose={() => setShowResellers(false)} />
       ) : null}
 
       {showSell && ownedAsset && session ? (

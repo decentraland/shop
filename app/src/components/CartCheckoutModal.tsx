@@ -4,6 +4,8 @@ import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { CreatorName } from '~/components/CreatorName'
 import { WarningIcon } from '~/components/WarningIcon'
 import { formatCredits } from '~/lib/currency'
+import { PaymentCtas } from '~/components/PaymentCtas'
+import { manaPerCredit, type PaymentMethod, type PaymentOption } from '~/lib/payment-options'
 import { t } from '~/intl/i18n'
 import loaderLogo from '~/assets/credits/loader-logo.svg'
 import buyErrorAvatar from '~/assets/error/buy-error.png'
@@ -22,7 +24,7 @@ export type CheckoutLine = { item: CatalogItem; priceCredits: number; quantity?:
 // success list). Mirrors Figma "New Shop 2026": 1182-218528 / 1182-219697 / 1182-220275.
 // The success/confirmation state is NOT a modal phase anymore — the cart navigates to the standalone
 // /success page after purchase (Figma 1182-232376). This modal only covers the in-flight states.
-export type CheckoutPhase = 'processing' | 'nofunds' | 'error'
+export type CheckoutPhase = 'choose' | 'processing' | 'nofunds' | 'error'
 
 type Props = {
   phase: CheckoutPhase
@@ -42,6 +44,14 @@ type Props = {
   selectedPack?: string
   onSelectPack?: (id: string) => void
   onBuyPacks?: () => void
+  // choose (payment rails — only when the buyer holds MANA, see lib/payment-options)
+  options?: PaymentOption[]
+  /** Buy with the rail the buyer pressed (each CTA is the payment — no separate confirm). */
+  onPay?: (m: PaymentMethod) => void
+  totalCents?: number
+  /** What the basket costs in MANA right now (0n when unknown) — drives the rate caption. */
+  totalManaWei?: bigint
+  totalCredits?: number
   // error
   message?: string | null
   onRetry?: () => void
@@ -55,7 +65,9 @@ export function CartCheckoutModal(props: Props) {
       ? t('cartCheckout.errorTitle')
       : phase === 'nofunds'
         ? t('cartCheckout.titleNoFunds')
-        : t('cartCheckout.titleBuy')
+        : phase === 'choose'
+          ? t('buyModal.choosePayment')
+          : t('cartCheckout.titleBuy')
   const tall = phase === 'processing'
 
   return (
@@ -82,6 +94,30 @@ export function CartCheckoutModal(props: Props) {
           </div>
         </div>
 
+        {phase === 'choose' && (
+          <div className="buy-modal__body">
+            {/* The basket total, then one row per payable rail. Each row spells out exactly what it
+                charges (and, for a mixed payment, what each leg covers) — see PaymentCtas. */}
+            <div className="cart-checkout__choose-total">
+              <span>{t('cart.purchaseSummary')}</span>
+              <strong>
+                <CurrencyIcon className="buy-modal__balance-ico" />
+                {formatCredits(props.totalCredits ?? 0)}
+              </strong>
+            </div>
+            <PaymentCtas
+              options={props.options ?? []}
+              totalCents={props.totalCents ?? 0}
+              onPay={props.onPay ?? (() => {})}
+              rateNote={(() => {
+                const r = manaPerCredit(props.totalCents ?? 0, props.totalManaWei ?? 0n)
+                return r != null
+                  ? t('buyModal.manaRate', { mana: r.toLocaleString('en', { maximumFractionDigits: 2 }) })
+                  : null
+              })()}
+            />
+          </div>
+        )}
         {phase === 'processing' && (
           <Processing
             stage={props.stage ?? 'reserving'}

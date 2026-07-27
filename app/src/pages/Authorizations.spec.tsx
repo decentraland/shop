@@ -47,6 +47,16 @@ vi.mock('~/lib/authorizations', () => ({
     spenderAddress: '0xcredits',
     chainId
   }),
+  // The MANA-only rail's allowance: same token, a DIFFERENT spender (the marketplace, not the
+  // CreditsManager) — so it is its own row and its own on-chain approval.
+  getManaMarketplaceAuthorization: (chainId: number) => ({
+    id: 'mana-marketplace',
+    group: 'buying',
+    kind: 'allowance',
+    contractAddress: '0xmana',
+    spenderAddress: '0xmarketplace',
+    chainId
+  }),
   getCollectionSellingAuthorization: (contractAddress: string, chainId: number) => ({
     id: `selling:${contractAddress.toLowerCase()}`,
     group: 'selling',

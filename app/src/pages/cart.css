@@ -53,6 +53,78 @@ body.shop-cart-bg {
   height: 18px;
 }
 
+/* Empty cart: the same white-card-on-gray shell as the populated cart (`.checkout__panel`), with a
+   centered cart glyph, message and a purple CTA. */
+.cart-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  min-height: 420px;
+  padding: 48px 16px;
+  text-align: center;
+  color: var(--text);
+}
+.cart-empty__text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 16px;
+}
+.cart-empty__title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.6;
+}
+.cart-empty__body {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 400;
+  line-height: 1.6;
+}
+.cart-empty__cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 310px;
+  max-width: 100%;
+  height: 56px;
+  padding: 0 12px;
+  border-radius: 12px;
+  background: var(--accent);
+  color: var(--soft-white);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 24px;
+  letter-spacing: 0.46px;
+  text-transform: uppercase;
+  text-decoration: none;
+  transition: background 0.15s ease;
+}
+.cart-empty__cta:hover {
+  background: #7a2bbf;
+}
+.cart-empty__cta:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (max-width: 768px) {
+  .cart-empty {
+    min-height: 320px;
+    padding: 32px 16px;
+  }
+  .cart-empty__title {
+    font-size: 20px;
+  }
+  .cart-empty__body {
+    font-size: 16px;
+  }
+}
+
 /* Two columns: the cart panel on the left, a sticky purchase summary on the
    right (Figma left 871 / right 615 / gap 24 → left flexes, right fixed). The
    upsell row lives outside this grid so it spans full width below. */
@@ -298,7 +370,7 @@ a.checkout__name:hover {
 .checkout__price-ico {
   width: 24px;
   height: 24px;
-  background: var(--accent);
+  background: var(--text);
 }
 .checkout__price-was {
   margin-left: 6px;
@@ -307,19 +379,46 @@ a.checkout__name:hover {
   color: var(--muted);
   text-decoration: line-through;
 }
-/* A line whose listing is no longer buyable (sold out / gone / expired): calmly dimmed, its media
-   greyed, but still readable and removable. Excluded from the total and from checkout. */
-.checkout__card.is-unavailable {
-  opacity: 0.6;
+/* A line whose listing is no longer buyable (sold out / gone / expired): the media and description
+   dim, and the price/stepper are replaced by a warning + a link to the item's resales. Still
+   readable and removable; excluded from the total and from checkout. */
+.checkout__card.is-unavailable .checkout__thumb {
+  opacity: 0.5;
 }
-.checkout__card.is-unavailable .checkout__thumb img {
-  filter: grayscale(1);
+.checkout__card.is-unavailable .checkout__thumb-check {
+  display: none;
+}
+.checkout__card.is-unavailable .checkout__desc {
+  opacity: 0.7;
 }
 .checkout__unavailable {
-  margin-left: auto;
-  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
   font-weight: 600;
-  color: var(--muted);
+  line-height: 1;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+.checkout__warn {
+  color: #f48221;
+}
+.checkout__resales {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 24px;
+  letter-spacing: 0.46px;
+  text-transform: uppercase;
+  text-decoration: underline;
+  color: var(--accent);
+}
+.checkout__resales:hover {
+  color: #7a2bbf;
+}
+.checkout__resales:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 /* Favourite (heart) + delete (trash) group at the top-right of the card (Figma: gap 12, 24px each). */
 .checkout__actions {
@@ -397,29 +496,72 @@ a.checkout__name:hover {
   flex-direction: column;
   gap: 12px;
 }
+/* "Creator" chip on a primary (mint) line — Figma node 1602:357031 "Tag-Creator". */
+.checkout__creator-tag {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  background: #f4e9ff;
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 14px;
+  color: var(--text);
+}
+/* The glyph keeps the design's leaf size (11.31 × 10.94) rather than a square icon box. */
+.checkout__creator-tag-ico {
+  width: 11.31px;
+  height: 10.94px;
+  background: var(--text);
+}
+
+/* The summary's total row — Figma node 1553:317181 "Price". */
 .checkout__total-line {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
 }
+/* typography/subtitle2: Inter SemiBold 14/1.57, gray-1. */
 .checkout__total-label {
-  font-size: 16px;
-  font-weight: 400;
-  color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.57;
+  color: #5e5b67;
 }
 .checkout__total-value {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   font-size: 24px;
-  font-weight: 600;
-  color: var(--text-2);
+  font-weight: 700;
+  color: var(--text);
+}
+/* Total + the exchange rate stacked under it, both flush right. */
+.checkout__total-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 4px;
+}
+/* typography/caption: Inter Regular 12/1, gray-2. */
+.checkout__total-rate {
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1;
+  color: var(--muted);
 }
 .checkout__total-ico {
   width: 30px;
   height: 30px;
-  background: var(--accent);
+  background: var(--text);
+  -webkit-mask-size: 24px 24px;
+  mask-size: 24px 24px;
+  -webkit-mask-position: left center;
+  mask-position: left center;
 }
 .checkout__cta {
   width: 100%;
@@ -720,7 +862,7 @@ a.checkout__name:hover {
 .cart-checkout__done-price-ico {
   width: 24px;
   height: 24px;
-  background: var(--accent);
+  background: var(--text);
 }
 
 /* The multi-item success banner mirrors BuyModal's success, wider list layout. */

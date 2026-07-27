@@ -9,6 +9,32 @@ import { detailRouteFor } from '~/lib/routes'
 import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import { useBalance } from '~/hooks/useBalance'
 import { authorizeUsdCredit, cancelUsdIntents } from '~/lib/credits'
+import { config } from '~/config'
+import type { Session } from '~/lib/auth'
+import { useManaBalance } from '~/hooks/useManaBalance'
+import { useManaRate } from '~/hooks/useManaRate'
+import { readManaUsdRate, usdCentsToManaWei } from '~/lib/mana-rate'
+import { buyManyWithMana } from '~/lib/buy-mana'
+import {
+  computePaymentOptions,
+  distributeCreditsAcrossUnits,
+  manaForRemainder,
+  manaPerCredit,
+  type PaymentMethod
+} from '~/lib/payment-options'
+import { PaymentCtas } from '~/components/PaymentCtas'
+import {
+  AuthorizationKind,
+  ensureAuthorization,
+  getAuthorizationStatus,
+  getManaSpendingAuthorization,
+  needsApprovalStep,
+  type ShopAuthorization
+} from '~/lib/authorizations'
+import type { ChainId } from '@dcl/schemas'
+import { AuthorizeStep } from '~/components/AuthorizeStep'
+import manaLight from '~/assets/mana-matic-light.svg'
+import { ContractName, getContract, getContractName } from 'decentraland-transactions'
 import { resolveLiveTrade, fetchListings } from '~/lib/api'
 import { buyManyWithCredits, type CreditPurchase } from '~/lib/buy'
 import { buyManyGasless, waitForSettlement, GaslessUnavailableError, SettlementPendingError } from '~/lib/buy-gasless'
@@ -35,9 +61,7 @@ import { track, purchaseItemsProps, errorCode, isUserRejection, creditsToUsd } f
 import { captureError } from '~/lib/monitoring'
 import { CollectionCarousel } from '~/components/CollectionCarousel'
 import { CreatorBadge } from '~/components/CreatorBadge'
-import { Button } from '~/components/Button'
 import { Icon } from '~/components/Icon'
-import styled from '@emotion/styled'
 import type { CatalogItem } from '~/lib/api'
 import type { SuccessNavState } from '~/pages/Success'
 import './cart.css'
@@ -50,10 +74,6 @@ export type CartNavState = {
   // Credits that just landed, forwarded to the /success page for the combined credits+items view.
   creditsAdded?: number
 }
-
-const EmptyCta = styled(Button)`
-  margin-top: 12px;
-`
 
 // Cart-specific mapping: the "listing changed" message is plural (a multi-item cart), so it maps
 // locally rather than via the shared singular soldOrRemoved/cantBuyOwn.
@@ -91,6 +111,9 @@ const toUnits = (lines: ResolvedLine[]): ResolvedLine[] =>
 // wait for the buyer to sign/confirm in their wallet (ONE prompt) → settle the single on-chain tx.
 type ProcessingStage = 'reserving' | 'awaiting-signature' | 'settling'
 type ModalState =
+  // Payment-rail chooser — only reached when the buyer holds MANA (see lib/payment-options). Carries the
+  // reviewed lines so confirming charges EXACTLY what was reviewed, whichever rail is picked.
+  | { phase: 'choose'; lines: ResolvedLine[]; totalCents: number; manaWei: bigint }
   | { phase: 'processing'; stage: ProcessingStage; step: number; total: number }
   | { phase: 'nofunds'; lines: CheckoutLine[]; shortfall: number }
   | { phase: 'error'; message: string }
@@ -133,7 +156,6 @@ export function Cart() {
   const navigate = useNavigate()
   const { state: navState } = useLocation() as { state?: CartNavState }
 
-  const [status, setStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -144,6 +166,10 @@ export function Cart() {
   const reviewedAtRef = useRef(0)
   // The charge overlay (processing / no-funds / complete / error). null = closed.
   const [modal, setModal] = useState<ModalState | null>(null)
+  // Polygon MANA the buyer holds + the live MANA/USD rate: together they price the basket in MANA and
+  // decide which rails the checkout can offer. Both are read-only; neither gates the credits path.
+  const { data: manaBalanceWei } = useManaBalance(session)
+  const { data: manaRate } = useManaRate(true)
   const [selectedPack, setSelectedPack] = useState('')
   // Credits that landed with a mid-checkout top-up (buy-credits-and-item-together). Carried from the
   // /credits return handler through the resume, then handed to the /success page so it can show the
@@ -172,6 +198,24 @@ export function Cart() {
   // Live-price lookup for the rows while a review is pending.
   const lineById = new Map(review?.buyable.map(l => [l.item.id, l] as const))
   const balanceCredits = balance?.credits ?? 0
+
+  // The rails the summary panel offers, and the exchange-rate caption under the total. Derived from the
+  // cart's OWN line prices (1 credit = 10 cents) rather than a resolved trade, so the panel can offer a
+  // rail on first paint instead of after a network round-trip. `usdCentsToManaWei` rounds the MANA leg up,
+  // matching what the charge path quotes. No rate (oracle unread/unreachable) → 0n → credits only.
+  const summaryTotalCents = total * 10
+  const summaryManaWei = manaRate ? usdCentsToManaWei(summaryTotalCents, manaRate) : 0n
+  const summaryRails = computePaymentOptions({
+    priceCents: summaryTotalCents,
+    priceManaWei: summaryManaWei,
+    balanceCents: balance?.balanceCents ?? 0,
+    manaBalanceWei: manaBalanceWei ?? 0n
+  })
+  const summaryManaPerCredit = manaPerCredit(summaryTotalCents, summaryManaWei)
+  const summaryRateNote =
+    summaryManaPerCredit != null
+      ? t('buyModal.manaRate', { mana: summaryManaPerCredit.toLocaleString('en', { maximumFractionDigits: 2 }) })
+      : null
 
   // Re-resolve each line's LIVE trade at review time: a stored tradeId can be stale (the trade gets
   // re-signed as availability/expiration rolls), so resolveLiveTrade re-resolves by item on a 404
@@ -364,9 +408,120 @@ export function Cart() {
     }
   }
 
-  // Decide, for a reviewed set of buyable lines, whether to charge or to prompt a top-up first.
-  function chargeOrTopUp(lines: ResolvedLine[]) {
+  // Post-purchase, shared by all three rails: refresh everything the sale changed and hand the standalone
+  // success page the purchased lines + tx (settlement already confirmed by the caller).
+  function finishCartPurchase(purchasedLines: SuccessNavState['items'], hashes: string[]) {
+    void qc.invalidateQueries({ queryKey: ['usd-balance'] })
+    void qc.invalidateQueries({ queryKey: ['detail-trade'] })
+    void qc.invalidateQueries({ queryKey: ['shop-item'] })
+    void qc.invalidateQueries({ queryKey: ['owned-token'] })
+    void qc.invalidateQueries({ queryKey: ['public-token'] })
+    void qc.invalidateQueries({ queryKey: ['item-resales'] })
+    void qc.invalidateQueries({ queryKey: ['shop-items'] })
+    void qc.invalidateQueries({ queryKey: ['catalog-items'] })
+    void qc.invalidateQueries({ queryKey: ['my-assets'] })
+    void qc.invalidateQueries({ queryKey: ['purchases'] })
+    void qc.invalidateQueries({ queryKey: ['owned-item-count'] })
+    void qc.invalidateQueries({ queryKey: ['overview-listings'] })
+    void qc.invalidateQueries({ queryKey: ['upsell-listings'] })
+    const creditsAdded = creditsAddedRef.current
+    creditsAddedRef.current = null
+    setModal(null)
+    setBusy(false)
+    const successState: SuccessNavState = {
+      items: purchasedLines,
+      txHash: hashes[0] ?? undefined,
+      settled: true,
+      ...(creditsAdded ? { creditsAdded } : {})
+    }
+    navigate('/success', { state: successState, replace: true })
+  }
+
+  // A failed MANA / combined charge: report it and surface the error state (reservations, if any, are
+  // released by the caller which knows what it reserved).
+  function handleChargeError(e: unknown, flow: string) {
+    if (!isUserRejection(e)) captureError(e, { flow, step: 'submit' })
+    track(isUserRejection(e) ? 'Shop Purchase Cancelled' : 'Shop Purchase Failed', {
+      step: 'submit',
+      error_code: errorCode(e)
+    })
+    setModal({ phase: 'error', message: friendlyError(e) })
+    setBusy(false)
+  }
+
+  // Let the CreditsManager pull the MANA leg of a combined basket (gasless; no-op when already approved).
+  async function ensureCreditsManagerManaAllowance(signer: Session['signer'], chainId: number) {
+    const mana = getContract(ContractName.MANAToken, chainId)
+    const creditsManager = getContract(ContractName.CreditsManager, chainId)
+    await ensureAuthorization({
+      auth: {
+        kind: AuthorizationKind.Allowance,
+        contractAddress: mana.address,
+        spenderAddress: creditsManager.address,
+        chainId
+      },
+      signer
+    })
+  }
+
+  // The basket's total in cents + what it costs in MANA at the live rate.
+  //
+  // The rate is AWAITED when the buyer holds MANA and the background query hasn't resolved yet: deciding
+  // off a missing rate would silently drop the MANA rails right when they matter (a real race on a slow
+  // oracle read — the buyer would be sent to credits/top-up despite holding MANA). Resolves through the
+  // react-query cache, so it's one read shared with the hook. A failed/unreachable oracle → 0n, which
+  // simply means no MANA rail and the credits flow is untouched.
+  async function basketTotals(lines: ResolvedLine[]) {
+    const totalCents = toUnits(lines).reduce((n, u) => n + u.usdCents, 0)
+    const holdsMana = (manaBalanceWei ?? 0n) > 0n
+    let rate = manaRate
+    if (!rate && holdsMana) {
+      try {
+        rate = await qc.fetchQuery({
+          queryKey: ['mana-rate', config.chainId],
+          queryFn: () => readManaUsdRate(config.chainId),
+          staleTime: 60_000
+        })
+      } catch {
+        rate = undefined // oracle unreachable/stale → credits-only, never a bogus MANA quote
+      }
+    }
+    const manaWei = rate ? usdCentsToManaWei(totalCents, rate) : 0n
+    return { totalCents, manaWei }
+  }
+
+  // Decide, for a reviewed set of buyable lines, HOW to pay: offer the rails when the buyer holds MANA,
+  // else keep the credits-only behaviour (charge, or prompt a top-up when short).
+  async function chargeOrTopUp(lines: ResolvedLine[], picked?: PaymentMethod) {
     const totalCredits = sumLineCredits(lines)
+    const { totalCents, manaWei } = await basketTotals(lines)
+    const options = computePaymentOptions({
+      priceCents: totalCents,
+      priceManaWei: manaWei,
+      balanceCents: balance?.balanceCents ?? 0,
+      manaBalanceWei: manaBalanceWei ?? 0n
+    })
+    // The buyer already picked a rail in the summary panel, and it still covers the re-resolved total →
+    // charge it, no second confirmation. (`picked` is dropped when the re-resolve invalidated it, which
+    // falls through to the chooser / top-up below — never a silent switch to a different rail.)
+    if (picked && options.options.some(o => o.method === picked)) {
+      if (picked === 'credits') {
+        void charge(lines)
+        return
+      }
+      const { spender, chainId } = manaSpenderFor(picked, lines)
+      await withManaApproval(spender, chainId, () =>
+        picked === 'mana' ? void chargeWithMana(lines) : void chargeCombined(lines, totalCents, manaWei)
+      )
+      return
+    }
+    // A MANA rail on the table (pay in MANA, or credits + MANA) → let the buyer choose. This is also what
+    // turns a short-on-credits basket into a payable one instead of a top-up dead end.
+    if (options.options.some(o => o.method === 'mana' || o.method === 'combined')) {
+      setModal({ phase: 'choose', lines, totalCents, manaWei })
+      setBusy(false)
+      return
+    }
     // Known-and-short → straight to the pack picker; don't reserve dollars we can't spend. When the
     // balance is unknown we still try (the sequential authorize guards it server-side → 402 → nofunds).
     if (balance != null && balance.credits < totalCredits) {
@@ -376,7 +531,168 @@ export function Cart() {
     void charge(lines)
   }
 
-  async function checkout() {
+  // The rails the current 'choose' modal offers, recomputed from the same inputs it was opened with.
+  function chooseOptions(m: Extract<ModalState, { phase: 'choose' }>) {
+    return computePaymentOptions({
+      priceCents: m.totalCents,
+      priceManaWei: m.manaWei,
+      balanceCents: balance?.balanceCents ?? 0,
+      manaBalanceWei: manaBalanceWei ?? 0n
+    })
+  }
+
+  // Moving the buyer's MANA needs their permission. Self-custody wallets are TOLD first, through the
+  // same approval step the sell and top-up flows use, so the extra prompt is explained rather than
+  // arriving unannounced beside the purchase prompt. Managed (web2) wallets never see approval wording —
+  // lib/buy-mana grants it silently for them (CONVENTIONS.md).
+  const [authStep, setAuthStep] = useState<{
+    auth: ShopAuthorization
+    run: () => void
+  } | null>(null)
+
+  /**
+   * Run `proceed`, but for a MANA rail show the approval step first when the wallet is self-custody and
+   * the allowance is missing. A failed status read assumes approved and lets lib/buy-mana's
+   * ensureAuthorization handle it — the pre-existing behaviour, so a flaky RPC never blocks a purchase.
+   */
+  /** Which contract pulls the MANA: the marketplace for a MANA-only basket, the CreditsManager for mixed. */
+  function manaSpenderFor(rail: 'mana' | 'combined', lines: ResolvedLine[]): { spender: string; chainId: ChainId } {
+    const trade = lines[0].trade
+    const spender =
+      rail === 'mana'
+        ? getContract(getContractName(trade.contract), trade.chainId).address
+        : getContract(ContractName.CreditsManager, trade.chainId).address
+    return { spender, chainId: trade.chainId }
+  }
+
+  async function withManaApproval(spender: string, chainId: ChainId, proceed: () => void) {
+    const auth = getManaSpendingAuthorization(chainId, spender)
+    const authorized = session ? await getAuthorizationStatus(auth, session.address).catch(() => true) : true
+    if (needsApprovalStep(session?.providerType, authorized)) {
+      setBusy(false)
+      setAuthStep({ auth, run: proceed })
+      return
+    }
+    proceed()
+  }
+
+  // Route the chooser's confirmation to the picked rail.
+  function confirmMethod(method: PaymentMethod) {
+    if (modal?.phase !== 'choose') return
+    const { lines, totalCents, manaWei } = modal
+    if (method === 'credits') {
+      void charge(lines)
+      return
+    }
+    const { spender, chainId } = manaSpenderFor(method, lines)
+    void withManaApproval(spender, chainId, () =>
+      method === 'mana' ? void chargeWithMana(lines) : void chargeCombined(lines, totalCents, manaWei)
+    )
+  }
+
+  // MANA-only basket: no credits, so nothing is authorized or reserved — every trade settles in ONE
+  // accept([...]) paid from the buyer's MANA (buyManyWithMana).
+  async function chargeWithMana(lines: ResolvedLine[]) {
+    if (!session || lines.length === 0) return
+    const units = toUnits(lines)
+    const purchasedUnits = units.map(l => ({ ...l.item, priceCredits: l.priceCredits }))
+    const purchasedLines = lines.map(l => ({ ...l.item, priceCredits: l.priceCredits, quantity: l.quantity }))
+    const onSigned = () => setModal({ phase: 'processing', stage: 'settling', step: units.length, total: units.length })
+    setModal({ phase: 'processing', stage: 'awaiting-signature', step: units.length, total: units.length })
+    try {
+      const hashes = await buyManyWithMana({
+        trades: units.map(u => u.trade),
+        buyer: session.address,
+        signer: session.signer,
+        onSigned
+      })
+      lines.forEach(l => remove(l.item.id))
+      setReview(null)
+      track('Shop Completed Purchase', {
+        ...purchaseItemsProps(purchasedUnits),
+        payment_type: 'mana',
+        transaction_hash: hashes[0] ?? null
+      })
+      void qc.invalidateQueries({ queryKey: ['mana-balance'] })
+      finishCartPurchase(purchasedLines, hashes)
+    } catch (e) {
+      handleChargeError(e, 'buy_cart_mana')
+    }
+  }
+
+  // Credits + MANA: the credit balance is spread across the units (each takes what it can, the unit that
+  // exhausts it takes a PARTIAL credit, later units take none) and MANA covers the gap. Everything still
+  // settles in ONE useCredits accept([...]) — the gap rides along as the contract's uncredited leg, which
+  // it pulls from the buyer's MANA and refunds any unused part of.
+  async function chargeCombined(lines: ResolvedLine[], totalCents: number, manaWei: bigint) {
+    if (!session || lines.length === 0) return
+    const units = toUnits(lines)
+    const purchasedUnits = units.map(l => ({ ...l.item, priceCredits: l.priceCredits }))
+    const purchasedLines = lines.map(l => ({ ...l.item, priceCredits: l.priceCredits, quantity: l.quantity }))
+    const allocation = distributeCreditsAcrossUnits(
+      units.map(u => u.usdCents),
+      balance?.balanceCents ?? 0
+    )
+    const creditedCents = allocation.reduce((n, c) => n + c, 0)
+    const gapWei = manaForRemainder(Math.max(0, totalCents - creditedCents), totalCents, manaWei)
+    const reservedSalts: string[] = []
+    setModal({ phase: 'processing', stage: 'reserving', step: 1, total: units.length })
+    try {
+      const purchases: CreditPurchase[] = []
+      for (let i = 0; i < units.length; i++) {
+        const cents = allocation[i]
+        if (cents <= 0) continue // fully covered by MANA — no credit, nothing to reserve
+        setModal({ phase: 'processing', stage: 'reserving', step: i + 1, total: units.length })
+        const { credit, maxCreditedValue } = await authorizeUsdCredit(session.identity, cents, units[i].trade.id)
+        reservedSalts.push(credit.id)
+        purchases.push({ trade: units[i].trade, credits: [credit], maxCreditedValue })
+      }
+      // Units with no credit still have to be in the accept([...]) batch — carry them with no credits so
+      // the MANA leg pays for them.
+      units.forEach((u, i) => {
+        if (allocation[i] <= 0) purchases.push({ trade: u.trade, credits: [], maxCreditedValue: '0' })
+      })
+      // The group sums maxCreditedValue, so adding the gap to the first purchase makes the batch's
+      // uncredited leg exactly the MANA gap (see buildUseCreditsArgs).
+      purchases[0] = {
+        ...purchases[0],
+        maxCreditedValue: (BigInt(purchases[0].maxCreditedValue) + gapWei).toString()
+      }
+      await ensureCreditsManagerManaAllowance(session.signer, units[0].trade.chainId)
+
+      const onSigned = () =>
+        setModal({ phase: 'processing', stage: 'settling', step: units.length, total: units.length })
+      setModal({ phase: 'processing', stage: 'awaiting-signature', step: units.length, total: units.length })
+      const hashes = await buyManyWithCredits({
+        purchases,
+        buyer: session.address,
+        signer: session.signer,
+        onSigned
+      })
+      lines.forEach(l => remove(l.item.id))
+      setReview(null)
+      track('Shop Completed Purchase', {
+        ...purchaseItemsProps(purchasedUnits),
+        payment_type: 'credits_and_mana',
+        transaction_hash: hashes[0] ?? null
+      })
+      void qc.invalidateQueries({ queryKey: ['mana-balance'] })
+      finishCartPurchase(purchasedLines, hashes)
+    } catch (e) {
+      if (reservedSalts.length) {
+        void cancelUsdIntents(session.identity, reservedSalts).catch(() => {})
+        void qc.invalidateQueries({ queryKey: ['usd-balance'] })
+      }
+      handleChargeError(e, 'buy_cart_combined')
+    }
+  }
+
+  /**
+   * Run the checkout. `picked` is the rail the buyer clicked in the summary panel; it is a PREFERENCE,
+   * not a commitment — the live re-resolve below can change the total, so chargeOrTopUp re-checks that
+   * the rail still covers it and falls back to the chooser when it doesn't.
+   */
+  async function checkout(picked?: PaymentMethod) {
     if (!session) {
       // No dead-end: send them into sign-in (returns to /cart), stashing a resume so the checkout
       // re-runs automatically once the session is restored. The cart itself is persisted to
@@ -403,7 +719,6 @@ export function Cart() {
     try {
       // Resolve every item's LIVE listing first — never charge a stale snapshot, and never let one bad
       // item abort the basket.
-      setStatus(t('cart.status.reviewing'))
       const rev = await reviewCart(cartItems, session.address, resolveTrade)
 
       // Prune the rows we can't buy (sold/cancelled, or the buyer's own listing) and say what happened.
@@ -415,7 +730,6 @@ export function Cart() {
       if (rev.buyable.length === 0) {
         setError(t('cart.error.noneAvailable'))
         setReview(null)
-        setStatus(null)
         return
       }
       // Anything changed (a re-price, or rows dropped) → show the reconciled order and require an
@@ -423,15 +737,12 @@ export function Cart() {
       if (rev.orderChanged) {
         setReview(rev)
         reviewedAtRef.current = Date.now()
-        setStatus(null)
         return
       }
-      setStatus(null)
-      chargeOrTopUp(rev.buyable)
+      await chargeOrTopUp(rev.buyable, picked)
     } catch (e) {
       captureError(e, { flow: 'cart_checkout', step: 'review', cart_size: cartItems.length })
       setError(friendlyError(e))
-      setStatus(null)
     } finally {
       setBusy(false)
     }
@@ -453,7 +764,7 @@ export function Cart() {
       return
     }
     setError(null)
-    chargeOrTopUp(review.buyable)
+    void chargeOrTopUp(review.buyable)
   }
 
   // No funds → buy the selected pack on Stripe, then resume THIS cart's checkout once the credits land.
@@ -534,13 +845,24 @@ export function Cart() {
 
   if (items.length === 0 && !modal) {
     return (
-      <div className="cart cart--empty">
-        <Icon name="cart" size={44} color="var(--muted-2)" />
-        <p className="cart-empty__title">{t('cart.empty.title')}</p>
-        <p className="muted">{t('cart.empty.body')}</p>
-        <EmptyCta as={Link} to="/assets" variant="purple">
-          {t('cart.empty.cta')}
-        </EmptyCta>
+      <div className="checkout checkout--empty">
+        <div className="checkout__top">
+          <button className="checkout__back" onClick={() => navigate(-1)} type="button">
+            <Icon name="arrow-left" />
+            {t('nav.cart')}
+          </button>
+
+          <section className="checkout__panel cart-empty" data-testid="cart-empty">
+            <Icon name="cart-plus" size={110} className="cart-empty__icon" />
+            <div className="cart-empty__text">
+              <p className="cart-empty__title">{t('cart.empty.title')}</p>
+              <p className="cart-empty__body">{t('cart.empty.body')}</p>
+            </div>
+            <Link className="cart-empty__cta" to="/assets">
+              {t('cart.empty.cta')}
+            </Link>
+          </section>
+        </div>
       </div>
     )
   }
@@ -644,12 +966,35 @@ export function Cart() {
                           {item.creator ? (
                             <CreatorBadge address={item.creator} className="checkout__creator" linkToProfile />
                           ) : null}
+                          {/* A line with no tokenId is a fresh mint, i.e. bought straight from the creator
+                              (Figma 1553-317153 "Tag-Creator") — the same rule the stepper uses to decide a
+                              line supports quantity. Resales carry a tokenId and get no chip. */}
+                          {isPrimary ? (
+                            <span className="checkout__creator-tag" data-testid="cart-creator-tag">
+                              <Icon name="buy-from-creator" className="checkout__creator-tag-ico" aria-hidden />
+                              {t('cart.creatorTag')}
+                            </span>
+                          ) : null}
                         </div>
                         <div className="checkout__foot">
                           {unavailable ? (
-                            /* Calm inline state — no price/stepper, just the reason. The trash button in
-                               checkout__actions is the one-tap remove. */
-                            <span className="checkout__unavailable">{unavailableLabel}</span>
+                            /* No price/stepper: a warning + the reason, plus a link to the item's resales.
+                               The trash button in checkout__actions is the one-tap remove. */
+                            <>
+                              <span className="checkout__unavailable">
+                                <Icon name="warning-fill" size={24} className="checkout__warn" aria-hidden />
+                                {unavailableLabel}
+                              </span>
+                              {detailPath ? (
+                                <Link
+                                  className="checkout__resales"
+                                  to={detailPath}
+                                  state={{ item, tradeId: item.tradeId }}
+                                >
+                                  {t('cart.availability.viewResales')}
+                                </Link>
+                              ) : null}
+                            </>
                           ) : (
                             <>
                               {/* Quantity stepper. PRIMARY (mint) lines can buy multiple copies: minus decrements
@@ -743,24 +1088,48 @@ export function Cart() {
             <div className="checkout__summary-body">
               <div className="checkout__total-line">
                 <span className="checkout__total-label">{t('cart.totalItems', { count: buyableUnits })}</span>
-                <span className="checkout__total-value">
-                  <CurrencyIcon className="checkout__total-ico" /> {total}
+                <span className="checkout__total-side">
+                  <span className="checkout__total-value">
+                    <CurrencyIcon className="checkout__total-ico" /> {total}
+                  </span>
+                  {/* The rate sits under the total, not under the buttons (Figma): it explains the MANA
+                      amounts below, so it reads before them. Absent when the buyer holds no MANA — there
+                      is no MANA amount on screen to explain. */}
+                  {summaryRateNote && (manaBalanceWei ?? 0n) > 0n ? (
+                    <span className="checkout__total-rate" data-testid="cart-mana-rate">
+                      {summaryRateNote}
+                    </span>
+                  ) : null}
                 </span>
               </div>
 
-              <button
-                className="checkout__cta"
-                onClick={() => void (review ? confirmPurchase() : checkout())}
-                disabled={working || allUnavailable}
-              >
-                {working ? t('cart.working') : review ? t('marketCheckout.confirmPurchase') : t('assetCard.buyNow')}
-              </button>
+              {/* One CTA per rail the buyer's balances support, right in the panel (Figma 1558-320257 /
+                  1558-320267). Priced off the cart's own line prices — the same number the total above
+                  shows — so the buttons and the total can never disagree. The authoritative price is
+                  re-resolved on click; a rail that stops being viable after that falls back to the modal. */}
+              {summaryRails.options.length > 0 || summaryRails.manaShortfall ? (
+                <PaymentCtas
+                  options={summaryRails.options}
+                  totalCents={summaryTotalCents}
+                  shortfall={summaryRails.manaShortfall}
+                  creditsLabel={review ? t('marketCheckout.confirmPurchase') : t('cart.buyWithCredits')}
+                  busy={working || allUnavailable}
+                  onPay={method => void (review ? confirmPurchase() : checkout(method))}
+                />
+              ) : (
+                <button
+                  className="checkout__cta"
+                  onClick={() => void (review ? confirmPurchase() : checkout())}
+                  disabled={working || allUnavailable}
+                >
+                  {working ? t('cart.working') : review ? t('marketCheckout.confirmPurchase') : t('assetCard.buyNow')}
+                </button>
+              )}
 
               {allUnavailable ? <p className="muted checkout__msg">{t('cart.allUnavailable')}</p> : null}
               {!session ? <p className="muted checkout__msg">{t('cart.signInHint')}</p> : null}
               {review ? <p className="muted checkout__msg">{t('cart.priceChanged')}</p> : null}
               {notice ? <p className="muted checkout__msg">{notice}</p> : null}
-              {status ? <p className="muted checkout__msg">{status}</p> : null}
               <ErrorNotice message={error} className="checkout__msg" />
             </div>
           </aside>
@@ -773,6 +1142,24 @@ export function Cart() {
         </div>
       ) : null}
 
+      {authStep && session ? (
+        <AuthorizeStep
+          auth={authStep.auth}
+          signer={session.signer}
+          title={t('authorizeStep.manaTitle')}
+          name={t('authorizeStep.manaName')}
+          reason={t('authorizeStep.manaReason')}
+          icon={<img src={manaLight} width={24} height={24} alt="" aria-hidden />}
+          onAuthorized={() => {
+            const { run } = authStep
+            setAuthStep(null)
+            run()
+          }}
+          onCancel={() => setAuthStep(null)}
+          onClose={() => setAuthStep(null)}
+        />
+      ) : null}
+
       {modal ? (
         <CartCheckoutModal
           phase={modal.phase}
@@ -782,6 +1169,11 @@ export function Cart() {
           step={modal.phase === 'processing' ? modal.step : undefined}
           total={modal.phase === 'processing' ? modal.total : undefined}
           isSelfCustody={showsWalletConfirmations(session?.providerType)}
+          options={modal.phase === 'choose' ? chooseOptions(modal).options : undefined}
+          onPay={confirmMethod}
+          totalCents={modal.phase === 'choose' ? modal.totalCents : undefined}
+          totalManaWei={modal.phase === 'choose' ? modal.manaWei : undefined}
+          totalCredits={modal.phase === 'choose' ? sumLineCredits(modal.lines) : undefined}
           lines={modal.phase === 'nofunds' ? modal.lines : undefined}
           shortfallCredits={modal.phase === 'nofunds' ? modal.shortfall : undefined}
           packs={OFFER_PACKS}

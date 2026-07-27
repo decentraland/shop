@@ -290,6 +290,17 @@ export type ShopAuthorizationDescriptor = ShopAuthorization & {
   group: 'buying' | 'selling' | 'minting'
 }
 
+/**
+ * Letting a contract pull the buyer's MANA. The spender depends on the rail: the MARKETPLACE for a
+ * MANA-only purchase (it moves the MANA itself), the CREDITSMANAGER for a mixed credits + MANA one (see
+ * getCreditsAuthorization). Callers pass the spender their rail actually uses, so the approval the UI
+ * announces is byte-for-byte the one the purchase needs.
+ */
+export function getManaSpendingAuthorization(chainId: ChainId, spenderAddress: string): ShopAuthorization {
+  const mana = getContract(ContractName.MANAToken, chainId)
+  return { kind: AuthorizationKind.Allowance, contractAddress: mana.address, spenderAddress, chainId }
+}
+
 // The one fixed, account-level authorization the shop uses: letting the CreditsManager spend your
 // balance to top up a purchase that credits don't fully cover. Always shown on the page.
 export function getCreditsAuthorization(chainId: ChainId): ShopAuthorizationDescriptor {
@@ -301,6 +312,25 @@ export function getCreditsAuthorization(chainId: ChainId): ShopAuthorizationDesc
     kind: AuthorizationKind.Allowance,
     contractAddress: mana.address,
     spenderAddress: creditsManager.address,
+    chainId
+  }
+}
+
+/**
+ * Letting the MARKETPLACE pull MANA — the allowance a MANA-only purchase grants (the mixed rail uses the
+ * CreditsManager instead, see getCreditsAuthorization). It belongs on the Approvals page for the same
+ * reason as any other: a permission the shop asks for has to be visible and revocable, and paying in MANA
+ * grants one that was previously listed nowhere.
+ */
+export function getManaMarketplaceAuthorization(chainId: ChainId): ShopAuthorizationDescriptor {
+  const mana = getContract(ContractName.MANAToken, chainId)
+  const market = getContract(ContractName.OffChainMarketplaceV2, chainId)
+  return {
+    id: 'mana-marketplace',
+    group: 'buying',
+    kind: AuthorizationKind.Allowance,
+    contractAddress: mana.address,
+    spenderAddress: market.address,
     chainId
   }
 }
