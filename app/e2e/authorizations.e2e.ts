@@ -34,6 +34,28 @@ describe('the approvals page', () => {
     )
   })
 
+  it('lists the MANA-spend approval too, not just the credits one', async () => {
+    // Paying in MANA grants a SECOND allowance (MANA → the marketplace, rather than → the CreditsManager).
+    // It was previously granted at checkout and listed nowhere, so it could not be seen or revoked.
+    app = await launchApp({ path: '/authorizations' })
+    const { page } = app
+
+    await page.waitForSelector('[data-testid="authorization-mana-marketplace"]', { timeout: 20000 })
+    await page.waitForFunction(
+      () =>
+        document.querySelector('[data-testid="authorization-mana-marketplace"]')?.getAttribute('data-active') ===
+        'true',
+      { timeout: 20000 }
+    )
+    // Both buying approvals are present, and they are distinct rows.
+    expect(await page.$('[data-testid="authorization-credits"]')).not.toBeNull()
+    expect(
+      await page.$eval('[data-testid="authorization-toggle-mana-marketplace"]', el =>
+        (el.getAttribute('aria-label') ?? '').toLowerCase()
+      )
+    ).toMatch(/deactivate|turn off|revoke/)
+  })
+
   it('offers a toggle that reflects the current state', async () => {
     app = await launchApp({ path: '/authorizations' })
     const { page } = app

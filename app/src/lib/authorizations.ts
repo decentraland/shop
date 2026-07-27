@@ -316,6 +316,25 @@ export function getCreditsAuthorization(chainId: ChainId): ShopAuthorizationDesc
   }
 }
 
+/**
+ * Letting the MARKETPLACE pull MANA — the allowance a MANA-only purchase grants (the mixed rail uses the
+ * CreditsManager instead, see getCreditsAuthorization). It belongs on the Approvals page for the same
+ * reason as any other: a permission the shop asks for has to be visible and revocable, and paying in MANA
+ * grants one that was previously listed nowhere.
+ */
+export function getManaMarketplaceAuthorization(chainId: ChainId): ShopAuthorizationDescriptor {
+  const mana = getContract(ContractName.MANAToken, chainId)
+  const market = getContract(ContractName.OffChainMarketplaceV2, chainId)
+  return {
+    id: 'mana-marketplace',
+    group: 'buying',
+    kind: AuthorizationKind.Allowance,
+    contractAddress: mana.address,
+    spenderAddress: market.address,
+    chainId
+  }
+}
+
 // The per-collection selling authorization: letting the marketplace transfer collectibles from this
 // collection when they sell. One row per collection the user owns collectibles in.
 export function getCollectionSellingAuthorization(

@@ -7,6 +7,7 @@ import {
   getAuthorizationStatus,
   setAuthorization,
   getCreditsAuthorization,
+  getManaMarketplaceAuthorization,
   getCollectionSellingAuthorization,
   getCollectionMintingAuthorization,
   type ShopAuthorizationDescriptor
@@ -16,6 +17,7 @@ import type { AuthIdentity } from '@dcl/crypto'
 import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import { config } from '~/config'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
+import manaSymbol from '~/assets/mana-matic.svg'
 import { Icon } from '~/components/Icon'
 import { toast } from '~/store/toast'
 import { friendlyError } from '~/lib/errors'
@@ -198,6 +200,7 @@ export function Authorizations() {
   }
 
   const credits = getCreditsAuthorization(chainId)
+  const manaSpend = getManaMarketplaceAuthorization(chainId)
 
   return (
     <S.Section>
@@ -216,6 +219,16 @@ export function Authorizations() {
             name={t('authorizations.creditsName')}
             description={t('authorizations.creditsDesc')}
             icon={<CurrencyIcon className="ccy-mark" />}
+          />
+          {/* Granted the first time someone pays in MANA. Listed whether or not it is active, so the
+              permission is always visible and revocable rather than only discoverable at checkout. */}
+          <AuthorizationRow
+            descriptor={manaSpend}
+            owner={session.address}
+            signer={session.signer}
+            name={t('authorizations.manaName')}
+            description={t('authorizations.manaDesc')}
+            icon={<S.ThumbMark src={manaSymbol} alt="" aria-hidden />}
           />
         </S.List>
       </S.Group>
