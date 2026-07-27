@@ -27,6 +27,12 @@ export type ActivityEntry =
   | { kind: 'purchase'; id: string; createdAt: number; order: PurchaseOrder }
   | { kind: 'sale'; id: string; createdAt: number; sale: ActivitySale }
   | { kind: 'credit'; id: string; createdAt: number; order: CreditOrder }
+  /**
+   * An item bought by paying MANA directly. These do NOT exist in the credits-server purchase feed —
+   * that feed is built from credit-spend intents, and a MANA purchase authorizes none — so without this
+   * kind a MANA purchase completes, lands in My Assets, and never appears in Activity at all.
+   */
+  | { kind: 'mana-purchase'; id: string; createdAt: number; sale: SaleRecord }
 
 export function toActivitySale(sale: SaleRecord, rate?: ManaRate): ActivitySale {
   return {
@@ -49,6 +55,8 @@ export function buildActivityFeed(input: {
   purchases: PurchaseRecord[]
   sales: SaleRecord[]
   creditOrders?: CreditOrder[]
+  /** Buyer-side settlements from the chain — the only trace a MANA-paid purchase leaves. */
+  manaPurchases?: SaleRecord[]
   rate?: ManaRate
 }): ActivityEntry[] {
   const orders = groupPurchases(input.purchases.filter(p => p.status !== 'EXPIRED'))
@@ -66,8 +74,17 @@ export function buildActivityFeed(input: {
   const creditEntries: ActivityEntry[] = (input.creditOrders ?? [])
     .filter(o => o.status !== 'EXPIRED')
     .map(order => ({ kind: 'credit', id: `credit:${order.id}`, createdAt: order.createdAt, order }))
+  // MANA-paid purchases, read from the buyer side of the chain. A CREDITS purchase settles on-chain too,
+  // so it appears in this feed as well — those are dropped by matching the settlement tx against the
+  // credit intents, otherwise every credits checkout would be listed twice (once per source).
+  const creditsTxs = new Set(
+    input.purchases.filter(p => p.txHash).map(p => (p.txHash as string).toLowerCase())
+  )
+  const manaEntries: ActivityEntry[] = (input.manaPurchases ?? [])
+    .filter(s => !creditsTxs.has(s.txHash.toLowerCase()))
+    .map(sale => ({ kind: 'mana-purchase', id: `mana-purchase:${sale.id}`, createdAt: sale.createdAt, sale }))
   // Stable tiebreak on id so entries sharing a timestamp keep a deterministic order across renders.
-  return [...purchaseEntries, ...saleEntries, ...creditEntries].sort(
+  return [...purchaseEntries, ...saleEntries, ...creditEntries, ...manaEntries].sort(
     (a, b) => b.createdAt - a.createdAt || (a.id < b.id ? -1 : 1)
   )
 }
@@ -77,5 +94,5 @@ export function filterActivity(entries: ActivityEntry[], filter: ActivityFilter)
   // "Sales" is the seller side; "Purchases" is everything the user bought — item orders AND credit-pack
   // top-ups (a credit purchase is still a purchase).
   if (filter === 'sales') return entries.filter(e => e.kind === 'sale')
-  return entries.filter(e => e.kind === 'purchase' || e.kind === 'credit')
+  return entries.filter(e => e.kind === 'purchase' || e.kind === 'credit' || e.kind === 'mana-purchase')
 }

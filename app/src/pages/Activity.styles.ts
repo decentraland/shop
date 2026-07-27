@@ -20,6 +20,10 @@ export const Section = styled.section`
   width: 100%;
   min-width: 0;
   min-height: 60vh;
+  /* Centre the whole column — heading, tabs and cards as ONE block — so the feed isn't parked against
+     the left edge of a wide page. Centring only the list would leave the heading orphaned from it. */
+  max-width: 760px;
+  margin-inline: auto;
 `
 
 export const Head = styled.div`
@@ -83,7 +87,6 @@ export const List = styled.div`
   display: flex;
   flex-direction: column;
   gap: 16px;
-  max-width: 760px;
 `
 
 // One checkout.

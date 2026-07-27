@@ -124,7 +124,9 @@ beforeEach(() => {
   }
   fetchUserPurchases.mockResolvedValue({ items: [], total: 0 })
   fetchUserCreditOrders.mockResolvedValue({ items: [], total: 0 })
-  fetchUserSales.mockResolvedValue({ items: [], total: 0 })
+  // Role-aware: /v1/sales is filtered by seller OR buyer server-side, and the page asks for both. A
+  // role-blind mock would return the same row twice — once as a sale, once as a MANA purchase.
+  fetchUserSales.mockImplementation(() => Promise.resolve({ items: [], total: 0 }))
   fetchTradeDisplay.mockResolvedValue(null)
   fetchAssetDisplay.mockResolvedValue(null)
   useManaRate.mockReturnValue({ data: RATE })
@@ -216,7 +218,13 @@ describe('when purchases and a sale are interleaved', () => {
       total: 1
     })
     fetchTradeDisplay.mockResolvedValue(display({ name: 'Purchased Thing' }))
-    fetchUserSales.mockResolvedValue({ items: [sale({ createdAt: 1_700_000_500_000 })], total: 1 })
+    fetchUserSales.mockImplementation((_addr: unknown, opts?: { role?: string }) =>
+      Promise.resolve(
+        opts?.role === 'buyer'
+          ? { items: [], total: 0 }
+          : { items: [sale({ createdAt: 1_700_000_500_000 })], total: 1 }
+      )
+    )
     fetchAssetDisplay.mockResolvedValue(display({ name: 'Sold Thing', tokenId: '42', itemId: undefined }))
   })
 

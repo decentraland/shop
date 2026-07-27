@@ -156,7 +156,6 @@ export function Cart() {
   const navigate = useNavigate()
   const { state: navState } = useLocation() as { state?: CartNavState }
 
-  const [status, setStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -720,7 +719,6 @@ export function Cart() {
     try {
       // Resolve every item's LIVE listing first — never charge a stale snapshot, and never let one bad
       // item abort the basket.
-      setStatus(t('cart.status.reviewing'))
       const rev = await reviewCart(cartItems, session.address, resolveTrade)
 
       // Prune the rows we can't buy (sold/cancelled, or the buyer's own listing) and say what happened.
@@ -732,7 +730,6 @@ export function Cart() {
       if (rev.buyable.length === 0) {
         setError(t('cart.error.noneAvailable'))
         setReview(null)
-        setStatus(null)
         return
       }
       // Anything changed (a re-price, or rows dropped) → show the reconciled order and require an
@@ -740,15 +737,12 @@ export function Cart() {
       if (rev.orderChanged) {
         setReview(rev)
         reviewedAtRef.current = Date.now()
-        setStatus(null)
         return
       }
-      setStatus(null)
       await chargeOrTopUp(rev.buyable, picked)
     } catch (e) {
       captureError(e, { flow: 'cart_checkout', step: 'review', cart_size: cartItems.length })
       setError(friendlyError(e))
-      setStatus(null)
     } finally {
       setBusy(false)
     }
@@ -1136,7 +1130,6 @@ export function Cart() {
               {!session ? <p className="muted checkout__msg">{t('cart.signInHint')}</p> : null}
               {review ? <p className="muted checkout__msg">{t('cart.priceChanged')}</p> : null}
               {notice ? <p className="muted checkout__msg">{notice}</p> : null}
-              {status ? <p className="muted checkout__msg">{status}</p> : null}
               <ErrorNotice message={error} className="checkout__msg" />
             </div>
           </aside>

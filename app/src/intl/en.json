@@ -159,9 +159,6 @@
       "viewResales": "View Resales"
     },
     "youMightAlsoLike": "You might also like",
-    "status": {
-      "reviewing": "Reviewing your cart…"
-    },
     "error": {
       "insufficient": "You don't have enough {currency} — get more first.",
       "noneAvailable": "None of these items are available to buy right now.",
@@ -540,7 +537,9 @@
     "itemCount": "{count, plural, one {# item} other {# items}}",
     "quantity": "×{count}",
     "creditPurchaseLabel": "Credit purchase",
-    "creditPaid": "Paid {usd}"
+    "creditPaid": "Paid {usd}",
+    "boughtFrom": "Bought from {account}",
+    "paidWithMana": "Purchase · paid with MANA"
   },
   "myFavorites": {
     "emptyTitle": "Nothing here... yet!",

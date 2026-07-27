@@ -159,9 +159,6 @@
       "viewResales": "Ver reventas"
     },
     "youMightAlsoLike": "También te puede gustar",
-    "status": {
-      "reviewing": "Revisando tu carrito…"
-    },
     "error": {
       "insufficient": "No tienes suficientes {currency}. Consigue más primero.",
       "noneAvailable": "Ninguno de estos artículos está disponible para comprar en este momento.",
@@ -540,7 +537,9 @@
     "itemCount": "{count, plural, one {# artículo} other {# artículos}}",
     "quantity": "×{count}",
     "creditPurchaseLabel": "Compra de créditos",
-    "creditPaid": "Pagaste {usd}"
+    "creditPaid": "Pagaste {usd}",
+    "boughtFrom": "Comprado a {account}",
+    "paidWithMana": "Compra · pagada con MANA"
   },
   "myFavorites": {
     "emptyTitle": "¡Aquí no hay nada... todavía!",
