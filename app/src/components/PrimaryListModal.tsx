@@ -9,7 +9,6 @@ import { itemRoute } from '~/lib/routes'
 import { createPrimaryUsdPeggedListing, ensureMinter, isMarketplaceMinter } from '~/lib/trades'
 import { toast } from '~/store/toast'
 import { config } from '~/config'
-import { useProceedsToTreasury } from '~/hooks/useProceedsToTreasury'
 import { CURRENCY } from '~/lib/currency'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { Icon } from '~/components/Icon'
@@ -41,7 +40,6 @@ export function PrimaryListModal({
 }) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
-  const proceedsToTreasury = useProceedsToTreasury()
   const [price, setPrice] = useState('10') // whole credits
   const [status, setStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -259,15 +257,6 @@ export function PrimaryListModal({
         <S.Note>
           {t('primaryList.pricedInWhole', { currency: CURRENCY.name, currencySingular: CURRENCY.nameSingular })}
         </S.Note>
-
-        {/* Driven by the RUNTIME flag, not build-time config: killing the flag has to change what the seller
-            is TOLD as well as where the money goes, or this note would keep promising credits while the
-            listing it signs pays MANA directly. When proceeds-to-treasury is on, each mint settles into closed-loop shop credits (never MANA),
-            so the creator is told what they'll receive per unit. Wallet-agnostic credits wording — no
-            MANA/crypto terms — so managed (web2) wallets never see crypto language. */}
-        {proceedsToTreasury && priceValid ? (
-          <S.Note>{t('primaryList.proceedsCredits', { count: priceValue })}</S.Note>
-        ) : null}
 
         {enabled === false && !busy ? (
           <S.Note>

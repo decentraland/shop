@@ -19,10 +19,15 @@ export { ensureChain }
 
 const toSeconds = (ms: number) => Math.floor(ms / 1000)
 
-// Who receives the sale proceeds on a listing Trade. Default is the seller/creator — today's behavior,
-// unchanged. When proceeds-to-treasury is active the proceeds are routed to TREASURY_ADDRESS instead; the
-// credits-server later observes the executed trade, resolves the signer, and credits them in closed-loop
-// shop credits — so resellers never touch MANA.
+// Who receives the MANA on a RESALE listing. Default is the seller — today's behavior, unchanged. When
+// proceeds-to-treasury is active it goes to TREASURY_ADDRESS instead; credits-server later observes the
+// executed trade, resolves the signer, and credits them in closed-loop shop credits, so resellers never
+// touch MANA.
+//
+// RESALES ONLY, and the name says so because the distinction is easy to lose. A creator's PRIMARY listing
+// is deliberately NOT routed: creators are paid in MANA so they can move it to an exchange and cash out
+// on their own, which closed-loop credits cannot do. `createPrimaryUsdPeggedListing` therefore names the
+// creator directly and never calls this — see the test that pins it.
 //
 // ASYNC on purpose. The decision needs the RUNTIME feature flag, and resolving it here — at the moment the
 // listing is signed — rather than from a snapshot means there is no window in which two listings created
@@ -33,8 +38,8 @@ const toSeconds = (ms: number) => Math.floor(ms / 1000)
 // That is the safe direction by a wide margin: the seller is paid directly in MANA, exactly as before this
 // feature existed. The dangerous direction is routing proceeds to the treasury while unsure that anything
 // can credit the seller for them.
-export async function proceedsBeneficiary(fallback: string): Promise<string> {
-  return (await getIsProceedsToTreasuryEnabled()) ? config.treasuryAddress : fallback
+export async function resaleBeneficiary(seller: string): Promise<string> {
+  return (await getIsProceedsToTreasuryEnabled()) ? config.treasuryAddress : seller
 }
 
 // USD_PEGGED_MANA-aware value extractor. decentraland-dapps' getValueForTradeAsset has no case for
@@ -218,7 +223,7 @@ export async function createUsdPeggedListing(opts: {
         contractAddress: mana.address,
         amount: ethers.utils.parseEther(String(usdPrice)).toString(),
         extra: '',
-        beneficiary: await proceedsBeneficiary(seller)
+        beneficiary: await resaleBeneficiary(seller)
       }
     ]
   }
@@ -325,7 +330,10 @@ export async function createPrimaryUsdPeggedListing(opts: {
         contractAddress: mana.address,
         amount: ethers.utils.parseEther(String(usdPrice)).toString(),
         extra: '',
-        beneficiary: await proceedsBeneficiary(creator)
+        // The CREATOR, always — never the treasury. A primary sale is the creator's own revenue and
+        // they need it in MANA to be able to cash out; closed-loop credits cannot leave the shop.
+        // Routing this was a real bug: with the flag on, creators were silently paid in credits.
+        beneficiary: creator
       }
     ]
   }
