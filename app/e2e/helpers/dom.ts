@@ -59,3 +59,31 @@ export async function clickWhenEnabled(page: Page, selector: string, re: RegExp,
   )
   await clickByText(page, selector, re)
 }
+
+/**
+ * Press the cart's primary checkout CTA, whichever rail the buyer's balances put there.
+ *
+ * The Purchase Summary panel offers one button per payable rail (Figma 1558-320257): "Buy with credits"
+ * when the credits cover the basket, and the plain "Buy now" fallback when nothing does (which leads to
+ * the top-up picker). Tests about what the checkout *does* shouldn't break every time the label changes
+ * with the fixture's balance, so they ask for "the checkout button" and get it.
+ *
+ * The click happens INSIDE the poll on purpose: the CTA changes identity mid-flight — the fallback
+ * "Buy now" paints first, then becomes "Buy with credits" the moment the credits balance resolves.
+ * Waiting for one of them and clicking as a separate step loses that race and hangs.
+ */
+export async function startCartCheckout(page: Page, timeout = 20000): Promise<void> {
+  await page.waitForFunction(
+    () => {
+      const byTestId = document.querySelector('[data-testid="pay-with-credits"]') as HTMLButtonElement | null
+      const byLabel = [...document.querySelectorAll('button')].find(b =>
+        /^buy now$/i.test((b.textContent ?? '').trim())
+      ) as HTMLButtonElement | undefined
+      const el = byTestId ?? byLabel ?? null
+      if (!el || el.disabled) return false
+      el.click()
+      return true
+    },
+    { timeout }
+  )
+}

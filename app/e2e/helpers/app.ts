@@ -1,6 +1,6 @@
 import puppeteer, { type Browser, type HTTPRequest, type Page } from 'puppeteer'
 import { buildTestSession, sessionInitScript, type TestSession } from './session'
-import { handleRpc } from './rpc'
+import { handleRpc, setManaBalanceWei, setManaAllowanceWei } from './rpc'
 import * as fx from '../fixtures'
 
 export const BASE = process.env.E2E_BASE_URL ?? 'http://localhost:5273'
@@ -27,6 +27,8 @@ export type Fixtures = {
   legacyListings: unknown
   unifiedListings: unknown
   ownedNfts: unknown
+  /** Rows served for a PUBLIC token lookup (no owner filter). Defaults to ownedNfts. */
+  publicNfts: unknown
   builderCollections: unknown
   builderItems: unknown
   profile: unknown
@@ -49,6 +51,7 @@ function defaults(): Fixtures {
     legacyListings: fx.legacyListings,
     unifiedListings: fx.unifiedListings,
     ownedNfts: fx.ownedNfts,
+    publicNfts: fx.ownedNfts,
     builderCollections: fx.builderCollections,
     builderItems: fx.builderItems,
     profile: fx.profile,
@@ -320,6 +323,15 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
         if (search) names = names.filter(n => String(n.nft.name).toLowerCase().includes(search))
         return json(req, { data: names, total: names.length })
       }
+      // Owner-scoped (?owner=) vs PUBLIC token lookup (?contractAddress=&tokenId=) are different
+      // questions: a buyer owns nothing yet the token still exists. Answering both from one fixture made
+      // the non-owner path untestable — the viewer always looked like the owner.
+      const tokenId = u.searchParams.get('tokenId')
+      if (!u.searchParams.get('owner') && tokenId) {
+        const rows = ((F.publicNfts ?? F.ownedNfts) as { data: any[] }).data ?? []
+        const match = rows.filter(r => String(r.nft?.tokenId) === tokenId)
+        return json(req, { data: match, total: match.length })
+      }
       return json(req, F.ownedNfts)
     }
     // Creator search step 2 (lib/search.ts → fetchSellerCounts): collection counts per address.
@@ -431,11 +443,22 @@ export type App = { browser: Browser; page: Page; close: () => Promise<void> }
  * - errors: per-run forced error responses keyed by URL pathname (e.g. { '/credits/authorize': { status: 402 } }).
  */
 export async function launchApp(
-  opts: { path?: string; fixtures?: Partial<Fixtures>; signedOut?: boolean; errors?: ErrorMap } = {}
+  opts: {
+    path?: string
+    fixtures?: Partial<Fixtures>
+    signedOut?: boolean
+    errors?: ErrorMap
+    /** MANA (wei, as a decimal string) the mocked ERC20 reports — drives the MANA payment rails. */
+    manaBalanceWei?: string
+    /** MANA allowance the mocked ERC20 reports; omit for "already approved". */
+    manaAllowanceWei?: string
+  } = {}
 ): Promise<App> {
   const F = { ...defaults(), ...opts.fixtures }
   const errors = opts.errors ?? {}
   mintedCents = 0 // reset the per-run top-up accumulator so balances don't leak between tests
+  setManaBalanceWei(opts.manaBalanceWei ?? '0') // no MANA unless a test asks for it
+  setManaAllowanceWei(opts.manaAllowanceWei ?? null) // already approved unless a test asks otherwise
   const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] })
   const page = await browser.newPage()
   // Default to a desktop viewport so the browse sidebar (Category/Price/Rarity) renders inline; below
