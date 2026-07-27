@@ -11,6 +11,7 @@ import {
   type ShopAuthorization
 } from '~/lib/authorizations'
 import { config } from '~/config'
+import { getIsProceedsToTreasuryEnabled } from '~/lib/featureFlags'
 
 // The on-chain approval plumbing now lives in ~/lib/authorizations (the first-class module). Re-export
 // ensureChain so existing importers (e.g. ~/lib/buy) keep working without churn.
@@ -18,14 +19,22 @@ export { ensureChain }
 
 const toSeconds = (ms: number) => Math.floor(ms / 1000)
 
-// Who receives the sale proceeds on a listing Trade. Default (flag OFF, and always in prod) is the
-// seller/creator — today's behavior, unchanged. When PROCEEDS_TO_TREASURY is ON (testnet only) the
-// proceeds are routed to TREASURY_ADDRESS instead; the credits-server later observes the executed
-// trade, resolves the signer, and credits them in closed-loop shop credits — so resellers never touch
-// MANA. Guarded on a non-empty configured address: an ON flag with no treasury set falls back to the
-// seller/creator, so proceeds can never be routed to an empty beneficiary by misconfiguration.
-export function proceedsBeneficiary(fallback: string): string {
-  return config.proceedsToTreasury && config.treasuryAddress ? config.treasuryAddress : fallback
+// Who receives the sale proceeds on a listing Trade. Default is the seller/creator — today's behavior,
+// unchanged. When proceeds-to-treasury is active the proceeds are routed to TREASURY_ADDRESS instead; the
+// credits-server later observes the executed trade, resolves the signer, and credits them in closed-loop
+// shop credits — so resellers never touch MANA.
+//
+// ASYNC on purpose. The decision needs the RUNTIME feature flag, and resolving it here — at the moment the
+// listing is signed — rather than from a snapshot means there is no window in which two listings created
+// seconds apart get different beneficiaries because the flags had not loaded yet. The flag value is cached,
+// so in practice this awaits nothing.
+//
+// Fails to the FALLBACK on every uncertainty (flag off, flags unreachable, no treasury address configured).
+// That is the safe direction by a wide margin: the seller is paid directly in MANA, exactly as before this
+// feature existed. The dangerous direction is routing proceeds to the treasury while unsure that anything
+// can credit the seller for them.
+export async function proceedsBeneficiary(fallback: string): Promise<string> {
+  return (await getIsProceedsToTreasuryEnabled()) ? config.treasuryAddress : fallback
 }
 
 // USD_PEGGED_MANA-aware value extractor. decentraland-dapps' getValueForTradeAsset has no case for
@@ -209,7 +218,7 @@ export async function createUsdPeggedListing(opts: {
         contractAddress: mana.address,
         amount: ethers.utils.parseEther(String(usdPrice)).toString(),
         extra: '',
-        beneficiary: proceedsBeneficiary(seller)
+        beneficiary: await proceedsBeneficiary(seller)
       }
     ]
   }
@@ -316,7 +325,7 @@ export async function createPrimaryUsdPeggedListing(opts: {
         contractAddress: mana.address,
         amount: ethers.utils.parseEther(String(usdPrice)).toString(),
         extra: '',
-        beneficiary: proceedsBeneficiary(creator)
+        beneficiary: await proceedsBeneficiary(creator)
       }
     ]
   }
