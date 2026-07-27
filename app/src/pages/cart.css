@@ -560,8 +560,8 @@ a.checkout__name:hover {
   background: var(--text);
   -webkit-mask-size: 24px 24px;
   mask-size: 24px 24px;
-  -webkit-mask-position: left top;
-  mask-position: left top;
+  -webkit-mask-position: left center;
+  mask-position: left center;
 }
 .checkout__cta {
   width: 100%;

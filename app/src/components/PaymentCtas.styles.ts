@@ -98,10 +98,13 @@ export const ManaMark = styled.span`
   height: 30px;
   flex: none;
 
+  /* Centred in the slot, not pinned to its top: the slot is taller than the glyph and sits next to a
+     vertically centred amount, so a top-pinned mark reads as floating above the number. */
   img {
     position: absolute;
-    top: 0;
+    top: 50%;
     left: 0;
+    transform: translateY(-50%);
     width: 24px;
     height: 24px;
     display: block;

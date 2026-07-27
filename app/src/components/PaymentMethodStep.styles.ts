@@ -124,8 +124,8 @@ export const AssetPrice = styled.div`
     background: ${theme.colors.text2};
     -webkit-mask-size: 19.855px 19.855px;
     mask-size: 19.855px 19.855px;
-    -webkit-mask-position: left top;
-    mask-position: left top;
+    -webkit-mask-position: left center;
+    mask-position: left center;
   }
   span {
     font-family: ${theme.font.sans};
@@ -298,8 +298,8 @@ export const Price = styled.div`
     background: ${theme.colors.text2};
     -webkit-mask-size: 19.855px 19.855px;
     mask-size: 19.855px 19.855px;
-    -webkit-mask-position: left top;
-    mask-position: left top;
+    -webkit-mask-position: left center;
+    mask-position: left center;
   }
   span {
     font-family: ${theme.font.sans};
