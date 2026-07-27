@@ -16,7 +16,6 @@ const SELECTORS = {
   signerSignatureIndex: sel('signerSignatureIndex(address)'),
   globalMinters: sel('globalMinters(address)'),
   isApprovedForAll: sel('isApprovedForAll(address,address)'),
-  allowance: sel('allowance(address,address)'),
   manaUsdAggregator: sel('manaUsdAggregator()'),
   decimals: sel('decimals()'),
   latestRoundData: sel('latestRoundData()'),
@@ -51,16 +50,14 @@ function ethCall(params: any[]): string {
     case SELECTORS.balanceOf:
       return abi.encode(['uint256'], [manaBalanceWei])
     case SELECTORS.allowance:
-      // Already approved (max uint256) by default → the MANA rails never need an approve in the happy path.
+      // Already approved (max uint256) by default → the MANA rails never need an approve in the happy
+      // path, and any screen that READS an approval state sees it as granted. Leaving this unmocked
+      // returned '0x', which ethers cannot decode, so the Approvals page rendered "Off" for an approval
+      // that is in fact granted. Override per test via launchApp({ manaAllowanceWei }).
       return abi.encode(['uint256'], [manaAllowanceWei ?? ethers.constants.MaxUint256])
     case SELECTORS.globalMinters:
     case SELECTORS.isApprovedForAll:
       return abi.encode(['bool'], [true]) // already enabled → no tx needed
-    case SELECTORS.allowance:
-      // Already approved (max uint256). Without this the ERC20 allowance read returned '0x', ethers
-      // failed to decode it, and every screen that reads an approval state (the Approvals page) rendered
-      // "Off" for an approval that is in fact granted.
-      return abi.encode(['uint256'], [ethers.constants.MaxUint256])
     case SELECTORS.manaUsdAggregator:
       return abi.encode(['address'], [MOCK_ORACLE])
     case SELECTORS.decimals:

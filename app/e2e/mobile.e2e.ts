@@ -51,11 +51,23 @@ describe('at phone width', () => {
     expect(await overflowPx(page)).toBeLessThanOrEqual(1)
   })
 
-  it('the item detail page keeps its price and buy action', async () => {
+  it('the item detail page keeps its price and buy actions', async () => {
     const page = await phone(`/item/${COLLECTION}/1`, 'Nebula Jacket', { trade: buyTrade })
-    const text = await bodyText(page)
-    expect(text).toMatch(/buy now/i)
-    expect(text).toMatch(/add to cart/i)
+    // Wait for the CTA rather than snapshotting: the buy actions mount after the listing resolves, so a
+    // snapshot taken when the NAME appears can legitimately predate them.
+    await waitForText(page, 'Buy now')
+
+    // Add-to-cart is asserted by ACCESSIBLE NAME, not by text. At this width it collapses to an icon with
+    // its label hidden, so it is absent from innerText while still being present and usable — matching on
+    // text would fail for a layout that is actually correct, and would miss a missing aria-label.
+    await page.waitForFunction(
+      () =>
+        [...document.querySelectorAll('button, a')].some(
+          el =>
+            /add to cart/i.test(el.getAttribute('aria-label') ?? '') && !!(el as HTMLElement).offsetParent
+        ),
+      { timeout: 20000 }
+    )
     expect(await overflowPx(page)).toBeLessThanOrEqual(1)
   })
 
