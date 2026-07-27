@@ -10,6 +10,13 @@ export type SaleSectionFlags = {
   isMarket: boolean
   /** A buyable listing has resolved. */
   forSale: boolean
+  /**
+   * The PRICE for that listing is known. `forSale` on its own is not enough: a token listed in the shop
+   * hydrates its money fields from the legacy MANA order (which a USD-pegged shop trade never appears
+   * in), so the trade can resolve as buyable while the price is still 0. Treating that as resolved is
+   * what rendered "PRICE 0" next to an enabled Buy now on a token listed for 11 credits.
+   */
+  priceKnown: boolean
   /** The viewer manages this (creator's primary listing, or an owned token on the /token page). */
   manage: boolean
   /** Sold-out primary that still has resellers (the buy-the-cheapest-resale state). */
@@ -29,7 +36,7 @@ export type SaleSectionFlags = {
 export function isSaleSectionLoading(f: SaleSectionFlags): boolean {
   const resolved =
     f.isMarket ||
-    f.forSale ||
+    (f.forSale && f.priceKnown) ||
     f.manage ||
     f.soldOutWithResale ||
     (!f.stillResolving && !f.resolvingTrade && (f.isTokenRoute ? !f.ownedAssetLoading : !f.deepLinkLoading))
