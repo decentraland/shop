@@ -60,11 +60,14 @@ export type CreditPack = {
 // Credits grid degrades to it if the endpoint is unreachable. It is NOT a second price list —
 // checkout is always priced by the server from `packId`, so a drift here only affects display, and
 // the ids (the actual contract) are what matter. Keep the ids in sync with the server catalogue.
+// Break-even pricing: `credits` is the SPEND value the buyer receives (× $0.10); `usd` is the CHARGE.
+// They DIVERGE on purpose (credits < usd×10) — the small premium covers the Stripe fee. Do NOT derive
+// credits from `creditsForUsd(usd)` here (that's the spend peg, not the buy rate); mirror the server.
 export const CREDIT_PACKS: CreditPack[] = [
-  { id: 'pack_5', usd: 5, credits: creditsForUsd(5) },
-  { id: 'pack_10', usd: 10, credits: creditsForUsd(10) },
-  { id: 'pack_25', usd: 25, credits: creditsForUsd(25), bestValue: true },
-  { id: 'pack_50', usd: 50, credits: creditsForUsd(50) }
+  { id: 'pack_5', usd: 4.99, credits: 45 },
+  { id: 'pack_10', usd: 9.99, credits: 90, bestValue: true },
+  { id: 'pack_25', usd: 24.99, credits: 235 },
+  { id: 'pack_50', usd: 49.99, credits: 475 }
 ]
 
 // How many top-up packs the no-funds pickers (BuyModal + Cart) offer in one row. The modal is widened
@@ -247,7 +250,9 @@ async function mockPollCreditGrant(
   // provided (e.g. unit tests), stay a pure mock.
   if (opts.address && pack) {
     try {
-      const res = await devMintUsd(opts.address, Math.round(pack.usd * 100))
+      // Mock the real grant: top up the SPEND value (credits × $0.10), NOT the charge (pack.usd).
+      // Under fee-adjusted packs these differ; minting the charge would over-credit in local/dev.
+      const res = await devMintUsd(opts.address, pack.credits * 10)
       return { status: 'credited', creditsGranted, newBalance: res.credits }
     } catch (e) {
       return { status: 'failed', error: (e as Error).message }

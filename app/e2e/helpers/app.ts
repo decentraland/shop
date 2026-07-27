@@ -85,7 +85,12 @@ function defaults(): Fixtures {
           read: false,
           created_at: 1750000000000,
           updated_at: 1750000000000,
-          metadata: { link: '/activity', title: 'Item sold', description: 'Nebula Jacket was sold', nftName: 'Nebula Jacket' }
+          metadata: {
+            link: '/activity',
+            title: 'Item sold',
+            description: 'Nebula Jacket was sold',
+            nftName: 'Nebula Jacket'
+          }
         },
         {
           id: 'ntf-2',
@@ -95,7 +100,12 @@ function defaults(): Fixtures {
           read: true,
           created_at: 1749000000000,
           updated_at: 1749000000000,
-          metadata: { link: '/activity', title: 'Royalties earned', description: 'You earned royalties', nftName: 'Nebula Jacket' }
+          metadata: {
+            link: '/activity',
+            title: 'Royalties earned',
+            description: 'You earned royalties',
+            nftName: 'Nebula Jacket'
+          }
         }
       ]
     }
@@ -219,10 +229,10 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
     if (path === '/credits/packs')
       return json(req, {
         packs: [
-          { id: 'pack_5', usd: 5, credits: 50, order: 1 },
-          { id: 'pack_10', usd: 10, credits: 100, order: 2 },
-          { id: 'pack_25', usd: 25, credits: 250, recommended: true, order: 3 },
-          { id: 'pack_50', usd: 50, credits: 500, order: 4 }
+          { id: 'pack_5', usd: 4.99, credits: 45, order: 1 },
+          { id: 'pack_10', usd: 9.99, credits: 90, recommended: true, order: 2 },
+          { id: 'pack_25', usd: 24.99, credits: 235, order: 3 },
+          { id: 'pack_50', usd: 49.99, credits: 475, order: 4 }
         ]
       })
     if (/\/users\/.+\/credits$/.test(path)) return json(req, creditsWithTopup(F))
