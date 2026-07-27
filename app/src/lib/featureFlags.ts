@@ -23,7 +23,21 @@ export enum FeatureFlag {
    * cannot be paid if the consumer is down. Turning this off makes new listings pay their seller directly
    * again (today's behaviour) and lets the consumer drain whatever is already in flight.
    */
-  PROCEEDS_TO_TREASURY = 'proceeds-to-treasury'
+  PROCEEDS_TO_TREASURY = 'proceeds-to-treasury',
+
+  /**
+   * Whether the Shop offers SECONDARY sales (resales) at all — buying a listed token, and putting an owned
+   * one up for sale.
+   *
+   * OFF by default, and off in every environment. Product decision: the Shop does not intermediate resales.
+   *
+   * Primary sales are untouched — creators list from their collections and are paid in MANA directly.
+   *
+   * This hides the Shop's surfaces; it does NOT retract listings that already exist on-chain. Those stay
+   * valid and fillable through the legacy Marketplace. Making them stop existing is a per-listing signature
+   * cancellation, not a flag.
+   */
+  SECONDARY_SALES = 'shop-secondary-sales'
 }
 
 /** The application whose flag file carries the flags above. */
@@ -130,4 +144,14 @@ export async function getIsProceedsToTreasuryEnabled(): Promise<boolean> {
     return false
   }
   return getIsFeatureEnabled(FeatureFlag.PROCEEDS_TO_TREASURY)
+}
+
+/**
+ * Whether the Shop offers secondary sales.
+ *
+ * Fails CLOSED like every other accessor here, and here that is the direction the product wants anyway: an
+ * unreachable flag service hides resales rather than offering a flow the Shop is not meant to have.
+ */
+export async function getIsSecondarySalesEnabled(): Promise<boolean> {
+  return getIsFeatureEnabled(FeatureFlag.SECONDARY_SALES)
 }

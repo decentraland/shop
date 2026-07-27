@@ -43,6 +43,7 @@ import { fetchCollectionItems, fetchCollection } from '~/lib/collections'
 import { ItemPreview } from '~/components/ItemPreview'
 import { CollectionCarousel } from '~/components/CollectionCarousel'
 import { ResellersModal } from '~/components/ResellersModal'
+import { useSecondarySales } from '~/hooks/useSecondarySales'
 import { NotifyMe } from '~/components/NotifyMe'
 import { MakeOfferButton } from '~/components/MakeOfferButton'
 import { Tooltip } from '~/components/Tooltip'
@@ -667,9 +668,13 @@ export function ItemDetail() {
 
   // Cheapest open resale for this item — powers the "Lowest Price" line + resellers link (Figma
   // 1524-297513). Shares react-query's cache with <ResellersModal> (identical key), so no extra fetch.
+  const secondarySales = useSecondarySales()
   const { data: resales = [] } = useQuery({
     queryKey: ['item-resales', current.contractAddress, current.itemId],
-    enabled: !isMarket && !!current.contractAddress && !!current.itemId,
+    // Not fetched at all while resales are hidden: everything downstream of it (the "Lowest Price" line,
+    // the resellers modal, the buy-the-cheapest-resale CTA on a sold-out item) resolves to empty from here,
+    // so there is one switch rather than a condition per surface.
+    enabled: secondarySales && !isMarket && !!current.contractAddress && !!current.itemId,
     staleTime: 0,
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
@@ -970,7 +975,10 @@ export function ItemDetail() {
   // the item page always stays the buy view and instead surfaces a "you own N" note). See lib/routes
   // canManageToken. `ownedAsset` only resolves on the token route anyway (current.tokenId is undefined
   // on the item route), but gate explicitly so the intent is unmistakable.
-  const manageAsSecondary = isTokenRoute && !!ownedAsset
+  // Listing an owned token is a SECONDARY sale, so it is gone while the flag is off — with one exception:
+  // a token that is ALREADY listed keeps its manage surface, otherwise the owner would be unable to take
+  // their own live listing down from the Shop. Hiding the entrance must not trap the people already inside.
+  const manageAsSecondary = isTokenRoute && !!ownedAsset && (secondarySales || !!ownedAsset.isOnSale)
   // Primary (creator) management of a mint listing is item-level — it belongs on the /item page only.
   const manageAsPrimary = !isTokenRoute && own
   // Never over the market (legacy) flow — legacy items aren't managed through the shop's trade flows.
@@ -1717,7 +1725,7 @@ export function ItemDetail() {
         />
       ) : null}
 
-      {showResellers && current.itemId ? (
+      {secondarySales && showResellers && current.itemId ? (
         <ResellersModal item={current} onClose={() => setShowResellers(false)} />
       ) : null}
 

@@ -296,6 +296,14 @@ export type ShopListingFilters = {
   isSmart?: boolean
   // Listing status (Figma "Status" filter): true = on sale, false = not for sale, undefined = all.
   onSale?: boolean
+  /**
+   * Restrict to mint listings or to resales. Omitted = both.
+   *
+   * Filtered SERVER-side on purpose (marketplace-server /v3/catalog/unified). This feed is paginated and
+   * carries a total, so dropping resale rows here would return short pages and a count that overstates
+   * what is shown.
+   */
+  listingType?: 'primary' | 'secondary'
 }
 
 async function fetchShopListingsRaw(
@@ -437,6 +445,7 @@ function unifiedSearchParams(first: number, filters: ShopListingFilters, groupBy
   if (filters.sortBy) qs.set('sortBy', filters.sortBy)
   if (filters.isSmart) qs.set('isSmart', 'true')
   if (filters.onSale != null) qs.set('onSale', String(filters.onSale))
+  if (filters.listingType) qs.set('listingType', filters.listingType)
   if (groupBy) qs.set('groupBy', groupBy)
   return qs
 }

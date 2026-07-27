@@ -11,7 +11,7 @@ import {
   type ShopAuthorization
 } from '~/lib/authorizations'
 import { config } from '~/config'
-import { getIsProceedsToTreasuryEnabled } from '~/lib/featureFlags'
+import { getIsProceedsToTreasuryEnabled, getIsSecondarySalesEnabled } from '~/lib/featureFlags'
 
 // The on-chain approval plumbing now lives in ~/lib/authorizations (the first-class module). Re-export
 // ensureChain so existing importers (e.g. ~/lib/buy) keep working without churn.
@@ -39,6 +39,10 @@ const toSeconds = (ms: number) => Math.floor(ms / 1000)
 // feature existed. The dangerous direction is routing proceeds to the treasury while unsure that anything
 // can credit the seller for them.
 export async function resaleBeneficiary(seller: string): Promise<string> {
+  // Belt and braces while the Shop offers no resales at all: the callers that could reach this are hidden,
+  // so this should be unreachable — and if a path is ever un-hidden without revisiting the routing decision,
+  // the seller keeps being paid directly rather than silently having their MANA sent to the treasury.
+  if (!(await getIsSecondarySalesEnabled())) return seller
   return (await getIsProceedsToTreasuryEnabled()) ? config.treasuryAddress : seller
 }
 

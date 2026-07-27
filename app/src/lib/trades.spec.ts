@@ -677,13 +677,22 @@ describe('when routing sale proceeds under the PROCEEDS_TO_TREASURY flag', () =>
    * the flag service. `true` is the default here because most cases below are about the ROUTING logic; the
    * flag's own behaviour — including failing closed — is covered in featureFlags.spec.ts.
    */
-  function armFlag(enabled: boolean) {
+  function armFlag(enabled: boolean, secondarySales = true) {
     resetFeatureFlagsCache()
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve({ flags: { 'dapps-proceeds-to-treasury': enabled } })
+        json: () =>
+          Promise.resolve({
+            flags: {
+              'dapps-proceeds-to-treasury': enabled,
+              // Routing only ever applies to a resale, so these cases need the Shop to be offering them.
+              // Defaults to on here so the routing tests below read as being about routing; the case where
+              // the Shop offers no resales at all has its own test.
+              'dapps-shop-secondary-sales': secondarySales
+            }
+          })
       })
     )
   }
@@ -715,6 +724,16 @@ describe('when routing sale proceeds under the PROCEEDS_TO_TREASURY flag', () =>
       // says stop. This is what makes stopping the flow possible without a redeploy.
       mockConfig.treasuryAddress = TREASURY
       armFlag(false)
+      await expect(resaleBeneficiary(SELLER)).resolves.toBe(SELLER)
+    })
+
+    it('should pay the seller directly when the Shop offers no secondary sales at all', async () => {
+      // Belt and braces. Every caller that could reach this is hidden while resales are off, so this should
+      // be unreachable — the point is that if a path is ever un-hidden without revisiting the routing
+      // decision, the seller keeps their MANA instead of it silently going to the treasury.
+      mockConfig.treasuryAddress = TREASURY
+      armFlag(true, false)
+
       await expect(resaleBeneficiary(SELLER)).resolves.toBe(SELLER)
     })
 
