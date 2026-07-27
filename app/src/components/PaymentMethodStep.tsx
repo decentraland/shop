@@ -1,26 +1,43 @@
+import { useEffect, useState } from 'react'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
-import { PaymentCtas } from '~/components/PaymentCtas'
 import { CreatorName } from '~/components/CreatorName'
 import { Icon } from '~/components/Icon'
-import { formatCredits } from '~/lib/currency'
-import { manaPerCredit, type ManaShortfall, type PaymentMethod, type PaymentOption } from '~/lib/payment-options'
+import { CURRENCY, formatCredits } from '~/lib/currency'
+import { formatMana } from '~/lib/mana-format'
+import {
+  creditsFromCents,
+  manaPerCredit,
+  type ManaShortfall,
+  type PaymentMethod,
+  type PaymentOption
+} from '~/lib/payment-options'
 import { t } from '~/intl/i18n'
 import type { CatalogItem } from '~/lib/api'
+import creditsCoin from '~/assets/payment/credits-coin.webp'
+import manaLogo from '~/assets/payment/mana-logo.webp'
+// The row's big mark is the DCL logo; the small marks beside a MANA *amount* are the Polygon MANA coin.
+import manaCoin from '~/assets/mana-matic.svg'
 import * as S from './PaymentMethodStep.styles'
 
 export type { PaymentMethod }
 
 /**
- * The "Choose your payment method" step of the Buy Now flow (Figma 1552-316605). Shown only to buyers
- * who already hold MANA; it lets them settle with credits, with MANA, or with BOTH.
+ * "Choose your payment method" — the Buy Now flow's payment step (Figma node 1654-371913).
  *
- * The buttons are whatever `options` says the buyer's balances actually support (see lib/payment-options):
- * credits alone, credits + MANA for the remainder, and/or MANA alone. Every enabled button is a payment
- * the buyer can complete in one click.
+ * Two SELECTABLE rows (credits, MANA) and one BUY confirm. The design uses CHECKBOXES rather than radio
+ * buttons, and that is load-bearing: ticking both is how a buyer pays with credits AND MANA together. So
+ * the selection is a set, mapped onto the rails lib/payment-options computed:
  *
- * The one deliberate exception to "nothing unaffordable is rendered" is `shortfall`: a buyer who HOLDS
- * MANA that can't cover this item gets the MANA button disabled, captioned with what their balance is
- * worth. Their MANA balance is on screen in the navbar, so its silent absence here reads as a bug.
+ *   {credits}        → 'credits'   — the whole price from the credit balance
+ *   {mana}           → 'mana'      — the whole price in MANA, spending no credits
+ *   {credits, mana}  → 'combined'  — the credit balance first, MANA covers the remainder
+ *
+ * A rail that can't pay is shown DISABLED with the reason, never hidden: the balances are on screen, so a
+ * silently missing option reads as a bug. `shortfall` is the same story for held MANA worth too little —
+ * the row stays, captioned with what the balance is actually worth.
+ *
+ * Confirm stays disabled until the ticked set is a rail that can settle, so nothing on screen can be
+ * submitted into a failure.
  */
 export function PaymentMethodStep({
   item,
@@ -28,6 +45,8 @@ export function PaymentMethodStep({
   priceCents,
   options,
   priceManaWei,
+  balanceCredits,
+  manaBalanceWei,
   onBuy,
   onClose,
   busy = false,
@@ -35,26 +54,80 @@ export function PaymentMethodStep({
 }: {
   item: CatalogItem
   priceCredits: number
-  /** The item's exact price in cents — spells out what each leg of a split covers. */
+  /** The item's exact price in cents — what each leg of a split is derived from. */
   priceCents: number
   /** The offerable options, already filtered + ordered by lib/payment-options. */
   options: PaymentOption[]
-  /** What the item costs in MANA right now (0n when unknown) — drives the rate caption. */
+  /** What the item costs in MANA right now (0n when unknown) — the MANA amount + rate caption. */
   priceManaWei: bigint
-  /** Buy with the rail the buyer pressed. */
+  /** The buyer's credit balance, for the row's "Credits Balance:" line. */
+  balanceCredits: number
+  /** The buyer's MANA balance in wei, for the row's "MANA Balance:" line. */
+  manaBalanceWei: bigint
+  /** Buy with the rail the buyer confirmed. */
   onBuy: (method: PaymentMethod) => void
   onClose: () => void
   busy?: boolean
-  /** Held MANA that can't pay for this item — renders the MANA button disabled and says why. */
+  /** Held MANA that can't pay for this item — keeps the MANA row, with what it is worth. */
   shortfall?: ManaShortfall | null
 }) {
+  const credits = options.find(o => o.method === 'credits') ?? null
+  const mana = options.find(o => o.method === 'mana') ?? null
+  const combined = options.find(o => o.method === 'combined') ?? null
+
+  // Which rails the buyer has ticked. Seeded from what is payable, preferring credits — the mixed rail is
+  // only the preselection when neither single rail covers the price on its own.
+  const [picked, setPicked] = useState<Set<'credits' | 'mana'>>(() => {
+    if (credits) return new Set<'credits' | 'mana'>(['credits'])
+    if (combined) return new Set<'credits' | 'mana'>(['credits', 'mana'])
+    if (mana) return new Set<'credits' | 'mana'>(['mana'])
+    return new Set<'credits' | 'mana'>()
+  })
+
+  const creditsUsable = !!credits || !!combined
+  const manaUsable = !!mana || !!combined
+
+  // The rails are recomputed as balances and prices resolve; drop a tick that stopped being payable so
+  // confirm can never submit a selection the money no longer supports.
+  useEffect(() => {
+    setPicked(prev => {
+      const next = new Set(prev)
+      if (next.has('credits') && !creditsUsable) next.delete('credits')
+      if (next.has('mana') && !manaUsable) next.delete('mana')
+      return next.size === prev.size ? prev : next
+    })
+  }, [creditsUsable, manaUsable])
+
+  /** The rail a ticked set settles as, or null when the combination isn't payable. */
+  const hasC = picked.has('credits')
+  const hasM = picked.has('mana')
+  const method: PaymentMethod | null =
+    hasC && hasM ? (combined ? 'combined' : null) : hasC ? (credits ? 'credits' : null) : hasM ? (mana ? 'mana' : null) : null
+
   const rate = manaPerCredit(priceCents, priceManaWei)
+  const rateNote =
+    rate != null ? t('buyModal.manaRate', { mana: rate.toLocaleString('en', { maximumFractionDigits: 2 }) }) : null
+
+  // What each row charges. On the mixed rail the legs differ from the single-rail ones, so they come from
+  // the option the CURRENT selection resolves to — each row states its own leg, never the full price twice.
+  const creditsLeg = method === 'combined' && combined ? combined.creditsCents : (credits?.creditsCents ?? priceCents)
+  const manaLeg = method === 'combined' && combined ? combined.manaWei : (mana?.manaWei ?? priceManaWei)
+
+  function toggle(rail: 'credits' | 'mana') {
+    setPicked(prev => {
+      const next = new Set(prev)
+      if (next.has(rail)) next.delete(rail)
+      else next.add(rail)
+      return next
+    })
+  }
+
   return (
     <S.Root>
       <S.Head>
         <S.Title>{t('buyModal.choosePayment')}</S.Title>
         <S.Close onClick={onClose} disabled={busy} aria-label={t('buyModal.close')}>
-          <Icon name="close" />
+          <Icon name="close" className="ico" />
         </S.Close>
       </S.Head>
 
@@ -76,19 +149,109 @@ export function PaymentMethodStep({
         </S.AssetInfo>
       </S.AssetCard>
 
-      <PaymentCtas
-        options={options}
-        totalCents={priceCents}
-        onPay={onBuy}
-        busy={busy}
-        shortfall={shortfall}
-        creditsLabel={t('buyModal.buyAsset')}
-        rateNote={
-          rate != null
-            ? t('buyModal.manaRate', { mana: rate.toLocaleString('en', { maximumFractionDigits: 2 }) })
-            : null
-        }
-      />
+      <S.Options>
+        <S.OptionRow
+          type="button"
+          data-testid="pay-with-credits"
+          data-selected={hasC}
+          data-disabled={!creditsUsable}
+          disabled={busy || !creditsUsable}
+          aria-pressed={hasC}
+          onClick={() => toggle('credits')}
+        >
+          <S.LeftSlot>
+            <S.CheckBox data-checked={hasC}>
+              <Icon name="check" className="ico" />
+            </S.CheckBox>
+          </S.LeftSlot>
+          <S.Content>
+            <S.InfoGroup>
+              <S.Logo>
+                <S.RailArt src={creditsCoin} w={32.582} h={34.401} alt="" aria-hidden />
+              </S.Logo>
+              <S.TextBlock>
+                <S.Label>{CURRENCY.name}</S.Label>
+                <S.BalanceRow>
+                  {t('buyModal.creditsBalanceLabel')}
+                  <CurrencyIcon />
+                  <S.BalanceValue>{formatCredits(balanceCredits)}</S.BalanceValue>
+                </S.BalanceRow>
+              </S.TextBlock>
+            </S.InfoGroup>
+            <S.PriceCol>
+              <S.Price>
+                <CurrencyIcon />
+                <span>{formatCredits(creditsFromCents(creditsLeg))}</span>
+              </S.Price>
+            </S.PriceCol>
+          </S.Content>
+        </S.OptionRow>
+
+        <S.OptionRow
+          type="button"
+          data-testid="pay-with-mana"
+          data-selected={hasM}
+          data-disabled={!manaUsable}
+          disabled={busy || !manaUsable}
+          aria-pressed={hasM}
+          onClick={() => toggle('mana')}
+        >
+          <S.LeftSlot>
+            <S.CheckBox data-checked={hasM}>
+              <Icon name="check" className="ico" />
+            </S.CheckBox>
+          </S.LeftSlot>
+          <S.Content>
+            <S.InfoGroup>
+              <S.Logo>
+                <S.RailArt src={manaLogo} w={35.328} h={35.328} alt="" aria-hidden />
+              </S.Logo>
+              <S.TextBlock>
+                <S.Label>{t('buyModal.methodMana')}</S.Label>
+                <S.BalanceRow>
+                  {t('buyModal.manaBalanceLabel')}
+                  <S.ManaMini src={manaCoin} alt="" aria-hidden />
+                  <S.BalanceValue>{formatMana(manaBalanceWei)}</S.BalanceValue>
+                </S.BalanceRow>
+              </S.TextBlock>
+            </S.InfoGroup>
+            <S.PriceCol>
+              {manaUsable ? (
+                <>
+                  <S.Price>
+                    <S.ManaPriceIco src={manaCoin} alt="" aria-hidden />
+                    <span>{formatMana(manaLeg)}</span>
+                  </S.Price>
+                  {rateNote ? <S.RateNote data-testid="mana-rate-note">{rateNote}</S.RateNote> : null}
+                </>
+              ) : (
+                // Held MANA that buys nothing here: say what it is worth. MANA is oracle-priced, so a
+                // balance that looks large beside a credits price can be worth a fraction of it — that
+                // number IS the reason the row can't be used.
+                <S.Detail data-testid="mana-shortfall-note">
+                  {shortfall
+                    ? t('buyModal.manaWorth', {
+                        mana: formatMana(shortfall.manaWei),
+                        credits: formatCredits(creditsFromCents(shortfall.manaCents)),
+                        price: formatCredits(creditsFromCents(shortfall.priceCents)),
+                        currency: CURRENCY.name
+                      })
+                    : t('buyModal.notEnoughMana')}
+                </S.Detail>
+              )}
+            </S.PriceCol>
+          </S.Content>
+        </S.OptionRow>
+      </S.Options>
+
+      <S.BuyBtn
+        type="button"
+        data-testid="confirm-payment"
+        disabled={busy || method === null}
+        onClick={() => method && onBuy(method)}
+      >
+        {t('buyModal.buy')}
+      </S.BuyBtn>
     </S.Root>
   )
 }

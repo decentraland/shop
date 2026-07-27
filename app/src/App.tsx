@@ -99,7 +99,10 @@ export function App() {
       <HoverPreviewLayer />
       <FittingRoom />
       <NavBar />
-      <main className="page">
+      {/* The route is exposed so a page can opt OUT of the shell's fill-the-viewport min-height. Pages
+          whose content is genuinely short (the credits packs) look better with the footer visible than
+          with a screenful of empty space under a single card — see .page[data-route] in index.css. */}
+      <main className="page" data-route={location.pathname}>
         <Sentry.ErrorBoundary fallback={<CrashFallback />}>
           <Suspense fallback={<PageFallback />}>
             <Routes>

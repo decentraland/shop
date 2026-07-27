@@ -302,12 +302,20 @@ h2 {
      third of the way up the screen. The footer still sits right after the content on tall pages. */
   min-height: calc(100vh - 92px);
 }
+/* Opt-out: the credits page is one short card, so filling the viewport just parks a screenful of empty
+   purple under it. Letting the footer sit right after the card is the better read there. */
+.page[data-route='/credits'] {
+  min-height: 0;
+}
 /* Mobile gutters are 16px (Figma node 1040-149085: cards at x=16, gap 16), not the desktop 40px. */
 @media (max-width: 768px) {
   .page {
     padding: 16px 16px 56px;
     /* Navbar is 64px on mobile (see body padding-top). */
     min-height: calc(100vh - 64px);
+  }
+  .page[data-route='/credits'] {
+    min-height: 0;
   }
 }
 .placeholder {

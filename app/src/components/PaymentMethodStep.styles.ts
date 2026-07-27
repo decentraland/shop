@@ -1,15 +1,15 @@
 import styled from '@emotion/styled'
 import { theme } from '~/styles/theme'
 
-// "Choose your payment method" step of the Buy Now flow (Figma Z0actRbZof0tDolIdxIL3A, node
-// 1552-316605). Renders inside the shared .buy-modal__card, so this is the card's whole content:
-// header, asset summary, the Credits/MANA option rows, and the Buy CTA. Matches the SellModal /
-// BuyModal design language (560px feel, Inter, DCL tokens).
+// "Choose your payment method" step of the Buy Now flow (Figma node 1654-371913). Renders inside the
+// shared .buy-modal__card, so this is the card's whole content: header, asset summary, one selectable
+// row per payment rail, and a single BUY confirm.
 
 export const Root = styled.div`
   display: flex;
   flex-direction: column;
   gap: 24px;
+  padding: 12px 16px 16px;
 `
 
 export const Head = styled.div`
@@ -34,8 +34,8 @@ export const Close = styled.button`
   flex: none;
   display: grid;
   place-items: center;
-  width: 20px;
-  height: 20px;
+  width: 18.535px;
+  height: 18.535px;
   border: 0;
   background: none;
   cursor: pointer;
@@ -62,18 +62,18 @@ export const Thumb = styled.div`
   flex: none;
   display: grid;
   place-items: center;
-  width: 180px;
-  height: 180px;
-  border-radius: 16px;
+  width: 180.465px;
+  height: 179.763px;
+  border-radius: 15.746px;
   background: ${theme.colors.media};
-  border: 1px solid ${theme.colors.gray4};
+  border: 0.176px solid ${theme.colors.muted2};
   overflow: hidden;
 
   img {
-    width: 83%;
-    height: 83%;
+    width: 149.568px;
+    height: 148.866px;
     object-fit: contain;
-    filter: drop-shadow(0.7px 2.9px 3.7px rgba(0, 0, 0, 0.1));
+    filter: drop-shadow(0.736px 2.945px 3.682px rgba(0, 0, 0, 0.1));
   }
 
   ${theme.media.down('mobile')} {
@@ -117,10 +117,15 @@ export const AssetPrice = styled.div`
   align-items: center;
   gap: 4px;
 
+  /* A 24px slot holding a 19.855px glyph — keep both boxes rather than one flat size. */
   .ico {
     width: 24px;
     height: 24px;
     background: ${theme.colors.text2};
+    -webkit-mask-size: 19.855px 19.855px;
+    mask-size: 19.855px 19.855px;
+    -webkit-mask-position: left top;
+    mask-position: left top;
   }
   span {
     font-family: ${theme.font.sans};
@@ -156,7 +161,7 @@ export const OptionRow = styled.button`
        12px corners stay rounded (border-image can't clip them). Fill is gray-5 when selected. */
     background:
       linear-gradient(${theme.colors.media}, ${theme.colors.media}) padding-box,
-      linear-gradient(120deg, #ffa25a 0%, #ffc95b 30%, ${theme.colors.dclRed} 100%) border-box;
+      ${theme.gradients.flare} border-box;
     border: 3px solid transparent;
   }
   &[data-disabled='true'] {
@@ -173,7 +178,10 @@ export const LeftSlot = styled.div`
   flex: none;
   display: flex;
   align-items: center;
-  padding: 9px;
+  justify-content: center;
+  min-width: 36px;
+  /* 12px on the left (per review) so the control clears the row's rounded corner; 9px elsewhere. */
+  padding: 9px 9px 9px 12px;
 `
 
 // Custom checkbox — checked = dark fill + white tick; unchecked = hairline square (Figma MUI medium).
@@ -217,12 +225,15 @@ export const Logo = styled.span`
   flex: none;
   display: grid;
   place-items: center;
+`
 
-  .ico {
-    width: 32px;
-    height: 32px;
-    background: ${theme.colors.text2};
-  }
+/** A rail's illustrated mark at its designed size (credits coin 32.582×34.401, MANA logo 35.328²). */
+export const RailArt = styled.img<{ w: number; h: number }>`
+  flex: none;
+  display: block;
+  width: ${({ w }) => w}px;
+  height: ${({ h }) => h}px;
+  object-fit: contain;
 `
 
 export const TextBlock = styled.div`
@@ -232,6 +243,7 @@ export const TextBlock = styled.div`
 `
 
 export const Label = styled.span`
+  text-transform: capitalize;
   font-family: ${theme.font.sans};
   font-weight: 700;
   font-size: 15px;
@@ -246,17 +258,23 @@ export const BalanceRow = styled.span`
   gap: 4px;
   font-family: ${theme.font.sans};
   font-size: 12px;
-  color: ${theme.colors.muted};
+  line-height: 1;
+  color: #5e5b67;
 
+  /* A 13px slot holding a 10.4px glyph. */
   .ico {
-    width: 11px;
-    height: 11px;
+    width: 13px;
+    height: 13px;
     background: ${theme.colors.text};
+    -webkit-mask-size: 10.4px 10.4px;
+    mask-size: 10.4px 10.4px;
+    -webkit-mask-position: left center;
+    mask-position: left center;
   }
 `
 
 export const BalanceValue = styled.span`
-  font-size: 11px;
+  font-size: 10.4px;
   color: ${theme.colors.text};
 `
 
@@ -275,9 +293,13 @@ export const Price = styled.div`
   gap: 6px;
 
   .ico {
-    width: 20px;
-    height: 20px;
+    width: 24px;
+    height: 24px;
     background: ${theme.colors.text2};
+    -webkit-mask-size: 19.855px 19.855px;
+    mask-size: 19.855px 19.855px;
+    -webkit-mask-position: left top;
+    mask-position: left top;
   }
   span {
     font-family: ${theme.font.sans};
@@ -285,6 +307,25 @@ export const Price = styled.div`
     font-size: 20px;
     color: ${theme.colors.text2};
   }
+`
+
+/** The right-hand column of a row: the amount, with the rate caption tucked under it. */
+export const PriceCol = styled.div`
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+`
+
+/** "1 credit = X MANA" under the MANA amount (Figma 1646-367213). */
+export const RateNote = styled.span`
+  font-family: ${theme.font.sans};
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 1;
+  color: ${theme.colors.muted};
+  white-space: nowrap;
 `
 
 export const BuyBtn = styled.button`
@@ -320,22 +361,15 @@ export const BuyBtn = styled.button`
 // (the mask-based Icon would flatten it to a monochrome tint). Three sizes to match the credits
 // mark in each slot: row logo, balance line, price.
 
-export const ManaLogo = styled.img`
-  flex: none;
-  width: 32px;
-  height: 32px;
-  display: block;
-`
-
 export const ManaMini = styled.img`
-  width: 11px;
-  height: 11px;
+  width: 13px;
+  height: 13px;
   display: block;
 `
 
 export const ManaPriceIco = styled.img`
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   display: block;
 `
 

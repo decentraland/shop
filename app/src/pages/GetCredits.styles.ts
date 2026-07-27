@@ -159,12 +159,15 @@ export const Grid = styled.div`
   gap: 24px;
   width: 100%;
 
+  /* Two per row from tablet all the way down to the narrowest phone (Figma node 1654-374664): one
+     full-width pack per row wastes the height and pushes the fourth option far below the fold. */
   @media (max-width: 980px) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     row-gap: 40px;
   }
   @media (max-width: 520px) {
-    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+    row-gap: 24px;
   }
 `
 

@@ -27,6 +27,16 @@ const NO_CREDITS = credits(0)
 const ITEM_PATH = `/item/${COLLECTION}/1`
 const has = (page: App['page'], testId: string) => page.$(`[data-testid="${testId}"]`).then(el => !!el)
 
+// The Buy Now picker is SELECT-then-confirm (Figma 1654-371913): rows are checkboxes and one BUY submits.
+// Ticking both rows is how a mixed credits + MANA payment is expressed, so there is no "combined" row.
+const isTicked = (page: App['page'], rail: 'credits' | 'mana') =>
+  page.$eval(`[data-testid="pay-with-${rail}"]`, el => el.getAttribute('data-selected') === 'true')
+const tick = async (page: App['page'], rail: 'credits' | 'mana', on: boolean) => {
+  if ((await isTicked(page, rail)) !== on) await clickWhenEnabled(page, `[data-testid="pay-with-${rail}"]`, /.*/)
+  expect(await isTicked(page, rail)).toBe(on)
+}
+const confirmPayment = (page: App['page']) => clickWhenEnabled(page, '[data-testid="confirm-payment"]', /.*/)
+
 describe('paying with MANA in the buy flow', () => {
   it('changes nothing when the wallet holds no MANA: no navbar chip, no payment step', async () => {
     app = await launchApp({ path: ITEM_PATH, fixtures: { trade: buyTrade } })
@@ -58,13 +68,13 @@ describe('paying with MANA in the buy flow', () => {
     await waitForText(page, 'Nebula Jacket')
     await clickWhenEnabled(page, 'button', /buy now/i)
 
-    // The method picker replaces the plain confirm view.
+    // The method picker replaces the plain confirm view: both rails get a row.
     await page.waitForSelector('[data-testid="pay-with-credits"]', { timeout: 20000 })
     expect(await has(page, 'pay-with-mana')).toBe(true)
-    // Credits alone cover it, so the mixed rail is pointless and must NOT be offered.
-    expect(await has(page, 'pay-with-combined')).toBe(false)
-    // Pressing the credits CTA buys straight away (one click, no separate confirm step).
-    await clickWhenEnabled(page, '[data-testid="pay-with-credits"]', /.*/)
+    // Credits cover it alone, so that is what comes preselected.
+    expect(await isTicked(page, 'credits')).toBe(true)
+    expect(await isTicked(page, 'mana')).toBe(false)
+    await confirmPayment(page)
     await waitForText(page, 'Purchase complete!', 30000)
   })
 
@@ -76,11 +86,14 @@ describe('paying with MANA in the buy flow', () => {
     await clickWhenEnabled(page, 'button', /buy now/i)
     await page.waitForSelector('[data-testid="pay-with-mana"]', { timeout: 20000 })
 
-    await clickWhenEnabled(page, '[data-testid="pay-with-mana"]', /.*/)
+    // Swap the selection over to MANA only, then confirm.
+    await tick(page, 'credits', false)
+    await tick(page, 'mana', true)
+    await confirmPayment(page)
     await waitForText(page, 'Purchase complete!', 30000)
   })
 
-  it('offers the combined rail when the credits fall short, and completes credits + MANA', async () => {
+  it('pays with credits AND MANA when both rows are ticked, and completes', async () => {
     app = await launchApp({
       path: ITEM_PATH,
       fixtures: { trade: buyTrade, credits: PARTIAL_CREDITS },
@@ -92,15 +105,16 @@ describe('paying with MANA in the buy flow', () => {
     await clickWhenEnabled(page, 'button', /buy now/i)
 
     // Short on credits used to be a dead end (top-up pack picker); with MANA in the wallet it becomes a
-    // payable purchase: credits first + MANA for the remainder.
-    await page.waitForSelector('[data-testid="pay-with-combined"]', { timeout: 20000 })
-    // 40 MANA covers the ≈10 MANA remainder but not the ≈50 MANA full price → no MANA-only CTA.
-    expect(await has(page, 'pay-with-mana')).toBe(false)
-    // The row shows both legs of the split: 40 credits + the MANA remainder.
-    const row = await page.$eval('[data-testid="pay-with-combined"]', el => el.textContent ?? '')
-    expect(row).toContain('40')
+    // payable purchase: credits first + MANA for the remainder. Neither rail covers it alone, so BOTH
+    // rows come preselected.
+    await page.waitForSelector('[data-testid="pay-with-credits"]', { timeout: 20000 })
+    expect(await isTicked(page, 'credits')).toBe(true)
+    expect(await isTicked(page, 'mana')).toBe(true)
+    // Each row states its OWN leg: 40 credits, and the MANA remainder (not the full ≈50 MANA price).
+    const creditsRow = await page.$eval('[data-testid="pay-with-credits"]', el => el.textContent ?? '')
+    expect(creditsRow).toContain('40')
 
-    await clickWhenEnabled(page, '[data-testid="pay-with-combined"]', /.*/)
+    await confirmPayment(page)
     await waitForText(page, 'Purchase complete!', 30000)
   })
 
@@ -116,10 +130,12 @@ describe('paying with MANA in the buy flow', () => {
     await clickWhenEnabled(page, 'button', /buy now/i)
 
     await page.waitForSelector('[data-testid="pay-with-mana"]', { timeout: 20000 })
-    expect(await has(page, 'pay-with-credits')).toBe(false)
-    expect(await has(page, 'pay-with-combined')).toBe(false)
+    // The credits row stays on screen (the design keeps both) but cannot be ticked with a zero balance.
+    expect(await page.$eval('[data-testid="pay-with-credits"]', el => (el as HTMLButtonElement).disabled)).toBe(true)
+    expect(await isTicked(page, 'mana')).toBe(true)
 
-    await clickWhenEnabled(page, '[data-testid="pay-with-mana"]', /.*/)
+    // MANA is already the only ticked rail — confirm it (clicking the row again would UNtick it).
+    await confirmPayment(page)
     await waitForText(page, 'Purchase complete!', 30000)
   })
 
@@ -254,7 +270,9 @@ describe('approving the MANA spend', () => {
     await waitForText(page, 'Nebula Jacket')
     await clickWhenEnabled(page, 'button', /buy now/i)
     await page.waitForSelector('[data-testid="pay-with-mana"]', { timeout: 20000 })
-    await clickWhenEnabled(page, '[data-testid="pay-with-mana"]', /.*/)
+    await tick(page, 'credits', false)
+    await tick(page, 'mana', true)
+    await confirmPayment(page)
 
     // The approval step, not the purchase: it names what is being approved and that it happens once.
     await page.waitForSelector('[data-testid="authorize-step-row"]', { timeout: 20000 })
@@ -272,7 +290,9 @@ describe('approving the MANA spend', () => {
     await waitForText(page, 'Nebula Jacket')
     await clickWhenEnabled(page, 'button', /buy now/i)
     await page.waitForSelector('[data-testid="pay-with-mana"]', { timeout: 20000 })
-    await clickWhenEnabled(page, '[data-testid="pay-with-mana"]', /.*/)
+    await tick(page, 'credits', false)
+    await tick(page, 'mana', true)
+    await confirmPayment(page)
 
     // No approval step in the way — the buyer already granted it.
     await waitForText(page, 'Purchase complete!', 30000)

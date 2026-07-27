@@ -534,6 +534,8 @@ export function BuyModal({
             priceCents={priceCents}
             options={paymentOptions.options}
             priceManaWei={manaPriceWei ?? 0n}
+            balanceCredits={balanceCredits}
+            manaBalanceWei={manaBalanceWei ?? 0n}
             onBuy={method => void startPurchase(method)}
             onClose={onClose}
             busy={busy}
