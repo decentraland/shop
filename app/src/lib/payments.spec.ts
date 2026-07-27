@@ -79,20 +79,25 @@ describe('when computing credit pack math at the fixed USD peg', () => {
     expect(usdForCredits(7)).toBe(0.7)
   })
 
-  it('and the pack catalogue should match the peg for every pack', () => {
+  it('and the pack catalogue should be fee-adjusted (credits ≤ the raw peg — the premium covers card fees)', () => {
+    // Break-even packs charge a small premium over the credits' spend value, so credits < usd×10.
+    // Under the old flat peg they were equal; that no longer holds (see credits-server credit-pack-catalog).
     for (const pack of CREDIT_PACKS) {
-      expect(pack.credits).toBe(creditsForUsd(pack.usd))
+      expect(pack.credits).toBeGreaterThan(0)
+      expect(pack.credits).toBeLessThanOrEqual(creditsForUsd(pack.usd))
     }
   })
 
-  it('should expose exactly one highlighted best-value pack', () => {
-    expect(CREDIT_PACKS.filter(p => p.bestValue)).toHaveLength(1)
+  it('should highlight exactly one best-value pack (the $9.99 Popular pack)', () => {
+    const best = CREDIT_PACKS.filter(p => p.bestValue)
+    expect(best).toHaveLength(1)
+    expect(best[0].id).toBe('pack_10')
   })
 })
 
 describe('when looking up a pack by id', () => {
   it('should return the matching pack', () => {
-    expect(getPack('pack_25')).toMatchObject({ usd: 25, credits: 250 })
+    expect(getPack('pack_25')).toMatchObject({ usd: 24.99, credits: 235 })
   })
 
   it('and the id is unknown it should return undefined', () => {
@@ -197,8 +202,8 @@ describe('when buying a credit pack in mock mode', () => {
     const session = await createPackCheckout('pack_50')
     const result = await pollCreditGrant(session.orderId, { intervalMs: 1 })
     expect(result.status).toBe('credited')
-    expect(result.creditsGranted).toBe(500)
-    expect(result.newBalance).toBe(500)
+    expect(result.creditsGranted).toBe(475)
+    expect(result.newBalance).toBe(475)
   })
 })
 
@@ -240,7 +245,7 @@ describe('when polling a credit grant in mock mode via the mock config', () => {
   it('should resolve credited without an address (pure mock, no dev-mint)', async () => {
     const session = await createPackCheckout('pack_25')
     const result = await pollCreditGrant(session.orderId, { intervalMs: 1 })
-    expect(result).toEqual({ status: 'credited', creditsGranted: 250, newBalance: 250 })
+    expect(result).toEqual({ status: 'credited', creditsGranted: 235, newBalance: 235 })
     expect(devMintUsd).not.toHaveBeenCalled()
   })
 
@@ -256,9 +261,10 @@ describe('when polling a credit grant in mock mode via the mock config', () => {
     const result = await pollCreditGrant(session.orderId, { intervalMs: 1, address: '0xABC' })
 
     expect(devMintUsd).toHaveBeenCalledTimes(1)
-    expect(devMintUsd).toHaveBeenCalledWith('0xABC', 1000)
-    // creditsGranted comes from the pack peg, newBalance from the dev-mint response.
-    expect(result).toEqual({ status: 'credited', creditsGranted: 100, newBalance: 137 })
+    // Mock-mint tops up the SPEND value (credits × $0.10 = 90 × 10 = 900¢), not the charge ($9.99).
+    expect(devMintUsd).toHaveBeenCalledWith('0xABC', 900)
+    // creditsGranted comes from the pack's credit amount, newBalance from the dev-mint response.
+    expect(result).toEqual({ status: 'credited', creditsGranted: 90, newBalance: 137 })
   })
 
   it('should report failed when the dev-mint top-up throws', async () => {
@@ -284,7 +290,7 @@ describe('when polling a credit grant with a mock order id even though config is
   it('should still take the mock path for a mock-prefixed order id', async () => {
     enableRealMode()
     const result = await pollCreditGrant(`${MOCK_CLIENT_SECRET_PREFIX}pack_25_1700000000000`, { intervalMs: 1 })
-    expect(result).toEqual({ status: 'credited', creditsGranted: 250, newBalance: 250 })
+    expect(result).toEqual({ status: 'credited', creditsGranted: 235, newBalance: 235 })
     expect(pollCreditGrantReal).not.toHaveBeenCalled()
   })
 })

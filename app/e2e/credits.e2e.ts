@@ -13,12 +13,12 @@ describe('get credits page', () => {
     app = await launchApp({ path: '/credits' })
     const { page } = app
 
-    // Header + the four packs (see src/lib/payments.ts CREDIT_PACKS: $5/$10/$25/$50).
+    // Header + the four packs (see src/lib/payments.ts CREDIT_PACKS: $4.99/$9.99/$24.99/$49.99).
     await waitForText(page, 'Get credits')
     await page.waitForSelector('[data-testid="pack"]', { timeout: 20000 })
     expect(await page.evaluate(() => document.querySelectorAll('[data-testid="pack"]').length)).toBe(4)
-    await waitForText(page, '$5')
-    await waitForText(page, '$50')
+    await waitForText(page, '$4.99')
+    await waitForText(page, '$49.99')
     await waitForText(page, 'Recommended')
 
     // The signed-in balance chip renders in the sub-nav (creditsResponse.usd.credits = 500).
@@ -38,25 +38,25 @@ describe('get credits page', () => {
       await page.evaluate(() => document.querySelector('[data-testid="subnav-balance"]')?.textContent?.includes('500'))
     ).toBe(true)
 
-    // Pick the $25 pack. No intermediate card form — mock checkout goes straight to crediting
-    // (behaves like "went to Stripe → came back credited").
+    // Pick the $24.99 pack (pack_25). No intermediate card form — mock checkout goes straight to
+    // crediting (behaves like "went to Stripe → came back credited").
     await page.waitForSelector('[data-testid="pack"]', { timeout: 20000 })
-    expect(await clickByText(page, '[data-testid="pack"]', /\$25/)).toBe(true)
+    expect(await clickByText(page, '[data-testid="pack"]', /\$24\.99/)).toBe(true)
 
-    // Processing → success: 250 credits granted for the $25 pack.
+    // Processing → success: 235 credits granted for the $24.99 pack (break-even buy rate).
     await waitForText(page, 'successful')
-    await waitForText(page, '250')
+    await waitForText(page, '235')
 
-    // The purchase must actually raise the balance: the /dev/mint-usd top-up ($25 = 250 credits) folds
-    // into the credits refetch, so the sub-nav chip goes 500 → 750. No other test asserts this.
+    // The purchase must actually raise the balance: the /dev/mint-usd top-up (235 credits = $23.50 of
+    // spend value) folds into the credits refetch, so the sub-nav chip goes 500 → 735. No other test asserts this.
     await page.waitForFunction(
-      () => !!document.querySelector('[data-testid="subnav-balance"]')?.textContent?.includes('750'),
+      () => !!document.querySelector('[data-testid="subnav-balance"]')?.textContent?.includes('735'),
       {
         timeout: 20000
       }
     )
     expect(
-      await page.evaluate(() => document.querySelector('[data-testid="subnav-balance"]')?.textContent?.includes('750'))
+      await page.evaluate(() => document.querySelector('[data-testid="subnav-balance"]')?.textContent?.includes('735'))
     ).toBe(true)
   })
 })
