@@ -504,7 +504,10 @@
     "itemCount": "{count, plural, one {# item} other {# items}}",
     "quantity": "×{count}",
     "creditPurchaseLabel": "Credit purchase",
-    "creditPaid": "Paid {usd}"
+    "creditPaid": "Paid {usd}",
+    "payoutPending": "Pending",
+    "payoutPendingOn": "Credits available {date}",
+    "payoutCredited": "Paid in credits"
   },
   "myFavorites": {
     "emptyTitle": "No favorites yet",
