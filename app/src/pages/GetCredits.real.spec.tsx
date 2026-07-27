@@ -46,11 +46,15 @@ const { isMockPayments, createPackCheckout, pollCreditGrant, fetchCreditPacks, C
   // The pack catalogue is seeded into the query cache in renderPage, so this isn't actually called;
   // it just has to exist on the mock for the useCreditPacks import to resolve.
   fetchCreditPacks: vi.fn(),
+  // MIRRORS the real catalogue in ~/lib/payments. The mock fully overrides that module, so these tests
+  // stay self-consistent whatever is here — which is exactly why it has to be kept in step: a stale
+  // catalogue means the pack UI is asserted against prices, amounts and a bestValue badge that no
+  // longer exist, and it passes.
   CREDIT_PACKS: [
-    { id: 'pack_5', usd: 5, credits: 50 },
-    { id: 'pack_10', usd: 10, credits: 100 },
-    { id: 'pack_25', usd: 25, credits: 250, bestValue: true },
-    { id: 'pack_50', usd: 50, credits: 500 }
+    { id: 'pack_5', usd: 4.99, credits: 45 },
+    { id: 'pack_10', usd: 9.99, credits: 90, bestValue: true },
+    { id: 'pack_25', usd: 24.99, credits: 235 },
+    { id: 'pack_50', usd: 49.99, credits: 475 }
   ]
 }))
 vi.mock('~/lib/payments', () => ({
@@ -177,7 +181,7 @@ describe('when returning from Stripe hosted Checkout on the real path', () => {
 
     // Try again returns to the pack grid.
     await user.click(screen.getByRole('button', { name: /try again/i }))
-    expect(screen.getByRole('button', { name: /250 credits for \$25/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /235 credits for \$24\.99/i })).toBeInTheDocument()
   })
 
   it('should only poll once even though clearing the return params re-runs the effect (no double-poll)', async () => {
@@ -244,7 +248,7 @@ describe('when starting a real hosted checkout from a pack click', () => {
 
     renderPage('/')
 
-    await user.click(screen.getByRole('button', { name: /250 credits for \$25/i }))
+    await user.click(screen.getByRole('button', { name: /235 credits for \$24\.99/i }))
 
     // No intermediate embedded card form / "choose a different pack" back-link — the pack click goes
     // straight to Stripe (a minimal "redirecting to secure checkout" spinner covers the async window).
@@ -255,7 +259,7 @@ describe('when starting a real hosted checkout from a pack click', () => {
     // Redirect happens once the hosted session resolves; the funnel marker fires with the order id.
     await vi.waitFor(() => expect(window.location.href).toBe('https://checkout.stripe.com/c/pay/cs_test_123'))
     const redirected = track.mock.calls.find(c => c[0] === 'Shop Redirected To Stripe')
-    expect(redirected?.[1]).toMatchObject({ order_id: 'ord_new', pack_usd: 25 })
+    expect(redirected?.[1]).toMatchObject({ order_id: 'ord_new', pack_usd: 24.99 })
     // A card-click never enters an error state on the happy redirect.
     expect(screen.queryByText(/something went wrong/i)).not.toBeInTheDocument()
   })
@@ -266,11 +270,11 @@ describe('when starting a real hosted checkout from a pack click', () => {
 
     renderPage('/')
 
-    await user.click(screen.getByRole('button', { name: /100 credits for \$10/i }))
+    await user.click(screen.getByRole('button', { name: /90 credits for \$9\.99/i }))
 
     expect(await screen.findByText(/something went wrong/i)).toBeInTheDocument()
     const failed = track.mock.calls.find(c => c[0] === 'Shop Buy Credits Failed')
-    expect(failed?.[1]).toMatchObject({ step: 'checkout', pack_usd: 10 })
+    expect(failed?.[1]).toMatchObject({ step: 'checkout', pack_usd: 9.99 })
     expect(captureError).toHaveBeenCalled()
   })
 
@@ -278,7 +282,7 @@ describe('when starting a real hosted checkout from a pack click', () => {
     renderPage('/?canceled=1')
 
     expect(await screen.findByText(/payment canceled/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /250 credits for \$25/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /235 credits for \$24\.99/i })).toBeInTheDocument()
     expect(screen.queryByText(/something went wrong/i)).not.toBeInTheDocument()
     expect(track.mock.calls.some(c => c[0] === 'Shop Buy Credits Cancelled')).toBe(true)
   })
