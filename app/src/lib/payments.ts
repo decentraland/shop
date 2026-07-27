@@ -250,9 +250,11 @@ async function mockPollCreditGrant(
   // provided (e.g. unit tests), stay a pure mock.
   if (opts.address && pack) {
     try {
-      // Mock the real grant: top up the SPEND value (credits × $0.10), NOT the charge (pack.usd).
-      // Under fee-adjusted packs these differ; minting the charge would over-credit in local/dev.
-      const res = await devMintUsd(opts.address, pack.credits * 10)
+      // Mock the real grant: top up the SPEND value (credits × USD_PER_CREDIT), NOT the charge
+      // (pack.usd). Under fee-adjusted packs these differ; minting the charge would over-credit in
+      // local/dev. Derived from the peg rather than a literal 10 so a peg change moves one constant;
+      // rounded because the ×100 to cents runs through a float.
+      const res = await devMintUsd(opts.address, Math.round(pack.credits * USD_PER_CREDIT * 100))
       return { status: 'credited', creditsGranted, newBalance: res.credits }
     } catch (e) {
       return { status: 'failed', error: (e as Error).message }
