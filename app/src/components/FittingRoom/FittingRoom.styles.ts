@@ -4,7 +4,7 @@ import { theme } from '~/styles/theme'
 import { Button } from '~/components/Button'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 
-const { colors, radius, media } = theme
+const { colors, radius, media, z } = theme
 
 const fadeIn = keyframes`
   from { opacity: 0; }
@@ -14,7 +14,8 @@ const fadeIn = keyframes`
 export const Modal = styled.div`
   position: fixed;
   inset: 0;
-  z-index: 70;
+  // Above the global DCL navbar so the scrim dims the full viewport (navbar included).
+  z-index: ${z.overlay};
   display: grid;
   place-items: center;
   padding: 20px;

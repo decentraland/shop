@@ -1,8 +1,10 @@
 import styled from '@emotion/styled'
+import { css } from '@emotion/react'
 import { Link } from 'react-router-dom'
 import { theme } from '~/styles/theme'
 import { Chip } from '~/styles/chip.styles'
 import { CreatorBadge } from '~/components/CreatorBadge'
+import { CreatorName } from '~/components/CreatorName'
 import { SaleCountdown } from '~/components/SaleCountdown'
 
 const { colors, gradients, radius, media } = theme
@@ -35,7 +37,8 @@ export const Card = styled.article`
         ${gradients.cerise} border-box;
       box-shadow: 0 0 8px 0 ${colors.brandViolet};
     }
-    &:hover [data-testid='card-cart'] {
+    &:hover [data-testid='card-cart'],
+    &:hover [data-reveal] {
       display: flex;
     }
     &:hover [data-chips] {
@@ -46,10 +49,20 @@ export const Card = styled.article`
 
 // Transparent whole-card navigation overlay: above the media so a click anywhere navigates, but below
 // the fav/creator/action controls (z-index 4) so those stay independently clickable.
-export const CardLink = styled(Link)`
+const cardLinkCss = css`
   position: absolute;
   inset: 0;
   z-index: 3;
+`
+
+export const CardLink = styled(Link)`
+  ${cardLinkCss};
+`
+
+// Same overlay for an OFF-app destination (an owned NAME's Builder management page), which needs a
+// plain anchor rather than a router Link.
+export const CardLinkExternal = styled.a`
+  ${cardLinkCss};
 `
 
 export const Fav = styled.button`
@@ -104,6 +117,86 @@ export const SaleBadge = styled.span`
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
 `
 
+// Shimmer over the gray media background while the shared 3D preview boots. z-index -1 (within the
+// media's isolate stacking context) keeps it above the gray fill but behind the static thumbnail.
+export const Skeleton = styled.div`
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(
+    100deg,
+    rgba(255, 255, 255, 0) 30%,
+    rgba(255, 255, 255, 0.6) 50%,
+    rgba(255, 255, 255, 0) 70%
+  );
+  background-repeat: no-repeat;
+  background-size: 220% 100%;
+  animation: card-skeleton 1.3s infinite ease-in-out;
+
+  @keyframes card-skeleton {
+    0% {
+      background-position: 180% 0;
+    }
+    100% {
+      background-position: -80% 0;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+    opacity: 0.5;
+  }
+`
+
+// "N on sale" badge: flags that an item has multiple copies on sale so the user knows there's a resale
+// list on the detail page. Anchored bottom-left so it clears the fav button and the flash-sale ribbon.
+export const Listings = styled.span`
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  background: rgba(22, 20, 27, 0.82);
+  color: #fff;
+  font-weight: 600;
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  border-radius: 6px;
+  padding: 3px 7px;
+`
+
+// A NAME's media: no thumbnail, just the typographic "@name" tile, violet and centred.
+export const NameMedia = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  height: 100%;
+  padding: 8px;
+  color: ${colors.brandViolet};
+  text-align: center;
+`
+
+export const NameAt = styled.span`
+  font-weight: 700;
+  font-size: 36px;
+  line-height: 1;
+`
+
+export const NameValue = styled.span`
+  max-width: 100%;
+  font-weight: 700;
+  font-size: 24px;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`
+
 // The flat thumbnail crossfades out once the shared 3D preview (HoverPreviewLayer) has this item ready.
 export const Img = styled.img`
   width: 100%;
@@ -128,12 +221,22 @@ export const Body = styled.div`
   gap: 4px;
 
   @media (hover: hover) {
-    &:focus-within [data-testid='card-cart'] {
+    &:focus-within [data-testid='card-cart'],
+    &:focus-within [data-reveal] {
       display: flex;
     }
     &:focus-within [data-chips] {
       display: none;
     }
+  }
+
+  // data-name = a NAME card's footer: it hugs its single row (@name + NOT FOR SALE) with a bit more
+  // vertical breathing room, and the @name tile above keeps the extra height.
+  &[data-name] {
+    flex: 0 0 auto;
+    height: auto;
+    padding-top: 14px;
+    padding-bottom: 14px;
   }
 
   ${media.maxWidth('sm')} {
@@ -144,6 +247,15 @@ export const Body = styled.div`
     align-items: center;
     row-gap: 10px;
     padding: 8px;
+
+    // NAME cards have no price/round-add split the wearable grid is built for — keep them a simple
+    // stacked column so the mobile layout stays tidy.
+    &[data-name] {
+      display: flex;
+    }
+    &[data-name] > * {
+      display: flex;
+    }
   }
 `
 
@@ -172,6 +284,7 @@ export const Desc = styled.div`
   }
 `
 
+// data-verified = an owned NAME's footer: "@name" beside the violet verified seal.
 export const Name = styled.div`
   font-weight: 600;
   font-size: 14px;
@@ -181,9 +294,20 @@ export const Name = styled.div`
   overflow: hidden;
   text-overflow: ellipsis;
 
+  &[data-verified] {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
   ${media.maxWidth('sm')} {
     font-size: 12px;
   }
+`
+
+// The DCL verified seal is a Cerise-gradient SVG, so it can't be the currentColor Icon mask.
+export const Verified = styled.svg`
+  flex: none;
 `
 
 // On the card we show just "By AuthorName" — the badge's avatar is hidden (it renders elsewhere).
@@ -199,10 +323,28 @@ export const Creator = styled(CreatorBadge)`
   }
 `
 
-// Reserves the creator line's height when an item has no creator.
+// Reserves the creator line's height when an item has no creator. data-issued styles it as the owned
+// copy's mint index (e.g. "#5013") — tabular figures so digits align across otherwise-identical copies.
 export const CreatorEmpty = styled.div`
   font-size: 10px;
   margin-bottom: 2px;
+
+  &[data-issued] {
+    color: ${colors.muted};
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.2px;
+  }
+`
+
+// "by {creator}" subtitle under the title on the browse card. Single line, ellipsised so a long name
+// never pushes the fixed 96px body out of shape.
+export const Author = styled(CreatorName)`
+  color: ${colors.muted};
+  font-size: 11px;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 `
 
 // Price never shrinks or wraps — the name yields space to it. The sale variant wraps (was-price +
@@ -233,6 +375,19 @@ export const Price = styled.div`
     align-self: center;
     justify-self: start;
   }
+`
+
+// "NOT FOR SALE" tag — sits where the price would be on the title row. Never shrinks/wraps, like the
+// price it replaces.
+export const Nfs = styled.span`
+  flex-shrink: 0;
+  font-weight: 600;
+  font-size: 8px;
+  line-height: 20px;
+  color: ${colors.muted};
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
 `
 
 export const PriceNow = styled.span`
@@ -331,8 +486,81 @@ export const CardChip = styled(Chip)`
   }
 `
 
+// Full-width dark VIEW affordance on the view-only card. Unlike Cart it's ALWAYS visible (no hover
+// reveal) and carries no click handler — the whole-card overlay link navigates.
+export const View = styled.span`
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: ${colors.blackBtn};
+  color: ${colors.softWhite};
+  border-radius: ${radius.btn};
+  height: 40px;
+  font-weight: 600;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.046em;
+
+  & .ico {
+    width: 20px;
+    height: 20px;
+  }
+`
+
+// Full-width action on an owned/created card: "List for sale" (dark) or, with data-ghost, "Remove from
+// sale" (lighter secondary). Unlike View it carries a real click handler, so its z-index must sit ABOVE
+// the whole-card overlay link to stay independently clickable. On My Creations it lives in the swap slot
+// and is hidden at rest (data-reveal), revealed on card hover or keyboard focus like Cart; on touch (no
+// hover) the base display keeps it visible so it stays operable without a mouse.
+export const Manage = styled.button`
+  position: relative;
+  z-index: 4;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 0;
+  border-radius: ${radius.btn};
+  height: 40px;
+  font-weight: 600;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.046em;
+  cursor: pointer;
+  background: ${colors.blackBtn};
+  color: ${colors.softWhite};
+  transition: background 0.15s ease;
+
+  &:hover:not(:disabled) {
+    background: #43404a;
+  }
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+  &[data-ghost] {
+    background: transparent;
+    color: ${colors.text};
+    border: 1px solid ${colors.lineStrong};
+  }
+  &[data-ghost]:hover:not(:disabled) {
+    background: ${colors.media};
+  }
+
+  @media (hover: hover) {
+    &[data-reveal] {
+      display: none;
+    }
+  }
+`
+
 // The compact mobile card's primary action (Figma) — hidden on desktop, where the full-width Cart is used.
-export const AddRound = styled.button`
+const addRoundCss = css`
   display: none;
 
   ${media.maxWidth('sm')} {
@@ -361,7 +589,7 @@ export const AddRound = styled.button`
 // Add to cart / Buy now (Figma secondary dark button). Hidden at rest on hover-capable devices and
 // revealed on card hover / body focus (see Card + Body); always shown where hover isn't available so
 // items stay buyable without a mouse. z-index keeps it above the whole-card overlay link.
-export const Cart = styled.button`
+const cartCss = css`
   position: relative;
   z-index: 4;
   width: 100%;
@@ -396,4 +624,22 @@ export const Cart = styled.button`
   ${media.maxWidth('sm')} {
     display: none;
   }
+`
+
+export const AddRound = styled.button`
+  ${addRoundCss};
+`
+
+export const Cart = styled.button`
+  ${cartCss};
+`
+
+// Anchor variants: an owned NAME's MANAGE controls point off-app (the Builder), so they need real
+// links rather than buttons, with the identical treatment.
+export const AddRoundLink = styled.a`
+  ${addRoundCss};
+`
+
+export const CartLink = styled.a`
+  ${cartCss};
 `

@@ -6,8 +6,11 @@ import { Spinner } from '~/components/Spinner'
 
 const { colors, radius, media } = theme
 
+// Reserve ~the height of the loaded form so the sticky footer doesn't jump loading → loaded.
 export const Loading = styled(Spinner)`
-  padding: 64px 0;
+  display: grid;
+  place-items: center;
+  min-height: 60vh;
 `
 
 export const SignInBtn = styled(Button)`

@@ -253,7 +253,9 @@ export const unifiedListings = {
       network: 'MATIC',
       chainId: 80002,
       source: 'native',
-      manaWei: null
+      manaWei: null,
+      // Item-unified browse feed: this item has 3 open listings → the card shows a "3 on sale" badge.
+      listingCount: 3
     },
     {
       tradeId: 'trade-2',
@@ -343,6 +345,89 @@ export const buyTrade = {
   ]
 }
 
+// An own-listing Trade: identical to buyTrade but SIGNED BY THE TEST USER, so isOwnTrade(trade,
+// TEST_ADDRESS) fires. Opening the BuyModal against this throws "You can't buy your own listing.",
+// which surfaces in the modal's error phase (<ErrorNotice>). Used by the buy-errors e2e.
+export const ownTrade = {
+  ...buyTrade,
+  signer: TEST_ADDRESS,
+  received: [
+    {
+      assetType: 2,
+      contractAddress: MANA_AMOY,
+      value: '13500000000000000000',
+      amount: '13500000000000000000',
+      beneficiary: TEST_ADDRESS,
+      extra: '0x'
+    }
+  ]
+}
+
+// --- Purchase history (credits-server GET /users/:addr/purchases) ---
+// The raw response shape fetchUserPurchases reads ({ purchases, total }). One SETTLED + one PENDING row
+// become two distinct order cards (different status → not the same cart) with "Completed"/"Processing"
+// pills; the EXPIRED row is filtered out by the Activity page. tradeId is null so the lines render the
+// "Item" fallback name without a follow-up trade-display fetch (kept deterministic). Used by the
+// activity e2e.
+export const purchasesResponse = {
+  purchases: [
+    {
+      id: 'purchase-1',
+      tradeId: null,
+      usdCents: 13500,
+      credits: 135,
+      status: 'SETTLED',
+      createdAt: 1_700_000_000_000,
+      manaSettledWei: null
+    },
+    {
+      id: 'purchase-2',
+      tradeId: null,
+      usdCents: 27000,
+      credits: 270,
+      status: 'PENDING',
+      createdAt: 1_700_000_100_000,
+      manaSettledWei: null
+    },
+    {
+      id: 'purchase-3',
+      tradeId: null,
+      usdCents: 5000,
+      credits: 50,
+      status: 'EXPIRED',
+      createdAt: 1_700_000_200_000,
+      manaSettledWei: null
+    }
+  ],
+  total: 3
+}
+
+// --- Secondary sales (marketplace-server GET /v1/sales?seller=) ---
+// The raw response shape fetchUserSales reads ({ data, total }). One completed secondary sale by the
+// signed-in user; `price` is MANA wei, `timestamp` is epoch MS (the API returns ms). tokenId '42'
+// matches the ownedNfts fixture, so the sale card resolves to "Galaxy Hat #42". Used by the activity
+// e2e to assert a sale renders alongside purchases + the Sales filter.
+export const salesResponse = {
+  data: [
+    {
+      id: 'sale-1',
+      type: 'order',
+      buyer: '0xb0b0000000000000000000000000000000000b0b',
+      seller: TEST_ADDRESS,
+      contractAddress: COLLECTION,
+      tokenId: '42',
+      itemId: '0',
+      price: '15000000000000000000',
+      timestamp: 1_700_000_300_000,
+      txHash: '0x' + 'fe'.repeat(32),
+      network: 'MATIC',
+      chainId: 80002,
+      category: 'wearable'
+    }
+  ],
+  total: 1
+}
+
 // A full signed Trade for the legacy Buy Now path (what fetchTrade('legacy-trade-1') returns). A
 // USD-pegged primary item order priced $27 (270 credits) on the real Amoy marketplace.
 export const legacyTrade = {
@@ -372,6 +457,41 @@ export const legacyTrade = {
       value: '27000000000000000000',
       amount: '27000000000000000000',
       beneficiary: '0x' + 'aa'.repeat(20),
+      extra: '0x'
+    }
+  ]
+}
+
+// A full signed PRIMARY (mint) Trade for the Galaxy Hat (shop tradeId 'trade-1', itemId 0). A
+// USD-pegged public_item_order priced $27 (270 credits), uses = remaining supply (100) so the same
+// trade can be accepted multiple times in one accept([...]) — the basis for multi-quantity buys.
+export const primaryTrade = {
+  id: 'trade-1',
+  signer: CREATOR_ADDRESS,
+  signature: '0x' + 'ab'.repeat(65),
+  network: 'MATIC',
+  chainId: 80002,
+  type: 'public_item_order',
+  contract: OFFCHAIN_MARKETPLACE_AMOY,
+  checks: {
+    uses: 100,
+    expiration: Date.now() + 86_400_000,
+    effective: Date.now() - 60_000,
+    salt: '0x' + '00'.repeat(32),
+    contractSignatureIndex: 0,
+    signerSignatureIndex: 0,
+    allowedRoot: '0x',
+    allowedProof: [],
+    externalChecks: []
+  },
+  sent: [{ assetType: 4, contractAddress: COLLECTION, value: '0', itemId: '0', extra: '0x' }],
+  received: [
+    {
+      assetType: 2,
+      contractAddress: MANA_AMOY,
+      value: '27000000000000000000',
+      amount: '27000000000000000000',
+      beneficiary: CREATOR_ADDRESS,
       extra: '0x'
     }
   ]

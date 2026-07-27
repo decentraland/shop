@@ -7,6 +7,7 @@
   --text: #161518;
   --text-2: #242129;
   --muted: #716b7c;
+  --muted-1: #5e5b67; /* gray-1: uppercase labels (price / stock) */
   --muted-2: #a09ba8;
   --line: #e6e4ea; /* subtle card border (approx 0.25px #a09ba8) */
   --line-strong: #a09ba8; /* search field / defined borders */
@@ -30,6 +31,9 @@
   --radius-pill: 50px;
   --radius-banner: 24px;
   --sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  /* Modal/overlay stacking tier — above the global DCL navbar (position: fixed) + the sub-nav so a
+     scrim dims the FULL viewport, navbar included. Shared by every full-screen overlay. */
+  --z-overlay: 10000;
 }
 * {
   box-sizing: border-box;
@@ -46,6 +50,13 @@ body {
   body {
     padding-top: 64px;
   }
+}
+/* Cart route background: the whole page is gray so the white cards (header, items, summary) get the
+   focus. Toggled on <body> while Cart is mounted (see pages/Cart.tsx) so the gray reaches the viewport
+   edges AND fills up to the sticky sub-nav with no white gap — a page-level element can't do either.
+   The cross-sell section below the panels is lifted back to white by a band on Cart's Upsell. */
+body.shop-cart-bg {
+  background: var(--media);
 }
 /* Sticky footer: fill the viewport (minus the fixed top navbar) as a flex column so short pages push
    the footer to the bottom instead of leaving it floating mid-screen. */
@@ -114,16 +125,22 @@ h2 {
 
 /* ---------------- Page ---------------- */
 .page {
-  padding: 28px 40px 80px;
+  /* 54px side gutter matches the ui2 Navbar's desktop padding (16px 54px, full-width) so the shop
+     content lines up with the top nav instead of sitting ~14px wider. Mobile matches its 16px below. */
+  padding: 28px 54px 80px;
   max-width: 1760px;
   margin: 0 auto;
   width: 100%;
   flex: 1 0 auto;
+  /* The CONTENT (not the shell) fills the first viewport below the fixed navbar, so a short page keeps
+     the heavy branded footer just BELOW the fold instead of pulling it a third of the way up. */
+  min-height: calc(100vh - 92px);
 }
-/* Mobile gutters are 16px (Figma node 1040-149085: cards at x=16, gap 16), not the desktop 40px. */
 @media (max-width: 768px) {
   .page {
     padding: 16px 16px 56px;
+    /* Navbar is 64px on mobile (see body padding-top). */
+    min-height: calc(100vh - 64px);
   }
 }
 .placeholder {
@@ -131,11 +148,12 @@ h2 {
   font-size: 18px;
   padding: 40px 0;
 }
-/* Suspense fallback while a lazy-loaded route chunk downloads. */
+/* Suspense fallback while a lazy-loaded route chunk downloads. Height matches the in-page loaders
+   (~60vh) so the transition Suspense fallback → page loader → content doesn't reposition the footer. */
 .page-loading {
   display: grid;
   place-items: center;
-  min-height: 46vh;
+  min-height: 60vh;
 }
 
 /* Buttons live in the `Button` component (components/Button) — styled, variants on data-*. */

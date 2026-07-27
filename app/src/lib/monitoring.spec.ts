@@ -4,7 +4,18 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 vi.mock('~/config', () => ({ config: { sentryDsn: '', sentryEnvironment: 'test', sentryRelease: 'shop@test' } }))
 vi.mock('~/store/wallet', () => ({ useWallet: { getState: () => ({ session: null }) } }))
 
-import { captureError, redact, scrubEvent, setErrorForwarder } from '~/lib/monitoring'
+import { captureError, isLocalhost, redact, scrubEvent, setErrorForwarder } from '~/lib/monitoring'
+
+describe('isLocalhost', () => {
+  it('is true for local hosts (so localhost never reports to Sentry)', () => {
+    for (const h of ['localhost', '127.0.0.1', '0.0.0.0', '[::1]', 'shop.local']) expect(isLocalhost(h)).toBe(true)
+  })
+  it('is false for deployed hosts (zone/stg/prod report)', () => {
+    for (const h of ['decentraland.zone', 'market.decentraland.zone', 'decentraland.org']) {
+      expect(isLocalhost(h)).toBe(false)
+    }
+  })
+})
 
 describe('redact', () => {
   it('redacts signatures, 32-byte hex, and secret-shaped tokens', () => {

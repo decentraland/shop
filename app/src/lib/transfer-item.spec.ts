@@ -1,0 +1,165 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+
+// Everything the hoisted vi.mock factories reference must itself be hoisted (vi.mock is lifted above
+// top-level declarations, so a plain `const`/`class` here would be in the TDZ when a factory runs).
+const h = vi.hoisted(() => {
+  class MetaTransactionError extends Error {
+    code: string
+    constructor(message: string, code: string) {
+      super(message)
+      this.code = code
+    }
+  }
+  return {
+    transferCalls: [] as unknown[][], // direct (gas-paying) transferFrom calls
+    metaTxCalls: [] as unknown[][], // gasless relayer submissions
+    ensureChainCalls: [] as Array<{ provider: unknown; chainId: number }>,
+    gaslessConfig: { enabled: false, relayerUrl: 'http://relayer.test' },
+    MetaTransactionError,
+    ErrorCode: { USER_DENIED: 'USER_DENIED' }
+  }
+})
+
+vi.mock('~/lib/gasless-config', () => ({ gaslessConfig: h.gaslessConfig }))
+
+vi.mock('decentraland-transactions', () => ({
+  ContractName: { ERC721CollectionV2: 'ERC721CollectionV2' },
+  getContractName: () => 'DecentralandMarketplacePolygon',
+  // The collection meta-tx domain template (name/version/abi) — buy.ts overrides `address` with the
+  // specific collection.
+  getContract: () => ({ address: '0xcollection', abi: [], name: 'Decentraland Collection', version: '2' }),
+  sendMetaTransaction: vi.fn(() => {
+    h.metaTxCalls.push([])
+    return Promise.resolve('0xrelayhash')
+  }),
+  MetaTransactionError: h.MetaTransactionError,
+  ErrorCode: h.ErrorCode
+}))
+
+vi.mock('~/config', () => ({ config: { chainId: 80002, rpcUrl: 'http://localhost' } }))
+
+// The gasless path routes node reads to a reliable RPC via the shim; stub both so no network is hit.
+vi.mock('~/lib/authorizations', () => ({
+  readProvider: () => ({ waitForTransaction: () => Promise.resolve({}) }),
+  metaTxProviderShim: () => ({ __shim: true })
+}))
+
+// transferItem switches the wallet to the collection's chain before the DIRECT transfer tx.
+vi.mock('~/lib/trades', () => ({
+  ensureChain: (provider: unknown, chainId: number) => {
+    h.ensureChainCalls.push({ provider, chainId })
+    return Promise.resolve()
+  }
+}))
+
+vi.mock('~/lib/trade-encoding', () => ({
+  getOnChainTrade: (trade: unknown) => ({ __onchain: true, from: trade }),
+  amoyGasOverrides: () => ({})
+}))
+
+vi.mock('ethers', async importOriginal => {
+  const actual = await importOriginal<typeof import('ethers')>()
+  class MockContract {
+    constructor(
+      public address: string,
+      public abi: unknown,
+      public signer: unknown
+    ) {}
+    async transferFrom(...args: unknown[]) {
+      h.transferCalls.push(args)
+      return { wait: async () => ({ transactionHash: '0xtransferhash' }) }
+    }
+  }
+  // Stub Interface so the gasless path's encodeFunctionData doesn't parse against a real ABI.
+  class MockInterface {
+    constructor(_abi: unknown) {}
+    encodeFunctionData() {
+      return '0xtransfercalldata'
+    }
+  }
+  return {
+    ethers: {
+      ...actual.ethers,
+      Contract: MockContract,
+      utils: { ...actual.ethers.utils, Interface: MockInterface }
+    }
+  }
+})
+
+import { transferItem } from '~/lib/buy'
+import { sendMetaTransaction } from 'decentraland-transactions'
+
+const relay = vi.mocked(sendMetaTransaction)
+
+const signer = {
+  getAddress: async () => '0xOWNER00000000000000000000000000000000000',
+  provider: { __web3: true }
+} as never
+
+const opts = {
+  contractAddress: '0xcollection',
+  chainId: 80002,
+  tokenId: '42',
+  to: '0xRECIPIENT000000000000000000000000000000',
+  signer
+}
+
+beforeEach(() => {
+  h.transferCalls.length = 0
+  h.metaTxCalls.length = 0
+  h.ensureChainCalls.length = 0
+  h.gaslessConfig.enabled = false
+  relay.mockReset()
+  relay.mockImplementation(() => {
+    h.metaTxCalls.push([])
+    return Promise.resolve('0xrelayhash')
+  })
+})
+
+describe('transferItem — direct (gas-paying) fallback, gasless disabled', () => {
+  it('switches to the collection chain and sends transferFrom(from, to, tokenId)', async () => {
+    const hash = await transferItem(opts)
+
+    expect(hash).toBe('0xtransferhash')
+    expect(h.ensureChainCalls).toEqual([{ provider: { __web3: true }, chainId: 80002 }])
+    expect(h.transferCalls).toHaveLength(1)
+    const [from, to, tokenId] = h.transferCalls[0] as string[]
+    expect(from).toBe('0xowner00000000000000000000000000000000000') // lowercased sender
+    expect(to).toBe(opts.to)
+    expect(tokenId).toBe('42')
+    expect(h.metaTxCalls).toHaveLength(0) // relayer never used when gasless is off
+  })
+})
+
+describe('transferItem — gasless (relayer) path, gasless enabled', () => {
+  beforeEach(() => {
+    h.gaslessConfig.enabled = true
+  })
+
+  it('relays the transfer via sendMetaTransaction and never sends a direct tx', async () => {
+    const hash = await transferItem(opts)
+
+    expect(hash).toBe('0xrelayhash')
+    expect(h.metaTxCalls).toHaveLength(1)
+    // No direct transferFrom tx and no just-in-time chain switch (the relayer handles the chain).
+    expect(h.transferCalls).toHaveLength(0)
+    expect(h.ensureChainCalls).toHaveLength(0)
+  })
+
+  it('propagates a user rejection instead of silently falling back to a gas-paying tx', async () => {
+    relay.mockRejectedValueOnce(new h.MetaTransactionError('user denied', h.ErrorCode.USER_DENIED))
+
+    await expect(transferItem(opts)).rejects.toBeInstanceOf(h.MetaTransactionError)
+    expect(h.transferCalls).toHaveLength(0)
+  })
+
+  it('falls back to a direct tx when the relayer fails for a non-rejection reason', async () => {
+    relay.mockRejectedValueOnce(new Error('relayer 503'))
+
+    const hash = await transferItem(opts)
+
+    expect(hash).toBe('0xtransferhash')
+    expect(h.transferCalls).toHaveLength(1)
+    expect(h.ensureChainCalls).toEqual([{ provider: { __web3: true }, chainId: 80002 }])
+  })
+})

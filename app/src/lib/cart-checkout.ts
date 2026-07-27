@@ -14,8 +14,9 @@ import { isOwnTrade } from '~/lib/ownership'
 export type ResolvedLine = {
   item: CatalogItem
   trade: Trade
-  usdCents: number // authoritative USD amount from the live trade (what we authorize)
-  priceCredits: number // whole credits shown for that amount (1 credit = $0.10, rounded up)
+  usdCents: number // authoritative USD amount from the live trade (what we authorize) — PER UNIT
+  priceCredits: number // whole credits shown for that amount (1 credit = $0.10, rounded up) — PER UNIT
+  quantity: number // how many units of this line to buy (always 1 for a secondary token)
 }
 
 export type CartReview = {
@@ -47,7 +48,7 @@ export function centsToCredits(usdCents: number): number {
  * hammering the API on a large basket (these are reads — no reservation happens here).
  */
 export async function reviewCart(
-  items: CatalogItem[],
+  items: Array<CatalogItem & { quantity?: number }>,
   buyerAddress: string,
   resolve: TradeResolver
 ): Promise<CartReview> {
@@ -76,13 +77,16 @@ export async function reviewCart(
         unavailable.push(item)
         continue
       }
-      buyable.push({ item, trade, usdCents, priceCredits: centsToCredits(usdCents) })
+      // Quantity applies only to primary (mint) lines; a secondary token is always a single unit.
+      const quantity = !item.tokenId ? Math.max(1, Math.floor(item.quantity ?? 1)) : 1
+      buyable.push({ item, trade, usdCents, priceCredits: centsToCredits(usdCents), quantity })
     } catch {
       unavailable.push(item)
     }
   }
 
-  const liveTotalCredits = buyable.reduce((sum, line) => sum + line.priceCredits, 0)
+  // Live total sums each buyable line's per-unit credit price × its quantity.
+  const liveTotalCredits = buyable.reduce((sum, line) => sum + line.priceCredits * line.quantity, 0)
   const orderChanged =
     unavailable.length > 0 || own.length > 0 || buyable.some(line => line.priceCredits !== line.item.priceCredits)
 

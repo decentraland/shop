@@ -1,31 +1,88 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Button } from '~/components/Button'
+import { useSearchParams } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
+import { Icon } from '~/components/Icon'
 import { config } from '~/config'
 import { useWallet } from '~/store/wallet'
-import { fetchCollectionSaleState, fetchMyAssets, fetchTrade, type CatalogItem, type MyAsset } from '~/lib/api'
+import {
+  fetchCollectionSaleState,
+  fetchMyAssets,
+  fetchSecondarySaleState,
+  type CatalogItem,
+  type MyAsset
+} from '~/lib/api'
 import { fetchImportable } from '~/lib/import'
 import { fetchPublishableItems, type PublishableItem } from '~/lib/builder'
-import { cancelListing } from '~/lib/buy'
-import { captureError } from '~/lib/monitoring'
-import { toast } from '~/store/toast'
-import { SellModal } from '~/components/SellModal'
-import { PrimaryListModal } from '~/components/PrimaryListModal'
+import { Button } from '~/components/Button'
+import { AssetCard } from '~/components/AssetCard'
+import { SkeletonCards } from '~/components/SkeletonCards'
 import { LoadMore } from '~/components/LoadMore'
+import { FilterBar, RARITIES, type FilterChip } from '~/components/FilterBar'
+import { CATEGORIES, CategoryFilter } from '~/components/CategoryFilter'
+import { FilterSection, type FilterStatus } from '~/components/Filters'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
-import { CURRENCY } from '~/lib/currency'
-import { CurrencyIcon } from '~/components/CurrencyIcon'
-import { track } from '~/lib/analytics'
+import { SUBCAT_MAP } from '~/lib/categories'
+import { capitalizeFirst } from '~/lib/text'
 import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
+import { theme } from '~/styles/theme'
 import { ErrorNotice } from '~/components/ErrorNotice'
+import * as A from './Assets.styles'
+import * as F from '~/components/Filters/Filters.styles'
 import * as S from './MyAssets.styles'
 
 const PAGE_SIZE = 48
 
-// Owned NFT (secondary) → the CatalogItem shape ItemDetail seeds its preview from (carries tokenId).
-function assetToItem(a: MyAsset): CatalogItem {
+// The four owned-asset sections in the sidebar. `category` is the /v1/nfts category for the owned
+// sections (wearable/emote/ens); 'creations' has no NFT category — it reads the builder feed instead.
+type SectionKey = 'wearables' | 'emotes' | 'names' | 'creations'
+const SECTIONS: { key: SectionKey; labelKey: string; category?: string }[] = [
+  { key: 'wearables', labelKey: 'myAssets.sectionWearables', category: 'wearable' },
+  { key: 'emotes', labelKey: 'myAssets.sectionEmotes', category: 'emote' },
+  { key: 'names', labelKey: 'myAssets.sectionNames', category: 'ens' },
+  { key: 'creations', labelKey: 'myAssets.sectionCreations' }
+]
+
+// Sort menu shown in the toolbar. Server values are a subset of the NFT endpoint's NFTSortBy; the same
+// keys drive the (client-side) creations sort.
+const MY_SORTS: { key: string; label: string; server: 'newest' | 'name' | 'cheapest' }[] = [
+  { key: 'newest', label: 'filterBar.sortNewest', server: 'newest' },
+  { key: 'name', label: 'filterBar.sortName', server: 'name' },
+  { key: 'cheapest', label: 'filterBar.sortCheapest', server: 'cheapest' }
+]
+
+// Rarity filter only makes sense for wearables & emotes (Names/Creations don't carry rarities).
+function hasRarityAndCategory(section: SectionKey) {
+  return section === 'wearables' || section === 'emotes'
+}
+
+// The section nav reuses Collectibles' CategoryFilter, which is keyed by 'wearable'/'emote'/'names'.
+// Map between that and My Assets' section keys ('creations' has no CategoryFilter entry — it's the
+// relabelled "extra" slot).
+const CATEGORY_OF_SECTION: Record<SectionKey, string> = {
+  wearables: 'wearable',
+  emotes: 'emote',
+  names: 'names',
+  creations: ''
+}
+const SECTION_OF_CATEGORY: Record<string, SectionKey> = {
+  wearable: 'wearables',
+  emote: 'emotes',
+  names: 'names'
+}
+
+// An owned NAME → its Builder management page (external), mirroring the classic marketplace's
+// `${builderUrl}/names/<name>` deep link. The Builder resolves the bare name to its `.dcl.eth`
+// subdomain, so the raw NAME (as returned by /v1/nfts) is what goes in the path.
+function builderNameUrl(name: string): string {
+  return `${config.builderUrl}/names/${encodeURIComponent(name)}`
+}
+
+// Owned NFT (secondary) → the CatalogItem shape AssetCard renders (carries tokenId so the card links to
+// the item detail). `priceCredits`/`tradeId` reflect the open listing when on sale (else 0 → "not for
+// sale"). The authoritative shop (USD-pegged) listing — resolved from the shop feed by tokenId — wins
+// over the row's legacy `order` fields, which don't carry the credit price for a shop resale.
+function assetToItem(a: MyAsset, sale?: { priceCredits: number; tradeId: string }): CatalogItem {
   return {
     id: a.id,
     name: a.name,
@@ -37,19 +94,26 @@ function assetToItem(a: MyAsset): CatalogItem {
     network: a.network,
     chainId: a.chainId,
     thumbnail: a.image,
-    priceCredits: a.listingPrice ?? 0,
+    priceCredits: sale?.priceCredits ?? a.listingPrice ?? 0,
     gender: null,
-    isSmart: false, // TODO: legacy listings don't have the isSmart flag, but we should add it to the API or retrieve it somehow.
-    tokenId: a.tokenId
+    isSmart: false,
+    tokenId: a.tokenId,
+    issuedId: a.issuedId,
+    tradeId: sale?.tradeId ?? a.tradeId
   }
 }
 
-// Created collection item (primary) → CatalogItem (carries itemId = the on-chain blockchain item id).
-function publishableToItem(p: PublishableItem): CatalogItem {
+// Created collection item (primary) → CatalogItem (itemId = on-chain blockchain item id). `price` is
+// the listed credit price when the item is currently on sale.
+// `creator` is the connected user's address: My Creations only ever lists items the user made
+// (fetchPublishableItems is scoped to them), and the item-detail page relies on `creator === you` to
+// recognize you as the creator and offer "Put up for sale" (isOwnListing). Passing '' left the detail
+// page treating you as a stranger, so the publish CTA never showed after MANAGE.
+function publishableToItem(p: PublishableItem, price: number, creator: string): CatalogItem {
   return {
     id: `${p.contractAddress}-${p.blockchainItemId}`,
     name: p.name,
-    creator: '',
+    creator,
     contractAddress: p.contractAddress,
     itemId: p.blockchainItemId,
     category: p.category,
@@ -57,80 +121,152 @@ function publishableToItem(p: PublishableItem): CatalogItem {
     network: 'MATIC',
     chainId: config.chainId,
     thumbnail: p.thumbnail,
-    priceCredits: 0,
+    priceCredits: price,
     gender: null,
-    isSmart: false // TODO: legacy listings don't have the isSmart flag, but we should add it to the API or retrieve it somehow.
+    isSmart: false
   }
 }
 
 export function MyAssets() {
   useSeo({ title: t('nav.myAssets'), noindex: true })
   const { session, error, signIn, restore } = useWallet()
-  const navigate = useNavigate()
-  const qc = useQueryClient()
-  const [selling, setSelling] = useState<MyAsset | null>(null)
-  const [publishing, setPublishing] = useState<PublishableItem | null>(null)
-  const [cancelling, setCancelling] = useState<string | null>(null)
-  const [cancelError, setCancelError] = useState<string | null>(null)
 
-  // Open an item's detail page (with the item seeded so the WearablePreview shows immediately).
-  function openDetail(item: CatalogItem) {
-    const seg = item.tokenId ?? item.itemId ?? ''
-    if (!item.contractAddress || !seg) return
-    navigate(`/item/${item.contractAddress}/${seg}`, { state: { item } })
-  }
-
-  // Take a listing down (invalidates its signature on-chain) — works for owned (secondary) and
-  // created (primary) listings alike. Refreshes the grids on success. `key` tracks the busy card.
-  async function cancelByTrade(tradeId: string, name: string, key: string) {
-    if (!session) return
-    setCancelError(null)
-    setCancelling(key)
-    try {
-      const trade = await fetchTrade(tradeId)
-      await cancelListing({ trade, signer: session.signer })
-      toast.success(t('myAssets.removedFromSale', { name }))
-      await qc.invalidateQueries({ queryKey: ['my-assets', session.address] })
-      await qc.invalidateQueries({ queryKey: ['collection-sale-state'] })
-    } catch (e) {
-      const err = e as { code?: number; message?: string }
-      const msg = (err.message ?? '').toLowerCase()
-      const rejected = err.code === 4001 || msg.includes('reject') || msg.includes('denied')
-      if (!rejected) captureError(e, { flow: 'remove-listing', tradeId })
-      setCancelError(rejected ? t('getCredits.errorCanceled') : t('myAssets.removeListingError'))
-    } finally {
-      setCancelling(null)
-    }
-  }
+  // The active section lives in the URL (?section=…) so it survives refresh + is shareable. Fall back to
+  // 'wearables' for a missing/unknown value.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const sectionParam = searchParams.get('section')
+  const section: SectionKey = SECTIONS.some(s => s.key === sectionParam) ? (sectionParam as SectionKey) : 'wearables'
+  const [status, setStatus] = useState<FilterStatus>('all')
+  const [rarities, setRarities] = useState<string[]>([])
+  const [subCategory, setSubCategory] = useState<string | null>(null)
+  const [sort, setSort] = useState('newest')
+  const [searchInput, setSearchInput] = useState('')
+  const [search, setSearch] = useState('') // debounced
+  const [filtersOpen, setFiltersOpen] = useState(false) // mobile sidebar drawer
+  // Collapsible filter groups — same defaults as Collectibles (rarity starts collapsed).
+  const [openStatus, setOpenStatus] = useState(true)
+  const [openRarity, setOpenRarity] = useState(false)
 
   useEffect(() => {
     void restore()
   }, [restore])
 
+  // Debounce the search box so a query fires once the user pauses, not per keystroke.
+  useEffect(() => {
+    const id = setTimeout(() => setSearch(searchInput.trim()), 300)
+    return () => clearTimeout(id)
+  }, [searchInput])
+
+  // Close the mobile filters drawer on Escape + lock body scroll while open (mirrors Assets).
+  useEffect(() => {
+    if (!filtersOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setFiltersOpen(false)
+    }
+    document.addEventListener('keydown', onKey)
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prev
+    }
+  }, [filtersOpen])
+
   const address = session?.address
+  const active = SECTIONS.find(s => s.key === section)!
+  const showRarityCat = hasRarityAndCategory(section)
+  const serverSort = (MY_SORTS.find(s => s.key === sort) ?? MY_SORTS[0]).server
+
+  // Collapsed-group summaries (shown next to the header when a group is closed) — mirrors Collectibles.
+  const statusSummary =
+    status === 'on_sale' ? t('filter.onSale') : status === 'not_for_sale' ? t('filter.notForSale') : ''
+  const raritySummary = RARITIES.filter(r => rarities.includes(r))
+    .map(capitalizeFirst)
+    .join(', ')
+
+  // Reset the contextual filters when moving to a section that doesn't use them.
+  function pickSection(next: SectionKey) {
+    setSearchParams(
+      prev => {
+        const p = new URLSearchParams(prev)
+        p.set('section', next)
+        return p
+      },
+      { replace: true }
+    )
+    setSubCategory(null)
+    if (!hasRarityAndCategory(next)) setRarities([])
+    setFiltersOpen(false)
+  }
+  function toggleRarity(r: string) {
+    setRarities(rs => (rs.includes(r) ? rs.filter(x => x !== r) : [...rs, r]))
+  }
+  // CategoryFilter drives the section nav — translate its category key back to a My Assets section.
+  function pickCategory(catKey: string) {
+    const next = SECTION_OF_CATEGORY[catKey]
+    if (next) pickSection(next)
+  }
+
+  // ---------------- Owned sections (wearables / emotes / names) ----------------
   const {
-    items: ownedAssets,
-    isLoading,
-    error: queryError,
+    items: ownedRaw,
+    total: ownedTotal,
+    isLoading: ownedLoading,
+    isPlaceholderData,
+    error: ownedError,
     hasNextPage,
     isFetchingNextPage,
     fetchNextPage
-  } = useInfiniteGrid(
-    ['my-assets', address],
+  } = useInfiniteGrid<MyAsset>(
+    ['my-assets', address, section, status, rarities, subCategory, search, serverSort],
     skip =>
-      fetchMyAssets(address as string, { first: PAGE_SIZE, skip }).then(r => ({ items: r.assets, total: r.total })),
-    { enabled: !!address }
+      fetchMyAssets(address as string, {
+        category: active.category,
+        first: PAGE_SIZE,
+        skip,
+        search: search || undefined,
+        rarities: showRarityCat && rarities.length ? rarities : undefined,
+        wearableCategories: section === 'wearables' && subCategory ? SUBCAT_MAP[subCategory] : undefined,
+        emoteCategories: section === 'emotes' && subCategory ? SUBCAT_MAP[subCategory] : undefined,
+        onlyOnSale: status === 'on_sale' || undefined,
+        sortBy: serverSort
+      }).then(r => ({ items: r.assets, total: r.total })),
+    { enabled: !!address && section !== 'creations' }
   )
 
-  // Old (classic) listings the seller could import into the Shop → surfaces the import banner.
-  const { data: importable } = useQuery({
-    queryKey: ['importable', address],
-    queryFn: () => fetchImportable(address as string),
-    enabled: !!address
+  // An owned wearable/emote on sale via a shop (USD-pegged) trade has no credit price on its /v1/nfts
+  // `order` (that's a legacy on-chain MANA field, absent for an off-chain shop resale). Resolve the
+  // authoritative price + tradeId from the shop feed by tokenId — the secondary counterpart to the
+  // creations `saleState` merge (fetchCollectionSaleState) for primary listings.
+  const ownedContracts = useMemo(
+    () => (section === 'wearables' || section === 'emotes' ? [...new Set(ownedRaw.map(a => a.contractAddress))] : []),
+    [ownedRaw, section]
+  )
+  const { data: secondarySale } = useQuery({
+    queryKey: ['secondary-sale-state', ownedContracts],
+    enabled: ownedContracts.length > 0,
+    queryFn: async () => {
+      const maps = await Promise.all(ownedContracts.map(async ca => [ca, await fetchSecondarySaleState(ca)] as const))
+      const merged: Record<string, { priceCredits: number; tradeId: string }> = {}
+      for (const [ca, m] of maps) {
+        for (const [tokenId, v] of Object.entries(m)) merged[`${ca}-${tokenId}`] = v
+      }
+      return merged
+    }
   })
-  const importCount = (importable?.creations.length ?? 0) + (importable?.owned.length ?? 0)
+  const saleForToken = (a: MyAsset) => secondarySale?.[`${a.contractAddress}-${a.tokenId}`]
+  // On sale if the shop feed lists this token (authoritative for credits) OR the row carries a legacy
+  // order — so the "not for sale" client filter never hides a shop-listed token.
+  const isTokenOnSale = (a: MyAsset) => !!saleForToken(a) || a.isOnSale
 
-  // Creator's publishable collection items (primary). Fail-soft: a load error just shows a hint.
+  // The endpoint has no "not for sale" flag, so that case is filtered here from each row's sale state.
+  const ownedAssets = useMemo(
+    () => (status === 'not_for_sale' ? ownedRaw.filter(a => !isTokenOnSale(a)) : ownedRaw),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [ownedRaw, status, secondarySale]
+  )
+
+  // ---------------- Creations (builder feed) ----------------
   const {
     data: publishable,
     isLoading: publishableLoading,
@@ -138,11 +274,10 @@ export function MyAssets() {
   } = useQuery({
     queryKey: ['publishable-items', address],
     queryFn: () => fetchPublishableItems(address as string, session!.identity),
-    enabled: !!session,
+    enabled: !!session && section === 'creations',
     retry: false
   })
 
-  // On-sale state per item (from the v2 catalog), so we can separate listed items from unlisted ones.
   const contractAddresses = useMemo(() => [...new Set((publishable ?? []).map(p => p.contractAddress))], [publishable])
   const { data: saleState } = useQuery({
     queryKey: ['collection-sale-state', address, contractAddresses],
@@ -158,224 +293,303 @@ export function MyAssets() {
       return merged
     }
   })
-
   const saleFor = (item: PublishableItem) => saleState?.[`${item.contractAddress}-${item.blockchainItemId}`]
 
-  // Items already listed for sale (their own section) vs. items still to publish.
-  const onSaleItems = useMemo(
-    () => (publishable ?? []).filter(p => saleFor(p)?.isOnSale),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [publishable, saleState]
-  )
-
-  // Group the still-unlisted items by collection so each collection is its own labeled block.
-  const collections = useMemo(() => {
-    const map = new Map<string, { id: string; name: string; items: PublishableItem[] }>()
-    for (const it of publishable ?? []) {
-      if (saleState?.[`${it.contractAddress}-${it.blockchainItemId}`]?.isOnSale) continue
-      const g = map.get(it.collectionId) ?? { id: it.collectionId, name: it.collectionName, items: [] }
-      g.items.push(it)
-      map.set(it.collectionId, g)
+  // Creations filtered (status + search) + sorted client-side (the builder feed isn't paginated/queryable).
+  const creations = useMemo(() => {
+    let list = publishable ?? []
+    if (status === 'on_sale') list = list.filter(p => saleFor(p)?.isOnSale)
+    else if (status === 'not_for_sale') list = list.filter(p => !saleFor(p)?.isOnSale)
+    if (search) {
+      const q = search.toLowerCase()
+      list = list.filter(p => p.name.toLowerCase().includes(q))
     }
-    return [...map.values()]
-  }, [publishable, saleState])
+    const sorted = [...list]
+    if (sort === 'name') sorted.sort((a, b) => a.name.localeCompare(b.name))
+    else if (sort === 'cheapest')
+      sorted.sort((a, b) => (saleFor(a)?.priceCredits ?? 0) - (saleFor(b)?.priceCredits ?? 0))
+    return sorted
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [publishable, saleState, status, search, sort])
 
+  // Old (classic) listings the seller could import into the Shop → surfaces the import banner.
+  const { data: importable } = useQuery({
+    queryKey: ['importable', address],
+    queryFn: () => fetchImportable(address as string),
+    enabled: !!address
+  })
+  const importCount = (importable?.creations.length ?? 0) + (importable?.owned.length ?? 0)
+
+  // ---------------- Sign-in gate ----------------
   if (!session) {
     return (
-      <section>
-        <h1>{t('nav.myAssets')}</h1>
-        <p className="muted">{t('myAssets.signInPrompt')}</p>
-        <S.ConnectRow>
-          <Button variant="purple" onClick={() => signIn()}>
-            {t('storeSettings.signIn')}
-          </Button>
-        </S.ConnectRow>
+      <S.Gate>
+        <S.GateTitle>{t('nav.myAssets')}</S.GateTitle>
+        <S.GateText>{t('myAssets.signInPrompt')}</S.GateText>
+        <Button variant="purple" onClick={() => signIn()}>
+          {t('storeSettings.signIn')}
+        </Button>
         <ErrorNotice message={error} />
-      </section>
+      </S.Gate>
     )
   }
 
-  return (
-    <section>
-      <h1>{t('nav.myAssets')}</h1>
+  // ---------------- Toolbar count + applied-filter chips ----------------
+  const loading = section === 'creations' ? publishableLoading : ownedLoading || isPlaceholderData
+  const total = section === 'creations' ? creations.length : status === 'not_for_sale' ? ownedAssets.length : ownedTotal
 
-      {importCount > 0 ? (
-        <S.ImportBanner to="/import">
-          <S.BannerIco aria-hidden>📦</S.BannerIco>
-          <S.BannerText>
-            <strong>{t('myAssets.importTitle')}</strong>
-            <S.BannerSub>{t('myAssets.importSub', { count: importCount })}</S.BannerSub>
-          </S.BannerText>
-          <S.BannerCta>{t('myAssets.import')}</S.BannerCta>
-        </S.ImportBanner>
+  const chips: FilterChip[] = []
+  if (status !== 'all')
+    chips.push({
+      key: 'status',
+      label: status === 'on_sale' ? t('filter.onSale') : t('filter.notForSale'),
+      onRemove: () => setStatus('all')
+    })
+  if (showRarityCat)
+    for (const r of RARITIES)
+      if (rarities.includes(r))
+        chips.push({ key: `rarity-${r}`, label: capitalizeFirst(r), onRemove: () => toggleRarity(r) })
+  if (showRarityCat && subCategory) {
+    const sub = CATEGORIES.find(c => c.key === CATEGORY_OF_SECTION[section])?.subs?.find(s => s.key === subCategory)
+    chips.push({ key: 'sub', label: sub ? t(sub.labelKey) : subCategory, onRemove: () => setSubCategory(null) })
+  }
+  function clearFilters() {
+    setStatus('all')
+    setRarities([])
+    setSubCategory(null)
+  }
+
+  // ---------------- Sidebar (shared between desktop + mobile drawer) ----------------
+  const sidebar = (
+    <>
+      {/* Section nav = the SAME CategoryFilter as Collectibles (Wearables/Emotes expand to sub-cats),
+          minus "Shop All" and with "My Creations" as the extra entry. */}
+      <CategoryFilter
+        title={t('myAssets.assetsHeading')}
+        category={CATEGORY_OF_SECTION[section]}
+        subCategory={subCategory}
+        onCategory={pickCategory}
+        onSub={setSubCategory}
+        onCollections={() => pickSection('creations')}
+        collections={section === 'creations'}
+        extraLabelKey="myAssets.sectionCreations"
+        hideAll
+      />
+
+      {showRarityCat ? (
+        <>
+          <F.Divider />
+          <FilterSection
+            title={t('assets.rarity')}
+            open={openRarity}
+            onToggle={() => setOpenRarity(o => !o)}
+            summary={raritySummary}
+            headerTestId="sidebar-section-toggle"
+          >
+            <F.RarityChips data-testid="rarity-filter">
+              {RARITIES.map(r => {
+                const selected = rarities.includes(r)
+                return (
+                  <F.RarityChip
+                    key={r}
+                    type="button"
+                    selected={selected}
+                    aria-pressed={selected}
+                    onClick={() => toggleRarity(r)}
+                    data-testid="rarity-filter-check"
+                  >
+                    <F.RaritySwatch color={theme.rarities[r as keyof typeof theme.rarities]}>
+                      {selected ? <F.RaritySwatchCheck name="check" aria-hidden /> : null}
+                    </F.RaritySwatch>
+                    <F.RarityName selected={selected}>{r}</F.RarityName>
+                  </F.RarityChip>
+                )
+              })}
+            </F.RarityChips>
+          </FilterSection>
+        </>
       ) : null}
 
-      {/* ---------------- Section 1: Items you own (secondary market) ---------------- */}
-      <S.Section>
-        <S.SectionHead>
-          <S.SectionTitle>{t('myAssets.ownedTitle')}</S.SectionTitle>
-          <S.SectionSub>{t('myAssets.ownedSub')}</S.SectionSub>
-        </S.SectionHead>
+      <F.Divider />
+      <FilterSection
+        title={t('filter.status')}
+        open={openStatus}
+        onToggle={() => setOpenStatus(o => !o)}
+        summary={statusSummary}
+      >
+        {(
+          [
+            ['all', t('filter.statusAll')],
+            ['on_sale', t('filter.onSale')],
+            ['not_for_sale', t('filter.notForSale')]
+          ] as [FilterStatus, string][]
+        ).map(([value, label]) => (
+          <F.StatusRow key={value}>
+            <F.StatusRadio
+              type="radio"
+              name="myassets-status"
+              checked={status === value}
+              onChange={() => setStatus(value)}
+            />
+            <F.StatusLabel>{label}</F.StatusLabel>
+          </F.StatusRow>
+        ))}
+      </FilterSection>
+    </>
+  )
 
-        {queryError ? <ErrorNotice message={t('myAssets.ownedError')} /> : null}
-        <ErrorNotice message={cancelError} />
+  return (
+    <A.Root data-testid="my-assets">
+      {filtersOpen ? <A.Scrim onClick={() => setFiltersOpen(false)} aria-hidden /> : null}
+      <A.Sidebar className={filtersOpen ? 'is-open' : ''} data-testid="my-assets-sidebar">
+        <A.DrawerHead>
+          <A.DrawerTitle>{t('assets.filters')}</A.DrawerTitle>
+          <A.CloseBtn onClick={() => setFiltersOpen(false)} aria-label={t('assets.closeFilters')}>
+            ✕
+          </A.CloseBtn>
+        </A.DrawerHead>
+        <A.SidebarScroll>{sidebar}</A.SidebarScroll>
+        <A.DrawerFoot>
+          <A.ShowItems type="button" onClick={() => setFiltersOpen(false)}>
+            {t('assets.showItems')}
+          </A.ShowItems>
+        </A.DrawerFoot>
+      </A.Sidebar>
 
-        <S.AssetGrid>
-          {isLoading
-            ? Array.from({ length: 8 }).map((_, i) => <S.Skeleton key={`sk-${i}`} />)
-            : ownedAssets.map(asset => (
-                <S.Card key={asset.id}>
-                  {/* Whole-card open as a single overlaid button (keyboard + SR reachable), under the
-                      row's action button (z-index) so nested controls aren't inside a clickable link. */}
-                  <S.LinkOverlay
-                    data-overlay
-                    aria-label={t('myAssets.viewItem', { name: asset.name })}
-                    onClick={() => openDetail(assetToItem(asset))}
-                  />
-                  <S.CardImg>{asset.image ? <img src={asset.image} alt={asset.name} /> : null}</S.CardImg>
-                  <S.CardName title={asset.name}>{asset.name}</S.CardName>
-                  {asset.isOnSale ? (
-                    <>
-                      <S.Listed>
-                        <S.Price>
-                          <CurrencyIcon className="ccy-mark" /> {asset.listingPrice}
-                        </S.Price>
-                        <S.Badge>{t('myAssets.onSale')}</S.Badge>
-                      </S.Listed>
-                      <S.RemoveBtn
-                        size="sm"
-                        variant="ghost"
-                        disabled={cancelling === asset.id || !asset.tradeId}
-                        onClick={e => {
-                          e.stopPropagation()
-                          if (asset.tradeId) void cancelByTrade(asset.tradeId, asset.name, asset.id)
-                        }}
-                      >
-                        {cancelling === asset.id ? t('myAssets.removing') : t('myAssets.removeListing')}
-                      </S.RemoveBtn>
-                    </>
-                  ) : (
-                    <Button
-                      size="sm"
-                      onClick={e => {
-                        e.stopPropagation()
-                        track('Shop Started Listing', {
-                          listing_type: 'secondary',
-                          item_id: asset.itemId ?? asset.tokenId ?? null
-                        })
-                        setSelling(asset)
-                      }}
-                    >
-                      {t('myAssets.putOnSale')}
-                    </Button>
-                  )}
-                </S.Card>
-              ))}
-          {isFetchingNextPage ? Array.from({ length: 4 }).map((_, i) => <S.Skeleton key={`msk-${i}`} />) : null}
-        </S.AssetGrid>
+      <A.Main>
+        <S.SearchBar>
+          <S.SearchIcon name="search" aria-hidden />
+          <S.SearchInput
+            type="search"
+            value={searchInput}
+            placeholder={t('myAssets.searchPlaceholder')}
+            aria-label={t('myAssets.searchPlaceholder')}
+            onChange={e => setSearchInput(e.target.value)}
+          />
+          {searchInput ? (
+            <S.SearchClear type="button" aria-label={t('myAssets.clearSearch')} onClick={() => setSearchInput('')}>
+              <S.ClearIcon name="close" aria-hidden />
+            </S.SearchClear>
+          ) : null}
+        </S.SearchBar>
 
-        <LoadMore hasNextPage={hasNextPage} isFetching={isFetchingNextPage} onLoadMore={() => void fetchNextPage()} />
+        {importCount > 0 ? (
+          <S.ImportBanner to="/import">
+            <span aria-hidden>📦</span>
+            <S.ImportText>
+              <S.ImportTitle>{t('myAssets.importTitle')}</S.ImportTitle>
+              <S.ImportSub>{t('myAssets.importSub', { count: importCount })}</S.ImportSub>
+            </S.ImportText>
+            <S.ImportCta>{t('myAssets.import')}</S.ImportCta>
+          </S.ImportBanner>
+        ) : null}
 
-        {!isLoading && ownedAssets.length === 0 ? <p className="muted">{t('myAssets.ownedEmpty')}</p> : null}
-      </S.Section>
+        <FilterBar
+          sort={sort}
+          onSort={setSort}
+          sortOptions={MY_SORTS}
+          total={total}
+          loading={loading}
+          query={search}
+          onOpenFilters={() => setFiltersOpen(true)}
+          chips={chips}
+          onClearChips={clearFilters}
+        />
 
-      {/* ---------------- Section 2: Items you created (primary), grouped by collection ---------------- */}
-      <S.Section>
-        <S.SectionHead>
-          <S.SectionTitle>{t('myAssets.creationsTitle')}</S.SectionTitle>
-          <S.SectionSub>{t('myAssets.creationsSub', { currency: CURRENCY.name })}</S.SectionSub>
-        </S.SectionHead>
+        {(section === 'creations' ? publishableError : !!ownedError) ? (
+          <ErrorNotice message={t('myAssets.ownedError')} testId="my-assets-error" />
+        ) : null}
 
-        {publishableLoading ? (
-          <S.PublishGrid>
-            {Array.from({ length: 4 }).map((_, i) => (
-              <S.Skeleton key={`pub-sk-${i}`} />
-            ))}
-          </S.PublishGrid>
-        ) : publishableError ? (
-          <S.PublishEmpty>{t('myAssets.collectionsError')}</S.PublishEmpty>
-        ) : onSaleItems.length === 0 && collections.length === 0 ? (
-          <S.PublishEmpty>{t('myAssets.nothingToPublish')}</S.PublishEmpty>
-        ) : (
+        {/* ---- Creations grid ---- */}
+        {section === 'creations' ? (
           <>
-            {/* Already on sale */}
-            {onSaleItems.length > 0 ? (
-              <S.CreationsCollection>
-                <S.CreationsName>{t('myAssets.onSale')}</S.CreationsName>
-                <S.PublishGrid>
-                  {onSaleItems.map(item => (
-                    <S.Card key={`${item.contractAddress}-${item.blockchainItemId}`}>
-                      <S.LinkOverlay
-                        data-overlay
-                        aria-label={t('myAssets.viewItem', { name: item.name })}
-                        onClick={() => openDetail(publishableToItem(item))}
-                      />
-                      <S.CardImg>{item.thumbnail ? <img src={item.thumbnail} alt={item.name} /> : null}</S.CardImg>
-                      <S.CardName title={item.name}>{item.name}</S.CardName>
-                      <S.Listed data-push>
-                        <S.Price data-sm>
-                          <CurrencyIcon className="ccy-mark" /> {saleFor(item)?.priceCredits ?? 0}
-                        </S.Price>
-                        <S.Badge>{t('myAssets.onSale')}</S.Badge>
-                      </S.Listed>
-                      <S.PublishCta
-                        size="sm"
-                        variant="ghost"
-                        disabled={cancelling === item.id}
-                        onClick={e => {
-                          e.stopPropagation()
-                          const sale = saleFor(item)
-                          if (sale?.tradeId) void cancelByTrade(sale.tradeId, item.name, item.id)
-                        }}
-                      >
-                        {cancelling === item.id ? t('myAssets.removing') : t('myAssets.removeListing')}
-                      </S.PublishCta>
-                    </S.Card>
-                  ))}
-                </S.PublishGrid>
-              </S.CreationsCollection>
+            <S.Grid data-testid="grid">
+              {publishableLoading ? (
+                <SkeletonCards count={12} />
+              ) : (
+                creations.map(item => {
+                  const sale = saleFor(item)
+                  return (
+                    // Creations use the same MANAGE cta as owned assets: it navigates to the item's
+                    // detail page, where listing / editing / removing / issuing live. Publishing no
+                    // longer happens inline from the My Creations card.
+                    <AssetCard
+                      key={`${item.contractAddress}-${item.blockchainItemId}`}
+                      item={publishableToItem(item, sale?.priceCredits ?? 0, address ?? '')}
+                      mode="manage-link"
+                    />
+                  )
+                })
+              )}
+            </S.Grid>
+            {!publishableLoading && creations.length === 0 ? (
+              <S.EmptyState>
+                <S.EmptyIcon>
+                  <Icon name="pen" size={30} aria-hidden />
+                </S.EmptyIcon>
+                <S.EmptyTitle>{t('myAssets.emptyCreationsTitle')}</S.EmptyTitle>
+                <S.EmptyText>{t('myAssets.nothingToPublish')}</S.EmptyText>
+              </S.EmptyState>
             ) : null}
-
-            {/* Ready to publish, grouped by collection */}
-            {collections.map(group => (
-              <S.CreationsCollection key={group.id}>
-                <S.CreationsName>{group.name}</S.CreationsName>
-                <S.PublishGrid>
-                  {group.items.map(item => (
-                    <S.Card key={`${item.contractAddress}-${item.blockchainItemId}`}>
-                      <S.LinkOverlay
-                        data-overlay
-                        aria-label={t('myAssets.viewItem', { name: item.name })}
-                        onClick={() => openDetail(publishableToItem(item))}
-                      />
-                      <S.CardImg>{item.thumbnail ? <img src={item.thumbnail} alt={item.name} /> : null}</S.CardImg>
-                      <S.CardName title={item.name}>{item.name}</S.CardName>
-                      <S.PublishMeta>
-                        <S.PublishChip data-rarity>{item.rarity}</S.PublishChip>
-                        <S.PublishSupply>{t('myAssets.available', { count: item.remainingSupply })}</S.PublishSupply>
-                      </S.PublishMeta>
-                      <S.PublishCta
-                        size="sm"
-                        variant="purple"
-                        onClick={e => {
-                          e.stopPropagation()
-                          track('Shop Started Listing', { listing_type: 'primary', item_id: item.blockchainItemId })
-                          setPublishing(item)
-                        }}
-                      >
-                        {t('myAssets.putOnSale')}
-                      </S.PublishCta>
-                    </S.Card>
-                  ))}
-                </S.PublishGrid>
-              </S.CreationsCollection>
-            ))}
+          </>
+        ) : (
+          /* ---- Owned grid (wearables / emotes / names) ---- */
+          <>
+            <S.Grid data-testid="grid">
+              {ownedLoading || isPlaceholderData ? (
+                <SkeletonCards count={12} />
+              ) : (
+                // One card PER OWNED TOKEN: /v1/nfts returns a distinct row per tokenId, so N copies of
+                // the same item render as N cards. Keyed by `asset.id` (= contractAddress-tokenId), which
+                // is unique per copy (raw tokenId can repeat across collections) — never collapse copies.
+                ownedAssets.map(asset =>
+                  section === 'names' ? (
+                    // NAMEs can't be resold through the Shop (the credit rail is Polygon-only, NAMEs are
+                    // on Ethereum L1). The card's action is a MANAGE CTA that opens the name's Builder
+                    // management page (external, like the classic marketplace). Force category 'ens' so
+                    // the card renders the typographic "@name" tile (Figma 696-33957).
+                    <AssetCard
+                      key={asset.id}
+                      item={{ ...assetToItem(asset), category: 'ens' }}
+                      mode="manage-link"
+                      manageHref={builderNameUrl(asset.name)}
+                    />
+                  ) : (
+                    // Owned wearable/emote: the card's only action is MANAGE → the item detail page for
+                    // this exact token, where listing (List / Update price / Remove) now lives. No inline
+                    // put-on-sale from My Assets anymore.
+                    <AssetCard key={asset.id} item={assetToItem(asset, saleForToken(asset))} mode="manage-link" />
+                  )
+                )
+              )}
+              {isFetchingNextPage ? <SkeletonCards count={6} /> : null}
+            </S.Grid>
+            {status !== 'not_for_sale' ? (
+              <LoadMore
+                hasNextPage={hasNextPage}
+                isFetching={isFetchingNextPage}
+                onLoadMore={() => void fetchNextPage()}
+              />
+            ) : null}
+            {!ownedLoading && !isPlaceholderData && ownedAssets.length === 0 ? (
+              <S.EmptyState>
+                <S.EmptyIcon>
+                  <Icon
+                    name={section === 'names' ? 'website' : section === 'emotes' ? 'emote-dance' : 'cat-upper'}
+                    size={30}
+                    aria-hidden
+                  />
+                </S.EmptyIcon>
+                <S.EmptyTitle>
+                  {section === 'names' ? t('myAssets.emptyNamesTitle') : t('myAssets.emptyOwnedTitle')}
+                </S.EmptyTitle>
+                <S.EmptyText>{section === 'names' ? t('myAssets.namesEmpty') : t('myAssets.ownedEmpty')}</S.EmptyText>
+                {section !== 'names' ? <S.EmptyCta to="/assets">{t('myAssets.emptyBrowse')}</S.EmptyCta> : null}
+              </S.EmptyState>
+            ) : null}
           </>
         )}
-      </S.Section>
-
-      {selling ? <SellModal asset={selling} session={session} onClose={() => setSelling(null)} /> : null}
-      {publishing ? <PrimaryListModal item={publishing} session={session} onClose={() => setPublishing(null)} /> : null}
-    </section>
+      </A.Main>
+    </A.Root>
   )
 }

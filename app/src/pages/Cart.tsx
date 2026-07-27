@@ -4,8 +4,11 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCart } from '~/store/cart'
 import { useFavorites } from '~/store/favorites'
 import { useWallet } from '~/store/wallet'
+import { stashResumeIntent, takeResumeIntent } from '~/lib/auth-return'
+import { detailRouteFor } from '~/lib/routes'
+import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import { useBalance } from '~/hooks/useBalance'
-import { authorizeUsdCredit, cancelUsdIntents, devMintUsd } from '~/lib/credits'
+import { authorizeUsdCredit, cancelUsdIntents } from '~/lib/credits'
 import { resolveLiveTrade, fetchListings } from '~/lib/api'
 import { buyManyWithCredits, type CreditPurchase } from '~/lib/buy'
 import { buyManyGasless, waitForSettlement, GaslessUnavailableError, SettlementPendingError } from '~/lib/buy-gasless'
@@ -17,20 +20,37 @@ import {
   type TradeResolver
 } from '~/lib/cart-checkout'
 import { gaslessEnabled } from '~/lib/gasless-config'
+import { useCartAvailability } from '~/hooks/useCartAvailability'
+import { isLineBuyable } from '~/lib/cart-availability'
 import { CURRENCY } from '~/lib/currency'
-import { CREDIT_PACKS, createPackCheckout } from '~/lib/payments'
-import { config } from '~/config'
+import { createPackCheckout, MAX_OFFER_PACKS } from '~/lib/payments'
+import { useCreditPacks } from '~/hooks/useCreditPacks'
 import { CartCheckoutModal, type CheckoutLine } from '~/components/CartCheckoutModal'
-import { CheckmarkIcon } from '~/components/Icons/CheckmarkIcon'
 import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
 import { isRejection, isInsufficient } from '~/lib/errors'
 import { track, purchaseItemsProps, errorCode, isUserRejection, creditsToUsd } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
 import { CollectionCarousel } from '~/components/CollectionCarousel'
+import { Button } from '~/components/Button'
 import { Icon } from '~/components/Icon'
+import styled from '@emotion/styled'
 import type { CatalogItem } from '~/lib/api'
+import type { SuccessNavState } from '~/pages/Success'
 import * as S from './Cart.styles'
+
+// Router state handed to /cart by the /credits return handler to resume a checkout after a mid-checkout
+// top-up. Exported so the producer (GetCredits) shares the exact shape — a renamed field is then a TS
+// error at its navigate() call, not a silent runtime miss.
+export type CartNavState = {
+  resumeCheckout?: boolean
+  // Credits that just landed, forwarded to the /success page for the combined credits+items view.
+  creditsAdded?: number
+}
+
+const EmptyCta = styled(Button)`
+  margin-top: 12px;
+`
 
 // Cart-specific mapping: the "listing changed" message is plural (a multi-item cart), so it maps
 // locally rather than via the shared singular soldOrRemoved/cantBuyOwn.
@@ -46,12 +66,6 @@ function friendlyError(e: unknown): string {
 // have drifted (or listings sold), so we re-review instead of charging a stale total.
 const REVIEW_TTL_MS = 120_000
 
-// The three top-up packs offered when the buyer is short on credits (same set the PDP uses).
-const OFFER_PACKS = CREDIT_PACKS.slice(0, 3)
-
-// In-world launcher deep-link (zone on testnet) — matches the success page.
-const JUMP_URL = config.chainId === 80002 ? 'https://decentraland.zone/jump' : 'https://decentraland.org/jump'
-
 // One-line summary of the rows we pruned so the buyer knows why the cart shrank.
 function dropNotice(review: CartReview): string {
   const parts: string[] = []
@@ -60,23 +74,47 @@ function dropNotice(review: CartReview): string {
   return t('cart.drop.removed', { items: parts.join(` ${t('cart.drop.and')} `) })
 }
 
+// Sum of a set of reviewed lines in whole credits — per-unit price × quantity for each line.
+const sumLineCredits = (lines: ResolvedLine[]): number => lines.reduce((n, l) => n + l.priceCredits * l.quantity, 0)
+
+// Expand each reviewed line into one entry per unit (quantity 1) — the money flow authorizes and
+// mints per unit (a primary trade may be accepted up to its `checks.uses` = remaining supply), so N
+// copies become N credits in the same accept([...]) batch. Settlement stays per-unit and correct.
+const toUnits = (lines: ResolvedLine[]): ResolvedLine[] =>
+  lines.flatMap(l => Array.from({ length: l.quantity }, () => ({ ...l, quantity: 1 })))
+
 // The multi-item checkout modal's state — a pure reflection of the charge flow (Cart owns the money).
+// The processing stages, in order: reserve each unit's credits (silent, N sequential authorizes) →
+// wait for the buyer to sign/confirm in their wallet (ONE prompt) → settle the single on-chain tx.
+type ProcessingStage = 'reserving' | 'awaiting-signature' | 'settling'
 type ModalState =
-  | { phase: 'processing'; step: number; total: number }
+  | { phase: 'processing'; stage: ProcessingStage; step: number; total: number }
   | { phase: 'nofunds'; lines: CheckoutLine[]; shortfall: number }
-  | { phase: 'complete'; purchased: CatalogItem[] }
   | { phase: 'error'; message: string }
 
 export function Cart() {
   useSeo({ title: t('nav.cart'), noindex: true })
   const items = useCart(s => s.items)
   const remove = useCart(s => s.remove)
+  const increment = useCart(s => s.increment)
+  const decrement = useCart(s => s.decrement)
   const clear = useCart(s => s.clear)
   const restore = useCart(s => s.restore)
   const setFittingOpen = useCart(s => s.setFittingOpen)
   const favItems = useFavorites(s => s.items)
   const toggleFav = useFavorites(s => s.toggle)
-  const { session } = useWallet()
+  const { session, signIn } = useWallet()
+  // The top-up packs offered when the buyer is short on credits (same set the PDP uses — all four the
+  // credits-server returns, shown in one widened row). Sourced from the credits-server catalogue
+  // (single source of truth); falls back to the bundled packs so this critical picker always renders.
+  const OFFER_PACKS = useCreditPacks().packs.slice(0, MAX_OFFER_PACKS)
+
+  // Paint the whole page gray while the cart is open (Figma 1182-216274) so the white cart cards get
+  // the focus. Toggled on <body> so the gray is full-bleed under the sticky sub-nav; reverted on leave.
+  useEffect(() => {
+    document.body.classList.add('shop-cart-bg')
+    return () => document.body.classList.remove('shop-cart-bg')
+  }, [])
 
   // Try-on is only meaningful for wearables (emotes aren't "worn").
   const hasWearable = items.some(i => i.category !== 'emote')
@@ -90,7 +128,7 @@ export function Cart() {
   const { data: balance } = useBalance(session)
   const qc = useQueryClient()
   const navigate = useNavigate()
-  const { state: navState } = useLocation() as { state?: { resumeCheckout?: boolean } }
+  const { state: navState } = useLocation() as { state?: CartNavState }
 
   const [status, setStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -104,8 +142,26 @@ export function Cart() {
   // The charge overlay (processing / no-funds / complete / error). null = closed.
   const [modal, setModal] = useState<ModalState | null>(null)
   const [selectedPack, setSelectedPack] = useState('')
+  // Credits that landed with a mid-checkout top-up (buy-credits-and-item-together). Carried from the
+  // /credits return handler through the resume, then handed to the /success page so it can show the
+  // bundle that was added alongside the purchased items (Figma 1231-250927). A ref (not state) so the
+  // resume's deferred checkout() closure reads the current value, not a stale render capture.
+  const creditsAddedRef = useRef<number | null>(null)
 
-  const shownTotal = items.reduce((sum, i) => sum + i.priceCredits, 0)
+  // Validate each line's live trade when the cart page is open (optimistic — every line renders as
+  // buyable until its trade actually resolves as sold-out / gone / expired). Bounded to the cart's
+  // lines, cached ~30s, revalidated on refocus.
+  const availability = useCartAvailability(items)
+  const isBuyable = (i: CatalogItem) => isLineBuyable(availability[i.id])
+  // Everything below counts / sums only the lines still buyable — an unavailable line is excluded from
+  // the total and from checkout, but stays visible (with its reason) so the buyer can remove it.
+  const buyableItems = items.filter(isBuyable)
+  const allUnavailable = items.length > 0 && buyableItems.length === 0
+
+  const shownTotal = buyableItems.reduce((sum, i) => sum + i.priceCredits * i.quantity, 0)
+  // Total buyable units (Σ quantity over available lines) — the "N items" the summary total reflects.
+  const totalUnits = items.reduce((n, i) => n + i.quantity, 0)
+  const buyableUnits = buyableItems.reduce((n, i) => n + i.quantity, 0)
   // While a review is pending the total reflects the live (re-resolved) prices of what's still buyable.
   const total = review ? review.liveTotalCredits : shownTotal
   const inCart = new Set(items.map(i => i.id))
@@ -135,7 +191,7 @@ export function Cart() {
   // Show the no-funds (pack picker) overlay for a set of buyable lines — reserve nothing, prompt a
   // top-up. The cheapest pack that still clears the shortfall is pre-selected.
   function openNoFunds(lines: ResolvedLine[]) {
-    const totalCredits = lines.reduce((n, l) => n + l.priceCredits, 0)
+    const totalCredits = sumLineCredits(lines)
     const shortfall = Math.max(0, totalCredits - balanceCredits)
     const cover = OFFER_PACKS.find(p => p.credits >= shortfall) ?? OFFER_PACKS[OFFER_PACKS.length - 1]
     setSelectedPack(cover.id)
@@ -145,7 +201,11 @@ export function Cart() {
       credits_balance: balanceCredits,
       shortfall
     })
-    setModal({ phase: 'nofunds', lines: lines.map(l => ({ item: l.item, priceCredits: l.priceCredits })), shortfall })
+    setModal({
+      phase: 'nofunds',
+      lines: lines.map(l => ({ item: l.item, priceCredits: l.priceCredits, quantity: l.quantity })),
+      shortfall
+    })
     setBusy(false)
   }
 
@@ -154,20 +214,26 @@ export function Cart() {
   // complete, or → no-funds on a 402, or → error. Releases reservations on failure.
   async function charge(lines: ResolvedLine[]) {
     if (!session || lines.length === 0) return
-    // Carry the LIVE price so the success list + analytics reflect what was actually charged.
-    const purchased = lines.map(l => ({ ...l.item, priceCredits: l.priceCredits }))
+    // Expand to one unit per copy: buying qty N of a primary line is N per-unit authorizes + N
+    // credits in the same accept([...trade × N]) batch (the trade's checks.uses = remaining supply
+    // permits it). Keeps the money math + settlement strictly per-unit.
+    const units = toUnits(lines)
+    // Per-unit snapshot at the LIVE price for analytics (correct value across quantities).
+    const purchasedUnits = units.map(l => ({ ...l.item, priceCredits: l.priceCredits }))
+    // Per-line snapshot (carries quantity) for the success modal — unique keys, shows "× N".
+    const purchasedLines = lines.map(l => ({ ...l.item, priceCredits: l.priceCredits, quantity: l.quantity }))
     const reservedSalts: string[] = []
     let step: 'authorize' | 'submit' = 'authorize'
     let usedGasless = false
-    setModal({ phase: 'processing', step: 1, total: lines.length })
+    setModal({ phase: 'processing', stage: 'reserving', step: 1, total: units.length })
     try {
       // Authorize SEQUENTIALLY (not Promise.all): each authorize reserves against the running USD
       // balance, so ordering is what makes the insufficient-credits guard correct — parallel calls
       // would all read the pre-reservation balance and could over-authorize.
       const purchases: CreditPurchase[] = []
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i]
-        setModal({ phase: 'processing', step: i + 1, total: lines.length })
+      for (let i = 0; i < units.length; i++) {
+        const line = units[i]
+        setModal({ phase: 'processing', stage: 'reserving', step: i + 1, total: units.length })
         try {
           // Authorize against the freshly RESOLVED trade (line.trade), not the item's original tradeId:
           // a stale tradeId may have been re-signed to a new trade, and the spend below executes against
@@ -195,10 +261,17 @@ export function Cart() {
       }
 
       step = 'submit'
+      // All units authorized. The whole basket settles in ONE accept([...]) tx (trades are grouped by
+      // chain+marketplace, and the shop is single-chain), so from here it's a single wallet prompt then
+      // one settlement — NOT a per-item count. Show "confirm in your wallet" until the buyer signs
+      // (onSigned), then "completing transaction" while it settles.
+      const onSigned = () =>
+        setModal({ phase: 'processing', stage: 'settling', step: units.length, total: units.length })
+      setModal({ phase: 'processing', stage: 'awaiting-signature', step: units.length, total: units.length })
       let hashes: string[] = []
       if (gaslessEnabled()) {
         try {
-          hashes = await buyManyGasless({ purchases, buyer: session.address, signer: session.signer })
+          hashes = await buyManyGasless({ purchases, buyer: session.address, signer: session.signer, onSigned })
           // Once buyManyGasless returns, every group's meta-tx is BROADCAST. A group that's only
           // pending (unconfirmed within the window) may still land, so we must NOT release the
           // reservations — the credits-server reconciles those against the indexed CreditUsed event.
@@ -215,7 +288,7 @@ export function Cart() {
           usedGasless = true
         } catch (gaslessErr) {
           if (!(gaslessErr instanceof GaslessUnavailableError)) throw gaslessErr
-          hashes = await buyManyWithCredits({ purchases, buyer: session.address, signer: session.signer })
+          hashes = await buyManyWithCredits({ purchases, buyer: session.address, signer: session.signer, onSigned })
         }
       } else {
         hashes = await buyManyWithCredits({ purchases, buyer: session.address, signer: session.signer })
@@ -225,20 +298,55 @@ export function Cart() {
       lines.forEach(l => remove(l.item.id))
       setReview(null)
       track('Shop Completed Purchase', {
-        ...purchaseItemsProps(purchased),
+        ...purchaseItemsProps(purchasedUnits),
         payment_type: 'credits',
         no_crypto_step: usedGasless,
         transaction_hash: hashes[0] ?? null
       })
       void qc.invalidateQueries({ queryKey: ['usd-balance'] })
-      setModal({ phase: 'complete', purchased })
+      // The basket settled on-chain, changing listings/availability and the buyer's holdings — refresh
+      // the browse grids, PDP money queries, My Assets and Activity so a revisited item drops its Buy
+      // CTA and the purchases show up without a manual reload (checkout nav to /success hides the PDP,
+      // but the pages behind it may stay mounted). Broad keys since a basket spans many items.
+      void qc.invalidateQueries({ queryKey: ['detail-trade'] })
+      void qc.invalidateQueries({ queryKey: ['shop-item'] })
+      void qc.invalidateQueries({ queryKey: ['owned-token'] })
+      void qc.invalidateQueries({ queryKey: ['public-token'] })
+      void qc.invalidateQueries({ queryKey: ['item-resales'] })
+      void qc.invalidateQueries({ queryKey: ['shop-items'] })
+      void qc.invalidateQueries({ queryKey: ['catalog-items'] })
+      void qc.invalidateQueries({ queryKey: ['my-assets'] })
+      void qc.invalidateQueries({ queryKey: ['purchases'] })
+      // The PDP's "You own N of this" note ('owned-item-count') must reflect the copies just bought, and
+      // the homepage featured row ('overview-listings') + cart cross-sell ('upsell-listings') should drop
+      // any just-sold last copy instead of keeping it on offer.
+      void qc.invalidateQueries({ queryKey: ['owned-item-count'] })
+      void qc.invalidateQueries({ queryKey: ['overview-listings'] })
+      void qc.invalidateQueries({ queryKey: ['upsell-listings'] })
+      // The whole basket has settled on-chain (buyManyGasless/waitForSettlement above), so hand the
+      // standalone success PAGE the purchased lines + tx and tell it settlement is already done
+      // (settled:true) — it lands straight on the confirmed screen instead of a floating in-cart modal.
+      // When this checkout auto-resumed after a mid-checkout top-up, also pass the credits that landed
+      // so the success page shows the "buy credits + item together" combined view (Figma 1231-250927).
+      const creditsAdded = creditsAddedRef.current
+      creditsAddedRef.current = null
+      setModal(null)
+      setBusy(false)
+      const successState: SuccessNavState = {
+        items: purchasedLines,
+        txHash: hashes[0] ?? undefined,
+        settled: true,
+        ...(creditsAdded ? { creditsAdded } : {})
+      }
+      // replace:true — the cart is now emptied, so Back from /success should not return to it.
+      navigate('/success', { state: successState, replace: true })
     } catch (e) {
       if (!isUserRejection(e)) captureError(e, { flow: 'cart_checkout', step, cart_size: lines.length })
       track(isUserRejection(e) ? 'Shop Purchase Cancelled' : 'Shop Purchase Failed', {
         step,
         error_code: errorCode(e),
-        value_usd: creditsToUsd(purchased.reduce((n, i) => n + i.priceCredits, 0)),
-        cart_size: lines.length
+        value_usd: creditsToUsd(purchasedUnits.reduce((n, i) => n + i.priceCredits, 0)),
+        cart_size: units.length
       })
       // Release any dollars we reserved so the balance isn't stuck until the TTL (~15 min).
       if (reservedSalts.length) {
@@ -255,7 +363,7 @@ export function Cart() {
 
   // Decide, for a reviewed set of buyable lines, whether to charge or to prompt a top-up first.
   function chargeOrTopUp(lines: ResolvedLine[]) {
-    const totalCredits = lines.reduce((n, l) => n + l.priceCredits, 0)
+    const totalCredits = sumLineCredits(lines)
     // Known-and-short → straight to the pack picker; don't reserve dollars we can't spend. When the
     // balance is unknown we still try (the sequential authorize guards it server-side → 402 → nofunds).
     if (balance != null && balance.credits < totalCredits) {
@@ -267,19 +375,27 @@ export function Cart() {
 
   async function checkout() {
     if (!session) {
-      setError(t('buyModal.signInToCheckout'))
+      // No dead-end: send them into sign-in (returns to /cart), stashing a resume so the checkout
+      // re-runs automatically once the session is restored. The cart itself is persisted to
+      // localStorage, so it survives the round-trip.
+      stashResumeIntent({ type: 'cart-checkout' })
+      signIn()
       return
     }
-    const cartItems = useCart.getState().items // read live so a post-top-up resume sees the restored cart
+    // Read live so a post-top-up resume sees the restored cart, then drop any line already known to be
+    // unavailable (sold-out / gone / expired) so checkout never even attempts a stale line. reviewCart
+    // below remains the authority and re-prunes against the live trades.
+    const cartItems = useCart.getState().items.filter(isBuyable)
     if (cartItems.length === 0) return
     setError(null)
     setNotice(null)
     setBusy(true)
+    const cartCredits = cartItems.reduce((n, i) => n + i.priceCredits * i.quantity, 0)
     track('Shop Started Checkout', {
       cart_size: cartItems.length,
-      cart_value_credits: cartItems.reduce((n, i) => n + i.priceCredits, 0),
-      cart_value_usd: creditsToUsd(cartItems.reduce((n, i) => n + i.priceCredits, 0)),
-      has_sufficient_credits: balanceCredits >= cartItems.reduce((n, i) => n + i.priceCredits, 0)
+      cart_value_credits: cartCredits,
+      cart_value_usd: creditsToUsd(cartCredits),
+      has_sufficient_credits: balanceCredits >= cartCredits
     })
     try {
       // Resolve every item's LIVE listing first — never charge a stale snapshot, and never let one bad
@@ -321,7 +437,8 @@ export function Cart() {
   async function confirmPurchase() {
     if (!review) return
     if (!session) {
-      setError(t('buyModal.signInToCheckout'))
+      stashResumeIntent({ type: 'cart-checkout' })
+      signIn()
       return
     }
     // A review left sitting too long may be pricing off stale trades (a sale ended, a listing sold).
@@ -371,23 +488,18 @@ export function Cart() {
     }
   }
 
-  async function getTestCredits() {
-    if (!session) return
-    setError(null)
-    setBusy(true)
-    try {
-      setStatus(`Adding test ${CURRENCY.name}…`)
-      await devMintUsd(session.address, 1000) // $10 = 100 credits
-      setStatus(`Test ${CURRENCY.name} added.`)
-      void qc.invalidateQueries({ queryKey: ['usd-balance'] })
-    } catch (e) {
-      captureError(e, { flow: 'get_test_credits' })
-      setError(`Could not add test ${CURRENCY.name} (is the credits service running with dev mint enabled?)`)
-      setStatus(null)
-    } finally {
-      setBusy(false)
-    }
-  }
+  // Resume after a sign-in round-trip: a signed-out buyer hit checkout, we sent them to sign in and
+  // stashed the intent; on return the session is restored and we re-run checkout automatically (the
+  // cart persisted to localStorage, so it's intact). Fires once, only after the session lands.
+  const signInResumedRef = useRef(false)
+  useEffect(() => {
+    if (!session || signInResumedRef.current) return
+    if (!takeResumeIntent('cart-checkout')) return
+    signInResumedRef.current = true
+    const id = setTimeout(() => void checkout(), 0)
+    return () => clearTimeout(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session])
 
   // Resume after a Stripe top-up: /credits routed back here with resumeCheckout. Restore the stashed
   // cart (if the redirect wiped the in-memory store) and re-run checkout with the topped-up balance.
@@ -395,6 +507,9 @@ export function Cart() {
   useEffect(() => {
     if (!navState?.resumeCheckout || resumedRef.current) return
     resumedRef.current = true
+    // Remember the topped-up credits so the /success page can show them alongside the items once the
+    // resumed checkout settles (buy-credits-and-item-together combined success).
+    creditsAddedRef.current = navState.creditsAdded ?? null
     try {
       const snap = sessionStorage.getItem(RESUME_CART_KEY)
       if (snap) {
@@ -420,155 +535,209 @@ export function Cart() {
         <Icon name="cart" size={44} color="var(--muted-2)" />
         <S.EmptyTitle>{t('cart.empty.title')}</S.EmptyTitle>
         <p className="muted">{t('cart.empty.body')}</p>
-        <S.EmptyCta as={Link} to="/assets" variant="purple">
+        <EmptyCta as={Link} to="/assets" variant="purple">
           {t('cart.empty.cta')}
-        </S.EmptyCta>
+        </EmptyCta>
       </S.Empty>
     )
   }
 
   return (
     <S.Checkout>
-      <S.Back onClick={() => navigate(-1)} type="button">
-        <Icon name="arrow-left" />
-        {t('nav.cart')}
-      </S.Back>
+      {/* Top section (breadcrumb + cart/summary panels) sits on the gray band; everything below
+          (the cross-sell) is on the white page — Figma 1182-232377. */}
+      <S.Top>
+        <S.Back onClick={() => navigate(-1)} type="button">
+          <Icon name="arrow-left" />
+          {t('nav.cart')}
+        </S.Back>
 
-      <S.Body>
-        <S.Panel>
-          <S.PanelHead>
-            <S.PanelBack onClick={() => navigate(-1)} type="button" aria-label={t('cart.goBack')}>
-              <Icon name="arrow-left" />
-            </S.PanelBack>
-            <S.PanelTitle>{t('cart.panelTitle', { count: items.length })}</S.PanelTitle>
-            {hasWearable ? (
-              <S.Fitting onClick={() => setFittingOpen(true)} disabled={working}>
-                <Icon name="fitting-room" />
-                {t('cart.fittingRoom')}
-              </S.Fitting>
-            ) : null}
-          </S.PanelHead>
+        <S.Body>
+          <S.Left>
+            {/* Header card (Figma 1182-216308): "Cart: N Items" + Fitting Room — its own white card. */}
+            <S.HeadCard>
+              <S.PanelBack onClick={() => navigate(-1)} type="button" aria-label={t('cart.goBack')}>
+                <Icon name="arrow-left" />
+              </S.PanelBack>
+              <S.PanelTitle>{t('cart.panelTitle', { count: totalUnits })}</S.PanelTitle>
+              {hasWearable ? (
+                <S.Fitting onClick={() => setFittingOpen(true)} disabled={working}>
+                  <Icon name="fitting-room" />
+                  {t('cart.fittingRoom')}
+                </S.Fitting>
+              ) : null}
+            </S.HeadCard>
 
-          <S.List>
-            {items.map(item => {
-              const line = lineById.get(item.id)
-              const livePrice = line ? line.priceCredits : item.priceCredits
-              const changed = !!line && line.priceCredits !== item.priceCredits
-              const faved = !!favItems[item.id]
-              // Whole-item deep link (same route the browse cards use): cart lines carry the listing's
-              // contractAddress + itemId/tokenId, so the thumbnail + name navigate to the detail page
-              // client-side (the PDP re-hydrates from the passed router state).
-              const routeSeg = item.tokenId ?? item.itemId
-              const detailPath = item.contractAddress && routeSeg ? `/item/${item.contractAddress}/${routeSeg}` : null
-              return (
-                <S.Card key={item.id}>
-                  <S.Thumb>
-                    {detailPath ? (
-                      <S.ThumbLink to={detailPath} state={{ item, tradeId: item.tradeId }} aria-label={item.name}>
-                        {item.thumbnail ? <img src={item.thumbnail} alt={item.name} /> : null}
-                      </S.ThumbLink>
-                    ) : item.thumbnail ? (
-                      <img src={item.thumbnail} alt={item.name} />
-                    ) : null}
-                    <S.ThumbCheck aria-hidden>
-                      <CheckmarkIcon />
-                    </S.ThumbCheck>
-                  </S.Thumb>
-                  <S.Info>
-                    <S.Desc>
-                      {detailPath ? (
-                        <S.NameLink to={detailPath} state={{ item, tradeId: item.tradeId }} title={item.name}>
-                          {item.name}
-                        </S.NameLink>
-                      ) : (
-                        <S.Name title={item.name}>{item.name}</S.Name>
-                      )}
-                      {item.creator ? <S.Creator address={item.creator} linkToProfile /> : null}
-                    </S.Desc>
-                    <S.Foot>
-                      {/* Quantity stepper — visual only: a cart line is a single unique listing (qty always
-                          1), so minus removes the line and plus is inert (mirrors the cart drawer stepper). */}
-                      <S.Stepper>
-                        <S.Step
+            {/* Items card (Figma 1182-216322): the cart lines, p-24, radius 16. */}
+            <S.Panel>
+              <S.List>
+                {items.map(item => {
+                  const line = lineById.get(item.id)
+                  const livePrice = line ? line.priceCredits : item.priceCredits
+                  const changed = !!line && line.priceCredits !== item.priceCredits
+                  // Quantity is only a primary (mint) concept; a secondary token is a single unique unit.
+                  const isPrimary = !item.tokenId
+                  const qty = item.quantity
+                  const atStockCap = typeof item.available === 'number' && qty >= item.available
+                  const lineSubtotal = livePrice * qty
+                  const faved = !!favItems[item.id]
+                  // Whole-item deep link (same route the browse cards use): a token line → /token, a
+                  // catalog line → /item (see lib/routes). The PDP re-hydrates from the passed state.
+                  const detailPath = detailRouteFor(item)
+                  // Live availability (optimistically 'available' until the trade resolves otherwise).
+                  const status = availability[item.id]
+                  const unavailable = !isLineBuyable(status)
+                  const unavailableLabel =
+                    status === 'sold-out' ? t('cart.availability.soldOut') : t('cart.availability.unavailable')
+                  return (
+                    <S.Card data-unavailable={unavailable || undefined} key={item.id}>
+                      <S.Thumb>
+                        {detailPath ? (
+                          <S.ThumbLink to={detailPath} state={{ item, tradeId: item.tradeId }} aria-label={item.name}>
+                            {item.thumbnail ? <img src={item.thumbnail} alt={item.name} /> : null}
+                          </S.ThumbLink>
+                        ) : item.thumbnail ? (
+                          <img src={item.thumbnail} alt={item.name} />
+                        ) : null}
+                        <S.ThumbCheck aria-hidden>
+                          <svg viewBox="0 0 20 20" width="12" height="12">
+                            <path
+                              d="M5 10.5l3 3 7-7.5"
+                              fill="none"
+                              stroke="#fff"
+                              strokeWidth="2.4"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                        </S.ThumbCheck>
+                      </S.Thumb>
+                      <S.Info>
+                        <S.Desc>
+                          {detailPath ? (
+                            <S.NameLink to={detailPath} state={{ item, tradeId: item.tradeId }} title={item.name}>
+                              {item.name}
+                            </S.NameLink>
+                          ) : (
+                            <S.Name title={item.name}>{item.name}</S.Name>
+                          )}
+                          {item.creator ? <S.Creator address={item.creator} linkToProfile /> : null}
+                        </S.Desc>
+                        <S.Foot>
+                          {unavailable ? (
+                            /* Calm inline state — no price/stepper, just the reason. The trash button in
+                               checkout__actions is the one-tap remove. */
+                            <S.Unavailable>{unavailableLabel}</S.Unavailable>
+                          ) : (
+                            <>
+                              {/* Quantity stepper. PRIMARY (mint) lines can buy multiple copies: minus decrements
+                          (floored at 1 — the trash button removes), plus increments up to remaining stock.
+                          SECONDARY lines are a single unique token, so the stepper is hidden (qty is 1). */}
+                              {isPrimary ? (
+                                <S.Stepper>
+                                  <S.Step
+                                    onClick={() => editCart(() => decrement(item.id))}
+                                    disabled={working || qty <= 1}
+                                    aria-label={t('cart.decreaseQuantity', { name: item.name })}
+                                  >
+                                    <svg viewBox="0 0 16 16" fill="none" aria-hidden focusable="false">
+                                      <path
+                                        d="M3.5 8h9"
+                                        stroke="currentColor"
+                                        strokeWidth="1.5"
+                                        strokeLinecap="round"
+                                      />
+                                    </svg>
+                                  </S.Step>
+                                  <S.Qty>{qty}</S.Qty>
+                                  <S.Step
+                                    onClick={() => editCart(() => increment(item.id))}
+                                    disabled={working || atStockCap}
+                                    aria-label={t('cart.increaseQuantity')}
+                                  >
+                                    <svg viewBox="0 0 16 16" fill="none" aria-hidden focusable="false">
+                                      <path
+                                        d="M8 3.5v9M3.5 8h9"
+                                        stroke="currentColor"
+                                        strokeWidth="1.5"
+                                        strokeLinecap="round"
+                                      />
+                                    </svg>
+                                  </S.Step>
+                                </S.Stepper>
+                              ) : null}
+                              <S.Price>
+                                <S.PriceIco /> {lineSubtotal}
+                                {changed ? <S.PriceWas>{item.priceCredits * qty}</S.PriceWas> : null}
+                              </S.Price>
+                            </>
+                          )}
+                        </S.Foot>
+                      </S.Info>
+                      <S.Actions>
+                        <button
+                          className={`checkout__fav${faved ? ' is-on' : ''}`}
+                          onClick={() => toggleFav(item)}
+                          aria-label={
+                            faved
+                              ? t('cart.removeFromFavorites', { name: item.name })
+                              : t('cart.addToFavorites', { name: item.name })
+                          }
+                          title={faved ? t('assetCard.removeFromFavorites') : t('assetCard.addToFavorites')}
+                        >
+                          <Icon name={faved ? 'heart-solid' : 'heart'} />
+                        </button>
+
+                        <S.Remove
                           onClick={() => editCart(() => remove(item.id))}
                           disabled={working}
-                          aria-label={t('cart.removeFromCart', { name: item.name })}
+                          aria-label={t('cart.remove', { name: item.name })}
+                          title={t('cart.removeTitle')}
                         >
-                          <Icon name="minus" size={16} />
-                        </S.Step>
-                        <S.Qty>1</S.Qty>
-                        <S.Step disabled aria-label={t('cart.increaseQuantity')}>
-                          <Icon name="plus-thin" size={16} />
-                        </S.Step>
-                      </S.Stepper>
-                      <S.Price>
-                        <S.PriceIco /> {livePrice}
-                        {changed ? <S.PriceWas>{item.priceCredits}</S.PriceWas> : null}
-                      </S.Price>
-                    </S.Foot>
-                  </S.Info>
-                  <S.Actions>
-                    <S.Fav
-                      data-on={faved || undefined}
-                      onClick={() => toggleFav(item)}
-                      aria-label={
-                        faved
-                          ? t('cart.removeFromFavorites', { name: item.name })
-                          : t('cart.addToFavorites', { name: item.name })
-                      }
-                      title={faved ? t('assetCard.removeFromFavorites') : t('assetCard.addToFavorites')}
-                    >
-                      <Icon name={faved ? 'heart-solid' : 'heart'} />
-                    </S.Fav>
+                          <Icon name="trash" size={24} />
+                        </S.Remove>
+                      </S.Actions>
+                    </S.Card>
+                  )
+                })}
+              </S.List>
 
-                    <S.Remove
-                      onClick={() => editCart(() => remove(item.id))}
-                      disabled={working}
-                      aria-label={t('cart.remove', { name: item.name })}
-                      title={t('cart.removeTitle')}
-                    >
-                      <Icon name="trash" size={24} />
-                    </S.Remove>
-                  </S.Actions>
-                </S.Card>
-              )
-            })}
-          </S.List>
+              {/* Utility actions kept subtle so they don't compete with the CTA. */}
+              <S.Utils>
+                <button className="link" onClick={() => editCart(clear)} disabled={working}>
+                  {t('cart.clearCart')}
+                </button>
+              </S.Utils>
+            </S.Panel>
+          </S.Left>
 
-          {/* Utility actions kept subtle so they don't compete with the CTA. */}
-          <S.Utils>
-            <button className="link" onClick={() => editCart(clear)} disabled={working}>
-              {t('cart.clearCart')}
-            </button>
-            {import.meta.env.DEV ? (
-              <button className="link" onClick={() => void getTestCredits()} disabled={working || !session}>
-                Get test {CURRENCY.name} (dev)
-              </button>
-            ) : null}
-          </S.Utils>
-        </S.Panel>
+          <S.Summary>
+            <S.SummaryTitle>{t('cart.purchaseSummary')}</S.SummaryTitle>
+            <S.SummaryBody>
+              <S.TotalLine>
+                <S.TotalLabel>{t('cart.totalItems', { count: buyableUnits })}</S.TotalLabel>
+                <S.TotalValue>
+                  <S.TotalIco /> {total}
+                </S.TotalValue>
+              </S.TotalLine>
 
-        <S.Summary>
-          <S.SummaryTitle>{t('cart.purchaseSummary')}</S.SummaryTitle>
-          <S.SummaryBody>
-            <S.TotalLine>
-              <S.TotalLabel>{t('cart.totalItems', { count: items.length })}</S.TotalLabel>
-              <S.TotalValue>
-                <S.TotalIco /> {total}
-              </S.TotalValue>
-            </S.TotalLine>
+              <S.Cta
+                onClick={() => void (review ? confirmPurchase() : checkout())}
+                disabled={working || allUnavailable}
+              >
+                {working ? t('cart.working') : review ? t('marketCheckout.confirmPurchase') : t('assetCard.buyNow')}
+              </S.Cta>
 
-            <S.Cta onClick={() => void (review ? confirmPurchase() : checkout())} disabled={working}>
-              {working ? t('cart.working') : review ? t('marketCheckout.confirmPurchase') : t('assetCard.buyNow')}
-            </S.Cta>
-
-            {review ? <S.Msg className="muted">{t('cart.priceChanged')}</S.Msg> : null}
-            {notice ? <S.Msg className="muted">{notice}</S.Msg> : null}
-            {status ? <S.Msg className="muted">{status}</S.Msg> : null}
-            <S.MsgNotice message={error} />
-          </S.SummaryBody>
-        </S.Summary>
-      </S.Body>
+              {allUnavailable ? <S.Msg className="muted">{t('cart.allUnavailable')}</S.Msg> : null}
+              {!session ? <S.Msg className="muted">{t('cart.signInHint')}</S.Msg> : null}
+              {review ? <S.Msg className="muted">{t('cart.priceChanged')}</S.Msg> : null}
+              {notice ? <S.Msg className="muted">{notice}</S.Msg> : null}
+              {status ? <S.Msg className="muted">{status}</S.Msg> : null}
+              <S.MsgNotice message={error} />
+            </S.SummaryBody>
+          </S.Summary>
+        </S.Body>
+      </S.Top>
 
       {upsell.length > 0 ? (
         <S.Upsell>
@@ -581,18 +750,18 @@ export function Cart() {
           phase={modal.phase}
           balanceCredits={balanceCredits}
           onClose={closeModal}
+          stage={modal.phase === 'processing' ? modal.stage : undefined}
           step={modal.phase === 'processing' ? modal.step : undefined}
           total={modal.phase === 'processing' ? modal.total : undefined}
+          isSelfCustody={showsWalletConfirmations(session?.providerType)}
           lines={modal.phase === 'nofunds' ? modal.lines : undefined}
           shortfallCredits={modal.phase === 'nofunds' ? modal.shortfall : undefined}
           packs={OFFER_PACKS}
           selectedPack={selectedPack}
           onSelectPack={setSelectedPack}
           onBuyPacks={() => void buyCreditsAndItems()}
-          purchased={modal.phase === 'complete' ? modal.purchased : undefined}
-          onMyAssets={() => navigate('/assets?tab=mine')}
-          onTryInWorld={() => window.open(JUMP_URL, '_blank', 'noopener')}
           message={modal.phase === 'error' ? modal.message : undefined}
+          onRetry={() => void checkout()}
         />
       ) : null}
     </S.Checkout>

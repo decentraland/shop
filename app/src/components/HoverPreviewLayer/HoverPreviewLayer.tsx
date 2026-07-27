@@ -1,10 +1,14 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import styled from '@emotion/styled'
+import { useLocation } from 'react-router-dom'
 import { PreviewEmote, PreviewType } from '@dcl/schemas'
 import { PreviewMessageType, sendMessage } from '@dcl/schemas/dist/dapps/preview'
 import { WearablePreview } from '~/components/LazyWearablePreview'
 import { config } from '~/config'
 import { useHoverPreview } from '~/store/hoverPreview'
+import { useWallet } from '~/store/wallet'
+import { useProfile } from '~/hooks/useProfile'
+import { avatarShape, isCompatible } from '~/lib/bodyShape'
 
 const Wrap = styled.div`
   & iframe {
@@ -29,11 +33,24 @@ const Wrap = styled.div`
 const IFRAME_ID = 'hover-preview'
 
 export function HoverPreviewLayer() {
+  // The detail page (PDP) mounts its own heavy WearablePreview, so don't keep a SECOND engine warm
+  // off-screen while a PDP is open — that stacked two (sometimes three, with the Fitting Room) live
+  // WebGL contexts and pegged the GPU. Unmount the warm hover layer on /item/* and /token/* (it
+  // re-boots on idle when the shopper returns to a browse grid, where hover previews are used).
+  const { pathname } = useLocation()
+  const onDetailPage = pathname.startsWith('/item/') || pathname.startsWith('/token/')
+
   const item = useHoverPreview(s => s.item)
   const anchor = useHoverPreview(s => s.anchor)
   const token = useHoverPreview(s => s.token)
   const ready = useHoverPreview(s => s.ready)
   const setReady = useHoverPreview(s => s.setReady)
+
+  // Dress the hovered item on the shopper's own avatar when they have a compatible one.
+  // Only pass the address once useProfile confirms a published avatar
+  // (a real address with none renders empty), so signed-out or empty accounts stay on a mannequin.
+  const address = useWallet(s => s.session?.address)
+  const { data: avatar } = useProfile(address)
 
   // Defer mounting the iframe to browser idle so warming never competes with the initial page render.
   const [mounted, setMounted] = useState(false)
@@ -87,11 +104,14 @@ export function HoverPreviewLayer() {
     if (!bootedRef.current) return
     loadingTokenRef.current = token
     const isEmote = item.category === 'emote'
+    // On the connected avatar when it can wear the item (emotes are shape-agnostic, so any avatar works);
+    // otherwise a default mannequin of a shape the item DOES support, so gendered items never render invisible.
+    const onAvatar = !!address && !!avatar && isCompatible(item, avatarShape(avatar))
     sendMessage(iframe.contentWindow, PreviewMessageType.UPDATE, {
       options: {
         contractAddress: item.contractAddress,
         itemId: item.itemId ?? undefined,
-        profile: 'default',
+        profile: onAvatar ? address : 'default',
         // Load straight into the fashion pose (like the per-card previews) so the avatar doesn't flash
         // a T-pose; emotes auto-detect + play their own animation.
         type: isEmote ? undefined : PreviewType.AVATAR,
@@ -100,7 +120,7 @@ export function HoverPreviewLayer() {
         disableFadeEffect: true
       }
     })
-  }, [item, token, booted])
+  }, [item, token, booted, address, avatar])
 
   function handleLoad() {
     // The FIRST LOAD is the default avatar rendering = engine booted; it's not an item load.
@@ -116,7 +136,7 @@ export function HoverPreviewLayer() {
     if (s.item && s.token === loadingTokenRef.current) setReady()
   }
 
-  if (!mounted) return null
+  if (!mounted || onDetailPage) return null
 
   const active = !!item && !!rect
   const wrapStyle: CSSProperties = active

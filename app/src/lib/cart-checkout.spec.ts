@@ -112,6 +112,30 @@ describe('reviewCart', () => {
     expect(review).toEqual({ buyable: [], unavailable: [], own: [], liveTotalCredits: 0, orderChanged: false })
   })
 
+  it('multiplies a PRIMARY line by its quantity in the live total and carries quantity on the line', async () => {
+    // A primary (mint) line with 3 copies: per-unit price stays, but the live total counts all 3.
+    const items = [{ ...item('a', 20, { itemId: 'a', tokenId: undefined }), quantity: 3 }]
+    const review = await reviewCart(items, BUYER, resolverFrom({ a: trade(2) }))
+
+    expect(review.buyable[0].priceCredits).toBe(20) // per-unit
+    expect(review.buyable[0].quantity).toBe(3)
+    expect(review.liveTotalCredits).toBe(60) // 20 × 3
+  })
+
+  it('forces quantity 1 for a SECONDARY line even if a quantity was passed', async () => {
+    const items = [{ ...item('a', 20, { tokenId: '7' }), quantity: 5 }]
+    const review = await reviewCart(items, BUYER, resolverFrom({ a: trade(2) }))
+
+    expect(review.buyable[0].quantity).toBe(1)
+    expect(review.liveTotalCredits).toBe(20)
+  })
+
+  it('defaults quantity to 1 when a line carries none (backward-compat)', async () => {
+    const review = await reviewCart([item('a', 20)], BUYER, resolverFrom({ a: trade(2) }))
+    expect(review.buyable[0].quantity).toBe(1)
+    expect(review.liveTotalCredits).toBe(20)
+  })
+
   it('centsToCredits rounds up to whole credits', () => {
     expect(centsToCredits(200)).toBe(20)
     expect(centsToCredits(201)).toBe(21)

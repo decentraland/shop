@@ -73,6 +73,7 @@ export function Dropdown({
     <S.Root className={className || undefined} ref={ref}>
       <S.Trigger
         type="button"
+        data-dropdown-trigger
         data-open={open || undefined}
         aria-haspopup="listbox"
         aria-expanded={open}

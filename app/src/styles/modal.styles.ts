@@ -2,7 +2,7 @@ import styled from '@emotion/styled'
 import { keyframes } from '@emotion/react'
 import { theme } from '~/styles/theme'
 
-const { colors, radius } = theme
+const { colors, radius, z } = theme
 
 const popIn = keyframes`
   0% {
@@ -21,7 +21,8 @@ export const Backdrop = styled.div`
   background: rgba(0, 0, 0, 0.5);
   display: grid;
   place-items: center;
-  z-index: 100;
+  // Above the global DCL navbar so the backdrop dims the full viewport (navbar included).
+  z-index: ${z.overlay};
 `
 
 // data-success centers the layout for the post-listing confirmation view.

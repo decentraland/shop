@@ -17,6 +17,7 @@ import { isOwnTrade } from '~/lib/ownership'
 import { t } from '~/intl/i18n'
 import { isRejection } from '~/lib/errors'
 import * as S from './MarketCheckout.styles'
+import type { SuccessNavState } from '~/pages/Success'
 
 // Market-specific mapping: keeps the "…Refreshing the market…" sold-out copy (the market view
 // refetches live prices on this failure), so it maps locally rather than via the shared soldOrRemoved.
@@ -230,7 +231,18 @@ export function MarketCheckout({
         transaction_hash: txHash ?? null
       })
       void qc.invalidateQueries({ queryKey: ['usd-balance'] })
-      navigate('/success', { state: { items: [toCatalogItem(listing)], txHash } })
+      // The legacy listing was consumed — refresh the browse grids, the PDP money queries, My Assets
+      // and Activity so the bought item stops showing as buyable and appears as owned/purchased without
+      // a manual reload (mirrors the shop BuyModal success path).
+      void qc.invalidateQueries({ queryKey: ['detail-trade'] })
+      void qc.invalidateQueries({ queryKey: ['shop-item'] })
+      void qc.invalidateQueries({ queryKey: ['item-resales', listing.contractAddress, listing.itemId] })
+      void qc.invalidateQueries({ queryKey: ['shop-items'] })
+      void qc.invalidateQueries({ queryKey: ['catalog-items'] })
+      void qc.invalidateQueries({ queryKey: ['my-assets'] })
+      void qc.invalidateQueries({ queryKey: ['purchases'] })
+      const successState: SuccessNavState = { items: [toCatalogItem(listing)], txHash }
+      navigate('/success', { state: successState })
     } catch (e) {
       console.error('[market] buy now failed', e)
       // Release the reserved dollars so the balance isn't stuck until the TTL.

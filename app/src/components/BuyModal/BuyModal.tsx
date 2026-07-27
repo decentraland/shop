@@ -14,7 +14,8 @@ import { buyWithCredits } from '~/lib/buy'
 import { buyGasless, waitForSettlement, GaslessUnavailableError, SettlementPendingError } from '~/lib/buy-gasless'
 import { gaslessEnabled } from '~/lib/gasless-config'
 import { isOwnTrade } from '~/lib/ownership'
-import { CREDIT_PACKS, createPackCheckout } from '~/lib/payments'
+import { createPackCheckout, MAX_OFFER_PACKS } from '~/lib/payments'
+import { useCreditPacks } from '~/hooks/useCreditPacks'
 import { RESUME_BUY_KEY } from '~/lib/resume-buy'
 import { t } from '~/intl/i18n'
 import { friendlyError, isInsufficient } from '~/lib/errors'
@@ -24,10 +25,7 @@ import { WarningTriangleIcon } from '~/components/Icons/WarningTriangleIcon'
 import { SuccessCheckIcon } from '~/components/Icons/SuccessCheckIcon'
 import { ArrowRightIcon } from '~/components/Icons/ArrowRightIcon'
 import * as M from './modal.styles'
-
-// The three top-up packs offered when the buyer is short on credits. The cheapest one that still
-// clears the shortfall is pre-selected. Packs come from the canonical shop catalogue.
-const OFFER_PACKS = CREDIT_PACKS.slice(0, 3)
+import loaderLogo from '~/assets/credits/loader-logo.svg'
 
 type Phase = 'loading' | 'ready' | 'nofunds' | 'processing' | 'complete' | 'error'
 
@@ -55,6 +53,11 @@ export function BuyModal({
   const { data: balance } = useBalance(session)
   const qc = useQueryClient()
   const navigate = useNavigate()
+  // The top-up packs offered when the buyer is short on credits (all four the credits-server returns —
+  // the modal is widened to fit them in one row, Figma 1179-182656). Sourced from the credits-server
+  // catalogue (single source of truth); falls back to the bundled packs so this critical picker always
+  // renders. The cheapest pack that still clears the shortfall is pre-selected.
+  const OFFER_PACKS = useCreditPacks().packs.slice(0, MAX_OFFER_PACKS)
 
   const [phase, setPhase] = useState<Phase>('loading')
   const [error, setError] = useState<string | null>(null)
@@ -196,6 +199,25 @@ export function BuyModal({
         transaction_hash: txHash ?? null
       })
       void qc.invalidateQueries({ queryKey: ['usd-balance'] })
+      // A successful buy changes the item's listing/availability and the buyer's holdings, so refresh
+      // the PDP money queries, the browse grids, My Assets and Activity — otherwise the PDP keeps
+      // showing a Buy CTA for the token just bought and it's absent from My Assets/Activity until the
+      // 30s staleTime lapses. Mirrors ItemDetail.refreshManage's key set.
+      void qc.invalidateQueries({ queryKey: ['detail-trade'] })
+      void qc.invalidateQueries({ queryKey: ['shop-item'] })
+      void qc.invalidateQueries({ queryKey: ['owned-token', item.contractAddress, item.tokenId] })
+      void qc.invalidateQueries({ queryKey: ['public-token', item.contractAddress, item.tokenId] })
+      void qc.invalidateQueries({ queryKey: ['item-resales', item.contractAddress, item.itemId] })
+      void qc.invalidateQueries({ queryKey: ['shop-items'] })
+      void qc.invalidateQueries({ queryKey: ['catalog-items'] })
+      void qc.invalidateQueries({ queryKey: ['my-assets'] })
+      void qc.invalidateQueries({ queryKey: ['purchases'] })
+      // The PDP's "You own N of this" note is keyed 'owned-item-count' — bump it so it reflects the copy
+      // just bought. The homepage featured row ('overview-listings') and cart cross-sell ('upsell-listings')
+      // should drop a just-sold last copy rather than keep offering it.
+      void qc.invalidateQueries({ queryKey: ['owned-item-count'] })
+      void qc.invalidateQueries({ queryKey: ['overview-listings'] })
+      void qc.invalidateQueries({ queryKey: ['upsell-listings'] })
       setPhase('complete')
     } catch (e) {
       if (!isUserRejection(e)) captureError(e, { flow: 'buy', step: 'submit', gasless: usedGasless })
@@ -353,7 +375,7 @@ export function BuyModal({
         {/* Processing — completing transaction */}
         {phase === 'processing' && (
           <M.Body data-processing>
-            <M.Logo src="/icon-192.png" alt="" width={61} height={61} />
+            <M.Logo src={loaderLogo} alt="" width={61} height={61} />
             <M.ProcessingText>
               {resume ? t('buyModal.completingPurchase') : t('buyModal.completingTransaction')}
             </M.ProcessingText>
@@ -396,7 +418,7 @@ function AssetRow({ item, priceCredits }: { item: CatalogItem; priceCredits: num
       <M.AssetInfo>
         <div>
           <M.AssetName title={item.name}>{item.name || t('buyModal.itemFallback')}</M.AssetName>
-          {item.creator ? <M.AssetCreator>{t('search.byCreator', { name: item.creator })}</M.AssetCreator> : null}
+          {item.creator ? <M.AssetCreator address={item.creator} /> : null}
         </div>
         <M.AssetPrice>
           <M.AssetPriceIco />

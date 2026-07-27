@@ -78,7 +78,7 @@ export function FittingRoom() {
 
   const conflicts = useMemo(() => conflictingIds(items), [items])
   const urns = useMemo(() => wornUrns(items, worn, target), [items, worn, target])
-  const total = items.reduce((sum, i) => sum + i.priceCredits, 0)
+  const total = items.reduce((sum, i) => sum + i.priceCredits * i.quantity, 0)
 
   // The WearablePreview iframe rebuilds its src (and reloads) whenever the equipped urns change, so
   // mask each reload with the loading overlay instead of letting the avatar flash to empty and back.
@@ -149,6 +149,7 @@ export function FittingRoom() {
                 disableBackground
                 disableFadeEffect
                 dev={config.chainId === 80002}
+                unity
                 onLoad={() => setPreviewReady(true)}
               />
               {!previewReady ? (

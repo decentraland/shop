@@ -20,12 +20,13 @@ const PAGE_NAMES: Record<string, string> = {
   '/assets': 'assets',
   '/my-assets': 'my_assets',
   '/my-favorites': 'favorites',
-  '/my-purchases': 'my_purchases',
+  '/activity': 'activity',
   '/import': 'import',
   '/store-settings': 'store_settings',
   '/cart': 'cart',
   '/credits': 'credits',
-  '/success': 'success'
+  '/success': 'success',
+  '/authorizations': 'authorizations'
 }
 
 // Overview (home) stays eager for the fastest first paint; every other route is code-split so it
@@ -37,9 +38,10 @@ const Creator = lazy(() => import('~/pages/Creator').then(m => ({ default: m.Cre
 const StoreSettings = lazy(() => import('~/pages/StoreSettings').then(m => ({ default: m.StoreSettings })))
 const MyAssets = lazy(() => import('~/pages/MyAssets').then(m => ({ default: m.MyAssets })))
 const MyFavorites = lazy(() => import('~/pages/MyFavorites').then(m => ({ default: m.MyFavorites })))
-const MyPurchases = lazy(() => import('~/pages/MyPurchases').then(m => ({ default: m.MyPurchases })))
+const Activity = lazy(() => import('~/pages/Activity').then(m => ({ default: m.Activity })))
 const ImportListings = lazy(() => import('~/pages/ImportListings').then(m => ({ default: m.ImportListings })))
 const Cart = lazy(() => import('~/pages/Cart').then(m => ({ default: m.Cart })))
+const Authorizations = lazy(() => import('~/pages/Authorizations').then(m => ({ default: m.Authorizations })))
 const GetCredits = lazy(() => import('~/pages/GetCredits').then(m => ({ default: m.GetCredits })))
 const Success = lazy(() => import('~/pages/Success').then(m => ({ default: m.Success })))
 const NotFound = lazy(() => import('~/pages/NotFound').then(m => ({ default: m.NotFound })))
@@ -83,7 +85,7 @@ export function App() {
     const path = location.pathname
     const page =
       PAGE_NAMES[path] ??
-      (path.startsWith('/item/')
+      (path.startsWith('/item/') || path.startsWith('/token/')
         ? 'item'
         : path.startsWith('/collection/')
           ? 'collection'
@@ -109,15 +111,23 @@ export function App() {
               {/* Assets is now the unified browse (native + legacy). Keep /market as an alias so old
                 links don't 404 — it lands on the same grid. */}
               <Route path="/market" element={<Navigate to="/assets" replace />} />
-              <Route path="/item/:contractAddress/:tokenId" element={<ItemDetail />} />
+              {/* Two detail routes so the id is never ambiguous (an itemId and a tokenId can collide —
+                  item 0's tokens have small tokenIds). /item is the generic buy view; /token is a
+                  specific owned/listed copy. Both render ItemDetail, which branches on the param. */}
+              <Route path="/item/:contractAddress/:itemId" element={<ItemDetail />} />
+              <Route path="/token/:contractAddress/:tokenId" element={<ItemDetail />} />
               <Route path="/collection/:contractAddress" element={<Collection />} />
               <Route path="/assets/creator/:address" element={<Creator />} />
               <Route path="/store-settings" element={<StoreSettings />} />
               <Route path="/my-assets" element={<MyAssets />} />
               <Route path="/my-favorites" element={<MyFavorites />} />
-              <Route path="/my-purchases" element={<MyPurchases />} />
+              <Route path="/activity" element={<Activity />} />
+              {/* Activity absorbed the old My Purchases page — keep the old path as a redirect so
+                  existing links (e.g. the Success page, bookmarks) don't 404. */}
+              <Route path="/my-purchases" element={<Navigate to="/activity" replace />} />
               <Route path="/import" element={<ImportListings />} />
               <Route path="/cart" element={<Cart />} />
+              <Route path="/authorizations" element={<Authorizations />} />
               <Route path="/credits" element={<GetCredits />} />
               <Route path="/success" element={<Success />} />
               <Route path="*" element={<NotFound />} />

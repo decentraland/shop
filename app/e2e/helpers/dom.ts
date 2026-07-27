@@ -30,6 +30,20 @@ export async function clickByText(page: Page, selector: string, re: RegExp): Pro
   )
 }
 
+// Click the first element whose aria-label matches `re` (for icon-only buttons with no text).
+// Returns whether one was found.
+export async function clickByAria(page: Page, re: RegExp): Promise<boolean> {
+  return page.evaluate((src: string) => {
+    const rx = new RegExp(src, 'i')
+    const el = [...document.querySelectorAll('[aria-label]')].find(e => rx.test(e.getAttribute('aria-label') || ''))
+    if (el) {
+      ;(el as HTMLElement).click()
+      return true
+    }
+    return false
+  }, re.source)
+}
+
 // Wait until an element matching `selector` + `re` exists and is enabled, then click it.
 export async function clickWhenEnabled(page: Page, selector: string, re: RegExp, timeout = 15000): Promise<void> {
   await page.waitForFunction(

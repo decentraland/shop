@@ -1,8 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
-vi.mock('~/config', () => ({ config: { marketplaceServerUrl: 'http://mps.test', nftApiUrl: 'http://nft.test' } }))
+vi.mock('~/config', () => ({ config: { marketplaceServerUrl: 'http://mps.test' } }))
 
-import { fetchCollection, fetchCollectionItems, fetchCreatorItems, fetchCreatorCollections } from '~/lib/collections'
+import {
+  fetchCollection,
+  fetchCollectionItems,
+  fetchCatalogItems,
+  fetchCreatorItems,
+  fetchCreatorCollections
+} from '~/lib/collections'
 
 type RawItem = {
   id: string
@@ -209,7 +215,7 @@ describe('when fetching a single collection by contract', () => {
     const meta = await fetchCollection('0xabc')
 
     const url = new URL(fetchMock.mock.calls[0][0] as string)
-    expect(url.origin + url.pathname).toBe('http://nft.test/v1/collections')
+    expect(url.origin + url.pathname).toBe('http://mps.test/v1/collections')
     expect(url.searchParams.get('contractAddress')).toBe('0xabc')
     expect(meta).toEqual({ contractAddress: '0xabc', name: 'Black Dragon', creator: '0xartist' })
   })
@@ -240,7 +246,7 @@ describe('when fetching a creator’s published collections', () => {
     await fetchCreatorCollections('0xArtist', { first: 12, skip: 24 })
 
     const url = new URL(fetchMock.mock.calls[0][0] as string)
-    expect(url.origin + url.pathname).toBe('http://nft.test/v1/collections')
+    expect(url.origin + url.pathname).toBe('http://mps.test/v1/collections')
     expect(url.searchParams.get('creator')).toBe('0xArtist')
     expect(url.searchParams.get('sortBy')).toBe('newest')
     expect(url.searchParams.get('first')).toBe('12')
@@ -367,5 +373,57 @@ describe('when mapping optional catalog fields', () => {
     expect(items[0].itemId).toBeNull()
     expect(items[0].rarity).toBe('common')
     expect(items[0].thumbnail).toBe('')
+  })
+})
+
+describe('when fetching the full catalog (browse "All" / "Not for Sale")', () => {
+  it('should hit /v3/catalog/items with the shared filters and forward isWearableSmart + isOnSale', async () => {
+    const fetchMock = mockFetchOk([rawItem({ priceCredits: 0 })])
+
+    const { items } = await fetchCatalogItems({
+      category: 'wearable',
+      rarities: ['legendary'],
+      wearableCategories: ['eyewear'],
+      search: 'stars',
+      sortBy: 'newest',
+      isWearableSmart: true,
+      isOnSale: false,
+      first: 48
+    })
+
+    const url = new URL(fetchMock.mock.calls[0][0] as string)
+    expect(url.origin + url.pathname).toBe('http://mps.test/v3/catalog/items')
+    expect(url.searchParams.get('category')).toBe('wearable')
+    expect(url.searchParams.getAll('rarity')).toEqual(['legendary'])
+    expect(url.searchParams.getAll('wearableCategory')).toEqual(['eyewear'])
+    expect(url.searchParams.get('search')).toBe('stars')
+    expect(url.searchParams.get('isWearableSmart')).toBe('true')
+    expect(url.searchParams.get('isOnSale')).toBe('false')
+    expect(url.searchParams.get('includeSocialEmotes')).toBe('false')
+    // priceCredits === 0 flags a not-for-sale item.
+    expect(items[0].priceCredits).toBe(0)
+  })
+
+  it('should omit the category param when it is "all" and never send a credit price range', async () => {
+    const fetchMock = mockFetchOk([])
+
+    await fetchCatalogItems({ category: 'all', minPriceCredits: 5, maxPriceCredits: 50 } as never)
+
+    const url = new URL(fetchMock.mock.calls[0][0] as string)
+    expect(url.searchParams.has('category')).toBe(false)
+    // The credit price-range is intentionally not wired to this endpoint (MANA-denominated) — omitted.
+    expect(url.searchParams.has('minPrice')).toBe(false)
+    expect(url.searchParams.has('maxPrice')).toBe(false)
+    expect(url.searchParams.has('minPriceCredits')).toBe(false)
+    expect(url.searchParams.has('maxPriceCredits')).toBe(false)
+  })
+
+  it('should omit isOnSale entirely for the "all" status (undefined)', async () => {
+    const fetchMock = mockFetchOk([])
+
+    await fetchCatalogItems({})
+
+    const url = new URL(fetchMock.mock.calls[0][0] as string)
+    expect(url.searchParams.has('isOnSale')).toBe(false)
   })
 })

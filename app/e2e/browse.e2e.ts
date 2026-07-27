@@ -49,6 +49,18 @@ describe('browse the shop', () => {
     expect(labels.some(l => l.includes('buy now'))).toBe(true)
   })
 
+  it('shows a "N on sale" badge on an item with multiple listings', async () => {
+    app = await launchApp({ path: '/assets' })
+    const { page } = app
+    await waitForText(page, 'Galaxy Hat')
+    // The Galaxy Hat fixture has listingCount 3 → its card carries a "3 on sale" badge; single-listing
+    // items (Nebula Jacket) don't.
+    const badges = await page.$$eval('[data-testid="card-listings"]', els =>
+      els.map(e => e.textContent?.trim().toLowerCase())
+    )
+    expect(badges.some(b => b?.includes('3 on sale'))).toBe(true)
+  })
+
   it('opens the item detail by clicking a card (whole-card overlay link)', async () => {
     app = await launchApp({ path: '/assets' })
     const { page } = app

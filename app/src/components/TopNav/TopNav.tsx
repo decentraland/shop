@@ -12,7 +12,9 @@ const Navbar = lazy(() => import('decentraland-ui2/dist/components/Navbar').then
 export function TopNav(props: NavbarProps) {
   return (
     <Suspense fallback={<S.Skeleton aria-hidden />}>
-      <Navbar {...props} />
+      <S.NavbarViolet>
+        <Navbar {...props} />
+      </S.NavbarViolet>
     </Suspense>
   )
 }

@@ -125,8 +125,33 @@ describe('when fetching the buyer purchase history', () => {
 
     const result = await fetchUserPurchases('0xABC', IDENTITY)
 
-    expect(result.items).toEqual(purchases)
+    // The record is returned with a normalised `txHash` (null here, no settlement hash on the payload).
+    expect(result.items).toEqual([{ ...purchases[0], txHash: null }])
     expect(signedFetch.mock.calls[0][0]).toBe('https://credits.example/users/0xabc/purchases')
+  })
+
+  it('should normalise the settlement hash from either txHash or transactionHash', async () => {
+    signedFetch.mockResolvedValueOnce(
+      ok({
+        purchases: [
+          { id: 'p1', tradeId: 't1', usdCents: 100, credits: 10, status: 'SETTLED', createdAt: 1, txHash: '0xaaa' },
+          {
+            id: 'p2',
+            tradeId: 't2',
+            usdCents: 100,
+            credits: 10,
+            status: 'SETTLED',
+            createdAt: 2,
+            transactionHash: '0xbbb'
+          },
+          { id: 'p3', tradeId: 't3', usdCents: 100, credits: 10, status: 'PENDING', createdAt: 3 }
+        ]
+      })
+    )
+
+    const result = await fetchUserPurchases('0xabc', IDENTITY)
+
+    expect(result.items.map(i => i.txHash)).toEqual(['0xaaa', '0xbbb', null])
   })
 
   it('should request status=all when opts.all is set', async () => {

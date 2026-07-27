@@ -1,6 +1,7 @@
 import styled from '@emotion/styled'
 import { css } from '@emotion/react'
 import { theme } from '~/styles/theme'
+import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { Button } from '~/components/Button'
 import { Icon } from '~/components/Icon'
 import { Chip } from '~/styles/chip.styles'
@@ -55,13 +56,10 @@ export const Main = styled.div`
   grid-template-columns: minmax(0, 1045fr) minmax(0, 514fr);
   gap: 48px;
   align-items: start;
-  max-width: 1607px;
-  margin: 0 auto;
 
   ${media.maxWidth('lg')} {
     grid-template-columns: 1fr;
     gap: 24px;
-    max-width: none;
   }
 `
 
@@ -85,6 +83,16 @@ export const Preview = styled.div`
     height: 100%;
     border: 0;
     display: block;
+  }
+
+  /* Invisible viewport sentinel for the IntersectionObserver that pauses the preview off-screen.
+     Absolute + pointer-events:none so it neither takes layout space (undoing the greedy child sizing
+     above) nor blocks the preview controls. */
+  & > [data-preview-viewport] {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
   }
 
   & > [data-preview-toggle] {
@@ -438,11 +446,20 @@ export const StockCol = styled.div`
   text-align: right;
 `
 
+// data-out = "OUT OF STOCK" beside a not-for-sale price.
 export const StockValue = styled.div`
   font-size: 18px;
   font-weight: 500;
   line-height: 1;
   color: ${colors.text2};
+
+  &[data-out] {
+    font-size: 14px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    color: ${colors.muted1};
+  }
 `
 
 export const PriceLabel = styled.div`
@@ -450,7 +467,7 @@ export const PriceLabel = styled.div`
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0;
-  color: #5e5b67;
+  color: ${colors.muted1};
 `
 
 // Base price row. `data-variant`: none (unavailable) / sale (flash sale) — market carries the "≈" approx.
@@ -461,9 +478,14 @@ export const Price = styled.div`
   font-weight: 700;
   color: ${colors.text};
 
+  /* Not for sale: "Not for Sale" + an info tooltip, 14px semibold, no PRICE label. */
   &[data-variant='none'] {
-    font-size: 18px;
-    color: ${colors.muted};
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    color: ${colors.text};
   }
   &[data-variant='sale'] {
     flex-wrap: wrap;
@@ -484,6 +506,18 @@ export const PriceInner = styled.span`
 export const PriceValue = styled.span`
   font-size: 30px;
   line-height: 1;
+`
+
+export const PriceInfo = styled.span`
+  display: inline-flex;
+  color: ${colors.muted2};
+  cursor: help;
+
+  &:focus-visible {
+    outline: 2px solid ${colors.accent};
+    outline-offset: 2px;
+    border-radius: ${radius.chip};
+  }
 `
 
 export const Approx = styled.span`
@@ -609,7 +643,7 @@ export const AddCart = styled.button`
   background: ${colors.blackBtn};
   color: ${colors.softWhite};
   border: 0;
-  border-radius: 8px;
+  border-radius: 16px;
   font-weight: 600;
   font-size: 15px;
   text-transform: uppercase;
@@ -738,4 +772,24 @@ export const SkelBtn = styled.span`
   width: 100%;
   border-radius: 8px;
   margin-top: 8px;
+`
+
+// The credits mark beside a price. Matches the price number (near-black) per the Figma credits mark,
+// not the violet accent. data-was is the smaller, muted mark on a struck-through compare-at price.
+export const Diamond = styled(CurrencyIcon)`
+  width: 30px;
+  height: 30px;
+  color: ${colors.text};
+
+  &[data-was] {
+    width: 20px;
+    height: 20px;
+    color: ${colors.muted};
+  }
+`
+
+// Smaller mark inside the mobile dual CTA's price.
+export const CtaDiamond = styled(CurrencyIcon)`
+  width: 20px;
+  height: 20px;
 `

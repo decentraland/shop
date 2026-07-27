@@ -1,2 +1,2 @@
 export { FilterBar, FilterPanel, RARITIES, SORTS } from './FilterBar'
-export type { PanelController } from './FilterBar'
+export type { PanelController, FilterChip } from './FilterBar'

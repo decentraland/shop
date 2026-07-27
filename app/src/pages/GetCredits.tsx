@@ -5,18 +5,21 @@ import { CircularProgress } from 'decentraland-ui2'
 import { useWallet } from '~/store/wallet'
 import { Icon } from '~/components/Icon'
 import { CURRENCY, formatAmount } from '~/lib/currency'
+import { detailRouteFor } from '~/lib/routes'
 import { useSeo } from '~/hooks/useSeo'
 import { track, errorCode } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
 import { t } from '~/intl/i18n'
 import { RESUME_BUY_KEY } from '~/lib/resume-buy'
 import { RESUME_CART_KEY } from '~/lib/cart-checkout'
+import type { CartNavState } from '~/pages/Cart'
 import type { CatalogItem } from '~/lib/api'
 import packChips from '~/assets/credits/pack-chips.webp'
 import creditCoin from '~/assets/credits/credit-coin.webp'
 import checkCircle from '~/assets/credits/check-circle.svg'
 import loaderLogo from '~/assets/credits/loader-logo.svg'
-import { CREDIT_PACKS, createPackCheckout, pollCreditGrant, isMockPayments, type CreditPack } from '~/lib/payments'
+import { createPackCheckout, pollCreditGrant, isMockPayments, type CreditPack } from '~/lib/payments'
+import { useCreditPacks } from '~/hooks/useCreditPacks'
 import * as S from './GetCredits.styles'
 
 // Live Stripe when real payments are configured; otherwise the built-in mock (dev). Single source of
@@ -52,6 +55,8 @@ export function GetCredits() {
   const { session, signIn } = useWallet()
   const qc = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
+  // Catalogue from the credits-server (single source of truth); falls back to the bundled packs.
+  const { packs, isLoading: packsLoading } = useCreditPacks()
 
   const [phase, setPhase] = useState<Phase>('select')
   const [selected, setSelected] = useState<CreditPack | null>(null)
@@ -110,7 +115,13 @@ export function GetCredits() {
           // The cart consumes RESUME_CART_KEY itself (we only detect + route here).
           try {
             if (sessionStorage.getItem(RESUME_CART_KEY)) {
-              navigate('/cart', { state: { resumeCheckout: true } })
+              // Carry the credits that just landed so the cart's resumed checkout can hand them to the
+              // /success page for the combined "credits + items" view (Figma 1231-250927).
+              const cartState: CartNavState = {
+                resumeCheckout: true,
+                ...(creditsGranted > 0 ? { creditsAdded: creditsGranted } : {})
+              }
+              navigate('/cart', { state: cartState })
               return
             }
           } catch {
@@ -124,11 +135,9 @@ export function GetCredits() {
             if (pending) {
               sessionStorage.removeItem(RESUME_BUY_KEY)
               const pendingItem = JSON.parse(pending) as CatalogItem
-              const seg = pendingItem.tokenId ?? pendingItem.itemId
-              if (pendingItem.contractAddress && seg) {
-                navigate(`/item/${pendingItem.contractAddress}/${seg}`, {
-                  state: { item: pendingItem, resumeBuy: true }
-                })
+              const detailPath = detailRouteFor(pendingItem)
+              if (detailPath) {
+                navigate(detailPath, { state: { item: pendingItem, resumeBuy: true } })
                 return
               }
             }
@@ -268,7 +277,7 @@ export function GetCredits() {
               {t('getCredits.canceledNote')}
             </S.Note>
           )}
-          <PackGrid onSelect={pack => void startCheckout(pack)} />
+          <PackGrid packs={packs} loading={packsLoading} onSelect={pack => void startCheckout(pack)} />
         </>
       )}
 
@@ -361,10 +370,35 @@ export function GetCredits() {
   )
 }
 
-function PackGrid({ onSelect }: { onSelect: (pack: CreditPack) => void }) {
+function PackGrid({
+  packs,
+  loading,
+  onSelect
+}: {
+  packs: CreditPack[]
+  loading: boolean
+  onSelect: (pack: CreditPack) => void
+}) {
+  // Content-shaped skeletons (same shimmer as the rest of the app) while the catalogue loads, so the
+  // grid keeps its shape instead of flashing a bare spinner. Four matches the usual pack count.
+  if (loading) {
+    return (
+      <S.Packs aria-busy="true" aria-label={t('getCredits.packsLoading', { currency: CURRENCY.name })}>
+        {[0, 1, 2, 3].map(i => (
+          <S.PackSkeleton key={i} data-testid="pack-skeleton" aria-hidden>
+            <S.Inner>
+              <S.LabelSk className="skeleton" />
+              <S.ArtSk className="skeleton" />
+              <S.CtaSk className="skeleton" />
+            </S.Inner>
+          </S.PackSkeleton>
+        ))}
+      </S.Packs>
+    )
+  }
   return (
     <S.Packs>
-      {CREDIT_PACKS.map(pack => (
+      {packs.map(pack => (
         <S.Pack
           key={pack.id}
           type="button"

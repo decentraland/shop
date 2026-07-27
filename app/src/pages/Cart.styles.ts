@@ -78,7 +78,7 @@ export const Back = styled.button`
 
 export const Body = styled.div`
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 600px;
+  grid-template-columns: minmax(0, 1fr) 615px;
   gap: 24px;
   align-items: start;
 
@@ -87,28 +87,44 @@ export const Body = styled.div`
   }
 `
 
+// Groups the breadcrumb + the two-column body; no background of its own (the gray comes from body).
+export const Top = styled.div`
+  position: relative;
+`
+
+// The left column = TWO stacked white cards, 12px apart, both rounded-16 on the gray page.
+export const Left = styled.div`
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+`
+
+// Header card: "Cart: N Items" on the left, Fitting Room on the right.
+export const HeadCard = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #fff;
+  border-radius: 16px;
+  padding: 12px 12px 12px 24px;
+
+  ${mobile} {
+    gap: 8px;
+    padding: 12px;
+  }
+`
+
+// Items card: the cart-card list, 24px padding all round so the last line has breathing room.
 export const Panel = styled.section`
   min-width: 0;
   background: #fff;
-  border: 1px solid ${colors.line};
   border-radius: 16px;
   padding: 24px;
 
   ${mobile} {
     padding: 16px;
-  }
-`
-
-export const PanelHead = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 24px;
-
-  ${mobile} {
-    margin-bottom: 16px;
-    gap: 8px;
   }
 `
 
@@ -135,9 +151,9 @@ export const PanelBack = styled.button`
 
 export const PanelTitle = styled.h1`
   margin: 0;
-  font-size: 18px;
+  font-size: 14px;
   font-weight: 600;
-  line-height: 1.2;
+  line-height: 1.57;
   color: ${colors.text};
 
   ${mobile} {
@@ -195,10 +211,12 @@ export const Fitting = styled.button`
 export const List = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 24px;
 `
 
 // A cart line = the Figma "Cart cards" component (thumbnail + name/creator + quantity + price).
+// data-unavailable = the line's listing is no longer buyable (sold out / gone / expired): calmly
+// dimmed with greyed media, still readable and removable. Excluded from the total and from checkout.
 export const Card = styled.div`
   position: relative;
   display: flex;
@@ -208,12 +226,19 @@ export const Card = styled.div`
   border: 1px solid #cfcdd4;
   border-radius: ${radius.card};
   overflow: hidden;
+
+  &[data-unavailable] {
+    opacity: 0.6;
+  }
+  &[data-unavailable] img {
+    filter: grayscale(1);
+  }
 `
 
 export const Thumb = styled.div`
   position: relative;
   flex-shrink: 0;
-  width: 137px;
+  width: 137.5px;
   height: 137px;
   background: ${colors.media};
   border-radius: ${radius.card};
@@ -372,6 +397,9 @@ export const Price = styled.div`
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  /* Always right-aligned: with a stepper present space-between handles it; for secondary/unique lines
+     (no stepper) the auto margin keeps the lone price on the right instead of falling to the left. */
+  margin-left: auto;
   font-size: 24px;
   font-weight: 600;
   color: ${colors.text2};
@@ -402,11 +430,18 @@ export const PriceWas = styled.span`
 
 export const Actions = styled.div`
   position: absolute;
-  top: 10px;
-  right: 10px;
+  top: 9px;
+  right: 7px;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
+`
+
+export const Unavailable = styled.span`
+  margin-left: auto;
+  font-size: 14px;
+  font-weight: 600;
+  color: ${colors.muted};
 `
 
 const iconBtn = css`
@@ -467,7 +502,7 @@ export const Summary = styled.aside`
   display: flex;
   flex-direction: column;
   background: #fff;
-  border: 1px solid ${colors.line};
+  box-shadow: 0 1px 3px rgba(22, 21, 24, 0.06);
   border-radius: 16px;
   padding: 16px;
 
@@ -488,10 +523,10 @@ export const Summary = styled.aside`
 `
 
 export const SummaryTitle = styled.h2`
-  margin: 0 0 16px;
+  margin: 0 0 24px;
   padding-bottom: 16px;
   border-bottom: 1px solid #cfcdd4;
-  font-size: 20px;
+  font-size: 24px;
   font-weight: 600;
   color: ${colors.text};
 
@@ -525,13 +560,13 @@ export const TotalValue = styled.span`
   align-items: center;
   gap: 8px;
   font-size: 24px;
-  font-weight: 700;
-  color: ${colors.text};
+  font-weight: 600;
+  color: ${colors.text2};
 `
 
 export const TotalIco = styled(CurrencyIcon)`
-  width: 24px;
-  height: 24px;
+  width: 30px;
+  height: 30px;
   background: ${colors.accent};
 `
 
@@ -577,6 +612,32 @@ export const MsgNotice = styled(ErrorNotice)`
 `
 
 // The upsell rail wraps a shared CollectionCarousel (which supplies its own top margin).
+// The cross-sell sits on WHITE while the page above is gray: a full-bleed white band starts at the
+// panels' bottom and extends down through the page's 80px bottom padding so the white meets the footer
+// with no gray strip. The top margin sits ABOVE that band, so it shows the gray page background.
 export const Upsell = styled.div`
-  margin-top: 8px;
+  position: relative;
+  margin-top: 48px;
+  /* The whole gap from the top of the cross-sell to the "You might also like" heading — the shared
+     carousel's own top margin is zeroed below so this padding isn't stacked on top of it. */
+  padding: 47px 0 24px;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: -80px; /* eat .page's bottom padding so the white reaches the footer */
+    left: 50%;
+    width: 100vw;
+    transform: translateX(-50%);
+    background: ${colors.bg};
+    z-index: 0;
+  }
+  & > * {
+    position: relative;
+    z-index: 1;
+  }
+  & section {
+    margin-top: 0;
+  }
 `

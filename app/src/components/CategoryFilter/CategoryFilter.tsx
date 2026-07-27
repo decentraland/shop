@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { t } from '~/intl/i18n'
-import { Icon, type IconName } from '~/components/Icon'
+import { type IconName } from '~/components/Icon'
 import { Chevron } from '~/components/Chevron'
 import * as S from './CategoryFilter.styles'
 
@@ -15,7 +15,7 @@ import * as S from './CategoryFilter.styles'
 type Sub = { key: string; labelKey: string; icon: IconName }
 type Top = { key: string; labelKey: string; expandable?: boolean; subs?: Sub[] }
 
-const CATEGORIES: Top[] = [
+export const CATEGORIES: Top[] = [
   { key: 'all', labelKey: 'categories.shopAll' },
   {
     key: 'wearable',
@@ -45,7 +45,10 @@ const CATEGORIES: Top[] = [
       { key: 'Horror', labelKey: 'categories.horror', icon: 'emote-horror' },
       { key: 'Miscellaneous', labelKey: 'categories.miscellaneous', icon: 'emote-misc' }
     ]
-  }
+  },
+  // NAMEs is a distinct destination (not a collectibles filter): selecting it swaps the grid for the
+  // NAMEs purchase page (see Assets.tsx). No sub-categories.
+  { key: 'names', labelKey: 'categories.names' }
 ]
 
 export function CategoryFilter({
@@ -56,7 +59,9 @@ export function CategoryFilter({
   title,
   flat = false,
   collections = false,
-  onCollections
+  onCollections,
+  hideAll = false,
+  extraLabelKey = 'categories.collections'
 }: {
   category: string
   subCategory: string | null
@@ -70,6 +75,10 @@ export function CategoryFilter({
   // the active mode (mutually exclusive with the category selection); `onCollections` toggles it.
   collections?: boolean
   onCollections?: () => void
+  // My Assets: hide the "Shop All" entry (owned sections only) and relabel the onCollections entry
+  // (e.g. "My Creations") so the same category nav can be reused across pages.
+  hideAll?: boolean
+  extraLabelKey?: string
 }) {
   // Accordion state is separate from the active category so clicking an open header collapses it
   // (the old derive-from-category approach couldn't close). Wearables starts open when it's active.
@@ -91,7 +100,7 @@ export function CategoryFilter({
   return (
     <S.Root data-flat={flat || undefined}>
       {title ? <S.Title>{title}</S.Title> : null}
-      {CATEGORIES.map(top => {
+      {CATEGORIES.filter(top => !(hideAll && top.key === 'all')).map(top => {
         const open = expandedKey === top.key && !!top.subs
         // In collections mode nothing in the normal category list is highlighted.
         const selected = !collections && top.key === category
@@ -120,7 +129,7 @@ export function CategoryFilter({
                       onClick={() => onSub(subCategory === sub.key ? null : sub.key)}
                     >
                       <S.SubLeft>
-                        <Icon name={sub.icon} color="#43404a" />
+                        <S.SubIcon name={sub.icon} aria-hidden />
                         <S.SubLabel data-sub-label>{t(sub.labelKey)}</S.SubLabel>
                       </S.SubLeft>
                     </S.Sub>
@@ -135,7 +144,7 @@ export function CategoryFilter({
       {onCollections ? (
         <S.Group>
           <S.Cat type="button" data-cat data-selected={collections || undefined} onClick={onCollections}>
-            <S.CatLabel>{t('categories.collections')}</S.CatLabel>
+            <S.CatLabel>{t(extraLabelKey)}</S.CatLabel>
           </S.Cat>
         </S.Group>
       ) : null}

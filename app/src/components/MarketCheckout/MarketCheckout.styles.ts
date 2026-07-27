@@ -102,7 +102,7 @@ export const Approx = styled.span`
 export const Diamond = styled(CurrencyIcon)`
   width: 20px;
   height: 20px;
-  color: ${colors.accent};
+  color: ${colors.text};
 `
 
 // Composes the global `.muted` for colour; adds spacing.

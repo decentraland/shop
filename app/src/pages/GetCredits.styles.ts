@@ -3,7 +3,7 @@ import { keyframes } from '@emotion/react'
 import { theme } from '~/styles/theme'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 
-const { colors, gradients } = theme
+const { colors, gradients, radius } = theme
 
 const indeterminate = keyframes`
   0% { left: -40%; }
@@ -128,6 +128,40 @@ export const Inner = styled.span`
   border-radius: 20px;
   overflow: hidden;
   transition: box-shadow 0.15s ease;
+`
+
+// Loading placeholder for the pack grid while the catalogue loads: the same dark card shell as a real
+// pack, inert, with content-shaped shimmer blocks where the label, artwork and price CTA go — so the
+// grid keeps its shape instead of flashing a bare spinner.
+export const PackSkeleton = styled.div`
+  position: relative;
+  display: block;
+  padding: 4px;
+  border-radius: 24px;
+  text-align: center;
+  cursor: default;
+`
+
+export const LabelSk = styled.span`
+  display: block;
+  width: 60%;
+  height: 24px;
+  margin: 40px auto 4px;
+`
+
+export const ArtSk = styled.span`
+  display: block;
+  width: calc(100% - 24px);
+  margin: 4px 12px 0;
+  aspect-ratio: 1 / 1;
+  border-radius: 16px;
+`
+
+export const CtaSk = styled.span`
+  display: block;
+  height: 48px;
+  margin: 20px 24px 40px;
+  border-radius: ${radius.btn};
 `
 
 export const Badge = styled.span`
@@ -360,7 +394,7 @@ export const CreditsText = styled.p`
 export const Diamond = styled(CurrencyIcon)`
   width: 30px;
   height: 30px;
-  color: ${colors.accent};
+  color: ${colors.text};
 `
 
 export const Amount = styled.strong`

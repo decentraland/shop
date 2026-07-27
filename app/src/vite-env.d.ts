@@ -8,12 +8,12 @@ interface ImportMetaEnv {
   readonly VITE_APP_VERSION?: string
   readonly VITE_AUTH_URL?: string
   readonly VITE_BUILDER_SERVER_URL?: string
+  readonly VITE_BUILDER_URL?: string
   readonly VITE_CHAIN_ID?: string
   readonly VITE_CREDITS_SERVER_URL?: string
   readonly VITE_DCL_DEFAULT_ENV?: string
   readonly VITE_GASLESS_CHECKOUT?: string
   readonly VITE_MARKETPLACE_SERVER_URL?: string
-  readonly VITE_NFT_API_URL?: string
   readonly VITE_PEER_URL?: string
   readonly VITE_PROFILE_URL?: string
   readonly VITE_RELAYER_URL?: string

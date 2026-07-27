@@ -19,3 +19,9 @@
   height: 1em;
   vertical-align: -0.125em;
 }
+/* The credits mark is always near-black — it must NOT inherit a context tint (e.g. a green income
+   amount in Activity, or a violet accent). Only the amount text is colored, never the currency glyph. */
+.ccy-mark,
+.ccy {
+  color: var(--text);
+}

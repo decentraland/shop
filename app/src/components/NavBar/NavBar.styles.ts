@@ -15,7 +15,8 @@ export const Subnav = styled.div`
   align-items: center;
   gap: 24px;
   height: 66px;
-  padding: 0 40px;
+  /* 54px matches the ui2 Navbar's desktop side padding so the sub-nav aligns with the top nav. */
+  padding: 0 54px;
   background: #fff;
   border-bottom: 1px solid ${colors.line};
 
@@ -155,7 +156,7 @@ export const Balance = styled.span`
 export const BalanceIco = styled(CurrencyIcon)`
   width: 20px;
   height: 20px;
-  color: ${colors.accent};
+  color: ${colors.text};
 `
 
 // Sized loading placeholder; the shimmer comes from the global `skeleton` class it also carries.

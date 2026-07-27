@@ -125,6 +125,8 @@ export const List = styled.ul`
   gap: 12px;
 `
 
+// data-unavailable = the line's listing is no longer buyable (sold out / gone / expired): dimmed with
+// greyed media, still readable and removable. Excluded from the drawer total and unit count.
 export const Card = styled.li`
   position: relative;
   display: flex;
@@ -134,6 +136,13 @@ export const Card = styled.li`
   border-radius: ${radius.card};
   overflow: hidden;
   background: #fff;
+
+  &[data-unavailable] {
+    opacity: 0.6;
+  }
+  &[data-unavailable] img {
+    filter: grayscale(1);
+  }
 `
 
 export const Thumb = styled.div`
@@ -255,7 +264,13 @@ export const Price = styled.div`
 export const Diamond = styled(CurrencyIcon)`
   width: 22px;
   height: 22px;
-  color: ${colors.rarity};
+  color: ${colors.text};
+`
+
+export const Unavailable = styled.span`
+  font-size: 14px;
+  font-weight: 600;
+  color: ${colors.muted};
 `
 
 export const Del = styled.button`
@@ -315,7 +330,7 @@ export const TotalVal = styled.span`
 export const TotalDiamond = styled(CurrencyIcon)`
   width: 28px;
   height: 28px;
-  color: ${colors.rarity};
+  color: ${colors.text};
 `
 
 export const Ctas = styled.div`

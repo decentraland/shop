@@ -90,6 +90,13 @@ async function fetchOrderStatusReal(
     metadata: {},
     signal
   })
+  // A 404 right after the Stripe return is transient, NOT a failure: the order row is created before
+  // the redirect, but on the return callback it can be briefly invisible to this read (read-replica
+  // lag) or the signed-fetch caller identity isn't fully restored yet (server returns the same 404 for
+  // "not found" and "not yours"). Treat it as still-processing so the poll keeps trying; if it never
+  // resolves within the window, pollCreditGrantReal returns 'pending' ("on the way") — the verified
+  // webhook is the source of truth and still grants the credits. Never a hard error on a paid order.
+  if (res.status === 404) return { status: 'processing' }
   if (!res.ok) throw new Error(`order status ${res.status}`)
   return res.json() as Promise<OrderStatus>
 }

@@ -2,15 +2,18 @@
   "ENVIRONMENT": "development",
   "CHAIN_ID": "80002",
   "MARKETPLACE_SERVER_URL": "https://marketplace-api.decentraland.zone",
-  "NFT_API_URL": "https://marketplace-api.decentraland.zone",
   "AUTH_URL": "/auth",
   "RPC_URL": "https://rpc.decentraland.org/amoy",
-  "CREDITS_SERVER_URL": "http://localhost:",
+  "CREDITS_SERVER_URL": "http://localhost:3000",
+  "NOTIFICATIONS_SERVER_URL": "https://notifications.decentraland.zone",
   "BUILDER_SERVER_URL": "https://builder-api.decentraland.zone",
+  "BUILDER_URL": "https://decentraland.zone/builder",
   "PEER_URL": "https://peer.decentraland.zone",
   "PROFILE_URL": "https://decentraland.zone/profile",
   "SHOP_SERVER_URL": "",
   "STRIPE_PUBLISHABLE_KEY": "pk_test_51TtW4PBS62I2c52AfO6XxarHwrACg9Zbacgeai73klSZbUleKajNN9gkSwRSlwCZHfWrdKZQyVhH0komsYEDB5ub00j4pzRj4c",
-  "SEGMENT_WRITE_KEY": "",
-  "SENTRY_DSN": ""
+  "SEGMENT_WRITE_KEY": "Hip6yFNl1d8c82RMx0l5oWxesleuX6P6",
+  "SENTRY_DSN": "https://734376fbe845d08ef24e2b2d0481b3f4@o4504361728212992.ingest.us.sentry.io/4511789233209344",
+  "PROCEEDS_TO_TREASURY": "false",
+  "TREASURY_ADDRESS": "0x1111111111111111111111111111111111111111"
 }

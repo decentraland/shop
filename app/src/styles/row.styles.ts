@@ -34,18 +34,25 @@ export const ViewAll = styled(Link)`
   font-size: 15px;
   letter-spacing: 0.046em;
   text-transform: uppercase;
+
+  &:hover {
+    text-decoration: underline;
+  }
 `
 
 // Cards have an OUTWARD hover glow; an overflow-x scroller also clips overflow-y, so the rail reserves
-// room for the glow with vertical PADDING + a negative horizontal margin (so the side glow bleeds into
-// the page gutter) rather than a negative vertical margin (which would re-clip it). `data-rail` lets a
-// page scope an override of the flex rail (e.g. Overview swaps it for a fixed-N-per-view grid).
+// room for the glow with PADDING on all sides rather than a negative margin (which would re-clip it).
+// The matching negative margin-left then pulls the track back by that 14px so the FIRST card's edge
+// lines up with the section title and the page gutter instead of sitting inset — the glow simply
+// overflows into the gutter. `data-rail` lets a page scope an override of the flex rail (e.g. Overview
+// swaps it for a fixed-N-per-view grid).
 export const Track = styled.div`
   display: flex;
   gap: 16px;
   overflow-x: auto;
-  padding: 12px 10px;
-  margin: 0 -10px;
+  padding: 12px 14px;
+  margin-left: -14px;
+  scroll-padding-inline: 14px;
   scroll-snap-type: x proximity;
 
   & > * {

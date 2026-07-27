@@ -4,8 +4,7 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { FittingRoom } from './FittingRoom'
-import { useCart } from '~/store/cart'
-import type { CatalogItem } from '~/lib/api'
+import { useCart, type CartItem } from '~/store/cart'
 
 // Pin chain (URN prefix) + stub the heavy 3D iframe with a probe that exposes the equipped urns.
 vi.mock('~/config', () => ({ config: { chainId: 80002 } }))
@@ -22,7 +21,7 @@ vi.mock('~/components/LazyWearablePreview', () => ({
   }
 }))
 
-function item(over: Partial<CatalogItem> & { id: string }): CatalogItem {
+function item(over: Partial<CartItem> & { id: string }): CartItem {
   return {
     name: over.id,
     creator: '',
@@ -36,6 +35,7 @@ function item(over: Partial<CatalogItem> & { id: string }): CatalogItem {
     priceCredits: 5,
     gender: null,
     isSmart: false,
+    quantity: 1,
     ...over
   }
 }
@@ -44,7 +44,7 @@ const hatA = item({ id: 'a', name: 'Hat A', wearableCategory: 'hat', itemId: '10
 const hatB = item({ id: 'b', name: 'Hat B', wearableCategory: 'hat', itemId: '11' })
 const top = item({ id: 'c', name: 'Jacket', wearableCategory: 'upper_body', itemId: '12' })
 
-function open(items: CatalogItem[]) {
+function open(items: CartItem[]) {
   useCart.setState({ items, fittingOpen: true })
   return render(
     <MemoryRouter>

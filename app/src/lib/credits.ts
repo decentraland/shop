@@ -89,6 +89,11 @@ export type PurchaseRecord = {
   status: 'PENDING' | 'SETTLED' | 'EXPIRED'
   createdAt: number
   manaSettledWei: string | null
+  // Settlement tx hash, when the server exposes it. A cart of N items authorizes N separate intents
+  // but settles them in ONE on-chain accept([...]) tx, so all lines of one cart share this hash — the
+  // strongest signal for grouping them back into a single order (see lib/purchases.ts). Optional
+  // because older servers don't serialize it; grouping falls back to createdAt proximity then.
+  txHash: string | null
 }
 
 // The buyer's purchase history (paginated). Defaults to confirmed purchases; `all` also returns
@@ -107,13 +112,66 @@ export async function fetchUserPurchases(
   const url = `${config.creditsServerUrl}/users/${address.toLowerCase()}/purchases${q ? `?${q}` : ''}`
   const res = await signedFetch(url, { method: 'GET', identity, metadata: {} })
   if (!res.ok) throw new Error(`fetchUserPurchases ${res.status}: ${await res.text()}`)
-  const json = (await res.json()) as { purchases?: PurchaseRecord[]; total?: number }
-  const items = json.purchases ?? []
+  type RawPurchase = PurchaseRecord & { transactionHash?: string | null; txHash?: string | null }
+  const json = (await res.json()) as { purchases?: RawPurchase[]; total?: number }
+  // Normalise the settlement hash across the two field names servers have used (`txHash` /
+  // `transactionHash`) so grouping has one field to read; null when neither is present.
+  const items: PurchaseRecord[] = (json.purchases ?? []).map(p => ({
+    ...p,
+    txHash: p.txHash ?? p.transactionHash ?? null
+  }))
   const skip = opts?.skip ?? 0
   const first = opts?.first ?? items.length
   const total =
     typeof json.total === 'number' ? json.total : skip + items.length + (first > 0 && items.length >= first ? 1 : 0)
   return { items, total }
+}
+
+// One credit-pack (top-up) purchase: the buyer paid money (via the Stripe pack checkout) and received
+// `credits`. Distinct from an item PurchaseRecord — a top-up carries no tradeId; it credits the USD
+// balance. `usdCents` is what they paid; `credits` is what they got.
+export type CreditOrder = {
+  id: string
+  credits: number
+  usdCents: number
+  status: 'PENDING' | 'SETTLED' | 'EXPIRED'
+  createdAt: number
+}
+
+// The buyer's credit-pack purchase (top-up) history, paginated, newest first.
+//
+// Backed by credits-server `GET /users/:address/credit-orders` (signed fetch, ADR-44), which mirrors
+// the `/users/:address/purchases` convention and returns `{ orders: CreditOrder[], total }`. The
+// request is signed so the history stays private — the server 403s unless the path address matches
+// the authenticated signer. Defensive: ANY non-OK (incl. a 404 on an env where the endpoint isn't
+// deployed yet) resolves to an empty list, so the Activity feed just shows no credit rows instead of
+// erroring.
+export async function fetchUserCreditOrders(
+  address: string,
+  identity: AuthIdentity,
+  opts?: { first?: number; skip?: number }
+): Promise<{ items: CreditOrder[]; total: number }> {
+  const qs = new URLSearchParams()
+  if (opts?.first != null) qs.set('limit', String(opts.first))
+  if (opts?.skip != null) qs.set('offset', String(opts.skip))
+  const q = qs.toString()
+  const url = `${config.creditsServerUrl}/users/${address.toLowerCase()}/credit-orders${q ? `?${q}` : ''}`
+  try {
+    const res = await signedFetch(url, { method: 'GET', identity, metadata: {} })
+    if (!res.ok) {
+      void res.body?.cancel()
+      return { items: [], total: 0 }
+    }
+    const json = (await res.json()) as { orders?: CreditOrder[]; total?: number }
+    const items = json.orders ?? []
+    const skip = opts?.skip ?? 0
+    const first = opts?.first ?? items.length
+    const total =
+      typeof json.total === 'number' ? json.total : skip + items.length + (first > 0 && items.length >= first ? 1 : 0)
+    return { items, total }
+  } catch {
+    return { items: [], total: 0 }
+  }
 }
 
 // Releases reserved dollars from PENDING intents (by ephemeral credit id / salt) when a client-side

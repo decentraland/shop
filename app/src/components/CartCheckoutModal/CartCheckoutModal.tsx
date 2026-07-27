@@ -2,32 +2,40 @@ import type { CatalogItem } from '~/lib/api'
 import type { CreditPack } from '~/lib/payments'
 import { formatCredits } from '~/lib/currency'
 import { t } from '~/intl/i18n'
-import { ErrorNotice } from '~/components/ErrorNotice'
 import { CloseIcon } from '~/components/Icons/CloseIcon'
 import { WarningTriangleIcon } from '~/components/Icons/WarningTriangleIcon'
-import { SuccessCheckIcon } from '~/components/Icons/SuccessCheckIcon'
-import { CheckmarkIcon } from '~/components/Icons/CheckmarkIcon'
-import { ArrowRightIcon } from '~/components/Icons/ArrowRightIcon'
 import * as M from '~/components/BuyModal/modal.styles'
 import * as S from './CartCheckoutModal.styles'
+import loaderLogo from '~/assets/credits/loader-logo.svg'
+import buyErrorAvatar from '~/assets/error/buy-error.png'
 
-// A cart line as the modal displays it: the item + the LIVE credit price it will be charged.
-export type CheckoutLine = { item: CatalogItem; priceCredits: number }
+// The processing stages (mirrors Cart.tsx): reserve credits per unit → wait for the wallet signature →
+// settle the single on-chain tx. Kept as a local union so the modal has no dependency on Cart.
+export type CheckoutStage = 'reserving' | 'awaiting-signature' | 'settling'
+
+// A cart line as the modal displays it: the item + the LIVE per-unit credit price + how many units.
+export type CheckoutLine = { item: CatalogItem; priceCredits: number; quantity?: number }
 
 // The modal is a PURE presentational view of the checkout flow — all money logic (review, authorize,
-// buy, settle, release) stays in Cart.tsx. It renders the multi-item variants of the four pixel-perfect
+// buy, settle, release) stays in Cart.tsx. It renders the multi-item variants of the pixel-perfect
 // BuyModal states, reusing the shared modal shell (~/components/BuyModal/modal.styles, imported as M)
-// plus a few additions of its own (S: step counter, scrollable list, multi-item success list). Mirrors
-// Figma "New Shop 2026": 1182-218528 / 1182-219697 / 1182-220275.
-export type CheckoutPhase = 'processing' | 'nofunds' | 'complete' | 'error'
+// plus a few additions of its own (S: step counter, scrollable list). Mirrors Figma "New Shop 2026":
+// 1182-218528 / 1182-219697 / 1182-220275.
+// The success/confirmation state is NOT a modal phase anymore — the cart navigates to the standalone
+// /success page after purchase. This modal only covers the in-flight states.
+export type CheckoutPhase = 'processing' | 'nofunds' | 'error'
 
 type Props = {
   phase: CheckoutPhase
   balanceCredits: number
   onClose: () => void
   // processing
+  stage?: CheckoutStage
   step?: number
   total?: number
+  // Self-custody (MetaMask etc.) users get a "confirm to continue" prompt; managed (social) users sign
+  // transparently, so they never see a confirmation step. Never leak "wallet/transaction" — see CONVENTIONS.
+  isSelfCustody?: boolean
   // nofunds
   lines?: CheckoutLine[]
   shortfallCredits?: number
@@ -35,47 +43,52 @@ type Props = {
   selectedPack?: string
   onSelectPack?: (id: string) => void
   onBuyPacks?: () => void
-  // complete
-  purchased?: CatalogItem[]
-  onMyAssets?: () => void
-  onTryInWorld?: () => void
   // error
   message?: string | null
+  onRetry?: () => void
 }
 
 export function CartCheckoutModal(props: Props) {
   const { phase, balanceCredits, onClose } = props
   const busy = phase === 'processing'
-  // The success state has no header in Figma (1182-220275) — just the green banner + list + CTAs.
-  const showHead = phase !== 'complete'
-  const title = phase === 'nofunds' ? t('cartCheckout.titleNoFunds') : t('cartCheckout.titleBuy')
+  const title =
+    phase === 'error'
+      ? t('cartCheckout.errorTitle')
+      : phase === 'nofunds'
+        ? t('cartCheckout.titleNoFunds')
+        : t('cartCheckout.titleBuy')
   const tall = phase === 'processing'
 
   return (
     <M.Modal role="dialog" aria-modal="true" aria-label={t('cartCheckout.dialogAria')}>
       <M.Scrim onClick={busy ? undefined : onClose} aria-hidden />
       <M.Card data-tall={tall || undefined}>
-        {showHead && (
-          <M.Head>
-            <M.HeadRow>
-              <M.Title>{title}</M.Title>
-              {!busy && (
-                <M.X onClick={onClose} aria-label={t('buyModal.close')}>
-                  <CloseIcon />
-                </M.X>
-              )}
-            </M.HeadRow>
-            <M.Balance>
-              <M.BalanceLabel>
-                {phase === 'nofunds' ? t('buyModal.dclBalance') : t('buyModal.myCreditsBalance')}
-              </M.BalanceLabel>
-              <M.BalanceIco />
-              <M.BalanceValue>{formatCredits(balanceCredits)}</M.BalanceValue>
-            </M.Balance>
-          </M.Head>
-        )}
+        <M.Head>
+          <M.HeadRow>
+            <M.Title>{title}</M.Title>
+            {!busy && (
+              <M.X onClick={onClose} aria-label={t('buyModal.close')}>
+                <CloseIcon />
+              </M.X>
+            )}
+          </M.HeadRow>
+          <M.Balance>
+            <M.BalanceLabel>
+              {phase === 'nofunds' ? t('buyModal.dclBalance') : t('buyModal.myCreditsBalance')}
+            </M.BalanceLabel>
+            <M.BalanceIco />
+            <M.BalanceValue>{formatCredits(balanceCredits)}</M.BalanceValue>
+          </M.Balance>
+        </M.Head>
 
-        {phase === 'processing' && <Processing step={props.step ?? 1} total={props.total ?? 1} />}
+        {phase === 'processing' && (
+          <Processing
+            stage={props.stage ?? 'reserving'}
+            step={props.step ?? 1}
+            total={props.total ?? 1}
+            isSelfCustody={!!props.isSelfCustody}
+          />
+        )}
         {phase === 'nofunds' && (
           <NoFunds
             lines={props.lines ?? []}
@@ -87,19 +100,20 @@ export function CartCheckoutModal(props: Props) {
             onCancel={onClose}
           />
         )}
-        {phase === 'complete' && (
-          <Complete
-            purchased={props.purchased ?? []}
-            onMyAssets={props.onMyAssets ?? onClose}
-            onTryInWorld={props.onTryInWorld ?? onClose}
-          />
-        )}
         {phase === 'error' && (
           <M.Body>
-            <ErrorNotice message={props.message} />
+            <M.BuyError data-testid="buy-error">
+              <M.BuyErrorArt src={buyErrorAvatar} alt="" width={64} height={80} />
+              <M.BuyErrorText>
+                <b>{t('cartCheckout.errorHeadline')}</b> {t('cartCheckout.errorBody')}
+              </M.BuyErrorText>
+            </M.BuyError>
             <M.Ctas>
-              <M.Btn data-variant="gradient" onClick={onClose}>
-                {t('buyModal.close')}
+              <M.Btn data-variant="outline" onClick={onClose}>
+                {t('buyModal.cancel')}
+              </M.Btn>
+              <M.Btn data-variant="purple" onClick={props.onRetry ?? onClose}>
+                {t('cartCheckout.tryAgain')}
               </M.Btn>
             </M.Ctas>
           </M.Body>
@@ -109,21 +123,57 @@ export function CartCheckoutModal(props: Props) {
   )
 }
 
-// Processing (Figma 1182-218528): logo + "Completing transaction…" + progress bar with an "n/N"
-// step counter that advances as each line is authorized.
-function Processing({ step, total }: { step: number; total: number }) {
+// Processing (Figma 1182-232610). The flow has three HONEST stages so the bar never claims progress the
+// purchase hasn't made:
+//  - reserving: the N units' credits are reserved sequentially (silent) → a DETERMINATE bar fills to
+//    step/total, with an "n/N" counter when there's more than one unit.
+//  - awaiting-signature: ONE wallet prompt to sign/confirm the purchase → an INDETERMINATE bar (the
+//    buyer hasn't acted yet, so showing a near-full bar would be a lie).
+//  - settling: the single tx confirms on-chain → INDETERMINATE bar, "Completing transaction…".
+function Processing({
+  stage,
+  step,
+  total,
+  isSelfCustody
+}: {
+  stage: CheckoutStage
+  step: number
+  total: number
+  isSelfCustody: boolean
+}) {
+  const reserving = stage === 'reserving'
+  const pct = total > 0 ? Math.min(100, Math.round((step / total) * 100)) : 0
+  // Managed (social) users never confirm anything, so they never see a "confirm" prompt — they go
+  // straight to "completing". Copy is web2-first: no "wallet"/"transaction" for anyone (see CONVENTIONS).
+  const text =
+    stage === 'awaiting-signature'
+      ? isSelfCustody
+        ? t('buyModal.confirmToContinue')
+        : t('buyModal.completingTransaction')
+      : stage === 'settling'
+        ? t('buyModal.completingTransaction')
+        : t('cartCheckout.preparing')
   return (
     <M.Body data-processing>
-      <M.Logo src="/icon-192.png" alt="" width={61} height={61} />
-      <M.ProcessingText>{t('buyModal.completingTransaction')}</M.ProcessingText>
-      <S.ProgressRow>
+      <M.Logo src={loaderLogo} alt="" width={61} height={61} />
+      <M.ProcessingText>{text}</M.ProcessingText>
+      {reserving ? (
+        <S.ProgressRow>
+          <M.Progress aria-hidden>
+            <M.ProgressFill data-step style={{ width: `${pct}%` }} />
+          </M.Progress>
+          {total > 1 ? (
+            <S.Step>
+              {step}/{total}
+            </S.Step>
+          ) : null}
+        </S.ProgressRow>
+      ) : (
+        // Indeterminate: the base ProgressFill is the sliding shimmer (no fixed width).
         <M.Progress aria-hidden>
           <M.ProgressFill />
         </M.Progress>
-        <S.Step>
-          {step}/{total}
-        </S.Step>
-      </S.ProgressRow>
+      )}
     </M.Body>
   )
 }
@@ -148,42 +198,47 @@ function NoFunds({
   onCancel: () => void
 }) {
   const pack = packs.find(p => p.id === selectedPack)
+  const unitCount = lines.reduce((n, l) => n + (l.quantity ?? 1), 0)
   return (
     <M.Body>
-      <M.Warning>
+      <M.Warning data-testid="nofunds-warning">
         <WarningTriangleIcon />
         <M.WarningText>
           <b>{t('buyModal.insufficientFunds')}</b> {t('buyModal.warningNeedToBuy')}{' '}
           <b>{t('buyModal.warningCreditsAmount', { count: Math.max(0, shortfallCredits) })}</b>{' '}
-          {t('buyModal.warningToPurchase', { count: lines.length })}
+          {t('buyModal.warningToPurchase', { count: unitCount })}
         </M.WarningText>
       </M.Warning>
 
       <S.Scroll>
-        {lines.map(l => (
-          <M.Asset key={l.item.id}>
-            <M.AssetThumb>{l.item.thumbnail ? <img src={l.item.thumbnail} alt="" /> : null}</M.AssetThumb>
-            <M.AssetInfo>
-              <div>
-                <M.AssetName title={l.item.name}>{l.item.name || t('buyModal.itemFallback')}</M.AssetName>
-                {l.item.creator ? (
-                  <M.AssetCreator>{t('search.byCreator', { name: l.item.creator })}</M.AssetCreator>
-                ) : null}
-              </div>
-              <M.AssetPrice>
-                <M.AssetPriceIco />
-                <span>{formatCredits(l.priceCredits)}</span>
-              </M.AssetPrice>
-            </M.AssetInfo>
-          </M.Asset>
-        ))}
+        {lines.map(l => {
+          const qty = l.quantity ?? 1
+          return (
+            <M.Asset key={l.item.id}>
+              <M.AssetThumb>{l.item.thumbnail ? <img src={l.item.thumbnail} alt="" /> : null}</M.AssetThumb>
+              <M.AssetInfo>
+                <div>
+                  <M.AssetName title={l.item.name}>
+                    {l.item.name || t('buyModal.itemFallback')}
+                    {qty > 1 ? <S.QtyTag>{t('cartCheckout.qty', { count: qty })}</S.QtyTag> : null}
+                  </M.AssetName>
+                  {l.item.creator ? <M.AssetCreator address={l.item.creator} /> : null}
+                </div>
+                <M.AssetPrice>
+                  <M.AssetPriceIco />
+                  <span>{formatCredits(l.priceCredits * qty)}</span>
+                </M.AssetPrice>
+              </M.AssetInfo>
+            </M.Asset>
+          )
+        })}
       </S.Scroll>
 
       <M.Packs>
         {packs.map(p => {
           const on = p.id === selectedPack
           return (
-            <M.Pack key={p.id} data-on={on || undefined} onClick={() => onSelectPack(p.id)}>
+            <M.Pack key={p.id} data-testid="credit-pack" data-on={on || undefined} onClick={() => onSelectPack(p.id)}>
               <M.PackIco />
               <M.PackAmount>{formatCredits(p.credits)}</M.PackAmount>
               <M.PackUsd>(${p.usd.toFixed(2)})</M.PackUsd>
@@ -209,62 +264,6 @@ function NoFunds({
         </M.Btn>
       </M.Ctas>
     </M.Body>
-  )
-}
-
-// Purchase complete (Figma 1182-220275): green banner + a multi-item list of what was bought + the
-// My Assets / Try in world CTAs.
-function Complete({
-  purchased,
-  onMyAssets,
-  onTryInWorld
-}: {
-  purchased: CatalogItem[]
-  onMyAssets: () => void
-  onTryInWorld: () => void
-}) {
-  return (
-    <S.DoneBody>
-      <M.Success data-wide>
-        <SuccessCheckIcon size={60} />
-        <M.SuccessText data-wide>
-          <b>{t('getCredits.successTitle')}</b> {t('buyModal.successBody')}
-        </M.SuccessText>
-      </M.Success>
-
-      <S.Done>
-        <S.DoneScroll>
-          {purchased.map(item => (
-            <S.DoneRow key={item.id}>
-              <S.DoneThumb>
-                {item.thumbnail ? <img src={item.thumbnail} alt="" /> : null}
-                <S.DoneCheck aria-hidden>
-                  <CheckmarkIcon />
-                </S.DoneCheck>
-              </S.DoneThumb>
-              <S.DoneInfo>
-                <S.DoneName title={item.name}>{item.name || t('buyModal.itemFallback')}</S.DoneName>
-                {item.creator ? <S.DoneCreator>{t('search.byCreator', { name: item.creator })}</S.DoneCreator> : null}
-              </S.DoneInfo>
-              <S.DonePrice>
-                <S.DonePriceIco />
-                <span>{formatCredits(item.priceCredits)}</span>
-              </S.DonePrice>
-            </S.DoneRow>
-          ))}
-        </S.DoneScroll>
-      </S.Done>
-
-      <M.Ctas>
-        <M.Btn data-variant="outline" onClick={onMyAssets}>
-          {t('buyModal.myAssets')}
-        </M.Btn>
-        <M.Btn data-variant="ruby" onClick={onTryInWorld}>
-          {t('buyModal.tryInWorld')}
-          <ArrowRightIcon />
-        </M.Btn>
-      </M.Ctas>
-    </S.DoneBody>
   )
 }
 

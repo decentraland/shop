@@ -1,34 +1,31 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { Chevron } from '~/components/Chevron'
-import { fetchUnified, type CatalogItem, type LegacyListing, type UnifiedListing } from '~/lib/api'
+import { fetchShopItems, type CatalogItem, type LegacyListing, type UnifiedListing } from '~/lib/api'
+import { fetchCatalogItems } from '~/lib/collections'
 import { manaWeiToCredits } from '~/lib/mana-rate'
 import { useManaRate } from '~/hooks/useManaRate'
 import { AssetCard } from '~/components/AssetCard'
-import { CategoryFilter } from '~/components/CategoryFilter'
-import { FilterBar, RARITIES, SORTS } from '~/components/FilterBar'
+import { Filters, type FilterStatus } from '~/components/Filters'
+import { FilterBar, type FilterChip, RARITIES, SORTS } from '~/components/FilterBar'
 import { SkeletonCards } from '~/components/SkeletonCards'
+import { listingKey } from '~/lib/listingKey'
 import { LoadMore } from '~/components/LoadMore'
 import { MarketCheckout } from '~/components/MarketCheckout'
-import * as S from './Assets.styles'
-import { Icon } from '~/components/Icon'
+import { useWallet } from '~/store/wallet'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
 import { useSeo } from '~/hooks/useSeo'
 import { SUBCAT_MAP } from '~/lib/categories'
+import { capitalizeFirst } from '~/lib/text'
 import { track } from '~/lib/analytics'
 import { t } from '~/intl/i18n'
 import { ErrorNotice } from '~/components/ErrorNotice'
+import { NamesPage } from '~/pages/NamesPage'
 import { Grid } from '~/styles/grid.styles'
+import * as S from './Assets.styles'
 
 // Items fetched per page (infinite scroll pages by cumulative offset — see useInfiniteGrid).
 const PAGE_SIZE = 48
-
-// Upper bound for the sidebar price range slider (in credits). The Min/Max text inputs stay free-form
-// (an exact price above this is still typable); the slider is the coarse control, so the bound is a
-// UX choice — comfortably above typical listing prices — NOT the placeholder Figma showed (4,000,000),
-// which would make each pixel worth thousands of credits and the slider useless.
-const PRICE_SLIDER_MAX = 100_000
 
 // A legacy row from the unified feed → the LegacyListing shape MarketCheckout (Buy Now) expects. The
 // unified item is a superset of CatalogItem carrying `manaWei` (present for legacy), so the projection
@@ -61,6 +58,7 @@ export function Assets() {
   const [searchParams] = useSearchParams()
   const q = (searchParams.get('q') ?? '').trim().toLowerCase()
   const qc = useQueryClient()
+  const { session, signIn } = useWallet()
 
   // Collectibles grid SEO. Fold the (case-preserved) search term into the title when present; the
   // description stays generic. Canonical/og:url naturally drop the ?q= (the hook uses the pathname),
@@ -76,26 +74,42 @@ export function Assets() {
   const [rarities, setRarities] = useState<string[]>([])
   const [priceMin, setPriceMin] = useState('')
   const [priceMax, setPriceMax] = useState('')
+  const [status, setStatus] = useState<FilterStatus>('on_sale')
+  const [smart, setSmart] = useState(false)
   const [sort, setSort] = useState('newest')
-  const [rarityOpen, setRarityOpen] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false) // mobile filters drawer
   const [checkout, setCheckout] = useState<LegacyListing | null>(null)
 
-  // Close the mobile filters drawer on Escape (it already closes on scrim tap / close button).
+  // Close the mobile filters drawer on Escape (it already closes on scrim tap / ✕) and lock body
+  // scroll while it's open so the page behind the bottom sheet can't scroll (only the sheet does).
   useEffect(() => {
     if (!filtersOpen) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setFiltersOpen(false)
     }
     document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prevOverflow
+    }
   }, [filtersOpen])
 
-  // Build the server filter set — /v3/catalog/unified does the filtering + sort + search.
+  // Browse is routed by the Status filter:
+  //  • 'on_sale' (DEFAULT) → the item-unified feed (/v3/catalog/unified?groupBy=item) — native + legacy
+  //    on-sale liquidity collapsed to ONE card per item (primary-preferred price + listingCount), with
+  //    Add-to-cart / Buy-now cards.
+  //  • 'all' / 'not_for_sale' → the full catalog (/v3/catalog/items, via fetchCatalogItems) — every
+  //    item incl. those not for sale, rendered as VIEW-only cards (no inline trade). 'not_for_sale'
+  //    passes isOnSale:false; 'all' leaves it unset (both).
+  const isUnified = status === 'on_sale'
   const min = priceMin && !Number.isNaN(Number(priceMin)) ? Number(priceMin) : undefined
   const max = priceMax && !Number.isNaN(Number(priceMax)) ? Number(priceMax) : undefined
   const wearableCategories = subCategory ? SUBCAT_MAP[subCategory] : undefined
   const sortBy = (SORTS.find(s => s.key === sort) ?? SORTS[0]).server
+  // Item-unified (on-sale) grid filter set — /v3/catalog/unified?groupBy=item does the filtering + sort
+  // + search, one card per item.
   const filters = {
     category,
     rarities: rarities.length ? rarities : undefined,
@@ -103,14 +117,41 @@ export function Assets() {
     minPriceCredits: min,
     maxPriceCredits: max,
     search: q || undefined,
-    sortBy
+    sortBy,
+    isSmart: smart || undefined,
+    onSale: true
+  }
+  // Full-catalog (all / not-for-sale) filter set. Same category/rarity/sub-category/search/sort/smart,
+  // minus the credit price-range (see fetchCatalogItems — that endpoint's range is MANA-denominated).
+  const catalogFilters = {
+    category,
+    rarities: rarities.length ? rarities : undefined,
+    wearableCategories,
+    search: q || undefined,
+    sortBy,
+    isWearableSmart: smart || undefined,
+    isOnSale: status === 'not_for_sale' ? false : undefined
   }
 
-  const { items, total, isLoading, error, hasNextPage, isFetchingNextPage, fetchNextPage } = useInfiniteGrid(
-    ['unified-listings', filters],
-    skip => fetchUnified({ ...filters, first: PAGE_SIZE, skip })
-  )
+  const { items, total, isLoading, isPlaceholderData, error, hasNextPage, isFetchingNextPage, fetchNextPage } =
+    useInfiniteGrid<CatalogItem>(
+      isUnified ? ['shop-items', filters] : ['catalog-items', catalogFilters],
+      skip =>
+        isUnified
+          ? fetchShopItems({ ...filters, first: PAGE_SIZE, skip })
+          : fetchCatalogItems({ ...catalogFilters, first: PAGE_SIZE, skip }),
+      // NAMEs isn't a grid category — don't fire a bogus catalog fetch when it's selected.
+      { enabled: category !== 'names' }
+    )
   const resultCount = total
+
+  // Show skeletons both on the first load (no data yet) and while a NEW filter/search/sort set is
+  // in-flight — in that window react-query is still handing us the PREVIOUS results (keepPreviousData),
+  // so without this the grid would keep the now-stale cards on screen until the new data lands. On the
+  // filter-change case keep the skeleton count equal to the number of cards currently shown so the grid
+  // height doesn't jump; on the very first load fall back to a sensible full-ish grid.
+  const showGridSkeletons = isLoading || isPlaceholderData
+  const gridSkeletonCount = isLoading ? 15 : Math.min(Math.max(items.length, 1), PAGE_SIZE)
 
   // The live market rate powers the legacy cards' fluctuating "≈" credit prices. If the oracle is
   // stale/down we still list the items but disable Buy Now with a notice (rather than pricing off a
@@ -123,15 +164,15 @@ export function Assets() {
   // result_count is accurate (see design/SHOP_TRACKING_SPEC.md §5.2). Refs dedupe + skip the initial load.
   const lastSearched = useRef<string | null>(null)
   useEffect(() => {
-    if (isLoading || !q || lastSearched.current === q) return
+    if (isLoading || isPlaceholderData || !q || lastSearched.current === q) return
     lastSearched.current = q
     track('Shop Searched', { query: q, result_count: resultCount })
-  }, [q, isLoading, resultCount])
+  }, [q, isLoading, isPlaceholderData, resultCount])
 
   const lastFilterSig = useRef<string>('__init__')
   useEffect(() => {
-    if (isLoading) return
-    const sig = JSON.stringify({ category, subCategory, rarities, min, max, sort })
+    if (isLoading || isPlaceholderData) return
+    const sig = JSON.stringify({ category, subCategory, rarities, min, max, sort, status, smart })
     if (lastFilterSig.current === '__init__' || lastFilterSig.current === sig) {
       lastFilterSig.current = sig
       return
@@ -144,11 +185,13 @@ export function Assets() {
         rarities,
         min_price_credits: min ?? null,
         max_price_credits: max ?? null,
+        status,
+        smart,
         sort
       },
       result_count: resultCount
     })
-  }, [category, subCategory, rarities, min, max, sort, isLoading, resultCount])
+  }, [category, subCategory, rarities, min, max, sort, status, smart, isLoading, isPlaceholderData, resultCount])
 
   function pickCategory(key: string) {
     setCategory(key)
@@ -157,209 +200,164 @@ export function Assets() {
   function toggleRarity(r: string) {
     setRarities(rs => (rs.includes(r) ? rs.filter(x => x !== r) : [...rs, r]))
   }
-  // Reset every filter to its default (Figma drawer "Clear Filters"). Filters apply live, so this
-  // takes effect immediately; the drawer's "Apply" just closes it.
+  // Reset every filter to its default. Filters apply live, so this takes effect immediately.
   function clearFilters() {
     setCategory('wearable')
     setSubCategory(null)
     setRarities([])
     setPriceMin('')
     setPriceMax('')
+    setStatus('on_sale')
+    setSmart(false)
   }
   function openCheckout(card: CatalogItem) {
-    const item = items.find(i => i.id === card.id)
-    if (item && item.source === 'legacy' && item.manaWei) setCheckout(toLegacyListing(item))
+    const item = items.find(i => i.id === card.id) as UnifiedListing | undefined
+    if (!item || item.source !== 'legacy' || !item.manaWei) return
+    // Signed out → into sign-in (returns to this browse page) rather than opening a checkout that can
+    // only dead-end. Legacy grid selection isn't restorable across the redirect, so no auto-resume —
+    // they land back here signed in and can buy in one click.
+    if (!session) {
+      signIn()
+      return
+    }
+    setCheckout(toLegacyListing(item))
   }
   function refreshGrid() {
-    void qc.invalidateQueries({ queryKey: ['unified-listings'] })
+    void qc.invalidateQueries({ queryKey: ['shop-items'] })
   }
 
-  // Dual-handle price range slider (sidebar). The two overlaid range inputs drive the SAME priceMin/
-  // priceMax state as the text inputs, so typing and dragging stay in sync. Values are clamped so the
-  // handles can't cross; an empty bound means "unbounded" (min → 0 shown, max → the slider ceiling).
-  const sliderMin = min != null ? Math.min(min, PRICE_SLIDER_MAX) : 0
-  const sliderMax = max != null ? Math.min(max, PRICE_SLIDER_MAX) : PRICE_SLIDER_MAX
-  const minPct = (sliderMin / PRICE_SLIDER_MAX) * 100
-  const maxPct = (sliderMax / PRICE_SLIDER_MAX) * 100
-  function onSlideMin(v: number) {
-    const n = Math.min(v, sliderMax)
-    setPriceMin(n <= 0 ? '' : String(n))
-  }
-  function onSlideMax(v: number) {
-    const n = Math.max(v, sliderMin)
-    setPriceMax(n >= PRICE_SLIDER_MAX ? '' : String(n))
-  }
+  // Applied-filter chips (Figma top-bar 1304-310186 / desktop 1256-293193): price, each selected
+  // rarity (in canonical order), Smart, and a non-default Status. Each removes just its own filter.
+  const chips: FilterChip[] = []
+  if (min != null || max != null)
+    chips.push({
+      key: 'price',
+      label: t('filter.price'),
+      onRemove: () => {
+        setPriceMin('')
+        setPriceMax('')
+      }
+    })
+  for (const r of RARITIES)
+    if (rarities.includes(r))
+      chips.push({ key: `rarity-${r}`, label: capitalizeFirst(r), onRemove: () => toggleRarity(r) })
+  if (smart) chips.push({ key: 'smart', label: t('filter.smart'), onRemove: () => setSmart(false) })
+  if (status !== 'on_sale')
+    chips.push({
+      key: 'status',
+      label: status === 'all' ? t('filter.statusAll') : t('filter.notForSale'),
+      onRemove: () => setStatus('on_sale')
+    })
 
   return (
-    <S.Browse data-testid="browse">
-      {filtersOpen ? <S.Scrim onClick={() => setFiltersOpen(false)} aria-hidden /> : null}
-      <S.Sidebar data-open={filtersOpen || undefined} data-testid="browse-sidebar">
-        <S.SidebarHead>
-          <S.SidebarTitle>{t('assets.filters')}</S.SidebarTitle>
-          <S.SidebarClose onClick={() => setFiltersOpen(false)} aria-label={t('assets.closeFilters')}>
-            <Icon name="close" size={16} />
-          </S.SidebarClose>
-        </S.SidebarHead>
-        <S.SectionLabel>{t('assets.category')}</S.SectionLabel>
-        <CategoryFilter
-          category={category}
-          subCategory={subCategory}
-          onCategory={pickCategory}
-          onSub={setSubCategory}
-        />
+    <S.Root data-testid="browse">
+      {/* NAMEs is a full-width page (Figma 1368-353269) — no filter sidebar; the breadcrumb returns
+          to the grid. Every other category shows the collectibles filter sidebar. */}
+      {category !== 'names' && (
+        <>
+          {filtersOpen ? <S.Scrim onClick={() => setFiltersOpen(false)} aria-hidden /> : null}
+          <S.Sidebar className={filtersOpen ? 'is-open' : ''} data-testid="browse-sidebar">
+            <S.DrawerHead>
+              <S.DrawerTitle>{t('assets.filters')}</S.DrawerTitle>
+              <S.CloseBtn onClick={() => setFiltersOpen(false)} aria-label={t('assets.closeFilters')}>
+                ✕
+              </S.CloseBtn>
+            </S.DrawerHead>
 
-        <S.Divider />
+            <S.SidebarScroll>
+              <Filters
+                category={category}
+                subCategory={subCategory}
+                onCategory={pickCategory}
+                onSub={setSubCategory}
+                priceMin={priceMin}
+                priceMax={priceMax}
+                onPriceMin={setPriceMin}
+                onPriceMax={setPriceMax}
+                rarities={rarities}
+                onToggleRarity={toggleRarity}
+                status={status}
+                onStatus={setStatus}
+                smart={smart}
+                onSmart={setSmart}
+              />
+            </S.SidebarScroll>
 
-        <S.SectionLabel>{t('filter.price')}</S.SectionLabel>
-        <S.PriceFilter>
-          <S.PriceInputs>
-            <S.PriceField>
-              <S.PriceFieldLabel>{t('assets.min')}</S.PriceFieldLabel>
-              <S.PriceBox>
-                <S.PriceCoin />
-                <input
-                  type="number"
-                  min="0"
-                  aria-label={t('assets.minPriceAria')}
-                  placeholder="0"
-                  value={priceMin}
-                  onChange={e => setPriceMin(e.target.value)}
-                />
-              </S.PriceBox>
-            </S.PriceField>
-            <S.PriceTo>{t('assets.priceTo')}</S.PriceTo>
-            <S.PriceField>
-              <S.PriceFieldLabel>{t('assets.max')}</S.PriceFieldLabel>
-              <S.PriceBox>
-                <S.PriceCoin />
-                <input
-                  type="number"
-                  min="0"
-                  aria-label={t('assets.maxPriceAria')}
-                  placeholder="0"
-                  value={priceMax}
-                  onChange={e => setPriceMax(e.target.value)}
-                />
-              </S.PriceBox>
-            </S.PriceField>
-          </S.PriceInputs>
-
-          <S.PriceSlider style={{ '--min-pct': `${minPct}%`, '--max-pct': `${maxPct}%` } as CSSProperties}>
-            <S.PriceTrack aria-hidden />
-            <S.PriceFill aria-hidden />
-            <input
-              type="range"
-              min={0}
-              max={PRICE_SLIDER_MAX}
-              value={sliderMin}
-              aria-label={t('assets.minPriceSliderAria')}
-              onChange={e => onSlideMin(Number(e.target.value))}
-            />
-            <input
-              type="range"
-              min={0}
-              max={PRICE_SLIDER_MAX}
-              value={sliderMax}
-              aria-label={t('assets.maxPriceSliderAria')}
-              onChange={e => onSlideMax(Number(e.target.value))}
-            />
-          </S.PriceSlider>
-
-          <S.PriceRange>
-            <S.PriceRangeVal>
-              <S.PriceCoin />
-              {sliderMin.toLocaleString()}
-            </S.PriceRangeVal>
-            <S.PriceRangeVal>
-              <S.PriceCoin />
-              {sliderMax.toLocaleString()}
-            </S.PriceRangeVal>
-          </S.PriceRange>
-        </S.PriceFilter>
-
-        <S.Divider />
-
-        {/* Rarity now lives at the bottom-left of the sidebar (Figma New Shop 2026) instead of a
-            top-right pill — a collapsible section over the shared RARITIES multi-select. */}
-        <S.SectionToggle
-          type="button"
-          data-testid="sidebar-section-toggle"
-          aria-expanded={rarityOpen}
-          onClick={() => setRarityOpen(o => !o)}
-        >
-          <S.SectionLabel as="span" data-section-label>
-            {t('assets.rarity')}
-          </S.SectionLabel>
-          <Chevron up={rarityOpen} size={20} color="var(--muted)" />
-        </S.SectionToggle>
-        {rarityOpen ? (
-          <S.RarityFilter data-testid="rarity-filter">
-            {RARITIES.map(r => (
-              <S.RarityCheck key={r} data-on={rarities.includes(r) || undefined} data-testid="rarity-filter-check">
-                <input type="checkbox" checked={rarities.includes(r)} onChange={() => toggleRarity(r)} />
-                <span>{r}</span>
-              </S.RarityCheck>
-            ))}
-          </S.RarityFilter>
-        ) : null}
-
-        {/* Drawer action bar (Figma node 1059-158189) — mobile only (CSS). Filters apply live, so
-            Apply simply dismisses the drawer; Clear Filters resets them all. */}
-        <S.SidebarFoot>
-          <S.Clear type="button" onClick={clearFilters}>
-            {t('assets.clearFilters')}
-          </S.Clear>
-          <S.Apply type="button" onClick={() => setFiltersOpen(false)}>
-            {t('assets.apply')}
-          </S.Apply>
-        </S.SidebarFoot>
-      </S.Sidebar>
+            {/* Bottom action bar (Figma node 1304-308322) — mobile only. Filters apply live, so this
+            simply dismisses the sheet. */}
+            <S.DrawerFoot>
+              <S.ShowItems type="button" onClick={() => setFiltersOpen(false)}>
+                {t('assets.showItems')}
+              </S.ShowItems>
+            </S.DrawerFoot>
+          </S.Sidebar>
+        </>
+      )}
 
       <S.Main>
-        <FilterBar
-          sort={sort}
-          onSort={setSort}
-          total={total}
-          loading={isLoading}
-          query={q}
-          onOpenFilters={() => setFiltersOpen(true)}
-        />
+        {category === 'names' ? (
+          // NAMEs is not a grid: full-width purchase page (no sidebar), back via the breadcrumb.
+          <NamesPage onBack={() => pickCategory('wearable')} />
+        ) : (
+          <>
+            <FilterBar
+              sort={sort}
+              onSort={setSort}
+              total={total}
+              loading={isLoading || isPlaceholderData}
+              query={q}
+              onOpenFilters={() => setFiltersOpen(true)}
+              chips={chips}
+              onClearChips={clearFilters}
+            />
 
-        {/* Legacy (market-priced) cards follow the live rate; if the oracle is down, Buy Now is paused.
+            {/* Legacy (market-priced) cards follow the live rate; if the oracle is down, Buy Now is paused.
             Only warn when the current results actually contain a market-priced item, so users browsing
             only fixed-price items aren't shown an irrelevant notice. */}
-        {rateError && items.some(i => i.source === 'legacy') ? (
-          <S.MarketBanner data-variant="warn">{t('assets.marketUnavailable')}</S.MarketBanner>
-        ) : null}
+            {rateError && isUnified && items.some(i => (i as UnifiedListing).source === 'legacy') ? (
+              <S.MarketBanner data-variant="warn">{t('assets.marketUnavailable')}</S.MarketBanner>
+            ) : null}
 
-        {error ? <ErrorNotice message={t('assets.loadError')} testId="browse-error" /> : null}
+            {error ? <ErrorNotice message={t('assets.loadError')} testId="browse-error" /> : null}
 
-        <Grid data-testid="grid">
-          {isLoading ? (
-            <SkeletonCards count={15} />
-          ) : (
-            <>
-              {items.map(item =>
-                item.source === 'legacy' ? (
-                  <AssetCard
-                    key={item.id}
-                    item={item}
-                    mode="market"
-                    marketPriceCredits={priceOf(item)}
-                    onBuyNow={openCheckout}
-                  />
-                ) : (
-                  <AssetCard key={item.id} item={item} />
-                )
+            <Grid data-testid="grid">
+              {showGridSkeletons ? (
+                <SkeletonCards count={gridSkeletonCount} />
+              ) : (
+                <>
+                  {items.map(item => {
+                    // View-only grids ('all' / 'not_for_sale'): every card is a VIEW card (no inline trade).
+                    if (!isUnified) return <AssetCard key={listingKey(item)} item={item} mode="view" />
+                    // On-sale unified grid: legacy rows → market (≈ + Buy now), native → Add-to-cart.
+                    const unified = item as UnifiedListing
+                    return unified.source === 'legacy' ? (
+                      <AssetCard
+                        key={listingKey(item)}
+                        item={unified}
+                        mode="market"
+                        marketPriceCredits={priceOf(unified)}
+                        onBuyNow={openCheckout}
+                      />
+                    ) : (
+                      <AssetCard key={listingKey(item)} item={item} />
+                    )
+                  })}
+                  {isFetchingNextPage ? <SkeletonCards count={6} /> : null}
+                </>
               )}
-              {isFetchingNextPage ? <SkeletonCards count={6} /> : null}
-            </>
-          )}
-        </Grid>
+            </Grid>
 
-        <LoadMore hasNextPage={hasNextPage} isFetching={isFetchingNextPage} onLoadMore={() => void fetchNextPage()} />
+            <LoadMore
+              hasNextPage={hasNextPage}
+              isFetching={isFetchingNextPage}
+              onLoadMore={() => void fetchNextPage()}
+            />
 
-        {!isLoading && items.length === 0 ? <p className="muted">{t('assets.noItems')}</p> : null}
+            {!isLoading && !isPlaceholderData && items.length === 0 ? (
+              <p className="muted">{t('assets.noItems')}</p>
+            ) : null}
+          </>
+        )}
       </S.Main>
 
       {checkout && rate ? (
@@ -373,6 +371,6 @@ export function Assets() {
           }}
         />
       ) : null}
-    </S.Browse>
+    </S.Root>
   )
 }

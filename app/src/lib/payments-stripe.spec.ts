@@ -108,6 +108,28 @@ describe('when polling a real credit grant', () => {
     expect(signedFetch).toHaveBeenCalledTimes(1)
   })
 
+  it('should treat a transient 404 on the Stripe return as still-processing and resolve once visible', async () => {
+    // On the return callback the order row can be briefly invisible (replica lag / identity not yet
+    // restored) → 404. That must NOT throw a hard error on a paid order; keep polling.
+    signedFetch
+      .mockResolvedValueOnce(fail(404, 'Order not found'))
+      .mockResolvedValueOnce(fail(404, 'Order not found'))
+      .mockResolvedValueOnce(ok({ status: 'credited', creditsGranted: 250, newBalance: 250 }))
+
+    const result = await pollCreditGrantReal('ord_404', IDENTITY, { intervalMs: 1 })
+
+    expect(result).toEqual({ status: 'credited', creditsGranted: 250, newBalance: 250 })
+    expect(signedFetch).toHaveBeenCalledTimes(3)
+  })
+
+  it('should return pending (not throw) when a 404 persists past the deadline', async () => {
+    signedFetch.mockResolvedValueOnce(fail(404, 'Order not found'))
+
+    const result = await pollCreditGrantReal('ord_404b', IDENTITY, { intervalMs: 1, timeoutMs: -1 })
+
+    expect(result).toEqual({ status: 'pending' })
+  })
+
   it('should abort before any request when the signal is already aborted', async () => {
     const controller = new AbortController()
     controller.abort()

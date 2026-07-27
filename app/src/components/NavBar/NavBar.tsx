@@ -1,5 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { NavLink, useNavigate, useSearchParams, useLocation } from 'react-router-dom'
+import * as Sentry from '@sentry/react'
+import { Experimental_CssVarsProvider as CssVarsProvider } from '@mui/material/styles'
+import { light as ui2Light } from 'decentraland-ui2/dist/theme'
 import { Icon } from '~/components/Icon'
 import { TopNav } from '~/components/TopNav'
 import { useWallet } from '~/store/wallet'
@@ -9,6 +12,8 @@ import { useCart } from '~/store/cart'
 import { CartPopover } from '~/components/CartPopover'
 import { SearchDropdown } from '~/components/SearchDropdown'
 import { CURRENCY } from '~/lib/currency'
+import { detailRouteFor } from '~/lib/routes'
+import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import { getRecentSearches, recordSearch, removeRecentSearch, clearRecentSearches } from '~/lib/recent-searches'
 import { track } from '~/lib/analytics'
 import type { CatalogItem } from '~/lib/api'
@@ -16,19 +21,29 @@ import type { CollectionHit, CreatorHit } from '~/lib/search'
 import { t } from '~/intl/i18n'
 import * as S from './NavBar.styles'
 
+// The ui2 Notifications feature is MUI-based (it reads `theme.breakpoints`/palette from a MUI theme
+// context), while the shop styles with emotion + its own tokens and mounts no MUI provider. So the
+// bell is lazy-loaded (the heavy ui2 feature only when signed in) and wrapped in a scoped MUI
+// CssVarsProvider carrying ui2's own theme — NOT ui2's ThemeProvider, which also injects a global
+// CssBaseline reset that would clobber the shop's styles. The provider only defines namespaced
+// `--mui-*` vars, so it doesn't leak into the rest of the app.
+const NotificationsBell = lazy(() => import('~/components/NotificationsBell'))
+
 export function NavBar() {
   const { session, connecting, signIn, disconnect, restore } = useWallet()
   const address = session?.address
   const { data: avatar, isLoading: isLoadingProfile } = useProfile(address)
   const { data: balance, isError: balanceError, isLoading: balanceLoading } = useBalance(session)
-  const cartCount = useCart(s => s.items.length)
+  const cartCount = useCart(s => s.items.reduce((n, i) => n + i.quantity, 0))
   const openCart = useCart(s => s.setOpen)
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { pathname } = useLocation()
-  // The Collectibles tab covers the whole browse surface: the grid + an item's detail page + a
-  // collection/creator page (a NavLink to /assets alone wouldn't light up on those routes).
-  const collectiblesActive = /^\/(assets|item|collection|creator)(\/|$)/.test(pathname)
+  // The Collectibles tab covers the whole browse surface: the grid (/assets), an item's detail page
+  // (/item/* and /token/* — both render ItemDetail), a collection page (/collection/*) and a creator
+  // page (/assets/creator/*, already under /assets). A NavLink to /assets alone wouldn't light up on
+  // any of the detail/collection routes, so match them explicitly here.
+  const collectiblesActive = /^\/(assets|item|token|collection)(\/|$)/.test(pathname)
   const urlQuery = searchParams.get('q') ?? ''
 
   // What the input shows (drives the box) and what the dropdown queries (debounced) are separate:
@@ -86,12 +101,10 @@ export function NavBar() {
       type: 'item',
       item_id: item.id
     })
-    // Secondary listings carry tokenId; catalog items carry itemId — mirror AssetCard's route segment.
-    const routeSeg = item.tokenId ?? item.itemId
-    if (item.contractAddress && routeSeg) {
-      navigate(`/item/${item.contractAddress}/${routeSeg}`, {
-        state: { item, tradeId: item.tradeId }
-      })
+    // A token row → /token, a catalog row → /item (see lib/routes detailRouteFor).
+    const detailPath = detailRouteFor(item)
+    if (detailPath) {
+      navigate(detailPath, { state: { item, tradeId: item.tradeId } })
     } else {
       runSearch(q)
     }
@@ -164,6 +177,20 @@ export function NavBar() {
         avatar={avatar}
         onClickSignIn={() => signIn()}
         onClickSignOut={() => void disconnect()}
+        notificationSlot={
+          session ? (
+            // The ui2 Notifications feature can throw while rendering (e.g. a notification with an
+            // unparseable date → formatDistanceToNow "Invalid time value"). Isolate it so a bad item
+            // renders nothing instead of white-screening the whole navbar/app.
+            <Sentry.ErrorBoundary fallback={<></>}>
+              <CssVarsProvider theme={ui2Light} defaultMode="light">
+                <Suspense fallback={null}>
+                  <NotificationsBell />
+                </Suspense>
+              </CssVarsProvider>
+            </Sentry.ErrorBoundary>
+          ) : undefined
+        }
       />
 
       {/* Shop sub-nav (sections + search + cart) — the row under the global DCL navbar. */}
@@ -176,7 +203,12 @@ export function NavBar() {
             {t('nav.collectibles')}
           </NavLink>
           <NavLink to="/my-assets">{t('nav.myAssets')}</NavLink>
-          {session ? <NavLink to="/my-purchases">{t('nav.myPurchases')}</NavLink> : null}
+          {session ? <NavLink to="/activity">{t('nav.activity')}</NavLink> : null}
+          {/* Approvals are only meaningful for self-custody wallets; managed (web2) users never see wallet
+              jargon (CONVENTIONS.md), so the entry point is hidden for them. */}
+          {session && showsWalletConfirmations(session.providerType) ? (
+            <NavLink to="/authorizations">{t('nav.authorizations')}</NavLink>
+          ) : null}
         </S.Tabs>
         <S.Search ref={wrapRef}>
           <Icon name="search" color="var(--muted)" />

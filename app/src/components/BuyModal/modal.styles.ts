@@ -1,17 +1,20 @@
 import styled from '@emotion/styled'
 import { theme } from '~/styles/theme'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
+import { CreatorName } from '~/components/CreatorName'
 
-const { colors, gradients, radius } = theme
+const { colors, gradients, radius, z } = theme
 
 // Shared checkout-modal shell (Figma "Buy Asset"): the scrim + card + header/balance + body states
 // (asset row, warning, pack picker, total, CTAs, processing, success). Used by BOTH the single-item PDP
 // BuyModal and the multi-item CartCheckoutModal; the latter adds its own `.cart-checkout*` pieces on top.
 
+// Above the global DCL navbar (position: fixed, high z-index) so the scrim dims the FULL viewport,
+// navbar included. Matches the cart drawer / popover "above everything" tier.
 export const Modal = styled.div`
   position: fixed;
   inset: 0;
-  z-index: 60;
+  z-index: ${z.overlay};
   display: grid;
   place-items: center;
   padding: 20px;
@@ -28,7 +31,9 @@ export const Card = styled.div`
   position: relative;
   z-index: 1;
   width: 100%;
-  max-width: 560px;
+  /* Wide enough to fit all 4 credit bundles comfortably in a single row (the credits-server returns 4;
+     the Figma mock showed 3 at ~180px). The pack tiles flex to share this width. */
+  max-width: 700px;
   /* Grid-item auto-minimum can otherwise push the card past the viewport on a narrow screen. */
   min-width: 0;
   background: #fff;
@@ -159,7 +164,8 @@ export const AssetName = styled.div`
   text-overflow: ellipsis;
 `
 
-export const AssetCreator = styled.div`
+// Resolves the creator address → profile display name; takes an `address` prop.
+export const AssetCreator = styled(CreatorName)`
   font-size: 10px;
   line-height: 1.43;
   color: ${colors.muted};
@@ -183,12 +189,13 @@ export const AssetPriceIco = styled(CurrencyIcon)`
   background: ${colors.text2};
 `
 
+// Insufficient-funds banner: warm peach fill with a Brand/Purple warning glyph and soft-black-2 text.
 export const Warning = styled.div`
   display: flex;
   align-items: center;
   gap: 8px;
   justify-content: center;
-  background: #f0dfff;
+  background: rgba(255, 162, 90, 0.3);
   border-radius: ${radius.btn};
   padding: 12px 8px;
 `
@@ -315,6 +322,12 @@ export const Btn = styled.button`
     font-size: 13px;
     letter-spacing: 0.61px;
   }
+  // Solid accent fill (the error state's "Try again").
+  &[data-variant='purple'] {
+    background: ${colors.accent};
+    color: ${colors.softWhite};
+    font-size: 13px;
+  }
   &:disabled {
     opacity: 0.6;
     cursor: default;
@@ -324,6 +337,36 @@ export const Btn = styled.button`
 export const Logo = styled.img`
   width: 61px;
   height: 61px;
+`
+
+// Error state: a light-pink panel with the sad-robot art + reassuring copy.
+export const BuyError = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  background: rgba(255, 201, 213, 0.5);
+  border-radius: 16px;
+  padding: 24px 16px;
+`
+
+export const BuyErrorArt = styled.img`
+  width: 64px;
+  height: 80px;
+  object-fit: contain;
+`
+
+export const BuyErrorText = styled.p`
+  margin: 0;
+  text-align: center;
+  font-size: 20px;
+  line-height: 1.334;
+  font-weight: 400;
+  color: ${colors.text2};
+
+  & b {
+    font-weight: 700;
+  }
 `
 
 export const ProcessingText = styled.div`
@@ -342,6 +385,9 @@ export const Progress = styled.div`
   overflow: hidden;
 `
 
+// Indeterminate by default (a sliding shimmer). `data-step` is the determinate variant used by the
+// cart's multi-item checkout: the width is set inline from step/total so it advances as each unit is
+// authorized, instead of sliding.
 export const ProgressFill = styled.span`
   display: block;
   height: 100%;
@@ -357,6 +403,12 @@ export const ProgressFill = styled.span`
     100% {
       transform: translateX(320%);
     }
+  }
+
+  &[data-step] {
+    animation: none;
+    min-width: 12px;
+    transition: width 0.35s ease;
   }
 `
 

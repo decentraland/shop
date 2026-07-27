@@ -1,0 +1,105 @@
+/* "Notify me when available" control on the item detail (Figma 1182-203305). */
+.notify {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+/* "Notify me when available" — Inter Regular 14, soft-black (Figma). */
+.notify__label {
+  font-size: 14px;
+  color: var(--text);
+}
+/* Email field + NOTIFY ME button share one 42px row. */
+.notify__row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+.notify__input {
+  flex: 1;
+  min-width: 0;
+  height: 42px;
+  padding: 0 16px;
+  border: 1px solid var(--muted);
+  border-radius: 8px;
+  background: #fff;
+  font-size: 16px;
+  color: var(--text);
+}
+.notify__input::placeholder {
+  color: var(--muted-2);
+}
+.notify__input:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+/* Purple NOTIFY ME CTA (Figma DCL/Purple #691fa9). */
+.notify__btn {
+  flex-shrink: 0;
+  height: 42px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--soft-white);
+  font-weight: 600;
+  font-size: 15px;
+  text-transform: uppercase;
+  letter-spacing: 0.46px;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+.notify__btn:hover:not(:disabled) {
+  opacity: 0.9;
+}
+.notify__btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+/* Guest CTA: full-width purple sign-in prompt (no email field). */
+.notify__signin {
+  width: 100%;
+  height: 42px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--soft-white);
+  font-weight: 600;
+  font-size: 15px;
+  text-transform: uppercase;
+  letter-spacing: 0.46px;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+.notify__signin:hover {
+  opacity: 0.9;
+}
+/* Confirmed / already-subscribed state. */
+/* Subscribed confirmation pill (Figma 1182-204041): soft-green pill, filled green check, one line. */
+.notify__done {
+  flex-direction: row;
+  align-items: center;
+  gap: 16px;
+  padding: 12px;
+  border-radius: 16px;
+  background: rgba(193, 238, 207, 0.5);
+}
+.notify__done-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #34ce76;
+  color: #fff;
+}
+.notify__done-text {
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--text-2);
+}

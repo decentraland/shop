@@ -31,7 +31,11 @@ async function toSession(res: {
 }): Promise<Session> {
   if (!res.account) throw new Error('No account returned by the wallet')
   const address = res.account.toLowerCase()
-  const web3Provider = new ethers.providers.Web3Provider(res.provider as ethers.providers.ExternalProvider)
+  // `'any'` lets ethers follow wallet network changes instead of locking to the first-seen network.
+  // Without it, an on-chain step that switches the wallet just-in-time (ensureChain in cancel/buy/
+  // approval) makes the cached provider throw "underlying network changed" on the next call — which
+  // broke "Remove from sale" when the wallet started on a different chain than the trade's.
+  const web3Provider = new ethers.providers.Web3Provider(res.provider as ethers.providers.ExternalProvider, 'any')
   const signer = web3Provider.getSigner()
 
   // Reuse a valid stored identity, otherwise create one (a single wallet signature).
@@ -74,6 +78,19 @@ export async function restoreSession(): Promise<Session | null> {
     return await toSession(res)
   } catch {
     return null
+  }
+}
+
+// Best-effort account email from the connected provider — managed/social (Magic) and Thirdweb sign-ins
+// expose it via `connection.getEmail()` (decentraland-connect >= 12.1.0). Optional-chained + guarded so
+// it's simply `undefined` for providers without an email (the field stays empty/editable); never throws.
+export async function getConnectionEmail(): Promise<string | undefined> {
+  try {
+    const connection = (await getConnection()) as { getEmail?: () => Promise<string | undefined> | string | undefined }
+    const email = await connection.getEmail?.()
+    return email ?? undefined
+  } catch {
+    return undefined
   }
 }
 

@@ -2,18 +2,38 @@ import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Icon } from '~/components/Icon'
 import { CheckCircleIcon } from '~/components/Icons/CheckCircleIcon'
-import { useCart } from '~/store/cart'
+import { useCart, type CartItem } from '~/store/cart'
 import { t } from '~/intl/i18n'
 import { formatCredits, formatCreditsFull } from '~/lib/currency'
-import type { CatalogItem } from '~/lib/api'
+import { useCartAvailability } from '~/hooks/useCartAvailability'
+import { isLineBuyable, type CartLineAvailability } from '~/lib/cart-availability'
 import * as S from './CartPopover.styles'
 
 // A single cart line: thumbnail (+ in-cart check), name, creator, quantity stepper, price, delete.
-// The store keeps exactly one unit per item, so the stepper is visual: minus removes the line, plus
-// is inert (no multi-quantity support). The trash button is the primary removal affordance.
-function CartRow({ item, onRemove }: { item: CatalogItem; onRemove: (id: string) => void }) {
+// PRIMARY (mint) lines support multiple copies — minus decrements (floored at 1), plus increments up to
+// remaining stock, and the price shows the line subtotal. SECONDARY lines are a single unique token, so
+// the stepper is hidden (qty is always 1). The trash button removes the whole line.
+function CartRow({
+  item,
+  status,
+  onRemove,
+  onIncrement,
+  onDecrement
+}: {
+  item: CartItem
+  status: CartLineAvailability
+  onRemove: (id: string) => void
+  onIncrement: (id: string) => void
+  onDecrement: (id: string) => void
+}) {
+  const isPrimary = !item.tokenId
+  const qty = item.quantity
+  const atStockCap = typeof item.available === 'number' && qty >= item.available
+  const subtotal = item.priceCredits * qty
+  const unavailable = !isLineBuyable(status)
+  const unavailableLabel = status === 'sold-out' ? t('cart.availability.soldOut') : t('cart.availability.unavailable')
   return (
-    <S.Card>
+    <S.Card data-unavailable={unavailable || undefined}>
       <S.Thumb>
         {item.thumbnail ? <img src={item.thumbnail} alt={item.name} /> : null}
         <S.ThumbCheck>
@@ -26,19 +46,36 @@ function CartRow({ item, onRemove }: { item: CatalogItem; onRemove: (id: string)
           {item.creator ? <S.By address={item.creator} /> : null}
         </div>
         <S.RowBottom>
-          <S.Stepper>
-            <S.Step onClick={() => onRemove(item.id)} aria-label={t('cartPopover.removeFromCart', { name: item.name })}>
-              <Icon name="minus" size={16} />
-            </S.Step>
-            <S.Qty>1</S.Qty>
-            <S.Step disabled aria-label={t('cartPopover.increaseQuantity')}>
-              <Icon name="plus-thin" size={16} />
-            </S.Step>
-          </S.Stepper>
-          <S.Price title={formatCreditsFull(item.priceCredits)}>
-            <S.Diamond />
-            {formatCredits(item.priceCredits)}
-          </S.Price>
+          {unavailable ? (
+            /* Calm inline state — the trash button remains the one-tap remove. */
+            <S.Unavailable>{unavailableLabel}</S.Unavailable>
+          ) : (
+            <>
+              {isPrimary ? (
+                <S.Stepper>
+                  <S.Step
+                    onClick={() => onDecrement(item.id)}
+                    disabled={qty <= 1}
+                    aria-label={t('cartPopover.decreaseQuantity', { name: item.name })}
+                  >
+                    <Icon name="minus" size={16} />
+                  </S.Step>
+                  <S.Qty>{qty}</S.Qty>
+                  <S.Step
+                    onClick={() => onIncrement(item.id)}
+                    disabled={atStockCap}
+                    aria-label={t('cartPopover.increaseQuantity')}
+                  >
+                    <Icon name="plus-thin" size={16} />
+                  </S.Step>
+                </S.Stepper>
+              ) : null}
+              <S.Price title={formatCreditsFull(subtotal)}>
+                <S.Diamond />
+                {formatCredits(subtotal)}
+              </S.Price>
+            </>
+          )}
         </S.RowBottom>
       </S.Info>
       <S.Del
@@ -61,10 +98,18 @@ export function CartPopover() {
   const justAddedCount = useCart(s => s.justAddedCount)
   const setOpen = useCart(s => s.setOpen)
   const remove = useCart(s => s.remove)
+  const increment = useCart(s => s.increment)
+  const decrement = useCart(s => s.decrement)
   const panelRef = useRef<HTMLDivElement>(null)
 
-  const total = items.reduce((sum, i) => sum + i.priceCredits, 0)
-  const count = items.length
+  // Validate each line's live trade while the drawer is open (optimistic until resolved). Unavailable
+  // lines stay visible with their reason but are excluded from the total and the unit count.
+  const availability = useCartAvailability(items, open)
+
+  const buyable = items.filter(i => isLineBuyable(availability[i.id]))
+  const total = buyable.reduce((sum, i) => sum + i.priceCredits * i.quantity, 0)
+  // Count reflects total buyable units (Σ quantity), not the number of distinct lines.
+  const count = buyable.reduce((n, i) => n + i.quantity, 0)
 
   // Escape closes the drawer (outside-click is handled by the scrim). No auto-dismiss: a full drawer
   // stays until the user dismisses it.
@@ -77,7 +122,9 @@ export function CartPopover() {
     return () => document.removeEventListener('keydown', onKey)
   }, [open, setOpen])
 
-  if (!open || count === 0) return null
+  // Guard on the raw cart contents (not the buyable count) so an all-unavailable cart still shows the
+  // drawer with each line's reason, rather than silently vanishing.
+  if (!open || items.length === 0) return null
 
   // Portal to <body> so the drawer escapes the nav's stacking context and overlays the whole viewport
   // (including the fixed global top nav), instead of being trapped under it.
@@ -107,7 +154,14 @@ export function CartPopover() {
 
           <S.List>
             {items.map(i => (
-              <CartRow key={i.id} item={i} onRemove={remove} />
+              <CartRow
+                key={i.id}
+                item={i}
+                status={availability[i.id]}
+                onRemove={remove}
+                onIncrement={increment}
+                onDecrement={decrement}
+              />
             ))}
           </S.List>
         </S.Body>

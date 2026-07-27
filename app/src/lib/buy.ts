@@ -1,7 +1,17 @@
 import { ethers } from 'ethers'
 import { TradeAssetType, type Trade } from '@dcl/schemas'
-import { ContractName, getContract, getContractName } from 'decentraland-transactions'
+import {
+  ContractName,
+  ErrorCode,
+  MetaTransactionError,
+  getContract,
+  getContractName,
+  sendMetaTransaction,
+  type ContractData
+} from 'decentraland-transactions'
 import { config } from '~/config'
+import { metaTxProviderShim, readProvider } from '~/lib/authorizations'
+import { gaslessConfig } from '~/lib/gasless-config'
 import { ensureChain } from '~/lib/trades'
 import {
   amoyGasOverrides,
@@ -60,7 +70,12 @@ async function tradeManaPriceWei(trade: Trade): Promise<string> {
   return manaWei.mul(102).div(100).toString() // +2% buffer
 }
 
-async function sendUseCredits(chainId: number, args: unknown, signer: ethers.Signer): Promise<string> {
+export async function sendUseCredits(
+  chainId: number,
+  args: unknown,
+  signer: ethers.Signer,
+  onSigned?: () => void
+): Promise<string> {
   // useCredits is a REAL transaction, so it MUST run on the trade's chain. A restored session (or a
   // user who was last on another network) can leave the wallet on a different chain — without pinning
   // it first the wallet submits useCredits on its active network (e.g. Sepolia), where the
@@ -80,6 +95,9 @@ async function sendUseCredits(chainId: number, args: unknown, signer: ethers.Sig
   const cm = getContract(ContractName.CreditsManager, chainId)
   const contract = new ethers.Contract(cm.address, cm.abi, signer) as CreditsManagerContract
   const tx = await contract.useCredits(args, amoyGasOverrides(chainId))
+  // Tx submitted (the buyer confirmed in their wallet) — settlement is next. Callers use this to flip
+  // the UI from "confirm in your wallet" to "completing transaction".
+  onSigned?.()
   const receipt = await tx.wait()
   return receipt.transactionHash
 }
@@ -90,15 +108,135 @@ async function sendUseCredits(chainId: number, args: unknown, signer: ethers.Sig
  * signer (the seller) can cancel their own. Mirrors decentraland-dapps' TradeService.cancel.
  * Returns the tx hash.
  */
+// Gasless cancel: the seller signs an off-chain meta-tx and DCL's relayer submits it + pays the gas
+// (mirrors grantViaMetaTransaction / the gasless buy path). The metaTxProviderShim routes signing to
+// the wallet but every node read to the reliable target-chain RPC, so it never touches the wallet's
+// flaky chain RPC — that's the -32002 "RPC endpoint returned too many errors" that killed the direct
+// cancel. Managed (Magic/thirdweb) wallets hold no gas, so this is also the only path that works there.
+async function cancelViaMetaTransaction(
+  trade: Trade,
+  signer: ethers.providers.JsonRpcSigner,
+  seller: string
+): Promise<string> {
+  const marketplace = getContract(getContractName(trade.contract), trade.chainId)
+  // beneficiary is irrelevant to the cancel hash (sent assets are signed without one); pass the seller.
+  const onChainTrade = getOnChainTrade(trade, seller)
+  const functionData = new ethers.utils.Interface(marketplace.abi).encodeFunctionData('cancelSignature', [
+    [onChainTrade]
+  ])
+  const rpc = readProvider()
+  const provider = metaTxProviderShim(signer.provider as ethers.providers.Web3Provider, rpc)
+  const txHash = await sendMetaTransaction(provider, rpc, functionData, marketplace, {
+    serverURL: gaslessConfig.relayerUrl
+  })
+  await rpc.waitForTransaction(txHash, 1, 120_000)
+  return txHash
+}
+
+// The minimal ERC721 surface we send. DCL collection contracts (ERC721CollectionV2) implement native
+// meta-transactions, so `transferFrom` can be relayed exactly like `setApprovalForAll` / `cancelSignature`.
+const ERC721_TRANSFER_ABI = ['function transferFrom(address from, address to, uint256 tokenId)']
+
+// Gasless ERC721 transfer: the owner signs an off-chain meta-tx and DCL's relayer submits it + pays the
+// gas. Mirrors cancelViaMetaTransaction. The meta-tx is signed against the collection's fixed
+// ERC721CollectionV2 domain (name "Decentraland Collection", version "2") — same domain the gasless
+// setApprovalForAll uses (see lib/authorizations metaTxContractData), only the address differs. This is
+// the ONLY path that works for managed (Magic/thirdweb) wallets, which hold no gas.
+async function transferViaMetaTransaction(opts: {
+  contractAddress: string
+  chainId: number
+  from: string
+  to: string
+  tokenId: string
+  signer: ethers.providers.JsonRpcSigner
+}): Promise<string> {
+  const { contractAddress, chainId, from, to, tokenId, signer } = opts
+  const collection: ContractData = {
+    ...getContract(ContractName.ERC721CollectionV2, chainId),
+    address: contractAddress
+  }
+  const functionData = new ethers.utils.Interface(ERC721_TRANSFER_ABI).encodeFunctionData('transferFrom', [
+    from,
+    to,
+    tokenId
+  ])
+  const rpc = readProvider()
+  const provider = metaTxProviderShim(signer.provider as ethers.providers.Web3Provider, rpc)
+  const txHash = await sendMetaTransaction(provider, rpc, functionData, collection, {
+    serverURL: gaslessConfig.relayerUrl
+  })
+  await rpc.waitForTransaction(txHash, 1, 120_000)
+  return txHash
+}
+
+/**
+ * Transfer an owned collectible to another address. GASLESS FOR ALL (mirrors cancelListing): the relayer
+ * submits + pays gas, so managed wallets (no POL) can transfer too, and it sidesteps the wallet's flaky
+ * chain RPC. Falls back to a direct (gas-paying) tx only if the relayer is off/unreachable — but a user
+ * rejection propagates instead of silently retrying with a gas tx. Returns the tx hash.
+ */
+export async function transferItem(opts: {
+  contractAddress: string
+  chainId: number
+  tokenId: string
+  to: string
+  signer: ethers.Signer
+}): Promise<string> {
+  const { contractAddress, chainId, tokenId, to, signer } = opts
+  const from = (await signer.getAddress()).toLowerCase()
+
+  if (gaslessConfig.enabled) {
+    try {
+      return await transferViaMetaTransaction({
+        contractAddress,
+        chainId,
+        from,
+        to,
+        tokenId,
+        signer: signer as ethers.providers.JsonRpcSigner
+      })
+    } catch (e) {
+      if (e instanceof MetaTransactionError && e.code === ErrorCode.USER_DENIED) throw e
+      console.warn('[transferItem] gasless meta-tx failed, falling back to a direct tx:', e)
+    }
+  }
+
+  // Direct (gas-paying) fallback. transferFrom is a REAL transaction, so it must run on the collection's
+  // chain — a restored session can leave the wallet on whatever network it last used; switch just-in-time.
+  await ensureChain(signer.provider as ethers.providers.Web3Provider, chainId)
+  const contract = new ethers.Contract(contractAddress, ERC721_TRANSFER_ABI, signer) as ethers.Contract & {
+    transferFrom(
+      from: string,
+      to: string,
+      tokenId: string,
+      overrides?: ethers.Overrides
+    ): Promise<ethers.ContractTransaction>
+  }
+  const tx = await contract.transferFrom(from, to, tokenId, amoyGasOverrides(chainId))
+  const receipt = await tx.wait()
+  return receipt.transactionHash
+}
+
 export async function cancelListing(opts: { trade: Trade; signer: ethers.Signer }): Promise<string> {
   const { trade, signer } = opts
   const seller = (await signer.getAddress()).toLowerCase()
-  // cancelSignature is a REAL transaction, so it must run on the trade's chain — a restored session
-  // can leave the wallet on whatever network it last used. Switch just-in-time (mirrors ensureApproval);
-  // the off-chain listing signature itself is never gated on chain (see CONVENTIONS.md).
+
+  // GASLESS FOR ALL (mirrors setAuthorization): relayer submits + pays gas, and it sidesteps the
+  // wallet's chain RPC. Fall back to a direct tx if the relayer is off/unreachable — but let a user
+  // rejection propagate instead of silently retrying with a gas-paying tx.
+  if (gaslessConfig.enabled) {
+    try {
+      return await cancelViaMetaTransaction(trade, signer as ethers.providers.JsonRpcSigner, seller)
+    } catch (e) {
+      if (e instanceof MetaTransactionError && e.code === ErrorCode.USER_DENIED) throw e
+      console.warn('[cancelListing] gasless meta-tx failed, falling back to a direct tx:', e)
+    }
+  }
+
+  // Direct (gas-paying) fallback. cancelSignature is a REAL transaction, so it must run on the trade's
+  // chain — a restored session can leave the wallet on whatever network it last used; switch just-in-time.
   await ensureChain(signer.provider as ethers.providers.Web3Provider, trade.chainId)
   const marketplace = getContract(getContractName(trade.contract), trade.chainId)
-  // beneficiary is irrelevant to the cancel hash (sent assets are signed without one); pass the seller.
   const onChainTrade = getOnChainTrade(trade, seller)
   const contract = new ethers.Contract(marketplace.address, marketplace.abi, signer) as MarketplaceContract
   // cancelSignature takes a Trade[] (mirrors accept([...]) — see TradeService.cancel, which calls
@@ -141,8 +279,10 @@ export async function buyManyWithCredits(opts: {
   purchases: CreditPurchase[]
   buyer: string
   signer: ethers.Signer
+  /** Fired once the buyer confirms the tx in their wallet, before on-chain settlement. */
+  onSigned?: () => void
 }): Promise<string[]> {
-  const { purchases, buyer, signer } = opts
+  const { purchases, buyer, signer, onSigned } = opts
   if (purchases.length === 0) throw new Error('No items to buy')
 
   // Group by (chain, marketplace) so each group is one accept([...]) → one signature.
@@ -164,7 +304,7 @@ export async function buyManyWithCredits(opts: {
       .reduce((acc, p) => acc.add(ethers.BigNumber.from(p.maxCreditedValue)), ethers.BigNumber.from(0))
       .toString()
     const args = buildUseCreditsArgs(marketplace.address, marketplace.abi, trades, buyer, credits, maxCreditedValue)
-    hashes.push(await sendUseCredits(chainId, args, signer))
+    hashes.push(await sendUseCredits(chainId, args, signer, onSigned))
   }
   return hashes
 }

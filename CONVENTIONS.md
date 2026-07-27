@@ -21,6 +21,10 @@ The Shop targets mass **web2** users. All blockchain happens behind the scenes. 
 
 The only currency users ever see is **credits**. MANA, chains, signatures, approvals, and RPCs are internal implementation details.
 
+### Self-custody exception (narrow)
+
+Self-custody users (MetaMask etc., detected via `showsWalletConfirmations`) genuinely act in their wallet, so their copy MAY reference a generic **"confirmation"** or **"approval"** step (e.g. "Confirm to continue…", "a one-time approval"). That is the ONLY relaxation. The banned words above — **"wallet", "MetaMask", "sign/signature", "transaction/tx", "on-chain", "gas", "chain"** — stay banned **even for self-custody**. Managed (social) users never see any step at all ("instant", "a moment"). Gate the difference through `showsWalletConfirmations(providerType)`, never inline strings.
+
 ## Technical note: listings are chain-agnostic
 
 Creating a listing is an off-chain EIP-712 signature — the target chain lives in the trade's salt, not the wallet's current network. **Do not gate listing on the wallet's chain.** Read contract state (signature indices, approval) via a dedicated Amoy RPC, not the wallet provider. Only real transactions (e.g. `setApprovalForAll`) need the right chain — switch just-in-time, silently.

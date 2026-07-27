@@ -1,6 +1,7 @@
 import styled from '@emotion/styled'
 import { css } from '@emotion/react'
 import { theme } from '~/styles/theme'
+import { Icon } from '~/components/Icon'
 
 const { colors, font } = theme
 
@@ -107,6 +108,12 @@ export const SubLeft = styled.span`
   align-items: center;
   gap: 8px;
   min-width: 0;
+`
+
+export const SubIcon = styled(Icon)`
+  width: 24px;
+  height: 24px;
+  color: ${colors.gray0};
 `
 
 export const SubLabel = styled.span`

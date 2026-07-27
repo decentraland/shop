@@ -30,12 +30,11 @@ export async function setup() {
     cwd: process.cwd(),
     stdio: 'ignore',
     // Point the app at the localhost hosts the per-page request mock intercepts (helpers/app.ts
-    // routes credits by :3000 and marketplace/nft by :5003). These VITE_* overrides win over the
+    // routes credits by :3000 and marketplace by :5003). These VITE_* overrides win over the
     // per-env JSON (see src/config) so the e2e build is hermetic regardless of the resolved env.
     env: {
       ...process.env,
       VITE_MARKETPLACE_SERVER_URL: 'http://localhost:5003',
-      VITE_NFT_API_URL: 'http://localhost:5003',
       VITE_CREDITS_SERVER_URL: 'http://localhost:3000',
       // Force the payments MOCK path: the resolved 'dev' config now ships a real Stripe publishable
       // key (dev.json), but the e2e mocks don't cover Stripe's hosted redirect — an empty key keeps

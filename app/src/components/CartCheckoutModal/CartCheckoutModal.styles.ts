@@ -1,13 +1,10 @@
 import styled from '@emotion/styled'
 import { theme } from '~/styles/theme'
-import { CurrencyIcon } from '~/components/CurrencyIcon'
-import { Body } from '~/components/BuyModal/modal.styles'
 
 const { colors, radius } = theme
 
 // The multi-item additions to the shared BuyModal shell (see ~/components/BuyModal/modal.styles): a
-// step counter, a scrollable line list, and the multi-item "purchase complete" list. Cart-specific breakpoint.
-const mobile = '@media (max-width: 600px)'
+// step counter, a scrollable line list, and the per-line quantity tag.
 
 export const ProgressRow = styled.div`
   display: flex;
@@ -48,135 +45,10 @@ export const Scroll = styled.div`
   }
 `
 
-// "Purchase complete" multi-item list: compact rows with a red check overlay + dividers.
-export const Done = styled.div`
-  display: flex;
-  flex-direction: column;
-  border: 1px solid ${colors.muted2};
-  border-radius: 16px;
-  padding: 24px;
-
-  ${mobile} {
-    padding: 16px;
-  }
-`
-
-export const DoneScroll = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  max-height: 320px;
-  overflow-y: auto;
-`
-
-export const DoneRow = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 12px;
-
-  & + & {
-    border-top: 1px solid ${colors.line};
-    padding-top: 12px;
-  }
-`
-
-export const DoneThumb = styled.div`
-  position: relative;
-  flex-shrink: 0;
-  width: 96px;
-  height: 96px;
-  background: ${colors.media};
-  border: 0.13px solid ${colors.muted2};
-  border-radius: ${radius.btn};
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-
-  & img {
-    width: 83%;
-    height: 83%;
-    object-fit: contain;
-  }
-
-  ${mobile} {
-    width: 72px;
-    height: 72px;
-  }
-`
-
-export const DoneCheck = styled.span`
-  position: absolute;
-  top: 6px;
-  left: 6px;
-  width: 20px;
-  height: 20px;
-  border-radius: ${radius.chip};
-  background: ${colors.dclRed};
-  display: grid;
-  place-items: center;
-`
-
-export const DoneInfo = styled.div`
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 8px;
-  overflow: hidden; /* keep long, unbreakable creator addresses from widening the modal */
-`
-
-export const DoneName = styled.div`
-  font-size: 20px;
+// "× N" tag beside the item name when a primary line is being bought in multiples.
+export const QtyTag = styled.span`
+  margin-left: 8px;
+  font-size: 13px;
   font-weight: 600;
-  line-height: 1.4;
-  color: ${colors.text};
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-
-  ${mobile} {
-    font-size: 16px;
-  }
-`
-
-export const DoneCreator = styled.div`
-  font-size: 10px;
-  line-height: 1.43;
   color: ${colors.muted};
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-`
-
-export const DonePrice = styled.div`
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
-  padding-right: 4px;
-  font-size: 24px;
-  font-weight: 600;
-  color: ${colors.text2};
-
-  ${mobile} {
-    font-size: 20px;
-  }
-`
-
-export const DonePriceIco = styled(CurrencyIcon)`
-  width: 24px;
-  height: 24px;
-  background: ${colors.accent};
-
-  ${mobile} {
-    width: 20px;
-    height: 20px;
-  }
-`
-
-// The multi-item success body: the shared modal Body with a tighter gap. The success banner's wide
-// layout is driven by `data-wide` on the shell's Success/SuccessText (see modal.styles), not descendants.
-export const DoneBody = styled(Body)`
-  gap: 12px;
 `

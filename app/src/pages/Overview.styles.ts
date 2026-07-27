@@ -43,6 +43,15 @@ export const Overview = styled.div`
     grid-auto-columns: calc((100% - 64px) / 5);
     padding: 12px 0;
     margin: 0;
+    // Hide the native scrollbar so these discovery rails match the carousels above (which also hide
+    // it) — otherwise the home page shows one rail with a grey scrollbar and the rest without.
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  & [data-rail]::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
   }
   ${media.maxWidth('xl')} {
     & [data-rail] {
@@ -130,14 +139,14 @@ export const Viewport = styled.div`
   position: relative;
 `
 
-// ~53px white circle with a bold chevron. `--ov-arrow-top` (set in JS) centres them on the card media.
+// White circle with a bold chevron. `--ov-arrow-top` (set in JS) centres them on the card media.
 export const Arrow = styled.button`
   position: absolute;
   top: var(--ov-arrow-top, 110px);
   transform: translateY(-50%);
   z-index: 5;
-  width: 53px;
-  height: 53px;
+  width: 44px;
+  height: 44px;
   padding: 0;
   border: 0;
   background: transparent;
@@ -153,11 +162,15 @@ export const Arrow = styled.button`
     width: 100%;
     height: 100%;
   }
+  // Arrows sit in the page gutter (nav-aligned 54px), not over the rail. The 44px circle + these
+  // offsets leave an equal ~8px gap to the first/last card: the track is pulled 14px flush-left so the
+  // first card sits at the gutter edge while the last keeps its 14px inset — hence the left arrow is
+  // pushed out further than the right so both gaps match.
   &[data-side='right'] {
-    right: -40px;
+    right: -38px;
   }
   &[data-side='left'] {
-    left: -40px;
+    left: -52px;
   }
   &[data-side='left'] img {
     transform: scaleX(-1);
@@ -185,7 +198,13 @@ export const Track = styled.div`
   gap: 16px;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 12px 0;
+  // Horizontal padding reserves room for the first/last card's outward hover glow — an overflow-x
+  // scroller clips both axes, so 0 side padding cropped the ring. The matching negative margin-left
+  // pulls the track back so the first card lines up with the section title and the page gutter; the glow
+  // overflows into the gutter. (The arrows above are sized/positioned to keep an equal gap despite it.)
+  padding: 12px 14px;
+  margin-left: -14px;
+  scroll-padding-inline: 14px;
   scroll-snap-type: x mandatory;
   scrollbar-width: none;
   -ms-overflow-style: none;
