@@ -133,6 +133,28 @@ export const SearchClear = styled.button`
   }
 `
 
+// Polygon MANA balance chip — same metrics as the credits balance so the pair reads as one row. Only
+// rendered when the wallet holds MANA (see NavBar).
+export const Mana = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 40px;
+  padding: 0 4px;
+  border-radius: 4px;
+  color: ${colors.text2};
+  font-weight: 600;
+  font-size: 16px;
+  letter-spacing: -0.03em;
+  white-space: nowrap;
+`
+
+export const ManaIco = styled.img`
+  width: 18px;
+  height: 18px;
+  display: block;
+`
+
 // Persistent credit balance chip (transparent per Figma).
 export const Balance = styled.span`
   display: inline-flex;

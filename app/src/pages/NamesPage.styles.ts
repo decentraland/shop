@@ -374,7 +374,8 @@ export const Status = styled.div<{ tone: 'error' | 'ok' | 'muted' }>`
   }
 `
 
-// "Why buy a NAME?" section.
+// "Why buy a NAME?" section: a centered title + intro, then a row of four info cards (a 3D
+// illustration over a rarity-gradient media panel, with a bold title + description below).
 export const Why = styled.section`
   display: flex;
   flex-direction: column;
@@ -382,9 +383,16 @@ export const Why = styled.section`
   padding: 0 48px;
 
   ${theme.media.maxWidth('mobile')} {
-    gap: 24px;
+    gap: 32px;
     padding: 0 20px;
   }
+`
+
+export const WhyHead = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
 `
 
 export const WhyTitle = styled.h2`
@@ -401,78 +409,107 @@ export const WhyTitle = styled.h2`
   }
 `
 
-export const Cards = styled.div`
-  display: flex;
-  gap: 48px;
-  align-items: stretch;
+export const WhyIntro = styled.p`
+  margin: 0;
+  max-width: 907px;
+  text-align: center;
+  font-family: ${theme.font.sans};
+  font-weight: 400;
+  font-size: 20px;
+  line-height: 1.57;
+  color: ${theme.colors.text};
 
   ${theme.media.maxWidth('mobile')} {
-    flex-direction: column;
-    gap: 24px;
+    font-size: 16px;
+  }
+`
+
+export const Cards = styled.div`
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 24px;
+  align-items: stretch;
+
+  ${theme.media.maxWidth('lg')} {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  ${theme.media.maxWidth('mobile')} {
+    grid-template-columns: 1fr;
   }
 `
 
 export const Card = styled.article`
-  flex: 1 0 0;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  height: 340px;
   background: ${theme.colors.white};
   border: 0.25px solid ${theme.colors.muted2};
   border-radius: ${theme.radius.card};
   overflow: hidden;
 `
 
-// Marketing scene image is replaced with a themed gradient (see Hero note).
-export const CardMedia = styled.div`
-  flex: 1 0 0;
-  min-height: 0;
-  background: linear-gradient(135deg, #7a1fa2 0%, #c640cd 55%, #ff2d55 100%);
+// The gradient background is baked into the illustration asset (a 388×235 render), so the image both
+// fills and colors the media panel — the container just keeps its aspect ratio as the card flexes.
+export const CardMedia = styled.img`
+  display: block;
+  width: 100%;
+  aspect-ratio: 388 / 235;
+  object-fit: cover;
 `
 
 export const CardInfo = styled.div`
-  flex: none;
-  height: 96px;
+  flex: 1;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  padding: 8px;
+  gap: 6px;
+  padding: 12px 16px;
+`
+
+export const CardTitle = styled.h3`
+  margin: 0;
+  font-family: ${theme.font.sans};
+  font-weight: 700;
+  font-size: 20px;
+  line-height: 1.57;
+  text-transform: uppercase;
+  color: ${theme.colors.text};
 `
 
 export const CardText = styled.p`
   margin: 0;
   font-family: ${theme.font.sans};
-  font-weight: 600;
+  font-weight: 400;
   font-size: 14px;
   line-height: 1.57;
   color: ${theme.colors.text};
 `
 
+export const CardHighlight = styled.span`
+  font-weight: 600;
+  color: ${theme.colors.accent};
+`
+
 export const CardLink = styled.a`
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
+  margin-top: auto;
   font-family: ${theme.font.sans};
   font-weight: 500;
   font-size: 14px;
   line-height: 30px;
   color: ${theme.colors.accent};
   text-decoration: underline;
+
+  &:focus-visible {
+    outline: 2px solid ${theme.colors.accent};
+    outline-offset: 2px;
+  }
 
   .ico {
     width: 13px;
     height: 13px;
   }
-`
-
-export const CardLinkText = styled.span`
-  font-family: ${theme.font.sans};
-  font-weight: 500;
-  font-size: 14px;
-  line-height: 30px;
-  color: ${theme.colors.accent};
-  text-decoration: underline;
 `
 
 // Accessible-only live region for announcing availability to screen readers.

@@ -47,7 +47,7 @@ export function FilterSection({
   headerAria?: string
   children: ReactNode
 }) {
-  const chevron = <Chevron up={open} size={24} color="var(--text)" />
+  const chevron = <Chevron up={open} size={24} color={theme.colors.text} />
   return (
     <S.Section>
       <S.Header

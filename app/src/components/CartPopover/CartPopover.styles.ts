@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { theme } from '~/styles/theme'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { CreatorBadge } from '~/components/CreatorBadge'
+import { Icon } from '~/components/Icon'
 
 const { colors, radius, font } = theme
 
@@ -125,8 +126,9 @@ export const List = styled.ul`
   gap: 12px;
 `
 
-// data-unavailable = the line's listing is no longer buyable (sold out / gone / expired): dimmed with
-// greyed media, still readable and removable. Excluded from the drawer total and unit count.
+// data-unavailable = the line's listing is no longer buyable (sold out / gone / expired): the media
+// and description dim, and the price/stepper are replaced by a warning + a link to the item's resales.
+// Still readable and removable; excluded from the drawer total and unit count.
 export const Card = styled.li`
   position: relative;
   display: flex;
@@ -137,11 +139,14 @@ export const Card = styled.li`
   overflow: hidden;
   background: #fff;
 
-  &[data-unavailable] {
-    opacity: 0.6;
+  &[data-unavailable] [data-thumb] {
+    opacity: 0.5;
   }
-  &[data-unavailable] img {
-    filter: grayscale(1);
+  &[data-unavailable] [data-check] {
+    display: none;
+  }
+  &[data-unavailable] [data-desc] {
+    opacity: 0.7;
   }
 `
 
@@ -268,9 +273,36 @@ export const Diamond = styled(CurrencyIcon)`
 `
 
 export const Unavailable = styled.span`
-  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
   font-weight: 600;
-  color: ${colors.muted};
+  line-height: 1;
+  text-transform: uppercase;
+  color: ${colors.text2};
+`
+
+export const Warn = styled(Icon)`
+  color: #f48221;
+`
+
+export const Resales = styled(Link)`
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 24px;
+  letter-spacing: 0.46px;
+  text-transform: uppercase;
+  text-decoration: underline;
+  color: ${colors.accent};
+
+  &:hover {
+    color: ${colors.accentHover};
+  }
+  &:focus-visible {
+    outline: 2px solid ${colors.accent};
+    outline-offset: 2px;
+  }
 `
 
 export const Del = styled.button`

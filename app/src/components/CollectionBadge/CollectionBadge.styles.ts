@@ -12,17 +12,18 @@ export const Collage = styled(Ava)`
   gap: 1px;
   background: ${theme.colors.lineStrong};
 
-  /* Rows stack; each cell (<img>) covers its share. A single row (≤2 thumbnails) spans full height. */
-  & .collection-collage__row {
+  /* Rows stack; each cell (<img>) covers its share. A single row (≤2 thumbnails, data-full) spans the
+     full height. */
+  & [data-collage-row] {
     display: flex;
     flex: 1 1 50%;
     min-height: 0;
     gap: 1px;
   }
-  & .collection-collage__row--full {
+  & [data-collage-row][data-full] {
     flex-basis: 100%;
   }
-  & .collection-collage__row img {
+  & [data-collage-row] img {
     flex: 1 1 0;
     min-width: 0;
     width: 100%;

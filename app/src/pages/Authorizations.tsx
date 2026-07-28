@@ -7,6 +7,7 @@ import {
   getAuthorizationStatus,
   setAuthorization,
   getCreditsAuthorization,
+  getManaMarketplaceAuthorization,
   getCollectionSellingAuthorization,
   getCollectionMintingAuthorization,
   type ShopAuthorizationDescriptor
@@ -16,6 +17,7 @@ import type { AuthIdentity } from '@dcl/crypto'
 import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import { config } from '~/config'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
+import manaSymbol from '~/assets/mana-matic.svg'
 import { Icon } from '~/components/Icon'
 import { toast } from '~/store/toast'
 import { friendlyError } from '~/lib/errors'
@@ -25,6 +27,7 @@ import { t } from '~/intl/i18n'
 import type { ReactNode } from 'react'
 import type { ethers } from 'ethers'
 import * as S from './Authorizations.styles'
+import { theme } from '~/styles/theme'
 
 // One authorization row: reads its live on-chain status and toggles it (grant / revoke). Only reached
 // for self-custody users — managed (web2) users never see this page's controls.
@@ -172,7 +175,7 @@ export function Authorizations() {
   if (!session) {
     return (
       <S.Empty>
-        <Icon name="info" size={40} color="var(--muted-2)" />
+        <Icon name="info" size={40} color={theme.colors.muted2} />
         <S.EmptyTitle>{t('authorizations.signInTitle')}</S.EmptyTitle>
         <p className="muted">{t('authorizations.signInBody')}</p>
         <S.EmptyCta variant="purple" onClick={() => signIn()}>
@@ -187,7 +190,7 @@ export function Authorizations() {
   if (!selfCustody) {
     return (
       <S.Empty>
-        <Icon name="check" size={40} color="var(--ok)" />
+        <Icon name="check" size={40} color={theme.colors.ok} />
         <S.EmptyTitle>{t('authorizations.managedTitle')}</S.EmptyTitle>
         <p className="muted">{t('authorizations.managedBody')}</p>
         <S.EmptyCta as={Link} to="/assets" variant="purple">
@@ -198,6 +201,7 @@ export function Authorizations() {
   }
 
   const credits = getCreditsAuthorization(chainId)
+  const manaSpend = getManaMarketplaceAuthorization(chainId)
 
   return (
     <S.Section>
@@ -216,6 +220,16 @@ export function Authorizations() {
             name={t('authorizations.creditsName')}
             description={t('authorizations.creditsDesc')}
             icon={<CurrencyIcon className="ccy-mark" />}
+          />
+          {/* Granted the first time someone pays in MANA. Listed whether or not it is active, so the
+              permission is always visible and revocable rather than only discoverable at checkout. */}
+          <AuthorizationRow
+            descriptor={manaSpend}
+            owner={session.address}
+            signer={session.signer}
+            name={t('authorizations.manaName')}
+            description={t('authorizations.manaDesc')}
+            icon={<S.ThumbMark src={manaSymbol} alt="" aria-hidden />}
           />
         </S.List>
       </S.Group>

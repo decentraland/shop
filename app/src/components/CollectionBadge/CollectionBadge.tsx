@@ -42,13 +42,13 @@ export function CollectionBadge({
     >
       {thumbs.length > 0 ? (
         <Collage as="span" data-avatar data-testid="creator-ava" aria-hidden>
-          <span className={`collection-collage__row${row2.length === 0 ? ' collection-collage__row--full' : ''}`}>
+          <span data-collage-row data-full={row2.length === 0 || undefined}>
             {row1.map((src, i) => (
               <img key={i} src={src} alt="" />
             ))}
           </span>
           {row2.length > 0 ? (
-            <span className="collection-collage__row">
+            <span data-collage-row>
               {row2.map((src, i) => (
                 <img key={i} src={src} alt="" />
               ))}

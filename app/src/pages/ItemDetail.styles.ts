@@ -9,7 +9,7 @@ import { CreatorBadge } from '~/components/CreatorBadge'
 import { CollectionBadge } from '~/components/CollectionBadge'
 import { SaleCountdown } from '~/components/SaleCountdown'
 
-const { colors, radius, media } = theme
+const { colors, radius, media, font } = theme
 
 export const Detail = styled.div`
   max-width: 1721px;
@@ -599,24 +599,69 @@ export const Ctas = styled.div`
 
 // PDP Buy-now CTA: full-width, taller, its own type scale. `&&` so font-size/letter-spacing win over
 // the purple variant's data-variant rules. In the mobile dual bar it flexes beside the cart square.
-export const DetailCta = styled(Button)`
+// Shared PDP CTA box — full-width, 48px tall, 16px radius, Inter 600 15/24 with 0.46px tracking,
+// uppercase, 8px icon gap. `&&` so these win over the Button base + any data-variant rules.
+const ctaBox = css`
   && {
     width: 100%;
     height: 48px;
-    font-size: 15px;
-    font-weight: 600;
-    letter-spacing: 0.46px;
+    border-radius: 16px;
+    padding: 0 12px;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 24px;
+    letter-spacing: 0.46px;
+    text-transform: uppercase;
   }
+`
+
+// Buy-now CTA: the Amethyst gradient. In the mobile sticky bar it sits beside the cart square (the
+// data-dual parent), where it flexes to share the row.
+export const DetailCta = styled(Button)`
+  ${ctaBox};
 
   ${media.maxWidth('lg')} {
     [data-dual] && {
       flex: 1 1 auto;
       width: auto;
     }
+  }
+`
+
+// Dark-solid CTA — the primary manage action (Put up for sale / Edit price) and any solid dark button.
+// Overrides the Button base colours via `&&`.
+export const DarkCta = styled(Button)`
+  ${ctaBox};
+  && {
+    background: ${colors.blackBtn};
+    color: ${colors.softWhite};
+    border: 0;
+
+    .ico {
+      width: 20px;
+      height: 20px;
+    }
+  }
+  &&:hover:not(:disabled) {
+    background: ${colors.blackBtn};
+    filter: brightness(1.35);
+  }
+`
+
+// Dark-outline CTA — the secondary manage action (Transfer / Remove from sale).
+export const OutlineCta = styled(Button)`
+  ${ctaBox};
+  && {
+    background: transparent;
+    border: 2px solid ${colors.blackBtn};
+    color: ${colors.text};
+  }
+  &&:hover:not(:disabled) {
+    background: rgba(36, 33, 41, 0.06);
   }
 `
 
@@ -649,10 +694,11 @@ export const AddCart = styled.button`
   text-transform: uppercase;
   letter-spacing: 0.46px;
   cursor: pointer;
-  transition: filter 0.15s ease;
+  transition: background 0.15s ease;
 
+  /* Hover is the design's gray-0, not a brightness lift. */
   &:hover:not(:disabled) {
-    filter: brightness(1.35);
+    background: ${colors.gray0};
   }
   &:disabled {
     opacity: 0.55;
@@ -679,23 +725,23 @@ export const AddCartLabel = styled.span`
   }
 `
 
-export const Status = styled.p`
-  margin: 0;
+// "You own N of this" note on the generic item page: the item page never manages a token, so this
+// points owners to My Assets instead of showing Edit/Remove. Subtle, sits under the buy CTAs.
+export const OwnNote = styled.p`
+  margin: 12px 0 0;
   font-size: 13px;
+  color: ${colors.muted};
 
-  ${media.maxWidth('lg')} {
-    order: 7;
+  & a {
+    color: ${colors.accent};
+    font-weight: 600;
   }
 `
 
-// "This is your item" note shown instead of the buy CTAs — a bordered card, not bare text.
-export const OwnNote = styled.p`
-  margin: 0;
-  font-size: 14px;
-  padding: 16px;
-  border: 1px solid ${colors.line};
-  border-radius: ${radius.card};
-  background: #fff;
+// "Manage all your items in My Assets" helper, mirroring the own-note styling.
+export const ManageNote = styled.p`
+  margin: 4px 0 0;
+  font-size: 13px;
   color: ${colors.muted};
 
   & a {
@@ -792,4 +838,265 @@ export const Diamond = styled(CurrencyIcon)`
 export const CtaDiamond = styled(CurrencyIcon)`
   width: 20px;
   height: 20px;
+`
+
+// Primary-sale banner: a lavender pill above the price telling the buyer they're buying a fresh mint
+// straight from the creator. Only shown for a primary (mint) listing.
+export const PrimarySaleBanner = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px;
+  margin: 16px 0;
+  border-radius: ${radius.btn};
+  background: #f4e9ff;
+`
+
+export const FromCreator = styled.span`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  line-height: 14px;
+  color: ${colors.text};
+`
+
+export const FromCreatorIco = styled(Icon)`
+  width: 20px;
+  height: 20px;
+  color: ${colors.rarity};
+`
+
+export const BannerCheck = styled(Icon)`
+  width: 24px;
+  height: 24px;
+  color: ${colors.rarity};
+`
+
+// Lowest-price + resellers link: a row below the CTAs. Left shows the cheapest resale price; right is an
+// internal link that scrolls to the Resellers list. data-centered when there is no link beside it.
+export const LowestPriceRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  margin-top: 16px;
+
+  &[data-centered] {
+    justify-content: center;
+  }
+`
+
+export const Lowest = styled.span`
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 14px;
+  font-weight: 600;
+  color: ${colors.muted};
+
+  & .ico {
+    width: 20px;
+    height: 20px;
+    color: ${colors.muted};
+  }
+`
+
+export const LowestValue = styled.span`
+  font-size: 16px;
+  font-weight: 700;
+  padding-left: 2px;
+`
+
+export const ResellersLink = styled.button`
+  border: 0;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: ${font.sans};
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.46px;
+  text-transform: uppercase;
+  text-decoration: underline;
+  color: ${colors.accent};
+
+  &:hover {
+    color: ${colors.accentHover};
+  }
+  &:focus-visible {
+    outline: 2px solid ${colors.accent};
+    outline-offset: 2px;
+    border-radius: ${radius.chip};
+  }
+`
+
+// Sold-out price block: the exhausted primary's original price (struck) with a "SOLD OUT" tag, above the
+// cheapest resale price + how many copies are on the secondary market.
+export const SoldOutPricing = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  padding: 16px 0;
+`
+
+// data-variant='original' is the struck-through muted row; 'resale' is the emphasised one. The children
+// below read the variant off this row rather than carrying their own modifier.
+export const SoRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+
+  &[data-variant='original'] {
+    color: ${colors.muted2};
+  }
+`
+
+export const SoLabel = styled.span`
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 14px;
+  font-weight: 600;
+
+  [data-variant='original'] & {
+    color: ${colors.muted2};
+  }
+  [data-variant='resale'] & {
+    color: ${colors.text};
+  }
+`
+
+export const SoPrice = styled.span`
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 2px;
+
+  [data-variant='original'] & .ico {
+    width: 20px;
+    height: 20px;
+    color: ${colors.muted2};
+  }
+  [data-variant='resale'] & .ico {
+    width: 24px;
+    height: 24px;
+    color: ${colors.rarity};
+  }
+`
+
+export const SoValue = styled.span`
+  [data-variant='original'] & {
+    font-size: 16px;
+    font-weight: 700;
+    text-decoration: line-through;
+  }
+  [data-variant='resale'] & {
+    font-size: 25px;
+    font-weight: 700;
+    color: ${colors.text};
+  }
+`
+
+export const SoTag = styled.span`
+  font-size: 14px;
+  font-weight: 600;
+
+  [data-variant='original'] & {
+    color: ${colors.muted2};
+  }
+`
+
+export const SoStock = styled.span`
+  font-size: 14px;
+  font-weight: 600;
+  color: ${colors.text2};
+`
+
+export const SoInfo = styled.span`
+  display: inline-flex;
+  width: 12px;
+  height: 12px;
+  color: ${colors.muted2};
+`
+
+// Owner/creator management actions (replace the buy CTAs when the viewer owns or created this item).
+// Stacked full-width so the primary + secondary actions read as a clear action column.
+export const ManageActions = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+`
+
+// The resellers trigger under the manage CTAs, centered on its own line.
+export const ManageResellers = styled.div`
+  display: flex;
+  justify-content: center;
+`
+
+// Loading skeletons for the sale section (price + CTAs) and the creator/collection badges. They reuse the
+// global `shimmer` keyframe and are reduced-motion-safe, sized to the final content so the sector already
+// occupies its eventual height — no reflow when the data lands.
+const skeletonFill = css`
+  display: block;
+  background: linear-gradient(100deg, #efeef2 30%, #e2e0e7 50%, #efeef2 70%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite linear;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+`
+
+export const SaleSkeleton = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  /* Reserve the divider→CTA rhythm so the block is the same height loading vs loaded. */
+  padding-top: 4px;
+`
+
+export const SkPrice = styled.span`
+  ${skeletonFill};
+  width: 120px;
+  height: 30px;
+  border-radius: ${radius.btn};
+  margin-bottom: 4px;
+`
+
+// Full-width CTA-button placeholder (matches the 48px dark/outline buttons).
+export const SkCta = styled.span`
+  ${skeletonFill};
+  width: 100%;
+  height: 48px;
+  border-radius: 16px;
+`
+
+// Creator/collection badge placeholder: circular avatar + name bar (matches CreatorBadge's layout).
+export const SkBadge = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+`
+
+export const SkAva = styled.span`
+  ${skeletonFill};
+  flex: none;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+`
+
+export const SkName = styled.span`
+  ${skeletonFill};
+  width: 96px;
+  height: 16px;
+  border-radius: 6px;
 `

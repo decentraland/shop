@@ -51,7 +51,7 @@ function creditOrder(overrides: Partial<CreditOrder> = {}): CreditOrder {
     id: 'co-' + Math.random().toString(36).slice(2),
     credits: 100,
     usdCents: 1000,
-    status: 'SETTLED',
+    status: 'credited',
     createdAt: 3_000,
     ...overrides
   }
@@ -124,13 +124,24 @@ describe('buildActivityFeed', () => {
     expect(feed.map(e => e.kind)).toEqual(['credit', 'sale', 'purchase'])
   })
 
-  it('should drop EXPIRED credit orders (released, never paid)', () => {
+  // These fixtures must use the CREDITS-SERVER's status words. The previous version passed 'EXPIRED' and
+  // asserted it was dropped — and passed, because the filter compared against 'EXPIRED' too. Both sides
+  // agreed with each other and disagreed with the server, which never sends it, so in production nothing
+  // was ever filtered. A fixture typed from a wrong type cannot catch that type being wrong.
+  it('should drop failed credit orders (the charge never succeeded)', () => {
     const feed = buildActivityFeed({
       purchases: [],
       sales: [],
-      creditOrders: [creditOrder({ status: 'EXPIRED' })]
+      creditOrders: [creditOrder({ status: 'failed' })]
     })
     expect(feed).toHaveLength(0)
+  })
+
+  it.each(['processing', 'crediting', 'credited'] as const)('should keep a %s credit order', status => {
+    // 'processing' included on purpose: it is indistinguishable from "paid, not yet credited", and hiding
+    // those would hide money the buyer is waiting on.
+    const feed = buildActivityFeed({ purchases: [], sales: [], creditOrders: [creditOrder({ status })] })
+    expect(feed).toHaveLength(1)
   })
 })
 
@@ -167,5 +178,68 @@ describe('filterActivity', () => {
     expect(purchases.map(e => e.kind).sort()).toEqual(['credit', 'purchase'])
     // …and never leak into the sales tab.
     expect(filterActivity(withCredit, 'sales').map(e => e.kind)).toEqual(['sale'])
+  })
+})
+
+describe('MANA-paid purchases', () => {
+  // A purchase settled entirely in MANA authorizes no credits, so credits-server has no record of it.
+  // The buyer side of the chain is the only trace — without it the item lands in My Assets and the buyer
+  // sees nothing in Activity at all.
+  const buyerSale = (over: Partial<SaleRecord> = {}): SaleRecord => ({
+    id: 'sale-1',
+    buyer: '0xme',
+    seller: '0xseller',
+    contractAddress: '0xcollection',
+    tokenId: '7',
+    itemId: null,
+    manaWei: '10000000000000000000',
+    createdAt: 1_700_000_000_000,
+    txHash: '0xTX',
+    category: 'wearable',
+    ...over
+  })
+
+  it('lists a MANA purchase that no credits intent backs', () => {
+    const feed = buildActivityFeed({ purchases: [], sales: [], manaPurchases: [buyerSale()] })
+    expect(feed.map(e => e.kind)).toEqual(['mana-purchase'])
+  })
+
+  it('does NOT list it twice when the same purchase also spent credits', () => {
+    // A credits checkout settles on-chain too, so it shows up on the buyer side as well. Matching the
+    // settlement tx is what keeps one purchase from being listed once per source.
+    const purchase = {
+      id: 'p1',
+      tradeId: 't1',
+      usdCents: 1000,
+      credits: 100,
+      status: 'SETTLED' as const,
+      createdAt: 1_700_000_000_000,
+      manaSettledWei: null,
+      txHash: '0xtx' // deliberately different case from the sale's 0xTX
+    }
+    const feed = buildActivityFeed({ purchases: [purchase], sales: [], manaPurchases: [buyerSale()] })
+    expect(feed.filter(e => e.kind === 'mana-purchase')).toEqual([])
+    expect(feed.filter(e => e.kind === 'purchase').length).toBe(1)
+  })
+
+  it('keeps a MANA purchase whose tx differs from every credits intent', () => {
+    const purchase = {
+      id: 'p1',
+      tradeId: 't1',
+      usdCents: 1000,
+      credits: 100,
+      status: 'SETTLED' as const,
+      createdAt: 1_700_000_000_000,
+      manaSettledWei: null,
+      txHash: '0xother'
+    }
+    const feed = buildActivityFeed({ purchases: [purchase], sales: [], manaPurchases: [buyerSale()] })
+    expect(feed.filter(e => e.kind === 'mana-purchase').length).toBe(1)
+  })
+
+  it('counts as a purchase under the Purchases filter, not under Sales', () => {
+    const feed = buildActivityFeed({ purchases: [], sales: [], manaPurchases: [buyerSale()] })
+    expect(filterActivity(feed, 'purchases').length).toBe(1)
+    expect(filterActivity(feed, 'sales')).toEqual([])
   })
 })

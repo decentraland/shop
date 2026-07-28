@@ -5,8 +5,11 @@ node_modules/
 dist/
 build/
 *.tsbuildinfo
-# Compiled from vite.config.ts by `tsc -b` — vite loads the .ts directly, the .js is a stray artifact.
+# Compiled from vite.config.ts by `tsc -b`. NOT harmless: vite resolves vite.config.js BEFORE
+# vite.config.ts, so a compiled sibling silently shadows the real config and every edit to it becomes a
+# no-op. tsconfig.node.json now emits to node_modules/.tmp instead; these entries stay for old checkouts.
 app/vite.config.js
+app/vite.config.d.ts
 
 # Tests / coverage
 coverage/

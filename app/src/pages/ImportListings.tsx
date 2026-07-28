@@ -10,6 +10,7 @@ import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
 import * as S from './ImportListings.styles'
+import { theme } from '~/styles/theme'
 
 const SECTIONS = [
   {
@@ -131,7 +132,7 @@ export function ImportListings() {
       </S.Head>
 
       <S.Ratebar>
-        <CurrencyIcon className="ccy-mark" color="var(--accent)" />{' '}
+        <CurrencyIcon className="ccy-mark" color={theme.colors.text} />{' '}
         {t('importListings.rate', { currency: CURRENCY.nameSingular })}
       </S.Ratebar>
 
@@ -170,7 +171,7 @@ export function ImportListings() {
                       </S.Meta>
                       <S.Price>
                         <S.PriceField>
-                          <CurrencyIcon size={15} color="var(--accent)" />
+                          <CurrencyIcon size={15} color={theme.colors.text} />
                           <S.PriceInput
                             data-testid="imp-price-input"
                             inputMode="numeric"
@@ -213,7 +214,7 @@ export function ImportListings() {
         <S.DockInner>
           <div>
             <S.DockTotal>
-              <CurrencyIcon className="ccy-mark" color="var(--accent)" /> {total.toLocaleString()}
+              <CurrencyIcon className="ccy-mark" color={theme.colors.text} /> {total.toLocaleString()}
             </S.DockTotal>
             <S.DockSub>
               {t('importListings.selectedSummary', {

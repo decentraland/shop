@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { fetchListings, type CatalogItem } from '~/lib/api'
 import { AssetCard } from '~/components/AssetCard'
+import { SkeletonCards } from '~/components/SkeletonCards'
 import { FollowedCreatorsRow } from '~/components/FollowedCreatorsRow'
 import { RecentlyViewed } from '~/components/RecentlyViewed'
 import { WeekTopCreators } from '~/components/WeekTopCreators'
@@ -93,9 +94,11 @@ function Carousel({ title, items, loading }: { title: string; items: CatalogItem
           </S.Arrow>
         ) : null}
         <S.Track ref={trackRef}>
-          {loading
-            ? Array.from({ length: SKELETON_COUNT }).map((_, i) => <div className="card card--skeleton" key={i} />)
-            : items.map(item => <AssetCard key={item.id} item={item} />)}
+          {loading ? (
+            <SkeletonCards count={SKELETON_COUNT} />
+          ) : (
+            items.map(item => <AssetCard key={item.id} item={item} />)
+          )}
         </S.Track>
         {showControls ? (
           <S.Arrow

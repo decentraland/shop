@@ -14,7 +14,10 @@ const shimmer = keyframes`
 export const Section = styled.section`
   width: 100%;
   min-width: 0;
+  /* Centre heading, intro and rows as ONE block, so the list isn't parked against the left edge of a
+     wide page (same treatment as the Activity feed). */
   max-width: 760px;
+  margin-inline: auto;
 `
 
 export const Head = styled.div`
@@ -82,6 +85,16 @@ export const RowSkeleton = styled.div`
   @media (prefers-reduced-motion: reduce) {
     animation: none;
   }
+`
+
+/**
+ * A mark inside a Thumb. Needed because Thumb stretches any bare <img> to fill its 44px box, which blows
+ * a small symbol up to 3× the size of the glyph in the row above it.
+ */
+export const ThumbMark = styled.img`
+  width: 22px !important;
+  height: 22px !important;
+  object-fit: contain;
 `
 
 export const Thumb = styled.div`

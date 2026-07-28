@@ -93,7 +93,7 @@ export const Sidebar = styled.aside`
     transition: transform 0.26s ease;
     visibility: hidden;
 
-    &.is-open {
+    &[data-open] {
       transform: translateY(0);
       visibility: visible;
     }
@@ -225,5 +225,94 @@ export const MarketBanner = styled.p`
   &[data-variant='warn'] {
     background: rgba(211, 51, 51, 0.1);
     color: ${theme.colors.err};
+  }
+`
+
+// Zero-results state for the grid (search/filters returned nothing) — a white rounded card centering
+// an illustration, the "Oops!" copy and an Explore Shop CTA.
+export const EmptyState = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  padding: 48px 16px;
+  border-radius: 16px;
+  background: ${theme.colors.white};
+  text-align: center;
+`
+
+export const EmptyIcon = styled.img`
+  width: 101px;
+  height: 101px;
+`
+
+export const EmptyText = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 16px;
+  color: ${theme.colors.text};
+`
+
+export const EmptyTitle = styled.p`
+  margin: 0;
+  font-family: ${theme.font.sans};
+  font-weight: 700;
+  font-size: 20px;
+  line-height: 1.6;
+`
+
+export const EmptyBody = styled.p`
+  margin: 0;
+  max-width: 520px;
+  font-family: ${theme.font.sans};
+  font-weight: 400;
+  font-size: 16px;
+  line-height: 1.6;
+
+  b {
+    font-weight: 600;
+  }
+`
+
+export const EmptyCta = styled.div`
+  display: flex;
+  flex-direction: column;
+  width: 310px;
+  max-width: 100%;
+  padding-bottom: 16px;
+`
+
+export const EmptyBtn = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 56px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 12px;
+  background: ${theme.colors.accent};
+  color: ${theme.colors.softWhite};
+  font-family: ${theme.font.sans};
+  font-weight: 600;
+  font-size: 15px;
+  line-height: 24px;
+  letter-spacing: 0.46px;
+  text-transform: uppercase;
+  cursor: pointer;
+
+  &:hover {
+    background: ${theme.colors.accentHover};
+  }
+  &:active {
+    background: ${theme.colors.accentActive};
+  }
+  &:focus-visible {
+    outline: 2px solid ${theme.colors.accent};
+    outline-offset: 2px;
   }
 `

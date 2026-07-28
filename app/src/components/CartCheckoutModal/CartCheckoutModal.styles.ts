@@ -52,3 +52,23 @@ export const QtyTag = styled.span`
   font-weight: 600;
   color: ${colors.muted};
 `
+
+// Payment-rail chooser: the basket total above the rail rows.
+export const ChooseTotal = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 0 12px;
+  font-size: 14px;
+  color: ${colors.muted};
+
+  & strong {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 20px;
+    font-weight: 700;
+    color: ${colors.text};
+  }
+`

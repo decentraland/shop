@@ -1,5 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { ChainId, Network, TradeAssetType, TradeType, type Trade, type TradeCreation } from '@dcl/schemas'
+
+import { resetFeatureFlagsCache } from '~/lib/featureFlags'
 
 // Track calls into the mocked ethers Contract so we can assert on the on-chain paths without a chain.
 const isApprovedForAllMock = vi.fn()
@@ -45,7 +47,6 @@ vi.mock('decentraland-transactions', () => ({
 const { mockConfig } = vi.hoisted(() => ({
   mockConfig: { rpcUrl: 'http://localhost:9999' } as {
     rpcUrl: string
-    proceedsToTreasury: boolean
     treasuryAddress: string
   }
 }))
@@ -114,7 +115,7 @@ import {
   isMarketplaceMinter,
   ensureMinter,
   createPrimaryUsdPeggedListing,
-  proceedsBeneficiary
+  resaleBeneficiary
 } from '~/lib/trades'
 import { getOnChainTrade } from '~/lib/trade-encoding'
 
@@ -142,7 +143,6 @@ const TREASURY = '0x00000000000000000000000000000000000000EE'
 beforeEach(() => {
   vi.clearAllMocks()
   // Reset the treasury flag to OFF before every test so flag-ON cases can't leak.
-  mockConfig.proceedsToTreasury = false
   mockConfig.treasuryAddress = ''
 })
 
@@ -672,28 +672,76 @@ describe('when handling a listing expiration set in milliseconds', () => {
 // beneficiary — today's behavior. With it ON (testnet) the proceeds route to the configured treasury,
 // so the credits-server can later credit the signer in closed-loop credits.
 describe('when routing sale proceeds under the PROCEEDS_TO_TREASURY flag', () => {
+  /**
+   * The runtime flag is now half of the decision (the per-env config is the other half), so these specs stub
+   * the flag service. `true` is the default here because most cases below are about the ROUTING logic; the
+   * flag's own behaviour — including failing closed — is covered in featureFlags.spec.ts.
+   */
+  function armFlag(enabled: boolean, secondarySales = true) {
+    resetFeatureFlagsCache()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            flags: {
+              'dapps-proceeds-to-treasury': enabled,
+              // Routing only ever applies to a resale, so these cases need the Shop to be offering them.
+              // Defaults to on here so the routing tests below read as being about routing; the case where
+              // the Shop offers no resales at all has its own test.
+              'dapps-shop-secondary-sales': secondarySales
+            }
+          })
+      })
+    )
+  }
+
   beforeEach(() => {
     contractSignatureIndexMock.mockResolvedValue({ toNumber: () => 3 })
     signerSignatureIndexMock.mockResolvedValue({ toNumber: () => 7 })
+    armFlag(true)
   })
 
-  describe('and resolving the beneficiary directly', () => {
-    it('should return the fallback (seller/creator) when the flag is OFF', () => {
-      mockConfig.proceedsToTreasury = false
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    resetFeatureFlagsCache()
+  })
+
+  describe('and resolving a RESALE beneficiary directly', () => {
+    it('should return the treasury address when an address is configured AND the flag is on', async () => {
       mockConfig.treasuryAddress = TREASURY
-      expect(proceedsBeneficiary(SELLER)).toBe(SELLER)
+      await expect(resaleBeneficiary(SELLER)).resolves.toBe(TREASURY)
     })
 
-    it('should return the treasury address when the flag is ON and an address is set', () => {
-      mockConfig.proceedsToTreasury = true
-      mockConfig.treasuryAddress = TREASURY
-      expect(proceedsBeneficiary(SELLER)).toBe(TREASURY)
-    })
-
-    it('should fall back to the seller/creator when the flag is ON but no treasury is set', () => {
-      mockConfig.proceedsToTreasury = true
+    it('should fall back to the seller/creator when no treasury is set', async () => {
       mockConfig.treasuryAddress = ''
-      expect(proceedsBeneficiary(SELLER)).toBe(SELLER)
+      await expect(resaleBeneficiary(SELLER)).resolves.toBe(SELLER)
+    })
+
+    it('should fall back to the seller/creator when the RUNTIME flag is off', async () => {
+      // The kill switch: provisioned, address set, and still paying the seller directly because the flag
+      // says stop. This is what makes stopping the flow possible without a redeploy.
+      mockConfig.treasuryAddress = TREASURY
+      armFlag(false)
+      await expect(resaleBeneficiary(SELLER)).resolves.toBe(SELLER)
+    })
+
+    it('should pay the seller directly when the Shop offers no secondary sales at all', async () => {
+      // Belt and braces. Every caller that could reach this is hidden while resales are off, so this should
+      // be unreachable — the point is that if a path is ever un-hidden without revisiting the routing
+      // decision, the seller keeps their MANA instead of it silently going to the treasury.
+      mockConfig.treasuryAddress = TREASURY
+      armFlag(true, false)
+
+      await expect(resaleBeneficiary(SELLER)).resolves.toBe(SELLER)
+    })
+
+    it('should fall back to the seller/creator when the flag service is unreachable', async () => {
+      mockConfig.treasuryAddress = TREASURY
+      resetFeatureFlagsCache()
+      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')))
+      await expect(resaleBeneficiary(SELLER)).resolves.toBe(SELLER)
     })
   })
 
@@ -709,7 +757,6 @@ describe('when routing sale proceeds under the PROCEEDS_TO_TREASURY flag', () =>
     })
 
     it('should route the beneficiary to the treasury when the flag is ON', async () => {
-      mockConfig.proceedsToTreasury = true
       mockConfig.treasuryAddress = TREASURY
       const trade = await createUsdPeggedListing({
         signer: makeSigner(),
@@ -723,28 +770,52 @@ describe('when routing sale proceeds under the PROCEEDS_TO_TREASURY flag', () =>
     })
   })
 
+  // A primary sale is the creator's OWN revenue, and they need it in MANA: closed-loop credits cannot
+  // leave the shop, so a creator paid in credits has no way to cash out. Routing these was a real bug —
+  // with the flag on, creators were silently paid in credits and even told so by the listing modal.
+  //
+  // Both of these assert the SAME beneficiary on purpose. The flag is the only variable, and the point is
+  // that it is not a variable here: whatever it says, a primary listing pays its creator.
   describe('and building a primary (mint) listing', () => {
-    it('should keep the creator as beneficiary when the flag is OFF', async () => {
-      const trade = await createPrimaryUsdPeggedListing({
+    async function primaryListing() {
+      return createPrimaryUsdPeggedListing({
         signer: makeSigner(),
         item: { contractAddress: COLLECTION, itemId: '5', network: Network.MATIC, chainId: ChainId.MATIC_AMOY },
         usdPrice: 1,
         expiresAtMs: 2_000_000
       })
+    }
+
+    it('should keep the creator as beneficiary when the flag is OFF', async () => {
+      const trade = await primaryListing()
+
       expect((trade.received[0] as any).beneficiary).toBe(SELLER.toLowerCase())
     })
 
-    it('should route the beneficiary to the treasury when the flag is ON', async () => {
-      mockConfig.proceedsToTreasury = true
+    it('should STILL keep the creator as beneficiary when the flag is ON', async () => {
+      // The regression guard. A configured treasury plus an armed flag is exactly the state dev was in
+      // when creators started being paid in credits, so this is the case that has to stay pinned.
       mockConfig.treasuryAddress = TREASURY
-      const trade = await createPrimaryUsdPeggedListing({
-        signer: makeSigner(),
-        item: { contractAddress: COLLECTION, itemId: '5', network: Network.MATIC, chainId: ChainId.MATIC_AMOY },
-        usdPrice: 1,
-        expiresAtMs: 2_000_000
-      })
-      expect((trade.received[0] as any).beneficiary).toBe(TREASURY)
-      expect(trade.signer).toBe(SELLER.toLowerCase())
+      armFlag(true)
+
+      const trade = await primaryListing()
+
+      expect((trade.received[0] as any).beneficiary).toBe(SELLER.toLowerCase())
+      expect((trade.received[0] as any).beneficiary).not.toBe(TREASURY)
+    })
+
+    it('should not consult the flag service at all for a primary listing', async () => {
+      // Stronger than checking the address: a primary listing must not even ASK. If it asks, someone has
+      // reintroduced the routing decision on this path and the answer only happens to be right today.
+      mockConfig.treasuryAddress = TREASURY
+      resetFeatureFlagsCache()
+      const fetchSpy = vi.fn().mockRejectedValue(new Error('should not be called'))
+      vi.stubGlobal('fetch', fetchSpy)
+
+      const trade = await primaryListing()
+
+      expect(fetchSpy).not.toHaveBeenCalled()
+      expect((trade.received[0] as any).beneficiary).toBe(SELLER.toLowerCase())
     })
   })
 })

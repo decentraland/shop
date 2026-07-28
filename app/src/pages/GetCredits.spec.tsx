@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -37,7 +37,7 @@ vi.mock('decentraland-ui2', () => ({
 // In mock mode the pack "purchase" tops up the real backend via devMintUsd — stub it so the test
 // stays offline (no credits-server). The success screen shows the pack's granted credits regardless.
 vi.mock('~/lib/credits', () => ({
-  devMintUsd: vi.fn().mockResolvedValue({ id: 'test', usdCents: 2500, balanceCents: 2500, credits: 250 })
+  devMintUsd: vi.fn().mockResolvedValue({ id: 'test', usdCents: 2350, balanceCents: 2350, credits: 235 })
 }))
 
 import { GetCredits } from '~/pages/GetCredits'
@@ -64,10 +64,10 @@ describe('when a signed-in user opens the get-credits page', () => {
 
   it('should show every credit pack with its price, credits and one best-value pack', () => {
     renderPage()
-    expect(screen.getByRole('button', { name: /50 credits for \$5/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /100 credits for \$10/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /250 credits for \$25/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /500 credits for \$50/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /45 credits for \$4\.99/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /90 credits for \$9\.99/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /235 credits for \$24\.99/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /475 credits for \$49\.99/i })).toBeInTheDocument()
     expect(screen.getByText(/recommended/i)).toBeInTheDocument()
   })
 
@@ -76,7 +76,7 @@ describe('when a signed-in user opens the get-credits page', () => {
     renderPage()
 
     // Pick a pack — no intermediate card form in mock mode; it goes straight to crediting.
-    await user.click(screen.getByRole('button', { name: /250 credits for \$25/i }))
+    await user.click(screen.getByRole('button', { name: /235 credits for \$24\.99/i }))
 
     // No embedded pay form / "choose a different pack" back-link appears.
     expect(screen.queryByRole('button', { name: /pay \$/i })).not.toBeInTheDocument()
@@ -85,7 +85,7 @@ describe('when a signed-in user opens the get-credits page', () => {
     // Processing → success: credits added. (Mock flow has a short simulated
     // charge + crediting delay, so allow more than the RTL default timeout.)
     expect(await screen.findByText(/purchase was successful/i, {}, { timeout: 4000 })).toBeInTheDocument()
-    expect(screen.getByText(/250/)).toBeInTheDocument()
+    expect(screen.getByText(/235/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /start shopping/i })).toBeInTheDocument()
   })
 })
@@ -105,7 +105,7 @@ describe('when the pack catalogue is still loading', () => {
 
     expect(container.querySelectorAll('[data-testid="pack-skeleton"]').length).toBe(4)
     // The real (clickable) packs are not rendered yet.
-    expect(screen.queryByRole('button', { name: /250 credits for \$25/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /235 credits for \$24\.99/i })).not.toBeInTheDocument()
   })
 })
 
@@ -129,7 +129,7 @@ describe('when returning from Stripe hosted Checkout', () => {
 
     expect(await screen.findByText(/payment canceled/i)).toBeInTheDocument()
     // Not an error state — the packs are still selectable.
-    expect(screen.getByRole('button', { name: /250 credits for \$25/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /235 credits for \$24\.99/i })).toBeInTheDocument()
     expect(screen.queryByText(/something went wrong/i)).not.toBeInTheDocument()
   })
 })
@@ -148,11 +148,34 @@ describe('when a signed-out user opens the get-credits page', () => {
     renderPage()
 
     // Packs are visible even while logged out (always-show-packs).
-    expect(screen.getByRole('button', { name: /50 credits for \$5/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /500 credits for \$50/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /45 credits for \$4\.99/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /475 credits for \$49\.99/i })).toBeInTheDocument()
 
     // Clicking a pack triggers sign-in instead of dropping into an un-authable Stripe checkout.
-    await user.click(screen.getByRole('button', { name: /250 credits for \$25/i }))
+    await user.click(screen.getByRole('button', { name: /235 credits for \$24\.99/i }))
     expect(signIn).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('the pack artwork fallback', () => {
+  it('falls back to the bundled asset exactly once when the remote image fails', async () => {
+    // The regression this guards: the handler used to compare `img.src` (which reads back an ABSOLUTE url)
+    // against the bundled import (a root-relative path). That never matched, so a bundled asset which also
+    // failed would re-assign src from inside its own error handler — an unbounded request loop.
+    // Queried by tag, not by role: the artwork is decorative (alt="") so it is exposed as
+    // role="presentation", which is correct for it and unfindable via getByRole('img').
+    const { container } = renderPage()
+    await screen.findAllByTestId('pack')
+    const img = container.querySelector('[data-testid="pack"] img') as HTMLImageElement
+    expect(img).toBeTruthy()
+
+    fireEvent.error(img)
+    const afterFirst = img.src
+    expect(afterFirst).not.toBe('')
+    expect(img.dataset.artFallback).toBe('done')
+
+    // A second failure must NOT touch src again.
+    fireEvent.error(img)
+    expect(img.src).toBe(afterFirst)
   })
 })

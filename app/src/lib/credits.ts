@@ -1,6 +1,7 @@
 import signedFetch from 'decentraland-crypto-fetch'
 import type { AuthIdentity } from '@dcl/crypto'
 import { config } from '~/config'
+import type { Payout } from '~/lib/payouts'
 
 export type ServerCredit = {
   id: string
@@ -130,12 +131,36 @@ export async function fetchUserPurchases(
 // One credit-pack (top-up) purchase: the buyer paid money (via the Stripe pack checkout) and received
 // `credits`. Distinct from an item PurchaseRecord — a top-up carries no tradeId; it credits the USD
 // balance. `usdCents` is what they paid; `credits` is what they got.
+/**
+ * The credits-server's OWN status vocabulary, not this app's. Source of truth is a CHECK constraint on its
+ * `stripe_orders` table: a row is created `processing` by POST /credits/checkout — i.e. when the pack is
+ * CLICKED, before any payment — then `crediting` → `credited` by the Stripe webhook, or `failed`.
+ *
+ * Do NOT reuse PurchaseRecord's PENDING/SETTLED/EXPIRED here. That is a different endpoint's vocabulary,
+ * and copying it into this type (they are declared a few lines apart) silently broke every status check
+ * downstream: none of them could ever match, so dead orders were never filtered out of the Activity feed
+ * and every row rendered as "Completed". The compiler cannot catch that — the type IS the lie.
+ */
+export type CreditOrderStatus = 'processing' | 'crediting' | 'credited' | 'failed'
+
 export type CreditOrder = {
   id: string
   credits: number
   usdCents: number
-  status: 'PENDING' | 'SETTLED' | 'EXPIRED'
+  status: CreditOrderStatus
   createdAt: number
+}
+
+/**
+ * A credit order's status as the Activity feed's pill vocabulary. Keeps the server's wording out of the
+ * components, and gives the mapping one testable home instead of an equality check at each render site.
+ */
+export function creditOrderPill(status: CreditOrderStatus): 'SETTLED' | 'PENDING' | 'FAILED' {
+  if (status === 'credited') return 'SETTLED'
+  if (status === 'failed') return 'FAILED'
+  // 'processing' (checkout opened, possibly abandoned) and 'crediting' (paid, grant in flight) are both
+  // "not money in the balance yet", which is all the pill needs to say.
+  return 'PENDING'
 }
 
 // The buyer's credit-pack purchase (top-up) history, paginated, newest first.
@@ -150,7 +175,7 @@ export async function fetchUserCreditOrders(
   address: string,
   identity: AuthIdentity,
   opts?: { first?: number; skip?: number }
-): Promise<{ items: CreditOrder[]; total: number }> {
+): Promise<{ items: CreditOrder[]; total: number; payouts: Payout[] }> {
   const qs = new URLSearchParams()
   if (opts?.first != null) qs.set('limit', String(opts.first))
   if (opts?.skip != null) qs.set('offset', String(opts.skip))
@@ -160,17 +185,26 @@ export async function fetchUserCreditOrders(
     const res = await signedFetch(url, { method: 'GET', identity, metadata: {} })
     if (!res.ok) {
       void res.body?.cancel()
-      return { items: [], total: 0 }
+      return { items: [], total: 0, payouts: [] }
     }
-    const json = (await res.json()) as { orders?: CreditOrder[]; total?: number }
+    // `earnings` is credits-server's additive seller-payout block (see its get-user-credit-orders
+    // handler). It is absent on an older deployment, which reads the same as "this seller has no
+    // treasury payouts" — sale rows then fall back to the direct-MANA display, which is what those
+    // sales actually were.
+    const json = (await res.json()) as {
+      orders?: CreditOrder[]
+      total?: number
+      earnings?: { items?: Payout[] }
+    }
     const items = json.orders ?? []
+    const payouts = json.earnings?.items ?? []
     const skip = opts?.skip ?? 0
     const first = opts?.first ?? items.length
     const total =
       typeof json.total === 'number' ? json.total : skip + items.length + (first > 0 && items.length >= first ? 1 : 0)
-    return { items, total }
+    return { items, total, payouts }
   } catch {
-    return { items: [], total: 0 }
+    return { items: [], total: 0, payouts: [] }
   }
 }
 

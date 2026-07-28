@@ -69,7 +69,7 @@ describe('NotifyMe', () => {
     useWallet.setState({ session: { address: '0xme', identity: {} } as never })
     renderNotify(<NotifyMe item={makeItem({ contractAddress: '0xc', itemId: '5', chainId: 80002 })} />)
 
-    const input = (await screen.findByTestId('notify-email'))
+    const input = await screen.findByTestId('notify-email')
     fireEvent.change(input, { target: { value: 'jane.doe@example.com' } })
     fireEvent.click(screen.getByTestId('notify-submit'))
 

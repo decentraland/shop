@@ -11,6 +11,7 @@ import {
   type ShopAuthorization
 } from '~/lib/authorizations'
 import { config } from '~/config'
+import { getIsProceedsToTreasuryEnabled, getIsSecondarySalesEnabled } from '~/lib/featureFlags'
 
 // The on-chain approval plumbing now lives in ~/lib/authorizations (the first-class module). Re-export
 // ensureChain so existing importers (e.g. ~/lib/buy) keep working without churn.
@@ -18,14 +19,31 @@ export { ensureChain }
 
 const toSeconds = (ms: number) => Math.floor(ms / 1000)
 
-// Who receives the sale proceeds on a listing Trade. Default (flag OFF, and always in prod) is the
-// seller/creator — today's behavior, unchanged. When PROCEEDS_TO_TREASURY is ON (testnet only) the
-// proceeds are routed to TREASURY_ADDRESS instead; the credits-server later observes the executed
-// trade, resolves the signer, and credits them in closed-loop shop credits — so resellers never touch
-// MANA. Guarded on a non-empty configured address: an ON flag with no treasury set falls back to the
-// seller/creator, so proceeds can never be routed to an empty beneficiary by misconfiguration.
-export function proceedsBeneficiary(fallback: string): string {
-  return config.proceedsToTreasury && config.treasuryAddress ? config.treasuryAddress : fallback
+// Who receives the MANA on a RESALE listing. Default is the seller — today's behavior, unchanged. When
+// proceeds-to-treasury is active it goes to TREASURY_ADDRESS instead; credits-server later observes the
+// executed trade, resolves the signer, and credits them in closed-loop shop credits, so resellers never
+// touch MANA.
+//
+// RESALES ONLY, and the name says so because the distinction is easy to lose. A creator's PRIMARY listing
+// is deliberately NOT routed: creators are paid in MANA so they can move it to an exchange and cash out
+// on their own, which closed-loop credits cannot do. `createPrimaryUsdPeggedListing` therefore names the
+// creator directly and never calls this — see the test that pins it.
+//
+// ASYNC on purpose. The decision needs the RUNTIME feature flag, and resolving it here — at the moment the
+// listing is signed — rather than from a snapshot means there is no window in which two listings created
+// seconds apart get different beneficiaries because the flags had not loaded yet. The flag value is cached,
+// so in practice this awaits nothing.
+//
+// Fails to the FALLBACK on every uncertainty (flag off, flags unreachable, no treasury address configured).
+// That is the safe direction by a wide margin: the seller is paid directly in MANA, exactly as before this
+// feature existed. The dangerous direction is routing proceeds to the treasury while unsure that anything
+// can credit the seller for them.
+export async function resaleBeneficiary(seller: string): Promise<string> {
+  // Belt and braces while the Shop offers no resales at all: the callers that could reach this are hidden,
+  // so this should be unreachable — and if a path is ever un-hidden without revisiting the routing decision,
+  // the seller keeps being paid directly rather than silently having their MANA sent to the treasury.
+  if (!(await getIsSecondarySalesEnabled())) return seller
+  return (await getIsProceedsToTreasuryEnabled()) ? config.treasuryAddress : seller
 }
 
 // USD_PEGGED_MANA-aware value extractor. decentraland-dapps' getValueForTradeAsset has no case for
@@ -209,7 +227,7 @@ export async function createUsdPeggedListing(opts: {
         contractAddress: mana.address,
         amount: ethers.utils.parseEther(String(usdPrice)).toString(),
         extra: '',
-        beneficiary: proceedsBeneficiary(seller)
+        beneficiary: await resaleBeneficiary(seller)
       }
     ]
   }
@@ -316,7 +334,10 @@ export async function createPrimaryUsdPeggedListing(opts: {
         contractAddress: mana.address,
         amount: ethers.utils.parseEther(String(usdPrice)).toString(),
         extra: '',
-        beneficiary: proceedsBeneficiary(creator)
+        // The CREATOR, always — never the treasury. A primary sale is the creator's own revenue and
+        // they need it in MANA to be able to cash out; closed-loop credits cannot leave the shop.
+        // Routing this was a real bug: with the flag on, creators were silently paid in credits.
+        beneficiary: creator
       }
     ]
   }

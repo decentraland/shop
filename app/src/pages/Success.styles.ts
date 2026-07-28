@@ -156,7 +156,7 @@ export const Credits = styled.div`
 export const CreditsIco = styled(CurrencyIcon)`
   width: 30px;
   height: 30px;
-  color: ${colors.accent};
+  color: ${colors.text};
 `
 
 export const CreditsText = styled.p`
