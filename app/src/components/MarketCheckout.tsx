@@ -7,7 +7,7 @@ import { useBalance, balanceLabel } from '~/hooks/useBalance'
 import { fetchTrade, type CatalogItem, type LegacyListing } from '~/lib/api'
 import { manaWeiToUsdCents, type ManaRate } from '~/lib/mana-rate'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
-import { CURRENCY, formatAmount } from '~/lib/currency'
+import { CURRENCY, formatAmount, usdCentsToCredits } from '~/lib/currency'
 import { track, errorCode, isUserRejection } from '~/lib/analytics'
 import { authorizeUsdCredit, cancelUsdIntents } from '~/lib/credits'
 import { buyWithCredits } from '~/lib/buy'
@@ -108,7 +108,7 @@ export function MarketCheckout({
   const reservedCreditIdRef = useRef<string | null>(null)
 
   // Indicative (pre-authorize) price to show while we lock the real one.
-  const approxCredits = Math.ceil(manaWeiToUsdCents(listing.manaWei, rate) / 10)
+  const approxCredits = usdCentsToCredits(manaWeiToUsdCents(listing.manaWei, rate))
 
   // Step 1 + 2 on open: resolve the trade, authorize, and reserve the dollars → LOCK the price.
   useEffect(() => {
@@ -139,7 +139,7 @@ export function MarketCheckout({
           return
         }
         reservedCreditIdRef.current = credit.id
-        setLocked({ trade, credit, maxCreditedValue, usdCents: lockedCents, credits: Math.ceil(lockedCents / 10) })
+        setLocked({ trade, credit, maxCreditedValue, usdCents: lockedCents, credits: usdCentsToCredits(lockedCents) })
         setStatus('')
       } catch (e) {
         if (cancelled) return

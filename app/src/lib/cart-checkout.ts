@@ -1,5 +1,6 @@
 import type { Trade } from '@dcl/schemas'
 import { usdWeiToCents, type CatalogItem } from '~/lib/api'
+import { usdCentsToCredits } from '~/lib/currency'
 import { isOwnTrade } from '~/lib/ownership'
 
 // Cart checkout review: resolve every cart item's LIVE listing before charging, so the buyer is never
@@ -38,7 +39,7 @@ export type TradeResolver = (item: CatalogItem) => Promise<Trade | null>
 
 // USD cents → whole credits shown (1 credit = $0.10, rounded up — the shop's whole-credit model).
 export function centsToCredits(usdCents: number): number {
-  return Math.ceil(usdCents / 10)
+  return usdCentsToCredits(usdCents)
 }
 
 /**
