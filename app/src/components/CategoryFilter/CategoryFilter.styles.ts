@@ -85,6 +85,7 @@ export const Cat = styled.button`
 
 export const Sub = styled.button`
   ${rowCss};
+  padding-left: 24px;
 
   &[data-active] {
     background: ${colors.rarityBg};
