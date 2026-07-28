@@ -184,7 +184,7 @@
     "redirecting": "Redirigiendo al pago seguro…",
     "processing": "Completando la compra",
     "successTitle": "¡Tu compra se realizó con éxito!",
-    "successBody": "Tus {currency} están listos para gastar en el Marketplace.",
+    "successBody": "Puedes encontrar tus {currency} en tu saldo.",
     "creditsAdded": "Añadidos a tu cuenta",
     "buyMore": "Comprar más {currency}",
     "startShopping": "Empezar a comprar",

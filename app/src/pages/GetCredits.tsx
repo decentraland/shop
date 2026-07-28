@@ -83,6 +83,15 @@ export function GetCredits() {
   const [phase, setPhase] = useState<Phase>('select')
   const [selected, setSelected] = useState<CreditPack | null>(null)
   const [granted, setGranted] = useState<number | null>(null)
+
+  // The artwork for the pack that was just bought, from the catalogue (credits-server publishes one image
+  // per pack). Resolved by MATCHING THE GRANTED COUNT rather than from `selected`, because on the real
+  // hosted-redirect return we come back on a fresh page load and `selected` is null — the count is the only
+  // thing we still know. Pack credit amounts are distinct, so the match is unambiguous.
+  //
+  // Falls back to the bundled coin: a top-up whose amount matches no pack, or a catalogue that failed to
+  // load, must still render an image rather than a gap.
+  const grantedArt = (granted != null ? packs.find(p => p.credits === granted)?.artUrl : undefined) ?? creditCoin
   const [error, setError] = useState<string | null>(null)
   // Gentle "payment canceled" note shown on the pack grid after a cancelled Stripe redirect.
   const [canceledNote, setCanceledNote] = useState(false)
@@ -335,7 +344,7 @@ export function GetCredits() {
           {granted != null && (
             <S.CreditsPanel>
               <S.CreditsRow>
-                <S.CreditsCoin src={creditCoin} alt="" width={93} height={93} />
+                <S.CreditsCoin src={grantedArt} alt="" width={93} height={93} />
                 <S.CreditsText>
                   <CurrencyIcon />
                   <span>

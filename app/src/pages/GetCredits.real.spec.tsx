@@ -51,10 +51,10 @@ const { isMockPayments, createPackCheckout, pollCreditGrant, fetchCreditPacks, C
   // catalogue means the pack UI is asserted against prices, amounts and a bestValue badge that no
   // longer exist, and it passes.
   CREDIT_PACKS: [
-    { id: 'pack_5', usd: 4.99, credits: 45 },
-    { id: 'pack_10', usd: 9.99, credits: 90, bestValue: true },
-    { id: 'pack_25', usd: 24.99, credits: 235 },
-    { id: 'pack_50', usd: 49.99, credits: 475 }
+    { id: 'pack_5', usd: 4.99, credits: 45, artUrl: 'https://cdn.example/pack-chips.webp' },
+    { id: 'pack_10', usd: 9.99, credits: 90, bestValue: true, artUrl: 'https://cdn.example/pack-coins.webp' },
+    { id: 'pack_25', usd: 24.99, credits: 235, artUrl: 'https://cdn.example/pack-stacks.webp' },
+    { id: 'pack_50', usd: 49.99, credits: 475, artUrl: 'https://cdn.example/pack-chest.webp' }
   ]
 }))
 vi.mock('~/lib/payments', () => ({
@@ -126,6 +126,28 @@ describe('when returning from Stripe hosted Checkout on the real path', () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['usd-balance'] })
   })
 
+  // The artwork comes from the catalogue, matched by the granted COUNT — on the real return `selected` is
+  // null (fresh page load), so the count is the only handle left on which pack was bought.
+  it('should show the artwork of the pack that was actually bought', async () => {
+    pollCreditGrant.mockResolvedValue({ status: 'credited', creditsGranted: 235, newBalance: 900 })
+
+    renderPage('/?order=ord_x')
+
+    expect(await screen.findByText(/added to your account/i)).toBeInTheDocument()
+    expect(document.querySelector('img[src="https://cdn.example/pack-stacks.webp"]')).not.toBeNull()
+  })
+
+  it('should fall back to the bundled coin when the grant matches no pack', async () => {
+    // A mid-checkout top-up can grant an amount no pack sells. The row must still render an image rather
+    // than a gap — the buyer just paid, and an empty slot reads as something having gone wrong.
+    pollCreditGrant.mockResolvedValue({ status: 'credited', creditsGranted: 137, newBalance: 900 })
+
+    renderPage('/?order=ord_x')
+
+    expect(await screen.findByText(/added to your account/i)).toBeInTheDocument()
+    expect(document.querySelector('img[src^="https://cdn.example/"]')).toBeNull()
+  })
+
   it('should show a generic success (not "0 credits added") when the server omits creditsGranted on a credited order', async () => {
     // Bug 1: on the real return `selected` is null, so a missing creditsGranted used to render "0
     // credits added" (and log credits:0) to a buyer who WAS charged.
@@ -134,7 +156,7 @@ describe('when returning from Stripe hosted Checkout on the real path', () => {
     renderPage('/?order=ord_x')
 
     expect(await screen.findByText(/purchase was successful/i)).toBeInTheDocument()
-    expect(screen.getByText(/your credits are ready/i)).toBeInTheDocument()
+    expect(screen.getByText(/you can find your credits in your balance/i)).toBeInTheDocument()
     // No misleading "0" count anywhere on the success screen.
     expect(screen.queryByText('0')).not.toBeInTheDocument()
     expect(screen.queryByText(/added to your account/i)).not.toBeInTheDocument()
@@ -151,7 +173,7 @@ describe('when returning from Stripe hosted Checkout on the real path', () => {
     renderPage('/?order=ord_x')
 
     expect(await screen.findByText(/purchase was successful/i)).toBeInTheDocument()
-    expect(screen.getByText(/your credits are ready/i)).toBeInTheDocument()
+    expect(screen.getByText(/you can find your credits in your balance/i)).toBeInTheDocument()
     const completed = track.mock.calls.find(c => c[0] === 'Shop Completed Buy Credits')
     expect(completed?.[1]).toMatchObject({ credits: null })
   })

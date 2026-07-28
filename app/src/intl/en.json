@@ -184,7 +184,7 @@
     "redirecting": "Redirecting to secure checkout…",
     "processing": "Completing purchase",
     "successTitle": "Your purchase was successful!",
-    "successBody": "Your {currency} are ready to spend in the Marketplace.",
+    "successBody": "You can find your {currency} in your balance.",
     "creditsAdded": "Added to your account",
     "buyMore": "Buy more {currency}",
     "startShopping": "Start shopping",
