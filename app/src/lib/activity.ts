@@ -73,16 +73,20 @@ export function buildActivityFeed(input: {
     const sale = toActivitySale(s, input.rate)
     return { kind: 'sale', id: `sale:${sale.id}`, createdAt: sale.createdAt, sale }
   })
-  // Credit-pack top-ups. Drop EXPIRED (released, never paid) — mirrors the purchase-intent handling.
+  // Credit-pack top-ups. Drop 'failed' (charge never succeeded) — mirrors the purchase-intent handling.
+  // This used to filter on 'EXPIRED', which the credits-server never sends, so nothing was ever dropped.
+  //
+  // 'processing' rows are deliberately KEPT even though most of them are abandoned checkouts (the row is
+  // written when the pack is clicked, and nothing ever expires it). They are indistinguishable from a real
+  // "paid, not yet credited" order, and hiding those would hide money the buyer is waiting on. Making the
+  // feed tidy here needs the server to expire dead orders, not the client to guess which ones they are.
   const creditEntries: ActivityEntry[] = (input.creditOrders ?? [])
-    .filter(o => o.status !== 'EXPIRED')
+    .filter(o => o.status !== 'failed')
     .map(order => ({ kind: 'credit', id: `credit:${order.id}`, createdAt: order.createdAt, order }))
   // MANA-paid purchases, read from the buyer side of the chain. A CREDITS purchase settles on-chain too,
   // so it appears in this feed as well — those are dropped by matching the settlement tx against the
   // credit intents, otherwise every credits checkout would be listed twice (once per source).
-  const creditsTxs = new Set(
-    input.purchases.filter(p => p.txHash).map(p => (p.txHash as string).toLowerCase())
-  )
+  const creditsTxs = new Set(input.purchases.filter(p => p.txHash).map(p => (p.txHash as string).toLowerCase()))
   const manaEntries: ActivityEntry[] = (input.manaPurchases ?? [])
     .filter(s => !creditsTxs.has(s.txHash.toLowerCase()))
     .map(sale => ({ kind: 'mana-purchase', id: `mana-purchase:${sale.id}`, createdAt: sale.createdAt, sale }))

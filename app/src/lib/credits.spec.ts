@@ -13,11 +13,13 @@ vi.mock('~/config', () => ({ config: { creditsServerUrl: 'https://credits.exampl
 import {
   authorizeUsdCredit,
   cancelUsdIntents,
+  creditOrderPill,
   devMintCredit,
   devMintUsd,
   fetchUserPurchases,
   getUsdBalance,
-  getUserCredits
+  getUserCredits,
+  type CreditOrderStatus
 } from '~/lib/credits'
 
 const IDENTITY = {} as AuthIdentity
@@ -290,5 +292,32 @@ describe('when dev-minting a spendable credit (plain fetch)', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(fail(500, 'kaboom')))
 
     await expect(devMintCredit('0xabc')).rejects.toThrow('devMintCredit 500: kaboom')
+  })
+})
+
+/**
+ * The pill mapping is the one place the credits-server's status vocabulary is translated, so it is the one
+ * place worth pinning. Exhaustive on purpose: `satisfies` plus a case per value means adding a status to
+ * CreditOrderStatus without deciding how it reads in the feed fails to compile here.
+ *
+ * The bug this guards: CreditOrder.status was declared as PENDING/SETTLED/EXPIRED, copied from the
+ * PurchaseRecord type a few lines above it. The server sends none of those, so every comparison silently
+ * failed — dead orders were never filtered out of Activity and every row rendered as "Completed".
+ */
+describe('creditOrderPill', () => {
+  const cases = {
+    processing: 'PENDING',
+    crediting: 'PENDING',
+    credited: 'SETTLED',
+    failed: 'FAILED'
+  } satisfies Record<CreditOrderStatus, ReturnType<typeof creditOrderPill>>
+
+  it.each(Object.entries(cases))('should map %s to %s', (status, expected) => {
+    expect(creditOrderPill(status as CreditOrderStatus)).toBe(expected)
+  })
+
+  it('should never report money as available for a status that is not credited', () => {
+    const notYet: CreditOrderStatus[] = ['processing', 'crediting', 'failed']
+    for (const status of notYet) expect(creditOrderPill(status)).not.toBe('SETTLED')
   })
 })

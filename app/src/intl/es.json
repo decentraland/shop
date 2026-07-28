@@ -519,6 +519,7 @@
     },
     "processing": "Procesando",
     "completed": "Completada",
+    "failed": "Fallida",
     "sold": "Vendido",
     "polygonMana": "Polygon MANA",
     "purchaseLabel": "Compra",

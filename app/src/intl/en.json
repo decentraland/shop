@@ -519,6 +519,7 @@
     },
     "processing": "Processing",
     "completed": "Completed",
+    "failed": "Failed",
     "sold": "Sold",
     "polygonMana": "Polygon MANA",
     "purchaseLabel": "Purchase",
