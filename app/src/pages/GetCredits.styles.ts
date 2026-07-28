@@ -620,9 +620,18 @@ export const CreditsRow = styled.div`
   align-items: center;
   justify-content: center;
   min-height: 109px;
-  padding: 8px 24px 8px 150px;
+  /* SYMMETRIC on purpose. The coin is absolutely positioned, so the only job of the left padding is to keep
+     the text clear of it — but with padding on one side only, centring puts the text in the middle of the
+     space LEFT OF the coin rather than in the middle of the banner, which reads as text nudged right.
+     Mirroring the padding puts it on the banner's true centre line. Below 900px the banner is too narrow to
+     give up 300px, so it falls back to clearance-only until the layout stacks at 560px. */
+  padding: 8px 150px;
   border-radius: ${theme.radius.btn};
   background: #f4e9ff;
+
+  @media (max-width: 900px) {
+    padding: 8px 24px 8px 150px;
+  }
 
   @media (max-width: 560px) {
     flex-direction: column;
