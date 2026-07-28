@@ -674,6 +674,24 @@ describe('when fetching the item-unified browse feed', () => {
     expect(total).toBe(1)
   })
 
+  // Hiding resales is a SERVER-side filter, and it has to reach the wire — the grid is paginated and shows
+  // a result count, so filtering client-side would give short pages and a count that overstates them.
+  it('should ask the server for primary listings only when told to', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ total: 0, data: [] }))
+
+    await fetchShopItems({ listingType: 'primary' })
+
+    expect(lastUrl()).toContain('listingType=primary')
+  })
+
+  it('should not constrain the listing type when it is not set', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ total: 0, data: [] }))
+
+    await fetchShopItems({})
+
+    expect(lastUrl()).not.toContain('listingType')
+  })
+
   it('should throw when the item-unified request fails', async () => {
     fetchMock.mockResolvedValueOnce(httpError(502))
     await expect(fetchShopItems()).rejects.toThrow('fetchShopItems 502')

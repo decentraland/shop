@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { fetchShopItems, type CatalogItem, type LegacyListing, type UnifiedListing } from '~/lib/api'
+import { useSecondarySales } from '~/hooks/useSecondarySales'
 import { fetchCatalogItems } from '~/lib/collections'
 import { manaWeiToCredits } from '~/lib/mana-rate'
 import { useManaRate } from '~/hooks/useManaRate'
@@ -107,6 +108,7 @@ export function Assets() {
   const isUnified = status === 'on_sale'
   const min = priceMin && !Number.isNaN(Number(priceMin)) ? Number(priceMin) : undefined
   const max = priceMax && !Number.isNaN(Number(priceMax)) ? Number(priceMax) : undefined
+  const secondarySales = useSecondarySales()
   const wearableCategories = subCategory ? SUBCAT_MAP[subCategory] : undefined
   const sortBy = (SORTS.find(s => s.key === sort) ?? SORTS[0]).server
   // Item-unified (on-sale) grid filter set — /v3/catalog/unified?groupBy=item does the filtering + sort
@@ -120,7 +122,12 @@ export function Assets() {
     search: q || undefined,
     sortBy,
     isSmart: smart || undefined,
-    onSale: true
+    onSale: true,
+    // Resales are hidden unless the flag says otherwise. Filtered server-side: this grid is paginated and
+    // shows a result count, so dropping rows here would give short pages and a count that lies. Note this
+    // also drops SOLD-OUT items whose only remaining stock is a resale — that is the intended behaviour,
+    // they are not purchasable in the Shop.
+    listingType: secondarySales ? undefined : ('primary' as const)
   }
   // Full-catalog (all / not-for-sale) filter set. Same category/rarity/sub-category/search/sort/smart,
   // minus the credit price-range (see fetchCatalogItems — that endpoint's range is MANA-denominated).

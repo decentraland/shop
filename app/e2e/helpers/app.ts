@@ -166,6 +166,9 @@ function toCatalogRow(l: any) {
   }
 }
 
+// Set per launchApp run; read by the flag-file handler below.
+let secondarySalesFlag = true
+
 function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
   const u = new URL(req.url())
   const method = req.method()
@@ -179,6 +182,16 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
   // actually issues the real request (otherwise a preflight failure masks the intended error as a
   // generic "Failed to fetch"). The error is returned WITH CORS headers on the real request.
   if (method === 'OPTIONS') return req.respond({ status: 204, headers: CORS })
+  // Decentraland feature flags. Unmocked this fetch fails and every flag reads false (fail-closed), which
+  // would hide the secondary-sale surfaces the resale specs exist to cover. Serve them ON here so those
+  // specs test the FEATURE; the hidden-by-default behaviour has its own spec that overrides this.
+  if (path.endsWith('/dapps.json')) {
+    return req.respond({
+      status: 200,
+      headers: { ...CORS, 'content-type': 'application/json' },
+      body: JSON.stringify({ flags: { 'dapps-shop-secondary-sales': secondarySalesFlag }, variants: {} })
+    })
+  }
   // Forced error injection (opt-in): before the normal per-port handling, respond with the mapped
   // status+body (json() attaches CORS headers, so the error reaches the app instead of being blocked).
   if (errors[path]) return json(req, errors[path].body ?? { error: 'forced' }, errors[path].status)
@@ -462,10 +475,16 @@ export async function launchApp(
     manaBalanceWei?: string
     /** MANA allowance the mocked ERC20 reports; omit for "already approved". */
     manaAllowanceWei?: string
+    /**
+     * Whether the mocked flag file reports secondary sales as available. Defaults to TRUE so the resale
+     * specs cover the feature; pass false to exercise the shipped default, where the Shop offers none.
+     */
+    secondarySales?: boolean
   } = {}
 ): Promise<App> {
   const F = { ...defaults(), ...opts.fixtures }
   const errors = opts.errors ?? {}
+  secondarySalesFlag = opts.secondarySales ?? true
   mintedCents = 0 // reset the per-run top-up accumulator so balances don't leak between tests
   setManaBalanceWei(opts.manaBalanceWei ?? '0') // no MANA unless a test asks for it
   setManaAllowanceWei(opts.manaAllowanceWei ?? null) // already approved unless a test asks otherwise
