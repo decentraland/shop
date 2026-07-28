@@ -1,34 +1,14 @@
 import styled from '@emotion/styled'
-import { css } from '@emotion/react'
 import { theme } from '~/styles/theme'
+import { ringHairline, ringLit, ringGradient } from '~/styles/card.styles'
 import { CreatorBadge } from '~/components/CreatorBadge'
 import { CollectionMosaic } from '~/components/CollectionThumb'
 
-const { colors, gradients, radius, media } = theme
+const { colors, radius, media } = theme
 
-const ringLit = css`
-  box-shadow: 0 0 8px 0 ${colors.brandViolet};
-  outline: none;
-`
-
-// The lit ring: a gradient fill masked down to the 2px ring itself (see AssetCard's Card).
-const ringGradient = css`
-  border: 0;
-  padding: 2px;
-  background: ${gradients.cerise};
-  -webkit-mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-`
-
-// Same inset overlay ring as AssetCard (see its Card): a 0.25px hairline at rest, the 2px cerise gradient
-// + violet glow when lit, swapped with no layout shift. On hover the "View collection" button takes the
-// creator/count row's place inside their shared slot, so nothing about the card's layout moves.
+// Inset overlay ring (shared with AssetCard): a 0.5px hairline at rest, the 2px cerise gradient + violet
+// glow when lit, swapped with no layout shift. On hover the "View collection" button takes the creator/count
+// row's place inside their shared slot, so nothing about the card's layout moves.
 export const Card = styled.article`
   height: 300px;
   background: ${colors.bg};
@@ -42,13 +22,7 @@ export const Card = styled.article`
   transition: box-shadow 0.15s ease;
 
   &::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    z-index: 5;
-    pointer-events: none;
-    border: 0.25px solid ${colors.lineStrong};
-    border-radius: inherit;
+    ${ringHairline};
   }
 
   &:focus-visible {
