@@ -25,7 +25,7 @@ export const Ava = styled.img`
   height: 110px;
   border-radius: 50%;
   object-fit: cover;
-  border: 5px solid #fff;
+  border: 5px solid ${colors.white};
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
   background: #ff4bed;
 `
@@ -88,6 +88,6 @@ export const View = styled.a`
 
   &:hover {
     background: ${colors.accent};
-    color: #fff;
+    color: ${colors.white};
   }
 `

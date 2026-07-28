@@ -1,7 +1,7 @@
 import styled from '@emotion/styled'
 import { theme } from '~/styles/theme'
 
-const { media } = theme
+const { colors, media } = theme
 
 // Shared browse layout: fixed 265px sidebar + fluid main column, used by Assets, Collection and
 // Creator. On mobile the sidebar becomes an off-canvas bottom-sheet (Assets toggles it open via
@@ -41,7 +41,7 @@ export const Sidebar = styled.aside`
     width: 100%;
     max-height: 88vh;
     border-radius: 16px 16px 0 0;
-    background: #fff;
+    background: ${colors.white};
     padding: 0 16px;
     overflow-y: auto;
     box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.18);

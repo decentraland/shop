@@ -50,7 +50,7 @@ export const Menu = styled.ul`
   margin: 0;
   padding: 0;
   overflow: hidden;
-  background: #fff;
+  background: ${colors.white};
   border-radius: ${radius.btn};
   box-shadow: 0 4px 25px 5px rgba(0, 0, 0, 0.25);
   animation: cart-pop-in 0.16s ease;
@@ -69,7 +69,7 @@ export const Option = styled.button`
   width: 100%;
   height: 40px;
   text-align: left;
-  background: #fff;
+  background: ${colors.white};
   border: 0;
   padding: 4px 4px 4px 8px;
   font-weight: 400;

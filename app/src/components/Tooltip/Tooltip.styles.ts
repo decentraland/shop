@@ -23,7 +23,7 @@ export const Bubble = styled('span', noForward('placement'))<{ placement: 'top' 
   padding: 8px 10px;
   border-radius: 8px;
   background: ${theme.colors.text};
-  color: #fff;
+  color: ${theme.colors.white};
   font-family: ${theme.font.sans};
   font-size: 12px;
   font-weight: 500;

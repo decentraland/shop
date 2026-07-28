@@ -23,7 +23,7 @@ export function useCollectionPreview(contractAddress: string, enabled = true) {
 }
 
 // Presentational mosaic — the grid of item thumbnails, no fetching. `data-count` (1–4) reshapes the
-// grid so any number of items looks intentional (see collection-thumb.css).
+// grid so any number of items looks intentional (see CollectionThumb.styles.ts).
 export function CollectionMosaic({ items, className }: { items: CatalogItem[]; className?: string }) {
   const cells = items.slice(0, MOSAIC_COUNT)
   return (

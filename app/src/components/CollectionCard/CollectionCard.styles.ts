@@ -11,7 +11,7 @@ const { colors, gradients, radius, media } = theme
 export const Card = styled.article`
   height: 300px;
   background:
-    linear-gradient(#fff, #fff) padding-box,
+    linear-gradient(${colors.white}, ${colors.white}) padding-box,
     linear-gradient(${colors.line}, ${colors.line}) border-box;
   border: 2px solid transparent;
   border-radius: ${radius.card};
@@ -26,7 +26,7 @@ export const Card = styled.article`
   &:hover,
   &:focus-visible {
     background:
-      linear-gradient(#fff, #fff) padding-box,
+      linear-gradient(${colors.white}, ${colors.white}) padding-box,
       ${gradients.cerise} border-box;
     box-shadow: 0 0 8px 0 ${colors.brandViolet};
     outline: none;

@@ -126,7 +126,7 @@ export const Tick = styled.span`
   height: 20px;
   border-radius: 50%;
   background: ${colors.ok};
-  color: #fff;
+  color: ${colors.white};
   display: grid;
   place-items: center;
   font-size: 12px;

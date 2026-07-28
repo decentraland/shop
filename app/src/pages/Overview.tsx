@@ -21,7 +21,7 @@ const SKELETON_COUNT = 6
 
 // Horizontal card rail (Figma nodes 913:135571 "Featured Products" / 913:135593 "New Creations").
 // The track is a CSS grid showing a FIXED whole number of cards per view (5 desktop → 4 → 3 → 2 mobile,
-// see overview.css `grid-auto-columns`), so an exact integer of cards always fills the viewport with a
+// see Overview.styles.ts `grid-auto-columns`), so an exact integer of cards always fills the viewport with a
 // 16px gap — no partial card is ever cut off (matches the Figma). The JS just pages by one viewport
 // width and derives the dot count from the scroll extent, so it stays correct at every breakpoint
 // without duplicating the per-card width math.

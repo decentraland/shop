@@ -41,7 +41,7 @@ export const Panel = styled.aside`
   flex-direction: column;
   width: min(480px, 100vw);
   height: 100%;
-  background: #fff;
+  background: ${colors.white};
   box-shadow: -8px 0 32px rgba(22, 21, 24, 0.18);
   animation: ${slide} 0.22s ease;
   font-family: ${font.sans};
@@ -54,7 +54,7 @@ export const Head = styled.header`
   justify-content: space-between;
   gap: 8px;
   padding: 16px;
-  border-bottom: 1px solid #cfcdd4;
+  border-bottom: 1px solid ${colors.gray4};
 `
 
 export const Title = styled.h2`
@@ -134,10 +134,10 @@ export const Card = styled.li`
   display: flex;
   gap: 12px;
   align-items: stretch;
-  border: 1px solid #cfcdd4;
+  border: 1px solid ${colors.gray4};
   border-radius: ${radius.card};
   overflow: hidden;
-  background: #fff;
+  background: ${colors.white};
 
   &[data-unavailable] [data-thumb] {
     opacity: 0.5;
@@ -330,8 +330,8 @@ export const Foot = styled.footer`
   flex-direction: column;
   gap: 12px;
   padding: 16px;
-  background: #fff;
-  border-top: 1px solid #cfcdd4;
+  background: ${colors.white};
+  border-top: 1px solid ${colors.gray4};
   box-shadow: 0 -4px 12px 2px rgba(0, 0, 0, 0.12);
 `
 
@@ -346,7 +346,7 @@ export const TotalLabel = styled.span`
   font-size: 14px;
   font-weight: 600;
   line-height: 1.57;
-  color: #5e5b67;
+  color: ${colors.muted1};
 `
 
 export const TotalVal = styled.span`
@@ -397,7 +397,7 @@ const ctaCss = css`
   }
   &[data-variant='secondary'] {
     border: 2px solid ${colors.magenta};
-    background: #fff;
+    background: ${colors.white};
     color: ${colors.accent};
   }
   &[data-variant='secondary']:hover {

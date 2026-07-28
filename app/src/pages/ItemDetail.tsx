@@ -891,7 +891,7 @@ export function ItemDetail() {
             </S.PreviewLoading>
           )}
           {/* Mobile favourite heart: a circular button at the preview's top-right (Figma 1182-195410).
-              Shares the fav state with the title-row heart, which hides on mobile (item-detail.css) so
+              Shares the fav state with the title-row heart, which hides on mobile (ItemDetail.styles.ts) so
               only one is ever in the a11y tree. */}
           <S.Fav
             data-fav-preview

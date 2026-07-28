@@ -3,7 +3,7 @@ import { css } from '@emotion/react'
 import { Link } from 'react-router-dom'
 import { theme } from '~/styles/theme'
 
-const { radius, media } = theme
+const { colors, radius, media } = theme
 
 // White outlined pill shared by the "View profile" link and the (context-overridden) FollowButton.
 const pill = css`
@@ -12,10 +12,10 @@ const pill = css`
   justify-content: center;
   height: 44px;
   padding: 0 28px;
-  border: 2px solid #fff;
+  border: 2px solid ${colors.white};
   border-radius: ${radius.btn};
   background: transparent;
-  color: #fff;
+  color: ${colors.white};
   font-weight: 600;
   font-size: 13px;
   text-transform: uppercase;
@@ -87,7 +87,7 @@ const linkCss = css`
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
+  color: ${colors.white};
   transition: opacity 0.15s linear;
 
   &:hover {
@@ -115,7 +115,7 @@ export const Edit = styled(Link)`
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  border: 2px solid #fff;
+  border: 2px solid ${colors.white};
   transition: background-color 0.15s linear;
 
   &:hover {
@@ -158,7 +158,7 @@ export const Ava = styled.img`
   height: 112px;
   border-radius: 50%;
   object-fit: cover;
-  border: 4px solid #fff;
+  border: 4px solid ${colors.white};
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
   background: #ff4bed;
 
@@ -172,7 +172,7 @@ export const Name = styled.h2`
   margin: 0;
   font-size: 18px;
   font-weight: 700;
-  color: #fff;
+  color: ${colors.white};
   line-height: 1.6;
 
   ${media.maxWidth('mobile')} {
@@ -183,7 +183,7 @@ export const Name = styled.h2`
 export const Desc = styled.p`
   margin: 0;
   font-size: 15px;
-  color: #fff;
+  color: ${colors.white};
   line-height: 1.6;
   max-width: 520px;
 

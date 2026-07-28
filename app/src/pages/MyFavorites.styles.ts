@@ -24,7 +24,7 @@ export const Empty = styled.div`
   gap: 24px;
   min-height: 50vh;
   padding: 48px 16px;
-  background: #fff;
+  background: ${colors.white};
   border-radius: 16px;
   text-align: center;
   color: ${colors.text};

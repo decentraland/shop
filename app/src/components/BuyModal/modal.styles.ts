@@ -36,7 +36,7 @@ export const Card = styled.div`
   max-width: 700px;
   /* Grid-item auto-minimum can otherwise push the card past the viewport on a narrow screen. */
   min-width: 0;
-  background: #fff;
+  background: ${colors.white};
   border-radius: 16px;
   padding: 12px 16px 16px;
   box-shadow: 0 24px 60px rgba(22, 21, 24, 0.28);
@@ -56,7 +56,7 @@ export const Head = styled.div`
   flex-direction: column;
   gap: 4px;
   padding-bottom: 16px;
-  border-bottom: 1px solid #cfcdd4;
+  border-bottom: 1px solid ${colors.gray4};
 `
 
 export const HeadRow = styled.div`
@@ -92,7 +92,7 @@ export const Balance = styled.div`
 export const BalanceLabel = styled.span`
   font-size: 14px;
   font-weight: 600;
-  color: #5e5b67;
+  color: ${colors.muted1};
 `
 
 export const BalanceIco = styled(CurrencyIcon)`
@@ -256,7 +256,7 @@ export const Total = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-top: 1px solid #cfcdd4;
+  border-top: 1px solid ${colors.gray4};
   padding-top: 12px;
 `
 
@@ -278,7 +278,7 @@ export const TotalIco = styled(CurrencyIcon)`
 export const TotalUsd = styled.span`
   font-size: 14px;
   font-weight: 600;
-  color: #5e5b67;
+  color: ${colors.muted1};
 `
 
 export const Ctas = styled.div`

@@ -82,7 +82,7 @@ export const HeadCard = styled.div`
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  background: #fff;
+  background: ${colors.white};
   border-radius: 16px;
   padding: 12px 12px 12px 24px;
 
@@ -95,7 +95,7 @@ export const HeadCard = styled.div`
 // Items card: the cart-card list, 24px padding all round so the last line has breathing room.
 export const Panel = styled.section`
   min-width: 0;
-  background: #fff;
+  background: ${colors.white};
   border-radius: 16px;
   padding: 24px;
 
@@ -229,7 +229,7 @@ export const Fitting = styled.button`
   border: 2px solid transparent;
   border-radius: ${radius.btn};
   background:
-    linear-gradient(#fff, #fff) padding-box,
+    linear-gradient(${colors.white}, ${colors.white}) padding-box,
     ${gradients.amethyst} border-box;
   color: ${colors.accent};
   font-size: 13px;
@@ -276,8 +276,8 @@ export const Card = styled.div`
   display: flex;
   align-items: stretch;
   gap: 12px;
-  background: #fff;
-  border: 1px solid #cfcdd4;
+  background: ${colors.white};
+  border: 1px solid ${colors.gray4};
   border-radius: ${radius.card};
   overflow: hidden;
 
@@ -606,7 +606,7 @@ export const Summary = styled.aside`
   top: 172px;
   display: flex;
   flex-direction: column;
-  background: #fff;
+  background: ${colors.white};
   box-shadow: 0 1px 3px rgba(22, 21, 24, 0.06);
   border-radius: 16px;
   padding: 16px;
@@ -630,7 +630,7 @@ export const Summary = styled.aside`
 export const SummaryTitle = styled.h2`
   margin: 0 0 24px;
   padding-bottom: 16px;
-  border-bottom: 1px solid #cfcdd4;
+  border-bottom: 1px solid ${colors.gray4};
   font-size: 24px;
   font-weight: 600;
   color: ${colors.text};
@@ -659,7 +659,7 @@ export const TotalLabel = styled.span`
   font-size: 14px;
   font-weight: 600;
   line-height: 1.57;
-  color: #5e5b67;
+  color: ${colors.muted1};
 `
 
 export const TotalValue = styled.span`

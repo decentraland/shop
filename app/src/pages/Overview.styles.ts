@@ -122,7 +122,7 @@ export const HeroInner = styled.div`
 
 export const HeroTitle = styled.h1`
   margin: 0;
-  color: #fff;
+  color: ${colors.white};
   font-size: clamp(24px, 3.2vw, 36px);
   font-weight: 700;
   line-height: 1.235;

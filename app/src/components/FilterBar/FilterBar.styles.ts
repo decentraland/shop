@@ -212,7 +212,7 @@ export const Badge = styled.span`
   padding: 0 5px;
   border-radius: 999px;
   background: ${colors.accent};
-  color: #fff;
+  color: ${colors.white};
   font-size: 11px;
   font-weight: 700;
 `

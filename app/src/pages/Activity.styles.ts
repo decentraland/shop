@@ -229,7 +229,7 @@ export const ManaTipBubble = styled.span`
   padding: 6px 8px;
   border-radius: 6px;
   background: #16141a;
-  color: #fff;
+  color: ${theme.colors.white};
   font-size: 12px;
   font-weight: 600;
   line-height: 1;

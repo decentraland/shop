@@ -17,7 +17,7 @@ const { colors, gradients, radius, media } = theme
 export const Card = styled.article`
   height: 300px;
   background:
-    linear-gradient(#fff, #fff) padding-box,
+    linear-gradient(${colors.white}, ${colors.white}) padding-box,
     linear-gradient(${colors.line}, ${colors.line}) border-box;
   border-radius: ${radius.card};
   overflow: hidden;
@@ -33,7 +33,7 @@ export const Card = styled.article`
     &:hover,
     &:focus-within {
       background:
-        linear-gradient(#fff, #fff) padding-box,
+        linear-gradient(${colors.white}, ${colors.white}) padding-box,
         ${gradients.cerise} border-box;
       box-shadow: 0 0 8px 0 ${colors.brandViolet};
     }
@@ -107,7 +107,7 @@ export const SaleBadge = styled.span`
   display: inline-flex;
   align-items: center;
   background: ${colors.dclRed};
-  color: #fff;
+  color: ${colors.white};
   font-weight: 800;
   font-size: 11px;
   letter-spacing: 0.03em;
@@ -158,7 +158,7 @@ export const Listings = styled.span`
   display: inline-flex;
   align-items: center;
   background: rgba(22, 20, 27, 0.82);
-  color: #fff;
+  color: ${colors.white};
   font-weight: 600;
   font-size: 10px;
   letter-spacing: 0.02em;
@@ -537,7 +537,7 @@ export const Manage = styled.button`
   transition: background 0.15s ease;
 
   &:hover:not(:disabled) {
-    background: #43404a;
+    background: ${colors.gray0};
   }
   &:disabled {
     opacity: 0.6;
@@ -576,7 +576,7 @@ const addRoundCss = css`
     border: 0;
     padding: 0;
     background: ${colors.accent};
-    color: #fff;
+    color: ${colors.white};
     cursor: pointer;
 
     &:disabled {
@@ -612,11 +612,11 @@ const cartCss = css`
     display: flex;
   }
   &:hover:not(:disabled) {
-    background: #43404a;
+    background: ${colors.gray0};
   }
   &[data-in],
   &:disabled {
-    background: #43404a;
+    background: ${colors.gray0};
     opacity: 1;
     cursor: default;
   }

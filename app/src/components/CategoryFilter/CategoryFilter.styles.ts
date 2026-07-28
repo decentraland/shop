@@ -122,7 +122,7 @@ export const SubLabel = styled.span`
   font-weight: 400;
   font-size: 14px;
   line-height: 1.5;
-  color: #43404a;
+  color: ${colors.gray0};
 `
 
 export const Title = styled.p`

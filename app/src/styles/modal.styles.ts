@@ -27,7 +27,7 @@ export const Backdrop = styled.div`
 
 // data-success centers the layout for the post-listing confirmation view.
 export const Modal = styled.div`
-  background: #fff;
+  background: ${colors.white};
   border-radius: ${radius.card};
   padding: 24px;
   width: min(420px, 92vw);
@@ -69,8 +69,8 @@ export const SuccessCheck = styled.div`
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  background: #1f8a4c;
-  color: #fff;
+  background: ${colors.okStrong};
+  color: ${colors.white};
   font-size: 30px;
   font-weight: 800;
   display: grid;

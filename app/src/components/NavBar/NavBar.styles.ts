@@ -17,7 +17,7 @@ export const Subnav = styled.div`
   height: 66px;
   /* 54px matches the ui2 Navbar's desktop side padding so the sub-nav aligns with the top nav. */
   padding: 0 54px;
-  background: #fff;
+  background: ${colors.white};
   border-bottom: 1px solid ${colors.line};
 
   ${mobile} {
@@ -277,7 +277,7 @@ export const CartBadge = styled.span`
   top: -4px;
   right: -4px;
   background: ${colors.brandViolet};
-  color: #fff;
+  color: ${colors.white};
   font-size: 12px;
   font-weight: 600;
   border-radius: 999px;
@@ -286,5 +286,5 @@ export const CartBadge = styled.span`
   display: grid;
   place-items: center;
   padding: 0 5px;
-  border: 2px solid #fff;
+  border: 2px solid ${colors.white};
 `

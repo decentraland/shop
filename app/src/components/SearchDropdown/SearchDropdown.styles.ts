@@ -14,7 +14,7 @@ export const Pop = styled.div`
   left: 0;
   right: 0;
   z-index: 60;
-  background: #fff;
+  background: ${colors.white};
   border: 1px solid ${colors.line};
   border-radius: ${radius.card};
   box-shadow: 0 14px 36px rgba(20, 20, 30, 0.18);

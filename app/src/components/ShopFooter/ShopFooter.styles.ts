@@ -1,7 +1,7 @@
 import styled from '@emotion/styled'
 import { theme } from '~/styles/theme'
 
-const { media } = theme
+const { colors, media } = theme
 
 export const Footer = styled.footer`
   width: 100%;
@@ -56,7 +56,7 @@ export const Wordmark = styled.span`
   font-weight: 700;
   font-size: 40px;
   line-height: 1;
-  color: #fcfcfc;
+  color: ${colors.softWhite};
   letter-spacing: -0.02em;
 `
 
@@ -76,7 +76,7 @@ export const NewsTitle = styled.p`
   font-weight: 500;
   font-size: 20px;
   line-height: 1.6;
-  color: #fcfcfc;
+  color: ${colors.softWhite};
 
   ${media.maxWidth('mobile')} {
     text-align: center;
@@ -116,7 +116,7 @@ export const Label = styled.p`
   font-weight: 400;
   font-size: 16px;
   line-height: 1.5;
-  color: #cfcdd4;
+  color: ${colors.gray4};
   text-transform: uppercase;
 `
 
@@ -124,7 +124,7 @@ export const Social = styled.div`
   display: flex;
   align-items: center;
   gap: 28px;
-  color: #fff;
+  color: ${colors.white};
 
   & a {
     color: inherit;
@@ -156,7 +156,7 @@ export const FootLink = styled.a`
   font-weight: 600;
   font-size: 16px;
   line-height: 1.5;
-  color: #fff;
+  color: ${colors.white};
   text-decoration: none;
   white-space: nowrap;
 
@@ -182,7 +182,7 @@ export const MenuLabel = styled.p`
   font-weight: 400;
   font-size: 14px;
   line-height: 1.75;
-  color: #cfcdd4;
+  color: ${colors.gray4};
   text-transform: uppercase;
 `
 
@@ -199,13 +199,13 @@ export const Dropdown = styled.button`
   font-weight: 600;
   font-size: 16px;
   line-height: 1.75;
-  color: #fff;
+  color: ${colors.white};
   text-align: left;
 `
 
 export const Chev = styled.span`
   display: inline-flex;
-  color: #fff;
+  color: ${colors.white};
   transition: transform 0.3s ease;
 
   &[data-open] {
@@ -237,7 +237,7 @@ export const MLink = styled.a`
   font-weight: 400;
   font-size: 15px;
   line-height: 1.5;
-  color: #fcfcfc;
+  color: ${colors.softWhite};
   text-decoration: none;
   padding-left: 8px;
 
@@ -248,8 +248,8 @@ export const MLink = styled.a`
 
 export const Bottom = styled.div`
   width: 100%;
-  background: #161518;
-  box-shadow: inset 0 1px 0 0 #43404a;
+  background: ${colors.text};
+  box-shadow: inset 0 1px 0 0 ${colors.gray0};
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -290,7 +290,7 @@ export const LangBtn = styled.button`
   font-weight: 600;
   font-size: 15px;
   line-height: 24px;
-  color: #fff;
+  color: ${colors.white};
 `
 
 export const LangMenu = styled.div`
@@ -298,9 +298,9 @@ export const LangMenu = styled.div`
   bottom: 100%;
   left: 0;
   margin-bottom: 8px;
-  background: #242129;
+  background: ${colors.text2};
   border-radius: 8px;
-  border: 1px solid #43404a;
+  border: 1px solid ${colors.gray0};
   padding: 4px 0;
   min-width: 140px;
   z-index: 10;
@@ -315,14 +315,14 @@ export const LangMenu = styled.div`
     border: none;
     cursor: pointer;
     font-size: 14px;
-    color: #cfcdd4;
+    color: ${colors.gray4};
     white-space: nowrap;
   }
   & button:hover {
     background: rgba(255, 255, 255, 0.08);
   }
   & button[data-active] {
-    color: #fff;
+    color: ${colors.white};
     font-weight: 600;
   }
 `
@@ -344,12 +344,12 @@ export const LegalLink = styled.a`
   font-weight: 400;
   font-size: 14px;
   line-height: 1.43;
-  color: #a09ba8;
+  color: ${colors.muted2};
   text-decoration: none;
   white-space: nowrap;
 
   &:hover {
-    color: #cfcdd4;
+    color: ${colors.gray4};
   }
 `
 
@@ -357,7 +357,7 @@ export const Copy = styled.span`
   font-weight: 400;
   font-size: 15px;
   line-height: 24px;
-  color: #a09ba8;
+  color: ${colors.muted2};
   white-space: nowrap;
 
   ${media.maxWidth('mobile')} {

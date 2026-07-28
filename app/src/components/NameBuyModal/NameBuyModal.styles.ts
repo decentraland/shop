@@ -223,7 +223,7 @@ export const ReenterInput = styled.input`
   color: ${theme.colors.text};
 
   &::placeholder {
-    color: #a09ba8;
+    color: ${theme.colors.muted2};
     font-weight: 400;
   }
 `
