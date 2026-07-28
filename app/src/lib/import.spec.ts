@@ -199,6 +199,9 @@ describe('when the Shop offers no secondary sales', () => {
     )
 
     expect(createUsdPeggedListing).not.toHaveBeenCalled()
+    // The refusal must land BEFORE the cancel — that is the only irreversible step here. Refusing after
+    // it would leave the seller with their live listing taken down and nothing put back.
+    expect(cancelListing).not.toHaveBeenCalled()
   })
 
   it('should still migrate a primary listing', async () => {
