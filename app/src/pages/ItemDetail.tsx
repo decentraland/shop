@@ -1191,7 +1191,7 @@ export function ItemDetail() {
           </button>
         </S.Preview>
 
-        <S.Info>
+        <S.Info data-testid="item-info">
           {!current.name ? (
             <ItemInfoSkeleton />
           ) : (
@@ -1402,8 +1402,7 @@ export function ItemDetail() {
                               <S.Diamond />
                               <S.PriceValue>{managePriceCredits}</S.PriceValue>
                             </S.Price>
-                          ) : manage ? // for sale / Transfer) already convey the state, so the redundant "Not for sale" // Owner/creator viewing their own UNLISTED item: the manage CTAs below (Put up
-                          // label is hidden here. It stays for the NON-owner public view, where it's the
+                          ) : manage ? // label is hidden here. It stays for the NON-owner public view, where it's the // for sale / Transfer) already convey the state, so the redundant "Not for sale" // Owner/creator viewing their own UNLISTED item: the manage CTAs below (Put up
                           // only signal the item can't be bought.
                           null : (
                             <S.Price data-variant="none">
