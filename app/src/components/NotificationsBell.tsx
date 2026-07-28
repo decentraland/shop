@@ -67,7 +67,7 @@ export function NotificationsBell() {
         onChangeTab={(_e, tab) => setActiveTab(tab)}
         onBegin={() => undefined}
         onClose={() => setIsOpen(false)}
-        />
+      />
     </span>
   )
 }
