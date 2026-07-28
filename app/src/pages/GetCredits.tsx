@@ -54,7 +54,7 @@ function bundledArtFor(pack: CreditPack, index: number): string {
  * that for a remote image with nothing behind it would mean a CDN hiccup shows four empty cards.
  */
 function artFor(pack: CreditPack, index: number): string {
-  return pack.imageUrl ?? bundledArtFor(pack, index)
+  return pack.artUrl ?? bundledArtFor(pack, index)
 }
 
 // Where "Get credits and start shopping" points. No credits-specific doc yet — link to the shop docs.
@@ -440,7 +440,12 @@ function PackGrid({
             <S.PackArt>
               {/* onError is the second half of the fallback: `artFor` picks the remote URL when the
                   catalogue has one, and if that request fails we swap to the bundled asset rather than
-                  leave a broken image in a card the buyer is about to click. */}
+                  leave a broken image in a card the buyer is about to click.
+
+                  Guarded by a one-shot flag, NOT by comparing src: `img.src` reads back the resolved
+                  ABSOLUTE url while the bundled import is a root-relative path, so that comparison never
+                  matches and a bundled asset that also failed would re-assign forever, hammering the
+                  network from inside its own error handler. */}
               <img
                 src={artFor(pack, i)}
                 alt=""
@@ -449,8 +454,9 @@ function PackGrid({
                 height={507}
                 onError={e => {
                   const img = e.currentTarget
-                  const bundled = bundledArtFor(pack, i)
-                  if (img.src !== bundled) img.src = bundled
+                  if (img.dataset.artFallback) return
+                  img.dataset.artFallback = 'done'
+                  img.src = bundledArtFor(pack, i)
                 }}
               />
             </S.PackArt>

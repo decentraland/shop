@@ -51,11 +51,15 @@ export type CreditPack = {
   /** The single highlighted "best value" pack. */
   bestValue?: boolean
   /**
-   * Artwork URL from the catalogue, already narrowed to the format this client should render (webp when
-   * the server publishes it, else the PNG). Absent on the bundled fallback packs, which have no URLs —
-   * the Get Credits grid then draws its own bundled art, so a pack never renders without an image.
+   * Artwork from the catalogue, already narrowed to the ONE format this client should render (webp when the
+   * server publishes it, else the PNG). Named differently from the server's `imageUrl`/`imageUrlWebp` on
+   * purpose: those are two format-specific fields, this is the resolved choice — reusing the name would
+   * make it read as "the PNG".
+   *
+   * Absent on the bundled fallback packs, which carry no URLs — the Get Credits grid then draws its own
+   * bundled art, so a pack never renders without an image.
    */
-  imageUrl?: string
+  artUrl?: string
 }
 
 // Pack catalogue FALLBACK. The catalogue is now sourced from the credits-server
@@ -100,6 +104,11 @@ type ServerCreditPack = {
  * (`recommended` -> `bestValue`) and returns it ordered. Consumed via the useCreditPacks hook, which
  * falls back to CREDIT_PACKS if this throws.
  */
+/** The one artwork url to render, webp first. Empty strings count as missing (see the map below). */
+function artUrl(p: ServerCreditPack): string | undefined {
+  return p.imageUrlWebp || p.imageUrl || undefined
+}
+
 export async function fetchCreditPacks(): Promise<CreditPack[]> {
   const res = await fetch(`${config.creditsServerUrl}/credits/packs`)
   if (!res.ok) throw new Error(`credit packs ${res.status}`)
@@ -115,7 +124,10 @@ export async function fetchCreditPacks(): Promise<CreditPack[]> {
       // Prefer webp: it is the same render at roughly a seventh of the bytes, and every browser the shop
       // supports decodes it. The PNG exists for Unity, which cannot. Falling through to it keeps this
       // working if the server ever publishes only one format.
-      ...(p.imageUrlWebp || p.imageUrl ? { imageUrl: p.imageUrlWebp ?? p.imageUrl } : {})
+      //
+      // `||` throughout, deliberately: an empty string is a MISSING url, not a present one. Mixing in `??`
+      // here would let a blank webp field win over a real PNG and render an empty image.
+      ...(artUrl(p) ? { artUrl: artUrl(p) } : {})
     }))
 }
 

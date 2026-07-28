@@ -364,7 +364,7 @@ describe('when fetching the credit-pack catalogue from the credits-server', () =
 
     const packs = await fetchCreditPacks()
 
-    expect(packs[0].imageUrl).toBe('/a.webp')
+    expect(packs[0].artUrl).toBe('/a.webp')
     vi.unstubAllGlobals()
   })
 
@@ -377,7 +377,7 @@ describe('when fetching the credit-pack catalogue from the credits-server', () =
 
     const packs = await fetchCreditPacks()
 
-    expect(packs[0].imageUrl).toBe('/a.png')
+    expect(packs[0].artUrl).toBe('/a.png')
     vi.unstubAllGlobals()
   })
 
@@ -391,7 +391,39 @@ describe('when fetching the credit-pack catalogue from the credits-server', () =
     const packs = await fetchCreditPacks()
 
     // Absent rather than undefined-valued: the grid checks presence to decide whether to draw its own art.
-    expect('imageUrl' in packs[0]).toBe(false)
+    expect('artUrl' in packs[0]).toBe(false)
+    vi.unstubAllGlobals()
+  })
+
+  it('should treat an empty artwork url as missing rather than rendering a blank image', async () => {
+    // The guard and the value used to disagree (`||` vs `??`): a blank webp field would win over a real
+    // PNG and set an empty src. Empty means missing, in both halves.
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        packs: [{ id: 'pack_5', usd: 4.99, credits: 45, order: 1, imageUrl: '/a.png', imageUrlWebp: '' }]
+      })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const packs = await fetchCreditPacks()
+
+    expect(packs[0].artUrl).toBe('/a.png')
+    vi.unstubAllGlobals()
+  })
+
+  it('should omit the artwork when every url the catalogue sends is blank', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        packs: [{ id: 'pack_5', usd: 4.99, credits: 45, order: 1, imageUrl: '', imageUrlWebp: '' }]
+      })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const packs = await fetchCreditPacks()
+
+    expect('artUrl' in packs[0]).toBe(false)
     vi.unstubAllGlobals()
   })
 
