@@ -19,6 +19,10 @@ vi.mock('~/lib/buy', () => ({
 
 const readManaUsdRate = vi.fn()
 const manaWeiToCredits = vi.fn()
+const getIsSecondarySalesEnabled = vi.fn()
+vi.mock('~/lib/featureFlags', () => ({
+  getIsSecondarySalesEnabled: () => getIsSecondarySalesEnabled()
+}))
 vi.mock('~/lib/mana-rate', () => ({
   readManaUsdRate: (...args: unknown[]) => readManaUsdRate(...args),
   manaWeiToCredits: (...args: unknown[]) => manaWeiToCredits(...args)
@@ -68,6 +72,9 @@ const okResponse = (data: unknown) => ({ ok: true, status: 200, json: async () =
 beforeEach(() => {
   vi.clearAllMocks()
   vi.stubGlobal('fetch', vi.fn())
+  // Secondary migration is what most cases below exercise, so default it ON — the case where the Shop
+  // offers no resales has its own test.
+  getIsSecondarySalesEnabled.mockResolvedValue(true)
   readManaUsdRate.mockResolvedValue({ rate: 1n, decimals: 8 })
   manaWeiToCredits.mockReturnValue(7)
   createPrimaryUsdPeggedListing.mockResolvedValue({ type: 'primary-trade' })
@@ -178,6 +185,29 @@ describe('when importing a primary (creation) listing', () => {
     await importListing(item({ listingType: 'primary', itemId: null }), 10, session)
 
     expect(createPrimaryUsdPeggedListing.mock.calls[0][0].item.itemId).toBe('')
+  })
+})
+
+// The back door this guard closes: the Sell action is hidden while resales are off, but this function is
+// what SIGNS, and a listing signed here is indistinguishable from one signed by the Sell flow.
+describe('when the Shop offers no secondary sales', () => {
+  it('should refuse to migrate a secondary listing', async () => {
+    getIsSecondarySalesEnabled.mockResolvedValue(false)
+
+    await expect(importListing(item({ listingType: 'secondary', tokenId: '7' }), 20, session)).rejects.toThrow(
+      /does not offer secondary sales/i
+    )
+
+    expect(createUsdPeggedListing).not.toHaveBeenCalled()
+  })
+
+  it('should still migrate a primary listing', async () => {
+    // Primaries are unaffected — creators keep listing from their collections.
+    getIsSecondarySalesEnabled.mockResolvedValue(false)
+
+    await importListing(item({ listingType: 'primary', itemId: '3' }), 20, session)
+
+    expect(createPrimaryUsdPeggedListing).toHaveBeenCalled()
   })
 })
 

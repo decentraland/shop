@@ -10,6 +10,7 @@ import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { Button } from '~/components/Button'
 import styled from '@emotion/styled'
 import { useSeo } from '~/hooks/useSeo'
+import { useSecondarySales } from '~/hooks/useSecondarySales'
 import { t } from '~/intl/i18n'
 import '~/styles/import.css'
 
@@ -23,6 +24,9 @@ const DockCta = styled(Button)`
   padding: 13px 24px;
 `
 
+// `owned` is the SECONDARY half: re-listing a token you hold. It is only offered when the Shop offers
+// secondary sales at all — otherwise this page would be a back door into the flow the Sell action hides,
+// and it would sign exactly the resale listings we stopped creating everywhere else.
 const SECTIONS = [
   {
     key: 'creations' as const,
@@ -32,7 +36,8 @@ const SECTIONS = [
   {
     key: 'owned' as const,
     title: 'importListings.owned.title',
-    sub: 'importListings.owned.sub'
+    sub: 'importListings.owned.sub',
+    secondary: true
   }
 ]
 
@@ -52,11 +57,19 @@ export function ImportListings() {
     enabled: !!address
   })
 
+  const secondarySales = useSecondarySales()
+  const sections = useMemo(() => SECTIONS.filter(sec => !sec.secondary || secondarySales), [secondarySales])
+
   const [prices, setPrices] = useState<Record<string, number>>({})
   const [excluded, setExcluded] = useState<Set<string>>(new Set())
   const [queue, setQueue] = useState<MigrateEntry[] | null>(null)
 
-  const all = useMemo(() => [...(data?.creations ?? []), ...(data?.owned ?? [])], [data])
+  // Drives selection, pricing and the migrate queue. Excludes the secondary half when it is hidden, so
+  // "migrate all" cannot pick up a resale the page never showed.
+  const all = useMemo(
+    () => [...(data?.creations ?? []), ...(secondarySales ? (data?.owned ?? []) : [])],
+    [data, secondarySales]
+  )
 
   // Seed each price with the auto-converted suggestion (keep any edits the user already made).
   useEffect(() => {
@@ -158,7 +171,7 @@ export function ImportListings() {
           ))}
         </div>
       ) : (
-        SECTIONS.map(sec => {
+        sections.map(sec => {
           const items = data?.[sec.key] ?? []
           if (items.length === 0) return null
           return (
