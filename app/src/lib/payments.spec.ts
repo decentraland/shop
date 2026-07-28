@@ -351,6 +351,50 @@ describe('when fetching the credit-pack catalogue from the credits-server', () =
     vi.unstubAllGlobals()
   })
 
+  it('should prefer the webp artwork over the png, which exists for clients that cannot decode webp', async () => {
+    // Both formats are published because the constraint is per-client: Unity needs the PNG, a browser
+    // would pay ~7× for it. The shop is a browser.
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        packs: [{ id: 'pack_5', usd: 4.99, credits: 45, order: 1, imageUrl: '/a.png', imageUrlWebp: '/a.webp' }]
+      })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const packs = await fetchCreditPacks()
+
+    expect(packs[0].imageUrl).toBe('/a.webp')
+    vi.unstubAllGlobals()
+  })
+
+  it('should fall through to the png when the catalogue publishes only that', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ packs: [{ id: 'pack_5', usd: 4.99, credits: 45, order: 1, imageUrl: '/a.png' }] })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const packs = await fetchCreditPacks()
+
+    expect(packs[0].imageUrl).toBe('/a.png')
+    vi.unstubAllGlobals()
+  })
+
+  it('should omit the artwork entirely when the catalogue publishes none, so the grid uses its bundled art', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ packs: [{ id: 'pack_5', usd: 4.99, credits: 45, order: 1 }] })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const packs = await fetchCreditPacks()
+
+    // Absent rather than undefined-valued: the grid checks presence to decide whether to draw its own art.
+    expect('imageUrl' in packs[0]).toBe(false)
+    vi.unstubAllGlobals()
+  })
+
   it('should throw on a non-ok response so the hook can fall back to the bundled packs', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 503, text: async () => 'down' }))
     await expect(fetchCreditPacks()).rejects.toThrow(/credit packs 503/)

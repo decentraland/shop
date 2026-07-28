@@ -40,8 +40,21 @@ const PACK_ART: Record<string, string> = {
   pack_50: packChest
 }
 
-function artFor(pack: CreditPack, index: number): string {
+/** The bundled art for a pack — the fallback, and what renders while/if the catalogue has no URL. */
+function bundledArtFor(pack: CreditPack, index: number): string {
   return PACK_ART[pack.id] ?? PACK_ART_ORDER[index % PACK_ART_ORDER.length]
+}
+
+/**
+ * The artwork to draw: the catalogue's URL when the server publishes one, else the bundled asset.
+ *
+ * The catalogue is the single source of truth now — the same URLs the in-world explorer draws from, so the
+ * two surfaces can't drift when the art changes. The bundled copy stays as the fallback on purpose: this
+ * page sits on the purchase path and used to render with no network dependency for art at all. Trading
+ * that for a remote image with nothing behind it would mean a CDN hiccup shows four empty cards.
+ */
+function artFor(pack: CreditPack, index: number): string {
+  return pack.imageUrl ?? bundledArtFor(pack, index)
 }
 
 // Where "Get credits and start shopping" points. No credits-specific doc yet — link to the shop docs.
@@ -425,7 +438,21 @@ function PackGrid({
               <S.PackUnit>{t('getCredits.packUnit', { currency: CURRENCY.name })}</S.PackUnit>
             </S.PackHeading>
             <S.PackArt>
-              <img src={artFor(pack, i)} alt="" loading="lazy" width={507} height={507} />
+              {/* onError is the second half of the fallback: `artFor` picks the remote URL when the
+                  catalogue has one, and if that request fails we swap to the bundled asset rather than
+                  leave a broken image in a card the buyer is about to click. */}
+              <img
+                src={artFor(pack, i)}
+                alt=""
+                loading="lazy"
+                width={507}
+                height={507}
+                onError={e => {
+                  const img = e.currentTarget
+                  const bundled = bundledArtFor(pack, i)
+                  if (img.src !== bundled) img.src = bundled
+                }}
+              />
             </S.PackArt>
           </S.PackTop>
           <S.PackPrice>${pack.usd.toFixed(2)}</S.PackPrice>

@@ -50,6 +50,12 @@ export type CreditPack = {
   credits: number
   /** The single highlighted "best value" pack. */
   bestValue?: boolean
+  /**
+   * Artwork URL from the catalogue, already narrowed to the format this client should render (webp when
+   * the server publishes it, else the PNG). Absent on the bundled fallback packs, which have no URLs —
+   * the Get Credits grid then draws its own bundled art, so a pack never renders without an image.
+   */
+  imageUrl?: string
 }
 
 // Pack catalogue FALLBACK. The catalogue is now sourced from the credits-server
@@ -75,7 +81,17 @@ export const CREDIT_PACKS: CreditPack[] = [
 export const MAX_OFFER_PACKS = 4
 
 // Shape returned by the public credits-server catalogue endpoint (READ-only, no auth, no secrets).
-type ServerCreditPack = { id: string; usd: number; credits: number; recommended?: boolean; order?: number }
+type ServerCreditPack = {
+  id: string
+  usd: number
+  credits: number
+  recommended?: boolean
+  order?: number
+  /** PNG — the format every client can decode. */
+  imageUrl?: string
+  /** The same render as webp, ~7× smaller. Published for clients that can decode it; browsers can. */
+  imageUrlWebp?: string
+}
 
 /**
  * Fetch the credit-pack catalogue from the credits-server (public GET /credits/packs). This is the
@@ -91,7 +107,16 @@ export async function fetchCreditPacks(): Promise<CreditPack[]> {
   return packs
     .slice()
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-    .map(p => ({ id: p.id, usd: p.usd, credits: p.credits, ...(p.recommended ? { bestValue: true } : {}) }))
+    .map(p => ({
+      id: p.id,
+      usd: p.usd,
+      credits: p.credits,
+      ...(p.recommended ? { bestValue: true } : {}),
+      // Prefer webp: it is the same render at roughly a seventh of the bytes, and every browser the shop
+      // supports decodes it. The PNG exists for Unity, which cannot. Falling through to it keeps this
+      // working if the server ever publishes only one format.
+      ...(p.imageUrlWebp || p.imageUrl ? { imageUrl: p.imageUrlWebp ?? p.imageUrl } : {})
+    }))
 }
 
 /** Credits granted for a given USD amount at the fixed peg. */
