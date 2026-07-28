@@ -38,7 +38,7 @@ import { authorizeUsdCredit, cancelUsdIntents, type AuthorizedCredit } from '~/l
 import {
   GaslessUnavailableError,
   SettlementPendingError,
-  useCreditsGasless,
+  sendUseCreditsGasless,
   waitForSettlement
 } from '~/lib/buy-gasless'
 import { sendUseCredits } from '~/lib/buy'
@@ -93,8 +93,16 @@ const NAME_REGISTRAR = {
   mainnet: { rpc: 'https://rpc.decentraland.org/mainnet', address: '0x2a187453064356c898cae034eaed119e1663acb8' },
   sepolia: { rpc: 'https://rpc.decentraland.org/sepolia', address: '0x7518456ae93eb98f3e64571b689c626616bb7f30' }
 }
+
+// `available` is the only method we call — type it so the contract read isn't an `any` call.
+type DclRegistrarContract = ethers.Contract & {
+  available(subdomain: string): Promise<boolean>
+}
+
 function nameRegistrar() {
-  return config.chainId === ChainId.MATIC_MAINNET ? NAME_REGISTRAR.mainnet : NAME_REGISTRAR.sepolia
+  // config.chainId is a plain number (Number(...) of the env value), so compare against the enum's
+  // numeric value rather than the enum member — they share no enum type.
+  return config.chainId === Number(ChainId.MATIC_MAINNET) ? NAME_REGISTRAR.mainnet : NAME_REGISTRAR.sepolia
 }
 
 /**
@@ -108,9 +116,9 @@ export async function checkNameAvailability(
 ): Promise<NameAvailability> {
   const { rpc, address } = nameRegistrar()
   const provider = new ethers.providers.JsonRpcProvider(rpc)
-  const registrar = new ethers.Contract(address, DCL_REGISTRAR_ABI, provider)
+  const registrar = new ethers.Contract(address, DCL_REGISTRAR_ABI, provider) as DclRegistrarContract
   console.info(`[names] availability check → DCLRegistrar(${address}).available("${name}") on ${rpc}`)
-  const isAvailable = (await registrar.available(name)) as boolean
+  const isAvailable = await registrar.available(name)
   // ethers has no AbortSignal, so a stale (superseded) check can still resolve — mimic fetch's abort so
   // the caller's AbortError guard discards it and only the latest keystroke's result is applied.
   if (opts.signal?.aborted) throw new DOMException('Aborted', 'AbortError')
@@ -254,7 +262,7 @@ export async function pollAcrossNameStatus(
         const actionsSucceeded = data.actionsSucceeded !== false
         if (status === 'filled') return { status: 'filled', destinationTxHash, actionsSucceeded }
         if (status === 'refunded' || status === 'expired') {
-          return { status: status as 'refunded' | 'expired', destinationTxHash: null, actionsSucceeded: false }
+          return { status: status, destinationTxHash: null, actionsSucceeded: false }
         }
         last = { status: 'pending', destinationTxHash, actionsSucceeded }
       }
@@ -343,7 +351,7 @@ export async function registerNameWithUsdCredits(opts: {
     const args = buildNameUseCreditsArgs(authorized.credit, route)
     let originTxHash: string
     try {
-      originTxHash = await useCreditsGasless({ chainId, buyer, signer, args })
+      originTxHash = await sendUseCreditsGasless({ chainId, buyer, signer, args })
     } catch (e) {
       if (!(e instanceof GaslessUnavailableError)) throw e
       // Gasless unavailable (flag off / contract account / relayer down) → buyer submits + pays gas.
@@ -390,6 +398,13 @@ export async function registerNameWithUsdCredits(opts: {
       await cancelUsdIntents(identity, [creditSalt]).catch(() => {})
     }
     if (e instanceof NameRouteCostTooHighError) throw e
-    throw new Error(friendlyError(e, "Couldn't register the name. Please try again.", { sale: true }))
+    // Keep the original as `cause` so Sentry still gets the real failure behind the friendly copy.
+    // Assigned rather than passed to the constructor: the TS lib target is ES2020, which predates
+    // ErrorOptions (same approach as lib/store.ts).
+    const failure: Error & { cause?: unknown } = new Error(
+      friendlyError(e, "Couldn't register the name. Please try again.", { sale: true })
+    )
+    failure.cause = e
+    throw failure
   }
 }

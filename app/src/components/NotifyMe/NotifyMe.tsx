@@ -96,7 +96,7 @@ export function NotifyMe({ item }: { item: CatalogItem }) {
   }
 
   return (
-    <form className="notify" onSubmit={onSubmit} data-testid="notify">
+    <form className="notify" onSubmit={e => void onSubmit(e)} data-testid="notify">
       <label className="notify__label" htmlFor="notify-email">
         {t('notifyMe.label')}
       </label>

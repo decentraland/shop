@@ -1,13 +1,9 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-  Notifications,
-  NotificationActiveTab,
-  type DCLNotificationProps
-} from 'decentraland-ui2/dist/components/Notifications'
+import { Notifications, NotificationActiveTab } from 'decentraland-ui2/dist/components/Notifications'
 import { useWallet } from '~/store/wallet'
 import { useLocale } from '~/store/locale'
-import { fetchNotifications, markNotificationsRead } from '~/lib/notifications'
+import { fetchNotifications, markNotificationsRead, type ShopNotification } from '~/lib/notifications'
 import { shortAddress } from '~/lib/address'
 
 // The DCL notifications bell for the global navbar (rendered into the ui2 Navbar's `notificationSlot`).
@@ -44,7 +40,7 @@ export function NotificationsBell() {
     if (next) {
       const unread = items.filter(n => !n.read).map(n => n.id)
       if (unread.length > 0) {
-        qc.setQueryData<DCLNotificationProps[]>(queryKey, prev => (prev ?? []).map(n => ({ ...n, read: true })))
+        qc.setQueryData<ShopNotification[]>(queryKey, prev => (prev ?? []).map(n => ({ ...n, read: true })))
         void markNotificationsRead(session!.identity, unread)
       }
     }

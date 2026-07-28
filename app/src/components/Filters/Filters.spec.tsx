@@ -24,7 +24,7 @@ describe('Filters', () => {
   describe('when the Status filter is rendered', () => {
     it('should show All / On Sale / Not for Sale with the current status selected', () => {
       render(<Filters {...base} status="all" />)
-      expect((screen.getByRole('radio', { name: /^All$/ }) as HTMLInputElement).checked).toBe(true)
+      expect(screen.getByRole<HTMLInputElement>('radio', { name: /^All$/ }).checked).toBe(true)
       expect(screen.getByRole('radio', { name: /On Sale/ })).toBeTruthy()
       expect(screen.getByRole('radio', { name: /Not for Sale/ })).toBeTruthy()
     })

@@ -1,6 +1,5 @@
 import signedFetch from 'decentraland-crypto-fetch'
 import type { AuthIdentity } from '@dcl/crypto'
-import type { DCLNotificationProps } from 'decentraland-ui2/dist/components/Notifications'
 import { config } from '~/config'
 
 // ---------------------------------------------------------------------------
@@ -15,6 +14,22 @@ import { config } from '~/config'
 // Every call degrades gracefully: on any non-OK / network / auth error the fetch resolves to an empty
 // list and mark-read resolves silently, so the navbar bell renders (empty) instead of throwing.
 // ---------------------------------------------------------------------------
+
+// The service response shape, matching ui2's `RawDecentralandNotification` common fields. Declared here
+// rather than imported from `decentraland-ui2/dist/components/Notifications`: that deep-import's
+// `DCLNotificationProps` union resolves to `any` through this build, which silently un-types every
+// consumer. `type`/`metadata` stay opaque — only ui2's renderer interprets them; we just pass the items
+// straight to its <Notifications items>, whose prop type is that same unresolved `any`.
+export type ShopNotification = {
+  id: string
+  type: string
+  address: string
+  timestamp: number
+  read: boolean
+  created_at: string
+  updated_at: string
+  metadata: unknown
+}
 
 function notificationsBaseUrl(): string | null {
   const base = config.notificationsServerUrl
@@ -39,7 +54,7 @@ function toMillis(value: unknown): number | null {
 
 // The connected user's notifications, newest first. Signed-fetch: the service authorizes the caller as
 // the identity's address (address-based, no per-request address param needed).
-export async function fetchNotifications(_address: string, identity: AuthIdentity): Promise<DCLNotificationProps[]> {
+export async function fetchNotifications(_address: string, identity: AuthIdentity): Promise<ShopNotification[]> {
   const base = notificationsBaseUrl()
   if (!base) return []
   try {
@@ -48,14 +63,13 @@ export async function fetchNotifications(_address: string, identity: AuthIdentit
       void res.body?.cancel()
       return []
     }
-    const json = (await res.json()) as { notifications?: DCLNotificationProps[] }
+    const json = (await res.json()) as { notifications?: ShopNotification[] }
     // ui2's Notifications renders each item's `timestamp` via formatDistanceToNow; a missing/unparseable
     // value throws "Invalid time value" and crashes the whole panel. Normalize the timestamp (seconds →
     // ms, numeric strings, ISO strings) and DROP any item we can't resolve to a valid date, so the panel
     // only ever gets renderable items.
-    return (json.notifications ?? []).flatMap(n => {
-      const ts =
-        toMillis((n as { timestamp?: unknown }).timestamp) ?? toMillis((n as { created_at?: unknown }).created_at)
+    return (json.notifications ?? []).flatMap<ShopNotification>(n => {
+      const ts = toMillis(n.timestamp) ?? toMillis(n.created_at)
       return ts === null ? [] : [{ ...n, timestamp: ts }]
     })
   } catch {

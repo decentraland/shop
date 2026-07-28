@@ -62,7 +62,7 @@ vi.mock('~/lib/buy', () => ({ sendUseCredits }))
 // Gasless submit + settlement wait. Fully mock the module (its real graph pulls decentraland-
 // transactions' cross-chain ESM) but provide stand-in error classes — names.ts and this spec both
 // import them from the SAME mock, so the `instanceof` checks inside names.ts line up.
-const { GaslessUnavailableError, SettlementPendingError, useCreditsGasless, waitForSettlement } = vi.hoisted(() => {
+const { GaslessUnavailableError, SettlementPendingError, sendUseCreditsGasless, waitForSettlement } = vi.hoisted(() => {
   class GaslessUnavailableError extends Error {
     reason: string
     constructor(message: string, reason = 'unknown') {
@@ -79,12 +79,12 @@ const { GaslessUnavailableError, SettlementPendingError, useCreditsGasless, wait
       this.txHash = txHash
     }
   }
-  return { GaslessUnavailableError, SettlementPendingError, useCreditsGasless: vi.fn(), waitForSettlement: vi.fn() }
+  return { GaslessUnavailableError, SettlementPendingError, sendUseCreditsGasless: vi.fn(), waitForSettlement: vi.fn() }
 })
 vi.mock('~/lib/buy-gasless', () => ({
   GaslessUnavailableError,
   SettlementPendingError,
-  useCreditsGasless,
+  sendUseCreditsGasless,
   waitForSettlement
 }))
 
@@ -211,7 +211,7 @@ describe('registerNameWithUsdCredits', () => {
     readManaUsdRate.mockResolvedValueOnce(RATE_40C)
     signedFetch.mockResolvedValueOnce(ok(ROUTE))
     authorizeUsdCredit.mockResolvedValueOnce(authorized())
-    useCreditsGasless.mockResolvedValueOnce('0xorigin')
+    sendUseCreditsGasless.mockResolvedValueOnce('0xorigin')
     waitForSettlement.mockResolvedValueOnce(undefined)
     vi.stubGlobal(
       'fetch',
@@ -230,7 +230,7 @@ describe('registerNameWithUsdCredits', () => {
     // Sized to 100 MANA worth of cents (4000) and reserved with no tradeId.
     expect(authorizeUsdCredit).toHaveBeenCalledWith(IDENTITY, 4000)
     // useCredits carried the ephemeral credit + the server's signed route external call.
-    const submitted = useCreditsGasless.mock.calls[0][0]
+    const submitted = sendUseCreditsGasless.mock.calls[0][0]
     expect(submitted.args.customExternalCallSignature).toBe('0xsig')
     expect(submitted.args.credits[0].value).toBe('102000000000000000000')
     expect(submitted.args.maxCreditedValue).toBe(NAME_PRICE_IN_WEI)
@@ -241,7 +241,7 @@ describe('registerNameWithUsdCredits', () => {
     readManaUsdRate.mockResolvedValueOnce(RATE_40C)
     signedFetch.mockResolvedValueOnce(ok(ROUTE))
     authorizeUsdCredit.mockResolvedValueOnce(authorized())
-    useCreditsGasless.mockRejectedValueOnce(new GaslessUnavailableError('off', 'disabled'))
+    sendUseCreditsGasless.mockRejectedValueOnce(new GaslessUnavailableError('off', 'disabled'))
     sendUseCredits.mockResolvedValueOnce('0xorigin-fallback')
     waitForSettlement.mockResolvedValueOnce(undefined)
     vi.stubGlobal(
@@ -264,7 +264,7 @@ describe('registerNameWithUsdCredits', () => {
     readManaUsdRate.mockResolvedValueOnce(RATE_40C)
     signedFetch.mockResolvedValueOnce(ok(ROUTE))
     authorizeUsdCredit.mockResolvedValueOnce(authorized())
-    useCreditsGasless.mockRejectedValueOnce(new GaslessUnavailableError('off', 'disabled'))
+    sendUseCreditsGasless.mockRejectedValueOnce(new GaslessUnavailableError('off', 'disabled'))
     sendUseCredits.mockRejectedValueOnce(new Error('boom'))
 
     await expect(registerNameWithUsdCredits({ name: 'my-name', identity: IDENTITY, signer: SIGNER })).rejects.toThrow(
@@ -286,14 +286,14 @@ describe('registerNameWithUsdCredits', () => {
 
     expect(cancelUsdIntents).toHaveBeenCalledWith(IDENTITY, ['0x' + 'ab'.repeat(32)])
     // Never attempted to submit a doomed tx.
-    expect(useCreditsGasless).not.toHaveBeenCalled()
+    expect(sendUseCreditsGasless).not.toHaveBeenCalled()
   })
 
   it('should KEEP the reservation and report pending when the origin tx is still in flight', async () => {
     readManaUsdRate.mockResolvedValueOnce(RATE_40C)
     signedFetch.mockResolvedValueOnce(ok(ROUTE))
     authorizeUsdCredit.mockResolvedValueOnce(authorized())
-    useCreditsGasless.mockResolvedValueOnce('0xorigin')
+    sendUseCreditsGasless.mockResolvedValueOnce('0xorigin')
     waitForSettlement.mockRejectedValueOnce(new SettlementPendingError('0xorigin'))
 
     const result = await registerNameWithUsdCredits({ name: 'my-name', identity: IDENTITY, signer: SIGNER })
@@ -306,7 +306,7 @@ describe('registerNameWithUsdCredits', () => {
     readManaUsdRate.mockResolvedValueOnce(RATE_40C)
     signedFetch.mockResolvedValueOnce(ok(ROUTE))
     authorizeUsdCredit.mockResolvedValueOnce(authorized())
-    useCreditsGasless.mockResolvedValueOnce('0xorigin')
+    sendUseCreditsGasless.mockResolvedValueOnce('0xorigin')
     waitForSettlement.mockResolvedValueOnce(undefined)
     // Deposit filled but the embedded register reverted → MANA went to recovery, NAME not minted.
     vi.stubGlobal(
@@ -331,7 +331,7 @@ describe('registerNameWithUsdCredits', () => {
     readManaUsdRate.mockResolvedValueOnce(RATE_40C)
     signedFetch.mockResolvedValueOnce(ok(ROUTE))
     authorizeUsdCredit.mockResolvedValueOnce(authorized())
-    useCreditsGasless.mockResolvedValueOnce('0xorigin')
+    sendUseCreditsGasless.mockResolvedValueOnce('0xorigin')
     waitForSettlement.mockResolvedValueOnce(undefined)
     vi.stubGlobal(
       'fetch',
