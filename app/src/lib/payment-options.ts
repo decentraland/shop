@@ -165,7 +165,14 @@ export function distributeCreditsAcrossUnits(unitCents: number[], balanceCents: 
   })
 }
 
-/** Cents → whole credits (1 credit = 10 cents), for display next to a MANA amount. */
+/**
+ * Cents → credits (1 credit = 10 cents), for DISPLAY beside a MANA amount.
+ *
+ * NOT whole credits, despite reading like it: an odd cent value yields a fraction (15 → 1.5). That is
+ * deliberate — a mixed payment's credit leg is sized to the buyer's balance, which need not land on a
+ * whole credit, and `formatCredits` downstream renders the fraction. Never use this to decide what to
+ * CHARGE; the cents are the money, this is the label.
+ */
 export function creditsFromCents(cents: number): number {
   return Number.isFinite(cents) ? Math.max(0, cents) / 10 : 0
 }

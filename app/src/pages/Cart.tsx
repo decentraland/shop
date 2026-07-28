@@ -23,6 +23,7 @@ import {
   type PaymentMethod
 } from '~/lib/payment-options'
 import { PaymentCtas } from '~/components/PaymentCtas'
+import { invalidateAfterPurchase } from '~/lib/after-purchase'
 import {
   AuthorizationKind,
   ensureAuthorization,
@@ -350,26 +351,7 @@ export function Cart() {
         no_crypto_step: usedGasless,
         transaction_hash: hashes[0] ?? null
       })
-      void qc.invalidateQueries({ queryKey: ['usd-balance'] })
-      // The basket settled on-chain, changing listings/availability and the buyer's holdings — refresh
-      // the browse grids, PDP money queries, My Assets and Activity so a revisited item drops its Buy
-      // CTA and the purchases show up without a manual reload (checkout nav to /success hides the PDP,
-      // but the pages behind it may stay mounted). Broad keys since a basket spans many items.
-      void qc.invalidateQueries({ queryKey: ['detail-trade'] })
-      void qc.invalidateQueries({ queryKey: ['shop-item'] })
-      void qc.invalidateQueries({ queryKey: ['owned-token'] })
-      void qc.invalidateQueries({ queryKey: ['public-token'] })
-      void qc.invalidateQueries({ queryKey: ['item-resales'] })
-      void qc.invalidateQueries({ queryKey: ['shop-items'] })
-      void qc.invalidateQueries({ queryKey: ['catalog-items'] })
-      void qc.invalidateQueries({ queryKey: ['my-assets'] })
-      void qc.invalidateQueries({ queryKey: ['purchases'] })
-      // The PDP's "You own N of this" note ('owned-item-count') must reflect the copies just bought, and
-      // the homepage featured row ('overview-listings') + cart cross-sell ('upsell-listings') should drop
-      // any just-sold last copy instead of keeping it on offer.
-      void qc.invalidateQueries({ queryKey: ['owned-item-count'] })
-      void qc.invalidateQueries({ queryKey: ['overview-listings'] })
-      void qc.invalidateQueries({ queryKey: ['upsell-listings'] })
+      invalidateAfterPurchase(qc)
       // The whole basket has settled on-chain (buyManyGasless/waitForSettlement above), so hand the
       // standalone success PAGE the purchased lines + tx and tell it settlement is already done
       // (settled:true) — it lands straight on the confirmed screen instead of a floating in-cart modal.

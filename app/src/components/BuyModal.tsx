@@ -12,6 +12,7 @@ import { formatCredits } from '~/lib/currency'
 import { readTradeManaPriceWei } from '~/lib/mana'
 import { PaymentMethodStep } from '~/components/PaymentMethodStep'
 import { PaymentCtas } from '~/components/PaymentCtas'
+import { invalidateAfterPurchase } from '~/lib/after-purchase'
 import { AuthorizeStep } from '~/components/AuthorizeStep'
 import { ContractName, getContract, getContractName } from 'decentraland-transactions'
 import manaLight from '~/assets/mana-matic-light.svg'
@@ -256,26 +257,7 @@ export function BuyModal({
         no_crypto_step: usedGasless,
         transaction_hash: txHash ?? null
       })
-      void qc.invalidateQueries({ queryKey: ['usd-balance'] })
-      // A successful buy changes the item's listing/availability and the buyer's holdings, so refresh
-      // the PDP money queries, the browse grids, My Assets and Activity — otherwise the PDP keeps
-      // showing a Buy CTA for the token just bought and it's absent from My Assets/Activity until the
-      // 30s staleTime lapses. Mirrors ItemDetail.refreshManage's key set.
-      void qc.invalidateQueries({ queryKey: ['detail-trade'] })
-      void qc.invalidateQueries({ queryKey: ['shop-item'] })
-      void qc.invalidateQueries({ queryKey: ['owned-token', item.contractAddress, item.tokenId] })
-      void qc.invalidateQueries({ queryKey: ['public-token', item.contractAddress, item.tokenId] })
-      void qc.invalidateQueries({ queryKey: ['item-resales', item.contractAddress, item.itemId] })
-      void qc.invalidateQueries({ queryKey: ['shop-items'] })
-      void qc.invalidateQueries({ queryKey: ['catalog-items'] })
-      void qc.invalidateQueries({ queryKey: ['my-assets'] })
-      void qc.invalidateQueries({ queryKey: ['purchases'] })
-      // The PDP's "You own N of this" note is keyed 'owned-item-count' — bump it so it reflects the copy
-      // just bought. The homepage featured row ('overview-listings') and cart cross-sell ('upsell-listings')
-      // should drop a just-sold last copy rather than keep offering it.
-      void qc.invalidateQueries({ queryKey: ['owned-item-count'] })
-      void qc.invalidateQueries({ queryKey: ['overview-listings'] })
-      void qc.invalidateQueries({ queryKey: ['upsell-listings'] })
+      invalidateAfterPurchase(qc, item)
       setPhase('complete')
     } catch (e) {
       if (!isUserRejection(e)) captureError(e, { flow: 'buy', step: 'submit', gasless: usedGasless })
