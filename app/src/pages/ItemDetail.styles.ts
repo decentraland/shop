@@ -694,10 +694,11 @@ export const AddCart = styled.button`
   text-transform: uppercase;
   letter-spacing: 0.46px;
   cursor: pointer;
-  transition: filter 0.15s ease;
+  transition: background 0.15s ease;
 
+  /* Hover is the design's gray-0, not a brightness lift. */
   &:hover:not(:disabled) {
-    filter: brightness(1.35);
+    background: ${colors.gray0};
   }
   &:disabled {
     opacity: 0.55;
@@ -1031,6 +1032,12 @@ export const ManageActions = styled.div`
   flex-direction: column;
   gap: 12px;
   width: 100%;
+`
+
+// The resellers trigger under the manage CTAs, centered on its own line.
+export const ManageResellers = styled.div`
+  display: flex;
+  justify-content: center;
 `
 
 // Loading skeletons for the sale section (price + CTAs) and the creator/collection badges. They reuse the

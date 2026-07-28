@@ -16,10 +16,15 @@ import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { formatCredits } from '~/lib/currency'
 import { NameBuyModal } from '~/components/NameBuyModal'
 import { t } from '~/intl/i18n'
+import identityMedia from '~/assets/names/identity.webp'
+import worldMedia from '~/assets/names/world.webp'
+import inviteMedia from '~/assets/names/invite.webp'
+import governanceMedia from '~/assets/names/governance.webp'
 import * as S from './NamesPage.styles'
 
-// Docs link for the "Learn More" card (Worlds). Public marketing URL — no secrets.
+// "Learn More" destinations for the info cards. Public marketing URLs — no secrets.
 const WORLDS_DOCS_URL = 'https://docs.decentraland.org/creator/worlds/about/'
+const DAO_URL = 'https://governance.decentraland.org'
 
 // The legacy marketplace's NAMEs browse — where a taken NAME's owner can be offered a secondary buy.
 // The shop is credits-only/primary; secondary NAME trading lives in the classic marketplace. Pick the
@@ -198,29 +203,47 @@ export function NamesPage({ onBack }: { onBack: () => void }) {
         </S.Hero>
 
         <S.Why>
-          <S.WhyTitle>{t('names.whyTitle')}</S.WhyTitle>
+          <S.WhyHead>
+            <S.WhyTitle>{t('names.whyTitle')}</S.WhyTitle>
+            <S.WhyIntro>{t('names.whyIntro')}</S.WhyIntro>
+          </S.WhyHead>
           <S.Cards>
             <S.Card>
-              <S.CardMedia aria-hidden />
+              <S.CardMedia src={identityMedia} alt="" />
               <S.CardInfo>
+                <S.CardTitle>{t('names.why1Title')}</S.CardTitle>
                 <S.CardText>{t('names.why1')}</S.CardText>
               </S.CardInfo>
             </S.Card>
             <S.Card>
-              <S.CardMedia aria-hidden />
+              <S.CardMedia src={worldMedia} alt="" />
               <S.CardInfo>
-                <S.CardText>{t('names.why2')}</S.CardText>
+                <S.CardTitle>{t('names.why2Title')}</S.CardTitle>
+                <S.CardText>
+                  {t('names.why2')} <S.CardHighlight>{t('names.why2Address')}</S.CardHighlight>
+                </S.CardText>
                 <S.CardLink href={WORLDS_DOCS_URL} target="_blank" rel="noopener noreferrer">
-                  {t('names.why2Link')}
+                  {t('names.learnMore')}
                   <Icon name="external-link" aria-hidden />
                 </S.CardLink>
               </S.CardInfo>
             </S.Card>
             <S.Card>
-              <S.CardMedia aria-hidden />
+              <S.CardMedia src={inviteMedia} alt="" />
               <S.CardInfo>
+                <S.CardTitle>{t('names.why3Title')}</S.CardTitle>
                 <S.CardText>{t('names.why3')}</S.CardText>
-                <S.CardLinkText>{t('names.why3Link')}</S.CardLinkText>
+              </S.CardInfo>
+            </S.Card>
+            <S.Card>
+              <S.CardMedia src={governanceMedia} alt="" />
+              <S.CardInfo>
+                <S.CardTitle>{t('names.why4Title')}</S.CardTitle>
+                <S.CardText>{t('names.why4')}</S.CardText>
+                <S.CardLink href={DAO_URL} target="_blank" rel="noopener noreferrer">
+                  {t('names.learnMore')}
+                  <Icon name="external-link" aria-hidden />
+                </S.CardLink>
               </S.CardInfo>
             </S.Card>
           </S.Cards>

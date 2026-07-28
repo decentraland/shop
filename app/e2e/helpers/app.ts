@@ -1,6 +1,6 @@
 import puppeteer, { type Browser, type HTTPRequest, type Page } from 'puppeteer'
 import { buildTestSession, sessionInitScript, type TestSession } from './session'
-import { handleRpc } from './rpc'
+import { handleRpc, setManaBalanceWei, setManaAllowanceWei } from './rpc'
 import * as fx from '../fixtures'
 
 export const BASE = process.env.E2E_BASE_URL ?? 'http://localhost:5273'
@@ -27,6 +27,8 @@ export type Fixtures = {
   legacyListings: unknown
   unifiedListings: unknown
   ownedNfts: unknown
+  /** Rows served for a PUBLIC token lookup (no owner filter). Defaults to ownedNfts. */
+  publicNfts: unknown
   builderCollections: unknown
   builderItems: unknown
   profile: unknown
@@ -35,6 +37,7 @@ export type Fixtures = {
   userStore: unknown
   purchases: unknown
   sales: unknown
+  notifications: unknown
 }
 
 function defaults(): Fixtures {
@@ -48,6 +51,7 @@ function defaults(): Fixtures {
     legacyListings: fx.legacyListings,
     unifiedListings: fx.unifiedListings,
     ownedNfts: fx.ownedNfts,
+    publicNfts: fx.ownedNfts,
     builderCollections: fx.builderCollections,
     builderItems: fx.builderItems,
     profile: fx.profile,
@@ -67,7 +71,44 @@ function defaults(): Fixtures {
     },
     trade: null,
     purchases: { purchases: [] },
-    sales: { data: [], total: 0 }
+    sales: { data: [], total: 0 },
+    // Two notifications, one unread — enough to prove the badge, the panel list and the mark-read flip.
+    // Timestamps are epoch MILLISECONDS here; notifications.e2e.ts overrides this to cover the seconds /
+    // ISO / unparseable shapes the real service has been seen to return.
+    notifications: {
+      notifications: [
+        {
+          id: 'ntf-1',
+          type: 'item_sold',
+          address: '0x0000000000000000000000000000000000000001',
+          timestamp: 1750000000000,
+          read: false,
+          created_at: 1750000000000,
+          updated_at: 1750000000000,
+          metadata: {
+            link: '/activity',
+            title: 'Item sold',
+            description: 'Nebula Jacket was sold',
+            nftName: 'Nebula Jacket'
+          }
+        },
+        {
+          id: 'ntf-2',
+          type: 'royalties_earned',
+          address: '0x0000000000000000000000000000000000000001',
+          timestamp: 1749000000000,
+          read: true,
+          created_at: 1749000000000,
+          updated_at: 1749000000000,
+          metadata: {
+            link: '/activity',
+            title: 'Royalties earned',
+            description: 'You earned royalties',
+            nftName: 'Nebula Jacket'
+          }
+        }
+      ]
+    }
   }
 }
 
@@ -125,6 +166,9 @@ function toCatalogRow(l: any) {
   }
 }
 
+// Set per launchApp run; read by the flag-file handler below.
+let secondarySalesFlag = true
+
 function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
   const u = new URL(req.url())
   const method = req.method()
@@ -138,6 +182,16 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
   // actually issues the real request (otherwise a preflight failure masks the intended error as a
   // generic "Failed to fetch"). The error is returned WITH CORS headers on the real request.
   if (method === 'OPTIONS') return req.respond({ status: 204, headers: CORS })
+  // Decentraland feature flags. Unmocked this fetch fails and every flag reads false (fail-closed), which
+  // would hide the secondary-sale surfaces the resale specs exist to cover. Serve them ON here so those
+  // specs test the FEATURE; the hidden-by-default behaviour has its own spec that overrides this.
+  if (path.endsWith('/dapps.json')) {
+    return req.respond({
+      status: 200,
+      headers: { ...CORS, 'content-type': 'application/json' },
+      body: JSON.stringify({ flags: { 'dapps-shop-secondary-sales': secondarySalesFlag }, variants: {} })
+    })
+  }
   // Forced error injection (opt-in): before the normal per-port handling, respond with the mapped
   // status+body (json() attaches CORS headers, so the error reaches the app instead of being blocked).
   if (errors[path]) return json(req, errors[path].body ?? { error: 'forced' }, errors[path].status)
@@ -188,10 +242,10 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
     if (path === '/credits/packs')
       return json(req, {
         packs: [
-          { id: 'pack_5', usd: 5, credits: 50, order: 1 },
-          { id: 'pack_10', usd: 10, credits: 100, order: 2 },
-          { id: 'pack_25', usd: 25, credits: 250, recommended: true, order: 3 },
-          { id: 'pack_50', usd: 50, credits: 500, order: 4 }
+          { id: 'pack_5', usd: 4.99, credits: 45, order: 1 },
+          { id: 'pack_10', usd: 9.99, credits: 90, recommended: true, order: 2 },
+          { id: 'pack_25', usd: 24.99, credits: 235, order: 3 },
+          { id: 'pack_50', usd: 49.99, credits: 475, order: 4 }
         ]
       })
     if (/\/users\/.+\/credits$/.test(path)) return json(req, creditsWithTopup(F))
@@ -292,6 +346,15 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
         if (search) names = names.filter(n => String(n.nft.name).toLowerCase().includes(search))
         return json(req, { data: names, total: names.length })
       }
+      // Owner-scoped (?owner=) vs PUBLIC token lookup (?contractAddress=&tokenId=) are different
+      // questions: a buyer owns nothing yet the token still exists. Answering both from one fixture made
+      // the non-owner path untestable — the viewer always looked like the owner.
+      const tokenId = u.searchParams.get('tokenId')
+      if (!u.searchParams.get('owner') && tokenId) {
+        const rows = ((F.publicNfts ?? F.ownedNfts) as { data: any[] }).data ?? []
+        const match = rows.filter(r => String(r.nft?.tokenId) === tokenId)
+        return json(req, { data: match, total: match.length })
+      }
       return json(req, F.ownedNfts)
     }
     // Creator search step 2 (lib/search.ts → fetchSellerCounts): collection counts per address.
@@ -309,6 +372,13 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
     if (path === '/v1/orders') return json(req, { data: [], total: 0 })
     if (path === '/v2/catalog') return json(req, { data: [], total: 0 })
     return json(req, { data: [] })
+  }
+
+  // DCL push-notifications service (signed-fetch). GET lists them, PUT marks them read.
+  if (u.hostname.includes('notifications.decentraland')) {
+    if (path === '/notifications/read') return json(req, { ok: true })
+    if (path === '/notifications') return json(req, F.notifications)
+    return json(req, {})
   }
 
   // builder-server
@@ -371,6 +441,16 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
     return req.respond({ status: 200, headers: { 'content-type': 'image/png', ...CORS }, body: PNG })
   }
 
+  // External scripts/styles → an EMPTY module with the CORRECT MIME type. The shared DCL navbar/footer
+  // bundle (cdn.decentraland.org/@dcl/sites/…) is pulled by the page shell, and the JSON fallback below
+  // made the browser refuse it ("Expected a JavaScript-or-Wasm module script"). On a hard load of a route
+  // whose shell fetches it, that left the whole page BLANK — a harness artefact that looks exactly like an
+  // app crash. Empty is fine: the shop renders its own navbar; the CDN bundle only decorates the shell.
+  if (/\.(m?js|css)$/.test(path)) {
+    const type = path.endsWith('.css') ? 'text/css' : 'application/javascript'
+    return req.respond({ status: 200, headers: { 'content-type': type, ...CORS }, body: '' })
+  }
+
   // Anything else external → empty (and log, so we notice a missing mock).
   // eslint-disable-next-line no-console
   console.warn('[e2e] unmocked request:', method, req.url())
@@ -386,11 +466,28 @@ export type App = { browser: Browser; page: Page; close: () => Promise<void> }
  * - errors: per-run forced error responses keyed by URL pathname (e.g. { '/credits/authorize': { status: 402 } }).
  */
 export async function launchApp(
-  opts: { path?: string; fixtures?: Partial<Fixtures>; signedOut?: boolean; errors?: ErrorMap } = {}
+  opts: {
+    path?: string
+    fixtures?: Partial<Fixtures>
+    signedOut?: boolean
+    errors?: ErrorMap
+    /** MANA (wei, as a decimal string) the mocked ERC20 reports — drives the MANA payment rails. */
+    manaBalanceWei?: string
+    /** MANA allowance the mocked ERC20 reports; omit for "already approved". */
+    manaAllowanceWei?: string
+    /**
+     * Whether the mocked flag file reports secondary sales as available. Defaults to TRUE so the resale
+     * specs cover the feature; pass false to exercise the shipped default, where the Shop offers none.
+     */
+    secondarySales?: boolean
+  } = {}
 ): Promise<App> {
   const F = { ...defaults(), ...opts.fixtures }
   const errors = opts.errors ?? {}
+  secondarySalesFlag = opts.secondarySales ?? true
   mintedCents = 0 // reset the per-run top-up accumulator so balances don't leak between tests
+  setManaBalanceWei(opts.manaBalanceWei ?? '0') // no MANA unless a test asks for it
+  setManaAllowanceWei(opts.manaAllowanceWei ?? null) // already approved unless a test asks otherwise
   const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] })
   const page = await browser.newPage()
   // Default to a desktop viewport so the browse sidebar (Category/Price/Rarity) renders inline; below

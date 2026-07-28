@@ -165,7 +165,7 @@ export const Coin = styled(CurrencyIcon)`
   height: 16px;
   margin-right: 6px;
   vertical-align: -2px;
-  background-color: ${colors.accent};
+  background-color: ${colors.text};
 `
 
 export const Skeleton = styled.span`

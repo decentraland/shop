@@ -10,7 +10,7 @@ import { postTrade } from '~/lib/api'
 import { createUsdPeggedListing, ensureApproval } from '~/lib/trades'
 import { getAuthorizationStatus, getCollectionSellingAuthorization } from '~/lib/authorizations'
 import { isManagedWallet } from '~/lib/wallet'
-import { config } from '~/config'
+import { useProceedsToTreasury } from '~/hooks/useProceedsToTreasury'
 import { AuthorizeStep } from '~/components/AuthorizeStep'
 import { fetchCollection } from '~/lib/collections'
 import { useProfile } from '~/hooks/useProfile'
@@ -57,6 +57,7 @@ export function SellModal({
 }) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+  const proceedsToTreasury = useProceedsToTreasury()
 
   // Creator name for the asset card. Prefer the address the PDP passes; only if it's absent (modal opened
   // without a creator in scope) fall back to the collection's creator (one extra cached lookup).
@@ -309,10 +310,12 @@ export function SellModal({
           </S.Field>
         </S.Fields>
 
-        {/* When PROCEEDS_TO_TREASURY is on, the sale settles into closed-loop shop credits (never MANA),
+        {/* Driven by the RUNTIME flag, not build-time config: killing the flag has to change what the seller
+            is TOLD as well as where the money goes, or this note would keep promising credits while the
+            listing it signs pays MANA directly. When proceeds-to-treasury is on, the sale settles into closed-loop shop credits (never MANA),
             so the seller is told exactly what they'll receive. The credits wording is wallet-agnostic —
             it carries no MANA/crypto terms, so managed (web2) wallets never see crypto language. */}
-        {config.proceedsToTreasury && priceValid ? (
+        {proceedsToTreasury && priceValid ? (
           <S.Note>{t('sellModal.proceedsCredits', { count: priceValue })}</S.Note>
         ) : null}
 

@@ -29,13 +29,13 @@ describe('owner management on the item detail page', () => {
     // you own offers "Edit price" + "Remove from sale".
     await waitForText(page, 'Edit price')
     await waitForText(page, 'Remove from sale')
-    // The OWNER's CTA area shows management actions, not buy CTAs. The Resales section BELOW may show
-    // "Buy now" for OTHER copies on sale — that's expected — so scope the check to the item's own info
-    // column rather than the whole page.
+    // The OWNER's CTA area shows management actions, not buy CTAs. Other copies on sale are reachable
+    // from the resellers link, which opens them in a modal rather than listing them on the page.
     const info = await page.$('[data-testid="item-info"]')
     expect(info).not.toBeNull()
     const infoText = await page.evaluate(el => el!.textContent ?? '', info)
     expect(/buy now/i.test(infoText)).toBe(false)
+    expect(/view other resellers/i.test(infoText)).toBe(true)
 
     // Take it down — fetchTrade(trade-2) → cancelListing → real cancelSignature through the mock wallet.
     expect(await clickByText(page, 'button', /remove from sale/i)).toBe(true)

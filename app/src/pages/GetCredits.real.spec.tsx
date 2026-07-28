@@ -46,11 +46,15 @@ const { isMockPayments, createPackCheckout, pollCreditGrant, fetchCreditPacks, C
   // The pack catalogue is seeded into the query cache in renderPage, so this isn't actually called;
   // it just has to exist on the mock for the useCreditPacks import to resolve.
   fetchCreditPacks: vi.fn(),
+  // MIRRORS the real catalogue in ~/lib/payments. The mock fully overrides that module, so these tests
+  // stay self-consistent whatever is here — which is exactly why it has to be kept in step: a stale
+  // catalogue means the pack UI is asserted against prices, amounts and a bestValue badge that no
+  // longer exist, and it passes.
   CREDIT_PACKS: [
-    { id: 'pack_5', usd: 5, credits: 50 },
-    { id: 'pack_10', usd: 10, credits: 100 },
-    { id: 'pack_25', usd: 25, credits: 250, bestValue: true },
-    { id: 'pack_50', usd: 50, credits: 500 }
+    { id: 'pack_5', usd: 4.99, credits: 45, artUrl: 'https://cdn.example/pack-chips.webp' },
+    { id: 'pack_10', usd: 9.99, credits: 90, bestValue: true, artUrl: 'https://cdn.example/pack-coins.webp' },
+    { id: 'pack_25', usd: 24.99, credits: 235, artUrl: 'https://cdn.example/pack-stacks.webp' },
+    { id: 'pack_50', usd: 49.99, credits: 475, artUrl: 'https://cdn.example/pack-chest.webp' }
   ]
 }))
 vi.mock('~/lib/payments', () => ({
@@ -122,6 +126,28 @@ describe('when returning from Stripe hosted Checkout on the real path', () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['usd-balance'] })
   })
 
+  // The artwork comes from the catalogue, matched by the granted COUNT — on the real return `selected` is
+  // null (fresh page load), so the count is the only handle left on which pack was bought.
+  it('should show the artwork of the pack that was actually bought', async () => {
+    pollCreditGrant.mockResolvedValue({ status: 'credited', creditsGranted: 235, newBalance: 900 })
+
+    renderPage('/?order=ord_x')
+
+    expect(await screen.findByText(/added to your account/i)).toBeInTheDocument()
+    expect(document.querySelector('img[src="https://cdn.example/pack-stacks.webp"]')).not.toBeNull()
+  })
+
+  it('should fall back to the bundled coin when the grant matches no pack', async () => {
+    // A mid-checkout top-up can grant an amount no pack sells. The row must still render an image rather
+    // than a gap — the buyer just paid, and an empty slot reads as something having gone wrong.
+    pollCreditGrant.mockResolvedValue({ status: 'credited', creditsGranted: 137, newBalance: 900 })
+
+    renderPage('/?order=ord_x')
+
+    expect(await screen.findByText(/added to your account/i)).toBeInTheDocument()
+    expect(document.querySelector('img[src^="https://cdn.example/"]')).toBeNull()
+  })
+
   it('should show a generic success (not "0 credits added") when the server omits creditsGranted on a credited order', async () => {
     // Bug 1: on the real return `selected` is null, so a missing creditsGranted used to render "0
     // credits added" (and log credits:0) to a buyer who WAS charged.
@@ -130,7 +156,7 @@ describe('when returning from Stripe hosted Checkout on the real path', () => {
     renderPage('/?order=ord_x')
 
     expect(await screen.findByText(/purchase was successful/i)).toBeInTheDocument()
-    expect(screen.getByText(/your credits are ready/i)).toBeInTheDocument()
+    expect(screen.getByText(/you can find your credits in your balance/i)).toBeInTheDocument()
     // No misleading "0" count anywhere on the success screen.
     expect(screen.queryByText('0')).not.toBeInTheDocument()
     expect(screen.queryByText(/added to your account/i)).not.toBeInTheDocument()
@@ -147,7 +173,7 @@ describe('when returning from Stripe hosted Checkout on the real path', () => {
     renderPage('/?order=ord_x')
 
     expect(await screen.findByText(/purchase was successful/i)).toBeInTheDocument()
-    expect(screen.getByText(/your credits are ready/i)).toBeInTheDocument()
+    expect(screen.getByText(/you can find your credits in your balance/i)).toBeInTheDocument()
     const completed = track.mock.calls.find(c => c[0] === 'Shop Completed Buy Credits')
     expect(completed?.[1]).toMatchObject({ credits: null })
   })
@@ -177,7 +203,7 @@ describe('when returning from Stripe hosted Checkout on the real path', () => {
 
     // Try again returns to the pack grid.
     await user.click(screen.getByRole('button', { name: /try again/i }))
-    expect(screen.getByRole('button', { name: /250 credits for \$25/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /235 credits for \$24\.99/i })).toBeInTheDocument()
   })
 
   it('should only poll once even though clearing the return params re-runs the effect (no double-poll)', async () => {
@@ -244,18 +270,23 @@ describe('when starting a real hosted checkout from a pack click', () => {
 
     renderPage('/')
 
-    await user.click(screen.getByRole('button', { name: /250 credits for \$25/i }))
+    await user.click(screen.getByRole('button', { name: /235 credits for \$24\.99/i }))
 
     // No intermediate embedded card form / "choose a different pack" back-link — the pack click goes
-    // straight to Stripe (a minimal "redirecting to secure checkout" spinner covers the async window).
+    // straight to Stripe (a centred scrim covers the async window).
     expect(await screen.findByText(/redirecting to secure checkout/i)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /pay \$/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /choose a different pack/i })).not.toBeInTheDocument()
 
+    // The status is centred INSIDE the hero panel, which stays mounted (its content merely hidden) so the
+    // panel keeps its size — unmounting it shortened the document and pulled the footer up for the moment
+    // before the redirect left the page.
+    expect(screen.getByTestId('credits-hero')).toBeInTheDocument()
+
     // Redirect happens once the hosted session resolves; the funnel marker fires with the order id.
     await vi.waitFor(() => expect(window.location.href).toBe('https://checkout.stripe.com/c/pay/cs_test_123'))
     const redirected = track.mock.calls.find(c => c[0] === 'Shop Redirected To Stripe')
-    expect(redirected?.[1]).toMatchObject({ order_id: 'ord_new', pack_usd: 25 })
+    expect(redirected?.[1]).toMatchObject({ order_id: 'ord_new', pack_usd: 24.99 })
     // A card-click never enters an error state on the happy redirect.
     expect(screen.queryByText(/something went wrong/i)).not.toBeInTheDocument()
   })
@@ -266,11 +297,11 @@ describe('when starting a real hosted checkout from a pack click', () => {
 
     renderPage('/')
 
-    await user.click(screen.getByRole('button', { name: /100 credits for \$10/i }))
+    await user.click(screen.getByRole('button', { name: /90 credits for \$9\.99/i }))
 
     expect(await screen.findByText(/something went wrong/i)).toBeInTheDocument()
     const failed = track.mock.calls.find(c => c[0] === 'Shop Buy Credits Failed')
-    expect(failed?.[1]).toMatchObject({ step: 'checkout', pack_usd: 10 })
+    expect(failed?.[1]).toMatchObject({ step: 'checkout', pack_usd: 9.99 })
     expect(captureError).toHaveBeenCalled()
   })
 
@@ -278,7 +309,7 @@ describe('when starting a real hosted checkout from a pack click', () => {
     renderPage('/?canceled=1')
 
     expect(await screen.findByText(/payment canceled/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /250 credits for \$25/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /235 credits for \$24\.99/i })).toBeInTheDocument()
     expect(screen.queryByText(/something went wrong/i)).not.toBeInTheDocument()
     expect(track.mock.calls.some(c => c[0] === 'Shop Buy Credits Cancelled')).toBe(true)
   })

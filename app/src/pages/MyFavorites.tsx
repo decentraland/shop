@@ -1,6 +1,4 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
-import { Icon } from '~/components/Icon'
 import { useFavorites } from '~/store/favorites'
 import { AssetCard } from '~/components/AssetCard'
 import { LoadMore } from '~/components/LoadMore'
@@ -8,7 +6,7 @@ import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
 import { Grid } from '~/styles/grid.styles'
 import * as S from './MyFavorites.styles'
-import { theme } from '~/styles/theme'
+import emptyIllustration from '~/assets/error/favorites-empty.svg'
 
 // Favorites live client-side (instant, no async → no skeleton needed); page them so a long list
 // doesn't render hundreds of cards at once.
@@ -21,13 +19,13 @@ export function MyFavorites() {
 
   if (items.length === 0) {
     return (
-      <S.Empty>
-        <Icon name="heart" size={40} color={theme.colors.muted2} />
-        <S.EmptyTitle>{t('myFavorites.emptyTitle')}</S.EmptyTitle>
-        <p className="muted">{t('myFavorites.emptyBody')}</p>
-        <S.EmptyCta as={Link} to="/assets" variant="purple">
-          {t('notFound.cta')}
-        </S.EmptyCta>
+      <S.Empty data-testid="favorites-empty">
+        <S.EmptyIcon src={emptyIllustration} alt="" width={138} height={138} />
+        <S.EmptyText>
+          <S.EmptyTitle>{t('myFavorites.emptyTitle')}</S.EmptyTitle>
+          <S.EmptyBody>{t('myFavorites.emptyBody')}</S.EmptyBody>
+        </S.EmptyText>
+        <S.EmptyCta to="/assets">{t('myFavorites.emptyCta')}</S.EmptyCta>
       </S.Empty>
     )
   }

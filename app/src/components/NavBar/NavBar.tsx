@@ -8,6 +8,9 @@ import { TopNav } from '~/components/TopNav'
 import { useWallet } from '~/store/wallet'
 import { useProfile } from '~/hooks/useProfile'
 import { useBalance, balanceLabel } from '~/hooks/useBalance'
+import { useManaBalance } from '~/hooks/useManaBalance'
+import { formatMana } from '~/lib/mana-format'
+import manaSymbol from '~/assets/mana-matic.svg'
 import { useCart } from '~/store/cart'
 import { CartPopover } from '~/components/CartPopover'
 import { SearchDropdown } from '~/components/SearchDropdown'
@@ -33,11 +36,35 @@ import { theme } from '~/styles/theme'
 // (same split either way — just far harder to spot in a bundle report).
 const NotificationsBell = lazy(() => import('~/components/NotificationsBell/NotificationsBell'))
 
+// ui2 renders the desktop notifications panel as `styled(Menu)`, and a MUI Menu is a Popover, which is a
+// Modal — so by default it LOCKS PAGE SCROLL while open. MUI's lock does two things: `overflow: hidden` on
+// body, and a compensating `padding-right` on body and on `.mui-fixed` elements. That padding is what
+// visibly shifted the page: the fixed navbar was compensated and stayed put while everything inside body
+// slid left, increasing toward the right (left-aligned tabs barely moved, right-aligned balances moved a
+// full scrollbar width). `body.clientWidth` never changes, because clientWidth includes padding — which is
+// why measuring it showed nothing.
+//
+// Freezing the page behind a DROPDOWN is wrong anyway, so turn the lock off for Menu only. The mobile panel
+// is a full-screen `styled(Modal)` (name MuiModal, untouched here) and correctly keeps its lock.
+const notificationsTheme = {
+  ...ui2Light,
+  components: {
+    ...ui2Light.components,
+    MuiMenu: {
+      ...ui2Light.components?.MuiMenu,
+      defaultProps: { ...ui2Light.components?.MuiMenu?.defaultProps, disableScrollLock: true }
+    }
+  }
+}
+
 export function NavBar() {
   const { session, connecting, signIn, disconnect, restore } = useWallet()
   const address = session?.address
   const { data: avatar, isLoading: isLoadingProfile } = useProfile(address)
   const { data: balance, isError: balanceError, isLoading: balanceLoading } = useBalance(session)
+  // Polygon MANA the wallet already holds. Drives the navbar chip (rendered only when > 0) and, in the
+  // buy flow, which payment rails are offered. No skeleton: an absent/zero balance renders nothing.
+  const { data: manaBalanceWei } = useManaBalance(session)
   const cartCount = useCart(s => s.items.reduce((n, i) => n + i.quantity, 0))
   const openCart = useCart(s => s.setOpen)
   const navigate = useNavigate()
@@ -187,7 +214,7 @@ export function NavBar() {
             // unparseable date → formatDistanceToNow "Invalid time value"). Isolate it so a bad item
             // renders nothing instead of white-screening the whole navbar/app.
             <Sentry.ErrorBoundary fallback={<></>}>
-              <CssVarsProvider theme={ui2Light} defaultMode="light">
+              <CssVarsProvider theme={notificationsTheme} defaultMode="light">
                 <Suspense fallback={null}>
                   <NotificationsBell />
                 </Suspense>
@@ -247,6 +274,16 @@ export function NavBar() {
             />
           ) : null}
         </S.Search>
+        {/* Polygon MANA balance — shown ONLY when the wallet actually holds MANA (any wallet type,
+            managed ones included: a Magic/thirdweb account can hold MANA someone sent it). Sits to the
+            LEFT of the credits balance: credits stay the headline currency, MANA is the extra the buyer
+            happens to have. Hidden entirely at zero so the web2-first navbar shows no crypto by default. */}
+        {session && manaBalanceWei != null && manaBalanceWei > 0n ? (
+          <S.Mana data-testid="subnav-mana-balance" title={t('nav.polygonMana')}>
+            <S.ManaIco src={manaSymbol} alt="" aria-hidden />
+            {formatMana(manaBalanceWei)}
+          </S.Mana>
+        ) : null}
         {session ? (
           <S.Balance data-testid="subnav-balance" title={t('nav.yourBalance', { currency: CURRENCY.name })}>
             <S.BalanceIco />

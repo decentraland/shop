@@ -42,7 +42,8 @@ import { t } from '~/intl/i18n'
 import { fetchCollectionItems, fetchCollection } from '~/lib/collections'
 import { ItemPreview } from '~/components/ItemPreview'
 import { CollectionCarousel } from '~/components/CollectionCarousel'
-import { ItemResales } from '~/components/ItemResales'
+import { ResellersModal } from '~/components/ResellersModal'
+import { useSecondarySales } from '~/hooks/useSecondarySales'
 import { NotifyMe } from '~/components/NotifyMe'
 import { MakeOfferButton } from '~/components/MakeOfferButton'
 import { Tooltip } from '~/components/Tooltip'
@@ -320,10 +321,14 @@ export function ItemDetail() {
   const forSale = !!buyableTradeId
 
   // Cheapest open resale for this item — powers the "Lowest Price" line + resellers link (Figma
-  // 1524-297513). Shares react-query's cache with <ItemResales> (identical key), so no extra fetch.
+  // 1524-297513). Shares react-query's cache with <ResellersModal> (identical key), so no extra fetch.
+  const secondarySales = useSecondarySales()
   const { data: resales = [] } = useQuery({
     queryKey: ['item-resales', current.contractAddress, current.itemId],
-    enabled: !isMarket && !!current.contractAddress && !!current.itemId,
+    // Not fetched at all while resales are hidden: everything downstream of it (the "Lowest Price" line,
+    // the resellers modal, the buy-the-cheapest-resale CTA on a sold-out item) resolves to empty from here,
+    // so there is one switch rather than a condition per surface.
+    enabled: secondarySales && !isMarket && !!current.contractAddress && !!current.itemId,
     staleTime: 0,
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
@@ -331,8 +336,18 @@ export function ItemDetail() {
   })
   const lowestResale = resales.length > 0 ? resales[0].priceCredits : null
 
+  /**
+   * The shop's own listing for THIS exact token. The token hydration paths take their money fields from
+   * the legacy MANA order on /v1/nfts, and a shop listing is an off-chain USD-pegged TRADE that never
+   * appears there — so a shop-listed token arrived with priceCredits 0 while the resolved trade still
+   * made it buyable. The unified feed (already fetched for the resellers list, same cache key) is where
+   * that price actually lives. No extra request.
+   */
+  const shopListingForToken =
+    isTokenRoute && current.tokenId ? (resales.find(r => r.tokenId === current.tokenId) ?? null) : null
+
   // The cheapest resale as a cart/buy-ready item (Figma 1524-298906 sold-out state buys the resale).
-  // Backfills the display fields secondary rows lack from the PDP item, mirroring <ItemResales>.
+  // Backfills the display fields secondary rows lack from the PDP item, mirroring <ResellersModal>.
   const cheapestResaleItem: CatalogItem | null = useMemo(() => {
     const r = resales[0]
     if (!r) return null
@@ -347,11 +362,7 @@ export function ItemDetail() {
     }
   }, [resales, current])
   const [buyResale, setBuyResale] = useState<CatalogItem | null>(null)
-
-  // Internal link target: scroll the on-page Resellers list into view (E / F "View all resellers").
-  function scrollToResellers() {
-    document.getElementById('resellers')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }
+  const [showResellers, setShowResellers] = useState(false)
 
   // Market (legacy) checkout: the live MANA→USD rate (read only in market mode) + the LegacyListing
   // projection MarketCheckout expects, built from the UnifiedListing the grid passed in router state.
@@ -526,6 +537,20 @@ export function ItemDetail() {
     })
   }, [ownedAsset])
 
+  // Backfill the token's price (and its trade) from the shop's listing for that exact copy. Runs after the
+  // hydration effects above so it corrects whatever the legacy-order path left at 0.
+  useEffect(() => {
+    if (!shopListingForToken) return
+    setCurrent(prev => {
+      if (prev.priceCredits === shopListingForToken.priceCredits && prev.tradeId) return prev
+      return {
+        ...prev,
+        priceCredits: shopListingForToken.priceCredits,
+        tradeId: prev.tradeId ?? shopListingForToken.tradeId
+      }
+    })
+  }, [shopListingForToken])
+
   // Drop the optimistic just-listed price once the authoritative feed reports the matching live listing.
   useEffect(() => {
     if (justListedCredits == null) return
@@ -537,16 +562,17 @@ export function ItemDetail() {
   // didn't resolve it (viewer is logged out, or doesn't own this token), resolve the token publicly so
   // the page renders for ANYONE (shared links, refresh, non-owners) instead of a "Not Found" stub. Only
   // fires once those paths have settled empty; harmless on an itemId URL (no token matches → null).
-  const { data: publicToken } = useQuery({
+  const publicTokenEnabled =
+    !isMarket &&
+    !!current.contractAddress &&
+    !!current.tokenId &&
+    !current.name &&
+    !deepLinkItem &&
+    !ownedAssetLoading &&
+    !ownedAsset
+  const { data: publicToken, isFetched: publicTokenFetched } = useQuery({
     queryKey: ['public-token', current.contractAddress, current.tokenId],
-    enabled:
-      !isMarket &&
-      !!current.contractAddress &&
-      !!current.tokenId &&
-      !current.name &&
-      !deepLinkItem &&
-      !ownedAssetLoading &&
-      !ownedAsset,
+    enabled: publicTokenEnabled,
     // Money-sensitive: a 3rd party can buy/relist this token — revalidate on remount + focus.
     staleTime: 0,
     refetchOnMount: 'always',
@@ -603,6 +629,10 @@ export function ItemDetail() {
   // the item page always stays the buy view and instead surfaces a "you own N" note). See lib/routes
   // canManageToken. `ownedAsset` only resolves on the token route anyway (current.tokenId is undefined
   // on the item route), but gate explicitly so the intent is unmistakable.
+  // Owning the token and being ALLOWED TO SELL it are two different questions, and conflating them was a
+  // bug: with secondary sales off the owner fell through to the buyer view and was offered "Notify me when
+  // available" and "Make an offer" for a token already in their own wallet. Ownership alone decides the
+  // manage surface; `canPutOnSale` below decides whether the listing CTA is part of it.
   const manageAsSecondary = isTokenRoute && !!ownedAsset
   // Primary (creator) management of a mint listing is item-level — it belongs on the /item page only.
   const manageAsPrimary = !isTokenRoute && own
@@ -613,6 +643,11 @@ export function ItemDetail() {
   const manageTradeId = manageAsSecondary ? ownedAsset?.tradeId : buyableTradeId
   // Can we open the list/relist modal? Need the backing record the modal reads its inputs from.
   const canOpenListModal = manageAsSecondary ? !!ownedAsset : !!publishableItem
+  // May this viewer put the asset up for sale? A creator's mint listing is PRIMARY and always allowed; an
+  // owned token is a SECONDARY sale and so is gone while the flag is off. Taking an existing listing DOWN
+  // stays available either way (the listed branch) — hiding the entrance must not trap the people already
+  // inside. With no listing and no permission the owner simply keeps Transfer.
+  const canPutOnSale = manageAsPrimary || (manageAsSecondary && secondarySales)
   // The owner's own listed price, from the (freshly-refreshed) manage state. Used so the price shows
   // right after listing: the public `forSale`/feed the price block falls back to lags behind the MV
   // refresh, which left the owner staring at "Not for sale" while the manage buttons already said listed.
@@ -756,8 +791,21 @@ export function ItemDetail() {
   // graceful not-found instead of a permanent "Loading…" blank.
   // Also wait on the owned-token lookup while it's still resolving and nothing else has hydrated the
   // item yet — otherwise a secondary deep-link would flash Not Found before ownership backfills it.
+  // A source that has RESOLVED but whose data hasn't landed in `current` yet. Every hydration path here
+  // applies its result in an effect, so there is always one render where the query reports "fetched" and
+  // the name is still blank — long enough to paint Not Found over a perfectly good item. Loading flags
+  // alone cannot close that window; the presence of unapplied data can.
+  const hydrationPending = !current.name && (!!deepLinkItem || !!ownedAsset || !!publicToken)
   const stillResolving =
-    deepLinkLoading || (!!current.contractAddress && !siblingsFetched) || (!current.name && ownedAssetLoading)
+    deepLinkLoading ||
+    (!!current.contractAddress && !siblingsFetched) ||
+    (!current.name && ownedAssetLoading) ||
+    hydrationPending ||
+    // The public-token fallback is the only path that hydrates a token for someone who does NOT own it,
+    // and it starts LAST — it waits for the owner-scoped query to settle empty first. Without this a
+    // buyer opening a /token/… link had a window with nothing flagged as loading and a blank name.
+    // `isFetched` (not isLoading) is what keeps a genuinely missing token from hanging forever.
+    (publicTokenEnabled && !publicTokenFetched)
   const notFound = !current.name && !stillResolving
 
   // Sale section (price + CTAs): render skeletons — never the "not for sale / notify / make offer"
@@ -767,6 +815,7 @@ export function ItemDetail() {
     isSaleSectionLoading({
       isMarket,
       forSale,
+      priceKnown: current.priceCredits > 0 || manage,
       manage,
       soldOutWithResale,
       stillResolving,
@@ -1019,7 +1068,7 @@ export function ItemDetail() {
                           {isMarket || forSale ? <S.PriceLabel>{t('itemDetail.price')}</S.PriceLabel> : null}
                           {isMarket ? (
                             <>
-                              <S.Price data-variant="market">
+                              <S.Price data-variant="market" data-testid="item-price">
                                 {marketPriceCredits == null ? (
                                   <S.PriceValue>—</S.PriceValue>
                                 ) : (
@@ -1034,7 +1083,7 @@ export function ItemDetail() {
                             </>
                           ) : forSale ? (
                             onSale ? (
-                              <S.Price data-variant="sale">
+                              <S.Price data-variant="sale" data-testid="item-price">
                                 <S.Price>
                                   <S.Diamond />
                                   <S.PriceValue>{current.priceCredits}</S.PriceValue>
@@ -1053,7 +1102,7 @@ export function ItemDetail() {
                                 <S.Countdown endsAt={current.saleEndsAt} />
                               </S.Price>
                             ) : (
-                              <S.Price>
+                              <S.Price data-testid="item-price">
                                 <S.Diamond />
                                 <S.PriceValue>{current.priceCredits}</S.PriceValue>
                               </S.Price>
@@ -1061,12 +1110,16 @@ export function ItemDetail() {
                           ) : manageListed && managePriceCredits ? (
                             // Owner viewing their own listed item: show the price from the fresh manage state
                             // instead of "Not for sale" while the public feed catches up to the MV refresh.
-                            <S.Price>
+                            <S.Price data-testid="item-price">
                               <S.Diamond />
                               <S.PriceValue>{managePriceCredits}</S.PriceValue>
                             </S.Price>
-                          ) : manage ? null : ( // only signal the item can't be bought. // label is hidden here. It stays for the NON-owner public view, where it's the // for sale / Transfer) already convey the state, so the redundant "Not for sale" // Owner/creator viewing their own UNLISTED item: the manage CTAs below (Put up
-                            <S.Price data-variant="none">
+                          ) : /* Owner/creator viewing their own UNLISTED asset: the manage CTAs below (Put up
+                          for sale / Transfer) already convey the state, so the redundant "Not for sale" label
+                          is hidden here. It stays for the NON-owner public view, where it is the only signal
+                          the asset cannot be bought. */
+                          manage ? null : (
+                            <S.Price data-variant="none" data-testid="item-price">
                               <span>{t('itemDetail.notForSale')}</span>
                               <Tooltip content={t('itemDetail.notForSaleHint')}>
                                 <S.PriceInfo tabIndex={0} role="img" aria-label={t('itemDetail.notForSaleHint')}>
@@ -1099,7 +1152,7 @@ export function ItemDetail() {
                       // Market (legacy/MANA) item: a single Buy now that opens the MANA→credits checkout
                       // (MarketCheckout) — never Add to cart / BuyModal.
                       <S.DetailCta variant="purple" onClick={handleBuyNow} disabled={!canBuyMarket}>
-                        <S.AddCartLabel>{t('assetCard.buyNow')}</S.AddCartLabel>
+                        <span>{t('assetCard.buyNow')}</span>
                         {marketPriceCredits != null ? (
                           <S.CtaPrice aria-hidden>
                             <S.CtaDiamond />
@@ -1118,43 +1171,46 @@ export function ItemDetail() {
                               disabled={managing !== null || !canOpenListModal}
                             >
                               {managing !== 'update' ? <Icon name="pen" className="ico" /> : null}
-                              <S.AddCartLabel>
+                              <span>
                                 {managing === 'update'
                                   ? isManaged
                                     ? t('itemDetail.updateCanceling')
                                     : t('itemDetail.updateConfirmCancel')
                                   : t('itemDetail.manageUpdatePrice')}
-                              </S.AddCartLabel>
+                              </span>
                             </S.DarkCta>
                             <S.OutlineCta onClick={() => void takeDown()} disabled={managing !== null}>
-                              <S.AddCartLabel>
+                              <span>
                                 {managing === 'remove' ? t('myAssets.removing') : t('itemDetail.manageRemove')}
-                              </S.AddCartLabel>
+                              </span>
                             </S.OutlineCta>
                           </>
                         ) : (
                           <>
-                            {/* Put up for sale (Figma 1527-302810): dark-solid primary. */}
-                            <S.DarkCta
-                              onClick={() => {
-                                // Funnel-entry event for a secondary listing — this is the flow that moved off
-                                // the My Assets card (its "put on sale" fired the same event) onto the PDP.
-                                if (manageAsSecondary)
-                                  track('Shop Started Listing', {
-                                    listing_type: 'secondary',
-                                    item_id: current.itemId ?? current.tokenId ?? null
-                                  })
-                                openListModal()
-                              }}
-                              disabled={managing !== null || !canOpenListModal}
-                            >
-                              <S.AddCartLabel>{t('itemDetail.manageList')}</S.AddCartLabel>
-                            </S.DarkCta>
+                            {/* Put up for sale (Figma 1527-302810): dark-solid primary. Absent when the
+                            viewer may not sell — an owned token with secondary sales off. */}
+                            {canPutOnSale ? (
+                              <S.DarkCta
+                                onClick={() => {
+                                  // Funnel-entry event for a secondary listing — this is the flow that moved off
+                                  // the My Assets card (its "put on sale" fired the same event) onto the PDP.
+                                  if (manageAsSecondary)
+                                    track('Shop Started Listing', {
+                                      listing_type: 'secondary',
+                                      item_id: current.itemId ?? current.tokenId ?? null
+                                    })
+                                  openListModal()
+                                }}
+                                disabled={managing !== null || !canOpenListModal}
+                              >
+                                <span>{t('itemDetail.manageList')}</span>
+                              </S.DarkCta>
+                            ) : null}
                             {/* Transfer (Figma 1527-302810): only for a SECONDARY owned token you actually hold
                             (a primary/mint listing has no transferable token). Gasless via lib/buy. */}
                             {manageAsSecondary ? (
                               <S.OutlineCta onClick={() => setShowTransfer(true)} disabled={managing !== null}>
-                                <S.AddCartLabel>{t('itemDetail.manageTransfer')}</S.AddCartLabel>
+                                <span>{t('itemDetail.manageTransfer')}</span>
                               </S.OutlineCta>
                             ) : null}
                           </>
@@ -1164,7 +1220,7 @@ export function ItemDetail() {
                         (published + remaining supply > 0 → publishableItem is present). Gasless. */}
                         {manageAsPrimary && publishableItem ? (
                           <S.OutlineCta onClick={() => setShowIssue(true)} disabled={managing !== null}>
-                            <S.AddCartLabel>{t('itemDetail.manageIssue')}</S.AddCartLabel>
+                            <span>{t('itemDetail.manageIssue')}</span>
                           </S.OutlineCta>
                         ) : null}
                         {managing === 'update' ? (
@@ -1173,11 +1229,18 @@ export function ItemDetail() {
                           // removed — you're already managing right here (on both /item and /token).
                           <S.ManageNote>{t('itemDetail.updateHelper')}</S.ManageNote>
                         ) : null}
+                        {lowestResale != null ? (
+                          <S.ManageResellers>
+                            <S.ResellersLink onClick={() => setShowResellers(true)} data-testid="view-resellers">
+                              {t('itemDetail.viewAllResellers')}
+                            </S.ResellersLink>
+                          </S.ManageResellers>
+                        ) : null}
                       </S.ManageActions>
                     ) : forSale ? (
                       <>
                         <S.DetailCta variant="purple" onClick={handleBuyNow} disabled={resolvingTrade}>
-                          <S.AddCartLabel>{t('assetCard.buyNow')}</S.AddCartLabel>
+                          <span>{t('assetCard.buyNow')}</span>
                           <S.CtaPrice aria-hidden>
                             <S.CtaDiamond />
                             {current.priceCredits}
@@ -1199,7 +1262,7 @@ export function ItemDetail() {
                           variant="purple"
                           onClick={() => (session ? setBuyResale(cheapestResaleItem) : signIn())}
                         >
-                          <S.AddCartLabel>{t('assetCard.buyNow')}</S.AddCartLabel>
+                          <span>{t('assetCard.buyNow')}</span>
                           <S.CtaPrice aria-hidden>
                             <S.CtaDiamond />
                             {cheapestResaleItem.priceCredits}
@@ -1228,10 +1291,10 @@ export function ItemDetail() {
                     )}
                   </S.Ctas>
 
-                  {/* Lowest resale price + internal link to the on-page Resellers list (Figma 1524-297513).
-                  Only when there's at least one resale to link to, and not for your own managed item. In
-                  the sold-out state the resale price already shows above, so the link is centered alone
-                  (Figma 1524-298906). */}
+                  {/* Lowest resale price + the trigger for the Other Resellers modal (Figma 1524-297513).
+                  Only when there's at least one resale to show, and not for your own managed item (the
+                  manage view carries its own trigger below the manage CTAs). In the sold-out state the
+                  resale price already shows above, so the link is centered alone (Figma 1524-298906). */}
                   {!manage && !isMarket && lowestResale != null ? (
                     <S.LowestPriceRow data-testid="lowest-price" data-centered={soldOutWithResale || undefined}>
                       {!soldOutWithResale ? (
@@ -1241,7 +1304,9 @@ export function ItemDetail() {
                           <S.LowestValue>{lowestResale}</S.LowestValue>
                         </S.Lowest>
                       ) : null}
-                      <S.ResellersLink onClick={scrollToResellers}>{t('itemDetail.viewAllResellers')}</S.ResellersLink>
+                      <S.ResellersLink onClick={() => setShowResellers(true)} data-testid="view-resellers">
+                        {t('itemDetail.viewAllResellers')}
+                      </S.ResellersLink>
                     </S.LowestPriceRow>
                   ) : null}
 
@@ -1260,12 +1325,6 @@ export function ItemDetail() {
           )}
         </S.Info>
       </S.Main>
-
-      {current.itemId ? (
-        <div id="resellers">
-          <ItemResales item={current} />
-        </div>
-      ) : null}
 
       <CollectionCarousel
         title={collectionTitle}
@@ -1299,6 +1358,10 @@ export function ItemDetail() {
             void refreshManage()
           }}
         />
+      ) : null}
+
+      {secondarySales && showResellers && current.itemId ? (
+        <ResellersModal item={current} onClose={() => setShowResellers(false)} />
       ) : null}
 
       {showSell && ownedAsset && session ? (

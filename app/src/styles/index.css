@@ -14,6 +14,7 @@
   --media: #ecebed;
   --panel: #f5f5f5;
   --chip: #ecebed;
+  --gray-0: #43404a;
   --accent: #691fa9; /* purple — View all, Sign-in CTA */
   --brand-violet: #a524b3; /* cart badge */
   --rarity: #a14bf3;
@@ -123,7 +124,17 @@ h2 {
   font-weight: 600;
 }
 
-/* ---------------- Page ---------------- */
+/* Do NOT reach for `html { scrollbar-gutter: stable }` to stop an overlay from shifting the layout.
+ *
+ * It was tried, for the shift the notifications panel used to cause, and it is the wrong tool here: it
+ * permanently reserves the scrollbar's track, and every full-width band in this app (.subnav, the page
+ * heroes, the ui2 navbar) is sized to the CONTENT box. The band then stops short of the viewport edge and
+ * the reserved gutter shows through as a strip of body background — a white notch beside a coloured band,
+ * visible whenever no scrollbar fills it. It trades a few pixels of movement for a permanent seam.
+ *
+ * That shift turned out to be MUI's scroll lock (`overflow: hidden` plus a compensating `padding-right`),
+ * and it is fixed at the source in components/NavBar. */
+
 .page {
   /* 54px side gutter matches the ui2 Navbar's desktop padding (16px 54px, full-width) so the shop
      content lines up with the top nav instead of sitting ~14px wider. Mobile matches its 16px below. */
@@ -136,11 +147,19 @@ h2 {
      the heavy branded footer just BELOW the fold instead of pulling it a third of the way up. */
   min-height: calc(100vh - 92px);
 }
+/* Opt-out: the credits page is one short card, so filling the viewport just parks a screenful of empty
+   purple under it. Letting the footer sit right after the card is the better read there. */
+.page[data-route="/credits"] {
+  min-height: 0;
+}
 @media (max-width: 768px) {
   .page {
     padding: 16px 16px 56px;
     /* Navbar is 64px on mobile (see body padding-top). */
     min-height: calc(100vh - 64px);
+  }
+  .page[data-route="/credits"] {
+    min-height: 0;
   }
 }
 .placeholder {

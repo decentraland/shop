@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { Icon } from '~/components/Icon'
 import { CheckCircleIcon } from '~/components/Icons/CheckCircleIcon'
 import { useCart, type CartItem } from '~/store/cart'
+import { detailRouteFor } from '~/lib/routes'
 import { t } from '~/intl/i18n'
 import { formatCredits, formatCreditsFull } from '~/lib/currency'
 import { useCartAvailability } from '~/hooks/useCartAvailability'
@@ -18,13 +19,15 @@ function CartRow({
   status,
   onRemove,
   onIncrement,
-  onDecrement
+  onDecrement,
+  onNavigate
 }: {
   item: CartItem
   status: CartLineAvailability
   onRemove: (id: string) => void
   onIncrement: (id: string) => void
   onDecrement: (id: string) => void
+  onNavigate: () => void
 }) {
   const isPrimary = !item.tokenId
   const qty = item.quantity
@@ -32,23 +35,35 @@ function CartRow({
   const subtotal = item.priceCredits * qty
   const unavailable = !isLineBuyable(status)
   const unavailableLabel = status === 'sold-out' ? t('cart.availability.soldOut') : t('cart.availability.unavailable')
+  const detailPath = detailRouteFor(item)
   return (
     <S.Card data-unavailable={unavailable || undefined}>
-      <S.Thumb>
+      <S.Thumb data-thumb>
         {item.thumbnail ? <img src={item.thumbnail} alt={item.name} /> : null}
-        <S.ThumbCheck>
+        <S.ThumbCheck data-check>
           <CheckCircleIcon />
         </S.ThumbCheck>
       </S.Thumb>
       <S.Info>
-        <div>
+        <div data-desc>
           <S.Name title={item.name}>{item.name}</S.Name>
           {item.creator ? <S.By address={item.creator} /> : null}
         </div>
         <S.RowBottom>
           {unavailable ? (
-            /* Calm inline state — the trash button remains the one-tap remove. */
-            <S.Unavailable>{unavailableLabel}</S.Unavailable>
+            /* Warning + reason, plus a link to the item's resales. The trash button remains the
+               one-tap remove. */
+            <>
+              <S.Unavailable>
+                <S.Warn name="warning-fill" size={24} />
+                {unavailableLabel}
+              </S.Unavailable>
+              {detailPath ? (
+                <S.Resales to={detailPath} state={{ item, tradeId: item.tradeId }} onClick={onNavigate}>
+                  {t('cart.availability.viewResales')}
+                </S.Resales>
+              ) : null}
+            </>
           ) : (
             <>
               {isPrimary ? (
@@ -161,6 +176,7 @@ export function CartPopover() {
                 onRemove={remove}
                 onIncrement={increment}
                 onDecrement={decrement}
+                onNavigate={() => setOpen(false)}
               />
             ))}
           </S.List>

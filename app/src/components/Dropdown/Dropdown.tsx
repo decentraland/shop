@@ -1,5 +1,6 @@
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { Chevron } from '~/components/Chevron'
+import { theme } from '~/styles/theme'
 import * as S from './Dropdown.styles'
 
 export type DropdownOption = { value: string; label: ReactNode }
@@ -81,7 +82,7 @@ export function Dropdown({
         onClick={() => setOpen(!open)}
       >
         <S.Label>{triggerLabel}</S.Label>
-        <Chevron up={open} size={24} color="#43404a" />
+        <Chevron up={open} size={24} color={theme.colors.text2} />
       </S.Trigger>
 
       {open ? (

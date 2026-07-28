@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { fetchShopItems, type CatalogItem, type LegacyListing, type UnifiedListing } from '~/lib/api'
+import { useSecondarySales } from '~/hooks/useSecondarySales'
 import { fetchCatalogItems } from '~/lib/collections'
 import { manaWeiToCredits } from '~/lib/mana-rate'
 import { useManaRate } from '~/hooks/useManaRate'
@@ -22,6 +23,7 @@ import { t } from '~/intl/i18n'
 import { ErrorNotice } from '~/components/ErrorNotice'
 import { NamesPage } from '~/pages/NamesPage'
 import { Grid } from '~/styles/grid.styles'
+import emptyIllustration from '~/assets/error/search-empty.svg'
 import * as S from './Assets.styles'
 
 // Items fetched per page (infinite scroll pages by cumulative offset — see useInfiniteGrid).
@@ -56,6 +58,7 @@ function toLegacyListing(item: UnifiedListing): LegacyListing {
 
 export function Assets() {
   const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
   const q = (searchParams.get('q') ?? '').trim().toLowerCase()
   const qc = useQueryClient()
   const { session, signIn } = useWallet()
@@ -106,6 +109,7 @@ export function Assets() {
   const isUnified = status === 'on_sale'
   const min = priceMin && !Number.isNaN(Number(priceMin)) ? Number(priceMin) : undefined
   const max = priceMax && !Number.isNaN(Number(priceMax)) ? Number(priceMax) : undefined
+  const secondarySales = useSecondarySales()
   const wearableCategories = subCategory ? SUBCAT_MAP[subCategory] : undefined
   const sortBy = (SORTS.find(s => s.key === sort) ?? SORTS[0]).server
   // Item-unified (on-sale) grid filter set — /v3/catalog/unified?groupBy=item does the filtering + sort
@@ -119,7 +123,12 @@ export function Assets() {
     search: q || undefined,
     sortBy,
     isSmart: smart || undefined,
-    onSale: true
+    onSale: true,
+    // Resales are hidden unless the flag says otherwise. Filtered server-side: this grid is paginated and
+    // shows a result count, so dropping rows here would give short pages and a count that lies. Note this
+    // also drops SOLD-OUT items whose only remaining stock is a resale — that is the intended behaviour,
+    // they are not purchasable in the Shop.
+    listingType: secondarySales ? undefined : ('primary' as const)
   }
   // Full-catalog (all / not-for-sale) filter set. Same category/rarity/sub-category/search/sort/smart,
   // minus the credit price-range (see fetchCatalogItems — that endpoint's range is MANA-denominated).
@@ -320,42 +329,65 @@ export function Assets() {
 
             {error ? <ErrorNotice message={t('assets.loadError')} testId="browse-error" /> : null}
 
-            <Grid data-testid="grid">
-              {showGridSkeletons ? (
-                <SkeletonCards count={gridSkeletonCount} />
-              ) : (
-                <>
-                  {items.map(item => {
-                    // View-only grids ('all' / 'not_for_sale'): every card is a VIEW card (no inline trade).
-                    if (!isUnified) return <AssetCard key={listingKey(item)} item={item} mode="view" />
-                    // On-sale unified grid: legacy rows → market (≈ + Buy now), native → Add-to-cart.
-                    const unified = item as UnifiedListing
-                    return unified.source === 'legacy' ? (
-                      <AssetCard
-                        key={listingKey(item)}
-                        item={unified}
-                        mode="market"
-                        marketPriceCredits={priceOf(unified)}
-                        onBuyNow={openCheckout}
-                      />
+            {!showGridSkeletons && items.length === 0 && !error ? (
+              <S.EmptyState data-testid="browse-empty">
+                <S.EmptyIcon src={emptyIllustration} alt="" />
+                <S.EmptyText>
+                  <S.EmptyTitle>{t('assets.empty.title')}</S.EmptyTitle>
+                  <S.EmptyBody>
+                    {rawQuery ? (
+                      <>
+                        {t('assets.empty.searchBefore')}
+                        <b>{rawQuery}</b>
+                        {t('assets.empty.searchAfter')}
+                      </>
                     ) : (
-                      <AssetCard key={listingKey(item)} item={item} />
-                    )
-                  })}
-                  {isFetchingNextPage ? <SkeletonCards count={6} /> : null}
-                </>
-              )}
-            </Grid>
+                      t('assets.empty.filters')
+                    )}
+                  </S.EmptyBody>
+                </S.EmptyText>
+                <S.EmptyCta>
+                  <S.EmptyBtn type="button" onClick={() => navigate('/overview')}>
+                    {t('assets.empty.cta')}
+                  </S.EmptyBtn>
+                </S.EmptyCta>
+              </S.EmptyState>
+            ) : (
+              <>
+                <Grid data-testid="grid">
+                  {showGridSkeletons ? (
+                    <SkeletonCards count={gridSkeletonCount} />
+                  ) : (
+                    <>
+                      {items.map(item => {
+                        // View-only grids ('all' / 'not_for_sale'): every card is a VIEW card (no inline trade).
+                        if (!isUnified) return <AssetCard key={listingKey(item)} item={item} mode="view" />
+                        // On-sale unified grid: legacy rows → market (≈ + Buy now), native → Add-to-cart.
+                        const unified = item as UnifiedListing
+                        return unified.source === 'legacy' ? (
+                          <AssetCard
+                            key={listingKey(item)}
+                            item={unified}
+                            mode="market"
+                            marketPriceCredits={priceOf(unified)}
+                            onBuyNow={openCheckout}
+                          />
+                        ) : (
+                          <AssetCard key={listingKey(item)} item={item} />
+                        )
+                      })}
+                      {isFetchingNextPage ? <SkeletonCards count={6} /> : null}
+                    </>
+                  )}
+                </Grid>
 
-            <LoadMore
-              hasNextPage={hasNextPage}
-              isFetching={isFetchingNextPage}
-              onLoadMore={() => void fetchNextPage()}
-            />
-
-            {!isLoading && !isPlaceholderData && items.length === 0 ? (
-              <p className="muted">{t('assets.noItems')}</p>
-            ) : null}
+                <LoadMore
+                  hasNextPage={hasNextPage}
+                  isFetching={isFetchingNextPage}
+                  onLoadMore={() => void fetchNextPage()}
+                />
+              </>
+            )}
           </>
         )}
       </S.Main>

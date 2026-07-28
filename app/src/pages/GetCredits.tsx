@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { CircularProgress } from 'decentraland-ui2'
 import { useWallet } from '~/store/wallet'
+import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { Icon } from '~/components/Icon'
 import { CURRENCY, formatAmount } from '~/lib/currency'
 import { detailRouteFor } from '~/lib/routes'
@@ -14,7 +14,9 @@ import { RESUME_BUY_KEY } from '~/lib/resume-buy'
 import { RESUME_CART_KEY } from '~/lib/cart-checkout'
 import type { CartNavState } from '~/pages/Cart'
 import type { CatalogItem } from '~/lib/api'
-import packChips from '~/assets/credits/pack-chips.webp'
+import packCoins from '~/assets/credits/pack-coins.webp'
+import packStacks from '~/assets/credits/pack-stacks.webp'
+import packChest from '~/assets/credits/pack-chest.webp'
 import creditCoin from '~/assets/credits/credit-coin.webp'
 import checkCircle from '~/assets/credits/check-circle.svg'
 import loaderLogo from '~/assets/credits/loader-logo.svg'
@@ -26,13 +28,32 @@ import * as S from './GetCredits.styles'
 // truth via isMockPayments() (which gates on the publishable key) — don't reimplement the gate here.
 const CREDITS_PROVIDER = isMockPayments() ? 'mock' : 'stripe'
 
-// Pack artwork, mapped onto CREDIT_PACKS by id. Placeholder art lifted from Figma (all packs share the
-// same chip-stack render today); a per-pack swap is a one-line change here once final art lands.
-const PACK_IMAGES: Record<string, string> = {
-  pack_5: packChips,
-  pack_10: packChips,
-  pack_25: packChips,
-  pack_50: packChips
+// Pack artwork (Figma 1654-374650 / 1654-374651 / 1660-376515 / 1654-374653). The art escalates with
+// the pack size, so it's keyed by pack id with a positional fallback for a server catalogue we don't
+// know the ids of.
+const PACK_ART_ORDER = [packCoins, packCoins, packStacks, packChest]
+const PACK_ART: Record<string, string> = {
+  pack_5: packCoins,
+  pack_10: packCoins,
+  pack_25: packStacks,
+  pack_50: packChest
+}
+
+/** The bundled art for a pack — the fallback, and what renders while/if the catalogue has no URL. */
+function bundledArtFor(pack: CreditPack, index: number): string {
+  return PACK_ART[pack.id] ?? PACK_ART_ORDER[index % PACK_ART_ORDER.length]
+}
+
+/**
+ * The artwork to draw: the catalogue's URL when the server publishes one, else the bundled asset.
+ *
+ * The catalogue is the single source of truth now — the same URLs the in-world explorer draws from, so the
+ * two surfaces can't drift when the art changes. The bundled copy stays as the fallback on purpose: this
+ * page sits on the purchase path and used to render with no network dependency for art at all. Trading
+ * that for a remote image with nothing behind it would mean a CDN hiccup shows four empty cards.
+ */
+function artFor(pack: CreditPack, index: number): string {
+  return pack.artUrl ?? bundledArtFor(pack, index)
 }
 
 // Where "Get credits and start shopping" points. No credits-specific doc yet — link to the shop docs.
@@ -61,6 +82,15 @@ export function GetCredits() {
   const [phase, setPhase] = useState<Phase>('select')
   const [selected, setSelected] = useState<CreditPack | null>(null)
   const [granted, setGranted] = useState<number | null>(null)
+
+  // The artwork for the pack that was just bought, from the catalogue (credits-server publishes one image
+  // per pack). Resolved by MATCHING THE GRANTED COUNT rather than from `selected`, because on the real
+  // hosted-redirect return we come back on a fresh page load and `selected` is null — the count is the only
+  // thing we still know. Pack credit amounts are distinct, so the match is unambiguous.
+  //
+  // Falls back to the bundled coin: a top-up whose amount matches no pack, or a catalogue that failed to
+  // load, must still render an image rather than a gap.
+  const grantedArt = (granted != null ? packs.find(p => p.credits === granted)?.artUrl : undefined) ?? creditCoin
   const [error, setError] = useState<string | null>(null)
   // Gentle "payment canceled" note shown on the pack grid after a cancelled Stripe redirect.
   const [canceledNote, setCanceledNote] = useState(false)
@@ -253,39 +283,40 @@ export function GetCredits() {
     setCanceledNote(false)
   }
 
-  const showHeader = phase === 'select'
-
   return (
     <S.Root>
-      {showHeader && (
-        <S.Head>
-          <S.Title>{t('getCredits.title', { currency: CURRENCY.name })}</S.Title>
-          <S.Sub>
-            {t('getCredits.subtitle', { currency: CURRENCY.name })}{' '}
-            <S.Learn href={LEARN_MORE_URL} target="_blank" rel="noreferrer">
-              {t('getCredits.learnMore')}
-              <Icon name="arrow-up-right" size={13} />
-            </S.Learn>
-          </S.Sub>
-        </S.Head>
-      )}
+      {/* Kept mounted through 'redirecting' too. That phase hides this content with `visibility: hidden`
+      rather than unmounting it, so the panel keeps its exact size: unmounting shortened the document and
+      pulled the footer up for the moment before the redirect left the page. `visibility` also takes the
+      hidden pack buttons out of the tab order, so the covered grid can't be reached with the keyboard. */}
+      {(phase === 'select' || phase === 'redirecting') && (
+        <S.Hero data-testid="credits-hero">
+          <S.HeroBackdrop aria-hidden />
+          <S.HeroInner $hidden={phase === 'redirecting'}>
+            <S.Head>
+              <S.Title>{t('getCredits.title', { currency: CURRENCY.name })}</S.Title>
+              <S.SubRow>
+                <S.Sub>{t('getCredits.subtitle', { currency: CURRENCY.nameSingular })}</S.Sub>
+                <S.Learn href={LEARN_MORE_URL} target="_blank" rel="noreferrer">
+                  {t('getCredits.learnMore')}
+                  <Icon name="link-out" />
+                </S.Learn>
+              </S.SubRow>
+            </S.Head>
 
-      {phase === 'select' && (
-        <>
-          {canceledNote && (
-            <S.Note className="muted" role="status">
-              {t('getCredits.canceledNote')}
-            </S.Note>
+            {canceledNote && <S.Note role="status">{t('getCredits.canceledNote')}</S.Note>}
+
+            <PackGrid packs={packs} loading={packsLoading} onSelect={pack => void startCheckout(pack)} />
+          </S.HeroInner>
+
+          {/* Centred in the panel the grid just filled, over the same backdrop. */}
+          {phase === 'redirecting' && (
+            <S.RedirectStatus role="status" aria-live="polite">
+              <S.RedirectLogo src={loaderLogo} alt="" width={72} height={72} />
+              <S.RedirectNote>{t('getCredits.redirecting')}</S.RedirectNote>
+            </S.RedirectStatus>
           )}
-          <PackGrid packs={packs} loading={packsLoading} onSelect={pack => void startCheckout(pack)} />
-        </>
-      )}
-
-      {phase === 'redirecting' && (
-        <S.Redirect role="status" aria-live="polite">
-          <CircularProgress size={32} />
-          <p className="muted">{t('getCredits.redirecting')}</p>
-        </S.Redirect>
+        </S.Hero>
       )}
 
       {phase === 'processing' && (
@@ -296,10 +327,10 @@ export function GetCredits() {
               <strong>{t('getCredits.processing')}</strong>…
             </S.ProcessingTitle>
             <S.Progress aria-hidden>
-              <S.Track>
-                <S.Fill />
-              </S.Track>
-              <S.Count>1/1</S.Count>
+              <S.ProgressTrack>
+                <S.ProgressFill />
+              </S.ProgressTrack>
+              <S.ProgressCount>1/1</S.ProgressCount>
             </S.Progress>
           </S.ProcessingBody>
         </S.Processing>
@@ -315,56 +346,52 @@ export function GetCredits() {
           </S.Banner>
 
           {granted != null && (
-            <S.Credits>
+            <S.CreditsPanel>
               <S.CreditsRow>
-                <S.Coin src={creditCoin} alt="" width={93} height={93} />
+                <S.CreditsCoin src={grantedArt} alt="" width={93} height={93} />
                 <S.CreditsText>
-                  <S.Diamond />
+                  <CurrencyIcon />
                   <span>
-                    <S.Amount>{t('getCredits.creditsAmount', { credits: granted, currency: CURRENCY.name })}</S.Amount>{' '}
-                    <S.Added>{t('getCredits.creditsAdded')}</S.Added>
+                    <S.CreditsAmount>
+                      {t('getCredits.creditsAmount', { credits: granted, currency: CURRENCY.name })}
+                    </S.CreditsAmount>{' '}
+                    <S.CreditsAdded>{t('getCredits.creditsAdded')}</S.CreditsAdded>
                   </span>
                 </S.CreditsText>
               </S.CreditsRow>
-            </S.Credits>
+            </S.CreditsPanel>
           )}
 
           <S.Actions>
-            <S.GcBtn data-variant="outline" onClick={reset}>
+            <S.ActionButton data-variant="outline" onClick={reset}>
               {t('getCredits.buyMore', { currency: CURRENCY.name })}
-            </S.GcBtn>
-            <S.GcBtn data-variant="solid" onClick={() => navigate('/assets')}>
-              {t('getCredits.startShopping')}
-            </S.GcBtn>
+            </S.ActionButton>
+            <S.ActionButton onClick={() => navigate('/assets')}>{t('getCredits.startShopping')}</S.ActionButton>
           </S.Actions>
         </S.Success>
       )}
 
       {phase === 'pending' && (
-        <S.Status role="status" aria-live="polite">
-          <S.StatusTitle data-title>{t('getCredits.pendingTitle', { currency: CURRENCY.name })}</S.StatusTitle>
-          <p className="muted">{t('getCredits.pendingBody')}</p>
+        <S.StatusPanel role="status" aria-live="polite">
+          <S.StatusTitle>{t('getCredits.pendingTitle', { currency: CURRENCY.name })}</S.StatusTitle>
+          <S.Muted>{t('getCredits.pendingBody')}</S.Muted>
           <S.StatusActions>
-            <S.GcBtn data-variant="solid" onClick={() => navigate('/assets')}>
-              {t('getCredits.startShopping')}
-            </S.GcBtn>
-            <S.GcBtn data-variant="outline" onClick={reset}>
+            <S.ActionButton onClick={() => navigate('/assets')}>{t('getCredits.startShopping')}</S.ActionButton>
+            <S.ActionButton data-variant="outline" onClick={reset}>
               {t('getCredits.done')}
-            </S.GcBtn>
+            </S.ActionButton>
           </S.StatusActions>
-        </S.Status>
+        </S.StatusPanel>
       )}
 
       {phase === 'error' && (
-        <S.Status data-err role="alert">
-          <S.StatusTitle data-title>{t('getCredits.errorTitle')}</S.StatusTitle>
-          <p className="error">{error}</p>
+        <S.StatusPanel role="alert">
+          <S.StatusTitle data-tone="error">{t('getCredits.errorTitle')}</S.StatusTitle>
+          <S.ErrorText>{error}</S.ErrorText>
           <S.StatusActions>
-            <S.GcBtn data-variant="solid" onClick={reset}>
-              {t('getCredits.tryAgain')}
-            </S.GcBtn>
+            <S.ActionButton onClick={reset}>{t('getCredits.tryAgain')}</S.ActionButton>
           </S.StatusActions>
-        </S.Status>
+        </S.StatusPanel>
       )}
     </S.Root>
   )
@@ -379,47 +406,78 @@ function PackGrid({
   loading: boolean
   onSelect: (pack: CreditPack) => void
 }) {
-  // Content-shaped skeletons (same shimmer as the rest of the app) while the catalogue loads, so the
-  // grid keeps its shape instead of flashing a bare spinner. Four matches the usual pack count.
+  // Content-shaped skeletons (same card shell as a real pack) while the catalogue loads, so the grid
+  // keeps its shape instead of flashing a bare spinner. Four matches the usual pack count.
   if (loading) {
     return (
-      <S.Packs aria-busy="true" aria-label={t('getCredits.packsLoading', { currency: CURRENCY.name })}>
+      <S.Grid aria-busy="true" aria-label={t('getCredits.packsLoading', { currency: CURRENCY.name })}>
         {[0, 1, 2, 3].map(i => (
-          <S.PackSkeleton key={i} data-testid="pack-skeleton" aria-hidden>
-            <S.Inner>
-              <S.LabelSk className="skeleton" />
-              <S.ArtSk className="skeleton" />
-              <S.CtaSk className="skeleton" />
-            </S.Inner>
-          </S.PackSkeleton>
+          <S.PackCard key={i} as="div" data-skeleton="true" data-testid="pack-skeleton" aria-hidden>
+            <S.PackTop>
+              <S.PackHeading>
+                <S.SkAmount />
+              </S.PackHeading>
+              <S.SkArt />
+            </S.PackTop>
+            <S.SkPrice />
+          </S.PackCard>
         ))}
-      </S.Packs>
+      </S.Grid>
     )
   }
   return (
-    <S.Packs>
-      {packs.map(pack => (
-        <S.Pack
+    <S.Grid>
+      {packs.map((pack, i) => (
+        <S.PackCard
           key={pack.id}
           type="button"
-          data-best={pack.bestValue || undefined}
           data-testid="pack"
+          data-best={pack.bestValue ? 'true' : undefined}
           onClick={() => onSelect(pack)}
           aria-label={t('getCredits.packAria', { amount: formatAmount(pack.credits), usd: pack.usd })}
         >
-          {pack.bestValue && <S.Badge>{t('getCredits.packBadge')}</S.Badge>}
-          <S.Inner data-inner>
-            <S.Label>{t('getCredits.creditsAmount', { credits: pack.credits, currency: CURRENCY.name })}</S.Label>
-            <S.Art>
-              <img src={PACK_IMAGES[pack.id] ?? packChips} alt="" loading="lazy" />
-            </S.Art>
-            <S.CtaWrap>
-              <S.Cta data-cta>${pack.usd.toFixed(2)}</S.Cta>
-            </S.CtaWrap>
-          </S.Inner>
-        </S.Pack>
+          {pack.bestValue && (
+            <S.PackBadge>
+              <Icon name="star-rounded" />
+              {t('getCredits.packBadge')}
+            </S.PackBadge>
+          )}
+          <S.PackTop>
+            <S.PackHeading>
+              <S.PackAmountRow>
+                <CurrencyIcon />
+                <S.PackAmount>{pack.credits}</S.PackAmount>
+              </S.PackAmountRow>
+              <S.PackUnit>{t('getCredits.packUnit', { currency: CURRENCY.name })}</S.PackUnit>
+            </S.PackHeading>
+            <S.PackArt>
+              {/* onError is the second half of the fallback: `artFor` picks the remote URL when the
+                  catalogue has one, and if that request fails we swap to the bundled asset rather than
+                  leave a broken image in a card the buyer is about to click.
+
+                  Guarded by a one-shot flag, NOT by comparing src: `img.src` reads back the resolved
+                  ABSOLUTE url while the bundled import is a root-relative path, so that comparison never
+                  matches and a bundled asset that also failed would re-assign forever, hammering the
+                  network from inside its own error handler. */}
+              <img
+                src={artFor(pack, i)}
+                alt=""
+                loading="lazy"
+                width={507}
+                height={507}
+                onError={e => {
+                  const img = e.currentTarget
+                  if (img.dataset.artFallback) return
+                  img.dataset.artFallback = 'done'
+                  img.src = bundledArtFor(pack, i)
+                }}
+              />
+            </S.PackArt>
+          </S.PackTop>
+          <S.PackPrice>${pack.usd.toFixed(2)}</S.PackPrice>
+        </S.PackCard>
       ))}
-    </S.Packs>
+    </S.Grid>
   )
 }
 

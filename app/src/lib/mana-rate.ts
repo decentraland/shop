@@ -78,6 +78,16 @@ export function manaWeiToUsdWei(manaWei: string, { rate, decimals }: ManaRate): 
   return (BigInt(manaWei) * rate) / 10n ** BigInt(decimals)
 }
 
+// USD cents → MANA wei at the given rate — the inverse of manaWeiToUsdCents, rounded UP so a quoted
+// MANA amount never sits BELOW the USD it has to cover. Used to price a whole cart in MANA (the
+// per-trade oracle read prices ONE trade; a basket is priced from its USD total at the same rate).
+export function usdCentsToManaWei(cents: number, { rate, decimals }: ManaRate): bigint {
+  if (!Number.isFinite(cents) || cents <= 0 || rate <= 0n) return 0n
+  const usdWei = BigInt(Math.ceil(cents)) * (USD_WEI_PER_CREDIT / 10n) // 1 cent = 1e16 USD wei
+  const num = usdWei * 10n ** BigInt(decimals)
+  return (num + rate - 1n) / rate // ceil
+}
+
 // MANA wei → credits (1 credit = $0.10), rounded UP so the shown price never sits BELOW what
 // checkout charges at the display rate, floored at 1 credit. Returns null on a malformed manaWei so
 // the UI can show "price unavailable" instead of a fake "1 credit". BigInt throughout (no float drift).

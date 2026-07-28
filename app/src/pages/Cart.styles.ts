@@ -2,10 +2,10 @@ import styled from '@emotion/styled'
 import { css } from '@emotion/react'
 import { Link } from 'react-router-dom'
 import { theme } from '~/styles/theme'
-import { Button } from '~/components/Button'
 import { CreatorBadge } from '~/components/CreatorBadge'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { ErrorNotice } from '~/components/ErrorNotice'
+import { Icon } from '~/components/Icon'
 
 const { colors, gradients, radius } = theme
 
@@ -13,30 +13,6 @@ const { colors, gradients, radius } = theme
 // summary bar) — deliberately not the canonical app breakpoints.
 const twoCol = '@media (max-width: 1080px)'
 const mobile = '@media (max-width: 880px)'
-
-// Empty cart: full-page centered (not the 1120px cart column) so it sits mid-screen.
-export const Empty = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  text-align: center;
-  padding: 90px 20px;
-  min-height: 50vh;
-  color: ${colors.muted};
-  font-size: 18px;
-`
-
-export const EmptyTitle = styled.p`
-  font-size: 22px;
-  font-weight: 700;
-  margin: 6px 0 0;
-`
-
-export const EmptyCta = styled(Button)`
-  margin-top: 12px;
-`
 
 export const Checkout = styled.div`
   max-width: 1510px;
@@ -128,6 +104,83 @@ export const Panel = styled.section`
   }
 `
 
+// Empty cart: the same white-card-on-gray shell as the populated cart (Panel), with a centered cart
+// glyph, message and a purple CTA.
+export const CartEmpty = styled(Panel)`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  min-height: 420px;
+  padding: 48px 16px;
+  text-align: center;
+  color: ${colors.text};
+
+  ${theme.media.maxWidth('mobile')} {
+    min-height: 320px;
+    padding: 32px 16px;
+  }
+`
+
+export const CartEmptyText = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 16px;
+`
+
+export const CartEmptyTitle = styled.p`
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.6;
+
+  ${theme.media.maxWidth('mobile')} {
+    font-size: 20px;
+  }
+`
+
+export const CartEmptyBody = styled.p`
+  margin: 0;
+  font-size: 20px;
+  font-weight: 400;
+  line-height: 1.6;
+
+  ${theme.media.maxWidth('mobile')} {
+    font-size: 16px;
+  }
+`
+
+export const CartEmptyCta = styled(Link)`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 310px;
+  max-width: 100%;
+  height: 56px;
+  padding: 0 12px;
+  border-radius: ${radius.card};
+  background: ${colors.accent};
+  color: ${colors.softWhite};
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 24px;
+  letter-spacing: 0.46px;
+  text-transform: uppercase;
+  text-decoration: none;
+  transition: background 0.15s ease;
+
+  &:hover {
+    background: ${colors.accentHover};
+  }
+  &:focus-visible {
+    outline: 2px solid ${colors.accent};
+    outline-offset: 2px;
+  }
+`
+
 // Mobile-only chevron before the title.
 export const PanelBack = styled.button`
   display: none;
@@ -215,8 +268,9 @@ export const List = styled.div`
 `
 
 // A cart line = the Figma "Cart cards" component (thumbnail + name/creator + quantity + price).
-// data-unavailable = the line's listing is no longer buyable (sold out / gone / expired): calmly
-// dimmed with greyed media, still readable and removable. Excluded from the total and from checkout.
+// data-unavailable = the line's listing is no longer buyable (sold out / gone / expired): the media
+// and description dim, and the price/stepper are replaced by a warning + a link to the item's resales.
+// Still readable and removable; excluded from the total and from checkout.
 export const Card = styled.div`
   position: relative;
   display: flex;
@@ -227,11 +281,14 @@ export const Card = styled.div`
   border-radius: ${radius.card};
   overflow: hidden;
 
-  &[data-unavailable] {
-    opacity: 0.6;
+  &[data-unavailable] [data-thumb] {
+    opacity: 0.5;
   }
-  &[data-unavailable] img {
-    filter: grayscale(1);
+  &[data-unavailable] [data-check] {
+    display: none;
+  }
+  &[data-unavailable] [data-desc] {
+    opacity: 0.7;
   }
 `
 
@@ -412,7 +469,7 @@ export const Price = styled.div`
 export const PriceIco = styled(CurrencyIcon)`
   width: 24px;
   height: 24px;
-  background: ${colors.accent};
+  background: ${colors.text};
 
   ${mobile} {
     width: 20px;
@@ -438,10 +495,58 @@ export const Actions = styled.div`
 `
 
 export const Unavailable = styled.span`
-  margin-left: auto;
-  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
   font-weight: 600;
-  color: ${colors.muted};
+  line-height: 1;
+  text-transform: uppercase;
+  color: ${colors.text2};
+`
+
+export const Warn = styled(Icon)`
+  color: #f48221;
+`
+
+export const Resales = styled(Link)`
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 24px;
+  letter-spacing: 0.46px;
+  text-transform: uppercase;
+  text-decoration: underline;
+  color: ${colors.accent};
+
+  &:hover {
+    color: ${colors.accentHover};
+  }
+  &:focus-visible {
+    outline: 2px solid ${colors.accent};
+    outline-offset: 2px;
+  }
+`
+
+// "Creator" chip on a primary (mint) line — Figma "Tag-Creator".
+export const CreatorTag = styled.span`
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px;
+  border-radius: ${radius.chip};
+  background: #f4e9ff;
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 14px;
+  color: ${colors.text};
+`
+
+// The glyph keeps the design's leaf size (11.31 × 10.94) rather than a square icon box.
+export const CreatorTagIco = styled(Icon)`
+  width: 11.31px;
+  height: 10.94px;
+  background: ${colors.text};
 `
 
 const iconBtn = css`
@@ -542,9 +647,10 @@ export const SummaryBody = styled.div`
   gap: 12px;
 `
 
+// The summary's total row — Figma "Price".
 export const TotalLine = styled.div`
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
 `
@@ -552,6 +658,7 @@ export const TotalLine = styled.div`
 export const TotalLabel = styled.span`
   font-size: 14px;
   font-weight: 600;
+  line-height: 1.57;
   color: #5e5b67;
 `
 
@@ -560,14 +667,34 @@ export const TotalValue = styled.span`
   align-items: center;
   gap: 8px;
   font-size: 24px;
-  font-weight: 600;
-  color: ${colors.text2};
+  font-weight: 700;
+  color: ${colors.text};
+`
+
+// Total + the exchange rate stacked under it, both flush right.
+export const TotalSide = styled.span`
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 4px;
+`
+
+export const TotalRate = styled.span`
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1;
+  color: ${colors.muted};
 `
 
 export const TotalIco = styled(CurrencyIcon)`
   width: 30px;
   height: 30px;
-  background: ${colors.accent};
+  background: ${colors.text};
+  -webkit-mask-size: 24px 24px;
+  mask-size: 24px 24px;
+  -webkit-mask-position: left center;
+  mask-position: left center;
 `
 
 export const Cta = styled.button`

@@ -8,40 +8,30 @@ export const Root = styled.div`
   display: inline-block;
 `
 
-// Metrics pinned to the Figma "Sort By" component: Inter Medium 12px, a hairline gray border, an 8px
-// radius, a 40px content-hugging pill. `data-open` = light-gray gradient + borderless (see Chevron).
 export const Trigger = styled.button`
   display: inline-flex;
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  height: 40px;
-  padding: 0 4px 0 12px;
-  background: #fff;
-  border: 0.5px solid ${colors.lineStrong};
+  padding: 4px 4px 4px 12px;
+  background: ${colors.softWhite};
+  border: 1px solid ${colors.text2};
   border-radius: ${radius.btn};
   color: ${colors.text2};
-  font-weight: 500;
+  font-weight: 600;
   font-size: 12px;
   line-height: 1.43;
   text-transform: uppercase;
   white-space: nowrap;
   cursor: pointer;
-  transition:
-    border-color 0.15s ease,
-    background 0.15s ease;
+  transition: border-color 0.15s ease;
 
   &:hover {
-    border-color: #7c7788;
+    border-color: #000;
   }
   &:focus-visible {
     outline: 0;
     border-color: ${colors.accent};
-  }
-  /* Open wins over :focus-visible (declared after) — gray gradient, borderless. */
-  &[data-open] {
-    border-color: transparent;
-    background: linear-gradient(180deg, #f4f3f6 0%, #dcdae1 100%);
   }
 `
 
@@ -55,13 +45,14 @@ export const Menu = styled.ul`
   position: absolute;
   top: calc(100% + 8px);
   z-index: 40;
-  min-width: 100%;
+  min-width: 174px;
   list-style: none;
   margin: 0;
-  padding: 8px;
+  padding: 0;
+  overflow: hidden;
   background: #fff;
-  border-radius: ${radius.card};
-  box-shadow: 0 14px 36px rgba(22, 21, 24, 0.16);
+  border-radius: ${radius.btn};
+  box-shadow: 0 4px 25px 5px rgba(0, 0, 0, 0.25);
   animation: cart-pop-in 0.16s ease;
 
   &[data-align='left'] {
@@ -73,15 +64,18 @@ export const Menu = styled.ul`
 `
 
 export const Option = styled.button`
-  display: block;
+  display: flex;
+  align-items: center;
   width: 100%;
+  height: 40px;
   text-align: left;
-  background: none;
+  background: #fff;
   border: 0;
-  padding: 12px 16px;
-  border-radius: 10px;
-  font-size: 16px;
-  color: ${colors.text};
+  padding: 4px 4px 4px 8px;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 1.43;
+  color: ${colors.gray0};
   white-space: nowrap;
   cursor: pointer;
 
@@ -89,7 +83,6 @@ export const Option = styled.button`
     background: #f5f4f7;
   }
   &[data-active] {
-    color: ${colors.accent};
-    font-weight: 700;
+    background: ${colors.media};
   }
 `

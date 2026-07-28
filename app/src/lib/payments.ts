@@ -50,6 +50,16 @@ export type CreditPack = {
   credits: number
   /** The single highlighted "best value" pack. */
   bestValue?: boolean
+  /**
+   * Artwork from the catalogue, already narrowed to the ONE format this client should render (webp when the
+   * server publishes it, else the PNG). Named differently from the server's `imageUrl`/`imageUrlWebp` on
+   * purpose: those are two format-specific fields, this is the resolved choice — reusing the name would
+   * make it read as "the PNG".
+   *
+   * Absent on the bundled fallback packs, which carry no URLs — the Get Credits grid then draws its own
+   * bundled art, so a pack never renders without an image.
+   */
+  artUrl?: string
 }
 
 // Pack catalogue FALLBACK. The catalogue is now sourced from the credits-server
@@ -60,11 +70,14 @@ export type CreditPack = {
 // Credits grid degrades to it if the endpoint is unreachable. It is NOT a second price list —
 // checkout is always priced by the server from `packId`, so a drift here only affects display, and
 // the ids (the actual contract) are what matter. Keep the ids in sync with the server catalogue.
+// Break-even pricing: `credits` is the SPEND value the buyer receives (× $0.10); `usd` is the CHARGE.
+// They DIVERGE on purpose (credits < usd×10) — the small premium covers the Stripe fee. Do NOT derive
+// credits from `creditsForUsd(usd)` here (that's the spend peg, not the buy rate); mirror the server.
 export const CREDIT_PACKS: CreditPack[] = [
-  { id: 'pack_5', usd: 5, credits: creditsForUsd(5) },
-  { id: 'pack_10', usd: 10, credits: creditsForUsd(10) },
-  { id: 'pack_25', usd: 25, credits: creditsForUsd(25), bestValue: true },
-  { id: 'pack_50', usd: 50, credits: creditsForUsd(50) }
+  { id: 'pack_5', usd: 4.99, credits: 45 },
+  { id: 'pack_10', usd: 9.99, credits: 90, bestValue: true },
+  { id: 'pack_25', usd: 24.99, credits: 235 },
+  { id: 'pack_50', usd: 49.99, credits: 475 }
 ]
 
 // How many top-up packs the no-funds pickers (BuyModal + Cart) offer in one row. The modal is widened
@@ -72,7 +85,17 @@ export const CREDIT_PACKS: CreditPack[] = [
 export const MAX_OFFER_PACKS = 4
 
 // Shape returned by the public credits-server catalogue endpoint (READ-only, no auth, no secrets).
-type ServerCreditPack = { id: string; usd: number; credits: number; recommended?: boolean; order?: number }
+type ServerCreditPack = {
+  id: string
+  usd: number
+  credits: number
+  recommended?: boolean
+  order?: number
+  /** PNG — the format every client can decode. */
+  imageUrl?: string
+  /** The same render as webp, ~7× smaller. Published for clients that can decode it; browsers can. */
+  imageUrlWebp?: string
+}
 
 /**
  * Fetch the credit-pack catalogue from the credits-server (public GET /credits/packs). This is the
@@ -81,6 +104,11 @@ type ServerCreditPack = { id: string; usd: number; credits: number; recommended?
  * (`recommended` -> `bestValue`) and returns it ordered. Consumed via the useCreditPacks hook, which
  * falls back to CREDIT_PACKS if this throws.
  */
+/** The one artwork url to render, webp first. Empty strings count as missing (see the map below). */
+function artUrl(p: ServerCreditPack): string | undefined {
+  return p.imageUrlWebp || p.imageUrl || undefined
+}
+
 export async function fetchCreditPacks(): Promise<CreditPack[]> {
   const res = await fetch(`${config.creditsServerUrl}/credits/packs`)
   if (!res.ok) throw new Error(`credit packs ${res.status}`)
@@ -88,7 +116,19 @@ export async function fetchCreditPacks(): Promise<CreditPack[]> {
   return packs
     .slice()
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-    .map(p => ({ id: p.id, usd: p.usd, credits: p.credits, ...(p.recommended ? { bestValue: true } : {}) }))
+    .map(p => ({
+      id: p.id,
+      usd: p.usd,
+      credits: p.credits,
+      ...(p.recommended ? { bestValue: true } : {}),
+      // Prefer webp: it is the same render at roughly a seventh of the bytes, and every browser the shop
+      // supports decodes it. The PNG exists for Unity, which cannot. Falling through to it keeps this
+      // working if the server ever publishes only one format.
+      //
+      // `||` throughout, deliberately: an empty string is a MISSING url, not a present one. Mixing in `??`
+      // here would let a blank webp field win over a real PNG and render an empty image.
+      ...(artUrl(p) ? { artUrl: artUrl(p) } : {})
+    }))
 }
 
 /** Credits granted for a given USD amount at the fixed peg. */
@@ -247,7 +287,11 @@ async function mockPollCreditGrant(
   // provided (e.g. unit tests), stay a pure mock.
   if (opts.address && pack) {
     try {
-      const res = await devMintUsd(opts.address, Math.round(pack.usd * 100))
+      // Mock the real grant: top up the SPEND value (credits × USD_PER_CREDIT), NOT the charge
+      // (pack.usd). Under fee-adjusted packs these differ; minting the charge would over-credit in
+      // local/dev. Derived from the peg rather than a literal 10 so a peg change moves one constant;
+      // rounded because the ×100 to cents runs through a float.
+      const res = await devMintUsd(opts.address, Math.round(pack.credits * USD_PER_CREDIT * 100))
       return { status: 'credited', creditsGranted, newBalance: res.credits }
     } catch (e) {
       return { status: 'failed', error: (e as Error).message }
