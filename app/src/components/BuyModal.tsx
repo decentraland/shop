@@ -8,7 +8,7 @@ import { useBalance } from '~/hooks/useBalance'
 import { useManaBalance } from '~/hooks/useManaBalance'
 import { resolveLiveTrade, usdWeiToCents, type CatalogItem } from '~/lib/api'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
-import { formatCredits } from '~/lib/currency'
+import { formatCredits, usdCentsToCredits } from '~/lib/currency'
 import { readTradeManaPriceWei } from '~/lib/mana'
 import { PaymentMethodStep } from '~/components/PaymentMethodStep'
 import { PaymentCtas } from '~/components/PaymentCtas'
@@ -128,7 +128,7 @@ export function BuyModal({
         if (isOwnTrade(trade, session.address)) throw new Error("You can't buy your own listing.")
         const usdCents = usdWeiToCents((trade.received?.[0] as { amount?: string } | undefined)?.amount)
         if (!Number.isFinite(usdCents) || usdCents <= 0) throw new Error('price unavailable')
-        const credits = Math.ceil(usdCents / 10)
+        const credits = usdCentsToCredits(usdCents)
         if (cancelled) return
         setItemCredits(credits)
         // Keep the trade + exact price around for the MANA rails, whichever branch we take next.
@@ -151,7 +151,7 @@ export function BuyModal({
             return
           }
           reservedCreditIdRef.current = credit.id
-          const lockedCredits = Math.ceil(lockedCents / 10)
+          const lockedCredits = usdCentsToCredits(lockedCents)
           setItemCredits(lockedCredits)
           const lockedObj = { trade, credit, maxCreditedValue, usdCents: lockedCents, credits: lockedCredits }
           setLocked(lockedObj)
@@ -464,7 +464,8 @@ export function BuyModal({
   // credits button plus the MANA one disabled, with what their balance is worth. 'nofunds' is excluded on
   // purpose — with no payable rail at all, the pack picker is the only way forward, so the disabled button
   // is rendered inside that state instead (below) rather than replacing it.
-  const methodMode = (phase === 'ready' && (hasManaRail || paymentOptions.manaShortfall != null)) || (phase === 'nofunds' && hasManaRail)
+  const methodMode =
+    (phase === 'ready' && (hasManaRail || paymentOptions.manaShortfall != null)) || (phase === 'nofunds' && hasManaRail)
 
   const busy = phase === 'processing'
   const title =

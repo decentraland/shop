@@ -21,6 +21,8 @@
  * than guessing — an amount that might belong to the other row is worse than no amount.
  */
 
+import { usdCentsToCreditsFloor } from '~/lib/currency'
+
 /** One payout row from credits-server's `earnings` block. */
 export type Payout = {
   txHash: string
@@ -94,5 +96,5 @@ export function payoutForSale(
  * promise a credit the seller cannot spend.
  */
 export function centsToCredits(cents: number): number {
-  return Math.floor(cents / 10)
+  return usdCentsToCreditsFloor(cents)
 }

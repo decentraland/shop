@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Button } from '~/components/Button'
 import type { Session } from '~/lib/auth'
 import { importListing, RelistFailedError, type ImportItem } from '~/lib/import'
-import { CURRENCY } from '~/lib/currency'
+import { CURRENCY, creditsToUsd } from '~/lib/currency'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import { track } from '~/lib/analytics'
@@ -49,7 +49,7 @@ export function MigrateModal({
             item_id: queue[i].item.itemId ?? queue[i].item.oldTradeId ?? null,
             contract_address: queue[i].item.contractAddress,
             new_price_credits: queue[i].priceCredits,
-            new_price_usd: queue[i].priceCredits / 10
+            new_price_usd: creditsToUsd(queue[i].priceCredits)
           })
           if (!cancelled) setStatuses(s => s.map((v, idx) => (idx === i ? 'done' : v)))
         } catch (e) {

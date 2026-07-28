@@ -5,7 +5,7 @@ import { useWallet } from '~/store/wallet'
 import { fetchImportable, type ImportItem } from '~/lib/import'
 import { toast } from '~/store/toast'
 import { MigrateModal, type MigrateEntry } from '~/components/MigrateModal'
-import { CURRENCY } from '~/lib/currency'
+import { CURRENCY, creditsToUsd } from '~/lib/currency'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { Button } from '~/components/Button'
 import styled from '@emotion/styled'
@@ -213,7 +213,7 @@ export function ImportListings() {
                           />
                         </div>
                         <div className="imp-price__sub">
-                          <span>${(credits * 0.1).toFixed(2)}</span>
+                          <span>${creditsToUsd(credits).toFixed(2)}</span>
                           {edited ? (
                             <button
                               className="imp-price__reset"
@@ -253,7 +253,7 @@ export function ImportListings() {
             <div className="imp-dock__sub">
               {t('importListings.selectedSummary', {
                 count: selectedItems.length,
-                usd: (total * 0.1).toFixed(2)
+                usd: creditsToUsd(total).toFixed(2)
               })}
             </div>
           </div>
