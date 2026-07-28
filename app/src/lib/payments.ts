@@ -50,6 +50,16 @@ export type CreditPack = {
   credits: number
   /** The single highlighted "best value" pack. */
   bestValue?: boolean
+  /**
+   * Artwork from the catalogue, already narrowed to the ONE format this client should render (webp when the
+   * server publishes it, else the PNG). Named differently from the server's `imageUrl`/`imageUrlWebp` on
+   * purpose: those are two format-specific fields, this is the resolved choice — reusing the name would
+   * make it read as "the PNG".
+   *
+   * Absent on the bundled fallback packs, which carry no URLs — the Get Credits grid then draws its own
+   * bundled art, so a pack never renders without an image.
+   */
+  artUrl?: string
 }
 
 // Pack catalogue FALLBACK. The catalogue is now sourced from the credits-server
@@ -75,7 +85,17 @@ export const CREDIT_PACKS: CreditPack[] = [
 export const MAX_OFFER_PACKS = 4
 
 // Shape returned by the public credits-server catalogue endpoint (READ-only, no auth, no secrets).
-type ServerCreditPack = { id: string; usd: number; credits: number; recommended?: boolean; order?: number }
+type ServerCreditPack = {
+  id: string
+  usd: number
+  credits: number
+  recommended?: boolean
+  order?: number
+  /** PNG — the format every client can decode. */
+  imageUrl?: string
+  /** The same render as webp, ~7× smaller. Published for clients that can decode it; browsers can. */
+  imageUrlWebp?: string
+}
 
 /**
  * Fetch the credit-pack catalogue from the credits-server (public GET /credits/packs). This is the
@@ -84,6 +104,11 @@ type ServerCreditPack = { id: string; usd: number; credits: number; recommended?
  * (`recommended` -> `bestValue`) and returns it ordered. Consumed via the useCreditPacks hook, which
  * falls back to CREDIT_PACKS if this throws.
  */
+/** The one artwork url to render, webp first. Empty strings count as missing (see the map below). */
+function artUrl(p: ServerCreditPack): string | undefined {
+  return p.imageUrlWebp || p.imageUrl || undefined
+}
+
 export async function fetchCreditPacks(): Promise<CreditPack[]> {
   const res = await fetch(`${config.creditsServerUrl}/credits/packs`)
   if (!res.ok) throw new Error(`credit packs ${res.status}`)
@@ -91,7 +116,19 @@ export async function fetchCreditPacks(): Promise<CreditPack[]> {
   return packs
     .slice()
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-    .map(p => ({ id: p.id, usd: p.usd, credits: p.credits, ...(p.recommended ? { bestValue: true } : {}) }))
+    .map(p => ({
+      id: p.id,
+      usd: p.usd,
+      credits: p.credits,
+      ...(p.recommended ? { bestValue: true } : {}),
+      // Prefer webp: it is the same render at roughly a seventh of the bytes, and every browser the shop
+      // supports decodes it. The PNG exists for Unity, which cannot. Falling through to it keeps this
+      // working if the server ever publishes only one format.
+      //
+      // `||` throughout, deliberately: an empty string is a MISSING url, not a present one. Mixing in `??`
+      // here would let a blank webp field win over a real PNG and render an empty image.
+      ...(artUrl(p) ? { artUrl: artUrl(p) } : {})
+    }))
 }
 
 /** Credits granted for a given USD amount at the fixed peg. */

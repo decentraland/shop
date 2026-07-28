@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -154,5 +154,28 @@ describe('when a signed-out user opens the get-credits page', () => {
     // Clicking a pack triggers sign-in instead of dropping into an un-authable Stripe checkout.
     await user.click(screen.getByRole('button', { name: /235 credits for \$24\.99/i }))
     expect(signIn).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('the pack artwork fallback', () => {
+  it('falls back to the bundled asset exactly once when the remote image fails', async () => {
+    // The regression this guards: the handler used to compare `img.src` (which reads back an ABSOLUTE url)
+    // against the bundled import (a root-relative path). That never matched, so a bundled asset which also
+    // failed would re-assign src from inside its own error handler — an unbounded request loop.
+    // Queried by tag, not by role: the artwork is decorative (alt="") so it is exposed as
+    // role="presentation", which is correct for it and unfindable via getByRole('img').
+    const { container } = renderPage()
+    await screen.findAllByTestId('pack')
+    const img = container.querySelector('[data-testid="pack"] img') as HTMLImageElement
+    expect(img).toBeTruthy()
+
+    fireEvent.error(img)
+    const afterFirst = img.src
+    expect(afterFirst).not.toBe('')
+    expect(img.dataset.artFallback).toBe('done')
+
+    // A second failure must NOT touch src again.
+    fireEvent.error(img)
+    expect(img.src).toBe(afterFirst)
   })
 })
