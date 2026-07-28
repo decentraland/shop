@@ -18,6 +18,7 @@ import { Icon } from '~/components/Icon'
 import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
 import * as S from './Activity.styles'
+import { theme } from '~/styles/theme'
 
 // Same styling as S.Line, but rendered as a router <Link> (emotion carries the styles onto Link's
 // props so `to` type-checks — `as={Link}` only works on polymorphic components like Button).
@@ -260,7 +261,7 @@ function EmptyState({ filter }: { filter: ActivityFilter }) {
 
   return (
     <S.Empty>
-      <Icon name={copy.icon as 'cart'} size={40} color="var(--muted-2)" />
+      <Icon name={copy.icon as 'cart'} size={40} color={theme.colors.muted2} />
       <S.EmptyTitle>{copy.title}</S.EmptyTitle>
       <p className="muted">{copy.body}</p>
       {filter !== 'sales' ? (
@@ -306,7 +307,7 @@ export function Activity() {
   if (!session) {
     return (
       <S.Empty>
-        <Icon name="clock" size={40} color="var(--muted-2)" />
+        <Icon name="clock" size={40} color={theme.colors.muted2} />
         <S.EmptyTitle>{t('activity.signInTitle')}</S.EmptyTitle>
         <p className="muted">{t('activity.signInBody')}</p>
       </S.Empty>

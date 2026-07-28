@@ -6,6 +6,7 @@ import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { useProfile } from '~/hooks/useProfile'
 import { t } from '~/intl/i18n'
 import * as S from './SearchDropdown.styles'
+import { theme } from '~/styles/theme'
 
 function shortAddress(addr: string): string {
   return /^0x[a-fA-F0-9]{40}$/.test(addr) ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : addr
@@ -116,7 +117,7 @@ export function SearchDropdown({
           {recent.map(term => (
             <S.Recent key={term}>
               <S.RecentBtn type="button" onClick={() => onRunSearch(term)}>
-                <Icon name="search" size={16} color="var(--muted)" />
+                <Icon name="search" size={16} color={theme.colors.muted} />
                 <S.RecentText>{term}</S.RecentText>
               </S.RecentBtn>
               <S.RecentRemove

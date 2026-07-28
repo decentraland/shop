@@ -5,6 +5,7 @@ import { Dropdown } from '~/components/Dropdown'
 import { Pop, Check } from '~/styles/filterPop.styles'
 import { t } from '~/intl/i18n'
 import * as S from './FilterBar.styles'
+import { theme } from '~/styles/theme'
 
 // Main-area toolbar for the unified browse grid: the result count + applied-filter chips on the left
 // and the Sort By dropdown (+ a mobile-only Filters pill) on the right (Figma nodes 1256-293193 /
@@ -65,7 +66,7 @@ export function FilterPanel({
         data-active={active || undefined}
         onClick={() => panel.toggle(panelKey)}
       >
-        {label} {badge ? <S.Badge>{badge}</S.Badge> : null} <Chevron up={isOpen} size={24} color="var(--text-2)" />
+        {label} {badge ? <S.Badge>{badge}</S.Badge> : null} <Chevron up={isOpen} size={24} color={theme.colors.text2} />
       </S.Trigger>
       {isOpen ? children : null}
     </S.Item>

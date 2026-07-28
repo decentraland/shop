@@ -46,9 +46,6 @@ import { ItemResales } from '~/components/ItemResales'
 import { NotifyMe } from '~/components/NotifyMe'
 import { MakeOfferButton } from '~/components/MakeOfferButton'
 import { Tooltip } from '~/components/Tooltip'
-import { Button } from '~/components/Button'
-import styled from '@emotion/styled'
-import { theme } from '~/styles/theme'
 import { ErrorNotice } from '~/components/ErrorNotice'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { Icon } from '~/components/Icon'
@@ -60,341 +57,7 @@ import { track, itemProps } from '~/lib/analytics'
 import { recordViewed } from '~/lib/recently-viewed'
 import { isOwnListing } from '~/lib/ownership'
 import * as S from './ItemDetail.styles'
-
-const NotFoundCta = styled(Button)`
-  margin-top: 6px;
-`
-
-// Shared PDP CTA box — the pixel-perfect button spec from Figma 1527-302810: full-width, 48px tall,
-// 16px radius, Inter 600 15/24 with 0.46px tracking, uppercase, 8px icon gap. `&&` so these win over
-// the Button base + any data-variant rules.
-const ctaBox = `
-  && {
-    width: 100%;
-    height: 48px;
-    border-radius: 16px;
-    padding: 0 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    font-size: 15px;
-    font-weight: 600;
-    line-height: 24px;
-    letter-spacing: 0.46px;
-    text-transform: uppercase;
-  }
-`
-
-// Buy-now CTA: the Amethyst gradient (Figma 1524-297513). In the mobile sticky bar it sits beside the
-// cart square (the `--dual` parent), where it flexes to share the row.
-const DetailCta = styled(Button)`
-  ${ctaBox}
-
-  ${theme.media.maxWidth('lg')} {
-    .item-detail__ctas--dual && {
-      flex: 1 1 auto;
-      width: auto;
-    }
-  }
-`
-
-// Dark-solid CTA (#242129 / #fcfcfc) — the primary manage action (Put up for sale / Edit price) and any
-// solid dark button (Figma 1527-302810 / 1527-302048). Overrides the Button base colours via `&&`.
-const DarkCta = styled(Button)`
-  ${ctaBox}
-  && {
-    background: ${theme.colors.blackBtn};
-    color: ${theme.colors.softWhite};
-    border: 0;
-
-    .ico {
-      width: 20px;
-      height: 20px;
-    }
-  }
-  &&:hover:not(:disabled) {
-    background: ${theme.colors.blackBtn};
-    filter: brightness(1.35);
-  }
-`
-
-// Dark-outline CTA (2px #242129, #161518 label) — the secondary manage action (Transfer / Remove from
-// sale) (Figma 1527-302810 / 1527-302048).
-const OutlineCta = styled(Button)`
-  ${ctaBox}
-  && {
-    background: transparent;
-    border: 2px solid ${theme.colors.blackBtn};
-    color: ${theme.colors.text};
-  }
-  &&:hover:not(:disabled) {
-    background: rgba(36, 33, 41, 0.06);
-  }
-`
-
-// Primary-sale banner (Figma 1524-297513): a lavender pill above the price telling the buyer they're
-// buying a fresh mint straight from the creator. Only shown for a primary (mint) listing.
-const PrimarySaleBanner = styled('div')`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 8px;
-  margin-top: 16px;
-  margin-bottom: 16px;
-  border-radius: 8px;
-  background: #f4e9ff;
-
-  .from-creator {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 14px;
-    line-height: 14px;
-    color: ${theme.colors.text};
-  }
-  .from-creator .ico {
-    width: 20px;
-    height: 20px;
-    color: ${theme.colors.rarity};
-  }
-  .check {
-    width: 24px;
-    height: 24px;
-    color: ${theme.colors.rarity};
-  }
-`
-
-// Lowest-price + resellers link (Figma 1524-297513 / 1524-298906): a row below the CTAs. Left shows the
-// cheapest resale price; right is an internal link that scrolls to the Resellers list on this page.
-const LowestPriceRow = styled('div')`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  width: 100%;
-  margin-top: 16px;
-
-  &[data-centered='true'] {
-    justify-content: center;
-  }
-
-  .lowest {
-    display: flex;
-    align-items: center;
-    gap: 2px;
-    font-size: 14px;
-    font-weight: 600;
-    color: ${theme.colors.muted};
-  }
-  .lowest .ico {
-    width: 20px;
-    height: 20px;
-    color: ${theme.colors.muted};
-  }
-  .lowest-value {
-    font-size: 16px;
-    font-weight: 700;
-    padding-left: 2px;
-  }
-`
-
-const ResellersLink = styled('button')`
-  border: 0;
-  background: none;
-  padding: 0;
-  cursor: pointer;
-  font-family: ${theme.font.sans};
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.46px;
-  text-transform: uppercase;
-  text-decoration: underline;
-  color: ${theme.colors.accent};
-
-  &:hover {
-    color: ${theme.colors.accentHover};
-  }
-  &:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
-    outline-offset: 2px;
-    border-radius: 4px;
-  }
-`
-
-// Sold-out price block (Figma 1524-298906): the exhausted primary's original price (struck) with a
-// "SOLD OUT" tag, above the cheapest resale price + how many copies are on the secondary market.
-const SoldOutPricing = styled('div')`
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  width: 100%;
-  padding: 16px 0;
-
-  .so-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    width: 100%;
-  }
-  .so-label {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 14px;
-    font-weight: 600;
-  }
-  .so-price {
-    display: flex;
-    align-items: center;
-    gap: 2px;
-    padding: 0 2px;
-  }
-  /* Original (struck-through, muted) row. */
-  .so-original {
-    color: ${theme.colors.muted2};
-  }
-  .so-original .so-label,
-  .so-original .so-tag {
-    color: ${theme.colors.muted2};
-  }
-  .so-original .so-value {
-    font-size: 16px;
-    font-weight: 700;
-    text-decoration: line-through;
-  }
-  .so-original .ico {
-    width: 20px;
-    height: 20px;
-    color: ${theme.colors.muted2};
-  }
-  /* Resale (emphasised) row. */
-  .so-resale .so-label {
-    color: ${theme.colors.text};
-  }
-  .so-resale .so-value {
-    font-size: 25px;
-    font-weight: 700;
-    color: ${theme.colors.text};
-  }
-  .so-resale .ico {
-    width: 24px;
-    height: 24px;
-    color: ${theme.colors.rarity};
-  }
-  .so-tag {
-    font-size: 14px;
-    font-weight: 600;
-  }
-  .so-stock {
-    font-size: 14px;
-    font-weight: 600;
-    color: ${theme.colors.text2};
-  }
-  .so-info {
-    display: inline-flex;
-    width: 12px;
-    height: 12px;
-    color: ${theme.colors.muted2};
-  }
-`
-
-// Owner/creator management actions (replace the buy CTAs when the viewer owns or created this item).
-// Stacked full-width so the primary + secondary actions read as a clear action column.
-const ManageActions = styled('div')`
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  width: 100%;
-`
-
-// Loading skeletons for the sale section (price + CTAs) and the creator/collection badges. They reuse
-// the global `shimmer` keyframe (index.css) and are reduced-motion-safe, sized to the final content so
-// the sector already occupies its eventual height — no reflow when the data lands.
-const skeletonFill = `
-  display: block;
-  background: linear-gradient(100deg, #efeef2 30%, #e2e0e7 50%, #efeef2 70%);
-  background-size: 200% 100%;
-  animation: shimmer 1.4s infinite linear;
-
-  @media (prefers-reduced-motion: reduce) {
-    animation: none;
-  }
-`
-
-const SaleSkeleton = styled('div')`
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  width: 100%;
-  /* Reserve the divider→CTA rhythm so the block is the same height loading vs loaded. */
-  padding-top: 4px;
-`
-
-// Price-line placeholder.
-const SkPrice = styled('span')`
-  ${skeletonFill}
-  width: 120px;
-  height: 30px;
-  border-radius: 8px;
-  margin-bottom: 4px;
-`
-
-// Full-width CTA-button placeholder (matches the 48px dark/outline buttons).
-const SkCta = styled('span')`
-  ${skeletonFill}
-  width: 100%;
-  height: 48px;
-  border-radius: 16px;
-`
-
-// Creator/collection badge placeholder: circular avatar + name bar (matches CreatorBadge's layout).
-const SkBadge = styled('div')`
-  display: flex;
-  align-items: center;
-  gap: 12px;
-
-  .sk-ava {
-    ${skeletonFill}
-    flex: none;
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-  }
-  .sk-name {
-    ${skeletonFill}
-    width: 96px;
-    height: 16px;
-    border-radius: 6px;
-  }
-`
-
-// "You own N of this" note on the generic item page (Gap B): the item page never manages a token, so
-// this points owners to My Assets instead of showing Edit/Remove. Subtle, sits under the buy CTAs.
-const OwnNote = styled('p')`
-  margin: 12px 0 0;
-  font-size: 13px;
-  color: ${theme.colors.muted};
-
-  a {
-    color: ${theme.colors.accent};
-    font-weight: 600;
-  }
-`
-
-// "Manage all your items in My Assets" helper, mirroring the old own-note styling.
-const ManageNote = styled('p')`
-  margin: 4px 0 0;
-  font-size: 13px;
-  color: ${theme.colors.muted};
-
-  a {
-    color: ${theme.colors.accent};
-    font-weight: 600;
-  }
-`
+import { theme } from '~/styles/theme'
 
 function isValidRarity(r: string): r is Rarity {
   return (Object.values(Rarity) as string[]).includes(r)
@@ -1151,9 +814,9 @@ export function ItemDetail() {
         <S.NotFoundIco name="cart" />
         <S.NotFoundTitle>{t('itemDetail.notAvailableTitle')}</S.NotFoundTitle>
         <p className="muted">{t('itemDetail.notAvailableBody')}</p>
-        <NotFoundCta variant="purple" onClick={() => navigate('/assets')}>
+        <S.NotFoundCta variant="purple" onClick={() => navigate('/assets')}>
           {t('notFound.cta')}
-        </NotFoundCta>
+        </S.NotFoundCta>
       </S.Detail>
     )
   }
@@ -1181,14 +844,15 @@ export function ItemDetail() {
           {/* Mobile favourite heart: a circular button at the preview's top-right (Figma 1182-195410).
               Shares the fav state with the title-row heart, which hides on mobile (item-detail.css) so
               only one is ever in the a11y tree. */}
-          <button
-            className={`item-detail__fav item-detail__fav--preview${faved ? ' is-on' : ''}`}
+          <S.Fav
+            data-fav-preview
+            data-on={faved || undefined}
             onClick={() => toggleFav(current)}
             aria-pressed={faved}
             aria-label={faved ? t('assetCard.removeFromFavorites') : t('assetCard.addToFavorites')}
           >
             <Icon name={faved ? 'heart-solid' : 'heart'} size={18} />
-          </button>
+          </S.Fav>
         </S.Preview>
 
         <S.Info data-testid="item-info">
@@ -1204,14 +868,15 @@ export function ItemDetail() {
                   {current.name}
                   {isTokenRoute && current.issuedId ? ` #${current.issuedId}` : ''}
                 </S.Title>
-                <button
-                  className={`item-detail__fav${faved ? ' is-on' : ''}`}
+                <S.Fav
+                  data-fav-title
+                  data-on={faved || undefined}
                   onClick={() => toggleFav(current)}
                   aria-pressed={faved}
                   aria-label={faved ? t('assetCard.removeFromFavorites') : t('assetCard.addToFavorites')}
                 >
                   <Icon name={faved ? 'heart-solid' : 'heart'} size={18} />
-                </button>
+                </S.Fav>
               </S.InfoHead>
 
               <S.Chips>
@@ -1223,12 +888,12 @@ export function ItemDetail() {
                   {current.rarity}
                 </S.DetailChip>
                 <S.DetailChip>
-                  {catIco ? <Icon name={catIco} size={18} color="var(--text-2)" /> : null}
+                  {catIco ? <Icon name={catIco} size={18} color={theme.colors.text2} /> : null}
                   {categoryLabel(current)}
                 </S.DetailChip>
                 {gender ? (
                   <S.DetailChip>
-                    {genderIco ? <Icon name={genderIco} size={18} color="var(--text-2)" /> : null}
+                    {genderIco ? <Icon name={genderIco} size={18} color={theme.colors.text2} /> : null}
                     {gender}
                   </S.DetailChip>
                 ) : null}
@@ -1243,7 +908,7 @@ export function ItemDetail() {
               {description ? (
                 <S.Description>
                   <S.Label>{t('itemDetail.description')}</S.Label>
-                  <p className={`item-detail__desc-text${descExpanded ? ' is-expanded' : ''}`}>{description}</p>
+                  <S.DescText data-expanded={descExpanded || undefined}>{description}</S.DescText>
                   {description.length > 140 ? (
                     <S.DescToggle className="link" onClick={() => setDescExpanded(v => !v)}>
                       {descExpanded ? t('itemDetail.showLess') : t('itemDetail.readMore')}
@@ -1262,10 +927,10 @@ export function ItemDetail() {
                   ) : creatorPending ? (
                     <S.MetaCol>
                       <S.Label>{t('itemDetail.creator')}</S.Label>
-                      <SkBadge aria-hidden data-testid="creator-loading">
-                        <span className="sk-ava" />
-                        <span className="sk-name" />
-                      </SkBadge>
+                      <S.SkBadge aria-hidden data-testid="creator-loading">
+                        <S.SkAva />
+                        <S.SkName />
+                      </S.SkBadge>
                     </S.MetaCol>
                   ) : null}
                   {collection?.name ? (
@@ -1280,10 +945,10 @@ export function ItemDetail() {
                   ) : collectionPending ? (
                     <S.MetaCol data-collection>
                       <S.Label>{t('itemDetail.collection')}</S.Label>
-                      <SkBadge aria-hidden data-testid="collection-loading">
-                        <span className="sk-ava" />
-                        <span className="sk-name" />
-                      </SkBadge>
+                      <S.SkBadge aria-hidden data-testid="collection-loading">
+                        <S.SkAva />
+                        <S.SkName />
+                      </S.SkBadge>
                     </S.MetaCol>
                   ) : null}
                 </S.Meta>
@@ -1295,60 +960,58 @@ export function ItemDetail() {
                 // The sale/ownership/price state isn't decided yet — show a skeleton (price line + two
                 // full-width CTA placeholders) instead of the data-dependent branch tree. Rendering the
                 // "not for sale / notify" fallback here would conflate loading with "no data".
-                <SaleSkeleton aria-hidden data-testid="sale-loading">
-                  <SkPrice />
-                  <SkCta />
-                  <SkCta />
-                </SaleSkeleton>
+                <S.SaleSkeleton aria-hidden data-testid="sale-loading">
+                  <S.SkPrice />
+                  <S.SkCta />
+                  <S.SkCta />
+                </S.SaleSkeleton>
               ) : (
                 <>
                   {/* Primary-sale banner (Figma 1524-297513): buying a fresh mint straight from the creator.
                       Only for a primary (mint) listing that's actually on sale. */}
                   {!manage && !isMarket && forSale && !current.tokenId ? (
-                    <PrimarySaleBanner data-testid="buy-from-creator">
-                      <span className="from-creator">
-                        <Icon name="buy-from-creator" className="ico" />
+                    <S.PrimarySaleBanner data-testid="buy-from-creator">
+                      <S.FromCreator>
+                        <S.FromCreatorIco name="buy-from-creator" />
                         {t('itemDetail.buyFromCreator')}
-                      </span>
-                      <Icon name="check-rounded" className="check" />
-                    </PrimarySaleBanner>
+                      </S.FromCreator>
+                      <S.BannerCheck name="check-rounded" />
+                    </S.PrimarySaleBanner>
                   ) : null}
 
                   {soldOutWithResale ? (
                     // Sold-out primary with resellers (Figma 1524-298906): original (struck) price + SOLD OUT,
                     // then the cheapest resale price + how many copies are on the secondary market.
-                    <SoldOutPricing data-testid="sold-out">
-                      <div className="so-row so-original">
-                        <span className="so-label">
+                    <S.SoldOutPricing data-testid="sold-out">
+                      <S.SoRow data-variant="original">
+                        <S.SoLabel>
                           {t('itemDetail.originalPrice')}
-                          <span className="so-price">
+                          <S.SoPrice>
                             <CurrencyIcon className="ico" />
-                            <span className="so-value">{current.priceCredits}</span>
-                          </span>
-                          <span className="so-info" aria-hidden>
+                            <S.SoValue>{current.priceCredits}</S.SoValue>
+                          </S.SoPrice>
+                          <S.SoInfo aria-hidden>
                             <Icon name="info" size={12} />
-                          </span>
-                        </span>
-                        <span className="so-tag" data-testid="out-of-stock">
-                          {t('itemDetail.soldOut')}
-                        </span>
-                      </div>
-                      <div className="so-row so-resale">
-                        <span className="so-label">
+                          </S.SoInfo>
+                        </S.SoLabel>
+                        <S.SoTag data-testid="out-of-stock">{t('itemDetail.soldOut')}</S.SoTag>
+                      </S.SoRow>
+                      <S.SoRow data-variant="resale">
+                        <S.SoLabel>
                           {t('itemDetail.resalePrice')}
-                          <span className="so-price">
+                          <S.SoPrice>
                             <CurrencyIcon className="ico" />
-                            <span className="so-value">{lowestResale}</span>
-                          </span>
-                          <span className="so-info" aria-hidden>
+                            <S.SoValue>{lowestResale}</S.SoValue>
+                          </S.SoPrice>
+                          <S.SoInfo aria-hidden>
                             <Icon name="info" size={12} />
-                          </span>
-                        </span>
-                        <span className="so-stock">
+                          </S.SoInfo>
+                        </S.SoLabel>
+                        <S.SoStock>
                           {t('itemDetail.stock')} {resales.length}/{Rarity.getMaxSupply(rarity).toLocaleString()}
-                        </span>
-                      </div>
-                    </SoldOutPricing>
+                        </S.SoStock>
+                      </S.SoRow>
+                    </S.SoldOutPricing>
                   ) : (
                     <S.PriceBlock>
                       <S.PriceRow>
@@ -1402,9 +1065,7 @@ export function ItemDetail() {
                               <S.Diamond />
                               <S.PriceValue>{managePriceCredits}</S.PriceValue>
                             </S.Price>
-                          ) : manage ? // label is hidden here. It stays for the NON-owner public view, where it's the // for sale / Transfer) already convey the state, so the redundant "Not for sale" // Owner/creator viewing their own UNLISTED item: the manage CTAs below (Put up
-                          // only signal the item can't be bought.
-                          null : (
+                          ) : manage ? null : ( // only signal the item can't be bought. // label is hidden here. It stays for the NON-owner public view, where it's the // for sale / Transfer) already convey the state, so the redundant "Not for sale" // Owner/creator viewing their own UNLISTED item: the manage CTAs below (Put up
                             <S.Price data-variant="none">
                               <span>{t('itemDetail.notForSale')}</span>
                               <Tooltip content={t('itemDetail.notForSaleHint')}>
@@ -1433,15 +1094,11 @@ export function ItemDetail() {
                     </S.PriceBlock>
                   )}
 
-                  <div
-                    className={`item-detail__ctas${showCtaButtons ? ' item-detail__ctas--buttons' : ''}${
-                      dualCta ? ' item-detail__ctas--dual' : ''
-                    }`}
-                  >
+                  <S.Ctas data-buttons={showCtaButtons || undefined} data-dual={dualCta || undefined}>
                     {isMarket ? (
                       // Market (legacy/MANA) item: a single Buy now that opens the MANA→credits checkout
                       // (MarketCheckout) — never Add to cart / BuyModal.
-                      <DetailCta variant="purple" onClick={handleBuyNow} disabled={!canBuyMarket}>
+                      <S.DetailCta variant="purple" onClick={handleBuyNow} disabled={!canBuyMarket}>
                         <S.AddCartLabel>{t('assetCard.buyNow')}</S.AddCartLabel>
                         {marketPriceCredits != null ? (
                           <S.CtaPrice aria-hidden>
@@ -1449,14 +1106,14 @@ export function ItemDetail() {
                             {marketPriceCredits}
                           </S.CtaPrice>
                         ) : null}
-                      </DetailCta>
+                      </S.DetailCta>
                     ) : manage ? (
-                      <ManageActions data-testid="manage-actions">
+                      <S.ManageActions data-testid="manage-actions">
                         <ErrorNotice message={manageError} />
                         {manageListed ? (
                           <>
                             {/* Edit price (Figma 1527-302048): dark-solid CTA with the pen glyph. */}
-                            <DarkCta
+                            <S.DarkCta
                               onClick={() => void updatePrice()}
                               disabled={managing !== null || !canOpenListModal}
                             >
@@ -1468,17 +1125,17 @@ export function ItemDetail() {
                                     : t('itemDetail.updateConfirmCancel')
                                   : t('itemDetail.manageUpdatePrice')}
                               </S.AddCartLabel>
-                            </DarkCta>
-                            <OutlineCta onClick={() => void takeDown()} disabled={managing !== null}>
+                            </S.DarkCta>
+                            <S.OutlineCta onClick={() => void takeDown()} disabled={managing !== null}>
                               <S.AddCartLabel>
                                 {managing === 'remove' ? t('myAssets.removing') : t('itemDetail.manageRemove')}
                               </S.AddCartLabel>
-                            </OutlineCta>
+                            </S.OutlineCta>
                           </>
                         ) : (
                           <>
                             {/* Put up for sale (Figma 1527-302810): dark-solid primary. */}
-                            <DarkCta
+                            <S.DarkCta
                               onClick={() => {
                                 // Funnel-entry event for a secondary listing — this is the flow that moved off
                                 // the My Assets card (its "put on sale" fired the same event) onto the PDP.
@@ -1492,13 +1149,13 @@ export function ItemDetail() {
                               disabled={managing !== null || !canOpenListModal}
                             >
                               <S.AddCartLabel>{t('itemDetail.manageList')}</S.AddCartLabel>
-                            </DarkCta>
+                            </S.DarkCta>
                             {/* Transfer (Figma 1527-302810): only for a SECONDARY owned token you actually hold
                             (a primary/mint listing has no transferable token). Gasless via lib/buy. */}
                             {manageAsSecondary ? (
-                              <OutlineCta onClick={() => setShowTransfer(true)} disabled={managing !== null}>
+                              <S.OutlineCta onClick={() => setShowTransfer(true)} disabled={managing !== null}>
                                 <S.AddCartLabel>{t('itemDetail.manageTransfer')}</S.AddCartLabel>
-                              </OutlineCta>
+                              </S.OutlineCta>
                             ) : null}
                           </>
                         )}
@@ -1506,26 +1163,26 @@ export function ItemDetail() {
                         wallets. Shown alongside the primary CTAs whenever this item is still mintable
                         (published + remaining supply > 0 → publishableItem is present). Gasless. */}
                         {manageAsPrimary && publishableItem ? (
-                          <OutlineCta onClick={() => setShowIssue(true)} disabled={managing !== null}>
+                          <S.OutlineCta onClick={() => setShowIssue(true)} disabled={managing !== null}>
                             <S.AddCartLabel>{t('itemDetail.manageIssue')}</S.AddCartLabel>
-                          </OutlineCta>
+                          </S.OutlineCta>
                         ) : null}
                         {managing === 'update' ? (
                           // Only note kept in the manage view: explain the two-step nature while the
                           // current listing is being taken down. The "manage it in My Assets" note was
                           // removed — you're already managing right here (on both /item and /token).
-                          <ManageNote>{t('itemDetail.updateHelper')}</ManageNote>
+                          <S.ManageNote>{t('itemDetail.updateHelper')}</S.ManageNote>
                         ) : null}
-                      </ManageActions>
+                      </S.ManageActions>
                     ) : forSale ? (
                       <>
-                        <DetailCta variant="purple" onClick={handleBuyNow} disabled={resolvingTrade}>
+                        <S.DetailCta variant="purple" onClick={handleBuyNow} disabled={resolvingTrade}>
                           <S.AddCartLabel>{t('assetCard.buyNow')}</S.AddCartLabel>
                           <S.CtaPrice aria-hidden>
                             <S.CtaDiamond />
                             {current.priceCredits}
                           </S.CtaPrice>
-                        </DetailCta>
+                        </S.DetailCta>
                         <S.AddCart
                           onClick={handleAddToCart}
                           disabled={resolvingTrade || (isPrimary ? atStockCap : inCart)}
@@ -1538,7 +1195,7 @@ export function ItemDetail() {
                     ) : soldOutWithResale && cheapestResaleItem ? (
                       // Sold-out primary with resellers (Figma 1524-298906): buy the cheapest resale.
                       <>
-                        <DetailCta
+                        <S.DetailCta
                           variant="purple"
                           onClick={() => (session ? setBuyResale(cheapestResaleItem) : signIn())}
                         >
@@ -1547,7 +1204,7 @@ export function ItemDetail() {
                             <S.CtaDiamond />
                             {cheapestResaleItem.priceCredits}
                           </S.CtaPrice>
-                        </DetailCta>
+                        </S.DetailCta>
                         <S.AddCart
                           onClick={() => {
                             if (!resaleInCart) add(cheapestResaleItem, 'item_detail')
@@ -1569,33 +1226,33 @@ export function ItemDetail() {
                         <MakeOfferButton item={current} />
                       </>
                     )}
-                  </div>
+                  </S.Ctas>
 
                   {/* Lowest resale price + internal link to the on-page Resellers list (Figma 1524-297513).
                   Only when there's at least one resale to link to, and not for your own managed item. In
                   the sold-out state the resale price already shows above, so the link is centered alone
                   (Figma 1524-298906). */}
                   {!manage && !isMarket && lowestResale != null ? (
-                    <LowestPriceRow data-testid="lowest-price" data-centered={soldOutWithResale ? 'true' : undefined}>
+                    <S.LowestPriceRow data-testid="lowest-price" data-centered={soldOutWithResale || undefined}>
                       {!soldOutWithResale ? (
-                        <span className="lowest">
+                        <S.Lowest>
                           {t('itemDetail.lowestPrice')}
                           <CurrencyIcon className="ico" />
-                          <span className="lowest-value">{lowestResale}</span>
-                        </span>
+                          <S.LowestValue>{lowestResale}</S.LowestValue>
+                        </S.Lowest>
                       ) : null}
-                      <ResellersLink onClick={scrollToResellers}>{t('itemDetail.viewAllResellers')}</ResellersLink>
-                    </LowestPriceRow>
+                      <S.ResellersLink onClick={scrollToResellers}>{t('itemDetail.viewAllResellers')}</S.ResellersLink>
+                    </S.LowestPriceRow>
                   ) : null}
 
                   {/* Gap B: the item page never manages a token. If the viewer owns copies, point them to
                   My Assets to manage/resell them instead of showing Edit/Remove here. */}
                   {!manage && !isMarket && ownedItemCount > 0 ? (
-                    <OwnNote data-testid="you-own-note">
+                    <S.OwnNote data-testid="you-own-note">
                       {t('itemDetail.youOwnN', { count: ownedItemCount })}{' '}
                       <Link to="/my-assets">{t('nav.myAssets')}</Link>
                       {/* TODO: deep-link to My Assets filtered by this collection once that filter exists. */}
-                    </OwnNote>
+                    </S.OwnNote>
                   ) : null}
                 </>
               )}

@@ -25,6 +25,7 @@ import { t } from '~/intl/i18n'
 import type { ReactNode } from 'react'
 import type { ethers } from 'ethers'
 import * as S from './Authorizations.styles'
+import { theme } from '~/styles/theme'
 
 // One authorization row: reads its live on-chain status and toggles it (grant / revoke). Only reached
 // for self-custody users — managed (web2) users never see this page's controls.
@@ -172,7 +173,7 @@ export function Authorizations() {
   if (!session) {
     return (
       <S.Empty>
-        <Icon name="info" size={40} color="var(--muted-2)" />
+        <Icon name="info" size={40} color={theme.colors.muted2} />
         <S.EmptyTitle>{t('authorizations.signInTitle')}</S.EmptyTitle>
         <p className="muted">{t('authorizations.signInBody')}</p>
         <S.EmptyCta variant="purple" onClick={() => signIn()}>
@@ -187,7 +188,7 @@ export function Authorizations() {
   if (!selfCustody) {
     return (
       <S.Empty>
-        <Icon name="check" size={40} color="var(--ok)" />
+        <Icon name="check" size={40} color={theme.colors.ok} />
         <S.EmptyTitle>{t('authorizations.managedTitle')}</S.EmptyTitle>
         <p className="muted">{t('authorizations.managedBody')}</p>
         <S.EmptyCta as={Link} to="/assets" variant="purple">

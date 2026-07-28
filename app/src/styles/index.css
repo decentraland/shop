@@ -158,19 +158,8 @@ h2 {
 
 /* Buttons live in the `Button` component (components/Button) — styled, variants on data-*. */
 
-/* ---------------- Card ---------------- */
-/* The AssetCard component's own styles are Emotion styled (components/AssetCard/AssetCard.styles.ts).
-   The skeleton/spinner below are used by the grids/rows that render cards (and other components), so
-   they stay here. */
-
-.card--skeleton {
-  min-height: 300px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-card);
-  background: linear-gradient(100deg, #efeef2 30%, #e2e0e7 50%, #efeef2 70%);
-  background-size: 200% 100%;
-  animation: shimmer 1.4s infinite linear;
-}
+/* `shimmer` is referenced by name from styled defs (SkeletonCards, ItemDetail's sale/badge skeletons)
+   as well as the `.skeleton` utility below, so it stays a global keyframe. */
 @keyframes shimmer {
   to {
     background-position: -200% 0;
@@ -192,15 +181,12 @@ h2 {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .card--skeleton {
-    animation: none;
-  }
   .spinner {
     animation-duration: 2s;
   }
 }
 
-/* Shared content-shaped skeleton: same shimmer as .card--skeleton, for non-card placeholders
+/* Shared content-shaped skeleton: the same shimmer, for non-card placeholders
    (balance chip, item-detail info column, …). Pair sized modifiers with it. */
 .skeleton {
   border-radius: 6px;

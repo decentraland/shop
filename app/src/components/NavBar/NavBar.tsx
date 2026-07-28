@@ -20,6 +20,7 @@ import type { CatalogItem } from '~/lib/api'
 import type { CollectionHit, CreatorHit } from '~/lib/search'
 import { t } from '~/intl/i18n'
 import * as S from './NavBar.styles'
+import { theme } from '~/styles/theme'
 
 // The ui2 Notifications feature is MUI-based (it reads `theme.breakpoints`/palette from a MUI theme
 // context), while the shop styles with emotion + its own tokens and mounts no MUI provider. So the
@@ -211,7 +212,7 @@ export function NavBar() {
           ) : null}
         </S.Tabs>
         <S.Search ref={wrapRef}>
-          <Icon name="search" color="var(--muted)" />
+          <Icon name="search" color={theme.colors.muted} />
           <input
             value={q}
             aria-label={t('nav.searchAria')}

@@ -38,6 +38,7 @@ import styled from '@emotion/styled'
 import type { CatalogItem } from '~/lib/api'
 import type { SuccessNavState } from '~/pages/Success'
 import * as S from './Cart.styles'
+import { theme } from '~/styles/theme'
 
 // Router state handed to /cart by the /credits return handler to resume a checkout after a mid-checkout
 // top-up. Exported so the producer (GetCredits) shares the exact shape — a renamed field is then a TS
@@ -532,7 +533,7 @@ export function Cart() {
   if (items.length === 0 && !modal) {
     return (
       <S.Empty>
-        <Icon name="cart" size={44} color="var(--muted-2)" />
+        <Icon name="cart" size={44} color={theme.colors.muted2} />
         <S.EmptyTitle>{t('cart.empty.title')}</S.EmptyTitle>
         <p className="muted">{t('cart.empty.body')}</p>
         <EmptyCta as={Link} to="/assets" variant="purple">
@@ -675,8 +676,8 @@ export function Cart() {
                         </S.Foot>
                       </S.Info>
                       <S.Actions>
-                        <button
-                          className={`checkout__fav${faved ? ' is-on' : ''}`}
+                        <S.Fav
+                          data-on={faved || undefined}
                           onClick={() => toggleFav(item)}
                           aria-label={
                             faved
@@ -686,7 +687,7 @@ export function Cart() {
                           title={faved ? t('assetCard.removeFromFavorites') : t('assetCard.addToFavorites')}
                         >
                           <Icon name={faved ? 'heart-solid' : 'heart'} />
-                        </button>
+                        </S.Fav>
 
                         <S.Remove
                           onClick={() => editCart(() => remove(item.id))}

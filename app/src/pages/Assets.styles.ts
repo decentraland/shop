@@ -93,7 +93,7 @@ export const Sidebar = styled.aside`
     transition: transform 0.26s ease;
     visibility: hidden;
 
-    &.is-open {
+    &[data-open] {
       transform: translateY(0);
       visibility: visible;
     }

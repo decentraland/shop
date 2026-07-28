@@ -17,12 +17,11 @@ import { useManaRate } from '~/hooks/useManaRate'
 import { useProfile } from '~/hooks/useProfile'
 import { formatCredits } from '~/lib/currency'
 import { capitalizeFirst } from '~/lib/text'
-import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { Icon } from '~/components/Icon'
 import { BuyModal } from '~/components/BuyModal'
 import { MarketCheckout } from '~/components/MarketCheckout'
 import { t } from '~/intl/i18n'
-import './item-resales.css'
+import * as S from './ItemResales.styles'
 
 // How many resale rows to show before "See more". Keeps a hot item's long tail of listings from
 // blowing up the page (and bounds the per-token seller/issued lookup to the visible rows).
@@ -134,95 +133,68 @@ function ResellerRow({
   const name = seller ? (profile?.name ? capitalizeFirst(profile.name) : shortAddress(seller)) : undefined
 
   const avatar = showFace ? (
-    <img className="resales__ava" src={face} alt="" loading="lazy" onError={() => setBroken(true)} />
+    <S.Ava src={face} alt="" loading="lazy" onError={() => setBroken(true)} />
   ) : seller ? (
-    <span
-      className="resales__ava resales__ava--letter"
-      style={{ backgroundColor: colorForAddress(seller) }}
-      aria-hidden
-    >
+    <S.AvaBox data-letter style={{ backgroundColor: colorForAddress(seller) }} aria-hidden>
       {initialFor(profile?.name, seller)}
-    </span>
+    </S.AvaBox>
   ) : fallbackImage ? (
-    <img className="resales__ava" src={fallbackImage} alt="" aria-hidden />
+    <S.Ava src={fallbackImage} alt="" aria-hidden />
   ) : (
-    <span className="resales__ava resales__ava--empty" aria-hidden />
+    <S.AvaBox data-empty aria-hidden />
   )
 
   const ident = (
-    <span className="resales__ident">
-      {name ? (
-        <span className="resales__name" data-testid="resale-seller">
-          {name}
-        </span>
-      ) : null}
+    <S.Ident>
+      {name ? <S.Name data-testid="resale-seller">{name}</S.Name> : null}
       {issuedId ? (
-        <span className="resales__serial">
-          {t('resales.serialLabel')}{' '}
-          <span className="resales__issued" data-testid="resale-issued">
-            #{issuedId}
-          </span>
+        <S.Serial>
+          {t('resales.serialLabel')} <S.Issued data-testid="resale-issued">#{issuedId}</S.Issued>
           {total ? ` ${t('resales.serialOf')} ${total.toLocaleString('en-US')}` : ''}
-        </span>
+        </S.Serial>
       ) : (
-        <span className="resales__serial resales__serial--muted">{t('resales.copy')}</span>
+        <S.Serial data-muted>{t('resales.copy')}</S.Serial>
       )}
-    </span>
+    </S.Ident>
   )
 
   const who = seller ? (
-    <button
-      type="button"
-      className="resales__who resales__who--link"
-      onClick={() => navigate(`/assets/creator/${seller}`)}
-    >
+    <S.WhoLink type="button" onClick={() => navigate(`/assets/creator/${seller}`)}>
       {avatar}
       {ident}
-    </button>
+    </S.WhoLink>
   ) : (
-    <div className="resales__who">
+    <S.Who>
       {avatar}
       {ident}
-    </div>
+    </S.Who>
   )
 
   return (
-    <li
-      className={`resales__row${isLegacy ? ' resales__row--legacy' : ''}`}
+    <S.Row
+      data-legacy={isLegacy || undefined}
       data-testid="resale-row"
       data-source={r.source}
       data-own={isOwn ? 'true' : undefined}
     >
       {who}
-      <div className={`resales__price${isLegacy ? ' resales__price--approx' : ''}`}>
-        {isLegacy ? (
-          <span className="resales__approx" aria-hidden>
-            ≈
-          </span>
-        ) : null}
-        <CurrencyIcon className="resales__diamond" />
-        <span className="resales__price-value">{formatCredits(r.priceCredits)}</span>
-      </div>
-      <div className="resales__actions">
+      <S.Price>
+        {isLegacy ? <S.Approx aria-hidden>≈</S.Approx> : null}
+        <S.Diamond />
+        <span>{formatCredits(r.priceCredits)}</span>
+      </S.Price>
+      <S.Actions>
         {isOwn ? (
-          <span className="chip resales__own-chip" data-testid="resale-own">
-            {t('resales.yourListing')}
-          </span>
+          <S.OwnChip data-testid="resale-own">{t('resales.yourListing')}</S.OwnChip>
         ) : isLegacy ? (
           // Legacy (MANA) resale: Buy-only via the market/credits checkout (no cart — the cart assumes
           // fixed credit prices; a MANA line's price floats with the rate).
-          <button
-            className="resales__buy"
-            onClick={onBuyLegacy}
-            aria-label={t('assetCard.buyNow')}
-            data-testid="resale-buy"
-          >
+          <S.Buy onClick={onBuyLegacy} aria-label={t('assetCard.buyNow')} data-testid="resale-buy">
             {t('assetCard.buyNow')}
-          </button>
+          </S.Buy>
         ) : (
           <>
-            <button
-              className="resales__add"
+            <S.Add
               onClick={onAdd}
               disabled={inCart}
               aria-label={inCart ? t('assetCard.inCart') : t('assetCard.addToCart')}
@@ -230,19 +202,14 @@ function ResellerRow({
             >
               <Icon name="cart-solid" size={16} />
               <span>{inCart ? t('assetCard.inCart') : t('assetCard.addToCart')}</span>
-            </button>
-            <button
-              className="resales__buy"
-              onClick={onBuyNative}
-              aria-label={t('assetCard.buyNow')}
-              data-testid="resale-buy"
-            >
+            </S.Add>
+            <S.Buy onClick={onBuyNative} aria-label={t('assetCard.buyNow')} data-testid="resale-buy">
               {t('assetCard.buyNow')}
-            </button>
+            </S.Buy>
           </>
         )}
-      </div>
-    </li>
+      </S.Actions>
+    </S.Row>
   )
 }
 
@@ -315,15 +282,15 @@ export function ItemResales({ item }: { item: CatalogItem }) {
   if (resales.length === 0 && !showClassic) return null
 
   return (
-    <section className="resales" data-testid="resales-section">
-      <div className="resales__head">
-        <h2 className="resales__title">{t('resales.title')}</h2>
-        <p className="resales__subtitle">{t('resales.subtitle')}</p>
-      </div>
+    <S.Root data-testid="resales-section">
+      <S.Head>
+        <S.Title>{t('resales.title')}</S.Title>
+        <S.Subtitle>{t('resales.subtitle')}</S.Subtitle>
+      </S.Head>
 
       {resales.length > 0 ? (
         <>
-          <ul className="resales__list">
+          <S.List>
             {visibleResales.map(r => {
               const isLegacy = r.source === 'legacy'
               const inCart = cartItems.some(i => i.id === r.id)
@@ -366,35 +333,30 @@ export function ItemResales({ item }: { item: CatalogItem }) {
                 />
               )
             })}
-          </ul>
+          </S.List>
           {resales.length > visibleCount ? (
-            <button
-              className="resales__more"
-              onClick={() => setVisibleCount(c => c + PAGE_SIZE)}
-              data-testid="resale-show-more"
-            >
+            <S.More onClick={() => setVisibleCount(c => c + PAGE_SIZE)} data-testid="resale-show-more">
               {t('resales.showMore')}
-            </button>
+            </S.More>
           ) : null}
         </>
       ) : null}
 
       {showClassic ? (
-        <div className="resales__legacy" data-testid="resales-classic">
-          <div className="resales__legacy-head">
-            <span className="resales__legacy-title">{t('resales.legacyTitle')}</span>
-            <span className="resales__legacy-note">{t('resales.legacyNote')}</span>
-          </div>
-          <ul className="resales__list">
+        <S.Legacy data-testid="resales-classic">
+          <S.LegacyHead>
+            <S.LegacyTitle>{t('resales.legacyTitle')}</S.LegacyTitle>
+            <S.LegacyNote>{t('resales.legacyNote')}</S.LegacyNote>
+          </S.LegacyHead>
+          <S.List>
             {classicOrders.map(o => (
-              <li key={o.tokenId} className="resales__row resales__row--legacy" data-testid="classic-order-row">
-                <div className="resales__id">
-                  {o.issuedId ? <span className="resales__issued">#{o.issuedId}</span> : null}
-                  <span className="chip resales__legacy-chip">{t('resales.classicBadge')}</span>
-                </div>
-                <div className="resales__actions">
-                  <a
-                    className="resales__view-market"
+              <li key={o.tokenId} data-legacy data-testid="classic-order-row">
+                <S.IdCol>
+                  {o.issuedId ? <S.Issued>#{o.issuedId}</S.Issued> : null}
+                  <S.LegacyChip>{t('resales.classicBadge')}</S.LegacyChip>
+                </S.IdCol>
+                <S.Actions>
+                  <S.ViewMarket
                     href={marketplaceItemUrl(o.contractAddress, o.tokenId)}
                     target="_blank"
                     rel="noopener noreferrer"
@@ -402,12 +364,12 @@ export function ItemResales({ item }: { item: CatalogItem }) {
                   >
                     <span>{t('resales.viewOnMarketplace')}</span>
                     <Icon name="external-link" size={14} />
-                  </a>
-                </div>
+                  </S.ViewMarket>
+                </S.Actions>
               </li>
             ))}
-          </ul>
-        </div>
+          </S.List>
+        </S.Legacy>
       ) : null}
 
       {buyNative ? (
@@ -430,7 +392,7 @@ export function ItemResales({ item }: { item: CatalogItem }) {
           }}
         />
       ) : null}
-    </section>
+    </S.Root>
   )
 }
 

@@ -3,6 +3,7 @@ import { t } from '~/intl/i18n'
 import { type IconName } from '~/components/Icon'
 import { Chevron } from '~/components/Chevron'
 import * as S from './CategoryFilter.styles'
+import { theme } from '~/styles/theme'
 
 // Category filter panel (Figma "Categories Dropdown", node 696:34701). Top categories with an
 // animated accordion; Wearables and Emotes each expand into icon'd sub-categories. Wired to the
@@ -114,7 +115,7 @@ export function CategoryFilter({
               onClick={() => clickTop(top)}
             >
               <S.CatLabel>{t(top.labelKey)}</S.CatLabel>
-              {top.expandable ? <Chevron up={open} size={24} color="var(--text)" /> : null}
+              {top.expandable ? <Chevron up={open} size={24} color={theme.colors.text} /> : null}
             </S.Cat>
 
             {top.subs ? (

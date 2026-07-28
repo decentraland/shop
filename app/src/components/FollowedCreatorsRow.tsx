@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { fetchCreatorItems } from '~/lib/collections'
 import { AssetCard } from '~/components/AssetCard'
+import { SkeletonCards } from '~/components/SkeletonCards'
 import { useFollows } from '~/store/follows'
 import { t } from '~/intl/i18n'
 import type { CatalogItem } from '~/lib/api'
@@ -46,9 +47,7 @@ export function FollowedCreatorsRow() {
         <Row.Title>{t('followedCreators.title')}</Row.Title>
       </Row.Head>
       <Row.Track data-rail>
-        {isLoading
-          ? Array.from({ length: 6 }).map((_, i) => <div className="card card--skeleton" key={i} />)
-          : items.map(item => <AssetCard key={item.id} item={item} />)}
+        {isLoading ? <SkeletonCards count={6} /> : items.map(item => <AssetCard key={item.id} item={item} />)}
       </Row.Track>
     </Row.Root>
   )

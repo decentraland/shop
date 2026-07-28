@@ -14,6 +14,7 @@ import { Icon, type IconName } from '~/components/Icon'
 import type { SlotRegion } from '~/lib/outfit'
 import { t } from '~/intl/i18n'
 import * as S from './FittingRoom.styles'
+import { theme } from '~/styles/theme'
 
 // Lazy so the WebGL backdrop (+ its shader and pattern texture) only loads when the room opens —
 // it never touches the main bundle.
@@ -202,7 +203,7 @@ export function FittingRoom() {
                       <Icon
                         name={SLOT_ICON[wearable ? slotRegion(item) : 'item']}
                         size={16}
-                        color="var(--muted)"
+                        color={theme.colors.muted}
                         title={wearable ? slotLabel(slotOf(item)) : t('fittingRoom.emote')}
                         role="img"
                         aria-label={wearable ? slotLabel(slotOf(item)) : t('fittingRoom.emote')}

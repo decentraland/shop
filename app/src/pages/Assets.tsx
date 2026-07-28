@@ -256,7 +256,7 @@ export function Assets() {
       {category !== 'names' && (
         <>
           {filtersOpen ? <S.Scrim onClick={() => setFiltersOpen(false)} aria-hidden /> : null}
-          <S.Sidebar className={filtersOpen ? 'is-open' : ''} data-testid="browse-sidebar">
+          <S.Sidebar data-open={filtersOpen || undefined} data-testid="browse-sidebar">
             <S.DrawerHead>
               <S.DrawerTitle>{t('assets.filters')}</S.DrawerTitle>
               <S.CloseBtn onClick={() => setFiltersOpen(false)} aria-label={t('assets.closeFilters')}>
