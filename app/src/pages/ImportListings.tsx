@@ -5,13 +5,17 @@ import { useWallet } from '~/store/wallet'
 import { fetchImportable, type ImportItem } from '~/lib/import'
 import { toast } from '~/store/toast'
 import { MigrateModal, type MigrateEntry } from '~/components/MigrateModal'
-import { CURRENCY } from '~/lib/currency'
+import { CURRENCY, creditsToUsd } from '~/lib/currency'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { useSeo } from '~/hooks/useSeo'
+import { useSecondarySales } from '~/hooks/useSecondarySales'
 import { t } from '~/intl/i18n'
 import * as S from './ImportListings.styles'
 import { theme } from '~/styles/theme'
 
+// `owned` is the SECONDARY half: re-listing a token you hold. It is only offered when the Shop offers
+// secondary sales at all — otherwise this page would be a back door into the flow the Sell action hides,
+// and it would sign exactly the resale listings we stopped creating everywhere else.
 const SECTIONS = [
   {
     key: 'creations' as const,
@@ -21,7 +25,8 @@ const SECTIONS = [
   {
     key: 'owned' as const,
     title: 'importListings.owned.title',
-    sub: 'importListings.owned.sub'
+    sub: 'importListings.owned.sub',
+    secondary: true
   }
 ]
 
@@ -41,11 +46,19 @@ export function ImportListings() {
     enabled: !!address
   })
 
+  const secondarySales = useSecondarySales()
+  const sections = useMemo(() => SECTIONS.filter(sec => !sec.secondary || secondarySales), [secondarySales])
+
   const [prices, setPrices] = useState<Record<string, number>>({})
   const [excluded, setExcluded] = useState<Set<string>>(new Set())
   const [queue, setQueue] = useState<MigrateEntry[] | null>(null)
 
-  const all = useMemo(() => [...(data?.creations ?? []), ...(data?.owned ?? [])], [data])
+  // Drives selection, pricing and the migrate queue. Excludes the secondary half when it is hidden, so
+  // "migrate all" cannot pick up a resale the page never showed.
+  const all = useMemo(
+    () => [...(data?.creations ?? []), ...(secondarySales ? (data?.owned ?? []) : [])],
+    [data, secondarySales]
+  )
 
   // Seed each price with the auto-converted suggestion (keep any edits the user already made).
   useEffect(() => {
@@ -143,7 +156,7 @@ export function ImportListings() {
           ))}
         </S.List>
       ) : (
-        SECTIONS.map(sec => {
+        sections.map(sec => {
           const items = data?.[sec.key] ?? []
           if (items.length === 0) return null
           return (
@@ -181,7 +194,7 @@ export function ImportListings() {
                           />
                         </S.PriceField>
                         <S.PriceSub>
-                          <span>${(credits * 0.1).toFixed(2)}</span>
+                          <span>${creditsToUsd(credits).toFixed(2)}</span>
                           {edited ? (
                             <S.PriceReset
                               onClick={() => setPrices(p => ({ ...p, [item.oldTradeId]: item.suggestedCredits }))}
@@ -219,7 +232,7 @@ export function ImportListings() {
             <S.DockSub>
               {t('importListings.selectedSummary', {
                 count: selectedItems.length,
-                usd: (total * 0.1).toFixed(2)
+                usd: creditsToUsd(total).toFixed(2)
               })}
             </S.DockSub>
           </div>

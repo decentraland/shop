@@ -24,6 +24,7 @@ import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
 import { SUBCAT_MAP } from '~/lib/categories'
 import { capitalizeFirst } from '~/lib/text'
 import { useSeo } from '~/hooks/useSeo'
+import { useSecondarySales } from '~/hooks/useSecondarySales'
 import { t } from '~/intl/i18n'
 import { theme } from '~/styles/theme'
 import { ErrorNotice } from '~/components/ErrorNotice'
@@ -313,12 +314,15 @@ export function MyAssets() {
   }, [publishable, saleState, status, search, sort])
 
   // Old (classic) listings the seller could import into the Shop → surfaces the import banner.
+  const secondarySales = useSecondarySales()
   const { data: importable } = useQuery({
     queryKey: ['importable', address],
     queryFn: () => fetchImportable(address as string),
     enabled: !!address
   })
-  const importCount = (importable?.creations.length ?? 0) + (importable?.owned.length ?? 0)
+  // Only what the import page will actually offer: counting the secondary half while it is hidden would
+  // badge a number the user cannot act on, and send them to a page that shows fewer rows than promised.
+  const importCount = (importable?.creations.length ?? 0) + (secondarySales ? (importable?.owned.length ?? 0) : 0)
 
   // ---------------- Sign-in gate ----------------
   if (!session) {

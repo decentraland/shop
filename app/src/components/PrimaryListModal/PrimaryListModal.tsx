@@ -9,7 +9,7 @@ import { itemRoute } from '~/lib/routes'
 import { createPrimaryUsdPeggedListing, ensureMinter, isMarketplaceMinter } from '~/lib/trades'
 import { toast } from '~/store/toast'
 import { config } from '~/config'
-import { CURRENCY } from '~/lib/currency'
+import { CURRENCY, creditsToUsd } from '~/lib/currency'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { Icon } from '~/components/Icon'
 import { isManagedWallet } from '~/lib/wallet'
@@ -63,7 +63,7 @@ export function PrimaryListModal({
   const priceValue = Number(price)
   const priceValid = Number.isInteger(priceValue) && priceValue > 0
   // USD equivalent hint (1 credit = $0.10).
-  const usdHint = priceValid ? `$${(priceValue / 10).toFixed(2)}` : '$0'
+  const usdHint = priceValid ? `$${creditsToUsd(priceValue).toFixed(2)}` : '$0'
 
   useEffect(() => {
     let cancelled = false
@@ -106,7 +106,7 @@ export function PrimaryListModal({
           network: Network.MATIC,
           chainId
         },
-        usdPrice: value / 10, // credits → USD (1 credit = $0.10)
+        usdPrice: creditsToUsd(value),
         uses: item.remainingSupply,
         expiresAtMs: Date.now() + SIX_MONTHS_MS
       })
@@ -120,7 +120,7 @@ export function PrimaryListModal({
         item_id: item.blockchainItemId,
         contract_address: item.contractAddress,
         price_credits: value,
-        price_usd: value / 10,
+        price_usd: creditsToUsd(value),
         listing_type: 'primary',
         is_primary: true
       })
