@@ -28,7 +28,10 @@ import { theme } from '~/styles/theme'
 // CssVarsProvider carrying ui2's own theme — NOT ui2's ThemeProvider, which also injects a global
 // CssBaseline reset that would clobber the shop's styles. The provider only defines namespaced
 // `--mui-*` vars, so it doesn't leak into the rest of the app.
-const NotificationsBell = lazy(() => import('~/components/NotificationsBell'))
+// Imported by concrete path, not through the folder's barrel: Rollup names a lazy chunk after its entry
+// module, so going via index.ts would emit an anonymous `index-*.js` instead of `NotificationsBell-*.js`
+// (same split either way — just far harder to spot in a bundle report).
+const NotificationsBell = lazy(() => import('~/components/NotificationsBell/NotificationsBell'))
 
 export function NavBar() {
   const { session, connecting, signIn, disconnect, restore } = useWallet()
