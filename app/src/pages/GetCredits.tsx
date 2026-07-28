@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { CircularProgress } from 'decentraland-ui2'
 import { useWallet } from '~/store/wallet'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { Icon } from '~/components/Icon'
@@ -286,10 +285,14 @@ export function GetCredits() {
 
   return (
     <S.Root>
-      {phase === 'select' && (
+      {/* Kept mounted through 'redirecting' too. That phase hides this content with `visibility: hidden`
+      rather than unmounting it, so the panel keeps its exact size: unmounting shortened the document and
+      pulled the footer up for the moment before the redirect left the page. `visibility` also takes the
+      hidden pack buttons out of the tab order, so the covered grid can't be reached with the keyboard. */}
+      {(phase === 'select' || phase === 'redirecting') && (
         <S.Hero data-testid="credits-hero">
           <S.HeroBackdrop aria-hidden />
-          <S.HeroInner>
+          <S.HeroInner $hidden={phase === 'redirecting'}>
             <S.Head>
               <S.Title>{t('getCredits.title', { currency: CURRENCY.name })}</S.Title>
               <S.SubRow>
@@ -305,14 +308,15 @@ export function GetCredits() {
 
             <PackGrid packs={packs} loading={packsLoading} onSelect={pack => void startCheckout(pack)} />
           </S.HeroInner>
-        </S.Hero>
-      )}
 
-      {phase === 'redirecting' && (
-        <S.RedirectStatus role="status" aria-live="polite">
-          <CircularProgress size={32} />
-          <S.Muted>{t('getCredits.redirecting')}</S.Muted>
-        </S.RedirectStatus>
+          {/* Centred in the panel the grid just filled, over the same backdrop. */}
+          {phase === 'redirecting' && (
+            <S.RedirectStatus role="status" aria-live="polite">
+              <S.RedirectLogo src={loaderLogo} alt="" width={72} height={72} />
+              <S.RedirectNote>{t('getCredits.redirecting')}</S.RedirectNote>
+            </S.RedirectStatus>
+          )}
+        </S.Hero>
       )}
 
       {phase === 'processing' && (

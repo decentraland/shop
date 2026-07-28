@@ -273,10 +273,15 @@ describe('when starting a real hosted checkout from a pack click', () => {
     await user.click(screen.getByRole('button', { name: /235 credits for \$24\.99/i }))
 
     // No intermediate embedded card form / "choose a different pack" back-link — the pack click goes
-    // straight to Stripe (a minimal "redirecting to secure checkout" spinner covers the async window).
+    // straight to Stripe (a centred scrim covers the async window).
     expect(await screen.findByText(/redirecting to secure checkout/i)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /pay \$/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /choose a different pack/i })).not.toBeInTheDocument()
+
+    // The status is centred INSIDE the hero panel, which stays mounted (its content merely hidden) so the
+    // panel keeps its size — unmounting it shortened the document and pulled the footer up for the moment
+    // before the redirect left the page.
+    expect(screen.getByTestId('credits-hero')).toBeInTheDocument()
 
     // Redirect happens once the hosted session resolves; the funnel marker fires with the order id.
     await vi.waitFor(() => expect(window.location.href).toBe('https://checkout.stripe.com/c/pay/cs_test_123'))
