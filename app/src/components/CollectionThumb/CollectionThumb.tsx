@@ -23,13 +23,27 @@ export function useCollectionPreview(contractAddress: string, enabled = true) {
 }
 
 // Presentational mosaic — the grid of item thumbnails, no fetching. `data-count` (1–4) reshapes the
-// grid so any number of items looks intentional (see collection-thumb.css).
-export function CollectionMosaic({ items, className }: { items: CatalogItem[]; className?: string }) {
+// grid so any number of items looks intentional. `tinted` paints each cell with its item's rarity
+// gradient (the small search tile, which would otherwise be colourless); the collection card opts out so
+// the transparent thumbnails read as sitting on the card's own background.
+export function CollectionMosaic({
+  items,
+  className,
+  tinted = true
+}: {
+  items: CatalogItem[]
+  className?: string
+  tinted?: boolean
+}) {
   const cells = items.slice(0, MOSAIC_COUNT)
   return (
     <S.Mosaic className={className} data-count={cells.length} aria-hidden>
       {cells.map(item => (
-        <span key={item.id} data-testid="coll-thumb-cell" style={{ backgroundImage: rarityGradient(item.rarity) }}>
+        <span
+          key={item.id}
+          data-testid="coll-thumb-cell"
+          style={tinted ? { backgroundImage: rarityGradient(item.rarity) } : undefined}
+        >
           {item.thumbnail ? <img src={item.thumbnail} alt="" loading="lazy" /> : null}
         </span>
       ))}

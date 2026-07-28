@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCart } from '~/store/cart'
 import { useFavorites } from '~/store/favorites'
@@ -18,6 +18,41 @@ import type { CatalogItem } from '~/lib/api'
 import * as S from './AssetCard.styles'
 
 const HOVER_DELAY_MS = 120
+
+// A name long enough to claim the whole footer row switches the card to its compact layout: the price
+// drops to a second row beside a round action instead of sitting next to the name. CSS can't key off text
+// length, so measure it — the name's natural width against what the row leaves it beside the price. Both
+// inputs are the same in either layout, so the flag can't oscillate. Without layout (jsdom, a hidden
+// card) widths read 0 and it stays off.
+function useNameFillsRow(
+  row: React.RefObject<HTMLElement>,
+  name: React.RefObject<HTMLElement>,
+  price: { current: HTMLElement | null }
+) {
+  const [fills, setFills] = useState(false)
+
+  useLayoutEffect(() => {
+    const rowEl = row.current
+    if (!rowEl || typeof ResizeObserver === 'undefined') return
+    let done = false
+    const measure = () => {
+      const nameEl = name.current
+      if (done || !nameEl || !rowEl.clientWidth) return
+      setFills(nameEl.offsetWidth > rowEl.clientWidth - (price.current?.offsetWidth ?? 0) - S.TOP_GAP)
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(rowEl)
+    // Text widths shift when the web font swaps in.
+    void document.fonts?.ready.then(measure)
+    return () => {
+      done = true
+      ro.disconnect()
+    }
+  }, [row, name, price])
+
+  return fills
+}
 
 // Card variants:
 // - default (native, USD-pegged): fixed credit price + Add to cart.
@@ -66,6 +101,17 @@ export function AssetCard(props: AssetCardProps) {
   const navigate = useNavigate()
   const timer = useRef<ReturnType<typeof setTimeout>>()
   const mediaRef = useRef<HTMLDivElement>(null)
+  const topRef = useRef<HTMLDivElement>(null)
+  const nameRef = useRef<HTMLSpanElement>(null)
+  // The price slot is a <div> (price) or a <span> (NOT FOR SALE tag), so it's captured through a callback
+  // ref instead of being typed to one of them.
+  const priceRef = useRef<HTMLElement | null>(null)
+  const setPriceRef = useCallback((el: HTMLElement | null) => {
+    priceRef.current = el
+  }, [])
+  // Only the buyable (browse) and view-only footers reflow for a long name; the owner/creator footers
+  // and the NAME card keep their own layout, and leave the refs above unattached.
+  const stacked = useNameFillsRow(topRef, nameRef, priceRef)
 
   const add = useCart(s => s.add)
   const inCart = useCart(s => s.items.some(i => i.id === item.id))
@@ -142,6 +188,11 @@ export function AssetCard(props: AssetCardProps) {
   const onSale = !isMarket && saleActive
   const discountPct = onSale ? saleDiscountPct(item.compareAtCredits!, item.priceCredits) : 0
 
+  // A browse card can hold an item with nothing to buy (a favourite whose listing ended, a collection
+  // sibling that was never listed): the price becomes the NOT FOR SALE tag and the action becomes VIEW.
+  // Your own item keeps MANAGE, and a market card keeps its own "rate unavailable" handling.
+  const notForSale = !isMarket && !own && item.priceCredits <= 0
+
   // The mint index of an owned copy (e.g. "#5013") — lets the owner tell otherwise-identical copies
   // apart. Absent for creations (primary), where the empty spacer keeps the footer height.
   const issued = item.issuedId ? (
@@ -152,11 +203,15 @@ export function AssetCard(props: AssetCardProps) {
     <S.CreatorEmpty>&nbsp;</S.CreatorEmpty>
   )
 
-  const nfs = <S.Nfs data-testid="card-nfs">{t('assetCard.notForSale')}</S.Nfs>
+  const nfs = (
+    <S.Nfs ref={setPriceRef} data-testid="card-nfs">
+      {t('assetCard.notForSale')}
+    </S.Nfs>
+  )
 
   const priceOrNfs = (listed: boolean) =>
     listed && item.priceCredits > 0 ? (
-      <S.Price data-testid="card-price" title={formatCreditsFull(item.priceCredits)}>
+      <S.Price ref={setPriceRef} data-testid="card-price" title={formatCreditsFull(item.priceCredits)}>
         <CurrencyIcon size={15} />
         {formatCredits(item.priceCredits)}
       </S.Price>
@@ -181,9 +236,75 @@ export function AssetCard(props: AssetCardProps) {
     </S.Chips>
   )
 
+  // The browse card's price: the ≈ live-rate value (market), the sale pair + countdown, or the plain fixed
+  // price. It sits beside the name, or below it in the action row when the name fills the row.
+  const browsePrice =
+    isMarket && props.mode === 'market' ? (
+      <S.Price ref={setPriceRef} data-variant="market" data-testid="card-price-market">
+        <S.Approx aria-hidden>≈</S.Approx>
+        <CurrencyIcon size={15} />
+        {props.marketPriceCredits == null ? '—' : formatCredits(props.marketPriceCredits)}
+      </S.Price>
+    ) : onSale ? (
+      <S.Price ref={setPriceRef} data-variant="sale">
+        <S.PriceNow data-testid="card-price-now" title={formatCreditsFull(item.priceCredits)}>
+          <CurrencyIcon size={15} />
+          {formatCredits(item.priceCredits)}
+        </S.PriceNow>
+        <S.PriceWas data-testid="card-price-was" title={formatCreditsFull(item.compareAtCredits!)}>
+          <CurrencyIcon size={13} />
+          {formatCredits(item.compareAtCredits!)}
+        </S.PriceWas>
+        <S.Countdown endsAt={item.saleEndsAt} testId="card-countdown" />
+      </S.Price>
+    ) : (
+      <S.Price ref={setPriceRef} data-testid="card-price" title={formatCreditsFull(item.priceCredits)}>
+        <CurrencyIcon size={15} />
+        {formatCredits(item.priceCredits)}
+      </S.Price>
+    )
+
+  // Chips at rest on the browse card; the action button swaps in for them on hover/focus. A stacked card
+  // gives the slot to the price instead, so it renders no chips at all.
+  const browseChips = (
+    <S.Chips data-chips>
+      {/* Market (legacy) tag lives in the chips row (not the price row) so it's swapped out for the action
+          button on hover like every other chip, never distorting the price / Buy now button. */}
+      {isMarket ? (
+        <S.CardChip data-variant="market" data-testid="chip-market">
+          {t('assetCard.marketPrice')}
+        </S.CardChip>
+      ) : null}
+      <S.CardChip
+        data-variant="rarity"
+        style={{ background: rarityTint(item.rarity), color: rarityInk(item.rarity) }}
+        title={rarityDescription(item.rarity)}
+      >
+        {item.rarity}
+      </S.CardChip>
+      {item.isSmart ? (
+        <S.CardChip data-variant="smart" data-testid="chip-smart">
+          <Icon name="smart" size={13} />
+          {t('assetCard.smart')}
+        </S.CardChip>
+      ) : null}
+      {catIco ? (
+        <S.CardChip data-variant="icon">
+          <Icon name={catIco} />
+        </S.CardChip>
+      ) : null}
+      {genderIco ? (
+        <S.CardChip data-variant="icon">
+          <Icon name={genderIco} />
+        </S.CardChip>
+      ) : null}
+    </S.Chips>
+  )
+
   return (
     <S.Card
       data-testid="card"
+      data-stacked={stacked || undefined}
       style={canOpen && !isNameItem ? { cursor: 'pointer' } : undefined}
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}
@@ -234,7 +355,7 @@ export function AssetCard(props: AssetCardProps) {
           }}
           aria-label={faved ? t('assetCard.removeFromFavorites') : t('assetCard.addToFavorites')}
         >
-          <Icon name={faved ? 'heart-solid' : 'heart'} size={18} />
+          <Icon name={faved ? 'heart-solid' : 'heart'} size={16} />
         </S.Fav>
       ) : null}
       {/* The shared 3D preview (HoverPreviewLayer) overlays this element on hover; mediaRef gives it the
@@ -412,27 +533,40 @@ export function AssetCard(props: AssetCardProps) {
       ) : isView ? (
         <S.Body>
           {/* View-only footer: name on the left; on the right the credit price when the item is for sale,
-              or a small "NOT FOR SALE" tag when it isn't. */}
-          <S.Top>
+              or a small "NOT FOR SALE" tag when it isn't. A name that fills the row keeps it to itself and
+              the price drops to the row below (see useNameFillsRow). */}
+          <S.Top ref={topRef}>
             <S.Desc>
-              <S.Name title={item.name}>{item.name}</S.Name>
+              <S.Name title={item.name}>
+                <span ref={nameRef}>{item.name}</span>
+              </S.Name>
             </S.Desc>
-            {priceOrNfs(true)}
+            {stacked ? null : priceOrNfs(true)}
           </S.Top>
-          {/* Full-width dark VIEW affordance. Decorative (aria-hidden) — the whole-card overlay link
-              above provides the accessible, keyboard-reachable navigation to the item detail. */}
-          <S.View data-testid="card-view" aria-hidden>
-            <Icon name="eye" size={20} />
-            {t('assetCard.view')}
-          </S.View>
+          {/* Dark VIEW affordance — the full-width pill, or the round arrow on the compact card (mobile, or
+              stacked next to the price it made room for). Decorative (aria-hidden) either way: the
+              whole-card overlay link above is the accessible, keyboard-reachable navigation. */}
+          <S.Action>
+            {stacked ? priceOrNfs(true) : null}
+            <S.ViewRound data-testid="card-view-round" aria-hidden>
+              <Icon name="arrow-right" size={18} />
+            </S.ViewRound>
+            <S.View data-testid="card-view" aria-hidden>
+              <Icon name="eye" size={20} />
+              {t('assetCard.view')}
+            </S.View>
+          </S.Action>
         </S.Body>
       ) : (
         <S.Body>
           {/* Title+author on one row with the price to their right (Figma). Desc holds the flexible column
-              (min-width:0 so a long name ellipses instead of shoving the price out); the price never shrinks. */}
-          <S.Top>
+              (min-width:0 so a long name ellipses instead of shoving the price out); the price never
+              shrinks. Once the name fills the row on its own, the price moves down to the action row. */}
+          <S.Top ref={topRef}>
             <S.Desc>
-              <S.Name title={item.name}>{item.name}</S.Name>
+              <S.Name title={item.name}>
+                <span ref={nameRef}>{item.name}</span>
+              </S.Name>
               {/* "by {creator}" line under the title: resolves the creator address to a DCL profile name
                   (short-address fallback while loading / when unnamed) via the shared useProfile query, so
                   many cards with the same creator dedupe to one fetch. */}
@@ -442,75 +576,29 @@ export function AssetCard(props: AssetCardProps) {
                 <S.CreatorEmpty>&nbsp;</S.CreatorEmpty>
               )}
             </S.Desc>
-            {isMarket && props.mode === 'market' ? (
-              <S.Price data-variant="market" data-testid="card-price-market">
-                <S.Approx aria-hidden>≈</S.Approx>
-                <CurrencyIcon size={15} />
-                {props.marketPriceCredits == null ? '—' : formatCredits(props.marketPriceCredits)}
-              </S.Price>
-            ) : onSale ? (
-              <S.Price data-variant="sale">
-                <S.PriceNow data-testid="card-price-now" title={formatCreditsFull(item.priceCredits)}>
-                  <CurrencyIcon size={15} />
-                  {formatCredits(item.priceCredits)}
-                </S.PriceNow>
-                <S.PriceWas data-testid="card-price-was" title={formatCreditsFull(item.compareAtCredits!)}>
-                  <CurrencyIcon size={13} />
-                  {formatCredits(item.compareAtCredits!)}
-                </S.PriceWas>
-                <S.Countdown endsAt={item.saleEndsAt} testId="card-countdown" />
-              </S.Price>
-            ) : (
-              <S.Price title={formatCreditsFull(item.priceCredits)}>
-                <CurrencyIcon size={15} />
-                {formatCredits(item.priceCredits)}
-              </S.Price>
-            )}
+            {stacked ? null : notForSale ? nfs : browsePrice}
           </S.Top>
 
           {/* Chips row and the primary action share one fixed-height slot so the card doesn't change size
               when the action is revealed on hover/focus — the button replaces the chips in place. Chips
               show at rest; on hover-capable devices the action reveals on hover or keyboard focus, and it's
               always shown where hover isn't available (touch). Both stay in the DOM so the action is
-              keyboard-reachable and touch-tappable. Native cards add to cart; market cards Buy now. */}
+              keyboard-reachable and touch-tappable. Native cards add to cart; market cards Buy now.
+              Stacked, the slot belongs to the price + the round action: there's no room for the chips or
+              the full-width button, so neither is rendered and nothing swaps on hover. */}
           <S.Action>
-            <S.Chips data-chips>
-              {/* Market (legacy) tag lives in the chips row (not the price row) so it's swapped out for the
-                  action button on hover like every other chip, never distorting the price / Buy now button. */}
-              {isMarket ? (
-                <S.CardChip data-variant="market" data-testid="chip-market">
-                  {t('assetCard.marketPrice')}
-                </S.CardChip>
-              ) : null}
-              <S.CardChip
-                data-variant="rarity"
-                style={{ background: rarityTint(item.rarity), color: rarityInk(item.rarity) }}
-                title={rarityDescription(item.rarity)}
-              >
-                {item.rarity}
-              </S.CardChip>
-              {item.isSmart ? (
-                <S.CardChip data-variant="smart" data-testid="chip-smart">
-                  <Icon name="smart" size={13} />
-                  {t('assetCard.smart')}
-                </S.CardChip>
-              ) : null}
-              {catIco ? (
-                <S.CardChip data-variant="icon">
-                  <Icon name={catIco} />
-                </S.CardChip>
-              ) : null}
-              {genderIco ? (
-                <S.CardChip data-variant="icon">
-                  <Icon name={genderIco} />
-                </S.CardChip>
-              ) : null}
-            </S.Chips>
+            {stacked ? (notForSale ? nfs : browsePrice) : browseChips}
 
-            {/* Round add button — the compact mobile card's primary action (Figma). Same behavior as the
-                full-width Cart below; only one is visible per breakpoint. */}
-            {isMarket && props.mode === 'market' ? (
+            {/* Round add button — the compact card's primary action (Figma). Same behavior as the
+                full-width Cart below; only one is visible per breakpoint / layout. Nothing to buy → the
+                round arrow that stands in for VIEW. */}
+            {notForSale ? (
+              <S.ViewRound data-testid="card-view-round" aria-hidden>
+                <Icon name="arrow-right" size={18} />
+              </S.ViewRound>
+            ) : isMarket && props.mode === 'market' ? (
               <S.AddRound
+                data-testid="card-add-round"
                 onClick={e => {
                   e.stopPropagation()
                   props.onBuyNow(item)
@@ -522,6 +610,7 @@ export function AssetCard(props: AssetCardProps) {
               </S.AddRound>
             ) : (
               <S.AddRound
+                data-testid="card-add-round"
                 data-in={(!own && inCart) || undefined}
                 onClick={e => {
                   if (own) return goManage(e)
@@ -535,7 +624,12 @@ export function AssetCard(props: AssetCardProps) {
               </S.AddRound>
             )}
 
-            {isMarket && props.mode === 'market' ? (
+            {stacked ? null : notForSale ? (
+              <S.ViewCta data-reveal data-testid="card-view" aria-hidden>
+                <Icon name="eye" size={20} />
+                {t('assetCard.view')}
+              </S.ViewCta>
+            ) : isMarket && props.mode === 'market' ? (
               <S.Cart
                 data-testid="card-cart"
                 onClick={e => {

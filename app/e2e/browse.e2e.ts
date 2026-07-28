@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { launchApp, type App } from './helpers/app'
 import { clickByText, waitForText } from './helpers/dom'
+import * as fx from './fixtures'
 
 let app: App | undefined
 afterEach(async () => {
@@ -59,6 +60,36 @@ describe('browse the shop', () => {
       els.map(e => e.textContent?.trim().toLowerCase())
     )
     expect(badges.some(b => b?.includes('3 on sale'))).toBe(true)
+  })
+
+  it('shows NOT FOR SALE + VIEW (never Add to cart) on a card with no live price', async () => {
+    const rows = (fx.unifiedListings as { data: Record<string, unknown>[] }).data
+    app = await launchApp({
+      path: '/assets',
+      fixtures: {
+        unifiedListings: { data: [rows[1], { ...rows[0], name: 'Not For Sale Hat', priceCredits: 0 }] }
+      }
+    })
+    const { page } = app
+    await waitForText(page, 'Not For Sale Hat')
+
+    const cards = await page.$$eval('[data-testid="card"]', els =>
+      els.map(el => ({
+        name: el.querySelector('[data-testid="card-link"]')?.getAttribute('aria-label'),
+        nfs: !!el.querySelector('[data-testid="card-nfs"]'),
+        view: !!el.querySelector('[data-testid="card-view"]'),
+        viewRound: !!el.querySelector('[data-testid="card-view-round"]'),
+        cart: !!el.querySelector('[data-testid="card-cart"]'),
+        addRound: !!el.querySelector('[data-testid="card-add-round"]')
+      }))
+    )
+    const unlisted = cards.find(c => c.name === 'Not For Sale Hat')!
+    const listed = cards.find(c => c.name === 'Nebula Jacket')!
+    // Nothing to buy → the NOT FOR SALE tag replaces the price, and VIEW (full-width + its round compact
+    // form) replaces both Add-to-cart buttons.
+    expect(unlisted).toMatchObject({ nfs: true, view: true, viewRound: true, cart: false, addRound: false })
+    // A priced card is untouched.
+    expect(listed).toMatchObject({ nfs: false, view: false, viewRound: false, cart: true, addRound: true })
   })
 
   it('opens the item detail by clicking a card (whole-card overlay link)', async () => {

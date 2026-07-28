@@ -7,14 +7,16 @@ const { colors } = theme
 // first up-to-4 item thumbnails, each over its rarity gradient. Fills its container — the caller sizes
 // and shapes it via className. `data-count` reshapes the grid so 1/2/3/4 items each look deliberate.
 // Cells carry `data-testid="coll-thumb-cell"` (also the styling hook consumers like CollectionCard reach in on).
+// The gaps are the grid's internal borders: the container colour shows through a 0.5px gutter, and each
+// cell paints the media fill over it (so an untinted cell reads as the card's own background).
 export const Mosaic = styled.span`
   display: grid;
   width: 100%;
   height: 100%;
-  gap: 1px;
+  gap: 0.5px;
   grid-template-columns: 1fr 1fr;
   grid-auto-rows: 1fr;
-  background: ${colors.line};
+  background: ${colors.lineStrong};
 
   &[data-count='1'] {
     grid-template-columns: 1fr;
@@ -31,6 +33,7 @@ export const Mosaic = styled.span`
     display: grid;
     place-items: center;
     overflow: hidden;
+    background-color: ${colors.media};
     background-size: cover;
     background-position: center;
   }

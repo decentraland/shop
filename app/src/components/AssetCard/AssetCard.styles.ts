@@ -1,5 +1,5 @@
 import styled from '@emotion/styled'
-import { css } from '@emotion/react'
+import { css, type SerializedStyles } from '@emotion/react'
 import { Link } from 'react-router-dom'
 import { theme } from '~/styles/theme'
 import { Chip } from '~/styles/chip.styles'
@@ -9,33 +9,55 @@ import { SaleCountdown } from '~/components/SaleCountdown'
 
 const { colors, gradients, radius, media } = theme
 
-// The 2px border is a gradient painted in the border box via background-clip: the white fill clips to
-// padding-box, the border layer shows through the 2px ring. At rest it's the subtle --line hairline;
-// on hover it swaps to the cerise gradient + violet glow. The ring stays 2px transparent in both
-// states so the swap causes no layout shift. Hover is gated to hover-capable devices so a touch tap
-// (which synthesizes :hover) never flashes the border, and it doubles as the action/chips reveal.
+// Gap between the name column and the price in the footer's first row. Exported because AssetCard
+// measures against it to decide whether the name still fits beside the price.
+export const TOP_GAP = 10
+
+// The outline is an inset overlay ring (::after) rather than a real border, so the hairline at rest and
+// the 2px cerise gradient on hover swap with zero layout shift — a border-width change would nudge the
+// media — and the media still runs edge to edge. The gradient ring is a gradient fill masked down to the
+// ring itself (a plain border can't take a gradient, and border-image ignores border-radius). Hover is
+// gated to hover-capable devices so a touch tap (which synthesizes :hover) never flashes it, and it
+// doubles as the action/chips reveal.
 export const Card = styled.article`
   height: 300px;
-  background:
-    linear-gradient(#fff, #fff) padding-box,
-    linear-gradient(${colors.line}, ${colors.line}) border-box;
+  background: ${colors.bg};
   border-radius: ${radius.card};
   overflow: hidden;
   position: relative;
-  border: 2px solid transparent;
+  isolation: isolate;
   display: flex;
   flex-direction: column;
-  transition:
-    background 0.15s ease,
-    box-shadow 0.15s ease;
+  transition: box-shadow 0.15s ease;
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    pointer-events: none;
+    border: 0.25px solid ${colors.lineStrong};
+    border-radius: inherit;
+  }
 
   @media (hover: hover) {
     &:hover,
     &:focus-within {
-      background:
-        linear-gradient(#fff, #fff) padding-box,
-        ${gradients.cerise} border-box;
       box-shadow: 0 0 8px 0 ${colors.brandViolet};
+    }
+    &:hover::after,
+    &:focus-within::after {
+      border: 0;
+      padding: 2px;
+      background: ${gradients.cerise};
+      -webkit-mask:
+        linear-gradient(#000 0 0) content-box,
+        linear-gradient(#000 0 0);
+      mask:
+        linear-gradient(#000 0 0) content-box,
+        linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
     }
     &:hover [data-testid='card-cart'],
     &:hover [data-reveal] {
@@ -70,10 +92,11 @@ export const Fav = styled.button`
   top: 10px;
   right: 10px;
   z-index: 4;
-  width: 32px;
-  height: 32px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   border: 0;
+  padding: 0;
   background: rgba(255, 255, 255, 0.85);
   display: grid;
   place-items: center;
@@ -81,6 +104,19 @@ export const Fav = styled.button`
 
   &[data-on] {
     color: ${colors.dclRed};
+  }
+
+  & .ico {
+    margin-top: 2px;
+  }
+
+  // The circle is 24px by design, which is under the comfortable tap size — an invisible ring around it
+  // brings the hit area back to ~44px on touch without changing the visual.
+  &::after {
+    content: '';
+    position: absolute;
+    inset: -10px;
+    border-radius: 50%;
   }
 `
 
@@ -211,6 +247,8 @@ export const Img = styled.img`
 `
 
 // Fixed 96px footer. On mobile it becomes a grid (name/creator row, then price + round add) — see Top.
+// data-stacked (a long name, measured in AssetCard) keeps the plain column at every width: the name
+// claims the whole first row and the price drops into the action row beside the round button.
 export const Body = styled.div`
   flex: 0 0 96px;
   height: 96px;
@@ -219,6 +257,12 @@ export const Body = styled.div`
   flex-direction: column;
   justify-content: space-between;
   gap: 4px;
+
+  [data-stacked] & {
+    display: flex;
+    align-items: stretch;
+    gap: 10px;
+  }
 
   @media (hover: hover) {
     &:focus-within [data-testid='card-cart'],
@@ -264,10 +308,16 @@ export const Body = styled.div`
 export const Top = styled.div`
   display: flex;
   align-items: flex-start;
-  gap: 10px;
+  gap: ${TOP_GAP}px;
 
   ${media.maxWidth('sm')} {
     display: contents;
+  }
+
+  // Stacked: the price has moved out of this row, so it stays a plain box (its width is what the name
+  // is measured against) instead of dissolving into the mobile grid.
+  [data-stacked] & {
+    display: flex;
   }
 `
 
@@ -427,11 +477,17 @@ export const Countdown = styled(SaleCountdown)`
 `
 
 // Fixed-height slot: the full-width action button (Cart) swaps in for the chips on hover/focus without
-// changing the card's height.
+// changing the card's height. Stacked, it holds the price on the left and the round action on the right.
 export const Action = styled.div`
   min-height: 40px;
   display: flex;
   align-items: center;
+
+  [data-stacked] & {
+    width: 100%;
+    justify-content: space-between;
+    gap: ${TOP_GAP}px;
+  }
 
   ${media.maxWidth('sm')} {
     grid-area: add;
@@ -445,8 +501,11 @@ export const Action = styled.div`
 export const Chips = styled.div`
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 3px;
   flex-wrap: wrap;
+  // Sit on the footer's bottom edge instead of centring in the 40px action slot (which the button that
+  // replaces them on hover fills).
+  align-self: flex-end;
 
   ${media.maxWidth('sm')} {
     display: none;
@@ -487,7 +546,8 @@ export const CardChip = styled(Chip)`
 `
 
 // Full-width dark VIEW affordance on the view-only card. Unlike Cart it's ALWAYS visible (no hover
-// reveal) and carries no click handler — the whole-card overlay link navigates.
+// reveal) and carries no click handler — the whole-card overlay link navigates. The compact card uses the
+// round ViewRound instead.
 export const View = styled.span`
   position: relative;
   z-index: 1;
@@ -509,6 +569,64 @@ export const View = styled.span`
     width: 20px;
     height: 20px;
   }
+
+  [data-stacked] & {
+    display: none;
+  }
+
+  ${media.maxWidth('sm')} {
+    display: none;
+  }
+`
+
+// The compact card's round action: 32px circle, no label.
+const roundCss = css`
+  align-self: center;
+  justify-self: end;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+`
+
+// A round action belongs to the compact card only — the mobile card, and any card whose long name pushed
+// the price into the action row. Elsewhere the full-width button is used and this is hidden.
+const compactRoundCss = (fill: SerializedStyles) => css`
+  display: none;
+
+  [data-stacked] & {
+    ${roundCss};
+    ${fill};
+  }
+
+  ${media.maxWidth('sm')} {
+    ${roundCss};
+    ${fill};
+  }
+`
+
+const addRoundFill = css`
+  background: ${colors.accent};
+  color: #fff;
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+`
+
+// Dark round stand-in for the VIEW button, on a card with nothing to buy.
+export const ViewRound = styled.span`
+  ${compactRoundCss(css`
+    background: ${colors.blackBtn};
+    color: ${colors.softWhite};
+  `)};
 `
 
 // Full-width action on an owned/created card: "List for sale" (dark) or, with data-ghost, "Remove from
@@ -559,32 +677,8 @@ export const Manage = styled.button`
   }
 `
 
-// The compact mobile card's primary action (Figma) — hidden on desktop, where the full-width Cart is used.
-const addRoundCss = css`
-  display: none;
-
-  ${media.maxWidth('sm')} {
-    align-self: center;
-    justify-self: end;
-    z-index: 4;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    border: 0;
-    padding: 0;
-    background: ${colors.accent};
-    color: #fff;
-    cursor: pointer;
-
-    &:disabled {
-      opacity: 0.5;
-      cursor: default;
-    }
-  }
-`
+// The compact card's primary action (Figma): purple round Add to cart / Buy now.
+const addRoundCss = compactRoundCss(addRoundFill)
 
 // Add to cart / Buy now (Figma secondary dark button). Hidden at rest on hover-capable devices and
 // revealed on card hover / body focus (see Card + Body); always shown where hover isn't available so
@@ -632,6 +726,18 @@ export const AddRound = styled.button`
 
 export const Cart = styled.button`
   ${cartCss};
+`
+
+// The browse card's action when the item isn't for sale: VIEW takes Add-to-cart's place, so it gets the
+// same hover reveal (via data-reveal) rather than the always-visible pill of a view-only card. Decorative
+// — the whole-card overlay link navigates.
+export const ViewCta = styled.span`
+  ${cartCss};
+
+  & .ico {
+    width: 20px;
+    height: 20px;
+  }
 `
 
 // Anchor variants: an owned NAME's MANAGE controls point off-app (the Builder), so they need real

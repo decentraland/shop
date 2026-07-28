@@ -49,4 +49,38 @@ describe('creator storefront', () => {
     await waitForText(page, 'This creator has no items to show yet')
     expect(await page.evaluate(() => document.querySelectorAll('[data-testid="card"]').length)).toBe(0)
   })
+
+  // Hovering a collection card must swap the creator/count row for the View action IN PLACE — the card
+  // used to grow the button below the row, which shrank the cover.
+  it('swaps the creator row for View collection on hover, without moving anything else', async () => {
+    app = await launchApp({ path: `/assets/creator/${CREATOR_ADDRESS}?collections` })
+    const { page } = app
+    await page.waitForSelector('[data-testid="coll-card"]')
+
+    const read = () =>
+      page.evaluate(() => {
+        const card = document.querySelector('[data-testid="coll-card"]') as HTMLElement
+        const vis = (sel: string) =>
+          getComputedStyle(card.querySelector(sel) as HTMLElement).visibility as 'visible' | 'hidden'
+        return {
+          card: Math.round(card.getBoundingClientRect().height),
+          // The cover: whatever the button used to steal space from.
+          cover: Math.round((card.firstElementChild as HTMLElement).getBoundingClientRect().height),
+          meta: vis('[data-testid="coll-card-meta"]'),
+          view: vis('[data-testid="coll-card-view"]')
+        }
+      })
+
+    const atRest = await read()
+    expect(atRest.meta).toBe('visible')
+    expect(atRest.view).toBe('hidden')
+
+    await page.hover('[data-testid="coll-card"]')
+    const hovered = await read()
+    expect(hovered.meta).toBe('hidden')
+    expect(hovered.view).toBe('visible')
+    // Same card, same cover height — the swap happens inside one slot.
+    expect(hovered.card).toBe(atRest.card)
+    expect(hovered.cover).toBe(atRest.cover)
+  })
 })

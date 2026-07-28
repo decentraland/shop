@@ -19,6 +19,7 @@ for (const [path, url] of Object.entries(SVG_URLS)) {
 export type IconName =
   | 'alert'
   | 'arrow-left'
+  | 'arrow-right'
   | 'arrow-up-right'
   | 'bell'
   | 'carousel-arrow'
