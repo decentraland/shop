@@ -69,7 +69,10 @@ describe('notifications bell', () => {
             notification('bad-null', { timestamp: null, created_at: null }),
             notification('bad-text', { timestamp: 'not a date', created_at: 'not a date' }),
             notification('bad-zero', { timestamp: 0, created_at: 0 }),
-            notification('good', { timestamp: 1750000000000, metadata: { link: '/activity', nftName: 'Survivor Jacket' } })
+            notification('good', {
+              timestamp: 1750000000000,
+              metadata: { link: '/activity', nftName: 'Survivor Jacket' }
+            })
           ]
         }
       }
@@ -131,5 +134,30 @@ describe('notifications bell', () => {
 
     await waitForText(page, 'Sign in')
     expect(await page.$(BELL)).toBeNull()
+  })
+
+  // ui2 renders the desktop panel as a MUI Menu, which is a Modal and locks page scroll by default —
+  // `overflow: hidden` plus a compensating `padding-right` on body, and that padding is what visibly slid
+  // the page sideways. The shop's MUI theme turns the lock off for Menu only (see NavBar). The pixel shift
+  // needs a browser whose scrollbars take layout space, which headless Chromium is not, so what is asserted
+  // is the lock itself: absent on desktop, still present for the full-screen mobile panel.
+  it('does not lock page scroll behind the desktop dropdown', async () => {
+    app = await launchApp({ path: '/overview' })
+    const { page } = app
+
+    await openBell(page)
+    await waitForText(page, 'Notifications')
+    expect(await page.evaluate(() => document.body.style.overflow)).not.toBe('hidden')
+    expect(await page.evaluate(() => document.body.style.paddingRight)).toBe('')
+  })
+
+  it('still locks page scroll behind the full-screen mobile panel', async () => {
+    app = await launchApp({ path: '/overview' })
+    const { page } = app
+
+    await page.setViewport({ width: 390, height: 844 })
+    await openBell(page)
+    await waitForText(page, 'Notifications')
+    expect(await page.evaluate(() => document.body.style.overflow)).toBe('hidden')
   })
 })

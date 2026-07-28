@@ -51,7 +51,7 @@ function creditOrder(overrides: Partial<CreditOrder> = {}): CreditOrder {
     id: 'co-' + Math.random().toString(36).slice(2),
     credits: 100,
     usdCents: 1000,
-    status: 'SETTLED',
+    status: 'credited',
     createdAt: 3_000,
     ...overrides
   }
@@ -124,13 +124,24 @@ describe('buildActivityFeed', () => {
     expect(feed.map(e => e.kind)).toEqual(['credit', 'sale', 'purchase'])
   })
 
-  it('should drop EXPIRED credit orders (released, never paid)', () => {
+  // These fixtures must use the CREDITS-SERVER's status words. The previous version passed 'EXPIRED' and
+  // asserted it was dropped — and passed, because the filter compared against 'EXPIRED' too. Both sides
+  // agreed with each other and disagreed with the server, which never sends it, so in production nothing
+  // was ever filtered. A fixture typed from a wrong type cannot catch that type being wrong.
+  it('should drop failed credit orders (the charge never succeeded)', () => {
     const feed = buildActivityFeed({
       purchases: [],
       sales: [],
-      creditOrders: [creditOrder({ status: 'EXPIRED' })]
+      creditOrders: [creditOrder({ status: 'failed' })]
     })
     expect(feed).toHaveLength(0)
+  })
+
+  it.each(['processing', 'crediting', 'credited'] as const)('should keep a %s credit order', status => {
+    // 'processing' included on purpose: it is indistinguishable from "paid, not yet credited", and hiding
+    // those would hide money the buyer is waiting on.
+    const feed = buildActivityFeed({ purchases: [], sales: [], creditOrders: [creditOrder({ status })] })
+    expect(feed).toHaveLength(1)
   })
 })
 

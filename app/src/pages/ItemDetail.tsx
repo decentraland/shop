@@ -975,10 +975,11 @@ export function ItemDetail() {
   // the item page always stays the buy view and instead surfaces a "you own N" note). See lib/routes
   // canManageToken. `ownedAsset` only resolves on the token route anyway (current.tokenId is undefined
   // on the item route), but gate explicitly so the intent is unmistakable.
-  // Listing an owned token is a SECONDARY sale, so it is gone while the flag is off — with one exception:
-  // a token that is ALREADY listed keeps its manage surface, otherwise the owner would be unable to take
-  // their own live listing down from the Shop. Hiding the entrance must not trap the people already inside.
-  const manageAsSecondary = isTokenRoute && !!ownedAsset && (secondarySales || !!ownedAsset.isOnSale)
+  // Owning the token and being ALLOWED TO SELL it are two different questions, and conflating them was a
+  // bug: with secondary sales off the owner fell through to the buyer view and was offered "Notify me when
+  // available" and "Make an offer" for a token already in their own wallet. Ownership alone decides the
+  // manage surface; `canPutOnSale` below decides whether the listing CTA is part of it.
+  const manageAsSecondary = isTokenRoute && !!ownedAsset
   // Primary (creator) management of a mint listing is item-level — it belongs on the /item page only.
   const manageAsPrimary = !isTokenRoute && own
   // Never over the market (legacy) flow — legacy items aren't managed through the shop's trade flows.
@@ -988,6 +989,11 @@ export function ItemDetail() {
   const manageTradeId = manageAsSecondary ? ownedAsset?.tradeId : buyableTradeId
   // Can we open the list/relist modal? Need the backing record the modal reads its inputs from.
   const canOpenListModal = manageAsSecondary ? !!ownedAsset : !!publishableItem
+  // May this viewer put the asset up for sale? A creator's mint listing is PRIMARY and always allowed; an
+  // owned token is a SECONDARY sale and so is gone while the flag is off. Taking an existing listing DOWN
+  // stays available either way (the listed branch) — hiding the entrance must not trap the people already
+  // inside. With no listing and no permission the owner simply keeps Transfer.
+  const canPutOnSale = manageAsPrimary || (manageAsSecondary && secondarySales)
   // The owner's own listed price, from the (freshly-refreshed) manage state. Used so the price shows
   // right after listing: the public `forSale`/feed the price block falls back to lags behind the MV
   // refresh, which left the owner staring at "Not for sale" while the manage buttons already said listed.
@@ -1468,11 +1474,11 @@ export function ItemDetail() {
                               <CurrencyIcon className="item-detail__diamond" />
                               <span className="item-detail__price-value">{managePriceCredits}</span>
                             </div>
-                          ) : manage ? // Owner/creator viewing their own UNLISTED item: the manage CTAs below (Put up
-                          // for sale / Transfer) already convey the state, so the redundant "Not for sale"
-                          // label is hidden here. It stays for the NON-owner public view, where it's the
-                          // only signal the item can't be bought.
-                          null : (
+                          ) : /* Owner/creator viewing their own UNLISTED asset: the manage CTAs below (Put up
+                          for sale / Transfer) already convey the state, so the redundant "Not for sale" label
+                          is hidden here. It stays for the NON-owner public view, where it is the only signal
+                          the asset cannot be bought. */
+                          manage ? null : (
                             <div className="item-detail__price item-detail__price--none">
                               <span>{t('itemDetail.notForSale')}</span>
                               <Tooltip content={t('itemDetail.notForSaleHint')}>
@@ -1553,22 +1559,25 @@ export function ItemDetail() {
                           </>
                         ) : (
                           <>
-                            {/* Put up for sale (Figma 1527-302810): dark-solid primary. */}
-                            <DarkCta
-                              onClick={() => {
-                                // Funnel-entry event for a secondary listing — this is the flow that moved off
-                                // the My Assets card (its "put on sale" fired the same event) onto the PDP.
-                                if (manageAsSecondary)
-                                  track('Shop Started Listing', {
-                                    listing_type: 'secondary',
-                                    item_id: current.itemId ?? current.tokenId ?? null
-                                  })
-                                openListModal()
-                              }}
-                              disabled={managing !== null || !canOpenListModal}
-                            >
-                              <span className="item-detail__cta-label">{t('itemDetail.manageList')}</span>
-                            </DarkCta>
+                            {/* Put up for sale (Figma 1527-302810): dark-solid primary. Absent when the
+                            viewer may not sell — an owned token with secondary sales off. */}
+                            {canPutOnSale ? (
+                              <DarkCta
+                                onClick={() => {
+                                  // Funnel-entry event for a secondary listing — this is the flow that moved off
+                                  // the My Assets card (its "put on sale" fired the same event) onto the PDP.
+                                  if (manageAsSecondary)
+                                    track('Shop Started Listing', {
+                                      listing_type: 'secondary',
+                                      item_id: current.itemId ?? current.tokenId ?? null
+                                    })
+                                  openListModal()
+                                }}
+                                disabled={managing !== null || !canOpenListModal}
+                              >
+                                <span className="item-detail__cta-label">{t('itemDetail.manageList')}</span>
+                              </DarkCta>
+                            ) : null}
                             {/* Transfer (Figma 1527-302810): only for a SECONDARY owned token you actually hold
                             (a primary/mint listing has no transferable token). Gasless via lib/buy. */}
                             {manageAsSecondary ? (

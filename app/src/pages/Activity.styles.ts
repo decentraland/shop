@@ -178,6 +178,10 @@ export const Pill = styled.span`
     background: rgba(103, 58, 183, 0.14);
     color: ${theme.colors.accent};
   }
+  &[data-status='FAILED'] {
+    background: rgba(214, 61, 61, 0.14);
+    color: #b02a2a;
+  }
 `
 
 export const Total = styled.div`

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useWallet } from '~/store/wallet'
-import { fetchUserPurchases, fetchUserCreditOrders, type CreditOrder } from '~/lib/credits'
+import { fetchUserPurchases, fetchUserCreditOrders, creditOrderPill, type CreditOrder } from '~/lib/credits'
 import { detailRouteFor } from '~/lib/routes'
 import { fetchTradeDisplay, fetchAssetDisplay, fetchUserSales, type SaleRecord } from '~/lib/api'
 import { foldOrderLines, type PurchaseOrder, type OrderLineItem } from '~/lib/purchases'
@@ -305,6 +305,11 @@ function SaleCard({ sale, payout }: { sale: ActivitySale; payout: SalePayout }) 
 // card's income treatment.
 function CreditPurchaseCard({ order }: { order: CreditOrder }) {
   const usd = `$${(order.usdCents / 100).toFixed(2)}`
+  // The credits-server speaks processing/crediting/credited/failed — mapped to the pill's own vocabulary in
+  // lib/credits, so nothing here compares against a value the server cannot send.
+  const pill = creditOrderPill(order.status)
+  const pillLabel =
+    pill === 'SETTLED' ? t('activity.completed') : pill === 'FAILED' ? t('activity.failed') : t('activity.processing')
   return (
     <S.Card data-testid="credit-order">
       <S.CardHead>
@@ -320,9 +325,7 @@ function CreditPurchaseCard({ order }: { order: CreditOrder }) {
           </S.SubCount>
         </S.HeadLeft>
         <S.HeadRight>
-          <S.Pill data-status={order.status}>
-            {order.status === 'PENDING' ? t('activity.processing') : t('activity.completed')}
-          </S.Pill>
+          <S.Pill data-status={pill}>{pillLabel}</S.Pill>
           <S.Total data-kind="income">
             +<CurrencyIcon className="ccy-mark" /> {order.credits}
           </S.Total>
