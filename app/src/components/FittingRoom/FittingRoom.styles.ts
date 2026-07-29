@@ -40,7 +40,7 @@ export const Panel = styled.div`
   width: 100%;
   max-width: 1000px;
   height: min(88vh, 720px);
-  background: #fff;
+  background: ${colors.white};
   border-radius: ${radius.banner};
   overflow: hidden;
   box-shadow: 0 24px 60px rgba(22, 21, 24, 0.3);
@@ -108,7 +108,7 @@ export const EmptyStage = styled.div`
   gap: 4px;
   text-align: center;
   padding: 20px;
-  color: #fff;
+  color: ${colors.white};
 
   & .muted {
     color: rgba(255, 255, 255, 0.75);
@@ -130,7 +130,7 @@ export const Spinner = styled.span`
   height: 34px;
   border-radius: 50%;
   border: 3px solid rgba(255, 255, 255, 0.3);
-  border-top-color: #fff;
+  border-top-color: ${colors.white};
   animation: spin 0.8s linear infinite;
 
   @media (prefers-reduced-motion: reduce) {
@@ -223,7 +223,7 @@ export const Box = styled.span`
   height: 22px;
   border-radius: 6px;
   border: 2px solid ${colors.lineStrong};
-  background: #fff;
+  background: ${colors.white};
   display: grid;
   place-items: center;
   transition:
@@ -232,7 +232,7 @@ export const Box = styled.span`
 
   &::after {
     content: '✓';
-    color: #fff;
+    color: ${colors.white};
     font-size: 14px;
     font-weight: 800;
     opacity: 0;

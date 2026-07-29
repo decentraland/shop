@@ -51,7 +51,7 @@ export const ToggleButton = styled.button`
 
   &[data-active] {
     background: ${colors.text};
-    color: #fff;
+    color: ${colors.white};
   }
   &:not([data-active]):hover {
     color: ${colors.text};
@@ -60,12 +60,12 @@ export const ToggleButton = styled.button`
   ${media.maxWidth('lg')} {
     padding: 9px 13px;
     border-radius: 0;
-    background: #fff;
+    background: ${colors.white};
     color: ${colors.text2};
 
     &[data-active] {
       background: ${colors.text};
-      color: #fff;
+      color: ${colors.white};
     }
     &:first-of-type {
       border-top-left-radius: 999px;
@@ -130,7 +130,7 @@ export const EmoteControls = styled.div`
     width: 34px;
     height: 34px;
     background: ${colors.accent} !important;
-    color: #fff;
+    color: ${colors.white};
   }
   & .MuiBox-root > .MuiButtonBase-root:first-child:hover {
     background: ${colors.text} !important;
@@ -174,7 +174,7 @@ export const EmoteControls = styled.div`
     margin-top: -4.5px;
     border-radius: 50%;
     background: ${colors.accent};
-    border: 2px solid #fff;
+    border: 2px solid ${colors.white};
     box-shadow: 0 1px 3px rgba(22, 21, 24, 0.3);
     cursor: pointer;
   }
@@ -183,7 +183,7 @@ export const EmoteControls = styled.div`
     height: 13px;
     border-radius: 50%;
     background: ${colors.accent};
-    border: 2px solid #fff;
+    border: 2px solid ${colors.white};
     box-shadow: 0 1px 3px rgba(22, 21, 24, 0.3);
     cursor: pointer;
   }

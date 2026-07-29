@@ -31,7 +31,7 @@ export const Card = styled.div`
   z-index: 1;
   width: 100%;
   max-width: 420px;
-  background: #fff;
+  background: ${colors.white};
   border-radius: ${radius.banner};
   padding: 24px;
   box-shadow: 0 24px 60px rgba(22, 21, 24, 0.28);

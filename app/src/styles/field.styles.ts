@@ -11,7 +11,7 @@ export const Field = styled.div`
   font-size: 14px;
 
   & input {
-    background: #fff;
+    background: ${colors.white};
     border: 1px solid ${colors.lineStrong};
     border-radius: 8px;
     padding: 10px 12px;

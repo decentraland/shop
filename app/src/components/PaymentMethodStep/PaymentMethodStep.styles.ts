@@ -259,7 +259,7 @@ export const BalanceRow = styled.span`
   font-family: ${theme.font.sans};
   font-size: 12px;
   line-height: 1;
-  color: #5e5b67;
+  color: ${theme.colors.muted1};
 
   /* A 13px slot holding a 10.4px glyph. */
   .ico {

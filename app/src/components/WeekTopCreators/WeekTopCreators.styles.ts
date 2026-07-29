@@ -52,7 +52,7 @@ export const Table = styled.table`
 // Gradient header bar — one continuous amethyst band with rounded ends.
 export const Th = styled.th`
   background: ${gradients.amethyst};
-  color: #fff;
+  color: ${colors.white};
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 1px;
@@ -116,7 +116,7 @@ export const Rank = styled.span`
   padding: 0 14px;
   border-radius: ${radius.btn};
   background: ${gradients.amethyst};
-  color: #fff;
+  color: ${colors.white};
   font-size: 18px;
   font-weight: 500;
   line-height: 1;

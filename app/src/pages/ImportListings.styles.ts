@@ -119,7 +119,7 @@ export const Row = styled.article`
   grid-template-columns: 22px 56px 1fr auto auto;
   align-items: center;
   gap: 16px;
-  background: #fff;
+  background: ${colors.white};
   border: 1px solid ${colors.line};
   border-radius: 14px;
   padding: 14px 18px;
@@ -157,7 +157,7 @@ export const Check = styled.input`
   height: 22px;
   border-radius: 7px;
   border: 2px solid ${colors.lineStrong};
-  background: #fff;
+  background: ${colors.white};
   cursor: pointer;
   display: grid;
   place-items: center;
@@ -172,7 +172,7 @@ export const Check = styled.input`
   }
   &:checked::after {
     content: '✓';
-    color: #fff;
+    color: ${colors.white};
     font-size: 13px;
     font-weight: 800;
   }
@@ -244,7 +244,7 @@ export const PriceField = styled.div`
   border: 1.5px solid ${colors.lineStrong};
   border-radius: 10px;
   padding: 7px 12px;
-  background: #fff;
+  background: ${colors.white};
   transition:
     border-color 0.15s,
     box-shadow 0.15s;

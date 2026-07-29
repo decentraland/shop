@@ -42,7 +42,7 @@ export const Root = styled.section`
     color: ${colors.text};
   }
   & textarea {
-    background: #fff;
+    background: ${colors.white};
     border: 1px solid ${colors.lineStrong};
     border-radius: 8px;
     padding: 10px 12px;
@@ -113,7 +113,7 @@ export const Prefixed = styled.div`
   border: 1px solid ${colors.lineStrong};
   border-radius: 8px;
   overflow: hidden;
-  background: #fff;
+  background: ${colors.white};
 
   & input {
     border: 0 !important;
@@ -178,7 +178,7 @@ export const Tile = styled.button`
     place-items: center;
     border-radius: 50%;
     background: ${colors.accent};
-    color: #fff;
+    color: ${colors.white};
     font-size: 13px;
     font-weight: 700;
   }
@@ -193,7 +193,7 @@ export const Tile = styled.button`
     color: ${colors.muted};
     font-size: 13px;
     font-weight: 700;
-    background: #fff;
+    background: ${colors.white};
   }
   &[data-variant='upload'] .ico {
     width: 22px;

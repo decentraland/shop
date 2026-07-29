@@ -24,6 +24,7 @@ import { captureError } from '~/lib/monitoring'
 import { t } from '~/intl/i18n'
 import { friendlyError } from '~/lib/errors'
 import { ErrorNotice } from '~/components/ErrorNotice'
+import { creditsToUsd } from '~/lib/currency'
 import * as S from './SellModal.styles'
 
 // Default listing lifetime, copied from the marketplace (DEFAULT_EXPIRATION_IN_DAYS = 30). No maximum is
@@ -94,7 +95,7 @@ export function SellModal({
   const dateValid = !!expiresDate && expiresMs > Date.now()
   const minDate = midnightDaysFromNow(1) // "must be in the future"
   // USD equivalent hint (1 credit = $0.10).
-  const usdHint = priceValid ? `$${(priceValue / 10).toFixed(2)}` : '$0'
+  const usdHint = priceValid ? `$${creditsToUsd(priceValue).toFixed(2)}` : '$0'
 
   // Entry point from the "Put up for sale" button: validate, then for self-custody surface a first-time
   // approval STEP when the marketplace isn't yet approved to transfer this collection. Managed wallets
@@ -155,7 +156,7 @@ export function SellModal({
           network: asset.network as Network,
           chainId: asset.chainId
         },
-        usdPrice: priceValue / 10, // credits → USD (1 credit = $0.10)
+        usdPrice: creditsToUsd(priceValue),
         expiresAtMs: expiresMs
       })
 
@@ -168,7 +169,7 @@ export function SellModal({
         item_id: asset.itemId ?? asset.tokenId ?? null,
         contract_address: asset.contractAddress,
         price_credits: priceValue,
-        price_usd: priceValue / 10,
+        price_usd: creditsToUsd(priceValue),
         listing_type: 'secondary',
         is_primary: false
       })

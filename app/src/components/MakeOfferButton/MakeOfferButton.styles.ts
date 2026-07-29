@@ -13,7 +13,7 @@ export const Button = styled.button`
   width: 100%;
   height: 40px;
   padding: 0 12px;
-  border: 2px solid #c640cd;
+  border: 2px solid ${theme.colors.magenta};
   border-radius: 8px;
   background: transparent;
   color: ${theme.colors.accent};

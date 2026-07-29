@@ -47,7 +47,16 @@ The spec for all of Decentraland's public APIs is available at https://docs.dece
 - Prettier: config in `.prettierrc`. Match the surrounding style.
 - TypeScript strict, `noUnusedLocals` / `noUnusedParameters` on. Prefer `type` imports.
 - Never surface a raw error to the user (web2-first + PII rule) — report it to Sentry via `captureError` and show human-friendly copy.
-- **Styling is Emotion `styled`** (see `src/styles/theme.ts` for tokens; `src/styles/*.styles.ts` and co-located `Foo.styles.ts` for defs). Pull hexes/radii/breakpoints from `theme`, never re-hardcode. **Design tokens are duplicated in `theme.ts` (JS) and `styles/index.css` (`:root` CSS vars) and MUST be kept in sync one-for-one** — both are live (index.css utility rules + a few runtime `var(--…)` strings in components). Change one, change the other. (Single-sourcing them is a possible future cleanup: generate `:root` from `theme.ts`, or drop the `var()` usages.)
+- **Styling is Emotion `styled`** (see `src/styles/theme.ts` for tokens). Pull hexes/radii/breakpoints from `theme`, never re-hardcode. **Design tokens are duplicated in `theme.ts` (JS) and `src/styles/index.css` (`:root` CSS vars) and MUST be kept in sync one-for-one** — both are live (index.css utility rules + a few runtime `var(--…)` strings in components). Change one, change the other. (Single-sourcing them is a possible future cleanup: generate `:root` from `theme.ts`, or drop the `var()` usages.)
+
+### Styling conventions
+
+- **File layout:** every component is a folder — `components/Foo/{Foo.tsx, Foo.styles.ts, Foo.spec.tsx, index.ts}` — with `index.ts` re-exporting so consumers import `~/components/Foo`. Pages stay flat in `pages/` with a co-located `Foo.styles.ts`. Styled defs live in the `.styles.ts` file (imported as `import * as S from './Foo.styles'`); a tiny single-use def (e.g. a 2-line `styled(Button)` margin override) may stay inline in the component.
+- **Import the theme directly** (`import { theme } from '~/styles/theme'`) — never via ThemeProvider or `({ theme }) =>` prop callbacks. The app has no runtime theming, and the direct import keeps unit tests provider-free.
+- **Media queries:** use `theme.media.maxWidth(bp)` / `.minWidth(bp)` for any canonical breakpoint (`mobile: 768, sm: 720, md: 820, lg: 900, xl: 1200`). Raw `@media (max-width: Npx)` strings only for genuinely non-canonical values.
+- **State and variants are `data-*` attributes** (`data-open`, `data-variant`, `data-selected`), styled via `&[data-…]` selectors — never `is-*`/BEM-modifier classNames. This is the same attribute tests assert on (see Testing conventions).
+- **Never use a styled component as a selector** inside another styled template (`` ${Name} { … } ``, `&:hover ${Icon}`). It compiles in the vite build but **throws in vitest** (no babel plugin), so it passes e2e while breaking unit tests. Target a stable `[data-testid]` / `[data-*]` hook instead — that's also how a styled wrapper reaches into a child component's internals across component boundaries.
+- **The intentional global layer** (not migration debt — compose it, don't re-create it): `src/styles/index.css` holds the `:root` tokens, base resets, text/page utilities (`muted`, `small`, `link`, `error*`, `page`, `skeleton`, `spinner`) and the shared keyframes `shimmer` / `spin` / `cart-pop-in`, which styled defs reference by name. `components/Icon/Icon.css` holds the mask-icon system. Everything else is Emotion.
 
 ## Commenting Guidelines
 
@@ -86,7 +95,7 @@ When adding or editing UI:
 
 ### Breakpoints in use
 
-The primary mobile breakpoint in this codebase is **`max-width: 768px`** (see `app/src/index.css`); `820px` / `900px` / `720px` are used for a few specific layout shifts. Reuse the existing breakpoints rather than inventing new ones unless there's a clear reason.
+The primary mobile breakpoint is **768px** — `theme.media.maxWidth('mobile')`. The full canonical set lives in `theme.breakpoints` (`mobile: 768, sm: 720, md: 820, lg: 900, xl: 1200`); write them via the `theme.media` helpers, not pixel literals (see Styling conventions). Reuse the existing breakpoints rather than inventing new ones unless there's a clear reason.
 
 ### Verifying responsive changes
 

@@ -136,11 +136,11 @@ export const InputRow = styled('div', noForward('invalid'))<{ invalid?: boolean 
   gap: 8px;
   padding: 8px 8px 8px 16px;
   background: ${theme.colors.softWhite};
-  border: 1.5px solid ${({ invalid }) => (invalid ? '#ff2d55' : theme.colors.line)};
+  border: 1.5px solid ${({ invalid }) => (invalid ? theme.colors.dclRed : theme.colors.line)};
   border-radius: 20px;
 
   &:focus-within {
-    border-color: ${({ invalid }) => (invalid ? '#ff2d55' : theme.colors.magenta)};
+    border-color: ${({ invalid }) => (invalid ? theme.colors.dclRed : theme.colors.magenta)};
   }
 
   ${theme.media.maxWidth('mobile')} {
@@ -229,7 +229,7 @@ export const At = styled.span`
   font-size: 26px;
   font-weight: 500;
   line-height: 1;
-  color: #a09ba8;
+  color: ${theme.colors.muted2};
 
   ${theme.media.maxWidth('mobile')} {
     font-size: 20px;
@@ -253,7 +253,7 @@ export const NameInput = styled.input`
   padding: 0;
 
   &::placeholder {
-    color: #5e5b67;
+    color: ${theme.colors.muted1};
     font-weight: 400;
   }
 
@@ -269,7 +269,7 @@ export const Suffix = styled.span`
   font-size: 20px;
   font-weight: 400;
   line-height: 1.6;
-  color: #5e5b67;
+  color: ${theme.colors.muted1};
 
   ${theme.media.maxWidth('mobile')} {
     font-size: 16px;
@@ -280,7 +280,7 @@ export const Counter = styled.span`
   flex: none;
   font-family: ${theme.font.sans};
   font-size: 13px;
-  color: #a09ba8;
+  color: ${theme.colors.muted2};
   white-space: nowrap;
 `
 
@@ -365,7 +365,7 @@ export const Status = styled.div<{ tone: 'error' | 'ok' | 'muted' }>`
       : tone === 'ok'
         ? 'rgba(30, 166, 114, 0.14)'
         : 'rgba(255,255,255,0.14)'};
-  color: ${({ tone }) => (tone === 'error' ? '#ff2d55' : tone === 'ok' ? '#0f7a4f' : '#ecebed')};
+  color: ${({ tone }) => (tone === 'error' ? theme.colors.dclRed : tone === 'ok' ? '#0f7a4f' : '#ecebed')};
 
   .ico {
     width: 16px;

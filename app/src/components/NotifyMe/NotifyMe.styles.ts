@@ -50,7 +50,7 @@ export const Input = styled.input`
   padding: 0 16px;
   border: 1px solid ${colors.muted};
   border-radius: ${radius.btn};
-  background: #fff;
+  background: ${colors.white};
   font-size: 16px;
   color: ${colors.text};
 
@@ -105,7 +105,7 @@ export const DoneCheck = styled.span`
   height: 20px;
   border-radius: 50%;
   background: #34ce76;
-  color: #fff;
+  color: ${colors.white};
 `
 
 export const DoneText = styled.span`

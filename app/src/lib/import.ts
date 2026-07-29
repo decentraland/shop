@@ -5,6 +5,7 @@ import { fetchTrade, postTrade } from '~/lib/api'
 import { cancelListing } from '~/lib/buy'
 import { manaWeiToCredits, readManaUsdRate } from '~/lib/mana-rate'
 import { createPrimaryUsdPeggedListing, createUsdPeggedListing, ensureApproval, ensureMinter } from '~/lib/trades'
+import { getIsSecondarySalesEnabled } from '~/lib/featureFlags'
 
 // "Import your listings": bring a seller's OLD classic (MANA-priced) listings into the Shop as
 // credit-buyable. The server returns the raw price; we convert MANA→credits here via the oracle
@@ -107,6 +108,18 @@ export async function importListing(
   const usdPrice = priceCredits / 10 // credits → USD (1 credit = $0.10)
   const chainId = item.chainId
   const network = item.network as Network
+
+  // Belt and braces: the page hides the secondary section while resales are off, so this should be
+  // unreachable — but this is the function that SIGNS, and a listing signed here is indistinguishable
+  // from one signed by the Sell flow. Refusing at the last step means a future entry point cannot
+  // recreate resales by accident.
+  //
+  // BEFORE the cancel below, deliberately. The cancel is the one irreversible step in here: refusing
+  // after it would take the seller's live listing down and put nothing back, leaving them unlisted for a
+  // reason they never asked about.
+  if (item.listingType === 'secondary' && !(await getIsSecondarySalesEnabled())) {
+    throw new Error('The Shop does not offer secondary sales; this listing cannot be migrated.')
+  }
 
   // Take the old MANA listing down first — otherwise POST /v1/trades 409s ("already an open order
   // for this NFT"). Best-effort: if the trade can't be fetched it's already gone, so skip the cancel.

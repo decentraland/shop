@@ -120,7 +120,7 @@ export const List = styled.div`
   display: flex;
   flex-direction: column;
   padding: 24px;
-  background: #fff;
+  background: ${colors.white};
   border: 1px solid ${colors.gray4};
   border-radius: 16px;
 `

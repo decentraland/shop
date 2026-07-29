@@ -11,7 +11,7 @@ export const Pop = styled.div`
   top: calc(100% + 8px);
   left: 0;
   z-index: 36;
-  background: #fff;
+  background: ${colors.white};
   border: 1px solid ${colors.line};
   border-radius: 12px;
   box-shadow: 0 12px 32px rgba(22, 21, 24, 0.12);

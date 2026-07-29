@@ -248,7 +248,7 @@ export const EmptyCta = styled(Link)`
   padding: 0 20px;
   border-radius: 8px;
   background: ${theme.colors.accent};
-  color: #fff;
+  color: ${theme.colors.white};
   font-family: ${theme.font.sans};
   font-size: 14px;
   font-weight: 600;

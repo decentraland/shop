@@ -141,7 +141,7 @@ export const Preview = styled.div`
     margin: 0;
     text-align: center;
     background: rgba(22, 21, 24, 0.78);
-    color: #fff;
+    color: ${colors.white};
     font-size: 12px;
     font-weight: 500;
     padding: 6px 12px;
@@ -189,7 +189,7 @@ export const Preview = styled.div`
       box-shadow: 0 1px 4px rgba(22, 21, 24, 0.18);
     }
     & > [data-fav-preview]:hover {
-      background: #fff;
+      background: ${colors.white};
     }
   }
 `
@@ -403,7 +403,7 @@ export const DetailCollection = styled(CollectionBadge)`
 
 export const Divider = styled.hr`
   border: 0;
-  border-top: 1px solid #cfcdd4;
+  border-top: 1px solid ${colors.gray4};
   margin: 24px 0 0;
   width: 100%;
 
@@ -546,7 +546,7 @@ export const SaleBadge = styled.span`
   display: inline-flex;
   align-items: center;
   background: ${colors.dclRed};
-  color: #fff;
+  color: ${colors.white};
   font-weight: 800;
   font-size: 13px;
   letter-spacing: 0.03em;
