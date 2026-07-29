@@ -29,10 +29,21 @@ export const Subnav = styled.div`
   }
 `
 
+// The tab strip is the row's FLEXIBLE part. Its links are nowrap, so without min-width: 0 its
+// min-content width (~612px) is rigid: the sub-nav then squeezes the search field to nothing and, once
+// even that runs out, pushes the whole page into horizontal overflow. Letting the strip shrink and
+// scroll instead keeps the search usable and the page at viewport width at every size.
 export const Tabs = styled.nav`
   display: flex;
   gap: 40px;
   height: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
 
   & a {
     display: flex;
@@ -59,12 +70,7 @@ export const Tabs = styled.nav`
     flex: 1 0 100%;
     height: auto;
     gap: 16px;
-    overflow-x: auto;
-    scrollbar-width: none;
 
-    &::-webkit-scrollbar {
-      display: none;
-    }
     & a {
       height: auto;
       font-size: 12px;
@@ -79,7 +85,12 @@ export const Tabs = styled.nav`
 export const Search = styled.div`
   position: relative;
   margin-left: auto;
-  flex: 0 1 496px;
+  /* 240px of field is the FLOOR (flex-shrink: 0 makes the basis hard), growing into whatever slack the
+     row has left up to the 496px design width. The field used to be plain flexible, so the other items
+     shrank it with the window until only the magnifier was left — visually a search "icon", but not a
+     control that opens anything, so the search was simply gone. The tab strip yields instead. */
+  flex: 1 0 240px;
+  max-width: 496px;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -103,7 +114,9 @@ export const Search = styled.div`
 
   ${mobile} {
     order: 5;
+    /* Own row here — full width, so the desktop cap must not hold it back. */
     flex: 1 0 100%;
+    max-width: none;
     margin-left: 0;
     height: 34px;
 
@@ -119,6 +132,9 @@ export const SearchClear = styled.button`
   width: 20px;
   height: 20px;
   flex: 0 0 auto;
+  /* The UA button padding (1px 6px) leaves an 8px content box — narrower than the 14px glyph, which
+     then start-aligns instead of centering and sits 3px right of the round hover fill. */
+  padding: 0;
   border: 0;
   border-radius: 50%;
   background: rgba(0, 0, 0, 0.08);

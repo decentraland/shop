@@ -148,4 +148,66 @@ describe('search bar', () => {
     const value = await page.$eval(SEARCH, el => (el as HTMLInputElement).value)
     expect(value).toBe('')
   })
+
+  // The sub-nav's other items (tab strip + balance/credits/cart) used to squeeze the field down to the
+  // bare magnifier well above the mobile breakpoint — 94px of input at 1280, 14px at 1200 — and then
+  // pushed the page into horizontal overflow. The tab strip yields (and scrolls) instead now.
+  it('keeps the field usable, and the page unscrolled sideways, as the window narrows', async () => {
+    app = await launchApp({ path: '/assets' })
+    const { page } = app
+    await page.waitForSelector(SEARCH)
+
+    for (const width of [1512, 1280, 1024, 900, 800]) {
+      await page.setViewport({ width, height: 860 })
+      const m = await page.evaluate(() => {
+        const input = document.querySelector('input[aria-label="Search the shop"]') as HTMLElement
+        const doc = document.documentElement
+        return {
+          input: input.getBoundingClientRect().width,
+          overflow: doc.scrollWidth > doc.clientWidth + 1
+        }
+      })
+      // Wide enough to read a query back, not just an icon.
+      expect(m.input, `input width at ${width}px`).toBeGreaterThan(120)
+      expect(m.overflow, `horizontal page overflow at ${width}px`).toBe(false)
+    }
+  })
+
+  it('leaves the tab strip at full width on a desktop window, yielding only once space runs out', async () => {
+    app = await launchApp({ path: '/assets' })
+    const { page } = app
+    await page.waitForSelector(SEARCH)
+    const tabsClipped = async () =>
+      page.evaluate(() => {
+        const nav = document
+          .querySelector('input[aria-label="Search the shop"]')!
+          .closest('div')!
+          .parentElement!.querySelector('nav')!
+        return nav.scrollWidth > nav.clientWidth + 1
+      })
+
+    // The search field takes the slack it can get here, so no tab label is cut.
+    await page.setViewport({ width: 1440, height: 860 })
+    expect(await tabsClipped()).toBe(false)
+    // Past its floor there is nothing left to give, so the strip starts scrolling instead.
+    await page.setViewport({ width: 1024, height: 860 })
+    expect(await tabsClipped()).toBe(true)
+  })
+
+  it('centres the clear button glyph inside its round hover fill', async () => {
+    app = await launchApp({ path: '/assets?q=Nebula' })
+    const { page } = app
+    await page.waitForSelector('[data-testid="subnav-search-clear"]')
+
+    // The UA button padding left an 8px content box, so the 14px glyph start-aligned 3px off-centre.
+    const delta = await page.evaluate(() => {
+      const btn = document.querySelector('[data-testid="subnav-search-clear"]') as HTMLElement
+      const ico = btn.querySelector('span.ico') as HTMLElement
+      const b = btn.getBoundingClientRect()
+      const i = ico.getBoundingClientRect()
+      return { x: i.x + i.width / 2 - (b.x + b.width / 2), y: i.y + i.height / 2 - (b.y + b.height / 2) }
+    })
+    expect(Math.abs(delta.x)).toBeLessThanOrEqual(0.5)
+    expect(Math.abs(delta.y)).toBeLessThanOrEqual(0.5)
+  })
 })
