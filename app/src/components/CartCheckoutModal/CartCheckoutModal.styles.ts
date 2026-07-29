@@ -26,6 +26,11 @@ export const Scroll = styled.div`
   display: flex;
   flex-direction: column;
   gap: 8px;
+  /* The list is the modal's elastic region: inside a viewport-capped card it gives up height first, so
+     the pack picker, total and Cancel/Buy below it stay on screen without scrolling. The floor is an
+     explicit ~one row because a scroll container's automatic minimum size is zero — it would otherwise
+     collapse to nothing on a short screen. */
+  min-height: 120px;
   max-height: 360px;
   overflow-y: auto;
   width: 100%;

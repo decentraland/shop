@@ -11,12 +11,15 @@ const { colors, gradients, radius, z } = theme
 
 // Above the global DCL navbar (position: fixed, high z-index) so the scrim dims the FULL viewport,
 // navbar included. Matches the cart drawer / popover "above everything" tier.
+// Flex + `margin: auto` on the card (rather than grid centering) so that a card taller than the
+// viewport stays reachable: centered grid/flex alignment overflows equally in both directions and puts
+// the top of the card above the scroll origin, where no scrolling can bring it back.
 export const Modal = styled.div`
   position: fixed;
   inset: 0;
   z-index: ${z.overlay};
-  display: grid;
-  place-items: center;
+  display: flex;
+  overflow-y: auto;
   padding: 20px;
 `
 
@@ -30,12 +33,17 @@ export const Scrim = styled.div`
 export const Card = styled.div`
   position: relative;
   z-index: 1;
+  margin: auto;
   width: 100%;
   /* Wide enough to fit all 4 credit bundles comfortably in a single row (the credits-server returns 4;
      the Figma mock showed 3 at ~180px). The pack tiles flex to share this width. */
   max-width: 700px;
-  /* Grid-item auto-minimum can otherwise push the card past the viewport on a narrow screen. */
+  /* Flex-item auto-minimum can otherwise push the card past the viewport on a narrow screen. */
   min-width: 0;
+  /* Never taller than the viewport (100% of the padded overlay): the no-funds state stacks a warning, a
+     line list, 4 pack tiles, the total AND the Cancel/Buy pair, which overflows a laptop screen at 100%
+     zoom and used to take the CTAs off-screen with it. The body absorbs the difference. */
+  max-height: 100%;
   background: ${colors.white};
   border-radius: 16px;
   padding: 12px 16px 16px;
@@ -110,6 +118,11 @@ export const Body = styled.div`
   display: flex;
   flex-direction: column;
   gap: 24px;
+  /* Shrink inside a viewport-capped card instead of overflowing it. Anything with its own flexible
+     region (e.g. the cart's line list) gives up height first; this scroll is the last resort so the
+     CTAs are always reachable on a short screen. */
+  min-height: 0;
+  overflow-y: auto;
 
   /* Processing / loading states centre a single element in a taller body. */
   &[data-processing] {
@@ -281,9 +294,18 @@ export const TotalUsd = styled.span`
   color: ${colors.muted1};
 `
 
+// Pinned to the bottom of the (scrollable) body, so the primary action of a state that outgrows a short
+// viewport — no-funds stacks a warning, the asset, 4 pack tiles and the total above it — is never below
+// the fold. The white fill hides the content scrolling underneath; the negative margin cancels its
+// padding so the buttons keep their exact place in the states that don't scroll.
 export const Ctas = styled.div`
+  position: sticky;
+  bottom: 0;
   display: flex;
   gap: 12px;
+  margin-top: -8px;
+  padding-top: 8px;
+  background: ${colors.white};
 `
 
 export const Btn = styled.button`

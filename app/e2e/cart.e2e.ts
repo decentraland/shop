@@ -91,6 +91,25 @@ describe('cart checkout', () => {
     await waitForText(page, 'Buy Credits and Items')
     await waitForText(page, 'Insufficient Funds')
 
+    // The card must stay inside the viewport with its CTAs on screen. It used to grow past a laptop
+    // screen at 100% zoom and, being centred in a fixed overlay, put Cancel/Buy out of reach entirely.
+    await page.setViewport({ width: 1512, height: 620 })
+    const fit = await page.evaluate(() => {
+      const warn = document.querySelector('[data-testid="nofunds-warning"]')!
+      let card = warn as HTMLElement
+      while (card.parentElement && getComputedStyle(card.parentElement).position !== 'fixed') {
+        card = card.parentElement
+      }
+      const c = card.getBoundingClientRect()
+      const buy = [...document.querySelectorAll('button')].find(b => /^buy$/i.test((b.textContent || '').trim()))!
+      const b = buy.getBoundingClientRect()
+      return { cardTop: c.top, cardBottom: c.bottom, buyTop: b.top, buyBottom: b.bottom, viewport: window.innerHeight }
+    })
+    expect(fit.cardTop).toBeGreaterThanOrEqual(0)
+    expect(fit.cardBottom).toBeLessThanOrEqual(fit.viewport)
+    expect(fit.buyTop).toBeGreaterThanOrEqual(0)
+    expect(fit.buyBottom).toBeLessThanOrEqual(fit.viewport)
+
     // Never navigated to /success — nothing was purchased.
     expect(await page.evaluate(() => window.location.pathname)).toBe('/cart')
   })
