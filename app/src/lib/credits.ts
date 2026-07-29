@@ -141,7 +141,7 @@ export async function fetchUserPurchases(
  * downstream: none of them could ever match, so dead orders were never filtered out of the Activity feed
  * and every row rendered as "Completed". The compiler cannot catch that — the type IS the lie.
  */
-export type CreditOrderStatus = 'processing' | 'crediting' | 'credited' | 'failed'
+export type CreditOrderStatus = 'processing' | 'crediting' | 'credited' | 'failed' | 'abandoned'
 
 export type CreditOrder = {
   id: string
@@ -157,7 +157,10 @@ export type CreditOrder = {
  */
 export function creditOrderPill(status: CreditOrderStatus): 'SETTLED' | 'PENDING' | 'FAILED' {
   if (status === 'credited') return 'SETTLED'
-  if (status === 'failed') return 'FAILED'
+  // 'abandoned' is a checkout that was opened and never paid, retired by the server on a timer. The
+  // Activity feed drops it entirely, so this is only reached if some other surface renders such an order
+  // directly. 'FAILED' is the honest bucket of the three: terminal, and no credits were ever granted.
+  if (status === 'failed' || status === 'abandoned') return 'FAILED'
   // 'processing' (checkout opened, possibly abandoned) and 'crediting' (paid, grant in flight) are both
   // "not money in the balance yet", which is all the pill needs to say.
   return 'PENDING'
