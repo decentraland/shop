@@ -20,7 +20,6 @@ export * from '~/lib/mana-convert'
 // checkout by the credits-server authorize call (which sizes MANA at its own oracle read and signs a
 // fixed maxCreditedValue) — see MarketCheckout (opened from the unified browse).
 
-
 // ethers v5 `Contract` returns `any` for dynamically-named ABI methods; narrow to the aggregator's
 // fragments so the round-data tuple reads below stay type-checked.
 type OracleReaderContract = ethers.Contract & {

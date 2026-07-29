@@ -29,24 +29,28 @@ describe('browse the shop', () => {
     expect(smartChips).toEqual(['SMART'])
   })
 
-  it('renders BOTH native (Add to cart) and legacy (≈ + Buy now) cards in the one unified grid', async () => {
+  it('renders native and legacy cards identically in the one unified grid', async () => {
+    // The buyer must not be able to tell the two apart. A legacy (MANA-priced) row used to render an "≈"
+    // price, a "Market price" chip and Buy now instead of Add to cart, because the cart could not price a
+    // MANA-denominated trade. It can now, so both sources get the same treatment.
     app = await launchApp({ path: '/assets' })
     const { page } = app
 
     // Both a native (Galaxy Hat, fixed price) and a legacy (Retro Cap) card are present.
     await waitForText(page, 'Galaxy Hat')
     await waitForText(page, 'Retro Cap')
-    // Legacy card shows the fluctuating INDICATIVE price (leading ≈) + a "Market price" chip.
-    await waitForText(page, 'Market price')
-    expect(await page.evaluate(() => document.body.innerText.includes('≈'))).toBe(true)
 
-    // Each source drives its own action button (revealed on hover, so read textContent not innerText):
-    // native → Add to cart, legacy → Buy now.
+    // No approximation mark and no market chip anywhere in the grid.
+    expect(await page.evaluate(() => document.body.innerText.includes('≈'))).toBe(false)
+    expect(await page.evaluate(() => document.body.innerText.toLowerCase().includes('market price'))).toBe(false)
+
+    // Every card offers the same action (revealed on hover, so read textContent not innerText).
     const labels = await page.evaluate(() =>
       [...document.querySelectorAll('[data-testid="card-cart"]')].map(b => (b.textContent || '').trim().toLowerCase())
     )
-    expect(labels.some(l => l.includes('add to cart'))).toBe(true)
-    expect(labels.some(l => l.includes('buy now'))).toBe(true)
+    expect(labels.length).toBeGreaterThan(1)
+    expect(labels.every(l => l.includes('add to cart'))).toBe(true)
+    expect(labels.some(l => l.includes('buy now'))).toBe(false)
   })
 
   it('shows a "N on sale" badge on an item with multiple listings', async () => {

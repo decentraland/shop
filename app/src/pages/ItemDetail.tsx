@@ -111,6 +111,13 @@ export function ItemDetail() {
 
   // Market (legacy/MANA) mode is decided entirely by the router state the grid passes — there's no
   // authoritative shop-listing to fall back to (legacy items aren't in the USD-pegged feed).
+  // DEAD PATH, pending removal. Nothing produces this state any more: the browse card used to navigate
+  // with `{ market: true }` for a legacy (MANA-priced) row, and now that the cart can price those, every
+  // card navigates with the plain `{ item, tradeId }` shape. So `isMarket` is always false and everything
+  // it gates below — the "≈" price, MarketCheckout, the never-Add-to-cart branch — is unreachable. Left in
+  // place deliberately rather than ripped out in the same change as the rewiring: it threads through the
+  // CTA branch and deserves its own diff. ResellersModal still opens MarketCheckout directly (behind the
+  // secondary-sales flag), which is why that component survives.
   const isMarket = !!state?.market
   const marketPriceCredits = state?.marketPriceCredits ?? null
 
