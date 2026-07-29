@@ -155,59 +155,44 @@ function LocationProbe() {
   return <pre data-testid="loc-state">{JSON.stringify(loc.state)}</pre>
 }
 
-describe('AssetCard market (legacy) mode', () => {
-  it('shows the "≈" live-rate price + a Buy now button, with the Market price tag in the chips row (not the price row)', () => {
+describe('AssetCard legacy (MANA-priced) rows', () => {
+  // A legacy row used to render its own variant: an "≈" price, a "Market price" chip, and Buy now
+  // instead of Add to cart, because the cart could not price a MANA-denominated trade. It can now, so a
+  // legacy row is an ordinary card and the caller passes the live-rate price in `item.priceCredits`.
+  // These pin that the old treatment is gone — one catalogue, one price treatment.
+  it('renders as an ordinary card: no approximation mark, no market chip, Add to cart', () => {
     const { container } = render(
       <MemoryRouter>
-        <AssetCard item={makeItem()} mode="market" marketPriceCredits={123} onBuyNow={() => {}} />
+        <AssetCard item={makeItem({ priceCredits: 123 })} />
       </MemoryRouter>
     )
-    // Fluctuating price: leading "≈" + the converted credit value, on a single line.
-    const price = container.querySelector('[data-testid="card-price-market"]')
-    expect(price?.textContent).toContain('≈')
-    expect(price?.textContent).toContain('123')
-    // The Market price tag moved OUT of the price row (which is what cramped the button) and INTO the
-    // chips row.
-    expect(price?.querySelector('[data-testid="chip-market"]')).toBeNull()
-    expect(container.querySelector('[data-testid="chip-market"]')?.textContent).toMatch(/market price/i)
-    // The action is Buy now (not Add to cart), same card element/metrics as a native card.
-    expect(container.querySelector('[data-testid="card-cart"]')?.textContent).toMatch(/buy now/i)
+
+    expect(container.querySelector('[data-testid="card-price-market"]')).toBeNull()
+    expect(container.querySelector('[data-testid="chip-market"]')).toBeNull()
+    expect(container.textContent).not.toContain('≈')
+    // A plain (non-flash-sale) price has no testid of its own; assert the value reaches the card.
+    expect(container.textContent).toContain('123')
+    expect(container.querySelector('[data-testid="card-cart"]')?.textContent).toMatch(/add to cart/i)
   })
 
-  it('disables Buy now when the live rate is unavailable (null price)', () => {
-    const { container } = render(
-      <MemoryRouter>
-        <AssetCard item={makeItem()} mode="market" marketPriceCredits={null} onBuyNow={() => {}} />
-      </MemoryRouter>
-    )
-    expect((container.querySelector('[data-testid="card-cart"]') as HTMLButtonElement).disabled).toBe(true)
-    expect(container.querySelector('[data-testid="card-price-market"]')?.textContent).toContain('—')
-  })
-
-  it('opens the detail page in market mode when the card body is clicked, passing { item, market, marketPriceCredits } state', () => {
-    const item = makeItem({ contractAddress: '0xc', itemId: '1' })
+  it('opens the detail page with the plain { item, tradeId } state, not a market state', () => {
+    const item = makeItem({ contractAddress: '0xc', itemId: '1', tradeId: 'trade-1' })
     const { container } = render(
       <MemoryRouter initialEntries={['/assets']}>
         <Routes>
-          <Route
-            path="/assets"
-            element={<AssetCard item={item} mode="market" marketPriceCredits={123} onBuyNow={() => {}} />}
-          />
+          <Route path="/assets" element={<AssetCard item={item} />} />
           <Route path="/item/:contractAddress/:seg" element={<LocationProbe />} />
         </Routes>
       </MemoryRouter>
     )
-    const link = container.querySelector('[data-testid="card-link"]') as HTMLAnchorElement
-    expect(link).toBeTruthy()
-    expect(link.getAttribute('href')).toBe('/item/0xc/1')
 
+    const link = container.querySelector('[data-testid="card-link"]') as HTMLAnchorElement
     fireEvent.click(link)
 
-    // Navigated to the detail route, with EXACTLY the state shape the PDP's market mode reads.
-    const state = JSON.parse(screen.getByTestId('loc-state').textContent || '{}')
-    expect(state.market).toBe(true)
-    expect(state.marketPriceCredits).toBe(123)
-    expect(state.item?.id).toBe(item.id)
+    const state = JSON.parse(screen.getByTestId('loc-state').textContent as string)
+    expect(state.tradeId).toBe('trade-1')
+    expect(state.market).toBeUndefined()
+    expect(state.marketPriceCredits).toBeUndefined()
   })
 })
 

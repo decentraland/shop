@@ -2,13 +2,16 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CircularProgress } from 'decentraland-ui2'
 import { useQueryClient } from '@tanstack/react-query'
-import type { Trade } from '@dcl/schemas'
+import { TradeAssetType, type Trade } from '@dcl/schemas'
 import { useWallet } from '~/store/wallet'
 import { useBalance } from '~/hooks/useBalance'
 import { useManaBalance } from '~/hooks/useManaBalance'
-import { resolveLiveTrade, usdWeiToCents, type CatalogItem } from '~/lib/api'
+import { resolveLiveTrade, type CatalogItem } from '~/lib/api'
 import { formatCredits, usdCentsToCredits } from '~/lib/currency'
 import { readTradeManaPriceWei } from '~/lib/mana'
+import { lineUsdCents } from '~/lib/cart-checkout'
+import { readManaUsdRate, type ManaRate } from '~/lib/mana-rate'
+import { config } from '~/config'
 import { PaymentMethodStep } from '~/components/PaymentMethodStep'
 import { PaymentCtas } from '~/components/PaymentCtas'
 import { invalidateAfterPurchase } from '~/lib/after-purchase'
@@ -71,6 +74,30 @@ export function BuyModal({
   const { data: manaBalanceWei } = useManaBalance(session)
   const qc = useQueryClient()
   const navigate = useNavigate()
+
+  /**
+   * The MANA/USD rate, but only for a LEGACY trade — a native (USD-pegged) one prices from its own amount
+   * and needs no oracle at all. Awaited through the react-query cache, so it is the same read the grid
+   * already made rather than a second oracle round-trip. An unreachable/stale oracle resolves to undefined,
+   * which makes lineUsdCents return 0 and surfaces as "price unavailable" instead of a guessed price.
+   *
+   * Cart.tsx has a same-named function with a DIFFERENT signature: parameterless, because a mixed basket
+   * needs the rate resolved before it can tell whether any line requires it. This one takes the trade and
+   * can skip the read outright. Don't copy one into the other's place — they answer different questions.
+   */
+  async function ensureManaRate(trade: Trade): Promise<ManaRate | undefined> {
+    const priceAsset = trade.received?.[0] as { assetType?: number } | undefined
+    if (priceAsset?.assetType === Number(TradeAssetType.USD_PEGGED_MANA)) return undefined
+    try {
+      return await qc.fetchQuery({
+        queryKey: ['mana-rate', config.chainId],
+        queryFn: () => readManaUsdRate(config.chainId),
+        staleTime: 60_000
+      })
+    } catch {
+      return undefined
+    }
+  }
   // The top-up packs offered when the buyer is short on credits (all four the credits-server returns —
   // the modal is widened to fit them in one row, Figma 1179-182656). Sourced from the credits-server
   // catalogue (single source of truth); falls back to the bundled packs so this critical picker always
@@ -128,7 +155,12 @@ export function BuyModal({
         const trade = await resolveLiveTrade(item)
         if (!trade) throw new Error('not for sale')
         if (isOwnTrade(trade, session.address)) throw new Error("You can't buy your own listing.")
-        const usdCents = usdWeiToCents((trade.received?.[0] as { amount?: string } | undefined)?.amount)
+        // A native trade prices from its own USD amount; a LEGACY (plain-ERC20) one is denominated in
+        // MANA and needs the oracle. The rate is AWAITED rather than read from a possibly-unresolved
+        // query — mirrors Cart.basketTotals, and deciding off a missing rate would report
+        // "price unavailable" for a perfectly buyable item on a slow oracle read. Resolves through the
+        // react-query cache, so it is the same read the grid already made.
+        const usdCents = lineUsdCents(trade, await ensureManaRate(trade))
         if (!Number.isFinite(usdCents) || usdCents <= 0) throw new Error('price unavailable')
         const credits = usdCentsToCredits(usdCents)
         if (cancelled) return

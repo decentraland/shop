@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { useQueryClient } from '@tanstack/react-query'
-import { fetchShopItems, type CatalogItem, type LegacyListing, type UnifiedListing } from '~/lib/api'
+import { fetchShopItems, type CatalogItem, type UnifiedListing } from '~/lib/api'
 import { useSecondarySales } from '~/hooks/useSecondarySales'
 import { fetchCatalogItems } from '~/lib/collections'
 import { manaWeiToCredits } from '~/lib/mana-rate'
@@ -12,8 +11,6 @@ import { FilterBar, type FilterChip, RARITIES, SORTS } from '~/components/Filter
 import { SkeletonCards } from '~/components/SkeletonCards'
 import { listingKey } from '~/lib/listingKey'
 import { LoadMore } from '~/components/LoadMore'
-import { MarketCheckout } from '~/components/MarketCheckout'
-import { useWallet } from '~/store/wallet'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
 import { useSeo } from '~/hooks/useSeo'
 import { SUBCAT_MAP } from '~/lib/categories'
@@ -29,39 +26,10 @@ import * as S from './Assets.styles'
 // Items fetched per page (infinite scroll pages by cumulative offset — see useInfiniteGrid).
 const PAGE_SIZE = 48
 
-// A legacy row from the unified feed → the LegacyListing shape MarketCheckout (Buy Now) expects. The
-// unified item is a superset of CatalogItem carrying `manaWei` (present for legacy), so the projection
-// is light — `available`/`createdAt` aren't used by the checkout money flow.
-function toLegacyListing(item: UnifiedListing): LegacyListing {
-  return {
-    tradeId: item.tradeId ?? item.id,
-    // Legacy items in the unified feed are always primary listings (the feed's legacy branch is
-    // primary-only), so this is accurate, not a placeholder.
-    listingType: 'primary',
-    contractAddress: item.contractAddress,
-    itemId: item.itemId ?? '',
-    name: item.name,
-    thumbnail: item.thumbnail,
-    rarity: item.rarity,
-    category: item.category,
-    wearableCategory: item.wearableCategory ?? null,
-    creator: item.creator,
-    // openCheckout only calls this for a legacy item with a truthy manaWei, so the `'0'` fallback is
-    // never really hit — it just satisfies the string type (and MarketCheckout rejects usdCents <= 0).
-    manaWei: item.manaWei ?? '0',
-    available: 1,
-    network: item.network,
-    chainId: item.chainId,
-    createdAt: 0
-  }
-}
-
 export function Assets() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const q = (searchParams.get('q') ?? '').trim().toLowerCase()
-  const qc = useQueryClient()
-  const { session, signIn } = useWallet()
 
   // Collectibles grid SEO. Fold the (case-preserved) search term into the title when present; the
   // description stays generic. Canonical/og:url naturally drop the ?q= (the hook uses the pathname),
@@ -81,7 +49,6 @@ export function Assets() {
   const [smart, setSmart] = useState(false)
   const [sort, setSort] = useState('newest')
   const [filtersOpen, setFiltersOpen] = useState(false) // mobile filters drawer
-  const [checkout, setCheckout] = useState<LegacyListing | null>(null)
 
   // Close the mobile filters drawer on Escape (it already closes on scrim tap / ✕) and lock body
   // scroll while it's open so the page behind the bottom sheet can't scroll (only the sheet does).
@@ -219,21 +186,6 @@ export function Assets() {
     setStatus('on_sale')
     setSmart(false)
   }
-  function openCheckout(card: CatalogItem) {
-    const item = items.find(i => i.id === card.id) as UnifiedListing | undefined
-    if (!item || item.source !== 'legacy' || !item.manaWei) return
-    // Signed out → into sign-in (returns to this browse page) rather than opening a checkout that can
-    // only dead-end. Legacy grid selection isn't restorable across the redirect, so no auto-resume —
-    // they land back here signed in and can buy in one click.
-    if (!session) {
-      signIn()
-      return
-    }
-    setCheckout(toLegacyListing(item))
-  }
-  function refreshGrid() {
-    void qc.invalidateQueries({ queryKey: ['shop-items'] })
-  }
 
   // Applied-filter chips (Figma top-bar 1304-310186 / desktop 1256-293193): price, each selected
   // rarity (in canonical order), Smart, and a non-default Status. Each removes just its own filter.
@@ -362,18 +314,21 @@ export function Assets() {
                       {items.map(item => {
                         // View-only grids ('all' / 'not_for_sale'): every card is a VIEW card (no inline trade).
                         if (!isUnified) return <AssetCard key={listingKey(item)} item={item} mode="view" />
-                        // On-sale unified grid: legacy rows → market (≈ + Buy now), native → Add-to-cart.
+                        // On-sale unified grid. Legacy and native rows render IDENTICALLY — same price
+                        // treatment, same Add to cart. The split below is only about where the price comes
+                        // from, not about offering a different purchase path.
                         const unified = item as UnifiedListing
-                        return unified.source === 'legacy' ? (
-                          <AssetCard
-                            key={listingKey(item)}
-                            item={unified}
-                            mode="market"
-                            marketPriceCredits={priceOf(unified)}
-                            onBuyNow={openCheckout}
-                          />
+                        if (unified.source !== 'legacy') return <AssetCard key={listingKey(item)} item={item} />
+                        // A legacy row is an ordinary card: same price treatment, same Add to cart. What it
+                        // carries is the LIVE-rate price, not the server's snapshot, since that is what
+                        // checkout will authorize. With no rate we cannot price it at all — render it as a
+                        // view card rather than invite a purchase at a stale number (the banner above
+                        // already explains why).
+                        const livePrice = priceOf(unified)
+                        return livePrice == null ? (
+                          <AssetCard key={listingKey(item)} item={item} mode="view" />
                         ) : (
-                          <AssetCard key={listingKey(item)} item={item} />
+                          <AssetCard key={listingKey(item)} item={{ ...unified, priceCredits: livePrice }} />
                         )
                       })}
                       {isFetchingNextPage ? <SkeletonCards count={6} /> : null}
@@ -391,18 +346,6 @@ export function Assets() {
           </>
         )}
       </S.Main>
-
-      {checkout && rate ? (
-        <MarketCheckout
-          listing={checkout}
-          rate={rate}
-          onClose={() => setCheckout(null)}
-          onSold={() => {
-            setCheckout(null)
-            refreshGrid()
-          }}
-        />
-      ) : null}
     </S.Root>
   )
 }

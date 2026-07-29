@@ -1,6 +1,7 @@
-import type { Trade } from '@dcl/schemas'
+import { TradeAssetType, type Trade } from '@dcl/schemas'
 import { usdWeiToCents, type CatalogItem } from '~/lib/api'
 import { usdCentsToCredits } from '~/lib/currency'
+import { manaWeiToUsdCents, type ManaRate } from '~/lib/mana-convert'
 import { isOwnTrade } from '~/lib/ownership'
 
 // Cart checkout review: resolve every cart item's LIVE listing before charging, so the buyer is never
@@ -43,6 +44,43 @@ export function centsToCredits(usdCents: number): number {
 }
 
 /**
+ * What a line costs in USD cents, read from the LIVE trade.
+ *
+ * The two kinds of listing in the catalogue denominate that amount differently, and the trade itself is
+ * what says which — not the cart item:
+ *
+ *   - `USD_PEGGED_MANA` — a Shop-native listing. The amount already IS USD wei, so it converts directly.
+ *   - `ERC20` — a legacy listing signed by the older Marketplace, priced in MANA. The amount is MANA wei
+ *     and only the oracle can say what it is worth, so it needs the live rate.
+ *
+ * Reading `usdWeiToCents` on a legacy amount does not return a slightly-wrong number — it returns a
+ * meaningless one (MANA wei interpreted as USD wei, off by the MANA price), which is why this has to
+ * branch rather than being one conversion. Returns 0 when it cannot price the line honestly (no rate for
+ * a legacy trade, a malformed amount); the caller treats 0 as "not a real live listing".
+ */
+export function lineUsdCents(trade: Trade, rate?: ManaRate): number {
+  const priceAsset = trade.received[0] as { assetType?: number; amount?: string } | undefined
+  if (!priceAsset) return 0
+
+  if (priceAsset.assetType === Number(TradeAssetType.USD_PEGGED_MANA)) {
+    return usdWeiToCents(priceAsset.amount)
+  }
+
+  // Legacy: MANA-denominated. Matched EXPLICITLY rather than reached by falling through, so pricing fails
+  // closed. A fall-through would feed any future asset type — or an absent field after an API regression —
+  // through the MANA oracle path and quietly price it as MANA. Zero is the safe answer here because callers
+  // already treat a non-positive price as "not a real live listing" and route the item to `unavailable`
+  // rather than showing it as free.
+  if (priceAsset.assetType === Number(TradeAssetType.ERC20)) {
+    // Without a rate we cannot price it, and guessing is worse than deferring.
+    if (!rate || !priceAsset.amount) return 0
+    return manaWeiToUsdCents(priceAsset.amount, rate)
+  }
+
+  return 0
+}
+
+/**
  * Resolve + classify every cart item against its live listing. Never throws for a single bad row: a
  * failed/absent resolution becomes `unavailable`, the buyer's own listing becomes `own`, and the rest
  * are `buyable` with their live price. Resolved SEQUENTIALLY to keep behaviour deterministic and avoid
@@ -51,7 +89,13 @@ export function centsToCredits(usdCents: number): number {
 export async function reviewCart(
   items: Array<CatalogItem & { quantity?: number }>,
   buyerAddress: string,
-  resolve: TradeResolver
+  resolve: TradeResolver,
+  /**
+   * Live MANA/USD rate, needed ONLY to price legacy (plain-ERC20, MANA-denominated) lines — see
+   * `lineUsdCents`. Omit it and legacy lines resolve as `unavailable` rather than being priced off a
+   * missing rate: showing "no longer available" is recoverable, charging the wrong amount is not.
+   */
+  rate?: ManaRate
 ): Promise<CartReview> {
   const buyable: ResolvedLine[] = []
   const unavailable: CatalogItem[] = []
@@ -71,7 +115,7 @@ export async function reviewCart(
         own.push(item)
         continue
       }
-      const usdCents = usdWeiToCents((trade.received[0] as { amount?: string } | undefined)?.amount)
+      const usdCents = lineUsdCents(trade, rate)
       // A zero/NaN price (empty received, missing/bad amount) is not a real live listing — never let it
       // enter the basket priced at 0, which would authorize a $0 credit and revert on-chain.
       if (!Number.isFinite(usdCents) || usdCents <= 0) {

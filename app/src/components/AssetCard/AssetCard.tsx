@@ -21,10 +21,10 @@ const HOVER_DELAY_MS = 120
 
 // Card variants:
 // - default (native, USD-pegged): fixed credit price + Add to cart.
-// - 'market' (legacy, MANA-priced): the credit price FLUCTUATES with the market rate, so it renders
-//   an "≈" indicative price + a "Market price" chip and swaps Add-to-cart for Buy now (direct
-//   checkout — legacy items are never added to the Zustand cart). `marketPriceCredits` is the
-//   converted (rounded-up) price and `onBuyNow` opens the Buy Now checkout.
+// A LEGACY (MANA-priced) row used to get its own 'market' variant here: an "≈" price, a "Market price"
+// chip and Buy now instead of Add to cart, because the cart could not price it. The cart can now, so a
+// legacy row is an ordinary card — the caller passes the live-rate price in `item.priceCredits`. One
+// catalogue, one price treatment, no approximation marks.
 // - 'view' (view-only browse — the "All" / "Not for Sale" grids): NO trade happens inline, so the
 //   card drops Add-to-cart/Buy-now entirely. The footer shows the credit price when the item IS for
 //   sale (priceCredits > 0) or a small "NOT FOR SALE" tag when it isn't, plus a full-width dark VIEW
@@ -43,7 +43,6 @@ const HOVER_DELAY_MS = 120
 type AssetCardProps =
   | { item: CatalogItem; mode?: 'shop' }
   | { item: CatalogItem; mode: 'view' }
-  | { item: CatalogItem; mode: 'market'; marketPriceCredits: number | null; onBuyNow: (item: CatalogItem) => void }
   | {
       item: CatalogItem
       mode: 'manage'
@@ -56,7 +55,6 @@ type AssetCardProps =
 
 export function AssetCard(props: AssetCardProps) {
   const { item } = props
-  const isMarket = props.mode === 'market'
   const isView = props.mode === 'view'
   const isManage = props.mode === 'manage'
   const isManageLink = props.mode === 'manage-link'
@@ -139,7 +137,7 @@ export function AssetCard(props: AssetCardProps) {
     compareAtCredits: item.compareAtCredits,
     saleEndsAt: item.saleEndsAt
   })
-  const onSale = !isMarket && saleActive
+  const onSale = saleActive
   const discountPct = onSale ? saleDiscountPct(item.compareAtCredits!, item.priceCredits) : 0
 
   // The mint index of an owned copy (e.g. "#5013") — lets the owner tell otherwise-identical copies
@@ -196,14 +194,10 @@ export function AssetCard(props: AssetCardProps) {
         <S.CardLink
           data-testid="card-link"
           to={detailPath}
-          // Market cards open the detail page in "market mode": hand it the live-rate credit price and
-          // the market item (a UnifiedListing carrying manaWei) so it renders the ≈ price + Buy now
-          // without a refetch. Native cards pass their tradeId (the detail page resolves the fixed price).
-          state={
-            props.mode === 'market'
-              ? { item, market: true, marketPriceCredits: props.marketPriceCredits }
-              : { item, tradeId: item.tradeId }
-          }
+          // Every card hands the detail page the same thing now: the item and its tradeId. There is no
+          // longer a separate "market mode" for legacy listings — they are ordinary cart liquidity, priced
+          // the same way and bought through the same path.
+          state={{ item, tradeId: item.tradeId }}
           aria-label={item.name}
         />
       ) : null}
@@ -442,13 +436,7 @@ export function AssetCard(props: AssetCardProps) {
                 <S.CreatorEmpty>&nbsp;</S.CreatorEmpty>
               )}
             </S.Desc>
-            {isMarket && props.mode === 'market' ? (
-              <S.Price data-variant="market" data-testid="card-price-market">
-                <S.Approx aria-hidden>≈</S.Approx>
-                <CurrencyIcon size={15} />
-                {props.marketPriceCredits == null ? '—' : formatCredits(props.marketPriceCredits)}
-              </S.Price>
-            ) : onSale ? (
+            {onSale ? (
               <S.Price data-variant="sale">
                 <S.PriceNow data-testid="card-price-now" title={formatCreditsFull(item.priceCredits)}>
                   <CurrencyIcon size={15} />
@@ -472,16 +460,9 @@ export function AssetCard(props: AssetCardProps) {
               when the action is revealed on hover/focus — the button replaces the chips in place. Chips
               show at rest; on hover-capable devices the action reveals on hover or keyboard focus, and it's
               always shown where hover isn't available (touch). Both stay in the DOM so the action is
-              keyboard-reachable and touch-tappable. Native cards add to cart; market cards Buy now. */}
+              keyboard-reachable and touch-tappable. */}
           <S.Action>
             <S.Chips data-chips>
-              {/* Market (legacy) tag lives in the chips row (not the price row) so it's swapped out for the
-                  action button on hover like every other chip, never distorting the price / Buy now button. */}
-              {isMarket ? (
-                <S.CardChip data-variant="market" data-testid="chip-market">
-                  {t('assetCard.marketPrice')}
-                </S.CardChip>
-              ) : null}
               <S.CardChip
                 data-variant="rarity"
                 style={{ background: rarityTint(item.rarity), color: rarityInk(item.rarity) }}
@@ -509,58 +490,32 @@ export function AssetCard(props: AssetCardProps) {
 
             {/* Round add button — the compact mobile card's primary action (Figma). Same behavior as the
                 full-width Cart below; only one is visible per breakpoint. */}
-            {isMarket && props.mode === 'market' ? (
-              <S.AddRound
-                onClick={e => {
-                  e.stopPropagation()
-                  props.onBuyNow(item)
-                }}
-                disabled={props.marketPriceCredits == null}
-                aria-label={props.marketPriceCredits == null ? t('assetCard.unavailable') : t('assetCard.buyNow')}
-              >
-                <Icon name="plus" size={18} />
-              </S.AddRound>
-            ) : (
-              <S.AddRound
-                data-in={(!own && inCart) || undefined}
-                onClick={e => {
-                  if (own) return goManage(e)
-                  e.stopPropagation()
-                  add(item, 'grid')
-                }}
-                disabled={!own && inCart}
-                aria-label={own ? t('assetCard.manage') : inCart ? t('assetCard.inCart') : t('assetCard.addToCart')}
-              >
-                <Icon name={own ? 'pen' : 'plus'} size={18} />
-              </S.AddRound>
-            )}
+            <S.AddRound
+              data-in={(!own && inCart) || undefined}
+              onClick={e => {
+                if (own) return goManage(e)
+                e.stopPropagation()
+                add(item, 'grid')
+              }}
+              disabled={!own && inCart}
+              aria-label={own ? t('assetCard.manage') : inCart ? t('assetCard.inCart') : t('assetCard.addToCart')}
+            >
+              <Icon name={own ? 'pen' : 'plus'} size={18} />
+            </S.AddRound>
 
-            {isMarket && props.mode === 'market' ? (
-              <S.Cart
-                data-testid="card-cart"
-                onClick={e => {
-                  e.stopPropagation()
-                  props.onBuyNow(item)
-                }}
-                disabled={props.marketPriceCredits == null}
-              >
-                {props.marketPriceCredits == null ? t('assetCard.unavailable') : t('assetCard.buyNow')}
-              </S.Cart>
-            ) : (
-              <S.Cart
-                data-in={(!own && inCart) || undefined}
-                data-testid="card-cart"
-                onClick={e => {
-                  if (own) return goManage(e)
-                  e.stopPropagation()
-                  add(item, 'grid')
-                }}
-                disabled={!own && inCart}
-              >
-                <Icon name={own ? 'pen' : 'cart-solid'} />
-                {own ? t('assetCard.manage') : inCart ? t('assetCard.inCart') : t('assetCard.addToCart')}
-              </S.Cart>
-            )}
+            <S.Cart
+              data-in={(!own && inCart) || undefined}
+              data-testid="card-cart"
+              onClick={e => {
+                if (own) return goManage(e)
+                e.stopPropagation()
+                add(item, 'grid')
+              }}
+              disabled={!own && inCart}
+            >
+              <Icon name={own ? 'pen' : 'cart-solid'} />
+              {own ? t('assetCard.manage') : inCart ? t('assetCard.inCart') : t('assetCard.addToCart')}
+            </S.Cart>
           </S.Action>
         </S.Body>
       )}

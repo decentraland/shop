@@ -1,7 +1,11 @@
 import { ethers } from 'ethers'
 import { ContractName, getContract } from 'decentraland-transactions'
 import { config } from '~/config'
-import { USD_CENTS_PER_CREDIT } from '~/lib/currency'
+import type { ManaRate } from '~/lib/mana-convert'
+
+// The conversions live in lib/mana-convert (pure arithmetic, no chain imports) and are re-exported here so
+// every existing `from '~/lib/mana-rate'` import keeps working. See that module for why they are split.
+export * from '~/lib/mana-convert'
 
 // The live MANA→USD market rate + the MANA-wei→credits conversion used by the unified browse (Assets)
 // for its legacy (market-priced) cards.
@@ -16,8 +20,6 @@ import { USD_CENTS_PER_CREDIT } from '~/lib/currency'
 // checkout by the credits-server authorize call (which sizes MANA at its own oracle read and signs a
 // fixed maxCreditedValue) — see MarketCheckout (opened from the unified browse).
 
-export type ManaRate = { rate: bigint; decimals: number }
-
 // ethers v5 `Contract` returns `any` for dynamically-named ABI methods; narrow to the aggregator's
 // fragments so the round-data tuple reads below stay type-checked.
 type OracleReaderContract = ethers.Contract & {
@@ -27,11 +29,6 @@ type AggregatorContract = ethers.Contract & {
   decimals(): Promise<number>
   latestRoundData(): Promise<[ethers.BigNumber, ethers.BigNumber, ethers.BigNumber, ethers.BigNumber, ethers.BigNumber]>
 }
-
-// Derived from the peg rather than restating it: USD here is 18-decimal wei, so one cent is 1e16 and a
-// credit is USD_CENTS_PER_CREDIT of those. Today that is 1e17; if the peg ever moves, this follows.
-const USD_WEI_PER_CENT = 10n ** 16n
-const USD_WEI_PER_CREDIT = BigInt(USD_CENTS_PER_CREDIT) * USD_WEI_PER_CENT
 
 // Max age of the oracle round before we treat it as stale. The MANA/USD aggregator's heartbeat is on
 // the order of a day (~24h); we add a ~1h buffer over that so a slightly-fast client clock or a round
@@ -75,49 +72,4 @@ export async function readManaUsdRate(chainId: number = config.chainId): Promise
     throw new Error('mana rate stale')
   }
   return { rate, decimals: Number(decimals) }
-}
-
-// MANA wei (18 decimals) → USD wei (1e18 = $1) at the given rate: usdWei = manaWei * rate / 10^dec.
-export function manaWeiToUsdWei(manaWei: string, { rate, decimals }: ManaRate): bigint {
-  return (BigInt(manaWei) * rate) / 10n ** BigInt(decimals)
-}
-
-// USD cents → MANA wei at the given rate — the inverse of manaWeiToUsdCents, rounded UP so a quoted
-// MANA amount never sits BELOW the USD it has to cover. Used to price a whole cart in MANA (the
-// per-trade oracle read prices ONE trade; a basket is priced from its USD total at the same rate).
-export function usdCentsToManaWei(cents: number, { rate, decimals }: ManaRate): bigint {
-  if (!Number.isFinite(cents) || cents <= 0 || rate <= 0n) return 0n
-  const usdWei = BigInt(Math.ceil(cents)) * USD_WEI_PER_CENT
-  const num = usdWei * 10n ** BigInt(decimals)
-  return (num + rate - 1n) / rate // ceil
-}
-
-// MANA wei → credits (1 credit = $0.10), rounded UP so the shown price never sits BELOW what
-// checkout charges at the display rate, floored at 1 credit. Returns null on a malformed manaWei so
-// the UI can show "price unavailable" instead of a fake "1 credit". BigInt throughout (no float drift).
-export function manaWeiToCredits(manaWei: string, rate: ManaRate): number | null {
-  let usdWei: bigint
-  try {
-    usdWei = manaWeiToUsdWei(manaWei, rate)
-  } catch {
-    return null
-  }
-  const whole = usdWei / USD_WEI_PER_CREDIT
-  const credits = usdWei % USD_WEI_PER_CREDIT > 0n ? whole + 1n : whole
-  const n = Number(credits)
-  return n < 1 ? 1 : n
-}
-
-// MANA wei → USD cents, rounded UP. Used to size the credits-server authorize amount for a legacy
-// Buy Now (the server then locks MANA at its own oracle read + signs the fixed maxCreditedValue).
-export function manaWeiToUsdCents(manaWei: string, rate: ManaRate): number {
-  let usdWei: bigint
-  try {
-    usdWei = manaWeiToUsdWei(manaWei, rate)
-  } catch {
-    return 0
-  }
-  const whole = usdWei / USD_WEI_PER_CENT
-  const cents = usdWei % USD_WEI_PER_CENT > 0n ? whole + 1n : whole
-  return Number(cents)
 }

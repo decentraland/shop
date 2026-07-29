@@ -6,6 +6,7 @@ import { Toaster } from '~/components/Toaster'
 import { FittingRoom } from '~/components/FittingRoom'
 import { ShopFooter } from '~/components/ShopFooter'
 import { HoverPreviewLayer } from '~/components/HoverPreviewLayer'
+import { ScrollReset } from '~/components/ScrollReset'
 import { useAccountWatcher } from '~/hooks/useAccountWatcher'
 import { initAnalytics, trackPage } from '~/lib/analytics'
 import { Overview } from '~/pages/Overview'
@@ -97,6 +98,7 @@ export function App() {
 
   return (
     <>
+      <ScrollReset />
       <Toaster />
       <HoverPreviewLayer />
       <FittingRoom />
