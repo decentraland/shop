@@ -314,7 +314,9 @@ export function Assets() {
                       {items.map(item => {
                         // View-only grids ('all' / 'not_for_sale'): every card is a VIEW card (no inline trade).
                         if (!isUnified) return <AssetCard key={listingKey(item)} item={item} mode="view" />
-                        // On-sale unified grid: legacy rows → market (≈ + Buy now), native → Add-to-cart.
+                        // On-sale unified grid. Legacy and native rows render IDENTICALLY — same price
+                        // treatment, same Add to cart. The split below is only about where the price comes
+                        // from, not about offering a different purchase path.
                         const unified = item as UnifiedListing
                         if (unified.source !== 'legacy') return <AssetCard key={listingKey(item)} item={item} />
                         // A legacy row is an ordinary card: same price treatment, same Add to cart. What it

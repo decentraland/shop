@@ -80,6 +80,10 @@ export function BuyModal({
    * and needs no oracle at all. Awaited through the react-query cache, so it is the same read the grid
    * already made rather than a second oracle round-trip. An unreachable/stale oracle resolves to undefined,
    * which makes lineUsdCents return 0 and surfaces as "price unavailable" instead of a guessed price.
+   *
+   * Cart.tsx has a same-named function with a DIFFERENT signature: parameterless, because a mixed basket
+   * needs the rate resolved before it can tell whether any line requires it. This one takes the trade and
+   * can skip the read outright. Don't copy one into the other's place — they answer different questions.
    */
   async function ensureManaRate(trade: Trade): Promise<ManaRate | undefined> {
     const priceAsset = trade.received?.[0] as { assetType?: number } | undefined

@@ -194,9 +194,9 @@ export function AssetCard(props: AssetCardProps) {
         <S.CardLink
           data-testid="card-link"
           to={detailPath}
-          // Market cards open the detail page in "market mode": hand it the live-rate credit price and
-          // the market item (a UnifiedListing carrying manaWei) so it renders the ≈ price + Buy now
-          // without a refetch. Native cards pass their tradeId (the detail page resolves the fixed price).
+          // Every card hands the detail page the same thing now: the item and its tradeId. There is no
+          // longer a separate "market mode" for legacy listings — they are ordinary cart liquidity, priced
+          // the same way and bought through the same path.
           state={{ item, tradeId: item.tradeId }}
           aria-label={item.name}
         />

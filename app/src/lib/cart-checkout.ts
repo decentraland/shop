@@ -66,9 +66,18 @@ export function lineUsdCents(trade: Trade, rate?: ManaRate): number {
     return usdWeiToCents(priceAsset.amount)
   }
 
-  // Legacy: MANA-denominated. Without a rate we cannot price it, and guessing is worse than deferring.
-  if (!rate || !priceAsset.amount) return 0
-  return manaWeiToUsdCents(priceAsset.amount, rate)
+  // Legacy: MANA-denominated. Matched EXPLICITLY rather than reached by falling through, so pricing fails
+  // closed. A fall-through would feed any future asset type — or an absent field after an API regression —
+  // through the MANA oracle path and quietly price it as MANA. Zero is the safe answer here because callers
+  // already treat a non-positive price as "not a real live listing" and route the item to `unavailable`
+  // rather than showing it as free.
+  if (priceAsset.assetType === Number(TradeAssetType.ERC20)) {
+    // Without a rate we cannot price it, and guessing is worse than deferring.
+    if (!rate || !priceAsset.amount) return 0
+    return manaWeiToUsdCents(priceAsset.amount, rate)
+  }
+
+  return 0
 }
 
 /**

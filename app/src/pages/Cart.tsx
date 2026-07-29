@@ -455,6 +455,11 @@ export function Cart() {
   // yet. Shared by the MANA quote below and by reviewCart, which needs it to price LEGACY (MANA-priced)
   // lines. An unreachable/stale oracle resolves to undefined: no MANA rail, and legacy lines report as
   // unavailable rather than being priced off a rate we do not have.
+  //
+  // BuyModal has a same-named function with a DIFFERENT signature: it takes the trade and skips the oracle
+  // read entirely for a native (USD-pegged) one, because it prices a single line and already knows which.
+  // This one is parameterless because the cart holds a mixed basket and needs the rate before it can tell
+  // whether any line needs it. Don't copy one into the other's place — they answer different questions.
   async function ensureManaRate(): Promise<ManaRate | undefined> {
     if (manaRate) return manaRate
     try {

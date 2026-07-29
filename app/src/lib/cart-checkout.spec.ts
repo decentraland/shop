@@ -230,4 +230,29 @@ describe('reviewCart with legacy MANA lines', () => {
     expect(review.buyable).toHaveLength(0)
     expect(review.unavailable.map(i => i.id)).toEqual(['L'])
   })
+  /**
+   * Pricing must FAIL CLOSED on an asset type it does not know. Both branches are matched explicitly, so a
+   * type nobody has written a rule for yet — or a field missing after an API regression — cannot fall
+   * through into the MANA oracle path and get priced as MANA. A wrong price here is not a display bug: it
+   * is the number the buyer is charged.
+   */
+  it('defers an unknown price asset type instead of pricing it as MANA', async () => {
+    const unknown = item('U', 50)
+    // Deliberately not TradeAssetType.ERC20 or USD_PEGGED_MANA. 99 stands in for a type added later.
+    const trade = { ...legacyTrade(10), received: [{ assetType: 99, amount: '10000000000000000000' }] } as unknown as Trade
+
+    const review = await reviewCart([unknown], BUYER, resolverFrom({ U: trade }), RATE)
+
+    expect(review.buyable).toHaveLength(0)
+    expect(review.unavailable.map(i => i.id)).toEqual(['U'])
+  })
+
+  it('defers a price asset with no assetType at all rather than assuming the legacy shape', async () => {
+    const trade = { ...legacyTrade(10), received: [{ amount: '10000000000000000000' }] } as unknown as Trade
+
+    const review = await reviewCart([item('N', 50)], BUYER, resolverFrom({ N: trade }), RATE)
+
+    expect(review.buyable).toHaveLength(0)
+    expect(review.unavailable.map(i => i.id)).toEqual(['N'])
+  })
 })
