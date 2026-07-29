@@ -225,7 +225,7 @@ export function NavBar() {
       />
 
       {/* Shop sub-nav (sections + search + cart) — the row under the global DCL navbar. */}
-      <S.Subnav>
+      <S.Subnav data-testid="subnav">
         <S.Tabs data-testid="subnav-tabs">
           <NavLink to="/overview">{t('nav.overview')}</NavLink>
           {/* Collectibles stays active across the item detail / collection / creator pages too (they're

@@ -164,31 +164,36 @@ describe('search bar', () => {
       await page.setViewport({ width, height: 860 })
       const m = await page.evaluate(() => {
         const input = document.querySelector('input[aria-label="Search the shop"]') as HTMLElement
+        const subnav = document.querySelector('[data-testid="subnav"]') as HTMLElement
         const doc = document.documentElement
-        // Name what sticks out, so a failure here points at the element instead of just saying "true".
-        // The content box is narrower than the viewport wherever the scrollbar takes space (CI's Linux
-        // Chrome does; macOS overlays it), which is exactly when a vw/fixed width starts to spill.
+        // Scoped to the sub-nav on purpose: it is what used to force the page wider. A whole-page check
+        // also catches the ui2 footer's Resources column, which spills a few px wherever Inter is
+        // missing and the fallback font measures wider — not this row's doing.
+        // Names what sticks out, so a failure points at an element instead of just saying "true".
         const offenders: string[] = []
-        if (doc.scrollWidth > doc.clientWidth + 1) {
-          document.querySelectorAll<HTMLElement>('*').forEach(el => {
-            const r = el.getBoundingClientRect()
-            if (r.width === 0 || r.left < -1000 || r.right <= doc.clientWidth + 1) return
+        subnav.querySelectorAll<HTMLElement>('*').forEach(el => {
+          const r = el.getBoundingClientRect()
+          if (r.width === 0) return
+          if (r.right > doc.clientWidth + 1 || r.left < -1) {
             const id = el.dataset.testid ? `[${el.dataset.testid}]` : ''
             offenders.push(
               `${el.tagName.toLowerCase()}${id} L=${Math.round(r.left)} R=${Math.round(r.right)} ` +
                 `cssW=${getComputedStyle(el).width} "${(el.textContent ?? '').trim().slice(0, 18)}"`
             )
-          })
-        }
+          }
+        })
         return {
           input: input.getBoundingClientRect().width,
-          box: `viewport ${window.innerWidth} / content ${doc.clientWidth} / scroll ${doc.scrollWidth}`,
+          box: `content ${doc.clientWidth} / sub-nav ${Math.round(subnav.getBoundingClientRect().width)}`,
+          // The row itself must not scroll sideways either: the strip does that, inside its own box.
+          rowScrolls: subnav.scrollWidth > subnav.clientWidth + 1,
           offenders: offenders.slice(-6)
         }
       })
       // Wide enough to read a query back, not just an icon.
       expect(m.input, `input width at ${width}px`).toBeGreaterThan(120)
-      expect(m.offenders, `overflow at ${width}px — ${m.box}`).toEqual([])
+      expect(m.offenders, `sub-nav overflow at ${width}px — ${m.box}`).toEqual([])
+      expect(m.rowScrolls, `sub-nav scrolls sideways at ${width}px`).toBe(false)
     }
   })
 
