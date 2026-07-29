@@ -104,8 +104,17 @@ export function pickRenderer(): RendererDecision {
   // on/off per environment without a rebuild. Deferred here on purpose — it's blocked on in-flight
   // changes to `config/*` owned by other work; do not couple this switch to those files yet.
   const forced = import.meta.env.VITE_PREVIEW_RENDERER as string | undefined
+  console.log('pickRenderer', {
+    forced,
+    measured: measuredMbps(),
+    downlink: connection()?.downlink,
+    saveData: connection()?.saveData,
+    deviceMemory: deviceMemory(),
+    dpr: devicePixelRatio(),
+    cores: hardwareConcurrency()
+  })
   if (forced === 'babylon') return babylon('env-override')
-  if (import.meta.env.MODE !== 'test' && forced !== 'unity') return babylon('default-babylon')
+  if (import.meta.env.MODE !== 'test' && forced && forced !== 'unity') return babylon('default-babylon')
 
   if (isMobile()) return babylon('mobile')
 
