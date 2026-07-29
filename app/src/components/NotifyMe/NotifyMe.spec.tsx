@@ -4,12 +4,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { ReactElement } from 'react'
 
 // The two network libs the control drives — mocked so we assert the calls, not the transport.
-const { getNotifyRequest, createNotifyRequest, getConnectionEmail } = vi.hoisted(() => ({
+const { getNotifyRequest, createNotifyRequest, isNotifyAvailable, getConnectionEmail } = vi.hoisted(() => ({
   getNotifyRequest: vi.fn(),
   createNotifyRequest: vi.fn(),
+  isNotifyAvailable: vi.fn(),
   getConnectionEmail: vi.fn()
 }))
-vi.mock('~/lib/notify', () => ({ getNotifyRequest, createNotifyRequest }))
+vi.mock('~/lib/notify', () => ({ getNotifyRequest, createNotifyRequest, isNotifyAvailable }))
 vi.mock('~/lib/auth', async importOriginal => {
   const actual = await importOriginal<typeof import('~/lib/auth')>()
   return { ...actual, getConnectionEmail }
@@ -46,6 +47,7 @@ function renderNotify(ui: ReactElement) {
 beforeEach(() => {
   getNotifyRequest.mockReset().mockResolvedValue({ subscribed: false })
   createNotifyRequest.mockReset().mockResolvedValue(undefined)
+  isNotifyAvailable.mockReset().mockReturnValue(true)
   getConnectionEmail.mockReset().mockResolvedValue(undefined)
   useWallet.setState({ session: null })
 })
@@ -81,6 +83,15 @@ describe('NotifyMe', () => {
       email: 'jane.doe@example.com'
     })
     await screen.findByTestId('notify-subscribed')
+  })
+
+  it('renders nothing when no shop-server host is configured — a subscription could not be stored', () => {
+    isNotifyAvailable.mockReturnValue(false)
+    useWallet.setState({ session: { address: '0xme', identity: {} } as never })
+    const { container } = renderNotify(<NotifyMe item={makeItem()} />)
+
+    expect(container.firstChild).toBeNull()
+    expect(getNotifyRequest).not.toHaveBeenCalled()
   })
 
   it('renders the already-subscribed state (no input) when the account is already on the list', async () => {
