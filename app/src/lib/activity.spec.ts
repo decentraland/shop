@@ -137,9 +137,20 @@ describe('buildActivityFeed', () => {
     expect(feed).toHaveLength(0)
   })
 
+  it('should drop abandoned credit orders (a checkout opened and never paid)', () => {
+    // The row is written when the pack is CLICKED, so merely looking at one used to leave an order showing
+    // as PROCESSING forever — which reads as "you are owed credits". The server retires these on a timer.
+    const feed = buildActivityFeed({
+      purchases: [],
+      sales: [],
+      creditOrders: [creditOrder({ status: 'abandoned' })]
+    })
+    expect(feed).toHaveLength(0)
+  })
+
   it.each(['processing', 'crediting', 'credited'] as const)('should keep a %s credit order', status => {
-    // 'processing' included on purpose: it is indistinguishable from "paid, not yet credited", and hiding
-    // those would hide money the buyer is waiting on.
+    // 'processing' included on purpose: now that dead orders are retired server-side, it means what it says
+    // — paid or payable, not yet credited — and hiding those would hide money the buyer is waiting on.
     const feed = buildActivityFeed({ purchases: [], sales: [], creditOrders: [creditOrder({ status })] })
     expect(feed).toHaveLength(1)
   })

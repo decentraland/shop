@@ -13,6 +13,7 @@ import { config } from '~/config'
 import type { Session } from '~/lib/auth'
 import { useManaBalance } from '~/hooks/useManaBalance'
 import { useManaRate } from '~/hooks/useManaRate'
+import type { ManaRate } from '~/lib/mana-convert'
 import { readManaUsdRate, usdCentsToManaWei } from '~/lib/mana-rate'
 import { buyManyWithMana } from '~/lib/buy-mana'
 import {
@@ -450,21 +451,32 @@ export function Cart() {
   // oracle read — the buyer would be sent to credits/top-up despite holding MANA). Resolves through the
   // react-query cache, so it's one read shared with the hook. A failed/unreachable oracle → 0n, which
   // simply means no MANA rail and the credits flow is untouched.
+  // Resolve the rate through the react-query cache, awaiting it when the background query hasn't landed
+  // yet. Shared by the MANA quote below and by reviewCart, which needs it to price LEGACY (MANA-priced)
+  // lines. An unreachable/stale oracle resolves to undefined: no MANA rail, and legacy lines report as
+  // unavailable rather than being priced off a rate we do not have.
+  //
+  // BuyModal has a same-named function with a DIFFERENT signature: it takes the trade and skips the oracle
+  // read entirely for a native (USD-pegged) one, because it prices a single line and already knows which.
+  // This one is parameterless because the cart holds a mixed basket and needs the rate before it can tell
+  // whether any line needs it. Don't copy one into the other's place — they answer different questions.
+  async function ensureManaRate(): Promise<ManaRate | undefined> {
+    if (manaRate) return manaRate
+    try {
+      return await qc.fetchQuery({
+        queryKey: ['mana-rate', config.chainId],
+        queryFn: () => readManaUsdRate(config.chainId),
+        staleTime: 60_000
+      })
+    } catch {
+      return undefined
+    }
+  }
+
   async function basketTotals(lines: ResolvedLine[]) {
     const totalCents = toUnits(lines).reduce((n, u) => n + u.usdCents, 0)
     const holdsMana = (manaBalanceWei ?? 0n) > 0n
-    let rate = manaRate
-    if (!rate && holdsMana) {
-      try {
-        rate = await qc.fetchQuery({
-          queryKey: ['mana-rate', config.chainId],
-          queryFn: () => readManaUsdRate(config.chainId),
-          staleTime: 60_000
-        })
-      } catch {
-        rate = undefined // oracle unreachable/stale → credits-only, never a bogus MANA quote
-      }
-    }
+    const rate = holdsMana ? await ensureManaRate() : manaRate
     const manaWei = rate ? usdCentsToManaWei(totalCents, rate) : 0n
     return { totalCents, manaWei }
   }
@@ -698,7 +710,7 @@ export function Cart() {
     try {
       // Resolve every item's LIVE listing first — never charge a stale snapshot, and never let one bad
       // item abort the basket.
-      const rev = await reviewCart(cartItems, session.address, resolveTrade)
+      const rev = await reviewCart(cartItems, session.address, resolveTrade, await ensureManaRate())
 
       // Prune the rows we can't buy (sold/cancelled, or the buyer's own listing) and say what happened.
       const dropped = [...rev.unavailable, ...rev.own]
