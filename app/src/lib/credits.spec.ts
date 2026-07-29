@@ -309,7 +309,8 @@ describe('creditOrderPill', () => {
     processing: 'PENDING',
     crediting: 'PENDING',
     credited: 'SETTLED',
-    failed: 'FAILED'
+    failed: 'FAILED',
+    abandoned: 'FAILED'
   } satisfies Record<CreditOrderStatus, ReturnType<typeof creditOrderPill>>
 
   it.each(Object.entries(cases))('should map %s to %s', (status, expected) => {
@@ -317,7 +318,7 @@ describe('creditOrderPill', () => {
   })
 
   it('should never report money as available for a status that is not credited', () => {
-    const notYet: CreditOrderStatus[] = ['processing', 'crediting', 'failed']
+    const notYet: CreditOrderStatus[] = ['processing', 'crediting', 'failed', 'abandoned']
     for (const status of notYet) expect(creditOrderPill(status)).not.toBe('SETTLED')
   })
 })

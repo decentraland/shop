@@ -76,12 +76,15 @@ export function buildActivityFeed(input: {
   // Credit-pack top-ups. Drop 'failed' (charge never succeeded) — mirrors the purchase-intent handling.
   // This used to filter on 'EXPIRED', which the credits-server never sends, so nothing was ever dropped.
   //
-  // 'processing' rows are deliberately KEPT even though most of them are abandoned checkouts (the row is
-  // written when the pack is clicked, and nothing ever expires it). They are indistinguishable from a real
-  // "paid, not yet credited" order, and hiding those would hide money the buyer is waiting on. Making the
-  // feed tidy here needs the server to expire dead orders, not the client to guess which ones they are.
+  // Also drop 'abandoned': a checkout that was opened and never paid. The row is written when the pack is
+  // CLICKED, so simply looking at a pack used to leave a row that showed as PROCESSING forever, which reads
+  // as "you are owed credits". The server now retires those on a timer, past the point where the Stripe
+  // session could still be paid — which is what makes dropping them safe here.
+  //
+  // 'processing' rows are still KEPT. Now that dead orders get retired, a processing row means what it says:
+  // paid or payable, not yet credited. Hiding those would hide money the buyer is waiting on.
   const creditEntries: ActivityEntry[] = (input.creditOrders ?? [])
-    .filter(o => o.status !== 'failed')
+    .filter(o => o.status !== 'failed' && o.status !== 'abandoned')
     .map(order => ({ kind: 'credit', id: `credit:${order.id}`, createdAt: order.createdAt, order }))
   // MANA-paid purchases, read from the buyer side of the chain. A CREDITS purchase settles on-chain too,
   // so it appears in this feed as well — those are dropped by matching the settlement tx against the
