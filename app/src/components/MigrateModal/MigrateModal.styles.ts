@@ -37,6 +37,10 @@ export const List = styled.ul`
   display: flex;
   flex-direction: column;
   gap: 8px;
+  /* The elastic part of a viewport-capped modal: it gives up height before anything else. The floor is
+     explicit because a scroll container's automatic minimum size is zero — it would otherwise collapse
+     to nothing on a short screen instead of just showing fewer rows. */
+  min-height: 96px;
   max-height: 320px;
   overflow-y: auto;
 `

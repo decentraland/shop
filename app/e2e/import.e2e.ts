@@ -29,5 +29,16 @@ describe('import old listings', () => {
     await clickWhenEnabled(page, 'button', /list all/i)
     await waitForText(page, 'in the Shop', 40000)
     expect(await page.evaluate(() => /in the Shop/i.test(document.body.innerText))).toBe(true)
+
+    // The modal is centred in a fixed backdrop, so on a screen shorter than the card it overflowed in BOTH
+    // directions at once, with nothing to scroll: its own top ended up above the scroll origin, out of
+    // reach. 300px is short enough for the progress card (~333px) to need the cap.
+    await page.setViewport({ width: 1000, height: 300 })
+    const fit = await page.evaluate(() => {
+      const box = document.querySelector('[role="dialog"]')!.getBoundingClientRect()
+      return { top: box.top, bottom: box.bottom, viewport: window.innerHeight }
+    })
+    expect(fit.top, 'modal top above the viewport').toBeGreaterThanOrEqual(0)
+    expect(fit.bottom, 'modal bottom past the viewport').toBeLessThanOrEqual(fit.viewport)
   })
 })

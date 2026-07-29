@@ -15,12 +15,16 @@ const popIn = keyframes`
   }
 `
 
+// Flex + `margin: auto` on the modal rather than grid centering: centred alignment overflows equally in
+// both directions, so a modal taller than the viewport puts its own top above the scroll origin, where
+// nothing can scroll it back. Same reason the checkout shell does it this way (components/BuyModal).
 export const Backdrop = styled.div`
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.5);
-  display: grid;
-  place-items: center;
+  display: flex;
+  overflow-y: auto;
+  padding: 20px;
   // Above the global DCL navbar so the backdrop dims the full viewport (navbar included).
   z-index: ${z.overlay};
 `
@@ -31,6 +35,11 @@ export const Modal = styled.div`
   border-radius: ${radius.card};
   padding: 24px;
   width: min(420px, 92vw);
+  margin: auto;
+  /* Never taller than the (padded) viewport, and scroll inside if the content still does not fit — on a
+     short screen the actions used to sit off the bottom edge with no way to reach them. */
+  max-height: 100%;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -58,11 +67,17 @@ export const Img = styled.img`
   border-radius: 10px;
 `
 
+// Pinned to the bottom of the (scrollable) modal so the primary action stays reachable when the content
+// above it outgrows a short screen. The white fill hides whatever scrolls underneath.
 export const Actions = styled.div`
+  position: sticky;
+  bottom: 0;
   display: flex;
   justify-content: flex-end;
   gap: 10px;
   margin-top: 6px;
+  padding-top: 8px;
+  background: ${colors.white};
 `
 
 export const SuccessCheck = styled.div`
