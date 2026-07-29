@@ -148,4 +148,92 @@ describe('search bar', () => {
     const value = await page.$eval(SEARCH, el => (el as HTMLInputElement).value)
     expect(value).toBe('')
   })
+
+  // The sub-nav's other items (tab strip + balance/credits/cart) used to squeeze the field down to the
+  // bare magnifier well above the mobile breakpoint — 94px of input at 1280, 14px at 1200 — and then
+  // pushed the page into horizontal overflow. The strip yields (and scrolls) above `lg`; at `lg` and
+  // below the row wraps and the field gets its own line. A MANA balance is in play because that chip
+  // only renders for a wallet holding MANA and it is ~85px of the row's rigid width.
+  it('keeps the field usable, and the page unscrolled sideways, as the window narrows', async () => {
+    app = await launchApp({ path: '/assets', manaBalanceWei: '5000000000000000000' })
+    const { page } = app
+    await page.waitForSelector(SEARCH)
+    await page.waitForSelector('[data-testid="subnav-mana-balance"]')
+
+    for (const width of [1512, 1280, 1024, 901, 900, 800, 780, 769]) {
+      await page.setViewport({ width, height: 860 })
+      const m = await page.evaluate(() => {
+        const input = document.querySelector('input[aria-label="Search the shop"]') as HTMLElement
+        const subnav = document.querySelector('[data-testid="subnav"]') as HTMLElement
+        const doc = document.documentElement
+        // Scoped to the sub-nav on purpose: it is what used to force the page wider. A whole-page check
+        // also catches the ui2 footer's Resources column, which spills a few px wherever Inter is
+        // missing and the fallback font measures wider — not this row's doing.
+        // Names what sticks out, so a failure points at an element instead of just saying "true".
+        const offenders: string[] = []
+        subnav.querySelectorAll<HTMLElement>('*').forEach(el => {
+          const r = el.getBoundingClientRect()
+          if (r.width === 0) return
+          if (r.right > doc.clientWidth + 1 || r.left < -1) {
+            const id = el.dataset.testid ? `[${el.dataset.testid}]` : ''
+            offenders.push(
+              `${el.tagName.toLowerCase()}${id} L=${Math.round(r.left)} R=${Math.round(r.right)} ` +
+                `cssW=${getComputedStyle(el).width} "${(el.textContent ?? '').trim().slice(0, 18)}"`
+            )
+          }
+        })
+        return {
+          input: input.getBoundingClientRect().width,
+          box: `content ${doc.clientWidth} / sub-nav ${Math.round(subnav.getBoundingClientRect().width)}`,
+          // The row itself must not scroll sideways either: the strip does that, inside its own box.
+          rowScrolls: subnav.scrollWidth > subnav.clientWidth + 1,
+          offenders: offenders.slice(-6)
+        }
+      })
+      // Wide enough to read a query back, not just an icon.
+      expect(m.input, `input width at ${width}px`).toBeGreaterThan(120)
+      expect(m.offenders, `sub-nav overflow at ${width}px — ${m.box}`).toEqual([])
+      expect(m.rowScrolls, `sub-nav scrolls sideways at ${width}px`).toBe(false)
+    }
+  })
+
+  it('gives the tab strip its own row below lg, and keeps it whole on a desktop window', async () => {
+    app = await launchApp({ path: '/assets' })
+    const { page } = app
+    await page.waitForSelector('[data-testid="subnav-tabs"]')
+    const tabsClipped = async () =>
+      page.evaluate(() => {
+        const nav = document.querySelector('[data-testid="subnav-tabs"]')!
+        return nav.scrollWidth > nav.clientWidth + 1
+      })
+
+    // The search field takes the slack it can get here, so no tab label is cut.
+    await page.setViewport({ width: 1440, height: 860 })
+    expect(await tabsClipped(), 'tabs clipped at 1440').toBe(false)
+    // Between the pill's floor and the wrap the strip is what yields, so it scrolls.
+    await page.setViewport({ width: 1024, height: 860 })
+    expect(await tabsClipped(), 'tabs clipped at 1024').toBe(true)
+    // At `lg` the row wraps and the strip gets a full line back — every tab is reachable again.
+    await page.setViewport({ width: 900, height: 860 })
+    expect(await tabsClipped(), 'tabs clipped at 900').toBe(false)
+    await page.setViewport({ width: 800, height: 860 })
+    expect(await tabsClipped(), 'tabs clipped at 800').toBe(false)
+  })
+
+  it('centres the clear button glyph inside its round hover fill', async () => {
+    app = await launchApp({ path: '/assets?q=Nebula' })
+    const { page } = app
+    await page.waitForSelector('[data-testid="subnav-search-clear"]')
+
+    // The UA button padding left an 8px content box, so the 14px glyph start-aligned 3px off-centre.
+    const delta = await page.evaluate(() => {
+      const btn = document.querySelector('[data-testid="subnav-search-clear"]') as HTMLElement
+      const ico = btn.querySelector('[data-testid="subnav-search-clear-icon"]') as HTMLElement
+      const b = btn.getBoundingClientRect()
+      const i = ico.getBoundingClientRect()
+      return { x: i.x + i.width / 2 - (b.x + b.width / 2), y: i.y + i.height / 2 - (b.y + b.height / 2) }
+    })
+    expect(Math.abs(delta.x)).toBeLessThanOrEqual(0.5)
+    expect(Math.abs(delta.y)).toBeLessThanOrEqual(0.5)
+  })
 })

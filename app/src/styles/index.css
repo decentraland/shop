@@ -35,6 +35,8 @@
   /* Modal/overlay stacking tier — above the global DCL navbar (position: fixed) + the sub-nav so a
      scrim dims the FULL viewport, navbar included. Shared by every full-screen overlay. */
   --z-overlay: 10000;
+  /* Tooltip tier — portalled to <body>, so it must clear whatever overlay its trigger sits in. */
+  --z-tooltip: 10010;
 }
 * {
   box-sizing: border-box;

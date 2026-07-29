@@ -86,8 +86,11 @@ const font = {
 
 // Stacking tiers. `overlay` sits above the global DCL navbar (position: fixed) + the sub-nav so a
 // full-screen scrim dims the whole viewport, navbar included — every full-screen overlay shares it.
+// `tooltip` is the top tier: tooltips are portalled to <body>, so they no longer inherit their trigger's
+// stacking context and must clear whatever overlay the trigger sits in.
 const z = {
-  overlay: 10000
+  overlay: 10000,
+  tooltip: 10010
 } as const
 
 // Canonical breakpoints (see CLAUDE.md — reuse these, don't invent new ones). `mobile` (768) is the

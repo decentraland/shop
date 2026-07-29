@@ -285,7 +285,13 @@ export function Filters({
           <S.SmartFlash name="smart" aria-hidden />
           <S.SmartTitle>{t('filter.smart')}</S.SmartTitle>
           <Tooltip content={t('filter.smartHint')} placement="bottom">
-            <S.SmartInfo name="info" role="img" aria-label={t('filter.smartHint')} tabIndex={0} />
+            <S.SmartInfo
+              name="info"
+              role="img"
+              aria-label={t('filter.smartHint')}
+              tabIndex={0}
+              data-testid="smart-hint"
+            />
           </Tooltip>
         </S.SmartLeft>
         <S.Toggle

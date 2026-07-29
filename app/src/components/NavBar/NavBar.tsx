@@ -225,8 +225,8 @@ export function NavBar() {
       />
 
       {/* Shop sub-nav (sections + search + cart) — the row under the global DCL navbar. */}
-      <S.Subnav>
-        <S.Tabs>
+      <S.Subnav data-testid="subnav">
+        <S.Tabs data-testid="subnav-tabs">
           <NavLink to="/overview">{t('nav.overview')}</NavLink>
           {/* Collectibles stays active across the item detail / collection / creator pages too (they're
               all part of browsing collectibles), not just the /assets grid. */}
@@ -258,7 +258,7 @@ export function NavBar() {
               aria-label={t('search.clear')}
               onClick={clearSearch}
             >
-              <Icon name="close" size={14} />
+              <Icon name="close" size={14} data-testid="subnav-search-clear-icon" />
             </S.SearchClear>
           ) : null}
           {open ? (

@@ -34,4 +34,16 @@ describe('modal overlays cover the navbar', () => {
   ])('%s takes its overlay z-index from the shared token', file => {
     expect(read(file)).toContain('z-index: ${z.overlay}')
   })
+
+  // Tooltips are portalled to <body>, so they lost the trigger's stacking context and need their own
+  // tier above every overlay — a tooltip inside a modal must not paint under it.
+  it('puts the tooltip tier above the overlay tier', () => {
+    expect(theme.z.tooltip).toBeGreaterThan(theme.z.overlay)
+  })
+
+  it('keeps the --z-tooltip CSS var in sync with theme.z.tooltip', () => {
+    const value = read('src/styles/index.css').match(/--z-tooltip:\s*(\d+)/)?.[1]
+    expect(value).toBeDefined()
+    expect(Number(value)).toBe(theme.z.tooltip)
+  })
 })

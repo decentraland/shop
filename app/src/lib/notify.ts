@@ -9,12 +9,18 @@ import { config } from '~/config'
 //   POST /notify-requests  body { contractAddress, itemId, chainId, email } → 201 { ok: true }
 //   GET  /notify-requests?contractAddress=&itemId=            → { subscribed, email? }
 //
-// Base URL: config.shopServerUrl when set. It's empty until the shop-server host is wired into the
-// env JSONs (src/config/env/*.json), so we fall back to the current origin — that keeps signedFetch's
-// `new URL()` happy (it rejects a bare relative path) and simply resolves to "not subscribed" until
-// the real host lands.
-function notifyBase(): string {
-  return config.shopServerUrl || (typeof window !== 'undefined' ? window.location.origin : '')
+// Base URL: config.shopServerUrl, which is still empty in every env JSON (src/config/env/*.json) until
+// the shop-server host is wired up. This used to fall back to the app's own origin on the assumption
+// that a missing endpoint reads as "not subscribed" — but the SPA host answers ANY unknown path with
+// 200 + the index.html shell, so the subscribe POST looked like it succeeded while nothing was stored,
+// and the status GET could never report a subscription. No host configured = feature unavailable.
+function notifyBase(): string | null {
+  return config.shopServerUrl || null
+}
+
+/** Whether a shop-server host is configured, i.e. a subscription can actually be stored. */
+export function isNotifyAvailable(): boolean {
+  return !!notifyBase()
 }
 
 export type NotifyStatus = { subscribed: boolean; email?: string }
@@ -33,16 +39,20 @@ export async function getNotifyRequest(
   itemId: string,
   identity: AuthIdentity
 ): Promise<NotifyStatus> {
+  const base = notifyBase()
+  if (!base) return { subscribed: false }
   const qs = new URLSearchParams({ contractAddress, itemId })
-  const url = `${notifyBase()}/notify-requests?${qs.toString()}`
+  const url = `${base}/notify-requests?${qs.toString()}`
   const res = await signedFetch(url, { method: 'GET', identity, metadata: {} })
   if (!res.ok) throw new Error(`getNotifyRequest ${res.status}`)
-  return res.json() as Promise<NotifyStatus>
+  return json<NotifyStatus>(res, 'getNotifyRequest')
 }
 
 // Subscribe this account to a "back in stock / now for sale" notification for the item.
 export async function createNotifyRequest(req: NotifyRequest, identity: AuthIdentity): Promise<void> {
-  const url = `${notifyBase()}/notify-requests`
+  const base = notifyBase()
+  if (!base) throw new Error('createNotifyRequest: no shop-server host configured')
+  const url = `${base}/notify-requests`
   const res = await signedFetch(url, {
     method: 'POST',
     identity,
@@ -51,6 +61,27 @@ export async function createNotifyRequest(req: NotifyRequest, identity: AuthIden
     body: JSON.stringify(req)
   })
   if (!res.ok) throw new Error(`createNotifyRequest ${res.status}: ${await res.text()}`)
-  // Drain the success body so the underlying connection isn't left open.
-  await res.json().catch(() => undefined)
+  // Drains the body (so the connection isn't left open) and checks what came back. A create endpoint may
+  // legitimately answer 201/204 with NO body, so only a non-empty non-JSON one is a problem.
+  const body = await res.text()
+  if (body.trim() && !isJson(body)) throw new Error('createNotifyRequest: response was not JSON')
+}
+
+// A 2xx carrying markup is a host answering for a route it doesn't implement, not a stored subscription —
+// treat it as the failure it is instead of reporting success to the buyer.
+async function json<T>(res: { json: () => Promise<unknown> }, label: string): Promise<T> {
+  try {
+    return (await res.json()) as T
+  } catch {
+    throw new Error(`${label}: response was not JSON`)
+  }
+}
+
+function isJson(body: string): boolean {
+  try {
+    JSON.parse(body)
+    return true
+  } catch {
+    return false
+  }
 }

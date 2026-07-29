@@ -6,6 +6,12 @@ import { CurrencyIcon } from '~/components/CurrencyIcon'
 const { colors, gradients, radius, media } = theme
 
 const mobile = media.maxWidth('mobile')
+// One row cannot hold the tab strip, a usable search field AND the balance/credits/cart cluster below
+// ~900px: something has to be cut, and every candidate is a control someone needs. So from `lg` down the
+// row wraps into the stacked layout mobile already used — search and tabs each get their own line — and
+// only the ≤768 cosmetics (shorter navbar, smaller type) stay in the `mobile` blocks below. This is also
+// the breakpoint where the browse sidebar becomes the Filters drawer, so the two shifts happen together.
+const stacked = media.maxWidth('lg')
 
 export const Subnav = styled.div`
   position: sticky;
@@ -20,19 +26,46 @@ export const Subnav = styled.div`
   background: ${colors.white};
   border-bottom: 1px solid ${colors.line};
 
-  ${mobile} {
-    top: 64px;
+  ${stacked} {
     height: auto;
     flex-wrap: wrap;
     gap: 12px;
+    padding: 12px 54px 0;
+  }
+
+  ${mobile} {
+    top: 64px;
     padding: 12px 16px 0;
   }
 `
 
+// While the row is shared (above `lg`) the tab strip is its FLEXIBLE part. Its links are nowrap, so
+// without min-width: 0 the strip's min-content width (~612px) is rigid: the sub-nav then squeezes the
+// search field to nothing and, once even that runs out, pushes the whole page into horizontal overflow.
+// The strip scrolls instead — the mask on its right edge is what tells you there is more to reach, since
+// the scrollbar is hidden. Below `lg` the strip has its own full-width row and none of this applies.
 export const Tabs = styled.nav`
   display: flex;
   gap: 40px;
   height: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Between lg and xl the strip is always narrower than its content, so fade its right edge: the
+     scrollbar is hidden and a label cut off mid-word just reads as a bug. Not applied above xl, where
+     the strip is whole and a fade would be a hint to nowhere. */
+  ${media.maxWidth('xl')} {
+    mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+  }
+
+  ${stacked} {
+    mask-image: none;
+  }
 
   & a {
     display: flex;
@@ -54,17 +87,15 @@ export const Tabs = styled.nav`
     border-bottom-color: ${colors.text};
   }
 
-  ${mobile} {
+  ${stacked} {
     order: 6;
     flex: 1 0 100%;
     height: auto;
-    gap: 16px;
-    overflow-x: auto;
-    scrollbar-width: none;
+  }
 
-    &::-webkit-scrollbar {
-      display: none;
-    }
+  ${mobile} {
+    gap: 16px;
+
     & a {
       height: auto;
       font-size: 12px;
@@ -79,7 +110,12 @@ export const Tabs = styled.nav`
 export const Search = styled.div`
   position: relative;
   margin-left: auto;
-  flex: 0 1 496px;
+  /* 240px of field is the FLOOR (flex-shrink: 0 makes the basis hard), growing into whatever slack the
+     row has left up to the 496px design width. The field used to be plain flexible, so the other items
+     shrank it with the window until only the magnifier was left — visually a search "icon", but not a
+     control that opens anything, so the search was simply gone. The tab strip yields instead. */
+  flex: 1 0 240px;
+  max-width: 496px;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -101,10 +137,15 @@ export const Search = styled.div`
     color: ${colors.muted};
   }
 
-  ${mobile} {
+  ${stacked} {
     order: 5;
+    /* Own row here — full width, so the desktop floor and cap must not hold it back. */
     flex: 1 0 100%;
+    max-width: none;
     margin-left: 0;
+  }
+
+  ${mobile} {
     height: 34px;
 
     & input {
@@ -119,6 +160,9 @@ export const SearchClear = styled.button`
   width: 20px;
   height: 20px;
   flex: 0 0 auto;
+  /* The UA button padding (1px 6px) leaves an 8px content box — narrower than the 14px glyph, which
+     then start-aligns instead of centering and sits 3px right of the round hover fill. */
+  padding: 0;
   border: 0;
   border-radius: 50%;
   background: rgba(0, 0, 0, 0.08);
@@ -170,7 +214,7 @@ export const Balance = styled.span`
   letter-spacing: -0.03em;
   white-space: nowrap;
 
-  ${mobile} {
+  ${stacked} {
     order: 2;
   }
 `
@@ -213,7 +257,7 @@ export const Credits = styled(NavLink)`
     filter: brightness(0.95);
   }
 
-  ${mobile} {
+  ${stacked} {
     order: 1;
     margin-right: auto;
   }
@@ -243,7 +287,7 @@ export const Fav = styled(NavLink)`
     color: ${colors.brandViolet};
   }
 
-  ${mobile} {
+  ${stacked} {
     order: 3;
   }
 `
@@ -252,7 +296,7 @@ export const Fav = styled(NavLink)`
 export const CartWrap = styled.div`
   position: relative;
 
-  ${mobile} {
+  ${stacked} {
     order: 4;
   }
 `

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useWallet } from '~/store/wallet'
 import { getConnectionEmail } from '~/lib/auth'
-import { getNotifyRequest, createNotifyRequest } from '~/lib/notify'
+import { getNotifyRequest, createNotifyRequest, isNotifyAvailable } from '~/lib/notify'
 import { captureError } from '~/lib/monitoring'
 import { Icon } from '~/components/Icon'
 import { ErrorNotice } from '~/components/ErrorNotice'
@@ -20,6 +20,10 @@ function isEmailish(v: string): boolean {
 //  • Signed-in → an email field (prefilled from the account email when the provider exposes it, else
 //    the address already on file) + a NOTIFY ME button. On mount we read the current subscription so
 //    an already-subscribed viewer sees the confirmed state straight away.
+//
+// Renders NOTHING until shop-server is configured (see lib/notify): without a host there is nowhere to
+// keep the subscription, and an offer to notify that silently drops the email is worse than no offer —
+// the buyer got a confirmation, then found the form blank and re-subscribed on every visit.
 export function NotifyMe({ item }: { item: CatalogItem }) {
   const session = useWallet(s => s.session)
   const signIn = useWallet(s => s.signIn)
@@ -29,7 +33,8 @@ export function NotifyMe({ item }: { item: CatalogItem }) {
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const canQuery = !!session && !!item.contractAddress && !!item.itemId
+  const available = isNotifyAvailable()
+  const canQuery = available && !!session && !!item.contractAddress && !!item.itemId
   const { data: status } = useQuery({
     queryKey: ['notify-request', item.contractAddress, item.itemId, session?.address],
     enabled: canQuery,
@@ -42,7 +47,7 @@ export function NotifyMe({ item }: { item: CatalogItem }) {
     if (status?.email) setEmail(prev => prev || status.email!)
   }, [status?.email])
   useEffect(() => {
-    if (!session) return
+    if (!session || !available) return
     let cancelled = false
     void getConnectionEmail().then(e => {
       if (!cancelled && e) setEmail(prev => prev || e)
@@ -50,7 +55,7 @@ export function NotifyMe({ item }: { item: CatalogItem }) {
     return () => {
       cancelled = true
     }
-  }, [session])
+  }, [available, session])
 
   const subscribed = submitted || !!status?.subscribed
 
@@ -72,6 +77,8 @@ export function NotifyMe({ item }: { item: CatalogItem }) {
       setSubmitting(false)
     }
   }
+
+  if (!available) return null
 
   // Guest: no email input — sign in first (managed sign-in carries the email we'd notify).
   if (!session) {
