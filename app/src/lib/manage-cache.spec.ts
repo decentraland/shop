@@ -34,10 +34,10 @@ function seed(qc: QueryClient) {
   // (a) PDP owned-token detail cache — note the trailing address segment the helper must match past.
   qc.setQueryData<MyAsset | null>(['owned-token', CONTRACT, TOKEN, ADDRESS], asset())
   // (b) My Assets grid — an infinite query with the full multi-segment key the page uses.
-  qc.setQueryData<InfiniteData<MyAssetsPage>>(
-    ['my-assets', ADDRESS, 'wearables', 'all', [], null, '', 'newest'],
-    { pages: [{ items: [asset({ id: 'other', tokenId: '7' }), asset()], total: 2 }], pageParams: [0] }
-  )
+  qc.setQueryData<InfiniteData<MyAssetsPage>>(['my-assets', ADDRESS, 'wearables', 'all', [], null, '', 'newest'], {
+    pages: [{ items: [asset({ id: 'other', tokenId: '7' }), asset()], total: 2 }],
+    pageParams: [0]
+  })
   // (c) shop-feed secondary sale map — keyed by ownedContracts array.
   qc.setQueryData<SecondarySaleMap>(['secondary-sale-state', [CONTRACT]], {})
 }
@@ -52,21 +52,29 @@ describe('patchManageCaches', () => {
 
   describe('when a token is listed', () => {
     it('should mark the owned-token detail cache on sale at the new price with the new trade id', () => {
-      patchManageCaches(qc, { address: ADDRESS, contractAddress: CONTRACT, tokenId: TOKEN }, {
-        kind: 'listed',
-        priceCredits: 5,
-        tradeId: 'trade-1'
-      })
+      patchManageCaches(
+        qc,
+        { address: ADDRESS, contractAddress: CONTRACT, tokenId: TOKEN },
+        {
+          kind: 'listed',
+          priceCredits: 5,
+          tradeId: 'trade-1'
+        }
+      )
       const detail = qc.getQueryData<MyAsset | null>(['owned-token', CONTRACT, TOKEN, ADDRESS])
       expect(detail).toMatchObject({ isOnSale: true, listingPrice: 5, tradeId: 'trade-1' })
     })
 
     it('should patch the matching row in the My Assets grid and leave other rows untouched', () => {
-      patchManageCaches(qc, { address: ADDRESS, contractAddress: CONTRACT, tokenId: TOKEN }, {
-        kind: 'listed',
-        priceCredits: 5,
-        tradeId: 'trade-1'
-      })
+      patchManageCaches(
+        qc,
+        { address: ADDRESS, contractAddress: CONTRACT, tokenId: TOKEN },
+        {
+          kind: 'listed',
+          priceCredits: 5,
+          tradeId: 'trade-1'
+        }
+      )
       const grid = qc.getQueryData<InfiniteData<MyAssetsPage>>([
         'my-assets',
         ADDRESS,
@@ -83,11 +91,15 @@ describe('patchManageCaches', () => {
     })
 
     it('should add the token to the shop-feed secondary sale map at the new price', () => {
-      patchManageCaches(qc, { address: ADDRESS, contractAddress: CONTRACT, tokenId: TOKEN }, {
-        kind: 'listed',
-        priceCredits: 5,
-        tradeId: 'trade-1'
-      })
+      patchManageCaches(
+        qc,
+        { address: ADDRESS, contractAddress: CONTRACT, tokenId: TOKEN },
+        {
+          kind: 'listed',
+          priceCredits: 5,
+          tradeId: 'trade-1'
+        }
+      )
       const map = qc.getQueryData<SecondarySaleMap>(['secondary-sale-state', [CONTRACT]])
       expect(map![KEY]).toEqual({ priceCredits: 5, tradeId: 'trade-1' })
     })
@@ -98,11 +110,15 @@ describe('patchManageCaches', () => {
       //   saleForToken(a) = secondarySale[`${a.contractAddress}-${a.tokenId}`]
       // and assetToItem then reads `sale.priceCredits`. Replicate that lookup verbatim so the test breaks
       // if patchManageCaches ever writes a key shape (or value shape) the card can't read.
-      patchManageCaches(qc, { address: ADDRESS, contractAddress: CONTRACT, tokenId: TOKEN }, {
-        kind: 'listed',
-        priceCredits: 5,
-        tradeId: 'trade-1'
-      })
+      patchManageCaches(
+        qc,
+        { address: ADDRESS, contractAddress: CONTRACT, tokenId: TOKEN },
+        {
+          kind: 'listed',
+          priceCredits: 5,
+          tradeId: 'trade-1'
+        }
+      )
       const map = qc.getQueryData<SecondarySaleMap>(['secondary-sale-state', [CONTRACT]])!
       const row = asset() // an owned row for the same contract + token
       const sale = map[`${row.contractAddress}-${row.tokenId}`]
@@ -115,12 +131,17 @@ describe('patchManageCaches', () => {
   describe('when a token is removed from sale', () => {
     beforeEach(() => {
       // Start from an on-sale state in every cache.
-      qc.setQueryData<MyAsset | null>(['owned-token', CONTRACT, TOKEN, ADDRESS], asset({ isOnSale: true, listingPrice: 5, tradeId: 'trade-1' }))
-      qc.setQueryData<InfiniteData<MyAssetsPage>>(
-        ['my-assets', ADDRESS, 'wearables', 'all', [], null, '', 'newest'],
-        { pages: [{ items: [asset({ isOnSale: true, listingPrice: 5, tradeId: 'trade-1' })], total: 1 }], pageParams: [0] }
+      qc.setQueryData<MyAsset | null>(
+        ['owned-token', CONTRACT, TOKEN, ADDRESS],
+        asset({ isOnSale: true, listingPrice: 5, tradeId: 'trade-1' })
       )
-      qc.setQueryData<SecondarySaleMap>(['secondary-sale-state', [CONTRACT]], { [KEY]: { priceCredits: 5, tradeId: 'trade-1' } })
+      qc.setQueryData<InfiniteData<MyAssetsPage>>(['my-assets', ADDRESS, 'wearables', 'all', [], null, '', 'newest'], {
+        pages: [{ items: [asset({ isOnSale: true, listingPrice: 5, tradeId: 'trade-1' })], total: 1 }],
+        pageParams: [0]
+      })
+      qc.setQueryData<SecondarySaleMap>(['secondary-sale-state', [CONTRACT]], {
+        [KEY]: { priceCredits: 5, tradeId: 'trade-1' }
+      })
     })
 
     it('should flip the owned-token detail cache to not-for-sale with no price or trade id', () => {
@@ -154,12 +175,25 @@ describe('patchManageCaches', () => {
   describe('when a token is gone (transferred out of the wallet)', () => {
     beforeEach(() => {
       // Start owned + on-sale across every cache, plus a second row that must survive the delete.
-      qc.setQueryData<MyAsset | null>(['owned-token', CONTRACT, TOKEN, ADDRESS], asset({ isOnSale: true, listingPrice: 5, tradeId: 'trade-1' }))
-      qc.setQueryData<InfiniteData<MyAssetsPage>>(
-        ['my-assets', ADDRESS, 'wearables', 'all', [], null, '', 'newest'],
-        { pages: [{ items: [asset({ id: 'other', tokenId: '7' }), asset({ isOnSale: true, listingPrice: 5, tradeId: 'trade-1' })], total: 2 }], pageParams: [0] }
+      qc.setQueryData<MyAsset | null>(
+        ['owned-token', CONTRACT, TOKEN, ADDRESS],
+        asset({ isOnSale: true, listingPrice: 5, tradeId: 'trade-1' })
       )
-      qc.setQueryData<SecondarySaleMap>(['secondary-sale-state', [CONTRACT]], { [KEY]: { priceCredits: 5, tradeId: 'trade-1' } })
+      qc.setQueryData<InfiniteData<MyAssetsPage>>(['my-assets', ADDRESS, 'wearables', 'all', [], null, '', 'newest'], {
+        pages: [
+          {
+            items: [
+              asset({ id: 'other', tokenId: '7' }),
+              asset({ isOnSale: true, listingPrice: 5, tradeId: 'trade-1' })
+            ],
+            total: 2
+          }
+        ],
+        pageParams: [0]
+      })
+      qc.setQueryData<SecondarySaleMap>(['secondary-sale-state', [CONTRACT]], {
+        [KEY]: { priceCredits: 5, tradeId: 'trade-1' }
+      })
     })
 
     it('should null the owned-token detail cache so the PDP drops the manage view', () => {

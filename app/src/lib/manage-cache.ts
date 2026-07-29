@@ -16,9 +16,7 @@ export type ManageTarget = {
 //   gone    → the token left the wallet entirely (transferred): drop it from the grid, null the detail
 //             query, and clear any sale entry — the viewer no longer owns it
 export type ManagePatch =
-  | { kind: 'listed'; priceCredits: number; tradeId?: string }
-  | { kind: 'removed' }
-  | { kind: 'gone' }
+  { kind: 'listed'; priceCredits: number; tradeId?: string } | { kind: 'removed' } | { kind: 'gone' }
 
 // A page of the offset-paginated My Assets grid (mirrors useInfiniteGrid's Page<T>).
 type MyAssetsPage = { items: MyAsset[]; total: number }
@@ -89,9 +87,7 @@ export function patchManageCaches(qc: QueryClient, target: ManageTarget, patch: 
       ...prev,
       pages: prev.pages.map(page => {
         if (gone) {
-          const items = page.items.filter(
-            a => !(a.contractAddress === contractAddress && a.tokenId === tokenId)
-          )
+          const items = page.items.filter(a => !(a.contractAddress === contractAddress && a.tokenId === tokenId))
           return { ...page, items, total: Math.max(0, page.total - (page.items.length - items.length)) }
         }
         return {

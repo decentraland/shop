@@ -445,7 +445,7 @@ export function MyAssets() {
   return (
     <A.Root data-testid="my-assets">
       {filtersOpen ? <A.Scrim onClick={() => setFiltersOpen(false)} aria-hidden /> : null}
-      <A.Sidebar className={filtersOpen ? 'is-open' : ''} data-testid="my-assets-sidebar">
+      <A.Sidebar data-open={filtersOpen || undefined} data-testid="my-assets-sidebar">
         <A.DrawerHead>
           <A.DrawerTitle>{t('assets.filters')}</A.DrawerTitle>
           <A.CloseBtn onClick={() => setFiltersOpen(false)} aria-label={t('assets.closeFilters')}>

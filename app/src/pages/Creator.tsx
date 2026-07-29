@@ -18,7 +18,10 @@ import { CURRENCY } from '~/lib/currency'
 import { shortAddress } from '~/lib/address'
 import { t } from '~/intl/i18n'
 import { ErrorNotice } from '~/components/ErrorNotice'
-import './collection.css'
+import * as CP from '~/styles/collectionPage.styles'
+import * as FP from '~/styles/filterPop.styles'
+import * as BL from '~/styles/browseLayout.styles'
+import { Grid } from '~/styles/grid.styles'
 
 const PAGE_SIZE = 48
 
@@ -117,21 +120,19 @@ export function Creator() {
   const anyActive = category !== 'wearable' || !!subCategory || rarities.length > 0 || priceActive
 
   return (
-    <div className="collection-page">
-      <nav className="collection-page__crumbs" aria-label={t('creator.breadcrumbAria')}>
-        <button className="collection-page__crumb-link" onClick={() => navigate('/assets')}>
-          {t('creator.breadcrumb')}
-        </button>
-        <span className="collection-page__crumb-sep">/</span>
-        <span className="collection-page__crumb-current">{name}</span>
-      </nav>
+    <CP.Page>
+      <CP.Crumbs aria-label={t('creator.breadcrumbAria')}>
+        <CP.CrumbLink onClick={() => navigate('/assets')}>{t('creator.breadcrumb')}</CP.CrumbLink>
+        <span>/</span>
+        <CP.CrumbCurrent>{name}</CP.CrumbCurrent>
+      </CP.Crumbs>
 
       {address ? <CreatorHero address={address} /> : null}
 
       {!collectionsMode && !isLoading && items.length > 0 ? <AddAllToCart items={items} source="creator" /> : null}
 
-      <div className="browse browse--sidebar">
-        <aside className="browse__sidebar">
+      <BL.Browse>
+        <BL.Sidebar>
           <CategoryFilter
             category={category}
             subCategory={subCategory}
@@ -142,20 +143,20 @@ export function Creator() {
             collections={collectionsMode}
             onCollections={toggleCollections}
           />
-        </aside>
+        </BL.Sidebar>
 
-        <div className="browse__main">
+        <BL.Main>
           {collectionsMode ? (
             <>
-              <div className="creator-collections__bar">
-                <span className="assets__count">
+              <CP.CollectionsBar>
+                <CP.Count>
                   {collections.isLoading ? '…' : t('creator.collectionsCount', { count: collections.total })}
-                </span>
-              </div>
+                </CP.Count>
+              </CP.CollectionsBar>
 
               {collections.error ? <ErrorNotice message={t('creator.error')} /> : null}
 
-              <div className="grid grid--collections">
+              <Grid data-variant="collections">
                 {collections.isLoading ? (
                   <SkeletonCards count={9} />
                 ) : (
@@ -166,7 +167,7 @@ export function Creator() {
                     {collections.isFetchingNextPage ? <SkeletonCards count={6} /> : null}
                   </>
                 )}
-              </div>
+              </Grid>
 
               <LoadMore
                 hasNextPage={collections.hasNextPage}
@@ -191,8 +192,8 @@ export function Creator() {
                 onClear={reset}
                 renderTrailing={panel => (
                   <FilterPanel panelKey="price" label={priceLabel} active={priceActive} panel={panel}>
-                    <div className="filter-pop filter-pop--price">
-                      <div className="filter-pop__price-row">
+                    <FP.Pop data-variant="price">
+                      <FP.PriceRow>
                         <input
                           type="number"
                           min="0"
@@ -210,16 +211,16 @@ export function Creator() {
                           value={priceMax}
                           onChange={e => setPriceMax(e.target.value)}
                         />
-                      </div>
-                      <p className="filter-pop__hint">{t('creator.priceHint', { currency: CURRENCY.name })}</p>
-                    </div>
+                      </FP.PriceRow>
+                      <FP.Hint>{t('creator.priceHint', { currency: CURRENCY.name })}</FP.Hint>
+                    </FP.Pop>
                   </FilterPanel>
                 )}
               />
 
               {error ? <ErrorNotice message={t('creator.error')} /> : null}
 
-              <div className="grid">
+              <Grid>
                 {isLoading ? (
                   <SkeletonCards count={15} />
                 ) : (
@@ -230,7 +231,7 @@ export function Creator() {
                     {isFetchingNextPage ? <SkeletonCards count={6} /> : null}
                   </>
                 )}
-              </div>
+              </Grid>
 
               <LoadMore
                 hasNextPage={hasNextPage}
@@ -241,9 +242,9 @@ export function Creator() {
               {!isLoading && !error && items.length === 0 ? <p className="muted">{t('creator.empty')}</p> : null}
             </>
           )}
-        </div>
-      </div>
-    </div>
+        </BL.Main>
+      </BL.Browse>
+    </CP.Page>
   )
 }
 

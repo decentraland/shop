@@ -92,7 +92,7 @@ export async function getFeatureFlags(): Promise<Record<string, boolean>> {
   }
   if (!inFlight) {
     inFlight = fetchSnapshot()
-      .then((fresh) => {
+      .then(fresh => {
         snapshot = fresh
         return fresh
       })

@@ -220,9 +220,7 @@ describe('when purchases and a sale are interleaved', () => {
     fetchTradeDisplay.mockResolvedValue(display({ name: 'Purchased Thing' }))
     fetchUserSales.mockImplementation((_addr: unknown, opts?: { role?: string }) =>
       Promise.resolve(
-        opts?.role === 'buyer'
-          ? { items: [], total: 0 }
-          : { items: [sale({ createdAt: 1_700_000_500_000 })], total: 1 }
+        opts?.role === 'buyer' ? { items: [], total: 0 } : { items: [sale({ createdAt: 1_700_000_500_000 })], total: 1 }
       )
     )
     fetchAssetDisplay.mockResolvedValue(display({ name: 'Sold Thing', tokenId: '42', itemId: undefined }))

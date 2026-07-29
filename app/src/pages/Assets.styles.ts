@@ -13,7 +13,7 @@ export const Root = styled.div`
   gap: 32px;
   align-items: flex-start;
 
-  ${theme.media.down('lg')} {
+  ${theme.media.maxWidth('lg')} {
     display: block;
   }
 `
@@ -22,7 +22,7 @@ export const Main = styled.div`
   flex: 1;
   min-width: 0;
 
-  ${theme.media.down('lg')} {
+  ${theme.media.maxWidth('lg')} {
     width: 100%;
   }
 `
@@ -35,7 +35,7 @@ export const Sidebar = styled.aside`
      grid's scroll, and let it scroll internally when every section is expanded instead of overflowing
      the page. The row's align-items: flex-start (Root) keeps this a content-height item, which is what
      makes sticky able to move within the row. */
-  ${theme.media.up('lg')} {
+  ${theme.media.minWidth('lg')} {
     position: sticky;
     /* Sit flush below the fixed ui2 navbar (92px) + the sticky shop sub-nav (66px = its height) so the
        sidebar tracks scroll without hiding under them or floating in a gap (see index.css). */
@@ -74,7 +74,7 @@ export const Sidebar = styled.aside`
     }
   }
 
-  ${theme.media.down('lg')} {
+  ${theme.media.maxWidth('lg')} {
     position: fixed;
     left: 0;
     right: 0;
@@ -93,7 +93,7 @@ export const Sidebar = styled.aside`
     transition: transform 0.26s ease;
     visibility: hidden;
 
-    &.is-open {
+    &[data-open] {
       transform: translateY(0);
       visibility: visible;
     }
@@ -102,7 +102,7 @@ export const Sidebar = styled.aside`
 
 // The scrollable region of the mobile sheet (title + filters). On desktop it's just the static list.
 export const SidebarScroll = styled.div`
-  ${theme.media.down('lg')} {
+  ${theme.media.maxWidth('lg')} {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
@@ -123,7 +123,7 @@ export const Scrim = styled.div`
 export const DrawerHead = styled.div`
   display: none;
 
-  ${theme.media.down('lg')} {
+  ${theme.media.maxWidth('lg')} {
     position: sticky;
     top: 0;
     z-index: 2;
@@ -170,7 +170,7 @@ export const CloseBtn = styled.button`
 export const DrawerFoot = styled.div`
   display: none;
 
-  ${theme.media.down('lg')} {
+  ${theme.media.maxWidth('lg')} {
     display: flex;
     align-items: center;
     gap: 12px;
@@ -205,6 +205,26 @@ export const ShowItems = styled.button`
   &:focus-visible {
     outline: 2px solid ${theme.colors.accent};
     outline-offset: 2px;
+  }
+`
+
+// Notice above the grid when the MANA oracle is down, so market-priced (legacy) cards can't be bought.
+// data-variant='warn' is the red treatment.
+export const MarketBanner = styled.p`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: ${theme.colors.rarityBg};
+  color: ${theme.colors.accent};
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin-bottom: 14px;
+  font-weight: 600;
+  font-size: 14px;
+
+  &[data-variant='warn'] {
+    background: rgba(211, 51, 51, 0.1);
+    color: ${theme.colors.err};
   }
 `
 

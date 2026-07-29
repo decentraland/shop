@@ -17,7 +17,9 @@ for (const [path, url] of Object.entries(SVG_URLS)) {
 // hand-maintained list of valid icons. Keep it in sync with assets/icons: add the file's basename here
 // when you add an SVG, and remove it here when you delete one.
 export type IconName =
+  | 'alert'
   | 'arrow-left'
+  | 'arrow-up-right'
   | 'bell'
   | 'carousel-arrow'
   | 'cart'
@@ -62,9 +64,11 @@ export type IconName =
   | 'info'
   | 'link-out'
   | 'mana-logo'
+  | 'minus'
   | 'offer'
   | 'pen'
   | 'plus'
+  | 'plus-thin'
   | 'search'
   | 'slot-feet'
   | 'slot-hands'
@@ -78,6 +82,8 @@ export type IconName =
   | 'twitter'
   | 'upload'
   | 'view-all-arrow'
+  | 'view-avatar'
+  | 'view-item'
   | 'warning-fill'
   | 'website'
 
@@ -85,15 +91,18 @@ type IconProps = {
   name: IconName
   /** Square px size. Omit to inherit the CSS default (20px) or a context override. */
   size?: number
+  /** Tint. The glyph is a mask over `currentColor`, so this sets the span's color. Omit to inherit. */
+  color?: string
 } & ComponentPropsWithoutRef<'span'>
 
-export function Icon({ name, size, className, style, ...rest }: IconProps) {
+export function Icon({ name, size, color, className, style, ...rest }: IconProps) {
   const url = SRC[name]
   if (import.meta.env.DEV && !url) console.warn(`Icon: no SVG found for "${name}" — check assets/icons/`)
 
   const vars = {
     '--icon-url': url ? `url("${url}")` : undefined,
     ...(size != null ? { width: size, height: size } : null),
+    ...(color != null ? { color } : null),
     ...style
   } as CSSProperties
   // Decorative by default; a caller-supplied label/role marks it meaningful, so don't hide it then.

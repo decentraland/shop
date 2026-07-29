@@ -9,6 +9,7 @@ import { HoverPreviewLayer } from '~/components/HoverPreviewLayer'
 import { useAccountWatcher } from '~/hooks/useAccountWatcher'
 import { initAnalytics, trackPage } from '~/lib/analytics'
 import { Overview } from '~/pages/Overview'
+import * as OV from '~/pages/Overview.styles'
 import { Button } from '~/components/Button'
 import styled from '@emotion/styled'
 import { t } from '~/intl/i18n'
@@ -57,16 +58,17 @@ const ReloadCta = styled(Button)`
 `
 
 // Shown if a page throws during render. Keep it generic — never surface the raw error (PII rule).
-// The error itself is reported to Sentry by the surrounding Sentry.ErrorBoundary.
+// The error itself is reported to Sentry by the surrounding Sentry.ErrorBoundary. Reuses the home
+// page's empty-state shell.
 function CrashFallback() {
   return (
-    <div className="overview__empty">
-      <p className="overview__empty-title">{t('app.crash.title')}</p>
+    <OV.Empty>
+      <OV.EmptyTitle>{t('app.crash.title')}</OV.EmptyTitle>
       <p className="muted">{t('app.crash.body')}</p>
       <ReloadCta variant="purple" onClick={() => window.location.reload()}>
         {t('app.crash.reload')}
       </ReloadCta>
-    </div>
+    </OV.Empty>
   )
 }
 

@@ -62,7 +62,7 @@ describe('payoutForSale', () => {
     expect(payoutForSale(index, { txHash: TX }, NOW)).toMatchObject({ kind: 'credited' })
   })
 
-  describe('when one transaction holds several of this seller\'s payouts', () => {
+  describe("when one transaction holds several of this seller's payouts", () => {
     // A buyer taking two of the same seller's items in one cart. Both fills land in the same
     // transaction, and a sale record carries no log index, so there is no key that pairs them.
 

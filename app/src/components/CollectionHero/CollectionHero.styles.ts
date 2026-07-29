@@ -14,7 +14,7 @@ export const Root = styled.section`
   align-items: center;
   justify-content: center;
 
-  ${theme.media.down('mobile')} {
+  ${theme.media.maxWidth('mobile')} {
     min-height: 140px;
   }
 `
@@ -52,7 +52,7 @@ export const Title = styled.h1`
   text-transform: uppercase;
   text-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
 
-  ${theme.media.down('mobile')} {
+  ${theme.media.maxWidth('mobile')} {
     padding: 24px 16px;
     font-size: 26px;
   }

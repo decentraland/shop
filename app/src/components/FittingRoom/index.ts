@@ -1,0 +1,1 @@
+export { FittingRoom } from './FittingRoom'

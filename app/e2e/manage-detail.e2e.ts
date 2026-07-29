@@ -31,7 +31,9 @@ describe('owner management on the item detail page', () => {
     await waitForText(page, 'Remove from sale')
     // The OWNER's CTA area shows management actions, not buy CTAs. Other copies on sale are reachable
     // from the resellers link, which opens them in a modal rather than listing them on the page.
-    const infoText = await page.evaluate(() => document.querySelector('.item-detail__info')?.textContent ?? '')
+    const info = await page.$('[data-testid="item-info"]')
+    expect(info).not.toBeNull()
+    const infoText = await page.evaluate(el => el!.textContent ?? '', info)
     expect(/buy now/i.test(infoText)).toBe(false)
     expect(/view other resellers/i.test(infoText)).toBe(true)
 

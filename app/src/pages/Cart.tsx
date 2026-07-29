@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCart } from '~/store/cart'
 import { useFavorites } from '~/store/favorites'
@@ -52,20 +52,17 @@ import { isLineBuyable } from '~/lib/cart-availability'
 import { CURRENCY } from '~/lib/currency'
 import { createPackCheckout, MAX_OFFER_PACKS } from '~/lib/payments'
 import { useCreditPacks } from '~/hooks/useCreditPacks'
-import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { CartCheckoutModal, type CheckoutLine } from '~/components/CartCheckoutModal'
 import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
 import { isRejection, isInsufficient } from '~/lib/errors'
-import { ErrorNotice } from '~/components/ErrorNotice'
 import { track, purchaseItemsProps, errorCode, isUserRejection, creditsToUsd } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
 import { CollectionCarousel } from '~/components/CollectionCarousel'
-import { CreatorBadge } from '~/components/CreatorBadge'
 import { Icon } from '~/components/Icon'
 import type { CatalogItem } from '~/lib/api'
 import type { SuccessNavState } from '~/pages/Success'
-import './cart.css'
+import * as S from './Cart.styles'
 
 // Router state handed to /cart by the /credits return handler to resume a checkout after a mid-checkout
 // top-up. Exported so the producer (GetCredits) shares the exact shape — a renamed field is then a TS
@@ -827,62 +824,55 @@ export function Cart() {
 
   if (items.length === 0 && !modal) {
     return (
-      <div className="checkout checkout--empty">
-        <div className="checkout__top">
-          <button className="checkout__back" onClick={() => navigate(-1)} type="button">
+      <S.Checkout>
+        <S.Top>
+          <S.Back onClick={() => navigate(-1)} type="button">
             <Icon name="arrow-left" />
             {t('nav.cart')}
-          </button>
+          </S.Back>
 
-          <section className="checkout__panel cart-empty" data-testid="cart-empty">
-            <Icon name="cart-plus" size={110} className="cart-empty__icon" />
-            <div className="cart-empty__text">
-              <p className="cart-empty__title">{t('cart.empty.title')}</p>
-              <p className="cart-empty__body">{t('cart.empty.body')}</p>
-            </div>
-            <Link className="cart-empty__cta" to="/assets">
-              {t('cart.empty.cta')}
-            </Link>
-          </section>
-        </div>
-      </div>
+          <S.CartEmpty data-testid="cart-empty">
+            <Icon name="cart-plus" size={110} />
+            <S.CartEmptyText>
+              <S.CartEmptyTitle>{t('cart.empty.title')}</S.CartEmptyTitle>
+              <S.CartEmptyBody>{t('cart.empty.body')}</S.CartEmptyBody>
+            </S.CartEmptyText>
+            <S.CartEmptyCta to="/assets">{t('cart.empty.cta')}</S.CartEmptyCta>
+          </S.CartEmpty>
+        </S.Top>
+      </S.Checkout>
     )
   }
 
   return (
-    <div className="checkout">
+    <S.Checkout>
       {/* Top section (breadcrumb + cart/summary panels) sits on the gray band; everything below
           (the cross-sell) is on the white page — Figma 1182-232377. */}
-      <div className="checkout__top">
-        <button className="checkout__back" onClick={() => navigate(-1)} type="button">
+      <S.Top>
+        <S.Back onClick={() => navigate(-1)} type="button">
           <Icon name="arrow-left" />
           {t('nav.cart')}
-        </button>
+        </S.Back>
 
-        <div className="checkout__body">
-          <div className="checkout__left">
+        <S.Body>
+          <S.Left>
             {/* Header card (Figma 1182-216308): "Cart: N Items" + Fitting Room — its own white card. */}
-            <div className="checkout__head-card">
-              <button
-                className="checkout__panel-back"
-                onClick={() => navigate(-1)}
-                type="button"
-                aria-label={t('cart.goBack')}
-              >
+            <S.HeadCard>
+              <S.PanelBack onClick={() => navigate(-1)} type="button" aria-label={t('cart.goBack')}>
                 <Icon name="arrow-left" />
-              </button>
-              <h1 className="checkout__panel-title">{t('cart.panelTitle', { count: totalUnits })}</h1>
+              </S.PanelBack>
+              <S.PanelTitle>{t('cart.panelTitle', { count: totalUnits })}</S.PanelTitle>
               {hasWearable ? (
-                <button className="checkout__fitting" onClick={() => setFittingOpen(true)} disabled={working}>
+                <S.Fitting onClick={() => setFittingOpen(true)} disabled={working}>
                   <Icon name="fitting-room" />
                   {t('cart.fittingRoom')}
-                </button>
+                </S.Fitting>
               ) : null}
-            </div>
+            </S.HeadCard>
 
             {/* Items card (Figma 1182-216322): the cart lines, p-24, radius 16. */}
-            <section className="checkout__panel">
-              <div className="checkout__list">
+            <S.Panel>
+              <S.List>
                 {items.map(item => {
                   const line = lineById.get(item.id)
                   const livePrice = line ? line.priceCredits : item.priceCredits
@@ -902,21 +892,16 @@ export function Cart() {
                   const unavailableLabel =
                     status === 'sold-out' ? t('cart.availability.soldOut') : t('cart.availability.unavailable')
                   return (
-                    <div className={`checkout__card${unavailable ? ' is-unavailable' : ''}`} key={item.id}>
-                      <div className="checkout__thumb">
+                    <S.Card data-unavailable={unavailable || undefined} key={item.id}>
+                      <S.Thumb data-thumb>
                         {detailPath ? (
-                          <Link
-                            className="checkout__thumb-link"
-                            to={detailPath}
-                            state={{ item, tradeId: item.tradeId }}
-                            aria-label={item.name}
-                          >
+                          <S.ThumbLink to={detailPath} state={{ item, tradeId: item.tradeId }} aria-label={item.name}>
                             {item.thumbnail ? <img src={item.thumbnail} alt={item.name} /> : null}
-                          </Link>
+                          </S.ThumbLink>
                         ) : item.thumbnail ? (
                           <img src={item.thumbnail} alt={item.name} />
                         ) : null}
-                        <span className="checkout__thumb-check" aria-hidden>
+                        <S.ThumbCheck data-check aria-hidden>
                           <svg viewBox="0 0 20 20" width="12" height="12">
                             <path
                               d="M5 10.5l3 3 7-7.5"
@@ -927,54 +912,41 @@ export function Cart() {
                               strokeLinejoin="round"
                             />
                           </svg>
-                        </span>
-                      </div>
-                      <div className="checkout__info">
-                        <div className="checkout__desc">
+                        </S.ThumbCheck>
+                      </S.Thumb>
+                      <S.Info>
+                        <S.Desc data-desc>
                           {detailPath ? (
-                            <Link
-                              className="checkout__name"
-                              to={detailPath}
-                              state={{ item, tradeId: item.tradeId }}
-                              title={item.name}
-                            >
+                            <S.NameLink to={detailPath} state={{ item, tradeId: item.tradeId }} title={item.name}>
                               {item.name}
-                            </Link>
+                            </S.NameLink>
                           ) : (
-                            <div className="checkout__name" title={item.name}>
-                              {item.name}
-                            </div>
+                            <S.Name title={item.name}>{item.name}</S.Name>
                           )}
-                          {item.creator ? (
-                            <CreatorBadge address={item.creator} className="checkout__creator" linkToProfile />
-                          ) : null}
+                          {item.creator ? <S.Creator address={item.creator} linkToProfile /> : null}
                           {/* A line with no tokenId is a fresh mint, i.e. bought straight from the creator
                               (Figma 1553-317153 "Tag-Creator") — the same rule the stepper uses to decide a
                               line supports quantity. Resales carry a tokenId and get no chip. */}
                           {isPrimary ? (
-                            <span className="checkout__creator-tag" data-testid="cart-creator-tag">
-                              <Icon name="buy-from-creator" className="checkout__creator-tag-ico" aria-hidden />
+                            <S.CreatorTag data-testid="cart-creator-tag">
+                              <S.CreatorTagIco name="buy-from-creator" />
                               {t('cart.creatorTag')}
-                            </span>
+                            </S.CreatorTag>
                           ) : null}
-                        </div>
-                        <div className="checkout__foot">
+                        </S.Desc>
+                        <S.Foot>
                           {unavailable ? (
                             /* No price/stepper: a warning + the reason, plus a link to the item's resales.
                                The trash button in checkout__actions is the one-tap remove. */
                             <>
-                              <span className="checkout__unavailable">
-                                <Icon name="warning-fill" size={24} className="checkout__warn" aria-hidden />
+                              <S.Unavailable>
+                                <S.Warn name="warning-fill" size={24} />
                                 {unavailableLabel}
-                              </span>
+                              </S.Unavailable>
                               {detailPath ? (
-                                <Link
-                                  className="checkout__resales"
-                                  to={detailPath}
-                                  state={{ item, tradeId: item.tradeId }}
-                                >
+                                <S.Resales to={detailPath} state={{ item, tradeId: item.tradeId }}>
                                   {t('cart.availability.viewResales')}
-                                </Link>
+                                </S.Resales>
                               ) : null}
                             </>
                           ) : (
@@ -983,9 +955,8 @@ export function Cart() {
                           (floored at 1 — the trash button removes), plus increments up to remaining stock.
                           SECONDARY lines are a single unique token, so the stepper is hidden (qty is 1). */}
                               {isPrimary ? (
-                                <div className="checkout__stepper">
-                                  <button
-                                    className="checkout__step"
+                                <S.Stepper>
+                                  <S.Step
                                     onClick={() => editCart(() => decrement(item.id))}
                                     disabled={working || qty <= 1}
                                     aria-label={t('cart.decreaseQuantity', { name: item.name })}
@@ -998,10 +969,9 @@ export function Cart() {
                                         strokeLinecap="round"
                                       />
                                     </svg>
-                                  </button>
-                                  <span className="checkout__qty">{qty}</span>
-                                  <button
-                                    className="checkout__step"
+                                  </S.Step>
+                                  <S.Qty>{qty}</S.Qty>
+                                  <S.Step
                                     onClick={() => editCart(() => increment(item.id))}
                                     disabled={working || atStockCap}
                                     aria-label={t('cart.increaseQuantity')}
@@ -1014,22 +984,20 @@ export function Cart() {
                                         strokeLinecap="round"
                                       />
                                     </svg>
-                                  </button>
-                                </div>
+                                  </S.Step>
+                                </S.Stepper>
                               ) : null}
-                              <div className="checkout__price">
-                                <CurrencyIcon className="checkout__price-ico" /> {lineSubtotal}
-                                {changed ? (
-                                  <span className="checkout__price-was">{item.priceCredits * qty}</span>
-                                ) : null}
-                              </div>
+                              <S.Price>
+                                <S.PriceIco /> {lineSubtotal}
+                                {changed ? <S.PriceWas>{item.priceCredits * qty}</S.PriceWas> : null}
+                              </S.Price>
                             </>
                           )}
-                        </div>
-                      </div>
-                      <div className="checkout__actions">
-                        <button
-                          className={`checkout__fav${faved ? ' is-on' : ''}`}
+                        </S.Foot>
+                      </S.Info>
+                      <S.Actions>
+                        <S.Fav
+                          data-on={faved || undefined}
                           onClick={() => toggleFav(item)}
                           aria-label={
                             faved
@@ -1039,51 +1007,48 @@ export function Cart() {
                           title={faved ? t('assetCard.removeFromFavorites') : t('assetCard.addToFavorites')}
                         >
                           <Icon name={faved ? 'heart-solid' : 'heart'} />
-                        </button>
+                        </S.Fav>
 
-                        <button
-                          className="checkout__remove"
+                        <S.Remove
                           onClick={() => editCart(() => remove(item.id))}
                           disabled={working}
                           aria-label={t('cart.remove', { name: item.name })}
                           title={t('cart.removeTitle')}
                         >
                           <Icon name="trash" size={24} />
-                        </button>
-                      </div>
-                    </div>
+                        </S.Remove>
+                      </S.Actions>
+                    </S.Card>
                   )
                 })}
-              </div>
+              </S.List>
 
               {/* Utility actions kept subtle so they don't compete with the CTA. */}
-              <div className="checkout__utils">
+              <S.Utils>
                 <button className="link" onClick={() => editCart(clear)} disabled={working}>
                   {t('cart.clearCart')}
                 </button>
-              </div>
-            </section>
-          </div>
+              </S.Utils>
+            </S.Panel>
+          </S.Left>
 
-          <aside className="checkout__summary">
-            <h2 className="checkout__summary-title">{t('cart.purchaseSummary')}</h2>
-            <div className="checkout__summary-body">
-              <div className="checkout__total-line">
-                <span className="checkout__total-label">{t('cart.totalItems', { count: buyableUnits })}</span>
-                <span className="checkout__total-side">
-                  <span className="checkout__total-value">
-                    <CurrencyIcon className="checkout__total-ico" /> {total}
-                  </span>
+          <S.Summary>
+            <S.SummaryTitle>{t('cart.purchaseSummary')}</S.SummaryTitle>
+            <S.SummaryBody>
+              <S.TotalLine>
+                <S.TotalLabel>{t('cart.totalItems', { count: buyableUnits })}</S.TotalLabel>
+                <S.TotalSide>
+                  <S.TotalValue>
+                    <S.TotalIco /> {total}
+                  </S.TotalValue>
                   {/* The rate sits under the total, not under the buttons (Figma): it explains the MANA
                       amounts below, so it reads before them. Absent when the buyer holds no MANA — there
                       is no MANA amount on screen to explain. */}
                   {summaryRateNote && (manaBalanceWei ?? 0n) > 0n ? (
-                    <span className="checkout__total-rate" data-testid="cart-mana-rate">
-                      {summaryRateNote}
-                    </span>
+                    <S.TotalRate data-testid="cart-mana-rate">{summaryRateNote}</S.TotalRate>
                   ) : null}
-                </span>
-              </div>
+                </S.TotalSide>
+              </S.TotalLine>
 
               {/* One CTA per rail the buyer's balances support, right in the panel (Figma 1558-320257 /
                   1558-320267). Priced off the cart's own line prices — the same number the total above
@@ -1099,29 +1064,28 @@ export function Cart() {
                   onPay={method => void (review ? confirmPurchase() : checkout(method))}
                 />
               ) : (
-                <button
-                  className="checkout__cta"
+                <S.Cta
                   onClick={() => void (review ? confirmPurchase() : checkout())}
                   disabled={working || allUnavailable}
                 >
                   {working ? t('cart.working') : review ? t('marketCheckout.confirmPurchase') : t('assetCard.buyNow')}
-                </button>
+                </S.Cta>
               )}
 
-              {allUnavailable ? <p className="muted checkout__msg">{t('cart.allUnavailable')}</p> : null}
-              {!session ? <p className="muted checkout__msg">{t('cart.signInHint')}</p> : null}
-              {review ? <p className="muted checkout__msg">{t('cart.priceChanged')}</p> : null}
-              {notice ? <p className="muted checkout__msg">{notice}</p> : null}
-              <ErrorNotice message={error} className="checkout__msg" />
-            </div>
-          </aside>
-        </div>
-      </div>
+              {allUnavailable ? <S.Msg className="muted">{t('cart.allUnavailable')}</S.Msg> : null}
+              {!session ? <S.Msg className="muted">{t('cart.signInHint')}</S.Msg> : null}
+              {review ? <S.Msg className="muted">{t('cart.priceChanged')}</S.Msg> : null}
+              {notice ? <S.Msg className="muted">{notice}</S.Msg> : null}
+              <S.MsgNotice message={error} />
+            </S.SummaryBody>
+          </S.Summary>
+        </S.Body>
+      </S.Top>
 
       {upsell.length > 0 ? (
-        <div className="cart-upsell">
+        <S.Upsell>
           <CollectionCarousel title={t('cart.youMightAlsoLike')} items={upsell} />
-        </div>
+        </S.Upsell>
       ) : null}
 
       {authStep && session ? (
@@ -1166,6 +1130,6 @@ export function Cart() {
           onRetry={() => void checkout()}
         />
       ) : null}
-    </div>
+    </S.Checkout>
   )
 }

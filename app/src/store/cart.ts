@@ -157,7 +157,7 @@ export const useCart = create<CartState>()(
       // stored cart never rehydrates with an undefined quantity (which would break totals/steppers).
       migrate: persisted => {
         const state = persisted as { items?: Array<CatalogItem & { quantity?: number }> } | undefined
-        if (!state?.items) return state as unknown as { items: CartItem[] }
+        if (!state?.items) return state
         return { items: state.items.map(withQuantity) }
       }
     }

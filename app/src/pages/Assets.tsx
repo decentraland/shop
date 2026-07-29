@@ -22,6 +22,7 @@ import { track } from '~/lib/analytics'
 import { t } from '~/intl/i18n'
 import { ErrorNotice } from '~/components/ErrorNotice'
 import { NamesPage } from '~/pages/NamesPage'
+import { Grid } from '~/styles/grid.styles'
 import emptyIllustration from '~/assets/error/search-empty.svg'
 import * as S from './Assets.styles'
 
@@ -264,7 +265,7 @@ export function Assets() {
       {category !== 'names' && (
         <>
           {filtersOpen ? <S.Scrim onClick={() => setFiltersOpen(false)} aria-hidden /> : null}
-          <S.Sidebar className={filtersOpen ? 'is-open' : ''} data-testid="browse-sidebar">
+          <S.Sidebar data-open={filtersOpen || undefined} data-testid="browse-sidebar">
             <S.DrawerHead>
               <S.DrawerTitle>{t('assets.filters')}</S.DrawerTitle>
               <S.CloseBtn onClick={() => setFiltersOpen(false)} aria-label={t('assets.closeFilters')}>
@@ -323,7 +324,7 @@ export function Assets() {
             Only warn when the current results actually contain a market-priced item, so users browsing
             only fixed-price items aren't shown an irrelevant notice. */}
             {rateError && isUnified && items.some(i => (i as UnifiedListing).source === 'legacy') ? (
-              <p className="market-banner market-banner--warn">{t('assets.marketUnavailable')}</p>
+              <S.MarketBanner data-variant="warn">{t('assets.marketUnavailable')}</S.MarketBanner>
             ) : null}
 
             {error ? <ErrorNotice message={t('assets.loadError')} testId="browse-error" /> : null}
@@ -353,7 +354,7 @@ export function Assets() {
               </S.EmptyState>
             ) : (
               <>
-                <div className="grid" data-testid="grid">
+                <Grid data-testid="grid">
                   {showGridSkeletons ? (
                     <SkeletonCards count={gridSkeletonCount} />
                   ) : (
@@ -378,7 +379,7 @@ export function Assets() {
                       {isFetchingNextPage ? <SkeletonCards count={6} /> : null}
                     </>
                   )}
-                </div>
+                </Grid>
 
                 <LoadMore
                   hasNextPage={hasNextPage}

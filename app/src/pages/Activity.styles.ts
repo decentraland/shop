@@ -106,7 +106,7 @@ export const CardHead = styled.div`
   background: ${theme.colors.softWhite};
   border-bottom: 1px solid ${theme.colors.line};
 
-  ${theme.media.down('mobile')} {
+  ${theme.media.maxWidth('mobile')} {
     flex-wrap: wrap;
   }
 `
@@ -229,7 +229,7 @@ export const ManaTipBubble = styled.span`
   padding: 6px 8px;
   border-radius: 6px;
   background: #16141a;
-  color: #fff;
+  color: ${theme.colors.white};
   font-size: 12px;
   font-weight: 600;
   line-height: 1;

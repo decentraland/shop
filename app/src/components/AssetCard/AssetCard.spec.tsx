@@ -58,7 +58,7 @@ describe('AssetCard author row', () => {
   it('renders the resolved "By {creator}" line (capitalised) under the title', () => {
     useProfile.mockReturnValue({ data: { name: 'soul magic' } })
     const { container } = renderCard(makeItem({ creator: '0x' + 'ab'.repeat(20) }))
-    const author = container.querySelector('.card__author')
+    const author = container.querySelector('[data-testid="card-author"]')
     expect(author).not.toBeNull()
     expect(author?.textContent).toBe('By Soul magic')
   })
@@ -66,14 +66,14 @@ describe('AssetCard author row', () => {
   it('falls back to a short address (never the raw 42-char wallet) while the profile has no name', () => {
     const addr = '0x' + 'ab'.repeat(20)
     const { container } = renderCard(makeItem({ creator: addr }))
-    const author = container.querySelector('.card__author')
+    const author = container.querySelector('[data-testid="card-author"]')
     expect(author?.textContent).toMatch(/^By 0x/i)
     expect(author?.textContent).not.toContain(addr)
   })
 
   it('renders no author line when the item has no creator address', () => {
     const { container } = renderCard(makeItem({ creator: '' }))
-    expect(container.querySelector('.card__author')).toBeNull()
+    expect(container.querySelector('[data-testid="card-author"]')).toBeNull()
     expect(screen.queryByText(/^By\b/i)).toBeNull()
     // A creatorless card never resolves a profile.
     expect(useProfile).not.toHaveBeenCalled()
@@ -283,7 +283,7 @@ describe('AssetCard view-only mode', () => {
     const { container } = renderView(makeItem({ priceCredits: 42 }))
     expect(container.querySelector('[data-testid="card-nfs"]')).toBeNull()
     expect(container.querySelector('[data-testid="card-view"]')).toBeTruthy()
-    expect(container.querySelector('.card__price')?.textContent).toContain('42')
+    expect(container.querySelector('[data-testid="card-price"]')?.textContent).toContain('42')
     expect(container.querySelector('[data-testid="card-cart"]')).toBeNull()
   })
 

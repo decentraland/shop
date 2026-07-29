@@ -56,7 +56,7 @@ export const Panel = styled.div`
   border-radius: ${theme.radius.banner};
   overflow: hidden;
 
-  ${theme.media.down('mobile')} {
+  ${theme.media.maxWidth('mobile')} {
     gap: 32px;
     padding-bottom: 32px;
   }
@@ -76,7 +76,7 @@ export const Hero = styled.div`
   text-align: center;
   background: radial-gradient(120% 95% at 50% 118%, #d13bd6 0%, #a026b0 28%, #6a1b9c 58%, #4a1173 100%);
 
-  ${theme.media.down('mobile')} {
+  ${theme.media.maxWidth('mobile')} {
     padding: 40px 20px;
     gap: 28px;
   }
@@ -97,7 +97,7 @@ export const HeroTitle = styled.h1`
   line-height: 1.167;
   color: ${theme.colors.white};
 
-  ${theme.media.down('mobile')} {
+  ${theme.media.maxWidth('mobile')} {
     font-size: 26px;
   }
 `
@@ -111,7 +111,7 @@ export const HeroSubtitle = styled.p`
   line-height: 1.334;
   color: #ecebed;
 
-  ${theme.media.down('mobile')} {
+  ${theme.media.maxWidth('mobile')} {
     font-size: 16px;
   }
 `
@@ -136,14 +136,14 @@ export const InputRow = styled('div', noForward('invalid'))<{ invalid?: boolean 
   gap: 8px;
   padding: 8px 8px 8px 16px;
   background: ${theme.colors.softWhite};
-  border: 1.5px solid ${({ invalid }) => (invalid ? '#ff2d55' : theme.colors.line)};
+  border: 1.5px solid ${({ invalid }) => (invalid ? theme.colors.dclRed : theme.colors.line)};
   border-radius: 20px;
 
   &:focus-within {
-    border-color: ${({ invalid }) => (invalid ? '#ff2d55' : theme.colors.magenta)};
+    border-color: ${({ invalid }) => (invalid ? theme.colors.dclRed : theme.colors.magenta)};
   }
 
-  ${theme.media.down('mobile')} {
+  ${theme.media.maxWidth('mobile')} {
     border-radius: 16px;
   }
 `
@@ -162,7 +162,7 @@ export const Sizer = styled.span`
   font-weight: 600;
   line-height: 1.6;
 
-  ${theme.media.down('mobile')} {
+  ${theme.media.maxWidth('mobile')} {
     font-size: 16px;
   }
 `
@@ -188,7 +188,7 @@ export const TakenBanner = styled.div`
   line-height: 1.2;
   text-align: left;
 
-  ${theme.media.down('mobile')} {
+  ${theme.media.maxWidth('mobile')} {
     position: static;
     margin-top: 8px;
     align-items: flex-start;
@@ -207,7 +207,7 @@ export const TakenOfferLink = styled.a`
   text-transform: uppercase;
   white-space: nowrap;
 
-  ${theme.media.down('mobile')} {
+  ${theme.media.maxWidth('mobile')} {
     margin-left: 0;
   }
 `
@@ -229,9 +229,9 @@ export const At = styled.span`
   font-size: 26px;
   font-weight: 500;
   line-height: 1;
-  color: #a09ba8;
+  color: ${theme.colors.muted2};
 
-  ${theme.media.down('mobile')} {
+  ${theme.media.maxWidth('mobile')} {
     font-size: 20px;
   }
 `
@@ -253,11 +253,11 @@ export const NameInput = styled.input`
   padding: 0;
 
   &::placeholder {
-    color: #5e5b67;
+    color: ${theme.colors.muted1};
     font-weight: 400;
   }
 
-  ${theme.media.down('mobile')} {
+  ${theme.media.maxWidth('mobile')} {
     font-size: 16px;
   }
 `
@@ -269,9 +269,9 @@ export const Suffix = styled.span`
   font-size: 20px;
   font-weight: 400;
   line-height: 1.6;
-  color: #5e5b67;
+  color: ${theme.colors.muted1};
 
-  ${theme.media.down('mobile')} {
+  ${theme.media.maxWidth('mobile')} {
     font-size: 16px;
   }
 `
@@ -280,7 +280,7 @@ export const Counter = styled.span`
   flex: none;
   font-family: ${theme.font.sans};
   font-size: 13px;
-  color: #a09ba8;
+  color: ${theme.colors.muted2};
   white-space: nowrap;
 `
 
@@ -318,7 +318,7 @@ export const ClaimButton = styled.button`
     color: #fbe9fb;
   }
 
-  ${theme.media.down('mobile')} {
+  ${theme.media.maxWidth('mobile')} {
     display: none;
   }
 `
@@ -327,7 +327,7 @@ export const ClaimButton = styled.button`
 export const ClaimButtonMobile = styled(ClaimButton)`
   display: none;
 
-  ${theme.media.down('mobile')} {
+  ${theme.media.maxWidth('mobile')} {
     display: inline-flex;
     width: 100%;
     height: 48px;
@@ -365,7 +365,7 @@ export const Status = styled.div<{ tone: 'error' | 'ok' | 'muted' }>`
       : tone === 'ok'
         ? 'rgba(30, 166, 114, 0.14)'
         : 'rgba(255,255,255,0.14)'};
-  color: ${({ tone }) => (tone === 'error' ? '#ff2d55' : tone === 'ok' ? '#0f7a4f' : '#ecebed')};
+  color: ${({ tone }) => (tone === 'error' ? theme.colors.dclRed : tone === 'ok' ? '#0f7a4f' : '#ecebed')};
 
   .ico {
     width: 16px;
@@ -382,7 +382,7 @@ export const Why = styled.section`
   gap: 48px;
   padding: 0 48px;
 
-  ${theme.media.down('mobile')} {
+  ${theme.media.maxWidth('mobile')} {
     gap: 32px;
     padding: 0 20px;
   }
@@ -404,7 +404,7 @@ export const WhyTitle = styled.h2`
   line-height: 1.167;
   color: ${theme.colors.text2};
 
-  ${theme.media.down('mobile')} {
+  ${theme.media.maxWidth('mobile')} {
     font-size: 22px;
   }
 `
@@ -419,7 +419,7 @@ export const WhyIntro = styled.p`
   line-height: 1.57;
   color: ${theme.colors.text};
 
-  ${theme.media.down('mobile')} {
+  ${theme.media.maxWidth('mobile')} {
     font-size: 16px;
   }
 `
@@ -430,10 +430,10 @@ export const Cards = styled.div`
   gap: 24px;
   align-items: stretch;
 
-  ${theme.media.down('lg')} {
+  ${theme.media.maxWidth('lg')} {
     grid-template-columns: repeat(2, 1fr);
   }
-  ${theme.media.down('mobile')} {
+  ${theme.media.maxWidth('mobile')} {
     grid-template-columns: 1fr;
   }
 `

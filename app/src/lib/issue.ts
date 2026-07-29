@@ -73,10 +73,7 @@ export function isIssueValid(entries: IssueEntry[], available: number): boolean 
  * @param itemId the item's on-chain blockchain item id (PublishableItem.blockchainItemId) — NOT the
  *   builder UUID. Encoded as uint256.
  */
-export function buildIssueArgs(
-  entries: IssueEntry[],
-  itemId: string
-): { beneficiaries: string[]; itemIds: string[] } {
+export function buildIssueArgs(entries: IssueEntry[], itemId: string): { beneficiaries: string[]; itemIds: string[] } {
   const beneficiaries: string[] = []
   const itemIds: string[] = []
   for (const entry of entries) {
@@ -108,10 +105,7 @@ async function issueViaMetaTransaction(opts: {
     ...getContract(ContractName.ERC721CollectionV2, chainId),
     address: contractAddress
   }
-  const functionData = new ethers.utils.Interface(ISSUE_ABI).encodeFunctionData('issueTokens', [
-    beneficiaries,
-    itemIds
-  ])
+  const functionData = new ethers.utils.Interface(ISSUE_ABI).encodeFunctionData('issueTokens', [beneficiaries, itemIds])
   const rpc = readProvider()
   const provider = metaTxProviderShim(signer.provider as ethers.providers.Web3Provider, rpc)
   const txHash = await sendMetaTransaction(provider, rpc, functionData, collection, {

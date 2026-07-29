@@ -27,10 +27,10 @@ export const Hero = styled.section`
   overflow: hidden;
   padding: 82px clamp(16px, 7.06%, 122px) 129px;
 
-  ${theme.media.down('lg')} {
+  ${theme.media.maxWidth('lg')} {
     padding: 48px 24px 56px;
   }
-  ${theme.media.down('mobile')} {
+  ${theme.media.maxWidth('mobile')} {
     padding: 32px 16px 40px;
   }
 `
@@ -59,7 +59,7 @@ export const HeroInner = styled.div<{ $hidden?: boolean }>`
   gap: 52px;
   ${({ $hidden }) => $hidden && 'visibility: hidden;'}
 
-  ${theme.media.down('lg')} {
+  ${theme.media.maxWidth('lg')} {
     gap: 32px;
   }
 `
@@ -82,7 +82,7 @@ export const Title = styled.h1`
   color: ${theme.colors.white};
   text-transform: capitalize;
 
-  ${theme.media.down('mobile')} {
+  ${theme.media.maxWidth('mobile')} {
     font-size: 28px;
   }
 `
@@ -103,7 +103,7 @@ export const Sub = styled.p`
   line-height: 1.334;
   color: ${theme.colors.media};
 
-  ${theme.media.down('mobile')} {
+  ${theme.media.maxWidth('mobile')} {
     font-size: 16px;
   }
 `
@@ -133,7 +133,7 @@ export const Learn = styled.a`
     border-radius: ${theme.radius.chip};
   }
 
-  ${theme.media.down('mobile')} {
+  ${theme.media.maxWidth('mobile')} {
     font-size: 15px;
     line-height: 22px;
 
@@ -257,7 +257,7 @@ export const PackCard = styled.button`
     opacity: 0;
   }
 
-  ${theme.media.down('mobile')} {
+  ${theme.media.maxWidth('mobile')} {
     gap: 24px;
   }
 `
@@ -286,7 +286,7 @@ export const PackBadge = styled.span`
     height: 24px;
   }
 
-  ${theme.media.down('mobile')} {
+  ${theme.media.maxWidth('mobile')} {
     top: -14px;
     padding: 4px 10px 4px 6px;
     font-size: 14px;
@@ -306,7 +306,7 @@ export const PackTop = styled.span`
   gap: 12px;
   padding-top: 32px;
 
-  ${theme.media.down('mobile')} {
+  ${theme.media.maxWidth('mobile')} {
     padding-top: 16px;
   }
 `

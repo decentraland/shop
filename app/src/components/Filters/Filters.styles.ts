@@ -47,7 +47,7 @@ export const Header = styled('button', noForward('desktopStatic'))<{ desktopStat
   text-align: left;
   cursor: pointer;
 
-  ${theme.media.down('lg')} {
+  ${theme.media.maxWidth('lg')} {
     height: 52px;
   }
 
@@ -63,7 +63,7 @@ export const Header = styled('button', noForward('desktopStatic'))<{ desktopStat
 
   ${({ desktopStatic }) =>
     desktopStatic
-      ? `${theme.media.up('lg')} {
+      ? `${theme.media.minWidth('lg')} {
           cursor: default;
           &:hover { background: transparent; }
         }`
@@ -77,7 +77,7 @@ export const Title = styled.span`
   line-height: 1.43;
   color: ${theme.colors.text};
 
-  ${theme.media.down('lg')} {
+  ${theme.media.maxWidth('lg')} {
     font-size: 16px;
   }
 `
@@ -85,7 +85,7 @@ export const Title = styled.span`
 // Chevron shown only on mobile for the always-open (desktop-static) sections.
 export const HeaderChevronDesktopHidden = styled.span`
   display: inline-flex;
-  ${theme.media.up('lg')} {
+  ${theme.media.minWidth('lg')} {
     display: none;
   }
 `
@@ -100,7 +100,7 @@ export const Summary = styled('p', noForward('desktopHidden'))<{ desktopHidden?:
   color: ${theme.colors.muted};
   text-transform: capitalize;
 
-  ${({ desktopHidden }) => (desktopHidden ? `${theme.media.up('lg')} { display: none; }` : '')}
+  ${({ desktopHidden }) => (desktopHidden ? `${theme.media.minWidth('lg')} { display: none; }` : '')}
 `
 
 // Collapsible content: animate to content height via grid-template-rows 0fr↔1fr. `desktopStatic`
@@ -110,7 +110,7 @@ export const Content = styled('div', noForward('open', 'desktopStatic'))<{ open?
   grid-template-rows: ${({ open }) => (open ? '1fr' : '0fr')};
   transition: grid-template-rows 0.22s ease;
 
-  ${({ desktopStatic }) => (desktopStatic ? `${theme.media.up('lg')} { grid-template-rows: 1fr; }` : '')}
+  ${({ desktopStatic }) => (desktopStatic ? `${theme.media.minWidth('lg')} { grid-template-rows: 1fr; }` : '')}
 
   @media (prefers-reduced-motion: reduce) {
     transition: none;
@@ -289,7 +289,7 @@ export const RarityChips = styled.div`
   gap: 12px;
   padding: 9px 4px 9px 8px;
 
-  ${theme.media.down('lg')} {
+  ${theme.media.maxWidth('lg')} {
     gap: 12px 16px;
   }
 `
@@ -338,7 +338,7 @@ export const RarityName = styled('span', noForward('selected'))<{ selected?: boo
   color: ${({ selected }) => (selected ? theme.colors.text2 : theme.colors.gray0)};
   text-transform: capitalize;
 
-  ${theme.media.down('lg')} {
+  ${theme.media.maxWidth('lg')} {
     font-size: 14px;
   }
 `
@@ -384,7 +384,7 @@ export const SmartRow = styled.div`
 
   /* On mobile SMART is a peer of the collapsible section headers (Figma 1304-307965): same 52px row
      height so it doesn't read as a smaller afterthought. */
-  ${theme.media.down('lg')} {
+  ${theme.media.maxWidth('lg')} {
     height: 52px;
   }
 `
@@ -400,7 +400,7 @@ export const SmartFlash = styled(Icon)`
   height: 14px;
   color: ${theme.colors.text};
 
-  ${theme.media.down('lg')} {
+  ${theme.media.maxWidth('lg')} {
     width: 16px;
     height: 16px;
   }
@@ -416,7 +416,7 @@ export const SmartTitle = styled.span`
   text-transform: uppercase;
 
   /* Match the section-header title size on mobile so SMART has the same hierarchy as Price/Rarity/etc. */
-  ${theme.media.down('lg')} {
+  ${theme.media.maxWidth('lg')} {
     font-size: 16px;
   }
 `
@@ -449,7 +449,7 @@ export const Toggle = styled('button', noForward('on'))<{ on?: boolean }>`
   }
 
   /* Bigger, tappable switch on mobile (the 24×14 desktop pill reads as too small on a phone). */
-  ${theme.media.down('lg')} {
+  ${theme.media.maxWidth('lg')} {
     width: 40px;
     height: 22px;
   }
@@ -467,7 +467,7 @@ export const ToggleKnob = styled('span', noForward('on'))<{ on?: boolean }>`
   box-shadow: 0 1px 2px rgba(22, 21, 24, 0.3);
   transition: left 0.15s ease;
 
-  ${theme.media.down('lg')} {
+  ${theme.media.maxWidth('lg')} {
     width: 18px;
     height: 18px;
     left: ${({ on }) => (on ? 'calc(100% - 18px)' : '2px')};

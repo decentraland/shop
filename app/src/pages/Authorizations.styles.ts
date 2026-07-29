@@ -67,7 +67,7 @@ export const Row = styled.div`
   border: 1px solid ${theme.colors.line};
   border-radius: 16px;
 
-  ${theme.media.down('mobile')} {
+  ${theme.media.maxWidth('mobile')} {
     grid-template-columns: 44px 1fr;
     grid-row-gap: 10px;
   }
@@ -151,7 +151,7 @@ export const Control = styled.div`
   gap: 10px;
   justify-self: end;
 
-  ${theme.media.down('mobile')} {
+  ${theme.media.maxWidth('mobile')} {
     grid-column: 1 / -1;
     justify-self: start;
   }

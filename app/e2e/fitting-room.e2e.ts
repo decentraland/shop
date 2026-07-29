@@ -67,9 +67,9 @@ describe('the fitting room', () => {
     // The checkbox is visually hidden behind a custom-styled toggle, so it is clicked through the DOM
     // rather than by coordinates (puppeteer refuses to click a zero-size / transparent node).
     const checkbox = '[data-testid="fitting-row"] input[type="checkbox"]'
-    const toggle = () => page.$eval(checkbox, el => (el).click())
+    const toggle = () => page.$eval(checkbox, el => el.click())
     await page.waitForSelector(checkbox, { timeout: 20000 })
-    expect(await page.$eval(checkbox, el => (el).checked)).toBe(true)
+    expect(await page.$eval(checkbox, el => el.checked)).toBe(true)
 
     await toggle()
     await page.waitForFunction(

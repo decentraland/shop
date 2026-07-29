@@ -33,7 +33,7 @@ describe('cart checkout error path', () => {
     await startCartCheckout(page)
 
     // Review passes (default balance covers the item) → charge → authorize 500 → error phase modal.
-    await page.waitForSelector('.buy-error', { timeout: 30000 })
+    await page.waitForSelector('[data-testid="buy-error"]', { timeout: 30000 })
     await waitForText(page, "We couldn't complete your purchase")
     await waitForText(page, 'Try again')
 

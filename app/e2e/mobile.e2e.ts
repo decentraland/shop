@@ -21,7 +21,11 @@ afterEach(async () => {
 const PHONE = { width: 375, height: 812 }
 
 /** Launch at phone width and wait for the page to actually have content. */
-async function phone(path: string, anchor: string, fixtures?: NonNullable<Parameters<typeof launchApp>[0]>['fixtures']) {
+async function phone(
+  path: string,
+  anchor: string,
+  fixtures?: NonNullable<Parameters<typeof launchApp>[0]>['fixtures']
+) {
   app = await launchApp({ path, fixtures })
   const { page } = app
   await page.setViewport(PHONE)
@@ -63,8 +67,7 @@ describe('at phone width', () => {
     await page.waitForFunction(
       () =>
         [...document.querySelectorAll('button, a')].some(
-          el =>
-            /add to cart/i.test(el.getAttribute('aria-label') ?? '') && !!(el as HTMLElement).offsetParent
+          el => /add to cart/i.test(el.getAttribute('aria-label') ?? '') && !!(el as HTMLElement).offsetParent
         ),
       { timeout: 20000 }
     )

@@ -49,7 +49,7 @@ describe('transferring an owned item', () => {
     await waitForText(page, 'Enter a valid User ID')
     // And the action stays unavailable — the error is not merely decorative.
     const disabled = await page.$$eval('button', els =>
-      els.filter(b => /^transfer$/i.test((b.textContent ?? '').trim())).map(b => (b).disabled)
+      els.filter(b => /^transfer$/i.test((b.textContent ?? '').trim())).map(b => b.disabled)
     )
     expect(disabled.some(d => d)).toBe(true)
   })
@@ -87,9 +87,7 @@ describe('transferring an owned item', () => {
     expect(await bodyText(page)).not.toMatch(/your own address/i)
 
     const enabled = await page.$$eval('button', els =>
-      els
-        .filter(b => /^transfer$/i.test((b.textContent ?? '').trim()))
-        .some(b => !(b).disabled)
+      els.filter(b => /^transfer$/i.test((b.textContent ?? '').trim())).some(b => !b.disabled)
     )
     expect(enabled).toBe(true)
   })

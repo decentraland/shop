@@ -3,7 +3,7 @@ import fallbackBackgroundUrl from '~/images/background/custom-welcome-background
 import overlayTextureUrl from '~/images/background/DCL_LogoPattern.png'
 import { FRAGMENT_SHADER, VERTEX_SHADER } from './AnimatedBackground.shaders'
 import { createProgram, createShader, loadTexture } from './AnimatedBackground.utils'
-import './AnimatedBackground.css'
+import * as S from './AnimatedBackground.styles'
 
 // Ported from decentraland/auth (src/components/AnimatedBackground): a WebGL purple vignette with the
 // DCL logo pattern drifting across it. The static image is the fallback while WebGL boots — or the only
@@ -107,9 +107,9 @@ export default function AnimatedBackground() {
   }, [])
 
   return (
-    <div className="AnimatedBackground" aria-hidden>
-      <div className="AnimatedBackground__fallback" style={{ backgroundImage: `url(${fallbackBackgroundUrl})` }} />
-      <canvas ref={canvasRef} className="AnimatedBackground__canvas" />
-    </div>
+    <S.Root aria-hidden>
+      <S.Fallback style={{ backgroundImage: `url(${fallbackBackgroundUrl})` }} />
+      <S.Canvas ref={canvasRef} />
+    </S.Root>
   )
 }

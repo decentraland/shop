@@ -66,7 +66,16 @@ function fakeTrade(receivedAssetType: number, amount = '1000000000000000000'): T
     contract: '0xmarket',
     checks: {},
     sent: [],
-    received: [{ assetType: receivedAssetType, contractAddress: '0xmana', amount, value: amount, beneficiary: '0xseller', extra: '0x' }]
+    received: [
+      {
+        assetType: receivedAssetType,
+        contractAddress: '0xmana',
+        amount,
+        value: amount,
+        beneficiary: '0xseller',
+        extra: '0x'
+      }
+    ]
   } as unknown as Trade
 }
 

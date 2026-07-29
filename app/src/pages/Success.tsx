@@ -3,8 +3,6 @@ import { useLocation, useNavigate, Navigate } from 'react-router-dom'
 import { useWallet } from '~/store/wallet'
 import { config } from '~/config'
 import { Button } from '~/components/Button'
-import { CurrencyIcon } from '~/components/CurrencyIcon'
-import { CreatorBadge } from '~/components/CreatorBadge'
 import styled from '@emotion/styled'
 import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import { waitForSettlement, SettlementPendingError } from '~/lib/buy-gasless'
@@ -13,6 +11,7 @@ import { formatCredits, CURRENCY } from '~/lib/currency'
 import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
 import type { CatalogItem } from '~/lib/api'
+import * as S from './Success.styles'
 
 // Settlement of the purchase, watched on this page so we NEVER claim success before the item is
 // actually the buyer's AND queryable. Two gates:
@@ -147,24 +146,22 @@ export function Success() {
   const showExplorer = !!txHash && showsWalletConfirmations(session?.providerType)
 
   const receiptLink = showExplorer ? (
-    <a className="success__receipt" href={`${EXPLORER_TX}${txHash}`} target="_blank" rel="noreferrer">
+    <S.Receipt href={`${EXPLORER_TX}${txHash}`} target="_blank" rel="noreferrer">
       {t('success.viewTransaction')}
-    </a>
+    </S.Receipt>
   ) : null
 
   // Still working (or a dead-end) → a centered status panel. The pixel-perfect Figma layout
   // (green banner + item list + CTAs) is only the CONFIRMED state.
   if (settlement !== 'confirmed') {
     return (
-      <div className="success">
-        <div className="success__status">
+      <S.Root>
+        <S.Status>
           {settlement === 'pending' || settlement === 'indexing' ? (
             <>
-              <span className="spinner success__spinner" aria-hidden />
-              <h1 className="success__title">
-                {settlement === 'indexing' ? t('success.finalizing') : t('success.processing')}
-              </h1>
-              <p className="success__sub">
+              <S.Spinner className="spinner" aria-hidden />
+              <S.Title>{settlement === 'indexing' ? t('success.finalizing') : t('success.processing')}</S.Title>
+              <S.Sub>
                 {settlement === 'indexing' ? (
                   <>
                     {t('success.indexingBefore')}{' '}
@@ -186,43 +183,43 @@ export function Success() {
                     {t('success.confirmingAfter')}
                   </>
                 )}
-              </p>
-              {receiptLink ? <div className="success__links">{receiptLink}</div> : null}
+              </S.Sub>
+              {receiptLink ? <S.Links>{receiptLink}</S.Links> : null}
             </>
           ) : settlement === 'timed-out' ? (
             <>
-              <h1 className="success__title">{t('success.stillProcessingTitle')}</h1>
-              <p className="success__sub">
+              <S.Title>{t('success.stillProcessingTitle')}</S.Title>
+              <S.Sub>
                 {t('success.timedOutBefore')}{' '}
                 <button className="link" onClick={() => navigate('/activity')}>
                   {t('nav.activity')}
                 </button>{' '}
                 {t('success.timedOutAfter')}
-              </p>
-              {receiptLink ? <div className="success__links">{receiptLink}</div> : null}
-              <div className="success__actions">
+              </S.Sub>
+              {receiptLink ? <S.Links>{receiptLink}</S.Links> : null}
+              <S.Actions>
                 <SuccessBtn variant="purple" onClick={() => navigate('/activity')}>
                   {t('success.viewActivity')}
                 </SuccessBtn>
                 <SuccessBtn variant="ghost" onClick={() => navigate('/assets')}>
                   {t('success.keepShopping')}
                 </SuccessBtn>
-              </div>
+              </S.Actions>
             </>
           ) : (
             <>
-              <h1 className="success__title">{t('success.failedTitle')}</h1>
-              <p className="success__sub">{t('success.failedBody')}</p>
-              {receiptLink ? <div className="success__links">{receiptLink}</div> : null}
-              <div className="success__actions">
+              <S.Title>{t('success.failedTitle')}</S.Title>
+              <S.Sub>{t('success.failedBody')}</S.Sub>
+              {receiptLink ? <S.Links>{receiptLink}</S.Links> : null}
+              <S.Actions>
                 <SuccessBtn variant="purple" onClick={() => navigate('/assets')}>
                   {t('success.backToShop')}
                 </SuccessBtn>
-              </div>
+              </S.Actions>
             </>
           )}
-        </div>
-      </div>
+        </S.Status>
+      </S.Root>
     )
   }
 
@@ -230,10 +227,10 @@ export function Success() {
   // bordered card listing every purchased item (thumbnail + name + creator + credit price, divided by
   // hairlines), then the MY ASSETS / TRY IN WORLD CTAs.
   return (
-    <div className="success">
-      <div className="success-done">
-        <div className="success-banner" role="status">
-          <span className="success-banner__check" aria-hidden>
+    <S.Root>
+      <S.Done>
+        <S.Banner role="status">
+          <S.BannerCheck aria-hidden>
             <svg viewBox="0 0 60 60" width="60" height="60">
               <circle cx="30" cy="30" r="30" fill="#34ce77" />
               <path
@@ -245,37 +242,37 @@ export function Success() {
                 strokeLinejoin="round"
               />
             </svg>
-          </span>
-          <p className="success-banner__text">
+          </S.BannerCheck>
+          <S.BannerText>
             <b>{t('success.bannerTitle')}</b> {t('success.bannerBody')}
-          </p>
-        </div>
+          </S.BannerText>
+        </S.Banner>
 
-        <div className="success-list">
+        <S.List>
           {/* Credits that landed with a mid-checkout top-up (buy-credits-and-item-together) — shown
-              above the item list as the bundle added to the account (Figma 1231-250927). */}
+              above the item list as the bundle added to the account. */}
           {creditsAdded ? (
-            <div className="success-credits" data-testid="success-credits">
-              <CurrencyIcon className="success-credits__ico" />
-              <p className="success-credits__text">
-                <span className="success-credits__amount">
+            <S.Credits data-testid="success-credits">
+              <S.CreditsIco />
+              <S.CreditsText>
+                <S.CreditsAmount>
                   {t('getCredits.creditsAmount', { credits: creditsAdded, currency: CURRENCY.name })}
-                </span>{' '}
-                <span className="success-credits__added">{t('getCredits.creditsAdded')}</span>
-              </p>
-            </div>
+                </S.CreditsAmount>{' '}
+                <S.CreditsAdded>{t('getCredits.creditsAdded')}</S.CreditsAdded>
+              </S.CreditsText>
+            </S.Credits>
           ) : null}
           {items.map((item, i) => {
             // A primary/mint line can be bought × N — show the line total (per-unit × qty) plus a
             // "× N" badge, mirroring the old in-cart complete modal.
             const qty = item.quantity ?? 1
             return (
-              <div className="success-list__row" key={item.id}>
-                {i > 0 ? <span className="success-list__divider" aria-hidden /> : null}
-                <div className="success-row">
-                  <div className="success-row__thumb">
+              <S.ListRow key={item.id}>
+                {i > 0 ? <S.Divider aria-hidden /> : null}
+                <S.Row>
+                  <S.RowThumb>
                     {item.thumbnail ? <img src={item.thumbnail} alt="" /> : null}
-                    <span className="success-row__check" aria-hidden>
+                    <S.RowCheck aria-hidden>
                       <svg viewBox="0 0 18 18" width="12" height="12">
                         <path
                           d="M4 9l3.5 3.5L14 5"
@@ -286,38 +283,34 @@ export function Success() {
                           strokeLinejoin="round"
                         />
                       </svg>
-                    </span>
-                  </div>
-                  <div className="success-row__info">
-                    <div className="success-row__name" title={item.name}>
+                    </S.RowCheck>
+                  </S.RowThumb>
+                  <S.RowInfo>
+                    <S.RowName title={item.name}>
                       {item.name || t('buyModal.itemFallback')}
-                      {qty > 1 ? (
-                        <span className="success-row__qty">{t('cartCheckout.qty', { count: qty })}</span>
-                      ) : null}
-                    </div>
-                    {item.creator ? (
-                      <CreatorBadge address={item.creator} className="success-row__creator" linkToProfile />
-                    ) : null}
-                  </div>
-                  <div className="success-row__price">
-                    <CurrencyIcon className="success-row__price-ico" />
+                      {qty > 1 ? <S.RowQty>{t('cartCheckout.qty', { count: qty })}</S.RowQty> : null}
+                    </S.RowName>
+                    {item.creator ? <S.RowCreator address={item.creator} linkToProfile /> : null}
+                  </S.RowInfo>
+                  <S.RowPrice>
+                    <S.RowPriceIco />
                     <span>{formatCredits(item.priceCredits * qty)}</span>
-                  </div>
-                </div>
-              </div>
+                  </S.RowPrice>
+                </S.Row>
+              </S.ListRow>
             )
           })}
-        </div>
+        </S.List>
 
-        {receiptLink ? <div className="success__links success-done__receipt">{receiptLink}</div> : null}
+        {receiptLink ? <S.Links data-receipt>{receiptLink}</S.Links> : null}
 
-        <div className="success-ctas">
-          <button className="success-cta success-cta--ghost" onClick={() => navigate('/my-assets')}>
+        <S.Ctas>
+          <S.Cta data-variant="ghost" onClick={() => navigate('/my-assets')}>
             {t('success.myAssets')}
-          </button>
-          <a className="success-cta success-cta--ruby" href={JUMP_URL} target="_blank" rel="noreferrer">
+          </S.Cta>
+          <S.CtaLink data-variant="ruby" href={JUMP_URL} target="_blank" rel="noreferrer">
             {t('success.tryInWorld')}
-            <span className="success-cta__jump" aria-hidden>
+            <S.CtaJump aria-hidden>
               <svg viewBox="0 0 24 24" width="20" height="20">
                 <path
                   d="M5 12h12M13 7l5 5-5 5"
@@ -328,11 +321,11 @@ export function Success() {
                   strokeLinejoin="round"
                 />
               </svg>
-            </span>
-          </a>
-        </div>
-      </div>
-    </div>
+            </S.CtaJump>
+          </S.CtaLink>
+        </S.Ctas>
+      </S.Done>
+    </S.Root>
   )
 }
 

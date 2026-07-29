@@ -191,7 +191,7 @@ export const Grid = styled.div`
   grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
   gap: 20px;
 
-  ${theme.media.down('sm')} {
+  ${theme.media.maxWidth('sm')} {
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
     gap: 12px;
   }
@@ -248,7 +248,7 @@ export const EmptyCta = styled(Link)`
   padding: 0 20px;
   border-radius: 8px;
   background: ${theme.colors.accent};
-  color: #fff;
+  color: ${theme.colors.white};
   font-family: ${theme.font.sans};
   font-size: 14px;
   font-weight: 600;

@@ -205,7 +205,12 @@ export async function transferItem(opts: {
   // chain — a restored session can leave the wallet on whatever network it last used; switch just-in-time.
   await ensureChain(signer.provider as ethers.providers.Web3Provider, chainId)
   const contract = new ethers.Contract(contractAddress, ERC721_TRANSFER_ABI, signer) as ethers.Contract & {
-    transferFrom(from: string, to: string, tokenId: string, overrides?: ethers.Overrides): Promise<ethers.ContractTransaction>
+    transferFrom(
+      from: string,
+      to: string,
+      tokenId: string,
+      overrides?: ethers.Overrides
+    ): Promise<ethers.ContractTransaction>
   }
   const tx = await contract.transferFrom(from, to, tokenId, amoyGasOverrides(chainId))
   const receipt = await tx.wait()

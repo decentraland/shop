@@ -1,10 +1,13 @@
-// The single source of truth for design tokens as the app migrates from `index.css` to Emotion
-// `styled`. Values mirror the CSS custom properties in `index.css` (`:root`) one-for-one — until a
-// given class is fully migrated and removed, both must agree. Once `index.css` is gone, this file
-// becomes the only source.
+// Design tokens for the Emotion `styled` layer. These values are DUPLICATED in `styles/index.css`
+// (`:root` custom properties) and MUST be kept in sync one-for-one, because both are still live:
+//   1. the remaining utility rules in index.css use `var(--muted)` etc., and
+//   2. a handful of components emit raw `var(--…)` strings at runtime (e.g. `<Icon color="var(--muted)">`).
+// So when you change a color/radius/gradient here, change the matching `--var` there too (and vice-versa).
+// theme.ts may hold EXTRA tokens with no `--var` (e.g. `magenta`, `okStrong`) — that's fine; only tokens
+// that exist in BOTH must agree. (Collapsing to a single source is possible later — see CLAUDE.md.)
 //
 // Usage: import this object directly and interpolate it — `styled.span\`color: ${theme.colors.muted}\``,
-// `theme.media.down('mobile')`. It's a plain const, so no ThemeProvider is needed (the app has no
+// `theme.media.maxWidth('mobile')`. It's a plain const, so no ThemeProvider is needed (the app has no
 // runtime theme-switching); this also keeps unit tests provider-free. Components must NOT re-hardcode
 // hexes, radii, or px breakpoints — pull them from here.
 //
@@ -17,6 +20,7 @@ const colors = {
   text: '#161518', // Neutrals/Soft Black 1
   text2: '#242129', // Neutrals/Soft Black 2
   muted: '#716b7c', // Neutrals/Gray 2
+  muted1: '#5e5b67', // Neutrals/Gray 1 — uppercase labels (price / stock)
   muted2: '#a09ba8', // Neutrals/Gray 3
   gray0: '#43404a', // Neutrals/Gray 0 — filter labels, applied-filter chip bg
   gray4: '#cfcdd4', // Neutrals/Gray 4 — hairline borders on rarity swatch chips
@@ -80,6 +84,12 @@ const font = {
   sans: '"Inter", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
 } as const
 
+// Stacking tiers. `overlay` sits above the global DCL navbar (position: fixed) + the sub-nav so a
+// full-screen scrim dims the whole viewport, navbar included — every full-screen overlay shares it.
+const z = {
+  overlay: 10000
+} as const
+
 // Canonical breakpoints (see CLAUDE.md — reuse these, don't invent new ones). `mobile` (768) is the
 // primary one; the others cover a few specific layout shifts. Exported for the rare direct need, but
 // deliberately NOT a key on `theme` — MUI (via decentraland-ui2) already owns a `breakpoints` key on
@@ -88,18 +98,20 @@ export const breakpoints = {
   mobile: 768,
   sm: 720,
   md: 820,
-  lg: 900
+  lg: 900,
+  xl: 1200
 } as const
 
 export type Breakpoint = keyof typeof breakpoints
 
-// Media-query helpers so components write `${({ theme }) => theme.media.down('mobile')} { … }`
-// instead of hardcoding widths. `down` is max-width (mobile-down); `up` is min-width (the next px up).
+// Media-query helpers so components write `${({ theme }) => theme.media.maxWidth('mobile')} { … }`
+// instead of hardcoding widths. `maxWidth` caps at the breakpoint (mobile-down); `minWidth` starts at
+// the next px up.
 const media = {
-  down: (bp: Breakpoint) => `@media (max-width: ${breakpoints[bp]}px)`,
-  up: (bp: Breakpoint) => `@media (min-width: ${breakpoints[bp] + 1}px)`
+  maxWidth: (bp: Breakpoint) => `@media (max-width: ${breakpoints[bp]}px)`,
+  minWidth: (bp: Breakpoint) => `@media (min-width: ${breakpoints[bp] + 1}px)`
 }
 
-export const theme = { colors, rarities, gradients, radius, font, media }
+export const theme = { colors, rarities, gradients, radius, font, media, z }
 
 export type AppTheme = typeof theme

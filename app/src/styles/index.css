@@ -1,0 +1,233 @@
+/* These custom properties are DUPLICATED in styles/theme.ts (the `colors`/`radius`/`gradients`/`font`
+   tokens) and MUST stay in sync one-for-one. Both are live: index.css rules below + component styled
+   defs read theme.ts, and some components emit raw `var(--…)` strings. Change one → change the other. */
+:root {
+  /* Brand / accent (from Figma) */
+  --bg: #ffffff;
+  --text: #161518;
+  --text-2: #242129;
+  --muted: #716b7c;
+  --muted-1: #5e5b67; /* gray-1: uppercase labels (price / stock) */
+  --muted-2: #a09ba8;
+  --line: #e6e4ea; /* subtle card border (approx 0.25px #a09ba8) */
+  --line-strong: #a09ba8; /* search field / defined borders */
+  --media: #ecebed;
+  --panel: #f5f5f5;
+  --chip: #ecebed;
+  --gray-0: #43404a;
+  --accent: #691fa9; /* purple — View all, Sign-in CTA */
+  --brand-violet: #a524b3; /* cart badge */
+  --rarity: #a14bf3;
+  --rarity-bg: rgba(161, 75, 243, 0.3);
+  --black-btn: #242129; /* add-to-cart bg */
+  --soft-white: #fcfcfc;
+  --dcl-red: #ff2d55;
+  --ok: #1ea672;
+  --err: #d33;
+  --amethyst: linear-gradient(180deg, #c640cd 0%, #691fa9 100%);
+  --cerise: linear-gradient(135deg, #ff2d55 0%, #c640cd 100%); /* DCL/Gradients/Cerise — card hover border */
+  --radius-card: 12px;
+  --radius-chip: 4px;
+  --radius-btn: 8px;
+  --radius-pill: 50px;
+  --radius-banner: 24px;
+  --sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  /* Modal/overlay stacking tier — above the global DCL navbar (position: fixed) + the sub-nav so a
+     scrim dims the FULL viewport, navbar included. Shared by every full-screen overlay. */
+  --z-overlay: 10000;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  padding-top: 92px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+@media (max-width: 768px) {
+  body {
+    padding-top: 64px;
+  }
+}
+/* Cart route background: the whole page is gray so the white cards (header, items, summary) get the
+   focus. Toggled on <body> while Cart is mounted (see pages/Cart.tsx) so the gray reaches the viewport
+   edges AND fills up to the sticky sub-nav with no white gap — a page-level element can't do either.
+   The cross-sell section below the panels is lifted back to white by a band on Cart's Upsell. */
+body.shop-cart-bg {
+  background: var(--media);
+}
+/* Sticky footer: fill the viewport (minus the fixed top navbar) as a flex column so short pages push
+   the footer to the bottom instead of leaving it floating mid-screen. */
+#root {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 92px);
+}
+@media (max-width: 768px) {
+  #root {
+    min-height: calc(100vh - 64px);
+  }
+}
+a {
+  color: inherit;
+  text-decoration: none;
+}
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+h1,
+h2 {
+  margin: 0;
+}
+.muted {
+  color: var(--muted);
+}
+.small {
+  font-size: 13px;
+}
+.error {
+  color: var(--err);
+}
+.error-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(221, 51, 51, 0.25);
+  border-radius: var(--radius-btn);
+  background: rgba(221, 51, 51, 0.08);
+  color: var(--err);
+  font-size: 14px;
+  line-height: 1.4;
+  text-align: left;
+}
+.error-notice__ico {
+  flex: none;
+  width: 18px;
+  height: 18px;
+}
+.error-notice__msg {
+  color: var(--text-2);
+}
+.link {
+  background: none;
+  border: 0;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+}
+
+/* Do NOT reach for `html { scrollbar-gutter: stable }` to stop an overlay from shifting the layout.
+ *
+ * It was tried, for the shift the notifications panel used to cause, and it is the wrong tool here: it
+ * permanently reserves the scrollbar's track, and every full-width band in this app (.subnav, the page
+ * heroes, the ui2 navbar) is sized to the CONTENT box. The band then stops short of the viewport edge and
+ * the reserved gutter shows through as a strip of body background — a white notch beside a coloured band,
+ * visible whenever no scrollbar fills it. It trades a few pixels of movement for a permanent seam.
+ *
+ * That shift turned out to be MUI's scroll lock (`overflow: hidden` plus a compensating `padding-right`),
+ * and it is fixed at the source in components/NavBar. */
+
+.page {
+  /* 54px side gutter matches the ui2 Navbar's desktop padding (16px 54px, full-width) so the shop
+     content lines up with the top nav instead of sitting ~14px wider. Mobile matches its 16px below. */
+  padding: 28px 54px 80px;
+  max-width: 1760px;
+  margin: 0 auto;
+  width: 100%;
+  flex: 1 0 auto;
+  /* The CONTENT (not the shell) fills the first viewport below the fixed navbar, so a short page keeps
+     the heavy branded footer just BELOW the fold instead of pulling it a third of the way up. */
+  min-height: calc(100vh - 92px);
+}
+/* Opt-out: the credits page is one short card, so filling the viewport just parks a screenful of empty
+   purple under it. Letting the footer sit right after the card is the better read there. */
+.page[data-route="/credits"] {
+  min-height: 0;
+}
+@media (max-width: 768px) {
+  .page {
+    padding: 16px 16px 56px;
+    /* Navbar is 64px on mobile (see body padding-top). */
+    min-height: calc(100vh - 64px);
+  }
+  .page[data-route="/credits"] {
+    min-height: 0;
+  }
+}
+.placeholder {
+  color: var(--muted);
+  font-size: 18px;
+  padding: 40px 0;
+}
+/* Suspense fallback while a lazy-loaded route chunk downloads. Height matches the in-page loaders
+   (~60vh) so the transition Suspense fallback → page loader → content doesn't reposition the footer. */
+.page-loading {
+  display: grid;
+  place-items: center;
+  min-height: 60vh;
+}
+
+/* Buttons live in the `Button` component (components/Button) — styled, variants on data-*. */
+
+/* `shimmer` is referenced by name from styled defs (SkeletonCards, ItemDetail's sale/badge skeletons)
+   as well as the `.skeleton` utility below, so it stays a global keyframe. */
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.spinner {
+  width: 30px;
+  height: 30px;
+  margin-top: 14px;
+  border-radius: 50%;
+  border: 3px solid var(--line);
+  border-top-color: var(--accent);
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 2s;
+  }
+}
+
+/* Shared content-shaped skeleton: the same shimmer, for non-card placeholders
+   (balance chip, item-detail info column, …). Pair sized modifiers with it. */
+.skeleton {
+  border-radius: 6px;
+  background: linear-gradient(100deg, #efeef2 30%, #e2e0e7 50%, #efeef2 70%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite linear;
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+}
+
+/* Shared pop-in used by several popovers/menus/modals (Dropdown, FittingRoom, BuyModal, filter/market
+   popovers) — referenced by name from their styled defs. */
+@keyframes cart-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

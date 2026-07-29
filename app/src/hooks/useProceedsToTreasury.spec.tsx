@@ -59,7 +59,7 @@ describe('useProceedsToTreasury', () => {
 
     // Give the query a chance to settle so this cannot pass merely by being early.
     await waitFor(() => expect(result.current).toBe(false))
-    await new Promise((resolve) => setTimeout(resolve, 0))
+    await new Promise(resolve => setTimeout(resolve, 0))
     expect(result.current).toBe(false)
   })
 

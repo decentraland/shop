@@ -157,9 +157,9 @@ describe('paying with MANA in the buy flow', () => {
     // ...but the MANA the buyer DOES hold is accounted for on screen, disabled, with its worth in
     // credits. Silently dropping it is what made this state read as broken.
     await page.waitForSelector('[data-testid="pay-with-mana-disabled"]', { timeout: 20000 })
-    expect(
-      await page.$eval('[data-testid="pay-with-mana-disabled"]', el => (el as HTMLButtonElement).disabled)
-    ).toBe(true)
+    expect(await page.$eval('[data-testid="pay-with-mana-disabled"]', el => (el as HTMLButtonElement).disabled)).toBe(
+      true
+    )
     expect(await page.$eval('[data-testid="mana-shortfall-note"]', el => el.textContent ?? '')).toMatch(
       /worth about [\d.,]+ credits/i
     )
@@ -242,9 +242,9 @@ describe('paying with MANA in the cart checkout', () => {
     await page.waitForSelector('[data-testid="pay-with-mana-disabled"]', { timeout: 20000 })
     expect(await has(page, 'pay-with-mana')).toBe(false)
     expect(await has(page, 'pay-with-combined')).toBe(false)
-    expect(
-      await page.$eval('[data-testid="pay-with-mana-disabled"]', el => (el as HTMLButtonElement).disabled)
-    ).toBe(true)
+    expect(await page.$eval('[data-testid="pay-with-mana-disabled"]', el => (el as HTMLButtonElement).disabled)).toBe(
+      true
+    )
     // The caption converts the balance to credits — that number IS the explanation.
     expect(await page.$eval('[data-testid="mana-shortfall-note"]', el => el.textContent ?? '')).toMatch(
       /worth about [\d.,]+ credits/i

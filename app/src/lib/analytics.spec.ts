@@ -256,7 +256,7 @@ describe('initAnalytics', () => {
     vi.doMock('~/config', () => ({
       config: { segmentWriteKey: 'wk_test', chainId: 80002, network: 'polygon', appEnv: 'test' }
     }))
-    const appendChild = vi.spyOn(document.head, 'appendChild').mockImplementation((n) => n as never)
+    const appendChild = vi.spyOn(document.head, 'appendChild').mockImplementation(n => n)
 
     const mod = await import('./analytics')
     mod.initAnalytics()

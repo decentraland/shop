@@ -69,7 +69,8 @@ describe('the sub-nav', () => {
     await page.reload({ waitUntil: 'networkidle2' })
     await page.waitForFunction(
       // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- required by tsc: this callback is typed against the page context
-      () => (document.querySelector('[data-testid="subnav-cart-badge"]') as HTMLElement | null)?.innerText.trim() === '1',
+      () =>
+        (document.querySelector('[data-testid="subnav-cart-badge"]') as HTMLElement | null)?.innerText.trim() === '1',
       { timeout: 20000 }
     )
   })

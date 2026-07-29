@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { Button } from '~/components/Button'
 import { Icon } from '~/components/Icon'
-import styled from '@emotion/styled'
 import { useWallet } from '~/store/wallet'
 import { useStore } from '~/hooks/useStore'
 import {
@@ -17,18 +15,12 @@ import {
   type StoreDraft
 } from '~/lib/store'
 import { COVER_TEMPLATES } from '~/lib/creator-covers'
-import { Spinner } from '~/components/Spinner'
 import { toast } from '~/store/toast'
 import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
 import { ErrorNotice } from '~/components/ErrorNotice'
-import './store-settings.css'
-
-const SignInBtn = styled(Button)`
-  align-self: center;
-  min-width: 200px;
-  margin-top: 8px;
-`
+import { Field } from '~/styles/field.styles'
+import * as S from './StoreSettings.styles'
 
 const MAX_COVER_BYTES = 1_000_000 // 1 MB, same cap as the classic marketplace.
 
@@ -138,13 +130,13 @@ export function StoreSettings() {
 
   if (!session) {
     return (
-      <section className="store-settings store-settings--signin" aria-label={t('storeSettings.title')}>
-        <h1 className="store-settings__title">{t('storeSettings.title')}</h1>
+      <S.Root data-signin aria-label={t('storeSettings.title')}>
+        <S.Title>{t('storeSettings.title')}</S.Title>
         <p className="muted">{t('storeSettings.signInPrompt')}</p>
-        <SignInBtn variant="purple" onClick={signIn}>
+        <S.SignInBtn variant="purple" onClick={signIn}>
           {t('storeSettings.signIn')}
-        </SignInBtn>
-      </section>
+        </S.SignInBtn>
+      </S.Root>
     )
   }
 
@@ -211,55 +203,48 @@ export function StoreSettings() {
   }
 
   return (
-    <section className="store-settings" aria-label={t('storeSettings.title')}>
-      <div className="store-settings__head">
-        <div className="store-settings__heading">
+    <S.Root aria-label={t('storeSettings.title')}>
+      <S.Head>
+        <S.Heading>
           {address ? (
-            <Link
-              className="store-settings__back"
+            <S.Back
               to={`/assets/creator/${address}`}
               title={t('storeSettings.back')}
               aria-label={t('storeSettings.back')}
             >
               <Icon name="arrow-left" />
-            </Link>
+            </S.Back>
           ) : null}
-          <h1 className="store-settings__title">{t('storeSettings.title')}</h1>
-        </div>
+          <S.Title>{t('storeSettings.title')}</S.Title>
+        </S.Heading>
         {address ? (
-          <a
-            className="store-settings__guest"
-            href={`/assets/creator/${address}`}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
+          <S.Guest href={`/assets/creator/${address}`} target="_blank" rel="noopener noreferrer">
             {t('storeSettings.seeAsGuest')}
             <Icon name="external-link" />
-          </a>
+          </S.Guest>
         ) : null}
-      </div>
+      </S.Head>
 
       {isLoading ? (
-        <Spinner size="large" label={t('storeSettings.loading')} className="store-settings__loading" />
+        <S.Loading size="large" label={t('storeSettings.loading')} />
       ) : (
         <>
-          <div className="field">
+          <Field>
             <span className="field__label">{t('storeSettings.cover')}</span>
-            <div className="cover-picker" role="group" aria-label={t('storeSettings.cover')}>
+            <S.Picker role="group" aria-label={t('storeSettings.cover')}>
               {COVER_TEMPLATES.map(tpl => {
                 const selected = selectedTemplate === tpl.name
                 return (
-                  <button
+                  <S.Tile
                     key={tpl.name}
                     type="button"
-                    className={`cover-picker__tile${selected ? ' is-selected' : ''}`}
                     data-testid="cover-picker-tile"
                     data-selected={selected}
                     aria-pressed={selected}
                     onClick={() => pickTemplate(tpl.name, tpl.url)}
                   >
                     <img src={tpl.url} alt="" loading="lazy" />
-                  </button>
+                  </S.Tile>
                 )
               })}
 
@@ -268,9 +253,8 @@ export function StoreSettings() {
                   A saved template is matched above by hash (and dropped from customCover), so it never
                   doubles up here. */}
               {customCover ? (
-                <button
+                <S.Tile
                   type="button"
-                  className={`cover-picker__tile cover-picker__tile--custom${!selectedTemplate ? ' is-selected' : ''}`}
                   data-testid="cover-picker-tile"
                   data-variant="custom"
                   data-selected={!selectedTemplate}
@@ -278,36 +262,34 @@ export function StoreSettings() {
                   onClick={pickCustom}
                 >
                   <img src={customCover.url} alt="" />
-                </button>
+                </S.Tile>
               ) : null}
 
-              <button
+              <S.Tile
                 type="button"
-                className="cover-picker__tile cover-picker__upload"
                 data-testid="cover-picker-tile"
                 data-variant="upload"
                 onClick={() => fileInput.current?.click()}
               >
                 <Icon name="upload" />
                 <span>{t('storeSettings.upload')}</span>
-              </button>
-              <input
+              </S.Tile>
+              <S.FileInput
                 ref={fileInput}
                 type="file"
                 accept="image/png, image/jpeg, image/webp"
-                className="cover-picker__input"
                 data-testid="cover-picker-input"
                 onChange={onUpload}
               />
-            </div>
+            </S.Picker>
             {oversize ? (
               <ErrorNotice
                 message={t('storeSettings.sizeError', { max: mb(MAX_COVER_BYTES), current: mb(coverSize) })}
               />
             ) : null}
-          </div>
+          </Field>
 
-          <label className="field">
+          <Field as="label">
             <span className="field__label">{t('storeSettings.description')}</span>
             <textarea
               value={draft.description}
@@ -315,9 +297,9 @@ export function StoreSettings() {
               disabled={saving}
               onChange={e => setDraft(d => ({ ...d, description: e.target.value }))}
             />
-          </label>
+          </Field>
 
-          <label className="field">
+          <Field as="label">
             <span className="field__label">{t('storeSettings.website')}</span>
             <input
               type="url"
@@ -331,37 +313,36 @@ export function StoreSettings() {
             {!isValidLink('website', draft.links.website) ? (
               <ErrorNotice message={t('storeSettings.linkError', { value: LINK_PREFIX.website })} />
             ) : null}
-          </label>
+          </Field>
 
           {(['twitter', 'discord', 'facebook'] as const).map(type => (
-            <label className="field" key={type}>
+            <Field as="label" key={type}>
               <span className="field__label">{t(`storeSettings.${type}`)}</span>
-              <div className="field__prefixed">
-                <span className="field__prefix">{LINK_PREFIX[type]}</span>
+              <S.Prefixed>
+                <S.Prefix>{LINK_PREFIX[type]}</S.Prefix>
                 <input
                   type="text"
                   value={linkInputValue(type)}
                   disabled={saving}
                   onChange={e => setLink(type, e.target.value)}
                 />
-              </div>
-            </label>
+              </S.Prefixed>
+            </Field>
           ))}
 
-          <div className="store-settings__actions">
-            <Button
+          <S.Actions>
+            <S.SaveBtn
               variant="purple"
-              className="store-settings__save"
               data-testid="store-settings-save"
               onClick={() => void save()}
               disabled={!canSave}
             >
               {saving ? t('storeSettings.saving') : t('storeSettings.save')}
-            </Button>
-          </div>
+            </S.SaveBtn>
+          </S.Actions>
         </>
       )}
-    </section>
+    </S.Root>
   )
 }
 

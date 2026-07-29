@@ -247,9 +247,13 @@ describe('manaShortfall — held MANA that cannot pay', () => {
   })
 
   it('is null when a MANA rail IS offerable — the enabled button is the explanation', () => {
-    expect(computePaymentOptions({ ...price, balanceCents: 0, manaBalanceWei: 25n * 10n ** 18n }).manaShortfall).toBeNull()
+    expect(
+      computePaymentOptions({ ...price, balanceCents: 0, manaBalanceWei: 25n * 10n ** 18n }).manaShortfall
+    ).toBeNull()
     // Combined: $9 of credits leaves a $1 remainder that 2.5 MANA covers.
-    expect(computePaymentOptions({ ...price, balanceCents: 900, manaBalanceWei: 3n * 10n ** 18n }).manaShortfall).toBeNull()
+    expect(
+      computePaymentOptions({ ...price, balanceCents: 900, manaBalanceWei: 3n * 10n ** 18n }).manaShortfall
+    ).toBeNull()
   })
 
   it('is null when the buyer holds no MANA, and when the rate is unknown', () => {

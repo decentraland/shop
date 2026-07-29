@@ -8,7 +8,7 @@ import { Icon } from '~/components/Icon'
 import { ErrorNotice } from '~/components/ErrorNotice'
 import { t } from '~/intl/i18n'
 import type { CatalogItem } from '~/lib/api'
-import './notify-me.css'
+import * as S from './NotifyMe.styles'
 
 // Loose email sanity check — enough to gate the button; the server is the real validator.
 function isEmailish(v: string): boolean {
@@ -76,34 +76,31 @@ export function NotifyMe({ item }: { item: CatalogItem }) {
   // Guest: no email input — sign in first (managed sign-in carries the email we'd notify).
   if (!session) {
     return (
-      <div className="notify" data-testid="notify">
-        <button type="button" className="notify__signin" onClick={signIn} data-testid="notify-signin">
+      <S.Root data-testid="notify">
+        <S.PurpleBtn type="button" data-full onClick={signIn} data-testid="notify-signin">
           {t('notifyMe.signInCta')}
-        </button>
-      </div>
+        </S.PurpleBtn>
+      </S.Root>
     )
   }
 
   if (subscribed) {
     return (
-      <div className="notify notify__done" data-testid="notify-subscribed">
-        <span className="notify__done-check" aria-hidden>
+      <S.Root data-done data-testid="notify-subscribed">
+        <S.DoneCheck aria-hidden>
           <Icon name="check" size={12} />
-        </span>
-        <span className="notify__done-text">{t('notifyMe.subscribedBody')}</span>
-      </div>
+        </S.DoneCheck>
+        <S.DoneText>{t('notifyMe.subscribedBody')}</S.DoneText>
+      </S.Root>
     )
   }
 
   return (
-    <form className="notify" onSubmit={onSubmit} data-testid="notify">
-      <label className="notify__label" htmlFor="notify-email">
-        {t('notifyMe.label')}
-      </label>
-      <div className="notify__row">
-        <input
+    <S.Form onSubmit={e => void onSubmit(e)} data-testid="notify">
+      <S.Label htmlFor="notify-email">{t('notifyMe.label')}</S.Label>
+      <S.Row>
+        <S.Input
           id="notify-email"
-          className="notify__input"
           type="email"
           inputMode="email"
           autoComplete="email"
@@ -112,16 +109,11 @@ export function NotifyMe({ item }: { item: CatalogItem }) {
           onChange={e => setEmail(e.target.value)}
           data-testid="notify-email"
         />
-        <button
-          type="submit"
-          className="notify__btn"
-          disabled={!isEmailish(email) || submitting}
-          data-testid="notify-submit"
-        >
+        <S.PurpleBtn type="submit" disabled={!isEmailish(email) || submitting} data-testid="notify-submit">
           {submitting ? t('notifyMe.working') : t('notifyMe.cta')}
-        </button>
-      </div>
+        </S.PurpleBtn>
+      </S.Row>
       <ErrorNotice message={error} />
-    </form>
+    </S.Form>
   )
 }

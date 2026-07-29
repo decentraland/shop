@@ -16,7 +16,10 @@ import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
 import { useSeo } from '~/hooks/useSeo'
 import { SUBCAT_MAP } from '~/lib/categories'
 import { CURRENCY } from '~/lib/currency'
-import './collection.css'
+import * as CP from '~/styles/collectionPage.styles'
+import * as FP from '~/styles/filterPop.styles'
+import * as BL from '~/styles/browseLayout.styles'
+import { Grid } from '~/styles/grid.styles'
 
 const PAGE_SIZE = 48
 
@@ -96,19 +99,17 @@ export function Collection() {
   const anyActive = category !== 'wearable' || !!subCategory || rarities.length > 0 || priceActive
 
   return (
-    <div className="collection-page" data-testid="collection-page">
-      <nav className="collection-page__crumbs" aria-label={t('collection.breadcrumbAria')}>
-        <button className="collection-page__crumb-link" onClick={() => navigate('/assets')}>
-          {t('collection.breadcrumb')}
-        </button>
-        <span className="collection-page__crumb-sep">/</span>
-        <span className="collection-page__crumb-current">{title}</span>
-      </nav>
+    <CP.Page data-testid="collection-page">
+      <CP.Crumbs aria-label={t('collection.breadcrumbAria')}>
+        <CP.CrumbLink onClick={() => navigate('/assets')}>{t('collection.breadcrumb')}</CP.CrumbLink>
+        <span>/</span>
+        <CP.CrumbCurrent>{title}</CP.CrumbCurrent>
+      </CP.Crumbs>
 
       <CollectionHero name={title} creator={creator} />
 
-      <div className="browse browse--sidebar collection-page__browse" data-testid="browse">
-        <aside className="browse__sidebar" data-testid="browse-sidebar">
+      <BL.Browse data-testid="browse">
+        <BL.Sidebar data-testid="browse-sidebar">
           <CollectionCreatorCard address={creator} />
           <CategoryFilter
             category={category}
@@ -118,9 +119,9 @@ export function Collection() {
             title={t('collection.category')}
             flat
           />
-        </aside>
+        </BL.Sidebar>
 
-        <div className="browse__main">
+        <BL.Main>
           {!isLoading && items.length > 0 ? <AddAllToCart items={items} source="collection" /> : null}
 
           <FilterBar
@@ -134,8 +135,8 @@ export function Collection() {
             onClear={reset}
             renderTrailing={panel => (
               <FilterPanel panelKey="price" label={priceLabel} active={priceActive} panel={panel}>
-                <div className="filter-pop filter-pop--price">
-                  <div className="filter-pop__price-row">
+                <FP.Pop data-variant="price">
+                  <FP.PriceRow>
                     <input
                       type="number"
                       min="0"
@@ -153,16 +154,16 @@ export function Collection() {
                       value={priceMax}
                       onChange={e => setPriceMax(e.target.value)}
                     />
-                  </div>
-                  <p className="filter-pop__hint">{t('collection.priceHint', { currency: CURRENCY.name })}</p>
-                </div>
+                  </FP.PriceRow>
+                  <FP.Hint>{t('collection.priceHint', { currency: CURRENCY.name })}</FP.Hint>
+                </FP.Pop>
               </FilterPanel>
             )}
           />
 
           {error ? <ErrorNotice message={t('collection.error')} /> : null}
 
-          <div className="grid" data-testid="grid">
+          <Grid data-testid="grid">
             {isLoading ? (
               <SkeletonCards count={15} />
             ) : (
@@ -173,14 +174,14 @@ export function Collection() {
                 {isFetchingNextPage ? <SkeletonCards count={6} /> : null}
               </>
             )}
-          </div>
+          </Grid>
 
           <LoadMore hasNextPage={hasNextPage} isFetching={isFetchingNextPage} onLoadMore={() => void fetchNextPage()} />
 
           {!isLoading && !error && items.length === 0 ? <p className="muted">{t('collection.empty')}</p> : null}
-        </div>
-      </div>
-    </div>
+        </BL.Main>
+      </BL.Browse>
+    </CP.Page>
   )
 }
 

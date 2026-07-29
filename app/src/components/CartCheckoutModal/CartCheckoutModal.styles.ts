@@ -1,0 +1,74 @@
+import styled from '@emotion/styled'
+import { theme } from '~/styles/theme'
+
+const { colors, radius } = theme
+
+// The multi-item additions to the shared BuyModal shell (see ~/components/BuyModal/modal.styles): a
+// step counter, a scrollable line list, and the per-line quantity tag.
+
+export const ProgressRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+`
+
+export const Step = styled.span`
+  font-size: 16px;
+  line-height: 22px;
+  color: ${colors.text2};
+  text-transform: capitalize;
+  white-space: nowrap;
+`
+
+export const Scroll = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 360px;
+  overflow-y: auto;
+  width: 100%;
+  scrollbar-width: thin;
+  scrollbar-color: #a2a2a2 ${colors.media};
+
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+  &::-webkit-scrollbar-track {
+    background: ${colors.media};
+    border-radius: 10px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: #a2a2a2;
+    border-radius: ${radius.btn};
+  }
+`
+
+// "× N" tag beside the item name when a primary line is being bought in multiples.
+export const QtyTag = styled.span`
+  margin-left: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: ${colors.muted};
+`
+
+// Payment-rail chooser: the basket total above the rail rows.
+export const ChooseTotal = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 0 12px;
+  font-size: 14px;
+  color: ${colors.muted};
+
+  & strong {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 20px;
+    font-weight: 700;
+    color: ${colors.text};
+  }
+`

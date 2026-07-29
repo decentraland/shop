@@ -58,7 +58,7 @@ const AS_OTHER_ACCOUNT = {
 /** The price the sale block is showing, or '' while it is still a skeleton. */
 const shownPrice = (page: App['page']) =>
   page.evaluate(() => {
-    const el = document.querySelector('.item-detail__price')
+    const el = document.querySelector('[data-testid="item-price"]')
     return (el as HTMLElement | null)?.innerText.replace(/\s+/g, ' ').trim() ?? ''
   })
 
@@ -69,7 +69,8 @@ describe('a shop-listed token seen by another account', () => {
 
     await waitForText(page, 'Nebula Jacket')
     await page.waitForFunction(
-      expected => (document.querySelector('.item-detail__price') as HTMLElement | null)?.innerText.includes(expected),
+      expected =>
+        (document.querySelector('[data-testid="item-price"]') as HTMLElement | null)?.innerText.includes(expected),
       { timeout: 20000 },
       LISTED_CREDITS
     )
@@ -85,7 +86,7 @@ describe('a shop-listed token seen by another account', () => {
       const w = window as unknown as { __sawZero?: boolean }
       w.__sawZero = false
       const check = () => {
-        const el = document.querySelector('.item-detail__price') as HTMLElement | null
+        const el = document.querySelector('[data-testid="item-price"]') as HTMLElement | null
         if (el && /(^|\s)0(\s|$)/.test(el.innerText.replace(/\s+/g, ' ').trim())) w.__sawZero = true
       }
       new MutationObserver(check).observe(document, { childList: true, subtree: true, characterData: true })
@@ -95,7 +96,8 @@ describe('a shop-listed token seen by another account', () => {
 
     await waitForText(page, 'Nebula Jacket')
     await page.waitForFunction(
-      expected => (document.querySelector('.item-detail__price') as HTMLElement | null)?.innerText.includes(expected),
+      expected =>
+        (document.querySelector('[data-testid="item-price"]') as HTMLElement | null)?.innerText.includes(expected),
       { timeout: 20000 },
       LISTED_CREDITS
     )

@@ -1,0 +1,178 @@
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import styled from '@emotion/styled'
+import { useLocation } from 'react-router-dom'
+import { PreviewEmote, PreviewType } from '@dcl/schemas'
+import { PreviewMessageType, sendMessage } from '@dcl/schemas/dist/dapps/preview'
+import { WearablePreview } from '~/components/LazyWearablePreview'
+import { config } from '~/config'
+import { useHoverPreview } from '~/store/hoverPreview'
+import { useWallet } from '~/store/wallet'
+import { useProfile } from '~/hooks/useProfile'
+import { avatarShape, isCompatible } from '~/lib/bodyShape'
+
+const Wrap = styled.div`
+  & iframe {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    display: block;
+    background: transparent;
+  }
+`
+
+// ONE persistent WearablePreview for the whole app. It boots a single 3D engine once (while the
+// browser is idle) and then, on card hover, is repositioned over the hovered card and told to load
+// that card's wearable via a postMessage UPDATE — the SAME channel WearablePreview uses internally.
+// Its own `src` never changes (stable base props: default avatar, no item), so the iframe never
+// reloads: a hover swaps the loaded GLB on a warm engine instead of standing up a fresh iframe +
+// WebGL context + engine from scratch (what per-card previews did, and why hover felt slow).
+//
+// The layer is pointer-events:none and sits above the card media, so hovering/clicking passes
+// straight through to the card (hover stays active; the whole-card link still navigates) and the
+// cross-origin iframe never surfaces its internal content-URL tooltip.
+const IFRAME_ID = 'hover-preview'
+
+export function HoverPreviewLayer() {
+  // The detail page (PDP) mounts its own heavy WearablePreview, so don't keep a SECOND engine warm
+  // off-screen while a PDP is open — that stacked two (sometimes three, with the Fitting Room) live
+  // WebGL contexts and pegged the GPU. Unmount the warm hover layer on /item/* and /token/* (it
+  // re-boots on idle when the shopper returns to a browse grid, where hover previews are used).
+  const { pathname } = useLocation()
+  const onDetailPage = pathname.startsWith('/item/') || pathname.startsWith('/token/')
+
+  const item = useHoverPreview(s => s.item)
+  const anchor = useHoverPreview(s => s.anchor)
+  const token = useHoverPreview(s => s.token)
+  const ready = useHoverPreview(s => s.ready)
+  const setReady = useHoverPreview(s => s.setReady)
+
+  // Dress the hovered item on the shopper's own avatar when they have a compatible one.
+  // Only pass the address once useProfile confirms a published avatar
+  // (a real address with none renders empty), so signed-out or empty accounts stay on a mannequin.
+  const address = useWallet(s => s.session?.address)
+  const { data: avatar } = useProfile(address)
+
+  // Defer mounting the iframe to browser idle so warming never competes with the initial page render.
+  const [mounted, setMounted] = useState(false)
+  const [booted, setBooted] = useState(false) // engine up (first default-avatar LOAD seen)
+  const bootedRef = useRef(false)
+  // The token we last asked the engine to load — a LOAD only means "ready" if it still matches.
+  const loadingTokenRef = useRef(-1)
+  const [rect, setRect] = useState<DOMRect | null>(null)
+
+  useEffect(() => {
+    if (typeof window.requestIdleCallback === 'function') {
+      const id = window.requestIdleCallback(() => setMounted(true), { timeout: 3000 })
+      return () => window.cancelIdleCallback(id)
+    }
+    const id = window.setTimeout(() => setMounted(true), 1500)
+    return () => window.clearTimeout(id)
+  }, [])
+
+  // Track the anchored card's on-screen rect; follow it on scroll/resize while a preview is active.
+  useEffect(() => {
+    if (!anchor) {
+      setRect(null)
+      return
+    }
+    let raf = 0
+    const update = () => setRect(anchor.getBoundingClientRect())
+    update()
+    const onMove = () => {
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(update)
+    }
+    window.addEventListener('scroll', onMove, true)
+    window.addEventListener('resize', onMove)
+    return () => {
+      cancelAnimationFrame(raf)
+      window.removeEventListener('scroll', onMove, true)
+      window.removeEventListener('resize', onMove)
+    }
+  }, [anchor])
+
+  // Point the warm engine at the hovered item. Re-runs when the item/token changes, and once more when
+  // the engine boots (so an item hovered before boot still loads). UPDATE is dropped by the app before
+  // it's READY, hence the boot gate + resend.
+  useEffect(() => {
+    if (!item) return
+    const iframe = document.getElementById(IFRAME_ID) as HTMLIFrameElement | null
+    if (!iframe?.contentWindow) return
+    // Only advance the token AFTER the boot gate — i.e. only when we actually dispatch an UPDATE. If we
+    // stamped it on every effect run (incl. a pre-boot hover that sends nothing), it would always equal
+    // the store token and handleLoad's staleness check would be a no-op.
+    if (!bootedRef.current) return
+    loadingTokenRef.current = token
+    const isEmote = item.category === 'emote'
+    // On the connected avatar when it can wear the item (emotes are shape-agnostic, so any avatar works);
+    // otherwise a default mannequin of a shape the item DOES support, so gendered items never render invisible.
+    const onAvatar = !!address && !!avatar && isCompatible(item, avatarShape(avatar))
+    sendMessage(iframe.contentWindow, PreviewMessageType.UPDATE, {
+      options: {
+        contractAddress: item.contractAddress,
+        itemId: item.itemId ?? undefined,
+        profile: onAvatar ? address : 'default',
+        // Load straight into the fashion pose (like the per-card previews) so the avatar doesn't flash
+        // a T-pose; emotes auto-detect + play their own animation.
+        type: isEmote ? undefined : PreviewType.AVATAR,
+        emote: isEmote ? undefined : PreviewEmote.FASHION,
+        disableBackground: true,
+        disableFadeEffect: true
+      }
+    })
+  }, [item, token, booted, address, avatar])
+
+  function handleLoad() {
+    // The FIRST LOAD is the default avatar rendering = engine booted; it's not an item load.
+    if (!bootedRef.current) {
+      bootedRef.current = true
+      setBooted(true)
+      return
+    }
+    // A later LOAD is the response to our latest UPDATE — mark ready only if a card is still hovered
+    // (guard against a LOAD landing after hide(), which would set ready:true with item:null) AND it's
+    // still the current token (not a stale load from a card the mouse already left).
+    const s = useHoverPreview.getState()
+    if (s.item && s.token === loadingTokenRef.current) setReady()
+  }
+
+  if (!mounted || onDetailPage) return null
+
+  const active = !!item && !!rect
+  const wrapStyle: CSSProperties = active
+    ? {
+        position: 'fixed',
+        left: rect.left,
+        top: rect.top,
+        width: rect.width,
+        height: rect.height,
+        zIndex: 5,
+        pointerEvents: 'none',
+        opacity: ready ? 1 : 0,
+        transition: 'opacity .25s ease'
+      }
+    : // Parked offscreen but kept mounted so the engine stays warm between hovers.
+      {
+        position: 'fixed',
+        left: -9999,
+        top: -9999,
+        width: 2,
+        height: 2,
+        opacity: 0,
+        pointerEvents: 'none',
+        overflow: 'hidden'
+      }
+
+  return (
+    <Wrap aria-hidden style={wrapStyle}>
+      <WearablePreview
+        id={IFRAME_ID}
+        profile="default"
+        disableBackground
+        disableFadeEffect
+        dev={config.chainId === 80002}
+        onLoad={handleLoad}
+      />
+    </Wrap>
+  )
+}

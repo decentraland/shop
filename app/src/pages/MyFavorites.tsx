@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
 import { useFavorites } from '~/store/favorites'
 import { AssetCard } from '~/components/AssetCard'
 import { LoadMore } from '~/components/LoadMore'
 import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
+import { Grid } from '~/styles/grid.styles'
+import * as S from './MyFavorites.styles'
 import emptyIllustration from '~/assets/error/favorites-empty.svg'
 
 // Favorites live client-side (instant, no async → no skeleton needed); page them so a long list
@@ -18,30 +19,28 @@ export function MyFavorites() {
 
   if (items.length === 0) {
     return (
-      <div className="favorites-empty" data-testid="favorites-empty">
-        <img className="favorites-empty__icon" src={emptyIllustration} alt="" width={138} height={138} />
-        <div className="favorites-empty__text">
-          <p className="favorites-empty__title">{t('myFavorites.emptyTitle')}</p>
-          <p className="favorites-empty__body">{t('myFavorites.emptyBody')}</p>
-        </div>
-        <Link className="favorites-empty__cta" to="/assets">
-          {t('myFavorites.emptyCta')}
-        </Link>
-      </div>
+      <S.Empty data-testid="favorites-empty">
+        <S.EmptyIcon src={emptyIllustration} alt="" width={138} height={138} />
+        <S.EmptyText>
+          <S.EmptyTitle>{t('myFavorites.emptyTitle')}</S.EmptyTitle>
+          <S.EmptyBody>{t('myFavorites.emptyBody')}</S.EmptyBody>
+        </S.EmptyText>
+        <S.EmptyCta to="/assets">{t('myFavorites.emptyCta')}</S.EmptyCta>
+      </S.Empty>
     )
   }
 
   return (
-    <section className="favorites">
-      <div className="favorites__head">
+    <section>
+      <S.Head>
         <h1>{t('nav.myFavorites')}</h1>
-        <span className="favorites__count">{t('myFavorites.itemCount', { count: items.length })}</span>
-      </div>
-      <div className="grid">
+        <S.Count>{t('myFavorites.itemCount', { count: items.length })}</S.Count>
+      </S.Head>
+      <Grid>
         {items.slice(0, visible).map(item => (
           <AssetCard key={item.id} item={item} />
         ))}
-      </div>
+      </Grid>
       <LoadMore
         hasNextPage={visible < items.length}
         isFetching={false}

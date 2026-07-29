@@ -194,7 +194,7 @@ export async function waitForSettlement(txHash: string, opts?: { timeoutMs?: num
  * txHash. Throws GaslessUnavailableError when the flag is off / signer is a contract account /
  * relayer is down — the caller should fall back to buy.ts's sendUseCredits.
  */
-export async function useCreditsGasless(opts: {
+export async function sendUseCreditsGasless(opts: {
   chainId: number
   buyer: string
   signer: ethers.Signer
