@@ -165,14 +165,30 @@ describe('search bar', () => {
       const m = await page.evaluate(() => {
         const input = document.querySelector('input[aria-label="Search the shop"]') as HTMLElement
         const doc = document.documentElement
+        // Name what sticks out, so a failure here points at the element instead of just saying "true".
+        // The content box is narrower than the viewport wherever the scrollbar takes space (CI's Linux
+        // Chrome does; macOS overlays it), which is exactly when a vw/fixed width starts to spill.
+        const offenders: string[] = []
+        if (doc.scrollWidth > doc.clientWidth + 1) {
+          document.querySelectorAll<HTMLElement>('*').forEach(el => {
+            const r = el.getBoundingClientRect()
+            if (r.width === 0 || r.left < -1000 || r.right <= doc.clientWidth + 1) return
+            const id = el.dataset.testid ? `[${el.dataset.testid}]` : ''
+            offenders.push(
+              `${el.tagName.toLowerCase()}${id} L=${Math.round(r.left)} R=${Math.round(r.right)} ` +
+                `cssW=${getComputedStyle(el).width} "${(el.textContent ?? '').trim().slice(0, 18)}"`
+            )
+          })
+        }
         return {
           input: input.getBoundingClientRect().width,
-          overflow: doc.scrollWidth > doc.clientWidth + 1
+          box: `viewport ${window.innerWidth} / content ${doc.clientWidth} / scroll ${doc.scrollWidth}`,
+          offenders: offenders.slice(-6)
         }
       })
       // Wide enough to read a query back, not just an icon.
       expect(m.input, `input width at ${width}px`).toBeGreaterThan(120)
-      expect(m.overflow, `horizontal page overflow at ${width}px`).toBe(false)
+      expect(m.offenders, `overflow at ${width}px — ${m.box}`).toEqual([])
     }
   })
 
