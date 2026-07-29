@@ -78,4 +78,44 @@ describe('collectibles browse layout', () => {
     expect(wrapped.cart).toBe(false)
     expect(wrapped.round).toBe(true)
   })
+
+  // The filter sidebar scrolls internally, and overflow clips BOTH axes — an absolutely-positioned
+  // tooltip inside it lost its first word off the left edge. The bubble is portalled to <body> now.
+  it('shows the whole SMART hint tooltip, not cropped by the filter sidebar', async () => {
+    app = await launchApp({ path: '/assets' })
+    const { page } = app
+    await waitForText(page, 'SMART')
+
+    const anchor = await page.evaluate(() => {
+      const el = [...document.querySelectorAll('span.ico[role="img"]')].find(e =>
+        (e.getAttribute('aria-label') || '').toLowerCase().includes('smart wearables')
+      ) as HTMLElement | undefined
+      if (!el) return null
+      el.scrollIntoView({ block: 'center' })
+      const r = el.getBoundingClientRect()
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 }
+    })
+    expect(anchor).not.toBeNull()
+    // Two moves: the first parks the pointer elsewhere so the second produces a mouseover on the icon.
+    await page.mouse.move(anchor!.x - 60, anchor!.y - 60)
+    await page.mouse.move(anchor!.x, anchor!.y)
+    await page.waitForSelector('[role="tooltip"][data-open]')
+
+    const fit = await page.evaluate(() => {
+      const bubble = document.querySelector('[role="tooltip"][data-open]') as HTMLElement
+      const b = bubble.getBoundingClientRect()
+      // Every clipping ancestor the bubble now has to survive.
+      let clipped = false
+      for (let el = bubble.parentElement; el; el = el.parentElement) {
+        const cs = getComputedStyle(el)
+        if (!/auto|scroll|hidden|clip/.test(cs.overflowX + cs.overflowY)) continue
+        const c = el.getBoundingClientRect()
+        if (b.left < c.left - 1 || b.right > c.right + 1) clipped = true
+      }
+      return { clipped, inViewport: b.left >= 0 && b.right <= window.innerWidth, text: bubble.textContent }
+    })
+    expect(fit.text).toMatch(/smart wearables add/i)
+    expect(fit.clipped).toBe(false)
+    expect(fit.inViewport).toBe(true)
+  })
 })
