@@ -47,7 +47,7 @@ export function NotifyMe({ item }: { item: CatalogItem }) {
     if (status?.email) setEmail(prev => prev || status.email!)
   }, [status?.email])
   useEffect(() => {
-    if (!session) return
+    if (!session || !available) return
     let cancelled = false
     void getConnectionEmail().then(e => {
       if (!cancelled && e) setEmail(prev => prev || e)
@@ -55,7 +55,7 @@ export function NotifyMe({ item }: { item: CatalogItem }) {
     return () => {
       cancelled = true
     }
-  }, [session])
+  }, [available, session])
 
   const subscribed = submitted || !!status?.subscribed
 

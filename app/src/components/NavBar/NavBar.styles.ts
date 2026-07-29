@@ -6,6 +6,12 @@ import { CurrencyIcon } from '~/components/CurrencyIcon'
 const { colors, gradients, radius, media } = theme
 
 const mobile = media.maxWidth('mobile')
+// One row cannot hold the tab strip, a usable search field AND the balance/credits/cart cluster below
+// ~900px: something has to be cut, and every candidate is a control someone needs. So from `lg` down the
+// row wraps into the stacked layout mobile already used — search and tabs each get their own line — and
+// only the ≤768 cosmetics (shorter navbar, smaller type) stay in the `mobile` blocks below. This is also
+// the breakpoint where the browse sidebar becomes the Filters drawer, so the two shifts happen together.
+const stacked = media.maxWidth('lg')
 
 export const Subnav = styled.div`
   position: sticky;
@@ -20,19 +26,24 @@ export const Subnav = styled.div`
   background: ${colors.white};
   border-bottom: 1px solid ${colors.line};
 
-  ${mobile} {
-    top: 64px;
+  ${stacked} {
     height: auto;
     flex-wrap: wrap;
     gap: 12px;
+    padding: 12px 54px 0;
+  }
+
+  ${mobile} {
+    top: 64px;
     padding: 12px 16px 0;
   }
 `
 
-// The tab strip is the row's FLEXIBLE part. Its links are nowrap, so without min-width: 0 its
-// min-content width (~612px) is rigid: the sub-nav then squeezes the search field to nothing and, once
-// even that runs out, pushes the whole page into horizontal overflow. Letting the strip shrink and
-// scroll instead keeps the search usable and the page at viewport width at every size.
+// While the row is shared (above `lg`) the tab strip is its FLEXIBLE part. Its links are nowrap, so
+// without min-width: 0 the strip's min-content width (~612px) is rigid: the sub-nav then squeezes the
+// search field to nothing and, once even that runs out, pushes the whole page into horizontal overflow.
+// The strip scrolls instead — the mask on its right edge is what tells you there is more to reach, since
+// the scrollbar is hidden. Below `lg` the strip has its own full-width row and none of this applies.
 export const Tabs = styled.nav`
   display: flex;
   gap: 40px;
@@ -43,6 +54,17 @@ export const Tabs = styled.nav`
 
   &::-webkit-scrollbar {
     display: none;
+  }
+
+  /* Between lg and xl the strip is always narrower than its content, so fade its right edge: the
+     scrollbar is hidden and a label cut off mid-word just reads as a bug. Not applied above xl, where
+     the strip is whole and a fade would be a hint to nowhere. */
+  ${media.maxWidth('xl')} {
+    mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent);
+  }
+
+  ${stacked} {
+    mask-image: none;
   }
 
   & a {
@@ -65,10 +87,13 @@ export const Tabs = styled.nav`
     border-bottom-color: ${colors.text};
   }
 
-  ${mobile} {
+  ${stacked} {
     order: 6;
     flex: 1 0 100%;
     height: auto;
+  }
+
+  ${mobile} {
     gap: 16px;
 
     & a {
@@ -112,12 +137,15 @@ export const Search = styled.div`
     color: ${colors.muted};
   }
 
-  ${mobile} {
+  ${stacked} {
     order: 5;
-    /* Own row here — full width, so the desktop cap must not hold it back. */
+    /* Own row here — full width, so the desktop floor and cap must not hold it back. */
     flex: 1 0 100%;
     max-width: none;
     margin-left: 0;
+  }
+
+  ${mobile} {
     height: 34px;
 
     & input {
@@ -186,7 +214,7 @@ export const Balance = styled.span`
   letter-spacing: -0.03em;
   white-space: nowrap;
 
-  ${mobile} {
+  ${stacked} {
     order: 2;
   }
 `
@@ -229,7 +257,7 @@ export const Credits = styled(NavLink)`
     filter: brightness(0.95);
   }
 
-  ${mobile} {
+  ${stacked} {
     order: 1;
     margin-right: auto;
   }
@@ -259,7 +287,7 @@ export const Fav = styled(NavLink)`
     color: ${colors.brandViolet};
   }
 
-  ${mobile} {
+  ${stacked} {
     order: 3;
   }
 `
@@ -268,7 +296,7 @@ export const Fav = styled(NavLink)`
 export const CartWrap = styled.div`
   position: relative;
 
-  ${mobile} {
+  ${stacked} {
     order: 4;
   }
 `

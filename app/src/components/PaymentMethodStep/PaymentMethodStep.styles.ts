@@ -5,11 +5,16 @@ import { theme } from '~/styles/theme'
 // shared .buy-modal__card, so this is the card's whole content: header, asset summary, one selectable
 // row per payment rail, and a single BUY confirm.
 
+// This step replaces the shared shell's Head+Body entirely, so it also has to do what Body does about
+// height: the card is capped at the viewport, and without these it would be clipped at the card's edge
+// on a short screen (the confirm button first).
 export const Root = styled.div`
   display: flex;
   flex-direction: column;
   gap: 24px;
   padding: 12px 16px 16px;
+  min-height: 0;
+  overflow-y: auto;
 `
 
 export const Head = styled.div`

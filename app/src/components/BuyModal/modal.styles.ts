@@ -23,8 +23,12 @@ export const Modal = styled.div`
   padding: 20px;
 `
 
+// Fixed, not absolute: the overlay is a scroll container now, and an absolute scrim is sized to its
+// un-scrolled padding box — it would scroll away with the card, leaving a strip of undimmed page that
+// also no longer answers the click-outside-to-close. The overlay is itself fixed, so inset: 0 still
+// resolves to the viewport.
 export const Scrim = styled.div`
-  position: absolute;
+  position: fixed;
   inset: 0;
   background: rgba(22, 21, 24, 0.45);
 `
@@ -42,8 +46,11 @@ export const Card = styled.div`
   min-width: 0;
   /* Never taller than the viewport (100% of the padded overlay): the no-funds state stacks a warning, a
      line list, 4 pack tiles, the total AND the Cancel/Buy pair, which overflows a laptop screen at 100%
-     zoom and used to take the CTAs off-screen with it. The body absorbs the difference. */
+     zoom and used to take the CTAs off-screen with it. The body absorbs the difference, and the clip is
+     the backstop — a phase that forgets to make itself shrinkable is then visibly cut off at the card's
+     edge instead of painting its buttons out on the scrim. */
   max-height: 100%;
+  overflow: hidden;
   background: ${colors.white};
   border-radius: 16px;
   padding: 12px 16px 16px;

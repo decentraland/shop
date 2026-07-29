@@ -61,16 +61,27 @@ export async function createNotifyRequest(req: NotifyRequest, identity: AuthIden
     body: JSON.stringify(req)
   })
   if (!res.ok) throw new Error(`createNotifyRequest ${res.status}: ${await res.text()}`)
-  // Also drains the success body so the underlying connection isn't left open.
-  await json(res, 'createNotifyRequest')
+  // Drains the body (so the connection isn't left open) and checks what came back. A create endpoint may
+  // legitimately answer 201/204 with NO body, so only a non-empty non-JSON one is a problem.
+  const body = await res.text()
+  if (body.trim() && !isJson(body)) throw new Error('createNotifyRequest: response was not JSON')
 }
 
-// A 200 carrying HTML is a host answering for a route it doesn't implement, not a stored subscription —
+// A 2xx carrying markup is a host answering for a route it doesn't implement, not a stored subscription —
 // treat it as the failure it is instead of reporting success to the buyer.
 async function json<T>(res: { json: () => Promise<unknown> }, label: string): Promise<T> {
   try {
     return (await res.json()) as T
   } catch {
     throw new Error(`${label}: response was not JSON`)
+  }
+}
+
+function isJson(body: string): boolean {
+  try {
+    JSON.parse(body)
+    return true
+  } catch {
+    return false
   }
 }

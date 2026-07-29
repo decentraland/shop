@@ -88,6 +88,17 @@ describe('when a shop-server host is configured', () => {
     await expect(createNotifyRequest(REQUEST, IDENTITY)).rejects.toThrow(/not JSON/i)
   })
 
+  // A create endpoint answering 201/204 with no body is ordinary; only a non-empty non-JSON body means
+  // "this host isn't the notify API". Rejecting an empty success would show the buyer a false failure.
+  it.each([
+    ['204 with no body', { ok: true, status: 204, text: async () => '' }],
+    ['201 with whitespace', { ok: true, status: 201, text: async () => '\n' }]
+  ])('should accept a %s as a stored subscription', async (_label, res) => {
+    signedFetch.mockResolvedValueOnce(res)
+
+    await expect(createNotifyRequest(REQUEST, IDENTITY)).resolves.toBeUndefined()
+  })
+
   it('should throw when the status lookup answers with a non-JSON 200', async () => {
     signedFetch.mockResolvedValueOnce(indexHtml())
 
