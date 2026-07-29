@@ -189,7 +189,7 @@ describe('AssetCard legacy (MANA-priced) rows', () => {
     const link = container.querySelector('[data-testid="card-link"]') as HTMLAnchorElement
     fireEvent.click(link)
 
-    const state = JSON.parse(screen.getByTestId('loc-state').textContent as string)
+    const state = JSON.parse(screen.getByTestId('loc-state').textContent)
     expect(state.tradeId).toBe('trade-1')
     expect(state.market).toBeUndefined()
     expect(state.marketPriceCredits).toBeUndefined()

@@ -239,7 +239,10 @@ describe('reviewCart with legacy MANA lines', () => {
   it('defers an unknown price asset type instead of pricing it as MANA', async () => {
     const unknown = item('U', 50)
     // Deliberately not TradeAssetType.ERC20 or USD_PEGGED_MANA. 99 stands in for a type added later.
-    const trade = { ...legacyTrade(10), received: [{ assetType: 99, amount: '10000000000000000000' }] } as unknown as Trade
+    const trade = {
+      ...legacyTrade(10),
+      received: [{ assetType: 99, amount: '10000000000000000000' }]
+    } as unknown as Trade
 
     const review = await reviewCart([unknown], BUYER, resolverFrom({ U: trade }), RATE)
 

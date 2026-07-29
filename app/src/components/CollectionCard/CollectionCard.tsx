@@ -35,6 +35,7 @@ export function CollectionCard({ collection, cover, itemCount }: CollectionCardP
 
   return (
     <S.Card
+      data-testid="coll-card"
       role="link"
       tabIndex={0}
       onClick={open}
@@ -49,26 +50,31 @@ export function CollectionCard({ collection, cover, itemCount }: CollectionCardP
         {cover ? (
           <S.Img data-testid="coll-card-img" src={cover} alt="" loading="lazy" />
         ) : mosaic.length > 0 ? (
-          <S.Cover items={mosaic} />
+          <S.Cover items={mosaic} tinted={false} />
         ) : null}
       </S.Media>
 
       <S.Body>
         <S.Name title={name}>{name}</S.Name>
-        <S.Meta>
-          {creator ? <S.Creator address={creator} linkToProfile /> : <S.CreatorEmpty>&nbsp;</S.CreatorEmpty>}
-          <S.Count>{count == null ? '…' : t('collectionCard.itemCount', { count })}</S.Count>
-        </S.Meta>
-        <S.View
-          data-view
-          onClick={e => {
-            e.stopPropagation()
-            open()
-          }}
-          tabIndex={-1}
-        >
-          {t('collectionCard.viewCollection')}
-        </S.View>
+        {/* The creator/count row and the View action share one slot: hovering swaps them in place, so the
+            card's layout is identical in both states (see Slot). */}
+        <S.Slot>
+          <S.Meta data-meta data-testid="coll-card-meta">
+            {creator ? <S.Creator address={creator} linkToProfile /> : <S.CreatorEmpty>&nbsp;</S.CreatorEmpty>}
+            <S.Count>{count == null ? '…' : t('collectionCard.itemCount', { count })}</S.Count>
+          </S.Meta>
+          <S.View
+            data-view
+            data-testid="coll-card-view"
+            onClick={e => {
+              e.stopPropagation()
+              open()
+            }}
+            tabIndex={-1}
+          >
+            {t('collectionCard.viewCollection')}
+          </S.View>
+        </S.Slot>
       </S.Body>
     </S.Card>
   )

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { useLocation, useNavigationType } from 'react-router-dom'
+import { NavigationType, useLocation, useNavigationType } from 'react-router-dom'
 
 /**
  * Puts a newly-navigated page at the top.
@@ -33,7 +33,7 @@ export function ScrollReset() {
     // Same page, different query — paging or filtering the grid. Never move the viewport mid-browse.
     if (previous === pathname) return
     // Back/forward: the browser restores where the user already was.
-    if (navigationType === 'POP') return
+    if (navigationType === NavigationType.Pop) return
 
     // `instant` rather than smooth: this is a new page, not a movement within one, and animating it looks
     // like the page scrolled itself.
