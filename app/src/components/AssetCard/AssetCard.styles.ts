@@ -8,7 +8,7 @@ import { CreatorBadge } from '~/components/CreatorBadge'
 import { CreatorName } from '~/components/CreatorName'
 import { SaleCountdown } from '~/components/SaleCountdown'
 
-const { colors, gradients, radius, media } = theme
+const { colors, radius, media } = theme
 
 // Gap between the name column and the price in the footer's first row. Exported because AssetCard
 // measures against it to decide whether the name still fits beside the price.
