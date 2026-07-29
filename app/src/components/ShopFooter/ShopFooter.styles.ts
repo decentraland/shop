@@ -3,6 +3,13 @@ import { theme } from '~/styles/theme'
 
 const { colors, media } = theme
 
+// The two-column row (brand + newsletter on the left, MENU columns on the right) needs 834px of
+// min-content before its padding, so between the mobile breakpoint and ~834px it had NO slack at all:
+// with Inter it fit by a few px, and with any wider fallback font the last MENU column spilled off the
+// page. So the stacked/accordion layout — already the designed narrow treatment — starts at `lg`, the
+// same breakpoint the sub-nav and the browse Filters drawer switch at.
+const stacked = media.maxWidth('lg')
+
 export const Footer = styled.footer`
   width: 100%;
 `
@@ -21,7 +28,7 @@ export const Main = styled.div`
     rgba(27, 0, 46, 1) 75%
   );
 
-  ${media.maxWidth('mobile')} {
+  ${stacked} {
     flex-direction: column;
     align-items: center;
     gap: 32px;
@@ -44,7 +51,7 @@ export const Left = styled.div`
   padding: 40px 0;
   max-width: 450px;
 
-  ${media.maxWidth('mobile')} {
+  ${stacked} {
     padding: 0;
     width: 100%;
     align-items: center;
@@ -65,7 +72,7 @@ export const News = styled.div`
   flex-direction: column;
   gap: 12px;
 
-  ${media.maxWidth('mobile')} {
+  ${stacked} {
     width: 100%;
     align-items: center;
   }
@@ -78,7 +85,7 @@ export const NewsTitle = styled.p`
   line-height: 1.6;
   color: ${colors.softWhite};
 
-  ${media.maxWidth('mobile')} {
+  ${stacked} {
     text-align: center;
   }
 `
@@ -99,7 +106,7 @@ export const Connect = styled.div`
   &[data-variant='mobile'] {
     display: none;
   }
-  ${media.maxWidth('mobile')} {
+  ${stacked} {
     &[data-variant='desktop'] {
       display: none;
     }
@@ -141,7 +148,7 @@ export const Right = styled.div`
   gap: 80px;
   padding: 40px 0;
 
-  ${media.maxWidth('mobile')} {
+  ${stacked} {
     display: none;
   }
 `
@@ -170,7 +177,7 @@ export const MobileMenu = styled.div`
   flex-direction: column;
   width: 100%;
 
-  ${media.maxWidth('mobile')} {
+  ${stacked} {
     display: flex;
   }
 `
@@ -255,7 +262,7 @@ export const Bottom = styled.div`
   justify-content: space-between;
   padding: 16px 24px;
 
-  ${media.maxWidth('mobile')} {
+  ${stacked} {
     flex-direction: column;
     align-items: flex-start;
     gap: 16px;
@@ -267,7 +274,7 @@ export const BottomLeft = styled.div`
   align-items: center;
   gap: 16px;
 
-  ${media.maxWidth('mobile')} {
+  ${stacked} {
     flex-direction: column;
     align-items: flex-start;
     gap: 16px;
@@ -332,7 +339,7 @@ export const Legal = styled.div`
   align-items: center;
   gap: 16px;
 
-  ${media.maxWidth('mobile')} {
+  ${stacked} {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 12px 16px;
@@ -360,7 +367,7 @@ export const Copy = styled.span`
   color: ${colors.muted2};
   white-space: nowrap;
 
-  ${media.maxWidth('mobile')} {
+  ${stacked} {
     display: none;
   }
 `

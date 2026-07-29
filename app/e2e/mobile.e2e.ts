@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { launchApp, type App } from './helpers/app'
 import { bodyText, waitForText } from './helpers/dom'
-import { COLLECTION, buyTrade } from './fixtures'
+import { COLLECTION, CREATOR_ADDRESS, buyTrade } from './fixtures'
 
 /**
  * Phone-width smoke over the screens that matter.
@@ -71,6 +71,52 @@ describe('at phone width', () => {
         ),
       { timeout: 20000 }
     )
+    expect(await overflowPx(page)).toBeLessThanOrEqual(1)
+  })
+
+  // The sticky bottom bar is for actions. A not-for-sale item you don't own has none to offer while
+  // shop-server is unconfigured — notify-me hides itself, leaving only the disabled "coming soon" offer
+  // button — so the bar must not pin itself over the page for that.
+  it('does not pin the action bar for a not-for-sale item with nothing actionable in it', async () => {
+    // A token owned by someone ELSE, with no listing: the buyer's not-for-sale surface. Ownership is
+    // resolved from the owned-tokens lookup, so that has to be empty for the viewer not to be the owner.
+    const foreignToken = {
+      data: [
+        {
+          nft: {
+            id: `${COLLECTION}-42`,
+            contractAddress: COLLECTION,
+            tokenId: '42',
+            itemId: '0',
+            name: 'Galaxy Hat #42',
+            category: 'wearable',
+            image: '',
+            owner: CREATOR_ADDRESS,
+            network: 'MATIC',
+            chainId: 80002,
+            data: { wearable: { rarity: 'epic' } }
+          },
+          order: null
+        }
+      ],
+      total: 1
+    }
+    const page = await phone(`/token/${COLLECTION}/42`, 'Galaxy Hat', {
+      ownedNfts: { data: [], total: 0 },
+      publicNfts: foreignToken,
+      trade: null
+    })
+    await waitForText(page, 'Make an offer')
+
+    const bar = await page.evaluate(() => {
+      const offer = document.querySelector('[data-testid="make-offer"]')
+      const block = offer?.closest('[data-buttons]') as HTMLElement | null
+      return {
+        pinned: !!block,
+        position: block ? getComputedStyle(block).position : null
+      }
+    })
+    expect(bar.pinned, 'the CTA block should not carry data-buttons here').toBe(false)
     expect(await overflowPx(page)).toBeLessThanOrEqual(1)
   })
 

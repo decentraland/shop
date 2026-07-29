@@ -45,6 +45,7 @@ import { CollectionCarousel } from '~/components/CollectionCarousel'
 import { ResellersModal } from '~/components/ResellersModal'
 import { useSecondarySales } from '~/hooks/useSecondarySales'
 import { NotifyMe } from '~/components/NotifyMe'
+import { isNotifyAvailable } from '~/lib/notify'
 import { MakeOfferButton } from '~/components/MakeOfferButton'
 import { Tooltip } from '~/components/Tooltip'
 import { ErrorNotice } from '~/components/ErrorNotice'
@@ -789,9 +790,13 @@ export function ItemDetail() {
   // Both action buttons present (buyable, not managed by you): on mobile they collapse into a sticky
   // row of a wide Buy-now + a compact cart icon (see Figma 1182-194973). A market item has only Buy now.
   const dualCta = !manage && forSale && !isMarket
-  // The CTA block renders action buttons for a market item too (single Buy now), or for any listing
-  // you don't manage (the owner/creator management actions replace them when you own/created it).
-  const showCtaButtons = isMarket || !manage
+  // Whether the CTA block below holds anything a visitor can actually act on — which is what earns it the
+  // fixed bottom bar on mobile. A market item has Buy now; a listing you don't manage has buy/add-cart, or
+  // the cheapest resale of a sold-out primary, or the notify-me form. Its LAST branch can render nothing
+  // but the permanently disabled "coming soon" offer button (notify-me hides itself when no shop-server is
+  // configured), and pinning a shadowed bar to the bottom of the screen for that is pure noise.
+  const hasActionableCta =
+    isMarket || (!manage && (forSale || (soldOutWithResale && !!cheapestResaleItem) || isNotifyAvailable()))
 
   // Nothing hydrated the item (bad/stale deep link, or an item that isn't in the shop feed — e.g. a
   // legacy/market piece). Once every resolution path has settled and there's still no name, show a
@@ -1154,7 +1159,7 @@ export function ItemDetail() {
                     </S.PriceBlock>
                   )}
 
-                  <S.Ctas data-buttons={showCtaButtons || undefined} data-dual={dualCta || undefined}>
+                  <S.Ctas data-buttons={hasActionableCta || undefined} data-dual={dualCta || undefined}>
                     {isMarket ? (
                       // Market (legacy/MANA) item: a single Buy now that opens the MANA→credits checkout
                       // (MarketCheckout) — never Add to cart / BuyModal.
