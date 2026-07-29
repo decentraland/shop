@@ -75,11 +75,17 @@ describe('creator storefront', () => {
     expect(atRest.meta).toBe('visible')
     expect(atRest.view).toBe('hidden')
 
+    // The swap is gated on `@media (hover: hover)`, which Chromium derives from the OS's input
+    // devices and offers no override for (blink-settings and CDP media emulation are both ignored).
+    // Headless on macOS always reports a hovering pointer; headless in a Linux CI container reports
+    // none. Assert whichever contract applies: hover swaps the row in place, no-hover leaves it alone.
+    const canHover = await page.evaluate(() => matchMedia('(hover: hover)').matches)
     await page.hover('[data-testid="coll-card"]')
     const hovered = await read()
-    expect(hovered.meta).toBe('hidden')
-    expect(hovered.view).toBe('visible')
-    // Same card, same cover height — the swap happens inside one slot.
+    expect(hovered.meta).toBe(canHover ? 'hidden' : 'visible')
+    expect(hovered.view).toBe(canHover ? 'visible' : 'hidden')
+    // Same card, same cover height — the swap happens inside one slot (and a no-hover
+    // pointer must not move anything either).
     expect(hovered.card).toBe(atRest.card)
     expect(hovered.cover).toBe(atRest.cover)
   })
