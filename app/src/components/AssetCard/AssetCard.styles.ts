@@ -2,6 +2,7 @@ import styled from '@emotion/styled'
 import { css, type SerializedStyles } from '@emotion/react'
 import { Link } from 'react-router-dom'
 import { theme } from '~/styles/theme'
+import { ringHairline, ringLit, ringGradient } from '~/styles/card.styles'
 import { Chip } from '~/styles/chip.styles'
 import { CreatorBadge } from '~/components/CreatorBadge'
 import { CreatorName } from '~/components/CreatorName'
@@ -31,33 +32,17 @@ export const Card = styled.article`
   transition: box-shadow 0.15s ease;
 
   &::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    z-index: 5;
-    pointer-events: none;
-    border: 0.25px solid ${colors.lineStrong};
-    border-radius: inherit;
+    ${ringHairline};
   }
 
   @media (hover: hover) {
     &:hover,
     &:focus-within {
-      box-shadow: 0 0 8px 0 ${colors.brandViolet};
+      ${ringLit};
     }
     &:hover::after,
     &:focus-within::after {
-      border: 0;
-      padding: 2px;
-      background: ${gradients.cerise};
-      -webkit-mask:
-        linear-gradient(#000 0 0) content-box,
-        linear-gradient(#000 0 0);
-      mask:
-        linear-gradient(#000 0 0) content-box,
-        linear-gradient(#000 0 0);
-      -webkit-mask-composite: xor;
-      mask-composite: exclude;
+      ${ringGradient};
     }
     &:hover [data-testid='card-cart'],
     &:hover [data-reveal] {
