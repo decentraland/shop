@@ -1,3 +1,4 @@
+import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
 import { useWallet } from '~/store/wallet'
 import * as S from './PrelaunchNotice.styles'
@@ -15,6 +16,16 @@ import * as S from './PrelaunchNotice.styles'
  */
 export function PrelaunchNotice() {
   const connected = useWallet(s => !!s.session?.address)
+
+  // noindex while the curtain is up, and it needs no undoing: this component only renders while the flag is
+  // armed, so turning the flag off stops the call and the real pages set `index,follow` themselves. Keeping
+  // the tag inside the thing it describes is what keeps launch day a flag flip with no deploy — a noindex
+  // that had to be removed by merging something would put the release back on the deploy pipeline.
+  //
+  // Caveat worth knowing: this is applied after render, so it only reaches crawlers that execute JS (Google
+  // does). One that doesn't sees index.html's static `index,follow` and indexes the empty shell — which is a
+  // pre-existing property of shipping a SPA, not something the curtain introduces.
+  useSeo({ title: t('prelaunch.title'), description: t('prelaunch.body'), noindex: true })
 
   return (
     <S.Wrapper role="status" data-testid="prelaunch-notice">
