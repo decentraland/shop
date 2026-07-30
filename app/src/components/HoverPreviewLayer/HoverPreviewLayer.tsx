@@ -117,7 +117,9 @@ export function HoverPreviewLayer() {
         type: isEmote ? undefined : PreviewType.AVATAR,
         emote: isEmote ? undefined : PreviewEmote.FASHION,
         disableBackground: true,
-        disableFadeEffect: true
+        disableFadeEffect: true,
+        peerUrl: config.peerUrl,
+        marketplaceServerUrl: config.marketplaceServerUrl
       }
     })
   }, [item, token, booted, address, avatar])
@@ -171,6 +173,8 @@ export function HoverPreviewLayer() {
         disableBackground
         disableFadeEffect
         dev={config.chainId === 80002}
+        peerUrl={config.peerUrl}
+        marketplaceServerUrl={config.marketplaceServerUrl}
         onLoad={handleLoad}
       />
     </Wrap>

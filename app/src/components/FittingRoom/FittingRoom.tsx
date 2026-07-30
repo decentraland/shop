@@ -150,6 +150,8 @@ export function FittingRoom() {
                 disableBackground
                 disableFadeEffect
                 dev={config.chainId === 80002}
+                peerUrl={config.peerUrl}
+                marketplaceServerUrl={config.marketplaceServerUrl}
                 unity
                 onLoad={() => setPreviewReady(true)}
               />

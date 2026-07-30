@@ -120,6 +120,8 @@ export function ItemPreview({ item }: { item: CatalogItem }) {
           wheelZoom={isEmote ? 1.5 : undefined}
           wheelStart={isEmote ? 100 : undefined}
           dev={config.chainId === 80002}
+          peerUrl={config.peerUrl}
+          marketplaceServerUrl={config.marketplaceServerUrl}
           unity
           onRenderer={setRenderer}
           onLoad={() => {
