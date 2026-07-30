@@ -176,6 +176,14 @@ describe('pickRenderer', () => {
       expect(pickRenderer()).toEqual({ renderer: PreviewRenderer.UNITY, reason: 'connection-ok' })
     })
 
+    it('treats an empty override the same as unset', () => {
+      vi.stubEnv('MODE', 'production')
+      vi.stubEnv('VITE_PREVIEW_RENDERER', '')
+      setMeasuredMbps(100)
+      setDeviceMemory(16)
+      expect(pickRenderer()).toEqual({ renderer: PreviewRenderer.UNITY, reason: 'connection-ok' })
+    })
+
     it('falls back to Babylon in a non-test build when the override value is unrecognized', () => {
       vi.stubEnv('MODE', 'production')
       vi.stubEnv('VITE_PREVIEW_RENDERER', 'webgpu')
