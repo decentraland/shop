@@ -131,7 +131,8 @@
   "prelaunch": {
     "title": "We’re getting the shop ready",
     "body": "The shop isn’t open to everyone just yet. We’re putting the finishing touches on it — check back very soon.",
-    "connected": "Connected wallets that have early access will see the shop here."
+    "connected": "Connected wallets that have early access will see the shop here.",
+    "signIn": "Sign in"
   },
   "cart": {
     "empty": {

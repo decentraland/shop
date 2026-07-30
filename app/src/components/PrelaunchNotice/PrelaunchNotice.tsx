@@ -1,3 +1,5 @@
+import logo from '~/assets/credits/loader-logo.svg'
+import { Button } from '~/components/Button'
 import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
 import { useWallet } from '~/store/wallet'
@@ -16,6 +18,7 @@ import * as S from './PrelaunchNotice.styles'
  */
 export function PrelaunchNotice() {
   const connected = useWallet(s => !!s.session?.address)
+  const signIn = useWallet(s => s.signIn)
 
   // noindex while the curtain is up, and it needs no undoing: this component only renders while the flag is
   // armed, so turning the flag off stops the call and the real pages set `index,follow` themselves. Keeping
@@ -29,10 +32,22 @@ export function PrelaunchNotice() {
 
   return (
     <S.Wrapper role="status" data-testid="prelaunch-notice">
-      <S.Logo aria-hidden />
+      <S.LogoRing aria-hidden>
+        <S.Logo src={logo} alt="" />
+      </S.LogoRing>
       <S.Title>{t('prelaunch.title')}</S.Title>
       <S.Body>{t('prelaunch.body')}</S.Body>
-      {connected ? <S.Hint>{t('prelaunch.connected')}</S.Hint> : null}
+      {/* Sign-in is here for a reason that took a second pass to see: the curtain hides the Shop from anyone
+          without a connected wallet, and it renders no NavBar — so an allowlisted tester arriving with no
+          session had no way to identify themselves and was locked out of a Shop they were allowed into. This
+          button is not a door into the Shop, it is the door to saying who you are. */}
+      {connected ? (
+        <S.Hint>{t('prelaunch.connected')}</S.Hint>
+      ) : (
+        <Button variant="purple" onClick={() => signIn()}>
+          {t('prelaunch.signIn')}
+        </Button>
+      )}
     </S.Wrapper>
   )
 }
