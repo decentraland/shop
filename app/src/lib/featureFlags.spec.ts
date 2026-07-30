@@ -191,6 +191,29 @@ describe('featureFlags', () => {
       await expect(getIsFeatureEnabled(FeatureFlag.PROCEEDS_TO_TREASURY)).resolves.toBe(true)
     })
 
+    it('should ignore empty entries from a trailing or doubled comma', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      vi.stubEnv('DEV', true)
+      vi.stubEnv('VITE_FEATURE_FLAG_OVERRIDES', ',proceeds-to-treasury:true,,')
+      mockFlags({})
+
+      await expect(getIsFeatureEnabled(FeatureFlag.PROCEEDS_TO_TREASURY)).resolves.toBe(true)
+      // The empty entries must not be reported as malformed overrides the author never wrote.
+      expect(warn).not.toHaveBeenCalled()
+    })
+
+    it('should treat an extra colon as malformed rather than dropping the rest of the value', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      vi.stubEnv('DEV', true)
+      vi.stubEnv('VITE_FEATURE_FLAG_OVERRIDES', 'proceeds-to-treasury:true:extra')
+      mockFlags({ [FLAG_KEY]: false })
+
+      // Splitting on every colon would read the value as exactly `true` and force the flag on; splitting once
+      // keeps `true:extra`, which is not a valid value, so it falls through to the real flag.
+      await expect(getIsFeatureEnabled(FeatureFlag.PROCEEDS_TO_TREASURY)).resolves.toBe(false)
+      expect(warn).toHaveBeenCalled()
+    })
+
     it('should be inert outside a dev build, so a stray env var cannot flip a flag in production', async () => {
       vi.stubEnv('DEV', false)
       vi.stubEnv('VITE_FEATURE_FLAG_OVERRIDES', 'proceeds-to-treasury:true')

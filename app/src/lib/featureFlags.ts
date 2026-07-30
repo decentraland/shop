@@ -143,10 +143,19 @@ function devOverrideFor(flag: FeatureFlag): boolean | undefined {
   if (typeof raw !== 'string' || raw.length === 0) return undefined
 
   for (const entry of raw.split(',')) {
-    const [name, value] = entry.split(':').map(part => part.trim())
+    // A trailing or doubled comma yields an empty entry. Skipped explicitly rather than left to fall through
+    // the name comparison: it would never match a flag, but it would reach the console.warn below and report a
+    // malformed override for something the author never wrote.
+    if (entry.trim().length === 0) continue
+    // Split on the FIRST colon only. A value is `true` or `false`, so an extra colon means the entry is
+    // malformed — and capturing the whole remainder lets the warning show what was actually written instead of
+    // silently dropping everything after the second colon.
+    const separator = entry.indexOf(':')
+    const name = (separator === -1 ? entry : entry.slice(0, separator)).trim()
+    const value = separator === -1 ? '' : entry.slice(separator + 1).trim()
     // Matched against the BARE flag name (`shop-secondary-sales`), not the `dapps-` prefixed key, because the
     // bare name is what the FeatureFlag enum and the dashboard both use.
-    if (name !== (flag as string)) continue
+    if (name !== String(flag)) continue
     if (value === 'true') return true
     if (value === 'false') return false
     // A typo'd value falls through to the real flag rather than being read as false: silently forcing a flag
