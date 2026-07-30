@@ -17,6 +17,12 @@ const mobile = '@media (max-width: 880px)'
 export const Checkout = styled.div`
   max-width: 1510px;
   margin: 0 auto;
+  /* Grows into the page's leftover height and passes it down to Upsell, so the white cross-sell band ends at
+     the footer rather than leaving a gray strip. Needs .page[data-route="/cart"] to be a flex column. */
+  width: 100%;
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
 
   ${mobile} {
     padding-bottom: 188px; /* room for the fixed summary bar */
@@ -66,6 +72,17 @@ export const Body = styled.div`
 // Groups the breadcrumb + the two-column body; no background of its own (the gray comes from body).
 export const Top = styled.div`
   position: relative;
+  /* The gray band is 733px in Figma (1553-317103) — taller than the panels inside it, deliberately. Without
+     this it collapsed to the panels' height, and the page shell's own viewport-filling min-height then padded
+     the page out BELOW the cross-sell, so a strip of gray showed under "You might also like" instead of the
+     footer. Giving the band its designed height puts the leftover space where the design wants it. */
+  min-height: 733px;
+
+  ${mobile} {
+    /* The single-column layout is already taller than the desktop band, and the fixed summary bar sits over
+       the bottom of it — a floor here would only add empty gray. */
+    min-height: 0;
+  }
 `
 
 // The left column = TWO stacked white cards, 12px apart, both rounded-16 on the gray page.
@@ -744,6 +761,8 @@ export const MsgNotice = styled(ErrorNotice)`
 // with no gray strip. The top margin sits ABOVE that band, so it shows the gray page background.
 export const Upsell = styled.div`
   position: relative;
+  /* Takes the leftover height so its white ::before covers it — see .page[data-route="/cart"]. */
+  flex: 1 0 auto;
   margin-top: 48px;
   /* The whole gap from the top of the cross-sell to the "You might also like" heading — the shared
      carousel's own top margin is zeroed below so this padding isn't stacked on top of it. */
