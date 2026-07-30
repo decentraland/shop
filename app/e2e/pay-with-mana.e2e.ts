@@ -185,17 +185,16 @@ describe('paying with MANA in the cart checkout', () => {
     const { page } = app
     await goToCart(page)
 
-    // Only the credits CTA — no MANA button, and no rate note to explain one.
+    // Only the credits CTA — no MANA button.
     await page.waitForSelector('[data-testid="pay-with-credits"]', { timeout: 20000 })
     expect(await has(page, 'pay-with-mana')).toBe(false)
     expect(await has(page, 'pay-with-mana-disabled')).toBe(false)
-    expect(await has(page, 'cart-mana-rate')).toBe(false)
 
     expect(await clickByText(page, '[data-testid="pay-with-credits"]', /.*/)).toBe(true)
     await page.waitForFunction(() => window.location.pathname === '/success', { timeout: 30000 })
   })
 
-  it('offers the rails in the summary panel, with the rate, and completes a MANA-only basket', async () => {
+  it('offers the rails in the summary panel and completes a MANA-only basket', async () => {
     app = await launchApp({ path: ITEM_PATH, fixtures: { trade: buyTrade }, manaBalanceWei: PLENTY_OF_MANA })
     const { page } = app
     await goToCart(page)
@@ -204,10 +203,8 @@ describe('paying with MANA in the cart checkout', () => {
     // Credits cover the basket too, so both single rails are offered (no mixed rail needed).
     expect(await has(page, 'pay-with-credits')).toBe(true)
     expect(await has(page, 'pay-with-combined')).toBe(false)
-    // The exchange rate is stated next to the total, so the MANA amount is not a mystery number.
-    expect(await page.$eval('[data-testid="cart-mana-rate"]', el => el.textContent ?? '')).toMatch(
-      /1 credit = [\d.]+ MANA/i
-    )
+    // The rate note was removed from the summary — a buyer who wants it can work it out from the two totals.
+    expect(await has(page, 'cart-mana-rate')).toBe(false)
 
     expect(await clickByText(page, '[data-testid="pay-with-mana"]', /.*/)).toBe(true)
     await page.waitForFunction(() => window.location.pathname === '/success', { timeout: 30000 })

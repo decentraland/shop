@@ -66,6 +66,17 @@ export const Body = styled.div`
 // Groups the breadcrumb + the two-column body; no background of its own (the gray comes from body).
 export const Top = styled.div`
   position: relative;
+  /* The gray band is 733px in Figma (1553-317103) — taller than the panels inside it, deliberately. Without
+     this it collapsed to the panels' height, and the page shell's own viewport-filling min-height then padded
+     the page out BELOW the cross-sell, so a strip of gray showed under "You might also like" instead of the
+     footer. Giving the band its designed height puts the leftover space where the design wants it. */
+  min-height: 733px;
+
+  ${mobile} {
+    /* The single-column layout is already taller than the desktop band, and the fixed summary bar sits over
+       the bottom of it — a floor here would only add empty gray. */
+    min-height: 0;
+  }
 `
 
 // The left column = TWO stacked white cards, 12px apart, both rounded-16 on the gray page.

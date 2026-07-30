@@ -20,7 +20,6 @@ import {
   computePaymentOptions,
   distributeCreditsAcrossUnits,
   manaForRemainder,
-  manaPerCredit,
   type PaymentMethod
 } from '~/lib/payment-options'
 import { PaymentCtas } from '~/components/PaymentCtas'
@@ -210,12 +209,6 @@ export function Cart() {
     balanceCents: balance?.balanceCents ?? 0,
     manaBalanceWei: manaBalanceWei ?? 0n
   })
-  const summaryManaPerCredit = manaPerCredit(summaryTotalCents, summaryManaWei)
-  const summaryRateNote =
-    summaryManaPerCredit != null
-      ? t('buyModal.manaRate', { mana: summaryManaPerCredit.toLocaleString('en', { maximumFractionDigits: 2 }) })
-      : null
-
   // Re-resolve each line's LIVE trade at review time: a stored tradeId can be stale (the trade gets
   // re-signed as availability/expiration rolls), so resolveLiveTrade re-resolves by item on a 404
   // instead of dropping a still-listed row as unavailable.
@@ -1053,12 +1046,6 @@ export function Cart() {
                   <S.TotalValue>
                     <S.TotalIco /> {total}
                   </S.TotalValue>
-                  {/* The rate sits under the total, not under the buttons (Figma): it explains the MANA
-                      amounts below, so it reads before them. Absent when the buyer holds no MANA — there
-                      is no MANA amount on screen to explain. */}
-                  {summaryRateNote && (manaBalanceWei ?? 0n) > 0n ? (
-                    <S.TotalRate data-testid="cart-mana-rate">{summaryRateNote}</S.TotalRate>
-                  ) : null}
                 </S.TotalSide>
               </S.TotalLine>
 
