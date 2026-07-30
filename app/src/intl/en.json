@@ -555,7 +555,12 @@
     "emptyTitle": "Nothing here... yet!",
     "emptyBody": "Start exploring and save the items you love to keep them close for later.",
     "emptyCta": "Start exploring",
-    "itemCount": "{count, plural, one {# item} other {# items}}"
+    "itemCount": "{count, plural, one {# item} other {# items}}",
+    "loadError": "We couldn't load your favorites.",
+    "tryAgain": "Try again"
+  },
+  "favorites": {
+    "updateError": "We couldn't update your favorites. Please try again."
   },
   "overview": {
     "viewAll": "View all",

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCart } from '~/store/cart'
-import { useFavorites } from '~/store/favorites'
+import { useFavorites, favoriteKey } from '~/store/favorites'
 import { useWallet } from '~/store/wallet'
 import { stashResumeIntent, takeResumeIntent } from '~/lib/auth-return'
 import { detailRouteFor } from '~/lib/routes'
@@ -887,7 +887,9 @@ export function Cart() {
                   const qty = item.quantity
                   const atStockCap = typeof item.available === 'number' && qty >= item.available
                   const lineSubtotal = livePrice * qty
-                  const faved = !!favItems[item.id]
+                  // Stable favorite identity (contract-itemId); null (per-token row) hides the heart.
+                  const favKey = favoriteKey(item)
+                  const faved = !!favKey && !!favItems[favKey]
                   // Whole-item deep link (same route the browse cards use): a token line → /token, a
                   // catalog line → /item (see lib/routes). The PDP re-hydrates from the passed state.
                   const detailPath = detailRouteFor(item)
@@ -1001,18 +1003,20 @@ export function Cart() {
                         </S.Foot>
                       </S.Info>
                       <S.Actions>
-                        <S.Fav
-                          data-on={faved || undefined}
-                          onClick={() => toggleFav(item)}
-                          aria-label={
-                            faved
-                              ? t('cart.removeFromFavorites', { name: item.name })
-                              : t('cart.addToFavorites', { name: item.name })
-                          }
-                          title={faved ? t('assetCard.removeFromFavorites') : t('assetCard.addToFavorites')}
-                        >
-                          <Icon name={faved ? 'heart-solid' : 'heart'} />
-                        </S.Fav>
+                        {favKey ? (
+                          <S.Fav
+                            data-on={faved || undefined}
+                            onClick={() => toggleFav(item)}
+                            aria-label={
+                              faved
+                                ? t('cart.removeFromFavorites', { name: item.name })
+                                : t('cart.addToFavorites', { name: item.name })
+                            }
+                            title={faved ? t('assetCard.removeFromFavorites') : t('assetCard.addToFavorites')}
+                          >
+                            <Icon name={faved ? 'heart-solid' : 'heart'} />
+                          </S.Fav>
+                        ) : null}
 
                         <S.Remove
                           onClick={() => editCart(() => remove(item.id))}

@@ -27,6 +27,7 @@ vi.mock('decentraland-dapps/dist/modules/trades/TradeService', () => ({
 import {
   usdWeiToCents,
   fetchCatalog,
+  fetchCatalogByIds,
   fetchCollectionSaleState,
   fetchSecondarySaleState,
   fetchShopListingForItem,
@@ -214,6 +215,58 @@ describe('when fetching the browse catalog', () => {
   it('should throw when the catalog request fails', async () => {
     fetchMock.mockResolvedValueOnce(httpError(503))
     await expect(fetchCatalog()).rejects.toThrow('Failed to fetch catalog (503)')
+  })
+})
+
+describe('when hydrating catalog items by their marketplace item ids', () => {
+  const row = (id: string, name = `Item ${id}`) => ({
+    id,
+    name,
+    contractAddress: id.split('-')[0],
+    itemId: id.split('-')[1],
+    category: 'wearable',
+    network: 'MATIC',
+    chainId: 80002
+  })
+
+  it('should return [] without fetching when there are no ids', async () => {
+    expect(await fetchCatalogByIds([])).toEqual([])
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('should request the v2 catalog with repeated id params and return items in the ids order', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ data: [row('0xb-2'), row('0xa-1')] }))
+    const items = await fetchCatalogByIds(['0xa-1', '0xb-2'])
+    expect(items.map(i => i.id)).toEqual(['0xa-1', '0xb-2'])
+    const url = lastUrl()
+    expect(url).toContain('https://market.test/v2/catalog?')
+    expect(url).toContain('first=2')
+    // The server reads the filter as a repeated `id` param, not `ids`.
+    expect(url).toContain('id=0xa-1')
+    expect(url).toContain('id=0xb-2')
+    expect(url).not.toContain('ids=')
+  })
+
+  it('should silently drop ids the catalog no longer knows', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ data: [row('0xa-1')] }))
+    const items = await fetchCatalogByIds(['0xa-1', '0xgone-9'])
+    expect(items.map(i => i.id)).toEqual(['0xa-1'])
+  })
+
+  it('should chunk a long list across multiple requests', async () => {
+    const ids = Array.from({ length: 60 }, (_, i) => `0xa-${i}`)
+    fetchMock
+      .mockResolvedValueOnce(jsonOk({ data: ids.slice(0, 50).map(id => row(id)) }))
+      .mockResolvedValueOnce(jsonOk({ data: ids.slice(50).map(id => row(id)) }))
+    const items = await fetchCatalogByIds(ids)
+    expect(items).toHaveLength(60)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(String(fetchMock.mock.calls[1][0])).toContain('first=10')
+  })
+
+  it('should throw when a chunk request fails', async () => {
+    fetchMock.mockResolvedValueOnce(httpError(500))
+    await expect(fetchCatalogByIds(['0xa-1'])).rejects.toThrow('fetchCatalogByIds (500)')
   })
 })
 

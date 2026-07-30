@@ -16,6 +16,37 @@ export const Count = styled.span`
   font-size: 14px;
 `
 
+export const ErrorWrap = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+`
+
+export const Retry = styled.button`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: ${radius.card};
+  background: ${colors.accent};
+  color: ${colors.softWhite};
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+
+  &:hover {
+    background: ${colors.accentHover};
+  }
+  &:focus-visible {
+    outline: 2px solid ${colors.accent};
+    outline-offset: 2px;
+  }
+`
+
 export const Empty = styled.div`
   display: flex;
   flex-direction: column;

@@ -56,8 +56,8 @@ export const useWallet = create<WalletState>(set => ({
     }
     if (!session) return
     set({ session })
-    // Load THIS account's client-side favorites/follows (namespaced per account).
-    useFavorites.getState().reloadFor(session.address)
+    // Swap favorites to this account's server-backed list and follows to its local bucket.
+    useFavorites.getState().reloadFor(session.address, session.identity)
     useFollows.getState().reloadFor(session.address)
     identify(session.address, { sign_in_method: signInMethod(session.providerType) })
     // Only emit the funnel event for an actual sign-in, not every silent restore.

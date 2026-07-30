@@ -555,7 +555,12 @@
     "emptyTitle": "¡Aquí no hay nada... todavía!",
     "emptyBody": "Empieza a explorar y guarda los artículos que te gusten para tenerlos a mano más tarde.",
     "emptyCta": "Empieza a explorar",
-    "itemCount": "{count, plural, one {# artículo} other {# artículos}}"
+    "itemCount": "{count, plural, one {# artículo} other {# artículos}}",
+    "loadError": "No pudimos cargar tus favoritos.",
+    "tryAgain": "Prueba de nuevo"
+  },
+  "favorites": {
+    "updateError": "No pudimos actualizar tus favoritos. Prueba de nuevo."
   },
   "overview": {
     "viewAll": "Ver todo",

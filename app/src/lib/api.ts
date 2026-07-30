@@ -145,6 +145,32 @@ export async function fetchCatalog({
   return { items: data.map(toCatalogItem), total: total ?? data.length }
 }
 
+// Hydrate catalog items from their marketplace item ids (`contract-itemId`) — how the favorites page
+// turns the server's pick ids back into renderable items. Returned in the ids' order; ids the catalog
+// no longer knows (delisted/unpublished) are silently absent. Chunked to keep URLs bounded.
+export async function fetchCatalogByIds(ids: string[]): Promise<CatalogItem[]> {
+  if (ids.length === 0) return []
+  const CHUNK = 50
+  const chunks: string[][] = []
+  for (let i = 0; i < ids.length; i += CHUNK) chunks.push(ids.slice(i, i + CHUNK))
+  const pages = await Promise.all(
+    chunks.map(async chunk => {
+      // The server-side filter is a repeated `id` param (getItemsParams reads `params.getList('id')`).
+      const qs = new URLSearchParams({ first: String(chunk.length) })
+      for (const id of chunk) qs.append('id', id)
+      const res = await fetch(`${config.marketplaceServerUrl}/v2/catalog?${qs.toString()}`)
+      if (!res.ok) {
+        void res.body?.cancel()
+        throw new Error(`fetchCatalogByIds (${res.status})`)
+      }
+      const { data } = (await res.json()) as { data: RawCatalogItem[] }
+      return data.map(toCatalogItem)
+    })
+  )
+  const byId = new Map(pages.flat().map(item => [item.id, item]))
+  return ids.map(id => byId.get(id)).filter((item): item is CatalogItem => !!item)
+}
+
 // The item's long description for the detail page. It isn't in the shop feed (ShopListingRaw), so read
 // it from the v2 catalog by contract + itemId. Returns '' when the item has none / on any error.
 export async function fetchItemDescription(contractAddress: string, itemId: string): Promise<string> {
