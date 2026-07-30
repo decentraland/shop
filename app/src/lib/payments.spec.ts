@@ -88,7 +88,7 @@ describe('when computing credit pack math at the fixed USD peg', () => {
     }
   })
 
-  it('should highlight exactly one best-value pack (the $9.99 Popular pack)', () => {
+  it('should highlight exactly one best-value pack (the mid Popular pack)', () => {
     const best = CREDIT_PACKS.filter(p => p.bestValue)
     expect(best).toHaveLength(1)
     expect(best[0].id).toBe('pack_10')
@@ -97,7 +97,10 @@ describe('when computing credit pack math at the fixed USD peg', () => {
 
 describe('when looking up a pack by id', () => {
   it('should return the matching pack', () => {
-    expect(getPack('pack_25')).toMatchObject({ usd: 24.99, credits: 235 })
+    // Read the expectation off the catalogue rather than restating prices: what is under test is the
+    // lookup, and a copy of the price list here just breaks on every pricing change.
+    const pack = CREDIT_PACKS.find(p => p.id === 'pack_25')!
+    expect(getPack('pack_25')).toMatchObject({ usd: pack.usd, credits: pack.credits })
   })
 
   it('and the id is unknown it should return undefined', () => {
@@ -199,11 +202,12 @@ describe('when buying a credit pack in mock mode', () => {
   })
 
   it('should grant the pack credits after polling', async () => {
+    const credits = CREDIT_PACKS.find(p => p.id === 'pack_50')!.credits
     const session = await createPackCheckout('pack_50')
     const result = await pollCreditGrant(session.orderId, { intervalMs: 1 })
     expect(result.status).toBe('credited')
-    expect(result.creditsGranted).toBe(475)
-    expect(result.newBalance).toBe(475)
+    expect(result.creditsGranted).toBe(credits)
+    expect(result.newBalance).toBe(credits)
   })
 })
 
@@ -243,9 +247,10 @@ describe('when buying a credit pack in real mode', () => {
 
 describe('when polling a credit grant in mock mode via the mock config', () => {
   it('should resolve credited without an address (pure mock, no dev-mint)', async () => {
+    const credits = CREDIT_PACKS.find(p => p.id === 'pack_25')!.credits
     const session = await createPackCheckout('pack_25')
     const result = await pollCreditGrant(session.orderId, { intervalMs: 1 })
-    expect(result).toEqual({ status: 'credited', creditsGranted: 235, newBalance: 235 })
+    expect(result).toEqual({ status: 'credited', creditsGranted: credits, newBalance: credits })
     expect(devMintUsd).not.toHaveBeenCalled()
   })
 
@@ -255,16 +260,17 @@ describe('when polling a credit grant in mock mode via the mock config', () => {
   })
 
   it('should top up the real balance via dev-mint when an address is supplied', async () => {
+    const credits = CREDIT_PACKS.find(p => p.id === 'pack_10')!.credits
     devMintUsd.mockResolvedValueOnce({ id: 'm1', usdCents: 1000, balanceCents: 1000, credits: 137 })
     const session = await createPackCheckout('pack_10')
 
     const result = await pollCreditGrant(session.orderId, { intervalMs: 1, address: '0xABC' })
 
     expect(devMintUsd).toHaveBeenCalledTimes(1)
-    // Mock-mint tops up the SPEND value (credits × $0.10 = 90 × 10 = 900¢), not the charge ($9.99).
-    expect(devMintUsd).toHaveBeenCalledWith('0xABC', 900)
+    // Mock-mint tops up the SPEND value (credits × $0.10), not the charge — that gap is the Stripe wedge.
+    expect(devMintUsd).toHaveBeenCalledWith('0xABC', credits * 10)
     // creditsGranted comes from the pack's credit amount, newBalance from the dev-mint response.
-    expect(result).toEqual({ status: 'credited', creditsGranted: 90, newBalance: 137 })
+    expect(result).toEqual({ status: 'credited', creditsGranted: credits, newBalance: 137 })
   })
 
   it('should report failed when the dev-mint top-up throws', async () => {
@@ -289,8 +295,9 @@ describe('when polling a credit grant in mock mode via the mock config', () => {
 describe('when polling a credit grant with a mock order id even though config is real', () => {
   it('should still take the mock path for a mock-prefixed order id', async () => {
     enableRealMode()
+    const credits = CREDIT_PACKS.find(p => p.id === 'pack_25')!.credits
     const result = await pollCreditGrant(`${MOCK_CLIENT_SECRET_PREFIX}pack_25_1700000000000`, { intervalMs: 1 })
-    expect(result).toEqual({ status: 'credited', creditsGranted: 235, newBalance: 235 })
+    expect(result).toEqual({ status: 'credited', creditsGranted: credits, newBalance: credits })
     expect(pollCreditGrantReal).not.toHaveBeenCalled()
   })
 })

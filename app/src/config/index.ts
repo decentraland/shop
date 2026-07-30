@@ -28,6 +28,10 @@ const base = createConfig(
 // client bundle, so never put secrets here.
 const env = import.meta.env
 
+// Vite's env flags are not consistently typed: it exposes `DEV`/`PROD` as booleans but `TEST` as the string
+// 'true', and every `VITE_*` var as a string. Normalise before branching on any of them.
+const isTruthy = (value: unknown): boolean => value === true || value === 'true'
+
 export const config = {
   /**
    * Whether this is the production deployment, resolved from the hostname at runtime by @dcl/ui-env.
@@ -43,6 +47,20 @@ export const config = {
   authUrl: env.VITE_AUTH_URL ?? base.get('AUTH_URL'),
   rpcUrl: env.VITE_RPC_URL ?? base.get('RPC_URL'),
   creditsServerUrl: env.VITE_CREDITS_SERVER_URL ?? base.get('CREDITS_SERVER_URL'),
+  // Local-dev only: render the BUNDLED credit-pack list instead of the deployed catalogue. The
+  // credits-server owns pack prices, so a pricing edit is invisible in the app until that server ships it;
+  // this makes the change reviewable first. Display only — checkout is still priced by the server from
+  // `packId`.
+  //
+  // Inert under test even when set, and inert in a build. `.env.local` is read by vitest too, so without
+  // this guard a gitignored file on one machine silently changes what the suite exercises — it skips the
+  // catalogue fetch, which is exactly what the pack-skeleton loading test asserts. A local preview toggle
+  // must not be able to decide whether tests pass.
+  //
+  // `isTruthy` rather than `=== true`: these flags do NOT share a type. Vite hands back `DEV` as a real
+  // boolean but `TEST` as the STRING 'true', so a strict `env.TEST !== true` compares 'true' to true, is
+  // always satisfied, and the guard it looks like silently does nothing.
+  useBundledPacks: isTruthy(env.VITE_USE_BUNDLED_PACKS) && isTruthy(env.DEV) && !isTruthy(env.TEST),
   notificationsServerUrl: env.VITE_NOTIFICATIONS_SERVER_URL ?? base.get('NOTIFICATIONS_SERVER_URL'),
   builderServerUrl: env.VITE_BUILDER_SERVER_URL ?? base.get('BUILDER_SERVER_URL'),
   // Builder WEB app base (already includes the `/builder` path segment, marketplace-style) — used to
