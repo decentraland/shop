@@ -128,6 +128,11 @@
     "body": "The page you’re looking for isn’t here. Let’s get you back to the shop.",
     "cta": "Browse Collectibles"
   },
+  "prelaunch": {
+    "title": "We’re getting the shop ready",
+    "body": "The shop isn’t open to everyone just yet. We’re putting the finishing touches on it — check back very soon.",
+    "connected": "Connected wallets that have early access will see the shop here."
+  },
   "cart": {
     "empty": {
       "title": "Nothing here... yet!",

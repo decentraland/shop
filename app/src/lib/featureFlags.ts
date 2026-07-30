@@ -37,7 +37,17 @@ export enum FeatureFlag {
    * valid and fillable through the legacy Marketplace. Making them stop existing is a per-listing signature
    * cancellation, not a flag.
    */
-  SECONDARY_SALES = 'shop-secondary-sales'
+  SECONDARY_SALES = 'shop-secondary-sales',
+  /**
+   * Pre-launch gate. ON means the Shop is live in production but not announced: everyone except the
+   * addresses in this flag's VARIANT payload sees a holding page instead of the Shop.
+   *
+   * Cosmetic by construction. This bundle is static and the APIs behind it are public, so a check here is a
+   * curtain, not a lock — what actually refuses a purchase is the same flag read server-side by
+   * credits-server on /credits/authorize, against the signed-fetch address. Read under the SAME key and
+   * variant as that check so one list drives both and they cannot drift apart.
+   */
+  SHOP_PRELAUNCH = 'shop-prelaunch'
 }
 
 /** The application whose flag file carries the flags above. */
@@ -54,7 +64,7 @@ const TTL_MS = 60_000
 /** Bounded so a hung flag service cannot hang a signature dialog behind it. */
 const TIMEOUT_MS = 3_000
 
-type Snapshot = { flags: Record<string, boolean>; fetchedAt: number }
+type Snapshot = { flags: Record<string, boolean>; variants: Record<string, string>; fetchedAt: number }
 
 let snapshot: Snapshot | undefined
 let inFlight: Promise<Snapshot> | undefined
@@ -73,8 +83,18 @@ async function fetchSnapshot(): Promise<Snapshot> {
     if (!response.ok) {
       throw new Error(`feature flags request failed with ${response.status}`)
     }
-    const body = (await response.json()) as { flags?: Record<string, boolean> }
-    return { flags: body.flags ?? {}, fetchedAt: Date.now() }
+    // Variants carry the payloads a boolean cannot — an address allowlist, for one. Only the string value is
+    // kept: everything this app needs from a variant is its payload, and holding the rest would invite code
+    // that depends on the flag service's envelope shape.
+    const body = (await response.json()) as {
+      flags?: Record<string, boolean>
+      variants?: Record<string, { enabled?: boolean; payload?: { value?: string } }>
+    }
+    const variants: Record<string, string> = {}
+    for (const [key, variant] of Object.entries(body.variants ?? {})) {
+      if (variant?.enabled && typeof variant.payload?.value === 'string') variants[key] = variant.payload.value
+    }
+    return { flags: body.flags ?? {}, variants, fetchedAt: Date.now() }
   } finally {
     clearTimeout(timer)
   }
@@ -87,8 +107,12 @@ async function fetchSnapshot(): Promise<Snapshot> {
  * signed), so retrying next time costs nothing and caching a failure would extend an outage past its end.
  */
 export async function getFeatureFlags(): Promise<Record<string, boolean>> {
+  return (await getSnapshot()).flags
+}
+
+async function getSnapshot(): Promise<Snapshot> {
   if (snapshot && Date.now() - snapshot.fetchedAt < TTL_MS) {
-    return snapshot.flags
+    return snapshot
   }
   if (!inFlight) {
     inFlight = fetchSnapshot()
@@ -100,7 +124,35 @@ export async function getFeatureFlags(): Promise<Record<string, boolean>> {
         inFlight = undefined
       })
   }
-  return (await inFlight).flags
+  return await inFlight
+}
+
+/**
+ * The addresses in a flag's variant payload, lowercased and de-duplicated.
+ *
+ * Returns `[]` for an absent flag, a disabled variant, an unreachable service or an unparseable payload —
+ * every one of which means "no list", never "an empty list that excludes everyone". A caller deciding who to
+ * exclude must therefore check that the FLAG is on separately; an empty result on its own is not permission
+ * to hide anything.
+ *
+ * Mirrors credits-server's parseAddressListVariant so one flag drives both sides.
+ */
+export async function getAddressListVariant(flag: FeatureFlag): Promise<string[]> {
+  try {
+    const value = (await getSnapshot()).variants[flagKey(flag)]
+    if (!value) return []
+    return Array.from(
+      new Set(
+        value
+          .replace(/\n/g, '')
+          .split(',')
+          .map(address => address.toLowerCase().trim())
+          .filter(address => /^0x[0-9a-f]{40}$/.test(address))
+      )
+    )
+  } catch {
+    return []
+  }
 }
 
 /**

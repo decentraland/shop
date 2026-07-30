@@ -2,12 +2,14 @@ import { lazy, Suspense, useEffect } from 'react'
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import * as Sentry from '@sentry/react'
 import { NavBar } from '~/components/NavBar'
+import { PrelaunchNotice } from '~/components/PrelaunchNotice'
 import { Toaster } from '~/components/Toaster'
 import { FittingRoom } from '~/components/FittingRoom'
 import { ShopFooter } from '~/components/ShopFooter'
 import { HoverPreviewLayer } from '~/components/HoverPreviewLayer'
 import { ScrollReset } from '~/components/ScrollReset'
 import { useAccountWatcher } from '~/hooks/useAccountWatcher'
+import { useShopPrelaunch } from '~/hooks/useShopPrelaunch'
 import { initAnalytics, trackPage } from '~/lib/analytics'
 import { Overview } from '~/pages/Overview'
 import * as OV from '~/pages/Overview.styles'
@@ -76,6 +78,7 @@ function CrashFallback() {
 export function App() {
   // Reload when the injected wallet switches/disconnects accounts (see the hook for the rationale).
   useAccountWatcher()
+  const prelaunch = useShopPrelaunch()
   const location = useLocation()
 
   // Load Segment once (no-op without a write key), then emit a page view on each route change.
@@ -95,6 +98,13 @@ export function App() {
             : 'other')
     trackPage(page)
   }, [location.pathname])
+
+  // The pre-launch curtain. Returned BEFORE the shell so no NavBar, footer or route is mounted: each of those
+  // is a door into a Shop that is meant to be closed. Cosmetic only — what refuses a purchase is the same flag
+  // read server-side by credits-server (see useShopPrelaunch).
+  if (prelaunch) {
+    return <PrelaunchNotice />
+  }
 
   return (
     <>
