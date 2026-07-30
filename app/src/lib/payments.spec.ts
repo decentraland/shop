@@ -31,8 +31,10 @@ import {
   fetchCreditPacks,
   getPack,
   isMockPayments,
+  packBonus,
   pollCreditGrant,
-  usdForCredits
+  usdForCredits,
+  type CreditPack
 } from '~/lib/payments'
 
 const IDENTITY = {} as AuthIdentity
@@ -95,12 +97,80 @@ describe('when computing credit pack math at the fixed USD peg', () => {
   })
 })
 
+describe('when computing the bonus a pack carries over the entry rate', () => {
+  // The entry pack sets the reference rate, so these fixtures only need a rate and a size — the real
+  // catalogue is asserted separately by the ladder invariants on the server.
+  const mk = (id: string, usd: number, credits: number): CreditPack => ({ id, usd, credits })
+
+  it('should measure the bonus against what the same money buys at the cheapest pack rate', () => {
+    const packs = [mk('a', 5.99, 40), mk('b', 11.99, 100)]
+    // 40/5.99 = 6.6778 credits per $1 → $11.99 buys 80.07, floored to 80. 100 granted → +20.
+    expect(packBonus(packs[1], packs)).toEqual({ baseline: 80, bonus: 20 })
+  })
+
+  it('should floor the baseline so the card never shows a fractional credit amount', () => {
+    const packs = [mk('a', 5.99, 40), mk('b', 59.99, 540)]
+    // Raw baseline is 400.60; a struck-through "400.6 credits" would be nonsense.
+    expect(packBonus(packs[1], packs)?.baseline).toBe(400)
+  })
+
+  it('should return null for the entry pack itself, which IS the reference', () => {
+    const packs = [mk('a', 5.99, 40), mk('b', 11.99, 100)]
+    expect(packBonus(packs[0], packs)).toBeNull()
+  })
+
+  it('should pick the cheapest pack as the reference regardless of catalogue order', () => {
+    // Order comes from the server's `order` field and is not guaranteed ascending by price.
+    const unordered = [mk('big', 59.99, 540), mk('entry', 5.99, 40), mk('mid', 11.99, 100)]
+    expect(packBonus(unordered[2], unordered)).toEqual({ baseline: 80, bonus: 20 })
+  })
+
+  it('should return null on a single-pack catalogue, where there is nothing to compare against', () => {
+    const packs = [mk('only', 5.99, 40)]
+    expect(packBonus(packs[0], packs)).toBeNull()
+  })
+
+  it('should return null on an empty catalogue rather than throwing', () => {
+    expect(packBonus(mk('x', 5.99, 40), [])).toBeNull()
+  })
+
+  /**
+   * The honesty guard. A badge is a claim that this pack is the better deal, so it must disappear the moment
+   * the price list stops backing that claim — otherwise a careless repricing advertises a bonus that isn't
+   * there. The previous ladder ($4.99→45, $9.99→90) was exactly this case.
+   */
+  it('should show no bonus on a flat ladder, where the bigger pack is no better per dollar', () => {
+    const packs = [mk('a', 5.99, 40), mk('b', 11.98, 80)]
+    expect(packBonus(packs[1], packs)).toBeNull()
+  })
+
+  it('should show no bonus on an inverted ladder, where the bigger pack is worse per dollar', () => {
+    const packs = [mk('a', 4.99, 45), mk('b', 9.99, 90)]
+    expect(packBonus(packs[1], packs)).toBeNull()
+  })
+
+  // NaN is the interesting one: it fails EVERY comparison, so it slips past a `usd <= 0` guard and the
+  // function only returns null because NaN propagates into the arithmetic and `NaN > 0` is false. This case
+  // therefore passes with or without the guard — it pins the BEHAVIOUR, not the guard. What it does catch is
+  // a later change that removes the accidental safety: relaxing the final `bonus > 0` to `bonus !== 0` would
+  // return `{ baseline: NaN, bonus: NaN }` and render a struck-through "NaN" on the card.
+  it('should return null when the entry price is not a usable divisor', () => {
+    for (const badPrice of [0, -1, Number.NaN]) {
+      const packs = [mk('a', badPrice, 40), mk('b', 11.99, 100)]
+      expect(packBonus(packs[1], packs)).toBeNull()
+    }
+  })
+})
+
 describe('when looking up a pack by id', () => {
   it('should return the matching pack', () => {
-    // Read the expectation off the catalogue rather than restating prices: what is under test is the
-    // lookup, and a copy of the price list here just breaks on every pricing change.
-    const pack = CREDIT_PACKS.find(p => p.id === 'pack_25')!
-    expect(getPack('pack_25')).toMatchObject({ usd: pack.usd, credits: pack.credits })
+    // Assert the identity, not the field values. Restating the price here breaks the suite on every
+    // repricing without testing anything extra; reading the expectation back out of CREDIT_PACKS with the
+    // same `find` getPack uses internally is worse still — it only checks that `find` agrees with itself.
+    // Pinning that the returned object IS the catalogue entry covers the lookup and rules out a copy or a
+    // transform on the way out, which is what callers rely on.
+    expect(getPack('pack_25')).toBe(CREDIT_PACKS[2])
+    expect(getPack('pack_25')?.id).toBe('pack_25')
   })
 
   it('and the id is unknown it should return undefined', () => {

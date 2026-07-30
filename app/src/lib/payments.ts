@@ -85,7 +85,7 @@ export const CREDIT_PACKS: CreditPack[] = [
  *
  * The reference is the SMALLEST pack, because that is the only baseline we can point at honestly: it is a
  * rate the buyer can actually transact at. The bigger packs are priced at ~2×, 5× and 10× the entry price,
- * so `baseline` lands on exact multiples of the entry pack's credits (100 / 250 / 500) — round numbers the
+ * so `baseline` lands on exact multiples of the entry pack's credits (80 / 200 / 400) — round numbers the
  * buyer can verify by multiplying, not a figure we invented. Crossing out a price we never charged would
  * be a fake reference price (prohibited under the EU Omnibus Directive) — this is the opposite: the crossed
  * figure is what the same money buys today, at a rate that is still on the shelf.
@@ -96,7 +96,11 @@ export const CREDIT_PACKS: CreditPack[] = [
  */
 export function packBonus(pack: CreditPack, packs: CreditPack[]): { baseline: number; bonus: number } | null {
   const entry = packs.reduce((cheapest, p) => (p.usd < cheapest.usd ? p : cheapest), packs[0])
-  if (!entry || entry.id === pack.id || entry.usd <= 0) return null
+  // `usd > 0` rather than `<= 0`: the two are not equivalent for NaN, which is false under BOTH comparisons.
+  // A catalogue entry with a non-numeric price would slip past a `<= 0` guard and only fail to render a badge
+  // by luck further down (NaN propagates into `baseline`, and `NaN > 0` is false). Stated positively, the
+  // guard means what it says — the entry price must be a usable divisor.
+  if (!entry || entry.id === pack.id || !(entry.usd > 0)) return null
   const baseline = Math.floor((entry.credits / entry.usd) * pack.usd)
   const bonus = pack.credits - baseline
   return bonus > 0 ? { baseline, bonus } : null
