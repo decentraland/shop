@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 
+import { config } from '~/config'
 import { FeatureFlag, getAddressListVariant, getIsFeatureEnabled } from '~/lib/featureFlags'
 import { useWallet } from '~/store/wallet'
 
@@ -21,6 +22,20 @@ import { useWallet } from '~/store/wallet'
 export function useShopPrelaunch(): boolean {
   const address = useWallet(s => s.session?.address)
 
+  // PRODUCTION ONLY, and by a runtime hostname check rather than by the flag.
+  //
+  // A pre-launch curtain is a production concern by definition: dev and staging are where QA, design and
+  // product work, often without a wallet connected, and hiding the Shop from them buys nothing. The obvious
+  // alternative — scoping the flag with a hostname strategy — is the trapdoor this deliberately avoids: those
+  // are evaluated against the REFERER, and the browser and credits-server present different ones, so the two
+  // halves of this gate could silently disagree about whether the Shop is open. `core-stripe-payments` is
+  // already misconfigured that way in the production flag file. The flag stays global; the environment
+  // question is answered where the answer is deterministic.
+  //
+  // The SERVER gate (credits-server) is deliberately NOT environment-scoped: armed on dev it only refuses
+  // purchases from wallets outside the allowlist, which is harmless there and is the half that must never
+  // fail open.
+
   const { data } = useQuery({
     queryKey: ['feature-flag', 'shop-prelaunch'],
     queryFn: async () => {
@@ -34,6 +49,7 @@ export function useShopPrelaunch(): boolean {
     retry: 1
   })
 
+  if (!config.isProduction) return false
   if (!data?.armed) return false
   // An armed gate with no address connected hides the Shop: a visitor before launch is exactly who this is
   // for. Note the asymmetry with the server, which refuses EVERYONE when the list is empty — there, an empty
