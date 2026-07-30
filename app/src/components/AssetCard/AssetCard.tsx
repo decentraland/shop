@@ -24,6 +24,18 @@ const HOVER_DELAY_MS = 120
 // length, so measure it — the name's natural width against what the row leaves it beside the price. Both
 // inputs are the same in either layout, so the flag can't oscillate. Without layout (jsdom, a hidden
 // card) widths read 0 and it stays off.
+//
+// The comparison is deliberately NOT "does it overflow at all". The name box already ellipsises, so
+// overflowing by a character costs a character; switching layouts costs the whole card — the price moves,
+// the action changes shape, and the rarity/category/gender chips are dropped for want of room. Trading
+// that for a few pixels is a bad deal, and it was a visible one: a real 30-character catalogue name
+// ("Midnight Black Tuxedo Trousers") exceeded its row by 11px and restructured itself alone in a grid of
+// otherwise identical cards. So the name must want MEANINGFULLY more room than the row can offer — a
+// quarter again as much — which is the point where an ellipsis starts eating words rather than a letter.
+// For reference at the current card width: that same name wants 5% more and stays inline, while a name
+// long enough to be truncated to a stub wants ~60% more and still stacks.
+const NAME_STACK_RATIO = 1.25
+
 function useNameFillsRow(
   row: React.RefObject<HTMLElement>,
   name: React.RefObject<HTMLElement>,
@@ -38,7 +50,10 @@ function useNameFillsRow(
     const measure = () => {
       const nameEl = name.current
       if (done || !nameEl || !rowEl.clientWidth) return
-      setFills(nameEl.offsetWidth > rowEl.clientWidth - (price.current?.offsetWidth ?? 0) - S.TOP_GAP)
+      // Scaling `available` rather than guarding it keeps the degenerate case right: if the price leaves
+      // the name no room at all, `available` is negative, so any name exceeds the threshold and stacks.
+      const available = rowEl.clientWidth - (price.current?.offsetWidth ?? 0) - S.TOP_GAP
+      setFills(nameEl.offsetWidth > available * NAME_STACK_RATIO)
     }
     measure()
     const ro = new ResizeObserver(measure)

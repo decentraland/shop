@@ -29,6 +29,15 @@ const base = createConfig(
 const env = import.meta.env
 
 export const config = {
+  /**
+   * Whether this is the production deployment, resolved from the hostname at runtime by @dcl/ui-env.
+   *
+   * Exposed so a behaviour that is production-only by nature does not have to be expressed as a feature-flag
+   * hostname strategy. Those are evaluated against the REFERER, and the browser and the servers present
+   * different ones — `core-stripe-payments` is currently ON in the prod flag file only for a `decentraland.zone`
+   * referer, which means credits-server can never see it there. A runtime hostname check has no such trapdoor.
+   */
+  isProduction: base.is(Env.PRODUCTION),
   marketplaceServerUrl: env.VITE_MARKETPLACE_SERVER_URL ?? base.get('MARKETPLACE_SERVER_URL'),
   chainId: Number(env.VITE_CHAIN_ID ?? base.get('CHAIN_ID')),
   authUrl: env.VITE_AUTH_URL ?? base.get('AUTH_URL'),

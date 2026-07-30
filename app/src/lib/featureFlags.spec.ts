@@ -139,4 +139,111 @@ describe('featureFlags', () => {
       await expect(getIsProceedsToTreasuryEnabled()).resolves.toBe(false)
     })
   })
+  /**
+   * The dev override exists so a flag-gated flow can be exercised locally at all. These pin the two properties
+   * that make it safe: it never reaches a production bundle, and a malformed entry does NOT silently force a
+   * flag off (which would read as "the feature is disabled" rather than "you typed it wrong").
+   */
+  describe('dev feature flag overrides', () => {
+    afterEach(() => {
+      vi.unstubAllEnvs()
+    })
+
+    it('should force a flag on without consulting the service', async () => {
+      vi.stubEnv('DEV', true)
+      vi.stubEnv('VITE_FEATURE_FLAG_OVERRIDES', 'proceeds-to-treasury:true')
+      const fetchMock = mockFlags({})
+
+      await expect(getIsFeatureEnabled(FeatureFlag.PROCEEDS_TO_TREASURY)).resolves.toBe(true)
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('should force a flag off even when the service says it is on', async () => {
+      vi.stubEnv('DEV', true)
+      vi.stubEnv('VITE_FEATURE_FLAG_OVERRIDES', 'proceeds-to-treasury:false')
+      mockFlags({ [FLAG_KEY]: true })
+
+      await expect(getIsFeatureEnabled(FeatureFlag.PROCEEDS_TO_TREASURY)).resolves.toBe(false)
+    })
+
+    it('should match on the bare flag name, not the prefixed service key', async () => {
+      vi.stubEnv('DEV', true)
+      vi.stubEnv('VITE_FEATURE_FLAG_OVERRIDES', `${FLAG_KEY}:true`)
+      mockFlags({})
+
+      // `dapps-proceeds-to-treasury` is the SERVICE key; the override speaks the enum's language.
+      await expect(getIsFeatureEnabled(FeatureFlag.PROCEEDS_TO_TREASURY)).resolves.toBe(false)
+    })
+
+    it('should leave other flags alone', async () => {
+      vi.stubEnv('DEV', true)
+      vi.stubEnv('VITE_FEATURE_FLAG_OVERRIDES', 'shop-secondary-sales:true')
+      mockFlags({ [FLAG_KEY]: true })
+
+      await expect(getIsFeatureEnabled(FeatureFlag.PROCEEDS_TO_TREASURY)).resolves.toBe(true)
+    })
+
+    it('should fall through to the real flag when the value is a typo rather than reading it as false', async () => {
+      vi.stubEnv('DEV', true)
+      vi.stubEnv('VITE_FEATURE_FLAG_OVERRIDES', 'proceeds-to-treasury:ture')
+      mockFlags({ [FLAG_KEY]: true })
+
+      await expect(getIsFeatureEnabled(FeatureFlag.PROCEEDS_TO_TREASURY)).resolves.toBe(true)
+    })
+
+    it('should ignore empty entries from a trailing or doubled comma', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      vi.stubEnv('DEV', true)
+      vi.stubEnv('VITE_FEATURE_FLAG_OVERRIDES', ',proceeds-to-treasury:true,,')
+      mockFlags({})
+
+      await expect(getIsFeatureEnabled(FeatureFlag.PROCEEDS_TO_TREASURY)).resolves.toBe(true)
+      // The empty entries must not be reported as malformed overrides the author never wrote.
+      expect(warn).not.toHaveBeenCalled()
+    })
+
+    it('should treat an extra colon as malformed rather than dropping the rest of the value', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      vi.stubEnv('DEV', true)
+      vi.stubEnv('VITE_FEATURE_FLAG_OVERRIDES', 'proceeds-to-treasury:true:extra')
+      mockFlags({ [FLAG_KEY]: false })
+
+      // Splitting on every colon would read the value as exactly `true` and force the flag on; splitting once
+      // keeps `true:extra`, which is not a valid value, so it falls through to the real flag.
+      await expect(getIsFeatureEnabled(FeatureFlag.PROCEEDS_TO_TREASURY)).resolves.toBe(false)
+      expect(warn).toHaveBeenCalled()
+    })
+
+    it('should warn and fall through for a bare flag name with no value', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      vi.stubEnv('DEV', true)
+      // A plausible .env.local typo: the flag named, the `:true` forgotten.
+      vi.stubEnv('VITE_FEATURE_FLAG_OVERRIDES', 'proceeds-to-treasury')
+      mockFlags({ [FLAG_KEY]: true })
+
+      await expect(getIsFeatureEnabled(FeatureFlag.PROCEEDS_TO_TREASURY)).resolves.toBe(true)
+      expect(warn).toHaveBeenCalled()
+    })
+
+    // Strict lowercase is correct — but nothing stopped a future refactor from "helpfully" lowercasing the
+    // value, and `True` reading as true is precisely the kind of leniency that makes an override behave
+    // differently from the flag service it stands in for.
+    it.each(['True', 'FALSE', 'yes'])('should not accept %s as a value', async value => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      vi.stubEnv('DEV', true)
+      vi.stubEnv('VITE_FEATURE_FLAG_OVERRIDES', `proceeds-to-treasury:${value}`)
+      mockFlags({ [FLAG_KEY]: true })
+
+      await expect(getIsFeatureEnabled(FeatureFlag.PROCEEDS_TO_TREASURY)).resolves.toBe(true)
+      expect(warn).toHaveBeenCalled()
+    })
+
+    it('should be inert outside a dev build, so a stray env var cannot flip a flag in production', async () => {
+      vi.stubEnv('DEV', false)
+      vi.stubEnv('VITE_FEATURE_FLAG_OVERRIDES', 'proceeds-to-treasury:true')
+      mockFlags({})
+
+      await expect(getIsFeatureEnabled(FeatureFlag.PROCEEDS_TO_TREASURY)).resolves.toBe(false)
+    })
+  })
 })
