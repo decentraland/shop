@@ -168,15 +168,31 @@ describe('pickRenderer', () => {
     })
   })
 
-  describe('production default (kill switch)', () => {
-    it('defaults to Babylon in a non-test build when the override is unset', () => {
+  describe('production override handling', () => {
+    it('runs the device/connection heuristic in a non-test build when the override is unset', () => {
       vi.stubEnv('MODE', 'production')
+      setMeasuredMbps(100)
+      setDeviceMemory(16)
+      expect(pickRenderer()).toEqual({ renderer: PreviewRenderer.UNITY, reason: 'connection-ok' })
+    })
+
+    it('treats an empty override the same as unset', () => {
+      vi.stubEnv('MODE', 'production')
+      vi.stubEnv('VITE_PREVIEW_RENDERER', '')
+      setMeasuredMbps(100)
+      setDeviceMemory(16)
+      expect(pickRenderer()).toEqual({ renderer: PreviewRenderer.UNITY, reason: 'connection-ok' })
+    })
+
+    it('falls back to Babylon in a non-test build when the override value is unrecognized', () => {
+      vi.stubEnv('MODE', 'production')
+      vi.stubEnv('VITE_PREVIEW_RENDERER', 'webgpu')
       setMeasuredMbps(100)
       setDeviceMemory(16)
       expect(pickRenderer()).toEqual({ renderer: PreviewRenderer.BABYLON, reason: 'default-babylon' })
     })
 
-    it('opts back into the device/connection heuristic when VITE_PREVIEW_RENDERER=unity', () => {
+    it('runs the device/connection heuristic when VITE_PREVIEW_RENDERER=unity', () => {
       vi.stubEnv('MODE', 'production')
       vi.stubEnv('VITE_PREVIEW_RENDERER', 'unity')
       setMeasuredMbps(100)

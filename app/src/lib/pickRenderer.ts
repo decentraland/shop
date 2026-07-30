@@ -94,18 +94,15 @@ function measuredMbps(): number | null {
 export function pickRenderer(): RendererDecision {
   const babylon = (reason: RendererReason): RendererDecision => ({ renderer: PreviewRenderer.BABYLON, reason })
 
-  // Code-level kill switch. The Unity/aang runtime currently pegs GPU/CPU on the PDP (full
-  // devicePixelRatio, uncapped framerate, no off-screen pause) so we DEFAULT to the lightweight Babylon
-  // preview in ALL environments (dev + production) until the aang-renderer perf caps ship.
-  // `VITE_PREVIEW_RENDERER=babylon` forces Babylon regardless; `VITE_PREVIEW_RENDERER=unity` opts back
-  // into the device/connection heuristic below (per-build Unity re-enable). Mode-gated so unit tests
-  // still exercise the real heuristic.
-  // TODO(follow-up): promote this to a RUNTIME per-env config knob (ui-env JSON) so Unity can be flipped
-  // on/off per environment without a rebuild. Deferred here on purpose — it's blocked on in-flight
+  // `VITE_PREVIEW_RENDERER=babylon` forces the lightweight preview; 'unity' (or unset) runs the
+  // device/connection heuristic below. Any other set value falls back to Babylon in real builds as
+  // a safe default (mode-gated so unit tests still exercise the heuristic).
+  // TODO(follow-up): promote this to a RUNTIME per-env config knob (ui-env JSON) so the renderer can
+  // be flipped per environment without a rebuild. Deferred here on purpose — it's blocked on in-flight
   // changes to `config/*` owned by other work; do not couple this switch to those files yet.
   const forced = import.meta.env.VITE_PREVIEW_RENDERER as string | undefined
   if (forced === 'babylon') return babylon('env-override')
-  if (import.meta.env.MODE !== 'test' && forced !== 'unity') return babylon('default-babylon')
+  if (import.meta.env.MODE !== 'test' && forced && forced !== 'unity') return babylon('default-babylon')
 
   if (isMobile()) return babylon('mobile')
 
