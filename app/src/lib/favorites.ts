@@ -12,7 +12,7 @@ import type { CatalogItem } from '~/lib/api'
 // the service; a per-token (secondary-only) row can't be favorited.
 
 // The global default "Favorites" list — a single well-known row shared by every account (picks are
-// scoped per user). Same UUID in every environment.
+// scoped per user, server-side). Same UUID in every environment; seeded in the marketplace-server DB.
 export const DEFAULT_LIST_ID = '70ab6873-4a03-4eb2-b331-4b8be0e0b8af'
 
 // Stable favorite identity for an item, or null when it has none (no itemId → not favoritable).
@@ -44,7 +44,7 @@ export async function fetchFavoriteIds(identity: AuthIdentity): Promise<string[]
 
 // Pick (faved) or unpick (!faved) an item on the default list for the signed-in account.
 export async function setFavorite(itemKey: string, faved: boolean, identity: AuthIdentity): Promise<void> {
-  const url = `${config.marketplaceServerUrl}/v1/picks/${itemKey}`
+  const url = `${config.marketplaceServerUrl}/v1/picks/${encodeURIComponent(itemKey)}`
   const res = await signedFetch(url, {
     method: 'POST',
     identity,

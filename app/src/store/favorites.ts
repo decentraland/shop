@@ -19,9 +19,12 @@ const BASE_KEY = 'shop-favorites'
 
 // Current mode, module-level so actions stay in sync with the last reloadFor() without threading it
 // through every call. `epoch` guards in-flight async work against a session switch racing it.
+// `toggleGen` tracks per-key in-flight toggle generation so a superseded rollback doesn't stomp a
+// newer toggle of the same item.
 let account: string | null = null
 let identity: AuthIdentity | null = null
 let epoch = 0
+const toggleGen = new Map<string, number>()
 
 type Items = Record<string, CatalogItem>
 
@@ -47,7 +50,9 @@ function loadLocal(): Items {
     if (!items || typeof items !== 'object') return {}
     // Re-key by favoriteKey: older snapshots were keyed by CatalogItem.id (the trade id on shop
     // feeds). Entries with no derivable key are dropped — they can no longer be favorited.
-    return keyItems(Object.values(items as Items))
+    const rekeyed = keyItems(Object.values(items as Items))
+    saveLocal(rekeyed)
+    return rekeyed
   } catch {
     return {}
   }
@@ -72,6 +77,8 @@ type FavState = {
   retry: () => void
 }
 
+export { favoriteKey } from '~/lib/favorites'
+
 export const useFavorites = create<FavState>((set, get) => {
   async function hydrate(): Promise<void> {
     const started = ++epoch
@@ -95,6 +102,8 @@ export const useFavorites = create<FavState>((set, get) => {
       const key = favoriteKey(item)
       if (!key) return
       const wasFaved = !!get().items[key]
+      const gen = (toggleGen.get(key) ?? 0) + 1
+      toggleGen.set(key, gen)
       set(s => {
         const items = { ...s.items }
         if (wasFaved) delete items[key]
@@ -106,8 +115,7 @@ export const useFavorites = create<FavState>((set, get) => {
       const started = epoch
       setFavorite(key, !wasFaved, identity).catch(e => {
         captureError(e, { flow: 'favorites', step: 'toggle' })
-        if (epoch !== started) return
-        // Roll the optimistic flip back and tell the user (friendly copy, never the raw error).
+        if (epoch !== started || toggleGen.get(key) !== gen) return
         set(s => {
           const items = { ...s.items }
           if (wasFaved) items[key] = item
@@ -132,3 +140,10 @@ export const useFavorites = create<FavState>((set, get) => {
     }
   }
 })
+
+export function useFavorite(item: Pick<CatalogItem, 'contractAddress' | 'itemId'>) {
+  const key = favoriteKey(item)
+  const faved = useFavorites(s => !!key && !!s.items[key])
+  const toggle = useFavorites(s => s.toggle)
+  return { key, faved, toggle }
+}

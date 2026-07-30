@@ -159,7 +159,10 @@ export async function fetchCatalogByIds(ids: string[]): Promise<CatalogItem[]> {
       const qs = new URLSearchParams({ first: String(chunk.length) })
       for (const id of chunk) qs.append('id', id)
       const res = await fetch(`${config.marketplaceServerUrl}/v2/catalog?${qs.toString()}`)
-      if (!res.ok) throw new Error(`fetchCatalogByIds (${res.status})`)
+      if (!res.ok) {
+        void res.body?.cancel()
+        throw new Error(`fetchCatalogByIds (${res.status})`)
+      }
       const { data } = (await res.json()) as { data: RawCatalogItem[] }
       return data.map(toCatalogItem)
     })

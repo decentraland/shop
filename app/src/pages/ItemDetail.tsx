@@ -4,8 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Rarity } from '@dcl/schemas'
 import { config } from '~/config'
 import { useCart } from '~/store/cart'
-import { useFavorites } from '~/store/favorites'
-import { favoriteKey } from '~/lib/favorites'
+import { useFavorite, useFavorites } from '~/store/favorites'
 import { useWallet } from '~/store/wallet'
 import { stashResumeIntent, takeResumeIntent } from '~/lib/auth-return'
 import {
@@ -419,10 +418,7 @@ export function ItemDetail() {
   const isPrimary = !cartItem.tokenId
   const cartQty = cartItems.find(i => i.id === cartItem.id)?.quantity ?? 0
   const atStockCap = isPrimary && typeof current.available === 'number' && cartQty >= current.available
-  // Favorites are keyed by the stable item identity (contract-itemId), not current.id (the trade id
-  // on shop feeds). No key → not favoritable, both hearts hide.
-  const favKey = favoriteKey(current)
-  const faved = useFavorites(s => !!favKey && !!s.items[favKey])
+  const { key: favKey, faved } = useFavorite(current)
 
   // KR5 denominator: fire 'Shop Viewed Item' once per hydrated item (deduped across re-renders and the
   // in-place carousel swaps), after the trade resolves so `for_sale` is accurate.
