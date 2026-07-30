@@ -123,6 +123,11 @@ function session(): Promise<TestSession> {
 // e2e can prove that buying credits increases the balance. Accumulated per run (reset in launchApp).
 let mintedCents = 0
 
+// Stateful favorites: the mock marketplace picks service. A POSTed pick must survive navigation so
+// the my-favorites page can prove the heart actually persisted server-side. Newest first, like the
+// real service. Reset per run in launchApp.
+let favoritePicks: string[] = []
+
 // F.credits (creditsResponse) with the run's accumulated top-up folded into the usd block, so the
 // balance chip reflects purchases made during the test.
 function creditsWithTopup(F: Fixtures): unknown {
@@ -370,7 +375,34 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
     // as-is (the address filter is applied server-side in prod; the fixture is already scoped per run).
     if (path === '/v1/sales') return json(req, F.sales)
     if (path === '/v1/orders') return json(req, { data: [], total: 0 })
-    if (path === '/v2/catalog') return json(req, { data: [], total: 0 })
+    // Favorites service (marketplace picks): POST toggles membership in the run's accumulator; the
+    // default-list GET returns the picked ids in the {ok, data} envelope lib/favorites.ts parses.
+    if (/^\/v1\/picks\/[^/]+$/.test(path) && method === 'POST') {
+      const itemId = path.split('/').pop() as string
+      const body: { pickedFor?: string[]; unpickedFrom?: string[] } = JSON.parse(req.postData() ?? '{}')
+      if (body.pickedFor) favoritePicks = [itemId, ...favoritePicks.filter(i => i !== itemId)]
+      if (body.unpickedFrom) favoritePicks = favoritePicks.filter(i => i !== itemId)
+      return json(req, { ok: true, data: { pickedByUser: !!body.pickedFor } })
+    }
+    if (/^\/v1\/lists\/[^/]+\/picks$/.test(path)) {
+      const results = favoritePicks.map(itemId => ({ itemId, createdAt: Date.now() }))
+      return json(req, {
+        ok: true,
+        data: { results, total: results.length, page: 1, pages: 1, limit: 100 }
+      })
+    }
+    if (path === '/v2/catalog') {
+      // ?id= hydration (fetchCatalogByIds — the favorites page): serve the matching shop listings
+      // as catalog rows. Plain browse reads of /v2/catalog stay empty (the app browses /v3).
+      const ids = u.searchParams.getAll('id').map(id => id.toLowerCase())
+      if (ids.length) {
+        const rows = ((F.shopListings as { data: any[] }).data ?? [])
+          .map(toCatalogRow)
+          .filter(r => ids.includes(String(r.id).toLowerCase()))
+        return json(req, { data: rows, total: rows.length })
+      }
+      return json(req, { data: [], total: 0 })
+    }
     return json(req, { data: [] })
   }
 
@@ -486,6 +518,7 @@ export async function launchApp(
   const errors = opts.errors ?? {}
   secondarySalesFlag = opts.secondarySales ?? true
   mintedCents = 0 // reset the per-run top-up accumulator so balances don't leak between tests
+  favoritePicks = [] // reset the per-run picks so favorites don't leak between tests
   setManaBalanceWei(opts.manaBalanceWei ?? '0') // no MANA unless a test asks for it
   setManaAllowanceWei(opts.manaAllowanceWei ?? null) // already approved unless a test asks otherwise
   const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] })

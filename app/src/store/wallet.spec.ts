@@ -39,7 +39,13 @@ import { useWallet } from '~/store/wallet'
 const SIGNING_IN_FLAG = 'shop:signing_in'
 
 const session = (over: Partial<Session> = {}): Session =>
-  ({ address: '0xBUYER', providerType: 'injected', chainId: 80002, ...over }) as unknown as Session
+  ({
+    address: '0xBUYER',
+    providerType: 'injected',
+    chainId: 80002,
+    identity: { authChain: [] },
+    ...over
+  }) as unknown as Session
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -116,8 +122,9 @@ describe('wallet store', () => {
 
       expect(useWallet.getState().session).toBe(s)
       expect(identify).toHaveBeenCalledWith('0xABC', { sign_in_method: 'magic' })
-      // this account's favorites/follows buckets are loaded on restore
-      expect(favReloadFor).toHaveBeenCalledWith('0xABC')
+      // favorites swap to this account's server-backed list (identity forwarded for signed fetch);
+      // follows load this account's local bucket
+      expect(favReloadFor).toHaveBeenCalledWith('0xABC', s.identity)
       expect(followReloadFor).toHaveBeenCalledWith('0xABC')
       // no flag set → this is a restore, not a fresh sign-in
       expect(track).not.toHaveBeenCalled()

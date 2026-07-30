@@ -5,6 +5,7 @@ import { Rarity } from '@dcl/schemas'
 import { config } from '~/config'
 import { useCart } from '~/store/cart'
 import { useFavorites } from '~/store/favorites'
+import { favoriteKey } from '~/lib/favorites'
 import { useWallet } from '~/store/wallet'
 import { stashResumeIntent, takeResumeIntent } from '~/lib/auth-return'
 import {
@@ -418,7 +419,10 @@ export function ItemDetail() {
   const isPrimary = !cartItem.tokenId
   const cartQty = cartItems.find(i => i.id === cartItem.id)?.quantity ?? 0
   const atStockCap = isPrimary && typeof current.available === 'number' && cartQty >= current.available
-  const faved = useFavorites(s => !!s.items[current.id])
+  // Favorites are keyed by the stable item identity (contract-itemId), not current.id (the trade id
+  // on shop feeds). No key → not favoritable, both hearts hide.
+  const favKey = favoriteKey(current)
+  const faved = useFavorites(s => !!favKey && !!s.items[favKey])
 
   // KR5 denominator: fire 'Shop Viewed Item' once per hydrated item (deduped across re-renders and the
   // in-place carousel swaps), after the trade resolves so `for_sale` is accurate.
@@ -905,15 +909,17 @@ export function ItemDetail() {
           {/* Mobile favourite heart: a circular button at the preview's top-right (Figma 1182-195410).
               Shares the fav state with the title-row heart, which hides on mobile (ItemDetail.styles.ts) so
               only one is ever in the a11y tree. */}
-          <S.Fav
-            data-fav-preview
-            data-on={faved || undefined}
-            onClick={() => toggleFav(current)}
-            aria-pressed={faved}
-            aria-label={faved ? t('assetCard.removeFromFavorites') : t('assetCard.addToFavorites')}
-          >
-            <Icon name={faved ? 'heart-solid' : 'heart'} size={18} />
-          </S.Fav>
+          {favKey ? (
+            <S.Fav
+              data-fav-preview
+              data-on={faved || undefined}
+              onClick={() => toggleFav(current)}
+              aria-pressed={faved}
+              aria-label={faved ? t('assetCard.removeFromFavorites') : t('assetCard.addToFavorites')}
+            >
+              <Icon name={faved ? 'heart-solid' : 'heart'} size={18} />
+            </S.Fav>
+          ) : null}
         </S.Preview>
 
         <S.Info data-testid="item-info">
@@ -929,15 +935,17 @@ export function ItemDetail() {
                   {current.name}
                   {isTokenRoute && current.issuedId ? ` #${current.issuedId}` : ''}
                 </S.Title>
-                <S.Fav
-                  data-fav-title
-                  data-on={faved || undefined}
-                  onClick={() => toggleFav(current)}
-                  aria-pressed={faved}
-                  aria-label={faved ? t('assetCard.removeFromFavorites') : t('assetCard.addToFavorites')}
-                >
-                  <Icon name={faved ? 'heart-solid' : 'heart'} size={18} />
-                </S.Fav>
+                {favKey ? (
+                  <S.Fav
+                    data-fav-title
+                    data-on={faved || undefined}
+                    onClick={() => toggleFav(current)}
+                    aria-pressed={faved}
+                    aria-label={faved ? t('assetCard.removeFromFavorites') : t('assetCard.addToFavorites')}
+                  >
+                    <Icon name={faved ? 'heart-solid' : 'heart'} size={18} />
+                  </S.Fav>
+                ) : null}
               </S.InfoHead>
 
               <S.Chips>

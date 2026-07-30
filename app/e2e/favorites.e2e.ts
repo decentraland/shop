@@ -9,7 +9,7 @@ afterEach(async () => {
 })
 
 describe('favorite an item', () => {
-  it('a favorited item shows up in My Favorites', async () => {
+  it('signed in: a favorited item persists server-side and shows up in My Favorites', async () => {
     app = await launchApp({ path: '/assets' })
     const { page } = app
     await waitForText(page, 'Galaxy Hat')
@@ -18,7 +18,22 @@ describe('favorite an item', () => {
     await page.waitForSelector('[data-testid="card-fav"]', { timeout: 15000 })
     await page.click('[data-testid="card-fav"]')
 
-    // It persists (localStorage) → shows on the favorites page after navigating.
+    // The pick is written to the favorites service → the favorites page re-reads it from there
+    // (picks list → catalog hydration) after navigating.
+    await page.goto(`${BASE}/my-favorites`, { waitUntil: 'networkidle2', timeout: 45000 })
+    await waitForText(page, 'Galaxy Hat')
+    expect(await page.evaluate(() => document.body.innerText.includes('Galaxy Hat'))).toBe(true)
+  })
+
+  it('signed out: a favorited item persists locally and shows up in My Favorites', async () => {
+    app = await launchApp({ path: '/assets', signedOut: true })
+    const { page } = app
+    await waitForText(page, 'Galaxy Hat')
+
+    await page.waitForSelector('[data-testid="card-fav"]', { timeout: 15000 })
+    await page.click('[data-testid="card-fav"]')
+
+    // No session → localStorage bucket; still there after navigating.
     await page.goto(`${BASE}/my-favorites`, { waitUntil: 'networkidle2', timeout: 45000 })
     await waitForText(page, 'Galaxy Hat')
     expect(await page.evaluate(() => document.body.innerText.includes('Galaxy Hat'))).toBe(true)

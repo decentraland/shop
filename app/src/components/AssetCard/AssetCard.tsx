@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { useNavigate } from 'react-router-dom'
 import { useCart } from '~/store/cart'
 import { useFavorites } from '~/store/favorites'
+import { favoriteKey } from '~/lib/favorites'
 import { useHoverPreview } from '~/store/hoverPreview'
 import { useWallet } from '~/store/wallet'
 import { isOwnListing } from '~/lib/ownership'
@@ -117,7 +118,10 @@ export function AssetCard(props: AssetCardProps) {
   // Your own (primary) listing — can't add it to the cart (see lib/ownership.ts).
   const own = isOwnListing(item, address)
   const toggleFav = useFavorites(s => s.toggle)
-  const faved = useFavorites(s => !!s.items[item.id])
+  // Favorites are keyed by the stable item identity (contract-itemId), not item.id (the trade id on
+  // shop feeds). No key (per-token row) → the item can't be favorited and the heart is hidden.
+  const favKey = favoriteKey(item)
+  const faved = useFavorites(s => !!favKey && !!s.items[favKey])
   // The single shared 3D preview (see HoverPreviewLayer): on hover this card asks it to load this item
   // and overlay this card's media. `isPreviewing`/`previewReady` reflect whether THIS card is the one
   // currently driving that shared instance.
@@ -325,7 +329,7 @@ export function AssetCard(props: AssetCardProps) {
           own stacking context (isolation: isolate), which would trap the button below the overlay link
           and make the heart navigate instead of toggle. As a direct child of the card its z-index sits
           above the link. */}
-      {!isNameItem ? (
+      {!isNameItem && favKey ? (
         <S.Fav
           data-on={faved || undefined}
           data-testid="card-fav"
