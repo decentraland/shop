@@ -37,7 +37,7 @@ import { AuthorizeStep } from '~/components/AuthorizeStep'
 import manaLight from '~/assets/mana-matic-light.svg'
 import { ContractName, getContract, getContractName } from 'decentraland-transactions'
 import { resolveLiveTrade, fetchListings } from '~/lib/api'
-import { buyManyWithCredits, type CreditPurchase } from '~/lib/buy'
+import { buyManyWithCredits, groupPurchases, type CreditPurchase } from '~/lib/buy'
 import { buyManyGasless, waitForSettlement, GaslessUnavailableError, SettlementPendingError } from '~/lib/buy-gasless'
 import {
   reviewCart,
@@ -112,7 +112,16 @@ type ModalState =
   // Payment-rail chooser — only reached when the buyer holds MANA (see lib/payment-options). Carries the
   // reviewed lines so confirming charges EXACTLY what was reviewed, whichever rail is picked.
   | { phase: 'choose'; lines: ResolvedLine[]; totalCents: number; manaWei: bigint }
-  | { phase: 'processing'; stage: ProcessingStage; step: number; total: number }
+  // `signatures` is set only when the basket needs more than one confirmation — a basket that mixes an
+  // offchain trade with a CollectionStore mint cannot settle in one transaction. The modal shows it to
+  // self-custody buyers only; for managed wallets the split stays invisible.
+  | {
+      phase: 'processing'
+      stage: ProcessingStage
+      step: number
+      total: number
+      signatures?: { current: number; total: number }
+    }
   | { phase: 'nofunds'; lines: CheckoutLine[]; shortfall: number }
   | { phase: 'error'; message: string }
 
@@ -300,17 +309,41 @@ export function Cart() {
       }
 
       step = 'submit'
-      // All units authorized. The whole basket settles in ONE accept([...]) tx (trades are grouped by
-      // chain+marketplace, and the shop is single-chain), so from here it's a single wallet prompt then
-      // one settlement — NOT a per-item count. Show "confirm in your wallet" until the buyer signs
-      // (onSigned), then "completing transaction" while it settles.
-      const onSigned = () =>
-        setModal({ phase: 'processing', stage: 'settling', step: units.length, total: units.length })
-      setModal({ phase: 'processing', stage: 'awaiting-signature', step: units.length, total: units.length })
+      // All units authorized. From here it is one wallet prompt per GROUP, then one settlement each. A
+      // basket usually needs exactly one, but it needs two when it mixes purchase paths — an offchain
+      // trade settles with accept([...]) and a CollectionStore mint with buy([...]), and useCredits takes
+      // a single external call. The count comes from groupPurchases, the same function that builds the
+      // transactions, so what the buyer is told can never disagree with what they are asked to sign.
+      const sigTotal = groupPurchases(purchases).length
+      const sigs = (current: number) => (sigTotal > 1 ? { current, total: sigTotal } : undefined)
+      const onSigned = (signed: number) =>
+        setModal({
+          phase: 'processing',
+          stage: 'settling',
+          step: units.length,
+          total: units.length,
+          signatures: sigs(Math.min(signed + 1, sigTotal))
+        })
+      setModal({
+        phase: 'processing',
+        stage: 'awaiting-signature',
+        step: units.length,
+        total: units.length,
+        signatures: sigs(1)
+      })
       let hashes: string[] = []
       if (gaslessEnabled()) {
         try {
-          hashes = await buyManyGasless({ purchases, buyer: session.address, signer: session.signer, onSigned })
+          // The gasless rail is trade-only and, being for managed wallets, involves no confirmations at
+          // all — so it gets the zero-argument form. A basket containing a CollectionStore mint cannot go
+          // through here (buyManyGasless builds accept([...]) against a marketplace); it routes through
+          // the standard path below, where a managed wallet still signs transparently.
+          hashes = await buyManyGasless({
+            purchases,
+            buyer: session.address,
+            signer: session.signer,
+            onSigned: () => onSigned(0)
+          })
           // Once buyManyGasless returns, every group's meta-tx is BROADCAST. A group that's only
           // pending (unconfirmed within the window) may still land, so we must NOT release the
           // reservations — the credits-server reconciles those against the indexed CreditUsed event.
@@ -1118,6 +1151,7 @@ export function Cart() {
           step={modal.phase === 'processing' ? modal.step : undefined}
           total={modal.phase === 'processing' ? modal.total : undefined}
           isSelfCustody={showsWalletConfirmations(session?.providerType)}
+          signatures={modal.phase === 'processing' ? modal.signatures : undefined}
           options={modal.phase === 'choose' ? chooseOptions(modal).options : undefined}
           onPay={confirmMethod}
           totalCents={modal.phase === 'choose' ? modal.totalCents : undefined}

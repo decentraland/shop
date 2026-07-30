@@ -22,7 +22,10 @@ import {
   amoyGasOverrides,
   idToSalt,
   buildUseCreditsArgs,
-  type SpendableCredit
+  buildStoreBuyCalldata,
+  buildStoreUseCreditsArgs,
+  type SpendableCredit,
+  type StoreItemToBuy
 } from '~/lib/trade-encoding'
 
 const B32 = (n: string) => '0x' + n.repeat(64)
@@ -343,5 +346,91 @@ describe('when building the useCredits args', () => {
   it('always signs with the empty custom external call signature', () => {
     const args = buildUseCreditsArgs(MARKET, ACCEPT_ABI, [fakeTrade()], BUYER, [credit('0x01', '100')], '100')
     expect(args.customExternalCallSignature).toBe('0x')
+  })
+})
+
+/**
+ * CollectionStore.buy encoding. This is the primary-sale path for items never listed as a trade — the
+ * majority of the sellable catalogue — so the calldata has to be right or every mint reverts.
+ */
+describe('when encoding a CollectionStore purchase', () => {
+  const COLLECTION = ADDR('66')
+  const STORE = ADDR('77')
+  const STORE_ABI = [
+    'function buy(tuple(address collection,uint256[] ids,uint256[] prices,address[] beneficiaries)[] items)'
+  ]
+  const item = (itemId: string, priceWei: string): StoreItemToBuy => ({ collection: COLLECTION, itemId, priceWei })
+
+  function decode(data: string) {
+    return ethers.utils.defaultAbiCoder.decode(
+      ['tuple(address collection,uint256[] ids,uint256[] prices,address[] beneficiaries)[]'],
+      data
+      // BigNumber for the numeric arrays — the decoder returns them as such and the assertions stringify.
+    )[0] as Array<{ collection: string; ids: ethers.BigNumber[]; prices: ethers.BigNumber[]; beneficiaries: string[] }>
+  }
+
+  it('encodes one ItemToBuy entry per item, so a whole basket mints in a single call', () => {
+    const { data } = buildStoreBuyCalldata([item('1', '100'), item('2', '200')], BUYER, STORE_ABI)
+
+    const decoded = decode(data)
+    expect(decoded).toHaveLength(2)
+    expect(decoded.map(d => d.ids[0].toString())).toEqual(['1', '2'])
+    expect(decoded.map(d => d.prices[0].toString())).toEqual(['100', '200'])
+  })
+
+  it('names the BUYER as the beneficiary, not the caller', () => {
+    const { data } = buildStoreBuyCalldata([item('1', '100')], BUYER, STORE_ABI)
+
+    // The CreditsManager is msg.sender for the external call, so leaving this unset would mint the NFT
+    // into the CreditsManager instead of the buyer's wallet.
+    expect(decode(data)[0].beneficiaries[0].toLowerCase()).toBe(BUYER.toLowerCase())
+  })
+
+  it('passes the price through untouched, since the contract re-validates it on-chain', () => {
+    const { data } = buildStoreBuyCalldata([item('1', '123456789')], BUYER, STORE_ABI)
+
+    // CollectionStore.buy checks `prices` against the item's live price and reverts if it moved. Rounding
+    // or re-deriving here would turn a purchase into a revert.
+    expect(decode(data)[0].prices[0].toString()).toBe('123456789')
+  })
+
+  it('resolves the buy selector from the ABI rather than hardcoding it', () => {
+    const { selector } = buildStoreBuyCalldata([item('1', '100')], BUYER, STORE_ABI)
+
+    expect(selector).toBe(new ethers.utils.Interface(STORE_ABI).getSighash('buy'))
+  })
+
+  it('targets the CollectionStore in the useCredits envelope', () => {
+    const credits: SpendableCredit[] = [
+      { id: B32('1'), amount: '100', availableAmount: '100', expiresAt: 111, signature: SIG }
+    ]
+
+    const args = buildStoreUseCreditsArgs(STORE, STORE_ABI, [item('1', '100')], BUYER, credits, '100')
+
+    expect(args.externalCall.target).toBe(STORE)
+    expect(args.customExternalCallSignature).toBe('0x')
+  })
+
+  it('leaves nothing uncredited when the credits cover the server-sized cap', () => {
+    const credits: SpendableCredit[] = [
+      { id: B32('1'), amount: '100', availableAmount: '100', expiresAt: 111, signature: SIG }
+    ]
+
+    const args = buildStoreUseCreditsArgs(STORE, STORE_ABI, [item('1', '100')], BUYER, credits, '100')
+
+    expect(args.maxUncreditedValue).toBe('0')
+  })
+
+  it('never charges the buyer the gap when the cap exceeds the credits', () => {
+    const credits: SpendableCredit[] = [
+      { id: B32('1'), amount: '60', availableAmount: '60', expiresAt: 111, signature: SIG }
+    ]
+
+    // maxCreditedValue must be what the SERVER sized at /credits/authorize. If a caller ever passes an item
+    // price larger than the credits, the gap becomes MANA out of the buyer's own wallet — this pins the
+    // arithmetic so that regression is visible rather than silent.
+    const args = buildStoreUseCreditsArgs(STORE, STORE_ABI, [item('1', '100')], BUYER, credits, '100')
+
+    expect(args.maxUncreditedValue).toBe('40')
   })
 })

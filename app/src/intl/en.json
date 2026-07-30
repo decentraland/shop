@@ -313,7 +313,8 @@
     "errorTitle": "Oops! Something went wrong",
     "errorHeadline": "We couldn't complete your purchase this time.",
     "errorBody": "Don't worry, your credits are safe. Please try again in a moment.",
-    "tryAgain": "Try again"
+    "tryAgain": "Try again",
+    "confirmMultiple": "Confirm {current} of {total} approvals"
   },
   "marketCheckout": {
     "finalPrice": "Final price",

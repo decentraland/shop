@@ -313,7 +313,8 @@
     "errorTitle": "¡Ups! Algo salió mal",
     "errorHeadline": "No pudimos completar tu compra esta vez.",
     "errorBody": "Tranquilo, tus créditos están a salvo. Inténtalo de nuevo en un momento.",
-    "tryAgain": "Reintentar"
+    "tryAgain": "Reintentar",
+    "confirmMultiple": "Confirma {current} de {total} aprobaciones"
   },
   "marketCheckout": {
     "finalPrice": "Precio final",
