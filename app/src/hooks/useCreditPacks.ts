@@ -1,5 +1,4 @@
 import { useQuery } from '@tanstack/react-query'
-import { config } from '~/config'
 import { CREDIT_PACKS, fetchCreditPacks, type CreditPack } from '~/lib/payments'
 
 /**
@@ -16,11 +15,7 @@ export function useCreditPacks(): { packs: CreditPack[]; isLoading: boolean } {
     staleTime: 5 * 60_000,
     // The bundled CREDIT_PACKS fallback keeps the buy flow working, so a failed fetch shouldn't
     // hammer the server — don't retry.
-    retry: false,
-    // Local-dev preview of a catalogue change (VITE_USE_BUNDLED_PACKS in .env.local). The server owns the
-    // real prices, so a pricing edit is normally invisible here until credits-server ships it — this lets
-    // the bundled list drive the grid so the change can be reviewed first. Never set in CI or a deploy.
-    enabled: !config.useBundledPacks
+    retry: false
   })
   return { packs: data ?? CREDIT_PACKS, isLoading: isLoading && data === undefined }
 }
