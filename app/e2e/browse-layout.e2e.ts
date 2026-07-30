@@ -92,6 +92,52 @@ describe('collectibles browse layout', () => {
     expect(wrapped.round).toBe(true)
   })
 
+  // ...but a name that only just misses the row must NOT restructure the card. This is the regression:
+  // "Midnight Black Tuxedo Trousers" is a real catalogue name that wanted 11px more than its row had, and
+  // that was enough to move its price, reshape its action and drop its rarity/category chips — one odd
+  // card in a grid of 48. The name box ellipsises, so a few pixels must cost a few pixels.
+  it('keeps a name that only slightly exceeds its row inline, chips and all', async () => {
+    const rows = (fx.unifiedListings as { data: Record<string, unknown>[] }).data
+    const snug = 'Midnight Black Tuxedo Trousers'
+    app = await launchApp({
+      path: '/assets',
+      fixtures: { unifiedListings: { data: [rows[1], { ...rows[0], name: snug }] } }
+    })
+    const { page } = app
+    await waitForText(page, snug)
+    // The measurement re-runs when the webfont swaps in, so settle before asserting on it.
+    await page.evaluate(() => document.fonts?.ready)
+    await page.waitForSelector('[data-testid="card-cart"]')
+
+    const card = await page.evaluate(name => {
+      const el = [...document.querySelectorAll('[data-testid="card"]')].find(
+        c => c.querySelector('[data-testid="card-link"]')?.getAttribute('aria-label') === name
+      ) as HTMLElement
+      const span = el.querySelector('[title]')?.querySelector('span') as HTMLElement
+      const roundEl = el.querySelector('[data-testid="card-add-round"]') as HTMLElement | null
+      return {
+        stacked: el.hasAttribute('data-stacked'),
+        // The round action is always in the DOM (CSS reveals it per layout), so presence proves nothing —
+        // what matters is that this card does not SHOW it.
+        roundShown: !!roundEl && getComputedStyle(roundEl).display !== 'none',
+        cart: !!el.querySelector('[data-testid="card-cart"]'),
+        chips: !!el.querySelector('[data-chips]')?.childElementCount,
+        // Proof the name really does overflow its box, so this test cannot pass for the wrong reason by
+        // asserting nothing about the tolerance because there was nothing to tolerate. Only meaningful in
+        // the inline layout — stacked, the name owns the full row and would not overflow — so it is
+        // asserted after `stacked`.
+        overflows: span.offsetWidth > (span.closest('[title]') as HTMLElement).clientWidth
+      }
+    }, snug)
+
+    // The card keeps the ordinary layout: price beside the name, full-width Add to cart, chips intact.
+    expect(card.stacked).toBe(false)
+    expect(card.roundShown).toBe(false)
+    expect(card.cart).toBe(true)
+    expect(card.chips).toBe(true)
+    expect(card.overflows).toBe(true)
+  })
+
   // The filter sidebar scrolls internally, and overflow clips BOTH axes — an absolutely-positioned
   // tooltip inside it lost its first word off the left edge. The bubble is portalled to <body> now.
   it('shows the whole SMART hint tooltip, not cropped by the filter sidebar', async () => {

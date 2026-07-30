@@ -113,12 +113,56 @@ export async function getFeatureFlags(): Promise<Record<string, boolean>> {
  * to credit the seller for them.
  */
 export async function getIsFeatureEnabled(flag: FeatureFlag): Promise<boolean> {
+  const override = devOverrideFor(flag)
+  if (override !== undefined) return override
   try {
     const flags = await getFeatureFlags()
     return flags[flagKey(flag)] === true
   } catch {
     return false
   }
+}
+
+/**
+ * Local development override, read from VITE_FEATURE_FLAG_OVERRIDES in .env.local:
+ *
+ *   VITE_FEATURE_FLAG_OVERRIDES=shop-secondary-sales:true,shop-flash-sales:false
+ *
+ * Why this exists: a flag-gated flow is otherwise untestable locally. `shop-secondary-sales` is absent from
+ * the dapps flag file, so it reads false, so the whole resale path — the migrate banner on My Assets, the
+ * `owned` section of /import, the Sell action on a held token — cannot be exercised at all before it ships.
+ *
+ * DEV BUILDS ONLY. Gated on `import.meta.env.DEV`, which Vite statically replaces with `false` in a
+ * production build, so this branch and the parsing below are dropped from the bundle entirely rather than
+ * merely never taken. A feature flag that a query string or a stray env var could flip in production would
+ * be worse than no override at all.
+ */
+function devOverrideFor(flag: FeatureFlag): boolean | undefined {
+  if (!import.meta.env.DEV) return undefined
+  const raw: unknown = import.meta.env.VITE_FEATURE_FLAG_OVERRIDES
+  if (typeof raw !== 'string' || raw.length === 0) return undefined
+
+  for (const entry of raw.split(',')) {
+    // A trailing or doubled comma yields an empty entry. Skipped explicitly rather than left to fall through
+    // the name comparison: it would never match a flag, but it would reach the console.warn below and report a
+    // malformed override for something the author never wrote.
+    if (entry.trim().length === 0) continue
+    // Split on the FIRST colon only. A value is `true` or `false`, so an extra colon means the entry is
+    // malformed — and capturing the whole remainder lets the warning show what was actually written instead of
+    // silently dropping everything after the second colon.
+    const separator = entry.indexOf(':')
+    const name = (separator === -1 ? entry : entry.slice(0, separator)).trim()
+    const value = separator === -1 ? '' : entry.slice(separator + 1).trim()
+    // Matched against the BARE flag name (`shop-secondary-sales`), not the `dapps-` prefixed key, because the
+    // bare name is what the FeatureFlag enum and the dashboard both use.
+    if (name !== String(flag)) continue
+    if (value === 'true') return true
+    if (value === 'false') return false
+    // A typo'd value falls through to the real flag rather than being read as false: silently forcing a flag
+    // off because someone wrote `:ture` is the kind of local-only surprise that costs an afternoon.
+    console.warn(`Ignoring feature flag override "${entry}": value must be exactly "true" or "false"`)
+  }
+  return undefined
 }
 
 /** Test seam: drops the cached snapshot so a spec starts from a known state. */

@@ -38,3 +38,6 @@ npm-debug.log*
 design/
 /VISION.md
 /ROADMAP.md
+# Swept into three separate PRs by `git add -A` before this line existed, and it reached the public default
+# branch once. Ignored rather than merely deleted, because deleting it only fixes the last time.
+/SHOP.md
