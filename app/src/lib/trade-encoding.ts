@@ -25,6 +25,35 @@ export type CreditPurchase = {
   maxCreditedValue: string
 }
 
+/**
+ * A CollectionStore mint: the primary-sale path for items that were never listed as a trade.
+ *
+ * `priceWei` is read as LATE as possible on purpose. CollectionStore.buy takes the prices as an argument and
+ * the contract re-validates them against the item's live on-chain price, reverting if it moved. A trade cannot
+ * fail this way — its price is signed into the order — so this is the one purchase path where a stale quote is
+ * a revert rather than a wrong number.
+ */
+export type StoreItemToBuy = {
+  /** The collection contract that holds the item. */
+  collection: string
+  /** The item's blockchain id within the collection. */
+  itemId: string
+  /** MANA wei, as the contract will verify it. */
+  priceWei: string
+}
+
+// A store mint paired with the credit(s) that pay for it and the MANA cap the server sized.
+export type StorePurchase = {
+  item: StoreItemToBuy
+  credits: SpendableCredit[]
+  maxCreditedValue: string
+  chainId: number
+}
+
+// CollectionStore.buy's argument: struct ItemToBuy[] — one call mints many items across many collections,
+// which is what lets a whole cart of store items settle in a single transaction.
+const ITEM_TO_BUY_TUPLE_ARRAY = 'tuple(address collection,uint256[] ids,uint256[] prices,address[] beneficiaries)[]'
+
 // On-chain Trade tuple[] — matches decentraland-dapps credits.js.
 const TRADE_TUPLE_ARRAY =
   'tuple(address signer,bytes signature,' +
@@ -122,6 +151,61 @@ export function buildUseCreditsArgs(
   maxCreditedValue: string
 ) {
   const { selector, data } = buildAcceptCalldata(trades, buyer, marketplaceAbi)
+  return wrapInUseCredits({ target: marketplaceAddress, selector, data, credits, maxCreditedValue })
+}
+
+/**
+ * Encode CollectionStore.buy([...items]) — one external call mints every item in the batch.
+ *
+ * `beneficiaries` is the buyer for every item: the CreditsManager is the msg.sender, so without this the
+ * freshly minted NFTs would land in the CreditsManager rather than in the buyer's wallet.
+ */
+export function buildStoreBuyCalldata(items: StoreItemToBuy[], buyer: string, collectionStoreAbi: unknown[]) {
+  const selector = new Interface(collectionStoreAbi as string[]).getSighash('buy')
+  const data = defaultAbiCoder.encode(
+    [ITEM_TO_BUY_TUPLE_ARRAY],
+    [
+      items.map(i => ({
+        collection: i.collection,
+        ids: [i.itemId],
+        prices: [i.priceWei],
+        beneficiaries: [buyer]
+      }))
+    ]
+  )
+  return { selector, data }
+}
+
+// Build the CreditsManager.useCredits() args for a batch of CollectionStore mints.
+export function buildStoreUseCreditsArgs(
+  collectionStoreAddress: string,
+  collectionStoreAbi: unknown[],
+  items: StoreItemToBuy[],
+  buyer: string,
+  credits: SpendableCredit[],
+  maxCreditedValue: string
+) {
+  const { selector, data } = buildStoreBuyCalldata(items, buyer, collectionStoreAbi)
+  return wrapInUseCredits({ target: collectionStoreAddress, selector, data, credits, maxCreditedValue })
+}
+
+/**
+ * The shared useCredits envelope: the credits, their signatures, the single external call, and the value caps.
+ *
+ * Extracted so the trade and store paths cannot drift on the part that moves money. In particular
+ * `maxUncreditedValue` — the MANA the buyer pays from their OWN wallet to cover whatever the credits do not —
+ * is derived here from `maxCreditedValue`, which callers must set to the amount the SERVER sized at
+ * /credits/authorize. Deriving it from an item or trade price instead leaves a positive gap and silently
+ * charges the buyer the difference in MANA.
+ */
+function wrapInUseCredits(opts: {
+  target: string
+  selector: string
+  data: string
+  credits: SpendableCredit[]
+  maxCreditedValue: string
+}) {
+  const { target, selector, data, credits, maxCreditedValue } = opts
   const sumAvailable = credits.reduce(
     (acc, c) => acc.add(ethers.BigNumber.from(c.availableAmount)),
     ethers.BigNumber.from(0)
@@ -131,7 +215,7 @@ export function buildUseCreditsArgs(
     credits: credits.map(c => ({ value: c.amount, expiresAt: Number(c.expiresAt), salt: idToSalt(c.id) })),
     creditsSignatures: credits.map(c => c.signature),
     externalCall: {
-      target: marketplaceAddress,
+      target,
       selector,
       data,
       expiresAt: Math.floor(Date.now() / 1000) + 60 * 60 * 24,

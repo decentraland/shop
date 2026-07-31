@@ -13,13 +13,27 @@ import { isOwnTrade } from '~/lib/ownership'
 // the UI can prune the unbuyable ones, show the updated total, and ask for confirmation when anything
 // differs from what was displayed.
 
+/**
+ * How a resolved line settles on-chain. A discriminated union rather than an optional `trade`, so every
+ * consumer is forced by the compiler to say which path it handles — this decides which contract gets called
+ * with the buyer's credits, and a silent `undefined` there is the shape of a lost or wrong charge.
+ */
+export type LineSettlement =
+  | { acquisition: 'trade'; trade: Trade }
+  /**
+   * A CollectionStore mint. `priceWei` is the LIVE MANA price re-read at review time, not the snapshot the
+   * cart stored: CollectionStore.buy takes the price as an argument and the contract re-validates it against
+   * the item's current on-chain price, reverting if it moved. A trade cannot fail that way — its price is
+   * signed into the order — so this is the one path where a stale quote is a revert rather than a bad number.
+   */
+  | { acquisition: 'store'; priceWei: string }
+
 export type ResolvedLine = {
   item: CatalogItem
-  trade: Trade
-  usdCents: number // authoritative USD amount from the live trade (what we authorize) — PER UNIT
+  usdCents: number // authoritative USD amount from the live listing (what we authorize) — PER UNIT
   priceCredits: number // whole credits shown for that amount (1 credit = $0.10, rounded up) — PER UNIT
   quantity: number // how many units of this line to buy (always 1 for a secondary token)
-}
+} & LineSettlement
 
 export type CartReview = {
   buyable: ResolvedLine[] // resolvable, not the buyer's own — safe to charge
@@ -37,6 +51,16 @@ export const RESUME_CART_KEY = 'dcl_shop_resume_cart'
 
 // Resolves an item to its current on-chain-signed trade, or null when there's no live listing.
 export type TradeResolver = (item: CatalogItem) => Promise<Trade | null>
+
+/**
+ * Re-reads a CollectionStore mint's LIVE price and remaining supply, or null when it is no longer mintable.
+ *
+ * The mint equivalent of re-resolving a trade, and needed for the same reason: the cart's stored snapshot can
+ * be stale by checkout. Both fields can move without any listing changing — another buyer takes the last unit
+ * (`available` hits 0) or the creator re-prices the item — and unlike a trade there is no signature pinning
+ * either, so both have to be read again before the buyer is charged.
+ */
+export type StoreResolver = (item: CatalogItem) => Promise<{ priceWei: string; available: number } | null>
 
 // USD cents → whole credits shown (1 credit = $0.10, rounded up — the shop's whole-credit model).
 export function centsToCredits(usdCents: number): number {
@@ -95,7 +119,13 @@ export async function reviewCart(
    * `lineUsdCents`. Omit it and legacy lines resolve as `unavailable` rather than being priced off a
    * missing rate: showing "no longer available" is recoverable, charging the wrong amount is not.
    */
-  rate?: ManaRate
+  rate?: ManaRate,
+  /**
+   * Re-reads a CollectionStore mint's live price + supply. Omit it and mints resolve as `unavailable`
+   * rather than being charged off the cart's snapshot — the same fail-closed choice as `rate` above, and it
+   * is what keeps a client that has not wired the store path from charging one.
+   */
+  resolveStore?: StoreResolver
 ): Promise<CartReview> {
   const buyable: ResolvedLine[] = []
   const unavailable: CatalogItem[] = []
@@ -106,6 +136,41 @@ export async function reviewCart(
     // `received`, a bad amount) classifies the row as unavailable rather than throwing out of
     // reviewCart — one bad row must never abort the basket.
     try {
+      // Quantity applies only to primary (mint) lines; a secondary token is always a single unit.
+      const quantity = !item.tokenId ? Math.max(1, Math.floor(item.quantity ?? 1)) : 1
+
+      // A CollectionStore mint has no trade to resolve, so it takes its own branch. `?? 'trade'` because a
+      // cart persisted before mints existed carries no value, and every one of those rows is a trade.
+      if ((item.acquisition ?? 'trade') === 'store') {
+        // No resolver wired (or no rate) → unavailable, never charged off the cart's snapshot.
+        const live = resolveStore ? await resolveStore(item) : null
+        if (!live || !rate) {
+          unavailable.push(item)
+          continue
+        }
+        // Supply is finite and shrinks as others mint, so a sold-out item has to drop out here rather than
+        // revert on-chain after the buyer has paid gas. `quantity` matters: buying 3 of 2 remaining reverts
+        // for the whole batch, so the line is unbuyable rather than silently reduced.
+        if (live.available < quantity) {
+          unavailable.push(item)
+          continue
+        }
+        const usdCents = manaWeiToUsdCents(live.priceWei, rate)
+        if (!Number.isFinite(usdCents) || usdCents <= 0) {
+          unavailable.push(item)
+          continue
+        }
+        buyable.push({
+          item,
+          acquisition: 'store',
+          priceWei: live.priceWei,
+          usdCents,
+          priceCredits: centsToCredits(usdCents),
+          quantity
+        })
+        continue
+      }
+
       const trade = await resolve(item)
       if (!trade) {
         unavailable.push(item)
@@ -122,9 +187,7 @@ export async function reviewCart(
         unavailable.push(item)
         continue
       }
-      // Quantity applies only to primary (mint) lines; a secondary token is always a single unit.
-      const quantity = !item.tokenId ? Math.max(1, Math.floor(item.quantity ?? 1)) : 1
-      buyable.push({ item, trade, usdCents, priceCredits: centsToCredits(usdCents), quantity })
+      buyable.push({ item, acquisition: 'trade', trade, usdCents, priceCredits: centsToCredits(usdCents), quantity })
     } catch {
       unavailable.push(item)
     }

@@ -313,7 +313,8 @@
     "errorTitle": "¡Ups! Algo salió mal",
     "errorHeadline": "No pudimos completar tu compra esta vez.",
     "errorBody": "Tranquilo, tus créditos están a salvo. Inténtalo de nuevo en un momento.",
-    "tryAgain": "Reintentar"
+    "tryAgain": "Reintentar",
+    "confirmMultiple": "Confirma {current} de {total} aprobaciones"
   },
   "marketCheckout": {
     "finalPrice": "Precio final",
@@ -435,6 +436,7 @@
     "confirmingAfter": "— esto suele tardar unos segundos. Mantén esta pestaña abierta.",
     "itemCount": "{count, plural, one {# artículo} other {# artículos}}",
     "viewTransaction": "Ver recibo ↗",
+    "viewTransactionNumbered": "Recibo {n} de {total} ↗",
     "stillProcessingTitle": "Sigue procesándose…",
     "timedOutBefore": "Esto está tardando más de lo habitual en confirmarse. Puede que tu compra aún se complete: revisa",
     "timedOutAfter": "en unos minutos para ver el estado final. No necesitas comprar de nuevo.",
