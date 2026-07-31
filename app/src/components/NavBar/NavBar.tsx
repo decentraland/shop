@@ -7,10 +7,9 @@ import { Icon } from '~/components/Icon'
 import { TopNav } from '~/components/TopNav'
 import { useWallet } from '~/store/wallet'
 import { useProfile } from '~/hooks/useProfile'
-import { useBalance, balanceLabel } from '~/hooks/useBalance'
+import { useBalance } from '~/hooks/useBalance'
 import { useManaBalance } from '~/hooks/useManaBalance'
-import { formatMana } from '~/lib/mana-format'
-import manaSymbol from '~/assets/mana-matic.svg'
+import { manaWeiToNumber } from '~/lib/mana-format'
 import { useCart } from '~/store/cart'
 import { CartPopover } from '~/components/CartPopover'
 import { SearchDropdown } from '~/components/SearchDropdown'
@@ -76,6 +75,13 @@ export function NavBar() {
   // any of the detail/collection routes, so match them explicitly here.
   const collectiblesActive = /^\/(assets|item|token|collection)(\/|$)/.test(pathname)
   const urlQuery = searchParams.get('q') ?? ''
+
+  // Balances for the global ui2 navbar. Credits: undefined while loading/on error (hides the chip —
+  // a dash would need a string prop), the loaded count (incl. 0) otherwise. MANA: only when the wallet
+  // actually holds some, so the web2-first navbar shows no crypto by default.
+  const shopCredits = session && !balanceLoading && !balanceError ? (balance?.credits ?? 0) : undefined
+  const manaBalances =
+    session && manaBalanceWei != null && manaBalanceWei > 0n ? { MATIC: manaWeiToNumber(manaBalanceWei) } : undefined
 
   // What the input shows (drives the box) and what the dropdown queries (debounced) are separate:
   // the box updates instantly on keystroke; the dropdown lags 300ms so we don't fetch every letter.
@@ -208,6 +214,10 @@ export function NavBar() {
         avatar={avatar}
         onClickSignIn={() => signIn()}
         onClickSignOut={() => void disconnect()}
+        shopCreditsBalance={shopCredits}
+        onClickShopCredits={() => navigate('/credits')}
+        manaBalances={manaBalances}
+        showManaBalancesInNavbar
         notificationSlot={
           session ? (
             // The ui2 Notifications feature can throw while rendering (e.g. a notification with an
@@ -274,22 +284,6 @@ export function NavBar() {
             />
           ) : null}
         </S.Search>
-        {/* Polygon MANA balance — shown ONLY when the wallet actually holds MANA (any wallet type,
-            managed ones included: a Magic/thirdweb account can hold MANA someone sent it). Sits to the
-            LEFT of the credits balance: credits stay the headline currency, MANA is the extra the buyer
-            happens to have. Hidden entirely at zero so the web2-first navbar shows no crypto by default. */}
-        {session && manaBalanceWei != null && manaBalanceWei > 0n ? (
-          <S.Mana data-testid="subnav-mana-balance" title={t('nav.polygonMana')}>
-            <S.ManaIco src={manaSymbol} alt="" aria-hidden />
-            {formatMana(manaBalanceWei)}
-          </S.Mana>
-        ) : null}
-        {session ? (
-          <S.Balance data-testid="subnav-balance" title={t('nav.yourBalance', { currency: CURRENCY.name })}>
-            <S.BalanceIco />
-            {balanceLoading ? <S.BalanceSkel className="skeleton" aria-hidden /> : balanceLabel(balance, balanceError)}
-          </S.Balance>
-        ) : null}
         <S.Credits to="/credits">
           <S.CreditsIco />
           {t('nav.getCredits', { currency: CURRENCY.name })}

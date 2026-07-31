@@ -14,8 +14,6 @@
     "authorizations": "Approvals",
     "searchPlaceholder": "Search items…",
     "searchAria": "Search the shop",
-    "polygonMana": "Polygon MANA",
-    "yourBalance": "Your {currency}",
     "getCredits": "Get {currency}",
     "cart": "Cart"
   },

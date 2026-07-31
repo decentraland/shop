@@ -26,6 +26,8 @@ const NO_CREDITS = credits(0)
 
 const ITEM_PATH = `/item/${COLLECTION}/1`
 const has = (page: App['page'], testId: string) => page.$(`[data-testid="${testId}"]`).then(el => !!el)
+// The MANA balance now renders as a ui2 navbar chip (no testid); its aria-label is the stable hook.
+const MANA_CHIP = 'button[aria-label$="MANA on Polygon"]'
 
 // The Buy Now picker is SELECT-then-confirm (Figma 1654-371913): rows are checkboxes and one BUY submits.
 // Ticking both rows is how a mixed credits + MANA payment is expressed, so there is no "combined" row.
@@ -43,7 +45,7 @@ describe('paying with MANA in the buy flow', () => {
     const { page } = app
 
     await waitForText(page, 'Nebula Jacket')
-    expect(await has(page, 'subnav-mana-balance')).toBe(false)
+    expect(await page.$(MANA_CHIP).then(el => !!el)).toBe(false)
 
     await clickWhenEnabled(page, 'button', /buy now/i)
     await waitForText(page, 'Buy Asset')
@@ -56,8 +58,8 @@ describe('paying with MANA in the buy flow', () => {
     app = await launchApp({ path: ITEM_PATH, fixtures: { trade: buyTrade }, manaBalanceWei: PLENTY_OF_MANA })
     const { page } = app
 
-    await page.waitForSelector('[data-testid="subnav-mana-balance"]', { timeout: 20000 })
-    const chip = await page.$eval('[data-testid="subnav-mana-balance"]', el => el.textContent ?? '')
+    await page.waitForSelector(MANA_CHIP, { timeout: 20000 })
+    const chip = await page.$eval(MANA_CHIP, el => el.textContent ?? '')
     expect(chip).toContain('1,000')
   })
 
