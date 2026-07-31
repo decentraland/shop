@@ -36,15 +36,16 @@ import type { ChainId } from '@dcl/schemas'
 import { AuthorizeStep } from '~/components/AuthorizeStep'
 import manaLight from '~/assets/mana-matic-light.svg'
 import { ContractName, getContract, getContractName } from 'decentraland-transactions'
-import { resolveLiveTrade, fetchListings } from '~/lib/api'
-import { buyManyWithCredits, groupPurchases, type CreditPurchase } from '~/lib/buy'
+import { resolveLiveTrade, fetchListings, fetchStoreMintState } from '~/lib/api'
+import { buyManyWithCredits, groupPurchases, type AnyPurchase } from '~/lib/buy'
 import { buyManyGasless, waitForSettlement, GaslessUnavailableError, SettlementPendingError } from '~/lib/buy-gasless'
 import {
   reviewCart,
   RESUME_CART_KEY,
   type CartReview,
   type ResolvedLine,
-  type TradeResolver
+  type TradeResolver,
+  type StoreResolver
 } from '~/lib/cart-checkout'
 import { gaslessEnabled } from '~/lib/gasless-config'
 import { useCartAvailability } from '~/hooks/useCartAvailability'
@@ -218,10 +219,28 @@ export function Cart() {
     balanceCents: balance?.balanceCents ?? 0,
     manaBalanceWei: manaBalanceWei ?? 0n
   })
+  /**
+   * Whether the basket contains a CollectionStore mint.
+   *
+   * Gates the MANA rails off. Both of them settle through `accept([...trades])` — `buyManyWithMana` takes
+   * trades, and the combined rail spends MANA through the CreditsManager against the same call — so a mint
+   * has no MANA path here at all. Offering a rail that cannot fulfil the basket would fail at signing time,
+   * after the buyer picked it. Paying for a mint in MANA is a real flow (the legacy marketplace does it via
+   * CollectionStore.buy) and is simply not wired in the Shop yet.
+   */
+  const hasStoreLine = (lines: ResolvedLine[]) => lines.some(l => l.acquisition === 'store')
+
+  // The MANA rails only ever see trade lines (hasStoreLine keeps mints away), and this is what tells the
+  // compiler so instead of a cast at each use.
+  const tradeLinesOnly = (lines: ResolvedLine[]) => lines.flatMap(l => (l.acquisition === 'trade' ? [l] : []))
+
   // Re-resolve each line's LIVE trade at review time: a stored tradeId can be stale (the trade gets
   // re-signed as availability/expiration rolls), so resolveLiveTrade re-resolves by item on a 404
   // instead of dropping a still-listed row as unavailable.
   const resolveTrade: TradeResolver = resolveLiveTrade
+
+  // A mint's live price + remaining supply, re-read the same way and for the same reason as the trade above.
+  const resolveStore: StoreResolver = item => fetchStoreMintState(item.contractAddress, String(item.itemId))
 
   // Any manual cart edit invalidates a pending confirmation (its snapshot no longer matches the cart).
   function editCart(fn: () => void) {
@@ -278,17 +297,37 @@ export function Cart() {
       // Authorize SEQUENTIALLY (not Promise.all): each authorize reserves against the running USD
       // balance, so ordering is what makes the insufficient-credits guard correct — parallel calls
       // would all read the pre-reservation balance and could over-authorize.
-      const purchases: CreditPurchase[] = []
+      const purchases: AnyPurchase[] = []
       for (let i = 0; i < units.length; i++) {
         const line = units[i]
         setModal({ phase: 'processing', stage: 'reserving', step: i + 1, total: units.length })
         try {
-          // Authorize against the freshly RESOLVED trade (line.trade), not the item's original tradeId:
-          // a stale tradeId may have been re-signed to a new trade, and the spend below executes against
-          // line.trade — authorizing the retired trade would mismatch what's actually charged (Jarvis P1).
-          const { credit, maxCreditedValue } = await authorizeUsdCredit(session.identity, line.usdCents, line.trade.id)
+          // Authorize against the freshly RESOLVED listing, not the item's cart snapshot: a stale tradeId may
+          // have been re-signed to a new trade, and the spend below executes against what was resolved —
+          // authorizing the retired one would mismatch what's actually charged (Jarvis P1).
+          //
+          // A mint carries no tradeId (there is no trade), so the intent is recorded unbound. The server
+          // treats it as optional; what ties the charge to the item is the ephemeral credit's salt, which the
+          // reconciler matches against the on-chain consumption either way.
+          const tradeId = line.acquisition === 'trade' ? line.trade.id : undefined
+          const { credit, maxCreditedValue } = await authorizeUsdCredit(session.identity, line.usdCents, tradeId)
           reservedSalts.push(credit.id)
-          purchases.push({ trade: line.trade, credits: [credit], maxCreditedValue })
+          purchases.push(
+            line.acquisition === 'store'
+              ? {
+                  kind: 'store',
+                  item: {
+                    collection: line.item.contractAddress,
+                    itemId: String(line.item.itemId),
+                    // The LIVE price the review re-read, which is what the contract will verify.
+                    priceWei: line.priceWei
+                  },
+                  credits: [credit],
+                  maxCreditedValue,
+                  chainId: line.item.chainId
+                }
+              : { kind: 'trade', trade: line.trade, credits: [credit], maxCreditedValue }
+          )
         } catch (authErr) {
           // Server said not enough credits → release what we already reserved and show the pack picker
           // (top-up → resume), not a bare error. Same behaviour as the PDP BuyModal.
@@ -316,33 +355,44 @@ export function Cart() {
       // transactions, so what the buyer is told can never disagree with what they are asked to sign.
       const sigTotal = groupPurchases(purchases).length
       const sigs = (current: number) => (sigTotal > 1 ? { current, total: sigTotal } : undefined)
-      const onSigned = (signed: number) =>
+      const processing = (stage: ProcessingStage, current: number) =>
         setModal({
           phase: 'processing',
-          stage: 'settling',
+          stage,
           step: units.length,
           total: units.length,
-          signatures: sigs(Math.min(signed + 1, sigTotal))
+          signatures: sigs(current)
         })
-      setModal({
-        phase: 'processing',
-        stage: 'awaiting-signature',
-        step: units.length,
-        total: units.length,
-        signatures: sigs(1)
-      })
+
+      /**
+       * Called once per group, AFTER that group is confirmed. `signed` is how many are done.
+       *
+       * The stage has to go back to `awaiting-signature` when another group is still pending, not straight to
+       * `settling`: the buyer's wallet is about to pop a SECOND prompt, and a modal reading "Completing your
+       * purchase…" while that happens invites them to dismiss it as a stray popup — which strands the rest of
+       * the basket. Only the last confirmation earns the settling copy.
+       */
+      const onSigned = (signed: number) =>
+        signed < sigTotal ? processing('awaiting-signature', signed + 1) : processing('settling', sigTotal)
+
+      processing('awaiting-signature', 1)
       let hashes: string[] = []
-      if (gaslessEnabled()) {
+      // The gasless rail is trade-only: buyManyGasless builds accept([...]) against a marketplace, so a mint
+      // has no meta-transaction path yet. Its `CreditPurchase[]` parameter makes that a COMPILE error rather
+      // than a runtime one, and this is the explicit gate — a basket with a mint takes the direct path, where
+      // a managed wallet still signs transparently (it just pays gas).
+      const storeLines = purchases.some(p => p.kind === 'store')
+      const tradeOnlyPurchases = purchases.flatMap(p => (p.kind === 'trade' ? [p] : []))
+      if (gaslessEnabled() && !storeLines) {
         try {
-          // The gasless rail is trade-only and, being for managed wallets, involves no confirmations at
-          // all — so it gets the zero-argument form. A basket containing a CollectionStore mint cannot go
-          // through here (buyManyGasless builds accept([...]) against a marketplace); it routes through
-          // the standard path below, where a managed wallet still signs transparently.
+          // Relayed, so there are no per-group prompts to count: report every group as already confirmed so
+          // the modal goes straight to settling. Passing 0 here would instead re-arm "awaiting confirmation"
+          // for a rail that never asks for one.
           hashes = await buyManyGasless({
-            purchases,
+            purchases: tradeOnlyPurchases,
             buyer: session.address,
             signer: session.signer,
-            onSigned: () => onSigned(0)
+            onSigned: () => onSigned(sigTotal)
           })
           // Once buyManyGasless returns, every group's meta-tx is BROADCAST. A group that's only
           // pending (unconfirmed within the window) may still land, so we must NOT release the
@@ -363,7 +413,9 @@ export function Cart() {
           hashes = await buyManyWithCredits({ purchases, buyer: session.address, signer: session.signer, onSigned })
         }
       } else {
-        hashes = await buyManyWithCredits({ purchases, buyer: session.address, signer: session.signer })
+        // Was missing `onSigned`, so with gasless off the modal sat on "awaiting confirmation" through
+        // settlement. Harmless when there is one prompt; with two it would never advance the counter.
+        hashes = await buyManyWithCredits({ purchases, buyer: session.address, signer: session.signer, onSigned })
       }
 
       // Remove exactly what we bought (leaves any not-charged rows in place for a retry).
@@ -512,12 +564,17 @@ export function Cart() {
   async function chargeOrTopUp(lines: ResolvedLine[], picked?: PaymentMethod) {
     const totalCredits = sumLineCredits(lines)
     const { totalCents, manaWei } = await basketTotals(lines)
-    const options = computePaymentOptions({
+    const all = computePaymentOptions({
       priceCents: totalCents,
       priceManaWei: manaWei,
       balanceCents: balance?.balanceCents ?? 0,
       manaBalanceWei: manaBalanceWei ?? 0n
     })
+    // Drop both MANA rails when the basket holds a CollectionStore mint (see hasStoreLine): they settle
+    // through accept([...trades]) and a mint has no trade, so offering one would fail at signing time —
+    // after the buyer chose it and after any MANA approval. Credits stay available, which is the rail that
+    // does support mints, so this narrows the buyer's options rather than blocking the purchase.
+    const options = hasStoreLine(lines) ? { ...all, options: all.options.filter(o => o.method === 'credits') } : all
     // The buyer already picked a rail in the summary panel, and it still covers the re-resolved total →
     // charge it, no second confirmation. (`picked` is dropped when the re-resolve invalidated it, which
     // falls through to the chooser / top-up below — never a silent switch to a different rail.)
@@ -574,7 +631,8 @@ export function Cart() {
    */
   /** Which contract pulls the MANA: the marketplace for a MANA-only basket, the CreditsManager for mixed. */
   function manaSpenderFor(rail: 'mana' | 'combined', lines: ResolvedLine[]): { spender: string; chainId: ChainId } {
-    const trade = lines[0].trade
+    // Unreachable with a mint in the basket: hasStoreLine drops both MANA rails before this is called.
+    const trade = tradeLinesOnly(lines)[0].trade
     const spender =
       rail === 'mana'
         ? getContract(getContractName(trade.contract), trade.chainId).address
@@ -618,7 +676,9 @@ export function Cart() {
     setModal({ phase: 'processing', stage: 'awaiting-signature', step: units.length, total: units.length })
     try {
       const hashes = await buyManyWithMana({
-        trades: units.map(u => u.trade),
+        // Trade lines only — the MANA rail settles through accept([...]) and a mint has no trade. The basket
+        // cannot contain one here (see hasStoreLine), so this narrows rather than filters.
+        trades: tradeLinesOnly(units).map(u => u.trade),
         buyer: session.address,
         signer: session.signer,
         onSigned
@@ -655,19 +715,23 @@ export function Cart() {
     const reservedSalts: string[] = []
     setModal({ phase: 'processing', stage: 'reserving', step: 1, total: units.length })
     try {
-      const purchases: CreditPurchase[] = []
-      for (let i = 0; i < units.length; i++) {
+      // The combined rail is trade-only: its MANA leg is paid through the same accept([...]) call, which a
+      // mint has no place in. hasStoreLine keeps this rail off the table for such a basket, so narrowing
+      // here is the compiler's proof of that rather than a filter that could silently drop a paid line.
+      const tradeUnits = tradeLinesOnly(units)
+      const purchases: AnyPurchase[] = []
+      for (let i = 0; i < tradeUnits.length; i++) {
         const cents = allocation[i]
         if (cents <= 0) continue // fully covered by MANA — no credit, nothing to reserve
-        setModal({ phase: 'processing', stage: 'reserving', step: i + 1, total: units.length })
-        const { credit, maxCreditedValue } = await authorizeUsdCredit(session.identity, cents, units[i].trade.id)
+        setModal({ phase: 'processing', stage: 'reserving', step: i + 1, total: tradeUnits.length })
+        const { credit, maxCreditedValue } = await authorizeUsdCredit(session.identity, cents, tradeUnits[i].trade.id)
         reservedSalts.push(credit.id)
-        purchases.push({ trade: units[i].trade, credits: [credit], maxCreditedValue })
+        purchases.push({ kind: 'trade', trade: tradeUnits[i].trade, credits: [credit], maxCreditedValue })
       }
       // Units with no credit still have to be in the accept([...]) batch — carry them with no credits so
       // the MANA leg pays for them.
-      units.forEach((u, i) => {
-        if (allocation[i] <= 0) purchases.push({ trade: u.trade, credits: [], maxCreditedValue: '0' })
+      tradeUnits.forEach((u, i) => {
+        if (allocation[i] <= 0) purchases.push({ kind: 'trade', trade: u.trade, credits: [], maxCreditedValue: '0' })
       })
       // The group sums maxCreditedValue, so adding the gap to the first purchase makes the batch's
       // uncredited leg exactly the MANA gap (see buildUseCreditsArgs).
@@ -675,7 +739,7 @@ export function Cart() {
         ...purchases[0],
         maxCreditedValue: (BigInt(purchases[0].maxCreditedValue) + gapWei).toString()
       }
-      await ensureCreditsManagerManaAllowance(session.signer, units[0].trade.chainId)
+      await ensureCreditsManagerManaAllowance(session.signer, tradeUnits[0].trade.chainId)
 
       const onSigned = () =>
         setModal({ phase: 'processing', stage: 'settling', step: units.length, total: units.length })
@@ -736,7 +800,7 @@ export function Cart() {
     try {
       // Resolve every item's LIVE listing first — never charge a stale snapshot, and never let one bad
       // item abort the basket.
-      const rev = await reviewCart(cartItems, session.address, resolveTrade, await ensureManaRate())
+      const rev = await reviewCart(cartItems, session.address, resolveTrade, await ensureManaRate(), resolveStore)
 
       // Prune the rows we can't buy (sold/cancelled, or the buyer's own listing) and say what happened.
       const dropped = [...rev.unavailable, ...rev.own]

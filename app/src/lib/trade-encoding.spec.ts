@@ -421,14 +421,15 @@ describe('when encoding a CollectionStore purchase', () => {
     expect(args.maxUncreditedValue).toBe('0')
   })
 
-  it('never charges the buyer the gap when the cap exceeds the credits', () => {
+  it('charges the buyer the shortfall in their own MANA when the cap exceeds the credits', () => {
     const credits: SpendableCredit[] = [
       { id: B32('1'), amount: '60', availableAmount: '60', expiresAt: 111, signature: SIG }
     ]
 
-    // maxCreditedValue must be what the SERVER sized at /credits/authorize. If a caller ever passes an item
-    // price larger than the credits, the gap becomes MANA out of the buyer's own wallet — this pins the
-    // arithmetic so that regression is visible rather than silent.
+    // Named for what it asserts, deliberately: the gap DOES become MANA out of the buyer's own wallet. That
+    // is correct for the combined rail, which exists to top a purchase up with MANA — but it is also exactly
+    // how a caller that sizes `maxCreditedValue` from an item price instead of from what the server
+    // authorized would silently overcharge. Pinned so that arithmetic cannot change unnoticed.
     const args = buildStoreUseCreditsArgs(STORE, STORE_ABI, [item('1', '100')], BUYER, credits, '100')
 
     expect(args.maxUncreditedValue).toBe('40')

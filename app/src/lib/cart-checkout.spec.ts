@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { TradeAssetType, type Trade } from '@dcl/schemas'
 import type { CatalogItem } from '~/lib/api'
-import { reviewCart, centsToCredits, type TradeResolver } from '~/lib/cart-checkout'
+import { reviewCart, centsToCredits, type StoreResolver, type TradeResolver } from '~/lib/cart-checkout'
 
 const BUYER = '0xBUYER'
 
@@ -257,5 +257,203 @@ describe('reviewCart with legacy MANA lines', () => {
 
     expect(review.buyable).toHaveLength(0)
     expect(review.unavailable.map(i => i.id)).toEqual(['N'])
+  })
+})
+
+/**
+ * CollectionStore mints. These are the majority of the sellable catalogue and they are NOT trades: primary
+ * minting has no order and nothing signed, so the line resolves down its own branch and settles through
+ * CollectionStore.buy.
+ *
+ * The theme of these cases is that a mint has TWO facts nothing pins — its price and its remaining supply —
+ * where a trade has a signature pinning the price. So both must be re-read at review, and every way that read
+ * can come back unusable has to land the line in `unavailable` rather than in a charge.
+ */
+describe('reviewCart with CollectionStore mints', () => {
+  const mint = (id: string, priceCredits: number, over: Partial<CatalogItem> = {}) =>
+    item(id, priceCredits, { acquisition: 'store', tradeId: undefined, ...over })
+
+  // 10 MANA at $0.50 = $5.00 = 50 credits, matching RATE above.
+  const TEN_MANA = (10n * 10n ** 18n).toString()
+
+  const storeResolver =
+    (map: Record<string, { priceWei: string; available: number } | null | 'throw'>): StoreResolver =>
+    async i => {
+      const r = map[i.id]
+      if (r === 'throw') throw new Error('store read failed')
+      return r ?? null
+    }
+
+  // No trade resolver should ever be consulted for a mint; this one fails loudly if it is.
+  const neverResolveTrade: TradeResolver = async () => {
+    throw new Error('the trade resolver must not be called for a mint')
+  }
+
+  it('should price a mint from its LIVE mana price, not the cart snapshot', async () => {
+    // The cart stored 999 credits; the live read says 10 MANA = 50 credits. The live number must win.
+    const rev = await reviewCart(
+      [mint('a', 999)],
+      BUYER,
+      neverResolveTrade,
+      RATE,
+      storeResolver({ a: { priceWei: TEN_MANA, available: 5 } })
+    )
+
+    expect(rev.buyable).toHaveLength(1)
+    expect(rev.buyable[0].priceCredits).toBe(50)
+    expect(rev.buyable[0].usdCents).toBe(500)
+    expect(rev.orderChanged).toBe(true)
+  })
+
+  it('should carry the live price as priceWei, which is what the contract re-validates', async () => {
+    const rev = await reviewCart(
+      [mint('a', 50)],
+      BUYER,
+      neverResolveTrade,
+      RATE,
+      storeResolver({ a: { priceWei: TEN_MANA, available: 1 } })
+    )
+
+    const line = rev.buyable[0]
+    expect(line.acquisition).toBe('store')
+    // CollectionStore.buy takes the price as an argument and reverts if it does not match the live chain
+    // price, so the exact wei the review read has to reach the calldata untouched.
+    if (line.acquisition === 'store') expect(line.priceWei).toBe(TEN_MANA)
+  })
+
+  it('should never treat a mint as a trade', async () => {
+    // neverResolveTrade throws; a mint routed down the trade branch would surface as `unavailable` via the
+    // catch, so a green `buyable` here is the proof the branch is taken on `acquisition`.
+    const rev = await reviewCart(
+      [mint('a', 50)],
+      BUYER,
+      neverResolveTrade,
+      RATE,
+      storeResolver({ a: { priceWei: TEN_MANA, available: 1 } })
+    )
+
+    expect(rev.buyable).toHaveLength(1)
+    expect(rev.unavailable).toHaveLength(0)
+  })
+
+  it('should drop a mint that sold out between browsing and checkout', async () => {
+    const rev = await reviewCart(
+      [mint('a', 50)],
+      BUYER,
+      neverResolveTrade,
+      RATE,
+      storeResolver({ a: { priceWei: TEN_MANA, available: 0 } })
+    )
+
+    // Supply is finite and shrinks as others mint. Dropping it here beats reverting on-chain after the
+    // buyer has paid gas.
+    expect(rev.buyable).toHaveLength(0)
+    expect(rev.unavailable.map(i => i.id)).toEqual(['a'])
+  })
+
+  it('should drop a mint whose remaining supply is short of the requested quantity', async () => {
+    const rev = await reviewCart(
+      [{ ...mint('a', 50), quantity: 3 }],
+      BUYER,
+      neverResolveTrade,
+      RATE,
+      storeResolver({ a: { priceWei: TEN_MANA, available: 2 } })
+    )
+
+    // Buying 3 of 2 remaining reverts for the WHOLE batch, so the line is unbuyable rather than silently
+    // reduced to 2 — a quantity the buyer never asked for is its own kind of wrong charge.
+    expect(rev.buyable).toHaveLength(0)
+    expect(rev.unavailable.map(i => i.id)).toEqual(['a'])
+  })
+
+  it('should drop a mint that is no longer mintable', async () => {
+    const rev = await reviewCart([mint('a', 50)], BUYER, neverResolveTrade, RATE, storeResolver({ a: null }))
+
+    expect(rev.buyable).toHaveLength(0)
+    expect(rev.unavailable.map(i => i.id)).toEqual(['a'])
+  })
+
+  it('should drop a mint when the live read fails rather than charging the snapshot', async () => {
+    const rev = await reviewCart([mint('a', 50)], BUYER, neverResolveTrade, RATE, storeResolver({ a: 'throw' }))
+
+    expect(rev.buyable).toHaveLength(0)
+    expect(rev.unavailable.map(i => i.id)).toEqual(['a'])
+  })
+
+  it('should drop a mint when no store resolver is wired', async () => {
+    // Fail closed: a caller that has not wired the store path must not charge a mint off the cart snapshot.
+    const rev = await reviewCart([mint('a', 50)], BUYER, neverResolveTrade, RATE)
+
+    expect(rev.buyable).toHaveLength(0)
+    expect(rev.unavailable.map(i => i.id)).toEqual(['a'])
+  })
+
+  it('should drop a mint when there is no rate to price its mana with', async () => {
+    const rev = await reviewCart(
+      [mint('a', 50)],
+      BUYER,
+      neverResolveTrade,
+      undefined,
+      storeResolver({ a: { priceWei: TEN_MANA, available: 1 } })
+    )
+
+    // Same fail-closed choice legacy trades already make: "no longer available" is recoverable, charging a
+    // guessed amount is not.
+    expect(rev.buyable).toHaveLength(0)
+    expect(rev.unavailable.map(i => i.id)).toEqual(['a'])
+  })
+
+  it('should drop a mint whose live price is zero or unparseable', async () => {
+    const rev = await reviewCart(
+      [mint('a', 50), mint('b', 50)],
+      BUYER,
+      neverResolveTrade,
+      RATE,
+      storeResolver({ a: { priceWei: '0', available: 1 }, b: { priceWei: 'not-a-number', available: 1 } })
+    )
+
+    // A zero-priced line would authorize a $0 credit and revert; a NaN one would authorize nonsense.
+    expect(rev.buyable).toHaveLength(0)
+    expect(rev.unavailable.map(i => i.id).sort()).toEqual(['a', 'b'])
+  })
+
+  it('should treat a cart line saved before mints existed as a trade', async () => {
+    // Persisted carts carry no `acquisition`, and every one of those rows is a trade. Defaulting the other
+    // way would route real trades down the mint path.
+    const legacyCartItem = item('a', 20)
+    expect(legacyCartItem.acquisition).toBeUndefined()
+
+    const rev = await reviewCart([legacyCartItem], BUYER, resolverFrom({ a: trade(2) }), RATE)
+
+    expect(rev.buyable).toHaveLength(1)
+    expect(rev.buyable[0].acquisition).toBe('trade')
+  })
+
+  it('should resolve a MIXED basket down both branches at once', async () => {
+    const rev = await reviewCart(
+      [item('t', 20), mint('s', 50)],
+      BUYER,
+      resolverFrom({ t: trade(2) }),
+      RATE,
+      storeResolver({ s: { priceWei: TEN_MANA, available: 1 } })
+    )
+
+    expect(rev.buyable).toHaveLength(2)
+    expect(rev.buyable.map(l => l.acquisition)).toEqual(['trade', 'store'])
+    expect(rev.liveTotalCredits).toBe(70)
+  })
+
+  it('should keep the rest of a mixed basket buyable when the mint drops out', async () => {
+    const rev = await reviewCart(
+      [item('t', 20), mint('s', 50)],
+      BUYER,
+      resolverFrom({ t: trade(2) }),
+      RATE,
+      storeResolver({ s: null })
+    )
+
+    // One bad row must never abort the basket.
+    expect(rev.buyable.map(l => l.item.id)).toEqual(['t'])
+    expect(rev.unavailable.map(i => i.id)).toEqual(['s'])
   })
 })

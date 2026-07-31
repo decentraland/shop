@@ -533,3 +533,120 @@ describe('when cancelling a listing', () => {
     expect(cancelCalls[0].trades[0].signer).toBe(SELLER)
   })
 })
+
+/**
+ * The stage machine a multi-group basket needs, reproduced at the level Cart drives it.
+ *
+ * Cart's own handler is what decides whether the modal says "confirm" or "completing", and the modal spec
+ * cannot cover it — that one feeds hand-written props, so it passed while the app could not advance the
+ * counter at all. This pins the RULE against the real `onSigned` contract from buyManyWithCredits.
+ */
+describe('when driving the confirmation stage across groups', () => {
+  const store = (id: string, cap: string): AnyPurchase => ({
+    kind: 'store',
+    item: { collection: '0x' + '11'.repeat(20), itemId: id, priceWei: '1000' },
+    credits: [credit(B32(id), cap)],
+    maxCreditedValue: cap,
+    chainId: 80002
+  })
+
+  // Cart's handler, verbatim in shape: another group pending → back to awaiting-signature; last one → settling.
+  const stageFor = (signed: number, total: number) => (signed < total ? 'awaiting-signature' : 'settling')
+
+  beforeEach(() => {
+    useCreditsCalls.length = 0
+    walletChainId = 80002
+    switchHonored = true
+  })
+
+  it('should return to awaiting-signature while another prompt is still coming', async () => {
+    const stages: Array<{ stage: string; current: number }> = []
+
+    await buyManyWithCredits({
+      purchases: [
+        { kind: 'trade', trade: fakeTrade('0xmarket'), credits: [credit(B32('1'), '100')], maxCreditedValue: '100' },
+        store('2', '200')
+      ],
+      buyer: BUYER,
+      signer,
+      onSigned: (signed, total) => stages.push({ stage: stageFor(signed, total), current: Math.min(signed + 1, total) })
+    })
+
+    // After the FIRST confirmation the wallet is about to pop a second prompt. A modal reading "completing"
+    // there invites the buyer to dismiss it as a stray popup, stranding the rest of the basket.
+    expect(stages).toEqual([
+      { stage: 'awaiting-signature', current: 2 },
+      { stage: 'settling', current: 2 }
+    ])
+  })
+
+  it('should go straight to settling on a single-group basket', async () => {
+    const stages: string[] = []
+
+    await buyManyWithCredits({
+      purchases: [
+        { kind: 'trade', trade: fakeTrade('0xmarket'), credits: [credit(B32('1'), '100')], maxCreditedValue: '100' }
+      ],
+      buyer: BUYER,
+      signer,
+      onSigned: (signed, total) => stages.push(stageFor(signed, total))
+    })
+
+    expect(stages).toEqual(['settling'])
+  })
+
+  it('should report a 1-based index of the group just signed', async () => {
+    const seen: Array<[number, number]> = []
+
+    await buyManyWithCredits({
+      purchases: [
+        { kind: 'trade', trade: fakeTrade('0xmarket'), credits: [credit(B32('1'), '100')], maxCreditedValue: '100' },
+        store('2', '200')
+      ],
+      buyer: BUYER,
+      signer,
+      onSigned: (signed, total) => seen.push([signed, total])
+    })
+
+    // Pinned because Cart's handler indexes off it: `signed` counts confirmations DONE, so the first call is
+    // (1, 2) and not (0, 2). An off-by-one here silently makes the modal skip or repeat a step.
+    expect(seen).toEqual([
+      [1, 2],
+      [2, 2]
+    ])
+  })
+})
+
+/**
+ * The property that justifies exporting groupPurchases: the count the UI shows must match the transactions
+ * actually submitted, in the same order. Two implementations of the rule would be free to drift.
+ */
+describe('when checking the grouping against what is submitted', () => {
+  beforeEach(() => {
+    useCreditsCalls.length = 0
+    walletChainId = 80002
+    switchHonored = true
+  })
+
+  it('should submit exactly one call per group, in group order', async () => {
+    const purchases: AnyPurchase[] = [
+      { kind: 'trade', trade: fakeTrade('0xmarket'), credits: [credit(B32('1'), '100')], maxCreditedValue: '100' },
+      {
+        kind: 'store',
+        item: { collection: '0x' + '11'.repeat(20), itemId: '2', priceWei: '1000' },
+        credits: [credit(B32('2'), '200')],
+        maxCreditedValue: '200',
+        chainId: 80002
+      }
+    ]
+
+    const groups = groupPurchases(purchases)
+    await buyManyWithCredits({ purchases, buyer: BUYER, signer })
+
+    expect(useCreditsCalls).toHaveLength(groups.length)
+    // Order, not just count: onSigned's indexing and the buyer's "1 of 2" both depend on it.
+    expect(useCreditsCalls.map(c => c.externalCall.target)).toEqual(
+      groups.map(g => (g.kind === 'store' ? '0xstore' : '0xmarket'))
+    )
+  })
+})
