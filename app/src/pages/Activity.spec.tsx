@@ -64,6 +64,8 @@ function record(overrides: Partial<PurchaseRecord> = {}): PurchaseRecord {
   return {
     id: Math.random().toString(36).slice(2),
     tradeId: 't-' + Math.random().toString(36).slice(2),
+    contractAddress: null,
+    itemId: null,
     usdCents: 100,
     credits: 10,
     status: 'SETTLED',
@@ -208,6 +210,58 @@ describe('when an item purchase cannot be resolved yet (indexing lag / no trade)
     renderPage()
     expect(await screen.findByText('Item')).toBeInTheDocument()
     expect(screen.getAllByTestId('purchase-order')).toHaveLength(1)
+  })
+})
+
+// A CollectionStore mint has no trade. Resolving a purchase line only through its tradeId rendered every
+// mint as the nameless "Item" fallback above, with no link to its detail page.
+describe('when a purchase line is a mint with no trade', () => {
+  const COLLECTION = '0x3b5306be0da3202a5e7b00d1acc16a46cd88dfdc'
+
+  it('should resolve its name from the recorded item instead of a trade', async () => {
+    fetchUserPurchases.mockResolvedValue({
+      items: [
+        record({ id: 'a', tradeId: null, contractAddress: COLLECTION, itemId: '12', txHash: '0xz', credits: 3 })
+      ],
+      total: 1
+    })
+    fetchAssetDisplay.mockResolvedValue(display({ name: 'Banana Crown', contractAddress: COLLECTION, itemId: '12' }))
+
+    renderPage()
+
+    expect(await screen.findByText('Banana Crown')).toBeInTheDocument()
+    expect(screen.queryByText('Item')).not.toBeInTheDocument()
+    // Resolved by item, never by trade — there is no trade to ask about.
+    expect(fetchAssetDisplay).toHaveBeenCalledWith(COLLECTION, { itemId: '12' })
+    expect(fetchTradeDisplay).not.toHaveBeenCalled()
+  })
+
+  it('should still fall back to the generic name when the item cannot be resolved', async () => {
+    fetchUserPurchases.mockResolvedValue({
+      items: [
+        record({ id: 'a', tradeId: null, contractAddress: COLLECTION, itemId: '12', txHash: '0xz', credits: 3 })
+      ],
+      total: 1
+    })
+    fetchAssetDisplay.mockResolvedValue(null)
+
+    renderPage()
+
+    expect(await screen.findByText('Item')).toBeInTheDocument()
+  })
+
+  // The rows written before the server recorded the item: nothing to resolve, and nothing to crash on.
+  it('should render a line with neither a trade nor an item as the generic fallback', async () => {
+    fetchUserPurchases.mockResolvedValue({
+      items: [record({ id: 'a', tradeId: null, txHash: '0xz', credits: 3 })],
+      total: 1
+    })
+
+    renderPage()
+
+    expect(await screen.findByText('Item')).toBeInTheDocument()
+    expect(fetchAssetDisplay).not.toHaveBeenCalled()
+    expect(fetchTradeDisplay).not.toHaveBeenCalled()
   })
 })
 
