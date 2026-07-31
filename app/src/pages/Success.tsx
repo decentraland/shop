@@ -33,6 +33,18 @@ export type SuccessNavState = {
   // The cart sends per-line entries carrying `quantity` (a primary/mint line can be bought × N).
   items?: Array<CatalogItem & { quantity?: number }>
   txHash?: string
+  /**
+   * EVERY settlement transaction, in the order they were signed — one receipt link each.
+   *
+   * A basket is normally one transaction, but a MIXED basket cannot be: CreditsManager.useCredits carries a
+   * single external call, so trades and CollectionStore mints settle in one transaction per group (see
+   * lib/buy.ts groupPurchases). Passing only the first hash silently dropped the other receipt — the buyer
+   * saw a link for one half of a purchase they made in one go.
+   *
+   * `txHash` stays the FIRST of these: the settlement poll verifies a single hash, and a direct buy
+   * (MarketCheckout) only ever has one. Producers with one transaction may send just `txHash`.
+   */
+  txHashes?: string[]
   // The cart already waited for full settlement before routing here → skip re-polling.
   settled?: boolean
   // Credits that landed with a mid-checkout top-up (buy-credits-and-item-together) — shown above the
@@ -142,14 +154,24 @@ export function Success() {
 
   const hero = items[0]
 
-  // Self-custody users additionally get a link to the on-chain tx; managed users never see it.
-  const showExplorer = !!txHash && showsWalletConfirmations(session?.providerType)
+  // Every settlement transaction this purchase produced — usually one, but a mixed basket settles as one
+  // per group. Falls back to the single `txHash` for producers that only have one.
+  const txHashes = state?.txHashes?.length ? state.txHashes : txHash ? [txHash] : []
 
-  const receiptLink = showExplorer ? (
-    <S.Receipt href={`${EXPLORER_TX}${txHash}`} target="_blank" rel="noreferrer">
-      {t('success.viewTransaction')}
-    </S.Receipt>
-  ) : null
+  // Self-custody users additionally get a link to the on-chain tx; managed users never see it.
+  const showExplorer = txHashes.length > 0 && showsWalletConfirmations(session?.providerType)
+
+  // One link per transaction. Numbered only when there IS more than one — a single purchase keeps reading
+  // "View receipt", with no "1 of 1" to explain away.
+  const receiptLink = showExplorer
+    ? txHashes.map((hash, i) => (
+        <S.Receipt key={hash} href={`${EXPLORER_TX}${hash}`} target="_blank" rel="noreferrer">
+          {txHashes.length > 1
+            ? t('success.viewTransactionNumbered', { n: i + 1, total: txHashes.length })
+            : t('success.viewTransaction')}
+        </S.Receipt>
+      ))
+    : null
 
   // Still working (or a dead-end) → a centered status panel. The pixel-perfect Figma layout
   // (green banner + item list + CTAs) is only the CONFIRMED state.

@@ -66,7 +66,11 @@ export type AuthorizeResult = {
 export async function authorizeUsdCredit(
   identity: AuthIdentity,
   usdPriceCents: number,
-  tradeId?: string
+  tradeId?: string,
+  // What is being bought, as opposed to how it settles. Recorded on the intent so the buyer's purchase
+  // history can name it: a CollectionStore mint has no trade, so this is the only thing the Activity feed
+  // can resolve a name and thumbnail from. The server accepts it only as a complete pair.
+  item?: { contractAddress: string; itemId: string }
 ): Promise<AuthorizeResult> {
   const url = `${config.creditsServerUrl}/credits/authorize`
   const res = await signedFetch(url, {
@@ -74,7 +78,7 @@ export async function authorizeUsdCredit(
     identity,
     metadata: {},
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ usdPriceCents, tradeId })
+    body: JSON.stringify({ usdPriceCents, tradeId, ...(item ? item : {}) })
   })
   if (!res.ok) throw new Error(`authorizeUsdCredit ${res.status}: ${await res.text()}`)
   return res.json() as Promise<AuthorizeResult>
@@ -85,6 +89,15 @@ export async function authorizeUsdCredit(
 export type PurchaseRecord = {
   id: string
   tradeId: string | null
+  /**
+   * What this purchase bought, when the server recorded it. A trade-backed line can be resolved through
+   * `tradeId`, but a CollectionStore mint has no trade, so this is the only identity it has — without it the
+   * Activity feed can render such a line only as a nameless "Item".
+   *
+   * Null on rows written before the server recorded this, and absent entirely from an older server.
+   */
+  contractAddress: string | null
+  itemId: string | null
   usdCents: number
   credits: number
   status: 'PENDING' | 'SETTLED' | 'EXPIRED'
@@ -119,7 +132,11 @@ export async function fetchUserPurchases(
   // `transactionHash`) so grouping has one field to read; null when neither is present.
   const items: PurchaseRecord[] = (json.purchases ?? []).map(p => ({
     ...p,
-    txHash: p.txHash ?? p.transactionHash ?? null
+    txHash: p.txHash ?? p.transactionHash ?? null,
+    // An older server omits these entirely — normalise `undefined` to null so every consumer has one
+    // absent-value to check instead of two.
+    contractAddress: p.contractAddress ?? null,
+    itemId: p.itemId ?? null
   }))
   const skip = opts?.skip ?? 0
   const first = opts?.first ?? items.length

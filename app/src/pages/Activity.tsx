@@ -83,18 +83,25 @@ function ManaTooltip({ children }: { children: React.ReactNode }) {
   )
 }
 
-// One rendered line of a purchase order. Resolves name + thumbnail from the trade (reads the real
-// itemId/tokenId). While a just-purchased item is still being indexed we show a skeleton rather than a
-// misleading blank "Item".
+// One rendered line of a purchase order. Resolves name + thumbnail from whatever identifies what was
+// bought: the trade when there is one (it reads the real itemId/tokenId), and the recorded item otherwise.
+// The second path is what a CollectionStore mint needs — it has no trade, so resolving only through
+// `tradeId` left every mint rendered as a nameless "Item" with no link to its detail page. While a
+// just-purchased item is still being indexed we show a skeleton rather than a misleading blank "Item".
 function OrderLine({ item }: { item: OrderLineItem }) {
+  const byItem = !!item.contractAddress && !!item.itemId
+  const resolvable = !!item.tradeId || byItem
   const { data: display, isLoading } = useQuery({
-    queryKey: ['trade-display', item.tradeId],
-    queryFn: () => fetchTradeDisplay(item.tradeId!),
-    enabled: !!item.tradeId,
+    queryKey: ['order-line-display', item.tradeId, item.contractAddress, item.itemId],
+    queryFn: () =>
+      item.tradeId
+        ? fetchTradeDisplay(item.tradeId)
+        : fetchAssetDisplay(item.contractAddress!, { itemId: item.itemId }),
+    enabled: resolvable,
     staleTime: 5 * 60_000
   })
 
-  const resolving = !!item.tradeId && isLoading
+  const resolving = resolvable && isLoading
   const name = display?.name ?? t('activity.itemFallback')
   const thumbnail = display?.thumbnail ?? ''
   // Only link when we can build a resolvable detail URL: BOTH a contract AND an id segment. A missing

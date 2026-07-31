@@ -65,3 +65,55 @@ describe('CartCheckoutModal — insufficient funds', () => {
     expect(container.textContent).not.toContain('0x4274c2f7cf0b5ab7f9d3d2a9e3f4f5a6b7c8d9e0')
   })
 })
+
+/**
+ * Multi-confirmation messaging. A basket that mixes an offchain trade with a CollectionStore mint cannot
+ * settle in one transaction, so a self-custody buyer will be asked to confirm twice and has to be told.
+ *
+ * The gating is the point: a managed-wallet buyer confirms nothing, so surfacing "2 approvals" to them would
+ * invent a step that does not exist in their flow. web2 buyers must never see the split at all.
+ */
+describe('CartCheckoutModal — awaiting confirmation', () => {
+  function renderAwaiting(opts: { isSelfCustody: boolean; signatures?: { current: number; total: number } }) {
+    return render(
+      <CartCheckoutModal
+        phase="processing"
+        stage="awaiting-signature"
+        step={2}
+        total={2}
+        balanceCredits={500}
+        onClose={() => {}}
+        isSelfCustody={opts.isSelfCustody}
+        signatures={opts.signatures}
+      />
+    )
+  }
+
+  it('tells a self-custody buyer which of the confirmations is pending', () => {
+    renderAwaiting({ isSelfCustody: true, signatures: { current: 1, total: 2 } })
+
+    expect(screen.getByText(/1 of 2/i)).toBeInTheDocument()
+  })
+
+  it('advances the counter as each one is confirmed', () => {
+    renderAwaiting({ isSelfCustody: true, signatures: { current: 2, total: 2 } })
+
+    expect(screen.getByText(/2 of 2/i)).toBeInTheDocument()
+  })
+
+  it('keeps the single-confirmation copy when the basket needs only one', () => {
+    renderAwaiting({ isSelfCustody: true, signatures: { current: 1, total: 1 } })
+
+    // No count for the ordinary case — "1 of 1" would be noise.
+    expect(screen.queryByText(/1 of 1/i)).not.toBeInTheDocument()
+  })
+
+  it('never mentions confirmations to a managed-wallet buyer, even on a split basket', () => {
+    renderAwaiting({ isSelfCustody: false, signatures: { current: 1, total: 2 } })
+
+    // They sign nothing, so the split must stay invisible: no count and no approval wording.
+    expect(screen.queryByText(/of 2/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/approval/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/confirm/i)).not.toBeInTheDocument()
+  })
+})
