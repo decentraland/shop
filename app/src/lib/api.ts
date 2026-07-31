@@ -29,6 +29,14 @@ export type CatalogItem = {
   // Checkout uses `tradeId` directly instead of resolving by itemId.
   tradeId?: string
   tokenId?: string
+  /**
+   * How this row is acquired — `undefined` means 'trade' (see ListingAcquisition).
+   *
+   * Lives on CatalogItem rather than only on UnifiedListing because the CART persists CatalogItems: a line
+   * has to still know it is a mint when checkout resolves it, potentially in a later session. Optional for
+   * the same reason — carts saved before this existed carry no value, and every one of those is a trade.
+   */
+  acquisition?: ListingAcquisition
   // The token's mint index within its item (e.g. "5013" → the 5013th ever minted). Present only for a
   // specific owned/secondary token; lets the UI tell otherwise-identical copies apart ("#5013").
   issuedId?: string
@@ -354,6 +362,30 @@ async function fetchShopListingsRaw(
   return { listings: json.data ?? [], total: json.total ?? 0 }
 }
 
+/**
+ * Re-read a CollectionStore mint's LIVE price and remaining supply, or null when it is no longer mintable.
+ *
+ * The mint counterpart to re-resolving a trade before charging. Both facts can move with no listing change:
+ * another buyer takes the last unit, or the creator re-prices the item. Neither is pinned by a signature the
+ * way a trade's price is, and `CollectionStore.buy` re-validates the price on-chain and reverts if it moved,
+ * so both have to be read again at checkout rather than trusted from the cart snapshot.
+ *
+ * Queries the unified feed by (contract, item) and accepts the row ONLY if it still comes back as a store
+ * mint. A row that has become a trade is not mintable through this path, and treating it as one would build
+ * calldata for the wrong contract.
+ */
+export async function fetchStoreMintState(
+  contractAddress: string,
+  itemId: string
+): Promise<{ priceWei: string; available: number } | null> {
+  const { items } = await fetchUnified({ contractAddress, itemId, first: 1 })
+  const row = items[0]
+  if (!row || row.acquisition !== 'store' || !row.manaWei) return null
+  // `available` is the remaining mintable supply the feed reports. Absent means the server did not say, and
+  // guessing "plenty" here would let a sold-out item through to a revert — so treat it as none left.
+  return { priceWei: row.manaWei, available: row.available ?? 0 }
+}
+
 // A single credit-buyable listing for a specific item (primary) — used to hydrate the item detail
 // page on deep-link/refresh, where the route segment is the itemId. Null if it's not on sale.
 export async function fetchShopListingForItem(contractAddress: string, itemId: string): Promise<CatalogItem | null> {
@@ -438,19 +470,41 @@ export async function fetchClassicItemOrders(contractAddress: string, itemId: st
 
 export type ListingSource = 'native' | 'legacy'
 
+/**
+ * How the buyer acquires the row — a SEPARATE question from how it is priced (`source`).
+ *
+ * - 'trade': an offchain signed order, bought with `accept([trade])`.
+ * - 'store': a CollectionStore mint, bought with `CollectionStore.buy([...])`. Not a listing: no order and
+ *   nothing signed, and its `tradeId` is therefore absent.
+ *
+ * Defaults to 'trade' when the server does not send it, so a client running against an older
+ * marketplace-server keeps working instead of silently classifying every row as a mint.
+ */
+export type ListingAcquisition = 'trade' | 'store'
+
 export type UnifiedListing = CatalogItem & {
   source: ListingSource
+  acquisition: ListingAcquisition
   // Raw MANA wei price for legacy rows (converted to fluctuating credits in the UI); null for native.
+  // A store mint is MANA-priced, so it always carries one.
   manaWei: string | null
 }
 
 type UnifiedListingRaw = ShopListingRaw & {
   source: ListingSource
+  acquisition?: ListingAcquisition
   manaWei?: string | null
 }
 
 function unifiedListingToItem(l: UnifiedListingRaw): UnifiedListing {
-  return { ...shopListingToItem(l), source: l.source, manaWei: l.manaWei ?? null }
+  return {
+    ...shopListingToItem(l),
+    source: l.source,
+    // Fall back to 'trade': every row was a trade before the store branch existed, so an older server that
+    // omits the field describes trades. Defaulting the other way would route real trades down the mint path.
+    acquisition: l.acquisition ?? 'trade',
+    manaWei: l.manaWei ?? null
+  }
 }
 
 // Shared query string for the /v3/catalog/unified feed (same params as fetchListings). `groupBy='item'`

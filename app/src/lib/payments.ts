@@ -74,11 +74,37 @@ export type CreditPack = {
 // They DIVERGE on purpose (credits < usd×10) — the small premium covers the Stripe fee. Do NOT derive
 // credits from `creditsForUsd(usd)` here (that's the spend peg, not the buy rate); mirror the server.
 export const CREDIT_PACKS: CreditPack[] = [
-  { id: 'pack_5', usd: 4.99, credits: 45 },
-  { id: 'pack_10', usd: 9.99, credits: 90, bestValue: true },
-  { id: 'pack_25', usd: 24.99, credits: 235 },
-  { id: 'pack_50', usd: 49.99, credits: 475 }
+  { id: 'pack_5', usd: 5.99, credits: 40 },
+  { id: 'pack_10', usd: 11.99, credits: 100, bestValue: true },
+  { id: 'pack_25', usd: 29.99, credits: 260 },
+  { id: 'pack_50', usd: 59.99, credits: 540 }
 ]
+
+/**
+ * The bonus a pack carries over the entry pack's rate — what the card strikes through.
+ *
+ * The reference is the SMALLEST pack, because that is the only baseline we can point at honestly: it is a
+ * rate the buyer can actually transact at. The bigger packs are priced at ~2×, 5× and 10× the entry price,
+ * so `baseline` lands on exact multiples of the entry pack's credits (80 / 200 / 400) — round numbers the
+ * buyer can verify by multiplying, not a figure we invented. Crossing out a price we never charged would
+ * be a fake reference price (prohibited under the EU Omnibus Directive) — this is the opposite: the crossed
+ * figure is what the same money buys today, at a rate that is still on the shelf.
+ *
+ * Returns null when there is no bonus to show: the entry pack itself (it IS the baseline), a single-pack
+ * catalogue, or any pack whose rate does not beat the entry rate — which is also the guard that keeps the
+ * card honest if the price list is ever edited into a flat or inverted ladder.
+ */
+export function packBonus(pack: CreditPack, packs: CreditPack[]): { baseline: number; bonus: number } | null {
+  const entry = packs.reduce((cheapest, p) => (p.usd < cheapest.usd ? p : cheapest), packs[0])
+  // `usd > 0` rather than `<= 0`: the two are not equivalent for NaN, which is false under BOTH comparisons.
+  // A catalogue entry with a non-numeric price would slip past a `<= 0` guard and only fail to render a badge
+  // by luck further down (NaN propagates into `baseline`, and `NaN > 0` is false). Stated positively, the
+  // guard means what it says — the entry price must be a usable divisor.
+  if (!entry || entry.id === pack.id || !(entry.usd > 0)) return null
+  const baseline = Math.floor((entry.credits / entry.usd) * pack.usd)
+  const bonus = pack.credits - baseline
+  return bonus > 0 ? { baseline, bonus } : null
+}
 
 // How many top-up packs the no-funds pickers (BuyModal + Cart) offer in one row. The modal is widened
 // to fit them (Figma 1179-182656); a single source so the two pickers can't drift out of sync.

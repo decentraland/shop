@@ -19,25 +19,25 @@ describe('get credits — Stripe return handling', () => {
   it('credits the account on a successful return (?order=) and raises the balance chip', async () => {
     // Land on the success return URL. The return effect shows the processing state, then (once the
     // wallet identity is restored) polls the grant → mock mints the pack_10 spend value → success. The
-    // order id encodes the pack: mock_cs_<packId>_<n> → pack_10 ($9.99) → 90 credits granted.
+    // order id encodes the pack: mock_cs_<packId>_<n> → pack_10 ($11.99) → 100 credits granted.
     app = await launchApp({ path: '/credits?order=mock_cs_pack_10_1' })
     const { page } = app
 
     // Starting balance is creditsResponse.usd.credits = 500.
     await page.waitForSelector('button[aria-label$=" shop credits"]', { timeout: 20000 })
 
-    // Reaches the success state with the granted amount (90 credits for the $9.99 pack).
+    // Reaches the success state with the granted amount (100 credits for the $11.99 pack).
     await waitForText(page, 'Your purchase was successful', 30000)
-    await waitForText(page, '90')
+    await waitForText(page, '100')
 
-    // The mock grant folds the pack_10 spend value (=90 credits) into the balance refetch: 500 → 590.
+    // The mock grant folds the pack_10 spend value (=100 credits) into the balance refetch: 500 → 600.
     await page.waitForFunction(
-      () => !!document.querySelector('button[aria-label$=" shop credits"]')?.textContent?.includes('590'),
+      () => !!document.querySelector('button[aria-label$=" shop credits"]')?.textContent?.includes('600'),
       { timeout: 20000 }
     )
     expect(
       await page.evaluate(() =>
-        document.querySelector('button[aria-label$=" shop credits"]')?.textContent?.includes('590')
+        document.querySelector('button[aria-label$=" shop credits"]')?.textContent?.includes('600')
       )
     ).toBe(true)
 
@@ -82,7 +82,7 @@ describe('get credits — Stripe return handling', () => {
       pendingItem
     )
 
-    // Navigate to the success return URL (pack_25 → $24.99 top-up → 235 credits). Same origin, so the
+    // Navigate to the success return URL (pack_25 → $29.99 top-up → 260 credits). Same origin, so the
     // seeded sessionStorage + the request-interception mocks both persist.
     await page.goto(`${BASE}/credits?order=mock_cs_pack_25_1`, {
       waitUntil: 'networkidle2',

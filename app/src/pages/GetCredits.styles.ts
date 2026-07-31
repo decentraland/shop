@@ -350,6 +350,57 @@ export const PackUnit = styled.span`
   text-transform: uppercase;
 `
 
+// "you'd get ~~100~~ · +25 more" — the bonus line under the amount.
+//
+// The row is always rendered, and merely hidden on the entry pack (which has no bonus to show, being the
+// baseline itself). `visibility` rather than a conditional mount so all four cards keep the same height and
+// their artwork stays on one line — dropping the row would leave the entry card visibly shorter.
+//
+// The struck figure carries the currency mark too. Without it, a crossed-out "100" sitting above
+// "125 CREDITS" reads as a crossed-out PRICE, which inverts the meaning of the whole card.
+export const PackWas = styled.span`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  &[data-empty='true'] {
+    visibility: hidden;
+  }
+
+  .ico {
+    width: 17px;
+    height: 18px;
+    color: ${theme.colors.softWhite};
+    opacity: 0.55;
+  }
+`
+
+export const PackWasAmount = styled.span`
+  font-family: ${theme.font.sans};
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 24px;
+  color: rgba(255, 255, 255, 0.55);
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+`
+
+export const PackBonus = styled.span`
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: ${theme.radius.pill};
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  font-family: ${theme.font.sans};
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 18px;
+  color: ${theme.colors.white};
+  white-space: nowrap;
+`
+
 export const PackArt = styled.span`
   display: block;
   width: 253.5px;

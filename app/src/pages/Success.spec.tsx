@@ -171,6 +171,69 @@ describe('Success settlement gating', () => {
     expect(screen.queryByTestId('success-credits')).toBeNull()
   })
 
+  // A mixed basket (trades + CollectionStore mints) cannot settle in one transaction, so the success page
+  // has to account for every one of them. It used to be handed only the first hash, which linked the buyer
+  // to one half of a purchase they made in a single checkout.
+  describe('receipt links', () => {
+    const renderSettled = (state: Record<string, unknown>) => {
+      const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      return render(
+        <QueryClientProvider client={qc}>
+          <MemoryRouter initialEntries={[{ pathname: '/success', state: { items: [item], settled: true, ...state } }]}>
+            <Routes>
+              <Route path="/success" element={<Success />} />
+            </Routes>
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+    }
+
+    it('renders one numbered link per transaction for a multi-transaction basket', async () => {
+      renderSettled({ txHash: '0xaaa', txHashes: ['0xaaa', '0xbbb'] })
+      await screen.findByText('Snowy Panama Hat')
+
+      const links = screen.getAllByRole('link', { name: /receipt/i })
+      expect(links).toHaveLength(2)
+      expect(links[0].textContent).toMatch(/1 of 2/)
+      expect(links[1].textContent).toMatch(/2 of 2/)
+      // Each link points at its OWN transaction — the second is not a duplicate of the first.
+      expect(links[0].getAttribute('href')).toContain('0xaaa')
+      expect(links[1].getAttribute('href')).toContain('0xbbb')
+    })
+
+    it('keeps the unnumbered "View receipt" for a single-transaction basket', async () => {
+      renderSettled({ txHash: '0xaaa', txHashes: ['0xaaa'] })
+      await screen.findByText('Snowy Panama Hat')
+
+      const links = screen.getAllByRole('link', { name: /receipt/i })
+      expect(links).toHaveLength(1)
+      expect(links[0].textContent).toMatch(/view receipt/i)
+      expect(links[0].textContent).not.toMatch(/of 1/)
+    })
+
+    // MarketCheckout (a direct buy) has one transaction and sends only `txHash`.
+    it('falls back to txHash when no txHashes array is given', async () => {
+      renderSettled({ txHash: '0xccc' })
+      await screen.findByText('Snowy Panama Hat')
+
+      const links = screen.getAllByRole('link', { name: /receipt/i })
+      expect(links).toHaveLength(1)
+      expect(links[0].getAttribute('href')).toContain('0xccc')
+    })
+
+    it('shows no receipt links at all to a managed (web2) wallet, however many transactions there were', async () => {
+      const restore = session.providerType
+      session.providerType = 'magic' as never
+      try {
+        renderSettled({ txHash: '0xaaa', txHashes: ['0xaaa', '0xbbb'] })
+        await screen.findByText('Snowy Panama Hat')
+        expect(screen.queryAllByRole('link', { name: /receipt/i })).toHaveLength(0)
+      } finally {
+        session.providerType = restore
+      }
+    })
+  })
+
   it('lands on a timed-out state (not a false success or failure) when every attempt stays pending', async () => {
     waitForSettlement.mockRejectedValue(new SettlementPendingError('pending'))
     renderSuccess()

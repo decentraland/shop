@@ -183,6 +183,8 @@
     "packBadge": "Recommended",
     "packUnit": "{currency}",
     "packAria": "Get {amount} for ${usd}",
+    "packBonus": "+{bonus} bonus",
+    "packAriaBonus": "Get {amount} for ${usd} — {bonus} more than {baseline}",
     "packsLoading": "Loading {currency} packs…",
     "creditsAmount": "{credits} {currency}",
     "redirecting": "Redirecting to secure checkout…",
@@ -309,7 +311,8 @@
     "errorTitle": "Oops! Something went wrong",
     "errorHeadline": "We couldn't complete your purchase this time.",
     "errorBody": "Don't worry, your credits are safe. Please try again in a moment.",
-    "tryAgain": "Try again"
+    "tryAgain": "Try again",
+    "confirmMultiple": "Confirm {current} of {total} approvals"
   },
   "marketCheckout": {
     "finalPrice": "Final price",
@@ -431,6 +434,7 @@
     "confirmingAfter": "— this usually takes a few seconds. Keep this tab open.",
     "itemCount": "{count, plural, one {# item} other {# items}}",
     "viewTransaction": "View receipt ↗",
+    "viewTransactionNumbered": "Receipt {n} of {total} ↗",
     "stillProcessingTitle": "Still processing…",
     "timedOutBefore": "This is taking longer than usual to confirm. Your purchase may still complete — check",
     "timedOutAfter": "in a few minutes to see the final status. No need to buy again.",
