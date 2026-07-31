@@ -440,6 +440,9 @@ export function Cart() {
       const successState: SuccessNavState = {
         items: purchasedLines,
         txHash: hashes[0] ?? undefined,
+        // A mixed basket settles as one transaction per group, so hand over ALL of them — the success page
+        // shows a receipt link per transaction instead of only the first group's.
+        txHashes: hashes,
         settled: true,
         ...(creditsAdded ? { creditsAdded } : {})
       }
@@ -489,6 +492,9 @@ export function Cart() {
     const successState: SuccessNavState = {
       items: purchasedLines,
       txHash: hashes[0] ?? undefined,
+      // A mixed basket settles as one transaction per group, so hand over ALL of them — the success page
+      // shows a receipt link per transaction instead of only the first group's.
+      txHashes: hashes,
       settled: true,
       ...(creditsAdded ? { creditsAdded } : {})
     }

@@ -436,6 +436,7 @@
     "confirmingAfter": "— this usually takes a few seconds. Keep this tab open.",
     "itemCount": "{count, plural, one {# item} other {# items}}",
     "viewTransaction": "View receipt ↗",
+    "viewTransactionNumbered": "Receipt {n} of {total} ↗",
     "stillProcessingTitle": "Still processing…",
     "timedOutBefore": "This is taking longer than usual to confirm. Your purchase may still complete — check",
     "timedOutAfter": "in a few minutes to see the final status. No need to buy again.",
