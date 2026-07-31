@@ -185,6 +185,8 @@
     "packBadge": "Recommended",
     "packUnit": "{currency}",
     "packAria": "Get {amount} for ${usd}",
+    "packBonus": "+{bonus} bonus",
+    "packAriaBonus": "Get {amount} for ${usd} — {bonus} more than {baseline}",
     "packsLoading": "Loading {currency} packs…",
     "creditsAmount": "{credits} {currency}",
     "redirecting": "Redirecting to secure checkout…",
