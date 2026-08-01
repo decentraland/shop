@@ -244,9 +244,18 @@ export async function buyManyGasless(opts: {
   signer: ethers.Signer
   /** Fired once the buyer has signed the meta-tx (wallet prompt dismissed), before on-chain settlement. */
   onSigned?: () => void
+  /**
+   * Fired as each group's meta-transaction is RELAYED, with the credits it spends.
+   *
+   * The relayer has broadcast by the time `relay()` resolves, so those reservations must not be released on a
+   * later failure. This rail needed the signal for a second reason too: settlement is awaited per HASH by the
+   * caller, so pairing hash -> salts here is what lets a caller tell WHICH group reverted and which is still
+   * pending, instead of having to treat a mixed outcome as all-or-nothing.
+   */
+  onBroadcast?: (info: { txHash: string; salts: string[] }) => void
 }): Promise<string[]> {
   if (!gaslessConfig.enabled) throw new GaslessUnavailableError('gasless checkout disabled', 'disabled')
-  const { purchases, buyer, signer, onSigned } = opts
+  const { purchases, buyer, signer, onSigned, onBroadcast } = opts
   if (purchases.length === 0) throw new Error('No items to buy')
 
   const groups = new Map<string, CreditPurchase[]>()
@@ -269,7 +278,9 @@ export async function buyManyGasless(opts: {
     const args = buildUseCreditsArgs(marketplace.address, marketplace.abi, trades, buyer, credits, maxCreditedValue)
     const cm = getContract(ContractName.CreditsManager, chainId)
     const functionData = new Interface(cm.abi).encodeFunctionData('useCredits', [args])
-    hashes.push(await relay(chainId, buyer, functionData, signer, onSigned))
+    const txHash = await relay(chainId, buyer, functionData, signer, onSigned)
+    onBroadcast?.({ txHash, salts: credits.map(c => c.id) })
+    hashes.push(txHash)
   }
   return hashes
 }

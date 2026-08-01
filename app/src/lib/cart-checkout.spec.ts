@@ -475,10 +475,11 @@ describe('reviewCart with CollectionStore mints', () => {
 describe('when splitting a failed checkout into what to release and what was bought', () => {
   const res = (salt: string, itemId: string) => ({ salt, itemId })
 
-  it('should keep broadcast reservations and release only the rest', () => {
+  it('should keep spent reservations and release only the rest', () => {
     const result = partitionReservations({
       reservations: [res('salt-a', 'item-a'), res('salt-b', 'item-b')],
-      broadcast: new Set(['salt-a'])
+      spent: new Set(['salt-a']),
+      settled: new Set(['salt-a'])
     })
 
     // salt-a is spent for good — releasing it is the money bug this whole change exists for.
@@ -486,10 +487,11 @@ describe('when splitting a failed checkout into what to release and what was bou
     expect(result.boughtItemIds).toEqual(['item-a'])
   })
 
-  it('should release everything when nothing was broadcast', () => {
+  it('should release everything when nothing went out', () => {
     const result = partitionReservations({
       reservations: [res('salt-a', 'item-a'), res('salt-b', 'item-b')],
-      broadcast: new Set()
+      spent: new Set(),
+      settled: new Set()
     })
 
     expect(result.toRelease).toEqual(['salt-a', 'salt-b'])
@@ -499,29 +501,66 @@ describe('when splitting a failed checkout into what to release and what was bou
   it('should release nothing when the whole basket went out', () => {
     const result = partitionReservations({
       reservations: [res('salt-a', 'item-a'), res('salt-b', 'item-b')],
-      broadcast: new Set(['salt-a', 'salt-b'])
+      spent: new Set(['salt-a', 'salt-b']),
+      settled: new Set(['salt-a', 'salt-b'])
     })
 
     expect(result.toRelease).toEqual([])
     expect(result.boughtItemIds).toEqual(['item-a', 'item-b'])
   })
 
+  /**
+   * THE CASE A SINGLE `broadcast` SET CANNOT EXPRESS, and the one the first version of this got wrong.
+   *
+   * A transaction that mined and reverted was broadcast, but it rolled back: no credit was consumed and the
+   * buyer owns nothing. The caller reports it as neither spent nor settled, so the reservation goes back into
+   * `toRelease` (instead of being stranded until the TTL) and the line stays in the cart (instead of being
+   * removed from the cart of someone who bought nothing).
+   */
+  it('should release a reverted group and leave its lines in the cart', () => {
+    const result = partitionReservations({
+      reservations: [res('salt-a', 'item-a'), res('salt-b', 'item-b')],
+      // salt-a settled; salt-b was broadcast and reverted, so the caller left it out of `spent`.
+      spent: new Set(['salt-a']),
+      settled: new Set(['salt-a'])
+    })
+
+    expect(result.toRelease).toEqual(['salt-b'])
+    expect(result.boughtItemIds).toEqual(['item-a'])
+  })
+
+  // In flight, outcome unknown (timeout, dropped socket, replaced transaction): it may yet be consumed, so it
+  // must NOT be released — but it is not owned either, so its line stays. Both halves differ here, which is
+  // exactly why they are separate inputs.
+  it('should neither release nor claim a group whose outcome is unknown', () => {
+    const result = partitionReservations({
+      reservations: [res('salt-a', 'item-a')],
+      spent: new Set(['salt-a']),
+      settled: new Set()
+    })
+
+    expect(result.toRelease).toEqual([])
+    expect(result.boughtItemIds).toEqual([])
+  })
+
   // A quantity-2 line reserves two salts but is ONE cart row, so removing it twice would be wrong.
   it('should name a multi-unit line once', () => {
     const result = partitionReservations({
       reservations: [res('salt-a1', 'item-a'), res('salt-a2', 'item-a')],
-      broadcast: new Set(['salt-a1', 'salt-a2'])
+      spent: new Set(['salt-a1', 'salt-a2']),
+      settled: new Set(['salt-a1', 'salt-a2'])
     })
 
     expect(result.boughtItemIds).toEqual(['item-a'])
   })
 
-  // A broadcast reports every salt in its group; a salt this checkout never reserved cannot name a cart line
+  // A group reports every salt in its transaction; a salt this checkout never reserved cannot name a cart line
   // and must not turn into an `undefined` the caller then tries to remove.
-  it('should ignore a broadcast salt that is not one of its reservations', () => {
+  it('should ignore a settled salt that is not one of its reservations', () => {
     const result = partitionReservations({
       reservations: [res('salt-a', 'item-a')],
-      broadcast: new Set(['salt-a', 'salt-unknown'])
+      spent: new Set(['salt-a', 'salt-unknown']),
+      settled: new Set(['salt-a', 'salt-unknown'])
     })
 
     expect(result.boughtItemIds).toEqual(['item-a'])

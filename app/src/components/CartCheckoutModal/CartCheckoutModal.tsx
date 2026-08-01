@@ -144,8 +144,17 @@ export function CartCheckoutModal(props: Props) {
           <M.Body>
             <M.BuyError data-testid="buy-error">
               <M.BuyErrorArt src={buyErrorAvatar} alt="" width={64} height={80} />
+              {/*
+                A caller-supplied message WINS over the generic copy. The prop was declared and never read, so
+                the default below rendered "Don't worry, your credits are safe" over a partial purchase where
+                credits had in fact been spent and an item had left the cart.
+              */}
               <M.BuyErrorText>
-                <b>{t('cartCheckout.errorHeadline')}</b> {t('cartCheckout.errorBody')}
+                {props.message ?? (
+                  <>
+                    <b>{t('cartCheckout.errorHeadline')}</b> {t('cartCheckout.errorBody')}
+                  </>
+                )}
               </M.BuyErrorText>
             </M.BuyError>
             <M.Ctas>

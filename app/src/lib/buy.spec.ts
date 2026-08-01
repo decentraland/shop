@@ -7,6 +7,9 @@ const useCreditsCalls: Array<Record<string, any>> = []
 // 1-based index of the first useCredits call that should reject, or null for none. Lets a test reproduce the
 // buyer who confirms the first wallet prompt of a mixed basket and rejects the second.
 let useCreditsRejectsFrom: number | null = null
+// Which useCredits call (1-based) mines and REVERTS. Its wait() rejects the way ethers v5 does for a status-0
+// receipt — with the receipt attached — which is the only signal that says the credits were NOT consumed.
+let useCreditsRevertsAt: number | null = null
 // Capture cancelSignature(trades[], overrides) calls to assert the cancel path.
 const cancelCalls: Array<{ trades: Record<string, any>[]; overrides: Record<string, any> }> = []
 
@@ -76,6 +79,17 @@ vi.mock('ethers', async importOriginal => {
       }
       // The SETTLED hash stays '0xhash' so existing assertions are unaffected; the BROADCAST hash is
       // per-call so a test can tell which group went out.
+      if (useCreditsRevertsAt === n) {
+        return {
+          hash: `0xbroadcast${n}`,
+          wait: async () => {
+            const err = new Error('transaction failed') as Error & { code: string; receipt: { status: number } }
+            err.code = 'CALL_EXCEPTION'
+            err.receipt = { status: 0 }
+            throw err
+          }
+        }
+      }
       return { hash: `0xbroadcast${n}`, wait: async () => ({ transactionHash: '0xhash' }) }
     }
     async cancelSignature(trades: Record<string, any>[], overrides: Record<string, any>) {
@@ -184,6 +198,7 @@ describe('when buying several listings on the same marketplace with credits', ()
   beforeEach(() => {
     useCreditsCalls.length = 0
     useCreditsRejectsFrom = null
+    useCreditsRevertsAt = null
     walletChainId = 80002
     switchHonored = true
     switchCalls.length = 0
@@ -237,6 +252,7 @@ describe('when buying CollectionStore mints with credits', () => {
   beforeEach(() => {
     useCreditsCalls.length = 0
     useCreditsRejectsFrom = null
+    useCreditsRevertsAt = null
     walletChainId = 80002
     switchHonored = true
     switchCalls.length = 0
@@ -368,6 +384,7 @@ describe('when buying listings across different marketplaces', () => {
   beforeEach(() => {
     useCreditsCalls.length = 0
     useCreditsRejectsFrom = null
+    useCreditsRevertsAt = null
   })
 
   it('splits into one transaction per marketplace', async () => {
@@ -473,27 +490,103 @@ describe('when buying listings across different marketplaces', () => {
       } as typeof signer
       // Make wait() reject for the first call only, leaving the submit itself successful.
       const contracts = await import('ethers')
-      const spy = vi
-        .spyOn(contracts.ethers, 'Contract' as never)
-        .mockImplementation(
-          () =>
-            ({
-              useCredits: async () => ({ hash: '0xbroadcast1', wait: async () => Promise.reject(new Error('timeout')) })
-            })
-        )
+      const spy = vi.spyOn(contracts.ethers, 'Contract' as never).mockImplementation(() => ({
+        useCredits: async () => ({ hash: '0xbroadcast1', wait: async () => Promise.reject(new Error('timeout')) })
+      }))
+
+      const reverted: string[] = []
+      try {
+        await expect(
+          buyManyWithCredits({
+            purchases: [twoMarketplaces()[0]],
+            buyer: BUYER,
+            signer: failingSigner,
+            onBroadcast: info => broadcast.push(info),
+            onReverted: ({ salts }) => reverted.push(...salts)
+          })
+        ).rejects.toThrow(/timeout/)
+
+        expect(broadcast).toHaveLength(1)
+        expect(broadcast[0].salts).toEqual([B32('1')])
+        // THE ASYMMETRY. A timeout carries no receipt, so the outcome is unknown and the credits may yet be
+        // consumed — reporting it as reverted would hand the caller permission to release money that is gone.
+        expect(reverted).toEqual([])
+      } finally {
+        // In a `finally` because a failing assertion above would otherwise leave this Contract stub — which has
+        // no cancelSignature and no oracle methods — installed for every later test in the file.
+        spy.mockRestore()
+      }
+    })
+
+    /**
+     * SETTLED is a different fact from BROADCAST, and the caller needs both.
+     *
+     * Broadcast answers "may I release these reservations?". Only settled answers "does the buyer own these
+     * items?" — which is what decides whether a line leaves the cart. The first version of the cart fix used
+     * broadcast for both, so a buyer whose transaction reverted lost the lines they never bought.
+     */
+    it('reports only the group that mined as settled', async () => {
+      useCreditsRejectsFrom = 2
+      const settled: Array<{ txHash: string; salts: string[] }> = []
+
+      await expect(
+        buyManyWithCredits({
+          purchases: twoMarketplaces(),
+          buyer: BUYER,
+          signer,
+          onSettled: info => settled.push(info)
+        })
+      ).rejects.toThrow()
+
+      expect(settled).toHaveLength(1)
+      expect(settled[0].salts).toEqual([B32('1')])
+      // The SETTLED hash, not the broadcast one.
+      expect(settled[0].txHash).toBe('0xhash')
+    })
+
+    it('reports a reverted group as reverted and never as settled', async () => {
+      useCreditsRevertsAt = 1
+      const broadcast: string[] = []
+      const settled: string[] = []
+      const reverted: string[] = []
 
       await expect(
         buyManyWithCredits({
           purchases: [twoMarketplaces()[0]],
           buyer: BUYER,
-          signer: failingSigner,
-          onBroadcast: info => broadcast.push(info)
+          signer,
+          onBroadcast: ({ salts }) => broadcast.push(...salts),
+          onSettled: ({ salts }) => settled.push(...salts),
+          onReverted: ({ salts }) => reverted.push(...salts)
         })
-      ).rejects.toThrow(/timeout/)
+      ).rejects.toThrow(/failed/)
 
-      expect(broadcast).toHaveLength(1)
-      expect(broadcast[0].salts).toEqual([B32('1')])
-      spy.mockRestore()
+      // It did go out...
+      expect(broadcast).toEqual([B32('1')])
+      // ...but it rolled back, so nothing was consumed and nothing was bought. Releasing this reservation is
+      // both safe and necessary; claiming the item is neither.
+      expect(reverted).toEqual([B32('1')])
+      expect(settled).toEqual([])
+    })
+
+    it('reports a group that reverts AFTER an earlier group settled', async () => {
+      useCreditsRevertsAt = 2
+      const settled: string[] = []
+      const reverted: string[] = []
+
+      await expect(
+        buyManyWithCredits({
+          purchases: twoMarketplaces(),
+          buyer: BUYER,
+          signer,
+          onSettled: ({ salts }) => settled.push(...salts),
+          onReverted: ({ salts }) => reverted.push(...salts)
+        })
+      ).rejects.toThrow()
+
+      // The exact partial-purchase shape: one paid for, one to release and keep in the cart.
+      expect(settled).toEqual([B32('1')])
+      expect(reverted).toEqual([B32('2')])
     })
   })
 
@@ -519,6 +612,7 @@ describe('when buying a single listing with credits', () => {
   beforeEach(() => {
     useCreditsCalls.length = 0
     useCreditsRejectsFrom = null
+    useCreditsRevertsAt = null
     walletChainId = 80002
     switchHonored = true
     switchCalls.length = 0
@@ -689,6 +783,7 @@ describe('when driving the confirmation stage across groups', () => {
   beforeEach(() => {
     useCreditsCalls.length = 0
     useCreditsRejectsFrom = null
+    useCreditsRevertsAt = null
     walletChainId = 80002
     switchHonored = true
   })
@@ -759,6 +854,7 @@ describe('when checking the grouping against what is submitted', () => {
   beforeEach(() => {
     useCreditsCalls.length = 0
     useCreditsRejectsFrom = null
+    useCreditsRevertsAt = null
     walletChainId = 80002
     switchHonored = true
   })

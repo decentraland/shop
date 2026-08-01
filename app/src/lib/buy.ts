@@ -360,6 +360,22 @@ export async function buyWithCredits(opts: {
  * Caveat: the CreditsManager caps the credited MANA per call at the hourly limit; a very large basket
  * could exceed it and revert (ExternalCallFailed). Fine for demo-scale baskets.
  */
+/**
+ * Did this failure come from a transaction that MINED AND REVERTED?
+ *
+ * ethers v5 rejects `tx.wait()` on a status-0 receipt, attaching that receipt to the error. Status 0 means the
+ * EVM rolled the call back, so no credit was consumed — the reservation can and should be released.
+ *
+ * Deliberately narrow: it must answer NO for a timeout, an RPC drop, a replaced transaction, or anything else
+ * that merely failed to OBSERVE the outcome, because those may still be consumed. The asymmetry is what makes
+ * that the right default — releasing a consumed credit corrupts the buyer's balance, while failing to release
+ * an unconsumed one only strands it until the TTL expires. `buy-gasless.ts` draws the same three-way
+ * distinction (confirmed / reverted / still-pending) for relayed transactions.
+ */
+export function isRevertedTxError(err: unknown): boolean {
+  return (err as { receipt?: { status?: number } } | null)?.receipt?.status === 0
+}
+
 export async function buyManyWithCredits(opts: {
   purchases: MixedPurchases
   buyer: string
@@ -383,8 +399,27 @@ export async function buyManyWithCredits(opts: {
    * caller can subtract them rather than having to map groups back to reservations itself.
    */
   onBroadcast?: (info: { txHash: string; salts: string[] }) => void
+  /**
+   * Fired when a group's transaction MINED SUCCESSFULLY (receipt status 1), with the credits it spent.
+   *
+   * Broadcast and settled are different facts and a caller needs both. Broadcast answers "may I release these
+   * reservations?" (no — they may still be consumed). Only settled answers "does the buyer own these items?",
+   * which is what decides whether a line leaves the cart. Treating broadcast as ownership takes items out of
+   * the cart of someone whose transaction reverted and never bought anything.
+   */
+  onSettled?: (info: { txHash: string; salts: string[] }) => void
+  /**
+   * Fired when a group's transaction mined and REVERTED (receipt status 0), with the credits it did not spend.
+   *
+   * A revert changes no state, so those credits were NOT consumed and releasing their reservations is both
+   * safe and correct — leaving them pending strands that much of the buyer's balance until the TTL expires.
+   * This is the one case where a caller may release something it has already broadcast, and it is why the
+   * distinction is reported rather than inferred: every OTHER failure after a broadcast (timeout, dropped
+   * socket, replaced transaction) may still be consumed and must be left alone.
+   */
+  onReverted?: (info: { salts: string[] }) => void
 }): Promise<string[]> {
-  const { buyer, signer, onSigned, onBroadcast } = opts
+  const { buyer, signer, onSigned, onBroadcast, onSettled, onReverted } = opts
   const purchases = normalizePurchases(opts.purchases)
   if (purchases.length === 0) throw new Error('No items to buy')
 
@@ -411,15 +446,25 @@ export async function buyManyWithCredits(opts: {
             credits,
             maxCreditedValue
           )
-    hashes.push(
-      await sendUseCredits(group.chainId, args, signer, txHash => {
+    const salts = credits.map(c => c.id)
+    let hash: string
+    try {
+      hash = await sendUseCredits(group.chainId, args, signer, txHash => {
         onSigned?.(hashes.length + 1, groups.length)
         // Reported from INSIDE the broadcast callback rather than after the await, because the await is on the
         // receipt: a group whose transaction was submitted and then failed to mine (timeout, RPC drop) has
         // still spent its credits, and its reservations must not be released either.
-        onBroadcast?.({ txHash, salts: credits.map(c => c.id) })
+        onBroadcast?.({ txHash, salts })
       })
-    )
+    } catch (err) {
+      // A definitive revert is the ONE post-broadcast failure whose credits are provably untouched. Reported
+      // here, next to the send, so the caller does not have to know how ethers reports a failed receipt.
+      if (isRevertedTxError(err)) onReverted?.({ salts })
+      throw err
+    }
+    hashes.push(hash)
+    // Receipt in hand with status 1 (ethers rejects wait() otherwise), so this group is bought.
+    onSettled?.({ txHash: hash, salts })
   }
   return hashes
 }

@@ -213,6 +213,10 @@ export async function reviewCart(
  *    consumption, and anything bought in the gap drives the balance negative.
  *  - an UNBROADCAST group's reservations must be released now, or that much of the buyer's balance stays
  *    stranded until the TTL expires.
+ *  - a BROADCAST-THEN-REVERTED group consumed nothing (a revert rolls the whole call back), so it belongs with
+ *    the second case — and its lines must NOT leave the cart, because the buyer bought nothing. This is why
+ *    release and ownership are two separate inputs here rather than one `broadcast` set doing both jobs: using
+ *    broadcast as a proxy for ownership empties the cart of a buyer whose transaction failed.
  *
  * Pure, and outside the page component, because the page cannot be tested at this level — the first version of
  * this logic shipped with the item-id half silently doing nothing, and no test could see it.
@@ -234,12 +238,21 @@ export type Reservation = {
 export function partitionReservations(opts: {
   /** Every reservation this checkout made, in order. */
   reservations: readonly Reservation[]
-  /** Salts whose transaction was submitted. */
-  broadcast: ReadonlySet<string>
+  /**
+   * Salts that MAY have been consumed on-chain — broadcast, and not known to have reverted.
+   *
+   * This is the release decision, and it is deliberately the pessimistic set: anything in here is left alone.
+   */
+  spent: ReadonlySet<string>
+  /**
+   * Salts whose transaction MINED SUCCESSFULLY. This is the ownership decision — only these lines leave the
+   * cart. Always a subset of `spent`; a broadcast that reverted is in neither.
+   */
+  settled: ReadonlySet<string>
 }): { toRelease: string[]; boughtItemIds: string[] } {
-  const { reservations, broadcast } = opts
-  const toRelease = reservations.filter(r => !broadcast.has(r.salt)).map(r => r.salt)
+  const { reservations, spent, settled } = opts
+  const toRelease = reservations.filter(r => !spent.has(r.salt)).map(r => r.salt)
   // De-duplicated: a quantity-2 line reserves two salts, and the cart holds one row for it.
-  const boughtItemIds = [...new Set(reservations.filter(r => broadcast.has(r.salt)).map(r => r.itemId))]
+  const boughtItemIds = [...new Set(reservations.filter(r => settled.has(r.salt)).map(r => r.itemId))]
   return { toRelease, boughtItemIds }
 }
