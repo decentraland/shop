@@ -169,7 +169,7 @@
       "insufficient": "You don't have enough {currency} — get more first.",
       "noneAvailable": "None of these items are available to buy right now.",
       "listingChanged": "One or more items changed — please review your cart and try again.",
-    "partiallyBought": "Part of your purchase went through. Those items are in My Assets — the rest are still in your cart, so you can try again without paying twice."
+      "partiallyBought": "Part of your purchase went through. Those items are in My Assets — the rest are still in your cart, so you can try again without paying twice."
     },
     "drop": {
       "unavailable": "{count} no longer available",

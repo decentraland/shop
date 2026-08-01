@@ -1,7 +1,13 @@
 import { describe, it, expect } from 'vitest'
 import { TradeAssetType, type Trade } from '@dcl/schemas'
 import type { CatalogItem } from '~/lib/api'
-import { reviewCart, centsToCredits, type StoreResolver, type TradeResolver } from '~/lib/cart-checkout'
+import {
+  reviewCart,
+  centsToCredits,
+  partitionReservations,
+  type StoreResolver,
+  type TradeResolver
+} from '~/lib/cart-checkout'
 
 const BUYER = '0xBUYER'
 
@@ -456,4 +462,75 @@ describe('reviewCart with CollectionStore mints', () => {
     expect(rev.buyable.map(l => l.item.id)).toEqual(['t'])
     expect(rev.unavailable.map(i => i.id)).toEqual(['s'])
   })
+})
+
+/**
+ * Splitting a failed checkout's reservations.
+ *
+ * These exist because the first version of this logic shipped BROKEN in a way nothing could see: the salt →
+ * item map was declared and read but never populated, so the bought-items half silently did nothing. `tsc` is
+ * happy with a Map that is only read, and every test at the time was one layer below, on
+ * `buyManyWithCredits`. Pulling the decision out of the page component is what makes it observable.
+ */
+describe('when splitting a failed checkout into what to release and what was bought', () => {
+  const res = (salt: string, itemId: string) => ({ salt, itemId })
+
+  it('should keep broadcast reservations and release only the rest', () => {
+    const result = partitionReservations({
+      reservations: [res('salt-a', 'item-a'), res('salt-b', 'item-b')],
+      broadcast: new Set(['salt-a'])
+    })
+
+    // salt-a is spent for good — releasing it is the money bug this whole change exists for.
+    expect(result.toRelease).toEqual(['salt-b'])
+    expect(result.boughtItemIds).toEqual(['item-a'])
+  })
+
+  it('should release everything when nothing was broadcast', () => {
+    const result = partitionReservations({
+      reservations: [res('salt-a', 'item-a'), res('salt-b', 'item-b')],
+      broadcast: new Set()
+    })
+
+    expect(result.toRelease).toEqual(['salt-a', 'salt-b'])
+    expect(result.boughtItemIds).toEqual([])
+  })
+
+  it('should release nothing when the whole basket went out', () => {
+    const result = partitionReservations({
+      reservations: [res('salt-a', 'item-a'), res('salt-b', 'item-b')],
+      broadcast: new Set(['salt-a', 'salt-b'])
+    })
+
+    expect(result.toRelease).toEqual([])
+    expect(result.boughtItemIds).toEqual(['item-a', 'item-b'])
+  })
+
+  // A quantity-2 line reserves two salts but is ONE cart row, so removing it twice would be wrong.
+  it('should name a multi-unit line once', () => {
+    const result = partitionReservations({
+      reservations: [res('salt-a1', 'item-a'), res('salt-a2', 'item-a')],
+      broadcast: new Set(['salt-a1', 'salt-a2'])
+    })
+
+    expect(result.boughtItemIds).toEqual(['item-a'])
+  })
+
+  // A broadcast reports every salt in its group; a salt this checkout never reserved cannot name a cart line
+  // and must not turn into an `undefined` the caller then tries to remove.
+  it('should ignore a broadcast salt that is not one of its reservations', () => {
+    const result = partitionReservations({
+      reservations: [res('salt-a', 'item-a')],
+      broadcast: new Set(['salt-a', 'salt-unknown'])
+    })
+
+    expect(result.boughtItemIds).toEqual(['item-a'])
+  })
+
+  /**
+   * NOT TESTED, because the type no longer allows it: the original bug was a salt with no line, and a
+   * `Reservation` cannot exist without both. The test that used to guard it ("bought items must be empty when
+   * the map is empty") only had something to assert while the two halves were separate structures the caller
+   * had to keep in step by hand. Deleting that possibility is a better guarantee than asserting on it.
+   */
 })

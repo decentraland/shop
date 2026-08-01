@@ -45,7 +45,9 @@ import {
   type CartReview,
   type ResolvedLine,
   type TradeResolver,
-  type StoreResolver
+  type StoreResolver,
+  partitionReservations,
+  type Reservation
 } from '~/lib/cart-checkout'
 import { gaslessEnabled } from '~/lib/gasless-config'
 import { useCartAvailability } from '~/hooks/useCartAvailability'
@@ -289,11 +291,16 @@ export function Cart() {
     const purchasedUnits = units.map(l => ({ ...l.item, priceCredits: l.priceCredits }))
     // Per-line snapshot (carries quantity) for the success modal — unique keys, shows "× N".
     const purchasedLines = lines.map(l => ({ ...l.item, priceCredits: l.priceCredits, quantity: l.quantity }))
-    const reservedSalts: string[] = []
-    // Which cart line each reservation pays for. Needed only on the failure path: when part of a mixed
-    // basket goes through, the bought lines have to leave the cart and the rest have to stay, and a salt is
-    // the only identifier that survives from the reservation through to the broadcast.
-    const saltToItemId = new Map<string, string>()
+    /**
+     * Every reservation made, each paired with the cart line it pays for.
+     *
+     * ONE structure rather than a salt list beside a parallel salt -> line map: the failure path needs both
+     * halves (release what did NOT go out, take what DID out of the cart), and two structures stay in step
+     * only by remembering to write both. Omitting the second write typechecks and passes every test that
+     * asserts on the first, while silently turning the cart cleanup into a no-op (Jarvis P1). Pairing them
+     * where they are created makes that state unrepresentable.
+     */
+    const reservations: Reservation[] = []
     let step: 'authorize' | 'submit' = 'authorize'
     /**
      * Salts whose transaction was BROADCAST. Everything in here is spent for good, whatever happens next.
@@ -327,7 +334,7 @@ export function Cart() {
           // reconciler matches against the on-chain consumption either way.
           const tradeId = line.acquisition === 'trade' ? line.trade.id : undefined
           const { credit, maxCreditedValue } = await authorizeUsdCredit(session.identity, line.usdCents, tradeId)
-          reservedSalts.push(credit.id)
+          reservations.push({ salt: credit.id, itemId: line.item.id })
           purchases.push(
             line.acquisition === 'store'
               ? {
@@ -348,9 +355,12 @@ export function Cart() {
           // Server said not enough credits → release what we already reserved and show the pack picker
           // (top-up → resume), not a bare error. Same behaviour as the PDP BuyModal.
           if (isInsufficient(authErr)) {
-            if (reservedSalts.length) {
+            if (reservations.length) {
               try {
-                await cancelUsdIntents(session.identity, reservedSalts)
+                await cancelUsdIntents(
+                  session.identity,
+                  reservations.map(r => r.salt)
+                )
               } catch (relErr) {
                 captureError(relErr, { flow: 'cart_checkout', step: 'release' })
               }
@@ -495,7 +505,7 @@ export function Cart() {
        * The unbroadcast reservations, on the other hand, must be released now: leaving them pending strands
        * that much of the buyer's balance until the TTL expires (~15 min).
        */
-      const toRelease = reservedSalts.filter(salt => !broadcastSalts.has(salt))
+      const { toRelease, boughtItemIds } = partitionReservations({ reservations, broadcast: broadcastSalts })
       if (toRelease.length) {
         try {
           await cancelUsdIntents(session.identity, toRelease)
@@ -515,10 +525,7 @@ export function Cart() {
        * also what makes the copy honest.
        */
       if (broadcastSalts.size > 0) {
-        const boughtIds = new Set(
-          [...broadcastSalts].map(salt => saltToItemId.get(salt)).filter((id): id is string => !!id)
-        )
-        boughtIds.forEach(id => remove(id))
+        boughtItemIds.forEach(id => remove(id))
         setReview(null)
         invalidateAfterPurchase(qc)
         // The existing error phase, with copy that tells the truth. A dedicated partial-success screen (the
@@ -782,7 +789,12 @@ export function Cart() {
     )
     const creditedCents = allocation.reduce((n, c) => n + c, 0)
     const gapWei = manaForRemainder(Math.max(0, totalCents - creditedCents), totalCents, manaWei)
-    const reservedSalts: string[] = []
+    const reservations: Reservation[] = []
+    // Same hazard as the credits-only rail, one rung lower: this batch is a single accept([...]), so there is
+    // no partial basket — but a broadcast whose wait() then fails (RPC timeout, dropped socket) still spent
+    // its credits, and the catch below used to release them. See partitionReservations for why that is worse
+    // than leaving them pending.
+    const broadcastSalts = new Set<string>()
     setModal({ phase: 'processing', stage: 'reserving', step: 1, total: units.length })
     try {
       // The combined rail is trade-only: its MANA leg is paid through the same accept([...]) call, which a
@@ -795,7 +807,7 @@ export function Cart() {
         if (cents <= 0) continue // fully covered by MANA — no credit, nothing to reserve
         setModal({ phase: 'processing', stage: 'reserving', step: i + 1, total: tradeUnits.length })
         const { credit, maxCreditedValue } = await authorizeUsdCredit(session.identity, cents, tradeUnits[i].trade.id)
-        reservedSalts.push(credit.id)
+        reservations.push({ salt: credit.id, itemId: tradeUnits[i].item.id })
         purchases.push({ kind: 'trade', trade: tradeUnits[i].trade, credits: [credit], maxCreditedValue })
       }
       // Units with no credit still have to be in the accept([...]) batch — carry them with no credits so
@@ -818,7 +830,8 @@ export function Cart() {
         purchases,
         buyer: session.address,
         signer: session.signer,
-        onSigned
+        onSigned,
+        onBroadcast: ({ salts }) => salts.forEach(salt => broadcastSalts.add(salt))
       })
       lines.forEach(l => remove(l.item.id))
       setReview(null)
@@ -830,10 +843,19 @@ export function Cart() {
       void qc.invalidateQueries({ queryKey: ['mana-balance'] })
       finishCartPurchase(purchasedLines, hashes)
     } catch (e) {
-      if (reservedSalts.length) {
-        void cancelUsdIntents(session.identity, reservedSalts).catch(() => {})
+      // Release only what did NOT go out. A broadcast group's credits are spent whatever happens next.
+      const { toRelease } = partitionReservations({ reservations, broadcast: broadcastSalts })
+      if (toRelease.length) {
+        void cancelUsdIntents(session.identity, toRelease).catch(() => {})
+      }
+      // Refreshed either way: a broadcast batch has spent real balance even though this checkout failed.
+      if (reservations.length) {
         void qc.invalidateQueries({ queryKey: ['usd-balance'] })
       }
+      // TODO(cart-combined-partial): this rail submits ONE batch, so a broadcast means the whole basket is on
+      // its way and the lines should leave the cart with copy that says so — the credits-only rail already
+      // does that. Left out here because the MANA-covered units carry no reservation, so the bought set can't
+      // be derived from `reservations` alone. The money defect (releasing spent credits) is fixed above.
       handleChargeError(e, 'buy_cart_combined')
     }
   }
