@@ -290,7 +290,23 @@ export function Cart() {
     // Per-line snapshot (carries quantity) for the success modal — unique keys, shows "× N".
     const purchasedLines = lines.map(l => ({ ...l.item, priceCredits: l.priceCredits, quantity: l.quantity }))
     const reservedSalts: string[] = []
+    // Which cart line each reservation pays for. Needed only on the failure path: when part of a mixed
+    // basket goes through, the bought lines have to leave the cart and the rest have to stay, and a salt is
+    // the only identifier that survives from the reservation through to the broadcast.
+    const saltToItemId = new Map<string, string>()
     let step: 'authorize' | 'submit' = 'authorize'
+    /**
+     * Salts whose transaction was BROADCAST. Everything in here is spent for good, whatever happens next.
+     *
+     * A mixed basket needs one transaction per group, so the buyer can confirm the first and reject the
+     * second — and by then the first is irreversibly on its way. The catch below used to release every
+     * reservation it had made, which handed the buyer back money they had already spent: the balance rose,
+     * the reconciler debited it again once the squid indexed the consumption, and anything spent in the gap
+     * drove the balance negative. The server refuses to release a credit it can already see consumed
+     * on-chain, but that check loses the race with its own indexer in the seconds right after a broadcast,
+     * which is exactly when this runs.
+     */
+    const broadcastSalts = new Set<string>()
     let usedGasless = false
     setModal({ phase: 'processing', stage: 'reserving', step: 1, total: units.length })
     try {
@@ -410,12 +426,24 @@ export function Cart() {
           usedGasless = true
         } catch (gaslessErr) {
           if (!(gaslessErr instanceof GaslessUnavailableError)) throw gaslessErr
-          hashes = await buyManyWithCredits({ purchases, buyer: session.address, signer: session.signer, onSigned })
+          hashes = await buyManyWithCredits({
+            purchases,
+            buyer: session.address,
+            signer: session.signer,
+            onSigned,
+            onBroadcast: ({ salts }) => salts.forEach(salt => broadcastSalts.add(salt))
+          })
         }
       } else {
         // Was missing `onSigned`, so with gasless off the modal sat on "awaiting confirmation" through
         // settlement. Harmless when there is one prompt; with two it would never advance the counter.
-        hashes = await buyManyWithCredits({ purchases, buyer: session.address, signer: session.signer, onSigned })
+        hashes = await buyManyWithCredits({
+          purchases,
+          buyer: session.address,
+          signer: session.signer,
+          onSigned,
+          onBroadcast: ({ salts }) => salts.forEach(salt => broadcastSalts.add(salt))
+        })
       }
 
       // Remove exactly what we bought (leaves any not-charged rows in place for a retry).
@@ -456,15 +484,51 @@ export function Cart() {
         value_usd: creditsToUsd(purchasedUnits.reduce((n, i) => n + i.priceCredits, 0)),
         cart_size: units.length
       })
-      // Release any dollars we reserved so the balance isn't stuck until the TTL (~15 min).
-      if (reservedSalts.length) {
+      /**
+       * Release only what did NOT go out.
+       *
+       * A broadcast group's credits are spent for good: its transaction is on its way and the reconciler will
+       * settle those intents once the squid indexes the consumption. Releasing them would raise the balance by
+       * money the buyer has already spent, and it would be re-debited moments later — so anything they bought
+       * in that window drives the balance negative.
+       *
+       * The unbroadcast reservations, on the other hand, must be released now: leaving them pending strands
+       * that much of the buyer's balance until the TTL expires (~15 min).
+       */
+      const toRelease = reservedSalts.filter(salt => !broadcastSalts.has(salt))
+      if (toRelease.length) {
         try {
-          await cancelUsdIntents(session.identity, reservedSalts)
+          await cancelUsdIntents(session.identity, toRelease)
         } catch (relErr) {
           captureError(relErr, { flow: 'cart_checkout', step: 'release' })
         }
-        void qc.invalidateQueries({ queryKey: ['usd-balance'] })
       }
+      // Refreshed either way: a broadcast group has spent real balance even though this checkout failed.
+      void qc.invalidateQueries({ queryKey: ['usd-balance'] })
+
+      /**
+       * PART of the basket was bought. Say so, and keep the rest.
+       *
+       * Reporting a plain failure here is wrong twice over: the buyer already owns those items, and the cart
+       * still holds the lines they paid for, so a retry would double-buy them. So the purchased lines are
+       * removed (the same thing the success path does) and the unpurchased ones stay for a retry — which is
+       * also what makes the copy honest.
+       */
+      if (broadcastSalts.size > 0) {
+        const boughtIds = new Set(
+          [...broadcastSalts].map(salt => saltToItemId.get(salt)).filter((id): id is string => !!id)
+        )
+        boughtIds.forEach(id => remove(id))
+        setReview(null)
+        invalidateAfterPurchase(qc)
+        // The existing error phase, with copy that tells the truth. A dedicated partial-success screen (the
+        // bought items listed, a "retry the rest" action) is worth building, but the money defect is the
+        // release above — this at least stops the buyer being told nothing happened when something did.
+        setModal({ phase: 'error', message: t('cart.error.partiallyBought') })
+        setBusy(false)
+        return
+      }
+
       setModal({ phase: 'error', message: friendlyError(e) })
     }
   }

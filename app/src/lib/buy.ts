@@ -148,7 +148,15 @@ export async function sendUseCredits(
   chainId: number,
   args: unknown,
   signer: ethers.Signer,
-  onSigned?: () => void
+  /**
+   * Fired the moment the transaction is BROADCAST — the buyer confirmed and it is on its way — carrying the
+   * hash, before the receipt is awaited.
+   *
+   * The hash matters because broadcast is the point of no return for the credits in that transaction: they
+   * WILL be consumed on-chain whatever happens next in this process. A caller that fails afterwards must not
+   * release their reservations, and this is the only signal that says which ones those are.
+   */
+  onSigned?: (txHash: string) => void
 ): Promise<string> {
   // useCredits is a REAL transaction, so it MUST run on the trade's chain. A restored session (or a
   // user who was last on another network) can leave the wallet on a different chain — without pinning
@@ -170,8 +178,9 @@ export async function sendUseCredits(
   const contract = new ethers.Contract(cm.address, cm.abi, signer) as CreditsManagerContract
   const tx = await contract.useCredits(args, amoyGasOverrides(chainId))
   // Tx submitted (the buyer confirmed in their wallet) — settlement is next. Callers use this to flip
-  // the UI from "confirm in your wallet" to "completing transaction".
-  onSigned?.()
+  // the UI from "confirm in your wallet" to "completing transaction", and to record that these credits are
+  // now spoken for.
+  onSigned?.(tx.hash)
   const receipt = await tx.wait()
   return receipt.transactionHash
 }
@@ -361,8 +370,21 @@ export async function buyManyWithCredits(opts: {
    * facing two prompts needs to see which one they are on.
    */
   onSigned?: (signed: number, total: number) => void
+  /**
+   * Fired the moment a group's transaction is BROADCAST, with the credits it spends.
+   *
+   * This exists so a caller can tell what survived a failure. A mixed basket needs one transaction per group,
+   * so the buyer can confirm the first and reject the second — and by then the first is irreversibly on its
+   * way. Releasing its reservations (which is what a naive catch-all does) hands the buyer back money they
+   * have already spent: the balance goes up, the reconciler debits it again when the squid indexes the
+   * consumption, and anything spent in between drives the balance negative.
+   *
+   * The salts are the credit ids the server reserved, which is exactly what a release call takes — so the
+   * caller can subtract them rather than having to map groups back to reservations itself.
+   */
+  onBroadcast?: (info: { txHash: string; salts: string[] }) => void
 }): Promise<string[]> {
-  const { buyer, signer, onSigned } = opts
+  const { buyer, signer, onSigned, onBroadcast } = opts
   const purchases = normalizePurchases(opts.purchases)
   if (purchases.length === 0) throw new Error('No items to buy')
 
@@ -389,7 +411,15 @@ export async function buyManyWithCredits(opts: {
             credits,
             maxCreditedValue
           )
-    hashes.push(await sendUseCredits(group.chainId, args, signer, () => onSigned?.(hashes.length + 1, groups.length)))
+    hashes.push(
+      await sendUseCredits(group.chainId, args, signer, txHash => {
+        onSigned?.(hashes.length + 1, groups.length)
+        // Reported from INSIDE the broadcast callback rather than after the await, because the await is on the
+        // receipt: a group whose transaction was submitted and then failed to mine (timeout, RPC drop) has
+        // still spent its credits, and its reservations must not be released either.
+        onBroadcast?.({ txHash, salts: credits.map(c => c.id) })
+      })
+    )
   }
   return hashes
 }
