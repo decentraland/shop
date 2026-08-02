@@ -14,10 +14,11 @@ const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, refetchOnWindowFocus: false } }
 })
 
-// The Shop is served by-path at <domain>/shop in every deployed env (decentraland.zone/today/org),
-// so the router mounts under /shop. Local dev + e2e run at the root, so no basename there.
-const isLocalHost = ['localhost', '127.0.0.1'].includes(window.location.hostname)
-const routerBasename = isLocalHost ? undefined : '/shop'
+// The Shop is served by-path at <domain>/shop in deployed envs (decentraland.zone/today/org), but at
+// the root on localhost, e2e and Vercel previews. Detect by path, not hostname: a hostname allowlist
+// renders a blank page (router basename mismatch) on any host it doesn't know about.
+const { pathname } = window.location
+const routerBasename = pathname === '/shop' || pathname.startsWith('/shop/') ? '/shop' : undefined
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>

@@ -71,6 +71,10 @@ export default defineConfig({
     ]
   },
   build: {
+    // Not the default 'assets': that collides with the app's /assets route, and on hosts that serve
+    // the dist folder at the root (Vercel previews) a hard load of /assets hits the DIRECTORY before
+    // the SPA rewrite and serves a chunk instead of the page.
+    assetsDir: '_assets',
     // Emit source maps only for release builds that upload them to Sentry (deleted after upload).
     sourcemap: sentryUpload,
     chunkSizeWarningLimit: 900,

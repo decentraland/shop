@@ -6,6 +6,8 @@ function record(overrides: Partial<PurchaseRecord> = {}): PurchaseRecord {
   return {
     id: Math.random().toString(36).slice(2),
     tradeId: 't-' + Math.random().toString(36).slice(2),
+    contractAddress: null,
+    itemId: null,
     usdCents: 100,
     credits: 10,
     status: 'SETTLED',
@@ -96,12 +98,57 @@ describe('when folding the display lines of an order', () => {
     expect(items[1]).toMatchObject({ tradeId: 't2', quantity: 1, credits: 5 })
   })
 
-  it('should keep tradeId-less lines on their own rows', () => {
+  it('should keep unidentifiable lines on their own rows', () => {
+    // No tradeId AND no recorded item: nothing proves these two are the same thing.
     const items = foldOrderLines([
       record({ id: 'a', tradeId: null, credits: 4 }),
       record({ id: 'b', tradeId: null, credits: 4 })
     ])
     expect(items).toHaveLength(2)
     expect(items.map(i => i.key)).toEqual(['a', 'b'])
+  })
+
+  // A CollectionStore mint has no trade, so before the item was recorded three copies of one mint arrived
+  // as three identical anonymous rows. The item identity is what collapses them.
+  it('should collapse repeated buys of the same mint into one line with a quantity', () => {
+    const items = foldOrderLines([
+      record({ id: 'a', tradeId: null, contractAddress: '0xC0', itemId: '12', credits: 3 }),
+      record({ id: 'b', tradeId: null, contractAddress: '0xC0', itemId: '12', credits: 3 }),
+      record({ id: 'c', tradeId: null, contractAddress: '0xC0', itemId: '13', credits: 5 })
+    ])
+    expect(items).toHaveLength(2)
+    expect(items[0]).toMatchObject({ tradeId: null, contractAddress: '0xC0', itemId: '12', quantity: 2, credits: 6 })
+    expect(items[1]).toMatchObject({ itemId: '13', quantity: 1, credits: 5 })
+  })
+
+  it('should fold mints of the same item regardless of contract address casing', () => {
+    const items = foldOrderLines([
+      record({ tradeId: null, contractAddress: '0xAbC0', itemId: '12', credits: 3 }),
+      record({ tradeId: null, contractAddress: '0xabc0', itemId: '12', credits: 3 })
+    ])
+    expect(items).toHaveLength(1)
+    expect(items[0].quantity).toBe(2)
+  })
+
+  it('should not fold different items of the same collection together', () => {
+    const items = foldOrderLines([
+      record({ tradeId: null, contractAddress: '0xC0', itemId: '1', credits: 3 }),
+      record({ tradeId: null, contractAddress: '0xC0', itemId: '11', credits: 3 })
+    ])
+    expect(items).toHaveLength(2)
+  })
+
+  // A trade id and an item key can never collide: they are namespaced.
+  it('should keep a trade and a mint apart even when the trade id looks like an item key', () => {
+    const items = foldOrderLines([
+      record({ id: 'a', tradeId: '0xC0:12', credits: 3 }),
+      record({ id: 'b', tradeId: null, contractAddress: '0xC0', itemId: '12', credits: 3 })
+    ])
+    expect(items).toHaveLength(2)
+  })
+
+  it('should carry the item identity onto a trade-backed line so the row can resolve either way', () => {
+    const items = foldOrderLines([record({ tradeId: 't1', contractAddress: '0xC0', itemId: '9', credits: 7 })])
+    expect(items[0]).toMatchObject({ tradeId: 't1', contractAddress: '0xC0', itemId: '9' })
   })
 })

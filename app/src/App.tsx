@@ -119,6 +119,9 @@ export function App() {
       <main className="page" data-route={location.pathname}>
         <Sentry.ErrorBoundary fallback={<CrashFallback />}>
           <Suspense fallback={<PageFallback />}>
+            {/* Never add a top-level /shop route: main.tsx detects the router basename from a /shop
+                path prefix, so on hosts that serve the app at the root (Vercel previews, localhost)
+                that URL would be read as the app's mount point, not as a route. */}
             <Routes>
               <Route path="/" element={<Navigate to="/overview" replace />} />
               <Route path="/overview" element={<Overview />} />

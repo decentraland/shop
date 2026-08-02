@@ -343,11 +343,22 @@ export function Cart() {
           // have been re-signed to a new trade, and the spend below executes against what was resolved —
           // authorizing the retired one would mismatch what's actually charged (Jarvis P1).
           //
-          // A mint carries no tradeId (there is no trade), so the intent is recorded unbound. The server
-          // treats it as optional; what ties the charge to the item is the ephemeral credit's salt, which the
-          // reconciler matches against the on-chain consumption either way.
+          // A mint carries no tradeId (there is no trade), so what ties the charge to the purchase is the
+          // ephemeral credit's salt, which the reconciler matches against the on-chain consumption either way.
+          // But the intent still has to record WHAT was bought, or the buyer's purchase history has nothing to
+          // name the line with and Activity renders it as an anonymous "Item". Sent for every line, mint or
+          // trade: it is the item's identity, not the settlement's.
           const tradeId = line.acquisition === 'trade' ? line.trade.id : undefined
-          const { credit, maxCreditedValue } = await authorizeUsdCredit(session.identity, line.usdCents, tradeId)
+          const purchasedItem =
+            line.item.contractAddress && line.item.itemId != null
+              ? { contractAddress: line.item.contractAddress, itemId: String(line.item.itemId) }
+              : undefined
+          const { credit, maxCreditedValue } = await authorizeUsdCredit(
+            session.identity,
+            line.usdCents,
+            tradeId,
+            purchasedItem
+          )
           reservations.push({ salt: credit.id, itemId: line.item.id })
           purchases.push(
             line.acquisition === 'store'
@@ -867,8 +878,16 @@ export function Cart() {
         const cents = allocation[i]
         if (cents <= 0) continue // fully covered by MANA — no credit, nothing to reserve
         setModal({ phase: 'processing', stage: 'reserving', step: i + 1, total: tradeUnits.length })
-        const { credit, maxCreditedValue } = await authorizeUsdCredit(session.identity, cents, tradeUnits[i].trade.id)
-        reservations.push({ salt: credit.id, itemId: tradeUnits[i].item.id })
+        const unitItem = tradeUnits[i].item
+        const { credit, maxCreditedValue } = await authorizeUsdCredit(
+          session.identity,
+          cents,
+          tradeUnits[i].trade.id,
+          unitItem.contractAddress && unitItem.itemId != null
+            ? { contractAddress: unitItem.contractAddress, itemId: String(unitItem.itemId) }
+            : undefined
+        )
+        reservations.push({ salt: credit.id, itemId: unitItem.id })
         purchases.push({ kind: 'trade', trade: tradeUnits[i].trade, credits: [credit], maxCreditedValue })
       }
       // Units with no credit still have to be in the accept([...]) batch — carry them with no credits so
