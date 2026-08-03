@@ -149,16 +149,16 @@ describe('search bar', () => {
     expect(value).toBe('')
   })
 
-  // The sub-nav's other items (tab strip + balance/credits/cart) used to squeeze the field down to the
-  // bare magnifier well above the mobile breakpoint — 94px of input at 1280, 14px at 1200 — and then
-  // pushed the page into horizontal overflow. The strip yields (and scrolls) above `lg`; at `lg` and
-  // below the row wraps and the field gets its own line. A MANA balance is in play because that chip
-  // only renders for a wallet holding MANA and it is ~85px of the row's rigid width.
+  // The sub-nav's other items (tab strip + credits/cart) used to squeeze the field down to the bare
+  // magnifier well above the mobile breakpoint — 94px of input at 1280, 14px at 1200 — and then pushed
+  // the page into horizontal overflow. The strip yields (and scrolls) above `lg`; at `lg` and below the
+  // row wraps and the field gets its own line. A MANA balance is funded so the widest possible header
+  // state is measured (that chip renders only for a wallet holding MANA).
   it('keeps the field usable, and the page unscrolled sideways, as the window narrows', async () => {
     app = await launchApp({ path: '/assets', manaBalanceWei: '5000000000000000000' })
     const { page } = app
     await page.waitForSelector(SEARCH)
-    await page.waitForSelector('[data-testid="subnav-mana-balance"]')
+    await page.waitForSelector('button[aria-label$="MANA on Polygon"]')
 
     for (const width of [1512, 1280, 1024, 901, 900, 800, 780, 769]) {
       await page.setViewport({ width, height: 860 })
