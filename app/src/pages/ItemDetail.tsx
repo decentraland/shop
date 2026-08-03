@@ -36,6 +36,7 @@ import { captureError } from '~/lib/monitoring'
 import { isRejection } from '~/lib/errors'
 import { isManagedWallet } from '~/lib/wallet'
 import { useManaRate } from '~/hooks/useManaRate'
+import { useRelatedItems } from '~/hooks/useRelatedItems'
 import { useSeo } from '~/hooks/useSeo'
 import { shortAddress } from '~/lib/address'
 import { t } from '~/intl/i18n'
@@ -301,6 +302,12 @@ export function ItemDetail() {
     return out
   }, [siblings, current.id, current.itemId, current.tokenId])
 
+  // Fallback rail: a single-item collection leaves the carousel with nothing to render, and the page below
+  // the fold goes blank. So once the collection has come back empty-handed, ask for SIMILAR items instead.
+  // Gated on siblingsFetched so a slow collection read doesn't fire both requests and swap rails mid-view.
+  const noSiblings = siblingsFetched && carouselItems.length === 0
+  const { items: relatedItems } = useRelatedItems(current.contractAddress, pageItemId, { enabled: noSiblings })
+
   // Resolve a buyable trade for the current item (needed for BUY NOW + a valid cart entry). Secondary
   // listings carry their tradeId directly; catalog items resolve the cheapest open listing by itemId.
   const { data: resolvedTradeId, isLoading: resolvingTrade } = useQuery({
@@ -467,6 +474,7 @@ export function ItemDetail() {
   const genderIco = genderIcon(current.gender)
   const onSale = forSale && saleActive
   const collectionTitle = t('itemDetail.moreFromCollection')
+  const relatedTitle = t('itemDetail.relatedItems')
 
   // Your own (primary) listing — you can't buy it (see lib/ownership.ts). Secondary self-listings are
   // caught authoritatively at buy time by isOwnTrade.
@@ -1342,11 +1350,18 @@ export function ItemDetail() {
         </S.Info>
       </S.Main>
 
-      <CollectionCarousel
-        title={collectionTitle}
-        items={carouselItems}
-        onViewAll={current.contractAddress ? () => navigate(`/collection/${current.contractAddress}`) : undefined}
-      />
+      {/* One rail, two data sources. The related fallback gets no "View all": there is no page that lists
+          "similar items", and a link to the collection would lead somewhere with nothing in it. Either way
+          CollectionCarousel renders nothing when its items are empty, so no bare heading can appear. */}
+      {noSiblings ? (
+        <CollectionCarousel title={relatedTitle} items={relatedItems} />
+      ) : (
+        <CollectionCarousel
+          title={collectionTitle}
+          items={carouselItems}
+          onViewAll={current.contractAddress ? () => navigate(`/collection/${current.contractAddress}`) : undefined}
+        />
+      )}
 
       {showBuy && isMarket && marketListing && manaRate ? (
         <MarketCheckout
