@@ -158,6 +158,19 @@ describe('useShopPrelaunch', () => {
     expect(result.current).toBe('open')
   })
 
+  // The other side of that gate: the local opt-in has to actually arm the curtain, or the only way to
+  // exercise this flow is to deploy — which is what the override exists to avoid.
+  it('should arm the curtain on a dev hostname when the local preview override is on', async () => {
+    vi.spyOn(config, 'isProduction', 'get').mockReturnValue(false)
+    vi.spyOn(config, 'isStaging', 'get').mockReturnValue(false)
+    vi.spyOn(config, 'prelaunchLocalPreview', 'get').mockReturnValue(true)
+    mockFlagService(armed(''))
+
+    const result = await hideDecision()
+
+    await waitFor(() => expect(result.current).toBe('hidden'))
+  })
+
   /**
    * The flash. An allowed wallet saw the holding page for a moment on every refresh, because the flag
    * resolves over the network while the wallet session is read back from storage independently — so for one

@@ -78,7 +78,16 @@ export function useShopPrelaunch(): PrelaunchDecision {
   // From here the answer is withheld until it is actually known. Both inputs matter and they settle
   // independently — the flag over the network, the wallet from storage — so either one still outstanding
   // means the decision would be a guess, and a guess is what the flicker was.
-  if (isPending || !data) return 'pending'
+  if (isPending) return 'pending'
+
+  // No data with the query no longer pending means it FAILED, and this fails OPEN — stated here rather than
+  // inherited. `getIsFeatureEnabled` catches its own errors and resolves `false`, so today the queryFn cannot
+  // reject and this branch is unreachable; the point is that it stops being load-bearing on that. Were the
+  // flag lib ever to propagate instead, react-query would settle into `status: 'error'` with `data:
+  // undefined` — `isPending` false, `data` absent — and treating that as 'pending' would leave a permanent
+  // blank page for everyone, which is the exact opposite of what the fail-open contract above promises.
+  if (!data) return 'open'
+
   if (!data.armed) return 'open'
   if (!walletRestored) return 'pending'
   // An armed gate with no address connected hides the Shop: a visitor before launch is exactly who this is
