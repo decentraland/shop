@@ -4,6 +4,12 @@ import type { ethers as Ethers } from 'ethers'
 
 // Capture every CreditsManager.useCredits(args) call so we can assert on batching.
 const useCreditsCalls: Array<Record<string, any>> = []
+// 1-based index of the first useCredits call that should reject, or null for none. Lets a test reproduce the
+// buyer who confirms the first wallet prompt of a mixed basket and rejects the second.
+let useCreditsRejectsFrom: number | null = null
+// Which useCredits call (1-based) mines and REVERTS. Its wait() rejects the way ethers v5 does for a status-0
+// receipt — with the receipt attached — which is the only signal that says the credits were NOT consumed.
+let useCreditsRevertsAt: number | null = null
 // Capture cancelSignature(trades[], overrides) calls to assert the cancel path.
 const cancelCalls: Array<{ trades: Record<string, any>[]; overrides: Record<string, any> }> = []
 
@@ -63,7 +69,28 @@ vi.mock('ethers', async importOriginal => {
     ) {}
     async useCredits(args: Record<string, any>) {
       useCreditsCalls.push(args)
-      return { wait: async () => ({ transactionHash: '0xhash' }) }
+      // `hash` is the BROADCAST identity (available the moment the wallet submits) and
+      // `wait().transactionHash` the settled one. They are separate on purpose: a caller has to be able to
+      // tell "this went out" from "this mined", because a transaction that went out has spent its credits
+      // whether or not it mines.
+      const n = useCreditsCalls.length
+      if (useCreditsRejectsFrom !== null && n >= useCreditsRejectsFrom) {
+        throw new Error('user rejected transaction')
+      }
+      // The SETTLED hash stays '0xhash' so existing assertions are unaffected; the BROADCAST hash is
+      // per-call so a test can tell which group went out.
+      if (useCreditsRevertsAt === n) {
+        return {
+          hash: `0xbroadcast${n}`,
+          wait: async () => {
+            const err = new Error('transaction failed') as Error & { code: string; receipt: { status: number } }
+            err.code = 'CALL_EXCEPTION'
+            err.receipt = { status: 0 }
+            throw err
+          }
+        }
+      }
+      return { hash: `0xbroadcast${n}`, wait: async () => ({ transactionHash: '0xhash' }) }
     }
     async cancelSignature(trades: Record<string, any>[], overrides: Record<string, any>) {
       cancelCalls.push({ trades, overrides })
@@ -170,6 +197,8 @@ const signer = {
 describe('when buying several listings on the same marketplace with credits', () => {
   beforeEach(() => {
     useCreditsCalls.length = 0
+    useCreditsRejectsFrom = null
+    useCreditsRevertsAt = null
     walletChainId = 80002
     switchHonored = true
     switchCalls.length = 0
@@ -222,6 +251,8 @@ describe('when buying CollectionStore mints with credits', () => {
 
   beforeEach(() => {
     useCreditsCalls.length = 0
+    useCreditsRejectsFrom = null
+    useCreditsRevertsAt = null
     walletChainId = 80002
     switchHonored = true
     switchCalls.length = 0
@@ -352,6 +383,8 @@ describe('when grouping a basket into transactions', () => {
 describe('when buying listings across different marketplaces', () => {
   beforeEach(() => {
     useCreditsCalls.length = 0
+    useCreditsRejectsFrom = null
+    useCreditsRevertsAt = null
   })
 
   it('splits into one transaction per marketplace', async () => {
@@ -363,6 +396,198 @@ describe('when buying listings across different marketplaces', () => {
 
     expect(hashes).toEqual(['0xhash', '0xhash'])
     expect(useCreditsCalls).toHaveLength(2)
+  })
+
+  /**
+   * What a caller needs to survive a partial failure.
+   *
+   * A mixed basket needs one transaction per group, so the buyer can confirm the first prompt and reject the
+   * second — and by then the first is irreversibly on its way. Whoever reserved the credits has to be able to
+   * tell which reservations are spent, because releasing a spent one hands the buyer back money they already
+   * spent: their balance rises, the reconciler debits it again once the squid indexes the consumption, and
+   * anything bought in that gap drives the balance negative.
+   */
+  describe('and the buyer rejects the second prompt', () => {
+    const twoMarketplaces = (): CreditPurchase[] => [
+      { trade: fakeTrade('0xmarketA'), credits: [credit(B32('1'), '100')], maxCreditedValue: '100' },
+      { trade: fakeTrade('0xmarketB'), credits: [credit(B32('2'), '200')], maxCreditedValue: '200' }
+    ]
+
+    it('reports the first group as broadcast before it throws', async () => {
+      useCreditsRejectsFrom = 2
+      const broadcast: Array<{ txHash: string; salts: string[] }> = []
+
+      await expect(
+        buyManyWithCredits({
+          purchases: twoMarketplaces(),
+          buyer: BUYER,
+          signer,
+          onBroadcast: info => broadcast.push(info)
+        })
+      ).rejects.toThrow(/rejected/)
+
+      // Exactly the confirmed group, and its salts — which is what the caller must NOT release.
+      expect(broadcast).toHaveLength(1)
+      expect(broadcast[0].salts).toEqual([B32('1')])
+      expect(broadcast[0].txHash).toBe('0xbroadcast1')
+    })
+
+    it('never reports the rejected group', async () => {
+      useCreditsRejectsFrom = 2
+      const salts: string[] = []
+
+      await expect(
+        buyManyWithCredits({
+          purchases: twoMarketplaces(),
+          buyer: BUYER,
+          signer,
+          onBroadcast: ({ salts: s }) => salts.push(...s)
+        })
+      ).rejects.toThrow()
+
+      // B32('2') belongs to the rejected group: its reservation is safe to release, and MUST be released or
+      // that much of the buyer's balance stays stranded until the TTL.
+      expect(salts).not.toContain(B32('2'))
+    })
+
+    it('reports nothing when the buyer rejects the very first prompt', async () => {
+      useCreditsRejectsFrom = 1
+      const broadcast: Array<{ txHash: string; salts: string[] }> = []
+
+      await expect(
+        buyManyWithCredits({
+          purchases: twoMarketplaces(),
+          buyer: BUYER,
+          signer,
+          onBroadcast: info => broadcast.push(info)
+        })
+      ).rejects.toThrow()
+
+      // Nothing went out, so everything is releasable — the pre-existing behaviour, which must not regress.
+      expect(broadcast).toEqual([])
+    })
+
+    it('reports every group when the whole basket goes through', async () => {
+      const broadcast: Array<{ txHash: string; salts: string[] }> = []
+
+      await buyManyWithCredits({
+        purchases: twoMarketplaces(),
+        buyer: BUYER,
+        signer,
+        onBroadcast: info => broadcast.push(info)
+      })
+
+      expect(broadcast.flatMap(b => b.salts)).toEqual([B32('1'), B32('2')])
+    })
+
+    // Reported from the broadcast callback, not after the receipt: a transaction that was submitted and then
+    // failed to mine (timeout, RPC drop) has still spent its credits.
+    it('reports a group whose transaction was submitted even if it never settles', async () => {
+      const broadcast: Array<{ txHash: string; salts: string[] }> = []
+      const failingSigner = {
+        ...signer,
+        provider: signer.provider
+      } as typeof signer
+      // Make wait() reject for the first call only, leaving the submit itself successful.
+      const contracts = await import('ethers')
+      const spy = vi.spyOn(contracts.ethers, 'Contract' as never).mockImplementation(() => ({
+        useCredits: async () => ({ hash: '0xbroadcast1', wait: async () => Promise.reject(new Error('timeout')) })
+      }))
+
+      const reverted: string[] = []
+      try {
+        await expect(
+          buyManyWithCredits({
+            purchases: [twoMarketplaces()[0]],
+            buyer: BUYER,
+            signer: failingSigner,
+            onBroadcast: info => broadcast.push(info),
+            onReverted: ({ salts }) => reverted.push(...salts)
+          })
+        ).rejects.toThrow(/timeout/)
+
+        expect(broadcast).toHaveLength(1)
+        expect(broadcast[0].salts).toEqual([B32('1')])
+        // THE ASYMMETRY. A timeout carries no receipt, so the outcome is unknown and the credits may yet be
+        // consumed — reporting it as reverted would hand the caller permission to release money that is gone.
+        expect(reverted).toEqual([])
+      } finally {
+        // In a `finally` because a failing assertion above would otherwise leave this Contract stub — which has
+        // no cancelSignature and no oracle methods — installed for every later test in the file.
+        spy.mockRestore()
+      }
+    })
+
+    /**
+     * SETTLED is a different fact from BROADCAST, and the caller needs both.
+     *
+     * Broadcast answers "may I release these reservations?". Only settled answers "does the buyer own these
+     * items?" — which is what decides whether a line leaves the cart. The first version of the cart fix used
+     * broadcast for both, so a buyer whose transaction reverted lost the lines they never bought.
+     */
+    it('reports only the group that mined as settled', async () => {
+      useCreditsRejectsFrom = 2
+      const settled: Array<{ txHash: string; salts: string[] }> = []
+
+      await expect(
+        buyManyWithCredits({
+          purchases: twoMarketplaces(),
+          buyer: BUYER,
+          signer,
+          onSettled: info => settled.push(info)
+        })
+      ).rejects.toThrow()
+
+      expect(settled).toHaveLength(1)
+      expect(settled[0].salts).toEqual([B32('1')])
+      // The SETTLED hash, not the broadcast one.
+      expect(settled[0].txHash).toBe('0xhash')
+    })
+
+    it('reports a reverted group as reverted and never as settled', async () => {
+      useCreditsRevertsAt = 1
+      const broadcast: string[] = []
+      const settled: string[] = []
+      const reverted: string[] = []
+
+      await expect(
+        buyManyWithCredits({
+          purchases: [twoMarketplaces()[0]],
+          buyer: BUYER,
+          signer,
+          onBroadcast: ({ salts }) => broadcast.push(...salts),
+          onSettled: ({ salts }) => settled.push(...salts),
+          onReverted: ({ salts }) => reverted.push(...salts)
+        })
+      ).rejects.toThrow(/failed/)
+
+      // It did go out...
+      expect(broadcast).toEqual([B32('1')])
+      // ...but it rolled back, so nothing was consumed and nothing was bought. Releasing this reservation is
+      // both safe and necessary; claiming the item is neither.
+      expect(reverted).toEqual([B32('1')])
+      expect(settled).toEqual([])
+    })
+
+    it('reports a group that reverts AFTER an earlier group settled', async () => {
+      useCreditsRevertsAt = 2
+      const settled: string[] = []
+      const reverted: string[] = []
+
+      await expect(
+        buyManyWithCredits({
+          purchases: twoMarketplaces(),
+          buyer: BUYER,
+          signer,
+          onSettled: ({ salts }) => settled.push(...salts),
+          onReverted: ({ salts }) => reverted.push(...salts)
+        })
+      ).rejects.toThrow()
+
+      // The exact partial-purchase shape: one paid for, one to release and keep in the cart.
+      expect(settled).toEqual([B32('1')])
+      expect(reverted).toEqual([B32('2')])
+    })
   })
 
   it('groups trades on the same marketplace case-insensitively into one tx', async () => {
@@ -386,6 +611,8 @@ describe('when buying listings across different marketplaces', () => {
 describe('when buying a single listing with credits', () => {
   beforeEach(() => {
     useCreditsCalls.length = 0
+    useCreditsRejectsFrom = null
+    useCreditsRevertsAt = null
     walletChainId = 80002
     switchHonored = true
     switchCalls.length = 0
@@ -555,6 +782,8 @@ describe('when driving the confirmation stage across groups', () => {
 
   beforeEach(() => {
     useCreditsCalls.length = 0
+    useCreditsRejectsFrom = null
+    useCreditsRevertsAt = null
     walletChainId = 80002
     switchHonored = true
   })
@@ -624,6 +853,8 @@ describe('when driving the confirmation stage across groups', () => {
 describe('when checking the grouping against what is submitted', () => {
   beforeEach(() => {
     useCreditsCalls.length = 0
+    useCreditsRejectsFrom = null
+    useCreditsRevertsAt = null
     walletChainId = 80002
     switchHonored = true
   })

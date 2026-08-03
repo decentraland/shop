@@ -45,7 +45,9 @@ import {
   type CartReview,
   type ResolvedLine,
   type TradeResolver,
-  type StoreResolver
+  type StoreResolver,
+  partitionReservations,
+  type Reservation
 } from '~/lib/cart-checkout'
 import { gaslessEnabled } from '~/lib/gasless-config'
 import { useCartAvailability } from '~/hooks/useCartAvailability'
@@ -289,8 +291,43 @@ export function Cart() {
     const purchasedUnits = units.map(l => ({ ...l.item, priceCredits: l.priceCredits }))
     // Per-line snapshot (carries quantity) for the success modal — unique keys, shows "× N".
     const purchasedLines = lines.map(l => ({ ...l.item, priceCredits: l.priceCredits, quantity: l.quantity }))
-    const reservedSalts: string[] = []
+    /**
+     * Every reservation made, each paired with the cart line it pays for.
+     *
+     * ONE structure rather than a salt list beside a parallel salt -> line map: the failure path needs both
+     * halves (release what did NOT go out, take what DID out of the cart), and two structures stay in step
+     * only by remembering to write both. Omitting the second write typechecks and passes every test that
+     * asserts on the first, while silently turning the cart cleanup into a no-op (Jarvis P1). Pairing them
+     * where they are created makes that state unrepresentable.
+     */
+    const reservations: Reservation[] = []
     let step: 'authorize' | 'submit' = 'authorize'
+    /**
+     * Salts whose transaction was BROADCAST. Everything in here is spent for good, whatever happens next.
+     *
+     * A mixed basket needs one transaction per group, so the buyer can confirm the first and reject the
+     * second — and by then the first is irreversibly on its way. The catch below used to release every
+     * reservation it had made, which handed the buyer back money they had already spent: the balance rose,
+     * the reconciler debited it again once the squid indexed the consumption, and anything spent in the gap
+     * drove the balance negative. The server refuses to release a credit it can already see consumed
+     * on-chain, but that check loses the race with its own indexer in the seconds right after a broadcast,
+     * which is exactly when this runs.
+     */
+    const broadcastSalts = new Set<string>()
+    /**
+     * The two facts `broadcastSalts` alone cannot express.
+     *
+     * `settled` = mined with receipt status 1, so the buyer OWNS those items and their lines must leave the
+     * cart. `reverted` = mined with status 0, which rolled the call back: nothing was consumed, so those
+     * reservations are safe to release AND their lines must stay. Broadcast is neither of those on its own —
+     * using it as a proxy for ownership takes items out of the cart of a buyer whose transaction reverted, and
+     * then strands their credits until the TTL on top of it.
+     */
+    const settledSalts = new Set<string>()
+    const revertedSalts = new Set<string>()
+    // Declared out here with the sets, not read off `hashes`: that is scoped to the try and invisible to the
+    // catch, which is where the partial-purchase event is emitted.
+    const settledHashes: string[] = []
     let usedGasless = false
     setModal({ phase: 'processing', stage: 'reserving', step: 1, total: units.length })
     try {
@@ -322,7 +359,7 @@ export function Cart() {
             tradeId,
             purchasedItem
           )
-          reservedSalts.push(credit.id)
+          reservations.push({ salt: credit.id, itemId: line.item.id })
           purchases.push(
             line.acquisition === 'store'
               ? {
@@ -343,9 +380,12 @@ export function Cart() {
           // Server said not enough credits → release what we already reserved and show the pack picker
           // (top-up → resume), not a bare error. Same behaviour as the PDP BuyModal.
           if (isInsufficient(authErr)) {
-            if (reservedSalts.length) {
+            if (reservations.length) {
               try {
-                await cancelUsdIntents(session.identity, reservedSalts)
+                await cancelUsdIntents(
+                  session.identity,
+                  reservations.map(r => r.salt)
+                )
               } catch (relErr) {
                 captureError(relErr, { flow: 'cart_checkout', step: 'release' })
               }
@@ -399,34 +439,70 @@ export function Cart() {
           // Relayed, so there are no per-group prompts to count: report every group as already confirmed so
           // the modal goes straight to settling. Passing 0 here would instead re-arm "awaiting confirmation"
           // for a rail that never asks for one.
+          // Relayed transactions are broadcast too, and this rail is the DEFAULT for a trade-only basket —
+          // without this the catch below released credits that were already consumed on-chain, which is the
+          // exact defect this whole change exists to fix, left live on the busiest path.
+          const saltsByHash = new Map<string, string[]>()
           hashes = await buyManyGasless({
             purchases: tradeOnlyPurchases,
             buyer: session.address,
             signer: session.signer,
-            onSigned: () => onSigned(sigTotal)
+            onSigned: () => onSigned(sigTotal),
+            onBroadcast: ({ txHash, salts }) => {
+              saltsByHash.set(txHash, salts)
+              salts.forEach(salt => broadcastSalts.add(salt))
+            }
           })
           // Once buyManyGasless returns, every group's meta-tx is BROADCAST. A group that's only
           // pending (unconfirmed within the window) may still land, so we must NOT release the
           // reservations — the credits-server reconciles those against the indexed CreditUsed event.
           // Release (rethrow) ONLY when every failure is a hard revert and none is still pending.
           const settled = await Promise.allSettled(hashes.map(h => waitForSettlement(h)))
+          // Per-group outcome, which the hash -> salts pairing above is what makes possible. waitForSettlement
+          // draws exactly the distinction needed: it resolves on status 1, throws SettlementPendingError while
+          // a transaction may still land, and throws a plain Error on a hard revert (credits NOT consumed).
+          settled.forEach((r, i) => {
+            const salts = saltsByHash.get(hashes[i]) ?? []
+            if (r.status === 'fulfilled') {
+              salts.forEach(salt => settledSalts.add(salt))
+              settledHashes.push(hashes[i])
+            } else if (!(r.reason instanceof SettlementPendingError)) salts.forEach(salt => revertedSalts.add(salt))
+          })
           const failures = settled.flatMap(r => (r.status === 'rejected' ? [r.reason as unknown] : []))
           if (failures.length && !failures.some(r => r instanceof SettlementPendingError)) {
             throw failures[0]
           }
-          // TODO(cart-hardening): a mixed batch (one group reverted + one still pending) keeps the
-          // reverted group's reservation locked until the credits-server TTL, since we can't map a
-          // per-group failure back to its items without buyManyGasless returning per-group results.
-          // Bounded (no double-spend, no loss); revisit with per-group settlement tracking.
           usedGasless = true
         } catch (gaslessErr) {
           if (!(gaslessErr instanceof GaslessUnavailableError)) throw gaslessErr
-          hashes = await buyManyWithCredits({ purchases, buyer: session.address, signer: session.signer, onSigned })
+          hashes = await buyManyWithCredits({
+            purchases,
+            buyer: session.address,
+            signer: session.signer,
+            onSigned,
+            onBroadcast: ({ salts }) => salts.forEach(salt => broadcastSalts.add(salt)),
+            onSettled: ({ txHash, salts }) => {
+              salts.forEach(salt => settledSalts.add(salt))
+              settledHashes.push(txHash)
+            },
+            onReverted: ({ salts }) => salts.forEach(salt => revertedSalts.add(salt))
+          })
         }
       } else {
         // Was missing `onSigned`, so with gasless off the modal sat on "awaiting confirmation" through
         // settlement. Harmless when there is one prompt; with two it would never advance the counter.
-        hashes = await buyManyWithCredits({ purchases, buyer: session.address, signer: session.signer, onSigned })
+        hashes = await buyManyWithCredits({
+          purchases,
+          buyer: session.address,
+          signer: session.signer,
+          onSigned,
+          onBroadcast: ({ salts }) => salts.forEach(salt => broadcastSalts.add(salt)),
+          onSettled: ({ txHash, salts }) => {
+            salts.forEach(salt => settledSalts.add(salt))
+            settledHashes.push(txHash)
+          },
+          onReverted: ({ salts }) => salts.forEach(salt => revertedSalts.add(salt))
+        })
       }
 
       // Remove exactly what we bought (leaves any not-charged rows in place for a retry).
@@ -461,21 +537,76 @@ export function Cart() {
       navigate('/success', { state: successState, replace: true })
     } catch (e) {
       if (!isUserRejection(e)) captureError(e, { flow: 'cart_checkout', step, cart_size: lines.length })
+      /**
+       * Release only what did NOT go out, and take out of the cart only what the buyer actually OWNS.
+       *
+       * Two different questions, so two different inputs (see partitionReservations):
+       *  - a group that was broadcast and not known to have reverted may be consumed on-chain, so releasing it
+       *    would raise the balance by money already spent; the reconciler re-debits it moments later and
+       *    anything bought in the gap drives the balance negative. Left alone.
+       *  - a group that mined and REVERTED consumed nothing, so it is released here rather than stranding that
+       *    much of the balance until the TTL expires (~15 min) — and its lines stay in the cart, because
+       *    nothing was bought.
+       */
+      const spentSalts = new Set([...broadcastSalts].filter(salt => !revertedSalts.has(salt)))
+      const { toRelease, boughtItemIds } = partitionReservations({
+        reservations,
+        spent: spentSalts,
+        settled: settledSalts
+      })
+      const boughtUnits = purchasedUnits.filter(u => boughtItemIds.includes(u.id))
+      const unboughtCredits = purchasedUnits.filter(u => !boughtItemIds.includes(u.id))
+      // Only the value that did NOT go through is a failure. Booking the whole basket here (and never emitting
+      // a completed event for the settled half) understates GMV and overstates checkout failure on exactly the
+      // flow below.
       track(isUserRejection(e) ? 'Shop Purchase Cancelled' : 'Shop Purchase Failed', {
         step,
         error_code: errorCode(e),
-        value_usd: creditsToUsd(purchasedUnits.reduce((n, i) => n + i.priceCredits, 0)),
-        cart_size: units.length
+        value_usd: creditsToUsd(unboughtCredits.reduce((n, i) => n + i.priceCredits, 0)),
+        cart_size: units.length,
+        partial: boughtUnits.length > 0
       })
-      // Release any dollars we reserved so the balance isn't stuck until the TTL (~15 min).
-      if (reservedSalts.length) {
+      if (toRelease.length) {
         try {
-          await cancelUsdIntents(session.identity, reservedSalts)
+          await cancelUsdIntents(session.identity, toRelease)
         } catch (relErr) {
           captureError(relErr, { flow: 'cart_checkout', step: 'release' })
         }
-        void qc.invalidateQueries({ queryKey: ['usd-balance'] })
       }
+      // Refreshed either way: a broadcast group has spent real balance even though this checkout failed.
+      void qc.invalidateQueries({ queryKey: ['usd-balance'] })
+
+      /**
+       * PART of the basket was bought. Say so, and keep the rest.
+       *
+       * Reporting a plain failure here is wrong twice over: the buyer already owns those items, and the cart
+       * still holds the lines they paid for, so a retry would double-buy them. So the purchased lines are
+       * removed (the same thing the success path does) and the unpurchased ones stay for a retry — which is
+       * also what makes the copy honest.
+       *
+       * Keyed on SETTLED, not broadcast: a reverted transaction bought nothing, and emptying that buyer's cart
+       * would lose them the basket they still have to pay for.
+       */
+      if (boughtUnits.length > 0) {
+        boughtItemIds.forEach(id => remove(id))
+        setReview(null)
+        invalidateAfterPurchase(qc)
+        // The half that DID go through is revenue and has to be reported as such, per settled group.
+        track('Shop Completed Purchase', {
+          ...purchaseItemsProps(boughtUnits),
+          payment_type: 'credits',
+          no_crypto_step: usedGasless,
+          transaction_hash: settledHashes[0] ?? null,
+          partial: true
+        })
+        // The existing error phase, with copy that tells the truth. A dedicated partial-success screen (the
+        // bought items listed, a "retry the rest" action) is worth building, but the money defect is the
+        // release above — this at least stops the buyer being told nothing happened when something did.
+        setModal({ phase: 'error', message: t('cart.error.partiallyBought') })
+        setBusy(false)
+        return
+      }
+
       setModal({ phase: 'error', message: friendlyError(e) })
     }
   }
@@ -729,7 +860,13 @@ export function Cart() {
     )
     const creditedCents = allocation.reduce((n, c) => n + c, 0)
     const gapWei = manaForRemainder(Math.max(0, totalCents - creditedCents), totalCents, manaWei)
-    const reservedSalts: string[] = []
+    const reservations: Reservation[] = []
+    // Same hazard as the credits-only rail, one rung lower: this batch is a single accept([...]), so there is
+    // no partial basket — but a broadcast whose wait() then fails (RPC timeout, dropped socket) still spent
+    // its credits, and the catch below used to release them. See partitionReservations for why that is worse
+    // than leaving them pending.
+    const broadcastSalts = new Set<string>()
+    const revertedSalts = new Set<string>()
     setModal({ phase: 'processing', stage: 'reserving', step: 1, total: units.length })
     try {
       // The combined rail is trade-only: its MANA leg is paid through the same accept([...]) call, which a
@@ -750,7 +887,7 @@ export function Cart() {
             ? { contractAddress: unitItem.contractAddress, itemId: String(unitItem.itemId) }
             : undefined
         )
-        reservedSalts.push(credit.id)
+        reservations.push({ salt: credit.id, itemId: unitItem.id })
         purchases.push({ kind: 'trade', trade: tradeUnits[i].trade, credits: [credit], maxCreditedValue })
       }
       // Units with no credit still have to be in the accept([...]) batch — carry them with no credits so
@@ -773,7 +910,9 @@ export function Cart() {
         purchases,
         buyer: session.address,
         signer: session.signer,
-        onSigned
+        onSigned,
+        onBroadcast: ({ salts }) => salts.forEach(salt => broadcastSalts.add(salt)),
+        onReverted: ({ salts }) => salts.forEach(salt => revertedSalts.add(salt))
       })
       lines.forEach(l => remove(l.item.id))
       setReview(null)
@@ -785,10 +924,24 @@ export function Cart() {
       void qc.invalidateQueries({ queryKey: ['mana-balance'] })
       finishCartPurchase(purchasedLines, hashes)
     } catch (e) {
-      if (reservedSalts.length) {
-        void cancelUsdIntents(session.identity, reservedSalts).catch(() => {})
+      // Release only what did NOT go out. A broadcast group's credits are spent whatever happens next.
+      const { toRelease } = partitionReservations({
+        reservations,
+        spent: new Set([...broadcastSalts].filter(salt => !revertedSalts.has(salt))),
+        // This rail decides nothing about ownership (see the TODO below), so it asks nothing about it.
+        settled: new Set()
+      })
+      if (toRelease.length) {
+        void cancelUsdIntents(session.identity, toRelease).catch(() => {})
+      }
+      // Refreshed either way: a broadcast batch has spent real balance even though this checkout failed.
+      if (reservations.length) {
         void qc.invalidateQueries({ queryKey: ['usd-balance'] })
       }
+      // TODO(cart-combined-partial): this rail submits ONE batch, so a broadcast means the whole basket is on
+      // its way and the lines should leave the cart with copy that says so — the credits-only rail already
+      // does that. Left out here because the MANA-covered units carry no reservation, so the bought set can't
+      // be derived from `reservations` alone. The money defect (releasing spent credits) is fixed above.
       handleChargeError(e, 'buy_cart_combined')
     }
   }

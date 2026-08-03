@@ -200,3 +200,59 @@ export async function reviewCart(
 
   return { buyable, unavailable, own, liveTotalCredits, orderChanged }
 }
+
+/**
+ * Split a failed checkout's reservations into "must not touch" and "release now", and name what was bought.
+ *
+ * A mixed basket needs one transaction per group, so a buyer can confirm the first wallet prompt and reject the
+ * second — and by then the first is irreversibly on its way. That makes two different things true at once, and
+ * this is where they are decided:
+ *
+ *  - a BROADCAST group's credits are spent for good, so its reservations must be left alone. Releasing them
+ *    raises the balance by money already spent; the reconciler re-debits it once the squid indexes the
+ *    consumption, and anything bought in the gap drives the balance negative.
+ *  - an UNBROADCAST group's reservations must be released now, or that much of the buyer's balance stays
+ *    stranded until the TTL expires.
+ *  - a BROADCAST-THEN-REVERTED group consumed nothing (a revert rolls the whole call back), so it belongs with
+ *    the second case — and its lines must NOT leave the cart, because the buyer bought nothing. This is why
+ *    release and ownership are two separate inputs here rather than one `broadcast` set doing both jobs: using
+ *    broadcast as a proxy for ownership empties the cart of a buyer whose transaction failed.
+ *
+ * Pure, and outside the page component, because the page cannot be tested at this level — the first version of
+ * this logic shipped with the item-id half silently doing nothing, and no test could see it.
+ *
+ * A reservation carries the line it paid for, PAIRED at creation rather than tracked in a second structure
+ * beside the salt list. Both halves are needed here, and two structures stay in step only by remembering to
+ * write both: the first version did keep a parallel map, the caller never populated it, and that typechecked
+ * and passed every test asserting on the salts while the cart cleanup silently did nothing (Jarvis P1). A
+ * salt is still the only identifier that survives from the reservation through to the broadcast — it just
+ * no longer travels alone.
+ */
+export type Reservation = {
+  /** The ephemeral credit's salt, as the broadcast reports it. */
+  salt: string
+  /** The cart line this reservation pays for. */
+  itemId: string
+}
+
+export function partitionReservations(opts: {
+  /** Every reservation this checkout made, in order. */
+  reservations: readonly Reservation[]
+  /**
+   * Salts that MAY have been consumed on-chain — broadcast, and not known to have reverted.
+   *
+   * This is the release decision, and it is deliberately the pessimistic set: anything in here is left alone.
+   */
+  spent: ReadonlySet<string>
+  /**
+   * Salts whose transaction MINED SUCCESSFULLY. This is the ownership decision — only these lines leave the
+   * cart. Always a subset of `spent`; a broadcast that reverted is in neither.
+   */
+  settled: ReadonlySet<string>
+}): { toRelease: string[]; boughtItemIds: string[] } {
+  const { reservations, spent, settled } = opts
+  const toRelease = reservations.filter(r => !spent.has(r.salt)).map(r => r.salt)
+  // De-duplicated: a quantity-2 line reserves two salts, and the cart holds one row for it.
+  const boughtItemIds = [...new Set(reservations.filter(r => settled.has(r.salt)).map(r => r.itemId))]
+  return { toRelease, boughtItemIds }
+}
