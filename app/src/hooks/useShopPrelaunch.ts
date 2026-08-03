@@ -22,14 +22,17 @@ import { useWallet } from '~/store/wallet'
 export function useShopPrelaunch(): boolean {
   const address = useWallet(s => s.session?.address)
 
-  // PRODUCTION ONLY, and by a runtime hostname check rather than by the flag.
+  // PUBLIC SURFACES ONLY (production + staging), and by a runtime hostname check rather than by the flag.
   //
-  // A pre-launch curtain is a production concern by definition: dev and staging are where QA, design and
-  // product work, often without a wallet connected, and hiding the Shop from them buys nothing. The obvious
-  // alternative — scoping the flag with a hostname strategy — is the trapdoor this deliberately avoids: those
-  // are evaluated against the REFERER, and the browser and credits-server present different ones, so the two
-  // halves of this gate could silently disagree about whether the Shop is open. `core-stripe-payments` is
-  // already misconfigured that way in the production flag file. The flag stays global; the environment
+  // Staging counts because it is no longer a second copy of dev: it reads the production APIs, Polygon and
+  // the production credits-server, which makes it the launch rehearsal — and a rehearsal that cannot show
+  // the curtain is not rehearsing the launch. Dev stays exempt: it is the internal surface, on a testnet,
+  // where QA and design work without a wallet and hiding the Shop buys nothing.
+  //
+  // The obvious alternative — scoping the flag with a hostname strategy — is the trapdoor this deliberately
+  // avoids: those are evaluated against the REFERER, and the browser and credits-server present different
+  // ones, so the two halves of this gate could silently disagree about whether the Shop is open.
+  // `core-stripe-payments` is already misconfigured that way. The flag stays global; the environment
   // question is answered where the answer is deterministic.
   //
   // The SERVER gate (credits-server) is deliberately NOT environment-scoped: armed on dev it only refuses
@@ -49,7 +52,7 @@ export function useShopPrelaunch(): boolean {
     retry: 1
   })
 
-  if (!config.isProduction) return false
+  if (!config.isProduction && !config.isStaging) return false
   if (!data?.armed) return false
   // An armed gate with no address connected hides the Shop: a visitor before launch is exactly who this is
   // for. Note the asymmetry with the server, which refuses EVERYONE when the list is empty — there, an empty

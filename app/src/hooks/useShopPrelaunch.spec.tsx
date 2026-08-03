@@ -8,12 +8,13 @@ import { useShopPrelaunch } from '~/hooks/useShopPrelaunch'
 import { resetFeatureFlagsCache } from '~/lib/featureFlags'
 import { useWallet } from '~/store/wallet'
 
-// The curtain is production-only, and the test environment resolves to dev — so every case that expects it to
-// engage has to stand in as production. Done by stubbing the resolved flag rather than the hostname, because
-// the hostname resolution is @dcl/ui-env's job and not what these cases are about.
+// The curtain only engages on the public surfaces (production + staging), and the test environment resolves
+// to dev — so every case that expects it to engage has to stand in as production. Done by stubbing the
+// resolved flag rather than the hostname, because the hostname resolution is @dcl/ui-env's job and not what
+// these cases are about.
 vi.mock('~/config', async importOriginal => {
   const actual = await importOriginal<typeof import('~/config')>()
-  return { config: { ...actual.config, isProduction: true } }
+  return { config: { ...actual.config, isProduction: true, isStaging: false } }
 })
 
 const ALLOWED = '0xaabbccddeeff00112233445566778899aabbccdd'
@@ -141,17 +142,30 @@ describe('useShopPrelaunch', () => {
     await waitFor(() => expect(result.current).toBe(true))
   })
   /**
-   * The environment gate, which exists so dev and staging are never curtained: that is where QA, design and
-   * product work, often with no wallet connected. Deliberately a runtime hostname check rather than a
-   * feature-flag hostname strategy — those are evaluated against the REFERER, and the browser and
+   * The environment gate, which exists so DEV is never curtained: that is the internal surface, on a
+   * testnet, where QA and design work with no wallet connected. Deliberately a runtime hostname check rather
+   * than a feature-flag hostname strategy — those are evaluated against the REFERER, and the browser and
    * credits-server present different ones, so the two halves of the gate could silently disagree.
    */
-  it('should never hide the shop outside production, however the flag is set', async () => {
+  it('should never hide the shop on dev, however the flag is set', async () => {
     vi.spyOn(config, 'isProduction', 'get').mockReturnValue(false)
+    vi.spyOn(config, 'isStaging', 'get').mockReturnValue(false)
     mockFlagService(armed(''))
 
     const result = await hideDecision()
 
     expect(result.current).toBe(false)
+  })
+
+  // Staging DOES curtain: it reads the production APIs, Polygon and the production credits-server, so it is
+  // the launch rehearsal, and a rehearsal that cannot show the curtain is not rehearsing the launch.
+  it('should hide the shop on staging, the same as production', async () => {
+    vi.spyOn(config, 'isProduction', 'get').mockReturnValue(false)
+    vi.spyOn(config, 'isStaging', 'get').mockReturnValue(true)
+    mockFlagService(armed(''))
+
+    const result = await hideDecision()
+
+    expect(result.current).toBe(true)
   })
 })
