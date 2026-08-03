@@ -21,10 +21,11 @@ const LOOKS: ReadonlyArray<Omit<Avatar, 'src'>> = [
     frame: 'linear-gradient(180deg, #050505, #3d3d3d)',
     fade: 'rgba(27, 27, 27, 0.8)',
     urns: [
-      'urn:decentraland:matic:collections-v2:0x16ad175bafdf45cb618dd8b1e0bc0301d886e507:1',
       'urn:decentraland:matic:collections-v2:0x80c7fd374b1f524029ffd337001454bcccba2092:1',
       'urn:decentraland:matic:collections-v2:0x58628c490d2c8d4a9b59fba0ad730ecaabe5a212:0',
-      'urn:decentraland:matic:collections-v2:0xad3d374d5da6c954e286863d7334d5d6ffda389b:0'
+      'urn:decentraland:matic:collections-v2:0xad3d374d5da6c954e286863d7334d5d6ffda389b:0',
+      'urn:decentraland:matic:collections-v2:0x90f3d8780f8e32c0f1f937edfc0ad930b2e7347f:0',
+      'urn:decentraland:matic:collections-v2:0x2b52d26e16297936ab5acbd51e2736ed070096f4:0'
     ]
   },
   {
@@ -32,11 +33,11 @@ const LOOKS: ReadonlyArray<Omit<Avatar, 'src'>> = [
     fade: 'rgba(229, 20, 104, 0.8)',
     urns: [
       'urn:decentraland:matic:collections-v2:0x2cf05cd6b8c7a6eb9fc98eb0499dbc8837c1d58e:1',
-      'urn:decentraland:matic:collections-v2:0x11c59ac0a8a4c3f92b40433a540615191588b6e9:0',
-      'urn:decentraland:matic:collections-v2:0x92698f59b66431f0f858a43b817d03c637b57cb4:0',
-      'urn:decentraland:matic:collections-v2:0x38414c55d46bc48c7e5c2a6f49da664595ec8bc1:0',
       'urn:decentraland:matic:collections-v2:0xdea4758862fd7cfd38523a8d4c171ebd31ee5599:0',
-      'urn:decentraland:matic:collections-v2:0x33ac6fd9083b8f823cb78563e8953e7dd0933e82:0'
+      'urn:decentraland:matic:collections-v2:0x33ac6fd9083b8f823cb78563e8953e7dd0933e82:0',
+      'urn:decentraland:matic:collections-v2:0x6ec99530679f2a1098a7bda71e9376701947bd92:0',
+      'urn:decentraland:matic:collections-v2:0xfe394c5655e0d4f8cb9fa908a1b8be82ea9421d8:0',
+      'urn:decentraland:matic:collections-v2:0xca53b9436be1d663e050eb9ce523decbc656365c:0'
     ]
   },
   {
@@ -66,10 +67,10 @@ const LOOKS: ReadonlyArray<Omit<Avatar, 'src'>> = [
       'urn:decentraland:matic:collections-v2:0x90f3d8780f8e32c0f1f937edfc0ad930b2e7347f:0',
       'urn:decentraland:matic:collections-v2:0xba7f33d73aa04b81cbee3f2ecf95f5d442939d0e:1',
       'urn:decentraland:matic:collections-v2:0x7a7d7b3c14324855d966d9164d3517dfc9334c3a:0',
-      'urn:decentraland:matic:collections-v2:0x922814f775bbe4e4d7263db7d6d99595df567bb8:0',
       'urn:decentraland:matic:collections-v2:0x9d1b1451346b87661a1936c4398d3069a27ec4b5:0',
       'urn:decentraland:matic:collections-v2:0xea5fa934cb38cf3abb28190fad15c9dd4a0c90e8:0',
-      'urn:decentraland:matic:collections-v2:0xeede64bfaf8055492aa500846ec7c6e6a9f533d5:3'
+      'urn:decentraland:matic:collections-v2:0x19cc30002e8b5d2cfc214af9549e85c1a7c82acc:0',
+      'urn:decentraland:matic:collections-v2:0xc90556220e4cde176a870d3291a1508b7b20b63e:1'
     ]
   },
   {
@@ -117,21 +118,20 @@ const LOOKS: ReadonlyArray<Omit<Avatar, 'src'>> = [
       'urn:decentraland:matic:collections-v2:0xb16c1e230bfe3b53a82d873115d26f1ce3b73e7f:6',
       'urn:decentraland:matic:collections-v2:0x60574607c3adc7414132505c56087843f258531e:0',
       'urn:decentraland:matic:collections-v2:0x26db587aee669b1f4dbb87e577324a890e852b72:0',
-      'urn:decentraland:matic:collections-v2:0x388323ad9a9da54a8581214a471040c66c6b7e5c:1',
+      'urn:decentraland:matic:collections-v2:0xd255a2572ed42d0b67056ed32bb7196330bfe2c5:0',
       'urn:decentraland:matic:collections-v2:0x0c956c74518ed34afb7b137d9ddfdaea7ca13751:0'
     ]
   },
   {
-    frame: 'linear-gradient(180deg, #4323c1, #d700db)',
-    fade: 'rgba(152, 0, 0, 0.8)',
+    frame: 'linear-gradient(180deg, #ffb200, #fcfcfc)',
+    fade: 'rgba(136, 0, 0, 0.8)',
     urns: [
-      'urn:decentraland:matic:collections-v2:0x442950c405cb1181eadb8ad1ffbc17bb419db0f6:0',
-      'urn:decentraland:matic:collections-v2:0xd0622c0b8185b52012cdb7c13baa321b4c70fcf0:2',
       'urn:decentraland:matic:collections-v2:0x70f553e2fe863c68fb2420f90d4a13854ee4f25e:0',
-      'urn:decentraland:matic:collections-v2:0x834c4ba5c7b1b3fc0a732462d56a23dc3365052b:0',
-      'urn:decentraland:matic:collections-v2:0xc1538b253b2435df4dc51088b0754b5c832455a7:0',
-      'urn:decentraland:matic:collections-v2:0xca53b9436be1d663e050eb9ce523decbc656365c:0',
-      'urn:decentraland:matic:collections-v2:0x0bf152a83a6fc55066c2b664b164ca2916ad38f5:1'
+      'urn:decentraland:matic:collections-v2:0x1c379f0a83320dbeff78a6b1f51097a27dd92556:0',
+      'urn:decentraland:matic:collections-v2:0x0bf152a83a6fc55066c2b664b164ca2916ad38f5:2',
+      'urn:decentraland:matic:collections-v2:0x0bf152a83a6fc55066c2b664b164ca2916ad38f5:1',
+      'urn:decentraland:matic:collections-v2:0x5df4b7dd8b3ceadef1ed937a88d56b6647bf3015:1',
+      'urn:decentraland:matic:collections-v2:0xaca18156b12632e8deda762f13ac047850e88615:0'
     ]
   },
   {
@@ -140,10 +140,10 @@ const LOOKS: ReadonlyArray<Omit<Avatar, 'src'>> = [
     urns: [
       'urn:decentraland:matic:collections-v2:0x936f7846db05297b33f19e38db87a879e8fc79a0:1',
       'urn:decentraland:matic:collections-v2:0xbbfb8014acb466df0ec6fe87081aa7263a63c2a3:0',
-      'urn:decentraland:matic:collections-v2:0x4fde0297c458e7a0bc35f07c015f322ca31b459e:1',
       'urn:decentraland:matic:collections-v2:0xc7609b3eed4ddea40e7eccd29c8bd77a3937c88a:0',
       'urn:decentraland:matic:collections-v2:0xbae8b89b8865a6c22f28d39ca7d3bf2baebb384a:0',
-      'urn:decentraland:matic:collections-v2:0x705652b66a12dcf782b0b3d5673fbf0c1797eba2:3'
+      'urn:decentraland:matic:collections-v2:0x705652b66a12dcf782b0b3d5673fbf0c1797eba2:3',
+      'urn:decentraland:matic:collections-v2:0xddf84ba5e79dddb25d1fa7246077ce1e05b4b81b:0'
     ]
   },
   {
@@ -164,17 +164,16 @@ const LOOKS: ReadonlyArray<Omit<Avatar, 'src'>> = [
       'urn:decentraland:matic:collections-v2:0x5826113f948fe30978b822b210c7399dd4c0342a:0',
       'urn:decentraland:matic:collections-v2:0x42d62dbdc8248120385195b282b6b2f651661482:1',
       'urn:decentraland:matic:collections-v2:0x636a86b6d6c0c72f349ac8386ffee609afaf3330:2',
-      'urn:decentraland:matic:collections-v2:0xaf7fd47de3cf70ca3dead1a56544733e115b178d:0',
       'urn:decentraland:matic:collections-v2:0xdd0242fe5e22ac76211fd6fa45fa9579294961c3:2',
       'urn:decentraland:matic:collections-v2:0xfb99d1b219d6d99a3ccdc7893769a620921fd938:0',
-      'urn:decentraland:matic:collections-v2:0x8803d94e27b3844dd191fe354ec5d88b49c66f5d:0'
+      'urn:decentraland:matic:collections-v2:0x8803d94e27b3844dd191fe354ec5d88b49c66f5d:0',
+      'urn:decentraland:matic:collections-v2:0xb84bd70d0ab76cdfd8bdfa7163926d93b15997fd:0'
     ]
   },
   {
     frame: 'linear-gradient(180deg, #e0e0e0, #3c3c3c)',
     fade: 'rgba(28, 28, 28, 0.8)',
     urns: [
-      'urn:decentraland:matic:collections-v2:0x3f3cc81bfef127453c17ad24fffa8a760aa22cae:0',
       'urn:decentraland:matic:collections-v2:0xda2cfda208b9abbd6f8771f52cda1355e384d3ff:2',
       'urn:decentraland:matic:collections-v2:0x9944c10d25e62a0401c5a7113081388a52ce0e3c:0',
       'urn:decentraland:matic:collections-v2:0x705652b66a12dcf782b0b3d5673fbf0c1797eba2:0',
@@ -199,11 +198,11 @@ const LOOKS: ReadonlyArray<Omit<Avatar, 'src'>> = [
     frame: 'linear-gradient(180deg, #2f323f, #7b83a5)',
     fade: 'rgba(123, 131, 165, 0.8)',
     urns: [
-      'urn:decentraland:matic:collections-v2:0x487f7cc519dcffe91311b77d15ca7bc4a8f24991:4',
-      'urn:decentraland:matic:collections-v2:0x0bf152a83a6fc55066c2b664b164ca2916ad38f5:3',
       'urn:decentraland:matic:collections-v2:0xcc39ca501d62f5f751ca56f032b58918c1f880c0:0',
       'urn:decentraland:matic:collections-v2:0xfb26d0b332d8954b3a049276a0865c8f7d106c31:0',
-      'urn:decentraland:matic:collections-v2:0x28e16e69e8df44224713558555d898faba2d1aef:0'
+      'urn:decentraland:matic:collections-v2:0x28e16e69e8df44224713558555d898faba2d1aef:0',
+      'urn:decentraland:matic:collections-v2:0x0c86f3ea65cc3c607e15549e5a1fd66060c02053:0',
+      'urn:decentraland:matic:collections-v2:0x487f7cc519dcffe91311b77d15ca7bc4a8f24991:2'
     ]
   },
   {
@@ -212,9 +211,9 @@ const LOOKS: ReadonlyArray<Omit<Avatar, 'src'>> = [
     urns: ['urn:decentraland:matic:collections-v2:0xba40702931855b6e575b7788bff4f4f0adf4f462:10']
   },
   {
-    frame: 'linear-gradient(180deg, #374955, #78a1bb)',
-    fade: 'rgba(120, 161, 187, 0.8)',
-    urns: ['urn:decentraland:matic:collections-v2:0xba40702931855b6e575b7788bff4f4f0adf4f462:10']
+    frame: 'linear-gradient(180deg, #ff0036, #4111ff)',
+    fade: 'rgba(140, 17, 255, 0.8)',
+    urns: ['urn:decentraland:matic:collections-v2:0x4de7716e86fbf8070245ee6aa101178747cf3a82:5']
   },
   {
     frame: 'linear-gradient(180deg, #c0ebfd 9.14%, #ff9de8)',
@@ -224,10 +223,7 @@ const LOOKS: ReadonlyArray<Omit<Avatar, 'src'>> = [
   {
     frame: 'linear-gradient(180deg, #ed4f00, #ede16a)',
     fade: 'rgba(237, 225, 106, 0.8)',
-    urns: [
-      'urn:decentraland:matic:collections-v2:0xe9f388ae27c726c4772c85a194e9791b1a0a913c:0',
-      'urn:decentraland:matic:collections-v2:0xfe1662c26aa58af813ae90a691667c4fa6022a08:0'
-    ]
+    urns: ['urn:decentraland:matic:collections-v2:0xe9f388ae27c726c4772c85a194e9791b1a0a913c:0']
   },
   {
     frame: 'linear-gradient(180deg, #ad94d9, #2a1240)',
@@ -241,14 +237,14 @@ const LOOKS: ReadonlyArray<Omit<Avatar, 'src'>> = [
   },
   {
     frame: 'linear-gradient(180deg, #4cff19, #ceffc0)',
-    fade: 'rgba(206, 255, 192, 0.8)',
+    fade: 'rgba(99, 59, 3, 0.8)',
     urns: [
       'urn:decentraland:matic:collections-v2:0x4521fac36b7947256119d3c1583fc470d31e5ee9:0',
       'urn:decentraland:matic:collections-v2:0x2cca599ea02d50397325996f85aacb631a24d4a6:0',
-      'urn:decentraland:matic:collections-v2:0x08dc1667db12675e8cfb6e58ba30fe865d8c4bb6:0',
-      'urn:decentraland:matic:collections-v2:0xeede64bfaf8055492aa500846ec7c6e6a9f533d5:0',
-      'urn:decentraland:matic:collections-v2:0xba4ea586691655dbb3623320ca40d13e875fa37d:0',
-      'urn:decentraland:matic:collections-v2:0x65cfb23fd782a3ff1b0db3a8ab98c8cc485d3653:1'
+      'urn:decentraland:matic:collections-v2:0xae473ded66fd0b2b99039f7d0ddd8e66beb485b8:0',
+      'urn:decentraland:matic:collections-v2:0x613f564873c38481d136fd2f9f45ee1db5f1a80f:0',
+      'urn:decentraland:matic:collections-v2:0xe0084385c1b4c73c5174224d7c131980d9687289:0',
+      'urn:decentraland:matic:collections-v2:0xfbc9b2cff58dcc29dab28e2af7eac80c9012fe02:0'
     ]
   },
   {

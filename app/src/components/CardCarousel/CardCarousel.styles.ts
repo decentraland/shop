@@ -6,7 +6,7 @@ const { colors, media } = theme
 // Reuses the global `.row` head/title/viewall; adds the Figma side arrows + pagination dots.
 export const Carousel = styled.section`
   position: relative;
-  margin-bottom: 40px;
+  margin-bottom: 50px;
 `
 
 export const Viewport = styled.div`

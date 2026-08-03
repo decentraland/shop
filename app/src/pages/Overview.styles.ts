@@ -77,7 +77,7 @@ export const Hero = styled.section`
   align-items: center;
   aspect-ratio: 1721 / 304;
   max-height: 340px;
-  margin-bottom: 40px;
+  margin-bottom: 50px;
   overflow: hidden;
   border-radius: ${radius.banner};
   background: #14161b;
@@ -134,7 +134,7 @@ export const Promos = styled.section`
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 24px;
-  margin: 0 0 40px;
+  margin: 0 0 50px;
 
   ${media.maxWidth('mobile')} {
     grid-template-columns: 1fr;
