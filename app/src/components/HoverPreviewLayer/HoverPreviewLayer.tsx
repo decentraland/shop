@@ -4,7 +4,6 @@ import { useLocation } from 'react-router-dom'
 import { PreviewEmote, PreviewType } from '@dcl/schemas'
 import { PreviewMessageType, sendMessage } from '@dcl/schemas/dist/dapps/preview'
 import { WearablePreview } from '~/components/LazyWearablePreview'
-import { config } from '~/config'
 import { useHoverPreview } from '~/store/hoverPreview'
 import { useWallet } from '~/store/wallet'
 import { useProfile } from '~/hooks/useProfile'
@@ -170,7 +169,6 @@ export function HoverPreviewLayer() {
         profile="default"
         disableBackground
         disableFadeEffect
-        dev={config.chainId === 80002}
         onLoad={handleLoad}
       />
     </Wrap>

@@ -5,7 +5,6 @@ import { WearablePreview } from '~/components/LazyWearablePreview'
 import { useCart } from '~/store/cart'
 import { useWallet } from '~/store/wallet'
 import { useProfile } from '~/hooks/useProfile'
-import { config } from '~/config'
 import { CURRENCY } from '~/lib/currency'
 import { track } from '~/lib/analytics'
 import { isWearable, slotOf, slotRegion, defaultWorn, toggleWorn, conflictingIds, wornUrns } from '~/lib/outfit'
@@ -149,7 +148,6 @@ export function FittingRoom() {
                 emote={PreviewEmote.FASHION}
                 disableBackground
                 disableFadeEffect
-                dev={config.chainId === 80002}
                 unity
                 onLoad={() => setPreviewReady(true)}
               />

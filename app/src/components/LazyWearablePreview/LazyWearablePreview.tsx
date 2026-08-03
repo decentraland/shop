@@ -3,6 +3,7 @@ import { PreviewRenderer, PreviewUnityMode } from '@dcl/schemas'
 import type { WearablePreview as WearablePreviewComponent } from 'decentraland-ui2/dist/components/WearablePreview'
 import { pickRenderer } from '~/lib/pickRenderer'
 import { track } from '~/lib/analytics'
+import { config } from '~/config'
 import { useUnityWearablePreview } from '~/hooks/useUnityWearablePreview'
 
 // The 3D preview iframe + its controller/schema deps only matter on hover (cards) and the detail
@@ -64,6 +65,9 @@ function Preview({
   return (
     <Suspense fallback={null}>
       <WearablePreviewLazy
+        dev={config.chainId === 80002}
+        peerUrl={config.peerUrl}
+        marketplaceServerUrl={config.marketplaceServerUrl}
         {...props}
         unity={shouldUseUnity}
         unityMode={shouldUseUnity ? unityMode : undefined}
