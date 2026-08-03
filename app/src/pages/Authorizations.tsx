@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useWallet } from '~/store/wallet'
-import { fetchMyAssets, type MyAsset } from '~/lib/api'
+import { fetchContractRegistry, fetchMyAssets, type ContractRegistry, type MyAsset } from '~/lib/api'
+import { shortAddress } from '~/lib/address'
 import {
   getAuthorizationStatus,
   setAuthorization,
@@ -116,7 +117,32 @@ function AuthorizationRow({
   )
 }
 
-// Distinct collections the owner holds collectibles in — one selling authorization per collection.
+// A collection missing from this list is a seller who cannot list at all, so the holdings are paged
+// through in full rather than sampled. The ceiling exists only so a wallet with an unbounded number of
+// collectibles cannot hang the page — and when it bites, the list says so instead of quietly dropping
+// collections.
+const OWNED_PAGE_SIZE = 500
+const OWNED_MAX_PAGES = 10
+const OWNED_CEILING = OWNED_PAGE_SIZE * OWNED_MAX_PAGES
+
+// Every collectible the owner holds in one category. The first page reports the true `total`, so the
+// remaining pages are known up front and fetched at once instead of walking the offsets one by one.
+async function fetchOwnedCategory(owner: string, category: string) {
+  const firstPage = await fetchMyAssets(owner, { category, first: OWNED_PAGE_SIZE })
+  const pages = Math.min(Math.ceil(firstPage.total / OWNED_PAGE_SIZE), OWNED_MAX_PAGES)
+  const rest = await Promise.all(
+    Array.from({ length: Math.max(0, pages - 1) }, (_, i) =>
+      fetchMyAssets(owner, { category, first: OWNED_PAGE_SIZE, skip: (i + 1) * OWNED_PAGE_SIZE })
+    )
+  )
+  return {
+    assets: [...firstPage.assets, ...rest.flatMap(page => page.assets)],
+    truncated: firstPage.total > OWNED_CEILING
+  }
+}
+
+// Distinct collections the owner holds collectibles in — one selling authorization per collection
+// (setApprovalForAll is per contract; there is no finer granularity to offer).
 function useOwnedCollections(owner: string | undefined) {
   return useQuery({
     queryKey: ['owned-collections', owner],
@@ -124,17 +150,47 @@ function useOwnedCollections(owner: string | undefined) {
     staleTime: 60_000,
     queryFn: async () => {
       const [wearables, emotes] = await Promise.all([
-        fetchMyAssets(owner!, { category: 'wearable', first: 96 }),
-        fetchMyAssets(owner!, { category: 'emote', first: 96 })
+        fetchOwnedCategory(owner!, 'wearable'),
+        fetchOwnedCategory(owner!, 'emote')
       ])
       const byCollection = new Map<string, MyAsset>()
       for (const asset of [...wearables.assets, ...emotes.assets]) {
         const key = asset.contractAddress.toLowerCase()
         if (!byCollection.has(key)) byCollection.set(key, asset)
       }
-      return [...byCollection.values()]
+      return {
+        collections: [...byCollection.values()],
+        truncated: wearables.truncated || emotes.truncated,
+        // What the notice reports. The ceiling is per category, so the number actually read is the
+        // only figure that is true for the list the user is looking at.
+        scanned: wearables.assets.length + emotes.assets.length
+      }
     }
   })
+}
+
+// The registry is effectively static (it only grows when a collection is approved) and is fetched
+// whole, so keep it for the session rather than re-downloading it per visit.
+function useContractRegistry(enabled: boolean) {
+  return useQuery({
+    queryKey: ['contract-registry'],
+    enabled,
+    staleTime: Infinity,
+    gcTime: Infinity,
+    queryFn: fetchContractRegistry
+  })
+}
+
+// What to title a collection row. Never the name of an item the owner happens to hold in it: which
+// item that would be depends on the holdings endpoint's ordering, so the same collection would be
+// titled differently between loads, and the row's scope (the whole collection) would read as one
+// item. Precedence: the registry's real name → the shortened address, which is unique and stable so
+// two collections are still tellable apart → the generic label, only when the address is unusable.
+function collectionLabel(contractAddress: string, registry: ContractRegistry | undefined): string {
+  const name = registry?.get(contractAddress.toLowerCase())
+  if (name) return name
+  const short = shortAddress(contractAddress)
+  return short === contractAddress ? t('authorizations.collectionFallback') : short
 }
 
 // The published collections the owner PUBLISHES from — one minting authorization per collection.
@@ -163,9 +219,12 @@ export function Authorizations() {
   const chainId = config.chainId
   const selfCustody = showsWalletConfirmations(session?.providerType)
 
-  const { data: collections, isLoading: loadingCollections } = useOwnedCollections(
-    selfCustody ? session?.address : undefined
-  )
+  const { data: owned, isLoading: loadingCollections } = useOwnedCollections(selfCustody ? session?.address : undefined)
+
+  // Gate the list on the registry too: a row that renders with a shortened address and then swaps to
+  // the collection's name reads as a bug. A failed registry request resolves loading all the same, so
+  // the rows still appear (with the address fallback).
+  const { data: registry, isLoading: loadingRegistry } = useContractRegistry(!!selfCustody && !!session?.address)
 
   const { data: publishableCollections, isLoading: loadingPublishable } = usePublishableCollections(
     selfCustody ? session?.address : undefined,
@@ -236,21 +295,28 @@ export function Authorizations() {
 
       <S.Group>
         <S.GroupTitle>{t('authorizations.sellingTitle')}</S.GroupTitle>
-        {loadingCollections ? (
+        {/* The ceiling is only reachable by a wallet with an extreme number of collectibles, but when it
+            is reached the seller has to be told — a collection they cannot see is a sale they cannot make. */}
+        {owned?.truncated ? (
+          <S.Notice data-testid="authorizations-selling-truncated">
+            {t('authorizations.sellingTruncated', { count: owned.scanned })}
+          </S.Notice>
+        ) : null}
+        {loadingCollections || loadingRegistry ? (
           <S.List aria-busy="true" aria-label={t('authorizations.checking')}>
             {Array.from({ length: 3 }).map((_, i) => (
               <S.RowSkeleton key={i} aria-hidden />
             ))}
           </S.List>
-        ) : collections && collections.length > 0 ? (
+        ) : owned && owned.collections.length > 0 ? (
           <S.List>
-            {collections.map(asset => (
+            {owned.collections.map(asset => (
               <AuthorizationRow
                 key={asset.contractAddress}
                 descriptor={getCollectionSellingAuthorization(asset.contractAddress, chainId)}
                 owner={session.address}
                 signer={session.signer}
-                name={asset.name || t('authorizations.collectionFallback')}
+                name={collectionLabel(asset.contractAddress, registry)}
                 description={t('authorizations.sellingDesc')}
                 image={asset.image}
                 icon={<Icon name="pen" size={18} />}

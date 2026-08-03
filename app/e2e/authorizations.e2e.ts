@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { launchApp, type App } from './helpers/app'
 import { bodyText, waitForText } from './helpers/dom'
+import { COLLECTION } from './fixtures'
 
 /**
  * The Approvals page (/authorizations).
@@ -70,6 +71,19 @@ describe('the approvals page', () => {
       (el.getAttribute('aria-label') ?? '').toLowerCase()
     )
     expect(label).toMatch(/deactivate|turn off|revoke/)
+  })
+
+  it('titles a selling approval after the collection, not after an item held in it', async () => {
+    // The row grants the whole collection, so naming it after one owned item ("Galaxy Hat #42") both
+    // mislabels the scope and changes with the holdings endpoint's ordering.
+    app = await launchApp({ path: '/authorizations' })
+    const { page } = app
+
+    const row = `[data-testid="authorization-selling:${COLLECTION}"]`
+    await page.waitForSelector(row, { timeout: 20000 })
+    const text = await page.$eval(row, el => (el as HTMLElement).innerText)
+    expect(text).toContain('Galaxy Collection')
+    expect(text).not.toContain('Galaxy Hat')
   })
 
   it('survives an RPC that cannot report the approval state', async () => {
