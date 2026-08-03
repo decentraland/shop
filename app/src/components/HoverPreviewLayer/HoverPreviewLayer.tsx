@@ -172,9 +172,6 @@ export function HoverPreviewLayer() {
         profile="default"
         disableBackground
         disableFadeEffect
-        dev={config.chainId === 80002}
-        peerUrl={config.peerUrl}
-        marketplaceServerUrl={config.marketplaceServerUrl}
         onLoad={handleLoad}
       />
     </Wrap>

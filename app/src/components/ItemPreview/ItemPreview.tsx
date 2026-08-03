@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import { WearablePreview } from '~/components/LazyWearablePreview'
 import { EmoteControls } from '~/components/LazyEmoteControls'
 import { PreviewEmote, PreviewRenderer, PreviewType } from '@dcl/schemas'
-import { config } from '~/config'
 import { useCart } from '~/store/cart'
 import { useWallet } from '~/store/wallet'
 import { useProfile } from '~/hooks/useProfile'
@@ -119,9 +118,6 @@ export function ItemPreview({ item }: { item: CatalogItem }) {
           disableBackground
           wheelZoom={isEmote ? 1.5 : undefined}
           wheelStart={isEmote ? 100 : undefined}
-          dev={config.chainId === 80002}
-          peerUrl={config.peerUrl}
-          marketplaceServerUrl={config.marketplaceServerUrl}
           unity
           onRenderer={setRenderer}
           onLoad={() => {

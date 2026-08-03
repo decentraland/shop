@@ -3,6 +3,7 @@ import { PreviewRenderer, PreviewUnityMode } from '@dcl/schemas'
 import type { WearablePreview as WearablePreviewComponent } from 'decentraland-ui2/dist/components/WearablePreview'
 import { pickRenderer } from '~/lib/pickRenderer'
 import { track } from '~/lib/analytics'
+import { config } from '~/config'
 
 // The 3D preview iframe + its controller/schema deps only matter on hover (cards) and the detail
 // page, so load them on demand instead of in the initial bundle. The type import is erased at build
@@ -51,6 +52,9 @@ export function WearablePreview({
   return (
     <Suspense fallback={null}>
       <WearablePreviewLazy
+        dev={config.chainId === 80002}
+        peerUrl={config.peerUrl}
+        marketplaceServerUrl={config.marketplaceServerUrl}
         {...props}
         unity={shouldUseUnity}
         unityMode={shouldUseUnity ? unityMode : undefined}
