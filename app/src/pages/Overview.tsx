@@ -132,22 +132,10 @@ export function Overview() {
   // Home page: the hook's site-wide default title/description is the best fit here (its title tail is
   // "Wearables & Emotes for Your Avatar", which we don't want to override), so pass nothing. Indexable.
   useSeo({})
-  // Both rails read the UNIFIED catalogue — the same one /assets browses — not the Shop-only feed.
-  //
-  // The Shop-only feed (`/v3/catalog/shop`) returns exactly the listings whose received asset is
-  // USD_PEGGED_MANA, i.e. the ones signed through the Shop. That is empty on any chain the Shop has not
-  // operated on yet, which is why this page had nothing on it in production while /assets showed thousands
-  // of items: same page, two different questions. The unified feed answers the one a visitor is actually
-  // asking — what can I buy with credits — by unioning the native (USD-pegged) rows with the legacy
-  // MANA-priced ones, converted at the live oracle rate, plus CollectionStore mints.
-  //
-  // This matters most for New Creations. Once the Shop is on, new work will increasingly be listed as
-  // USD-pegged, but at launch the newest creations are MANA-priced ones — and a rail called "New Creations"
-  // that cannot show them is wrong on the only day it gets a first impression.
-  //
-  // PRIMARY (mint) rows only, because both rails promote CREATORS rather than resellers. Done SERVER-side
-  // via `listingType`: the feed is paginated and carries a total, so dropping resale rows here would return
-  // short pages against a count that overstates what is shown.
+  // Featured / New Creations promote CREATORS, so they show PRIMARY (mint) listings only — no resales.
+  // The shop feed carries both, and a secondary (resale) row is the only kind with a per-token tokenId
+  // (it also carries no item name, which is why those cards rendered blank), so filter them out. Fetch
+  // a bigger page than we show so 24 primary rows survive the filter.
   const { data, isLoading } = useQuery({
     queryKey: ['overview-listings'],
     queryFn: () => fetchShopItems({ first: 48, sortBy: 'newest', listingType: 'primary' })
