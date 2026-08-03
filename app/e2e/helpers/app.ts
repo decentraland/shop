@@ -173,6 +173,7 @@ function toCatalogRow(l: any) {
 
 // Set per launchApp run; read by the flag-file handler below.
 let secondarySalesFlag = true
+let followsFlag = false
 
 function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
   const u = new URL(req.url())
@@ -189,12 +190,16 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
   if (method === 'OPTIONS') return req.respond({ status: 204, headers: CORS })
   // Decentraland feature flags. Unmocked this fetch fails and every flag reads false (fail-closed), which
   // would hide the secondary-sale surfaces the resale specs exist to cover. Serve them ON here so those
-  // specs test the FEATURE; the hidden-by-default behaviour has its own spec that overrides this.
+  // specs test the FEATURE; the hidden-by-default behaviour has its own spec that overrides this. Follows
+  // are the other way round — off is the shipped state, so the suite runs in it and the follows spec opts in.
   if (path.endsWith('/dapps.json')) {
     return req.respond({
       status: 200,
       headers: { ...CORS, 'content-type': 'application/json' },
-      body: JSON.stringify({ flags: { 'dapps-shop-secondary-sales': secondarySalesFlag }, variants: {} })
+      body: JSON.stringify({
+        flags: { 'dapps-shop-secondary-sales': secondarySalesFlag, 'dapps-shop-follows': followsFlag },
+        variants: {}
+      })
     })
   }
   // Forced error injection (opt-in): before the normal per-port handling, respond with the mapped
@@ -539,11 +544,17 @@ export async function launchApp(
      * specs cover the feature; pass false to exercise the shipped default, where the Shop offers none.
      */
     secondarySales?: boolean
+    /**
+     * Whether the mocked flag file reports creator follows as available. Defaults to FALSE — the shipped
+     * state, where the feature is hidden; the follows spec passes true to exercise the prototype.
+     */
+    follows?: boolean
   } = {}
 ): Promise<App> {
   const F = { ...defaults(), ...opts.fixtures }
   const errors = opts.errors ?? {}
   secondarySalesFlag = opts.secondarySales ?? true
+  followsFlag = opts.follows ?? false
   mintedCents = 0 // reset the per-run top-up accumulator so balances don't leak between tests
   favoritePicks = [] // reset the per-run picks so favorites don't leak between tests
   setManaBalanceWei(opts.manaBalanceWei ?? '0') // no MANA unless a test asks for it

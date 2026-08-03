@@ -3,6 +3,7 @@ import { fetchCreatorItems } from '~/lib/collections'
 import { AssetCard } from '~/components/AssetCard'
 import { SkeletonCards } from '~/components/SkeletonCards'
 import { useFollows } from '~/store/follows'
+import { useFollowsEnabled } from '~/hooks/useFollowsEnabled'
 import { t } from '~/intl/i18n'
 import type { CatalogItem } from '~/lib/api'
 import * as Row from '~/styles/row.styles'
@@ -17,13 +18,16 @@ const MAX_ITEMS = 12
 // items). Client-side: fans out fetchCreatorItems over the followed set and interleaves the
 // results so the row isn't dominated by a single creator. No backend.
 export function FollowedCreatorsRow() {
+  const enabled = useFollowsEnabled()
   const followed = useFollows(s => s.followed)
   const creators = followed.slice(0, MAX_CREATORS)
 
   const { data: items = [], isLoading } = useQuery({
     // Key on the follow set so the row refreshes when the visitor follows/unfollows.
     queryKey: ['followed-creators-row', creators.join(',')],
-    enabled: creators.length > 0,
+    // Off with the flag too, so a stale localStorage set from an earlier build can't fan out requests
+    // for a row that will never render.
+    enabled: enabled && creators.length > 0,
     queryFn: async () => {
       const lists = await Promise.all(
         creators.map(c =>
@@ -38,7 +42,7 @@ export function FollowedCreatorsRow() {
     }
   })
 
-  if (creators.length === 0) return null
+  if (!enabled || creators.length === 0) return null
   if (!isLoading && items.length === 0) return null
 
   return (
