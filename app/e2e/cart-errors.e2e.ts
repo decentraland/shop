@@ -5,7 +5,11 @@ import { COLLECTION, buyTrade } from './fixtures'
 
 // Cart checkout error path: a hard authorize failure (500, NOT a 402 insufficient) drives the
 // CartCheckoutModal into its error phase (Figma 1182-196586): the pink `.buy-error` panel with the
-// "Oops! Something went wrong" copy + a Try again CTA. Nothing is purchased and we never reach /success.
+// "Oops! Something went wrong" headline + a Try again CTA. Nothing is purchased and we never reach /success.
+//
+// The BODY is now the caller's message rather than fixed copy — the modal used to declare `message` and never
+// read it, so every failure read "your credits are safe" even when they had been spent (see Cart.spec.tsx).
+// A 500 from authorize maps through the page's friendlyError to the generic checkout message.
 
 let app: App | undefined
 afterEach(async () => {
@@ -34,7 +38,8 @@ describe('cart checkout error path', () => {
 
     // Review passes (default balance covers the item) → charge → authorize 500 → error phase modal.
     await page.waitForSelector('[data-testid="buy-error"]', { timeout: 30000 })
-    await waitForText(page, "We couldn't complete your purchase")
+    await waitForText(page, 'Oops! Something went wrong')
+    await waitForText(page, "Couldn't complete checkout")
     await waitForText(page, 'Try again')
 
     // The raw server error must not leak, nothing was purchased, and we stay on /cart.

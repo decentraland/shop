@@ -148,7 +148,15 @@ export async function sendUseCredits(
   chainId: number,
   args: unknown,
   signer: ethers.Signer,
-  onSigned?: () => void
+  /**
+   * Fired the moment the transaction is BROADCAST — the buyer confirmed and it is on its way — carrying the
+   * hash, before the receipt is awaited.
+   *
+   * The hash matters because broadcast is the point of no return for the credits in that transaction: they
+   * WILL be consumed on-chain whatever happens next in this process. A caller that fails afterwards must not
+   * release their reservations, and this is the only signal that says which ones those are.
+   */
+  onSigned?: (txHash: string) => void
 ): Promise<string> {
   // useCredits is a REAL transaction, so it MUST run on the trade's chain. A restored session (or a
   // user who was last on another network) can leave the wallet on a different chain — without pinning
@@ -170,8 +178,9 @@ export async function sendUseCredits(
   const contract = new ethers.Contract(cm.address, cm.abi, signer) as CreditsManagerContract
   const tx = await contract.useCredits(args, amoyGasOverrides(chainId))
   // Tx submitted (the buyer confirmed in their wallet) — settlement is next. Callers use this to flip
-  // the UI from "confirm in your wallet" to "completing transaction".
-  onSigned?.()
+  // the UI from "confirm in your wallet" to "completing transaction", and to record that these credits are
+  // now spoken for.
+  onSigned?.(tx.hash)
   const receipt = await tx.wait()
   return receipt.transactionHash
 }
@@ -329,14 +338,44 @@ export async function buyWithCredits(opts: {
   // For USD credits the server already sized the MANA cap for this purchase; pass it to skip the
   // client-side oracle read. Legacy MANA credits omit it and we derive it from the trade.
   maxCreditedValue?: string
+  /**
+   * Fired the moment the transaction is BROADCAST — the buyer confirmed and it is on its way.
+   *
+   * A caller that releases its reservation on ANY failure gives back money that is already spent: the
+   * balance rises, the reconciler debits it again once the squid indexes the consumption, and anything
+   * bought in the gap drives the balance negative. This is the only signal that says the release is no
+   * longer safe. (`buyManyWithCredits` reports the same thing per group.)
+   */
+  onBroadcast?: (info: { txHash: string }) => void
+  /**
+   * Fired when the transaction mined and REVERTED (receipt status 0).
+   *
+   * A revert rolls the whole call back, so the credit was NOT consumed: releasing is safe and correct, and
+   * NOT releasing strands that much of the buyer's balance until the TTL expires. This is the one failure
+   * after a broadcast where a release is still right, which is why it is reported rather than guessed —
+   * every other post-broadcast failure (timeout, dropped socket, replaced transaction) may be consumed.
+   *
+   * Carries the reverted transaction's hash because a credit can back MORE than one transaction: the modals
+   * let a buyer retry with the same reservation, so "a revert happened" is not the same statement as "this
+   * credit is untouched". See lib/spend-guard.
+   */
+  onReverted?: (info: { txHash: string | null }) => void
 }): Promise<string> {
-  const { trade, buyer, signer, credits } = opts
+  const { trade, buyer, signer, credits, onBroadcast, onReverted } = opts
   if (credits.length === 0) throw new Error('No credits to spend')
 
   const marketplace = getContract(getContractName(trade.contract), trade.chainId)
   const maxCreditedValue = opts.maxCreditedValue ?? (await tradeManaPriceWei(trade))
   const args = buildUseCreditsArgs(marketplace.address, marketplace.abi, [trade], buyer, credits, maxCreditedValue)
-  return sendUseCredits(trade.chainId, args, signer)
+  try {
+    return await sendUseCredits(trade.chainId, args, signer, txHash => onBroadcast?.({ txHash }))
+  } catch (err) {
+    // The hash of the transaction that reverted, so the caller can tie the revert to the attempt it belongs
+    // to rather than to the credit as a whole. ethers attaches the receipt to the error; `null` if it somehow
+    // is not there, which a caller must read as "this attempt is unresolved".
+    if (isRevertedTxError(err)) onReverted?.({ txHash: revertedTxHash(err) })
+    throw err
+  }
 }
 
 /**
@@ -351,6 +390,37 @@ export async function buyWithCredits(opts: {
  * Caveat: the CreditsManager caps the credited MANA per call at the hourly limit; a very large basket
  * could exceed it and revert (ExternalCallFailed). Fine for demo-scale baskets.
  */
+/**
+ * Did this failure come from a transaction that MINED AND REVERTED?
+ *
+ * ethers v5 rejects `tx.wait()` on a status-0 receipt, attaching that receipt to the error. Status 0 means the
+ * EVM rolled the call back, so no credit was consumed — the reservation can and should be released.
+ *
+ * Deliberately narrow: it must answer NO for a timeout, an RPC drop, a replaced transaction, or anything else
+ * that merely failed to OBSERVE the outcome, because those may still be consumed. The asymmetry is what makes
+ * that the right default — releasing a consumed credit corrupts the buyer's balance, while failing to release
+ * an unconsumed one only strands it until the TTL expires. `buy-gasless.ts` draws the same three-way
+ * distinction (confirmed / reverted / still-pending) for relayed transactions.
+ */
+export function isRevertedTxError(err: unknown): boolean {
+  return revertedReceipt(err)?.status === 0
+}
+
+/**
+ * The reverted transaction's hash, or null when the error carries no usable receipt.
+ *
+ * Separate from the predicate because callers need the hash, not just the fact: a credit can back more than
+ * one transaction, so a revert has to be attributed to the attempt it belongs to (see lib/spend-guard). Both
+ * live here so the shape of an ethers failed-receipt error is known in exactly one place.
+ */
+export function revertedTxHash(err: unknown): string | null {
+  return revertedReceipt(err)?.transactionHash ?? null
+}
+
+function revertedReceipt(err: unknown): { status?: number; transactionHash?: string } | undefined {
+  return (err as { receipt?: { status?: number; transactionHash?: string } } | null)?.receipt
+}
+
 export async function buyManyWithCredits(opts: {
   purchases: MixedPurchases
   buyer: string
@@ -361,8 +431,40 @@ export async function buyManyWithCredits(opts: {
    * facing two prompts needs to see which one they are on.
    */
   onSigned?: (signed: number, total: number) => void
+  /**
+   * Fired the moment a group's transaction is BROADCAST, with the credits it spends.
+   *
+   * This exists so a caller can tell what survived a failure. A mixed basket needs one transaction per group,
+   * so the buyer can confirm the first and reject the second — and by then the first is irreversibly on its
+   * way. Releasing its reservations (which is what a naive catch-all does) hands the buyer back money they
+   * have already spent: the balance goes up, the reconciler debits it again when the squid indexes the
+   * consumption, and anything spent in between drives the balance negative.
+   *
+   * The salts are the credit ids the server reserved, which is exactly what a release call takes — so the
+   * caller can subtract them rather than having to map groups back to reservations itself.
+   */
+  onBroadcast?: (info: { txHash: string; salts: string[] }) => void
+  /**
+   * Fired when a group's transaction MINED SUCCESSFULLY (receipt status 1), with the credits it spent.
+   *
+   * Broadcast and settled are different facts and a caller needs both. Broadcast answers "may I release these
+   * reservations?" (no — they may still be consumed). Only settled answers "does the buyer own these items?",
+   * which is what decides whether a line leaves the cart. Treating broadcast as ownership takes items out of
+   * the cart of someone whose transaction reverted and never bought anything.
+   */
+  onSettled?: (info: { txHash: string; salts: string[] }) => void
+  /**
+   * Fired when a group's transaction mined and REVERTED (receipt status 0), with the credits it did not spend.
+   *
+   * A revert changes no state, so those credits were NOT consumed and releasing their reservations is both
+   * safe and correct — leaving them pending strands that much of the buyer's balance until the TTL expires.
+   * This is the one case where a caller may release something it has already broadcast, and it is why the
+   * distinction is reported rather than inferred: every OTHER failure after a broadcast (timeout, dropped
+   * socket, replaced transaction) may still be consumed and must be left alone.
+   */
+  onReverted?: (info: { salts: string[] }) => void
 }): Promise<string[]> {
-  const { buyer, signer, onSigned } = opts
+  const { buyer, signer, onSigned, onBroadcast, onSettled, onReverted } = opts
   const purchases = normalizePurchases(opts.purchases)
   if (purchases.length === 0) throw new Error('No items to buy')
 
@@ -389,7 +491,25 @@ export async function buyManyWithCredits(opts: {
             credits,
             maxCreditedValue
           )
-    hashes.push(await sendUseCredits(group.chainId, args, signer, () => onSigned?.(hashes.length + 1, groups.length)))
+    const salts = credits.map(c => c.id)
+    let hash: string
+    try {
+      hash = await sendUseCredits(group.chainId, args, signer, txHash => {
+        onSigned?.(hashes.length + 1, groups.length)
+        // Reported from INSIDE the broadcast callback rather than after the await, because the await is on the
+        // receipt: a group whose transaction was submitted and then failed to mine (timeout, RPC drop) has
+        // still spent its credits, and its reservations must not be released either.
+        onBroadcast?.({ txHash, salts })
+      })
+    } catch (err) {
+      // A definitive revert is the ONE post-broadcast failure whose credits are provably untouched. Reported
+      // here, next to the send, so the caller does not have to know how ethers reports a failed receipt.
+      if (isRevertedTxError(err)) onReverted?.({ salts })
+      throw err
+    }
+    hashes.push(hash)
+    // Receipt in hand with status 1 (ethers rejects wait() otherwise), so this group is bought.
+    onSettled?.({ txHash: hash, salts })
   }
   return hashes
 }

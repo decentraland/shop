@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { fetchListings, type CatalogItem } from '~/lib/api'
+import { fetchShopItems, type CatalogItem } from '~/lib/api'
 import { AssetCard } from '~/components/AssetCard'
 import { SkeletonCards } from '~/components/SkeletonCards'
 import { FollowedCreatorsRow } from '~/components/FollowedCreatorsRow'
@@ -136,8 +136,11 @@ export function Overview() {
   // The shop feed carries both, and a secondary (resale) row is the only kind with a per-token tokenId
   // (it also carries no item name, which is why those cards rendered blank), so filter them out. Fetch
   // a bigger page than we show so 24 primary rows survive the filter.
-  const { data, isLoading } = useQuery({ queryKey: ['overview-listings'], queryFn: () => fetchListings({ first: 48 }) })
-  const items = (data?.items ?? []).filter(i => !i.tokenId)
+  const { data, isLoading } = useQuery({
+    queryKey: ['overview-listings'],
+    queryFn: () => fetchShopItems({ first: 48, sortBy: 'newest', listingType: 'primary' })
+  })
+  const items = data?.items ?? []
 
   return (
     <S.Overview className="overview">

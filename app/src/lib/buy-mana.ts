@@ -173,8 +173,15 @@ export async function buyWithCreditsAndMana(opts: {
   credits: SpendableCredit[]
   /** MANA (wei) the buyer covers out of pocket. MUST be <= their balance; unused MANA is refunded. */
   manaGapWei: bigint
+  /**
+   * Forwarded to buyWithCredits, which settles this rail. The caller needs them for the same reason the
+   * credits-only rail does: this spends an ephemeral credit through `useCredits`, so once the transaction is
+   * broadcast that credit may be consumed and its reservation must not be released.
+   */
+  onBroadcast?: (info: { txHash: string }) => void
+  onReverted?: (info: { txHash: string | null }) => void
 }): Promise<string> {
-  const { trade, buyer, signer, credits, manaGapWei } = opts
+  const { trade, buyer, signer, credits, manaGapWei, onBroadcast, onReverted } = opts
   if (credits.length === 0) throw new Error('No credits to spend — use buyWithMana for a MANA-only purchase')
   if (manaGapWei <= 0n) throw new Error('No MANA gap to cover — use buyWithCredits for a credits-only purchase')
 
@@ -196,5 +203,5 @@ export async function buyWithCreditsAndMana(opts: {
   const creditsValue = credits.reduce((acc, c) => acc + BigInt(c.availableAmount), 0n)
   const maxCreditedValue = (creditsValue + manaGapWei).toString()
 
-  return buyWithCredits({ trade, buyer, signer, credits, maxCreditedValue })
+  return buyWithCredits({ trade, buyer, signer, credits, maxCreditedValue, onBroadcast, onReverted })
 }
