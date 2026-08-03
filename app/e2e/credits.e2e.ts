@@ -24,21 +24,25 @@ describe('get credits page', () => {
     await waitForText(page, 'bonus')
     await waitForText(page, 'Recommended')
 
-    // The signed-in balance chip renders in the sub-nav (creditsResponse.usd.credits = 500).
-    await page.waitForSelector('[data-testid="subnav-balance"]', { timeout: 20000 })
+    // The signed-in balance chip renders in the global navbar (creditsResponse.usd.credits = 500).
+    await page.waitForSelector('button[aria-label$=" shop credits"]', { timeout: 20000 })
     expect(
-      await page.evaluate(() => document.querySelector('[data-testid="subnav-balance"]')?.textContent?.includes('500'))
+      await page.evaluate(() =>
+        document.querySelector('button[aria-label$=" shop credits"]')?.textContent?.includes('500')
+      )
     ).toBe(true)
   })
 
-  it('buys a pack end-to-end and increases the sub-nav balance', async () => {
+  it('buys a pack end-to-end and increases the navbar balance', async () => {
     app = await launchApp({ path: '/credits' })
     const { page } = app
 
     // Start balance: creditsResponse.usd.credits = 500.
-    await page.waitForSelector('[data-testid="subnav-balance"]', { timeout: 20000 })
+    await page.waitForSelector('button[aria-label$=" shop credits"]', { timeout: 20000 })
     expect(
-      await page.evaluate(() => document.querySelector('[data-testid="subnav-balance"]')?.textContent?.includes('500'))
+      await page.evaluate(() =>
+        document.querySelector('button[aria-label$=" shop credits"]')?.textContent?.includes('500')
+      )
     ).toBe(true)
 
     // Pick the $29.99 pack (pack_25). No intermediate card form — mock checkout goes straight to
@@ -53,13 +57,15 @@ describe('get credits page', () => {
     // The purchase must actually raise the balance: the /dev/mint-usd top-up (260 credits = $26.00 of
     // spend value) folds into the credits refetch, so the sub-nav chip goes 500 → 760. No other test asserts this.
     await page.waitForFunction(
-      () => !!document.querySelector('[data-testid="subnav-balance"]')?.textContent?.includes('760'),
+      () => !!document.querySelector('button[aria-label$=" shop credits"]')?.textContent?.includes('760'),
       {
         timeout: 20000
       }
     )
     expect(
-      await page.evaluate(() => document.querySelector('[data-testid="subnav-balance"]')?.textContent?.includes('760'))
+      await page.evaluate(() =>
+        document.querySelector('button[aria-label$=" shop credits"]')?.textContent?.includes('760')
+      )
     ).toBe(true)
   })
 })

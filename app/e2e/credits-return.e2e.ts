@@ -24,7 +24,7 @@ describe('get credits — Stripe return handling', () => {
     const { page } = app
 
     // Starting balance is creditsResponse.usd.credits = 500.
-    await page.waitForSelector('[data-testid="subnav-balance"]', { timeout: 20000 })
+    await page.waitForSelector('button[aria-label$=" shop credits"]', { timeout: 20000 })
 
     // Reaches the success state with the granted amount (100 credits for the $11.99 pack).
     await waitForText(page, 'Your purchase was successful', 30000)
@@ -32,11 +32,13 @@ describe('get credits — Stripe return handling', () => {
 
     // The mock grant folds the pack_10 spend value (=100 credits) into the balance refetch: 500 → 600.
     await page.waitForFunction(
-      () => !!document.querySelector('[data-testid="subnav-balance"]')?.textContent?.includes('600'),
+      () => !!document.querySelector('button[aria-label$=" shop credits"]')?.textContent?.includes('600'),
       { timeout: 20000 }
     )
     expect(
-      await page.evaluate(() => document.querySelector('[data-testid="subnav-balance"]')?.textContent?.includes('600'))
+      await page.evaluate(() =>
+        document.querySelector('button[aria-label$=" shop credits"]')?.textContent?.includes('600')
+      )
     ).toBe(true)
 
     // The success return must NOT be treated as an error.

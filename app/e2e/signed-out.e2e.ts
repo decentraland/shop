@@ -19,7 +19,9 @@ describe('signed-out buyer', () => {
     await waitForText(page, 'Buy now')
 
     // Signed-out there's no balance chip (only rendered when a session exists).
-    expect(await page.evaluate(() => document.querySelector('[data-testid="subnav-balance"]') !== null)).toBe(false)
+    expect(await page.evaluate(() => document.querySelector('button[aria-label$=" shop credits"]') !== null)).toBe(
+      false
+    )
 
     // Clicking Buy now signed-out no longer dead-ends: handleBuyNow stashes a resume intent and
     // redirects into the sign-in flow (so the purchase resumes after the round-trip). It never
