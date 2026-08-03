@@ -179,7 +179,7 @@ export async function buyWithCreditsAndMana(opts: {
    * broadcast that credit may be consumed and its reservation must not be released.
    */
   onBroadcast?: (info: { txHash: string }) => void
-  onReverted?: () => void
+  onReverted?: (info: { txHash: string | null }) => void
 }): Promise<string> {
   const { trade, buyer, signer, credits, manaGapWei, onBroadcast, onReverted } = opts
   if (credits.length === 0) throw new Error('No credits to spend — use buyWithMana for a MANA-only purchase')

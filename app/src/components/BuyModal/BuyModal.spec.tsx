@@ -56,12 +56,26 @@ vi.mock('~/lib/credits', () => ({ authorizeUsdCredit, cancelUsdIntents, getUsdBa
 const { buyWithCredits } = vi.hoisted(() => ({ buyWithCredits: vi.fn() }))
 vi.mock('~/lib/buy', () => ({ buyWithCredits }))
 vi.mock('~/lib/buy-mana', () => ({ buyWithMana: vi.fn(), buyWithCreditsAndMana: vi.fn() }))
-vi.mock('~/lib/gasless-config', () => ({ gaslessEnabled: () => false }))
-vi.mock('~/lib/buy-gasless', () => ({
+// The gasless rail is the production default, so it has to be drivable rather than hard-mocked off.
+const { buyGasless, waitForSettlement, gaslessOn, GaslessUnavailable, SettlementPending } = vi.hoisted(() => ({
   buyGasless: vi.fn(),
   waitForSettlement: vi.fn(),
-  GaslessUnavailableError: class GaslessUnavailableError extends Error {},
-  SettlementPendingError: class SettlementPendingError extends Error {}
+  gaslessOn: { value: false },
+  GaslessUnavailable: class GaslessUnavailableError extends Error {
+    reason: string
+    constructor(message: string, reason = 'unknown') {
+      super(message)
+      this.reason = reason
+    }
+  },
+  SettlementPending: class SettlementPendingError extends Error {}
+}))
+vi.mock('~/lib/gasless-config', () => ({ gaslessEnabled: () => gaslessOn.value }))
+vi.mock('~/lib/buy-gasless', () => ({
+  buyGasless,
+  waitForSettlement,
+  GaslessUnavailableError: GaslessUnavailable,
+  SettlementPendingError: SettlementPending
 }))
 
 const { resolveLiveTrade } = vi.hoisted(() => ({ resolveLiveTrade: vi.fn() }))
@@ -103,16 +117,22 @@ const item = {
 
 // `resume` makes the modal confirm as soon as the price locks — the same call the Buy CTA makes, without
 // depending on button copy.
-function renderResuming() {
+function renderModal({ resume }: { resume: boolean }) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={qc}>
       <MemoryRouter>
-        <BuyModal item={item} onClose={vi.fn()} resume />
+        <BuyModal item={item} onClose={vi.fn()} resume={resume} />
       </MemoryRouter>
     </QueryClientProvider>
   )
 }
+
+// resume=true confirms as soon as the price locks — the same call the Buy CTA makes.
+const renderResuming = () => renderModal({ resume: true })
+// resume=false locks the price and then waits for the buyer, which is the only way to reach the state the
+// unmount cleanup exists for: a reservation that was never submitted.
+const renderIdle = () => renderModal({ resume: false })
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -130,6 +150,8 @@ beforeEach(() => {
     usdCents: 2700
   })
   buyWithCredits.mockResolvedValue('0xhash')
+  gaslessOn.value = false
+  waitForSettlement.mockResolvedValue(undefined)
 })
 
 describe('when the buy fails after the transaction was broadcast', () => {
@@ -150,7 +172,9 @@ describe('when the buy fails after the transaction was broadcast', () => {
   it('should release when the transaction reverted, because nothing was consumed', async () => {
     buyWithCredits.mockImplementation(async (opts: Record<string, any>) => {
       opts.onBroadcast?.({ txHash: '0xbroadcast' })
-      opts.onReverted?.()
+      // The revert carries ITS hash: one credit can back more than one transaction, so "a revert happened" is
+      // not the same statement as "this credit is untouched".
+      opts.onReverted?.({ txHash: '0xbroadcast' })
       throw new Error('transaction failed')
     })
 
@@ -202,13 +226,10 @@ describe('when post-purchase bookkeeping throws', () => {
  */
 describe('when the modal unmounts with a transaction in flight', () => {
   it('should not release a reservation whose transaction was broadcast', async () => {
-    let broadcast: (() => void) | undefined
     buyWithCredits.mockImplementation(
       (opts: Record<string, any>) =>
         new Promise(() => {
-          // Report the broadcast, then never settle — the modal is unmounted mid-flight below.
-          broadcast = () => opts.onBroadcast?.({ txHash: '0xbroadcast' })
-          broadcast()
+          opts.onBroadcast?.({ txHash: '0xbroadcast' })
         })
     )
 
@@ -219,15 +240,99 @@ describe('when the modal unmounts with a transaction in flight', () => {
     expect(cancelUsdIntents).not.toHaveBeenCalled()
   })
 
-  it('should release a reservation that never made it to a transaction', async () => {
-    // Locked the price, nothing submitted yet: this is the case the cleanup exists for, and it must keep
-    // working — otherwise every abandoned modal strands the buyer's balance for the whole TTL.
+  /**
+   * The window the broadcast report cannot cover: the wallet prompt is open, so nothing has been reported yet,
+   * but the buyer is one click away from spending the credit. Releasing here and having them then confirm is
+   * the same corruption, arrived at from the other side.
+   */
+  it('should not release while the submit is still in flight, before any broadcast', async () => {
     buyWithCredits.mockImplementation(() => new Promise(() => {}))
 
     const { unmount } = renderResuming()
     await waitFor(() => expect(buyWithCredits).toHaveBeenCalled())
     unmount()
 
-    expect(cancelUsdIntents).toHaveBeenCalledWith(session.identity, ['credit-1'])
+    expect(cancelUsdIntents).not.toHaveBeenCalled()
+  })
+
+  it('should release a reservation that was never submitted', async () => {
+    // Price locked, buyer walked away without pressing Buy. THE case the cleanup exists for — otherwise every
+    // abandoned modal strands that much of the balance for the whole TTL.
+    //
+    // The previous version of this test used `resume`, which auto-confirms: it asserted a release while a
+    // submit was in flight, i.e. it codified the unsafe half of the very bug being fixed.
+    const { unmount } = renderIdle()
+    await waitFor(() => expect(authorizeUsdCredit).toHaveBeenCalled())
+    expect(buyWithCredits).not.toHaveBeenCalled()
+    unmount()
+
+    await waitFor(() => expect(cancelUsdIntents).toHaveBeenCalledWith(session.identity, ['credit-1']))
+  })
+})
+
+/**
+ * NOT TESTED HERE, deliberately: the retry-with-the-same-reservation scenario.
+ *
+ * This modal's error phase offers only Close — there is no retry CTA — so a second attempt against the same
+ * locked credit is not reachable through the UI. `MarketCheckout` DOES leave its Confirm CTA enabled on the
+ * error phase, and that is where the case is exercised. The protection is shared: both components key the
+ * broadcast state per credit AND per transaction hash (lib/spend-guard), so an unresolved first attempt keeps
+ * the credit untouchable no matter how a second attempt ends.
+ *
+ * The remaining way to reach two attempts here is concurrency — `startPurchase` awaits an RPC read without
+ * flipping the phase, so the MANA/combined CTA stays clickable. The guard handles the release correctly
+ * (each attempt carries its own credit id), but nothing stops the duplicate submit itself. Left as a
+ * follow-up: it costs the buyer gas on a transaction that will revert, which is a different defect from
+ * handing back money they already spent.
+ */
+describe('when buying through the relayer', () => {
+  it('should NOT release while a relayed transaction may still land', async () => {
+    gaslessOn.value = true
+    buyGasless.mockResolvedValue('0xrelayed')
+    waitForSettlement.mockRejectedValue(new SettlementPending('still pending'))
+
+    renderResuming()
+
+    // Pending is not a failure: the reconciler settles it against the indexed CreditUsed event.
+    expect(await screen.findByText(/purchase complete/i)).toBeInTheDocument()
+    expect(cancelUsdIntents).not.toHaveBeenCalled()
+  })
+
+  it('should release when the relayed transaction reverted', async () => {
+    gaslessOn.value = true
+    buyGasless.mockResolvedValue('0xrelayed')
+    // waitForSettlement throws a plain Error only for a status-0 receipt: nothing was consumed.
+    waitForSettlement.mockRejectedValue(new Error('transaction reverted'))
+
+    renderResuming()
+
+    await waitFor(() => expect(cancelUsdIntents).toHaveBeenCalledWith(session.identity, ['credit-1']))
+  })
+
+  it('should fall back to the direct rail when the relayer REFUSED', async () => {
+    gaslessOn.value = true
+    // A parsed rejection proves nothing was relayed, so re-using the credit is safe.
+    buyGasless.mockRejectedValue(new GaslessUnavailable('relayer 400', 'relayer-rejected'))
+
+    renderResuming()
+
+    await waitFor(() => expect(buyWithCredits).toHaveBeenCalled())
+    expect(await screen.findByText(/purchase complete/i)).toBeInTheDocument()
+  })
+
+  /**
+   * THE P1. An unreachable relayer is not a refusal: it may have submitted before the connection died, and
+   * there is no hash to key a later revert on. Re-submitting the same credit would estimate gas against an
+   * already-consumed credit, revert with no receipt, and look exactly like a pre-broadcast failure.
+   */
+  it('should neither re-submit nor release when the relayer was unreachable', async () => {
+    gaslessOn.value = true
+    buyGasless.mockRejectedValue(new GaslessUnavailable('ECONNRESET', 'relayer-unreachable'))
+
+    renderResuming()
+
+    await waitFor(() => expect(track).toHaveBeenCalledWith('Shop Purchase Failed', expect.anything()))
+    expect(buyWithCredits).not.toHaveBeenCalled()
+    expect(cancelUsdIntents).not.toHaveBeenCalled()
   })
 })

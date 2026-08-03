@@ -27,6 +27,7 @@ import {
 import { computePaymentOptions, findOption, type PaymentMethod } from '~/lib/payment-options'
 import { track, errorCode, isUserRejection, purchaseItemsProps } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
+import { createSpendGuard } from '~/lib/spend-guard'
 import { authorizeUsdCredit, cancelUsdIntents } from '~/lib/credits'
 import { buyWithCredits } from '~/lib/buy'
 import { buyWithMana, buyWithCreditsAndMana } from '~/lib/buy-mana'
@@ -125,18 +126,15 @@ export function BuyModal({
   } | null>(null)
   const reservedCreditIdRef = useRef<string | null>(null)
   /**
-   * Whether this purchase's transaction was BROADCAST — i.e. whether its credits may already be consumed
-   * on-chain. Once true, NOTHING may release them.
+   * Tracks, per credit and per transaction hash, whether a reservation may already be consumed on-chain.
    *
-   * Releasing a consumed credit hands the buyer back money they have already spent: the balance rises, the
-   * reconciler debits it again once the squid indexes the consumption, and anything bought in that gap drives
-   * the balance negative. A ref rather than state because the release paths are callbacks and effect cleanups
-   * that would close over a stale value.
-   *
-   * Reset to false on a definitive REVERT: a reverted call rolls back, so the credit was not consumed and
-   * releasing it is both safe and necessary — otherwise that much of the balance is stranded until the TTL.
+   * NOT a boolean. The error phase leaves the Buy CTA enabled, so one reservation can back a second
+   * transaction, and `confirmCombined` reserves a different credit from the price lock — so "was there a
+   * broadcast" and "did something revert" are questions about a specific attempt, not about the component.
+   * lib/spend-guard documents the scenario a single flag gets wrong. A ref rather than state because every
+   * reader is a callback or an effect cleanup that would close over a stale value.
    */
-  const broadcastRef = useRef(false)
+  const guardRef = useRef(createSpendGuard())
 
   const priceCredits = locked?.credits ?? itemCredits
   const balanceCredits = balance?.credits ?? 0
@@ -227,7 +225,7 @@ export function BuyModal({
     return () => {
       cancelled = true
       if (reservedCreditIdRef.current && session) {
-        releaseReservation([reservedCreditIdRef.current])
+        releaseIfNotInFlight([reservedCreditIdRef.current])
         reservedCreditIdRef.current = null
       }
     }
@@ -281,33 +279,47 @@ export function BuyModal({
         signer: session.signer,
         credits: [lk.credit],
         maxCreditedValue: lk.maxCreditedValue,
-        // The transaction is on its way: from here on the credit may be consumed on-chain, so no failure
-        // may release it. A revert is the one exception — it rolled back, so the credit is untouched.
-        onBroadcast: () => {
-          broadcastRef.current = true
-        },
-        onReverted: () => {
-          broadcastRef.current = false
+        // The transaction is on its way: from here on the credit may be consumed on-chain, so no failure may
+        // release it. A revert clears the ATTEMPT it names — not the credit, which an earlier attempt may
+        // already have spent.
+        onBroadcast: ({ txHash }: { txHash: string }) => guardRef.current.broadcast(lk.credit.id, txHash),
+        onReverted: ({ txHash }: { txHash: string | null }) => {
+          // No hash means the attempt is unresolved: keep the credit untouchable rather than clear it.
+          if (txHash) guardRef.current.reverted(txHash)
         }
       }
+      guardRef.current.submitStarted(lk.credit.id)
       if (gaslessEnabled()) {
         try {
           txHash = await buyGasless(buyArgs)
           // Relayed, so it is broadcast the moment buyGasless resolves.
-          broadcastRef.current = true
+          guardRef.current.broadcast(lk.credit.id, txHash)
           await waitForSettlement(txHash)
           usedGasless = true
         } catch (gaslessErr) {
           if (gaslessErr instanceof SettlementPendingError) {
             usedGasless = true
           } else if (gaslessErr instanceof GaslessUnavailableError) {
-            // Nothing was relayed, so the credit is still untouched and the direct rail starts clean.
-            broadcastRef.current = false
+            /**
+             * Only a REJECTION proves nothing was relayed. `relayer-unreachable` means there is no usable
+             * response — a proxy 502, a reset connection — and the relayer may have submitted before it died.
+             * Re-submitting the same credit then estimates gas against a consumed credit, which reverts with no
+             * receipt and is indistinguishable from a pre-broadcast failure. So that case is recorded as
+             * unobservable (the credit can never be released) and the fallback is not attempted.
+             */
+            if (gaslessErr.reason === 'relayer-unreachable') {
+              guardRef.current.unobservable(lk.credit.id)
+              throw gaslessErr
+            }
             txHash = await buyWithCredits(buyArgs)
           } else {
-            // waitForSettlement throws a plain Error only for a status-0 receipt: the credit was NOT
-            // consumed, so it must be released rather than stranded until the TTL.
-            broadcastRef.current = false
+            /**
+             * Everything else the inner try can throw lands here, and the hash tells them apart. With a hash,
+             * buyGasless resolved and this came from waitForSettlement, whose plain Error means a status-0
+             * receipt: nothing consumed, so record the revert or the release stays blocked. Without one,
+             * nothing was relayed (a dismissed signature prompt, a failed nonce read).
+             */
+            if (txHash) guardRef.current.reverted(txHash)
             throw gaslessErr
           }
         }
@@ -315,6 +327,8 @@ export function BuyModal({
         txHash = await buyWithCredits(buyArgs)
       }
     } catch (e) {
+      // The submit is over: the decision now rests on what was actually reported.
+      guardRef.current.submitFinished(lk.credit.id)
       if (!isUserRejection(e)) captureError(e, { flow: 'buy', step: 'submit', gasless: usedGasless })
       releaseReservation([lk.credit.id])
       reservedCreditIdRef.current = null
@@ -334,15 +348,18 @@ export function BuyModal({
      * bad query key — landed in the catch above and released a credit that had been consumed seconds earlier.
      * That path needed no race to hit: any exception in these three lines was enough.
      */
+    guardRef.current.submitFinished(lk.credit.id)
     reservedCreditIdRef.current = null // consumed by the buy
     try {
+      // Invalidations FIRST: they are what refresh the buyer's balance and drop the item from the PDP, and a
+      // Segment fault must not be able to skip them (analytics is the part most likely to throw).
+      invalidateAfterPurchase(qc, item)
       track('Shop Completed Purchase', {
         ...purchaseItemsProps([item]),
         payment_type: 'credits',
         no_crypto_step: usedGasless,
         transaction_hash: txHash ?? null
       })
-      invalidateAfterPurchase(qc, item)
     } catch (bookErr) {
       // Reported, never surfaced: the purchase happened. Swallowing it here is what keeps a Segment or
       // query-cache fault from turning a completed sale into an error screen.
@@ -354,7 +371,7 @@ export function BuyModal({
   /**
    * The ONLY way this component releases a reservation.
    *
-   * Every release used to be a bare `cancelUsdIntents` call, and three of the six could run after the
+   * Every release used to be a bare `cancelUsdIntents` call, and three of the SEVEN could run after the
    * transaction had gone out: the credits catch, the combined catch, and the effect cleanup on unmount (the
    * ref is only cleared once the await resolves, so closing the modal mid-flight reaches it). Funnelling them
    * through one guarded helper is what makes "never release spent credits" a property of the component rather
@@ -362,8 +379,21 @@ export function BuyModal({
    */
   function releaseReservation(ids: string[]) {
     if (!session || ids.length === 0) return
-    if (broadcastRef.current) return
-    void cancelUsdIntents(session.identity, ids).catch(() => {})
+    const safe = ids.filter(id => !guardRef.current.mayBeConsumed(id))
+    if (safe.length === 0) return
+    void cancelUsdIntents(session.identity, safe).catch(() => {})
+  }
+
+  /**
+   * The unmount path, which needs a STRICTER rule than a buy's own catch.
+   *
+   * A catch runs after its submit settles, so it knows whether a transaction went out. This runs whenever the
+   * component goes away — including while the wallet prompt is open, or while the relayer is mid-round-trip,
+   * when nothing has been reported yet. Releasing on "nothing broadcast" there hands back a credit the buyer
+   * is about to spend. A modal abandoned before any submit still releases, which is the case it exists for.
+   */
+  function releaseIfNotInFlight(ids: string[]) {
+    releaseReservation(ids.filter(id => !guardRef.current.isInFlight(id)))
   }
 
   // Post-purchase cache refresh shared by the MANA rails (mirrors confirm()'s invalidations so the PDP,
@@ -445,23 +475,24 @@ export function BuyModal({
     try {
       const { credit } = await authorizeUsdCredit(session.identity, combined.creditsCents, trade.id)
       partialCreditId = credit.id
+      guardRef.current.submitStarted(credit.id)
       txHash = await buyWithCreditsAndMana({
         trade,
         buyer: session.address,
         signer: session.signer,
         credits: [credit],
         manaGapWei: combined.manaWei,
-        // Same rule as the credits-only rail: this spends the credit through useCredits, so once it is out
-        // the reservation is untouchable — unless the call reverted, which consumed nothing.
-        onBroadcast: () => {
-          broadcastRef.current = true
-        },
-        onReverted: () => {
-          broadcastRef.current = false
+        // Same rule as the credits-only rail, against THIS reservation: the partial credit, not the price lock
+        // that was released above.
+        onBroadcast: ({ txHash: h }: { txHash: string }) => guardRef.current.broadcast(credit.id, h),
+        onReverted: ({ txHash: h }: { txHash: string | null }) => {
+          if (h) guardRef.current.reverted(h)
         }
       })
     } catch (e) {
-      // The partial reservation never settled → release the dollars instead of stranding them.
+      if (partialCreditId) guardRef.current.submitFinished(partialCreditId)
+      // The partial reservation never settled → release the dollars instead of stranding them. Guarded, so a
+      // broadcast whose outcome is unknown is left alone.
       if (partialCreditId) releaseReservation([partialCreditId])
       if (!isUserRejection(e)) captureError(e, { flow: 'buy_credits_and_mana', step: 'submit' })
       track(isUserRejection(e) ? 'Shop Purchase Cancelled' : 'Shop Purchase Failed', {
@@ -476,13 +507,15 @@ export function BuyModal({
     // Bought — bookkeeping only, and outside the try for the same reason as confirm() above. The old
     // `partialCreditId = null` that used to guard the release from here is gone: the catch returns, so this
     // point is unreachable from it, and the release itself is now guarded by broadcastRef.
+    if (partialCreditId) guardRef.current.submitFinished(partialCreditId)
     try {
+      // Refresh first, analytics second — see confirm().
+      refreshAfterPurchase()
       track('Shop Completed Purchase', {
         ...purchaseItemsProps([item]),
         payment_type: 'credits_and_mana',
         transaction_hash: txHash ?? null
       })
-      refreshAfterPurchase()
     } catch (bookErr) {
       captureError(bookErr, { flow: 'buy_credits_and_mana', step: 'post_purchase' })
     }

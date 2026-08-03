@@ -27,7 +27,18 @@ const { Interface, hexZeroPad } = ethers.utils
 export class GaslessUnavailableError extends Error {
   constructor(
     message: string,
-    readonly reason: 'disabled' | 'contract-account' | 'relayer' | 'unknown' = 'unknown'
+    /**
+     * `relayer-rejected` vs `relayer-unreachable` is a MONEY distinction, not a diagnostic one.
+     *
+     * Rejected means a response was parsed and carried no hash: the meta-transaction was provably NOT
+     * broadcast, so falling back to the direct rail with the same credit is safe. Unreachable means there is
+     * no usable response — a proxy 502, a reset connection — and the relayer may well have submitted before
+     * the connection died. Re-submitting the same credit then spends it twice from the caller's point of
+     * view: gas estimation reverts on the already-consumed credit, no receipt comes back, and the failure
+     * looks exactly like a pre-broadcast one to anything that cannot tell these two apart.
+     */
+    readonly reason:
+      'disabled' | 'contract-account' | 'relayer-rejected' | 'relayer-unreachable' | 'unknown' = 'unknown'
   ) {
     super(message)
     this.name = 'GaslessUnavailableError'
@@ -148,14 +159,16 @@ async function relay(
     })
     body = (await res.json()) as RelayerResponse
     if (!res.ok && body?.ok !== true && !body?.txHash) {
-      throw new GaslessUnavailableError(body?.message ?? `relayer ${res.status}`, 'relayer')
+      // A parsed body with no hash: an answer, and the answer is no.
+      throw new GaslessUnavailableError(body?.message ?? `relayer ${res.status}`, 'relayer-rejected')
     }
   } catch (e) {
     if (e instanceof GaslessUnavailableError) throw e
-    throw new GaslessUnavailableError((e as Error)?.message ?? 'relayer unreachable', 'relayer')
+    // No usable response — the request may have been submitted before this failed. Not the same as a refusal.
+    throw new GaslessUnavailableError((e as Error)?.message ?? 'relayer unreachable', 'relayer-unreachable')
   }
   if (body?.ok === false || !body?.txHash) {
-    throw new GaslessUnavailableError(body?.message ?? 'relayer rejected the transaction', 'relayer')
+    throw new GaslessUnavailableError(body?.message ?? 'relayer rejected the transaction', 'relayer-rejected')
   }
   return body.txHash
 }

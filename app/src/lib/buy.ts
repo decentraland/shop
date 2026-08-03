@@ -354,8 +354,12 @@ export async function buyWithCredits(opts: {
    * NOT releasing strands that much of the buyer's balance until the TTL expires. This is the one failure
    * after a broadcast where a release is still right, which is why it is reported rather than guessed —
    * every other post-broadcast failure (timeout, dropped socket, replaced transaction) may be consumed.
+   *
+   * Carries the reverted transaction's hash because a credit can back MORE than one transaction: the modals
+   * let a buyer retry with the same reservation, so "a revert happened" is not the same statement as "this
+   * credit is untouched". See lib/spend-guard.
    */
-  onReverted?: () => void
+  onReverted?: (info: { txHash: string | null }) => void
 }): Promise<string> {
   const { trade, buyer, signer, credits, onBroadcast, onReverted } = opts
   if (credits.length === 0) throw new Error('No credits to spend')
@@ -366,7 +370,12 @@ export async function buyWithCredits(opts: {
   try {
     return await sendUseCredits(trade.chainId, args, signer, txHash => onBroadcast?.({ txHash }))
   } catch (err) {
-    if (isRevertedTxError(err)) onReverted?.()
+    // The hash of the transaction that reverted, so the caller can tie the revert to the attempt it belongs
+    // to rather than to the credit as a whole. ethers attaches the receipt to the error; `null` if it somehow
+    // is not there, which a caller must read as "this attempt is unresolved".
+    if (isRevertedTxError(err)) {
+      onReverted?.({ txHash: (err as { receipt?: { transactionHash?: string } }).receipt?.transactionHash ?? null })
+    }
     throw err
   }
 }
