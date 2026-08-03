@@ -47,6 +47,17 @@ export const config = {
    * being rehearsed.
    */
   isStaging: base.is(Env.STAGING),
+  /**
+   * Arm the pre-launch curtain on the local dev server, so its behaviour can be exercised without a deploy:
+   *
+   *   VITE_SHOP_PRELAUNCH_LOCAL=true   in .env.local
+   *
+   * DEV BUILDS ONLY, and for the same reason as the feature-flag overrides: `import.meta.env.DEV` is
+   * statically replaced with `false` in a production build, so this collapses to `false` and the whole
+   * expression is dropped from the bundle rather than merely never taken. A query string or a stray env var
+   * must not be able to put a holding page in front of the live Shop.
+   */
+  prelaunchLocalPreview: import.meta.env.DEV && env.VITE_SHOP_PRELAUNCH_LOCAL === 'true',
   marketplaceServerUrl: env.VITE_MARKETPLACE_SERVER_URL ?? base.get('MARKETPLACE_SERVER_URL'),
   chainId: Number(env.VITE_CHAIN_ID ?? base.get('CHAIN_ID')),
   authUrl: env.VITE_AUTH_URL ?? base.get('AUTH_URL'),

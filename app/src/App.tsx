@@ -10,6 +10,7 @@ import { HoverPreviewLayer } from '~/components/HoverPreviewLayer'
 import { ScrollReset } from '~/components/ScrollReset'
 import { useAccountWatcher } from '~/hooks/useAccountWatcher'
 import { useShopPrelaunch } from '~/hooks/useShopPrelaunch'
+import { useWallet } from '~/store/wallet'
 import { initAnalytics, trackPage } from '~/lib/analytics'
 import { Overview } from '~/pages/Overview'
 import * as OV from '~/pages/Overview.styles'
@@ -81,6 +82,17 @@ export function App() {
   const prelaunch = useShopPrelaunch()
   const location = useLocation()
 
+  // Start the silent wallet restore HERE, not only in the navbar.
+  //
+  // The curtain returns before the shell, so while it is up the navbar is unmounted — and the navbar is
+  // what used to kick this off. That worked by accident: the restore promise outlived the unmount. It stops
+  // working the moment the decision waits on the restore, because then nothing would ever start it and the
+  // page would stay blank forever. The store dedupes concurrent callers, so the navbar can keep asking too.
+  const restoreWallet = useWallet(s => s.restore)
+  useEffect(() => {
+    void restoreWallet()
+  }, [restoreWallet])
+
   // Load Segment once (no-op without a write key), then emit a page view on each route change.
   useEffect(() => {
     initAnalytics()
@@ -102,7 +114,16 @@ export function App() {
   // The pre-launch curtain. Returned BEFORE the shell so no NavBar, footer or route is mounted: each of those
   // is a door into a Shop that is meant to be closed. Cosmetic only — what refuses a purchase is the same flag
   // read server-side by credits-server (see useShopPrelaunch).
-  if (prelaunch) {
+  //
+  // 'pending' renders NOTHING. The decision needs the wallet session, which arrives after the flag, and
+  // showing either answer before both are in produced a visible flash of the holding page on every refresh
+  // for wallets that are in fact allowed. Nothing is the only honest thing to show while the question is
+  // open, and it is brief: an ungated environment never reaches this, and a gated one is waiting on a cached
+  // flag read plus a storage read.
+  if (prelaunch === 'pending') {
+    return null
+  }
+  if (prelaunch === 'hidden') {
     return <PrelaunchNotice />
   }
 
