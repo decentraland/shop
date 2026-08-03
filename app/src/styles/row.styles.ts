@@ -9,20 +9,26 @@ const { colors, media } = theme
 // `import * as Row from '~/styles/row.styles'`.
 
 export const Root = styled.section`
-  margin-bottom: 40px;
+  margin-bottom: 50px;
 `
 
 export const Head = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 8px;
+  margin-bottom: 20px;
 `
 
 export const Title = styled.h2`
-  font-size: 20px;
-  font-weight: 600;
+  font-size: 50px;
+  font-weight: 900;
+  letter-spacing: -0.05em;
+  line-height: 1.1;
   color: ${colors.text};
+
+  ${media.maxWidth('mobile')} {
+    font-size: 32px;
+  }
 `
 
 export const ViewAll = styled(Link)`

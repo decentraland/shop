@@ -12,7 +12,7 @@ const pulse = keyframes`
 `
 
 export const Creators = styled.section`
-  margin: 0 0 48px;
+  margin: 0 0 50px;
 `
 
 export const Head = styled.div`
@@ -20,15 +20,20 @@ export const Head = styled.div`
   align-items: baseline;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 `
 
 export const Title = styled.h2`
   margin: 0;
   color: ${colors.text};
-  font-size: 20px;
-  font-weight: 600;
-  line-height: 1.6;
+  font-size: 50px;
+  font-weight: 900;
+  letter-spacing: -0.05em;
+  line-height: 1.1;
+
+  ${media.maxWidth('mobile')} {
+    font-size: 32px;
+  }
 `
 
 export const Period = styled.span`
