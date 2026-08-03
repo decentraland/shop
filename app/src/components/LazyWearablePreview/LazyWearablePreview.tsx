@@ -52,13 +52,13 @@ export function WearablePreview({ unity = false, ...props }: Props) {
 }
 
 function Preview({
-  unity,
+  unity = false,
   unityMode = PreviewUnityMode.MARKETPLACE,
   onError,
   onLoad,
   onRenderer,
   ...props
-}: Props & { unity: boolean }) {
+}: Props) {
   const [shouldUseUnity, setShouldUseUnity] = useState(() => resolveUnityRenderer(unity, props.id))
 
   return (
