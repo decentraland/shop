@@ -124,6 +124,19 @@ export function BuyModal({
     usdCents: number
   } | null>(null)
   const reservedCreditIdRef = useRef<string | null>(null)
+  /**
+   * Whether this purchase's transaction was BROADCAST — i.e. whether its credits may already be consumed
+   * on-chain. Once true, NOTHING may release them.
+   *
+   * Releasing a consumed credit hands the buyer back money they have already spent: the balance rises, the
+   * reconciler debits it again once the squid indexes the consumption, and anything bought in that gap drives
+   * the balance negative. A ref rather than state because the release paths are callbacks and effect cleanups
+   * that would close over a stale value.
+   *
+   * Reset to false on a definitive REVERT: a reverted call rolls back, so the credit was not consumed and
+   * releasing it is both safe and necessary — otherwise that much of the balance is stranded until the TTL.
+   */
+  const broadcastRef = useRef(false)
 
   const priceCredits = locked?.credits ?? itemCredits
   const balanceCredits = balance?.credits ?? 0
@@ -181,7 +194,7 @@ export function BuyModal({
             usdCents: lockedCents
           } = await authorizeUsdCredit(session.identity, usdCents, trade.id)
           if (cancelled) {
-            void cancelUsdIntents(session.identity, [credit.id]).catch(() => {})
+            releaseReservation([credit.id])
             return
           }
           reservedCreditIdRef.current = credit.id
@@ -214,7 +227,7 @@ export function BuyModal({
     return () => {
       cancelled = true
       if (reservedCreditIdRef.current && session) {
-        void cancelUsdIntents(session.identity, [reservedCreditIdRef.current]).catch(() => {})
+        releaseReservation([reservedCreditIdRef.current])
         reservedCreditIdRef.current = null
       }
     }
@@ -257,45 +270,53 @@ export function BuyModal({
     if (!session || !lk) return
     setPhase('processing')
     setError(null)
+    // Declared out here, not inside the try: the catch reads them, and the post-success block below runs
+    // AFTER the try so that a failure in analytics or a cache refresh can never reach the release path.
     let usedGasless = false
+    let txHash: string | undefined
     try {
       const buyArgs = {
         trade: lk.trade,
         buyer: session.address,
         signer: session.signer,
         credits: [lk.credit],
-        maxCreditedValue: lk.maxCreditedValue
+        maxCreditedValue: lk.maxCreditedValue,
+        // The transaction is on its way: from here on the credit may be consumed on-chain, so no failure
+        // may release it. A revert is the one exception — it rolled back, so the credit is untouched.
+        onBroadcast: () => {
+          broadcastRef.current = true
+        },
+        onReverted: () => {
+          broadcastRef.current = false
+        }
       }
-      let txHash: string | undefined
       if (gaslessEnabled()) {
         try {
           txHash = await buyGasless(buyArgs)
+          // Relayed, so it is broadcast the moment buyGasless resolves.
+          broadcastRef.current = true
           await waitForSettlement(txHash)
           usedGasless = true
         } catch (gaslessErr) {
           if (gaslessErr instanceof SettlementPendingError) {
             usedGasless = true
           } else if (gaslessErr instanceof GaslessUnavailableError) {
+            // Nothing was relayed, so the credit is still untouched and the direct rail starts clean.
+            broadcastRef.current = false
             txHash = await buyWithCredits(buyArgs)
           } else {
+            // waitForSettlement throws a plain Error only for a status-0 receipt: the credit was NOT
+            // consumed, so it must be released rather than stranded until the TTL.
+            broadcastRef.current = false
             throw gaslessErr
           }
         }
       } else {
         txHash = await buyWithCredits(buyArgs)
       }
-      reservedCreditIdRef.current = null // consumed by the buy
-      track('Shop Completed Purchase', {
-        ...purchaseItemsProps([item]),
-        payment_type: 'credits',
-        no_crypto_step: usedGasless,
-        transaction_hash: txHash ?? null
-      })
-      invalidateAfterPurchase(qc, item)
-      setPhase('complete')
     } catch (e) {
       if (!isUserRejection(e)) captureError(e, { flow: 'buy', step: 'submit', gasless: usedGasless })
-      void cancelUsdIntents(session.identity, [lk.credit.id]).catch(() => {})
+      releaseReservation([lk.credit.id])
       reservedCreditIdRef.current = null
       track(isUserRejection(e) ? 'Shop Purchase Cancelled' : 'Shop Purchase Failed', {
         step: 'submit',
@@ -304,7 +325,45 @@ export function BuyModal({
       void qc.invalidateQueries({ queryKey: ['usd-balance'] })
       setError(friendlyError(e, t('buyModal.error.generic'), { sale: true }))
       setPhase('error')
+      return
     }
+    /**
+     * BOUGHT. Everything below is bookkeeping, and it is OUTSIDE the try on purpose.
+     *
+     * It used to sit inside it, so a throw from `track` or `invalidateAfterPurchase` — a Segment failure, a
+     * bad query key — landed in the catch above and released a credit that had been consumed seconds earlier.
+     * That path needed no race to hit: any exception in these three lines was enough.
+     */
+    reservedCreditIdRef.current = null // consumed by the buy
+    try {
+      track('Shop Completed Purchase', {
+        ...purchaseItemsProps([item]),
+        payment_type: 'credits',
+        no_crypto_step: usedGasless,
+        transaction_hash: txHash ?? null
+      })
+      invalidateAfterPurchase(qc, item)
+    } catch (bookErr) {
+      // Reported, never surfaced: the purchase happened. Swallowing it here is what keeps a Segment or
+      // query-cache fault from turning a completed sale into an error screen.
+      captureError(bookErr, { flow: 'buy', step: 'post_purchase' })
+    }
+    setPhase('complete')
+  }
+
+  /**
+   * The ONLY way this component releases a reservation.
+   *
+   * Every release used to be a bare `cancelUsdIntents` call, and three of the six could run after the
+   * transaction had gone out: the credits catch, the combined catch, and the effect cleanup on unmount (the
+   * ref is only cleared once the await resolves, so closing the modal mid-flight reaches it). Funnelling them
+   * through one guarded helper is what makes "never release spent credits" a property of the component rather
+   * than something each call site has to remember.
+   */
+  function releaseReservation(ids: string[]) {
+    if (!session || ids.length === 0) return
+    if (broadcastRef.current) return
+    void cancelUsdIntents(session.identity, ids).catch(() => {})
   }
 
   // Post-purchase cache refresh shared by the MANA rails (mirrors confirm()'s invalidations so the PDP,
@@ -336,7 +395,7 @@ export function BuyModal({
     const trade = locked?.trade ?? resolvedTrade
     if (!session || !trade) return
     if (reservedCreditIdRef.current) {
-      void cancelUsdIntents(session.identity, [reservedCreditIdRef.current]).catch(() => {})
+      releaseReservation([reservedCreditIdRef.current])
       reservedCreditIdRef.current = null
     }
     setPhase('processing')
@@ -378,31 +437,32 @@ export function BuyModal({
     setError(null)
     // Release the full-price reservation (if the 'ready' path made one) before reserving the partial.
     if (reservedCreditIdRef.current) {
-      void cancelUsdIntents(session.identity, [reservedCreditIdRef.current]).catch(() => {})
+      releaseReservation([reservedCreditIdRef.current])
       reservedCreditIdRef.current = null
     }
     let partialCreditId: string | null = null
+    let txHash: string | undefined
     try {
       const { credit } = await authorizeUsdCredit(session.identity, combined.creditsCents, trade.id)
       partialCreditId = credit.id
-      const txHash = await buyWithCreditsAndMana({
+      txHash = await buyWithCreditsAndMana({
         trade,
         buyer: session.address,
         signer: session.signer,
         credits: [credit],
-        manaGapWei: combined.manaWei
+        manaGapWei: combined.manaWei,
+        // Same rule as the credits-only rail: this spends the credit through useCredits, so once it is out
+        // the reservation is untouchable — unless the call reverted, which consumed nothing.
+        onBroadcast: () => {
+          broadcastRef.current = true
+        },
+        onReverted: () => {
+          broadcastRef.current = false
+        }
       })
-      partialCreditId = null // consumed on-chain
-      track('Shop Completed Purchase', {
-        ...purchaseItemsProps([item]),
-        payment_type: 'credits_and_mana',
-        transaction_hash: txHash ?? null
-      })
-      refreshAfterPurchase()
-      setPhase('complete')
     } catch (e) {
       // The partial reservation never settled → release the dollars instead of stranding them.
-      if (partialCreditId) void cancelUsdIntents(session.identity, [partialCreditId]).catch(() => {})
+      if (partialCreditId) releaseReservation([partialCreditId])
       if (!isUserRejection(e)) captureError(e, { flow: 'buy_credits_and_mana', step: 'submit' })
       track(isUserRejection(e) ? 'Shop Purchase Cancelled' : 'Shop Purchase Failed', {
         step: 'submit',
@@ -411,7 +471,22 @@ export function BuyModal({
       void qc.invalidateQueries({ queryKey: ['usd-balance'] })
       setError(friendlyError(e, t('buyModal.error.generic'), { sale: true }))
       setPhase('error')
+      return
     }
+    // Bought — bookkeeping only, and outside the try for the same reason as confirm() above. The old
+    // `partialCreditId = null` that used to guard the release from here is gone: the catch returns, so this
+    // point is unreachable from it, and the release itself is now guarded by broadcastRef.
+    try {
+      track('Shop Completed Purchase', {
+        ...purchaseItemsProps([item]),
+        payment_type: 'credits_and_mana',
+        transaction_hash: txHash ?? null
+      })
+      refreshAfterPurchase()
+    } catch (bookErr) {
+      captureError(bookErr, { flow: 'buy_credits_and_mana', step: 'post_purchase' })
+    }
+    setPhase('complete')
   }
 
   // No funds → buy the selected pack on Stripe directly, then resume THIS item purchase with the new
@@ -425,7 +500,7 @@ export function BuyModal({
       /* private mode: resume just won't auto-trigger; the credits still land */
     }
     // Release the (unaffordable) item reservation; we re-authorize after topping up.
-    if (locked) void cancelUsdIntents(session.identity, [locked.credit.id]).catch(() => {})
+    if (locked) releaseReservation([locked.credit.id])
     reservedCreditIdRef.current = null
     setPhase('loading')
     try {

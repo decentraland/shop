@@ -338,14 +338,37 @@ export async function buyWithCredits(opts: {
   // For USD credits the server already sized the MANA cap for this purchase; pass it to skip the
   // client-side oracle read. Legacy MANA credits omit it and we derive it from the trade.
   maxCreditedValue?: string
+  /**
+   * Fired the moment the transaction is BROADCAST — the buyer confirmed and it is on its way.
+   *
+   * A caller that releases its reservation on ANY failure gives back money that is already spent: the
+   * balance rises, the reconciler debits it again once the squid indexes the consumption, and anything
+   * bought in the gap drives the balance negative. This is the only signal that says the release is no
+   * longer safe. (`buyManyWithCredits` reports the same thing per group.)
+   */
+  onBroadcast?: (info: { txHash: string }) => void
+  /**
+   * Fired when the transaction mined and REVERTED (receipt status 0).
+   *
+   * A revert rolls the whole call back, so the credit was NOT consumed: releasing is safe and correct, and
+   * NOT releasing strands that much of the buyer's balance until the TTL expires. This is the one failure
+   * after a broadcast where a release is still right, which is why it is reported rather than guessed —
+   * every other post-broadcast failure (timeout, dropped socket, replaced transaction) may be consumed.
+   */
+  onReverted?: () => void
 }): Promise<string> {
-  const { trade, buyer, signer, credits } = opts
+  const { trade, buyer, signer, credits, onBroadcast, onReverted } = opts
   if (credits.length === 0) throw new Error('No credits to spend')
 
   const marketplace = getContract(getContractName(trade.contract), trade.chainId)
   const maxCreditedValue = opts.maxCreditedValue ?? (await tradeManaPriceWei(trade))
   const args = buildUseCreditsArgs(marketplace.address, marketplace.abi, [trade], buyer, credits, maxCreditedValue)
-  return sendUseCredits(trade.chainId, args, signer)
+  try {
+    return await sendUseCredits(trade.chainId, args, signer, txHash => onBroadcast?.({ txHash }))
+  } catch (err) {
+    if (isRevertedTxError(err)) onReverted?.()
+    throw err
+  }
 }
 
 /**

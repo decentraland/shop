@@ -590,6 +590,87 @@ describe('when buying listings across different marketplaces', () => {
     })
   })
 
+  /**
+   * SINGLE-PURCHASE SIGNALS — the PDP flow (BuyModal / MarketCheckout) rather than the cart.
+   *
+   * Those components release their reservation when the buy throws, and until this existed they had no way to
+   * know whether the transaction had gone out. A `wait()` that rejects AFTER a broadcast (the buyer hits
+   * "Speed up" in MetaMask, so ethers reports TRANSACTION_REPLACED even though the replacement mined) had them
+   * handing back a credit that was already consumed.
+   */
+  describe('when buying ONE listing and reporting what happened', () => {
+    const one = (): CreditPurchase => ({
+      trade: fakeTrade('0xmarketA'),
+      credits: [credit(B32('1'), '100')],
+      maxCreditedValue: '100'
+    })
+
+    it('reports the broadcast with its hash', async () => {
+      const broadcast: string[] = []
+      const p = one()
+
+      await buyWithCredits({
+        trade: p.trade,
+        buyer: BUYER,
+        signer,
+        credits: p.credits,
+        maxCreditedValue: p.maxCreditedValue,
+        onBroadcast: ({ txHash }) => broadcast.push(txHash)
+      })
+
+      expect(broadcast).toEqual(['0xbroadcast1'])
+    })
+
+    it('reports a revert, so the caller may still release', async () => {
+      useCreditsRevertsAt = 1
+      let reverted = false
+      const p = one()
+
+      await expect(
+        buyWithCredits({
+          trade: p.trade,
+          buyer: BUYER,
+          signer,
+          credits: p.credits,
+          maxCreditedValue: p.maxCreditedValue,
+          onReverted: () => {
+            reverted = true
+          }
+        })
+      ).rejects.toThrow(/failed/)
+
+      // Status 0 rolled the call back: the credit was NOT consumed, so releasing it is correct and NOT
+      // releasing would strand that much of the balance until the TTL.
+      expect(reverted).toBe(true)
+    })
+
+    it('does NOT report a rejected signature as a revert', async () => {
+      useCreditsRejectsFrom = 1
+      const broadcast: string[] = []
+      let reverted = false
+      const p = one()
+
+      await expect(
+        buyWithCredits({
+          trade: p.trade,
+          buyer: BUYER,
+          signer,
+          credits: p.credits,
+          maxCreditedValue: p.maxCreditedValue,
+          onBroadcast: ({ txHash }) => broadcast.push(txHash),
+          onReverted: () => {
+            reverted = true
+          }
+        })
+      ).rejects.toThrow(/rejected/)
+
+      // Nothing went out at all, so the caller releases on the plain "nothing was broadcast" rule — the
+      // revert signal is for a DIFFERENT situation and must not fire here.
+      expect(broadcast).toEqual([])
+      expect(reverted).toBe(false)
+    })
+  })
+
   it('groups trades on the same marketplace case-insensitively into one tx', async () => {
     const purchases: CreditPurchase[] = [
       { trade: fakeTrade('0xMARKET'), credits: [credit(B32('1'), '100')], maxCreditedValue: '100' },

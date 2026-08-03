@@ -48,7 +48,8 @@ vi.mock('~/lib/mana-rate', () => ({
 
 vi.mock('~/lib/ownership', () => ({ isOwnTrade: () => false }))
 vi.mock('~/lib/gasless-config', () => ({ gaslessEnabled: () => false }))
-vi.mock('~/lib/buy', () => ({ buyWithCredits: vi.fn().mockResolvedValue('0xhash') }))
+const { buyWithCredits } = vi.hoisted(() => ({ buyWithCredits: vi.fn() }))
+vi.mock('~/lib/buy', () => ({ buyWithCredits }))
 vi.mock('~/lib/buy-gasless', () => ({
   buyGasless: vi.fn(),
   waitForSettlement: vi.fn(),
@@ -105,6 +106,7 @@ beforeEach(() => {
     usdCents: 2700
   })
   cancelUsdIntents.mockResolvedValue(0)
+  buyWithCredits.mockResolvedValue('0xhash')
 })
 
 describe('when the buyer has enough credits for the locked price', () => {
@@ -157,5 +159,84 @@ describe('when the buyer does not have enough credits for the locked price', () 
     expect(authorizeUsdCredit).not.toHaveBeenCalled()
     // The Confirm button stays disabled because the price never locked.
     expect(screen.getByRole('button', { name: /confirm purchase/i })).toBeDisabled()
+  })
+})
+
+/**
+ * THE RELEASE DECISION after the transaction is already out.
+ *
+ * This modal releases its reservation whenever the buy throws, which is right only while nothing has been
+ * broadcast. Releasing a credit that is consumed on-chain hands the buyer back money they have already spent:
+ * the balance rises, the reconciler debits it again once the squid indexes the consumption, and anything they
+ * buy in that gap drives the balance negative.
+ */
+describe('when the transaction has already been broadcast', () => {
+  const confirmPurchase = async () => {
+    const user = userEvent.setup()
+    // Re-stated per test: vi.clearAllMocks() clears calls but NOT implementations, so the $0-price case above
+    // would otherwise leak in and leave Confirm disabled.
+    manaWeiToUsdCents.mockReturnValue(2700)
+    useBalance.mockReturnValue({ data: { balanceCents: 100000, credits: 1000 }, isError: false })
+    renderModal()
+    const cta = await screen.findByRole('button', { name: /confirm purchase/i })
+    await waitFor(() => expect(cta).not.toBeDisabled())
+    await user.click(cta)
+  }
+
+  it('should NOT release the reservation when settlement fails after the broadcast', async () => {
+    // The buyer hits "Speed up" in their wallet: ethers rejects with TRANSACTION_REPLACED even though the
+    // replacement mined and consumed the credit. No receipt, so no revert signal — the pessimistic case.
+    buyWithCredits.mockImplementation(async (opts: Record<string, any>) => {
+      opts.onBroadcast?.({ txHash: '0xbroadcast' })
+      throw new Error('transaction was replaced')
+    })
+
+    await confirmPurchase()
+
+    await waitFor(() => expect(track).toHaveBeenCalledWith('Shop Purchase Failed', expect.anything()))
+    expect(cancelUsdIntents).not.toHaveBeenCalled()
+  })
+
+  it('should release the reservation when the transaction reverted', async () => {
+    // Status 0 rolled the call back, so the credit was never consumed: releasing is correct, and NOT
+    // releasing strands that much of the buyer's balance until the TTL.
+    buyWithCredits.mockImplementation(async (opts: Record<string, any>) => {
+      opts.onBroadcast?.({ txHash: '0xbroadcast' })
+      opts.onReverted?.()
+      throw new Error('transaction failed')
+    })
+
+    await confirmPurchase()
+
+    await waitFor(() => expect(cancelUsdIntents).toHaveBeenCalledWith(session.identity, ['credit-1']))
+  })
+
+  it('should still release when nothing was broadcast', async () => {
+    // The pre-existing behaviour, which must not regress: a rejected signature spends nothing.
+    buyWithCredits.mockRejectedValue(new Error('user rejected transaction'))
+
+    await confirmPurchase()
+
+    await waitFor(() => expect(cancelUsdIntents).toHaveBeenCalledWith(session.identity, ['credit-1']))
+  })
+
+  /**
+   * The path that needed no race at all: `track` and the cache invalidations used to sit INSIDE the try, so
+   * any throw from them landed in the catch and released a credit consumed seconds earlier.
+   */
+  it('should neither release nor show an error when post-purchase bookkeeping throws', async () => {
+    buyWithCredits.mockImplementation(async (opts: Record<string, any>) => {
+      opts.onBroadcast?.({ txHash: '0xbroadcast' })
+      return '0xhash'
+    })
+    track.mockImplementation((event: string) => {
+      if (event === 'Shop Completed Purchase') throw new Error('segment blew up')
+    })
+
+    await confirmPurchase()
+
+    // The purchase happened, so the buyer still lands on /success and nothing is handed back.
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith('/success', expect.anything()))
+    expect(cancelUsdIntents).not.toHaveBeenCalled()
   })
 })

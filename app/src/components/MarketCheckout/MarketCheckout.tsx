@@ -16,6 +16,7 @@ import { gaslessEnabled } from '~/lib/gasless-config'
 import { isOwnTrade } from '~/lib/ownership'
 import { t } from '~/intl/i18n'
 import { isRejection } from '~/lib/errors'
+import { captureError } from '~/lib/monitoring'
 import * as S from './MarketCheckout.styles'
 import type { SuccessNavState } from '~/pages/Success'
 
@@ -99,6 +100,13 @@ export function MarketCheckout({
   // cleared when released (cancel/error/insufficient) or consumed (buy). The unmount cleanup releases
   // it so navigating away after the price locks doesn't orphan the reservation until the TTL.
   const reservedCreditIdRef = useRef<string | null>(null)
+  /**
+   * Whether this purchase's transaction was BROADCAST — i.e. whether its credit may already be consumed
+   * on-chain. Once true, NOTHING may release it: giving back money the buyer has already spent raises the
+   * balance, the reconciler debits it again when the squid indexes the consumption, and anything bought in
+   * the gap drives the balance negative. Cleared on a definitive revert, which consumed nothing.
+   */
+  const broadcastRef = useRef(false)
 
   // Indicative (pre-authorize) price to show while we lock the real one.
   const approxCredits = usdCentsToCredits(manaWeiToUsdCents(listing.manaWei, rate))
@@ -128,7 +136,7 @@ export function MarketCheckout({
         } = await authorizeUsdCredit(session.identity, usdCents, listing.tradeId)
         if (cancelled) {
           // Component unmounted before we could show the price — release the reservation.
-          void cancelUsdIntents(session.identity, [credit.id]).catch(() => {})
+          releaseReservation([credit.id])
           return
         }
         reservedCreditIdRef.current = credit.id
@@ -153,7 +161,7 @@ export function MarketCheckout({
       cancelled = true
       // Release a locked-but-unspent reservation if the user navigates away without buying/cancelling.
       if (reservedCreditIdRef.current && session) {
-        void cancelUsdIntents(session.identity, [reservedCreditIdRef.current]).catch(() => {})
+        releaseReservation([reservedCreditIdRef.current])
         reservedCreditIdRef.current = null
       }
     }
@@ -176,14 +184,17 @@ export function MarketCheckout({
         credits_balance: balance?.credits ?? 0,
         shortfall: Math.max(0, locked.credits - (balance?.credits ?? 0))
       })
-      void cancelUsdIntents(session.identity, [locked.credit.id]).catch(() => {})
+      releaseReservation([locked.credit.id])
       reservedCreditIdRef.current = null
       navigate('/credits')
       return
     }
     setPhase('working')
     setError(null)
+    // Declared out here: the catch reads `usedGasless`, and the post-success block runs AFTER the try so a
+    // failure in analytics, a cache refresh or the navigation can never reach the release path.
     let usedGasless = false
+    let txHash: string | undefined
     try {
       setStatus(t('marketCheckout.confirming'))
       const buyArgs = {
@@ -191,12 +202,18 @@ export function MarketCheckout({
         buyer: session.address,
         signer: session.signer,
         credits: [locked.credit],
-        maxCreditedValue: locked.maxCreditedValue
+        maxCreditedValue: locked.maxCreditedValue,
+        onBroadcast: () => {
+          broadcastRef.current = true
+        },
+        onReverted: () => {
+          broadcastRef.current = false
+        }
       }
-      let txHash: string | undefined
       if (gaslessEnabled()) {
         try {
           txHash = await buyGasless(buyArgs) // buyer confirms off-chain; relayer covers the fee
+          broadcastRef.current = true // relayed → out of our hands
           await waitForSettlement(txHash)
           usedGasless = true
         } catch (gaslessErr) {
@@ -204,15 +221,40 @@ export function MarketCheckout({
             // Broadcast but not yet confirmed — keep the reservation; the reconciler settles it.
             usedGasless = true
           } else if (gaslessErr instanceof GaslessUnavailableError) {
+            broadcastRef.current = false // nothing was relayed
             txHash = await buyWithCredits(buyArgs) // fallback: buyer submits + pays gas
           } else {
+            // Only a status-0 receipt gets here: the credit was NOT consumed, so release it.
+            broadcastRef.current = false
             throw gaslessErr
           }
         }
       } else {
         txHash = await buyWithCredits(buyArgs)
       }
-      reservedCreditIdRef.current = null // consumed by the buy
+    } catch (e) {
+      console.error('[market] buy now failed', e)
+      // Release the reserved dollars so the balance isn't stuck until the TTL — unless the transaction went
+      // out, in which case they may already be spent (releaseReservation is what enforces that).
+      releaseReservation([locked.credit.id])
+      reservedCreditIdRef.current = null
+      track(isUserRejection(e) ? 'Shop Purchase Cancelled' : 'Shop Purchase Failed', {
+        step: 'submit',
+        error_code: errorCode(e),
+        value_usd: locked.usdCents / 100
+      })
+      void qc.invalidateQueries({ queryKey: ['usd-balance'] })
+      setError(friendlyError(e))
+      setPhase('error')
+      const raw = ((e as { message?: string }).message ?? '').toLowerCase()
+      if (raw.includes('not found') || raw.includes('no active listing') || raw.includes('404')) onSold()
+      return
+    }
+    // BOUGHT. Bookkeeping and navigation only, deliberately outside the try above — and with its own catch,
+    // so a Segment or query-cache fault can neither reach the release path nor cost the buyer the success
+    // screen for a purchase that actually happened.
+    reservedCreditIdRef.current = null // consumed by the buy
+    try {
       track('Shop Completed Purchase', {
         items: [
           {
@@ -241,29 +283,27 @@ export function MarketCheckout({
       void qc.invalidateQueries({ queryKey: ['catalog-items'] })
       void qc.invalidateQueries({ queryKey: ['my-assets'] })
       void qc.invalidateQueries({ queryKey: ['purchases'] })
-      const successState: SuccessNavState = { items: [toCatalogItem(listing)], txHash }
-      navigate('/success', { state: successState })
-    } catch (e) {
-      console.error('[market] buy now failed', e)
-      // Release the reserved dollars so the balance isn't stuck until the TTL.
-      void cancelUsdIntents(session.identity, [locked.credit.id]).catch(() => {})
-      reservedCreditIdRef.current = null
-      track(isUserRejection(e) ? 'Shop Purchase Cancelled' : 'Shop Purchase Failed', {
-        step: 'submit',
-        error_code: errorCode(e),
-        value_usd: locked.usdCents / 100
-      })
-      void qc.invalidateQueries({ queryKey: ['usd-balance'] })
-      setError(friendlyError(e))
-      setPhase('error')
-      const raw = ((e as { message?: string }).message ?? '').toLowerCase()
-      if (raw.includes('not found') || raw.includes('no active listing') || raw.includes('404')) onSold()
+    } catch (bookErr) {
+      captureError(bookErr, { flow: 'market_buy_now', step: 'post_purchase' })
     }
+    const successState: SuccessNavState = { items: [toCatalogItem(listing)], txHash }
+    navigate('/success', { state: successState })
+  }
+
+  /**
+   * The ONLY way this component releases a reservation — guarded, because two of its call sites can run after
+   * the transaction has gone out: the catch below, and the effect cleanup on unmount (the ref is cleared only
+   * once the await resolves, so navigating away mid-flight reaches it).
+   */
+  function releaseReservation(ids: string[]) {
+    if (!session || ids.length === 0) return
+    if (broadcastRef.current) return
+    void cancelUsdIntents(session.identity, ids).catch(() => {})
   }
 
   function cancel() {
     // Release any reservation we made before the user backed out.
-    if (session && locked) void cancelUsdIntents(session.identity, [locked.credit.id]).catch(() => {})
+    if (session && locked) releaseReservation([locked.credit.id])
     reservedCreditIdRef.current = null
     onClose()
   }
