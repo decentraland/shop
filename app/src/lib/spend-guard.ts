@@ -77,7 +77,10 @@ export function createSpendGuard(): SpendGuard {
       if (!hashes) return false
       // Any hash whose revert was never observed keeps the credit untouchable — including a hash from an
       // earlier attempt, which is exactly the case a single flag got wrong.
-      return [...hashes].some(hash => !revertedHashes.has(hash))
+      for (const hash of hashes) {
+        if (!revertedHashes.has(hash)) return true
+      }
+      return false
     }
   }
 }

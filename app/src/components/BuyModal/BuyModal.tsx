@@ -282,10 +282,10 @@ export function BuyModal({
         // The transaction is on its way: from here on the credit may be consumed on-chain, so no failure may
         // release it. A revert clears the ATTEMPT it names — not the credit, which an earlier attempt may
         // already have spent.
-        onBroadcast: ({ txHash }: { txHash: string }) => guardRef.current.broadcast(lk.credit.id, txHash),
-        onReverted: ({ txHash }: { txHash: string | null }) => {
+        onBroadcast: ({ txHash: h }: { txHash: string }) => guardRef.current.broadcast(lk.credit.id, h),
+        onReverted: ({ txHash: h }: { txHash: string | null }) => {
           // No hash means the attempt is unresolved: keep the credit untouchable rather than clear it.
-          if (txHash) guardRef.current.reverted(txHash)
+          if (h) guardRef.current.reverted(h)
         }
       }
       guardRef.current.submitStarted(lk.credit.id)

@@ -373,9 +373,7 @@ export async function buyWithCredits(opts: {
     // The hash of the transaction that reverted, so the caller can tie the revert to the attempt it belongs
     // to rather than to the credit as a whole. ethers attaches the receipt to the error; `null` if it somehow
     // is not there, which a caller must read as "this attempt is unresolved".
-    if (isRevertedTxError(err)) {
-      onReverted?.({ txHash: (err as { receipt?: { transactionHash?: string } }).receipt?.transactionHash ?? null })
-    }
+    if (isRevertedTxError(err)) onReverted?.({ txHash: revertedTxHash(err) })
     throw err
   }
 }
@@ -405,7 +403,22 @@ export async function buyWithCredits(opts: {
  * distinction (confirmed / reverted / still-pending) for relayed transactions.
  */
 export function isRevertedTxError(err: unknown): boolean {
-  return (err as { receipt?: { status?: number } } | null)?.receipt?.status === 0
+  return revertedReceipt(err)?.status === 0
+}
+
+/**
+ * The reverted transaction's hash, or null when the error carries no usable receipt.
+ *
+ * Separate from the predicate because callers need the hash, not just the fact: a credit can back more than
+ * one transaction, so a revert has to be attributed to the attempt it belongs to (see lib/spend-guard). Both
+ * live here so the shape of an ethers failed-receipt error is known in exactly one place.
+ */
+export function revertedTxHash(err: unknown): string | null {
+  return revertedReceipt(err)?.transactionHash ?? null
+}
+
+function revertedReceipt(err: unknown): { status?: number; transactionHash?: string } | undefined {
+  return (err as { receipt?: { status?: number; transactionHash?: string } } | null)?.receipt
 }
 
 export async function buyManyWithCredits(opts: {

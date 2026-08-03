@@ -205,11 +205,11 @@ export function MarketCheckout({
         signer: session.signer,
         credits: [locked.credit],
         maxCreditedValue: locked.maxCreditedValue,
-        onBroadcast: ({ txHash }: { txHash: string }) => guardRef.current.broadcast(locked.credit.id, txHash),
-        onReverted: ({ txHash }: { txHash: string | null }) => {
+        onBroadcast: ({ txHash: h }: { txHash: string }) => guardRef.current.broadcast(locked.credit.id, h),
+        onReverted: ({ txHash: h }: { txHash: string | null }) => {
           // No hash means the attempt is unresolved, so it must keep the credit untouchable rather than clear
           // it — the pessimistic reading is the only safe one.
-          if (txHash) guardRef.current.reverted(txHash)
+          if (h) guardRef.current.reverted(h)
         }
       }
       guardRef.current.submitStarted(locked.credit.id)
