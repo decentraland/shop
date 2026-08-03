@@ -38,6 +38,15 @@ export const config = {
    * referer, which means credits-server can never see it there. A runtime hostname check has no such trapdoor.
    */
   isProduction: base.is(Env.PRODUCTION),
+  /**
+   * Whether this is the staging deployment (`.today`), resolved the same way as `isProduction`.
+   *
+   * Staging is no longer a second copy of dev: it reads the production APIs, Polygon and the production
+   * credits-server, so it is the launch rehearsal. Behaviour that exists only on public surfaces —
+   * the pre-launch curtain — therefore has to apply here too, or the rehearsal is missing the thing
+   * being rehearsed.
+   */
+  isStaging: base.is(Env.STAGING),
   marketplaceServerUrl: env.VITE_MARKETPLACE_SERVER_URL ?? base.get('MARKETPLACE_SERVER_URL'),
   chainId: Number(env.VITE_CHAIN_ID ?? base.get('CHAIN_ID')),
   authUrl: env.VITE_AUTH_URL ?? base.get('AUTH_URL'),
