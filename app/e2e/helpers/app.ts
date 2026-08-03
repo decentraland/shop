@@ -322,6 +322,14 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
       if (search) items = items.filter(i => String(i.name).toLowerCase().includes(search))
       if (rarity) items = items.filter(i => rarity.split(',').includes(i.rarity))
       if (category) items = items.filter(i => i.category === category)
+      // `listingType` restricts to mints or to resales, and the real server applies it in SQL. Mirrored here
+      // because a caller that asks for primaries and silently receives a resale is a difference between the
+      // mock and production, not a shortcut: the Overview rails filter this way (they promote creators), and
+      // the fixtures do include a secondary row, so ignoring it would quietly put a resale in a rail that
+      // production never shows one in. A secondary row is the one with a per-token `tokenId`.
+      const listingType = u.searchParams.get('listingType')
+      if (listingType === 'primary') items = items.filter(i => !i.tokenId)
+      if (listingType === 'secondary') items = items.filter(i => !!i.tokenId)
       if (u.searchParams.get('sortBy') === 'cheapest') {
         items.sort((a, b) => (a.priceCredits ?? 0) - (b.priceCredits ?? 0))
       }

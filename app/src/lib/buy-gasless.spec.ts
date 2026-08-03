@@ -333,7 +333,7 @@ describe('when the relayer fails', () => {
         credits: [credit(B32('1'), '100')],
         maxCreditedValue: '100'
       })
-    ).rejects.toMatchObject({ reason: 'relayer', message: 'over capacity' })
+    ).rejects.toMatchObject({ reason: 'relayer-rejected', message: 'over capacity' })
   })
 
   it('rejects when the relayer returns ok but no txHash', async () => {
@@ -347,7 +347,7 @@ describe('when the relayer fails', () => {
         credits: [credit(B32('1'), '100')],
         maxCreditedValue: '100'
       })
-    ).rejects.toMatchObject({ reason: 'relayer' })
+    ).rejects.toMatchObject({ reason: 'relayer-rejected' })
   })
 
   it('rejects when the relayer body reports ok:false', async () => {
@@ -361,7 +361,7 @@ describe('when the relayer fails', () => {
         credits: [credit(B32('1'), '100')],
         maxCreditedValue: '100'
       })
-    ).rejects.toMatchObject({ reason: 'relayer', message: 'nonce too low' })
+    ).rejects.toMatchObject({ reason: 'relayer-rejected', message: 'nonce too low' })
   })
 
   it('wraps a network-level fetch failure as a relayer GaslessUnavailableError', async () => {
@@ -378,7 +378,9 @@ describe('when the relayer fails', () => {
         credits: [credit(B32('1'), '100')],
         maxCreditedValue: '100'
       })
-    ).rejects.toMatchObject({ reason: 'relayer', message: 'ECONNREFUSED' })
+      // A network fault leaves no usable response: the relayer may have submitted before the connection died,
+      // so this reason must NOT be read as proof that nothing went out.
+    ).rejects.toMatchObject({ reason: 'relayer-unreachable', message: 'ECONNREFUSED' })
   })
 })
 
@@ -474,6 +476,15 @@ describe('GaslessUnavailableError', () => {
   })
 
   it('carries the reason it was constructed with', () => {
-    expect(new GaslessUnavailableError('x', 'relayer').reason).toBe('relayer')
+    expect(new GaslessUnavailableError('x', 'relayer-rejected').reason).toBe('relayer-rejected')
+  })
+
+  /**
+   * The two relayer reasons are a MONEY distinction: only `relayer-rejected` proves nothing was broadcast, so
+   * only it makes re-submitting the same credit on the direct rail safe. `relayer-unreachable` may follow a
+   * submit that succeeded upstream.
+   */
+  it('separates a relayer refusal from an unreachable relayer', () => {
+    expect(new GaslessUnavailableError('x', 'relayer-unreachable').reason).toBe('relayer-unreachable')
   })
 })
