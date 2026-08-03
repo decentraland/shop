@@ -570,6 +570,23 @@ export async function fetchShopItems({ first = 100, ...filters }: ShopListingFil
   return { items: data.map(shopItemToItem), total: json.total ?? data.length }
 }
 
+// Items SIMILAR to one item — the PDP's fallback rail for when the item's collection has nothing else to
+// show. Rows are the same item-unified shape as fetchShopItems (one card per item, credit-priced), so the
+// carousel renders them with the identical AssetCard. Similarity is decided server-side (same category,
+// ordered so the closest rarity leads); the anchor item is already excluded by the endpoint.
+// Unpaginated — the server caps `first`, and the response carries no total.
+export async function fetchRelatedItems(
+  contractAddress: string,
+  itemId: string,
+  { first = 10 }: { first?: number } = {}
+): Promise<UnifiedListing[]> {
+  const qs = new URLSearchParams({ contractAddress, itemId, first: String(first) })
+  const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/related?${qs.toString()}`)
+  if (!res.ok) throw new Error(`fetchRelatedItems ${res.status}`)
+  const json = (await res.json()) as { data?: ShopItemRaw[] }
+  return (json.data ?? []).map(shopItemToItem)
+}
+
 // The legacy (classic MANA-priced) listing shape that MarketCheckout (Buy Now) consumes. A legacy row
 // from the unified feed is projected into this shape before opening checkout (see pages/Assets). These
 // listings are priced in MANA (not USD-pegged) so their credit price FLUCTUATES with the market rate.
