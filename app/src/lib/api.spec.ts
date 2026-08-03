@@ -34,6 +34,7 @@ import {
   fetchListings,
   fetchUnified,
   fetchShopItems,
+  fetchContractRegistry,
   fetchMyAssets,
   fetchOwnedToken,
   fetchResaleTokenInfo,
@@ -748,6 +749,41 @@ describe('when fetching the item-unified browse feed', () => {
   it('should throw when the item-unified request fails', async () => {
     fetchMock.mockResolvedValueOnce(httpError(502))
     await expect(fetchShopItems()).rejects.toThrow('fetchShopItems 502')
+  })
+})
+
+describe('when fetching the curated contract registry', () => {
+  it('should key the collection names by lowercased address', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonOk({
+        total: 2,
+        data: [
+          { name: 'Summer Capsule', address: '0xAAAA000000000000000000000000000000000001', category: 'wearable' },
+          { name: 'Names', address: '0xBBBB000000000000000000000000000000000002', category: 'ens' }
+        ]
+      })
+    )
+
+    const registry = await fetchContractRegistry()
+
+    expect(lastUrl()).toBe('https://market.test/v1/contracts')
+    expect(registry.get('0xaaaa000000000000000000000000000000000001')).toBe('Summer Capsule')
+    expect(registry.get('0xbbbb000000000000000000000000000000000002')).toBe('Names')
+  })
+
+  it('should skip entries with no usable name or address rather than mapping a blank', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonOk({ total: 3, data: [{ name: '', address: '0xa' }, { address: '0xb' }, { name: 'No address' }] })
+    )
+
+    const registry = await fetchContractRegistry()
+
+    expect(registry.size).toBe(0)
+  })
+
+  it('should throw when the registry request fails', async () => {
+    fetchMock.mockResolvedValueOnce(httpError(503))
+    await expect(fetchContractRegistry()).rejects.toThrow('fetchContractRegistry 503')
   })
 })
 

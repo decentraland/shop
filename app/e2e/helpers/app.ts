@@ -345,6 +345,20 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
       if (search) rows = rows.filter(c => String(c.name).toLowerCase().includes(search))
       return json(req, { data: rows, total: rows.length })
     }
+    // Curated contract registry (lib/api.ts → fetchContractRegistry): the Approvals page titles each
+    // selling row after the COLLECTION, whose name lives only here. Derived from the same collections
+    // fixture so the mock and production agree on what a collection is called. Note the field is
+    // `address`, not `contractAddress`.
+    if (path === '/v1/contracts') {
+      const rows = ((F.collections as { data: any[] }).data ?? []).map(c => ({
+        name: c.name,
+        address: c.contractAddress,
+        category: 'wearable',
+        network: 'MATIC',
+        chainId: 80002
+      }))
+      return json(req, { data: rows, total: rows.length })
+    }
     // Collection + Creator pages (lib/collections.ts → fetchCollectionItems/fetchCreatorItems).
     // Returns the collection's CATALOG items with server-computed priceCredits, filtered by the
     // contractAddress / creator query param.

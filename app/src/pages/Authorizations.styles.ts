@@ -220,6 +220,12 @@ export const EmptyHint = styled.p`
   margin: 0;
 `
 
+export const Notice = styled.p`
+  color: ${theme.colors.muted};
+  font-size: 14px;
+  margin: 0 0 12px;
+`
+
 export const Empty = styled.div`
   display: flex;
   flex-direction: column;
