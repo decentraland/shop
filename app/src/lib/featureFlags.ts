@@ -57,7 +57,18 @@ export enum FeatureFlag {
    * A ceiling, not a request: the shop still applies its own device/connection heuristic on top (see
    * `lib/pickRenderer`), so the flag being on does not mean a given visitor gets Unity.
    */
-  UNITY_WEARABLE_PREVIEW = 'unity-wearable-preview'
+  UNITY_WEARABLE_PREVIEW = 'unity-wearable-preview',
+
+  /**
+   * Whether the Shop shows creator FOLLOWS — the Follow button on a creator's page and the "From creators
+   * you follow" row on the overview.
+   *
+   * Absent from the flag file, so it reads off and the surfaces stay hidden: what exists today is a
+   * client-side prototype (a localStorage store, no backend), and a follow that lives in one browser is a
+   * promise the product cannot keep. The store and its specs are kept intact behind this so finishing the
+   * feature is a server + a flag, not a rewrite.
+   */
+  SHOP_FOLLOWS = 'shop-follows'
 }
 
 /** The application whose flag file carries the flags above. */
