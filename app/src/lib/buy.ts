@@ -15,14 +15,88 @@ import { gaslessConfig } from '~/lib/gasless-config'
 import { ensureChain } from '~/lib/trades'
 import {
   amoyGasOverrides,
+  buildStoreUseCreditsArgs,
   buildUseCreditsArgs,
   getOnChainTrade,
   type CreditPurchase,
-  type SpendableCredit
+  type SpendableCredit,
+  type StorePurchase
 } from '~/lib/trade-encoding'
 
 // Re-export the shared vocabulary so existing importers (Cart, tests) keep their `~/lib/buy` imports.
-export type { CreditPurchase, SpendableCredit } from '~/lib/trade-encoding'
+export type { CreditPurchase, SpendableCredit, StorePurchase } from '~/lib/trade-encoding'
+
+/**
+ * A basket line, on either purchase path. `acquisition` on the catalogue row is what picks between them:
+ * an offchain trade is bought with `accept([trade])`, a CollectionStore mint with `buy([...items])`.
+ */
+export type AnyPurchase = ({ kind: 'trade' } & CreditPurchase) | ({ kind: 'store' } & StorePurchase)
+
+/**
+ * A basket as callers actually hand it over: each ELEMENT is either tagged or a bare trade.
+ *
+ * Deliberately `(A | B)[]` and not `A[] | B[]`. The union-of-arrays form silently rejects a mixed basket —
+ * the one case this whole change exists to support — because an array literal holding both widens to a
+ * member type that satisfies neither arm.
+ */
+export type MixedPurchases = (AnyPurchase | CreditPurchase)[]
+
+/**
+ * One wallet signature's worth of work: the lines that settle together in a single useCredits() call.
+ *
+ * Exported because the UI has to TELL a self-custody buyer how many times they will be asked to confirm,
+ * and that number must come from the same code that creates the transactions. Counting groups in the view
+ * layer would be a second implementation of this rule, free to drift from what actually gets submitted.
+ */
+export type PurchaseGroup =
+  | { kind: 'trade'; chainId: number; marketplace: string; purchases: CreditPurchase[] }
+  | { kind: 'store'; chainId: number; purchases: StorePurchase[] }
+
+/**
+ * Split a basket into the minimum number of transactions.
+ *
+ * `useCredits` takes exactly ONE external call, so a batch can only ever hit one target: all trades on the
+ * same marketplace collapse into one `accept([...])`, and all store mints collapse into one `buy([...])` (the
+ * contract takes an array, across collections). A mixed basket is therefore two signatures — the same shape
+ * this already produced for a basket spanning two marketplaces.
+ */
+export function groupPurchases(purchases: MixedPurchases): PurchaseGroup[] {
+  const groups = new Map<string, PurchaseGroup>()
+  for (const p of normalizePurchases(purchases)) {
+    if (p.kind === 'store') {
+      const key = `store:${p.chainId}`
+      const existing = groups.get(key)
+      if (existing && existing.kind === 'store') existing.purchases.push(p)
+      else groups.set(key, { kind: 'store', chainId: p.chainId, purchases: [p] })
+      continue
+    }
+    const marketplace = p.trade.contract.toLowerCase()
+    const key = `trade:${p.trade.chainId}:${marketplace}`
+    const existing = groups.get(key)
+    if (existing && existing.kind === 'trade') existing.purchases.push(p)
+    else groups.set(key, { kind: 'trade', chainId: p.trade.chainId, marketplace, purchases: [p] })
+  }
+  return [...groups.values()]
+}
+
+/**
+ * Tag bare CreditPurchase objects as trades.
+ *
+ * Callers that predate the store path (the cart, the item page, the tests) still pass untagged trades. Shared
+ * by `groupPurchases` and `buyManyWithCredits` so the signature count the UI shows is derived from exactly the
+ * same normalised input the transactions are built from — the whole point of exporting the grouping.
+ */
+function normalizePurchases(purchases: MixedPurchases): AnyPurchase[] {
+  return purchases.map(p => ('kind' in p ? p : { kind: 'trade' as const, ...p }))
+}
+
+// Total MANA a group may draw: the sum of what the SERVER sized per line at /credits/authorize. Never
+// re-derived from item or trade prices — see wrapInUseCredits for why that silently overcharges.
+function groupMaxCreditedValue(purchases: { maxCreditedValue: string }[]): string {
+  return purchases
+    .reduce((acc, p) => acc.add(ethers.BigNumber.from(p.maxCreditedValue)), ethers.BigNumber.from(0))
+    .toString()
+}
 
 // ethers v5 `Contract` exposes dynamically-named ABI methods through an `any` index signature, so
 // reads come back untyped. Narrow each call site to the shape its ABI fragment actually returns.
@@ -266,45 +340,56 @@ export async function buyWithCredits(opts: {
 }
 
 /**
- * Buy several listings in as few signatures as possible: all trades on the same marketplace are
- * fulfilled by ONE accept([...]) inside a single useCredits() (one signature/tx), spending one
- * ephemeral credit per item. Trades on different marketplaces are split into one tx each.
- * The CreditsManager consumes each credit for its own item and settlement stays per-item (the squid
- * records consumption per credit id = intent salt). Returns the tx hash(es).
+ * Buy several listings in as few signatures as possible.
+ *
+ * Every trade on the same marketplace is fulfilled by ONE accept([...]) inside a single useCredits()
+ * (one signature/tx), spending one ephemeral credit per item; every CollectionStore mint likewise collapses
+ * into ONE buy([...]). See `groupPurchases` for why a mixed basket cannot be a single call. The
+ * CreditsManager consumes each credit for its own item and settlement stays per-item (the squid records
+ * consumption per credit id = intent salt). Returns the tx hash(es), in group order.
  *
  * Caveat: the CreditsManager caps the credited MANA per call at the hourly limit; a very large basket
  * could exceed it and revert (ExternalCallFailed). Fine for demo-scale baskets.
  */
 export async function buyManyWithCredits(opts: {
-  purchases: CreditPurchase[]
+  purchases: MixedPurchases
   buyer: string
   signer: ethers.Signer
-  /** Fired once the buyer confirms the tx in their wallet, before on-chain settlement. */
-  onSigned?: () => void
+  /**
+   * Fired each time the buyer confirms one group in their wallet, before that group settles on-chain.
+   * `signed` counts confirmations so far and `total` the number this basket needs — a self-custody buyer
+   * facing two prompts needs to see which one they are on.
+   */
+  onSigned?: (signed: number, total: number) => void
 }): Promise<string[]> {
-  const { purchases, buyer, signer, onSigned } = opts
+  const { buyer, signer, onSigned } = opts
+  const purchases = normalizePurchases(opts.purchases)
   if (purchases.length === 0) throw new Error('No items to buy')
 
-  // Group by (chain, marketplace) so each group is one accept([...]) → one signature.
-  const groups = new Map<string, CreditPurchase[]>()
-  for (const p of purchases) {
-    const key = `${p.trade.chainId}:${p.trade.contract.toLowerCase()}`
-    const g = groups.get(key)
-    if (g) g.push(p)
-    else groups.set(key, [p])
-  }
-
+  const groups = groupPurchases(purchases)
   const hashes: string[] = []
-  for (const group of groups.values()) {
-    const { chainId, contract } = group[0].trade
-    const marketplace = getContract(getContractName(contract), chainId)
-    const trades = group.map(p => p.trade)
-    const credits = group.flatMap(p => p.credits)
-    const maxCreditedValue = group
-      .reduce((acc, p) => acc.add(ethers.BigNumber.from(p.maxCreditedValue)), ethers.BigNumber.from(0))
-      .toString()
-    const args = buildUseCreditsArgs(marketplace.address, marketplace.abi, trades, buyer, credits, maxCreditedValue)
-    hashes.push(await sendUseCredits(chainId, args, signer, onSigned))
+  for (const group of groups) {
+    const credits = group.purchases.flatMap(p => p.credits)
+    const maxCreditedValue = groupMaxCreditedValue(group.purchases)
+    const args =
+      group.kind === 'store'
+        ? buildStoreUseCreditsArgs(
+            getContract(ContractName.CollectionStore, group.chainId).address,
+            getContract(ContractName.CollectionStore, group.chainId).abi,
+            group.purchases.map(p => p.item),
+            buyer,
+            credits,
+            maxCreditedValue
+          )
+        : buildUseCreditsArgs(
+            getContract(getContractName(group.marketplace), group.chainId).address,
+            getContract(getContractName(group.marketplace), group.chainId).abi,
+            group.purchases.map(p => p.trade),
+            buyer,
+            credits,
+            maxCreditedValue
+          )
+    hashes.push(await sendUseCredits(group.chainId, args, signer, () => onSigned?.(hashes.length + 1, groups.length)))
   }
   return hashes
 }

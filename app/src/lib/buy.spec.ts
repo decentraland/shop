@@ -15,14 +15,19 @@ let aggDecimals = 8
 let aggAnswer = '50000000' // int256 latestRoundData answer: $0.50/MANA at 8 decimals
 
 vi.mock('decentraland-transactions', () => ({
-  ContractName: { CreditsManager: 'CreditsManager' },
+  ContractName: { CreditsManager: 'CreditsManager', CollectionStore: 'CollectionStore' },
   getContractName: () => contractName,
   // abi only needs an `accept` fragment so Interface.getSighash('accept') resolves a selector.
   getContract: (name: string) => ({
-    address: name === 'CreditsManager' ? '0xcreditsmanager' : '0xmarket',
+    address: name === 'CreditsManager' ? '0xcreditsmanager' : name === 'CollectionStore' ? '0xstore' : '0xmarket',
     name,
     version: '1',
-    abi: ['function accept(uint256[] x)']
+    // Both fragments so Interface.getSighash resolves for the trade path (accept) and the store path
+    // (buy). The store tuple must match the real CollectionStore ItemToBuy[] or the encoder throws.
+    abi: [
+      'function accept(uint256[] x)',
+      'function buy(tuple(address collection,uint256[] ids,uint256[] prices,address[] beneficiaries)[] items)'
+    ]
   }),
   sendMetaTransaction: vi.fn(),
   MetaTransactionError: class MetaTransactionError extends Error {
@@ -87,7 +92,15 @@ vi.mock('ethers', async importOriginal => {
   }
 })
 
-import { buyWithCredits, buyManyWithCredits, cancelListing, type CreditPurchase, type SpendableCredit } from '~/lib/buy'
+import {
+  buyWithCredits,
+  buyManyWithCredits,
+  cancelListing,
+  groupPurchases,
+  type AnyPurchase,
+  type CreditPurchase,
+  type SpendableCredit
+} from '~/lib/buy'
 
 const B32 = (n: string) => '0x' + n.repeat(64)
 const ADDR = (n: string) => '0x' + n.repeat(20)
@@ -184,6 +197,155 @@ describe('when buying several listings on the same marketplace with credits', ()
 
     expect(useCreditsCalls[0].maxCreditedValue).toBe('300')
     expect(useCreditsCalls[0].maxUncreditedValue).toBe('0')
+  })
+})
+
+/**
+ * The CollectionStore path. These items are the majority of the sellable catalogue and are NOT trades:
+ * primary minting has no order, so it settles through CollectionStore.buy instead of accept().
+ */
+describe('when buying CollectionStore mints with credits', () => {
+  // A real 20-byte address: the abi encoder validates `collection` and rejects a placeholder.
+  const COLLECTION = '0x' + '11'.repeat(20)
+  const storeItem = (itemId: string, priceWei = '1000') => ({
+    collection: COLLECTION,
+    itemId,
+    priceWei
+  })
+  const storeLine = (itemId: string, creditId: string, cap: string): AnyPurchase => ({
+    kind: 'store',
+    item: storeItem(itemId),
+    credits: [credit(B32(creditId), cap)],
+    maxCreditedValue: cap,
+    chainId: 80002
+  })
+
+  beforeEach(() => {
+    useCreditsCalls.length = 0
+    walletChainId = 80002
+    switchHonored = true
+    switchCalls.length = 0
+  })
+
+  it('mints every item in ONE call, since buy() takes an array', async () => {
+    const hashes = await buyManyWithCredits({
+      purchases: [storeLine('1', '1', '100'), storeLine('2', '2', '200')],
+      buyer: BUYER,
+      signer
+    })
+
+    expect(hashes).toEqual(['0xhash'])
+    expect(useCreditsCalls).toHaveLength(1)
+    expect(useCreditsCalls[0].credits).toHaveLength(2)
+  })
+
+  it('targets the CollectionStore, not the marketplace', async () => {
+    await buyManyWithCredits({ purchases: [storeLine('1', '1', '100')], buyer: BUYER, signer })
+
+    expect(useCreditsCalls[0].externalCall.target).toBe('0xstore')
+  })
+
+  it('sizes the cap from what the server authorized and leaves nothing uncredited', async () => {
+    await buyManyWithCredits({
+      purchases: [storeLine('1', '1', '100'), storeLine('2', '2', '200')],
+      buyer: BUYER,
+      signer
+    })
+
+    // Summed from maxCreditedValue (the server-sized MANA), never re-derived from item prices — deriving
+    // it from the price leaves a positive uncredited gap that the buyer pays out of their own MANA.
+    expect(useCreditsCalls[0].maxCreditedValue).toBe('300')
+    expect(useCreditsCalls[0].maxUncreditedValue).toBe('0')
+  })
+
+  it('names the buyer as the beneficiary so the mint does not land in the CreditsManager', async () => {
+    await buyManyWithCredits({ purchases: [storeLine('1', '1', '100')], buyer: BUYER, signer })
+
+    // The CreditsManager is msg.sender for the external call, so an unset beneficiary would mint to it.
+    // The buyer address is abi-encoded into the calldata; assert it is present (lowercased, no 0x).
+    expect(useCreditsCalls[0].externalCall.data.toLowerCase()).toContain(BUYER.toLowerCase().slice(2))
+  })
+
+  it('splits a MIXED basket into one call per path', async () => {
+    const purchases: AnyPurchase[] = [
+      { kind: 'trade', trade: fakeTrade('0xmarket'), credits: [credit(B32('1'), '100')], maxCreditedValue: '100' },
+      storeLine('2', '2', '200')
+    ]
+
+    const hashes = await buyManyWithCredits({ purchases, buyer: BUYER, signer })
+
+    // useCredits takes ONE external call, so a trade (accept) and a mint (buy) cannot share a transaction.
+    expect(hashes).toHaveLength(2)
+    expect(useCreditsCalls).toHaveLength(2)
+    expect(useCreditsCalls.map(c => c.externalCall.target).sort()).toEqual(['0xmarket', '0xstore'])
+    // Each call carries only its own group's credits and cap.
+    expect(useCreditsCalls.map(c => c.maxCreditedValue).sort()).toEqual(['100', '200'])
+  })
+
+  it('reports each confirmation as it happens, so the UI can say which one is pending', async () => {
+    const seen: Array<[number, number]> = []
+    await buyManyWithCredits({
+      purchases: [
+        { kind: 'trade', trade: fakeTrade('0xmarket'), credits: [credit(B32('1'), '100')], maxCreditedValue: '100' },
+        storeLine('2', '2', '200')
+      ],
+      buyer: BUYER,
+      signer,
+      onSigned: (signed, total) => seen.push([signed, total])
+    })
+
+    expect(seen).toEqual([
+      [1, 2],
+      [2, 2]
+    ])
+  })
+})
+
+/**
+ * groupPurchases is exported for the UI, which has to tell a self-custody buyer how many confirmations to
+ * expect. These pin that it agrees with what buyManyWithCredits actually submits — the count must come from
+ * the same rule, not a second implementation in the view layer.
+ */
+describe('when grouping a basket into transactions', () => {
+  const store = (chainId = 80002): AnyPurchase => ({
+    kind: 'store',
+    item: { collection: '0x' + '11'.repeat(20), itemId: '1', priceWei: '1' },
+    credits: [],
+    maxCreditedValue: '0',
+    chainId
+  })
+
+  it('collapses trades on one marketplace into a single group', () => {
+    const groups = groupPurchases([
+      { trade: fakeTrade('0xmarket'), credits: [], maxCreditedValue: '0' },
+      { trade: fakeTrade('0xmarket'), credits: [], maxCreditedValue: '0' }
+    ])
+
+    expect(groups).toHaveLength(1)
+    expect(groups[0].kind).toBe('trade')
+  })
+
+  it('collapses every store mint into a single group regardless of collection', () => {
+    expect(groupPurchases([store(), store()])).toHaveLength(1)
+  })
+
+  it('separates the two paths, which is where the second confirmation comes from', () => {
+    const groups = groupPurchases([{ trade: fakeTrade('0xmarket'), credits: [], maxCreditedValue: '0' }, store()])
+
+    expect(groups).toHaveLength(2)
+    expect(groups.map(g => g.kind).sort()).toEqual(['store', 'trade'])
+  })
+
+  it('accepts untagged trades, so callers that predate the store path keep working', () => {
+    // The cart and the item page still pass bare CreditPurchase objects.
+    const groups = groupPurchases([{ trade: fakeTrade('0xmarket'), credits: [], maxCreditedValue: '0' }])
+
+    expect(groups).toHaveLength(1)
+    expect(groups[0].kind).toBe('trade')
+  })
+
+  it('does not merge store mints across chains', () => {
+    expect(groupPurchases([store(80002), store(137)])).toHaveLength(2)
   })
 })
 
@@ -369,5 +531,122 @@ describe('when cancelling a listing', () => {
     expect(cancelCalls[0].trades).toHaveLength(1)
     expect(cancelCalls[0].trades[0].sent[0].beneficiary).toBe(SELLER)
     expect(cancelCalls[0].trades[0].signer).toBe(SELLER)
+  })
+})
+
+/**
+ * The stage machine a multi-group basket needs, reproduced at the level Cart drives it.
+ *
+ * Cart's own handler is what decides whether the modal says "confirm" or "completing", and the modal spec
+ * cannot cover it — that one feeds hand-written props, so it passed while the app could not advance the
+ * counter at all. This pins the RULE against the real `onSigned` contract from buyManyWithCredits.
+ */
+describe('when driving the confirmation stage across groups', () => {
+  const store = (id: string, cap: string): AnyPurchase => ({
+    kind: 'store',
+    item: { collection: '0x' + '11'.repeat(20), itemId: id, priceWei: '1000' },
+    credits: [credit(B32(id), cap)],
+    maxCreditedValue: cap,
+    chainId: 80002
+  })
+
+  // Cart's handler, verbatim in shape: another group pending → back to awaiting-signature; last one → settling.
+  const stageFor = (signed: number, total: number) => (signed < total ? 'awaiting-signature' : 'settling')
+
+  beforeEach(() => {
+    useCreditsCalls.length = 0
+    walletChainId = 80002
+    switchHonored = true
+  })
+
+  it('should return to awaiting-signature while another prompt is still coming', async () => {
+    const stages: Array<{ stage: string; current: number }> = []
+
+    await buyManyWithCredits({
+      purchases: [
+        { kind: 'trade', trade: fakeTrade('0xmarket'), credits: [credit(B32('1'), '100')], maxCreditedValue: '100' },
+        store('2', '200')
+      ],
+      buyer: BUYER,
+      signer,
+      onSigned: (signed, total) => stages.push({ stage: stageFor(signed, total), current: Math.min(signed + 1, total) })
+    })
+
+    // After the FIRST confirmation the wallet is about to pop a second prompt. A modal reading "completing"
+    // there invites the buyer to dismiss it as a stray popup, stranding the rest of the basket.
+    expect(stages).toEqual([
+      { stage: 'awaiting-signature', current: 2 },
+      { stage: 'settling', current: 2 }
+    ])
+  })
+
+  it('should go straight to settling on a single-group basket', async () => {
+    const stages: string[] = []
+
+    await buyManyWithCredits({
+      purchases: [
+        { kind: 'trade', trade: fakeTrade('0xmarket'), credits: [credit(B32('1'), '100')], maxCreditedValue: '100' }
+      ],
+      buyer: BUYER,
+      signer,
+      onSigned: (signed, total) => stages.push(stageFor(signed, total))
+    })
+
+    expect(stages).toEqual(['settling'])
+  })
+
+  it('should report a 1-based index of the group just signed', async () => {
+    const seen: Array<[number, number]> = []
+
+    await buyManyWithCredits({
+      purchases: [
+        { kind: 'trade', trade: fakeTrade('0xmarket'), credits: [credit(B32('1'), '100')], maxCreditedValue: '100' },
+        store('2', '200')
+      ],
+      buyer: BUYER,
+      signer,
+      onSigned: (signed, total) => seen.push([signed, total])
+    })
+
+    // Pinned because Cart's handler indexes off it: `signed` counts confirmations DONE, so the first call is
+    // (1, 2) and not (0, 2). An off-by-one here silently makes the modal skip or repeat a step.
+    expect(seen).toEqual([
+      [1, 2],
+      [2, 2]
+    ])
+  })
+})
+
+/**
+ * The property that justifies exporting groupPurchases: the count the UI shows must match the transactions
+ * actually submitted, in the same order. Two implementations of the rule would be free to drift.
+ */
+describe('when checking the grouping against what is submitted', () => {
+  beforeEach(() => {
+    useCreditsCalls.length = 0
+    walletChainId = 80002
+    switchHonored = true
+  })
+
+  it('should submit exactly one call per group, in group order', async () => {
+    const purchases: AnyPurchase[] = [
+      { kind: 'trade', trade: fakeTrade('0xmarket'), credits: [credit(B32('1'), '100')], maxCreditedValue: '100' },
+      {
+        kind: 'store',
+        item: { collection: '0x' + '11'.repeat(20), itemId: '2', priceWei: '1000' },
+        credits: [credit(B32('2'), '200')],
+        maxCreditedValue: '200',
+        chainId: 80002
+      }
+    ]
+
+    const groups = groupPurchases(purchases)
+    await buyManyWithCredits({ purchases, buyer: BUYER, signer })
+
+    expect(useCreditsCalls).toHaveLength(groups.length)
+    // Order, not just count: onSigned's indexing and the buyer's "1 of 2" both depend on it.
+    expect(useCreditsCalls.map(c => c.externalCall.target)).toEqual(
+      groups.map(g => (g.kind === 'store' ? '0xstore' : '0xmarket'))
+    )
   })
 })

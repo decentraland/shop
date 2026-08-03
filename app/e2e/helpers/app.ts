@@ -246,11 +246,16 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
     // grid + no-funds pickers. Mirrors src/logic/credit-pack-catalog on the server.
     if (path === '/credits/packs')
       return json(req, {
+        // KEEP IN STEP with src/lib/payments.ts CREDIT_PACKS, which mirrors the server catalogue. This is a
+        // third copy of the price list and it cannot be derived from the second: importing src pulls in
+        // `~/config`, and the e2e vitest config has no `~` alias, which breaks every spec at load time.
+        // What catches a drift instead is the credits spec asserting the prices and the bonus badge — a
+        // stale list here makes it fail, locally and in CI alike.
         packs: [
-          { id: 'pack_5', usd: 4.99, credits: 45, order: 1 },
-          { id: 'pack_10', usd: 9.99, credits: 90, recommended: true, order: 2 },
-          { id: 'pack_25', usd: 24.99, credits: 235, order: 3 },
-          { id: 'pack_50', usd: 49.99, credits: 475, order: 4 }
+          { id: 'pack_5', usd: 5.99, credits: 40, order: 1 },
+          { id: 'pack_10', usd: 11.99, credits: 100, recommended: true, order: 2 },
+          { id: 'pack_25', usd: 29.99, credits: 260, order: 3 },
+          { id: 'pack_50', usd: 59.99, credits: 540, order: 4 }
         ]
       })
     if (/\/users\/.+\/credits$/.test(path)) return json(req, creditsWithTopup(F))

@@ -111,6 +111,41 @@ describe('when authorizing a USD credit for one purchase', () => {
     expect('tradeId' in body).toBe(false)
   })
 
+  // A mint has no trade, so the item is the only thing that records what the buyer got.
+  it('should send the item identity alongside the price for a purchase with no trade', async () => {
+    signedFetch.mockResolvedValueOnce(ok({}))
+
+    await authorizeUsdCredit(IDENTITY, 30, undefined, { contractAddress: '0xC0', itemId: '12' })
+
+    const body = JSON.parse(signedFetch.mock.calls[0][1].body)
+    expect(body).toEqual({ usdPriceCents: 30, contractAddress: '0xC0', itemId: '12' })
+    expect('tradeId' in body).toBe(false)
+  })
+
+  it('should send both the trade and the item when the purchase has both', async () => {
+    signedFetch.mockResolvedValueOnce(ok({}))
+
+    await authorizeUsdCredit(IDENTITY, 30, 'trade-1', { contractAddress: '0xC0', itemId: '12' })
+
+    expect(JSON.parse(signedFetch.mock.calls[0][1].body)).toEqual({
+      usdPriceCents: 30,
+      tradeId: 'trade-1',
+      contractAddress: '0xC0',
+      itemId: '12'
+    })
+  })
+
+  // The server rejects half an identity, so the client must never send one.
+  it('should omit the item entirely when it is not provided', async () => {
+    signedFetch.mockResolvedValueOnce(ok({}))
+
+    await authorizeUsdCredit(IDENTITY, 100, 'trade-1')
+
+    const body = JSON.parse(signedFetch.mock.calls[0][1].body)
+    expect('contractAddress' in body).toBe(false)
+    expect('itemId' in body).toBe(false)
+  })
+
   it('and the server rejects it should throw with status and body', async () => {
     signedFetch.mockResolvedValueOnce(fail(402, 'insufficient'))
 
@@ -127,9 +162,32 @@ describe('when fetching the buyer purchase history', () => {
 
     const result = await fetchUserPurchases('0xABC', IDENTITY)
 
-    // The record is returned with a normalised `txHash` (null here, no settlement hash on the payload).
-    expect(result.items).toEqual([{ ...purchases[0], txHash: null }])
+    // The record is returned with the absent fields normalised to null — `txHash` (no settlement hash on
+    // the payload) and the item identity, which an older server omits entirely. One absent-value for every
+    // consumer to check instead of both null and undefined.
+    expect(result.items).toEqual([{ ...purchases[0], txHash: null, contractAddress: null, itemId: null }])
     expect(signedFetch.mock.calls[0][0]).toBe('https://credits.example/users/0xabc/purchases')
+  })
+
+  it('should pass the item identity through when the server records it', async () => {
+    const purchases = [
+      {
+        id: 'p1',
+        tradeId: null,
+        contractAddress: '0xC0',
+        itemId: '12',
+        usdCents: 30,
+        credits: 3,
+        status: 'SETTLED',
+        createdAt: 1,
+        manaSettledWei: null
+      }
+    ]
+    signedFetch.mockResolvedValueOnce(ok({ purchases }))
+
+    const result = await fetchUserPurchases('0xABC', IDENTITY)
+
+    expect(result.items[0]).toMatchObject({ tradeId: null, contractAddress: '0xC0', itemId: '12' })
   })
 
   it('should normalise the settlement hash from either txHash or transactionHash', async () => {

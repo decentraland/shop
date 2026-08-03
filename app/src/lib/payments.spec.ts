@@ -31,8 +31,10 @@ import {
   fetchCreditPacks,
   getPack,
   isMockPayments,
+  packBonus,
   pollCreditGrant,
-  usdForCredits
+  usdForCredits,
+  type CreditPack
 } from '~/lib/payments'
 
 const IDENTITY = {} as AuthIdentity
@@ -88,16 +90,87 @@ describe('when computing credit pack math at the fixed USD peg', () => {
     }
   })
 
-  it('should highlight exactly one best-value pack (the $9.99 Popular pack)', () => {
+  it('should highlight exactly one best-value pack (the mid Popular pack)', () => {
     const best = CREDIT_PACKS.filter(p => p.bestValue)
     expect(best).toHaveLength(1)
     expect(best[0].id).toBe('pack_10')
   })
 })
 
+describe('when computing the bonus a pack carries over the entry rate', () => {
+  // The entry pack sets the reference rate, so these fixtures only need a rate and a size — the real
+  // catalogue is asserted separately by the ladder invariants on the server.
+  const mk = (id: string, usd: number, credits: number): CreditPack => ({ id, usd, credits })
+
+  it('should measure the bonus against what the same money buys at the cheapest pack rate', () => {
+    const packs = [mk('a', 5.99, 40), mk('b', 11.99, 100)]
+    // 40/5.99 = 6.6778 credits per $1 → $11.99 buys 80.07, floored to 80. 100 granted → +20.
+    expect(packBonus(packs[1], packs)).toEqual({ baseline: 80, bonus: 20 })
+  })
+
+  it('should floor the baseline so the card never shows a fractional credit amount', () => {
+    const packs = [mk('a', 5.99, 40), mk('b', 59.99, 540)]
+    // Raw baseline is 400.60; a struck-through "400.6 credits" would be nonsense.
+    expect(packBonus(packs[1], packs)?.baseline).toBe(400)
+  })
+
+  it('should return null for the entry pack itself, which IS the reference', () => {
+    const packs = [mk('a', 5.99, 40), mk('b', 11.99, 100)]
+    expect(packBonus(packs[0], packs)).toBeNull()
+  })
+
+  it('should pick the cheapest pack as the reference regardless of catalogue order', () => {
+    // Order comes from the server's `order` field and is not guaranteed ascending by price.
+    const unordered = [mk('big', 59.99, 540), mk('entry', 5.99, 40), mk('mid', 11.99, 100)]
+    expect(packBonus(unordered[2], unordered)).toEqual({ baseline: 80, bonus: 20 })
+  })
+
+  it('should return null on a single-pack catalogue, where there is nothing to compare against', () => {
+    const packs = [mk('only', 5.99, 40)]
+    expect(packBonus(packs[0], packs)).toBeNull()
+  })
+
+  it('should return null on an empty catalogue rather than throwing', () => {
+    expect(packBonus(mk('x', 5.99, 40), [])).toBeNull()
+  })
+
+  /**
+   * The honesty guard. A badge is a claim that this pack is the better deal, so it must disappear the moment
+   * the price list stops backing that claim — otherwise a careless repricing advertises a bonus that isn't
+   * there. The previous ladder ($4.99→45, $9.99→90) was exactly this case.
+   */
+  it('should show no bonus on a flat ladder, where the bigger pack is no better per dollar', () => {
+    const packs = [mk('a', 5.99, 40), mk('b', 11.98, 80)]
+    expect(packBonus(packs[1], packs)).toBeNull()
+  })
+
+  it('should show no bonus on an inverted ladder, where the bigger pack is worse per dollar', () => {
+    const packs = [mk('a', 4.99, 45), mk('b', 9.99, 90)]
+    expect(packBonus(packs[1], packs)).toBeNull()
+  })
+
+  // NaN is the interesting one: it fails EVERY comparison, so it slips past a `usd <= 0` guard and the
+  // function only returns null because NaN propagates into the arithmetic and `NaN > 0` is false. This case
+  // therefore passes with or without the guard — it pins the BEHAVIOUR, not the guard. What it does catch is
+  // a later change that removes the accidental safety: relaxing the final `bonus > 0` to `bonus !== 0` would
+  // return `{ baseline: NaN, bonus: NaN }` and render a struck-through "NaN" on the card.
+  it('should return null when the entry price is not a usable divisor', () => {
+    for (const badPrice of [0, -1, Number.NaN]) {
+      const packs = [mk('a', badPrice, 40), mk('b', 11.99, 100)]
+      expect(packBonus(packs[1], packs)).toBeNull()
+    }
+  })
+})
+
 describe('when looking up a pack by id', () => {
   it('should return the matching pack', () => {
-    expect(getPack('pack_25')).toMatchObject({ usd: 24.99, credits: 235 })
+    // Assert the identity, not the field values. Restating the price here breaks the suite on every
+    // repricing without testing anything extra; reading the expectation back out of CREDIT_PACKS with the
+    // same `find` getPack uses internally is worse still — it only checks that `find` agrees with itself.
+    // Pinning that the returned object IS the catalogue entry covers the lookup and rules out a copy or a
+    // transform on the way out, which is what callers rely on.
+    expect(getPack('pack_25')).toBe(CREDIT_PACKS[2])
+    expect(getPack('pack_25')?.id).toBe('pack_25')
   })
 
   it('and the id is unknown it should return undefined', () => {
@@ -199,11 +272,12 @@ describe('when buying a credit pack in mock mode', () => {
   })
 
   it('should grant the pack credits after polling', async () => {
+    const credits = CREDIT_PACKS.find(p => p.id === 'pack_50')!.credits
     const session = await createPackCheckout('pack_50')
     const result = await pollCreditGrant(session.orderId, { intervalMs: 1 })
     expect(result.status).toBe('credited')
-    expect(result.creditsGranted).toBe(475)
-    expect(result.newBalance).toBe(475)
+    expect(result.creditsGranted).toBe(credits)
+    expect(result.newBalance).toBe(credits)
   })
 })
 
@@ -243,9 +317,10 @@ describe('when buying a credit pack in real mode', () => {
 
 describe('when polling a credit grant in mock mode via the mock config', () => {
   it('should resolve credited without an address (pure mock, no dev-mint)', async () => {
+    const credits = CREDIT_PACKS.find(p => p.id === 'pack_25')!.credits
     const session = await createPackCheckout('pack_25')
     const result = await pollCreditGrant(session.orderId, { intervalMs: 1 })
-    expect(result).toEqual({ status: 'credited', creditsGranted: 235, newBalance: 235 })
+    expect(result).toEqual({ status: 'credited', creditsGranted: credits, newBalance: credits })
     expect(devMintUsd).not.toHaveBeenCalled()
   })
 
@@ -255,16 +330,17 @@ describe('when polling a credit grant in mock mode via the mock config', () => {
   })
 
   it('should top up the real balance via dev-mint when an address is supplied', async () => {
+    const credits = CREDIT_PACKS.find(p => p.id === 'pack_10')!.credits
     devMintUsd.mockResolvedValueOnce({ id: 'm1', usdCents: 1000, balanceCents: 1000, credits: 137 })
     const session = await createPackCheckout('pack_10')
 
     const result = await pollCreditGrant(session.orderId, { intervalMs: 1, address: '0xABC' })
 
     expect(devMintUsd).toHaveBeenCalledTimes(1)
-    // Mock-mint tops up the SPEND value (credits × $0.10 = 90 × 10 = 900¢), not the charge ($9.99).
-    expect(devMintUsd).toHaveBeenCalledWith('0xABC', 900)
+    // Mock-mint tops up the SPEND value (credits × $0.10), not the charge — that gap is the Stripe wedge.
+    expect(devMintUsd).toHaveBeenCalledWith('0xABC', credits * 10)
     // creditsGranted comes from the pack's credit amount, newBalance from the dev-mint response.
-    expect(result).toEqual({ status: 'credited', creditsGranted: 90, newBalance: 137 })
+    expect(result).toEqual({ status: 'credited', creditsGranted: credits, newBalance: 137 })
   })
 
   it('should report failed when the dev-mint top-up throws', async () => {
@@ -289,8 +365,9 @@ describe('when polling a credit grant in mock mode via the mock config', () => {
 describe('when polling a credit grant with a mock order id even though config is real', () => {
   it('should still take the mock path for a mock-prefixed order id', async () => {
     enableRealMode()
+    const credits = CREDIT_PACKS.find(p => p.id === 'pack_25')!.credits
     const result = await pollCreditGrant(`${MOCK_CLIENT_SECRET_PREFIX}pack_25_1700000000000`, { intervalMs: 1 })
-    expect(result).toEqual({ status: 'credited', creditsGranted: 235, newBalance: 235 })
+    expect(result).toEqual({ status: 'credited', creditsGranted: credits, newBalance: credits })
     expect(pollCreditGrantReal).not.toHaveBeenCalled()
   })
 })

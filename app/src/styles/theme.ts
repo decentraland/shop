@@ -26,6 +26,11 @@ const colors = {
   gray4: '#cfcdd4', // Neutrals/Gray 4 — hairline borders on rarity swatch chips
   line: '#e6e4ea', // subtle card border
   lineStrong: '#a09ba8', // search field / defined borders
+  // The card outline. Figma draws it as a 0.25px Gray 3 stroke; translucency is what makes that work,
+  // because the line has to sit over both the white footer and the grey media and stay equally faint
+  // against each. Gray 3 at 25% composites to exactly what Figma renders — #e7e6e9 on white, #d9d7db on
+  // the media. A solid token can only match one of the two (see card.styles.ts).
+  cardLine: 'rgba(160, 155, 168, 0.25)', // Neutrals/Gray 3 @ 25%
   media: '#ecebed', // Neutrals/Gray 5 — selected/expanded section fill
   panel: '#f5f5f5',
   chip: '#ecebed',

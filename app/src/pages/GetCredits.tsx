@@ -20,7 +20,7 @@ import packChest from '~/assets/credits/pack-chest.webp'
 import creditCoin from '~/assets/credits/credit-coin.webp'
 import checkCircle from '~/assets/credits/check-circle.svg'
 import loaderLogo from '~/assets/credits/loader-logo.svg'
-import { createPackCheckout, pollCreditGrant, isMockPayments, type CreditPack } from '~/lib/payments'
+import { createPackCheckout, packBonus, pollCreditGrant, isMockPayments, type CreditPack } from '~/lib/payments'
 import { useCreditPacks } from '~/hooks/useCreditPacks'
 import * as S from './GetCredits.styles'
 
@@ -427,31 +427,56 @@ function PackGrid({
   }
   return (
     <S.Grid>
-      {packs.map((pack, i) => (
-        <S.PackCard
-          key={pack.id}
-          type="button"
-          data-testid="pack"
-          data-best={pack.bestValue ? 'true' : undefined}
-          onClick={() => onSelect(pack)}
-          aria-label={t('getCredits.packAria', { amount: formatAmount(pack.credits), usd: pack.usd })}
-        >
-          {pack.bestValue && (
-            <S.PackBadge>
-              <Icon name="star-rounded" />
-              {t('getCredits.packBadge')}
-            </S.PackBadge>
-          )}
-          <S.PackTop>
-            <S.PackHeading>
-              <S.PackAmountRow>
-                <CurrencyIcon />
-                <S.PackAmount>{pack.credits}</S.PackAmount>
-              </S.PackAmountRow>
-              <S.PackUnit>{t('getCredits.packUnit', { currency: CURRENCY.name })}</S.PackUnit>
-            </S.PackHeading>
-            <S.PackArt>
-              {/* onError is the second half of the fallback: `artFor` picks the remote URL when the
+      {packs.map((pack, i) => {
+        // What the same money buys at the entry pack's rate — null on the entry pack itself, which is
+        // the baseline. See packBonus() for why that reference is the only honest one.
+        const bonus = packBonus(pack, packs)
+        return (
+          <S.PackCard
+            key={pack.id}
+            type="button"
+            data-testid="pack"
+            data-best={pack.bestValue ? 'true' : undefined}
+            onClick={() => onSelect(pack)}
+            aria-label={
+              bonus
+                ? t('getCredits.packAriaBonus', {
+                    amount: formatAmount(pack.credits),
+                    usd: pack.usd,
+                    bonus: bonus.bonus,
+                    baseline: bonus.baseline
+                  })
+                : t('getCredits.packAria', { amount: formatAmount(pack.credits), usd: pack.usd })
+            }
+          >
+            {pack.bestValue && (
+              <S.PackBadge>
+                <Icon name="star-rounded" />
+                {t('getCredits.packBadge')}
+              </S.PackBadge>
+            )}
+            <S.PackTop>
+              <S.PackHeading>
+                <S.PackAmountRow>
+                  <CurrencyIcon />
+                  <S.PackAmount>{pack.credits}</S.PackAmount>
+                </S.PackAmountRow>
+                <S.PackUnit>{t('getCredits.packUnit', { currency: CURRENCY.name })}</S.PackUnit>
+                {/* Bare numbers, NOT formatAmount: that appends the currency name, and "100 credits" struck
+                  through under a card already captioned CREDITS wrapped onto a second line and pushed the
+                  row wider than the card, spreading the mark to the edge. The icon carries the unit here,
+                  exactly as it does for the headline above.
+
+                  aria-hidden: both figures are already in the card's aria-label, and a screen reader
+                  announcing a lone crossed-out number mid-card reads as the actual price. */}
+                <S.PackWas data-empty={bonus ? undefined : 'true'} aria-hidden>
+                  <CurrencyIcon />
+                  <S.PackWasAmount>{bonus ? bonus.baseline : 0}</S.PackWasAmount>
+                  {bonus && <S.PackBonus>{t('getCredits.packBonus', { bonus: bonus.bonus })}</S.PackBonus>}
+                </S.PackWas>
+              </S.PackHeading>
+              <S.PackArt>
+                {/* onError is the second half of the fallback: `artFor` picks the remote URL when the
                   catalogue has one, and if that request fails we swap to the bundled asset rather than
                   leave a broken image in a card the buyer is about to click.
 
@@ -459,24 +484,25 @@ function PackGrid({
                   ABSOLUTE url while the bundled import is a root-relative path, so that comparison never
                   matches and a bundled asset that also failed would re-assign forever, hammering the
                   network from inside its own error handler. */}
-              <img
-                src={artFor(pack, i)}
-                alt=""
-                loading="lazy"
-                width={507}
-                height={507}
-                onError={e => {
-                  const img = e.currentTarget
-                  if (img.dataset.artFallback) return
-                  img.dataset.artFallback = 'done'
-                  img.src = bundledArtFor(pack, i)
-                }}
-              />
-            </S.PackArt>
-          </S.PackTop>
-          <S.PackPrice>${pack.usd.toFixed(2)}</S.PackPrice>
-        </S.PackCard>
-      ))}
+                <img
+                  src={artFor(pack, i)}
+                  alt=""
+                  loading="lazy"
+                  width={507}
+                  height={507}
+                  onError={e => {
+                    const img = e.currentTarget
+                    if (img.dataset.artFallback) return
+                    img.dataset.artFallback = 'done'
+                    img.src = bundledArtFor(pack, i)
+                  }}
+                />
+              </S.PackArt>
+            </S.PackTop>
+            <S.PackPrice>${pack.usd.toFixed(2)}</S.PackPrice>
+          </S.PackCard>
+        )
+      })}
     </S.Grid>
   )
 }
