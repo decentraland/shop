@@ -3,6 +3,7 @@ import { PreviewRenderer, PreviewUnityMode } from '@dcl/schemas'
 import type { WearablePreview as WearablePreviewComponent } from 'decentraland-ui2/dist/components/WearablePreview'
 import { pickRenderer } from '~/lib/pickRenderer'
 import { track } from '~/lib/analytics'
+import { useUnityWearablePreview } from '~/hooks/useUnityWearablePreview'
 
 // The 3D preview iframe + its controller/schema deps only matter on hover (cards) and the detail
 // page, so load them on demand instead of in the initial bundle. The type import is erased at build
@@ -35,17 +36,29 @@ function resolveUnityRenderer(unity: boolean, id?: string): boolean {
 
 /**
  * Lazy-loaded wearable/avatar preview. `unity` is a BEST-EFFORT request: Unity is used only when the
- * runtime conditions are met (see `lib/pickRenderer`), otherwise Babylon — and `unityMode=marketplace`
- * is sent when Unity is used. Omitting `unity` (default) always uses Babylon.
+ * shared `unity-wearable-preview` flag is on AND the runtime conditions are met (see `lib/pickRenderer`),
+ * otherwise Babylon — and `unityMode=marketplace` is sent when Unity is used. Omitting `unity` (default)
+ * always uses Babylon.
  */
-export function WearablePreview({
-  unity = false,
+export function WearablePreview({ unity = false, ...props }: Props) {
+  const flag = useUnityWearablePreview()
+
+  // The renderer is decided once per mount (below), so rendering before the flag resolves would mean loading
+  // a Babylon scene and replacing it a tick later. Nothing is shown for that window instead — callers already
+  // cover it with their own loading state, and the flag file is normally warm from the app's other reads.
+  if (unity && flag.pending) return null
+
+  return <Preview unity={unity && flag.enabled} {...props} />
+}
+
+function Preview({
+  unity,
   unityMode = PreviewUnityMode.MARKETPLACE,
   onError,
   onLoad,
   onRenderer,
   ...props
-}: Props) {
+}: Props & { unity: boolean }) {
   const [shouldUseUnity, setShouldUseUnity] = useState(() => resolveUnityRenderer(unity, props.id))
 
   return (
