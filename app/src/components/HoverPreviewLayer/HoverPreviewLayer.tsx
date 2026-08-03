@@ -4,7 +4,6 @@ import { useLocation } from 'react-router-dom'
 import { PreviewEmote, PreviewType } from '@dcl/schemas'
 import { PreviewMessageType, sendMessage } from '@dcl/schemas/dist/dapps/preview'
 import { WearablePreview } from '~/components/LazyWearablePreview'
-import { config } from '~/config'
 import { useHoverPreview } from '~/store/hoverPreview'
 import { useWallet } from '~/store/wallet'
 import { useProfile } from '~/hooks/useProfile'
@@ -117,9 +116,7 @@ export function HoverPreviewLayer() {
         type: isEmote ? undefined : PreviewType.AVATAR,
         emote: isEmote ? undefined : PreviewEmote.FASHION,
         disableBackground: true,
-        disableFadeEffect: true,
-        peerUrl: config.peerUrl,
-        marketplaceServerUrl: config.marketplaceServerUrl
+        disableFadeEffect: true
       }
     })
   }, [item, token, booted, address, avatar])
