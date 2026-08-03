@@ -1,7 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import type { ReactElement } from 'react'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, render, screen, fireEvent } from '@testing-library/react'
 import { PreviewRenderer, PreviewUnityMode } from '@dcl/schemas'
 import { WearablePreview } from '~/components/LazyWearablePreview'
+import { resetFeatureFlagsCache } from '~/lib/featureFlags'
 import { pickRenderer } from '~/lib/pickRenderer'
 import { track } from '~/lib/analytics'
 
@@ -31,14 +34,34 @@ vi.mock('decentraland-ui2/dist/components/WearablePreview', () => ({
 const mockPick = (renderer: PreviewRenderer, reason = 'connection-ok') =>
   vi.mocked(pickRenderer).mockReturnValue({ renderer, reason: reason as never })
 
+const stubFlag = (enabled: boolean) =>
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ flags: { 'dapps-unity-wearable-preview': enabled } })
+    })
+  )
+
+function renderPreview(ui: ReactElement) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>)
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
+  resetFeatureFlagsCache()
+  stubFlag(true)
+})
+
+afterEach(() => {
+  vi.unstubAllGlobals()
 })
 
 describe('LazyWearablePreview', () => {
   it('attempts Unity with unityMode=marketplace when requested and the gate allows it', async () => {
     mockPick(PreviewRenderer.UNITY)
-    render(<WearablePreview unity />)
+    renderPreview(<WearablePreview unity />)
     await screen.findByTestId('wp')
     expect(lastProps.unity).toBe(true)
     expect(lastProps.unityMode).toBe(PreviewUnityMode.MARKETPLACE)
@@ -47,7 +70,7 @@ describe('LazyWearablePreview', () => {
 
   it('falls back to Babylon and reports the reason when the gate disallows Unity', async () => {
     mockPick(PreviewRenderer.BABYLON, 'slow-connection')
-    render(<WearablePreview unity id="hero" />)
+    renderPreview(<WearablePreview unity id="hero" />)
     await screen.findByTestId('wp')
     expect(lastProps.unity).toBe(false)
     expect(track).toHaveBeenCalledWith(
@@ -58,7 +81,7 @@ describe('LazyWearablePreview', () => {
 
   it('does not track a mobile fallback (expected, high-volume)', async () => {
     mockPick(PreviewRenderer.BABYLON, 'mobile')
-    render(<WearablePreview unity id="hero" />)
+    renderPreview(<WearablePreview unity id="hero" />)
     await screen.findByTestId('wp')
     expect(lastProps.unity).toBe(false)
     expect(track).not.toHaveBeenCalled()
@@ -66,14 +89,14 @@ describe('LazyWearablePreview', () => {
 
   it('does not track the intentional Babylon kill-switch default', async () => {
     mockPick(PreviewRenderer.BABYLON, 'default-babylon')
-    render(<WearablePreview unity id="hero" />)
+    renderPreview(<WearablePreview unity id="hero" />)
     await screen.findByTestId('wp')
     expect(lastProps.unity).toBe(false)
     expect(track).not.toHaveBeenCalled()
   })
 
   it('never evaluates the gate, sends unity, or reports when unity is not requested', async () => {
-    render(<WearablePreview />)
+    renderPreview(<WearablePreview />)
     await screen.findByTestId('wp')
     expect(pickRenderer).not.toHaveBeenCalled()
     expect(lastProps.unity).toBe(false)
@@ -82,7 +105,7 @@ describe('LazyWearablePreview', () => {
 
   it('honours a caller-supplied unityMode override when Unity is used', async () => {
     mockPick(PreviewRenderer.UNITY)
-    render(<WearablePreview unity unityMode={PreviewUnityMode.PROFILE} />)
+    renderPreview(<WearablePreview unity unityMode={PreviewUnityMode.PROFILE} />)
     await screen.findByTestId('wp')
     expect(lastProps.unityMode).toBe(PreviewUnityMode.PROFILE)
   })
@@ -90,7 +113,7 @@ describe('LazyWearablePreview', () => {
   it('degrades to Babylon on a load error and forwards onError', async () => {
     mockPick(PreviewRenderer.UNITY)
     const onError = vi.fn()
-    render(<WearablePreview unity onError={onError} />)
+    renderPreview(<WearablePreview unity onError={onError} />)
     const el = await screen.findByTestId('wp')
     expect(lastProps.unity).toBe(true)
 
@@ -103,7 +126,7 @@ describe('LazyWearablePreview', () => {
   it('reports the renderer the preview app hands to onLoad', async () => {
     mockPick(PreviewRenderer.UNITY)
     const onRenderer = vi.fn()
-    render(<WearablePreview unity onRenderer={onRenderer} />)
+    renderPreview(<WearablePreview unity onRenderer={onRenderer} />)
     await screen.findByTestId('wp')
     expect(onRenderer).not.toHaveBeenCalled() // nothing reported until the scene loads
 
@@ -114,7 +137,7 @@ describe('LazyWearablePreview', () => {
   it('reports Babylon via onRenderer when the preview app loads as Babylon', async () => {
     mockPick(PreviewRenderer.BABYLON, 'slow-connection')
     const onRenderer = vi.fn()
-    render(<WearablePreview unity onRenderer={onRenderer} />)
+    renderPreview(<WearablePreview unity onRenderer={onRenderer} />)
     await screen.findByTestId('wp')
 
     act(() => lastProps.onLoad?.(PreviewRenderer.BABYLON))
@@ -125,7 +148,7 @@ describe('LazyWearablePreview', () => {
     mockPick(PreviewRenderer.UNITY)
     const onRenderer = vi.fn()
     const onLoad = vi.fn()
-    render(<WearablePreview unity onRenderer={onRenderer} onLoad={onLoad} />)
+    renderPreview(<WearablePreview unity onRenderer={onRenderer} onLoad={onLoad} />)
     await screen.findByTestId('wp')
 
     act(() => lastProps.onLoad?.(undefined))
@@ -136,7 +159,7 @@ describe('LazyWearablePreview', () => {
   it('reports Babylon via onRenderer after a runtime load error', async () => {
     mockPick(PreviewRenderer.UNITY)
     const onRenderer = vi.fn()
-    render(<WearablePreview unity onRenderer={onRenderer} />)
+    renderPreview(<WearablePreview unity onRenderer={onRenderer} />)
     const el = await screen.findByTestId('wp')
 
     fireEvent.click(el) // iframe reports a load error → degrade to Babylon
@@ -147,12 +170,42 @@ describe('LazyWearablePreview', () => {
     mockPick(PreviewRenderer.UNITY)
     const onRenderer = vi.fn()
     const onLoad = vi.fn()
-    render(<WearablePreview unity onRenderer={onRenderer} onLoad={onLoad} />)
+    renderPreview(<WearablePreview unity onRenderer={onRenderer} onLoad={onLoad} />)
     await screen.findByTestId('wp')
 
     // We asked for Unity, but the preview app degraded to Babylon internally and reports it on load.
     act(() => lastProps.onLoad?.(PreviewRenderer.BABYLON))
     expect(onLoad).toHaveBeenCalledWith(PreviewRenderer.BABYLON)
     expect(onRenderer).toHaveBeenLastCalledWith(PreviewRenderer.BABYLON)
+  })
+
+  describe('when the unity-wearable-preview flag is off', () => {
+    it('uses Babylon without consulting the device gate', async () => {
+      stubFlag(false)
+      mockPick(PreviewRenderer.UNITY)
+      renderPreview(<WearablePreview unity id="hero" />)
+      await screen.findByTestId('wp')
+      expect(lastProps.unity).toBe(false)
+      expect(lastProps.unityMode).toBeUndefined()
+      // The flag is a ceiling: with Unity switched off globally there is no device fallback to report.
+      expect(pickRenderer).not.toHaveBeenCalled()
+      expect(track).not.toHaveBeenCalled()
+    })
+
+    it('uses Babylon when the flag service is unreachable', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')))
+      mockPick(PreviewRenderer.UNITY)
+      renderPreview(<WearablePreview unity />)
+      await screen.findByTestId('wp')
+      expect(lastProps.unity).toBe(false)
+    })
+  })
+
+  it('renders nothing until the flag resolves, so no Babylon scene is loaded and thrown away', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockReturnValue(new Promise(() => {})))
+    mockPick(PreviewRenderer.UNITY)
+    renderPreview(<WearablePreview unity />)
+    expect(screen.queryByTestId('wp')).toBeNull()
+    expect(pickRenderer).not.toHaveBeenCalled()
   })
 })

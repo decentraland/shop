@@ -47,7 +47,17 @@ export enum FeatureFlag {
    * credits-server on /credits/authorize, against the signed-fetch address. Read under the SAME key and
    * variant as that check so one list drives both and they cannot drift apart.
    */
-  SHOP_PRELAUNCH = 'shop-prelaunch'
+  SHOP_PRELAUNCH = 'shop-prelaunch',
+
+  /**
+   * Whether the wearable preview may run the Unity renderer at all. Shared with the builder, which reads the
+   * same `dapps-unity-wearable-preview` key to gate the item editor's preview — one switch turns the Unity
+   * preview off across every dapp that embeds it, without a deploy per app.
+   *
+   * A ceiling, not a request: the shop still applies its own device/connection heuristic on top (see
+   * `lib/pickRenderer`), so the flag being on does not mean a given visitor gets Unity.
+   */
+  UNITY_WEARABLE_PREVIEW = 'unity-wearable-preview'
 }
 
 /** The application whose flag file carries the flags above. */
