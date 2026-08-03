@@ -363,6 +363,11 @@ export const PackWas = styled.span`
   align-items: center;
   justify-content: center;
   gap: 8px;
+  /* The bonus pill is nowrap and this row holds it beside the struck-through amount. At two cards per row on
+     a phone that is ~118px of content, which the pair exceeds by 8-12px (measured) — so let it wrap rather
+     than push out of the card. It only ever wraps at the narrowest widths. */
+  flex-wrap: wrap;
+  max-width: 100%;
 
   &[data-empty='true'] {
     visibility: hidden;
@@ -414,9 +419,32 @@ export const PackArt = styled.span`
     object-fit: contain;
   }
 
-  /* One column: a full-size render per card would make the page absurdly tall. */
+  /**
+   * FLUID, capped — not a fixed 200px.
+   *
+   * The fixed width overflowed its card: measured at a 375px viewport the artwork rendered 200px inside a
+   * 150px parent, spilling 25px out of each side of the card (the max-width above did not hold it,
+   * which is why this restates the intent as a width rather than relying on a cap). Two per row means the
+   * cell is whatever half the viewport minus gaps happens to be, so the art has to follow it.
+   */
   @media (max-width: 520px) {
-    width: 200px;
+    /**
+     * STRETCHED to the card's content box, not sized by its own content.
+     *
+     * The card is a column flex with align-items: center, so its children are shrink-to-fit — which let each
+     * pack's artwork take a different width (measured 118px and 152px in two identical 150px cards) and let
+     * the wider one spill 2px out of each side. Stretching makes every card's art box exactly the content
+     * width, so all four are identical and none can exceed it.
+     */
+    align-self: stretch;
+    width: auto;
+    max-width: none;
+
+    /* The wrapper alone is not enough: whatever sits inside it (picture/img) must be capped too, or it
+       reintroduces the same overflow one level down. */
+    > * {
+      max-width: 100%;
+    }
   }
 `
 
@@ -424,6 +452,14 @@ export const PackPrice = styled.span`
   display: flex;
   align-items: center;
   justify-content: center;
+  /**
+   * Pinned to the BOTTOM of the card.
+   *
+   * The artwork above it is not the same height in every pack, so laying the price out in flow put the four
+   * buy buttons at different heights within one row (measured 36px apart). Pushing it down means the buttons
+   * line up whatever the art does.
+   */
+  margin-top: auto;
   width: 100%;
   height: 48px;
   padding: 0 12px;
