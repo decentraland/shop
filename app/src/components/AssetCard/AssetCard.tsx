@@ -374,11 +374,6 @@ export function AssetCard(props: AssetCardProps) {
           </S.SaleBadge>
         ) : null}
         {canPreview && isPreviewing && !previewReady ? <S.Skeleton data-testid="card-skeleton" aria-hidden /> : null}
-        {item.listingCount && item.listingCount > 1 ? (
-          <S.Listings data-testid="card-listings">
-            {t('assetCard.onSaleCount', { count: item.listingCount })}
-          </S.Listings>
-        ) : null}
         {/* Flat thumbnail stays visible the whole time the 3D loads (no empty frame); it only fades out
             once the shared preview has this item's scene ready, crossfading into the 3D. */}
         {isNameItem ? (

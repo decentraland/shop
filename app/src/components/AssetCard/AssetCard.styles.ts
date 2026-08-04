@@ -169,25 +169,6 @@ export const Skeleton = styled.div`
   }
 `
 
-// "N on sale" badge: flags that an item has multiple copies on sale so the user knows there's a resale
-// list on the detail page. Anchored bottom-left so it clears the fav button and the flash-sale ribbon.
-export const Listings = styled.span`
-  position: absolute;
-  bottom: 10px;
-  left: 10px;
-  z-index: 4;
-  display: inline-flex;
-  align-items: center;
-  background: rgba(22, 20, 27, 0.82);
-  color: ${colors.white};
-  font-weight: 600;
-  font-size: 10px;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  border-radius: 6px;
-  padding: 3px 7px;
-`
-
 // A NAME's media: no thumbnail, just the typographic "@name" tile, violet and centred.
 export const NameMedia = styled.div`
   display: flex;
