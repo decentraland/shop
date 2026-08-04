@@ -213,7 +213,18 @@ export const Row = styled.tr`
    * table sits in a horizontal scroller — anything drawn outside the table box is either clipped by it
    * or adds phantom scroll to it. That is also why the design's 8px violet drop shadow is dropped.
    */
-  &::before {
+  /**
+   * On the CREATOR CELL, not on the row.
+   *
+   * A pseudo-element child of a <tr> generates an ANONYMOUS TABLE CELL, so putting this on the row
+   * silently gave the table a SIXTH column: with table-layout fixed the free space was then split four
+   * ways instead of three, and every body cell landed one column to the right of its own header.
+   * Absolute positioning does not save it — the anonymous cell exists before the box leaves flow.
+   *
+   * The creator cell is the row's first non-detached one, and Row is position relative, so inset still
+   * measures from the row and the ring geometry is unchanged.
+   */
+  & td:nth-of-type(2)::before {
     content: '';
     position: absolute;
     inset: 0 0 0 var(--rank-col);
@@ -232,8 +243,8 @@ export const Row = styled.tr`
     pointer-events: none;
     transition: opacity 0.15s ease;
   }
-  &:hover::before,
-  &:focus-within::before {
+  &:hover td:nth-of-type(2)::before,
+  &:focus-within td:nth-of-type(2)::before {
     opacity: 1;
   }
 
