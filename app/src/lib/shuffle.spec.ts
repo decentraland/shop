@@ -27,4 +27,15 @@ describe('shuffle', () => {
     vi.spyOn(Math, 'random').mockReturnValue(0.9999999)
     expect(shuffle(['a', 'b', 'c'])).toEqual(['a', 'b', 'c'])
   })
+
+  it('preserves object references', () => {
+    const a = { id: 1 }
+    const b = { id: 2 }
+    const c = { id: 3 }
+    const out = shuffle([a, b, c])
+    expect(out).toHaveLength(3)
+    expect(out).toContain(a)
+    expect(out).toContain(b)
+    expect(out).toContain(c)
+  })
 })
