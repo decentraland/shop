@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { fetchShopItems, type CatalogItem } from '~/lib/api'
 import { AssetCard } from '~/components/AssetCard'
-import { SkeletonCards } from '~/components/SkeletonCards'
+import { SkeletonCards, SkeletonSettle } from '~/components/SkeletonCards'
 import { FollowedCreatorsRow } from '~/components/FollowedCreatorsRow'
 import { OutfitsRow } from '~/components/OutfitsRow'
 import { TopCreators } from '~/components/TopCreators'
@@ -104,6 +104,14 @@ function Carousel({ title, items, loading }: { title: string; items: CatalogItem
             items.map(item => <AssetCard key={item.id} item={item} />)
           )}
         </S.Track>
+        {/* The skeletons' exit: the same placeholder rail, laid over the cards that replaced it and
+            faded out (see SkeletonSettle) rather than swapped away in one frame. Out of flow, so it
+            neither reserves nor costs any height — the arrived cards below it hold the row. */}
+        <SkeletonSettle loading={loading}>
+          <S.Track>
+            <SkeletonCards count={SKELETON_COUNT} settling />
+          </S.Track>
+        </SkeletonSettle>
         {showControls ? (
           <S.Arrow
             data-side="right"
@@ -115,6 +123,10 @@ function Carousel({ title, items, loading }: { title: string; items: CatalogItem
           </S.Arrow>
         ) : null}
       </S.Viewport>
+      {/* The page-indicator strip is reserved WHETHER OR NOT there is anything to page: it is 24px tall
+          (a 12px dot row plus its margin), and letting it appear only once the rail knew its page count
+          pushed every section below the carousel down by exactly that much the moment the listings
+          landed. Empty it paints nothing, so the reservation is invisible — only the shift was. */}
       {showControls ? (
         <S.Dots aria-label={t('overview.carouselPages', { title })}>
           {Array.from({ length: pageCount }).map((_, i) => (
@@ -127,7 +139,9 @@ function Carousel({ title, items, loading }: { title: string; items: CatalogItem
             />
           ))}
         </S.Dots>
-      ) : null}
+      ) : (
+        <S.Dots aria-hidden data-testid="rail-dots-reserved" />
+      )}
     </S.Carousel>
   )
 }
@@ -168,9 +182,15 @@ export function Overview() {
         <>
           <Carousel title={t('overview.featuredProducts')} items={items.slice(0, 12)} loading={isLoading} />
 
-          {/* New Creations carousel — needs a second page of listings (>12) to be worth showing. */}
-          {items.length > 12 ? (
-            <Carousel title={t('overview.newCreations')} items={items.slice(12, 24)} loading={false} />
+          {/* New Creations carousel — needs a second page of listings (>12) to be worth showing.
+              While the ONE query behind both rails is in flight that is not knowable yet, so the row
+              renders its skeletons: a home page whose second rail materialises after the fact shoved
+              everything under it (outfits, creators, the footer) down by a full 438px, which is the
+              single biggest jump on this page. The trade is a catalogue that comes back with 12 rows or
+              fewer, where the reserved row is then dropped; that is the same sparse case the empty state
+              covers, and it costs one shift instead of one on every load. */}
+          {isLoading || items.length > 12 ? (
+            <Carousel title={t('overview.newCreations')} items={items.slice(12, 24)} loading={isLoading} />
           ) : null}
 
           {/* "Buy the Look" is the THIRD section, after both carousels. It sat between them for a while

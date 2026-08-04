@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { OutfitCard } from '~/components/OutfitCard'
+import { SkeletonOutfitCards, SkeletonSettle } from '~/components/SkeletonCards'
 import { useOutfitItems, useOutfits } from '~/hooks/useOutfits'
 import { isListingUnavailable, isOutfitsAvailable, outfitItemKey, type Outfit } from '~/lib/outfits'
 import { railPageCount, railPageFromScroll } from '~/lib/pagedRail'
@@ -9,6 +10,10 @@ import * as Row from '~/styles/row.styles'
 import * as S from './OutfitsRow.styles'
 
 const MAX_DOTS = 6
+
+// Placeholders while the published outfits load — one per card the widest tier shows (5), so the rail is
+// full at every breakpoint (the narrower tiers just scroll the extras out of view).
+const SKELETON_COUNT = 5
 
 // "Shop the look" — curated outfits on the overview. Self-fetching discovery row: renders nothing
 // until published outfits exist (and nothing at all when no shop-server is configured). One merged
@@ -74,7 +79,12 @@ export function OutfitsRow() {
     [pageCount]
   )
 
-  if (!isOutfitsAvailable() || isLoading || visible.length === 0) return null
+  // Nothing to hold space for when the feature is dark (no shop-server) or when the row has settled on
+  // no showable look — the section does not exist in either case. But it DOES exist while the outfits are
+  // in flight, and returning null there is what made the whole "Shop the look" section materialise late
+  // and drop everything under it by a card's height (472px desktop, 605px at 375px). So the loading state
+  // renders the row's own shell with outfit-shaped placeholders instead.
+  if (!isOutfitsAvailable() || (!isLoading && visible.length === 0)) return null
 
   const title = t('outfits.rowTitle')
 
@@ -83,6 +93,9 @@ export function OutfitsRow() {
   const dotCount = Math.min(pageCount, MAX_DOTS)
   const activeDot = pageCount <= 1 ? 0 : Math.round((page / (pageCount - 1)) * (dotCount - 1))
   const dotPage = (dot: number) => (dotCount <= 1 ? 0 : Math.round((dot / (dotCount - 1)) * (pageCount - 1)))
+  // Arrows and dots belong to a rail that HAS pages, and a loading rail's page count is a count of
+  // placeholders — so they stay off until the looks are real (the strip below still holds their height).
+  const showControls = !isLoading && pageCount > 1
 
   return (
     <Row.Root data-testid="outfits-row">
@@ -90,7 +103,7 @@ export function OutfitsRow() {
         <Row.Title>{title}</Row.Title>
       </Row.Head>
       <S.Viewport>
-        {pageCount > 1 ? (
+        {showControls ? (
           <Row.Arrow
             data-side="left"
             data-testid="outfits-row-prev"
@@ -102,11 +115,19 @@ export function OutfitsRow() {
           </Row.Arrow>
         ) : null}
         <S.Track ref={trackRef} data-testid="outfits-row-track">
-          {visible.map(outfit => (
-            <OutfitCard key={outfit.id} outfit={outfit} resolution={resolution} />
-          ))}
+          {isLoading ? (
+            <SkeletonOutfitCards count={SKELETON_COUNT} />
+          ) : (
+            visible.map(outfit => <OutfitCard key={outfit.id} outfit={outfit} resolution={resolution} />)
+          )}
         </S.Track>
-        {pageCount > 1 ? (
+        {/* The placeholders' exit, crossfaded over the looks that replaced them (see SkeletonSettle). */}
+        <SkeletonSettle loading={isLoading}>
+          <S.Track>
+            <SkeletonOutfitCards count={SKELETON_COUNT} settling />
+          </S.Track>
+        </SkeletonSettle>
+        {showControls ? (
           <Row.Arrow
             data-side="right"
             data-testid="outfits-row-next"
@@ -118,7 +139,9 @@ export function OutfitsRow() {
           </Row.Arrow>
         ) : null}
       </S.Viewport>
-      {pageCount > 1 ? (
+      {/* Reserved even with nothing to page — the 24px this strip occupies is 24px the whole page below
+          moved by when it appeared with the looks. Same reservation as the Overview carousels. */}
+      {showControls ? (
         <Row.Dots data-testid="outfits-row-dots" aria-label={t('overview.carouselPages', { title })}>
           {Array.from({ length: dotCount }).map((_, i) => (
             <Row.Dot
@@ -130,7 +153,9 @@ export function OutfitsRow() {
             />
           ))}
         </Row.Dots>
-      ) : null}
+      ) : (
+        <Row.Dots aria-hidden data-testid="rail-dots-reserved" />
+      )}
     </Row.Root>
   )
 }
