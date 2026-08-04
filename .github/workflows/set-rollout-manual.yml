@@ -1,0 +1,49 @@
+name: Set rollout - Manual
+
+# Points a domain at an ALREADY-PUBLISHED version of @dcl/shop. Nothing is built here: the version must
+# already exist on the CDN, which is what makes this the way to promote a build that has been running on
+# .today to .org — the exact same bytes, rather than a fresh build that has never been looked at.
+#
+# The automatic rollout (set-rollout.yml) covers zone + today only, deliberately: a push to main should
+# not reach production on its own. Production is this workflow, run by hand, which is also why the
+# percentage is an input — a rollout can start small and be raised.
+on:
+  workflow_dispatch:
+    inputs:
+      packageVersion:
+        description: 'Published npm version of @dcl/shop to roll out (e.g. 1.4.0)'
+        required: true
+        default: ''
+      deploymentEnvironment:
+        type: choice
+        description: 'Domain to point at that version'
+        required: true
+        # Defaults to the harmless one on purpose: reaching production should take a deliberate change
+        # of this field, not an accepted default.
+        default: 'zone'
+        options:
+          - zone
+          - today
+          - org
+      rolloutPercentage:
+        description: 'Percentage of traffic to serve this version to'
+        required: true
+        default: '100'
+
+jobs:
+  set-manual-by-path-rollout:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set Rollout
+        # By-path site (decentraland.<tld>/shop) → rollout keyed by deploymentPath + deploymentEnvironment.
+        uses: decentraland/set-rollout-action@26ead404b6944fd0ce0d087cc59fd817607454d6 # v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: ${{ github.ref }}
+          sha: ${{ github.sha }}
+          packageName: '@dcl/shop'
+          packageVersion: ${{ github.event.inputs.packageVersion }}
+          deploymentPath: 'shop'
+          deploymentEnvironment: ${{ github.event.inputs.deploymentEnvironment }}
+          deploymentName: '_site'
+          percentage: ${{ github.event.inputs.rolloutPercentage }}
