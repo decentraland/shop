@@ -2,6 +2,7 @@ import styled from '@emotion/styled'
 import { NavLink } from 'react-router-dom'
 import { theme } from '~/styles/theme'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
+import { Icon } from '~/components/Icon'
 
 const { colors, gradients, radius, media } = theme
 
@@ -234,6 +235,7 @@ export const BalanceSkel = styled.span`
 `
 
 export const Credits = styled(NavLink)`
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -250,8 +252,33 @@ export const Credits = styled(NavLink)`
   white-space: nowrap;
   transition: filter 0.15s ease;
 
+  /* Hover ring (Figma): a gradient stroke OUTSIDE the button with a gap in between (the page shows
+     through the gap). Drawn as a masked gradient ring — a plain outline can't take a gradient. */
+  &::before {
+    content: '';
+    position: absolute;
+    inset: -6px;
+    border-radius: calc(${radius.btn} + 6px);
+    padding: 2px;
+    background: ${gradients.amethyst};
+    -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    mask-composite: exclude;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    pointer-events: none;
+  }
+
   &:hover {
     filter: brightness(1.08);
+  }
+  &:hover::before {
+    opacity: 1;
   }
   &:active {
     filter: brightness(0.95);
@@ -283,12 +310,58 @@ export const Fav = styled(NavLink)`
   &:hover {
     background: ${colors.media};
   }
-  &.active {
-    color: ${colors.brandViolet};
-  }
 
   ${stacked} {
     order: 3;
+  }
+`
+
+// Stacks the outline heart under the solid one so the fill can flood the outline in place.
+export const FavIcons = styled.span`
+  position: relative;
+  width: 28px;
+  height: 28px;
+`
+
+// The outline stroke — fades out as the solid heart arrives (delayed to land as the fill reaches full),
+// so the active (on /my-favorites) state is a clean solid glyph, not a fill inside a ring.
+export const FavOutline = styled(Icon)`
+  transition: opacity 160ms ease;
+
+  .active & {
+    opacity: 0;
+    transition: opacity 140ms ease 160ms;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &,
+    .active & {
+      transition: none;
+    }
+  }
+`
+
+// The solid black heart grows from the centre when the favourites route is active: springy pop in,
+// quick scale-out on leave.
+export const FavFill = styled(Icon)`
+  position: absolute;
+  inset: 0;
+  color: ${colors.text};
+  transform: scale(0);
+  transform-origin: center;
+  transition: transform 200ms ease-in;
+  pointer-events: none;
+
+  .active & {
+    transform: scale(1);
+    transition: transform 280ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &,
+    .active & {
+      transition: none;
+    }
   }
 `
 
@@ -307,13 +380,65 @@ export const Cart = styled.button`
   place-items: center;
   width: 40px;
   height: 40px;
-  background: ${colors.media};
+  background: transparent;
   border-radius: ${radius.btn};
   color: ${colors.text2};
   border: 0;
   padding: 0;
   font: inherit;
   cursor: pointer;
+  transition: background 0.12s ease;
+
+  &:hover {
+    background: ${colors.media};
+  }
+`
+
+// Filled while the cart holds something: the solid cart grows from the centre when the first item
+// lands and stays filled until the cart empties, so the icon reads as "cart has stuff". Mirrors the
+// favourites heart's persistent fill.
+export const CartIcons = styled.span`
+  position: relative;
+  width: 28px;
+  height: 28px;
+`
+
+export const CartOutline = styled(Icon)`
+  transition: opacity 160ms ease;
+
+  [data-filled] & {
+    opacity: 0;
+    transition: opacity 140ms ease 160ms;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &,
+    [data-filled] & {
+      transition: none;
+    }
+  }
+`
+
+export const CartFill = styled(Icon)`
+  position: absolute;
+  inset: 0;
+  color: ${colors.text};
+  transform: scale(0);
+  transform-origin: center;
+  transition: transform 200ms ease-in;
+  pointer-events: none;
+
+  [data-filled] & {
+    transform: scale(1);
+    transition: transform 280ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &,
+    [data-filled] & {
+      transition: none;
+    }
+  }
 `
 
 export const CartBadge = styled.span`

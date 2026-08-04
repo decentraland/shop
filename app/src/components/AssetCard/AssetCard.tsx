@@ -349,7 +349,10 @@ export function AssetCard(props: AssetCardProps) {
           }}
           aria-label={faved ? t('assetCard.removeFromFavorites') : t('assetCard.addToFavorites')}
         >
-          <Icon name={faved ? 'heart-solid' : 'heart'} size={16} />
+          <S.FavIcons>
+            <S.FavOutline name="heart" size={16} aria-hidden />
+            <S.FavFill name="heart-solid" size={16} aria-hidden />
+          </S.FavIcons>
         </S.Fav>
       ) : null}
       {/* The shared 3D preview (HoverPreviewLayer) overlays this element on hover; mediaRef gives it the

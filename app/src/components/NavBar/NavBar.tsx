@@ -295,7 +295,10 @@ export function NavBar() {
           {t('nav.getCredits', { currency: CURRENCY.name })}
         </S.Credits>
         <S.Fav to="/my-favorites" aria-label={t('nav.myFavorites')}>
-          <Icon name="heart" size={28} />
+          <S.FavIcons>
+            <S.FavOutline name="heart" size={28} aria-hidden />
+            <S.FavFill name="heart-solid" size={28} aria-hidden />
+          </S.FavIcons>
         </S.Fav>
         <S.CartWrap>
           {/* Cart icon opens the cart drawer (open-on-icon). With an empty cart there's nothing to show,
@@ -306,7 +309,10 @@ export function NavBar() {
             aria-label={t('nav.cart')}
             onClick={() => (cartCount > 0 ? openCart(true) : navigate('/cart'))}
           >
-            <Icon name="cart" size={28} />
+            <S.CartIcons data-filled={cartCount > 0 || undefined}>
+              <S.CartOutline name="cart" size={28} aria-hidden />
+              <S.CartFill name="cart-solid" size={28} aria-hidden />
+            </S.CartIcons>
             {cartCount > 0 ? <S.CartBadge data-testid="subnav-cart-badge">{cartCount}</S.CartBadge> : null}
           </S.Cart>
           <CartPopover />
