@@ -18,6 +18,12 @@
     "getCredits": "Conseguir {currency}",
     "cart": "Carrito"
   },
+  "notifications": {
+    "title": "Notificaciones",
+    "titleUnread": "Notificaciones, {count} sin leer",
+    "empty": "Todavía no tienes notificaciones.",
+    "loading": "Cargando notificaciones…"
+  },
   "search": {
     "suggestions": "Sugerencias de búsqueda",
     "recent": "Búsquedas recientes",
