@@ -361,7 +361,7 @@ describe('the migration chip', () => {
     renderPage()
 
     const chip = await screen.findByTestId('activity-filter-migrate')
-    expect(chip).toHaveTextContent('Move your listings')
+    expect(chip).toHaveTextContent('Listings')
     expect(screen.getByTestId('activity-migrate-count')).toHaveTextContent('3')
     // Last of the four chips.
     expect(screen.getAllByRole('tab').at(-1)).toBe(chip)
@@ -406,7 +406,8 @@ describe('the migration chip', () => {
     // Present so the row still has a selected chip, but with no zero badge on it.
     expect(chip).toHaveAttribute('aria-selected', 'true')
     expect(screen.queryByTestId('activity-migrate-count')).not.toBeInTheDocument()
-    expect(chip).toHaveAccessibleName('Move your listings')
+    // No count to spell out, so the name falls back to the chip's own label.
+    expect(chip).toHaveAccessibleName('Listings')
   })
 
   it('should go back to the feed when a filter chip is picked', async () => {
