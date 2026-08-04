@@ -5,7 +5,7 @@ import { ethers } from 'ethers'
 // no on-chain tx is ever needed in the happy paths) + the MANA/USD oracle rate.
 
 const MOCK_ORACLE = '0xdcf00f5f60b62b07e668a84c0cedaf6f453d416e'
-const ORACLE_RATE = 26960836 // ~$0.2696 at 8 decimals (the Amoy mock aggregator)
+export const ORACLE_RATE = 26960836 // ~$0.2696 at 8 decimals (the Amoy mock aggregator)
 const abi = ethers.utils.defaultAbiCoder
 const sel = (sig: string) => ethers.utils.id(sig).slice(0, 10)
 

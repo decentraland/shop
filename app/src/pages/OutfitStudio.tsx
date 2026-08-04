@@ -37,7 +37,7 @@ import {
   type OutfitBodyShape,
   type OutfitDraft
 } from '~/lib/outfits'
-import { itemUrn } from '~/lib/urn'
+import { isWearable, outfitPreviewUrns } from '~/lib/outfit'
 import { t } from '~/intl/i18n'
 import { toast } from '~/store/toast'
 import { useWallet } from '~/store/wallet'
@@ -442,11 +442,21 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
   // Mirrors shop-server's isPublishable, gradient stops included (a transparent thumbnail with no
   // backdrop has nothing to sit on).
   const gradientValid = !!draft && isHexColor(draft.gradientFrom) && isHexColor(draft.gradientTo)
+  // Client-only rule — the server can't check categories, it has no catalog access: a set of emotes is
+  // not a look, so publishing needs at least one wearable. An item that hasn't resolved counts as one,
+  // so a catalog outage can never silently block a publish.
+  const hasWearable =
+    !!draft &&
+    draft.items.some(ref => {
+      const item = resolution.byKey.get(outfitItemKey(ref))
+      return !item || isWearable(item)
+    })
   const canPublish =
     !!draft &&
     nameValid &&
     !!draft.thumbnailHash &&
     gradientValid &&
+    hasWearable &&
     draft.items.length >= MIN_OUTFIT_ITEMS &&
     draft.items.length <= MAX_OUTFIT_ITEMS
 
@@ -484,14 +494,22 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
     }
   }
 
-  const urns = useMemo(
+  const resolvedItems = useMemo(
     () =>
       (draft?.items ?? [])
         .map(ref => resolution.byKey.get(outfitItemKey(ref)))
-        .map(item => (item ? itemUrn(item) : null))
-        .filter((urn): urn is string => !!urn),
+        .filter((item): item is CatalogItem => !!item),
     [draft, resolution.byKey]
   )
+  const urns = useMemo(() => outfitPreviewUrns(resolvedItems), [resolvedItems])
+  // Which row carries the emote the preview plays — the rest are items only.
+  const playingKey = useMemo(() => {
+    const ref = (draft?.items ?? []).find(r => {
+      const item = resolution.byKey.get(outfitItemKey(r))
+      return !!item && !isWearable(item)
+    })
+    return ref ? outfitItemKey(ref) : null
+  }, [draft, resolution.byKey])
   const mannequin: BodyShapeUrn | undefined =
     draft?.bodyShape === 'female' ? BASE_FEMALE : draft?.bodyShape === 'male' ? BASE_MALE : undefined
 
@@ -726,6 +744,11 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
                       <S.SelName className={item ? undefined : 'muted'}>
                         {item ? item.name : resolution.isLoading ? '…' : t('outfits.card.unavailable')}
                       </S.SelName>
+                      {key === playingKey ? (
+                        <S.SelHint data-testid="outfit-studio-plays-in-preview">
+                          {t('outfits.studio.playsInPreview')}
+                        </S.SelHint>
+                      ) : null}
                       {item ? (
                         <S.SelPrice>
                           <CurrencyIcon size={12} />
@@ -768,7 +791,12 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
         {!nameValid ? (
           <p className="muted small">{t('outfits.studio.needName')}</p>
         ) : !canPublish && !draft.published ? (
-          <p className="muted small">{t('outfits.errors.notPublishable')}</p>
+          <p className="muted small" data-testid="outfit-studio-publish-hint">
+            {/* The wearable rule is ours alone, so name it — "not publishable" would read as a bug. */}
+            {!hasWearable && draft.items.length > 0
+              ? t('outfits.studio.needsWearable')
+              : t('outfits.errors.notPublishable')}
+          </p>
         ) : null}
         <S.SaveActions>
           <Button

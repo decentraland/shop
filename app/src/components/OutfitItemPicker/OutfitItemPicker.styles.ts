@@ -30,6 +30,29 @@ export const Search = styled.div`
   }
 `
 
+export const Categories = styled.div`
+  display: flex;
+  gap: 8px;
+`
+
+export const CategoryBtn = styled.button`
+  min-height: 44px;
+  padding: 0 16px;
+  border-radius: ${radius.pill};
+  border: 1px solid ${colors.lineStrong};
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  color: ${colors.text};
+  cursor: pointer;
+
+  &[data-selected] {
+    border-color: ${colors.accent};
+    background: ${colors.accent};
+    color: ${colors.white};
+  }
+`
+
 export const Grid = styled.div`
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));

@@ -1,6 +1,6 @@
 import puppeteer, { type Browser, type HTTPRequest, type Page } from 'puppeteer'
 import { buildTestSession, sessionInitScript, type TestSession } from './session'
-import { handleRpc, setManaBalanceWei, setManaAllowanceWei } from './rpc'
+import { handleRpc, setManaBalanceWei, setManaAllowanceWei, ORACLE_RATE } from './rpc'
 import * as fx from '../fixtures'
 
 export const BASE = process.env.E2E_BASE_URL ?? 'http://localhost:5273'
@@ -179,12 +179,21 @@ function json(req: HTTPRequest, obj: unknown, status = 200) {
 // A forced error response, keyed by URL pathname (opt-in per run via launchApp({ errors })).
 type ErrorMap = Record<string, { status: number; body?: unknown }>
 
-// Map a shop listing (fixtures shape) → a catalog item the /v3/catalog/items endpoint returns
-// (the shape lib/collections.ts's toCatalogItem reads). The server computes `priceCredits` per item;
-// `price` (USD wei, 1e18 = $1) is kept for shape parity with /v1/items.
+// Map a shop listing (fixtures shape) → a catalog row, serving both /v3/catalog/items (where
+// lib/collections.ts reads the server-computed `priceCredits`) and /v2/catalog?id= (where the app reads
+// `price` as MANA and converts at the live rate). Emitting both keeps each consumer on the field it
+// really uses in production.
 function toCatalogRow(l: any) {
   const priceCredits = Math.max(1, Math.round(l.priceCredits ?? 1))
-  const priceWei = String(BigInt(priceCredits) * 10n ** 17n) // credits × $0.10 in wei
+  // The real /v2 catalog prices in MANA, and the app converts to credits at the live oracle rate. Emit
+  // the MANA wei that converts BACK to the fixture's credits at the mocked rate, so a spec can keep
+  // stating prices in credits while the code under test exercises the real conversion.
+  const priceWei = String((BigInt(priceCredits) * 10n ** 17n * 10n ** 8n) / BigInt(ORACLE_RATE))
+  // Mirror how the real /v2 row reports WHO is selling: `price` is the creator's mint (zero/absent once
+  // the mint is closed), `minPrice` is the cheapest resale, and `available` is the remaining supply.
+  // Outfits' discovery row admits a look only while every item is still buyable from its creator, so a
+  // fixture that is resale-only or out of stock has to be able to say so here.
+  const isResale = l.listingType === 'secondary' || !!l.tokenId
   return {
     id: `${l.contractAddress}-${l.itemId ?? l.tokenId ?? '0'}`,
     name: l.name,
@@ -196,7 +205,9 @@ function toCatalogRow(l: any) {
     network: l.network,
     chainId: l.chainId,
     thumbnail: l.thumbnail ?? '',
-    price: priceWei,
+    price: isResale ? null : priceWei,
+    minPrice: priceWei,
+    available: l.available ?? 0,
     priceCredits
   }
 }
@@ -472,7 +483,18 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
       let rows = ((F.shopListings as { data: any[] }).data ?? []).map(toCatalogRow)
       if (ca) rows = rows.filter(r => String(r.contractAddress).toLowerCase() === ca.toLowerCase())
       if (creator) rows = rows.filter(r => String(r.creator).toLowerCase() === creator.toLowerCase())
-      return json(req, { data: rows })
+      // The browse filters, honored exactly as the other feeds honor them. `search` matches a substring
+      // of the NAME — the same rule /v3/catalog/unified applies, so the "All"/"Not for Sale" grid and
+      // the on-sale grid agree on what a query matches. Every fixture row is priced, hence on sale.
+      const catalogSearch = u.searchParams.get('search')?.toLowerCase()
+      const catalogRarity = u.searchParams.get('rarity')
+      const catalogCategory = u.searchParams.get('category')
+      const isOnSale = u.searchParams.get('isOnSale')
+      if (catalogSearch) rows = rows.filter(r => String(r.name).toLowerCase().includes(catalogSearch))
+      if (catalogRarity) rows = rows.filter(r => catalogRarity.split(',').includes(r.rarity))
+      if (catalogCategory) rows = rows.filter(r => r.category === catalogCategory)
+      if (isOnSale === 'false') rows = []
+      return json(req, { data: rows, total: rows.length })
     }
     if (path === '/v1/nfts') {
       // Creator search step 1 (lib/search.ts → fetchNameOwners): DCL names matching ?search=.

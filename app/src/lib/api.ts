@@ -21,7 +21,12 @@ export type CatalogItem = {
   network: string
   chainId: number
   thumbnail: string
+  // Fixed credits for a USD-pegged row. ZERO on a MANA-priced row, whose credit price fluctuates: those
+  // carry `manaWei` and are priced for display at the live rate — see `displayCredits`.
   priceCredits: number
+  // Raw MANA price (wei) when this row is MANA-priced (legacy listings, and every row the /v2 catalog
+  // serves). Null/absent on USD-pegged rows, which price in credits directly.
+  manaWei?: string | null
   gender: 'male' | 'female' | 'unisex' | null
   // Smart wearable (carries an interactive scene/game.js). Surfaces a "Smart" badge on the card.
   isSmart: boolean
@@ -43,10 +48,15 @@ export type CatalogItem = {
   // Current owner (the reseller) for a SECONDARY per-token listing, from the shop feed. Lets the PDP
   // resale list show who's selling without a per-token lookup. Absent for primary/catalog rows.
   seller?: string
-  // Remaining mintable supply for a PRIMARY listing (from the shop feed). Absent for secondary
-  // listings (a specific token has no stock concept) and for catalog-only items. Surfaces the STOCK
-  // figure next to the price on the item detail page.
+  // Remaining mintable supply for a PRIMARY listing (from the shop feed, and from the /v2 catalog on
+  // the by-ids path). Absent for secondary listings (a specific token has no stock concept). Surfaces
+  // the STOCK figure next to the price on the item detail page.
   available?: number
+  // Whether the CREATOR is still selling this item (a mint exists), as opposed to it being resale-only.
+  // Populated on the /v2 by-ids path, where the mint price and the resale floor arrive as separate
+  // fields; absent on feeds that report a single already-chosen listing. Outfits use it to keep a look
+  // off the discovery row once any of its items can no longer be bought from its creator.
+  hasPrimaryListing?: boolean
   // How many open credit-buyable listings this item has, from the item-unified browse feed
   // (/v3/catalog/unified?groupBy=item). Present only on that feed's rows; > 1 surfaces a badge on the
   // card telling the user there are more copies to see on the item detail page. Absent everywhere else.
@@ -69,8 +79,12 @@ type RawCatalogItem = {
   network: string
   chainId: number
   thumbnail?: string
+  /** The CREATOR's mint price (MANA wei). Zero/absent means the creator is no longer selling it. */
   price?: string | null
+  /** Cheapest RESALE (MANA wei) — a different seller, not the creator. */
   minPrice?: string | null
+  /** Remaining mintable supply. */
+  available?: number
   data?: {
     wearable?: { category?: string; bodyShapes?: string[]; description?: string; isSmart?: boolean }
     emote?: { category?: string; description?: string }
@@ -116,6 +130,9 @@ function toGender(bodyShapes?: string[]): CatalogItem['gender'] {
 }
 
 function toCatalogItem(r: RawCatalogItem): CatalogItem {
+  // A closed mint reports a ZERO price rather than omitting the field, so `??` would keep the '0' and
+  // price the row at nothing instead of falling back to the cheapest resale.
+  const mintWei = r.price && r.price !== '0' ? r.price : null
   return {
     id: r.id,
     name: r.name,
@@ -128,9 +145,20 @@ function toCatalogItem(r: RawCatalogItem): CatalogItem {
     network: r.network,
     chainId: r.chainId,
     thumbnail: r.thumbnail ?? '',
-    priceCredits: toCredits(r.price ?? r.minPrice),
+    // The /v2 catalog prices in MANA, not in USD — so this row carries `manaWei` and NO fixed credit
+    // price. Callers convert at the live rate through `displayCredits`, exactly as the browse grid does
+    // for any other MANA-priced row. (Reading `price` as USD wei is what made a 3-credit item render as
+    // 150: 15 MANA ≠ $15.)
+    manaWei: mintWei ?? r.minPrice ?? null,
+    priceCredits: 0,
     gender: toGender(r.data?.wearable?.bodyShapes),
-    isSmart: r.data?.wearable?.isSmart ?? false
+    isSmart: r.data?.wearable?.isSmart ?? false,
+    // Supply and who is selling. Both come straight off the /v2 row, and together they decide whether a
+    // shopper can still buy the item FROM ITS CREATOR (a mint) rather than from a reseller. Passed
+    // through undefined rather than defaulted, so a feed that omits supply keeps meaning "unknown"
+    // (AssetCard reads it as an unbounded stock cap) instead of silently reading as sold out.
+    available: r.available,
+    hasPrimaryListing: !!mintWei
   }
 }
 
@@ -399,6 +427,9 @@ async function fetchShopListingsRaw(
   if (params.maxPriceCredits != null) qs.set('maxPriceCredits', String(params.maxPriceCredits))
   if (params.search) qs.set('search', params.search)
   if (params.sortBy) qs.set('sortBy', params.sortBy)
+  if (params.isSmart) qs.set('isSmart', 'true')
+  if (params.onSale != null) qs.set('onSale', String(params.onSale))
+  if (params.listingType) qs.set('listingType', params.listingType)
   const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/shop?${qs.toString()}`)
   if (!res.ok) throw new Error(`fetchShopListings ${res.status}`)
   const json = (await res.json()) as { data?: ShopListingRaw[]; total?: number }
