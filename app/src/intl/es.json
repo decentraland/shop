@@ -857,7 +857,13 @@
     "assignToAvatar": "Asignar NAME al avatar",
     "errorTitle": "Algo salió mal",
     "errorGeneric": "No pudimos completar tu compra. Inténtalo de nuevo.",
-    "tryAgain": "Reintentar"
+    "tryAgain": "Reintentar",
+    "pendingHeaderTitle": "Compra en proceso",
+    "pendingBannerBold": "Tu pago se procesó.",
+    "pendingBannerRest": "Tu NAME se está terminando de registrar y aparecerá en Mis ítems en breve — no tenés que hacer nada.",
+    "priceUnavailable": "No podemos calcular el precio de los NAMEs en este momento. Probá de nuevo en un rato.",
+    "insufficientCredits": "Te faltan {credits} credits para comprar este NAME.",
+    "errorRouteCost": "El registro de NAMEs no está disponible temporalmente porque los costos de red están muy altos. Probá más tarde."
   },
   "authorizations": {
     "title": "Autorizaciones",

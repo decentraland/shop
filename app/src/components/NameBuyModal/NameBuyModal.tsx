@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { useWallet } from '~/store/wallet'
 import { useBalance, balanceLabel } from '~/hooks/useBalance'
-import { registerNameWithUsdCredits } from '~/lib/names'
+import { NameRouteCostTooHighError, registerNameWithUsdCredits } from '~/lib/names'
 import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import { Icon } from '~/components/Icon'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
@@ -14,7 +14,16 @@ import { t } from '~/intl/i18n'
 import loaderLogo from '~/assets/credits/loader-logo.svg'
 import * as S from './NameBuyModal.styles'
 
-type Phase = 'confirm' | 'completing' | 'success' | 'error'
+/**
+ * `pending` is its own phase, NOT a flavour of success.
+ *
+ * Registering a NAME is cross-chain: the credit is spent on Polygon, and the NAME is minted on Ethereum by
+ * an Across relayer afterwards. `registerNameWithUsdCredits` distinguishes the two outcomes precisely —
+ * `registered` means the mint ran, `pending` means the money left but the bridge has not landed inside our
+ * polling window — and showing "Purchase complete! You can find your NAME in the My Items tab" for the
+ * second one sends the buyer to look for something that does not exist yet.
+ */
+type Phase = 'confirm' | 'completing' | 'success' | 'pending' | 'error'
 
 /**
  * Buy-a-NAME flow. The name is already validated + probed available on the search page; here we make
@@ -45,6 +54,29 @@ export function NameBuyModal({
   const busy = phase === 'completing'
   const priceLabel = priceCredits != null ? formatCredits(priceCredits) : '—'
 
+  /**
+   * Why the CTA needs more than "the name matches".
+   *
+   * A NAME is priced in MANA on-chain and paid in credits, so the price only exists while the MANA/USD
+   * oracle answers. With no rate the row shows "—" and the purchase cannot be sized — `registerNameWithUsdCredits`
+   * would read the oracle itself and throw ("mana rate unavailable/stale/incomplete") into the generic
+   * error. Better to say so before the click than to fail after it.
+   *
+   * The balance was already on screen but never compared to the price, so someone short on credits reached
+   * the server, failed `authorizeUsdCredit`, and got the same generic error — instead of "you need N more".
+   * `balance` is undefined while loading and on error (see useBalance): in both cases we do NOT block, since
+   * refusing a purchase because our own balance read failed is worse than letting the server decide.
+   */
+  const priceUnavailable = priceCredits == null
+  const spendable = balance?.credits
+  const shortBy = priceCredits != null && spendable != null ? priceCredits - spendable : 0
+  const insufficient = shortBy > 0
+  const blockedReason = priceUnavailable
+    ? t('names.priceUnavailable')
+    : insufficient
+      ? t('names.insufficientCredits', { credits: formatCredits(shortBy) })
+      : null
+
   // Lock body scroll + close on Escape (unless mid-purchase).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -60,37 +92,50 @@ export function NameBuyModal({
   }, [busy, onClose])
 
   async function buy() {
-    if (!session || !matches || startedRef.current) return
+    // Repeats every condition the CTA is disabled on, rather than trusting that it was. The button being
+    // disabled is a UI fact; this is the money call, and it should be safe to invoke from anywhere.
+    if (!session || !matches || priceUnavailable || insufficient || startedRef.current) return
     startedRef.current = true
     setPhase('completing')
     setError(null)
     try {
-      await registerNameWithUsdCredits({ name, identity: session.identity, signer: session.signer })
+      const result = await registerNameWithUsdCredits({ name, identity: session.identity, signer: session.signer })
+      // The money left the balance in both outcomes, so both refresh it and both count as a completed
+      // purchase for analytics — what differs is only whether the NAME exists yet.
       track('Shop Completed Purchase', {
         purchase_type: 'name',
         is_primary: true,
         payment_type: 'credits',
-        value_credits: priceCredits ?? null
+        value_credits: priceCredits ?? null,
+        settlement: result.status
       })
       void qc.invalidateQueries({ queryKey: ['usd-balance'] })
       // A freshly registered NAME is a new owned asset — refresh My Assets (the Names section reads the
       // 'my-assets' family) so it shows up without waiting for the 30s staleTime or a manual reload.
       void qc.invalidateQueries({ queryKey: ['my-assets'] })
-      setPhase('success')
+      setPhase(result.status === 'registered' ? 'success' : 'pending')
     } catch (e) {
       track(isUserRejection(e) ? 'Shop Purchase Cancelled' : 'Shop Purchase Failed', {
         step: 'submit',
         error_code: errorCode(e),
         purchase_type: 'name'
       })
-      setError((e as { message?: string })?.message || t('names.errorGeneric'))
+      // The route-cost guard is a DISTINCT condition and gets its own copy. The credits-server withholds
+      // the route (503 ROUTE_COST_TOO_HIGH) when Across' bridge overhead exceeds what the executor can
+      // front; the lib types it separately and rethrows it unwrapped for exactly this. It is temporary and
+      // nothing is wrong with the buyer's account, so "try again" is the wrong advice — "try again later" is.
+      setError(
+        e instanceof NameRouteCostTooHighError
+          ? t('names.errorRouteCost')
+          : (e as { message?: string })?.message || t('names.errorGeneric')
+      )
       setPhase('error')
     } finally {
       startedRef.current = false
     }
   }
 
-  const showHead = phase !== 'success'
+  const showHead = phase !== 'success' && phase !== 'pending'
   const selfCustody = showsWalletConfirmations(session?.providerType)
 
   return (
@@ -159,7 +204,16 @@ export function NameBuyModal({
                     <S.ReenterSuffix>.dcl.eth</S.ReenterSuffix>
                   </S.ReenterRow>
                 </S.Confirm>
-                <S.PrimaryBtn onClick={() => void buy()} disabled={!matches || !session}>
+                {blockedReason ? (
+                  <S.ErrorBox data-tone="info" data-testid="name-blocked-reason">
+                    <Icon name="info" aria-hidden />
+                    <span>{blockedReason}</span>
+                  </S.ErrorBox>
+                ) : null}
+                <S.PrimaryBtn
+                  onClick={() => void buy()}
+                  disabled={!matches || !session || priceUnavailable || insufficient}
+                >
                   {t('names.buyCta')}
                 </S.PrimaryBtn>
               </>
@@ -178,6 +232,58 @@ export function NameBuyModal({
               <S.ProgressCount>1/1</S.ProgressCount>
             </S.ProgressRow>
           </S.Processing>
+        )}
+
+        {/* Paid, but the NAME is not minted yet. Deliberately NOT the success screen: it must not send the
+            buyer to My Items for something that is not there, and it must not offer "assign to avatar" for a
+            NAME they do not hold yet. It reassures instead — the money is accounted for and the
+            credits-server reconciler settles the reservation against the indexed consumption either way. */}
+        {phase === 'pending' && (
+          <>
+            <S.HeadRow>
+              <S.Title>{t('names.pendingHeaderTitle')}</S.Title>
+              <S.Close onClick={onClose} aria-label={t('buyModal.close')}>
+                <Icon name="close" />
+              </S.Close>
+            </S.HeadRow>
+            <S.Balance>
+              {t('names.myCreditsBalance')} <CurrencyIcon /> {balanceLabel(balance, balanceError)}
+            </S.Balance>
+            <S.Divider />
+
+            <S.ErrorBox data-tone="info">
+              <Icon name="info" aria-hidden />
+              <span>
+                <b>{t('names.pendingBannerBold')}</b> {t('names.pendingBannerRest')}
+              </span>
+            </S.ErrorBox>
+
+            <S.NameRow style={{ marginTop: 20 }}>
+              <S.Thumb aria-hidden>@</S.Thumb>
+              <S.NameMeta>
+                <S.NameText>
+                  {name}
+                  <span>.dcl.eth</span>
+                </S.NameText>
+                <S.NameSub>{t('names.subtitle')}</S.NameSub>
+              </S.NameMeta>
+              <S.RowPrice>
+                <CurrencyIcon />
+                {priceLabel}
+              </S.RowPrice>
+            </S.NameRow>
+
+            <S.Actions>
+              <S.OutlineBtn
+                onClick={() => {
+                  onClose()
+                  navigate('/my-assets')
+                }}
+              >
+                {t('names.myItems')}
+              </S.OutlineBtn>
+            </S.Actions>
+          </>
         )}
 
         {phase === 'success' && (
