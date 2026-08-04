@@ -47,7 +47,13 @@ export enum FeatureFlag {
    * credits-server on /credits/authorize, against the signed-fetch address. Read under the SAME key and
    * variant as that check so one list drives both and they cannot drift apart.
    */
-  SHOP_PRELAUNCH = 'shop-prelaunch'
+  SHOP_PRELAUNCH = 'shop-prelaunch',
+
+  /**
+   * Address-list variant of accounts that see the outfit-authoring studio. COSMETIC: the real
+   * gate is shop-server's OUTFIT_CREATORS allowlist, enforced against the signed-fetch address.
+   */
+  SHOP_OUTFIT_CREATORS = 'shop-outfit-creators'
 }
 
 /** The application whose flag file carries the flags above. */
@@ -138,21 +144,59 @@ async function getSnapshot(): Promise<Snapshot> {
  * Mirrors credits-server's parseAddressListVariant so one flag drives both sides.
  */
 export async function getAddressListVariant(flag: FeatureFlag): Promise<string[]> {
+  const override = devVariantOverrideFor(flag)
+  if (override !== undefined) return parseAddressList(override)
   try {
     const value = (await getSnapshot()).variants[flagKey(flag)]
     if (!value) return []
-    return Array.from(
-      new Set(
-        value
-          .replace(/\n/g, '')
-          .split(',')
-          .map(address => address.toLowerCase().trim())
-          .filter(address => /^0x[0-9a-f]{40}$/.test(address))
-      )
-    )
+    return parseAddressList(value)
   } catch {
     return []
   }
+}
+
+function parseAddressList(value: string): string[] {
+  return Array.from(
+    new Set(
+      value
+        .replace(/\n/g, '')
+        .split(',')
+        .map(address => address.toLowerCase().trim())
+        .filter(address => /^0x[0-9a-f]{40}$/.test(address))
+    )
+  )
+}
+
+/**
+ * Local development override for VARIANT payloads, read from VITE_FEATURE_FLAG_VARIANT_OVERRIDES
+ * in .env.local — the variant counterpart of VITE_FEATURE_FLAG_OVERRIDES below, and it exists for
+ * the same reason: an address-list-gated flow (the outfit studio) is otherwise untestable locally
+ * until the flag and its variant exist in the dashboard.
+ *
+ *   VITE_FEATURE_FLAG_VARIANT_OVERRIDES=shop-outfit-creators:0xabc…,0xdef…;other-flag:0x123…
+ *
+ * Entries are separated by ';' because a payload is itself a comma-separated address list; the
+ * first ':' splits the bare flag name from the payload, which is parsed exactly like a dashboard
+ * payload (so a typo'd address is dropped, not trusted). DEV BUILDS ONLY — gated on
+ * `import.meta.env.DEV` like the boolean override, so production bundles drop this entirely.
+ */
+function devVariantOverrideFor(flag: FeatureFlag): string | undefined {
+  if (!import.meta.env.DEV) return undefined
+  const raw: unknown = import.meta.env.VITE_FEATURE_FLAG_VARIANT_OVERRIDES
+  if (typeof raw !== 'string' || raw.length === 0) return undefined
+
+  for (const entry of raw.split(';')) {
+    if (entry.trim().length === 0) continue
+    const separator = entry.indexOf(':')
+    if (separator === -1) {
+      console.warn(`Ignoring variant override "${entry}": expected "<flag>:<comma-separated payload>"`)
+      continue
+    }
+    const name = entry.slice(0, separator).trim()
+    if (name !== String(flag)) continue
+    return entry.slice(separator + 1).trim()
+  }
+  return undefined
 }
 
 /**
