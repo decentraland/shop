@@ -203,7 +203,9 @@ export async function fetchCollectionSaleState(
   const { listings } = await fetchShopListingsRaw({ contractAddress, first: 200 })
   const map: Record<string, { isOnSale: boolean; priceCredits: number; tradeId: string }> = {}
   for (const l of listings) {
-    if (l.listingType !== 'primary' || l.itemId == null) continue
+    // A CollectionStore mint carries no tradeId, and this map exists to hand My Assets a trade it can
+    // CANCEL — so a row without one is not what this describes and is skipped rather than coerced.
+    if (l.listingType !== 'primary' || l.itemId == null || !l.tradeId) continue
     map[String(l.itemId)] = { isOnSale: true, priceCredits: l.priceCredits, tradeId: l.tradeId }
   }
   return map
@@ -220,7 +222,8 @@ export async function fetchSecondarySaleState(
   const { listings } = await fetchShopListingsRaw({ contractAddress, first: 200 })
   const map: Record<string, { priceCredits: number; tradeId: string }> = {}
   for (const l of listings) {
-    if (l.listingType !== 'secondary' || l.tokenId == null) continue
+    // Same reason as fetchCollectionSaleState: no tradeId, nothing to cancel, not this map's subject.
+    if (l.listingType !== 'secondary' || l.tokenId == null || !l.tradeId) continue
     map[String(l.tokenId)] = { priceCredits: l.priceCredits, tradeId: l.tradeId }
   }
   return map
@@ -269,7 +272,9 @@ async function fetchNftMeta(contractAddress: string, tokenId: string): Promise<N
 // ---------------------------------------------------------------------------
 
 type ShopListingRaw = {
-  tradeId: string
+  // NULL for a CollectionStore mint — it is not a listing and has no trade. Typed as a plain
+  // `string` until now, which is why nothing flagged the `id` below as possibly null.
+  tradeId: string | null
   listingType: 'primary' | 'secondary'
   contractAddress: string
   itemId: string | null
@@ -299,10 +304,28 @@ type ShopListingRaw = {
   saleEndsAt?: number | null
 }
 
+/**
+ * A row's identity for the CART, which dedupes lines on `id`.
+ *
+ * A trade has one already. A CollectionStore MINT does not — it is not a listing, so the feed sends
+ * `tradeId: null` — and taking that null as the id made every mint in the cart the SAME line: the
+ * second one added found the first (`null === null`) and bumped its quantity instead of taking its
+ * own row. A buyer adding three different mints got three copies of whichever landed first, and
+ * never the other two. So a mint keys by what it actually is: the item being minted.
+ *
+ * Deliberately the same `contract-itemId` shape the /v2 catalog uses as its own id, so a mint read
+ * from either feed lands on one cart line rather than two.
+ */
+function listingRowId(l: ShopListingRaw): string {
+  if (l.tradeId) return l.tradeId
+  const suffix = l.tokenId ? `t${l.tokenId}` : (l.itemId ?? '')
+  return `${(l.contractAddress ?? '').toLowerCase()}-${suffix}`
+}
+
 function shopListingToItem(l: ShopListingRaw): CatalogItem {
   return {
-    id: l.tradeId,
-    tradeId: l.tradeId,
+    id: listingRowId(l),
+    tradeId: l.tradeId ?? undefined,
     name: l.name,
     creator: l.creator, // full address — the UI resolves the profile name/avatar (see CreatorBadge)
     contractAddress: l.contractAddress,
