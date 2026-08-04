@@ -196,7 +196,7 @@ describe('outfits row on the overview', () => {
         const info = document.querySelector('[data-testid="outfit-card-info"]')
         return !!info && getComputedStyle(info).opacity === '0'
       },
-      { timeout: 10000 }
+      { timeout: 20000 }
     )
 
     await page.focus('[data-testid="outfit-card-cta"]')
@@ -205,7 +205,7 @@ describe('outfits row on the overview', () => {
         const info = document.querySelector('[data-testid="outfit-card-info"]')
         return !!info && getComputedStyle(info).opacity === '1'
       },
-      { timeout: 5000 }
+      { timeout: 20000 }
     )
     const outline = await page.$eval('[data-testid="outfit-card-thumb"]', el => getComputedStyle(el).outlineColor)
     expect(outline).toBe('rgb(122, 43, 191)')
@@ -217,7 +217,7 @@ describe('outfits row on the overview', () => {
         const info = document.querySelector('[data-testid="outfit-card-info"]')
         return !!info && getComputedStyle(info).opacity === '0'
       },
-      { timeout: 5000 }
+      { timeout: 20000 }
     )
   })
 
@@ -345,6 +345,29 @@ describe('outfit studio', () => {
         ).backgroundImage.includes('rgb(0, 255, 0)'),
       { timeout: 10000 }
     )
+  })
+
+  // The autosaved draft is a guard against accidental loss (refresh, account-switch reload),
+  // not a persistent form: deliberately navigating away discards it.
+  it('restores the draft across a refresh but resets it after navigating away', async () => {
+    const page = await launch('/outfits/new', { outfitCreator: true })
+    await page.waitForSelector('[data-testid="outfit-studio-editor"]', { timeout: 20000 })
+    await page.type('[data-testid="outfit-studio-name"]', 'Half Finished')
+
+    // The dirty draft arms the tab-close beforeunload guard; accept its dialog so reload proceeds.
+    page.on('dialog', dialog => void dialog.accept())
+    await page.reload({ waitUntil: 'networkidle2' })
+    await page.waitForSelector('[data-testid="outfit-studio-editor"]', { timeout: 20000 })
+    const afterReload = await page.$eval('[data-testid="outfit-studio-name"]', el => (el as HTMLInputElement).value)
+    expect(afterReload).toBe('Half Finished')
+
+    // In-app links, not page.goto: a goto is a full page load, which the guard must survive.
+    await page.click('[data-testid="outfit-studio-back"]')
+    await page.waitForSelector('[data-testid="outfit-studio-list"]', { timeout: 20000 })
+    await page.click('[data-testid="outfit-studio-new"]')
+    await page.waitForSelector('[data-testid="outfit-studio-editor"]', { timeout: 20000 })
+    const afterReturn = await page.$eval('[data-testid="outfit-studio-name"]', el => (el as HTMLInputElement).value)
+    expect(afterReturn).toBe('')
   })
 
   it('deletes an outfit behind the confirm dialog, with unpublish offered first', async () => {

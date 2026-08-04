@@ -294,9 +294,10 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
 
-  // Unsaved-work guard: the draft autosaves to sessionStorage on every change and restores here —
-  // SPA navigation and the account-switch reload never fire beforeunload, so storage is the net.
-  // beforeunload below still covers tab-close.
+  // Unsaved-work guard: the draft autosaves to sessionStorage on every change and restores here.
+  // It only needs to survive full-page teardowns (refresh, the account-switch reload), where
+  // React never runs effect cleanups — deliberate in-app navigation unmounts the editor and the
+  // cleanup below discards the draft, so coming back starts fresh. beforeunload covers tab-close.
   const [restored] = useState(() => readStoredDraft(storageKey))
   const [draft, setDraft] = useState<OutfitDraft | null>(() => restored ?? (isNew ? emptyDraft() : null))
   const [dirty, setDirty] = useState(!!restored)
@@ -340,6 +341,8 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
     return () => window.removeEventListener('beforeunload', handler)
   }, [dirty])
 
+  useEffect(() => () => sessionStorage.removeItem(storageKey), [storageKey])
+
   const resolution = useOutfitItems(draft ?? undefined)
   const selectedKeys = useMemo(() => new Set((draft?.items ?? []).map(outfitItemKey)), [draft])
 
@@ -355,7 +358,14 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
   const [thumbLocal, setThumbLocal] = useState<string | null>(null)
   const thumbLocalRef = useRef<string | null>(null)
   const mountedRef = useRef(true)
-  useEffect(() => () => { mountedRef.current = false }, [])
+  // Set in the body, not just initialized: StrictMode's mount→cleanup→mount cycle would otherwise
+  // leave the ref false forever and silently drop every save's success path in dev.
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
   const [thumbBusy, setThumbBusy] = useState(false)
   const [thumbError, setThumbError] = useState<string | null>(null)
   const [importText, setImportText] = useState('')
@@ -509,7 +519,7 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
   return (
     <S.Root data-testid="outfit-studio-editor">
       <S.Head>
-        <S.Back to="/outfits/manage" aria-label={t('outfits.studio.myOutfits')}>
+        <S.Back to="/outfits/manage" aria-label={t('outfits.studio.myOutfits')} data-testid="outfit-studio-back">
           <Icon name="arrow-left" size={18} />
         </S.Back>
         <S.Title>{isNew ? t('outfits.studio.new') : t('outfits.studio.editTitle')}</S.Title>
