@@ -4,17 +4,18 @@ import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { CreatorRank } from '~/lib/rankings'
 
-// The card's three sources are mocked at their own boundary so the tests drive the ranking, the
-// profile and the store blurb independently — a creator with no store entity is a real production
-// outcome (most creators never write one), and the card has to keep its two lines anyway.
-const { fetchTopCreators, fetchCreatorItems, useProfile, useStore } = vi.hoisted(() => ({
+// Each of the card's sources is mocked at its own boundary so the tests drive the ranking, the profile,
+// the store blurb and the published totals independently — a creator with no store entity is a real
+// production outcome (most creators never write one), and the card has to keep its two lines anyway.
+const { fetchTopCreators, fetchCreatorCollections, fetchCreatorItems, useProfile, useStore } = vi.hoisted(() => ({
   fetchTopCreators: vi.fn(),
+  fetchCreatorCollections: vi.fn(),
   fetchCreatorItems: vi.fn(),
   useProfile: vi.fn(),
   useStore: vi.fn()
 }))
 vi.mock('~/lib/rankings', () => ({ fetchTopCreators }))
-vi.mock('~/lib/collections', () => ({ fetchCreatorItems }))
+vi.mock('~/lib/collections', () => ({ fetchCreatorCollections, fetchCreatorItems }))
 vi.mock('~/hooks/useProfile', () => ({ useProfile }))
 vi.mock('~/hooks/useStore', () => ({ useStore }))
 
@@ -46,8 +47,11 @@ beforeEach(() => {
   useStore.mockReset().mockImplementation((address?: string) => ({
     data: { cover: '', coverHash: '', description: BLURBS[address ?? ''] ?? '', links: {} }
   }))
+  fetchCreatorCollections.mockReset().mockResolvedValue({ collections: [], total: 1 })
   fetchCreatorItems.mockReset().mockResolvedValue({ items: [], total: 1 })
-  fetchTopCreators.mockReset().mockResolvedValue([makeCreator(SOUL), makeCreator(FURY, { collections: 1 })])
+  // The ranking's own `collections`/`sales` are deliberately high here: nothing on the card may read
+  // them, so the counts the fallback prints have to come from the published totals above.
+  fetchTopCreators.mockReset().mockResolvedValue([makeCreator(SOUL), makeCreator(FURY)])
 })
 
 describe('TopCreators cards', () => {
@@ -81,16 +85,28 @@ describe('TopCreators cards', () => {
     expect(await screen.findByText('Cyberpunk wearables | 3D Artist')).toBeTruthy()
   })
 
-  it('falls back to the collection and item counts when the creator has no store blurb', async () => {
+  it('falls back to the PUBLISHED totals when the creator has no store blurb', async () => {
     renderSection()
-    // Singular on both counts — the fallback pluralizes rather than reading "1 collections".
+    // 1 and 1 — the published totals — not the ranking's 5 collections, and never its sales count.
     expect(await screen.findByText('1 collection | 1 item')).toBeTruthy()
-    // Only for the creator who needs it, and bounded to a single row: the count comes off the page total.
+    // Only for the creator who needs it, and bounded to a single row: both counts are page totals.
+    expect(fetchCreatorCollections).toHaveBeenCalledTimes(1)
+    expect(fetchCreatorCollections).toHaveBeenCalledWith(FURY, { first: 1 })
     expect(fetchCreatorItems).toHaveBeenCalledTimes(1)
     expect(fetchCreatorItems).toHaveBeenCalledWith(FURY, { first: 1 })
   })
 
-  it('leaves the blurb empty rather than guessing when the item count is unavailable', async () => {
+  it('never voices the ranking numbers that put the creator on the row', async () => {
+    renderSection()
+    const card = await screen.findByRole('link', { name: 'View creations by Elemental Fury' })
+    await screen.findByText('1 collection | 1 item')
+    // The ranking says 12 sales and 5 collections for this creator; neither may reach the card.
+    expect(card.textContent).not.toContain('sale')
+    expect(card.textContent).not.toContain('12')
+    expect(card.textContent).not.toContain('5 collections')
+  })
+
+  it('leaves the blurb empty rather than guessing when the totals are unavailable', async () => {
     fetchCreatorItems.mockRejectedValue(new Error('boom'))
     renderSection()
     const card = await screen.findByRole('link', { name: 'View creations by Elemental Fury' })

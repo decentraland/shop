@@ -6,7 +6,7 @@ import { useStore } from '~/hooks/useStore'
 import { getAvatarBackgroundColor, getDisplayName } from '~/lib/avatarColor'
 import { shortAddress } from '~/lib/address'
 import { capitalizeFirst } from '~/lib/text'
-import { fetchCreatorItems } from '~/lib/collections'
+import { fetchCreatorCollections, fetchCreatorItems } from '~/lib/collections'
 import { railPageCount, railPageFromScroll } from '~/lib/pagedRail'
 import { fetchTopCreators, type CreatorRank } from '~/lib/rankings'
 import * as S from './TopCreators.styles'
@@ -16,10 +16,13 @@ import * as S from './TopCreators.styles'
 // is what "most active" means here. Desktop shows the four side by side; below the mobile breakpoint
 // the same row becomes a one-card-per-page carousel with dots.
 //
+// The ranking decides WHO appears; the card itself is neutral about it — it introduces the creator
+// (avatar, name, their own blurb) and never voices sales figures or anything else about why they made
+// the row. When they wrote no blurb it stands in their published totals instead, so a visitor still
+// learns something about them. The blurb's two lines are reserved either way, so nothing moves when it
+// lands.
+//
 // States: four skeleton cards while loading; on error OR an empty ranking the section renders nothing.
-// A card's blurb comes from the creator's store entity and is best-effort — when they never wrote one
-// it falls back to their collection and item counts. The blurb's two lines are reserved either way, so
-// nothing moves when it lands.
 
 const CARDS = 4
 
@@ -35,15 +38,28 @@ function CreatorCard({ creator }: { creator: CreatorRank }) {
   const { data: store } = useStore(creator.id)
   const description = store?.description ?? ''
 
-  // The item total for the fallback blurb. The ranking carries a collection count but no item count, so
-  // it takes a request of its own — one bounded to a single row, and only for a creator who wrote no
-  // blurb (and only once the store has answered, or it would fire for every card while that is in
-  // flight). Until it lands, or if it fails, the card simply has no second line.
-  const { data: items } = useQuery({
-    queryKey: ['creator-item-total', creator.id],
+  /**
+   * The creator's PUBLISHED totals, for the fallback blurb.
+   *
+   * Deliberately not the ranking's own numbers: the ranking's `collections` counts the collections that
+   * had a sale in the window, and `sales` is why the creator is on this row at all. The card introduces
+   * a creator rather than justifying their rank, so it says what they have published, full stop.
+   *
+   * Two page-1 requests, only for a creator who wrote no blurb, and only once the store has answered
+   * (otherwise they fire for every card while that is still in flight). Until they land, or if they
+   * fail, the card simply has no second line.
+   */
+  const { data: totals } = useQuery({
+    queryKey: ['creator-totals', creator.id],
     enabled: store !== undefined && !description,
     staleTime: 5 * 60_000,
-    queryFn: () => fetchCreatorItems(creator.id, { first: 1 }).then(page => page.total)
+    queryFn: async () => {
+      const [collections, items] = await Promise.all([
+        fetchCreatorCollections(creator.id, { first: 1 }),
+        fetchCreatorItems(creator.id, { first: 1 })
+      ])
+      return { collections: collections.total, items: items.total }
+    }
   })
 
   const name = profile?.name ? capitalizeFirst(profile.name) : shortAddress(creator.id)
@@ -57,8 +73,7 @@ function CreatorCard({ creator }: { creator: CreatorRank }) {
       ethAddress: profile?.ethAddress ?? creator.id
     })
   )
-  const blurb =
-    description || (items === undefined ? '' : t('topCreators.stats', { collections: creator.collections, items }))
+  const blurb = description || (totals ? t('topCreators.stats', totals) : '')
 
   return (
     <S.Card
