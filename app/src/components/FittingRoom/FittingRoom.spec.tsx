@@ -3,22 +3,50 @@ import { useEffect } from 'react'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { FittingRoom } from './FittingRoom'
 import { useCart, type CartItem } from '~/store/cart'
 
 // Pin chain (URN prefix) + stub the heavy 3D iframe with a probe that exposes the equipped urns.
 vi.mock('~/config', () => ({ config: { chainId: 80002 } }))
 vi.mock('~/lib/analytics', () => ({ track: vi.fn() }))
-vi.mock('~/store/wallet', () => ({ useWallet: (sel: (s: unknown) => unknown) => sel({ session: undefined }) }))
-vi.mock('~/hooks/useProfile', () => ({ useProfile: () => ({ data: undefined }) }))
+const { session, profileData, fetchWearableRules } = vi.hoisted(() => ({
+  session: { value: undefined as { address: string } | undefined },
+  profileData: { value: undefined as { avatar?: Record<string, unknown> } | undefined },
+  fetchWearableRules: vi.fn()
+}))
+vi.mock('~/store/wallet', () => ({
+  useWallet: (sel: (s: unknown) => unknown) => sel({ session: session.value })
+}))
+vi.mock('~/hooks/useProfile', () => ({ useProfile: () => ({ data: profileData.value, isFetched: true }) }))
+vi.mock('~/lib/wearable-rules', async importOriginal => ({
+  ...(await importOriginal<typeof import('~/lib/wearable-rules')>()),
+  fetchWearableRules
+}))
 vi.mock('~/components/LazyWearablePreview', () => ({
-  WearablePreview: (p: { urns?: string[]; type?: string; unity?: boolean; onLoad?: () => void }) => {
+  WearablePreview: (p: {
+    urns?: string[]
+    type?: string
+    unity?: boolean
+    profile?: string
+    bodyShape?: string
+    skin?: string
+    onLoad?: () => void
+  }) => {
     // Fire onLoad async (like the real iframe), not during render.
     useEffect(() => {
       p.onLoad?.()
     }, [p.onLoad])
     return (
-      <div data-testid="wp" data-urns={(p.urns ?? []).join(',')} data-type={p.type} data-unity={String(!!p.unity)} />
+      <div
+        data-testid="wp"
+        data-urns={(p.urns ?? []).join(',')}
+        data-type={p.type}
+        data-unity={String(!!p.unity)}
+        data-profile={p.profile}
+        data-bodyshape={p.bodyShape}
+        data-skin={p.skin}
+      />
     )
   }
 }))
@@ -49,9 +77,11 @@ const top = item({ id: 'c', name: 'Jacket', wearableCategory: 'upper_body', item
 function open(items: CartItem[]) {
   useCart.setState({ items, fittingOpen: true })
   return render(
-    <MemoryRouter>
-      <FittingRoom />
-    </MemoryRouter>
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter>
+        <FittingRoom />
+      </MemoryRouter>
+    </QueryClientProvider>
   )
 }
 
@@ -59,15 +89,21 @@ const urnsOf = () => screen.getByTestId('wp').getAttribute('data-urns') ?? ''
 
 beforeEach(() => {
   useCart.setState({ items: [], fittingOpen: false })
+  session.value = undefined
+  profileData.value = undefined
+  fetchWearableRules.mockReset()
+  fetchWearableRules.mockResolvedValue([])
 })
 
 describe('FittingRoom', () => {
   it('renders nothing when closed', () => {
     useCart.setState({ items: [hatA], fittingOpen: false })
     const { container } = render(
-      <MemoryRouter>
-        <FittingRoom />
-      </MemoryRouter>
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter>
+          <FittingRoom />
+        </MemoryRouter>
+      </QueryClientProvider>
     )
     expect(container.firstChild).toBeNull()
   })
@@ -116,5 +152,76 @@ describe('FittingRoom', () => {
     const rowA = screen.getByText('Hat A').closest('[data-testid="fitting-row"]') as HTMLElement
     await userEvent.click(within(rowA).getByRole('button', { name: /remove hat a/i }))
     expect(useCart.getState().items.map(i => i.id)).toEqual(['c'])
+  })
+})
+
+/**
+ * DRESSING THE SHOPPER'S OWN AVATAR.
+ *
+ * Handing the preview `profile=<address>` lets it load their avatar — and honour what their own wearables
+ * hide. An equipped skin covers the whole body, so the hat they opened the fitting room to see rendered
+ * nowhere and nothing said why. When something of theirs is in the way we build the list ourselves instead.
+ */
+describe('FittingRoom — on a real avatar', () => {
+  const ADDRESS = '0xshopper'
+  const SKIN = 'urn:skin'
+  const BROWS = 'urn:brows'
+
+  function withAvatar(wearables: string[]) {
+    session.value = { address: ADDRESS }
+    profileData.value = {
+      avatar: {
+        bodyShape: 'urn:decentraland:off-chain:base-avatars:BaseMale',
+        wearables,
+        skin: { color: { r: 1, g: 0.5, b: 0 } }
+      }
+    }
+  }
+
+  it('should take off the skin that hides the item and keep the rest of the avatar', async () => {
+    withAvatar([SKIN, BROWS])
+    fetchWearableRules.mockResolvedValue([
+      { urn: SKIN, category: 'skin', hides: ['hat'], replaces: [] },
+      { urn: BROWS, category: 'eyebrows', hides: [], replaces: [] }
+    ])
+
+    open([hatA])
+    await vi.waitFor(() =>
+      expect(screen.getByTestId('wp')).toHaveAttribute(
+        'data-urns',
+        `${BROWS},urn:decentraland:amoy:collections-v2:0xc:10`
+      )
+    )
+
+    const wp = screen.getByTestId('wp')
+    // Composed by us, so the address is no longer what the preview loads — and the avatar's own body shape
+    // and colours travel with the list, or it would come back as a stranger.
+    expect(wp).toHaveAttribute('data-profile', 'default')
+    expect(wp).toHaveAttribute('data-bodyshape', 'urn:decentraland:off-chain:base-avatars:BaseMale')
+    expect(wp).toHaveAttribute('data-skin', 'ff8000')
+  })
+
+  it('should leave the avatar to the preview when nothing of theirs is in the way', async () => {
+    withAvatar([BROWS])
+    fetchWearableRules.mockResolvedValue([{ urn: BROWS, category: 'eyebrows', hides: [], replaces: [] }])
+
+    open([hatA])
+    await vi.waitFor(() => expect(screen.getByTestId('wp')).toHaveAttribute('data-profile', ADDRESS))
+
+    const wp = screen.getByTestId('wp')
+    // Only the try-on urn: the rest of the outfit comes from the profile the preview loads.
+    expect(wp).toHaveAttribute('data-urns', 'urn:decentraland:amoy:collections-v2:0xc:10')
+    expect(wp).not.toHaveAttribute('data-bodyshape')
+  })
+
+  it('should fall back to the plain profile when the rules cannot be read', async () => {
+    withAvatar([SKIN])
+    fetchWearableRules.mockResolvedValue([])
+
+    open([hatA])
+
+    // No rules means we know nothing, and guessing would strip a wearable for no reason.
+    await vi.waitFor(() => expect(screen.getByTestId('wp')).toHaveAttribute('data-profile', ADDRESS))
+    expect(fetchWearableRules).toHaveBeenCalled()
   })
 })

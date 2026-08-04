@@ -11,7 +11,41 @@ export type ProfileAvatar = {
   ethAddress?: string
   // `bodyShape` is a BaseMale/BaseFemale URN in the Catalyst payload — used to detect whether an item
   // is compatible with the connected avatar's shape (see lib/bodyShape.ts).
-  avatar?: { bodyShape?: string; snapshots?: { face256?: string; body?: string } }
+  //
+  // `wearables` + the three colours are what it takes to REBUILD this avatar from parts instead of asking
+  // the preview to load it by address: the fitting room has to drop an equipped wearable that would hide the
+  // item being tried on, and the only way to leave one out is to pass the list ourselves (see
+  // hooks/useTryOnAvatar). Colours come as Color3 floats (0..1) — see avatarColors.
+  avatar?: {
+    bodyShape?: string
+    wearables?: string[]
+    eyes?: { color?: Color3 }
+    hair?: { color?: Color3 }
+    skin?: { color?: Color3 }
+    snapshots?: { face256?: string; body?: string }
+  }
+}
+
+type Color3 = { r?: number; g?: number; b?: number }
+
+// Color3 (0..1 per channel) → the 6-digit hex the wearable preview takes, WITHOUT a leading '#'.
+function toHex(color?: Color3): string | undefined {
+  if (!color || color.r == null || color.g == null || color.b == null) return undefined
+  const byte = (v: number) =>
+    Math.max(0, Math.min(255, Math.round(v * 255)))
+      .toString(16)
+      .padStart(2, '0')
+  return `${byte(color.r)}${byte(color.g)}${byte(color.b)}`
+}
+
+// The avatar's own skin/hair/eye colours, ready to hand to the preview. Undefined per channel when the
+// profile does not carry it, in which case the preview keeps its default for that one.
+export function avatarColors(profile?: ProfileAvatar): { skin?: string; hair?: string; eyes?: string } {
+  return {
+    skin: toHex(profile?.avatar?.skin?.color),
+    hair: toHex(profile?.avatar?.hair?.color),
+    eyes: toHex(profile?.avatar?.eyes?.color)
+  }
 }
 
 // The raw Catalyst lambdas profile fetch. Single source of truth for the profile endpoint + shape,

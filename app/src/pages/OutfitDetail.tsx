@@ -7,6 +7,7 @@ import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { ErrorNotice } from '~/components/ErrorNotice'
 import { OutfitPreview } from '~/components/OutfitPreview'
 import { useProfile } from '~/hooks/useProfile'
+import { useTryOnAvatar } from '~/hooks/useTryOnAvatar'
 import { Icon } from '~/components/Icon'
 import { useOutfitCreatorAccess, useOutfitCart, useOutfitItems } from '~/hooks/useOutfits'
 import { useSeo } from '~/hooks/useSeo'
@@ -26,6 +27,7 @@ import {
   type Outfit,
   type OutfitItemState
 } from '~/lib/outfits'
+import { slotOf } from '~/lib/outfit'
 import { itemUrn } from '~/lib/urn'
 import { t } from '~/intl/i18n'
 import { useCart } from '~/store/cart'
@@ -181,7 +183,6 @@ function OutfitContent({ outfit }: { outfit: Outfit }) {
   const { data: avatar, isFetched: profileFetched } = useProfile(address)
   const profileResolved = !address || profileFetched
   const hasAvatar = !!address && !!avatar
-  const profile = hasAvatar ? address : 'default'
   const mannequinShape: BodyShapeUrn | undefined =
     outfit.bodyShape === 'female' ? BASE_FEMALE : outfit.bodyShape === 'male' ? BASE_MALE : undefined
 
@@ -189,6 +190,13 @@ function OutfitContent({ outfit }: { outfit: Outfit }) {
     () => rows.map(row => (row.item ? itemUrn(row.item) : null)).filter((urn): urn is string => !!urn),
     [rows]
   )
+  // The same hide problem the fitting room had: worn on the viewer's own avatar, an equipped skin covers the
+  // outfit's body wearables and the preview shows the avatar unchanged. Composed here for the same reason.
+  const tryOnCategories = useMemo(
+    () => rows.map(row => (row.item ? (slotOf(row.item) ?? '') : '')).filter(Boolean),
+    [rows]
+  )
+  const tryOn = useTryOnAvatar({ address, tryOnUrns: urns, tryOnCategories })
 
   const total = outfit.items.length
   const settled = !resolution.isLoading && !resolution.isError
@@ -216,10 +224,13 @@ function OutfitContent({ outfit }: { outfit: Outfit }) {
           ) : (
             <OutfitPreview
               id={PREVIEW_ID}
-              profile={profile}
-              bodyShape={hasAvatar ? undefined : mannequinShape}
-              urns={urns}
-              enabled={profileResolved && !resolution.isLoading}
+              profile={tryOn.profile}
+              bodyShape={tryOn.bodyShape ?? (hasAvatar ? undefined : mannequinShape)}
+              urns={tryOn.urns}
+              skin={tryOn.skin}
+              hair={tryOn.hair}
+              eyes={tryOn.eyes}
+              enabled={profileResolved && !tryOn.isLoading && !resolution.isLoading}
             />
           )}
         </S.Preview>
