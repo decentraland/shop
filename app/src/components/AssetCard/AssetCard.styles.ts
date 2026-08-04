@@ -50,6 +50,12 @@ export const Card = styled.article`
     &:focus-within::after {
       ${ringGradient};
     }
+  }
+
+  /* The full-width Add-to-cart reveal is a DESKTOP affordance only. Below sm the round + button is the
+     action (it's too narrow for the dark button), so revealing the button on a hover-capable device at
+     a mobile width would show BOTH — gate the swap above sm. */
+  @media (hover: hover) and (min-width: 721px) {
     &:hover [data-testid='card-cart'],
     &:hover [data-reveal] {
       display: flex;
@@ -282,8 +288,6 @@ export const Img = styled.img`
 `
 
 // Fixed 96px footer. On mobile it becomes a grid (name/creator row, then price + round add) — see Top.
-// data-stacked (a long name, measured in AssetCard) keeps the plain column at every width: the name
-// claims the whole first row and the price drops into the action row beside the round button.
 export const Body = styled.div`
   flex: 0 0 96px;
   height: 96px;
@@ -293,13 +297,8 @@ export const Body = styled.div`
   justify-content: space-between;
   gap: 4px;
 
-  [data-stacked] & {
-    display: flex;
-    align-items: stretch;
-    gap: 10px;
-  }
-
-  @media (hover: hover) {
+  // Keyboard-focus reveal mirrors the hover reveal — desktop only (below sm the round + is the action).
+  @media (hover: hover) and (min-width: 721px) {
     &:focus-within [data-testid='card-cart'],
     &:focus-within [data-reveal] {
       display: flex;
@@ -347,12 +346,6 @@ export const Top = styled.div`
 
   ${media.maxWidth('sm')} {
     display: contents;
-  }
-
-  // Stacked: the price has moved out of this row, so it stays a plain box (its width is what the name
-  // is measured against) instead of dissolving into the mobile grid.
-  [data-stacked] & {
-    display: flex;
   }
 `
 
@@ -512,17 +505,11 @@ export const Countdown = styled(SaleCountdown)`
 `
 
 // Fixed-height slot: the full-width action button (Cart) swaps in for the chips on hover/focus without
-// changing the card's height. Stacked, it holds the price on the left and the round action on the right.
+// changing the card's height.
 export const Action = styled.div`
   min-height: 40px;
   display: flex;
   align-items: center;
-
-  [data-stacked] & {
-    width: 100%;
-    justify-content: space-between;
-    gap: ${TOP_GAP}px;
-  }
 
   ${media.maxWidth('sm')} {
     grid-area: add;
@@ -605,10 +592,6 @@ export const View = styled.span`
     height: 20px;
   }
 
-  [data-stacked] & {
-    display: none;
-  }
-
   ${media.maxWidth('sm')} {
     display: none;
   }
@@ -630,15 +613,10 @@ const roundCss = css`
   cursor: pointer;
 `
 
-// A round action belongs to the compact card only — the mobile card, and any card whose long name pushed
-// the price into the action row. Elsewhere the full-width button is used and this is hidden.
+// A round action belongs to the compact (mobile) card only. Elsewhere the full-width button is used and
+// this is hidden.
 const compactRoundCss = (fill: SerializedStyles) => css`
   display: none;
-
-  [data-stacked] & {
-    ${roundCss};
-    ${fill};
-  }
 
   ${media.maxWidth('sm')} {
     ${roundCss};
