@@ -570,8 +570,8 @@
     "next": "Next",
     "carouselPages": "{title} pages",
     "goToPage": "Go to page {page}",
-    "heroTitle": "Fashion week outfits",
-    "exploreCollection": "Explore collection",
+    "heroTitle": "A New Way to Shop",
+    "heroCta": "Buy credits",
     "featuredProducts": "Featured Products",
     "newCreations": "New Creations",
     "promoEmotesAria": "Best rated emotes — explore collection",
@@ -623,7 +623,7 @@
     "addAll": "Add all ({count}) to cart"
   },
   "outfits": {
-    "rowTitle": "Shop the look",
+    "rowTitle": "Buy the Look",
     "card": {
       "items": "{count, plural, one {# item} other {# items}}",
       "add": "Add to cart",

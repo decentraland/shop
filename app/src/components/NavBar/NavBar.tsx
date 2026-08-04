@@ -76,6 +76,11 @@ export function NavBar() {
   // page (/items/creator/*, already under /items). A NavLink to /items alone wouldn't light up on
   // any of the detail/collection routes, so match them explicitly here.
   const collectiblesActive = /^\/(items|item|token|collection)(\/|$)/.test(pathname)
+  // My Items has a search of its own, over the wallet's holdings. Showing the global one directly above it
+  // put two search fields on screen at once, four rows apart, with no way to tell which searched what — and
+  // the global one searches the whole shop, so typing in the wrong box silently leaves the page. The page's
+  // own field wins because it is the one that matches what the page shows.
+  const hidesGlobalSearch = /^\/my-items(\/|$)/.test(pathname)
   const urlQuery = searchParams.get('q') ?? ''
 
   // Balances for the global ui2 navbar. Credits: undefined while loading/on error (hides the chip —
@@ -259,39 +264,43 @@ export function NavBar() {
             </NavLink>
           ) : null}
         </S.Tabs>
-        <S.Search ref={wrapRef}>
-          <Icon name="search" color={theme.colors.muted} />
-          <input
-            value={q}
-            aria-label={t('nav.searchAria')}
-            placeholder={t('nav.searchPlaceholder')}
-            onChange={e => onSearchChange(e.target.value)}
-            onFocus={openDropdown}
-            onKeyDown={onSearchKeyDown}
-          />
-          {q ? (
-            <S.SearchClear
-              type="button"
-              data-testid="subnav-search-clear"
-              aria-label={t('search.clear')}
-              onClick={clearSearch}
-            >
-              <Icon name="close" size={14} data-testid="subnav-search-clear-icon" />
-            </S.SearchClear>
-          ) : null}
-          {open ? (
-            <SearchDropdown
-              query={debounced}
-              recent={recent}
-              onSelectItem={onSelectItem}
-              onSelectCollection={onSelectCollection}
-              onSelectCreator={onSelectCreator}
-              onRunSearch={runSearch}
-              onRemoveRecent={removeRecent}
-              onClearRecent={clearRecent}
+        {/* Rendered as nothing rather than hidden with CSS: a visually-hidden input is still focusable and
+            still in the tab order, so on My Items the keyboard would land in a search box nobody can see. */}
+        {hidesGlobalSearch ? null : (
+          <S.Search ref={wrapRef}>
+            <Icon name="search" color={theme.colors.muted} />
+            <input
+              value={q}
+              aria-label={t('nav.searchAria')}
+              placeholder={t('nav.searchPlaceholder')}
+              onChange={e => onSearchChange(e.target.value)}
+              onFocus={openDropdown}
+              onKeyDown={onSearchKeyDown}
             />
-          ) : null}
-        </S.Search>
+            {q ? (
+              <S.SearchClear
+                type="button"
+                data-testid="subnav-search-clear"
+                aria-label={t('search.clear')}
+                onClick={clearSearch}
+              >
+                <Icon name="close" size={14} data-testid="subnav-search-clear-icon" />
+              </S.SearchClear>
+            ) : null}
+            {open ? (
+              <SearchDropdown
+                query={debounced}
+                recent={recent}
+                onSelectItem={onSelectItem}
+                onSelectCollection={onSelectCollection}
+                onSelectCreator={onSelectCreator}
+                onRunSearch={runSearch}
+                onRemoveRecent={removeRecent}
+                onClearRecent={clearRecent}
+              />
+            ) : null}
+          </S.Search>
+        )}
         <S.Credits to="/credits">
           <S.CreditsIco />
           {t('nav.getCredits', { currency: CURRENCY.name })}

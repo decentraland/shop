@@ -41,6 +41,14 @@
 * {
   box-sizing: border-box;
 }
+/* Guard for the one full-bleed element on the site (the overview hero, see pages/Overview.styles.ts).
+   It is 100vw wide, and 100vw counts the width of a CLASSIC scrollbar — so on a machine that shows one
+   (Windows, or macOS set to "Always" show scrollbars) the page would be a dozen pixels wider than the
+   window and grow a horizontal scrollbar. `clip` rather than `hidden` on purpose: hidden turns the root
+   into a scroll container, which silently breaks `position: sticky` on the sub-nav. */
+html {
+  overflow-x: clip;
+}
 body {
   margin: 0;
   padding-top: 92px;
@@ -153,6 +161,14 @@ h2 {
    purple under it. Letting the footer sit right after the card is the better read there. */
 .page[data-route="/credits"] {
   min-height: 0;
+}
+/* The overview's hero is full-bleed and must sit FLUSH against the sub-nav: the shell's top padding left a
+   white band between the two, which on an edge-to-edge banner reads as a gap rather than as breathing room.
+   Dropped on the route instead of pulled up with a negative margin on the hero, so the value does not have
+   to be restated per breakpoint (28px desktop, 16px mobile) and cannot drift out of sync with the padding
+   above. The hero owns the top edge here; every section below it keeps the gutter. */
+.page[data-route="/overview"] {
+  padding-top: 0;
 }
 /* The cart is the one route whose LAST section paints its own background (the white cross-sell band). The
    min-height above is load-bearing — without it a short page's footer rides up above the fold — but its

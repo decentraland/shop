@@ -3,13 +3,13 @@ import { keyframes } from '@emotion/react'
 import { theme } from '~/styles/theme'
 import backdrop from '~/assets/credits/packs-backdrop.webp'
 
+// Gradient strokes are painted as masked pseudo-elements (CSS cannot gradient-fill a `border`): the layer is
+// filled edge to edge, then this mask keeps only the `padding`-wide rim by excluding the content box.
+const RING_MASK = `linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)`
+
 // Get credits page (Figma 1654-374586). The pack picker lives inside ONE full-bleed purple card
 // (Figma 1654-374620) that holds the heading and the pack row; the post-checkout states below stay on
 // the light page, where their own Figma frames (1208-242158 / 1208-243058) put them.
-
-// The 1px / 6px gradient outlines are painted as masked pseudo-elements — CSS can't gradient-fill a
-// `border` directly, and `background-clip` would fight the card's translucent fill.
-const RING_MASK = `linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)`
 
 export const Root = styled.div`
   display: flex;
@@ -183,6 +183,8 @@ export const PackCard = styled.button`
   gap: 48px;
   min-width: 0;
   padding: 24px 16px 16px;
+  /* No real border in either state, so nothing about the card's box can change under the pointer — both
+     strokes are painted by the masked pseudo-elements below. See the hover block for why that matters. */
   border: 0;
   border-radius: ${theme.radius.banner};
   background: rgba(21, 21, 21, 0.4);
@@ -195,10 +197,21 @@ export const PackCard = styled.button`
     background 0.15s ease,
     box-shadow 0.15s ease;
 
+  /* Both strokes are GRADIENTS, and both are painted here rather than with a border property.
+     Two separate reasons, and each one alone would be enough:
+     1. CSS cannot gradient-fill a border, and background-clip fights the card's translucent fill.
+     2. A pseudo-element takes no part in layout. A real border that grows 1px → 5px on hover pulls 4px off
+        the content box (box-sizing is border-box), so the card's artwork and price shrank as the pointer
+        crossed it, which in a row of four made the hovered card visibly smaller than its neighbours.
+     The flat #ffbc5b / #ff2d55 that Figma's code export reports for these strokes are not the design: the
+     export cannot represent a gradient stroke, so it emits one stop. The give-away is the mobile variant,
+     which reports #c640cd — Flare's LAST stop where desktop reports its FIRST. The page-level frame
+     (1654:374620) renders both cards with a warm gradient edge, which is what these two rules paint. */
   &::before,
   &::after {
     content: '';
     position: absolute;
+    inset: 0;
     border-radius: inherit;
     pointer-events: none;
     -webkit-mask: ${RING_MASK};
@@ -207,17 +220,14 @@ export const PackCard = styled.button`
     mask-composite: exclude;
     transition: opacity 0.15s ease;
   }
-  /* Hairline outline (Figma: 1px Flare stroke). */
+  /* Resting hairline: 1px of Flare. */
   &::before {
-    inset: 0;
     padding: 1px;
     background: ${theme.gradients.flare};
   }
-  /* Hover ring: a 6px warm outline floating in the 4px gutter outside the card. */
+  /* Hover: the same edge at the 5px the design gives the selected card, in the warm half of the ramp. */
   &::after {
-    inset: -10px;
-    padding: 6px;
-    border-radius: 30px;
+    padding: 5px;
     background: ${theme.gradients.ember};
     opacity: 0;
   }
@@ -257,8 +267,13 @@ export const PackCard = styled.button`
     opacity: 0;
   }
 
+  /* Figma 1654:372759 — the mobile card is its own set of metrics, not a scaled-down desktop one. The
+     stroke stays the same Flare hairline: the export's #c640cd for this variant is that gradient's last
+     stop, not a second colour. */
   ${theme.media.maxWidth('mobile')} {
-    gap: 24px;
+    gap: 12px;
+    padding: 8px;
+    border-radius: 16px;
   }
 `
 
@@ -286,11 +301,13 @@ export const PackBadge = styled.span`
     height: 24px;
   }
 
+  /* Figma 1658:375459 — the mobile badge is not the desktop one scaled: it sits 9px above the card, not 18,
+     and its padding is symmetric. */
   ${theme.media.maxWidth('mobile')} {
-    top: -14px;
-    padding: 4px 10px 4px 6px;
-    font-size: 14px;
-    line-height: 20px;
+    top: -9px;
+    padding: 4px 8px;
+    font-size: 12px;
+    line-height: 18px;
 
     .ico {
       width: 18px;
@@ -299,7 +316,11 @@ export const PackBadge = styled.span`
   }
 `
 
+// Stretched to the card's content box rather than left shrink-to-fit, so the artwork's percentage width
+// below resolves against the CARD. Unstretched, this column is only as wide as its widest text, and a
+// percentage of that is a number with no relationship to the card at all.
 export const PackTop = styled.span`
+  align-self: stretch;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -307,7 +328,7 @@ export const PackTop = styled.span`
   padding-top: 32px;
 
   ${theme.media.maxWidth('mobile')} {
-    padding-top: 16px;
+    padding-top: 24px;
   }
 `
 
@@ -330,6 +351,13 @@ export const PackAmountRow = styled.span`
     height: 29.79px;
     color: ${theme.colors.softWhite};
   }
+
+  ${theme.media.maxWidth('mobile')} {
+    .ico {
+      width: 23.5px;
+      height: 24.81px;
+    }
+  }
 `
 
 // Figma trims the text box to the cap height, so the line box is shorter than the font size.
@@ -339,6 +367,11 @@ export const PackAmount = styled.span`
   font-weight: 800;
   line-height: 30px;
   color: ${theme.colors.white};
+
+  ${theme.media.maxWidth('mobile')} {
+    font-size: 32px;
+    line-height: 24px;
+  }
 `
 
 export const PackUnit = styled.span`
@@ -348,68 +381,30 @@ export const PackUnit = styled.span`
   line-height: 15px;
   color: ${theme.colors.media};
   text-transform: uppercase;
-`
 
-// "you'd get ~~100~~ · +25 more" — the bonus line under the amount.
-//
-// The row is always rendered, and merely hidden on the entry pack (which has no bonus to show, being the
-// baseline itself). `visibility` rather than a conditional mount so all four cards keep the same height and
-// their artwork stays on one line — dropping the row would leave the entry card visibly shorter.
-//
-// The struck figure carries the currency mark too. Without it, a crossed-out "100" sitting above
-// "125 CREDITS" reads as a crossed-out PRICE, which inverts the meaning of the whole card.
-export const PackWas = styled.span`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  /* The bonus pill is nowrap and this row holds it beside the struck-through amount. At two cards per row on
-     a phone that is ~118px of content, which the pair exceeds by 8-12px (measured) — so let it wrap rather
-     than push out of the card. It only ever wraps at the narrowest widths. */
-  flex-wrap: wrap;
-  max-width: 100%;
-
-  &[data-empty='true'] {
-    visibility: hidden;
-  }
-
-  .ico {
-    width: 17px;
-    height: 18px;
-    color: ${theme.colors.softWhite};
-    opacity: 0.55;
+  ${theme.media.maxWidth('mobile')} {
+    font-size: 16px;
+    line-height: 12px;
   }
 `
 
-export const PackWasAmount = styled.span`
-  font-family: ${theme.font.sans};
-  font-size: 22px;
-  font-weight: 600;
-  line-height: 24px;
-  color: rgba(255, 255, 255, 0.55);
-  text-decoration: line-through;
-  text-decoration-thickness: 2px;
-`
-
-export const PackBonus = styled.span`
-  display: inline-flex;
-  align-items: center;
-  padding: 3px 10px;
-  border-radius: ${theme.radius.pill};
-  background: rgba(255, 255, 255, 0.16);
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  font-family: ${theme.font.sans};
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 18px;
-  color: ${theme.colors.white};
-  white-space: nowrap;
-`
-
+/**
+ * A SHARE of the card, not a pixel size.
+ *
+ * Figma draws the artwork 225px wide in a 351.5px card (1654:374650) — 64% of the card, or 70% of its
+ * content box once the 16px gutters are off. A literal 225px would only be right at the one width the
+ * design happens to be drawn at: our cards are grid cells, so they measure ~268px at a 1440 viewport and
+ * ~150px on a phone, and 225px there is wider than the card itself. The percentage is exact at the
+ * design's width and stays proportional everywhere else, which also retires the old fixed-width overflow
+ * this used to work around at 520px.
+ *
+ * `align-self: stretch` first, so the box is the content width rather than shrink-to-fit: the card is a
+ * centred column, and shrink-to-fit let each pack's art take a different width (measured 118px and 152px
+ * in two identical cards) and spill out of the narrow ones.
+ */
 export const PackArt = styled.span`
   display: block;
-  width: 253.5px;
-  max-width: 100%;
+  width: 70%;
   aspect-ratio: 1;
 
   img {
@@ -417,34 +412,6 @@ export const PackArt = styled.span`
     width: 100%;
     height: 100%;
     object-fit: contain;
-  }
-
-  /**
-   * FLUID, capped — not a fixed 200px.
-   *
-   * The fixed width overflowed its card: measured at a 375px viewport the artwork rendered 200px inside a
-   * 150px parent, spilling 25px out of each side of the card (the max-width above did not hold it,
-   * which is why this restates the intent as a width rather than relying on a cap). Two per row means the
-   * cell is whatever half the viewport minus gaps happens to be, so the art has to follow it.
-   */
-  @media (max-width: 520px) {
-    /**
-     * STRETCHED to the card's content box, not sized by its own content.
-     *
-     * The card is a column flex with align-items: center, so its children are shrink-to-fit — which let each
-     * pack's artwork take a different width (measured 118px and 152px in two identical 150px cards) and let
-     * the wider one spill 2px out of each side. Stretching makes every card's art box exactly the content
-     * width, so all four are identical and none can exceed it.
-     */
-    align-self: stretch;
-    width: auto;
-    max-width: none;
-
-    /* The wrapper alone is not enough: whatever sits inside it (picture/img) must be capped too, or it
-       reintroduces the same overflow one level down. */
-    > * {
-      max-width: 100%;
-    }
   }
 `
 

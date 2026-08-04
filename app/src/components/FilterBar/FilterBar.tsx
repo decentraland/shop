@@ -89,7 +89,8 @@ export function FilterBar({
   anyActive,
   onClear,
   renderLeading,
-  renderTrailing
+  renderTrailing,
+  search
 }: {
   sort: string
   onSort: (key: string) => void
@@ -115,6 +116,15 @@ export function FilterBar({
   renderLeading?: (panel: PanelController) => ReactNode
   /** Rendered after the Rarity panel (e.g. the Price range panel). */
   renderTrailing?: (panel: PanelController) => ReactNode
+  /**
+   * A page-scoped search field, rendered in the toolbar beside Sort By (Figma: count on the left, search
+   * then SORT BY on the right). My Items passes its own-holdings search here.
+   *
+   * A slot rather than props (value/onChange/placeholder) because the field is the page's: it owns the
+   * debounce, the query state and the URL sync, and a bar that only lays it out cannot own any of that.
+   * Pages that don't pass it are unchanged — nothing about the toolbar's layout is conditional on it.
+   */
+  search?: ReactNode
 }) {
   const [open, setOpen] = useState<string | null>(null)
   const panel: PanelController = {
@@ -200,6 +210,7 @@ export function FilterBar({
         ) : null}
 
         <S.Right>
+          {search ? <S.Search>{search}</S.Search> : null}
           <Dropdown
             label={t('filterBar.sortBy')}
             ariaLabel={t('filterBar.sortBy')}

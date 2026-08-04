@@ -29,22 +29,15 @@ export const Head = styled.div`
 `
 
 /**
- * Kept at the shared Overview section-heading size (see styles/row.styles Title), NOT at the 20px the
- * Figma frame draws: that frame is a component-level view of the table, while every section heading on
- * this page is the 50px display style. Matching the frame here would single this section out.
+ * THE shared Overview section heading, re-exported rather than restated. It used to be a copy of
+ * row.styles' Title with the same five declarations, which is how this one stayed at 50px when that one
+ * was reduced — the table's heading was suddenly half again the size of every carousel's. Aliasing means
+ * the next change to the section-heading style reaches this section for free.
+ *
+ * A re-export rather than an alias because this file already has its own `Row` (the table row below), so
+ * importing row.styles as `Row` shadows it.
  */
-export const Title = styled.h2`
-  margin: 0;
-  color: ${colors.text};
-  font-size: 50px;
-  font-weight: 900;
-  letter-spacing: -0.05em;
-  line-height: 1.1;
-
-  ${media.maxWidth('mobile')} {
-    font-size: 32px;
-  }
-`
+export { Title } from '~/styles/row.styles'
 
 // Horizontal scroll on narrow screens so the table never forces the page to scroll sideways.
 export const Scroll = styled.div`

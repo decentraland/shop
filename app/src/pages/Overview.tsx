@@ -6,15 +6,18 @@ import { AssetCard } from '~/components/AssetCard'
 import { SkeletonCards } from '~/components/SkeletonCards'
 import { FollowedCreatorsRow } from '~/components/FollowedCreatorsRow'
 import { OutfitsRow } from '~/components/OutfitsRow'
-import { RecentlyViewed } from '~/components/RecentlyViewed'
 import { WeekTopCreators } from '~/components/WeekTopCreators'
 import { t } from '~/intl/i18n'
 import { useSeo } from '~/hooks/useSeo'
 import carouselArrow from '~/assets/icons/carousel-arrow.svg'
-import heroBanner from '~/assets/overview/hero-fashion-week.png'
-import promoEmotes from '~/assets/overview/promo-best-rated-emotes.png'
-import promoOutfits from '~/assets/overview/promo-week-selected-outfits.png'
+// Figma 5566:4449 "Web 1920x340", exported flat rather than rebuilt: the source is thirteen absolutely
+// positioned layers with per-layer blurs, two blend modes and an alpha mask, and it is a static
+// illustration — reproducing that in CSS would be a lot of fragile geometry for a pixel-identical result.
+// WebP, not PNG: the export is fully opaque, so the alpha channel was dead weight, and the same art is
+// 90 KB here against 1.09 MB as a PNG.
+import heroBanner from '~/assets/overview/hero-credits-outfits.webp'
 import { Icon } from '~/components/Icon'
+import { CurrencyIcon } from '~/components/CurrencyIcon'
 import * as Row from '~/styles/row.styles'
 import * as S from './Overview.styles'
 
@@ -147,11 +150,16 @@ export function Overview() {
     <S.Overview className="overview">
       <S.Hero>
         <S.HeroBg src={heroBanner} alt="" aria-hidden />
-        <S.HeroScrim aria-hidden />
+        {/* No scrim over this banner: the artwork carries its own left-to-right darkening (a
+            multiply-blended gradient in the Figma source), so the separate scrim layer stacked a second
+            one on top and took the left half of the image to near-black. */}
         <S.HeroInner>
           <S.HeroTitle>{t('overview.heroTitle')}</S.HeroTitle>
-          <S.HeroCta as={Link} to="/items" variant="purple">
-            {t('overview.exploreCollection')}
+          {/* Figma 2004:322550. The CTA now goes to /credits, not to the grid: the banner sells credits, so
+              sending the click to browse would leave the buyer one step short of what it advertises. */}
+          <S.HeroCta as={Link} to="/credits" variant="purple">
+            <CurrencyIcon size={18} />
+            {t('overview.heroCta')}
           </S.HeroCta>
         </S.HeroInner>
       </S.Hero>
@@ -160,15 +168,11 @@ export function Overview() {
         <>
           <Carousel title={t('overview.featuredProducts')} items={items.slice(0, 12)} loading={isLoading} />
 
-          {/* Promo tiles (Figma node 913:135589). Placeholder art — see report for production source. */}
-          <S.Promos>
-            <S.Promo to="/items" aria-label={t('overview.promoEmotesAria')}>
-              <img src={promoEmotes} alt={t('overview.promoEmotesAlt')} />
-            </S.Promo>
-            <S.Promo to="/items" aria-label={t('overview.promoOutfitsAria')}>
-              <img src={promoOutfits} alt={t('overview.promoOutfitsAlt')} />
-            </S.Promo>
-          </S.Promos>
+          {/* "Buy the Look" sits BETWEEN the two carousels, which is the order Figma draws (1016:84664:
+              banner → Featured Products → Buy the Look → New Creations → the creators table). It
+              self-fetches and renders nothing until published outfits resolve, so on an environment with
+              no shop-server the section is simply absent — it is a place for outfits, not a guaranteed one. */}
+          <OutfitsRow />
 
           {/* New Creations carousel — needs a second page of listings (>12) to be worth showing. */}
           {items.length > 12 ? (
@@ -185,11 +189,12 @@ export function Overview() {
         </S.Empty>
       )}
 
-      {/* Discovery rows, then the Week Top Creators ranking table dead last — matching the Figma frame
-          order (913:135556): hero → Featured → promos → New Creations → … → Active Ranking at the very
-          bottom. RecentlyViewed / FollowedCreatorsRow render nothing until they have data. */}
-      <OutfitsRow />
-      <RecentlyViewed />
+      {/* The creators ranking table is dead last (Figma 1878:67135). Recently viewed used to sit above it
+          and is gone: the home page now leads with what the Shop is selling, and a row of things you have
+          already looked at competes with that. The store still records views — nothing else read that row —
+          so bringing it back is re-adding the component, not rebuilding it.
+          FollowedCreatorsRow renders nothing until it has data (the follows flag is off), so it costs a
+          fetch-free no-op here rather than an empty section. */}
       <FollowedCreatorsRow />
       <WeekTopCreators />
     </S.Overview>

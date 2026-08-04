@@ -1,9 +1,8 @@
 import styled from '@emotion/styled'
-import { Link } from 'react-router-dom'
 import { theme } from '~/styles/theme'
 import { Button } from '~/components/Button'
 
-const { colors, radius, media } = theme
+const { colors, media } = theme
 
 // Empty/crash state — also reused by App's CrashFallback.
 export const Empty = styled.div`
@@ -25,12 +24,27 @@ export const EmptyCta = styled(Button)`
   margin-top: 10px;
 `
 
-// Figma hero CTA: the purple button trimmed to the 40px hero spec.
+// Figma 1997:318583 "Default": a fixed 246×52 amethyst button, 8px radius, credit mark + label.
+// The `purple` variant already carries the amethyst gradient, the uppercase and the soft-white label, so
+// only the box and the type metrics are restated — the design's 15px/0.46px differ from the variant's
+// 13px/0.046em, and 0.046em would be 0.69px at this size.
 export const HeroCta = styled(Button)`
-  height: 40px;
-  padding: 0 16px;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 246px;
+  height: 52px;
+  padding: 0 16px;
+  border-radius: ${theme.radius.btn};
+  font-size: 15px;
+  letter-spacing: 0.46px;
+
+  ${media.maxWidth('mobile')} {
+    /* A 246px button is most of a phone's width; let it shrink rather than crowd the edges. */
+    width: auto;
+    max-width: 100%;
+  }
 `
 
 // The page scopes an override of the shared rail (RecentlyViewed / FollowedCreators render Row.Track,
@@ -78,12 +92,23 @@ export const Hero = styled.section`
   position: relative;
   display: flex;
   align-items: center;
-  aspect-ratio: 1721 / 304;
+  aspect-ratio: 1920 / 340;
   max-height: 340px;
   margin-bottom: 50px;
   overflow: hidden;
-  border-radius: ${radius.banner};
   background: #14161b;
+
+  /* The ONLY full-bleed element on the page: it spans the window while every other section keeps the
+     .page gutter. Two things have to be undone, not one — the 54px side padding AND the 1760px
+     max-width, which on a wider window would otherwise leave the banner centred with white beside it.
+     The 50% - 50vw margin handles both at once: it measures from the container's own centre out to the
+     window edge, so it is correct whether the cap is in effect or not, and needs no breakpoint-specific
+     value for the mobile padding.
+     No border-radius, unlike every other banner in the app — a corner radius on an element flush with
+     the window edges reads as a rendering mistake, since there is nothing outside it to round against. */
+  width: 100vw;
+  margin-inline: calc(50% - 50vw);
+  border-radius: 0;
 
   ${media.maxWidth('mobile')} {
     aspect-ratio: auto;
@@ -101,21 +126,13 @@ export const HeroBg = styled.img`
   object-position: center right;
 `
 
-// Left-to-right dark scrim so the title + CTA keep AA contrast over the busy art at every width.
-export const HeroScrim = styled.div`
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  background: linear-gradient(90deg, rgba(10, 11, 14, 0.78) 0%, rgba(10, 11, 14, 0.45) 38%, rgba(10, 11, 14, 0) 68%);
-`
-
 export const HeroInner = styled.div`
   position: relative;
   z-index: 2;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 24px;
+  gap: 32px;
   padding: 0 64px;
 
   ${media.maxWidth('mobile')} {
@@ -123,13 +140,17 @@ export const HeroInner = styled.div`
   }
 `
 
+// Figma 1864:223112: Inter Bold 48/1.235 in white, sentence case — the uppercase this used to force is
+// gone with the old "FASHION WEEK OUTFITS" copy.
+// The clamp reaches exactly 48px from a 1200px viewport up, so desktop matches the design and a phone gets
+// a headline that fits rather than three wrapped lines. The design's own `capitalize` is deliberately NOT
+// applied: it would render "A New Way To Shop", capitalising the "to" the copy writes in lower case.
 export const HeroTitle = styled.h1`
   margin: 0;
   color: ${colors.white};
-  font-size: clamp(24px, 3.2vw, 36px);
+  font-size: clamp(28px, 4vw, 48px);
   font-weight: 700;
   line-height: 1.235;
-  text-transform: uppercase;
 `
 
 // Reuses the global `.row` head/title/viewall; adds the Figma side arrows + pagination dots.
@@ -198,28 +219,3 @@ export const Arrow = styled.button`
 export { CarouselTrack as Track, Dots, Dot } from '~/styles/row.styles'
 
 // Two side-by-side promo banners, stacking to one column on mobile.
-export const Promos = styled.section`
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 24px;
-  margin: 0 0 50px;
-
-  ${media.maxWidth('mobile')} {
-    grid-template-columns: 1fr;
-  }
-`
-
-export const Promo = styled(Link)`
-  display: block;
-  border-radius: ${radius.banner};
-  overflow: hidden;
-  filter: drop-shadow(0 2.5px 6.875px rgba(0, 0, 0, 0.25));
-
-  & img {
-    display: block;
-    width: 100%;
-    height: auto;
-    aspect-ratio: 867 / 386;
-    object-fit: cover;
-  }
-`
