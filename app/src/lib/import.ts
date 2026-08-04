@@ -4,7 +4,14 @@ import type { Session } from '~/lib/auth'
 import { fetchTrade, postTrade, TradeNotFoundError } from '~/lib/api'
 import { cancelListing } from '~/lib/buy'
 import { manaWeiToCredits, readManaUsdRate } from '~/lib/mana-rate'
-import { createPrimaryUsdPeggedListing, createUsdPeggedListing, ensureApproval, ensureMinter } from '~/lib/trades'
+import {
+  createPrimaryUsdPeggedListing,
+  createUsdPeggedListing,
+  ensureApproval,
+  ensureMinter,
+  isMarketplaceMinter
+} from '~/lib/trades'
+import { getAuthorizationStatus, getCollectionSellingAuthorization } from '~/lib/authorizations'
 import { getIsSecondarySalesEnabled } from '~/lib/featureFlags'
 
 // "Import your listings": bring a seller's OLD classic (MANA-priced) listings into the Shop as
@@ -122,6 +129,45 @@ export class RelistFailedError extends Error {
  * The first item of a collection may need a one-time approval; later items skip it.
  * `cancelOld` defaults on; callers opt out only when the old listing is known to be gone already.
  */
+/**
+ * How many wallet confirmations a migration run will actually ask for.
+ *
+ * The modal used to promise "a couple per item (take down + re-list)", which undercounts: a collection whose
+ * minter rights are not granted yet adds a THIRD prompt, once per collection rather than per item. A seller
+ * told to expect two and then asked a third time reasonably assumes something went wrong.
+ *
+ * Two per item is fixed (the cancel, then the trade signature). The variable part is read from the chain
+ * BEFORE anything is signed, once per unique collection — `ensureMinter` / `ensureApproval` are no-ops when
+ * the right is already granted, so a granted collection adds nothing.
+ *
+ * Returns null if any read fails, which the caller must render as the old vague wording: a wrong number is
+ * worse than no number, and this is only a hint.
+ */
+export async function countConfirmations(
+  items: readonly ImportItem[],
+  owner: string
+): Promise<{ perItem: number; approvals: number; total: number } | null> {
+  const PER_ITEM = 2
+  try {
+    const byCollection = new Map<string, ImportItem>()
+    for (const item of items) {
+      const key = `${item.contractAddress.toLowerCase()}:${item.listingType}:${item.chainId}`
+      if (!byCollection.has(key)) byCollection.set(key, item)
+    }
+    const granted = await Promise.all(
+      [...byCollection.values()].map(item =>
+        item.listingType === 'primary'
+          ? isMarketplaceMinter({ contractAddress: item.contractAddress, chainId: item.chainId })
+          : getAuthorizationStatus(getCollectionSellingAuthorization(item.contractAddress, item.chainId), owner)
+      )
+    )
+    const approvals = granted.filter(ok => !ok).length
+    return { perItem: PER_ITEM, approvals, total: items.length * PER_ITEM + approvals }
+  } catch {
+    return null
+  }
+}
+
 export async function importListing(
   item: ImportItem,
   priceCredits: number,

@@ -910,7 +910,9 @@
     "phaseSign": "Preparando el precio nuevo…",
     "phaseSignConfirm": "Firmá el nuevo listado…",
     "phasePublishing": "Publicando…",
-    "phaseIndexing": "Esperando que se libere el listado anterior ({attempt}/{of})…"
+    "phaseIndexing": "Esperando que se libere el listado anterior ({attempt}/{of})…",
+    "hintCount": "Van a aparecer unas {total} confirmaciones — dar de baja y volver a listar, por artículo. Dejá esto abierto.",
+    "hintCountApproval": "Van a aparecer unas {total} confirmaciones: dar de baja y volver a listar por artículo, más una autorización por única vez por colección. Dejá esto abierto."
   },
   "fittingRoom": {
     "title": "Probador",

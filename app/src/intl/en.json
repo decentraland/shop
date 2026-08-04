@@ -910,7 +910,9 @@
     "phaseSign": "Preparing the new price…",
     "phaseSignConfirm": "Sign the new listing…",
     "phasePublishing": "Publishing…",
-    "phaseIndexing": "Waiting for the old listing to clear ({attempt}/{of})…"
+    "phaseIndexing": "Waiting for the old listing to clear ({attempt}/{of})…",
+    "hintCount": "About {total} confirmations will pop up — take down and re-list, per item. Keep this open.",
+    "hintCountApproval": "About {total} confirmations will pop up: take down and re-list per item, plus a one-time approval for each collection. Keep this open."
   },
   "fittingRoom": {
     "title": "Fitting room",

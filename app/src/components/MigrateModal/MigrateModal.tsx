@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import type { ImportPhase } from '~/lib/import'
+import { countConfirmations, type ImportPhase } from '~/lib/import'
 import { Button } from '~/components/Button'
 import type { Session } from '~/lib/auth'
 import { importListing, RelistFailedError, type ImportItem } from '~/lib/import'
@@ -63,6 +63,13 @@ export function MigrateModal({
   const showsConfirmations = showsWalletConfirmations(session.providerType)
   // Per-row phase so the spinner can say what it is waiting on. Only the active row ever holds one.
   const [phases, setPhases] = useState<(ImportPhase | null)[]>(() => queue.map(() => null))
+  /**
+   * The real number of prompts, read from the chain before anything is signed.
+   *
+   * null means "not counted" — either still reading, or a read failed — and renders the old vague wording.
+   * Only self-custody wallets ever see a prompt, so a managed wallet never pays for this read.
+   */
+  const [prompts, setPrompts] = useState<{ approvals: number; total: number } | null>(null)
   const [statuses, setStatuses] = useState<Status[]>(() => queue.map(() => 'pending'))
   const [phase, setPhase] = useState<'running' | 'finished'>('running')
   const started = useRef(false)
@@ -72,6 +79,23 @@ export function MigrateModal({
     started.current = true
 
     let cancelled = false
+
+    if (showsConfirmations) {
+      // `void` + catch: this is a hint, so a failed read must leave the vague wording standing rather than
+      // surface an error or reject unhandled. countConfirmations already returns null on failure; the catch
+      // covers anything it cannot (an import-time throw), so the modal can never break on a hint.
+      void countConfirmations(
+        queue.map(e => e.item),
+        session.address
+      )
+        .then(c => {
+          if (!cancelled && c) setPrompts({ approvals: c.approvals, total: c.total })
+        })
+        .catch(() => {
+          /* keep the vague hint */
+        })
+    }
+
     const migrateItems = async () => {
       for (let i = 0; i < queue.length; i++) {
         if (cancelled) return
@@ -223,7 +247,11 @@ export function MigrateModal({
         </S.List>
 
         <S.Hint className="muted small">
-          {showsConfirmations ? t('migrate.hintConfirm') : t('migrate.hintManaged')}
+          {!showsConfirmations
+            ? t('migrate.hintManaged')
+            : prompts
+              ? t(prompts.approvals > 0 ? 'migrate.hintCountApproval' : 'migrate.hintCount', { total: prompts.total })
+              : t('migrate.hintConfirm')}
         </S.Hint>
       </S.Modal>
     </M.Backdrop>

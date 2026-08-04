@@ -36,14 +36,29 @@ const ensureMinter = vi.fn()
 const ensureApproval = vi.fn()
 const createPrimaryUsdPeggedListing = vi.fn()
 const createUsdPeggedListing = vi.fn()
+const isMarketplaceMinter = vi.fn()
 vi.mock('~/lib/trades', () => ({
   ensureMinter: (...args: unknown[]) => ensureMinter(...args),
   ensureApproval: (...args: unknown[]) => ensureApproval(...args),
   createPrimaryUsdPeggedListing: (...args: unknown[]) => createPrimaryUsdPeggedListing(...args),
-  createUsdPeggedListing: (...args: unknown[]) => createUsdPeggedListing(...args)
+  createUsdPeggedListing: (...args: unknown[]) => createUsdPeggedListing(...args),
+  isMarketplaceMinter: (...args: unknown[]) => isMarketplaceMinter(...args)
 }))
 
-import { fetchImportable, importListing, RelistFailedError, type ImportItem, type ImportListing } from '~/lib/import'
+const getAuthorizationStatus = vi.fn()
+vi.mock('~/lib/authorizations', () => ({
+  getAuthorizationStatus: (...args: unknown[]) => getAuthorizationStatus(...args),
+  getCollectionSellingAuthorization: (contractAddress: string) => ({ contractAddress })
+}))
+
+import {
+  countConfirmations,
+  fetchImportable,
+  importListing,
+  RelistFailedError,
+  type ImportItem,
+  type ImportListing
+} from '~/lib/import'
 
 const listing = (over: Partial<ImportListing> = {}): ImportListing => ({
   oldTradeId: 'old-1',
@@ -422,5 +437,57 @@ describe('importListing progress reporting', () => {
 
   it('does not require a progress callback', async () => {
     await expect(importListing(item({ listingType: 'primary', itemId: '3' }), 10, session)).resolves.toBeUndefined()
+  })
+})
+
+/**
+ * WHAT THE SELLER IS PROMISED.
+ *
+ * The modal used to say "a couple per item (take down + re-list)", which undercounts: a collection whose
+ * minter rights are not granted yet adds a THIRD prompt, once per collection. Someone told to expect two
+ * and then asked a third time reasonably concludes something broke.
+ */
+describe('countConfirmations', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    isMarketplaceMinter.mockResolvedValue(true)
+  })
+
+  it('counts two per item when every collection is already enabled', async () => {
+    const items = [item({ itemId: '1', listingType: 'primary' }), item({ itemId: '2', listingType: 'primary' })]
+
+    await expect(countConfirmations(items, '0xowner')).resolves.toEqual({ perItem: 2, approvals: 0, total: 4 })
+  })
+
+  it('adds ONE approval per collection, not per item', async () => {
+    isMarketplaceMinter.mockResolvedValue(false)
+    // Three items, one collection: the approval is granted once and the later items skip it.
+    const items = [
+      item({ itemId: '1', listingType: 'primary' }),
+      item({ itemId: '2', listingType: 'primary' }),
+      item({ itemId: '3', listingType: 'primary' })
+    ]
+
+    const count = await countConfirmations(items, '0xowner')
+
+    expect(count).toEqual({ perItem: 2, approvals: 1, total: 7 })
+    // And it reads the chain once per collection rather than once per item.
+    expect(isMarketplaceMinter).toHaveBeenCalledTimes(1)
+  })
+
+  it('counts an approval for each distinct collection that needs one', async () => {
+    isMarketplaceMinter.mockResolvedValue(false)
+    const items = [
+      item({ itemId: '1', listingType: 'primary', contractAddress: '0xaaa' }),
+      item({ itemId: '1', listingType: 'primary', contractAddress: '0xbbb' })
+    ]
+
+    await expect(countConfirmations(items, '0xowner')).resolves.toEqual({ perItem: 2, approvals: 2, total: 6 })
+  })
+
+  it('returns null when a read fails, so the UI can stay vague instead of lying', async () => {
+    isMarketplaceMinter.mockRejectedValue(new Error('rpc down'))
+
+    await expect(countConfirmations([item({ itemId: '1', listingType: 'primary' })], '0xowner')).resolves.toBeNull()
   })
 })
