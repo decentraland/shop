@@ -38,7 +38,7 @@ export function OutfitCard({ outfit, resolution }: { outfit: Outfit; resolution:
   }
 
   return (
-    <S.Card to={`/assets/outfits/${outfit.id}`} data-testid="outfit-card" data-availability={availability}>
+    <S.Card to={`/items/outfits/${outfit.id}`} data-testid="outfit-card" data-availability={availability}>
       {/* Thumbnails are uploaded with a transparent background, so the creator's gradient is what
           the look actually sits on. */}
       <S.Frame data-card-frame data-testid="outfit-card-thumb" style={{ background: outfitGradient(outfit) }} />

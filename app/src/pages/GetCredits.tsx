@@ -366,7 +366,7 @@ export function GetCredits() {
             <S.ActionButton data-variant="outline" onClick={reset}>
               {t('getCredits.buyMore', { currency: CURRENCY.name })}
             </S.ActionButton>
-            <S.ActionButton onClick={() => navigate('/assets')}>{t('getCredits.startShopping')}</S.ActionButton>
+            <S.ActionButton onClick={() => navigate('/items')}>{t('getCredits.startShopping')}</S.ActionButton>
           </S.Actions>
         </S.Success>
       )}
@@ -376,7 +376,7 @@ export function GetCredits() {
           <S.StatusTitle>{t('getCredits.pendingTitle', { currency: CURRENCY.name })}</S.StatusTitle>
           <S.Muted>{t('getCredits.pendingBody')}</S.Muted>
           <S.StatusActions>
-            <S.ActionButton onClick={() => navigate('/assets')}>{t('getCredits.startShopping')}</S.ActionButton>
+            <S.ActionButton onClick={() => navigate('/items')}>{t('getCredits.startShopping')}</S.ActionButton>
             <S.ActionButton data-variant="outline" onClick={reset}>
               {t('getCredits.done')}
             </S.ActionButton>

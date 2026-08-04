@@ -1117,7 +1117,7 @@ export function Cart() {
               <S.CartEmptyTitle>{t('cart.empty.title')}</S.CartEmptyTitle>
               <S.CartEmptyBody>{t('cart.empty.body')}</S.CartEmptyBody>
             </S.CartEmptyText>
-            <S.CartEmptyCta to="/assets">{t('cart.empty.cta')}</S.CartEmptyCta>
+            <S.CartEmptyCta to="/items">{t('cart.empty.cta')}</S.CartEmptyCta>
           </S.CartEmpty>
         </S.Top>
       </S.Checkout>

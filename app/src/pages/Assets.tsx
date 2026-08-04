@@ -33,7 +33,7 @@ export function Assets() {
 
   // Collectibles grid SEO. Fold the (case-preserved) search term into the title when present; the
   // description stays generic. Canonical/og:url naturally drop the ?q= (the hook uses the pathname),
-  // so search variants collapse onto /assets. Indexable.
+  // so search variants collapse onto /items. Indexable.
   const rawQuery = (searchParams.get('q') ?? '').trim()
   useSeo({
     title: rawQuery ? t('seo.collectibles.searchTitle', { query: rawQuery }) : t('seo.collectibles.title'),

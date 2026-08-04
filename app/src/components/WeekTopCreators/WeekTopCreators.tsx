@@ -45,10 +45,10 @@ function formatManaVolume(earnedWei: string): string {
 // The creator's storefront with its Collections view selected. Creator.tsx switches on a BARE
 // `?collections` flag (searchParams.has), so `?collections=true` or `?tab=collections` would land on
 // the listings view instead. Router-relative on purpose: BrowserRouter carries the per-environment
-// /shop basename, so this resolves to <host>/shop/assets/creator/<address>?collections in deployed
-// environments and to /assets/creator/... on localhost.
+// /shop basename, so this resolves to <host>/shop/items/creator/<address>?collections in deployed
+// environments and to /items/creator/... on localhost.
 function collectionsPath(address: string): string {
-  return `/assets/creator/${address}?collections`
+  return `/items/creator/${address}?collections`
 }
 
 function CreatorRow({ rank, creator, thumbnails }: { rank: number; creator: CreatorRank; thumbnails: string[] }) {

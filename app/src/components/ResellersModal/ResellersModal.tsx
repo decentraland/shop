@@ -167,7 +167,7 @@ function ResellerRow({
     <tr data-testid="resale-row" data-source={r.source} data-own={isOwn ? 'true' : undefined}>
       <td data-label={labels.owner}>
         {seller ? (
-          <S.OwnerButton type="button" onClick={() => navigate(`/assets/creator/${seller}`)}>
+          <S.OwnerButton type="button" onClick={() => navigate(`/items/creator/${seller}`)}>
             {ownerBody}
           </S.OwnerButton>
         ) : (

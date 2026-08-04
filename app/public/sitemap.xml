@@ -1,22 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- Hosts must match the canonical origin index.html declares (https://decentraland.org/shop/): the Shop
+     is served BY PATH under /shop, and shop.decentraland.zone does not resolve at all. A sitemap of dead,
+     non-canonical URLs is worse than no sitemap. -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://shop.decentraland.zone/</loc>
+    <loc>https://decentraland.org/shop/</loc>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://shop.decentraland.zone/overview</loc>
+    <loc>https://decentraland.org/shop/overview</loc>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://shop.decentraland.zone/assets</loc>
+    <loc>https://decentraland.org/shop/items</loc>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://shop.decentraland.zone/credits</loc>
+    <loc>https://decentraland.org/shop/credits</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>

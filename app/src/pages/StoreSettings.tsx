@@ -194,7 +194,7 @@ export function StoreSettings() {
       // Refresh the cached store so the creator page shows the new cover/description immediately.
       await qc.invalidateQueries({ queryKey: ['store', address.toLowerCase()] })
       toast.success(t('storeSettings.saved'))
-      navigate(`/assets/creator/${address}`)
+      navigate(`/items/creator/${address}`)
     } catch {
       toast.error(t('storeSettings.saveError'))
     } finally {
@@ -208,7 +208,7 @@ export function StoreSettings() {
         <S.Heading>
           {address ? (
             <S.Back
-              to={`/assets/creator/${address}`}
+              to={`/items/creator/${address}`}
               title={t('storeSettings.back')}
               aria-label={t('storeSettings.back')}
             >
@@ -218,7 +218,7 @@ export function StoreSettings() {
           <S.Title>{t('storeSettings.title')}</S.Title>
         </S.Heading>
         {address ? (
-          <S.Guest href={`/assets/creator/${address}`} target="_blank" rel="noopener noreferrer">
+          <S.Guest href={`/items/creator/${address}`} target="_blank" rel="noopener noreferrer">
             {t('storeSettings.seeAsGuest')}
             <Icon name="external-link" />
           </S.Guest>

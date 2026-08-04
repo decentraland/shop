@@ -46,7 +46,7 @@ function renderSuccess(txHash: string | undefined = '0xdeadbeef') {
       <MemoryRouter initialEntries={[{ pathname: '/success', state: { items: [item], txHash } }]}>
         <Routes>
           <Route path="/success" element={<Success />} />
-          <Route path="/assets" element={<div>Browse</div>} />
+          <Route path="/items" element={<div>Browse</div>} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>
@@ -75,9 +75,9 @@ describe('Success settlement gating', () => {
 
     // Figma "Purchase completed": success banner + the purchased item + the two CTAs.
     await waitFor(() => expect(screen.getByText(/your purchase was successful/i)).toBeTruthy())
-    expect(screen.getByText(/my assets tab/i)).toBeTruthy()
+    expect(screen.getByText(/my items tab/i)).toBeTruthy()
     expect(screen.getByText('Snowy Panama Hat')).toBeTruthy()
-    expect(screen.getByRole('button', { name: /my assets/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /my items/i })).toBeTruthy()
     expect(screen.getByRole('link', { name: /try in world/i })).toBeTruthy()
   })
 
@@ -102,7 +102,7 @@ describe('Success settlement gating', () => {
     expect(screen.getByText(/×\s*3/)).toBeTruthy()
   })
 
-  it('routes the MY ASSETS CTA to /my-assets', async () => {
+  it('routes the MY ITEMS CTA to /my-items', async () => {
     waitForSettlement.mockResolvedValue(undefined)
     fetchOwnsItem.mockResolvedValue(true)
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -111,14 +111,14 @@ describe('Success settlement gating', () => {
         <MemoryRouter initialEntries={[{ pathname: '/success', state: { items: [item], txHash: '0xabc' } }]}>
           <Routes>
             <Route path="/success" element={<Success />} />
-            <Route path="/my-assets" element={<div>My Assets Page</div>} />
+            <Route path="/my-items" element={<div>My Items Page</div>} />
           </Routes>
         </MemoryRouter>
       </QueryClientProvider>
     )
-    const btn = await screen.findByRole('button', { name: /my assets/i })
+    const btn = await screen.findByRole('button', { name: /my items/i })
     btn.click()
-    await waitFor(() => expect(screen.getByText('My Assets Page')).toBeTruthy())
+    await waitFor(() => expect(screen.getByText('My Items Page')).toBeTruthy())
   })
 
   it('shows a finalizing state (never "It\'s yours!") while the tx is mined but not yet indexed', async () => {
@@ -309,7 +309,7 @@ describe('Success settlement gating', () => {
           <MemoryRouter initialEntries={[path]}>
             <Routes>
               <Route path="/success" element={<Success />} />
-              <Route path="/assets" element={<div>Browse</div>} />
+              <Route path="/items" element={<div>Browse</div>} />
             </Routes>
           </MemoryRouter>
         </QueryClientProvider>

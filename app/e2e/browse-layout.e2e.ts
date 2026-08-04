@@ -27,7 +27,7 @@ afterEach(async () => {
 // grid was missing `display: grid`). Cheap structural assertions — no pixel comparisons.
 describe('collectibles browse layout', () => {
   it('renders exactly one result count in the toolbar', async () => {
-    app = await launchApp({ path: '/assets' })
+    app = await launchApp({ path: '/items' })
     const { page } = app
     await waitForText(page, 'Items')
     const counts = await page.$$eval('[data-testid="browse-count"]', els => els.length)
@@ -35,7 +35,7 @@ describe('collectibles browse layout', () => {
   })
 
   it('does not overflow horizontally on a mobile viewport', async () => {
-    app = await launchApp({ path: '/assets' })
+    app = await launchApp({ path: '/items' })
     const { page } = app
     await page.setViewport({ width: 390, height: 844 })
     await waitForText(page, 'Items')
@@ -57,7 +57,7 @@ describe('collectibles browse layout', () => {
     const rows = (fx.unifiedListings as { data: Record<string, unknown>[] }).data
     const long = 'Asset Name Asset Name Asset Name Asset Name'
     app = await launchApp({
-      path: '/assets',
+      path: '/items',
       fixtures: { unifiedListings: { data: [rows[1], { ...rows[0], name: long }] } }
     })
     const { page } = app
@@ -99,7 +99,7 @@ describe('collectibles browse layout', () => {
     const rows = (fx.unifiedListings as { data: Record<string, unknown>[] }).data
     const snug = 'Midnight Black Tuxedo Trousers'
     app = await launchApp({
-      path: '/assets',
+      path: '/items',
       fixtures: { unifiedListings: { data: [rows[1], { ...rows[0], name: snug }] } }
     })
     const { page } = app
@@ -140,7 +140,7 @@ describe('collectibles browse layout', () => {
   // The filter sidebar scrolls internally, and overflow clips BOTH axes — an absolutely-positioned
   // tooltip inside it lost its first word off the left edge. The bubble is portalled to <body> now.
   it('shows the whole SMART hint tooltip, not cropped by the filter sidebar', async () => {
-    app = await launchApp({ path: '/assets' })
+    app = await launchApp({ path: '/items' })
     const { page } = app
     await waitForText(page, 'SMART')
 
@@ -179,7 +179,7 @@ describe('collectibles browse layout', () => {
   // A fixed bubble that lands off-screen cannot be scrolled to, so it must flip/clamp instead. The SMART
   // hint opens downwards and its trigger sits at the bottom of a scrolled filter sidebar.
   it('keeps the tooltip on screen when its trigger is near the bottom of the viewport', async () => {
-    app = await launchApp({ path: '/assets' })
+    app = await launchApp({ path: '/items' })
     const { page } = app
     await page.setViewport({ width: 1280, height: 620 })
     await waitForText(page, 'SMART')

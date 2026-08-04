@@ -92,7 +92,7 @@ describe('get credits — Stripe return handling', () => {
     // After crediting, GetCredits routes to /token/<collection>/7 (a secondary token → the /token route)
     // and the BuyModal opens in resume mode (auto-confirms) → the purchase completes without a second click.
     await waitForText(page, 'Purchase complete!', 30000)
-    await waitForText(page, 'My Assets')
+    await waitForText(page, 'My Items')
     expect(await page.evaluate(() => window.location.pathname)).toBe(`/token/${COLLECTION}/7`)
   })
 })

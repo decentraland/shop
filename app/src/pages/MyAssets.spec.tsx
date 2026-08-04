@@ -119,9 +119,9 @@ function renderPageWithRoutes() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={['/my-assets']}>
+      <MemoryRouter initialEntries={['/my-items']}>
         <Routes>
-          <Route path="/my-assets" element={<MyAssets />} />
+          <Route path="/my-items" element={<MyAssets />} />
           <Route path="/item/:contractAddress/:itemId" element={<DetailProbe />} />
           <Route path="/token/:contractAddress/:tokenId" element={<DetailProbe />} />
         </Routes>
@@ -372,9 +372,9 @@ describe('when the seller still has classic (MANA-priced) listings', () => {
     const user = userEvent.setup()
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-        <MemoryRouter initialEntries={['/my-assets']}>
+        <MemoryRouter initialEntries={['/my-items']}>
           <Routes>
-            <Route path="/my-assets" element={<MyAssets />} />
+            <Route path="/my-items" element={<MyAssets />} />
             <Route path="/import" element={<DetailProbe />} />
           </Routes>
         </MemoryRouter>

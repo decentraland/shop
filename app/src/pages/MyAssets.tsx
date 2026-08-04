@@ -599,7 +599,7 @@ export function MyAssets() {
                   {section === 'names' ? t('myAssets.emptyNamesTitle') : t('myAssets.emptyOwnedTitle')}
                 </S.EmptyTitle>
                 <S.EmptyText>{section === 'names' ? t('myAssets.namesEmpty') : t('myAssets.ownedEmpty')}</S.EmptyText>
-                {section !== 'names' ? <S.EmptyCta to="/assets">{t('myAssets.emptyBrowse')}</S.EmptyCta> : null}
+                {section !== 'names' ? <S.EmptyCta to="/items">{t('myAssets.emptyBrowse')}</S.EmptyCta> : null}
               </S.EmptyState>
             ) : null}
           </>

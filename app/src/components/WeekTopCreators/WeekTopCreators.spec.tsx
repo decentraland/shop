@@ -51,13 +51,13 @@ describe('WeekTopCreators rows', () => {
     renderTable()
     const link = await screen.findByRole('link', { name: 'View collections by Soul Magic' })
     // Bare flag, not ?collections=true and not ?tab=collections — Creator.tsx reads searchParams.has.
-    expect(link).toHaveAttribute('href', `/assets/creator/${SOUL}?collections`)
+    expect(link).toHaveAttribute('href', `/items/creator/${SOUL}?collections`)
   })
 
   it('carries the environment base path through the row link', async () => {
     renderTable('/shop')
     const link = await screen.findByRole('link', { name: 'View collections by Soul Magic' })
-    expect(link).toHaveAttribute('href', `/shop/assets/creator/${SOUL}?collections`)
+    expect(link).toHaveAttribute('href', `/shop/items/creator/${SOUL}?collections`)
   })
 
   it('names every row link after its own creator', async () => {

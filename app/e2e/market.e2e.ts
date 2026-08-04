@@ -15,8 +15,8 @@ describe('legacy (fluctuating-price) liquidity in the unified browse', () => {
     const { page } = app
 
     // /market redirects to the unified browse (old links must not 404).
-    await page.waitForFunction(() => window.location.pathname === '/assets', { timeout: 20000 })
-    expect(await page.evaluate(() => window.location.pathname)).toBe('/assets')
+    await page.waitForFunction(() => window.location.pathname === '/items', { timeout: 20000 })
+    expect(await page.evaluate(() => window.location.pathname)).toBe('/items')
     await waitForText(page, 'Retro Cap')
   })
 
@@ -26,7 +26,7 @@ describe('legacy (fluctuating-price) liquidity in the unified browse', () => {
     // amount as dollars — getting that wrong would not misprice it slightly, it would misprice it by the
     // MANA price. fetchTrade('legacy-trade-1') → legacyTrade; authorize is mocked and the gasless
     // useCredits meta-tx is signed by the mock wallet through the mocked transactions-api.
-    app = await launchApp({ path: '/assets', fixtures: { trade: legacyTrade } })
+    app = await launchApp({ path: '/items', fixtures: { trade: legacyTrade } })
     const { page } = app
 
     await waitForText(page, 'Retro Cap')

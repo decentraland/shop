@@ -10,7 +10,7 @@ afterEach(async () => {
 })
 
 describe('buy an item with credits', () => {
-  it('goes item detail → Buy now → Buy Asset modal → purchase complete', async () => {
+  it('goes item detail → Buy now → Buy Item modal → purchase complete', async () => {
     // Deep-link the secondary item (Nebula Jacket, itemId 1). authorize is mocked; gasless is the
     // default, so the buyer signs the useCredits meta-tx (mock wallet) and it's POSTed to the mocked
     // relayer → canned hash → the modal reaches its "complete" state.
@@ -22,10 +22,10 @@ describe('buy an item with credits', () => {
 
     // Open the buy modal from the PDP.
     await clickWhenEnabled(page, 'button', /buy now/i)
-    await waitForText(page, 'Buy Asset')
+    await waitForText(page, 'Buy Item')
 
     // Confirm in the modal (its own "Buy" button — exact, not "Buy now"). The modal opens in a loading
-    // state (same "Buy Asset" title) and only renders the enabled "Buy" button once the async
+    // state (same "Buy Item" title) and only renders the enabled "Buy" button once the async
     // resolve-trade → authorize step reaches its ready phase, so wait for it rather than clicking early.
     await clickWhenEnabled(page, 'button', /^buy$/i)
 

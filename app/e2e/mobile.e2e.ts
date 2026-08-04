@@ -49,7 +49,7 @@ describe('at phone width', () => {
   })
 
   it('the browse grid renders cards and does not scroll sideways', async () => {
-    const page = await phone('/assets', 'Nebula Jacket')
+    const page = await phone('/items', 'Nebula Jacket')
     // The filter sidebar collapses into a drawer at this width; the cards must survive that.
     expect(await page.$$eval('[data-testid="card"]', els => els.length)).toBeGreaterThan(0)
     expect(await overflowPx(page)).toBeLessThanOrEqual(1)

@@ -277,7 +277,7 @@ export function NameBuyModal({
               <S.OutlineBtn
                 onClick={() => {
                   onClose()
-                  navigate('/my-assets')
+                  navigate('/my-items')
                 }}
               >
                 {t('names.myItems')}
@@ -327,7 +327,7 @@ export function NameBuyModal({
               <S.OutlineBtn
                 onClick={() => {
                   onClose()
-                  navigate('/my-assets')
+                  navigate('/my-items')
                 }}
               >
                 {t('names.myItems')}

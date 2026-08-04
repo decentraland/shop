@@ -184,7 +184,7 @@ function StudioList() {
               </S.RowInfo>
               <S.RowActions>
                 {outfit.published ? (
-                  <Button as={Link} to={`/assets/outfits/${outfit.id}`} variant="ghost" size="sm">
+                  <Button as={Link} to={`/items/outfits/${outfit.id}`} variant="ghost" size="sm">
                     {t('outfits.studio.view')}
                   </Button>
                 ) : null}

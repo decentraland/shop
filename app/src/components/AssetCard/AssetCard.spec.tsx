@@ -181,9 +181,9 @@ describe('AssetCard legacy (MANA-priced) rows', () => {
   it('opens the detail page with the plain { item, tradeId } state, not a market state', () => {
     const item = makeItem({ contractAddress: '0xc', itemId: '1', tradeId: 'trade-1' })
     const { container } = render(
-      <MemoryRouter initialEntries={['/assets']}>
+      <MemoryRouter initialEntries={['/items']}>
         <Routes>
-          <Route path="/assets" element={<AssetCard item={item} />} />
+          <Route path="/items" element={<AssetCard item={item} />} />
           <Route path="/item/:contractAddress/:seg" element={<LocationProbe />} />
         </Routes>
       </MemoryRouter>
@@ -313,9 +313,9 @@ describe('AssetCard own-item MANAGE CTA', () => {
     useWallet.setState({ session: { address: ME } as never })
     const item = makeItem({ creator: ME, contractAddress: '0xc', itemId: '1' })
     const { container } = renderWithQuery(
-      <MemoryRouter initialEntries={['/assets']}>
+      <MemoryRouter initialEntries={['/items']}>
         <Routes>
-          <Route path="/assets" element={<AssetCard item={item} />} />
+          <Route path="/items" element={<AssetCard item={item} />} />
           <Route path="/item/:contractAddress/:seg" element={<LocationProbe />} />
         </Routes>
       </MemoryRouter>
@@ -358,9 +358,9 @@ describe('AssetCard view-only mode', () => {
   it('navigates to the item detail via the whole-card link, seeding the item in router state', () => {
     const item = makeItem({ priceCredits: 0, contractAddress: '0xc', itemId: '1' })
     const { container } = render(
-      <MemoryRouter initialEntries={['/assets']}>
+      <MemoryRouter initialEntries={['/items']}>
         <Routes>
-          <Route path="/assets" element={<AssetCard item={item} mode="view" />} />
+          <Route path="/items" element={<AssetCard item={item} mode="view" />} />
           <Route path="/item/:contractAddress/:seg" element={<LocationProbe />} />
         </Routes>
       </MemoryRouter>
@@ -379,9 +379,9 @@ describe('AssetCard manage-link mode (owned My Assets card)', () => {
     // A held token carries a tokenId — the MANAGE cta opens the specific /token/:contract/:tokenId page.
     const item = makeItem({ contractAddress: '0xc', tokenId: '9', itemId: null })
     const { container } = render(
-      <MemoryRouter initialEntries={['/my-assets']}>
+      <MemoryRouter initialEntries={['/my-items']}>
         <Routes>
-          <Route path="/my-assets" element={<AssetCard item={item} mode="manage-link" />} />
+          <Route path="/my-items" element={<AssetCard item={item} mode="manage-link" />} />
           <Route path="/token/:contractAddress/:seg" element={<LocationProbe />} />
         </Routes>
       </MemoryRouter>

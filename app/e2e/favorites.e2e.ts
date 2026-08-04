@@ -10,7 +10,7 @@ afterEach(async () => {
 
 describe('favorite an item', () => {
   it('signed in: a favorited item persists server-side and shows up in My Favorites', async () => {
-    app = await launchApp({ path: '/assets' })
+    app = await launchApp({ path: '/items' })
     const { page } = app
     await waitForText(page, 'Galaxy Hat')
 
@@ -26,7 +26,7 @@ describe('favorite an item', () => {
   })
 
   it('signed out: a favorited item persists locally and shows up in My Favorites', async () => {
-    app = await launchApp({ path: '/assets', signedOut: true })
+    app = await launchApp({ path: '/items', signedOut: true })
     const { page } = app
     await waitForText(page, 'Galaxy Hat')
 
