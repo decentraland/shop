@@ -372,3 +372,55 @@ describe('importListing take-down accounting', () => {
     expect(postTrade).not.toHaveBeenCalled()
   })
 })
+
+/**
+ * WHAT THE SELLER IS WAITING FOR.
+ *
+ * Migrating one item is up to four steps and two of them wait on things nobody can see: the cancel waits
+ * for an on-chain confirmation, then the re-list waits for the indexer to clear the old order — the 409
+ * backoff, up to ~37s. Both looked identical to a stalled spinner, so a run that worked read as broken.
+ */
+describe('importListing progress reporting', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    readManaUsdRate.mockResolvedValue({ rate: 50_000_000n, decimals: 8 })
+    manaWeiToCredits.mockReturnValue(10)
+    getIsSecondarySalesEnabled.mockResolvedValue(true)
+    fetchTrade.mockResolvedValue({ id: 'old-1', chainId: 80002 })
+    createPrimaryUsdPeggedListing.mockResolvedValue({ id: 'new-1' })
+    postTrade.mockResolvedValue(undefined)
+    cancelListing.mockResolvedValue('0xhash')
+  })
+
+  it('reports each step in the order it happens', async () => {
+    const seen: string[] = []
+    await importListing(item({ listingType: 'primary', itemId: '3' }), 10, session, {
+      onPhase: p => seen.push(p.step)
+    })
+
+    // The cancel is two phases on purpose: the seller signs, then everyone waits for the chain.
+    expect(seen).toEqual(['cancelling', 'confirming-cancel', 'authorising', 'signing', 'publishing'])
+  })
+
+  it('reports the indexer wait with its attempt number, so a live retry is not mistaken for a hang', async () => {
+    // Two 409s then success: the exact shape that produced a silent multi-second pause.
+    postTrade
+      .mockRejectedValueOnce(new Error('There is already an open order for this Item'))
+      .mockRejectedValueOnce(new Error('There is already an open order for this Item'))
+      .mockResolvedValueOnce(undefined)
+
+    const seen: { step: string; attempt?: number }[] = []
+    await importListing(item({ listingType: 'primary', itemId: '3' }), 10, session, {
+      onPhase: p => seen.push(p)
+    })
+
+    const waits = seen.filter(p => p.step === 'indexing')
+    expect(waits.map(w => w.attempt)).toEqual([1, 2])
+    // And it does not keep claiming to be "publishing" while it is really waiting.
+    expect(seen.filter(p => p.step === 'publishing')).toHaveLength(1)
+  }, 30_000)
+
+  it('does not require a progress callback', async () => {
+    await expect(importListing(item({ listingType: 'primary', itemId: '3' }), 10, session)).resolves.toBeUndefined()
+  })
+})

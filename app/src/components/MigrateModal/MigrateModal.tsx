@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import type { ImportPhase } from '~/lib/import'
 import { Button } from '~/components/Button'
 import type { Session } from '~/lib/auth'
 import { importListing, RelistFailedError, type ImportItem } from '~/lib/import'
@@ -20,6 +21,33 @@ type Status = 'pending' | 'active' | 'done' | 'skipped' | 'failed' | 'unlisted'
 
 // Lists a queue of old items into the Shop one at a time (each needs one confirmation). Shows live
 // progress, then a congrats. Closing refreshes the pages behind it (via onDone).
+/**
+ * The active row's caption.
+ *
+ * Falls back to the previous generic wording until the first phase arrives, so the cell is never blank. The
+ * wallet-kind split only applies to steps that PROMPT: a managed wallet signs without a dialog, so telling
+ * its owner to "confirm" would be wrong, while the waiting steps read the same either way.
+ */
+function phaseLabel(phase: ImportPhase | null, showsConfirmations: boolean): string {
+  switch (phase?.step) {
+    case 'cancelling':
+      return showsConfirmations ? t('migrate.phaseCancelConfirm') : t('migrate.phaseCancel')
+    case 'confirming-cancel':
+      return t('migrate.phaseConfirmingCancel')
+    case 'authorising':
+      return showsConfirmations ? t('migrate.phaseAuthoriseConfirm') : t('migrate.phaseAuthorise')
+    case 'signing':
+      return showsConfirmations ? t('migrate.phaseSignConfirm') : t('migrate.phaseSign')
+    case 'publishing':
+      return t('migrate.phasePublishing')
+    case 'indexing':
+      // The long wait. Naming the attempt is what tells a live retry apart from a hung request.
+      return t('migrate.phaseIndexing', { attempt: phase.attempt, of: phase.of })
+    default:
+      return showsConfirmations ? t('migrate.statusConfirm') : t('migrate.statusAdding')
+  }
+}
+
 export function MigrateModal({
   queue,
   session,
@@ -33,6 +61,8 @@ export function MigrateModal({
 }) {
   const navigate = useNavigate()
   const showsConfirmations = showsWalletConfirmations(session.providerType)
+  // Per-row phase so the spinner can say what it is waiting on. Only the active row ever holds one.
+  const [phases, setPhases] = useState<(ImportPhase | null)[]>(() => queue.map(() => null))
   const [statuses, setStatuses] = useState<Status[]>(() => queue.map(() => 'pending'))
   const [phase, setPhase] = useState<'running' | 'finished'>('running')
   const started = useRef(false)
@@ -47,7 +77,11 @@ export function MigrateModal({
         if (cancelled) return
         setStatuses(s => s.map((v, idx) => (idx === i ? 'active' : v)))
         try {
-          await importListing(queue[i].item, queue[i].priceCredits, session)
+          await importListing(queue[i].item, queue[i].priceCredits, session, {
+            onPhase: phase => {
+              if (!cancelled) setPhases(p => p.map((v, idx) => (idx === i ? phase : v)))
+            }
+          })
           track('Shop Migrated Listing', {
             item_id: queue[i].item.itemId ?? queue[i].item.oldTradeId ?? null,
             contract_address: queue[i].item.contractAddress,
@@ -168,8 +202,7 @@ export function MigrateModal({
               <S.Status>
                 {statuses[i] === 'active' ? (
                   <>
-                    <S.Spin className="spinner" aria-hidden />{' '}
-                    {showsConfirmations ? t('migrate.statusConfirm') : t('migrate.statusAdding')}
+                    <S.Spin className="spinner" aria-hidden /> {phaseLabel(phases[i], showsConfirmations)}
                   </>
                 ) : statuses[i] === 'done' ? (
                   <S.Tick>

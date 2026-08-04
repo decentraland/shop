@@ -59,12 +59,35 @@ export async function fetchImportable(seller: string): Promise<{ creations: Impo
 // conflict, backing off until the cancel is indexed. ~37s total before we give up.
 const CLEAR_RETRY_DELAYS_MS = [3000, 3000, 4000, 5000, 6000, 8000, 8000]
 
+/**
+ * What the migration is doing right now, so the UI can say so.
+ *
+ * Migrating one item is up to four steps and two of them wait on things the seller cannot see: the cancel
+ * waits for an on-chain confirmation, and the re-list then waits for the indexer to clear the old order
+ * (the 409 backoff above, up to ~37s). Both looked identical to a stalled spinner, which is why a run that
+ * worked read as broken.
+ *
+ * `indexing` carries its attempt number because that wait is the long one: repeating "waiting" says
+ * nothing, while "still waiting, attempt 3" says the retry is alive and roughly how far along it is.
+ */
+export type ImportPhase =
+  | { step: 'cancelling' }
+  | { step: 'confirming-cancel' }
+  | { step: 'authorising' }
+  | { step: 'signing' }
+  | { step: 'publishing' }
+  | { step: 'indexing'; attempt: number; of: number }
+
 async function postListingWithRetry(
   trade: Parameters<typeof postTrade>[0],
-  identity: Parameters<typeof postTrade>[1]
+  identity: Parameters<typeof postTrade>[1],
+  onPhase?: (phase: ImportPhase) => void
 ): Promise<void> {
   for (let attempt = 0; ; attempt++) {
     try {
+      onPhase?.(
+        attempt === 0 ? { step: 'publishing' } : { step: 'indexing', attempt, of: CLEAR_RETRY_DELAYS_MS.length }
+      )
       await postTrade(trade, identity)
       return
     } catch (e) {
@@ -103,8 +126,9 @@ export async function importListing(
   item: ImportItem,
   priceCredits: number,
   session: Session,
-  opts: { cancelOld?: boolean } = {}
+  opts: { cancelOld?: boolean; onPhase?: (phase: ImportPhase) => void } = {}
 ): Promise<void> {
+  const onPhase = opts.onPhase
   const usdPrice = priceCredits / 10 // credits → USD (1 credit = $0.10)
   const chainId = item.chainId
   const network = item.network as Network
@@ -145,14 +169,21 @@ export async function importListing(
       throw e
     })
     if (old) {
-      await cancelListing({ trade: old, signer: session.signer })
+      // Two phases, not one: the seller signs (cancelling) and then everyone waits for the chain
+      // (confirming-cancel). Collapsing them would leave the longer half unexplained.
+      onPhase?.({ step: 'cancelling' })
+      const cancelled = cancelListing({ trade: old, signer: session.signer })
+      onPhase?.({ step: 'confirming-cancel' })
+      await cancelled
       removedOld = true
     }
   }
 
   try {
     if (item.listingType === 'primary') {
+      onPhase?.({ step: 'authorising' })
       await ensureMinter({ signer: session.signer, contractAddress: item.contractAddress, chainId })
+      onPhase?.({ step: 'signing' })
       const trade = await createPrimaryUsdPeggedListing({
         signer: session.signer,
         item: { contractAddress: item.contractAddress, itemId: item.itemId ?? '', network, chainId },
@@ -160,16 +191,18 @@ export async function importListing(
         uses: item.available,
         expiresAtMs: Date.now() + SIX_MONTHS_MS
       })
-      await postListingWithRetry(trade, session.identity)
+      await postListingWithRetry(trade, session.identity, onPhase)
     } else {
+      onPhase?.({ step: 'authorising' })
       await ensureApproval({ signer: session.signer, contractAddress: item.contractAddress, chainId })
+      onPhase?.({ step: 'signing' })
       const trade = await createUsdPeggedListing({
         signer: session.signer,
         nft: { contractAddress: item.contractAddress, tokenId: item.tokenId ?? '', network, chainId },
         usdPrice,
         expiresAtMs: Date.now() + SIX_MONTHS_MS
       })
-      await postListingWithRetry(trade, session.identity)
+      await postListingWithRetry(trade, session.identity, onPhase)
     }
   } catch (e) {
     // If we already took the old listing down, the item is now UNLISTED (the new one never posted).

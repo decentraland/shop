@@ -901,7 +901,16 @@
     "statusUnlisted": "Not listed",
     "hintConfirm": "A couple of quick confirmations pop up per item (take down + re-list). Keep this open.",
     "hintManaged": "This only takes a moment — keep this open.",
-    "statusWaiting": "Waiting"
+    "statusWaiting": "Waiting",
+    "phaseCancel": "Taking down the old listing…",
+    "phaseCancelConfirm": "Confirm taking it down…",
+    "phaseConfirmingCancel": "Waiting for the network to confirm…",
+    "phaseAuthorise": "Setting up the Shop…",
+    "phaseAuthoriseConfirm": "Confirm the one-time approval…",
+    "phaseSign": "Preparing the new price…",
+    "phaseSignConfirm": "Sign the new listing…",
+    "phasePublishing": "Publishing…",
+    "phaseIndexing": "Waiting for the old listing to clear ({attempt}/{of})…"
   },
   "fittingRoom": {
     "title": "Fitting room",
