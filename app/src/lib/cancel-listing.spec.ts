@@ -39,7 +39,9 @@ vi.mock('~/config', () => ({ config: { chainId: 80002, rpcUrl: 'http://localhost
 
 // The gasless path routes node reads to a reliable RPC via the shim; stub both so no network is hit.
 vi.mock('~/lib/authorizations', () => ({
-  readProvider: () => ({ waitForTransaction: () => Promise.resolve({}) }),
+  // status 1 explicitly: an empty receipt passed confirmMetaTx only because undefined !== 0, i.e. by
+  // accident rather than by assertion. A relayed-path spec should say the transaction succeeded.
+  readProvider: () => ({ waitForTransaction: () => Promise.resolve({ status: 1 }) }),
   metaTxProviderShim: () => ({ __shim: true })
 }))
 

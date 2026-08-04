@@ -13,6 +13,8 @@ const h = vi.hoisted(() => {
   return {
     transferCalls: [] as unknown[][], // direct (gas-paying) transferFrom calls
     metaTxCalls: [] as unknown[][], // gasless relayer submissions
+    // Controllable so a relayed transaction can be driven to confirmed / reverted / never-confirmed.
+    waitForTransaction: vi.fn(async () => ({ status: 1 })),
     ensureChainCalls: [] as Array<{ provider: unknown; chainId: number }>,
     gaslessConfig: { enabled: false, relayerUrl: 'http://relayer.test' },
     MetaTransactionError,
@@ -40,7 +42,7 @@ vi.mock('~/config', () => ({ config: { chainId: 80002, rpcUrl: 'http://localhost
 
 // The gasless path routes node reads to a reliable RPC via the shim; stub both so no network is hit.
 vi.mock('~/lib/authorizations', () => ({
-  readProvider: () => ({ waitForTransaction: () => Promise.resolve({}) }),
+  readProvider: () => ({ waitForTransaction: () => h.waitForTransaction() }),
   metaTxProviderShim: () => ({ __shim: true })
 }))
 
@@ -161,5 +163,36 @@ describe('transferItem — gasless (relayer) path, gasless enabled', () => {
     expect(hash).toBe('0xtransferhash')
     expect(h.transferCalls).toHaveLength(1)
     expect(h.ensureChainCalls).toEqual([{ provider: { __web3: true }, chainId: 80002 }])
+  })
+})
+
+/**
+ * A PENDING relayed transaction must NOT fall through to the direct path.
+ *
+ * Pending means no receipt yet, so the relayed transfer may still mine. Re-submitting it directly would
+ * move the item TWICE. A revert is the opposite — it moved nothing, so falling back is correct. Before
+ * confirmMetaTx the two were indistinguishable: the wait resolved on any receipt, so a revert read as
+ * success and a timeout hit the catch-all that falls back.
+ */
+describe('transferItem — a relayed transfer whose outcome is unknown', () => {
+  beforeEach(() => {
+    h.gaslessConfig.enabled = true
+  })
+
+  it('propagates instead of re-submitting directly when the receipt never arrives', async () => {
+    h.waitForTransaction.mockRejectedValueOnce(new Error('timeout exceeded'))
+
+    await expect(transferItem(opts)).rejects.toThrow(/not confirmed in time/)
+    // The direct path is the double-send: it must not have run.
+    expect(h.transferCalls).toHaveLength(0)
+  })
+
+  it('DOES fall back when the relayed transfer reverted, because it moved nothing', async () => {
+    h.waitForTransaction.mockResolvedValueOnce({ status: 0 })
+
+    const hash = await transferItem(opts)
+
+    expect(hash).toBe('0xtransferhash')
+    expect(h.transferCalls).toHaveLength(1)
   })
 })

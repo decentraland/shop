@@ -18,6 +18,7 @@ import {
 import { buyWithCredits, type SpendableCredit } from '~/lib/buy'
 import { gaslessConfig } from '~/lib/gasless-config'
 import { amoyGasOverrides, getOnChainTrade } from '~/lib/trade-encoding'
+import { confirmMetaTx, MetaTxPendingError } from '~/lib/tx-confirm'
 
 type MarketplaceAcceptContract = ethers.Contract & {
   accept(trades: unknown[], overrides?: ethers.Overrides): Promise<ethers.ContractTransaction>
@@ -125,10 +126,15 @@ async function acceptPayingMana(opts: {
       })
       // Broadcast (the buyer signed) — flip the UI to "completing…" before we wait for the receipt.
       onSigned?.()
-      await rpc.waitForTransaction(txHash, 1, 120_000)
+      await confirmMetaTx(txHash, 'the MANA purchase')
       return txHash
     } catch (e) {
       if (e instanceof MetaTransactionError && e.code === ErrorCode.USER_DENIED) throw e
+      // A PENDING meta-tx must NOT fall through to the direct path. Pending means no receipt yet, so the
+      // relayed transaction may still mine — re-submitting the purchase directly would run it TWICE.
+      // A revert is different: it consumed nothing, so retrying directly is right. Propagate the pending
+      // one and let the caller surface it; an unknown outcome is not a failure to paper over.
+      if (e instanceof MetaTxPendingError) throw e
       console.warn('[buyWithMana] gasless meta-tx failed, falling back to a direct tx:', e)
     }
   }
