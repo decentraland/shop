@@ -65,8 +65,10 @@ function jsonOk(body: unknown) {
   return { ok: true, status: 200, json: async () => body }
 }
 
-function httpError(status: number) {
-  return { ok: false, status, json: async () => ({}) }
+// A real Response can always be read as text, whatever the status — so an error stub that could not was
+// letting a caller which reads the body to report WHY it failed look like a crash.
+function httpError(status: number, body = '') {
+  return { ok: false, status, json: async () => ({}), text: async () => body }
 }
 
 function lastUrl(): string {
@@ -943,6 +945,14 @@ describe('when fetching the trending items', () => {
     fetchMock.mockResolvedValueOnce(httpError(503))
 
     await expect(fetchTrendingItems()).rejects.toThrow('fetchTrendingItems 503')
+  })
+
+  // The row hides itself when the ranking fails, so nothing reaches the reader — the thrown message is the
+  // only place the reason survives, and a status alone cannot tell one 400 from another.
+  it('should carry the server explanation into the error it throws', async () => {
+    fetchMock.mockResolvedValueOnce(httpError(400, 'days must be between 1 and 7'))
+
+    await expect(fetchTrendingItems()).rejects.toThrow('days must be between 1 and 7')
   })
 })
 

@@ -542,8 +542,13 @@ describe('outfits at phone width (≤768px)', () => {
     await page.setViewport({ ...PHONE, isMobile: true, hasTouch: true })
     await page.waitForSelector('[data-testid="outfits-row"]', { timeout: 20000 })
     await waitForText(page, 'Galaxy Look')
-    const info = await page.$eval('[data-testid="outfit-card-info"]', el => getComputedStyle(el).opacity)
-    expect(info).toBe('1')
+    // Polled, not sampled: reading the computed opacity once races the styles being applied, and under
+    // CI's load that read came back '' — the element present with nothing computed on it yet. The claim is
+    // unchanged (the panel is visible with no hover); only the timing of the read is.
+    await page.waitForFunction(
+      () => getComputedStyle(document.querySelector('[data-testid="outfit-card-info"]')!).opacity === '1',
+      { timeout: 10000 }
+    )
     // One full-width card per page at this width, so the two outfits paginate: dots appear.
     await page.waitForSelector('[data-testid="outfits-row-dots"]', { timeout: 10000 })
     expect(await overflowPx(page)).toBeLessThanOrEqual(1)

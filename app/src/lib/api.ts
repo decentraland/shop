@@ -732,7 +732,14 @@ export async function fetchTrendingItems({
   const qs = new URLSearchParams({ first: String(first), includeSocialEmotes: 'false' })
   if (listingType) qs.set('listingType', listingType)
   const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/trending?${qs.toString()}`)
-  if (!res.ok) throw new Error(`fetchTrendingItems ${res.status}`)
+  if (!res.ok) {
+    // Read the body before throwing: the status alone cannot tell a 400 on a bad `first` apart from one
+    // on a bad `listingType`, and this row fails silently by design (it hides itself), so the message is
+    // the only place the reason survives. Best-effort — a body that cannot be read must not replace the
+    // status error with a parse error.
+    const detail = await res.text().catch(() => '')
+    throw new Error(`fetchTrendingItems ${res.status}${detail ? `: ${detail.slice(0, 200)}` : ''}`)
+  }
   const json = (await res.json()) as { data?: ShopItemRaw[] }
   return (json.data ?? []).map(shopItemToItem)
 }

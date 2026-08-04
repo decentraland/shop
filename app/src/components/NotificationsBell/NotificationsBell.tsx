@@ -67,15 +67,21 @@ export function NotificationsBell() {
     void markNotificationsRead(session.identity, unread)
   }, [items, qc, session])
 
+  // `close` is re-created whenever `items` changes — i.e. on every 60s poll — and the dismissal effect
+  // below must not tear its listeners down and re-add them for that. The ref carries the latest `close`
+  // so the effect can depend on `isOpen` alone while still marking the CURRENT unread set read.
+  const closeRef = useRef(close)
+  closeRef.current = close
+
   // Outside-click / Escape dismissal. ui2's Menu used to provide this; a plain positioned panel has to do
   // it itself — and it has to work, because closing is what marks notifications read.
   useEffect(() => {
     if (!isOpen) return
     const onDown = (e: MouseEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) close()
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) closeRef.current()
     }
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') close()
+      if (e.key === 'Escape') closeRef.current()
     }
     document.addEventListener('mousedown', onDown)
     document.addEventListener('keydown', onKey)
@@ -83,7 +89,7 @@ export function NotificationsBell() {
       document.removeEventListener('mousedown', onDown)
       document.removeEventListener('keydown', onKey)
     }
-  }, [isOpen, close])
+  }, [isOpen])
 
   // The slot is only mounted by the ui2 Navbar when signed in, but guard anyway so the hooks above stay
   // unconditional while the render short-circuits for a signed-out session.
