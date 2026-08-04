@@ -286,7 +286,7 @@ describe('outfits row on the overview', () => {
 
   it('renders nothing at all when there are no published outfits', async () => {
     const page = await launch('/overview', { fixtures: { outfits: { outfits: [] } } })
-    await waitForText(page, 'Featured Products')
+    await waitForText(page, 'Trending Products')
     expect(await page.$('[data-testid="outfits-row"]')).toBeNull()
   })
 })
