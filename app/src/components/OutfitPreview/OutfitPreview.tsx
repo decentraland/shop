@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { PreviewEmote, PreviewType, type PreviewRenderer } from '@dcl/schemas'
+import { PreviewEmote, PreviewType, PreviewUnityMode } from '@dcl/schemas'
 import { WearablePreview } from '~/components/LazyWearablePreview'
 import { usePreviewActive } from '~/hooks/usePreviewActive'
 import { disposePreview } from '~/lib/disposePreview'
@@ -12,14 +12,14 @@ import * as S from './OutfitPreview.styles'
 // A whole outfit worn live on one avatar. Pauses off-screen, yields to the Fitting Room (at most
 // one heavy preview alive at a time), and frees its WebGL context on unmount. The caller provides
 // the positioned container and decides what to show when there are no urns to wear (this renders
-// nothing then).
+// nothing then). An outfit is only ever shown WORN, so Unity runs in profile mode (avatar only, no
+// in-scene marketplace controls) and no surface offers an item-alone view.
 export function OutfitPreview({
   id,
   profile,
   bodyShape,
   urns,
   enabled = true,
-  onRenderer,
   skin,
   hair,
   eyes
@@ -33,8 +33,6 @@ export function OutfitPreview({
   urns: string[]
   /** Caller gate — false while its inputs (profile lookup, catalog resolution) are settling. */
   enabled?: boolean
-  /** Reports the effective renderer, so a caller can show overlay controls Unity ships in-scene. */
-  onRenderer?: (renderer: PreviewRenderer) => void
   /** Avatar colors (hex, no '#') — the studio's session-only import extras. */
   skin?: string
   hair?: string
@@ -87,7 +85,7 @@ export function OutfitPreview({
           disableFadeEffect
           dev={dev}
           unity
-          onRenderer={onRenderer}
+          unityMode={PreviewUnityMode.PROFILE}
           onLoad={() => {
             setReady(true)
             previewWindowRef.current = (document.getElementById(id) as HTMLIFrameElement | null)?.contentWindow ?? null
