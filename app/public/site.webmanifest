@@ -9,33 +9,22 @@
   "orientation": "portrait",
   "background_color": "#0d0716",
   "theme_color": "#691fa9",
-  "categories": ["shopping", "games", "entertainment"],
+  "categories": [
+    "shopping",
+    "games",
+    "entertainment"
+  ],
   "icons": [
     {
-      "src": "/favicon.svg",
-      "type": "image/svg+xml",
-      "sizes": "any"
-    },
-    {
-      "src": "/icon-192.png",
-      "type": "image/png",
-      "sizes": "192x192"
-    },
-    {
-      "src": "/icon-512.png",
-      "type": "image/png",
-      "sizes": "512x512"
-    },
-    {
-      "src": "/icon-maskable-512.png",
-      "type": "image/png",
+      "src": "/dcl-mark.png",
       "sizes": "512x512",
-      "purpose": "maskable"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
-      "src": "/apple-touch-icon.png",
-      "type": "image/png",
-      "sizes": "180x180"
+      "src": "/favicon.ico",
+      "sizes": "48x48",
+      "type": "image/x-icon"
     }
   ]
 }
