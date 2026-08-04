@@ -395,7 +395,6 @@ export function splitOutfitItems(
         split.purchasable.push(item)
         break
       default: {
-        const _: never = state
         split.purchasable.push(item)
       }
     }
