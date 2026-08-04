@@ -68,7 +68,7 @@ function SkeletonCard() {
   return (
     <S.SkeletonCard aria-hidden>
       <S.Avatar className="skeleton" />
-      <S.Panel>
+      <S.Panel data-skeleton>
         <S.SkeletonName className="skeleton" />
         <S.SkeletonDesc className="skeleton" />
         <S.SkeletonDesc className="skeleton" data-short />

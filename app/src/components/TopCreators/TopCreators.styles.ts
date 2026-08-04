@@ -7,8 +7,7 @@ const { colors, radius, media } = theme
 
 const AVATAR = 112
 const AVATAR_MOBILE = 152
-// The CTA's height plus the gap above it: what the panel grows by when it appears, and what an idle
-// card holds in reserve underneath itself so that growth never moves the row.
+// The CTA's height plus the gap above it — the slot the panel reserves for it permanently (see Panel).
 const CTA_SLOT = 56
 
 export { Root, Head, Title, Dots, Dot } from '~/styles/row.styles'
@@ -49,25 +48,10 @@ const cardBase = css`
   flex-direction: column;
   align-items: center;
   text-align: center;
-  padding-bottom: ${CTA_SLOT}px;
 `
 
 export const Card = styled(Link)`
   ${cardBase};
-
-  /* The reserve is handed to the CTA, so the card's total height is the same hovered or not. */
-  &:hover,
-  &:focus-visible {
-    padding-bottom: 0;
-  }
-
-  /* Touch has no hover: the CTA is out permanently, and nothing is held back for it. */
-  @media (hover: none) {
-    padding-bottom: 0;
-  }
-  ${media.maxWidth('mobile')} {
-    padding-bottom: 0;
-  }
 `
 
 export const SkeletonCard = styled.span`
@@ -100,21 +84,60 @@ export const Avatar = styled.span`
   }
 `
 
-// Starts at the avatar's centre, hence the negative margin and the matching top padding.
+/**
+ * Starts at the avatar's centre, hence the negative margin and the matching top padding.
+ *
+ * The CTA's slot is part of the panel's box at ALL times, so no card ever changes height and nothing
+ * below the row — the footer included — can move. What grows on hover is only the PAINTED box: the
+ * fill and the border are drawn by a pseudo-element whose bottom edge stops above the empty slot while
+ * the card is idle and covers it when the CTA appears. (Handing the slot over on hover instead is what
+ * made the footer twitch: the swap was instant while the CTA's own box animated, so for the length of
+ * the transition the card was up to 56px short.)
+ */
 export const Panel = styled.span`
+  position: relative;
+  isolation: isolate;
   display: flex;
   flex-direction: column;
   align-items: center;
   width: 100%;
   margin-top: -${AVATAR / 2}px;
   padding: ${AVATAR / 2 + 16}px 16px 16px;
-  border: 2px solid transparent;
-  border-radius: ${radius.modal};
-  background: ${colors.media};
 
-  [data-testid='top-creator-card']:hover &,
-  [data-testid='top-creator-card']:focus-visible & {
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 ${CTA_SLOT}px;
+    z-index: -1; /* isolate + negative z keeps the fill under the text instead of over it */
+    border: 2px solid transparent;
+    border-radius: ${radius.modal};
+    background: ${colors.media};
+    transition:
+      inset 0.15s ease,
+      border-color 0.15s ease;
+  }
+
+  [data-testid='top-creator-card']:hover &::before,
+  [data-testid='top-creator-card']:focus-visible &::before {
+    inset: 0;
     border-color: ${colors.accent};
+  }
+
+  /* Nothing is ever hidden under a skeleton, so its box is the full one. */
+  &[data-skeleton]::before {
+    inset: 0;
+  }
+
+  /* Touch has no hover: the CTA is out permanently, so the box always covers it. */
+  @media (hover: none) {
+    &::before {
+      inset: 0;
+    }
+  }
+  ${media.maxWidth('mobile')} {
+    &::before {
+      inset: 0;
+    }
   }
 
   ${media.maxWidth('mobile')} {
@@ -156,21 +179,16 @@ export const Desc = styled.span`
   }
 `
 
-// Revealed by the CARD, not by itself — it is a label on the card's single link, so it has to appear
-// for someone arriving by keyboard as well as by pointer.
-const ctaShown = css`
-  height: 40px;
-  margin-top: 16px;
-  opacity: 1;
-`
-
+// Keeps its box whether it is showing or not (see Panel) and only fades — revealed by the CARD rather
+// than by itself, since it is a label on the card's single link and has to appear for someone arriving
+// by keyboard as well as by pointer.
 export const Cta = styled.span`
   display: flex;
   align-items: center;
   justify-content: center;
   width: 100%;
-  height: 0;
-  margin-top: 0;
+  height: 40px;
+  margin-top: 16px;
   border-radius: ${radius.pill};
   background: ${colors.blackBtn};
   color: ${colors.softWhite};
@@ -181,22 +199,18 @@ export const Cta = styled.span`
   text-transform: uppercase;
   white-space: nowrap;
   opacity: 0;
-  overflow: hidden;
-  transition:
-    height 0.15s ease,
-    margin-top 0.15s ease,
-    opacity 0.15s ease;
+  transition: opacity 0.15s ease;
 
   [data-testid='top-creator-card']:hover &,
   [data-testid='top-creator-card']:focus-visible & {
-    ${ctaShown};
+    opacity: 1;
   }
 
   @media (hover: none) {
-    ${ctaShown};
+    opacity: 1;
   }
   ${media.maxWidth('mobile')} {
-    ${ctaShown};
+    opacity: 1;
   }
 `
 
