@@ -491,9 +491,6 @@
     "signInPrompt": "Inicia sesión para vender tus artículos.",
     "removedFromSale": "«{name}» ya no está a la venta.",
     "removeListingError": "No pudimos quitar la publicación. Inténtalo de nuevo.",
-    "importTitle": "Importa tus publicaciones",
-    "importSub": "Tienes {count, plural, one {# artículo} other {# artículos}} a la venta en otro lugar; tráelos a la tienda.",
-    "import": "Importar",
     "ownedTitle": "Artículos que tienes",
     "ownedSub": "Wearables y emotes que compraste: revéndelos en la tienda.",
     "ownedError": "No pudimos cargar tus artículos. Inténtalo de nuevo.",
@@ -679,32 +676,43 @@
     "label": "Compra exitosa"
   },
   "importListings": {
-    "creations": {
-      "title": "Tus creaciones",
-      "sub": "Artículos que creaste. Ponlos a la venta en la Tienda."
-    },
-    "owned": {
-      "title": "Artículos que posees",
-      "sub": "Cosas que compraste en otro lugar — revéndelas en la Tienda."
-    },
     "toastUpdated": "Tu Tienda está actualizada.",
     "signInTitle": "Importa tus publicaciones",
     "signInBody": "Inicia sesión para traer a la Tienda los artículos que ya vendes.",
     "emptyTitle": "Estás al día",
     "emptyBody": "Todo lo que vendes ya está en la Tienda — no hay nada que importar.",
     "goToMyAssets": "Ir a Mis artículos",
-    "eyebrow": "Importar a la Tienda",
-    "titleLead": "Trae tus publicaciones",
-    "titleAccent": "a la Tienda",
-    "lede": "Estos artículos ya están a la venta en otro lugar. Sugerimos un precio en {currency} para cada uno, ajustado a la tasa de hoy y redondeado hacia arriba. Ajusta lo que quieras y publícalos.",
-    "rate": "1 {currency} = $0.10 · precios redondeados hacia arriba",
+    "title": "¡Trae tus publicaciones a la nueva tienda!",
+    "lede": "Ahora puedes poner precio a tus artículos en {currency}. Sugerimos precios equivalentes según la tasa de cambio de MANA de hoy, pero puedes ajustarlos antes de publicar. Cuando estés listo, publica tus artículos en la nueva Tienda.",
+    "learnMore": "Más información",
+    "updatePricing": "Actualizar precios",
+    "selectAll": "Seleccionar todo",
     "includeItem": "Incluir {name}",
     "itemFallback": "Artículo",
     "priceAria": "Precio en {currency} para {name}",
-    "resetTo": "Restablecer a",
-    "list": "Publicar",
+    "wasMana": "({amount} MANA)",
     "selectedSummary": "{count, plural, one {# artículo seleccionado} other {# artículos seleccionados}} · ${usd}",
     "listAll": "Publicar todo ({count})"
+  },
+  "creditRate": {
+    "equals": "=",
+    "usdLabel": "$USD",
+    "aria": "1 {unit} equivale a {usd} dólares estadounidenses"
+  },
+  "manaPricingBanner": {
+    "lead": "{count, plural, one {# artículo sigue usando} other {# artículos siguen usando}} precios en MANA.",
+    "accent": "Cambia a Credits",
+    "trail": "para mantener tus precios estables.",
+    "cta": "Actualizar precios"
+  },
+  "newPricing": {
+    "title": "Precios nuevos",
+    "close": "Cerrar",
+    "infoTitle": "¡Cambia tus publicaciones a Credits!",
+    "infoBody": "Ahora puedes poner precio a tus artículos en Credits, para que los compradores vean un precio más claro y tus ganancias no dependan de los cambios de precio de MANA.",
+    "later": "Quizás más tarde",
+    "confirm": "Actualizar precios",
+    "optOut": "No mostrar esto de nuevo"
   },
   "sellModal": {
     "errorGeneric": "No pudimos publicar tu artículo. Inténtalo de nuevo.",

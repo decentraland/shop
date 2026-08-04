@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Icon } from '~/components/Icon'
 import { config } from '~/config'
@@ -28,6 +28,8 @@ import { useSecondarySales } from '~/hooks/useSecondarySales'
 import { t } from '~/intl/i18n'
 import { theme } from '~/styles/theme'
 import { ErrorNotice } from '~/components/ErrorNotice'
+import { NewPricingModal } from '~/components/NewPricingModal'
+import { dismissPrompt, isPromptDismissed, MANA_PRICING_PROMPT } from '~/lib/dismissed-prompts'
 import * as A from './Assets.styles'
 import * as F from '~/components/Filters/Filters.styles'
 import * as S from './MyAssets.styles'
@@ -131,6 +133,7 @@ function publishableToItem(p: PublishableItem, price: number, creator: string): 
 export function MyAssets() {
   useSeo({ title: t('nav.myAssets'), noindex: true })
   const { session, error, signIn, restore } = useWallet()
+  const navigate = useNavigate()
 
   // The active section lives in the URL (?section=…) so it survives refresh + is shareable. Fall back to
   // 'wearables' for a missing/unknown value.
@@ -147,6 +150,9 @@ export function MyAssets() {
   // Collapsible filter groups — same defaults as Collectibles (rarity starts collapsed).
   const [openStatus, setOpenStatus] = useState(true)
   const [openRarity, setOpenRarity] = useState(false)
+  // 'idle' → 'open' → 'closed' is one-way, so the prompt can fire at most once per visit even though
+  // the classic-listing count it waits on keeps refetching underneath.
+  const [pricingPrompt, setPricingPrompt] = useState<'idle' | 'open' | 'closed'>('idle')
 
   useEffect(() => {
     void restore()
@@ -324,6 +330,18 @@ export function MyAssets() {
   // badge a number the user cannot act on, and send them to a page that shows fewer rows than promised.
   const importCount = (importable?.creations.length ?? 0) + (secondarySales ? (importable?.owned.length ?? 0) : 0)
 
+  useEffect(() => {
+    if (pricingPrompt !== 'idle' || importCount === 0) return
+    if (isPromptDismissed(MANA_PRICING_PROMPT, address)) return
+    setPricingPrompt('open')
+  }, [pricingPrompt, importCount, address])
+
+  // The opt-out only silences this prompt; the banner stays, so the tool is always still reachable.
+  function closePricingPrompt(optOut: boolean) {
+    if (optOut) dismissPrompt(MANA_PRICING_PROMPT, address)
+    setPricingPrompt('closed')
+  }
+
   // ---------------- Sign-in gate ----------------
   if (!session) {
     return (
@@ -477,16 +495,7 @@ export function MyAssets() {
           ) : null}
         </S.SearchBar>
 
-        {importCount > 0 ? (
-          <S.ImportBanner to="/import">
-            <span aria-hidden>📦</span>
-            <S.ImportText>
-              <S.ImportTitle>{t('myAssets.importTitle')}</S.ImportTitle>
-              <S.ImportSub>{t('myAssets.importSub', { count: importCount })}</S.ImportSub>
-            </S.ImportText>
-            <S.ImportCta>{t('myAssets.import')}</S.ImportCta>
-          </S.ImportBanner>
-        ) : null}
+        {importCount > 0 ? <S.ImportBanner count={importCount} /> : null}
 
         <FilterBar
           sort={sort}
@@ -594,6 +603,16 @@ export function MyAssets() {
           </>
         )}
       </A.Main>
+
+      {pricingPrompt === 'open' ? (
+        <NewPricingModal
+          onClose={closePricingPrompt}
+          onConfirm={optOut => {
+            closePricingPrompt(optOut)
+            navigate('/import')
+          }}
+        />
+      ) : null}
     </A.Root>
   )
 }
