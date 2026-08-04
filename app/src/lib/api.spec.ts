@@ -34,6 +34,7 @@ import {
   fetchListings,
   fetchUnified,
   fetchShopItems,
+  fetchTrendingItems,
   fetchContractRegistry,
   fetchMyAssets,
   fetchOwnedToken,
@@ -787,6 +788,151 @@ describe('when fetching the item-unified browse feed', () => {
   it('should throw when the item-unified request fails', async () => {
     fetchMock.mockResolvedValueOnce(httpError(502))
     await expect(fetchShopItems()).rejects.toThrow('fetchShopItems 502')
+  })
+})
+
+// The home page's Trending row. Everything asserted here is a rule the row cannot enforce itself: the
+// ranking, the social-emote exclusion and the resale exclusion are all decided by the server, so what the
+// client owes is a request that asks for them and a mapping that keeps the credit price intact.
+describe('when fetching the trending items', () => {
+  const trendingRow = {
+    tradeId: 't-trending',
+    listingType: 'primary',
+    contractAddress: '0xC0',
+    itemId: '5',
+    tokenId: null,
+    name: 'Hot Hat',
+    thumbnail: '',
+    rarity: 'epic',
+    category: 'wearable',
+    wearableCategory: 'hat',
+    creator: '0xa',
+    priceCredits: 42,
+    available: 100,
+    network: 'MATIC',
+    chainId: 80002,
+    source: 'native',
+    acquisition: 'trade',
+    manaWei: null,
+    listingCount: 2,
+    trendingSales: 17
+  }
+
+  it('should ask the trending endpoint, not re-sort a browse feed', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ data: [trendingRow] }))
+
+    await fetchTrendingItems()
+
+    const url = lastUrl()
+    expect(url).toContain('https://market.test/v3/catalog/trending?')
+    // No sortBy: the ranking IS the order, so asking the browse feed for `newest` (what the Featured row
+    // this replaces did) would not be a trending row at all.
+    expect(url).not.toContain('sortBy')
+    expect(url).not.toContain('groupBy')
+  })
+
+  it('should always ask the server to exclude social emotes', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ data: [] }))
+
+    await fetchTrendingItems()
+
+    expect(lastUrl()).toContain('includeSocialEmotes=false')
+  })
+
+  it('should ask the server for primary listings only when the Shop does not sell resales', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ data: [] }))
+
+    await fetchTrendingItems({ listingType: 'primary' })
+
+    expect(lastUrl()).toContain('listingType=primary')
+  })
+
+  it('should not constrain the listing type when resales are on', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ data: [] }))
+
+    await fetchTrendingItems({})
+
+    expect(lastUrl()).not.toContain('listingType')
+  })
+
+  it('should default to twelve slots and pass an explicit size through', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ data: [] }))
+    await fetchTrendingItems()
+    expect(lastUrl()).toContain('first=12')
+
+    fetchMock.mockResolvedValueOnce(jsonOk({ data: [] }))
+    await fetchTrendingItems({ first: 20 })
+    expect(lastUrl()).toContain('first=20')
+  })
+
+  it('should map rows to the same credit-priced card model the browse grid renders', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ data: [trendingRow] }))
+
+    const items = await fetchTrendingItems()
+
+    expect(items).toHaveLength(1)
+    expect(items[0]).toMatchObject({
+      id: 't-trending',
+      tradeId: 't-trending',
+      name: 'Hot Hat',
+      priceCredits: 42,
+      listingCount: 2,
+      source: 'native'
+    })
+  })
+
+  it('should carry a credit price for a rate-converted legacy row too', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonOk({
+        data: [
+          { ...trendingRow, tradeId: 'legacy-1', source: 'legacy', priceCredits: 7, manaWei: '14000000000000000000' }
+        ]
+      })
+    )
+
+    const items = await fetchTrendingItems()
+
+    expect(items[0]).toMatchObject({ priceCredits: 7, manaWei: '14000000000000000000' })
+  })
+
+  it('should give a trending store mint an id of its own, since it has no trade', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonOk({ data: [{ ...trendingRow, tradeId: null, acquisition: 'store', contractAddress: '0xABC', itemId: '7' }] })
+    )
+
+    const items = await fetchTrendingItems()
+
+    expect(items[0].id).toBe('0xabc-7')
+    expect(items[0].tradeId).toBeUndefined()
+  })
+
+  it('should preserve the server ranking order rather than reordering it', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonOk({
+        data: [
+          { ...trendingRow, tradeId: 'a', priceCredits: 90 },
+          { ...trendingRow, tradeId: 'b', priceCredits: 1 },
+          { ...trendingRow, tradeId: 'c', priceCredits: 50 }
+        ]
+      })
+    )
+
+    const items = await fetchTrendingItems()
+
+    // Prices deliberately unsorted: any local sort (by price or name) would show up here.
+    expect(items.map(i => i.id)).toEqual(['a', 'b', 'c'])
+  })
+
+  it('should return an empty rail when the endpoint returns no data key', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({}))
+
+    await expect(fetchTrendingItems()).resolves.toEqual([])
+  })
+
+  it('should throw when the trending request fails', async () => {
+    fetchMock.mockResolvedValueOnce(httpError(503))
+
+    await expect(fetchTrendingItems()).rejects.toThrow('fetchTrendingItems 503')
   })
 })
 

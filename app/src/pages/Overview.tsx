@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { fetchShopItems, type CatalogItem } from '~/lib/api'
+import { fetchShopItems, fetchTrendingItems, type CatalogItem } from '~/lib/api'
 import { AssetCard } from '~/components/AssetCard'
 import { SkeletonCards } from '~/components/SkeletonCards'
 import { FollowedCreatorsRow } from '~/components/FollowedCreatorsRow'
@@ -9,6 +9,7 @@ import { OutfitsRow } from '~/components/OutfitsRow'
 import { TopCreators } from '~/components/TopCreators'
 import { t } from '~/intl/i18n'
 import { useSeo } from '~/hooks/useSeo'
+import { useSecondarySales } from '~/hooks/useSecondarySales'
 import { railPageCount, railPageFromScroll } from '~/lib/pagedRail'
 import carouselArrow from '~/assets/icons/carousel-arrow.svg'
 // Figma 5566:4449 "Web 1920x340", exported flat rather than rebuilt: the source is thirteen absolutely
@@ -146,6 +147,21 @@ export function Overview() {
   })
   const items = data?.items ?? []
 
+  // The Trending row: ranked by the last day's sales, server-side (marketplace-server /v3/catalog/trending),
+  // which is also where every rule the row has to honour is applied — see lib/api fetchTrendingItems for why
+  // none of it is done here.
+  //
+  // Resales are excluded unless the Shop actually offers them. The flag resolves async and reads FALSE while
+  // it does, so the first request asks for primaries only and a flag-on environment refetches once it
+  // resolves (the flag is part of the query key). That order matters: the wrong way round shows a row of
+  // resales for a moment on a Shop that does not sell them.
+  const secondarySales = useSecondarySales()
+  const { data: trending, isLoading: trendingLoading } = useQuery({
+    queryKey: ['overview-trending', secondarySales],
+    queryFn: () => fetchTrendingItems({ first: 12, listingType: secondarySales ? undefined : 'primary' })
+  })
+  const trendingItems = trending ?? []
+
   return (
     <S.Overview className="overview">
       <S.Hero>
@@ -164,10 +180,17 @@ export function Overview() {
         </S.HeroInner>
       </S.Hero>
 
+      {/* Trending replaces what used to be "Featured Products" — same slot, same card, a real ranking behind
+          it instead of "the newest twelve". It owns its own query and its own visibility: a day with no sales
+          (or an environment with none) has nothing to rank, and an empty rail titled Trending is worse than
+          no rail, so it disappears rather than falling back to something that is not trending. Gating it on
+          the listings query instead would tie it to a different feed's emptiness. */}
+      {trendingLoading || trendingItems.length > 0 ? (
+        <Carousel title={t('overview.trendingProducts')} items={trendingItems} loading={trendingLoading} />
+      ) : null}
+
       {isLoading || items.length > 0 ? (
         <>
-          <Carousel title={t('overview.featuredProducts')} items={items.slice(0, 12)} loading={isLoading} />
-
           {/* New Creations carousel — needs a second page of listings (>12) to be worth showing. */}
           {items.length > 12 ? (
             <Carousel title={t('overview.newCreations')} items={items.slice(12, 24)} loading={false} />
