@@ -96,7 +96,7 @@ describe('other resellers modal', () => {
 
     // The shop's buy modal layers over the resellers dialog and completes the purchase in place. Scope
     // the confirm to that dialog — the resale row behind it carries its own "Buy" pill.
-    await waitForText(page, 'Buy Asset')
+    await waitForText(page, 'Buy Item')
     await clickWhenEnabled(page, '[data-testid="buy-modal"] button', /^buy$/i)
     await waitForText(page, 'Purchase complete!', 30000)
     await waitForText(page, 'was successful')

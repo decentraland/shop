@@ -121,7 +121,7 @@ export function MigrateModal({
                 onClick={() => {
                   onDone()
                   onClose()
-                  navigate('/my-assets')
+                  navigate('/my-items')
                 }}
               >
                 {t('migrate.goToMyAssets')}
@@ -132,7 +132,7 @@ export function MigrateModal({
                 onClick={() => {
                   onDone()
                   onClose()
-                  navigate('/assets')
+                  navigate('/items')
                 }}
               >
                 {t('migrate.viewInShop')}

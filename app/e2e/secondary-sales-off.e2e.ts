@@ -17,7 +17,7 @@ afterEach(async () => {
  */
 describe('with secondary sales off (the shipped default)', () => {
   it('should not offer to list an owned token for sale', async () => {
-    app = await launchApp({ path: '/my-assets', secondarySales: false, fixtures: { importable: { data: [] } } })
+    app = await launchApp({ path: '/my-items', secondarySales: false, fixtures: { importable: { data: [] } } })
     const { page } = app
 
     await waitForText(page, 'Galaxy Hat #42')
@@ -32,7 +32,7 @@ describe('with secondary sales off (the shipped default)', () => {
     // The regression this guards: hiding the listing CTA once dropped the owner out of the manage view
     // altogether, so their own token rendered the BUYER surface — "Not for sale", an email field to be
     // notified when it comes back in stock, and Make an offer, all for an asset already in their wallet.
-    app = await launchApp({ path: '/my-assets', secondarySales: false, fixtures: { importable: { data: [] } } })
+    app = await launchApp({ path: '/my-items', secondarySales: false, fixtures: { importable: { data: [] } } })
     const { page } = app
 
     await waitForText(page, 'Galaxy Hat #42')

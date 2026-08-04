@@ -48,7 +48,7 @@ describe('paying with MANA in the buy flow', () => {
     expect(await page.$(MANA_CHIP).then(el => !!el)).toBe(false)
 
     await clickWhenEnabled(page, 'button', /buy now/i)
-    await waitForText(page, 'Buy Asset')
+    await waitForText(page, 'Buy Item')
     // The conventional single-CTA modal, not the method picker.
     await clickWhenEnabled(page, 'button', /^buy$/i)
     await waitForText(page, 'Purchase complete!', 30000)

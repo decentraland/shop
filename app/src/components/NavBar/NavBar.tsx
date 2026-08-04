@@ -71,11 +71,11 @@ export function NavBar() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { pathname } = useLocation()
-  // The Collectibles tab covers the whole browse surface: the grid (/assets), an item's detail page
+  // The Collectibles tab covers the whole browse surface: the grid (/items), an item's detail page
   // (/item/* and /token/* — both render ItemDetail), a collection page (/collection/*) and a creator
-  // page (/assets/creator/*, already under /assets). A NavLink to /assets alone wouldn't light up on
+  // page (/items/creator/*, already under /items). A NavLink to /items alone wouldn't light up on
   // any of the detail/collection routes, so match them explicitly here.
-  const collectiblesActive = /^\/(assets|item|token|collection)(\/|$)/.test(pathname)
+  const collectiblesActive = /^\/(items|item|token|collection)(\/|$)/.test(pathname)
   const urlQuery = searchParams.get('q') ?? ''
 
   // Balances for the global ui2 navbar. Credits: undefined while loading/on error (hides the chip —
@@ -100,7 +100,7 @@ export function NavBar() {
   }, [restore])
 
   // Keep the input in sync with the URL so deep-links, refresh, and back/forward all reflect the
-  // active query in the box (the previous local-only state left it blank on /assets?q=…).
+  // active query in the box (the previous local-only state left it blank on /items?q=…).
   useEffect(() => {
     setQ(urlQuery)
     setDebounced(urlQuery)
@@ -121,13 +121,13 @@ export function NavBar() {
     setOpen(true)
   }
 
-  // Full search → land on /assets filtered by the query (replace so we don't spam history), remember
+  // Full search → land on /items filtered by the query (replace so we don't spam history), remember
   // it, close the panel.
   function runSearch(value: string) {
     const trimmed = value.trim()
     setOpen(false)
     if (trimmed) recordSearch(trimmed)
-    navigate(trimmed ? `/assets?q=${encodeURIComponent(trimmed)}` : '/assets', {
+    navigate(trimmed ? `/items?q=${encodeURIComponent(trimmed)}` : '/items', {
       replace: true
     })
   }
@@ -168,7 +168,7 @@ export function NavBar() {
       type: 'creator',
       creator_address: creator.address
     })
-    navigate(`/assets/creator/${creator.address}`)
+    navigate(`/items/creator/${creator.address}`)
   }
 
   function onSearchChange(value: string) {
@@ -182,7 +182,7 @@ export function NavBar() {
     setQ('')
     setDebounced('')
     setOpen(false)
-    navigate('/assets', { replace: true })
+    navigate('/items', { replace: true })
   }
 
   function removeRecent(term: string) {
@@ -241,11 +241,11 @@ export function NavBar() {
         <S.Tabs data-testid="subnav-tabs">
           <NavLink to="/overview">{t('nav.overview')}</NavLink>
           {/* Collectibles stays active across the item detail / collection / creator pages too (they're
-              all part of browsing collectibles), not just the /assets grid. */}
-          <NavLink to="/assets" className={() => (collectiblesActive ? 'active' : '')}>
+              all part of browsing collectibles), not just the /items grid. */}
+          <NavLink to="/items" className={() => (collectiblesActive ? 'active' : '')}>
             {t('nav.collectibles')}
           </NavLink>
-          <NavLink to="/my-assets">{t('nav.myAssets')}</NavLink>
+          <NavLink to="/my-items">{t('nav.myAssets')}</NavLink>
           {session ? <NavLink to="/activity">{t('nav.activity')}</NavLink> : null}
           {/* Approvals are only meaningful for self-custody wallets; managed (web2) users never see wallet
               jargon (CONVENTIONS.md), so the entry point is hidden for them. */}

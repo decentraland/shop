@@ -121,7 +121,7 @@ export function Creator() {
   return (
     <CP.Page>
       <CP.Crumbs aria-label={t('creator.breadcrumbAria')}>
-        <CP.CrumbLink onClick={() => navigate('/assets')}>{t('creator.breadcrumb')}</CP.CrumbLink>
+        <CP.CrumbLink onClick={() => navigate('/items')}>{t('creator.breadcrumb')}</CP.CrumbLink>
         <span>/</span>
         <CP.CrumbCurrent>{name}</CP.CrumbCurrent>
       </CP.Crumbs>

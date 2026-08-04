@@ -71,7 +71,7 @@ export function OutfitDetail() {
         <S.EmptyIco name="cart" size={44} />
         <S.EmptyTitle>{t('outfits.detail.notFoundTitle')}</S.EmptyTitle>
         <p className="muted">{t('outfits.detail.notFoundBody')}</p>
-        <Button as={Link} to="/assets" variant="purple">
+        <Button as={Link} to="/items" variant="purple">
           {t('notFound.cta')}
         </Button>
       </S.Empty>
@@ -292,7 +292,7 @@ function OutfitContent({ outfit }: { outfit: Outfit }) {
                           <S.ItemBody>
                             <S.ItemName>{row.item.name}</S.ItemName>
                             {row.item.creator ? (
-                              <S.ItemAuthor to={`/assets/creator/${row.item.creator}`}>
+                              <S.ItemAuthor to={`/items/creator/${row.item.creator}`}>
                                 <CreatorName address={row.item.creator} />
                               </S.ItemAuthor>
                             ) : null}

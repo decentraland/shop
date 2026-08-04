@@ -264,7 +264,7 @@ describe('outfits row on the overview', () => {
 
 describe('outfit detail page', () => {
   it('shows the per-item states, an honest count and a CTA that reflects what it can add', async () => {
-    const page = await launch(`/assets/outfits/${PARTIAL_ID}`)
+    const page = await launch(`/items/outfits/${PARTIAL_ID}`)
     await page.waitForSelector('[data-testid="outfit-detail"]', { timeout: 20000 })
     await waitForText(page, 'Nebula Look')
 
@@ -304,7 +304,7 @@ describe('outfit detail page', () => {
   })
 
   it("backs the avatar preview with the creator's colors as a radial glow", async () => {
-    const page = await launch(`/assets/outfits/${FULL_ID}`)
+    const page = await launch(`/items/outfits/${FULL_ID}`)
     await page.waitForSelector('[data-testid="outfit-detail-preview"]', { timeout: 20000 })
     const background = await page.$eval(
       '[data-testid="outfit-detail-preview"]',
@@ -314,7 +314,7 @@ describe('outfit detail page', () => {
   })
 
   it('shows the translated not-found state for an unknown id', async () => {
-    const page = await launch('/assets/outfits/no-such-outfit')
+    const page = await launch('/items/outfits/no-such-outfit')
     await page.waitForSelector('[data-testid="outfit-notfound"]', { timeout: 20000 })
     await waitForText(page, "This outfit isn't available")
   })
@@ -450,7 +450,7 @@ describe('outfits at phone width (≤768px)', () => {
   })
 
   it('the detail page stacks and pins the CTA bar to the bottom', async () => {
-    const page = await launch(`/assets/outfits/${FULL_ID}`)
+    const page = await launch(`/items/outfits/${FULL_ID}`)
     await page.setViewport(PHONE)
     await page.waitForSelector('[data-testid="outfit-detail"]', { timeout: 20000 })
     await waitForText(page, 'Galaxy Look')

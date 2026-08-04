@@ -17,7 +17,7 @@ describe('owner management on the item detail page', () => {
     // `unifiedWithItem0Resale` because the "view other resellers" link asserted below only renders
     // when item 0 actually has other copies on sale.
     app = await launchApp({
-      path: '/my-assets',
+      path: '/my-items',
       fixtures: {
         ownedNfts: ownedNftsOnSale,
         trade: buyTrade,

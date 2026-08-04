@@ -28,9 +28,9 @@ describe('the sub-nav', () => {
     await page.evaluate(() => ((window as unknown as { __spa?: boolean }).__spa = true))
 
     for (const [label, expected] of [
-      ['collectibles', '/assets'],
+      ['collectibles', '/items'],
       ['activity', '/activity'],
-      ['my assets', '/my-assets'],
+      ['my items', '/my-items'],
       ['overview', '/overview']
     ] as const) {
       expect(await clickByText(page, 'a', new RegExp(`^${label}$`, 'i'))).toBe(true)

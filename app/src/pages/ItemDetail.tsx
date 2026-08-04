@@ -883,7 +883,7 @@ export function ItemDetail() {
         <S.NotFoundIco name="cart" />
         <S.NotFoundTitle>{t('itemDetail.notAvailableTitle')}</S.NotFoundTitle>
         <p className="muted">{t('itemDetail.notAvailableBody')}</p>
-        <S.NotFoundCta variant="purple" onClick={() => navigate('/assets')}>
+        <S.NotFoundCta variant="purple" onClick={() => navigate('/items')}>
           {t('notFound.cta')}
         </S.NotFoundCta>
       </S.Detail>
@@ -893,7 +893,7 @@ export function ItemDetail() {
   return (
     <S.Detail>
       <S.Crumbs aria-label={t('itemDetail.breadcrumbAria')}>
-        <S.CrumbLink onClick={() => navigate('/assets')}>{t('nav.collectibles')}</S.CrumbLink>
+        <S.CrumbLink onClick={() => navigate('/items')}>{t('nav.collectibles')}</S.CrumbLink>
         <S.CrumbSep>/</S.CrumbSep>
         <S.CrumbCurrent>{current.name || t('itemDetail.itemFallback')}</S.CrumbCurrent>
       </S.Crumbs>
@@ -1339,7 +1339,7 @@ export function ItemDetail() {
                   {!manage && !isMarket && ownedItemCount > 0 ? (
                     <S.OwnNote data-testid="you-own-note">
                       {t('itemDetail.youOwnN', { count: ownedItemCount })}{' '}
-                      <Link to="/my-assets">{t('nav.myAssets')}</Link>
+                      <Link to="/my-items">{t('nav.myAssets')}</Link>
                       {/* TODO: deep-link to My Assets filtered by this collection once that filter exists. */}
                     </S.OwnNote>
                   ) : null}

@@ -41,7 +41,7 @@ export function MyFavorites() {
           <S.EmptyTitle>{t('myFavorites.emptyTitle')}</S.EmptyTitle>
           <S.EmptyBody>{t('myFavorites.emptyBody')}</S.EmptyBody>
         </S.EmptyText>
-        <S.EmptyCta to="/assets">{t('myFavorites.emptyCta')}</S.EmptyCta>
+        <S.EmptyCta to="/items">{t('myFavorites.emptyCta')}</S.EmptyCta>
       </S.Empty>
     )
   }

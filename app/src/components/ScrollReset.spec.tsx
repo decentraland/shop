@@ -36,10 +36,10 @@ describe('ScrollReset', () => {
 
   it('scrolls a freshly-navigated page to the top', () => {
     const { getByText } = render(
-      <MemoryRouter initialEntries={['/assets']}>
+      <MemoryRouter initialEntries={['/items']}>
         <ScrollReset />
         <Routes>
-          <Route path="/assets" element={<Nav to="/cart" action="push" />} />
+          <Route path="/items" element={<Nav to="/cart" action="push" />} />
           <Route path="/cart" element={<p>cart</p>} />
         </Routes>
       </MemoryRouter>
@@ -53,11 +53,11 @@ describe('ScrollReset', () => {
 
   it('leaves the scroll alone on back/forward, so a long grid keeps its place', () => {
     const { getByText } = render(
-      <MemoryRouter initialEntries={['/assets', '/item/1']} initialIndex={1}>
+      <MemoryRouter initialEntries={['/items', '/item/1']} initialIndex={1}>
         <ScrollReset />
         <Routes>
-          <Route path="/assets" element={<p>grid</p>} />
-          <Route path="/item/1" element={<Nav to="/assets" action="back" />} />
+          <Route path="/items" element={<p>grid</p>} />
+          <Route path="/item/1" element={<Nav to="/items" action="back" />} />
         </Routes>
       </MemoryRouter>
     )
@@ -72,10 +72,10 @@ describe('ScrollReset', () => {
     // Paging and filtering the grid rewrite the search params; moving the viewport mid-browse would be
     // the opposite of helpful.
     const { getByText } = render(
-      <MemoryRouter initialEntries={['/assets']}>
+      <MemoryRouter initialEntries={['/items']}>
         <ScrollReset />
         <Routes>
-          <Route path="/assets" element={<Nav to="/assets?page=2" action="push" />} />
+          <Route path="/items" element={<Nav to="/items?page=2" action="push" />} />
         </Routes>
       </MemoryRouter>
     )

@@ -4,9 +4,9 @@ const BASE = process.env.SHOP_URL ?? 'http://localhost:5173'
 const OUT = new URL('../../design/screens/', import.meta.url).pathname
 const routes = [
   ['overview', '/overview'],
-  ['assets', '/assets'],
+  ['items', '/items'],
   ['cart', '/cart'],
-  ['my-assets', '/my-assets']
+  ['my-items', '/my-items']
 ]
 
 const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] })

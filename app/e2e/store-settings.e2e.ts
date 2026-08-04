@@ -58,7 +58,7 @@ describe('store settings', () => {
 
     // Success toast + a deploy POST + redirect to the signed-in creator's storefront.
     await waitForText(page, 'Store saved')
-    await page.waitForFunction(() => location.pathname.startsWith('/assets/creator/'), { timeout: 5000 })
+    await page.waitForFunction(() => location.pathname.startsWith('/items/creator/'), { timeout: 5000 })
     expect(deploys.length).toBe(1)
   })
 

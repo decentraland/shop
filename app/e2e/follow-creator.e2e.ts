@@ -21,7 +21,7 @@ afterEach(async () => {
   app = undefined
 })
 
-const CREATOR_PATH = `/assets/creator/${CREATOR_ADDRESS}`
+const CREATOR_PATH = `/items/creator/${CREATOR_ADDRESS}`
 
 describe('following a creator', () => {
   it('starts unfollowed and flips to Following when pressed', async () => {

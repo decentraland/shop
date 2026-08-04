@@ -79,7 +79,7 @@ function Carousel({ title, items, loading }: { title: string; items: CatalogItem
     <S.Carousel>
       <Row.Head>
         <Row.Title>{title}</Row.Title>
-        <Row.ViewAll to="/assets">
+        <Row.ViewAll to="/items">
           {t('overview.viewAll')} <Icon name="view-all-arrow" size={18} />
         </Row.ViewAll>
       </Row.Head>
@@ -150,7 +150,7 @@ export function Overview() {
         <S.HeroScrim aria-hidden />
         <S.HeroInner>
           <S.HeroTitle>{t('overview.heroTitle')}</S.HeroTitle>
-          <S.HeroCta as={Link} to="/assets" variant="purple">
+          <S.HeroCta as={Link} to="/items" variant="purple">
             {t('overview.exploreCollection')}
           </S.HeroCta>
         </S.HeroInner>
@@ -162,10 +162,10 @@ export function Overview() {
 
           {/* Promo tiles (Figma node 913:135589). Placeholder art — see report for production source. */}
           <S.Promos>
-            <S.Promo to="/assets" aria-label={t('overview.promoEmotesAria')}>
+            <S.Promo to="/items" aria-label={t('overview.promoEmotesAria')}>
               <img src={promoEmotes} alt={t('overview.promoEmotesAlt')} />
             </S.Promo>
-            <S.Promo to="/assets" aria-label={t('overview.promoOutfitsAria')}>
+            <S.Promo to="/items" aria-label={t('overview.promoOutfitsAria')}>
               <img src={promoOutfits} alt={t('overview.promoOutfitsAlt')} />
             </S.Promo>
           </S.Promos>
@@ -179,7 +179,7 @@ export function Overview() {
         <S.Empty>
           <S.EmptyTitle>{t('overview.emptyTitle')}</S.EmptyTitle>
           <p className="muted">{t('overview.emptyBody')}</p>
-          <S.EmptyCta as={Link} to="/assets" variant="purple">
+          <S.EmptyCta as={Link} to="/items" variant="purple">
             {t('notFound.cta')}
           </S.EmptyCta>
         </S.Empty>

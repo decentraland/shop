@@ -95,7 +95,7 @@ describe('search bar', () => {
     await page.waitForFunction(() => /\/creator\//.test(location.pathname))
   })
 
-  it('runs a full search on Enter and lands on /assets?q=', async () => {
+  it('runs a full search on Enter and lands on /items?q=', async () => {
     app = await launchApp({ path: '/overview' })
     const { page } = app
 
@@ -103,7 +103,7 @@ describe('search bar', () => {
     await page.type(SEARCH, 'Galaxy')
     await page.keyboard.press('Enter')
 
-    await page.waitForFunction(() => location.pathname === '/assets' && /q=Galaxy/i.test(location.search))
+    await page.waitForFunction(() => location.pathname === '/items' && /q=Galaxy/i.test(location.search))
     // The results header echoes the query, and the matching item renders in the grid.
     await waitForText(page, 'Galaxy Hat')
   })
@@ -129,7 +129,7 @@ describe('search bar', () => {
 
   it('reflects the URL query in the input on a deep link', async () => {
     // Landing directly on a filtered URL must pre-fill the search box (previously it stayed blank).
-    app = await launchApp({ path: '/assets?q=Nebula' })
+    app = await launchApp({ path: '/items?q=Nebula' })
     const { page } = app
 
     await page.waitForSelector(SEARCH)
@@ -137,14 +137,14 @@ describe('search bar', () => {
     expect(value).toBe('Nebula')
   })
 
-  it('clears the search with the clear button and returns to /assets', async () => {
-    app = await launchApp({ path: '/assets?q=Nebula' })
+  it('clears the search with the clear button and returns to /items', async () => {
+    app = await launchApp({ path: '/items?q=Nebula' })
     const { page } = app
 
     await page.waitForSelector('[data-testid="subnav-search-clear"]')
     await page.click('[data-testid="subnav-search-clear"]')
 
-    await page.waitForFunction(() => location.pathname === '/assets' && location.search === '')
+    await page.waitForFunction(() => location.pathname === '/items' && location.search === '')
     const value = await page.$eval(SEARCH, el => (el as HTMLInputElement).value)
     expect(value).toBe('')
   })
@@ -157,7 +157,7 @@ describe('search bar', () => {
   // testid; its aria-label is the stable hook) — waiting on it also keeps the balance fetch settled
   // before the widths are measured.
   it('keeps the field usable, and the page unscrolled sideways, as the window narrows', async () => {
-    app = await launchApp({ path: '/assets', manaBalanceWei: '5000000000000000000' })
+    app = await launchApp({ path: '/items', manaBalanceWei: '5000000000000000000' })
     const { page } = app
     await page.waitForSelector(SEARCH)
     await page.waitForSelector('button[aria-label$="MANA on Polygon"]')
@@ -200,7 +200,7 @@ describe('search bar', () => {
   })
 
   it('gives the tab strip its own row below lg, and keeps it whole on a desktop window', async () => {
-    app = await launchApp({ path: '/assets' })
+    app = await launchApp({ path: '/items' })
     const { page } = app
     await page.waitForSelector('[data-testid="subnav-tabs"]')
     const tabsClipped = async () =>
@@ -223,7 +223,7 @@ describe('search bar', () => {
   })
 
   it('centres the clear button glyph inside its round hover fill', async () => {
-    app = await launchApp({ path: '/assets?q=Nebula' })
+    app = await launchApp({ path: '/items?q=Nebula' })
     const { page } = app
     await page.waitForSelector('[data-testid="subnav-search-clear"]')
 

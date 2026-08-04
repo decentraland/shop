@@ -252,7 +252,7 @@ export function Authorizations() {
         <Icon name="check" size={40} color={theme.colors.ok} />
         <S.EmptyTitle>{t('authorizations.managedTitle')}</S.EmptyTitle>
         <p className="muted">{t('authorizations.managedBody')}</p>
-        <S.EmptyCta as={Link} to="/assets" variant="purple">
+        <S.EmptyCta as={Link} to="/items" variant="purple">
           {t('authorizations.managedCta')}
         </S.EmptyCta>
       </S.Empty>

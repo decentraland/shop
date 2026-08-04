@@ -131,7 +131,7 @@ export function ImportListings() {
         <S.EmptyIco aria-hidden>✨</S.EmptyIco>
         <S.EmptyTitle>{t('importListings.emptyTitle')}</S.EmptyTitle>
         <p className="muted">{t('importListings.emptyBody')}</p>
-        <S.EmptyCta as={Link} to="/my-assets" variant="purple">
+        <S.EmptyCta as={Link} to="/my-items" variant="purple">
           {t('importListings.goToMyAssets')}
         </S.EmptyCta>
       </S.Empty>

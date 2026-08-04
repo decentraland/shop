@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect } from 'react'
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom'
 import * as Sentry from '@sentry/react'
 import { NavBar } from '~/components/NavBar'
 import { PrelaunchNotice } from '~/components/PrelaunchNotice'
@@ -19,10 +19,14 @@ import styled from '@emotion/styled'
 import { t } from '~/intl/i18n'
 
 // Route path → funnel page name (see design/SHOP_TRACKING_SPEC.md §5.2).
+//
+// The NAMES are frozen even where the route was renamed: they are the `page` prop of `Shop Viewed Page`,
+// so 'assets'/'my_assets' are what every existing funnel and dashboard groups on. Renaming them to match
+// the new paths would silently split each series in two at the deploy.
 const PAGE_NAMES: Record<string, string> = {
   '/overview': 'overview',
-  '/assets': 'assets',
-  '/my-assets': 'my_assets',
+  '/items': 'assets',
+  '/my-items': 'my_assets',
   '/my-favorites': 'favorites',
   '/activity': 'activity',
   '/import': 'import',
@@ -80,6 +84,15 @@ function CrashFallback() {
   )
 }
 
+// Redirect for a route whose PREFIX was renamed, forwarding whatever followed it: /assets/creator/0x1?q=a
+// → /items/creator/0x1?q=a. A plain <Navigate to="/items"> can't do this — it takes a literal path, so it
+// would drop both the sub-path and the query, landing a shared creator or outfit link on the bare grid.
+function RenamedPathRedirect({ to }: { to: string }) {
+  const rest = useParams()['*']
+  const { search, hash } = useLocation()
+  return <Navigate to={`${to}${rest ? `/${rest}` : ''}${search}${hash}`} replace />
+}
+
 export function App() {
   // Reload when the injected wallet switches/disconnects accounts (see the hook for the rationale).
   useAccountWatcher()
@@ -109,9 +122,9 @@ export function App() {
         ? 'item'
         : path.startsWith('/collection/')
           ? 'collection'
-          : path.startsWith('/assets/creator/')
+          : path.startsWith('/items/creator/')
             ? 'creator'
-            : path.startsWith('/assets/outfits/')
+            : path.startsWith('/items/outfits/')
               ? 'outfit'
               : path.startsWith('/outfits/')
                 ? 'outfit_studio'
@@ -154,29 +167,38 @@ export function App() {
             <Routes>
               <Route path="/" element={<Navigate to="/overview" replace />} />
               <Route path="/overview" element={<Overview />} />
-              <Route path="/assets" element={<Assets />} />
-              {/* Assets is now the unified browse (native + legacy). Keep /market as an alias so old
+              <Route path="/items" element={<Assets />} />
+              {/* Items is the unified browse (native + legacy). Keep /market as an alias so old
                 links don't 404 — it lands on the same grid. */}
-              <Route path="/market" element={<Navigate to="/assets" replace />} />
+              <Route path="/market" element={<Navigate to="/items" replace />} />
               {/* Two detail routes so the id is never ambiguous (an itemId and a tokenId can collide —
                   item 0's tokens have small tokenIds). /item is the generic buy view; /token is a
                   specific owned/listed copy. Both render ItemDetail, which branches on the param. */}
               <Route path="/item/:contractAddress/:itemId" element={<ItemDetail />} />
               <Route path="/token/:contractAddress/:tokenId" element={<ItemDetail />} />
               <Route path="/collection/:contractAddress" element={<Collection />} />
-              <Route path="/assets/creator/:address" element={<Creator />} />
+              <Route path="/items/creator/:address" element={<Creator />} />
               <Route path="/outfits/manage" element={<OutfitStudio />} />
               <Route path="/outfits/new" element={<OutfitStudio />} />
               <Route path="/outfits/:id/edit" element={<OutfitStudio />} />
-              {/* Under /assets so the Collectibles tab lights up on an outfit. */}
-              <Route path="/assets/outfits/:id" element={<OutfitDetail />} />
+              {/* Under /items so the Collectibles tab lights up on an outfit. */}
+              <Route path="/items/outfits/:id" element={<OutfitDetail />} />
               <Route path="/store-settings" element={<StoreSettings />} />
-              <Route path="/my-assets" element={<MyAssets />} />
+              <Route path="/my-items" element={<MyAssets />} />
               <Route path="/my-favorites" element={<MyFavorites />} />
               <Route path="/activity" element={<Activity />} />
               {/* Activity absorbed the old My Purchases page — keep the old path as a redirect so
                   existing links (e.g. the Success page, bookmarks) don't 404. */}
               <Route path="/my-purchases" element={<Navigate to="/activity" replace />} />
+              {/* /assets and /my-assets were renamed to /items and /my-items when the user-facing noun
+                  became "item". The old paths MUST stay: /assets is published in public/sitemap.xml, so it
+                  is indexed, and creator storefronts (/assets/creator/:address) and outfit pages
+                  (/assets/outfits/:id) have been shared as links. The splat covers both of those plus
+                  anything added under the prefix later; the bare /assets is listed separately so the
+                  redirect doesn't depend on a splat matching zero segments. */}
+              <Route path="/assets" element={<RenamedPathRedirect to="/items" />} />
+              <Route path="/assets/*" element={<RenamedPathRedirect to="/items" />} />
+              <Route path="/my-assets" element={<RenamedPathRedirect to="/my-items" />} />
               <Route path="/import" element={<ImportListings />} />
               <Route path="/cart" element={<Cart />} />
               <Route path="/authorizations" element={<Authorizations />} />

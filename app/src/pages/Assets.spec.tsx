@@ -58,7 +58,7 @@ function renderAssets() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={['/assets']}>
+      <MemoryRouter initialEntries={['/items']}>
         <Assets />
       </MemoryRouter>
     </QueryClientProvider>

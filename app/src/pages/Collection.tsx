@@ -102,7 +102,7 @@ export function Collection() {
   return (
     <CP.Page data-testid="collection-page">
       <CP.Crumbs aria-label={t('collection.breadcrumbAria')}>
-        <CP.CrumbLink onClick={() => navigate('/assets')}>{t('collection.breadcrumb')}</CP.CrumbLink>
+        <CP.CrumbLink onClick={() => navigate('/items')}>{t('collection.breadcrumb')}</CP.CrumbLink>
         <span>/</span>
         <CP.CrumbCurrent>{title}</CP.CrumbCurrent>
       </CP.Crumbs>

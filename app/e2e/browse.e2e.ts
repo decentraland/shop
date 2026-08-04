@@ -11,7 +11,7 @@ afterEach(async () => {
 
 describe('browse the shop', () => {
   it('shows credit-buyable listings', async () => {
-    app = await launchApp({ path: '/assets' })
+    app = await launchApp({ path: '/items' })
     const { page } = app
     await waitForText(page, 'Galaxy Hat')
     await waitForText(page, 'Nebula Jacket')
@@ -19,7 +19,7 @@ describe('browse the shop', () => {
   })
 
   it('shows a Smart badge on smart-wearable cards', async () => {
-    app = await launchApp({ path: '/assets' })
+    app = await launchApp({ path: '/items' })
     const { page } = app
     await waitForText(page, 'Nebula Jacket')
     // The smart-wearable fixture (Nebula Jacket) renders a [data-testid="chip-smart"] on its chips row; the
@@ -34,7 +34,7 @@ describe('browse the shop', () => {
     // The buyer must not be able to tell the two apart. A legacy (MANA-priced) row used to render an "≈"
     // price, a "Market price" chip and Buy now instead of Add to cart, because the cart could not price a
     // MANA-denominated trade. It can now, so both sources get the same treatment.
-    app = await launchApp({ path: '/assets' })
+    app = await launchApp({ path: '/items' })
     const { page } = app
 
     // Both a native (Galaxy Hat, fixed price) and a legacy (Retro Cap) card are present.
@@ -63,7 +63,7 @@ describe('browse the shop', () => {
    * and it is why "the data will have collapsed to 1 anyway" was never a safe assumption to rely on.
    */
   it('shows no on-sale badge even when the feed reports several listings', async () => {
-    app = await launchApp({ path: '/assets' })
+    app = await launchApp({ path: '/items' })
     const { page } = app
     await waitForText(page, 'Galaxy Hat')
     // The Galaxy Hat fixture carries listingCount 3; there are no secondary sales, so nothing may advertise
@@ -74,7 +74,7 @@ describe('browse the shop', () => {
   it('shows NOT FOR SALE + VIEW (never Add to cart) on a card with no live price', async () => {
     const rows = (fx.unifiedListings as { data: Record<string, unknown>[] }).data
     app = await launchApp({
-      path: '/assets',
+      path: '/items',
       fixtures: {
         unifiedListings: { data: [rows[1], { ...rows[0], name: 'Not For Sale Hat', priceCredits: 0 }] }
       }
@@ -102,13 +102,13 @@ describe('browse the shop', () => {
   })
 
   it('opens the item detail by clicking a card (whole-card overlay link)', async () => {
-    app = await launchApp({ path: '/assets' })
+    app = await launchApp({ path: '/items' })
     const { page } = app
     await waitForText(page, 'Galaxy Hat')
 
     // Clicking the favourite button must NOT navigate (nested control stays independent of the link).
     await page.click('[data-testid="card"] [data-testid="card-fav"]')
-    expect(await page.evaluate(() => window.location.pathname)).toBe('/assets')
+    expect(await page.evaluate(() => window.location.pathname)).toBe('/items')
 
     // Clicking the card's overlay link navigates to that item's detail page.
     await page.click('[data-testid="card"] [data-testid="card-link"]')
@@ -117,7 +117,7 @@ describe('browse the shop', () => {
   })
 
   it('filters by rarity (server-side)', async () => {
-    app = await launchApp({ path: '/assets' })
+    app = await launchApp({ path: '/items' })
     const { page } = app
     await waitForText(page, 'Galaxy Hat')
 

@@ -6,7 +6,7 @@ import * as fx from './fixtures'
 /**
  * What fills the Overview's two rails.
  *
- * This exists because the home page was EMPTY in production while /assets showed thousands of items. The
+ * This exists because the home page was EMPTY in production while /items showed thousands of items. The
  * rails read the Shop-only feed (`/v3/catalog/shop`), which returns just the listings signed through the
  * Shop — nothing at all on a chain the Shop has not operated on yet — while the browse grid reads the
  * unified feed, which also carries the legacy MANA-priced liquidity converted to credits.

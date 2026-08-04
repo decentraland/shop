@@ -50,7 +50,7 @@ type SearchDropdownProps = {
   // Collection / creator chosen → open its storefront page.
   onSelectCollection: (collection: CollectionHit) => void
   onSelectCreator: (creator: CreatorHit) => void
-  // "See all results" / a recent-search pick → run a full search on /assets.
+  // "See all results" / a recent-search pick → run a full search on /items.
   onRunSearch: (query: string) => void
   onRemoveRecent: (query: string) => void
   onClearRecent: () => void

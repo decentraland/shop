@@ -8,7 +8,7 @@
   "nav": {
     "overview": "Overview",
     "collectibles": "Collectibles",
-    "myAssets": "My Assets",
+    "myAssets": "My Items",
     "myFavorites": "My Favorites",
     "activity": "Activity",
     "authorizations": "Approvals",
@@ -75,7 +75,7 @@
     "miscellaneous": "Miscellaneous"
   },
   "creator": {
-    "breadcrumb": "Assets",
+    "breadcrumb": "Items",
     "category": "Category",
     "fallbackName": "Creator",
     "viewProfile": "View profile",
@@ -169,7 +169,7 @@
       "insufficient": "You don't have enough {currency} — get more first.",
       "noneAvailable": "None of these items are available to buy right now.",
       "listingChanged": "One or more items changed — please review your cart and try again.",
-      "partiallyBought": "Part of your purchase went through. Those items are in My Assets — the rest are still in your cart, so you can try again without paying twice."
+      "partiallyBought": "Part of your purchase went through. Those items are in My Items — the rest are still in your cart, so you can try again without paying twice."
     },
     "drop": {
       "unavailable": "{count} no longer available",
@@ -265,7 +265,7 @@
     "errorGeneric": "Couldn’t complete the approval — please try again."
   },
   "buyModal": {
-    "titleBuy": "Buy Asset",
+    "titleBuy": "Buy Item",
     "titleNoFunds": "Buy Credits and Item",
     "titleComplete": "Purchase complete!",
     "dialogAria": "Buy {name}",
@@ -295,8 +295,8 @@
     "completingPurchase": "Completing Purchase…",
     "completingTransaction": "Completing your purchase…",
     "confirmToContinue": "Confirm to continue…",
-    "successBody": "You can find your item in the My Assets tab.",
-    "myAssets": "My assets",
+    "successBody": "You can find your item in the My Items tab.",
+    "myAssets": "My items",
     "tryInWorld": "Try in world",
     "itemFallback": "Item",
     "error": {
@@ -305,7 +305,7 @@
     }
   },
   "cartCheckout": {
-    "titleBuy": "Buy Assets",
+    "titleBuy": "Buy Items",
     "titleNoFunds": "Buy Credits and Items",
     "dialogAria": "Check out your cart",
     "qty": "× {count}",
@@ -452,8 +452,8 @@
     "viewOrder": "View order",
     "useItInWorld": "Use it in-world",
     "bannerTitle": "Your purchase was successful!",
-    "bannerBody": "You can find your item in the My Assets tab.",
-    "myAssets": "My Assets",
+    "bannerBody": "You can find your item in the My Items tab.",
+    "myAssets": "My Items",
     "tryInWorld": "Try in World"
   },
   "itemPreview": {
@@ -511,7 +511,7 @@
     "collectionsError": "We couldn’t load your collections right now. Please try again in a moment.",
     "nothingToPublish": "You don’t have any items to publish yet.",
     "available": "{count, number} available",
-    "assetsHeading": "Assets",
+    "assetsHeading": "Items",
     "sectionWearables": "Wearables",
     "sectionEmotes": "Emotes",
     "sectionNames": "Names",
@@ -784,7 +784,7 @@
     "signInBody": "Sign in to bring the items you already sell into the Shop.",
     "emptyTitle": "You're all caught up",
     "emptyBody": "Everything you sell is already in the Shop — nothing to import.",
-    "goToMyAssets": "Go to My Assets",
+    "goToMyAssets": "Go to My Items",
     "title": "Bring your listings into the new shop!",
     "lede": "Your items can now be priced in {currency}. We've suggested equivalent prices based on today's MANA exchange rate, but you can adjust them before publishing. Once you're ready, list your items in the new Shop.",
     "learnMore": "Learn More",
@@ -885,8 +885,8 @@
     "listedSummary": "{count, plural, one {# item is} other {# items are}} now for sale with {currency}.",
     "noneListed": "No items were listed.",
     "skippedSummary": "{count, plural, one {# skipped} other {# skipped}} — you can try those again anytime.",
-    "unlistedSummary": "{count, plural, one {# item was taken off the old marketplace but couldn't be re-listed — re-list it from My Assets.} other {# items were taken off the old marketplace but couldn't be re-listed — re-list them from My Assets.}}",
-    "goToMyAssets": "Go to My Assets",
+    "unlistedSummary": "{count, plural, one {# item was taken off the old marketplace but couldn't be re-listed — re-list it from My Items.} other {# items were taken off the old marketplace but couldn't be re-listed — re-list them from My Items.}}",
+    "goToMyAssets": "Go to My Items",
     "viewInShop": "View in Shop",
     "listingTitle": "Listing your items",
     "subConfirm": "We take down each old listing and re-list it for credits — confirm each step.",
@@ -897,7 +897,7 @@
     "statusAdding": "Adding…",
     "statusSkipped": "Skipped",
     "statusFailed": "Failed",
-    "unlistedTooltip": "Removed from the old marketplace but not re-listed — re-list it from My Assets.",
+    "unlistedTooltip": "Removed from the old marketplace but not re-listed — re-list it from My Items.",
     "statusUnlisted": "Not listed",
     "hintConfirm": "A couple of quick confirmations pop up per item (take down + re-list). Keep this open.",
     "hintManaged": "This only takes a moment — keep this open.",

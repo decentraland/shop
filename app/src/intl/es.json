@@ -452,8 +452,8 @@
     "viewOrder": "Ver pedido",
     "useItInWorld": "Úsalo en el mundo",
     "bannerTitle": "¡Tu compra se realizó con éxito!",
-    "bannerBody": "Puedes encontrar tu artículo en la pestaña Mis Activos.",
-    "myAssets": "Mis Activos",
+    "bannerBody": "Puedes encontrar tu artículo en la pestaña Mis artículos.",
+    "myAssets": "Mis artículos",
     "tryInWorld": "Probar en el mundo"
   },
   "itemPreview": {
@@ -511,7 +511,7 @@
     "collectionsError": "No pudimos cargar tus colecciones en este momento. Inténtalo de nuevo en un momento.",
     "nothingToPublish": "Todavía no tienes artículos para publicar.",
     "available": "{count, plural, one {# disponible} other {# disponibles}}",
-    "assetsHeading": "Activos",
+    "assetsHeading": "Artículos",
     "sectionWearables": "Wearables",
     "sectionEmotes": "Emotes",
     "sectionNames": "Nombres",
@@ -971,7 +971,7 @@
     "tryAgain": "Reintentar",
     "pendingHeaderTitle": "Compra en proceso",
     "pendingBannerBold": "Tu pago se procesó.",
-    "pendingBannerRest": "Tu NAME se está terminando de registrar y aparecerá en Mis ítems en breve — no tenés que hacer nada.",
+    "pendingBannerRest": "Tu NAME se está terminando de registrar y aparecerá en Mis artículos en breve — no tenés que hacer nada.",
     "priceUnavailable": "No podemos calcular el precio de los NAMEs en este momento. Probá de nuevo en un rato.",
     "insufficientCredits": "Te faltan {credits} credits para comprar este NAME.",
     "errorRouteCost": "El registro de NAMEs no está disponible temporalmente porque los costos de red están muy altos. Probá más tarde."
@@ -984,7 +984,7 @@
     "creditsName": "Completar una compra con MANA",
     "creditsDesc": "Permite que el Shop tome MANA para cubrir la parte que tus credits no alcanzan, cuando pagás con los dos.",
     "manaName": "Pagar una compra entera con MANA",
-    "manaDesc": "Permite que el Shop tome MANA cuando pagás un ítem enteramente en MANA, sin gastar credits.",
+    "manaDesc": "Permite que el Shop tome MANA cuando pagás un artículo enteramente en MANA, sin gastar credits.",
     "sellingDesc": "Permite que la Shop transfiera artículos de esta colección cuando se vendan. Abarca la colección completa, no un solo artículo.",
     "sellingEmpty": "Todavía no hay nada que autorizar. Las autorizaciones para vender aparecen aquí cuando tienes coleccionables.",
     "sellingTruncated": "Tienes muchos coleccionables, así que esta lista cubre las colecciones de los {count} más recientes.",

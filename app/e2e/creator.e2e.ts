@@ -15,7 +15,7 @@ describe('creator storefront', () => {
     // shopListings fixture, whose items are all created by CREATOR_ADDRESS — a wallet that is NOT the
     // signed-in test user, so the self-purchase guard doesn't hide them). The hero name/description
     // come from the mocked profile + store entity.
-    app = await launchApp({ path: `/assets/creator/${CREATOR_ADDRESS}` })
+    app = await launchApp({ path: `/items/creator/${CREATOR_ADDRESS}` })
     const { page } = app
 
     // Hero: creator name (profile) + store description + View profile link out to the DCL profile.
@@ -43,7 +43,7 @@ describe('creator storefront', () => {
   it('shows the empty state for a creator with no items', async () => {
     // A different address the fixture has no items for → empty-state copy. No store entity either,
     // so the hero renders with the bundled default cover (still shows the shortened address as name).
-    app = await launchApp({ path: '/assets/creator/0x0000000000000000000000000000000000000abc' })
+    app = await launchApp({ path: '/items/creator/0x0000000000000000000000000000000000000abc' })
     const { page } = app
 
     await waitForText(page, 'This creator has no items to show yet')
@@ -53,7 +53,7 @@ describe('creator storefront', () => {
   // Hovering a collection card must swap the creator/count row for the View action IN PLACE — the card
   // used to grow the button below the row, which shrank the cover.
   it('swaps the creator row for View collection on hover, without moving anything else', async () => {
-    app = await launchApp({ path: `/assets/creator/${CREATOR_ADDRESS}?collections` })
+    app = await launchApp({ path: `/items/creator/${CREATOR_ADDRESS}?collections` })
     const { page } = app
     await page.waitForSelector('[data-testid="coll-card"]')
 

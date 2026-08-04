@@ -206,7 +206,7 @@ export function Success() {
 
   const items = purchasedItems
   // Direct hit / refresh with no purchase context → send home.
-  if (items.length === 0) return <Navigate to="/assets" replace />
+  if (items.length === 0) return <Navigate to="/items" replace />
 
   const hero = items[0]
 
@@ -279,7 +279,7 @@ export function Success() {
                 <SuccessBtn variant="purple" onClick={() => navigate('/activity')}>
                   {t('success.viewActivity')}
                 </SuccessBtn>
-                <SuccessBtn variant="ghost" onClick={() => navigate('/assets')}>
+                <SuccessBtn variant="ghost" onClick={() => navigate('/items')}>
                   {t('success.keepShopping')}
                 </SuccessBtn>
               </S.Actions>
@@ -290,7 +290,7 @@ export function Success() {
               <S.Sub>{t('success.failedBody')}</S.Sub>
               {receiptLink ? <S.Links>{receiptLink}</S.Links> : null}
               <S.Actions>
-                <SuccessBtn variant="purple" onClick={() => navigate('/assets')}>
+                <SuccessBtn variant="purple" onClick={() => navigate('/items')}>
                   {t('success.backToShop')}
                 </SuccessBtn>
               </S.Actions>
@@ -386,7 +386,7 @@ export function Success() {
         {receiptLink ? <S.Links data-receipt>{receiptLink}</S.Links> : null}
 
         <S.Ctas>
-          <S.Cta data-variant="ghost" onClick={() => navigate('/my-assets')}>
+          <S.Cta data-variant="ghost" onClick={() => navigate('/my-items')}>
             {t('success.myAssets')}
           </S.Cta>
           <S.CtaLink data-variant="ruby" href={JUMP_URL} target="_blank" rel="noreferrer">
