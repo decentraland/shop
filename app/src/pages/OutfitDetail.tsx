@@ -61,7 +61,16 @@ export function OutfitDetail() {
   // creator refreshing a draft link would flash the 404 before the signed refetch. Hold the verdict
   // (the skeleton below covers it) rather than delay the fetch, which is public and hot.
   const notFound = !isOutfitsAvailable() || !id || (outfit === null && access !== 'pending')
-  useSeo(notFound ? { title: t('seo.outfit.notFoundTitle'), noindex: true } : outfit ? { title: outfit.name } : {})
+  // Per-page SEO. An outfit that has a stored thumbnail shares THAT image rather than the generic shop
+  // card; a draft (no hash) falls back to the default. thumbnailUrl() returns null for an unusable hash,
+  // and the hook treats undefined as "use the default", so the ?? bridges the two.
+  useSeo(
+    notFound
+      ? { title: t('seo.outfit.notFoundTitle'), noindex: true }
+      : outfit
+        ? { title: outfit.name, image: thumbnailUrl(outfit.thumbnailHash) ?? undefined }
+        : {}
+  )
 
   if (notFound) {
     return (

@@ -1,7 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Hosts must match the canonical origin index.html declares (https://decentraland.org/shop/): the Shop
      is served BY PATH under /shop, and shop.decentraland.zone does not resolve at all. A sitemap of dead,
-     non-canonical URLs is worse than no sitemap. -->
+     non-canonical URLs is worse than no sitemap.
+
+     Only INDEXABLE routes belong here. A URL whose page sets robots=noindex must not be listed: Search
+     Console reports that combination as an error ("Submitted URL marked noindex") and it cannot ever
+     produce an indexed result, so listing it only spends crawl budget on a guaranteed rejection. That
+     rules out /credits, /cart, /activity, /my-items, /my-favorites, /authorizations, /store-settings,
+     /outfits/* and /success — every one of them calls useSeo({ noindex: true }). -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://decentraland.org/shop/</loc>
@@ -17,10 +23,5 @@
     <loc>https://decentraland.org/shop/items</loc>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
-  </url>
-  <url>
-    <loc>https://decentraland.org/shop/credits</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.7</priority>
   </url>
 </urlset>
