@@ -73,22 +73,26 @@ export const Overview = styled.div`
   }
 `
 
-// Full-bleed rounded banner: the art is a single background image, title + CTA overlaid on the left.
+// Full-bleed banner (Figma dark theme): breaks out of the centred page container to run edge to edge,
+// flush under the sub-nav. The art is a single background image, title + CTA overlaid on the left.
 export const Hero = styled.section`
   position: relative;
   display: flex;
   align-items: center;
-  aspect-ratio: 1721 / 304;
+  aspect-ratio: 1920 / 304;
   max-height: 340px;
-  margin-bottom: 50px;
+  /* Viewport breakout: escapes BOTH the .page gutter and its 1760px max-width, so the banner is
+     edge-to-edge on any screen. The 50vw overshoots by the scrollbar width; html{overflow-x:hidden}
+     (index.css) swallows that sliver. */
+  margin: -28px calc(50% - 50vw) 50px;
   overflow: hidden;
-  border-radius: ${radius.banner};
   background: #14161b;
 
   ${media.maxWidth('mobile')} {
     aspect-ratio: auto;
     min-height: 200px;
     max-height: none;
+    margin-top: -16px;
   }
 `
 

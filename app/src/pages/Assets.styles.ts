@@ -86,7 +86,7 @@ export const Sidebar = styled.aside`
     display: flex;
     flex-direction: column;
     border-radius: 16px 16px 0 0;
-    background: ${theme.colors.white};
+    background: #2b0e44;
     padding: 0 16px;
     box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.18);
     transform: translateY(100%);
@@ -130,7 +130,7 @@ export const DrawerHead = styled.div`
     display: flex;
     align-items: center;
     justify-content: space-between;
-    background: ${theme.colors.white};
+    background: #2b0e44;
     margin: 0 -16px 8px;
     padding: 16px 16px 12px;
     border-radius: 16px 16px 0 0;
@@ -143,7 +143,7 @@ export const DrawerTitle = styled.span`
   font-size: 15px;
   letter-spacing: 0.46px;
   text-transform: uppercase;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
 `
 
 export const CloseBtn = styled.button`
@@ -152,12 +152,12 @@ export const CloseBtn = styled.button`
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: ${theme.colors.chip};
+  background: rgba(255, 255, 255, 0.16);
   border: 0;
   font-size: 15px;
   line-height: 1;
   cursor: pointer;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
 
   &:focus-visible {
     outline: 2px solid ${theme.colors.accent};
@@ -178,7 +178,7 @@ export const DrawerFoot = styled.div`
     bottom: 0;
     margin: 8px -16px 0;
     padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
-    background: ${theme.colors.white};
+    background: #2b0e44;
     box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.25);
     z-index: 1;
   }

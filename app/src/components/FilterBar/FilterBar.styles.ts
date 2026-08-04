@@ -17,7 +17,7 @@ export const Toolbar = styled.div`
 
 export const Count = styled.span`
   order: 1;
-  color: ${colors.muted};
+  color: #ecebed;
   font-weight: 400;
   font-size: 14px;
   line-height: 1.43;
@@ -85,7 +85,7 @@ export const ClearAll = styled.button`
   padding: 0 4px;
   background: none;
   border: 0;
-  color: ${colors.text2};
+  color: ${colors.gray4};
   font-weight: 500;
   font-size: 12px;
   line-height: 1.43;
@@ -133,10 +133,10 @@ export const FiltersPill = styled.button`
   gap: 4px;
   height: 28px;
   padding: 4px 8px 4px 12px;
-  background: ${colors.white};
+  background: rgba(0, 0, 0, 0.12);
   border: 0.5px solid ${colors.muted2};
   border-radius: 32px;
-  color: ${colors.text2};
+  color: #ecebed;
   font-weight: 500;
   font-size: 12px;
   line-height: 1.43;
@@ -148,7 +148,7 @@ export const FiltersPill = styled.button`
   }
 
   &:hover {
-    background: ${colors.chip};
+    background: rgba(255, 255, 255, 0.12);
   }
   &:focus-visible {
     outline: 2px solid ${colors.accent};
@@ -159,7 +159,7 @@ export const FiltersPill = styled.button`
 export const FiltersPillIcon = styled(Icon)`
   width: 20px;
   height: 20px;
-  color: ${colors.text2};
+  color: #ecebed;
 `
 
 // Inline filter row for Collection/Creator (they keep Rarity/Price as bar pills rather than a sidebar).
@@ -184,19 +184,19 @@ export const Trigger = styled.button`
   border: 0;
   padding: 8px 10px;
   border-radius: 8px;
-  color: #6b6873;
+  color: ${colors.gray4};
   font-weight: 600;
   font-size: 14px;
   white-space: nowrap;
   cursor: pointer;
 
   &:hover {
-    background: #f5f4f7;
-    color: #3f3c47;
+    background: rgba(255, 255, 255, 0.08);
+    color: ${colors.white};
   }
   &[data-open],
   &[data-active] {
-    color: #3f3c47;
+    color: ${colors.white};
   }
   &:focus-visible {
     outline: 2px solid ${colors.accent};

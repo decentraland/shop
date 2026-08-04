@@ -4,7 +4,7 @@ import { theme } from '~/styles/theme'
 import { CreatorBadge } from '~/components/CreatorBadge'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 
-const { colors, gradients, radius, media } = theme
+const { colors, radius, media } = theme
 
 const pulse = keyframes`
   0%, 100% { opacity: 1; }
@@ -25,7 +25,7 @@ export const Head = styled.div`
 
 export const Title = styled.h2`
   margin: 0;
-  color: ${colors.text};
+  color: ${colors.softWhite};
   font-size: 50px;
   font-weight: 900;
   letter-spacing: -0.05em;
@@ -37,7 +37,7 @@ export const Title = styled.h2`
 `
 
 export const Period = styled.span`
-  color: ${colors.text2};
+  color: ${colors.gray4};
   font-size: 14px;
   font-weight: 600;
 `
@@ -54,9 +54,9 @@ export const Table = styled.table`
   border-spacing: 0 8px; /* vertical gap between rows */
 `
 
-// Gradient header bar — one continuous amethyst band with rounded ends.
+// Header bar — one continuous flat-violet band with rounded ends (Figma dark theme).
 export const Th = styled.th`
-  background: ${gradients.amethyst};
+  background: ${colors.brandViolet};
   color: ${colors.white};
   font-size: 12px;
   font-weight: 600;
@@ -84,10 +84,11 @@ export const Th = styled.th`
   }
 `
 
-// Rows — subtle translucent panel like the Figma "Info Row"; styling lives on the cells.
+// Rows — deep-purple panels (Figma dark theme); styling lives on the cells.
 export const Row = styled.tr`
   & td {
-    background: rgba(245, 245, 245, 0.8);
+    background: #50196c;
+    color: ${colors.softWhite};
     padding: 12px 24px;
     vertical-align: middle;
     height: 64px;
@@ -120,7 +121,7 @@ export const Rank = styled.span`
   height: 40px;
   padding: 0 14px;
   border-radius: ${radius.btn};
-  background: ${gradients.amethyst};
+  background: ${colors.brandViolet};
   color: ${colors.white};
   font-size: 18px;
   font-weight: 500;
@@ -145,17 +146,17 @@ export const Creator = styled(CreatorBadge)`
     height: 32px;
   }
   & [data-testid='creator-name'] {
-    color: ${colors.accent};
+    color: #ff7439;
     font-weight: 600;
   }
   &[data-link]:hover [data-testid='creator-name'] {
-    color: ${colors.accent};
+    color: #ff7439;
   }
 `
 
 export const Num = styled.td`
   text-align: right;
-  color: ${colors.text};
+  color: ${colors.softWhite};
   font-size: 16px;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
@@ -170,7 +171,7 @@ export const Coin = styled(CurrencyIcon)`
   height: 16px;
   margin-right: 6px;
   vertical-align: -2px;
-  background-color: ${colors.text};
+  background-color: ${colors.softWhite};
 `
 
 export const Skeleton = styled.span`

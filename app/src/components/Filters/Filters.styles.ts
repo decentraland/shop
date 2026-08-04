@@ -17,7 +17,7 @@ export const Root = styled.div`
 
 export const Divider = styled.div`
   height: 1px;
-  background: ${theme.colors.media};
+  background: rgba(255, 255, 255, 0.25);
   width: 100%;
 `
 
@@ -43,7 +43,7 @@ export const Header = styled('button', noForward('desktopStatic'))<{ desktopStat
   border: 0;
   border-radius: 4px;
   background: transparent;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
   text-align: left;
   cursor: pointer;
 
@@ -53,7 +53,7 @@ export const Header = styled('button', noForward('desktopStatic'))<{ desktopStat
 
   @media (hover: hover) {
     &:hover {
-      background: #f5f4f7;
+      background: rgba(255, 255, 255, 0.08);
     }
   }
   &:focus-visible {
@@ -75,7 +75,7 @@ export const Title = styled.span`
   font-weight: 600;
   font-size: 14px;
   line-height: 1.43;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
 
   ${theme.media.maxWidth('lg')} {
     font-size: 16px;
@@ -97,7 +97,7 @@ export const Summary = styled('p', noForward('desktopHidden'))<{ desktopHidden?:
   font-weight: 400;
   font-size: 12px;
   line-height: normal;
-  color: ${theme.colors.muted};
+  color: ${theme.colors.gray4};
   text-transform: capitalize;
 
   ${({ desktopHidden }) => (desktopHidden ? `${theme.media.minWidth('lg')} { display: none; }` : '')}
@@ -144,7 +144,7 @@ export const PriceFieldLabel = styled.span`
   font-family: ${theme.font.sans};
   font-weight: 400;
   font-size: 12px;
-  color: ${theme.colors.muted};
+  color: ${theme.colors.gray4};
 `
 
 export const PriceBox = styled.span`
@@ -153,9 +153,9 @@ export const PriceBox = styled.span`
   gap: 4px;
   height: 42px;
   padding: 8px;
-  border: 0.5px solid ${theme.colors.text};
+  border: 0.5px solid ${theme.colors.softWhite};
   border-radius: 8px;
-  background: ${theme.colors.white};
+  background: rgba(0, 0, 0, 0.1);
 
   &:focus-within {
     border-color: ${theme.rarities.epic};
@@ -165,7 +165,7 @@ export const PriceBox = styled.span`
 export const PriceCoin = styled(Icon)`
   width: 16px;
   height: 16px;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
 `
 
 export const PriceInput = styled.input`
@@ -176,7 +176,7 @@ export const PriceInput = styled.input`
   padding: 0;
   font-family: ${theme.font.sans};
   font-size: 13px;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
 
   &:focus {
     outline: 0;
@@ -190,7 +190,7 @@ export const PriceInput = styled.input`
 
 export const PriceTo = styled.span`
   padding-bottom: 12px;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
   font-family: ${theme.font.sans};
   font-size: 13px;
 `
@@ -208,7 +208,7 @@ export const SliderTrack = styled.div`
   right: 0;
   height: 2px;
   transform: translateY(-50%);
-  background: ${theme.colors.media};
+  background: rgba(255, 255, 255, 0.3);
   border-radius: 2px;
 `
 
@@ -272,13 +272,13 @@ export const SliderRangeVal = styled.span`
   gap: 2px;
   font-family: ${theme.font.sans};
   font-size: 13px;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
 `
 
 export const RangeCoin = styled(Icon)`
   width: 16px;
   height: 16px;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
 `
 
 // ---------------- Rarity ----------------
@@ -368,7 +368,7 @@ export const StatusLabel = styled.span`
   font-weight: 400;
   font-size: 14px;
   line-height: 1.43;
-  color: ${theme.colors.gray0};
+  color: ${theme.colors.gray4};
 `
 
 // ---------------- Smart (toggle row) ----------------
@@ -398,7 +398,7 @@ export const SmartLeft = styled.div`
 export const SmartFlash = styled(Icon)`
   width: 14px;
   height: 14px;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
 
   ${theme.media.maxWidth('lg')} {
     width: 16px;
@@ -411,7 +411,7 @@ export const SmartTitle = styled.span`
   font-weight: 600;
   font-size: 14px;
   line-height: 1.43;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
   /* Figma labels SMART in uppercase (the flash-feature label), unlike the title-case section names. */
   text-transform: uppercase;
 

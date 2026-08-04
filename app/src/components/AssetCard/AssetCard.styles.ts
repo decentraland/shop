@@ -23,7 +23,8 @@ export const TOP_GAP = 10
 // doubles as the action/chips reveal.
 export const Card = styled.article`
   height: 300px;
-  background: ${colors.bg};
+  /* Dark-theme test: deep-purple card shell under the light media (Figma). */
+  background: #240c32;
   border-radius: ${radius.card};
   overflow: hidden;
   position: relative;
@@ -367,7 +368,7 @@ export const Name = styled.div`
   font-weight: 600;
   font-size: 14px;
   line-height: 1.35;
-  color: ${colors.text};
+  color: ${colors.softWhite};
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -417,7 +418,7 @@ export const CreatorEmpty = styled.div`
 // "by {creator}" subtitle under the title on the browse card. Single line, ellipsised so a long name
 // never pushes the fixed 96px body out of shape.
 export const Author = styled(CreatorName)`
-  color: ${colors.muted};
+  color: ${colors.softWhite};
   font-size: 11px;
   line-height: 1.3;
   white-space: nowrap;
@@ -434,7 +435,7 @@ export const Price = styled.div`
   gap: 6px;
   font-weight: 600;
   font-size: 16px;
-  color: ${colors.text2};
+  color: ${colors.softWhite};
   white-space: nowrap;
 
   &[data-variant='sale'] {
@@ -542,10 +543,13 @@ export const CardChip = styled(Chip)`
   font-weight: 600;
   padding: 0 6.5px;
   letter-spacing: 0.01em;
-  border-radius: 4px;
+  border-radius: 6px;
 
+  /* Dark-theme test: icon chips are translucent panels with white glyphs on the dark card shell. */
   &[data-variant='icon'] {
     padding: 0 5px;
+    background: rgba(255, 255, 255, 0.14);
+    color: ${colors.softWhite};
   }
   &[data-variant='icon'] .ico {
     width: 14.6px;
@@ -554,8 +558,8 @@ export const CardChip = styled(Chip)`
   &[data-variant='smart'] {
     gap: 2px;
     padding: 4px 4px 4px 2px;
-    background: ${colors.chip};
-    color: ${colors.text2};
+    background: rgba(255, 255, 255, 0.14);
+    color: ${colors.softWhite};
     text-transform: uppercase;
     letter-spacing: 0.02em;
   }
@@ -704,8 +708,9 @@ const cartCss = css`
   align-items: center;
   justify-content: center;
   gap: 8px;
-  background: ${colors.blackBtn};
-  color: ${colors.softWhite};
+  /* Dark-theme test: white pill with dark label on the dark card shell (Figma). */
+  background: ${colors.softWhite};
+  color: ${colors.text};
   border: 0;
   border-radius: ${radius.btn};
   height: 40px;
@@ -719,11 +724,11 @@ const cartCss = css`
     display: flex;
   }
   &:hover:not(:disabled) {
-    background: ${colors.gray0};
+    background: ${colors.media};
   }
   &[data-in],
   &:disabled {
-    background: ${colors.gray0};
+    background: rgba(252, 252, 252, 0.6);
     opacity: 1;
     cursor: default;
   }

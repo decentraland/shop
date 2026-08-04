@@ -24,7 +24,7 @@ export const Title = styled.h2`
   font-weight: 900;
   letter-spacing: -0.05em;
   line-height: 1.1;
-  color: ${colors.text};
+  color: ${colors.softWhite};
 
   ${media.maxWidth('mobile')} {
     font-size: 32px;
@@ -35,7 +35,7 @@ export const ViewAll = styled(Link)`
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  color: ${colors.accent};
+  color: ${colors.softWhite};
   font-weight: 600;
   font-size: 15px;
   letter-spacing: 0.046em;

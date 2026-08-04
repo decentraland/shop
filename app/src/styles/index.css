@@ -41,10 +41,18 @@
 * {
   box-sizing: border-box;
 }
+/* The full-bleed hero breaks out with 50vw margins, which overshoot by the scrollbar width; hiding
+   root x-overflow swallows that sliver (no scrollbar, no gesture pan; position: sticky unaffected). */
+html {
+  overflow-x: hidden;
+}
 body {
   margin: 0;
   padding-top: 92px;
-  background: var(--bg);
+  /* Style test (Figma "New Shop 2026" dark-purple theme): radial violet field, bright at the upper
+     centre, settling to DCL purple. */
+  background: radial-gradient(120% 90% at 50% 30%, #912bc1 0%, #7a25a9 35%, #691fa9 60%, #4a1768 90%, #3e155c 100%)
+    fixed;
   color: var(--text);
   font-family: var(--sans);
   -webkit-font-smoothing: antialiased;

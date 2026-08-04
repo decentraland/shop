@@ -10,7 +10,8 @@ export const Skeleton = styled.div`
   left: 0;
   right: 0;
   height: 92px;
-  background: ${theme.colors.navViolet};
+  /* Dark-theme test: solid stand-in close to the translucent bar over the purple field. */
+  background: #3c1358;
   z-index: 50;
 
   ${theme.media.maxWidth('mobile')} {
@@ -34,44 +35,44 @@ export const Skeleton = styled.div`
 export const NavbarViolet = styled.div`
   display: contents;
 
-  /* Bar background: flat light violet — drop ui2's dark translucent fill, blur and shadow. */
+  /* Bar background (dark-theme test): translucent near-black over the purple field, per Figma. */
   & nav::before {
-    background: ${theme.colors.navViolet};
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
+    background: rgba(22, 21, 24, 0.4);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
     box-shadow: none;
   }
 
-  /* Desktop nav tabs (Explore / Shop / Create / Learn): dark text on the light bar. Direct-child
+  /* Desktop nav tabs (Explore / Shop / Create / Learn): light text on the dark bar. Direct-child
      selectors deliberately exclude the dark dropdown panels that open on hover. */
   & nav > div:first-of-type > div > a,
   & nav > div:first-of-type > div > div > button {
-    color: ${theme.colors.text2};
+    color: #ecebed;
   }
   & nav > div:first-of-type > div > a:hover,
   & nav > div:first-of-type > div > div > button:hover {
-    color: ${theme.colors.text2};
-    background-color: ${theme.colors.navOverlayHover};
+    color: ${theme.colors.white};
+    background-color: rgba(255, 255, 255, 0.12);
   }
   & nav > div:first-of-type > div > a.active,
   & nav > div:first-of-type > div > div > button.active {
-    color: ${theme.colors.text2};
-    background-color: ${theme.colors.navOverlayActive};
+    color: ${theme.colors.white};
+    background-color: rgba(255, 255, 255, 0.18);
   }
 
-  /* Sign-in button (signed-out state): dark outline + text instead of ui2's near-white, which would
-     be invisible on the violet bar. The hamburger is excluded via :not([aria-label]). */
+  /* Sign-in button (signed-out state): light outline + text on the dark bar. The hamburger is
+     excluded via :not([aria-label]). */
   & nav > div:last-of-type > button:not([aria-label]) {
-    color: ${theme.colors.text2};
-    border-color: ${theme.colors.text2};
+    color: ${theme.colors.softWhite};
+    border-color: ${theme.colors.softWhite};
   }
   & nav > div:last-of-type > button:not([aria-label]):hover {
-    background-color: ${theme.colors.navOverlayHover};
-    border-color: ${theme.colors.text2};
+    background-color: rgba(255, 255, 255, 0.12);
+    border-color: ${theme.colors.softWhite};
   }
   & nav > div:last-of-type > button:not([aria-label]):active {
-    background-color: ${theme.colors.navOverlayActive};
-    border-color: ${theme.colors.text2};
+    background-color: rgba(255, 255, 255, 0.18);
+    border-color: ${theme.colors.softWhite};
   }
 
   /* Mobile hamburger / menu button: solid purple with a white icon (Figma node 1368-356253) — ui2's

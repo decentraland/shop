@@ -242,7 +242,7 @@ export function NavBar() {
           ) : null}
         </S.Tabs>
         <S.Search ref={wrapRef}>
-          <Icon name="search" color={theme.colors.muted} />
+          <Icon name="search" color={theme.colors.softWhite} />
           <input
             value={q}
             aria-label={t('nav.searchAria')}

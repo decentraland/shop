@@ -18,11 +18,11 @@ export const Root = styled.div`
   }
   &[data-flat] [data-cat]:hover,
   &[data-flat] [data-sub]:hover {
-    background: rgba(0, 0, 0, 0.04);
+    background: rgba(255, 255, 255, 0.08);
   }
   &[data-flat] [data-cat][data-selected],
   &[data-flat] [data-sub][data-active] {
-    background: #ececec;
+    background: rgba(255, 255, 255, 0.16);
   }
 `
 
@@ -70,7 +70,7 @@ const rowCss = css`
   cursor: pointer;
 
   &:hover {
-    background: #f5f4f7;
+    background: rgba(255, 255, 255, 0.08);
   }
 `
 
@@ -79,7 +79,7 @@ export const Cat = styled.button`
 
   &[data-selected],
   &[data-expanded] {
-    background: ${colors.media};
+    background: rgba(255, 255, 255, 0.14);
   }
 `
 
@@ -88,10 +88,10 @@ export const Sub = styled.button`
   padding-left: 24px;
 
   &[data-active] {
-    background: ${colors.rarityBg};
+    background: rgba(255, 255, 255, 0.16);
   }
   &[data-active] [data-sub-label] {
-    color: ${colors.rarity};
+    color: ${colors.white};
     font-weight: 600;
   }
 `
@@ -101,7 +101,7 @@ export const CatLabel = styled.span`
   font-weight: 600;
   font-size: 14px;
   line-height: 1.57;
-  color: ${colors.text};
+  color: ${colors.softWhite};
 `
 
 export const SubLeft = styled.span`
@@ -114,7 +114,7 @@ export const SubLeft = styled.span`
 export const SubIcon = styled(Icon)`
   width: 24px;
   height: 24px;
-  color: ${colors.gray0};
+  color: ${colors.gray4};
 `
 
 export const SubLabel = styled.span`
@@ -122,7 +122,7 @@ export const SubLabel = styled.span`
   font-weight: 400;
   font-size: 14px;
   line-height: 1.5;
-  color: ${colors.gray0};
+  color: ${colors.gray4};
 `
 
 export const Title = styled.p`
@@ -131,7 +131,7 @@ export const Title = styled.p`
   font-size: 13px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #6a6a6a;
+  color: ${colors.gray4};
   margin: 0 0 4px;
   padding: 8px 16px 0;
 `
