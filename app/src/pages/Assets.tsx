@@ -150,20 +150,31 @@ export function Assets() {
   )
   const resultCount = total
 
+  // The live market rate powers the legacy cards' fluctuating credit prices. If the oracle is
+  // stale/down we still list the items but disable Buy Now with a notice (rather than pricing off a
+  // bad rate) — native (fixed-price) cards are unaffected. Mirrors the old Market tab.
+  const { data: rate, isError: rateError, isPending: ratePending } = useManaRate()
+  const priceOf = (item: UnifiedListing): number | null =>
+    rate && item.manaWei ? manaWeiToCredits(item.manaWei, rate) : null
+
+  // A legacy row we cannot price falls into the view-card branch below, and `priceOf` returns null for
+  // BOTH reasons it can be unpriceable: the oracle read FAILED, or it is still in flight. Only the first
+  // is a real answer. Treating the second as one published a card in a mode the data never justified —
+  // a full-width dark VIEW pill that is not part of the on-sale card at all, with no creator line and no
+  // chips. It is not a rare race either: on production every unified row is `source: 'legacy'`, and the
+  // rate costs three SEQUENTIAL oracle round-trips (see lib/mana-rate) against the item feed's one, so
+  // the whole grid renders wrong first and corrects itself. Hold the skeleton for that window instead —
+  // an unfinished row is not ready to be a card. An oracle that actually fails leaves `isPending`, so the
+  // view-card fallback + banner still take over rather than the grid hanging on a skeleton.
+  const ratePendingForLegacy = isUnified && ratePending && items.some(i => (i as UnifiedListing).source === 'legacy')
+
   // Show skeletons both on the first load (no data yet) and while a NEW filter/search/sort set is
   // in-flight — in that window react-query is still handing us the PREVIOUS results (keepPreviousData),
   // so without this the grid would keep the now-stale cards on screen until the new data lands. On the
   // filter-change case keep the skeleton count equal to the number of cards currently shown so the grid
   // height doesn't jump; on the very first load fall back to a sensible full-ish grid.
-  const showGridSkeletons = isLoading || isPlaceholderData
+  const showGridSkeletons = isLoading || isPlaceholderData || ratePendingForLegacy
   const gridSkeletonCount = isLoading ? 15 : Math.min(Math.max(items.length, 1), PAGE_SIZE)
-
-  // The live market rate powers the legacy cards' fluctuating "≈" credit prices. If the oracle is
-  // stale/down we still list the items but disable Buy Now with a notice (rather than pricing off a
-  // bad rate) — native (fixed-price) cards are unaffected. Mirrors the old Market tab.
-  const { data: rate, isError: rateError } = useManaRate()
-  const priceOf = (item: UnifiedListing): number | null =>
-    rate && item.manaWei ? manaWeiToCredits(item.manaWei, rate) : null
 
   // Funnel: fire 'Shop Searched'/'Shop Applied Filter' once per change, AFTER results resolve so
   // result_count is accurate (see design/SHOP_TRACKING_SPEC.md §5.2). Refs dedupe + skip the initial load.
@@ -362,7 +373,9 @@ export function Assets() {
                         // carries is the LIVE-rate price, not the server's snapshot, since that is what
                         // checkout will authorize. With no rate we cannot price it at all — render it as a
                         // view card rather than invite a purchase at a stale number (the banner above
-                        // already explains why).
+                        // already explains why). By here the oracle has SETTLED: a read still in flight is
+                        // held on the skeleton above (see ratePendingForLegacy), so this branch means the
+                        // rate genuinely failed and never a row that is merely still loading.
                         const livePrice = priceOf(unified)
                         return livePrice == null ? (
                           <AssetCard key={listingKey(item)} item={item} mode="view" />
