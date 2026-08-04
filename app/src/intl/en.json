@@ -551,7 +551,11 @@
     "paidWithMana": "Purchase · paid with MANA",
     "payoutPending": "Pending",
     "payoutPendingOn": "Credits available {date}",
-    "payoutCredited": "Paid in credits"
+    "payoutCredited": "Paid in credits",
+    "migrate": {
+      "chip": "Move your listings",
+      "chipAria": "Move your listings — {count, plural, one {# item} other {# items}} left"
+    }
   },
   "myFavorites": {
     "emptyTitle": "Nothing here... yet!",
@@ -780,8 +784,6 @@
   },
   "importListings": {
     "toastUpdated": "Your Shop is updated.",
-    "signInTitle": "Import your listings",
-    "signInBody": "Sign in to bring the items you already sell into the Shop.",
     "emptyTitle": "You're all caught up",
     "emptyBody": "Everything you sell is already in the Shop — nothing to import.",
     "goToMyAssets": "Go to My Items",
@@ -790,6 +792,7 @@
     "learnMore": "Learn More",
     "updatePricing": "Update Pricing",
     "selectAll": "Select All",
+    "selectAllAria": "Select all listings to move",
     "includeItem": "Include {name}",
     "itemFallback": "Item",
     "priceAria": "Price in {currency} for {name}",

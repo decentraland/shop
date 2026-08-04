@@ -24,6 +24,13 @@ export const Section = styled.section`
      the left edge of a wide page. Centring only the list would leave the heading orphaned from it. */
   max-width: 760px;
   margin-inline: auto;
+
+  /* The migration tool's row (thumbnail + name + a 144px price field) does not survive the feed's
+     column: squeezed to 760px the price field lands on its own line on a desktop. Widening the whole
+     column keeps heading, chips and panel as one block, which is the point of the constraint above. */
+  &[data-view='migrate'] {
+    max-width: 1003px;
+  }
 `
 
 export const Head = styled.div`
@@ -81,6 +88,54 @@ export const Tab = styled.button`
     border-color: ${theme.colors.accent};
     color: ${theme.colors.white};
   }
+`
+
+// The migration chip: same pill as the filters, but carrying the feature's lilac so it reads as an
+// action on the seller's listings rather than a fourth way to slice the feed.
+export const MigrateTab = styled(Tab)`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-color: transparent;
+  background: ${theme.colors.promptLilac};
+  color: ${theme.colors.accent};
+
+  &:hover {
+    background: ${theme.colors.rarityBg};
+  }
+  &[data-active='true'] {
+    background: ${theme.colors.accent};
+    border-color: ${theme.colors.accent};
+    color: ${theme.colors.white};
+  }
+  /* Violet-on-violet once the chip fills, so the badge inverts. Reached by test id rather than by
+     interpolating the styled def, which throws under vitest (see CLAUDE.md). */
+  &[data-active='true'] [data-testid='activity-migrate-count'] {
+    background: ${theme.colors.white};
+    color: ${theme.colors.accent};
+  }
+`
+
+// How many listings are still to move. Same 20px violet disc the tool uses over its own list, so the
+// chip and the panel it opens agree on what a count looks like.
+export const MigrateBadge = styled.span`
+  flex: none;
+  display: grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: ${theme.radius.pill};
+  background: ${theme.colors.brandViolet};
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 1.6;
+  color: ${theme.colors.white};
+`
+
+// Keeps the tool's own skeletons from jumping the page while its chunk loads.
+export const PanelFallback = styled.div`
+  min-height: 60vh;
 `
 
 export const List = styled.div`

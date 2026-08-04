@@ -21,7 +21,8 @@ export const EmptyIco = styled.span`
   font-size: 44px;
 `
 
-export const EmptyTitle = styled.h1`
+// h2, not h1: the tool is a section of the Activity page, which owns the page heading.
+export const EmptyTitle = styled.h2`
   font-size: 26px;
   font-weight: 800;
   margin: 4px 0 0;
@@ -54,7 +55,7 @@ export const Intro = styled.div`
   gap: 8px;
 `
 
-export const Title = styled.h1`
+export const Title = styled.h2`
   margin: 0;
   font-weight: 600;
   font-size: 20px;

@@ -1,6 +1,6 @@
-import { useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useWallet } from '~/store/wallet'
 import { fetchUserPurchases, fetchUserCreditOrders, creditOrderPill, type CreditOrder } from '~/lib/credits'
@@ -10,6 +10,7 @@ import { foldOrderLines, type PurchaseOrder, type OrderLineItem } from '~/lib/pu
 import { buildActivityFeed, filterActivity, type ActivityFilter, type ActivitySale } from '~/lib/activity'
 import { indexPayouts, payoutForSale, type SalePayout } from '~/lib/payouts'
 import { useManaRate } from '~/hooks/useManaRate'
+import { useImportable } from '~/hooks/useImportable'
 import { LoadMore } from '~/components/LoadMore'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
@@ -26,9 +27,17 @@ import { theme } from '~/styles/theme'
 // props so `to` type-checks — `as={Link}` only works on polymorphic components like Button).
 const LineLink = S.Line.withComponent(Link)
 
+// Only loaded once the seller opens it: the tool drags in the migrate modal and the whole listing/
+// signing path, which no ordinary visit to the feed has any use for.
+const ImportListings = lazy(() => import('~/components/ImportListings').then(m => ({ default: m.ImportListings })))
+
 const PAGE_SIZE = 24
 
 const FILTERS: ActivityFilter[] = ['all', 'purchases', 'sales']
+
+// The migration tool lives in the URL rather than in local state so the (redirected) /import link, a
+// bookmark and a reload all land on it — the feed is the default for everything else.
+const MIGRATE_VIEW = 'migrate'
 
 function formatDate(ms: number): string {
   try {
@@ -365,12 +374,26 @@ function EmptyState({ filter }: { filter: ActivityFilter }) {
 }
 
 export function Activity() {
-  useSeo({ title: t('nav.activity'), noindex: true })
   const { session } = useWallet()
   const [filter, setFilter] = useState<ActivityFilter>('all')
+  const [params, setParams] = useSearchParams()
+  const migrating = params.get('view') === MIGRATE_VIEW
 
-  const purchasesEnabled = !!session && filter !== 'sales'
-  const salesEnabled = !!session && filter !== 'purchases'
+  useSeo({ title: migrating ? t('seo.import.title') : t('nav.activity'), noindex: true })
+
+  // How many classic listings this seller could still move. Undefined until known — the chip renders
+  // nothing at all until then, so it never flashes in or badges a zero.
+  const { count: importCount } = useImportable()
+
+  // The chip stays put while its own panel is open even once the count reaches zero, so finishing a
+  // migration cannot leave the row with no selected chip and the panel orphaned above its own
+  // "all caught up" state.
+  const showMigrate = importCount !== undefined && (importCount > 0 || migrating)
+
+  // The feed's four reads are pointless behind the tool, and their skeletons would otherwise decide
+  // what the migrate panel is allowed to render.
+  const purchasesEnabled = !!session && !migrating && filter !== 'sales'
+  const salesEnabled = !!session && !migrating && filter !== 'purchases'
 
   const purchases = useInfiniteGrid(
     ['purchases', session?.address],
@@ -455,8 +478,23 @@ export function Activity() {
     if (salesEnabled && sales.hasNextPage) void sales.fetchNextPage()
   }
 
+  // `replace` on both: flipping chips is not navigation the back button should have to walk back
+  // through, which is also how the filter chips have always behaved.
+  function selectFilter(next: ActivityFilter) {
+    setFilter(next)
+    if (!migrating) return
+    const q = new URLSearchParams(params)
+    q.delete('view')
+    setParams(q, { replace: true })
+  }
+  function openMigrate() {
+    const q = new URLSearchParams(params)
+    q.set('view', MIGRATE_VIEW)
+    setParams(q, { replace: true })
+  }
+
   return (
-    <S.Section>
+    <S.Section data-view={migrating ? MIGRATE_VIEW : 'feed'}>
       <S.Head>
         <S.Title>{t('nav.activity')}</S.Title>
       </S.Head>
@@ -466,16 +504,40 @@ export function Activity() {
             key={f}
             type="button"
             role="tab"
-            aria-selected={filter === f}
-            data-active={filter === f}
+            aria-selected={!migrating && filter === f}
+            data-active={!migrating && filter === f}
             data-testid={`activity-filter-${f}`}
-            onClick={() => setFilter(f)}
+            onClick={() => selectFilter(f)}
           >
             {t(`activity.filter.${f}`)}
           </S.Tab>
         ))}
+        {showMigrate ? (
+          <S.MigrateTab
+            type="button"
+            role="tab"
+            aria-selected={migrating}
+            data-active={migrating}
+            data-testid="activity-filter-migrate"
+            // Spelled out only when there IS a number, so the name never reads as "0 left"; the badge
+            // is then hidden from the reader rather than announced twice.
+            aria-label={importCount ? t('activity.migrate.chipAria', { count: importCount }) : undefined}
+            onClick={openMigrate}
+          >
+            {t('activity.migrate.chip')}
+            {importCount ? (
+              <S.MigrateBadge data-testid="activity-migrate-count" aria-hidden>
+                {importCount}
+              </S.MigrateBadge>
+            ) : null}
+          </S.MigrateTab>
+        ) : null}
       </S.Tabs>
-      {isLoading ? (
+      {migrating ? (
+        <Suspense fallback={<S.PanelFallback aria-busy="true" />}>
+          <ImportListings />
+        </Suspense>
+      ) : isLoading ? (
         <S.List>
           {Array.from({ length: 5 }).map((_, i) => (
             <S.CardSkeleton key={i} />
