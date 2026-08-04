@@ -7,10 +7,6 @@ import backdrop from '~/assets/credits/packs-backdrop.webp'
 // (Figma 1654-374620) that holds the heading and the pack row; the post-checkout states below stay on
 // the light page, where their own Figma frames (1208-242158 / 1208-243058) put them.
 
-// The 1px / 6px gradient outlines are painted as masked pseudo-elements — CSS can't gradient-fill a
-// `border` directly, and `background-clip` would fight the card's translucent fill.
-const RING_MASK = `linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)`
-
 export const Root = styled.div`
   display: flex;
   flex-direction: column;
@@ -183,7 +179,9 @@ export const PackCard = styled.button`
   gap: 48px;
   min-width: 0;
   padding: 24px 16px 16px;
-  border: 0;
+  /* Figma 1654:372757 — a plain 1px amber stroke, NOT the Flare gradient this used to paint through a
+     masked pseudo-element. The gradient version also cost the two ::before/::after ring layers below. */
+  border: 1px solid ${theme.colors.flareAmber};
   border-radius: ${theme.radius.banner};
   background: rgba(21, 21, 21, 0.4);
   backdrop-filter: blur(3px);
@@ -195,48 +193,18 @@ export const PackCard = styled.button`
     background 0.15s ease,
     box-shadow 0.15s ease;
 
-  &::before,
-  &::after {
-    content: '';
-    position: absolute;
-    border-radius: inherit;
-    pointer-events: none;
-    -webkit-mask: ${RING_MASK};
-    -webkit-mask-composite: xor;
-    mask: ${RING_MASK};
-    mask-composite: exclude;
-    transition: opacity 0.15s ease;
-  }
-  /* Hairline outline (Figma: 1px Flare stroke). */
-  &::before {
-    inset: 0;
-    padding: 1px;
-    background: ${theme.gradients.flare};
-  }
-  /* Hover ring: a 6px warm outline floating in the 4px gutter outside the card. */
-  &::after {
-    inset: -10px;
-    padding: 6px;
-    border-radius: 30px;
-    background: ${theme.gradients.ember};
-    opacity: 0;
-  }
-
+  /* Hover / focus / active (Figma 1654:372756): purple fill, a 5px DCL-red stroke and the violet glow.
+     The stroke replaces a 6px gradient ring that floated outside the card — the design puts it on the card
+     edge, which is also why the border thickens in place rather than growing the element: box-sizing is
+     border-box, so the outer 351.5px is unchanged and the 4px comes off the content box, exactly as the two
+     Figma variants measure. */
   &:hover,
   &:focus-visible,
   &:active {
     background: ${theme.colors.accent};
+    border-width: 5px;
+    border-color: ${theme.colors.dclRed};
     box-shadow: 0 0 8px ${theme.colors.brandViolet};
-  }
-  &:hover::before,
-  &:focus-visible::before,
-  &:active::before {
-    opacity: 0;
-  }
-  &:hover::after,
-  &:focus-visible::after,
-  &:active::after {
-    opacity: 1;
   }
   &:focus-visible {
     outline: none;
@@ -248,17 +216,23 @@ export const PackCard = styled.button`
   }
   &[data-skeleton='true']:hover {
     background: rgba(21, 21, 21, 0.4);
+    border-width: 1px;
+    border-color: ${theme.colors.flareAmber};
     box-shadow: none;
   }
-  &[data-skeleton='true']:hover::before {
-    opacity: 1;
-  }
-  &[data-skeleton='true']:hover::after {
-    opacity: 0;
-  }
 
+  /* Figma 1654:372759 — the mobile card is its own set of metrics, not a scaled-down desktop one. */
   ${theme.media.maxWidth('mobile')} {
-    gap: 24px;
+    gap: 12px;
+    padding: 8px;
+    border-radius: 16px;
+    border-color: ${theme.colors.magenta};
+
+    &:hover,
+    &:focus-visible,
+    &:active {
+      border-color: ${theme.colors.dclRed};
+    }
   }
 `
 
@@ -286,11 +260,13 @@ export const PackBadge = styled.span`
     height: 24px;
   }
 
+  /* Figma 1658:375459 — the mobile badge is not the desktop one scaled: it sits 9px above the card, not 18,
+     and its padding is symmetric. */
   ${theme.media.maxWidth('mobile')} {
-    top: -14px;
-    padding: 4px 10px 4px 6px;
-    font-size: 14px;
-    line-height: 20px;
+    top: -9px;
+    padding: 4px 8px;
+    font-size: 12px;
+    line-height: 18px;
 
     .ico {
       width: 18px;
@@ -307,7 +283,7 @@ export const PackTop = styled.span`
   padding-top: 32px;
 
   ${theme.media.maxWidth('mobile')} {
-    padding-top: 16px;
+    padding-top: 24px;
   }
 `
 
@@ -330,6 +306,13 @@ export const PackAmountRow = styled.span`
     height: 29.79px;
     color: ${theme.colors.softWhite};
   }
+
+  ${theme.media.maxWidth('mobile')} {
+    .ico {
+      width: 23.5px;
+      height: 24.81px;
+    }
+  }
 `
 
 // Figma trims the text box to the cap height, so the line box is shorter than the font size.
@@ -339,6 +322,11 @@ export const PackAmount = styled.span`
   font-weight: 800;
   line-height: 30px;
   color: ${theme.colors.white};
+
+  ${theme.media.maxWidth('mobile')} {
+    font-size: 32px;
+    line-height: 24px;
+  }
 `
 
 export const PackUnit = styled.span`
@@ -348,62 +336,11 @@ export const PackUnit = styled.span`
   line-height: 15px;
   color: ${theme.colors.media};
   text-transform: uppercase;
-`
 
-// "you'd get ~~100~~ · +25 more" — the bonus line under the amount.
-//
-// The row is always rendered, and merely hidden on the entry pack (which has no bonus to show, being the
-// baseline itself). `visibility` rather than a conditional mount so all four cards keep the same height and
-// their artwork stays on one line — dropping the row would leave the entry card visibly shorter.
-//
-// The struck figure carries the currency mark too. Without it, a crossed-out "100" sitting above
-// "125 CREDITS" reads as a crossed-out PRICE, which inverts the meaning of the whole card.
-export const PackWas = styled.span`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  /* The bonus pill is nowrap and this row holds it beside the struck-through amount. At two cards per row on
-     a phone that is ~118px of content, which the pair exceeds by 8-12px (measured) — so let it wrap rather
-     than push out of the card. It only ever wraps at the narrowest widths. */
-  flex-wrap: wrap;
-  max-width: 100%;
-
-  &[data-empty='true'] {
-    visibility: hidden;
+  ${theme.media.maxWidth('mobile')} {
+    font-size: 16px;
+    line-height: 12px;
   }
-
-  .ico {
-    width: 17px;
-    height: 18px;
-    color: ${theme.colors.softWhite};
-    opacity: 0.55;
-  }
-`
-
-export const PackWasAmount = styled.span`
-  font-family: ${theme.font.sans};
-  font-size: 22px;
-  font-weight: 600;
-  line-height: 24px;
-  color: rgba(255, 255, 255, 0.55);
-  text-decoration: line-through;
-  text-decoration-thickness: 2px;
-`
-
-export const PackBonus = styled.span`
-  display: inline-flex;
-  align-items: center;
-  padding: 3px 10px;
-  border-radius: ${theme.radius.pill};
-  background: rgba(255, 255, 255, 0.16);
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  font-family: ${theme.font.sans};
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 18px;
-  color: ${theme.colors.white};
-  white-space: nowrap;
 `
 
 export const PackArt = styled.span`

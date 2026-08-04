@@ -462,18 +462,11 @@ function PackGrid({
                   <S.PackAmount>{pack.credits}</S.PackAmount>
                 </S.PackAmountRow>
                 <S.PackUnit>{t('getCredits.packUnit', { currency: CURRENCY.name })}</S.PackUnit>
-                {/* Bare numbers, NOT formatAmount: that appends the currency name, and "100 credits" struck
-                  through under a card already captioned CREDITS wrapped onto a second line and pushed the
-                  row wider than the card, spreading the mark to the edge. The icon carries the unit here,
-                  exactly as it does for the headline above.
-
-                  aria-hidden: both figures are already in the card's aria-label, and a screen reader
-                  announcing a lone crossed-out number mid-card reads as the actual price. */}
-                <S.PackWas data-empty={bonus ? undefined : 'true'} aria-hidden>
-                  <CurrencyIcon />
-                  <S.PackWasAmount>{bonus ? bonus.baseline : 0}</S.PackWasAmount>
-                  {bonus && <S.PackBonus>{t('getCredits.packBonus', { bonus: bonus.bonus })}</S.PackBonus>}
-                </S.PackWas>
+                {/* The struck-through baseline + "+N bonus" pill that used to sit here is gone: the redesign
+                    (1654:372757) has no such row, and the packs it prices are flat — every one buys credits
+                    at the same rate, so there was no bonus to state and the row rendered as reserved empty
+                    space in all four cards. `bonus` is still computed for the aria-label, which is the one
+                    place a rate difference would still need announcing if the catalogue ever grows one. */}
               </S.PackHeading>
               <S.PackArt>
                 {/* onError is the second half of the fallback: `artFor` picks the remote URL when the

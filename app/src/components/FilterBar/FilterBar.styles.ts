@@ -123,6 +123,14 @@ export const Right = styled.div`
   gap: 8px;
   margin-left: auto;
 
+  /* Sort By carries no height of its own — it is sized by its 12px label plus a 24px chevron, which lands
+     at 34px and left it visibly shorter than the 40px search field beside it. Pinned here, on the toolbar,
+     rather than on the Dropdown itself: that component is also used inside filter popovers and a modal,
+     where 40px is not the right size. Every toolbar gets the same pair of 40px controls. */
+  & [data-dropdown-trigger] {
+    height: 40px;
+  }
+
   ${media.maxWidth('lg')} {
     /* Keep the count + Sort/Filters pills on the first row; chips (order 3) wrap below. */
     order: 2;

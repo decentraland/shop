@@ -17,6 +17,7 @@ import carouselArrow from '~/assets/icons/carousel-arrow.svg'
 // 90 KB here against 1.09 MB as a PNG.
 import heroBanner from '~/assets/overview/hero-credits-outfits.webp'
 import { Icon } from '~/components/Icon'
+import { CurrencyIcon } from '~/components/CurrencyIcon'
 import * as Row from '~/styles/row.styles'
 import * as S from './Overview.styles'
 
@@ -154,8 +155,11 @@ export function Overview() {
             one on top and took the left half of the image to near-black. */}
         <S.HeroInner>
           <S.HeroTitle>{t('overview.heroTitle')}</S.HeroTitle>
-          <S.HeroCta as={Link} to="/items" variant="purple">
-            {t('overview.exploreCollection')}
+          {/* Figma 2004:322550. The CTA now goes to /credits, not to the grid: the banner sells credits, so
+              sending the click to browse would leave the buyer one step short of what it advertises. */}
+          <S.HeroCta as={Link} to="/credits" variant="purple">
+            <CurrencyIcon size={18} />
+            {t('overview.heroCta')}
           </S.HeroCta>
         </S.HeroInner>
       </S.Hero>

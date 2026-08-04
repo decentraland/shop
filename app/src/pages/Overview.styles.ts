@@ -24,12 +24,27 @@ export const EmptyCta = styled(Button)`
   margin-top: 10px;
 `
 
-// Figma hero CTA: the purple button trimmed to the 40px hero spec.
+// Figma 1997:318583 "Default": a fixed 246×52 amethyst button, 8px radius, credit mark + label.
+// The `purple` variant already carries the amethyst gradient, the uppercase and the soft-white label, so
+// only the box and the type metrics are restated — the design's 15px/0.46px differ from the variant's
+// 13px/0.046em, and 0.046em would be 0.69px at this size.
 export const HeroCta = styled(Button)`
-  height: 40px;
-  padding: 0 16px;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 246px;
+  height: 52px;
+  padding: 0 16px;
+  border-radius: ${theme.radius.btn};
+  font-size: 15px;
+  letter-spacing: 0.46px;
+
+  ${media.maxWidth('mobile')} {
+    /* A 246px button is most of a phone's width; let it shrink rather than crowd the edges. */
+    width: auto;
+    max-width: 100%;
+  }
 `
 
 // The page scopes an override of the shared rail (RecentlyViewed / FollowedCreators render Row.Track,
@@ -117,7 +132,7 @@ export const HeroInner = styled.div`
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 24px;
+  gap: 32px;
   padding: 0 64px;
 
   ${media.maxWidth('mobile')} {
@@ -125,13 +140,17 @@ export const HeroInner = styled.div`
   }
 `
 
+// Figma 1864:223112: Inter Bold 48/1.235 in white, sentence case — the uppercase this used to force is
+// gone with the old "FASHION WEEK OUTFITS" copy.
+// The clamp reaches exactly 48px from a 1200px viewport up, so desktop matches the design and a phone gets
+// a headline that fits rather than three wrapped lines. The design's own `capitalize` is deliberately NOT
+// applied: it would render "A New Way To Shop", capitalising the "to" the copy writes in lower case.
 export const HeroTitle = styled.h1`
   margin: 0;
   color: ${colors.white};
-  font-size: clamp(24px, 3.2vw, 36px);
+  font-size: clamp(28px, 4vw, 48px);
   font-weight: 700;
   line-height: 1.235;
-  text-transform: uppercase;
 `
 
 // Reuses the global `.row` head/title/viewall; adds the Figma side arrows + pagination dots.
