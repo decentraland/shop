@@ -41,6 +41,14 @@
 * {
   box-sizing: border-box;
 }
+/* Guard for the one full-bleed element on the site (the overview hero, see pages/Overview.styles.ts).
+   It is 100vw wide, and 100vw counts the width of a CLASSIC scrollbar — so on a machine that shows one
+   (Windows, or macOS set to "Always" show scrollbars) the page would be a dozen pixels wider than the
+   window and grow a horizontal scrollbar. `clip` rather than `hidden` on purpose: hidden turns the root
+   into a scroll container, which silently breaks `position: sticky` on the sub-nav. */
+html {
+  overflow-x: clip;
+}
 body {
   margin: 0;
   padding-top: 92px;

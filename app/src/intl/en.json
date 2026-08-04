@@ -623,7 +623,7 @@
     "addAll": "Add all ({count}) to cart"
   },
   "outfits": {
-    "rowTitle": "Shop the look",
+    "rowTitle": "Buy the look",
     "card": {
       "items": "{count, plural, one {# item} other {# items}}",
       "add": "Add to cart",

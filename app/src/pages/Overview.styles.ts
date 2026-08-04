@@ -82,8 +82,19 @@ export const Hero = styled.section`
   max-height: 340px;
   margin-bottom: 50px;
   overflow: hidden;
-  border-radius: ${radius.banner};
   background: #14161b;
+
+  /* The ONLY full-bleed element on the page: it spans the window while every other section keeps the
+     .page gutter. Two things have to be undone, not one — the 54px side padding AND the 1760px
+     max-width, which on a wider window would otherwise leave the banner centred with white beside it.
+     The 50% - 50vw margin handles both at once: it measures from the container's own centre out to the
+     window edge, so it is correct whether the cap is in effect or not, and needs no breakpoint-specific
+     value for the mobile padding.
+     No border-radius, unlike every other banner in the app — a corner radius on an element flush with
+     the window edges reads as a rendering mistake, since there is nothing outside it to round against. */
+  width: 100vw;
+  margin-inline: calc(50% - 50vw);
+  border-radius: 0;
 
   ${media.maxWidth('mobile')} {
     aspect-ratio: auto;

@@ -6,7 +6,6 @@ import { AssetCard } from '~/components/AssetCard'
 import { SkeletonCards } from '~/components/SkeletonCards'
 import { FollowedCreatorsRow } from '~/components/FollowedCreatorsRow'
 import { OutfitsRow } from '~/components/OutfitsRow'
-import { RecentlyViewed } from '~/components/RecentlyViewed'
 import { WeekTopCreators } from '~/components/WeekTopCreators'
 import { t } from '~/intl/i18n'
 import { useSeo } from '~/hooks/useSeo'
@@ -174,6 +173,12 @@ export function Overview() {
           {items.length > 12 ? (
             <Carousel title={t('overview.newCreations')} items={items.slice(12, 24)} loading={false} />
           ) : null}
+
+          {/* "Buy the look" sits here, directly after New Creations, so the outfits land inside the
+              listings block rather than below the discovery rails. It self-fetches and renders nothing
+              until published outfits resolve, so on an environment with no shop-server this row is
+              simply absent — the section is a place for outfits, not a guaranteed one. */}
+          <OutfitsRow />
         </>
       ) : (
         <S.Empty>
@@ -185,11 +190,12 @@ export function Overview() {
         </S.Empty>
       )}
 
-      {/* Discovery rows, then the Week Top Creators ranking table dead last — matching the Figma frame
-          order (913:135556): hero → Featured → promos → New Creations → … → Active Ranking at the very
-          bottom. RecentlyViewed / FollowedCreatorsRow render nothing until they have data. */}
-      <OutfitsRow />
-      <RecentlyViewed />
+      {/* The creators ranking table is dead last (Figma 1878:67135). Recently viewed used to sit above it
+          and is gone: the home page now leads with what the Shop is selling, and a row of things you have
+          already looked at competes with that. The store still records views — nothing else read that row —
+          so bringing it back is re-adding the component, not rebuilding it.
+          FollowedCreatorsRow renders nothing until it has data (the follows flag is off), so it costs a
+          fetch-free no-op here rather than an empty section. */}
       <FollowedCreatorsRow />
       <WeekTopCreators />
     </S.Overview>
