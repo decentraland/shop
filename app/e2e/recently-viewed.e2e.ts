@@ -4,11 +4,18 @@ import { bodyText, clickByText, waitForText } from './helpers/dom'
 import { COLLECTION } from './fixtures'
 
 /**
- * "Recently viewed" on the overview.
+ * VIEW HISTORY IS RECORDED BUT NO LONGER SHOWN ON THE HOME PAGE.
  *
- * Entirely client-side (localStorage), which is exactly why it needs a browser test: the row is written
- * on one page and read on another, across a real navigation. A store that never persists, or a row that
- * renders an empty shell instead of nothing, both look correct in a unit test.
+ * This file used to assert the opposite: that visiting an item put it in a "Recently viewed" row on the
+ * overview. That row was deliberately dropped — the home page leads with what the Shop is selling, and a
+ * row of things you have already looked at competes with that — so the old assertions pinned behaviour the
+ * redesign removes, and both of them timed out waiting for a heading that will never render.
+ *
+ * The recording itself was deliberately KEPT, so that is what is asserted now. It stays worth a browser
+ * test for the original reason: it is written on one page and read from localStorage across a real
+ * navigation and a real reload, and a store that silently never persists looks fine in a unit test.
+ *
+ * If the row ever comes back, the absence case below is the one to delete — not this whole file.
  */
 
 let app: App | undefined
@@ -17,17 +24,19 @@ afterEach(async () => {
   app = undefined
 })
 
-describe('recently viewed', () => {
-  it('renders nothing at all before anything has been viewed', async () => {
-    app = await launchApp({ path: '/overview' })
-    const { page } = app
+const HISTORY_KEY = 'shop:recently-viewed'
 
-    await waitForText(page, 'Featured Products')
-    // Not an empty carousel with a heading — nothing.
-    expect(await bodyText(page)).not.toMatch(/recently viewed/i)
-  })
+const history = (page: App['page']) =>
+  page.evaluate((key: string) => {
+    try {
+      return JSON.parse(window.localStorage.getItem(key) ?? '[]') as { id?: string; name?: string }[]
+    } catch {
+      return []
+    }
+  }, HISTORY_KEY)
 
-  it('lists an item on the overview after visiting its page', async () => {
+describe('view history', () => {
+  it('records a viewed item, and survives an in-app navigation', async () => {
     app = await launchApp({ path: `/item/${COLLECTION}/1` })
     const { page } = app
 
@@ -36,13 +45,7 @@ describe('recently viewed', () => {
     expect(await clickByText(page, 'a', /overview/i)).toBe(true)
     await waitForText(page, 'Featured Products')
 
-    await waitForText(page, 'Recently Viewed')
-    const row = await page.$eval('body', b => {
-      const heads = [...b.querySelectorAll('h2')]
-      const h = heads.find(e => /recently viewed/i.test(e.textContent ?? ''))
-      return (h?.closest('section') as HTMLElement | null)?.innerText ?? ''
-    })
-    expect(row).toMatch(/nebula jacket/i)
+    expect((await history(page)).map(i => i.name)).toContain('Nebula Jacket')
   })
 
   it('keeps the history across a full reload', async () => {
@@ -52,7 +55,20 @@ describe('recently viewed', () => {
     await waitForText(page, 'Nebula Jacket')
     await page.goto(page.url().replace(`/item/${COLLECTION}/1`, '/overview'), { waitUntil: 'networkidle2' })
 
-    await waitForText(page, 'Recently Viewed')
-    expect(await bodyText(page)).toMatch(/nebula jacket/i)
+    // A real reload drops in-memory state, so anything surviving here came from localStorage.
+    expect((await history(page)).map(i => i.name)).toContain('Nebula Jacket')
+  })
+
+  it('does not surface the history anywhere on the home page', async () => {
+    app = await launchApp({ path: `/item/${COLLECTION}/1` })
+    const { page } = app
+
+    await waitForText(page, 'Nebula Jacket')
+    expect(await clickByText(page, 'a', /overview/i)).toBe(true)
+    await waitForText(page, 'Featured Products')
+
+    // Recorded (asserted above) but not rendered: no heading, and no leftover empty section either.
+    expect(await history(page)).not.toHaveLength(0)
+    expect(await bodyText(page)).not.toMatch(/recently viewed/i)
   })
 })
