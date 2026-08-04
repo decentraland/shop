@@ -12,6 +12,7 @@ import {
 import { config } from '~/config'
 import { gaslessConfig } from '~/lib/gasless-config'
 import { showsWalletConfirmations } from '~/lib/wallet-kind'
+import { confirmMetaTx } from '~/lib/tx-confirm'
 
 // The shop's on-chain approvals ("authorizations"). Mirrors the marketplace's decentraland-dapps
 // authorization model, trimmed to what the shop's flows actually touch:
@@ -204,7 +205,7 @@ async function grantViaMetaTransaction(
   const txHash = await sendMetaTransaction(provider, rpc, functionData, contractData, {
     serverURL: gaslessConfig.relayerUrl
   })
-  await rpc.waitForTransaction(txHash, 1, 120_000)
+  await confirmMetaTx(txHash, 'the authorization')
 }
 
 // Grant (active=true) or revoke (active=false) an authorization. GASLESS FOR EVERY WALLET: the wallet

@@ -13,6 +13,7 @@ import { config } from '~/config'
 import { metaTxProviderShim, readProvider } from '~/lib/authorizations'
 import { gaslessConfig } from '~/lib/gasless-config'
 import { ensureChain } from '~/lib/trades'
+import { confirmMetaTx } from '~/lib/tx-confirm'
 import {
   amoyGasOverrides,
   buildStoreUseCreditsArgs,
@@ -212,7 +213,7 @@ async function cancelViaMetaTransaction(
   const txHash = await sendMetaTransaction(provider, rpc, functionData, marketplace, {
     serverURL: gaslessConfig.relayerUrl
   })
-  await rpc.waitForTransaction(txHash, 1, 120_000)
+  await confirmMetaTx(txHash, 'the listing cancellation')
   return txHash
 }
 
@@ -248,7 +249,7 @@ async function transferViaMetaTransaction(opts: {
   const txHash = await sendMetaTransaction(provider, rpc, functionData, collection, {
     serverURL: gaslessConfig.relayerUrl
   })
-  await rpc.waitForTransaction(txHash, 1, 120_000)
+  await confirmMetaTx(txHash, 'the transfer')
   return txHash
 }
 

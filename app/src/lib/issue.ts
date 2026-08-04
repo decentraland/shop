@@ -11,6 +11,7 @@ import { metaTxProviderShim, readProvider } from '~/lib/authorizations'
 import { gaslessConfig } from '~/lib/gasless-config'
 import { ensureChain } from '~/lib/trades'
 import { amoyGasOverrides } from '~/lib/trade-encoding'
+import { confirmMetaTx } from '~/lib/tx-confirm'
 
 // "Issue copies" — the creator generates fresh copies of their own published item and assigns them to
 // wallets. This is the builder's "Mint Items" flow (src/components/Modals/MintItemsModal +
@@ -111,7 +112,7 @@ async function issueViaMetaTransaction(opts: {
   const txHash = await sendMetaTransaction(provider, rpc, functionData, collection, {
     serverURL: gaslessConfig.relayerUrl
   })
-  await rpc.waitForTransaction(txHash, 1, 120_000)
+  await confirmMetaTx(txHash, 'the mint')
   return txHash
 }
 

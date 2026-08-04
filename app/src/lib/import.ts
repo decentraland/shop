@@ -1,7 +1,7 @@
 import { Network } from '@dcl/schemas'
 import { config } from '~/config'
 import type { Session } from '~/lib/auth'
-import { fetchTrade, postTrade } from '~/lib/api'
+import { fetchTrade, postTrade, TradeNotFoundError } from '~/lib/api'
 import { cancelListing } from '~/lib/buy'
 import { manaWeiToCredits, readManaUsdRate } from '~/lib/mana-rate'
 import { createPrimaryUsdPeggedListing, createUsdPeggedListing, ensureApproval, ensureMinter } from '~/lib/trades'
@@ -121,11 +121,29 @@ export async function importListing(
     throw new Error('The Shop does not offer secondary sales; this listing cannot be migrated.')
   }
 
-  // Take the old MANA listing down first — otherwise POST /v1/trades 409s ("already an open order
-  // for this NFT"). Best-effort: if the trade can't be fetched it's already gone, so skip the cancel.
+  /**
+   * Take the old MANA listing down first — otherwise POST /v1/trades 409s ("already an open order for
+   * this NFT").
+   *
+   * `removedOld` may ONLY be set once the cancel is confirmed on-chain. It used to be set as soon as
+   * `cancelListing` resolved, which the gasless path did even for a transaction that mined and
+   * REVERTED: the flow then reported the listing as removed, every re-list attempt hit the 409, and the
+   * seller was told "your old listing was removed" while it was still live. Worse, a retry would pass
+   * `cancelOld: false` on that false premise and could leave the item listed twice.
+   *
+   * A cancel that cannot be confirmed now propagates instead of being swallowed. Re-listing on top of a
+   * listing that may still be open is what produced the loop, and a revert and a timeout are equally
+   * disqualifying here even though only the revert is final.
+   */
   let removedOld = false
   if (opts.cancelOld !== false) {
-    const old = await fetchTrade(item.oldTradeId).catch(() => null)
+    // Only a 404 is evidence the trade is gone; any OTHER failure is just a failure to ask. The old
+    // `.catch(() => null)` conflated the two, so a transient blip skipped the cancel and walked straight
+    // into the 409.
+    const old = await fetchTrade(item.oldTradeId).catch(e => {
+      if (e instanceof TradeNotFoundError) return null
+      throw e
+    })
     if (old) {
       await cancelListing({ trade: old, signer: session.signer })
       removedOld = true
