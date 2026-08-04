@@ -202,3 +202,73 @@ describe('ItemDetail — the carousel below the fold', () => {
     })
   })
 })
+
+/**
+ * EMOTE PLAYBACK CHIPS.
+ *
+ * The Shop's detail page showed rarity, category and gender while the marketplace showed the emote's play
+ * mode, sound and props as well — so the same emote read as having fewer traits here than there. All three
+ * come from fields the catalogue already returns (data.emote loop / hasSound / hasGeometry); nothing new is
+ * fetched.
+ *
+ * `loop` is the one worth pinning: false is not absence. An emote that plays once must SAY so, and only a
+ * wearable — where the field is undefined — may show no chip at all.
+ */
+describe('emote playback chips', () => {
+  const emote = (over: Partial<CatalogItem>) =>
+    item({ id: 'a', name: 'Laser Face', itemId: '1', category: 'emote', ...over })
+
+  it('says PLAY LOOP for a looping emote', async () => {
+    fetchCollectionItems.mockResolvedValue({ items: [emote({ emoteLoop: true })], total: 1 })
+
+    renderPdp()
+
+    expect(await screen.findByTestId('detail-play-mode')).toHaveTextContent(/play loop/i)
+  })
+
+  it('says PLAY ONCE when loop is false, rather than hiding the chip', async () => {
+    fetchCollectionItems.mockResolvedValue({ items: [emote({ emoteLoop: false })], total: 1 })
+
+    renderPdp()
+
+    expect(await screen.findByTestId('detail-play-mode')).toHaveTextContent(/play once/i)
+  })
+
+  it('shows no play-mode chip for a wearable, where the field is undefined', async () => {
+    fetchCollectionItems.mockResolvedValue({
+      items: [item({ id: 'a', name: 'Anchor Hat', itemId: '1' })],
+      total: 1
+    })
+
+    renderPdp()
+
+    // The name appears in the heading AND in the collection rail, so anchor on the heading specifically.
+    await screen.findByRole('heading', { name: 'Anchor Hat' })
+    expect(screen.queryByTestId('detail-play-mode')).toBeNull()
+  })
+
+  it('shows sound and props only when the emote has them', async () => {
+    fetchCollectionItems.mockResolvedValue({
+      items: [emote({ emoteLoop: true, emoteHasSound: true, emoteHasProps: true })],
+      total: 1
+    })
+
+    renderPdp()
+
+    expect(await screen.findByTestId('detail-sound')).toBeInTheDocument()
+    expect(screen.getByTestId('detail-props')).toBeInTheDocument()
+  })
+
+  it('omits sound and props when the emote has neither', async () => {
+    fetchCollectionItems.mockResolvedValue({
+      items: [emote({ emoteLoop: true, emoteHasSound: false, emoteHasProps: false })],
+      total: 1
+    })
+
+    renderPdp()
+
+    await screen.findByTestId('detail-play-mode')
+    expect(screen.queryByTestId('detail-sound')).toBeNull()
+    expect(screen.queryByTestId('detail-props')).toBeNull()
+  })
+})

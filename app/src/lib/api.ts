@@ -25,6 +25,14 @@ export type CatalogItem = {
   gender: 'male' | 'female' | 'unisex' | null
   // Smart wearable (carries an interactive scene/game.js). Surfaces a "Smart" badge on the card.
   isSmart: boolean
+  /**
+   * Emote playback traits, straight from the catalogue's `data.emote`. They exist for wearables too in the
+   * response shape but are only ever set on emotes, so the chips key on the category rather than on absence:
+   * `loop: false` is a MEANINGFUL value (play once) and must not read the same as "not an emote".
+   */
+  emoteLoop?: boolean
+  emoteHasSound?: boolean
+  emoteHasProps?: boolean
   // Present for secondary listings (a specific token on sale): the open USD-pegged trade + its token.
   // Checkout uses `tradeId` directly instead of resolving by itemId.
   tradeId?: string
@@ -73,7 +81,7 @@ type RawCatalogItem = {
   minPrice?: string | null
   data?: {
     wearable?: { category?: string; bodyShapes?: string[]; description?: string; isSmart?: boolean }
-    emote?: { category?: string; description?: string }
+    emote?: { category?: string; description?: string; loop?: boolean; hasSound?: boolean; hasGeometry?: boolean }
   }
 }
 
@@ -130,7 +138,10 @@ function toCatalogItem(r: RawCatalogItem): CatalogItem {
     thumbnail: r.thumbnail ?? '',
     priceCredits: toCredits(r.price ?? r.minPrice),
     gender: toGender(r.data?.wearable?.bodyShapes),
-    isSmart: r.data?.wearable?.isSmart ?? false
+    isSmart: r.data?.wearable?.isSmart ?? false,
+    emoteLoop: r.data?.emote?.loop,
+    emoteHasSound: r.data?.emote?.hasSound,
+    emoteHasProps: r.data?.emote?.hasGeometry
   }
 }
 

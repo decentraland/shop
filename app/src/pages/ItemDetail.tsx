@@ -1019,6 +1019,27 @@ export function ItemDetail() {
                     {t('itemDetail.smart')}
                   </S.DetailChip>
                 ) : null}
+                {/* Emote playback traits — the same three the marketplace's emote detail shows, from the same fields
+                    (data.emote loop / hasSound / hasGeometry). loop is deliberately tri-state: false means play-once,
+                    which is a fact worth stating, so only undefined — i.e. a wearable — hides the chip. */}
+                {current.emoteLoop !== undefined ? (
+                  <S.DetailChip data-testid="detail-play-mode">
+                    <Icon name={current.emoteLoop ? 'play-loop' : 'play-once'} size={18} color={theme.colors.text2} />
+                    {current.emoteLoop ? t('itemDetail.playLoop') : t('itemDetail.playOnce')}
+                  </S.DetailChip>
+                ) : null}
+                {current.emoteHasSound ? (
+                  <S.DetailChip data-testid="detail-sound">
+                    <Icon name="sound" size={18} color={theme.colors.text2} />
+                    {t('itemDetail.emoteSound')}
+                  </S.DetailChip>
+                ) : null}
+                {current.emoteHasProps ? (
+                  <S.DetailChip data-testid="detail-props">
+                    <Icon name="props" size={18} color={theme.colors.text2} />
+                    {t('itemDetail.emoteProps')}
+                  </S.DetailChip>
+                ) : null}
                 {utility ? (
                   <S.DetailChip data-testid="detail-utility-chip">
                     <Icon name="utility" size={18} color={theme.colors.text2} />
@@ -1312,9 +1333,9 @@ export function ItemDetail() {
                         wallets. Shown alongside the primary CTAs whenever this item is still mintable
                         (published + remaining supply > 0 → publishableItem is present). Gasless. */}
                         {manageAsPrimary && publishableItem ? (
-                          <S.OutlineCta onClick={() => setShowIssue(true)} disabled={managing !== null}>
-                            <span>{t('itemDetail.manageIssue')}</span>
-                          </S.OutlineCta>
+                          <S.LinkCta onClick={() => setShowIssue(true)} disabled={managing !== null}>
+                            {t('itemDetail.manageIssue')}
+                          </S.LinkCta>
                         ) : null}
                         {managing === 'update' ? (
                           // Only note kept in the manage view: explain the two-step nature while the

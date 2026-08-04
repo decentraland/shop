@@ -1499,3 +1499,58 @@ describe('when fetching the user secondary sales', () => {
     await expect(fetchUserSales('0xABC')).rejects.toThrow('fetchUserSales 500')
   })
 })
+
+/**
+ * THE EMOTE TRAITS HAVE TO SURVIVE THE MAPPING.
+ *
+ * The detail page's play-mode / sound / props chips read `emoteLoop`, `emoteHasSound` and `emoteHasProps`,
+ * and the component specs hand those in directly — so they prove the chips render, not that the fields ever
+ * arrive. This asserts the other half: that toCatalogItem carries them off `data.emote`, which is where the
+ * catalogue already returns them (loop, hasSound, hasGeometry).
+ *
+ * `loop: false` is asserted explicitly because it is a value, not an absence: an emote that plays once has
+ * to stay distinguishable from a wearable, which has no such field at all.
+ */
+describe('fetchCatalog emote traits', () => {
+  const row = (emote: Record<string, unknown> | undefined) => ({
+    id: 'a',
+    name: 'Laser Face',
+    category: 'emote',
+    contractAddress: '0xc',
+    itemId: '1',
+    rarity: 'epic',
+    network: 'MATIC',
+    chainId: 80002,
+    data: emote ? { emote } : {}
+  })
+
+  const fetchOne = async (emote: Record<string, unknown> | undefined) => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ data: [row(emote)], total: 1 }) })
+    const { items } = await fetchCatalog({ first: 1, skip: 0 })
+    return items[0]
+  }
+
+  it('carries loop, sound and props off data.emote', async () => {
+    const item = await fetchOne({ loop: true, hasSound: true, hasGeometry: true })
+
+    expect(item.emoteLoop).toBe(true)
+    expect(item.emoteHasSound).toBe(true)
+    expect(item.emoteHasProps).toBe(true)
+  })
+
+  it('keeps loop false as false, not as absent', async () => {
+    const item = await fetchOne({ loop: false, hasSound: false, hasGeometry: false })
+
+    expect(item.emoteLoop).toBe(false)
+    expect(item.emoteHasSound).toBe(false)
+    expect(item.emoteHasProps).toBe(false)
+  })
+
+  it('leaves them undefined for an item with no emote data', async () => {
+    const item = await fetchOne(undefined)
+
+    expect(item.emoteLoop).toBeUndefined()
+    expect(item.emoteHasSound).toBeUndefined()
+    expect(item.emoteHasProps).toBeUndefined()
+  })
+})
