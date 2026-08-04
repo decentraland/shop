@@ -1020,15 +1020,38 @@ export async function resolveLiveTrade(item: {
 }
 
 // Name + thumbnail for a collection ITEM (primary sales don't have a minted token yet).
-async function fetchItemMeta(
-  contractAddress: string,
-  itemId: string
-): Promise<{ name?: string; thumbnail?: string } | null> {
+/**
+ * Item metadata from the v1 items endpoint. Also the ONLY source of two fields the item detail page needs:
+ *
+ *  - `utility` — the creator's description of what the item unlocks. The v3 catalog does not carry it at
+ *    all, which is why the Shop showed no utility anywhere; the marketplace reads it from here too.
+ *  - `isSmart` — nested under `data.wearable`. It does reach the page through the collection feed, but not
+ *    on every path into it (a direct URL starts from a stub), so reading it here makes the badge
+ *    independent of how the visitor arrived.
+ */
+export type ItemMeta = { name?: string; thumbnail?: string; isSmart: boolean; utility: string | null }
+
+export async function fetchItemMeta(contractAddress: string, itemId: string): Promise<ItemMeta | null> {
   const qs = new URLSearchParams({ contractAddress, itemId, first: '1' })
   const res = await fetch(`${NFT_V1}/items?${qs.toString()}`)
   if (!res.ok) return null
-  const { data } = (await res.json()) as { data: Array<{ name?: string; thumbnail?: string }> }
-  return data?.[0] ?? null
+  const { data } = (await res.json()) as {
+    data: Array<{
+      name?: string
+      thumbnail?: string
+      utility?: string | null
+      data?: { wearable?: { isSmart?: boolean } }
+    }>
+  }
+  const row = data?.[0]
+  if (!row) return null
+  return {
+    name: row.name,
+    thumbnail: row.thumbnail,
+    isSmart: !!row.data?.wearable?.isSmart,
+    // Blank-but-present is the same as absent for rendering; normalise here so no caller has to trim.
+    utility: row.utility?.trim() || null
+  }
 }
 
 // A purchase-history row's display info, resolved from its trade: what was bought + what it cost.

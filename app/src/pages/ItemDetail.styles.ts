@@ -345,6 +345,31 @@ export const DescToggle = styled.button`
   align-self: flex-start;
 `
 
+/**
+ * DESCRIPTION and UTILITY share a row, as the design pairs them (and as Meta pairs creator + collection).
+ * The row carries the responsive `order` that Description used to own: nesting Description inside it took
+ * that element out of the info column, so its own order no longer applied there.
+ * Below lg the two stack — side by side they would each be ~150px wide, which is not a column of prose.
+ */
+export const DescRow = styled.div`
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+
+  ${media.maxWidth('lg')} {
+    order: 3;
+    flex-direction: column;
+    gap: 0;
+  }
+`
+
+// Equal halves, and min-width: 0 so a long unbroken utility string ellipses/wraps inside its column
+// instead of widening the row and pushing the description out.
+export const DescCol = styled.div`
+  flex: 1 1 0;
+  min-width: 0;
+`
+
 export const Meta = styled.div`
   display: flex;
   justify-content: space-between;

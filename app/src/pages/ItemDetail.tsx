@@ -12,6 +12,7 @@ import {
   fetchTradeForItem,
   fetchItemResales,
   fetchItemDescription,
+  fetchItemMeta,
   fetchOwnedToken,
   fetchOwnedItemCount,
   fetchTokenById,
@@ -331,6 +332,24 @@ export function ItemDetail() {
       return null
     }
   })
+
+  /**
+   * Smart-wearable traits, from the v1 items endpoint — the only one that carries `utility` (the v3 catalog
+   * omits it entirely, which is why the Shop showed none of this). `isSmart` is read here too rather than
+   * trusted from `current`: arriving by URL starts the page from a stub whose isSmart is false, so the badge
+   * would have depended on how the visitor got here.
+   *
+   * Presentation only, so it is allowed to be slow and to fail quietly: no badge is the same as no utility.
+   */
+  const { data: itemTraits } = useQuery({
+    queryKey: ['item-traits', current.contractAddress, pageItemId],
+    enabled: !!current.contractAddress && !!pageItemId,
+    staleTime: 5 * 60_000,
+    retry: 1,
+    queryFn: () => fetchItemMeta(current.contractAddress, pageItemId as string)
+  })
+  const isSmart = itemTraits?.isSmart || current.isSmart
+  const utility = itemTraits?.utility ?? null
 
   const buyableTradeId = current.tradeId ?? resolvedTradeId ?? undefined
   const forSale = !!buyableTradeId
@@ -976,18 +995,48 @@ export function ItemDetail() {
                 {!isTokenRoute && current.issuedId ? (
                   <S.DetailChip data-testid="detail-issued">#{current.issuedId}</S.DetailChip>
                 ) : null}
+                {/* Smart wearable, and whether it unlocks something — the same two badges the marketplace
+                    shows, from the same two fields (`data.wearable.isSmart` and `utility`). */}
+                {isSmart ? (
+                  <S.DetailChip data-testid="detail-smart">
+                    <Icon name="smart" size={18} color={theme.colors.text2} />
+                    {t('itemDetail.smart')}
+                  </S.DetailChip>
+                ) : null}
+                {utility ? (
+                  <S.DetailChip data-testid="detail-utility-chip">
+                    <Icon name="utility" size={18} color={theme.colors.text2} />
+                    {t('itemDetail.utility')}
+                  </S.DetailChip>
+                ) : null}
               </S.Chips>
 
-              {description ? (
-                <S.Description>
-                  <S.Label>{t('itemDetail.description')}</S.Label>
-                  <S.DescText data-expanded={descExpanded || undefined}>{description}</S.DescText>
-                  {description.length > 140 ? (
-                    <S.DescToggle className="link" onClick={() => setDescExpanded(v => !v)}>
-                      {descExpanded ? t('itemDetail.showLess') : t('itemDetail.readMore')}
-                    </S.DescToggle>
+              {description || utility ? (
+                <S.DescRow>
+                  {description ? (
+                    <S.DescCol>
+                      <S.Description>
+                        <S.Label>{t('itemDetail.description')}</S.Label>
+                        <S.DescText data-expanded={descExpanded || undefined}>{description}</S.DescText>
+                        {description.length > 140 ? (
+                          <S.DescToggle className="link" onClick={() => setDescExpanded(v => !v)}>
+                            {descExpanded ? t('itemDetail.showLess') : t('itemDetail.readMore')}
+                          </S.DescToggle>
+                        ) : null}
+                      </S.Description>
+                    </S.DescCol>
                   ) : null}
-                </S.Description>
+                  {/* What the item unlocks, in the creator's own words. Reuses the description's type so the
+                      two columns read as a pair, and gets no read-more: utility copy is a line or two. */}
+                  {utility ? (
+                    <S.DescCol>
+                      <S.Description data-testid="detail-utility">
+                        <S.Label>{t('itemDetail.utility')}</S.Label>
+                        <S.DescText data-expanded>{utility}</S.DescText>
+                      </S.Description>
+                    </S.DescCol>
+                  ) : null}
+                </S.DescRow>
               ) : null}
 
               {current.creator || collection?.name || creatorPending || collectionPending ? (
