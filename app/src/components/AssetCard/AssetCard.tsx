@@ -27,9 +27,10 @@ const HOVER_DELAY_MS = 120
 // catalogue, one price treatment, no approximation marks.
 // - 'view' (view-only browse — the "All" / "Not for Sale" grids): NO trade happens inline, so the
 //   card drops Add-to-cart/Buy-now entirely. The footer shows the credit price when the item IS for
-//   sale (priceCredits > 0) or a small "NOT FOR SALE" tag when it isn't, plus a full-width dark VIEW
-//   button that opens the item detail. The whole card is the link, so the VIEW pill is a decorative
-//   affordance (aria-hidden) — no duplicate tab stop.
+//   sale (priceCredits > 0) or a small "NOT FOR SALE" tag when it isn't, and the action slot holds
+//   chips at rest with a full-width dark VIEW button revealed on hover — Add-to-cart's slot and
+//   Add-to-cart's reveal. The whole card is the link, so the VIEW pill is a decorative affordance
+//   (aria-hidden) — no duplicate tab stop.
 // - 'manage' (My Creations — the creator view of a PRIMARY item they published): renders like a view
 //   card (media + name + price-or-"NOT FOR SALE"), but the footer button is a real control — "List for
 //   sale" (dark) when the item isn't listed, "Remove from sale" (ghost) when it is — wired to
@@ -484,17 +485,22 @@ export function AssetCard(props: AssetCardProps) {
             </S.Desc>
             {priceOrNfs(true)}
           </S.Top>
-          {/* Dark VIEW affordance — the full-width pill, or the round arrow on the compact (mobile) card.
-              Decorative (aria-hidden) either way: the whole-card overlay link above is the accessible,
+          {/* Chips at rest, the dark VIEW affordance revealed on hover / keyboard focus — the SAME swap
+              every other card makes in this slot (browse Add-to-cart, My Items MANAGE), via `data-reveal`.
+              It used to be an always-visible pill, which left the Not-for-Sale grid showing a dark
+              full-width button on all 48 cards at rest while its neighbours showed chips. The compact
+              (mobile) card keeps the round arrow, which has no hover to reveal it. Decorative
+              (aria-hidden) either way: the whole-card overlay link above is the accessible,
               keyboard-reachable navigation. */}
           <S.Action>
+            {chips}
             <S.ViewRound data-testid="card-view-round" aria-hidden>
               <Icon name="arrow-right" size={18} />
             </S.ViewRound>
-            <S.View data-testid="card-view" aria-hidden>
+            <S.ViewCta data-reveal data-testid="card-view" aria-hidden>
               <Icon name="eye" size={20} />
               {t('assetCard.view')}
-            </S.View>
+            </S.ViewCta>
           </S.Action>
         </S.Body>
       ) : (
