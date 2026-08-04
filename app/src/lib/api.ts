@@ -447,15 +447,18 @@ export async function fetchShopListingForItem(contractAddress: string, itemId: s
  * has always read the unified feed, which is why the same item looked buyable in a card and unlisted on its
  * own page.
  *
- * `listingType: 'primary'` because this resolves the MINT. Resales are a separate list (fetchItemResales),
- * and letting a secondary row answer here would price the page off someone's resale.
+ * The MINT answers when there is one — a page priced off someone's resale while the creator is still selling
+ * would undercut the creator's own listing. But asking the server for primaries ONLY is wrong: an item whose
+ * mint is sold out still has a live price, and filtering it away is the same "Not for sale" bug this function
+ * exists to fix, one step further in. So both kinds are fetched and the mint is preferred here.
  */
 export async function fetchUnifiedListingForItem(
   contractAddress: string,
   itemId: string
 ): Promise<UnifiedListing | null> {
-  const { items } = await fetchUnified({ contractAddress, itemId, listingType: 'primary', first: 1 })
-  return items[0] ?? null
+  const { items } = await fetchUnified({ contractAddress, itemId, first: 5 })
+  // A secondary row is the one scoped to a single token; a mint has no tokenId.
+  return items.find(i => !i.tokenId) ?? items[0] ?? null
 }
 
 // Credit-buyable listings for the browse grid (primary + secondary, USD-pegged). All filtering

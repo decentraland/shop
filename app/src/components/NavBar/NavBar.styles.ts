@@ -144,12 +144,13 @@ export const Search = styled.div`
      alignment depend on a sibling only some routes render — on My Items, where it is hidden, the CTA,
      favourites and cart collapsed back against the tab strip. The margin lives on Tabs now, so the field is
      simply the first member of the group rather than the thing holding it up. */
-  /* 496px is the design width and the field SHRINKS toward 240px rather than growing: growing consumed the
-     slack that the tab strip's auto margin needs, which left the field pinned beside the tabs instead of
-     travelling with the buttons on its right. 240px is the floor because below it the field collapsed to
-     just the magnifier — visually a search "icon" that opens nothing. The tab strip yields first. */
-  flex: 0 1 496px;
-  min-width: 240px;
+  /* Grows from a 240px basis but never past the design's 496px. The basis matters: a 496px basis is claimed
+     up front and, once the row is tight, the strip beside it gives up label width instead — tabs clipped at
+     1440. Capping the GROWTH instead is what lets the field reach its design width and still leave the rest
+     of the slack to the tab strip's auto margin, so the field travels with the buttons on its right rather
+     than stretching to meet them. 240px is the floor because below it the field is just a magnifier. */
+  flex: 1 0 240px;
+  max-width: 496px;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -173,8 +174,9 @@ export const Search = styled.div`
 
   ${stacked} {
     order: 5;
-    /* Own row here — full width, so the desktop basis must not hold it back. */
+    /* Own row here — full width, so neither the desktop basis nor its cap may hold it back. */
     flex: 1 0 100%;
+    max-width: none;
   }
 
   ${mobile} {

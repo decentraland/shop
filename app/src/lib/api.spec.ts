@@ -1239,8 +1239,38 @@ describe('when resolving the open trade for a catalog item', () => {
     expect(await fetchTradeForItem('0xc', '0')).toEqual({ id: 'tr-legacy' })
     const url = String(fetchMock.mock.calls[0][0])
     expect(url).toContain('v3/catalog/unified?')
-    // The MINT, never someone's resale — a secondary row answering here would price the page off a resale.
-    expect(url).toContain('listingType=primary')
+    // BOTH kinds are asked for: filtering the server call to primaries hid the live price of an item whose
+    // mint is sold out, which is the same "Not for sale" bug one step further in.
+    expect(url).not.toContain('listingType')
+  })
+
+  /**
+   * With a mint AND resales open, the page is priced off the MINT: a resale answering here would undercut the
+   * creator's own listing. The preference is applied over the rows, not by filtering the request.
+   */
+  it('should prefer the mint over a resale when both are listed', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonOk({
+          data: [
+            { tradeId: 'tr-resale', itemId: '3', tokenId: '7' },
+            { tradeId: 'tr-mint', itemId: '3', tokenId: null }
+          ]
+        })
+      )
+      .mockResolvedValueOnce(jsonOk({ data: { id: 'tr-mint' } }))
+
+    expect(await fetchTradeForItem('0xc', '3')).toEqual({ id: 'tr-mint' })
+    expect(String(fetchMock.mock.calls[1][0])).toBe('https://market.test/v1/trades/tr-mint')
+  })
+
+  // Sold out, resales open: the resale is the only live price, so it answers rather than nothing.
+  it('should fall back to a resale when the item has no mint listing', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonOk({ data: [{ tradeId: 'tr-resale', itemId: '3', tokenId: '7' }] }))
+      .mockResolvedValueOnce(jsonOk({ data: { id: 'tr-resale' } }))
+
+    expect(await fetchTradeForItem('0xc', '3')).toEqual({ id: 'tr-resale' })
   })
 
   it('should return null when no listing exists for the item', async () => {
