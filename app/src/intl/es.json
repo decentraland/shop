@@ -904,7 +904,18 @@
     "statusUnlisted": "No publicado",
     "hintConfirm": "Aparecerán un par de confirmaciones rápidas por artículo (retirar + volver a publicar). Mantén esto abierto.",
     "hintManaged": "Esto solo lleva un momento — mantén esto abierto.",
-    "statusWaiting": "Esperando"
+    "statusWaiting": "Esperando",
+    "phaseCancel": "Dando de baja el listado anterior…",
+    "phaseCancelConfirm": "Confirmá la baja…",
+    "phaseConfirmingCancel": "Esperando la confirmación de la red…",
+    "phaseAuthorise": "Preparando la tienda…",
+    "phaseAuthoriseConfirm": "Confirmá la autorización por única vez…",
+    "phaseSign": "Preparando el precio nuevo…",
+    "phaseSignConfirm": "Firmá el nuevo listado…",
+    "phasePublishing": "Publicando…",
+    "phaseIndexing": "Esperando que se libere el listado anterior ({attempt}/{of})…",
+    "hintCount": "Van a aparecer unas {total} confirmaciones — dar de baja y volver a listar, por artículo. Dejá esto abierto.",
+    "hintCountApproval": "Van a aparecer unas {total} confirmaciones: dar de baja y volver a listar por artículo, más una autorización por única vez por colección. Dejá esto abierto."
   },
   "fittingRoom": {
     "title": "Probador",
