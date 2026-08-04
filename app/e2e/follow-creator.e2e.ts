@@ -29,13 +29,14 @@ describe('following a creator', () => {
     const { page } = app
 
     await waitForText(page, 'Galaxy Studio')
-    // aria-pressed is the state the button exposes; it is what a screen reader announces.
-    const pressedBefore = await page.$eval('button[aria-pressed]', el => el.getAttribute('aria-pressed'))
+    // aria-pressed is the state the button exposes; it is what a screen reader announces. Selected by
+    // testid, not by `button[aria-pressed]` — the filter sidebar's rarity chips are toggles too.
+    const pressedBefore = await page.$eval('[data-testid="follow-button"]', el => el.getAttribute('aria-pressed'))
     expect(pressedBefore).toBe('false')
 
     expect(await clickByText(page, 'button', /^follow$/i)).toBe(true)
     await waitForText(page, 'Following')
-    expect(await page.$eval('button[aria-pressed]', el => el.getAttribute('aria-pressed'))).toBe('true')
+    expect(await page.$eval('[data-testid="follow-button"]', el => el.getAttribute('aria-pressed'))).toBe('true')
   })
 
   it('keeps the follow across a full page reload', async () => {
@@ -59,7 +60,7 @@ describe('following a creator', () => {
     await waitForText(page, 'Following')
     expect(await clickByText(page, 'button', /^following$/i)).toBe(true)
     await page.waitForFunction(
-      () => document.querySelector('button[aria-pressed]')?.getAttribute('aria-pressed') === 'false',
+      () => document.querySelector('[data-testid="follow-button"]')?.getAttribute('aria-pressed') === 'false',
       { timeout: 20000 }
     )
   })
@@ -92,7 +93,7 @@ describe('follows hidden by the unset flag', () => {
     await waitForText(page, 'Galaxy Studio')
     // The rest of the hero is intact — only the follow affordance is gone.
     expect(await page.$('[data-testid="creator-hero-view"]')).not.toBeNull()
-    expect(await page.$('button[aria-pressed]')).toBeNull()
+    expect(await page.$('[data-testid="follow-button"]')).toBeNull()
     expect(await bodyText(page)).not.toMatch(/\bfollow\b/i)
   })
 

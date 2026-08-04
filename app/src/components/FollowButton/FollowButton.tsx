@@ -19,6 +19,7 @@ export function FollowButton({ address, className = '' }: { address: string; cla
       size="sm"
       variant={following ? 'ghost' : 'outline'}
       className={className || undefined}
+      data-testid="follow-button"
       aria-pressed={following}
       title={following ? t('creator.unfollowTitle') : t('creator.followTitle')}
       onClick={() => toggle(address)}
