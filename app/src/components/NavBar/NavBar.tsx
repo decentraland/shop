@@ -25,37 +25,16 @@ import { t } from '~/intl/i18n'
 import * as S from './NavBar.styles'
 import { theme } from '~/styles/theme'
 
-// The ui2 Notifications feature is MUI-based (it reads `theme.breakpoints`/palette from a MUI theme
-// context), while the shop styles with emotion + its own tokens and mounts no MUI provider. So the
-// bell is lazy-loaded (the heavy ui2 feature only when signed in) and wrapped in a scoped MUI
-// CssVarsProvider carrying ui2's own theme — NOT ui2's ThemeProvider, which also injects a global
-// CssBaseline reset that would clobber the shop's styles. The provider only defines namespaced
-// `--mui-*` vars, so it doesn't leak into the rest of the app.
+// The panel chrome is the shop's own, but the per-type notification ROWS are ui2's, and those are
+// MUI-based (they read spacing/typography/palette off a MUI theme context) while the shop styles with
+// emotion + its own tokens and mounts no MUI provider. So the bell is lazy-loaded (only when signed in)
+// and wrapped in a scoped MUI CssVarsProvider carrying ui2's own theme — NOT ui2's ThemeProvider, which
+// also injects a global CssBaseline reset that would clobber the shop's styles. The provider only defines
+// namespaced `--mui-*` vars, so it doesn't leak into the rest of the app.
 // Imported by concrete path, not through the folder's barrel: Rollup names a lazy chunk after its entry
 // module, so going via index.ts would emit an anonymous `index-*.js` instead of `NotificationsBell-*.js`
 // (same split either way — just far harder to spot in a bundle report).
 const NotificationsBell = lazy(() => import('~/components/NotificationsBell/NotificationsBell'))
-
-// ui2 renders the desktop notifications panel as `styled(Menu)`, and a MUI Menu is a Popover, which is a
-// Modal — so by default it LOCKS PAGE SCROLL while open. MUI's lock does two things: `overflow: hidden` on
-// body, and a compensating `padding-right` on body and on `.mui-fixed` elements. That padding is what
-// visibly shifted the page: the fixed navbar was compensated and stayed put while everything inside body
-// slid left, increasing toward the right (left-aligned tabs barely moved, right-aligned balances moved a
-// full scrollbar width). `body.clientWidth` never changes, because clientWidth includes padding — which is
-// why measuring it showed nothing.
-//
-// Freezing the page behind a DROPDOWN is wrong anyway, so turn the lock off for Menu only. The mobile panel
-// is a full-screen `styled(Modal)` (name MuiModal, untouched here) and correctly keeps its lock.
-const notificationsTheme = {
-  ...ui2Light,
-  components: {
-    ...ui2Light.components,
-    MuiMenu: {
-      ...ui2Light.components?.MuiMenu,
-      defaultProps: { ...ui2Light.components?.MuiMenu?.defaultProps, disableScrollLock: true }
-    }
-  }
-}
 
 export function NavBar() {
   const { session, connecting, signIn, disconnect, restore } = useWallet()
@@ -227,11 +206,11 @@ export function NavBar() {
         showManaBalancesInNavbar
         notificationSlot={
           session ? (
-            // The ui2 Notifications feature can throw while rendering (e.g. a notification with an
-            // unparseable date → formatDistanceToNow "Invalid time value"). Isolate it so a bad item
-            // renders nothing instead of white-screening the whole navbar/app.
+            // A ui2 notification row can throw while rendering (e.g. one with an unparseable date →
+            // formatDistanceToNow "Invalid time value"). Isolate it so a bad item renders nothing
+            // instead of white-screening the whole navbar/app.
             <Sentry.ErrorBoundary fallback={<></>}>
-              <CssVarsProvider theme={notificationsTheme} defaultMode="light">
+              <CssVarsProvider theme={ui2Light} defaultMode="light">
                 <Suspense fallback={null}>
                   <NotificationsBell />
                 </Suspense>
