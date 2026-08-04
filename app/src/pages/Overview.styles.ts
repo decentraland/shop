@@ -1,9 +1,8 @@
 import styled from '@emotion/styled'
-import { Link } from 'react-router-dom'
 import { theme } from '~/styles/theme'
 import { Button } from '~/components/Button'
 
-const { colors, radius, media } = theme
+const { colors, media } = theme
 
 // Empty/crash state — also reused by App's CrashFallback.
 export const Empty = styled.div`
@@ -209,28 +208,3 @@ export const Arrow = styled.button`
 export { CarouselTrack as Track, Dots, Dot } from '~/styles/row.styles'
 
 // Two side-by-side promo banners, stacking to one column on mobile.
-export const Promos = styled.section`
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 24px;
-  margin: 0 0 50px;
-
-  ${media.maxWidth('mobile')} {
-    grid-template-columns: 1fr;
-  }
-`
-
-export const Promo = styled(Link)`
-  display: block;
-  border-radius: ${radius.banner};
-  overflow: hidden;
-  filter: drop-shadow(0 2.5px 6.875px rgba(0, 0, 0, 0.25));
-
-  & img {
-    display: block;
-    width: 100%;
-    height: auto;
-    aspect-ratio: 867 / 386;
-    object-fit: cover;
-  }
-`

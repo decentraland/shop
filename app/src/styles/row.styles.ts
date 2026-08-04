@@ -20,14 +20,14 @@ export const Head = styled.div`
 `
 
 export const Title = styled.h2`
-  font-size: 50px;
+  font-size: 32px;
   font-weight: 900;
-  letter-spacing: -0.05em;
-  line-height: 1.1;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
   color: ${colors.text};
 
   ${media.maxWidth('mobile')} {
-    font-size: 32px;
+    font-size: 24px;
   }
 `
 

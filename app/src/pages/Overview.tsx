@@ -11,8 +11,6 @@ import { t } from '~/intl/i18n'
 import { useSeo } from '~/hooks/useSeo'
 import carouselArrow from '~/assets/icons/carousel-arrow.svg'
 import heroBanner from '~/assets/overview/hero-fashion-week.png'
-import promoEmotes from '~/assets/overview/promo-best-rated-emotes.png'
-import promoOutfits from '~/assets/overview/promo-week-selected-outfits.png'
 import { Icon } from '~/components/Icon'
 import * as Row from '~/styles/row.styles'
 import * as S from './Overview.styles'
@@ -158,16 +156,6 @@ export function Overview() {
       {isLoading || items.length > 0 ? (
         <>
           <Carousel title={t('overview.featuredProducts')} items={items.slice(0, 12)} loading={isLoading} />
-
-          {/* Promo tiles (Figma node 913:135589). Placeholder art — see report for production source. */}
-          <S.Promos>
-            <S.Promo to="/items" aria-label={t('overview.promoEmotesAria')}>
-              <img src={promoEmotes} alt={t('overview.promoEmotesAlt')} />
-            </S.Promo>
-            <S.Promo to="/items" aria-label={t('overview.promoOutfitsAria')}>
-              <img src={promoOutfits} alt={t('overview.promoOutfitsAlt')} />
-            </S.Promo>
-          </S.Promos>
 
           {/* New Creations carousel — needs a second page of listings (>12) to be worth showing. */}
           {items.length > 12 ? (
