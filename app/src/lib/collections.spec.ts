@@ -7,7 +7,8 @@ import {
   fetchCollectionItems,
   fetchCatalogItems,
   fetchCreatorItems,
-  fetchCreatorCollections
+  fetchCreatorCollections,
+  fetchCreatorCollectionThumbnails
 } from '~/lib/collections'
 
 type RawItem = {
@@ -425,5 +426,64 @@ describe('when fetching the full catalog (browse "All" / "Not for Sale")', () =>
 
     const url = new URL(fetchMock.mock.calls[0][0] as string)
     expect(url.searchParams.has('isOnSale')).toBe(false)
+  })
+})
+
+describe('when fetching collection artwork for a table of creators', () => {
+  it('should ask for every creator in ONE bounded request', async () => {
+    const fetchMock = mockFetchOk([])
+
+    await fetchCreatorCollectionThumbnails(['0xa', '0xb', '0xc'], { first: 12 })
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const url = new URL(fetchMock.mock.calls[0][0] as string)
+    expect(url.searchParams.getAll('creator')).toEqual(['0xa', '0xb', '0xc'])
+    expect(url.searchParams.get('first')).toBe('12')
+    expect(url.searchParams.get('includeSocialEmotes')).toBe('false')
+  })
+
+  it('should not fire at all for an empty creator list', async () => {
+    const fetchMock = mockFetchOk([])
+
+    expect(await fetchCreatorCollectionThumbnails([])).toEqual({})
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('should group thumbnails by creator, one per collection, capped at perCreator', async () => {
+    mockFetchOk([
+      rawItem({ creator: '0xa', contractAddress: '0xc1', thumbnail: 'a1.png' }),
+      // Same collection as above — a second angle on it must not take one of the three slots.
+      rawItem({ creator: '0xa', contractAddress: '0xc1', thumbnail: 'a1-again.png' }),
+      rawItem({ creator: '0xa', contractAddress: '0xc2', thumbnail: 'a2.png' }),
+      rawItem({ creator: '0xa', contractAddress: '0xc3', thumbnail: 'a3.png' }),
+      rawItem({ creator: '0xb', contractAddress: '0xc4', thumbnail: 'b1.png' })
+    ])
+
+    const byCreator = await fetchCreatorCollectionThumbnails(['0xa', '0xb'], { perCreator: 2 })
+
+    expect(byCreator).toEqual({ '0xa': ['a1.png', 'a2.png'], '0xb': ['b1.png'] })
+  })
+
+  it('should key by lower-cased creator and skip items with no thumbnail', async () => {
+    mockFetchOk([
+      rawItem({ creator: '0xAbC', contractAddress: '0xc1', thumbnail: '' }),
+      rawItem({ creator: '0xAbC', contractAddress: '0xc2', thumbnail: 'ok.png' })
+    ])
+
+    expect(await fetchCreatorCollectionThumbnails(['0xabc'])).toEqual({ '0xabc': ['ok.png'] })
+  })
+
+  it('should omit a creator the page never reached, rather than inventing an entry', async () => {
+    mockFetchOk([rawItem({ creator: '0xa', contractAddress: '0xc1', thumbnail: 'a1.png' })])
+
+    const byCreator = await fetchCreatorCollectionThumbnails(['0xa', '0xmissing'])
+
+    expect(byCreator['0xmissing']).toBeUndefined()
+  })
+
+  it('should throw on a non-OK response so the caller can fall back to the plain count', async () => {
+    mockFetchNotOk(503)
+
+    await expect(fetchCreatorCollectionThumbnails(['0xa'])).rejects.toThrow('fetchCreatorCollectionThumbnails 503')
   })
 })

@@ -753,12 +753,13 @@
   },
   "weekTopCreators": {
     "title": "Week Top Creators",
-    "thisWeek": "This Week",
     "rank": "Rank",
     "creator": "Creator",
     "collections": "Collections",
-    "sales": "Sales",
-    "volume": "Volume"
+    "sales": "Number of sales",
+    "volume": "Volume",
+    "viewCollections": "View collections",
+    "viewCollectionsBy": "View collections by {name}"
   },
   "loadMore": {
     "loading": "Loading…",
