@@ -26,6 +26,23 @@ let identity: AuthIdentity | null = null
 let epoch = 0
 const toggleGen = new Map<string, number>()
 
+/**
+ * The user's own recent toggles, stamped with a sequence number, so a hydrate cannot rewind them.
+ *
+ * A hydrate answers with the list as it was when its FIRST request was issued. Toggle anywhere inside that
+ * window and applying the reply verbatim discards the heart the user just clicked, even though its POST goes
+ * on to succeed — which is exactly the "favorited it, opened My Favorites, it wasn't there until I reloaded"
+ * report: the server had it, only the in-memory list had been rewound to an older snapshot.
+ *
+ * Keyed on a SEQUENCE rather than on whether the POST has settled, because settling is the wrong signal: a
+ * POST that finishes first still does not make the hydrate's already-issued GET any fresher. So a hydrate
+ * re-applies every toggle stamped after it started, and prunes the older ones it has demonstrably caught up
+ * with. A failed toggle removes its own entry — its rollback has restored the previous state, and leaving it
+ * here would let a later hydrate re-apply a change the server rejected.
+ */
+let toggleSeq = 0
+const recentToggles = new Map<string, { item: CatalogItem; faved: boolean; seq: number }>()
+
 type Items = Record<string, CatalogItem>
 
 function keyItems(items: CatalogItem[]): Items {
@@ -82,12 +99,26 @@ export { favoriteKey } from '~/lib/favorites'
 export const useFavorites = create<FavState>((set, get) => {
   async function hydrate(): Promise<void> {
     const started = ++epoch
+    // Everything toggled from here on is NEWER than the list this hydrate is about to read.
+    const seqAtStart = toggleSeq
     set({ items: {}, status: 'loading' })
     try {
       const ids = await fetchFavoriteIds(identity!)
       const catalog = await fetchCatalogByIds(ids)
       if (epoch !== started) return
-      set({ items: keyItems(catalog), status: 'ready' })
+      // Server list first, then re-apply anything toggled while the two requests above were in flight —
+      // without this the list is correct for the moment the fetch STARTED, not for now.
+      const items = keyItems(catalog)
+      for (const [key, toggled] of recentToggles) {
+        if (toggled.seq <= seqAtStart) {
+          // This hydrate's read is newer than the toggle, so its answer already accounts for it.
+          recentToggles.delete(key)
+          continue
+        }
+        if (toggled.faved) items[key] = toggled.item
+        else delete items[key]
+      }
+      set({ items, status: 'ready' })
     } catch (e) {
       if (epoch !== started) return
       captureError(e, { flow: 'favorites', step: 'hydrate' })
@@ -113,7 +144,12 @@ export const useFavorites = create<FavState>((set, get) => {
       })
       if (!account || !identity) return
       const started = epoch
+      // Recorded only on the server-backed path: signed out there is no hydrate to race.
+      recentToggles.set(key, { item, faved: !wasFaved, seq: ++toggleSeq })
       setFavorite(key, !wasFaved, identity).catch(e => {
+        // Guarded on the generation so a slow failure does not drop a NEWER toggle of the same item, which
+        // would leave that newer one unprotected against a hydrate still in flight.
+        if (toggleGen.get(key) === gen) recentToggles.delete(key)
         captureError(e, { flow: 'favorites', step: 'toggle' })
         if (epoch !== started || toggleGen.get(key) !== gen) return
         set(s => {
@@ -128,6 +164,10 @@ export const useFavorites = create<FavState>((set, get) => {
     reloadFor: (addr, authIdentity) => {
       account = addr ? addr.toLowerCase() : null
       identity = authIdentity ?? null
+      // A session boundary invalidates anything still in flight: those toggles belong to the account that
+      // is being swapped out, and re-applying them over the NEW account's list would show one account's
+      // favorites to another.
+      recentToggles.clear()
       if (account && identity) {
         void hydrate()
       } else {

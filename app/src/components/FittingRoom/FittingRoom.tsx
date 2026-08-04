@@ -5,7 +5,7 @@ import { WearablePreview } from '~/components/LazyWearablePreview'
 import { useCart } from '~/store/cart'
 import { useWallet } from '~/store/wallet'
 import { useProfile } from '~/hooks/useProfile'
-import { CURRENCY } from '~/lib/currency'
+import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { track } from '~/lib/analytics'
 import { isWearable, slotOf, slotRegion, defaultWorn, toggleWorn, conflictingIds, wornUrns } from '~/lib/outfit'
 import { avatarShape, dominantShape, itemShapes, shapeLabel, isCompatible, BASE_MALE } from '~/lib/bodyShape'
@@ -240,7 +240,10 @@ export function FittingRoom() {
             <S.Total>
               {t('fittingRoom.itemCount', { count: items.length })} ·{' '}
               <strong>
-                {CURRENCY.symbol} {total}
+                {/* The credit mark, as every other total in the app draws it. This read `CURRENCY.symbol`,
+                    which was the string '◈' — MANA's rhombus. It was the only consumer of that field, so
+                    the field is gone too rather than left as the one wrong glyph in the currency token. */}
+                <CurrencyIcon /> {total}
               </strong>
             </S.Total>
             <S.CheckoutBtn

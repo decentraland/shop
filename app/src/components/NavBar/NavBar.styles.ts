@@ -48,7 +48,13 @@ export const Subnav = styled.div`
 // search field to nothing and, once even that runs out, pushes the whole page into horizontal overflow.
 // The strip scrolls instead — the mask on its right edge is what tells you there is more to reach, since
 // the scrollbar is hidden. Below `lg` the strip has its own full-width row and none of this applies.
+// Holds the row's ONE auto margin, and it is on the tab strip rather than on anything to its right on
+// purpose: everything after the tabs — the search field, the CTA, favourites, the cart — then travels
+// together against the right edge, and it keeps doing that whether or not the search is rendered (it is
+// hidden on My Items). Put on a member of that group instead, the alignment either breaks on the route
+// without a search, or two auto margins split the slack and park the field mid-row.
 export const Tabs = styled.nav`
+  margin-right: auto;
   display: flex;
   gap: 40px;
   height: 100%;
@@ -113,17 +119,16 @@ export const Tabs = styled.nav`
 // position:relative is the offset parent for the SearchDropdown's absolutely-positioned panel.
 export const Search = styled.div`
   position: relative;
-  /* The auto left margin that used to be here now lives on Credits below. It was redundant here (a flex
-     item that GROWS leaves no free space for an auto margin to take) and it was load-bearing for the wrong
-     element: the row's right-hand group was only right-aligned as a side effect of this field sitting
-     before it, so on My Items, where the field is not rendered, the CTA, favourites and cart collapsed
-     back against the tab strip. */
-  /* 240px of field is the FLOOR (flex-shrink: 0 makes the basis hard), growing into whatever slack the
-     row has left up to the 496px design width. The field used to be plain flexible, so the other items
-     shrank it with the window until only the magnifier was left — visually a search "icon", but not a
-     control that opens anything, so the search was simply gone. The tab strip yields instead. */
-  flex: 1 0 240px;
-  max-width: 496px;
+  /* This field once carried the row's auto left margin, and that made the whole right-hand group's
+     alignment depend on a sibling only some routes render — on My Items, where it is hidden, the CTA,
+     favourites and cart collapsed back against the tab strip. The margin lives on Tabs now, so the field is
+     simply the first member of the group rather than the thing holding it up. */
+  /* 496px is the design width and the field SHRINKS toward 240px rather than growing: growing consumed the
+     slack that the tab strip's auto margin needs, which left the field pinned beside the tabs instead of
+     travelling with the buttons on its right. 240px is the floor because below it the field collapsed to
+     just the magnifier — visually a search "icon" that opens nothing. The tab strip yields first. */
+  flex: 0 1 496px;
+  min-width: 240px;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -147,10 +152,8 @@ export const Search = styled.div`
 
   ${stacked} {
     order: 5;
-    /* Own row here — full width, so the desktop floor and cap must not hold it back. */
+    /* Own row here — full width, so the desktop basis must not hold it back. */
     flex: 1 0 100%;
-    max-width: none;
-    margin-left: 0;
   }
 
   ${mobile} {
@@ -185,14 +188,10 @@ export const SearchClear = styled.button`
   }
 `
 
-// First item of the row's right-hand group (CTA · balance · favourites · cart), so it carries the auto
-// margin that holds the group against the right edge. On this element rather than on the search field,
-// which is not always rendered — with it there, the group's alignment depended on a sibling that only some
-// routes have. It costs nothing when the field IS present: that field grows, so there is no free space
-// left for this margin to claim and the group stays exactly where it was.
+// No auto margin here: Tabs carries the row's single one, which is what keeps this group — and the search
+// field before it — against the right edge on every route.
 export const Credits = styled(NavLink)`
   position: relative;
-  margin-left: auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;

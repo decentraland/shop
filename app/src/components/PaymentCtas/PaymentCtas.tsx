@@ -33,7 +33,8 @@ export function PaymentCtas({
   busy = false,
   rateNote,
   creditsLabel,
-  shortfall
+  shortfall,
+  showCreditsAmount = true
 }: {
   /** The offerable options, already filtered + ordered by lib/payment-options. */
   options: PaymentOption[]
@@ -47,6 +48,15 @@ export function PaymentCtas({
   creditsLabel?: string
   /** Held MANA that can't pay for this purchase — renders the disabled MANA button. */
   shortfall?: ManaShortfall | null
+  /**
+   * Whether the credits button states its amount. On by default, and the item flow needs it: that button is
+   * the only place the price appears. The cart turns it OFF because its purchase summary states the total on
+   * the line directly above, so the button repeated it a centimetre away.
+   *
+   * Only the CREDITS leg is affected. The MANA and combined buttons name a different figure than the total —
+   * a MANA amount, or how the charge splits — so theirs is information the summary does not carry.
+   */
+  showCreditsAmount?: boolean
 }) {
   return (
     <S.Root>
@@ -61,10 +71,12 @@ export function PaymentCtas({
               disabled={busy}
             >
               <span>{creditsLabel ?? t('buyModal.buy')}</span>
-              <S.Amount>
-                <CurrencyIcon />
-                <span>{formatCredits(creditsFromCents(option.creditsCents))}</span>
-              </S.Amount>
+              {showCreditsAmount ? (
+                <S.Amount>
+                  <CurrencyIcon />
+                  <span>{formatCredits(creditsFromCents(option.creditsCents))}</span>
+                </S.Amount>
+              ) : null}
             </S.CreditsBtn>
           )
         }

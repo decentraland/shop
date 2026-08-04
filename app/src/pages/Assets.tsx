@@ -27,7 +27,7 @@ import * as S from './Assets.styles'
 const PAGE_SIZE = 48
 
 export function Assets() {
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
   const q = (searchParams.get('q') ?? '').trim().toLowerCase()
 
@@ -40,7 +40,30 @@ export function Assets() {
     description: t('seo.collectibles.description')
   })
 
-  const [category, setCategory] = useState('wearable')
+  /**
+   * The category lives in the URL, not in component state.
+   *
+   * It was state, and that is why the Collectibles tab did nothing once you were looking at NAMEs: the tab
+   * links to a bare /items, you are ALREADY on /items, and React Router does not remount a route you never
+   * left — so the category stayed whatever it was and the page did not move. A param has no such problem;
+   * navigating to /items with no query IS the reset. It also makes a category linkable and survives a
+   * reload, which state never did.
+   *
+   * The default is kept OUT of the URL so the canonical /items has no query of its own.
+   */
+  const category = searchParams.get('category') ?? 'wearable'
+  const setCategory = (key: string) =>
+    setSearchParams(
+      prev => {
+        const p = new URLSearchParams(prev)
+        if (key === 'wearable') p.delete('category')
+        else p.set('category', key)
+        return p
+      },
+      // A filter change is not a navigation: replace, so Back leaves the grid instead of walking every
+      // category the visitor tried.
+      { replace: true }
+    )
   const [subCategory, setSubCategory] = useState<string | null>(null)
   const [rarities, setRarities] = useState<string[]>([])
   const [priceMin, setPriceMin] = useState('')
