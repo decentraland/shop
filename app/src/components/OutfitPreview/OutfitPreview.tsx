@@ -85,7 +85,7 @@ export function OutfitPreview({
           disableFadeEffect
           dev={dev}
           unity
-          unityMode={PreviewUnityMode.PROFILE}
+          unityMode={PreviewUnityMode.MARKETPLACE}
           onLoad={() => {
             setReady(true)
             previewWindowRef.current = (document.getElementById(id) as HTMLIFrameElement | null)?.contentWindow ?? null
