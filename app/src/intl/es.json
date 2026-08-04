@@ -555,7 +555,11 @@
     "migrate": {
       "chip": "Publicaciones",
       "chipAria": "Mueve tus publicaciones — {count, plural, one {queda # artículo} other {quedan # artículos}}"
-    }
+    },
+    "unfinished": "Sin terminar",
+    "resume": "Continuar",
+    "resuming": "Abriendo…",
+    "resumeExpired": "Ese pago expiró: elige un paquete para empezar de nuevo."
   },
   "myFavorites": {
     "emptyTitle": "¡Aquí no hay nada... todavía!",

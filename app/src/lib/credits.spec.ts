@@ -364,6 +364,8 @@ describe('when dev-minting a spendable credit (plain fetch)', () => {
  */
 describe('creditOrderPill', () => {
   const cases = {
+    // Nobody has paid: the buyer can still finish it, and nothing is owed to them.
+    initiated: 'UNFINISHED',
     processing: 'PENDING',
     crediting: 'PENDING',
     credited: 'SETTLED',
@@ -375,8 +377,15 @@ describe('creditOrderPill', () => {
     expect(creditOrderPill(status as CreditOrderStatus)).toBe(expected)
   })
 
+  // The regression the split exists for: an unpaid checkout must never wear the same pill as money on
+  // its way, which is what read as "you are owed credits" for a day after the buyer walked away.
+  it('should not present an unpaid checkout as money on its way', () => {
+    expect(creditOrderPill('initiated')).not.toBe(creditOrderPill('processing'))
+    expect(creditOrderPill('initiated')).not.toBe('PENDING')
+  })
+
   it('should never report money as available for a status that is not credited', () => {
-    const notYet: CreditOrderStatus[] = ['processing', 'crediting', 'failed', 'abandoned']
+    const notYet: CreditOrderStatus[] = ['initiated', 'processing', 'crediting', 'failed', 'abandoned']
     for (const status of notYet) expect(creditOrderPill(status)).not.toBe('SETTLED')
   })
 })
