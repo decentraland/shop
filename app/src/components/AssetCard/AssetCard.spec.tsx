@@ -135,17 +135,20 @@ describe('AssetCard hover-preview skeleton', () => {
 })
 
 describe('AssetCard listings badge (item-unified feed)', () => {
-  it('shows a "N on sale" badge when the item has more than one listing', () => {
-    const { container } = renderCard(makeItem({ listingCount: 3 }))
-    const badge = container.querySelector('[data-testid="card-listings"]')
-    expect(badge?.textContent).toMatch(/3 on sale/i)
-  })
-
-  it('shows no badge for a single-listing item or when listingCount is absent', () => {
-    const { container: single } = renderCard(makeItem({ listingCount: 1 }))
-    expect(single.querySelector('[data-testid="card-listings"]')).toBeNull()
-    const { container: none } = renderCard(makeItem())
-    expect(none.querySelector('[data-testid="card-listings"]')).toBeNull()
+  /**
+   * Inverted from asserting the badge to asserting its ABSENCE. The count is of secondary listings, and
+   * there are no secondary sales, so the badge could only ever mislead: a shopper reading "2 on sale"
+   * expects a second copy to buy and there is none. It was still rendering in production, which also
+   * means the count cannot be assumed to have collapsed to 1 on its own.
+   *
+   * `listingCount` is deliberately kept on the API type — the item-unified feed still returns it and the
+   * price collapse uses it. Only the chip is gone.
+   */
+  it('shows no listings badge, whatever the count says', () => {
+    for (const listingCount of [3, 2, 1, undefined]) {
+      const { container } = renderCard(makeItem({ listingCount }))
+      expect(container.querySelector('[data-testid="card-listings"]')).toBeNull()
+    }
   })
 })
 

@@ -54,16 +54,21 @@ describe('browse the shop', () => {
     expect(labels.some(l => l.includes('buy now'))).toBe(false)
   })
 
-  it('shows a "N on sale" badge on an item with multiple listings', async () => {
+  /**
+   * Inverted, not deleted: it asserts something the unit spec cannot.
+   *
+   * The unit spec hands `listingCount` straight to the component, so it only proves the component ignores
+   * the prop. Here the count of 3 arrives through the real pipeline — fixture, API mapping, item-unified
+   * collapse — and still produces no badge. That is the path the chip actually reached production through,
+   * and it is why "the data will have collapsed to 1 anyway" was never a safe assumption to rely on.
+   */
+  it('shows no on-sale badge even when the feed reports several listings', async () => {
     app = await launchApp({ path: '/assets' })
     const { page } = app
     await waitForText(page, 'Galaxy Hat')
-    // The Galaxy Hat fixture has listingCount 3 → its card carries a "3 on sale" badge; single-listing
-    // items (Nebula Jacket) don't.
-    const badges = await page.$$eval('[data-testid="card-listings"]', els =>
-      els.map(e => e.textContent?.trim().toLowerCase())
-    )
-    expect(badges.some(b => b?.includes('3 on sale'))).toBe(true)
+    // The Galaxy Hat fixture carries listingCount 3; there are no secondary sales, so nothing may advertise
+    // a second copy to buy.
+    expect(await page.$('[data-testid="card-listings"]')).toBeNull()
   })
 
   it('shows NOT FOR SALE + VIEW (never Add to cart) on a card with no live price', async () => {
