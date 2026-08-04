@@ -19,9 +19,19 @@ describe('get credits page', () => {
     expect(await page.evaluate(() => document.querySelectorAll('[data-testid="pack"]').length)).toBe(4)
     await waitForText(page, '$5.99')
     await waitForText(page, '$59.99')
-    // The bonus badge only renders on a pack that beats the entry rate, so it also pins the ladder's shape:
-    // if a repricing ever flattened it, packBonus() returns null and this disappears.
-    await waitForText(page, 'bonus')
+    /**
+     * The bonus is now stated in the pack ACCESSIBLE LABEL, not as a visible pill.
+     *
+     * The struck-through baseline and the "+N bonus" pill were dropped in the home redesign: they
+     * rendered as reserved empty space on every card. This used to wait for the visible word and timed
+     * out at 20s once it was gone. packBonus() is still computed for the aria-label, so the assertion
+     * moves there — it still pins the ladder shape, because a repricing that flattened the rate makes
+     * packBonus() return null and the "more than" clause disappear.
+     */
+    const packLabels = await page.$$eval('[data-testid="pack"]', els =>
+      els.map(e => e.querySelector('[aria-label]')?.getAttribute('aria-label') ?? e.getAttribute('aria-label') ?? '')
+    )
+    expect(packLabels.some(l => /more than/i.test(l))).toBe(true)
     await waitForText(page, 'Recommended')
 
     // The signed-in balance chip renders in the global navbar (creditsResponse.usd.credits = 500).
