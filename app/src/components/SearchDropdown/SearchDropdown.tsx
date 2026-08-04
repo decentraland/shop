@@ -1,5 +1,9 @@
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
-import { fetchListings, type CatalogItem } from '~/lib/api'
+import { fetchShopItems, type CatalogItem, type UnifiedListing } from '~/lib/api'
+import { useSecondarySales } from '~/hooks/useSecondarySales'
+// The chain-free half of mana-rate — the NavBar is eager, so don't drag ethers into its chunk.
+import { manaWeiToCredits } from '~/lib/mana-convert'
+import { useManaRate } from '~/hooks/useManaRate'
 import { Icon } from '~/components/Icon'
 import { fetchCollectionSuggestions, fetchCreatorSuggestions, type CollectionHit, type CreatorHit } from '~/lib/search'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
@@ -59,9 +63,12 @@ type SearchDropdownProps = {
 // The autocomplete panel anchored under the NavBar search input. Two modes:
 // - empty query  → recent searches (from localStorage, via the parent)
 // - typed query  → live matches in three sections: Creators, Collections, and Items.
-//   Items come from /v3/catalog/shop (name + tags). Collections come from /v1/collections?search=,
-//   and Creators are derived from those collections' authors (see lib/search). The grid stays
-//   items-only — only the dropdown surfaces creators/collections as jump-to links.
+//   Items come from the SAME feed and filter set the /items grid lands on (fetchShopItems →
+//   /v3/catalog/unified?groupBy=item, on-sale, resales per the flag) so a suggestion is never
+//   something the results page then hides, and "See all (N)" counts what the grid will render.
+//   Collections come from /v1/collections?search=, and Creators are derived from those collections'
+//   authors (see lib/search). The grid stays items-only — only the dropdown surfaces
+//   creators/collections as jump-to links.
 // Keyboard nav is limited to Escape/Enter, owned by the parent NavBar.
 export function SearchDropdown({
   query,
@@ -74,10 +81,15 @@ export function SearchDropdown({
   onClearRecent
 }: SearchDropdownProps) {
   const enabled = query.length >= MIN_QUERY_LEN
+  const secondarySales = useSecondarySales()
+  const { data: rate } = useManaRate()
+  // Mirror the default state of the grid this dropdown links into (see pages/Assets.tsx): on-sale
+  // only, resales hidden unless the flag says otherwise, no category constraint.
+  const listingType = secondarySales ? undefined : ('primary' as const)
 
   const { data: itemData, isFetching: itemsFetching } = useQuery({
-    queryKey: ['search-suggest', query],
-    queryFn: () => fetchListings({ search: query, first: SUGGEST_COUNT }),
+    queryKey: ['search-suggest', query, listingType],
+    queryFn: () => fetchShopItems({ search: query, first: SUGGEST_COUNT, onSale: true, listingType }),
     enabled,
     // Keep the previous suggestions on screen while the next keystroke's results load (no flicker).
     placeholderData: keepPreviousData,
@@ -102,6 +114,11 @@ export function SearchDropdown({
 
   const items = enabled ? (itemData?.items ?? []) : []
   const total = itemData?.total ?? 0
+
+  // Same price treatment as the grid (see pages/Assets.tsx): a legacy row is priced off the LIVE rate,
+  // never the server's snapshot, and shows no price at all when the oracle is unavailable.
+  const priceOf = (item: UnifiedListing): number | null =>
+    item.source === 'legacy' ? (rate && item.manaWei ? manaWeiToCredits(item.manaWei, rate) : null) : item.priceCredits
 
   if (!enabled) {
     if (recent.length === 0) return null
@@ -148,25 +165,30 @@ export function SearchDropdown({
                 <span>{t('search.items')}</span>
               </S.SectionHead>
               <S.List>
-                {items.map(item => (
-                  <li key={item.id}>
-                    <S.Row
-                      type="button"
-                      data-testid="search-pop-row"
-                      data-kind="item"
-                      onClick={() => onSelectItem(item)}
-                    >
-                      <S.Thumb>{item.thumbnail ? <img src={item.thumbnail} alt="" /> : null}</S.Thumb>
-                      <S.Text>
-                        <S.Name title={item.name}>{item.name}</S.Name>
-                        {item.creator ? <CreatorName address={item.creator} /> : null}
-                      </S.Text>
-                      <S.Price>
-                        <CurrencyIcon className="ccy-mark" /> {item.priceCredits}
-                      </S.Price>
-                    </S.Row>
-                  </li>
-                ))}
+                {items.map(item => {
+                  const price = priceOf(item)
+                  return (
+                    <li key={item.id}>
+                      <S.Row
+                        type="button"
+                        data-testid="search-pop-row"
+                        data-kind="item"
+                        onClick={() => onSelectItem(item)}
+                      >
+                        <S.Thumb>{item.thumbnail ? <img src={item.thumbnail} alt="" /> : null}</S.Thumb>
+                        <S.Text>
+                          <S.Name title={item.name}>{item.name}</S.Name>
+                          {item.creator ? <CreatorName address={item.creator} /> : null}
+                        </S.Text>
+                        {price == null ? null : (
+                          <S.Price>
+                            <CurrencyIcon className="ccy-mark" /> {price}
+                          </S.Price>
+                        )}
+                      </S.Row>
+                    </li>
+                  )
+                })}
               </S.List>
             </>
           ) : null}

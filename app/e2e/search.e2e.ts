@@ -19,7 +19,8 @@ describe('search bar', () => {
     await page.waitForSelector(SEARCH)
     await page.type(SEARCH, 'Nebula')
 
-    // The dropdown fetches /v3/catalog/shop?search=Nebula and shows the matching item.
+    // The dropdown fetches the same feed the results grid uses (/v3/catalog/unified?groupBy=item)
+    // and shows the matching item.
     await page.waitForSelector('[data-testid="search-pop"]')
     await waitForText(page, 'Nebula Jacket')
     // "Galaxy Hat" doesn't match the query → not suggested.
@@ -106,6 +107,50 @@ describe('search bar', () => {
     await page.waitForFunction(() => location.pathname === '/items' && /q=Galaxy/i.test(location.search))
     // The results header echoes the query, and the matching item renders in the grid.
     await waitForText(page, 'Galaxy Hat')
+  })
+
+  // The bug this guards: the dropdown, the on-sale grid and the all/not-for-sale grid used to run
+  // three different server-side searches, so one query could suggest an item the grid then hid, and
+  // widening Status from "On Sale" to "All" could drop the results to zero.
+  it('suggests the same item the results grid then shows', async () => {
+    app = await launchApp({ path: '/overview' })
+    const { page } = app
+
+    await page.waitForSelector(SEARCH)
+    await page.type(SEARCH, 'Nebula')
+    await page.waitForSelector('[data-testid="search-pop-row"][data-kind="item"]')
+    const suggested = await page.$eval('[data-testid="search-pop-row"][data-kind="item"]', el => el.textContent ?? '')
+    expect(suggested).toMatch(/nebula jacket/i)
+
+    await page.keyboard.press('Enter')
+    await page.waitForFunction(() => location.pathname === '/items')
+    await waitForText(page, 'Nebula Jacket')
+  })
+
+  it('keeps a search result when Status widens from On Sale to All', async () => {
+    app = await launchApp({ path: '/items?q=Nebula' })
+    const { page } = app
+
+    await waitForText(page, 'Nebula Jacket')
+    // Status radios, in order: All, On Sale, Not for Sale.
+    await page.waitForSelector('[data-testid="browse-sidebar"] input[type="radio"]')
+    await page.$$eval('[data-testid="browse-sidebar"] input[type="radio"]', els => (els[0] as HTMLElement).click())
+
+    // "All" must be a superset of "On Sale" — the item stays, and the choice lands in the URL so the
+    // view can be shared or refreshed.
+    await page.waitForFunction(() => /status=all/.test(location.search) && /q=Nebula/.test(location.search))
+    await waitForText(page, 'Nebula Jacket')
+  })
+
+  it('restores a shared not-for-sale search from the URL', async () => {
+    app = await launchApp({ path: '/items?q=Nebula&status=not_for_sale' })
+    const { page } = app
+
+    await page.waitForSelector('[data-testid="browse-empty"]')
+    const checked = await page.$$eval('[data-testid="browse-sidebar"] input[type="radio"]', els =>
+      els.map(el => (el as HTMLInputElement).checked)
+    )
+    expect(checked).toEqual([false, false, true])
   })
 
   it('keeps the suggestions dropdown wide and on-screen on a mobile viewport', async () => {

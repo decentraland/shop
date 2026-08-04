@@ -26,6 +26,8 @@ import * as S from './Assets.styles'
 // Items fetched per page (infinite scroll pages by cumulative offset — see useInfiniteGrid).
 const PAGE_SIZE = 48
 
+const STATUSES: FilterStatus[] = ['all', 'on_sale', 'not_for_sale']
+
 export function Assets() {
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
@@ -40,35 +42,30 @@ export function Assets() {
     description: t('seo.collectibles.description')
   })
 
-  /**
-   * The category lives in the URL, not in component state.
-   *
-   * It was state, and that is why the Collectibles tab did nothing once you were looking at NAMEs: the tab
-   * links to a bare /items, you are ALREADY on /items, and React Router does not remount a route you never
-   * left — so the category stayed whatever it was and the page did not move. A param has no such problem;
-   * navigating to /items with no query IS the reset. It also makes a category linkable and survives a
-   * reload, which state never did.
-   *
-   * The default is kept OUT of the URL so the canonical /items has no query of its own.
-   */
-  const category = searchParams.get('category') ?? 'wearable'
-  const setCategory = (key: string) =>
+  // Category and Status live in the URL so a filtered search is shareable and survives a refresh, and
+  // so the dropdown's "See all" lands on a state it can name. A SEARCH defaults to every category —
+  // the typeahead matches wearables and emotes alike, so pinning the grid to wearables would silently
+  // drop half the matches. Plain browsing still opens on Wearables.
+  const category = searchParams.get('category') ?? (q ? 'all' : 'wearable')
+  const statusParam = searchParams.get('status') as FilterStatus | null
+  const status: FilterStatus = statusParam && STATUSES.includes(statusParam) ? statusParam : 'on_sale'
+  // Write a filter to the URL, dropping it when it's back at its default so the address stays clean.
+  // `replace` keeps filter tweaks out of the history stack, as they were when this was local state.
+  const setParam = (key: string, value: string | null) =>
     setSearchParams(
       prev => {
-        const p = new URLSearchParams(prev)
-        if (key === 'wearable') p.delete('category')
-        else p.set('category', key)
-        return p
+        const next = new URLSearchParams(prev)
+        if (value == null) next.delete(key)
+        else next.set(key, value)
+        return next
       },
-      // A filter change is not a navigation: replace, so Back leaves the grid instead of walking every
-      // category the visitor tried.
       { replace: true }
     )
+
   const [subCategory, setSubCategory] = useState<string | null>(null)
   const [rarities, setRarities] = useState<string[]>([])
   const [priceMin, setPriceMin] = useState('')
   const [priceMax, setPriceMax] = useState('')
-  const [status, setStatus] = useState<FilterStatus>('on_sale')
   const [smart, setSmart] = useState(false)
   const [sort, setSort] = useState('newest')
   const [filtersOpen, setFiltersOpen] = useState(false) // mobile filters drawer
@@ -202,20 +199,30 @@ export function Assets() {
   }, [category, subCategory, rarities, min, max, sort, status, smart, isLoading, isPlaceholderData, resultCount])
 
   function pickCategory(key: string) {
-    setCategory(key)
+    setParam('category', key)
     setSubCategory(null)
+  }
+  function setStatus(next: FilterStatus) {
+    setParam('status', next === 'on_sale' ? null : next)
   }
   function toggleRarity(r: string) {
     setRarities(rs => (rs.includes(r) ? rs.filter(x => x !== r) : [...rs, r]))
   }
   // Reset every filter to its default. Filters apply live, so this takes effect immediately.
   function clearFilters() {
-    setCategory('wearable')
+    setSearchParams(
+      prev => {
+        const next = new URLSearchParams(prev)
+        next.delete('category')
+        next.delete('status')
+        return next
+      },
+      { replace: true }
+    )
     setSubCategory(null)
     setRarities([])
     setPriceMin('')
     setPriceMax('')
-    setStatus('on_sale')
     setSmart(false)
   }
 
