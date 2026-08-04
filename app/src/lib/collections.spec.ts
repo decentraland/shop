@@ -59,13 +59,17 @@ function mockFetchOk(data: unknown) {
 }
 
 function mockFetchNotOk(status: number) {
+  // `body.cancel` is spied, not merely present: an error response still carries a stream, and the callers
+  // are expected to release it rather than leave the connection held until GC.
+  const cancel = vi.fn().mockResolvedValue(undefined)
   const fetchMock = vi.fn().mockResolvedValue({
     ok: false,
     status,
+    body: { cancel },
     json: async () => ({})
   })
   vi.stubGlobal('fetch', fetchMock)
-  return fetchMock
+  return Object.assign(fetchMock, { cancel })
 }
 
 beforeEach(() => {
@@ -485,5 +489,15 @@ describe('when fetching collection artwork for a table of creators', () => {
     mockFetchNotOk(503)
 
     await expect(fetchCreatorCollectionThumbnails(['0xa'])).rejects.toThrow('fetchCreatorCollectionThumbnails 503')
+  })
+})
+
+describe('fetchCreatorCollectionThumbnails on an error response', () => {
+  it('releases the response stream instead of leaving the connection held', async () => {
+    const fetchMock = mockFetchNotOk(500)
+
+    await expect(fetchCreatorCollectionThumbnails(['0xcreator'])).rejects.toThrow(/500/)
+
+    expect(fetchMock.cancel).toHaveBeenCalled()
   })
 })

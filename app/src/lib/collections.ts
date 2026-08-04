@@ -227,7 +227,14 @@ export async function fetchCreatorCollectionThumbnails(
   const qs = new URLSearchParams({ first: String(first), includeSocialEmotes: 'false' })
   creators.forEach(c => qs.append('creator', c))
   const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/items?${qs.toString()}`)
-  if (!res.ok) throw new Error(`fetchCreatorCollectionThumbnails ${res.status}`)
+  if (!res.ok) {
+    // Cancel the body before throwing, matching fetchTrade in lib/api.ts: an error response still carries a
+    // stream, and abandoning it unread holds the connection until GC. One creator-ranking load is a single
+    // request, so this is not the repeated-404 pressure that motivated it there — it is the same leak, just
+    // slower to matter.
+    void res.body?.cancel()
+    throw new Error(`fetchCreatorCollectionThumbnails ${res.status}`)
+  }
   const { data } = (await res.json()) as { data?: RawCollectionItem[] }
   const byCreator: Record<string, string[]> = {}
   const seen: Record<string, Set<string>> = {}
