@@ -399,6 +399,9 @@ async function fetchShopListingsRaw(
   if (params.maxPriceCredits != null) qs.set('maxPriceCredits', String(params.maxPriceCredits))
   if (params.search) qs.set('search', params.search)
   if (params.sortBy) qs.set('sortBy', params.sortBy)
+  if (params.isSmart) qs.set('isSmart', 'true')
+  if (params.onSale != null) qs.set('onSale', String(params.onSale))
+  if (params.listingType) qs.set('listingType', params.listingType)
   const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/shop?${qs.toString()}`)
   if (!res.ok) throw new Error(`fetchShopListings ${res.status}`)
   const json = (await res.json()) as { data?: ShopListingRaw[]; total?: number }

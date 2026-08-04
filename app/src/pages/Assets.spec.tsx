@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 // Assets pulls a lot of heavy ESM transitively (checkout + names libs → decentraland-transactions
@@ -53,16 +53,29 @@ vi.mock('~/store/wallet', () => ({
 }))
 
 import { Assets } from '~/pages/Assets'
+import { fetchShopItems } from '~/lib/api'
+import { fetchCatalogItems } from '~/lib/collections'
 
-function renderAssets() {
+function LocationProbe() {
+  return <span data-testid="location-search">{useLocation().search}</span>
+}
+
+function renderAssets(entry = '/items') {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={['/items']}>
+      <MemoryRouter initialEntries={[entry]}>
         <Assets />
+        <LocationProbe />
       </MemoryRouter>
     </QueryClientProvider>
   )
+}
+
+// The filter set the grid last asked the server for.
+async function lastShopItemsCall() {
+  await waitFor(() => expect(fetchShopItems).toHaveBeenCalled())
+  return vi.mocked(fetchShopItems).mock.calls.at(-1)![0]
 }
 
 beforeEach(() => vi.clearAllMocks())
@@ -79,5 +92,65 @@ describe('Assets — NAMEs category', () => {
     await userEvent.click(screen.getByRole('button', { name: 'NAMEs' }))
     expect(await screen.findByTestId('names-page')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Get your unique NAME!' })).toBeInTheDocument()
+  })
+})
+
+describe('Assets — search scope', () => {
+  it('should search every category so emote matches are not silently dropped', async () => {
+    renderAssets('/items?q=chapeau')
+    expect(await lastShopItemsCall()).toMatchObject({ category: 'all', search: 'chapeau', onSale: true })
+  })
+
+  it('should still open on wearables when browsing without a query', async () => {
+    renderAssets('/items')
+    expect(await lastShopItemsCall()).toMatchObject({ category: 'wearable', search: undefined })
+  })
+
+  it('should honour an explicit category over the search default', async () => {
+    renderAssets('/items?q=chapeau&category=emote')
+    expect(await lastShopItemsCall()).toMatchObject({ category: 'emote', search: 'chapeau' })
+  })
+})
+
+describe('Assets — status filter in the URL', () => {
+  // Radio order in the Status section: All, On Sale, Not for Sale.
+  const statusRadios = () => screen.getAllByRole('radio')
+
+  it('should default to the on-sale grid when the URL says nothing', async () => {
+    renderAssets('/items?q=chapeau')
+    await lastShopItemsCall()
+    expect(fetchCatalogItems).not.toHaveBeenCalled()
+  })
+
+  it('should restore a shared not-for-sale search from the URL', async () => {
+    renderAssets('/items?q=chapeau&status=not_for_sale')
+    await waitFor(() => expect(fetchCatalogItems).toHaveBeenCalled())
+    expect(vi.mocked(fetchCatalogItems).mock.calls.at(-1)![0]).toMatchObject({ search: 'chapeau', isOnSale: false })
+    expect(fetchShopItems).not.toHaveBeenCalled()
+  })
+
+  it('should query the whole catalog, on sale or not, for the "all" status', async () => {
+    renderAssets('/items?q=chapeau&status=all')
+    await waitFor(() => expect(fetchCatalogItems).toHaveBeenCalled())
+    expect(vi.mocked(fetchCatalogItems).mock.calls.at(-1)![0]).toMatchObject({ search: 'chapeau', isOnSale: undefined })
+  })
+
+  it('should fall back to on sale when the URL carries a status it does not recognise', async () => {
+    renderAssets('/items?q=chapeau&status=bogus')
+    await lastShopItemsCall()
+    expect(fetchCatalogItems).not.toHaveBeenCalled()
+  })
+
+  it('should write the chosen status to the URL so the view can be shared', async () => {
+    renderAssets('/items?q=chapeau')
+    await userEvent.click(statusRadios()[2])
+    await waitFor(() => expect(screen.getByTestId('location-search')).toHaveTextContent('status=not_for_sale'))
+    expect(screen.getByTestId('location-search')).toHaveTextContent('q=chapeau')
+  })
+
+  it('should drop the status param again when the default is reselected', async () => {
+    renderAssets('/items?q=chapeau&status=all')
+    await userEvent.click(statusRadios()[1])
+    await waitFor(() => expect(screen.getByTestId('location-search')).not.toHaveTextContent('status='))
   })
 })
