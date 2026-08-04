@@ -354,6 +354,8 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
   // object URL immediately, and only put the hash on the draft once the upload lands.
   const [thumbLocal, setThumbLocal] = useState<string | null>(null)
   const thumbLocalRef = useRef<string | null>(null)
+  const mountedRef = useRef(true)
+  useEffect(() => () => { mountedRef.current = false }, [])
   const [thumbBusy, setThumbBusy] = useState(false)
   const [thumbError, setThumbError] = useState<string | null>(null)
   const [importText, setImportText] = useState('')
@@ -433,6 +435,7 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
     setSaveError(null)
     try {
       const saved = await saveOutfit({ ...draft, published }, session.identity, isNew ? 'create' : 'update')
+      if (!mountedRef.current) return
       sessionStorage.removeItem(storageKey)
       setDraft(toDraft(saved))
       setDirty(false)

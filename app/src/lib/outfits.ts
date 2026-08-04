@@ -196,7 +196,10 @@ export async function fetchOutfit(id: string, identity?: AuthIdentity): Promise<
   if (!base) return null
   const url = `${base}/v1/outfits/${encodeURIComponent(id)}`
   const res = identity ? await signedFetch(url, { method: 'GET', identity, metadata: {} }) : await fetch(url)
-  if (res.status === 404) return null
+  if (res.status === 404) {
+    void res.body?.cancel()
+    return null
+  }
   if (!res.ok) return throwCoded(res, 'fetchOutfit')
   const body = await json<{ outfit: Outfit }>(res, 'fetchOutfit')
   return body.outfit
@@ -233,6 +236,7 @@ export async function deleteOutfit(id: string, identity: AuthIdentity): Promise<
     metadata: {}
   })
   if (!res.ok) return throwCoded(res, 'deleteOutfit')
+  void res.body?.cancel()
 }
 
 /**
@@ -376,7 +380,8 @@ export function splitOutfitItems(
 ): OutfitItemsSplit {
   const split: OutfitItemsSplit = { purchasable: [], unavailable: [], ownListing: [], inCart: [] }
   for (const item of items) {
-    switch (classifyOutfitItem(item, options)) {
+    const state = classifyOutfitItem(item, options)
+    switch (state) {
       case 'unavailable':
         split.unavailable.push(item)
         break
@@ -386,8 +391,13 @@ export function splitOutfitItems(
       case 'in_cart':
         split.inCart.push(item)
         break
-      default:
+      case 'purchasable':
         split.purchasable.push(item)
+        break
+      default: {
+        const _: never = state
+        split.purchasable.push(item)
+      }
     }
   }
   return split
