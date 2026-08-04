@@ -118,7 +118,7 @@ export function SearchDropdown({
   // Same price treatment as the grid (see pages/Assets.tsx): a legacy row is priced off the LIVE rate,
   // never the server's snapshot, and shows no price at all when the oracle is unavailable.
   const priceOf = (item: UnifiedListing): number | null =>
-    item.source === 'legacy' ? (rate ? manaWeiToCredits(item.manaWei ?? '0', rate) : null) : item.priceCredits
+    item.source === 'legacy' ? (rate && item.manaWei ? manaWeiToCredits(item.manaWei, rate) : null) : item.priceCredits
 
   if (!enabled) {
     if (recent.length === 0) return null
