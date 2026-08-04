@@ -24,6 +24,7 @@ import {
   outfitGradient,
   outfitRadialGradient,
   outfitItemKey,
+  parseOutfitImport,
   saveOutfit,
   splitOutfitItems,
   thumbnailUrl,
@@ -415,6 +416,59 @@ describe('when building the backdrop gradient', () => {
     expect(isHexColor('#abc')).toBe(false)
     expect(isHexColor('a855f7')).toBe(false)
     expect(isHexColor('')).toBe(false)
+  })
+})
+
+describe('when importing from an avatar-preview link', () => {
+  const SAMPLE =
+    '?mode=builder&bodyShape=urn:decentraland:off-chain:base-avatars:BaseFemale' +
+    '&urn=urn:decentraland:matic:collections-v2:0xf370aea38d9f4462236807b68d20c57fc814e1e9:0' +
+    '&urn=urn:decentraland:matic:collections-v2:0x6da6f4de96c5d6b797a4df9865f8a5dd1e9fd341:0' +
+    '&urn=urn:decentraland:matic:collections-v2:0x08de0de733cc11081d43569b809c00e6ddf314fb:1' +
+    '&urn=urn:decentraland:matic:collections-v2:0xae0aa900fbdbb8a96f1d136d43b6a8ab3555af4d:1' +
+    '&urn=urn:decentraland:matic:collections-v2:0xda2cfda208b9abbd6f8771f52cda1355e384d3ff:0' +
+    '&urn=urn:decentraland:matic:collections-v2:0xde65a3172c400187b65960f47b11f88ff98b9979:0' +
+    '&skinColor=D9A486&hairColor=D4D4D4&eyeColor=3B240D&emote=../OutfitStudio/Poses/Pose_13'
+
+  it('should extract every item pair, the body shape and the colors from a builder string', () => {
+    const parsed = parseOutfitImport(SAMPLE)!
+    expect(parsed.items).toHaveLength(6)
+    expect(parsed.items[0]).toEqual({ contractAddress: '0xf370aea38d9f4462236807b68d20c57fc814e1e9', itemId: '0' })
+    expect(parsed.bodyShape).toBe('female')
+    expect(parsed.colors).toEqual({ skin: 'd9a486', hair: 'd4d4d4', eyes: '3b240d' })
+  })
+
+  it('should accept a full URL, not just the query string', () => {
+    const parsed = parseOutfitImport(`https://wearable-preview.decentraland.org/${SAMPLE}`)
+    expect(parsed?.items).toHaveLength(6)
+  })
+
+  it('should dedupe repeated pairs and skip non-item urns', () => {
+    const parsed = parseOutfitImport(
+      'urn=urn:decentraland:off-chain:base-avatars:eyebrows_00' +
+        '&urn=urn:decentraland:matic:collections-v2:0x' +
+        'a'.repeat(40) +
+        ':7' +
+        '&urn=urn:decentraland:matic:collections-v2:0x' +
+        'A'.repeat(40) +
+        ':7'
+    )!
+    expect(parsed.items).toHaveLength(1)
+    expect(parsed.items[0].contractAddress).toBe('0x' + 'a'.repeat(40))
+  })
+
+  it('should cap the import at the outfit item limit', () => {
+    const urns = Array.from(
+      { length: 12 },
+      (_, i) => `urn=urn:decentraland:matic:collections-v2:0x${String(i).padStart(40, '0')}:0`
+    ).join('&')
+    expect(parseOutfitImport(urns)?.items).toHaveLength(10)
+  })
+
+  it('should return null when nothing usable is in the string', () => {
+    expect(parseOutfitImport('mode=builder&emote=wave')).toBeNull()
+    expect(parseOutfitImport('complete garbage')).toBeNull()
+    expect(parseOutfitImport('')).toBeNull()
   })
 })
 

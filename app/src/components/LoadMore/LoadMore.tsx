@@ -11,17 +11,21 @@ import { t } from '~/intl/i18n'
 export function LoadMore({
   hasNextPage,
   isFetching,
-  onLoadMore
+  onLoadMore,
+  auto = true
 }: {
   hasNextPage: boolean
   isFetching: boolean
   onLoadMore: () => void
+  /** false = explicit button only, no scroll trigger — for grids with content below them
+      (e.g. the studio picker, where auto-loading would keep pushing the save bar away). */
+  auto?: boolean
 }) {
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const el = ref.current
-    if (!el || !hasNextPage) return
+    if (!el || !hasNextPage || !auto) return
     const io = new IntersectionObserver(
       entries => {
         if (entries[0]?.isIntersecting && !isFetching) onLoadMore()
@@ -30,7 +34,7 @@ export function LoadMore({
     )
     io.observe(el)
     return () => io.disconnect()
-  }, [hasNextPage, isFetching, onLoadMore])
+  }, [hasNextPage, isFetching, onLoadMore, auto])
 
   if (!hasNextPage) return null
 

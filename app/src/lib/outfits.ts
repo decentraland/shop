@@ -283,6 +283,56 @@ export function classifyOutfitItem(
   return 'purchasable'
 }
 
+/** What a pasted avatar-preview link yields: item refs, and session-only presentation extras. */
+export type OutfitImport = {
+  items: OutfitItemRef[]
+  bodyShape?: Exclude<OutfitBodyShape, 'unisex'>
+  /** Avatar colors for the studio preview only — the outfit record stores no colors. */
+  colors?: { skin?: string; hair?: string; eyes?: string }
+}
+
+const IMPORT_ITEM_URN = /^urn:decentraland:(?:matic|amoy):collections-v2:(0x[0-9a-f]{40}):(\d+)$/i
+
+/**
+ * Parse an avatar-preview link (or its bare query string) into outfit-import data: the
+ * collections-v2 `urn` params become item refs (deduped, capped at {@link MAX_OUTFIT_ITEMS}), the
+ * `bodyShape` base-avatar urn picks male/female, and skin/hair/eye colors ride along for the studio
+ * preview. Anything else (off-chain wearables, the builder-relative `emote` path) is ignored.
+ * Null when no usable item urns are found.
+ */
+export function parseOutfitImport(raw: string): OutfitImport | null {
+  const query = raw.includes('?') ? raw.slice(raw.indexOf('?') + 1) : raw
+  const params = new URLSearchParams(query)
+
+  const seen = new Set<string>()
+  const items: OutfitItemRef[] = []
+  for (const urn of params.getAll('urn')) {
+    const match = IMPORT_ITEM_URN.exec(urn.trim())
+    if (!match) continue
+    const ref = { contractAddress: match[1].toLowerCase(), itemId: match[2] }
+    const key = outfitItemKey(ref)
+    if (seen.has(key)) continue
+    seen.add(key)
+    items.push(ref)
+  }
+  if (items.length === 0) return null
+
+  const shapeUrn = params.get('bodyShape') ?? ''
+  const bodyShape = /basefemale$/i.test(shapeUrn) ? 'female' : /basemale$/i.test(shapeUrn) ? 'male' : undefined
+
+  const color = (name: string): string | undefined => {
+    const value = (params.get(name) ?? '').trim().replace(/^#/, '')
+    return /^[0-9a-f]{6}$/i.test(value) ? value.toLowerCase() : undefined
+  }
+  const colors = { skin: color('skinColor'), hair: color('hairColor'), eyes: color('eyeColor') }
+
+  return {
+    items: items.slice(0, MAX_OUTFIT_ITEMS),
+    bodyShape,
+    colors: colors.skin || colors.hair || colors.eyes ? colors : undefined
+  }
+}
+
 /** How many items an outfit may hold; publishing additionally requires at least 2. */
 export const MAX_OUTFIT_ITEMS = 10
 

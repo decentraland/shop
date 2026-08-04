@@ -690,15 +690,22 @@
       "thumbnailHint": "PNG, JPEG or WebP, up to 1 MB. Portrait (3:4) works best — upload it with a transparent background so the colors show through.",
       "upload": "Upload image",
       "uploading": "Uploading…",
-      "bodyShape": "Made for",
+      "bodyShape": "Body shape",
       "shape": {
-        "unisex": "Anyone",
-        "male": "Masculine",
-        "female": "Feminine"
+        "unisex": "Both",
+        "male": "Male",
+        "female": "Female"
       },
       "previewEmpty": "Pick items to see them on the mannequin.",
       "needName": "Give the outfit a name to save it.",
-      "empty": "No outfits yet — create the first one."
+      "empty": "No outfits yet — create the first one.",
+      "cardPreview": "Card preview",
+      "import": "Import from a preview link",
+      "importPlaceholder": "Paste an avatar preview link or code…",
+      "importApply": "Import",
+      "importHint": "Paste the preview link from the avatar editor — its items, body shape and colors fill the outfit.",
+      "importError": "We couldn't find outfit items in that link.",
+      "importSuccess": "{count, plural, one {# item imported} other {# items imported}}"
     },
     "toast": {
       "added": "Outfit added to cart",

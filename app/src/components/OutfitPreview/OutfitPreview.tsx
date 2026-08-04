@@ -19,7 +19,10 @@ export function OutfitPreview({
   bodyShape,
   urns,
   enabled = true,
-  onRenderer
+  onRenderer,
+  skin,
+  hair,
+  eyes
 }: {
   /** DOM id for the preview iframe — unique per surface so dispose targets the right one. */
   id: string
@@ -32,6 +35,10 @@ export function OutfitPreview({
   enabled?: boolean
   /** Reports the effective renderer, so a caller can show overlay controls Unity ships in-scene. */
   onRenderer?: (renderer: PreviewRenderer) => void
+  /** Avatar colors (hex, no '#') — the studio's session-only import extras. */
+  skin?: string
+  hair?: string
+  eyes?: string
 }) {
   const fittingOpen = useCart(s => s.fittingOpen)
   const { ref: viewportRef, active } = usePreviewActive<HTMLDivElement>()
@@ -46,7 +53,7 @@ export function OutfitPreview({
   const urnsSig = urns.join(',')
   useEffect(() => {
     setReady(false)
-  }, [urnsSig, profile])
+  }, [urnsSig, profile, skin, hair, eyes])
   useEffect(() => {
     if (mounted) setReady(false)
   }, [mounted])
@@ -71,6 +78,9 @@ export function OutfitPreview({
           profile={profile}
           bodyShape={bodyShape}
           urns={urns}
+          skin={skin}
+          hair={hair}
+          eyes={eyes}
           type={PreviewType.AVATAR}
           emote={PreviewEmote.FASHION}
           disableBackground

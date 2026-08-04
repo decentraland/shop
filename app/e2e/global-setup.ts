@@ -1,5 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { resolve } from 'node:path'
+import { hermeticViteEnv } from './helpers/app'
 
 // Starts a dedicated dev server for the e2e run (port 5273, separate from the human's :5174) and
 // tears it down after. All the app's network calls are mocked per-page, so this server only serves
@@ -29,18 +30,7 @@ export async function setup() {
   child = spawn(vite, ['--port', String(PORT), '--strictPort'], {
     cwd: process.cwd(),
     stdio: 'ignore',
-    // Point the app at the localhost hosts the per-page request mock intercepts (helpers/app.ts
-    // routes credits by :3000 and marketplace by :5003). These VITE_* overrides win over the
-    // per-env JSON (see src/config) so the e2e build is hermetic regardless of the resolved env.
-    env: {
-      ...process.env,
-      VITE_MARKETPLACE_SERVER_URL: 'http://localhost:5003',
-      VITE_CREDITS_SERVER_URL: 'http://localhost:3000',
-      // Force the payments MOCK path: the resolved 'dev' config now ships a real Stripe publishable
-      // key (dev.json), but the e2e mocks don't cover Stripe's hosted redirect — an empty key keeps
-      // isMockPayments() true so the get-credits flow uses the in-app mock.
-      VITE_STRIPE_PK: ''
-    }
+    env: hermeticViteEnv()
   })
   await waitForServer()
 }

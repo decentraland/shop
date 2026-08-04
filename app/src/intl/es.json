@@ -690,15 +690,22 @@
       "thumbnailHint": "PNG, JPEG o WebP, de hasta 1 MB. El formato vertical (3:4) funciona mejor; súbela con fondo transparente para que se vean los colores.",
       "upload": "Subir imagen",
       "uploading": "Subiendo…",
-      "bodyShape": "Pensado para",
+      "bodyShape": "Forma del cuerpo",
       "shape": {
-        "unisex": "Cualquiera",
+        "unisex": "Ambos",
         "male": "Masculino",
         "female": "Femenino"
       },
       "previewEmpty": "Elige artículos para verlos en el maniquí.",
       "needName": "Ponle un nombre al outfit para guardarlo.",
-      "empty": "Aún no hay outfits: crea el primero."
+      "empty": "Aún no hay outfits: crea el primero.",
+      "cardPreview": "Vista previa de la tarjeta",
+      "import": "Importar desde un enlace de vista previa",
+      "importPlaceholder": "Pega un enlace o código de vista previa del avatar…",
+      "importApply": "Importar",
+      "importHint": "Pega el enlace de vista previa del editor de avatares: sus artículos, forma del cuerpo y colores completan el outfit.",
+      "importError": "No encontramos artículos del outfit en ese enlace.",
+      "importSuccess": "{count, plural, one {# artículo importado} other {# artículos importados}}"
     },
     "toast": {
       "added": "Outfit añadido al carrito",
