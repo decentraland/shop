@@ -384,6 +384,27 @@ describe('AssetCard view-only mode', () => {
     expect(container.querySelector('[data-testid="card-add-round"]')).toBeNull()
   })
 
+  /**
+   * VIEW sits in the slot Add-to-cart occupies on a browse card, so it takes Add-to-cart's treatment:
+   * chips at rest, the dark pill revealed on hover / keyboard focus. It used to be an always-visible pill
+   * instead, so the whole "Not for Sale" grid showed a dark full-width button at rest while every
+   * neighbouring grid showed chips. The reveal itself is CSS keyed off `[data-reveal]` (and the chips off
+   * `[data-chips]`), which jsdom can't evaluate — these pin the hooks the rule needs.
+   */
+  it('reveals the VIEW cta on hover instead of showing it permanently', () => {
+    const { container } = renderView(makeItem({ priceCredits: 0 }))
+    const cta = container.querySelector('[data-testid="card-view"]')
+    expect(cta).toBeTruthy()
+    expect(cta?.hasAttribute('data-reveal')).toBe(true)
+  })
+
+  it('shows the rarity chips at rest, so the revealed cta has something to replace', () => {
+    const { container } = renderView(makeItem({ priceCredits: 0, rarity: 'mythic' }))
+    const chips = container.querySelector('[data-chips]')
+    expect(chips).toBeTruthy()
+    expect(chips?.textContent).toMatch(/mythic/i)
+  })
+
   it('shows the credit price (not the tag) + VIEW button for a for-sale catalog item', () => {
     const { container } = renderView(makeItem({ priceCredits: 42 }))
     expect(container.querySelector('[data-testid="card-nfs"]')).toBeNull()

@@ -21,6 +21,7 @@ type RawItem = {
   network: string
   chainId: number
   thumbnail?: string
+  urn?: string
   // Server-computed whole credits (asset-aware). The client no longer converts.
   priceCredits?: number
   data?: {
@@ -41,6 +42,7 @@ function rawItem(overrides: Partial<RawItem> = {}): RawItem {
     network: 'MATIC',
     chainId: 137,
     thumbnail: 'http://img.test/hat.png',
+    urn: 'urn:decentraland:matic:collections-v2:0xcollection:7',
     priceCredits: 10,
     data: { wearable: { category: 'hat', bodyShapes: ['urn:BaseMale'] } },
     ...overrides
@@ -142,6 +144,7 @@ describe('when fetching a collection carousel', () => {
       creator: '0xcreator',
       contractAddress: '0xcollection',
       itemId: '7',
+      urn: 'urn:decentraland:matic:collections-v2:0xcollection:7',
       category: 'wearable',
       wearableCategory: 'hat',
       rarity: 'epic',
@@ -402,6 +405,20 @@ describe('when fetching the full catalog (browse "All" / "Not for Sale")', () =>
     expect(url.searchParams.get('includeSocialEmotes')).toBe('false')
     // priceCredits === 0 flags a not-for-sale item.
     expect(items[0].priceCredits).toBe(0)
+  })
+
+  // The endpoint returns the canonical urn on every row, and it is the ONLY identifier the 3D preview can
+  // use for a non-Polygon item (see CatalogItem.urn / HoverPreviewLayer): from contractAddress + itemId the
+  // preview assumes matic:collections-v2 and finds nothing for an Ethereum collections-v1 wearable — which
+  // is most of the "Not for Sale" grid. Dropping the field in the mapper is what silently disabled it.
+  it('should carry the item urn through to the card row', async () => {
+    mockFetchOk([
+      rawItem({ urn: 'urn:decentraland:ethereum:collections-v1:exclusive_masks:theater_mask', network: 'ETHEREUM' })
+    ])
+
+    const { items } = await fetchCatalogItems({ isOnSale: false })
+
+    expect(items[0].urn).toBe('urn:decentraland:ethereum:collections-v1:exclusive_masks:theater_mask')
   })
 
   it('should omit the category param when it is "all"', async () => {
