@@ -272,3 +272,53 @@ describe('emote playback chips', () => {
     expect(screen.queryByTestId('detail-props')).toBeNull()
   })
 })
+
+/**
+ * THE PATH THE PDP ACTUALLY TAKES.
+ *
+ * Review caught that the first version mapped the traits only in api.ts:toCatalogItem — the v2 catalog,
+ * which the detail page never reads. Arriving from the grid, `current` is seeded from /v3/catalog/shop,
+ * whose rows are FLAT: no `data` object, so no loop / hasSound / hasGeometry. The backfill cannot rescue it
+ * either, since it bails once `current.name` is set, which it always is on that route.
+ *
+ * So the traits come from the /v3/catalog/items row for this item — the sibling list, already fetched.
+ * This drives exactly that shape: a named `current` with no traits, and a sibling that has them.
+ */
+describe('emote chips when the page arrives from the flat shop feed', () => {
+  it('reads the traits from the catalogue row rather than showing nothing', async () => {
+    // What the grid hands over: a name, and no emote traits at all.
+    const fromGrid = item({ id: 'a', name: 'Laser Face', itemId: '1', category: 'emote' })
+    expect(fromGrid.emoteLoop).toBeUndefined()
+
+    // What /v3/catalog/items returns for the same item.
+    fetchCollectionItems.mockResolvedValue({
+      items: [
+        item({
+          id: 'a',
+          name: 'Laser Face',
+          itemId: '1',
+          category: 'emote',
+          emoteLoop: true,
+          emoteHasProps: true
+        })
+      ],
+      total: 1
+    })
+
+    // Seeded through router state, exactly as the grid does it — that is what makes `current.name` set and
+    // the backfill bail out. Rendering without it would hydrate from the siblings and pass either way.
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={qc}>
+        <MemoryRouter initialEntries={[{ pathname: `/item/${ANCHOR}/1`, state: { item: fromGrid } }]}>
+          <Routes>
+            <Route path="/item/:contractAddress/:itemId" element={<ItemDetail />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByTestId('detail-play-mode')).toHaveTextContent(/play loop/i)
+    expect(screen.getByTestId('detail-props')).toBeInTheDocument()
+  })
+})

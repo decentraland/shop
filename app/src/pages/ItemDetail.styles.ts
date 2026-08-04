@@ -689,7 +689,7 @@ export const DarkCta = styled(Button)`
 
 // Dark-outline CTA — the secondary manage action (Transfer / Remove from sale).
 /**
- * ISSUE COPIES is a text link, not a third button (Figma 1527-302048).
+ * ISSUE COPIES is a text link, not a third button.
  *
  * It used to reuse OutlineCta, which made it visually identical to REMOVE FROM SALE directly above — two
  * outlined buttons of equal weight, so nothing said which was the ordinary action and which was the rare

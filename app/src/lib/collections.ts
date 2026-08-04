@@ -23,7 +23,7 @@ type RawCollectionItem = {
   priceCredits?: number
   data?: {
     wearable?: { category?: string; bodyShapes?: string[]; isSmart?: boolean }
-    emote?: { category?: string }
+    emote?: { category?: string; loop?: boolean; hasSound?: boolean; hasGeometry?: boolean }
   }
 }
 
@@ -46,6 +46,9 @@ function toCatalogItem(r: RawCollectionItem): CatalogItem {
     itemId: r.itemId ?? null,
     category: r.category,
     wearableCategory: r.data?.wearable?.category ?? r.data?.emote?.category,
+    emoteLoop: r.data?.emote?.loop,
+    emoteHasSound: r.data?.emote?.hasSound,
+    emoteHasProps: r.data?.emote?.hasGeometry,
     rarity: r.rarity ?? 'common',
     isSmart: !!r.data?.wearable?.isSmart,
     network: r.network,
