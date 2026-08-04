@@ -62,6 +62,20 @@ export const config = {
   chainId: Number(env.VITE_CHAIN_ID ?? base.get('CHAIN_ID')),
   authUrl: env.VITE_AUTH_URL ?? base.get('AUTH_URL'),
   rpcUrl: env.VITE_RPC_URL ?? base.get('RPC_URL'),
+  /**
+   * Meta-transaction relayer (transactions-server shape; the POST target is `${relayerUrl}/transactions`).
+   *
+   * CHAIN-BOUND, which is why it sits next to rpcUrl: a relayer only submits on the chain it is configured
+   * for, so it must move with CHAIN_ID. dev is Amoy via zone; stg and prod are both Polygon mainnet and
+   * therefore both use the org relayer — stg is NOT a testnet here.
+   *
+   * It used to live in lib/gasless-config.ts, read straight off VITE_RELAYER_URL with a hard-coded fallback
+   * to the zone (Amoy) relayer. No env JSON carried the key, so production silently relayed to zone and the
+   * prod CSP blocked it: gasless never worked there, and every purchase fell through to a buyer-submitted
+   * transaction. A default pointing at another environment does not fail, it works wrongly — so there is
+   * deliberately no fallback here.
+   */
+  relayerUrl: env.VITE_RELAYER_URL ?? base.get('RELAYER_URL'),
   creditsServerUrl: env.VITE_CREDITS_SERVER_URL ?? base.get('CREDITS_SERVER_URL'),
   notificationsServerUrl: env.VITE_NOTIFICATIONS_SERVER_URL ?? base.get('NOTIFICATIONS_SERVER_URL'),
   builderServerUrl: env.VITE_BUILDER_SERVER_URL ?? base.get('BUILDER_SERVER_URL'),
