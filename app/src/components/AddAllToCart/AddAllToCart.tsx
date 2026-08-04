@@ -1,6 +1,7 @@
 import { useCart, type AddToCartSource } from '~/store/cart'
 import { useWallet } from '~/store/wallet'
 import { isOwnListing } from '~/lib/ownership'
+import { isListingUnavailable } from '~/lib/outfits'
 import { Button } from '~/components/Button'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { toast } from '~/store/toast'
@@ -17,7 +18,8 @@ export function AddAllToCart({ items, source }: { items: CatalogItem[]; source: 
   const add = useCart(s => s.add)
   const cartIds = useCart(s => s.items.map(i => i.id))
   const address = useWallet(s => s.session?.address)
-  const buyable = items.filter(i => i.priceCredits > 0 && !isOwnListing(i, address))
+  // isListingUnavailable also drops sold-out primaries — a listed price with zero mintable supply.
+  const buyable = items.filter(i => !isListingUnavailable(i) && !isOwnListing(i, address))
   if (buyable.length === 0) return null
 
   const inCart = new Set(cartIds)

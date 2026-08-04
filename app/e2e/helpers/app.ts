@@ -5,6 +5,33 @@ import * as fx from '../fixtures'
 
 export const BASE = process.env.E2E_BASE_URL ?? 'http://localhost:5273'
 
+/**
+ * The VITE_* a spec's dev server must pin so a run is hermetic.
+ *
+ * Two jobs. It points the app at the localhost hosts the per-page mock intercepts, and it BLANKS the
+ * developer-only overrides — vite loads `.env.local` for every mode and those values win over
+ * `process.env`, so a local `VITE_SHOP_SERVER_URL` or a forced feature-flag variant would silently
+ * change what the suite asserts (an outfit-studio run pinned to the developer's own address rather
+ * than the test wallet, for one). Empty strings, not `undefined`: vite only ignores a key that is
+ * absent from the file, so the override has to be present-and-empty to lose.
+ */
+export function hermeticViteEnv(extra: Record<string, string> = {}): Record<string, string> {
+  return {
+    ...(process.env as Record<string, string>),
+    VITE_MARKETPLACE_SERVER_URL: 'http://localhost:5003',
+    VITE_CREDITS_SERVER_URL: 'http://localhost:3000',
+    // The resolved 'dev' config ships a real Stripe publishable key, but the mocks don't cover
+    // Stripe's hosted redirect — an empty key keeps isMockPayments() true.
+    VITE_STRIPE_PK: '',
+    // No shop-server unless a spec asks for one (outfits.e2e.ts): the notify-me and
+    // secondary-sales specs assert the feature is dark when it is unconfigured.
+    VITE_SHOP_SERVER_URL: '',
+    VITE_FEATURE_FLAG_OVERRIDES: '',
+    VITE_FEATURE_FLAG_VARIANT_OVERRIDES: '',
+    ...extra
+  }
+}
+
 const CORS = {
   'access-control-allow-origin': '*',
   'access-control-allow-headers': '*',
@@ -38,6 +65,8 @@ export type Fixtures = {
   purchases: unknown
   sales: unknown
   notifications: unknown
+  /** Outfit records served (and mutated) by the mock shop-server (port 5004). */
+  outfits: unknown
 }
 
 function defaults(): Fixtures {
@@ -70,6 +99,7 @@ function defaults(): Fixtures {
       oracleRate: '26960836'
     },
     trade: null,
+    outfits: { outfits: [] },
     purchases: { purchases: [] },
     sales: { data: [], total: 0 },
     // Two notifications, one unread — enough to prove the badge, the panel list and the mark-read flip.
@@ -173,17 +203,22 @@ function toCatalogRow(l: any) {
 
 // Set per launchApp run; read by the flag-file handler below.
 let secondarySalesFlag = true
+let outfitCreatorFlag = false
 let followsFlag = false
 
-function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
+// Stateful outfits: the mock shop-server. Seeded from F.outfits per run so studio mutations (save,
+// publish, delete) survive navigation within a test without leaking across runs.
+let outfitStore: any[] = []
+
+function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: string = BASE) {
   const u = new URL(req.url())
   const method = req.method()
   const path = u.pathname
 
-  // Same-origin app assets (vite dev server, whatever port BASE resolves to) + inline data: URIs →
-  // let through. Deriving the port from BASE (not a hardcoded 5273) keeps the mock working when the
-  // e2e server runs on a custom E2E_PORT.
-  if (u.port === new URL(BASE).port || req.url().startsWith('data:')) return req.continue()
+  // Same-origin app assets (vite dev server, whatever port the run's base resolves to) + inline
+  // data: URIs → let through. Deriving the port from the base (not a hardcoded 5273) keeps the mock
+  // working when the e2e server runs on a custom E2E_PORT or a spec-local server (outfits.e2e.ts).
+  if (u.port === new URL(appBase).port || req.url().startsWith('data:')) return req.continue()
   // CORS preflight must always succeed (204) — even for a forced-error path below — so the browser
   // actually issues the real request (otherwise a preflight failure masks the intended error as a
   // generic "Failed to fetch"). The error is returned WITH CORS headers on the real request.
@@ -197,8 +232,14 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
       status: 200,
       headers: { ...CORS, 'content-type': 'application/json' },
       body: JSON.stringify({
-        flags: { 'dapps-shop-secondary-sales': secondarySalesFlag, 'dapps-shop-follows': followsFlag },
-        variants: {}
+        flags: {
+          'dapps-shop-secondary-sales': secondarySalesFlag,
+          'dapps-shop-outfit-creators': outfitCreatorFlag,
+          'dapps-shop-follows': followsFlag
+        },
+        variants: outfitCreatorFlag
+          ? { 'dapps-shop-outfit-creators': { enabled: true, payload: { value: fx.TEST_ADDRESS } } }
+          : {}
       })
     })
   }
@@ -243,6 +284,53 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
   // Images / builder content.
   if (path.includes('/contents/') || /\.(png|jpe?g|gif|svg|webp|ico)$/.test(path)) {
     return req.respond({ status: 200, headers: { 'content-type': 'image/png', ...CORS }, body: PNG })
+  }
+
+  // shop-server (:5004) — outfits + thumbnails. No signature verification (a mock trusts everyone);
+  // the app's signed-fetch requests just pass through. Route order mirrors the real server: the
+  // thumbnails paths must never match as an :id.
+  if (u.port === '5004') {
+    if (path === '/v1/outfits/thumbnails' && method === 'POST') {
+      return json(req, { hash: 'e2e' + '0'.repeat(61) }, 201)
+    }
+    if (path.startsWith('/v1/outfits/thumbnails/')) {
+      return req.respond({ status: 200, headers: { 'content-type': 'image/png', ...CORS }, body: PNG })
+    }
+    if (path === '/v1/outfits' && method === 'GET') {
+      return json(req, { outfits: outfitStore.filter(o => o.published) })
+    }
+    if (path === '/v1/outfits/all') {
+      return json(req, { outfits: outfitStore })
+    }
+    if (path === '/v1/outfits' && method === 'POST') {
+      const body = JSON.parse(req.postData() || '{}')
+      const existing = outfitStore.find(o => o.id === body.id)
+      if (existing) return json(req, { outfit: existing })
+      const outfit = { ...body, authorAddress: fx.TEST_ADDRESS, createdAt: Date.now(), updatedAt: Date.now() }
+      outfitStore.push(outfit)
+      return json(req, { outfit }, 201)
+    }
+    const idMatch = /^\/v1\/outfits\/([^/]+)$/.exec(path)
+    if (idMatch) {
+      const id = decodeURIComponent(idMatch[1])
+      const index = outfitStore.findIndex(o => o.id === id)
+      if (method === 'GET') {
+        return index === -1
+          ? json(req, { ok: false, error: 'not_found' }, 404)
+          : json(req, { outfit: outfitStore[index] })
+      }
+      if (method === 'PUT') {
+        if (index === -1) return json(req, { ok: false, error: 'not_found' }, 404)
+        const body = JSON.parse(req.postData() || '{}')
+        outfitStore[index] = { ...outfitStore[index], ...body, updatedAt: Date.now() }
+        return json(req, { outfit: outfitStore[index] })
+      }
+      if (method === 'DELETE') {
+        if (index !== -1) outfitStore.splice(index, 1)
+        return json(req, { ok: true })
+      }
+    }
+    return json(req, {})
   }
 
   // credits-server (:3000)
@@ -324,6 +412,13 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
       const search = u.searchParams.get('search')?.toLowerCase()
       const rarity = u.searchParams.get('rarity')
       const category = u.searchParams.get('category')
+      // Item-scoped reads: the real handler parses both (shop-catalog-handler), and the outfits
+      // add-to-cart path resolves ONE item at a time through here. Without them the mock would answer
+      // every such lookup with the whole feed, i.e. the wrong listing for every item but the first.
+      const unifiedCa = u.searchParams.get('contractAddress')
+      const unifiedItemId = u.searchParams.get('itemId')
+      if (unifiedCa) items = items.filter(i => String(i.contractAddress).toLowerCase() === unifiedCa.toLowerCase())
+      if (unifiedItemId) items = items.filter(i => String(i.itemId) === unifiedItemId)
       if (search) items = items.filter(i => String(i.name).toLowerCase().includes(search))
       if (rarity) items = items.filter(i => rarity.split(',').includes(i.rarity))
       if (category) items = items.filter(i => i.category === category)
@@ -338,7 +433,11 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}) {
       if (u.searchParams.get('sortBy') === 'cheapest') {
         items.sort((a, b) => (a.priceCredits ?? 0) - (b.priceCredits ?? 0))
       }
-      return json(req, { data: items, total: items.length })
+      // `total` is the unpaginated count (what the real server reports); `first` bounds the page.
+      const total = items.length
+      const first = Number(u.searchParams.get('first') ?? 0)
+      if (Number.isFinite(first) && first > 0) items = items.slice(0, first)
+      return json(req, { data: items, total })
     }
     // Collections entity: search dropdown "Collections" section (fetchCollectionSuggestions, ?search=)
     // + the Collection page name lookup (fetchCollection, ?contractAddress=). Honor both filters.
@@ -545,6 +644,16 @@ export async function launchApp(
      */
     secondarySales?: boolean
     /**
+     * Arm the shop-outfit-creators flag with the test user's address in the variant, so the outfit
+     * studio surfaces render (outfits.e2e.ts). Off by default — everyone else sees no studio.
+     */
+    outfitCreator?: boolean
+    /**
+     * App origin override for specs that boot their own dev server (outfits.e2e.ts needs a build
+     * with a shop-server host configured). Defaults to the shared BASE server.
+     */
+    base?: string
+    /**
      * Whether the mocked flag file reports creator follows as available. Defaults to FALSE — the shipped
      * state, where the feature is hidden; the follows spec passes true to exercise the prototype.
      */
@@ -553,7 +662,10 @@ export async function launchApp(
 ): Promise<App> {
   const F = { ...defaults(), ...opts.fixtures }
   const errors = opts.errors ?? {}
+  const appBase = opts.base ?? BASE
   secondarySalesFlag = opts.secondarySales ?? true
+  outfitCreatorFlag = opts.outfitCreator ?? false
+  outfitStore = structuredClone(((F.outfits as { outfits?: any[] })?.outfits ?? []) as any[])
   followsFlag = opts.follows ?? false
   mintedCents = 0 // reset the per-run top-up accumulator so balances don't leak between tests
   favoritePicks = [] // reset the per-run picks so favorites don't leak between tests
@@ -572,11 +684,11 @@ export async function launchApp(
   await page.setRequestInterception(true)
   page.on('request', req => {
     try {
-      route(req, F, errors)
+      route(req, F, errors, appBase)
     } catch (e) {
       if (!req.response()) req.respond({ status: 500, headers: CORS, body: String(e) }).catch(() => {})
     }
   })
-  await page.goto(`${BASE}${opts.path ?? '/'}`, { waitUntil: 'networkidle2', timeout: 45000 })
+  await page.goto(`${appBase}${opts.path ?? '/'}`, { waitUntil: 'networkidle2', timeout: 45000 })
   return { browser, page, close: () => browser.close() }
 }

@@ -7,6 +7,7 @@ import { Chip } from '~/styles/chip.styles'
 import { CreatorBadge } from '~/components/CreatorBadge'
 import { CreatorName } from '~/components/CreatorName'
 import { SaleCountdown } from '~/components/SaleCountdown'
+import { Icon } from '~/components/Icon'
 
 const { colors, radius, media } = theme
 
@@ -29,7 +30,9 @@ export const Card = styled.article`
   isolation: isolate;
   display: flex;
   flex-direction: column;
-  transition: box-shadow 0.15s ease;
+  transition:
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
 
   &::after {
     ${ringHairline};
@@ -39,11 +42,20 @@ export const Card = styled.article`
     &:hover,
     &:focus-within {
       ${ringLit};
+      /* A gentle lift on hover; z-index keeps the scaled card above its neighbours in the rail. */
+      transform: scale(1.025);
+      z-index: 1;
     }
     &:hover::after,
     &:focus-within::after {
       ${ringGradient};
     }
+  }
+
+  /* The full-width Add-to-cart reveal is a DESKTOP affordance only. Below sm the round + button is the
+     action (it's too narrow for the dark button), so revealing the button on a hover-capable device at
+     a mobile width would show BOTH — gate the swap above sm. */
+  @media (hover: hover) and (min-width: 721px) {
     &:hover [data-testid='card-cart'],
     &:hover [data-reveal] {
       display: flex;
@@ -87,14 +99,6 @@ export const Fav = styled.button`
   place-items: center;
   color: ${colors.text};
 
-  &[data-on] {
-    color: ${colors.dclRed};
-  }
-
-  & .ico {
-    margin-top: 2px;
-  }
-
   // The circle is 24px by design, which is under the comfortable tap size — an invisible ring around it
   // brings the hit area back to ~44px on touch without changing the visual.
   &::after {
@@ -102,6 +106,58 @@ export const Fav = styled.button`
     position: absolute;
     inset: -10px;
     border-radius: 50%;
+  }
+`
+
+// Holds the outline heart with the solid heart stacked exactly on top; the 2px nudge optically centres
+// the glyph in the circle.
+export const FavIcons = styled.span`
+  position: relative;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+`
+
+// The black outline stroke — the resting state. As the red fill arrives it fades out, so the favourited
+// heart ends as a clean solid glyph rather than a red fill sitting inside a black ring. The fade is
+// delayed to land just as the fill reaches full.
+export const FavOutline = styled(Icon)`
+  transition: opacity 160ms ease;
+
+  [data-on] & {
+    opacity: 0;
+    transition: opacity 140ms ease 160ms;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &,
+    [data-on] & {
+      transition: none;
+    }
+  }
+`
+
+// The filled heart grows from the centre to flood the outline when the card is favourited: a springy
+// pop on the way in, a quick fade-scale on the way out.
+export const FavFill = styled(Icon)`
+  position: absolute;
+  inset: 0;
+  color: ${colors.dclRed};
+  transform: scale(0);
+  transform-origin: center;
+  transition: transform 200ms ease-in;
+  pointer-events: none;
+
+  [data-on] & {
+    transform: scale(1);
+    transition: transform 280ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &,
+    [data-on] & {
+      transition: none;
+    }
   }
 `
 
@@ -213,8 +269,6 @@ export const Img = styled.img`
 `
 
 // Fixed 96px footer. On mobile it becomes a grid (name/creator row, then price + round add) — see Top.
-// data-stacked (a long name, measured in AssetCard) keeps the plain column at every width: the name
-// claims the whole first row and the price drops into the action row beside the round button.
 export const Body = styled.div`
   flex: 0 0 96px;
   height: 96px;
@@ -224,13 +278,8 @@ export const Body = styled.div`
   justify-content: space-between;
   gap: 4px;
 
-  [data-stacked] & {
-    display: flex;
-    align-items: stretch;
-    gap: 10px;
-  }
-
-  @media (hover: hover) {
+  // Keyboard-focus reveal mirrors the hover reveal — desktop only (below sm the round + is the action).
+  @media (hover: hover) and (min-width: 721px) {
     &:focus-within [data-testid='card-cart'],
     &:focus-within [data-reveal] {
       display: flex;
@@ -278,12 +327,6 @@ export const Top = styled.div`
 
   ${media.maxWidth('sm')} {
     display: contents;
-  }
-
-  // Stacked: the price has moved out of this row, so it stays a plain box (its width is what the name
-  // is measured against) instead of dissolving into the mobile grid.
-  [data-stacked] & {
-    display: flex;
   }
 `
 
@@ -443,17 +486,11 @@ export const Countdown = styled(SaleCountdown)`
 `
 
 // Fixed-height slot: the full-width action button (Cart) swaps in for the chips on hover/focus without
-// changing the card's height. Stacked, it holds the price on the left and the round action on the right.
+// changing the card's height.
 export const Action = styled.div`
   min-height: 40px;
   display: flex;
   align-items: center;
-
-  [data-stacked] & {
-    width: 100%;
-    justify-content: space-between;
-    gap: ${TOP_GAP}px;
-  }
 
   ${media.maxWidth('sm')} {
     grid-area: add;
@@ -536,10 +573,6 @@ export const View = styled.span`
     height: 20px;
   }
 
-  [data-stacked] & {
-    display: none;
-  }
-
   ${media.maxWidth('sm')} {
     display: none;
   }
@@ -561,15 +594,10 @@ const roundCss = css`
   cursor: pointer;
 `
 
-// A round action belongs to the compact card only — the mobile card, and any card whose long name pushed
-// the price into the action row. Elsewhere the full-width button is used and this is hidden.
+// A round action belongs to the compact (mobile) card only. Elsewhere the full-width button is used and
+// this is hidden.
 const compactRoundCss = (fill: SerializedStyles) => css`
   display: none;
-
-  [data-stacked] & {
-    ${roundCss};
-    ${fill};
-  }
 
   ${media.maxWidth('sm')} {
     ${roundCss};

@@ -149,11 +149,13 @@ describe('search bar', () => {
     expect(value).toBe('')
   })
 
-  // The sub-nav's other items (tab strip + credits/cart) used to squeeze the field down to the bare
-  // magnifier well above the mobile breakpoint — 94px of input at 1280, 14px at 1200 — and then pushed
-  // the page into horizontal overflow. The strip yields (and scrolls) above `lg`; at `lg` and below the
-  // row wraps and the field gets its own line. A MANA balance is funded so the widest possible header
-  // state is measured (that chip renders only for a wallet holding MANA).
+  // The sub-nav's other items (tab strip + credits/cart) used to squeeze the field down to the
+  // bare magnifier well above the mobile breakpoint — 94px of input at 1280, 14px at 1200 — and then
+  // pushed the page into horizontal overflow. The strip yields (and scrolls) above `lg`; at `lg` and
+  // below the row wraps and the field gets its own line. A MANA balance is kept in play so the run
+  // still covers the widest navbar (the chip now lives in the GLOBAL navbar as a ui2 chip with no
+  // testid; its aria-label is the stable hook) — waiting on it also keeps the balance fetch settled
+  // before the widths are measured.
   it('keeps the field usable, and the page unscrolled sideways, as the window narrows', async () => {
     app = await launchApp({ path: '/assets', manaBalanceWei: '5000000000000000000' })
     const { page } = app

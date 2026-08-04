@@ -13,8 +13,8 @@ const fade = keyframes`
   to { opacity: 1; }
 `
 const slide = keyframes`
-  from { transform: translateX(24px); opacity: 0.4; }
-  to { transform: none; opacity: 1; }
+  from { transform: translateX(100%); }
+  to { transform: none; }
 `
 
 // Right-side slide-in cart drawer with a scrim (Figma "Add to cart drawer"). Portalled to <body>.
@@ -43,8 +43,13 @@ export const Panel = styled.aside`
   height: 100%;
   background: ${colors.white};
   box-shadow: -8px 0 32px rgba(22, 21, 24, 0.18);
-  animation: ${slide} 0.22s ease;
+  /* Full right-to-left entrance, ease-in-out ("easy ease"). */
+  animation: ${slide} 0.32s cubic-bezier(0.45, 0, 0.25, 1);
   font-family: ${font.sans};
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
 `
 
 export const Head = styled.header`

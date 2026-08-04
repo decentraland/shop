@@ -3,16 +3,18 @@ import * as S from './LoadMore.styles'
 import { t } from '~/intl/i18n'
 
 /**
- * Infinite-scroll trigger for a paginated grid. Auto-loads the next page when the sentinel scrolls
- * into view (600px early, so it feels seamless) and also renders a real button as a keyboard/no-IO
- * fallback. Renders nothing once there's no next page. The grid itself shows the "loading more"
+ * Pagination trigger for a grid. By default it auto-loads the next page when the sentinel scrolls
+ * into view (600px early, so it feels seamless); `auto={false}` reduces it to the button alone. It
+ * always renders that button, as a keyboard/no-IO fallback and as the deliberate retry after a
+ * failed page. Renders nothing once there's no next page. The grid itself shows the "loading more"
  * skeletons (so they land inside the grid layout) — see the pages that use this.
  */
 export function LoadMore({
   hasNextPage,
   isFetching,
   isError = false,
-  onLoadMore
+  onLoadMore,
+  auto = true
 }: {
   hasNextPage: boolean
   isFetching: boolean
@@ -23,6 +25,9 @@ export function LoadMore({
    */
   isError?: boolean
   onLoadMore: () => void
+  /** false = explicit button only, no scroll trigger — for grids with content below them
+      (e.g. the studio picker, where auto-loading would keep pushing the save bar away). */
+  auto?: boolean
 }) {
   const ref = useRef<HTMLDivElement>(null)
   // Every call site passes an inline arrow, so a new identity arrives on EVERY render of the host page —
@@ -40,7 +45,8 @@ export function LoadMore({
     // `isFetchingNextPage` drops back to false: the sentinel is then still in view with the guard released,
     // and the grid re-requested the same broken offset for as long as the tab stayed open (four attempts
     // with backoff per round, forever). After a failure the retry has to be deliberate, via the button.
-    if (!el || !hasNextPage || isFetching || isError) return
+    // `auto` is the opt-out for grids that must never load on scroll at all (the studio picker).
+    if (!el || !hasNextPage || isFetching || isError || !auto) return
     const io = new IntersectionObserver(
       entries => {
         if (entries[0]?.isIntersecting) loadMore.current()
@@ -49,7 +55,9 @@ export function LoadMore({
     )
     io.observe(el)
     return () => io.disconnect()
-  }, [hasNextPage, isFetching, isError])
+    // `onLoadMore` is deliberately absent: it lives in the ref above precisely so a new inline arrow
+    // on every host render cannot re-run this effect.
+  }, [hasNextPage, isFetching, isError, auto])
 
   if (!hasNextPage) return null
 

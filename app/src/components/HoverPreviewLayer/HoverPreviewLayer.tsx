@@ -164,13 +164,7 @@ export function HoverPreviewLayer() {
 
   return (
     <Wrap aria-hidden style={wrapStyle}>
-      <WearablePreview
-        id={IFRAME_ID}
-        profile="default"
-        disableBackground
-        disableFadeEffect
-        onLoad={handleLoad}
-      />
+      <WearablePreview id={IFRAME_ID} profile="default" disableBackground disableFadeEffect onLoad={handleLoad} />
     </Wrap>
   )
 }

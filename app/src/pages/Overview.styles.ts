@@ -41,8 +41,11 @@ export const Overview = styled.div`
     display: grid;
     grid-auto-flow: column;
     grid-auto-columns: calc((100% - 64px) / 5);
-    padding: 12px 0;
-    margin: 0;
+    // Same side-padding + negative-margin trick as the carousel Track: the scroller clips both axes, so
+    // without it the first card's hover ring/scale is cut at the rail's left edge.
+    padding: 12px 14px;
+    margin: 0 0 0 -14px;
+    scroll-padding-inline: 14px;
     // Hide the native scrollbar so these discovery rails match the carousels above (which also hide
     // it) — otherwise the home page shows one rail with a grey scrollbar and the rest without.
     scrollbar-width: none;
@@ -77,7 +80,7 @@ export const Hero = styled.section`
   align-items: center;
   aspect-ratio: 1721 / 304;
   max-height: 340px;
-  margin-bottom: 40px;
+  margin-bottom: 50px;
   overflow: hidden;
   border-radius: ${radius.banner};
   background: #14161b;
@@ -191,71 +194,15 @@ export const Arrow = styled.button`
 
 // A grid of a FIXED whole number of cards per view (5 → 4 → 3 → 2) so an exact integer of cards always
 // fills the viewport with a 16px gap — no partial card is ever cut off. Scrollbar hidden.
-export const Track = styled.div`
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: calc((100% - 64px) / 5);
-  gap: 16px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  // Horizontal padding reserves room for the first/last card's outward hover glow — an overflow-x
-  // scroller clips both axes, so 0 side padding cropped the ring. The matching negative margin-left
-  // pulls the track back so the first card lines up with the section title and the page gutter; the glow
-  // overflows into the gutter. (The arrows above are sized/positioned to keep an equal gap despite it.)
-  padding: 12px 14px;
-  margin-left: -14px;
-  scroll-padding-inline: 14px;
-  scroll-snap-type: x mandatory;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-
-  &::-webkit-scrollbar {
-    width: 0;
-    height: 0;
-    display: none;
-  }
-  & > * {
-    scroll-snap-align: start;
-  }
-
-  ${media.maxWidth('xl')} {
-    grid-auto-columns: calc((100% - 48px) / 4);
-  }
-  ${media.maxWidth('lg')} {
-    grid-auto-columns: calc((100% - 32px) / 3);
-  }
-  ${media.maxWidth('sm')} {
-    grid-auto-columns: calc((100% - 16px) / 2);
-  }
-`
-
-export const Dots = styled.div`
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-  margin-top: 12px;
-`
-
-export const Dot = styled.button`
-  width: 12px;
-  height: 12px;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: #d9d6de;
-  transition: background 0.15s ease;
-
-  &[data-active] {
-    background: ${colors.accent};
-  }
-`
+// The carousel rail + its page dots are the shared paged-rail primitives (OutfitsRow pages too).
+export { CarouselTrack as Track, Dots, Dot } from '~/styles/row.styles'
 
 // Two side-by-side promo banners, stacking to one column on mobile.
 export const Promos = styled.section`
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 24px;
-  margin: 0 0 40px;
+  margin: 0 0 50px;
 
   ${media.maxWidth('mobile')} {
     grid-template-columns: 1fr;

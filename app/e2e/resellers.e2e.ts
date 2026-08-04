@@ -1,13 +1,16 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { launchApp, type App } from './helpers/app'
 import { clickWhenEnabled, waitForText } from './helpers/dom'
-import { COLLECTION, buyTrade } from './fixtures'
+import { COLLECTION, buyTrade, unifiedWithItem0Resale } from './fixtures'
 
 let app: App | undefined
 afterEach(async () => {
   await app?.close()
   app = undefined
 })
+
+// Item 0 needs a resale of its own for any of this to render — see the fixture's own note.
+const withItem0Resale = { unifiedListings: unifiedWithItem0Resale }
 
 // Open the modal from the detail page. On a phone the CTAs are a fixed bottom bar that page content
 // scrolls under, so bring the link into the middle of the viewport before tapping it.
@@ -24,7 +27,7 @@ async function openResellers(page: App['page']): Promise<void> {
 // it is never rendered inline on the page.
 describe('other resellers modal', () => {
   it('keeps the resale list off the page until the resellers link is clicked', async () => {
-    app = await launchApp({ path: `/item/${COLLECTION}/0` })
+    app = await launchApp({ path: `/item/${COLLECTION}/0`, fixtures: withItem0Resale })
     const { page } = app
 
     await waitForText(page, 'Galaxy Hat')
@@ -64,7 +67,7 @@ describe('other resellers modal', () => {
   })
 
   it('adds a resale row to the cart from inside the modal', async () => {
-    app = await launchApp({ path: `/item/${COLLECTION}/0` })
+    app = await launchApp({ path: `/item/${COLLECTION}/0`, fixtures: withItem0Resale })
     const { page } = app
 
     await waitForText(page, 'Galaxy Hat')
@@ -81,7 +84,7 @@ describe('other resellers modal', () => {
   it('buys a resale row from inside the modal', async () => {
     // fetchTrade(trade-2) → buyTrade; authorize is mocked and the gasless useCredits meta-tx is signed by
     // the mock wallet, so the buy modal opened from a resale row reaches its success state.
-    app = await launchApp({ path: `/item/${COLLECTION}/0`, fixtures: { trade: buyTrade } })
+    app = await launchApp({ path: `/item/${COLLECTION}/0`, fixtures: { ...withItem0Resale, trade: buyTrade } })
     const { page } = app
 
     await waitForText(page, 'Galaxy Hat')
@@ -100,7 +103,7 @@ describe('other resellers modal', () => {
   })
 
   it('stacks the table into cards on a phone viewport without scrolling the page sideways', async () => {
-    app = await launchApp({ path: `/item/${COLLECTION}/0` })
+    app = await launchApp({ path: `/item/${COLLECTION}/0`, fixtures: withItem0Resale })
     const { page } = app
     await page.setViewport({ width: 375, height: 800 })
 

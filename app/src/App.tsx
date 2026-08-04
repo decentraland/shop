@@ -30,7 +30,9 @@ const PAGE_NAMES: Record<string, string> = {
   '/cart': 'cart',
   '/credits': 'credits',
   '/success': 'success',
-  '/authorizations': 'authorizations'
+  '/authorizations': 'authorizations',
+  '/outfits/manage': 'outfit_studio',
+  '/outfits/new': 'outfit_studio'
 }
 
 // Overview (home) stays eager for the fastest first paint; every other route is code-split so it
@@ -49,6 +51,8 @@ const Authorizations = lazy(() => import('~/pages/Authorizations').then(m => ({ 
 const GetCredits = lazy(() => import('~/pages/GetCredits').then(m => ({ default: m.GetCredits })))
 const Success = lazy(() => import('~/pages/Success').then(m => ({ default: m.Success })))
 const NotFound = lazy(() => import('~/pages/NotFound').then(m => ({ default: m.NotFound })))
+const OutfitDetail = lazy(() => import('~/pages/OutfitDetail').then(m => ({ default: m.OutfitDetail })))
+const OutfitStudio = lazy(() => import('~/pages/OutfitStudio').then(m => ({ default: m.OutfitStudio })))
 
 function PageFallback() {
   return (
@@ -107,7 +111,11 @@ export function App() {
           ? 'collection'
           : path.startsWith('/assets/creator/')
             ? 'creator'
-            : 'other')
+            : path.startsWith('/assets/outfits/')
+              ? 'outfit'
+              : path.startsWith('/outfits/')
+                ? 'outfit_studio'
+                : 'other')
     trackPage(page)
   }, [location.pathname])
 
@@ -157,6 +165,11 @@ export function App() {
               <Route path="/token/:contractAddress/:tokenId" element={<ItemDetail />} />
               <Route path="/collection/:contractAddress" element={<Collection />} />
               <Route path="/assets/creator/:address" element={<Creator />} />
+              <Route path="/outfits/manage" element={<OutfitStudio />} />
+              <Route path="/outfits/new" element={<OutfitStudio />} />
+              <Route path="/outfits/:id/edit" element={<OutfitStudio />} />
+              {/* Under /assets so the Collectibles tab lights up on an outfit. */}
+              <Route path="/assets/outfits/:id" element={<OutfitDetail />} />
               <Route path="/store-settings" element={<StoreSettings />} />
               <Route path="/my-assets" element={<MyAssets />} />
               <Route path="/my-favorites" element={<MyFavorites />} />

@@ -1,0 +1,1 @@
+export { OutfitsRow } from './OutfitsRow'
