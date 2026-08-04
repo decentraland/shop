@@ -1041,8 +1041,12 @@ export function ItemDetail() {
               ) : (
                 <>
                   {/* Primary-sale banner (Figma 1524-297513): buying a fresh mint straight from the creator.
-                      Only for a primary (mint) listing that's actually on sale. */}
-                  {!manage && !isMarket && forSale && !current.tokenId ? (
+                      Only for a primary (mint) listing that's actually on sale.
+                      Also only while SECONDARY sales exist. The banner's whole job is to distinguish this
+                      listing from a resale, and with resales off there is nothing to distinguish it from —
+                      every listing in the Shop is a mint from its creator, so the row says something that is
+                      true of the entire catalogue and reads as noise. It comes back with the flag. */}
+                  {secondarySales && !manage && !isMarket && forSale && !current.tokenId ? (
                     <S.PrimarySaleBanner data-testid="buy-from-creator">
                       <S.FromCreator>
                         <S.FromCreatorIco name="buy-from-creator" />

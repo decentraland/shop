@@ -113,7 +113,11 @@ export const Tabs = styled.nav`
 // position:relative is the offset parent for the SearchDropdown's absolutely-positioned panel.
 export const Search = styled.div`
   position: relative;
-  margin-left: auto;
+  /* The auto left margin that used to be here now lives on Credits below. It was redundant here (a flex
+     item that GROWS leaves no free space for an auto margin to take) and it was load-bearing for the wrong
+     element: the row's right-hand group was only right-aligned as a side effect of this field sitting
+     before it, so on My Items, where the field is not rendered, the CTA, favourites and cart collapsed
+     back against the tab strip. */
   /* 240px of field is the FLOOR (flex-shrink: 0 makes the basis hard), growing into whatever slack the
      row has left up to the 496px design width. The field used to be plain flexible, so the other items
      shrank it with the window until only the magnifier was left — visually a search "icon", but not a
@@ -181,8 +185,14 @@ export const SearchClear = styled.button`
   }
 `
 
+// First item of the row's right-hand group (CTA · balance · favourites · cart), so it carries the auto
+// margin that holds the group against the right edge. On this element rather than on the search field,
+// which is not always rendered — with it there, the group's alignment depended on a sibling that only some
+// routes have. It costs nothing when the field IS present: that field grows, so there is no free space
+// left for this margin to claim and the group stays exactly where it was.
 export const Credits = styled(NavLink)`
   position: relative;
+  margin-left: auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;

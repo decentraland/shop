@@ -63,6 +63,7 @@ import { track, purchaseItemsProps, errorCode, isUserRejection, creditsToUsd } f
 import { captureError } from '~/lib/monitoring'
 import { CollectionCarousel } from '~/components/CollectionCarousel'
 import { Icon } from '~/components/Icon'
+import { useSecondarySales } from '~/hooks/useSecondarySales'
 import type { CatalogItem } from '~/lib/api'
 import type { SuccessNavState } from '~/pages/Success'
 import * as S from './Cart.styles'
@@ -140,6 +141,9 @@ export function Cart() {
   const favItems = useFavorites(s => s.items)
   const toggleFav = useFavorites(s => s.toggle)
   const { session, signIn } = useWallet()
+  // Drives the per-line "Creator" chip below. False while the flag loads, which is the right default here:
+  // the chip appearing a moment after the cart paints is worse than it never appearing.
+  const secondarySales = useSecondarySales()
   // The top-up packs offered when the buyer is short on credits (same set the PDP uses — all four the
   // credits-server returns, shown in one widened row). Sourced from the credits-server catalogue
   // (single source of truth); falls back to the bundled packs so this critical picker always renders.
@@ -1208,8 +1212,11 @@ export function Cart() {
                           {item.creator ? <S.Creator address={item.creator} linkToProfile /> : null}
                           {/* A line with no tokenId is a fresh mint, i.e. bought straight from the creator
                               (Figma 1553-317153 "Tag-Creator") — the same rule the stepper uses to decide a
-                              line supports quantity. Resales carry a tokenId and get no chip. */}
-                          {isPrimary ? (
+                              line supports quantity. Resales carry a tokenId and get no chip.
+                              Gated on secondary sales for the same reason as the item page's banner: the chip
+                              exists to tell a mint apart from a resale, and with resales off every line in
+                              every cart is a mint, so it labels all of them with the same word. */}
+                          {secondarySales && isPrimary ? (
                             <S.CreatorTag data-testid="cart-creator-tag">
                               <S.CreatorTagIco name="buy-from-creator" />
                               {t('cart.creatorTag')}
