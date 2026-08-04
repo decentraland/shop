@@ -753,12 +753,13 @@
   },
   "weekTopCreators": {
     "title": "Mejores creadores de la semana",
-    "thisWeek": "Esta semana",
     "rank": "Posición",
     "creator": "Creador",
     "collections": "Colecciones",
-    "sales": "Ventas",
-    "volume": "Volumen"
+    "sales": "Número de ventas",
+    "volume": "Cantidad ganada",
+    "viewCollections": "Ver colecciones",
+    "viewCollectionsBy": "Ver las colecciones de {name}"
   },
   "loadMore": {
     "loading": "Cargando…",
