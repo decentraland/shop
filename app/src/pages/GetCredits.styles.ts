@@ -316,7 +316,11 @@ export const PackBadge = styled.span`
   }
 `
 
+// Stretched to the card's content box rather than left shrink-to-fit, so the artwork's percentage width
+// below resolves against the CARD. Unstretched, this column is only as wide as its widest text, and a
+// percentage of that is a number with no relationship to the card at all.
 export const PackTop = styled.span`
+  align-self: stretch;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -384,10 +388,23 @@ export const PackUnit = styled.span`
   }
 `
 
+/**
+ * A SHARE of the card, not a pixel size.
+ *
+ * Figma draws the artwork 225px wide in a 351.5px card (1654:374650) — 64% of the card, or 70% of its
+ * content box once the 16px gutters are off. A literal 225px would only be right at the one width the
+ * design happens to be drawn at: our cards are grid cells, so they measure ~268px at a 1440 viewport and
+ * ~150px on a phone, and 225px there is wider than the card itself. The percentage is exact at the
+ * design's width and stays proportional everywhere else, which also retires the old fixed-width overflow
+ * this used to work around at 520px.
+ *
+ * `align-self: stretch` first, so the box is the content width rather than shrink-to-fit: the card is a
+ * centred column, and shrink-to-fit let each pack's art take a different width (measured 118px and 152px
+ * in two identical cards) and spill out of the narrow ones.
+ */
 export const PackArt = styled.span`
   display: block;
-  width: 253.5px;
-  max-width: 100%;
+  width: 70%;
   aspect-ratio: 1;
 
   img {
@@ -395,34 +412,6 @@ export const PackArt = styled.span`
     width: 100%;
     height: 100%;
     object-fit: contain;
-  }
-
-  /**
-   * FLUID, capped — not a fixed 200px.
-   *
-   * The fixed width overflowed its card: measured at a 375px viewport the artwork rendered 200px inside a
-   * 150px parent, spilling 25px out of each side of the card (the max-width above did not hold it,
-   * which is why this restates the intent as a width rather than relying on a cap). Two per row means the
-   * cell is whatever half the viewport minus gaps happens to be, so the art has to follow it.
-   */
-  @media (max-width: 520px) {
-    /**
-     * STRETCHED to the card's content box, not sized by its own content.
-     *
-     * The card is a column flex with align-items: center, so its children are shrink-to-fit — which let each
-     * pack's artwork take a different width (measured 118px and 152px in two identical 150px cards) and let
-     * the wider one spill 2px out of each side. Stretching makes every card's art box exactly the content
-     * width, so all four are identical and none can exceed it.
-     */
-    align-self: stretch;
-    width: auto;
-    max-width: none;
-
-    /* The wrapper alone is not enough: whatever sits inside it (picture/img) must be capped too, or it
-       reintroduces the same overflow one level down. */
-    > * {
-      max-width: 100%;
-    }
   }
 `
 
