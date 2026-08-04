@@ -8,7 +8,7 @@ import { shortAddress } from '~/lib/address'
 import { capitalizeFirst } from '~/lib/text'
 import { fetchCreatorCollections, fetchCreatorItems } from '~/lib/collections'
 import { railPageCount, railPageFromScroll } from '~/lib/pagedRail'
-import { fetchTopCreators, type CreatorRank } from '~/lib/rankings'
+import { fetchTopCreators } from '~/lib/rankings'
 import * as S from './TopCreators.styles'
 
 // "Meet Our Top Creators" — up to four cards for the week's most active creators, from
@@ -33,9 +33,11 @@ function creationsPath(address: string): string {
   return `/items/creator/${address}`
 }
 
-function CreatorCard({ creator }: { creator: CreatorRank }) {
-  const { data: profile } = useProfile(creator.id)
-  const { data: store } = useStore(creator.id)
+// Takes an ADDRESS, not the ranking row: everything the card says about a creator it reads for itself,
+// so there is nothing here for a ranking number to leak through.
+function CreatorCard({ address }: { address: string }) {
+  const { data: profile } = useProfile(address)
+  const { data: store } = useStore(address)
   const description = store?.description ?? ''
 
   /**
@@ -50,19 +52,19 @@ function CreatorCard({ creator }: { creator: CreatorRank }) {
    * fail, the card simply has no second line.
    */
   const { data: totals } = useQuery({
-    queryKey: ['creator-totals', creator.id],
+    queryKey: ['creator-totals', address],
     enabled: store !== undefined && !description,
     staleTime: 5 * 60_000,
     queryFn: async () => {
       const [collections, items] = await Promise.all([
-        fetchCreatorCollections(creator.id, { first: 1 }),
-        fetchCreatorItems(creator.id, { first: 1 })
+        fetchCreatorCollections(address, { first: 1 }),
+        fetchCreatorItems(address, { first: 1 })
       ])
       return { collections: collections.total, items: items.total }
     }
   })
 
-  const name = profile?.name ? capitalizeFirst(profile.name) : shortAddress(creator.id)
+  const name = profile?.name ? capitalizeFirst(profile.name) : shortAddress(address)
   const face = profile?.avatar?.snapshots?.face256
   // Deterministic per-user avatar backdrop — identical to CreatorHero / the in-world client
   // (ADR-292, see lib/avatarColor). Shows behind a transparent face snapshot and as the placeholder.
@@ -70,14 +72,14 @@ function CreatorCard({ creator }: { creator: CreatorRank }) {
     getDisplayName({
       name: profile?.name,
       hasClaimedName: profile?.hasClaimedName,
-      ethAddress: profile?.ethAddress ?? creator.id
+      ethAddress: profile?.ethAddress ?? address
     })
   )
   const blurb = description || (totals ? t('topCreators.stats', totals) : '')
 
   return (
     <S.Card
-      to={creationsPath(creator.id)}
+      to={creationsPath(address)}
       aria-label={t('topCreators.viewCreationsBy', { name })}
       data-testid="top-creator-card"
     >
@@ -103,6 +105,7 @@ function SkeletonCard() {
         <S.SkeletonName className="skeleton" />
         <S.SkeletonDesc className="skeleton" />
         <S.SkeletonDesc className="skeleton" data-short />
+        <S.SkeletonCta className="skeleton" />
       </S.Panel>
     </S.SkeletonCard>
   )
@@ -167,7 +170,7 @@ export function TopCreators() {
       <S.Track ref={trackRef}>
         {isLoading
           ? Array.from({ length: CARDS }).map((_, i) => <SkeletonCard key={i} />)
-          : creators.map(creator => <CreatorCard key={creator.id} creator={creator} />)}
+          : creators.map(creator => <CreatorCard key={creator.id} address={creator.id} />)}
       </S.Track>
 
       {pageCount > 1 ? (

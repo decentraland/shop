@@ -157,6 +157,12 @@ export const Panel = styled.span`
   margin-top: -${AVATAR / 2}px;
   padding: ${AVATAR / 2 + 16}px 16px 16px;
 
+  /* The offset is half the avatar, so it has to follow the mobile avatar up as well. */
+  ${media.maxWidth('mobile')} {
+    margin-top: -${AVATAR_MOBILE / 2}px;
+    padding-top: ${AVATAR_MOBILE / 2 + 16}px;
+  }
+
   &::before,
   &::after {
     content: '';
@@ -277,17 +283,28 @@ export const Cta = styled.span`
   }
 `
 
+// Shaped to the type they stand in for — a name line and the blurb's two — so the row barely moves
+// when the real cards land.
 export const SkeletonName = styled.span`
   width: 60%;
-  height: 20px;
+  height: 30px;
 `
 
 export const SkeletonDesc = styled.span`
   width: 90%;
-  height: 14px;
+  height: 18px;
   margin-top: 8px;
 
   &[data-short] {
     width: 70%;
   }
+`
+
+// The CTA's slot, which a loaded card always carries (see Panel) — without it the row would grow by
+// 56px the moment the ranking landed.
+export const SkeletonCta = styled.span`
+  width: 100%;
+  height: 40px;
+  margin-top: 16px;
+  border-radius: ${radius.modal};
 `
