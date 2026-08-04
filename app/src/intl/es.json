@@ -373,7 +373,11 @@
     "originalPrice": "Precio original",
     "resalePrice": "Precio de reventa",
     "soldOut": "Agotado",
-    "youOwnN": "Tienes {count, plural, one {# copia} other {# copias}} de este — gestiónalas en"
+    "youOwnN": "Tienes {count, plural, one {# copia} other {# copias}} de este — gestiónalas en",
+    "playLoop": "Bucle",
+    "playOnce": "Una vez",
+    "emoteSound": "Sonido",
+    "emoteProps": "Props"
   },
   "transfer": {
     "title": "Transferir artículo",

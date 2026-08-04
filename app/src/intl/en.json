@@ -373,7 +373,11 @@
     "originalPrice": "Original price",
     "resalePrice": "Resale price",
     "soldOut": "Sold out",
-    "youOwnN": "You own {count, plural, one {# copy} other {# copies}} of this — manage in"
+    "youOwnN": "You own {count, plural, one {# copy} other {# copies}} of this — manage in",
+    "playLoop": "Play loop",
+    "playOnce": "Play once",
+    "emoteSound": "Sound",
+    "emoteProps": "Props"
   },
   "transfer": {
     "title": "Transfer item",

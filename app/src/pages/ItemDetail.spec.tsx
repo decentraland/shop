@@ -202,3 +202,123 @@ describe('ItemDetail — the carousel below the fold', () => {
     })
   })
 })
+
+/**
+ * EMOTE PLAYBACK CHIPS.
+ *
+ * The Shop's detail page showed rarity, category and gender while the marketplace showed the emote's play
+ * mode, sound and props as well — so the same emote read as having fewer traits here than there. All three
+ * come from fields the catalogue already returns (data.emote loop / hasSound / hasGeometry); nothing new is
+ * fetched.
+ *
+ * `loop` is the one worth pinning: false is not absence. An emote that plays once must SAY so, and only a
+ * wearable — where the field is undefined — may show no chip at all.
+ */
+describe('emote playback chips', () => {
+  const emote = (over: Partial<CatalogItem>) =>
+    item({ id: 'a', name: 'Laser Face', itemId: '1', category: 'emote', ...over })
+
+  it('says PLAY LOOP for a looping emote', async () => {
+    fetchCollectionItems.mockResolvedValue({ items: [emote({ emoteLoop: true })], total: 1 })
+
+    renderPdp()
+
+    expect(await screen.findByTestId('detail-play-mode')).toHaveTextContent(/play loop/i)
+  })
+
+  it('says PLAY ONCE when loop is false, rather than hiding the chip', async () => {
+    fetchCollectionItems.mockResolvedValue({ items: [emote({ emoteLoop: false })], total: 1 })
+
+    renderPdp()
+
+    expect(await screen.findByTestId('detail-play-mode')).toHaveTextContent(/play once/i)
+  })
+
+  it('shows no play-mode chip for a wearable, where the field is undefined', async () => {
+    fetchCollectionItems.mockResolvedValue({
+      items: [item({ id: 'a', name: 'Anchor Hat', itemId: '1' })],
+      total: 1
+    })
+
+    renderPdp()
+
+    // The name appears in the heading AND in the collection rail, so anchor on the heading specifically.
+    await screen.findByRole('heading', { name: 'Anchor Hat' })
+    expect(screen.queryByTestId('detail-play-mode')).toBeNull()
+  })
+
+  it('shows sound and props only when the emote has them', async () => {
+    fetchCollectionItems.mockResolvedValue({
+      items: [emote({ emoteLoop: true, emoteHasSound: true, emoteHasProps: true })],
+      total: 1
+    })
+
+    renderPdp()
+
+    expect(await screen.findByTestId('detail-sound')).toBeInTheDocument()
+    expect(screen.getByTestId('detail-props')).toBeInTheDocument()
+  })
+
+  it('omits sound and props when the emote has neither', async () => {
+    fetchCollectionItems.mockResolvedValue({
+      items: [emote({ emoteLoop: true, emoteHasSound: false, emoteHasProps: false })],
+      total: 1
+    })
+
+    renderPdp()
+
+    await screen.findByTestId('detail-play-mode')
+    expect(screen.queryByTestId('detail-sound')).toBeNull()
+    expect(screen.queryByTestId('detail-props')).toBeNull()
+  })
+})
+
+/**
+ * THE PATH THE PDP ACTUALLY TAKES.
+ *
+ * Review caught that the first version mapped the traits only in api.ts:toCatalogItem — the v2 catalog,
+ * which the detail page never reads. Arriving from the grid, `current` is seeded from /v3/catalog/shop,
+ * whose rows are FLAT: no `data` object, so no loop / hasSound / hasGeometry. The backfill cannot rescue it
+ * either, since it bails once `current.name` is set, which it always is on that route.
+ *
+ * So the traits come from the /v3/catalog/items row for this item — the sibling list, already fetched.
+ * This drives exactly that shape: a named `current` with no traits, and a sibling that has them.
+ */
+describe('emote chips when the page arrives from the flat shop feed', () => {
+  it('reads the traits from the catalogue row rather than showing nothing', async () => {
+    // What the grid hands over: a name, and no emote traits at all.
+    const fromGrid = item({ id: 'a', name: 'Laser Face', itemId: '1', category: 'emote' })
+    expect(fromGrid.emoteLoop).toBeUndefined()
+
+    // What /v3/catalog/items returns for the same item.
+    fetchCollectionItems.mockResolvedValue({
+      items: [
+        item({
+          id: 'a',
+          name: 'Laser Face',
+          itemId: '1',
+          category: 'emote',
+          emoteLoop: true,
+          emoteHasProps: true
+        })
+      ],
+      total: 1
+    })
+
+    // Seeded through router state, exactly as the grid does it — that is what makes `current.name` set and
+    // the backfill bail out. Rendering without it would hydrate from the siblings and pass either way.
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={qc}>
+        <MemoryRouter initialEntries={[{ pathname: `/item/${ANCHOR}/1`, state: { item: fromGrid } }]}>
+          <Routes>
+            <Route path="/item/:contractAddress/:itemId" element={<ItemDetail />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    expect(await screen.findByTestId('detail-play-mode')).toHaveTextContent(/play loop/i)
+    expect(screen.getByTestId('detail-props')).toBeInTheDocument()
+  })
+})
