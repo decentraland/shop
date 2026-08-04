@@ -37,7 +37,7 @@ import {
   type OutfitBodyShape,
   type OutfitDraft
 } from '~/lib/outfits'
-import { isWearable, outfitPreviewUrns } from '~/lib/outfit'
+import { isWearable, outfitPreviewUrns, playingEmote } from '~/lib/outfit'
 import { t } from '~/intl/i18n'
 import { toast } from '~/store/toast'
 import { useWallet } from '~/store/wallet'
@@ -502,14 +502,11 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
     [draft, resolution.byKey]
   )
   const urns = useMemo(() => outfitPreviewUrns(resolvedItems), [resolvedItems])
-  // Which row carries the emote the preview plays — the rest are items only.
   const playingKey = useMemo(() => {
-    const ref = (draft?.items ?? []).find(r => {
-      const item = resolution.byKey.get(outfitItemKey(r))
-      return !!item && !isWearable(item)
-    })
-    return ref ? outfitItemKey(ref) : null
-  }, [draft, resolution.byKey])
+    const emote = playingEmote(resolvedItems)
+    if (!emote?.itemId) return null
+    return outfitItemKey({ contractAddress: emote.contractAddress, itemId: emote.itemId })
+  }, [resolvedItems])
   const mannequin: BodyShapeUrn | undefined =
     draft?.bodyShape === 'female' ? BASE_FEMALE : draft?.bodyShape === 'male' ? BASE_MALE : undefined
 

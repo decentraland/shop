@@ -190,7 +190,7 @@ function OutfitContent({ outfit }: { outfit: Outfit }) {
   const urns = useMemo(() => outfitPreviewUrns(resolvedItems), [resolvedItems])
   // The preview plays the outfit's own emote, so it gets the same play/pause/mute controls an emote
   // item page has.
-  const hasEmote = !!playingEmote(resolvedItems)
+  const hasEmote = useMemo(() => !!playingEmote(resolvedItems), [resolvedItems])
 
   const total = outfit.items.length
   const settled = !resolution.isLoading && !resolution.isError

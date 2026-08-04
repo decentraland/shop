@@ -79,9 +79,10 @@ export function OutfitPreview({
       return
     }
     let frame = 0
+    let attempts = 0
     const check = () => {
       if (document.getElementById(id)) setHasIframe(true)
-      else frame = requestAnimationFrame(check)
+      else if (attempts++ < 300) frame = requestAnimationFrame(check)
     }
     check()
     return () => cancelAnimationFrame(frame)

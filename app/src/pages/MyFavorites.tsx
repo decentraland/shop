@@ -26,7 +26,8 @@ export function MyFavorites() {
 
   // Favorites hydrate from the /v2 catalog, which prices in MANA, so the cards get their credit price
   // at the live rate — the same rule the browse grid applies to any MANA-priced card.
-  const { data: rate } = useManaRate()
+  const { data: rate, isPending: ratePending, isError: rateError } = useManaRate()
+  const hasManaItems = stored.some(item => !!item.manaWei)
   const items = useMemo(
     () => stored.map(item => ({ ...item, priceCredits: displayCredits(item, rate) })),
     [stored, rate]
@@ -56,13 +57,14 @@ export function MyFavorites() {
     )
   }
 
-  const loading = status === 'loading'
+  const loading = status === 'loading' || (ratePending && hasManaItems)
   return (
     <section>
       <S.Head>
         <h1>{t('nav.myFavorites')}</h1>
         {!loading ? <S.Count>{t('myFavorites.itemCount', { count: items.length })}</S.Count> : null}
       </S.Head>
+      {rateError && hasManaItems ? <S.RateBanner>{t('assets.marketUnavailable')}</S.RateBanner> : null}
       <Grid data-testid={loading ? 'favorites-loading' : undefined}>
         {loading ? (
           <SkeletonCards count={8} />

@@ -83,7 +83,7 @@ export function OutfitItemPicker({
             data-category={key}
             data-selected={category === key || undefined}
             aria-pressed={category === key}
-            onClick={() => setCategory(key)}
+            onClick={() => { setCategory(key); setQuery('') }}
           >
             {t(labelKey)}
           </S.CategoryBtn>

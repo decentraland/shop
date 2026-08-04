@@ -105,7 +105,7 @@ export function conflictingIds(items: CatalogItem[]): Set<string> {
 
 /** The first emote among an outfit's items — the one its preview plays. */
 export function playingEmote(items: CatalogItem[]): CatalogItem | undefined {
-  return items.find(item => !isWearable(item))
+  return items.find(item => item.category === 'emote')
 }
 
 // The URNs an outfit's preview wears, and the order is load-bearing: the emote that plays goes FIRST,
