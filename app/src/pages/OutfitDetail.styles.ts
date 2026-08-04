@@ -84,6 +84,19 @@ export const Preview = styled.div`
 
 // The uploaded artwork is a transparent-background portrait; contain floats the whole look on the
 // radial gradient instead of cover's brutal crop in the wide desktop panel.
+// ui2's <EmoteControls> lays its own bar out absolutely against the nearest positioned ancestor and
+// is already styled for a dark backdrop — which the outfit gradient provides — so this wrapper only
+// anchors it and keeps drag-to-rotate working on the canvas underneath.
+export const EmoteControls = styled.div`
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+
+  & [class*="MuiBox"] {
+    pointer-events: auto;
+  }
+`
+
 export const PreviewFallback = styled.img`
   position: absolute;
   inset: 0;

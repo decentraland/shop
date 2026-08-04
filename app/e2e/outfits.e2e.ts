@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path'
 import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest'
 import { hermeticViteEnv, launchApp, type App } from './helpers/app'
 import { waitForText } from './helpers/dom'
-import { COLLECTION, CREATOR_ADDRESS } from './fixtures'
+import { COLLECTION, CREATOR_ADDRESS, shopListings, unifiedListings } from './fixtures'
 
 /**
  * Outfits: the Overview row, the /outfits/:id detail page and the creator studio.
@@ -30,8 +30,15 @@ beforeAll(async () => {
   server = spawn(vite, ['--port', String(PORT), '--strictPort'], {
     cwd: process.cwd(),
     stdio: 'ignore',
-    // Same hermetic env as global-setup, PLUS the mocked shop-server the outfits feature needs.
-    env: hermeticViteEnv({ VITE_SHOP_SERVER_URL: 'http://localhost:5004' })
+    // Same hermetic env as global-setup, PLUS the mocked shop-server the outfits feature needs and a
+    // PRIVATE dep cache: this server runs alongside the suite's shared one, and a shared
+    // `node_modules/.vite` would have them rewrite each other's optimized deps mid-run — after which
+    // the loser's browser 504s on stale dep URLs and pages crash (worst on the ui2 chunks the emote
+    // controls lazy-load). See `cacheDir` in vite.config.ts.
+    env: hermeticViteEnv({
+      VITE_SHOP_SERVER_URL: 'http://localhost:5004',
+      VITE_CACHE_DIR: join(tmpdir(), 'shop-outfits-e2e-vite')
+    })
   })
   const deadline = Date.now() + 90000
   for (;;) {
@@ -44,6 +51,11 @@ beforeAll(async () => {
     if (Date.now() > deadline) throw new Error(`outfits e2e server did not start on ${OUTFITS_BASE}`)
     await new Promise(r => setTimeout(r, 500))
   }
+  // Serving index.html proves the server is up but pre-bundles nothing. Asking for the entry MODULE
+  // blocks until the dep optimizer's first pass finishes, so a cold cache dir is paid for here (inside
+  // this 120s hook) instead of inside whichever test happens to load a page first — that cost has
+  // exceeded the 60s per-test timeout.
+  await fetch(`${OUTFITS_BASE}/src/main.tsx`).catch(() => undefined)
 }, 120000)
 
 afterAll(() => {
@@ -72,8 +84,67 @@ const GRADIENT_CSS = 'linear-gradient(rgb(168, 85, 247) 0%, rgb(224, 33, 154) 10
 // The detail preview is the same two stops as a radial glow — BOTTOM color at the centre.
 const RADIAL_CSS = 'radial-gradient(circle, rgb(224, 33, 154) 0%, rgb(168, 85, 247) 100%)'
 
+// Outfits are authored from MINTS — the studio picker is primary-only — and the discovery row admits a
+// look only while every item is still buyable from its creator. The shared fixture's second item is a
+// resale (`tokenId`), which no outfit could legitimately contain, so this spec republishes it as a
+// primary with supply. Same 135 credits, so the totals other assertions expect are unchanged.
+const primaryCatalog = {
+  shopListings: {
+    data: shopListings.data.map(l =>
+      l.name === 'Nebula Jacket' ? { ...l, listingType: 'primary', tokenId: null, available: 40 } : l
+    ),
+    total: shopListings.total
+  },
+  unifiedListings: {
+    data: unifiedListings.data.map(l =>
+      l.name === 'Nebula Jacket' ? { ...l, listingType: 'primary', tokenId: null, available: 40 } : l
+    ),
+    total: unifiedListings.total
+  }
+}
+
+// An emote listing, added to the catalog only for this spec (the shared fixtures feed the browse-grid
+// counts other specs assert on). An outfit carries emotes as ORDINARY items: same list, same total,
+// same add-all. Priced so an outfit's total is unambiguous — 270 + 135 + 60 = 465.
+const EMOTE_ITEM_ID = '5'
+const EMOTE_NAME = 'Cosmic Shuffle'
+const EMOTE_CREDITS = 60
+const emoteListing = {
+  listingType: 'primary',
+  contractAddress: COLLECTION,
+  itemId: EMOTE_ITEM_ID,
+  tokenId: null,
+  name: EMOTE_NAME,
+  thumbnail: '',
+  rarity: 'rare',
+  category: 'emote',
+  creator: CREATOR_ADDRESS,
+  priceCredits: EMOTE_CREDITS,
+  available: 50,
+  network: 'MATIC',
+  chainId: 80002
+}
+
+// The emote has to exist in BOTH catalog feeds: /v2/catalog?id= resolves the rows a card and the
+// detail list display, /v3/catalog/unified is what the studio picker searches and what the add-all CTA
+// re-reads before building cart lines.
+function catalogWithEmote(overrides: { available?: number } = {}) {
+  const emote = { ...emoteListing, ...overrides }
+  return {
+    shopListings: { data: [...primaryCatalog.shopListings.data, { ...emote, tradeId: 'trade-emote' }], total: 3 },
+    unifiedListings: {
+      data: [
+        ...primaryCatalog.unifiedListings.data,
+        { ...emote, tradeId: 'trade-emote', source: 'native', manaWei: null }
+      ],
+      total: 4
+    }
+  }
+}
+
 function outfitFixtures() {
   return {
+    ...primaryCatalog,
     outfits: {
       outfits: [
         {
@@ -264,7 +335,9 @@ describe('outfits row on the overview', () => {
       id: `aaaaaaaa-0000-4000-8000-00000000001${i}`,
       name: `Look ${i + 1}`
     }))
-    const page = await launch('/overview', { fixtures: { outfits: { outfits: many } } })
+    // primaryCatalog, not just the outfits: these looks have to be admitted to the row at all before
+    // there is anything to page through.
+    const page = await launch('/overview', { fixtures: { ...primaryCatalog, outfits: { outfits: many } } })
     await page.waitForSelector('[data-testid="outfits-row-next"]', { timeout: 20000 })
 
     // Hidden (disabled) at the first page, live at the last.
@@ -510,5 +583,211 @@ describe('outfits at phone width (≤768px)', () => {
     await page.waitForSelector('[data-testid="outfit-picker"]', { timeout: 20000 })
     expect(await overflowPx(page)).toBeLessThanOrEqual(1)
     await page.screenshot({ path: `${SHOTS}/outfits-studio-mobile.png`, fullPage: true })
+  })
+
+  // The category chips and the "plays in preview" pill both land in narrow rows — neither may push the
+  // studio sideways.
+  it('the picker toggle and the emote row fit a phone', async () => {
+    const page = await launch('/outfits/new', { outfitCreator: true, fixtures: catalogWithEmote() })
+    await page.setViewport(PHONE)
+    await page.waitForSelector('[data-testid="outfit-picker-category"]', { timeout: 20000 })
+    await page.click('[data-testid="outfit-picker-category"] button[data-category="emote"]')
+    await page.waitForFunction(
+      name =>
+        [...document.querySelectorAll('[data-testid="outfit-picker-item"]')].some(el =>
+          (el.textContent ?? '').includes(name)
+        ),
+      { timeout: 20000 },
+      EMOTE_NAME
+    )
+    await page.evaluate(name => {
+      const card = [...document.querySelectorAll('[data-testid="outfit-picker-item"]')].find(el =>
+        (el.textContent ?? '').includes(name)
+      )
+      ;(card as HTMLElement).click()
+    }, EMOTE_NAME)
+    await page.waitForSelector('[data-testid="outfit-studio-plays-in-preview"]', { timeout: 20000 })
+    expect(await overflowPx(page)).toBeLessThanOrEqual(1)
+    await page.screenshot({ path: `${SHOTS}/outfits-studio-emote-mobile.png`, fullPage: true })
+  })
+})
+
+// An emote inside an outfit is an ORDINARY item: it lists with the wearables, counts in the total and
+// the CTA, and gates the row like anything else. What it adds is the preview animation — the outfit
+// plays its own emote instead of the default fashion pose.
+describe('outfits that include an emote', () => {
+  const EMOTE_OUTFIT_ID = 'aaaaaaaa-0000-4000-8000-000000000004'
+
+  function emoteOutfitFixtures({ delisted = false, soldOut = false } = {}) {
+    return {
+      // Three states the emote can be in, all of which must gate the row identically to a wearable:
+      // listed and mintable, SOLD OUT (mint closed, supply gone), or delisted (the catalog no longer
+      // returns the pair at all).
+      ...(delisted ? primaryCatalog : catalogWithEmote(soldOut ? { available: 0 } : {})),
+      outfits: {
+        outfits: [
+          {
+            id: EMOTE_OUTFIT_ID,
+            name: 'Dancing Look',
+            thumbnailHash: THUMB_HASH,
+            items: [
+              { contractAddress: COLLECTION, itemId: '0' },
+              { contractAddress: COLLECTION, itemId: '1' },
+              { contractAddress: COLLECTION, itemId: EMOTE_ITEM_ID }
+            ],
+            bodyShape: 'unisex',
+            gradientFrom: GRADIENT_FROM,
+            gradientTo: GRADIENT_TO,
+            authorAddress: CREATOR_ADDRESS,
+            published: true,
+            createdAt: 1750000000000,
+            updatedAt: 1750000000000
+          }
+        ]
+      }
+    }
+  }
+
+  it('lists the emote with the wearables, counts it in the total and adds it to the cart', async () => {
+    const page = await launch(`/items/outfits/${EMOTE_OUTFIT_ID}`, { fixtures: emoteOutfitFixtures() })
+    await page.waitForSelector('[data-testid="outfit-detail"]', { timeout: 20000 })
+    await waitForText(page, EMOTE_NAME)
+
+    // No separate section, no badge: three rows in authored order, the emote among them.
+    const rows = await page.$$eval('[data-testid="outfit-detail-item"]', els => els.map(el => el.textContent ?? ''))
+    expect(rows).toHaveLength(3)
+    expect(rows[2]).toContain(EMOTE_NAME)
+    expect(rows[2]).toContain(String(EMOTE_CREDITS))
+    expect(await page.$eval('[data-testid="outfit-detail-meta"]', el => el.textContent)).toContain('3')
+
+    // 270 + 135 + 60 — the emote is in the CTA's count and its total like any wearable.
+    await page.waitForFunction(
+      () => {
+        const cta = document.querySelector('[data-testid="outfit-detail-cta"]')
+        const label = cta?.textContent ?? ''
+        return label.includes('3') && label.includes('465')
+      },
+      { timeout: 20000 }
+    )
+    await page.click('[data-testid="outfit-detail-cta"]')
+    await page.waitForFunction(() => document.querySelector('[data-testid="subnav-cart-badge"]')?.textContent === '3', {
+      timeout: 10000
+    })
+  })
+
+  // The preview plays the outfit's own emote, so it gets the same playback bar an emote item page has.
+  it('offers the emote playback controls on the preview', async () => {
+    const page = await launch(`/items/outfits/${EMOTE_OUTFIT_ID}`, { fixtures: emoteOutfitFixtures() })
+    await page.waitForSelector('[data-testid="outfit-emote-controls"]', { timeout: 20000 })
+    expect(await page.$('[data-testid="outfit-emote-controls"] button')).toBeTruthy()
+  })
+
+  it('drops the card from the row when the emote is no longer listed, keeping the detail page reachable', async () => {
+    const page = await launch('/overview', { fixtures: emoteOutfitFixtures({ delisted: true }) })
+    await waitForText(page, 'Featured Products')
+    // The only published look carries an unlisted emote, so the row drops it — and with nothing left to
+    // show, the row renders nothing rather than a card voicing a partial state.
+    await page.waitForFunction(() => !document.querySelector('[data-testid="outfits-row"]'), { timeout: 20000 })
+    expect(await page.$('[data-testid="outfit-card"]')).toBeNull()
+
+    const detail = await launch(`/items/outfits/${EMOTE_OUTFIT_ID}`, {
+      fixtures: emoteOutfitFixtures({ delisted: true })
+    })
+    await detail.waitForSelector('[data-testid="outfit-detail"]', { timeout: 20000 })
+    // Still three rows — the emote's is the "no longer available" one, and only the wearables can be added.
+    await detail.waitForFunction(
+      () =>
+        [...document.querySelectorAll('[data-testid="outfit-detail-item"]')].some(
+          el => el.getAttribute('data-state') === 'missing'
+        ),
+      { timeout: 20000 }
+    )
+    const states = await detail.$$eval('[data-testid="outfit-detail-item"]', els =>
+      els.map(el => el.getAttribute('data-state'))
+    )
+    expect(states).toHaveLength(3)
+    await detail.waitForFunction(
+      () => (document.querySelector('[data-testid="outfit-detail-cta"]')?.textContent ?? '').includes('2'),
+      { timeout: 20000 }
+    )
+  })
+
+  // The reason must not matter: a SOLD OUT emote (still listed, price intact, zero supply left) has to
+  // drop the look off the row exactly as a delisted one does — a shopper may never meet a look they
+  // cannot buy complete.
+  it('drops the card from the row when the emote is sold out, and says so on the detail page', async () => {
+    const page = await launch('/overview', { fixtures: emoteOutfitFixtures({ soldOut: true }) })
+    await waitForText(page, 'Featured Products')
+    await page.waitForFunction(() => !document.querySelector('[data-testid="outfits-row"]'), { timeout: 20000 })
+    expect(await page.$('[data-testid="outfit-card"]')).toBeNull()
+
+    const detail = await launch(`/items/outfits/${EMOTE_OUTFIT_ID}`, {
+      fixtures: emoteOutfitFixtures({ soldOut: true })
+    })
+    await detail.waitForSelector('[data-testid="outfit-detail"]', { timeout: 20000 })
+    // It resolves (so it keeps its name and thumbnail) but reads as unavailable and leaves the CTA at two.
+    await waitForText(detail, EMOTE_NAME)
+    await detail.waitForFunction(
+      () =>
+        [...document.querySelectorAll('[data-testid="outfit-detail-item"]')].some(
+          el => el.getAttribute('data-state') === 'unavailable'
+        ),
+      { timeout: 20000 }
+    )
+    await detail.waitForFunction(
+      () => (document.querySelector('[data-testid="outfit-detail-cta"]')?.textContent ?? '').includes('2'),
+      { timeout: 20000 }
+    )
+  })
+
+  it('finds emotes through the picker toggle and marks the one that plays in the preview', async () => {
+    const page = await launch('/outfits/new', { outfitCreator: true, fixtures: catalogWithEmote() })
+    await page.waitForSelector('[data-testid="outfit-picker"]', { timeout: 20000 })
+
+    // Wearables first: the emote is not in the default list.
+    await page.waitForSelector('[data-testid="outfit-picker-item"]', { timeout: 20000 })
+    const wearables = await page.$$eval('[data-testid="outfit-picker-item"]', els =>
+      els.map(el => el.textContent ?? '')
+    )
+    expect(wearables.some(text => text.includes(EMOTE_NAME))).toBe(false)
+
+    // The search follows the toggle — its placeholder and its results are both category-scoped.
+    await page.click('[data-testid="outfit-picker-category"] button[data-category="emote"]')
+    await page.waitForFunction(
+      name =>
+        [...document.querySelectorAll('[data-testid="outfit-picker-item"]')].some(el =>
+          (el.textContent ?? '').includes(name)
+        ),
+      { timeout: 20000 },
+      EMOTE_NAME
+    )
+    const placeholder = await page.$eval(
+      '[data-testid="outfit-picker-search"]',
+      el => (el as HTMLInputElement).placeholder
+    )
+    expect(placeholder.toLowerCase()).toContain('emote')
+
+    // Picking it adds an ordinary row, flagged as the one the preview animates.
+    await page.evaluate(name => {
+      const card = [...document.querySelectorAll('[data-testid="outfit-picker-item"]')].find(el =>
+        (el.textContent ?? '').includes(name)
+      )
+      ;(card as HTMLElement).click()
+    }, EMOTE_NAME)
+    await page.waitForSelector('[data-testid="outfit-studio-plays-in-preview"]', { timeout: 20000 })
+    const selected = await page.$$eval('[data-testid="outfit-studio-selected"]', els =>
+      els.map(el => el.textContent ?? '')
+    )
+    expect(selected.some(text => text.includes(EMOTE_NAME))).toBe(true)
+
+    // Publishing a look made only of emotes is refused, in its own words.
+    await page.type('[data-testid="outfit-studio-name"]', 'Just Moves')
+    await page.waitForFunction(
+      () =>
+        (document.querySelector('[data-testid="outfit-studio-publish-hint"]')?.textContent ?? '')
+          .toLowerCase()
+          .includes('wearable'),
+      { timeout: 20000 }
+    )
   })
 })

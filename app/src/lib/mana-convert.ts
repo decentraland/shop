@@ -45,6 +45,24 @@ export function manaWeiToCredits(manaWei: string, rate: ManaRate): number | null
   return n < 1 ? 1 : n
 }
 
+/**
+ * The credits to DISPLAY for a listing row, whatever feed it came from. A MANA-priced (legacy) row is
+ * converted at the live rate — its credit price fluctuates and is only indicative until checkout locks
+ * it; a USD-pegged row already carries fixed credits. Zero while the rate is still loading (or the
+ * oracle is down), which every surface reads as "no price to show yet" rather than a made-up number.
+ *
+ * This is the app's one display-pricing rule: the unified browse grid applies it inline (Assets.tsx
+ * `priceOf`), and every other surface that renders a possibly-MANA row goes through here.
+ */
+export function displayCredits(
+  row: { manaWei?: string | null; priceCredits: number },
+  rate: ManaRate | undefined
+): number {
+  if (!row.manaWei) return row.priceCredits
+  if (!rate) return 0
+  return manaWeiToCredits(row.manaWei, rate) ?? 0
+}
+
 // MANA wei → USD cents, rounded UP. Used to size the credits-server authorize amount for a legacy
 // purchase (the server then locks MANA at its own oracle read + signs the fixed maxCreditedValue).
 export function manaWeiToUsdCents(manaWei: string, rate: ManaRate): number {
