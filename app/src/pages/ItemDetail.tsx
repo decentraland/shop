@@ -350,7 +350,9 @@ export function ItemDetail() {
     retry: 1,
     queryFn: () => fetchItemMeta(current.contractAddress, pageItemId as string)
   })
-  const isSmart = itemTraits?.isSmart || current.isSmart
+  // `??`, not `||`: once this query answers it is the authority, so a `false` from it must not fall through
+  // to a possibly-stale `true` on the stub the page started from. Only "still loading" defers to `current`.
+  const isSmart = itemTraits?.isSmart ?? current.isSmart
   const utility = itemTraits?.utility ?? null
 
   const buyableTradeId = current.tradeId ?? resolvedTradeId ?? undefined
@@ -1536,16 +1538,42 @@ export function ItemDetail() {
 function ItemInfoSkeleton() {
   return (
     <S.InfoSkel aria-hidden>
-      <span className="skeleton" />
+      <S.SkelTitle className="skeleton" />
       <S.SkelChips>
-        <span className="skeleton" />
-        <span className="skeleton" />
+        <S.SkelChip className="skeleton" />
+        <S.SkelChip className="skeleton" />
+        <S.SkelChip className="skeleton" />
       </S.SkelChips>
-      <span className="skeleton" />
-      <span className="skeleton" data-short />
+      {/* The SAME grids the loaded page uses (DescRow / Meta), not a stack of equal bars: reusing them is
+          what keeps the four labels on the same two columns before and after the data lands, so nothing
+          slides sideways. The old skeleton was a flat list of full-width lines and described a one-column
+          page that no longer exists. */}
+      <S.DescRow>
+        {[0, 1].map(i => (
+          <S.DescCol key={i}>
+            {/* Description, the real one, so the label-to-copy gap is the same 11px before and after. */}
+            <S.Description>
+              <S.SkelLabel className="skeleton" />
+              <S.SkelText>
+                <S.SkelLine className="skeleton" />
+                <S.SkelLine className="skeleton" />
+                <S.SkelLine className="skeleton" data-short />
+              </S.SkelText>
+            </S.Description>
+          </S.DescCol>
+        ))}
+      </S.DescRow>
+      <S.Meta>
+        {[0, 1].map(i => (
+          <S.MetaCol key={i} {...(i === 1 ? { 'data-collection': true } : {})}>
+            <S.SkelLabel className="skeleton" />
+            <S.SkelBadge />
+          </S.MetaCol>
+        ))}
+      </S.Meta>
       <S.Divider />
-      <span className="skeleton" />
-      <span className="skeleton" />
+      <S.SkelPrice className="skeleton" />
+      <S.SkelBtn className="skeleton" />
     </S.InfoSkel>
   )
 }
