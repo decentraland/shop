@@ -28,6 +28,23 @@ describe('CreatorName', () => {
     expect(container.textContent).not.toContain(ADDR)
   })
 
+  // The truncated address is what a creator with no profile NAME is called — not a placeholder for one
+  // that hasn't arrived. Showing it while the lookup runs made every freshly-loaded browse card print a
+  // `0x…` creator line and then rewrite it as the Catalyst replied.
+  it('should show no address at all while the profile lookup is still in flight', () => {
+    useProfile.mockReturnValue({ data: undefined, isLoading: true })
+    const { container } = render(<CreatorName address={ADDR} />)
+    expect(container.textContent).not.toMatch(/0x/)
+    // The line still occupies its height so the name arriving doesn't shift the card's footer.
+    expect(container.textContent?.trim()).toBe('')
+  })
+
+  it('should show the name as soon as the lookup resolves, without an address in between', () => {
+    useProfile.mockReturnValue({ data: { name: 'ro' }, isLoading: false })
+    const { container } = render(<CreatorName address={ADDR} />)
+    expect(container.textContent).toBe('By Ro')
+  })
+
   it('should forward the className to the rendered row', () => {
     useProfile.mockReturnValue({ data: { name: 'ro' } })
     const { container } = render(<CreatorName address={ADDR} className="buy-modal__asset-creator" />)
