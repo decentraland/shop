@@ -231,6 +231,11 @@ export async function setAuthorization(opts: {
       if (e instanceof MetaTransactionError && e.code === ErrorCode.USER_DENIED) throw e
       // Relayer down / contract account / flag off → fall through to a direct (gas-paying) tx. Log it
       // so the fallback (and any managed wallet that then hits INSUFFICIENT_FUNDS) is diagnosable.
+      //
+      // Deliberately NO MetaTxPendingError guard here, unlike the purchase/transfer/mint paths: all three
+      // calls this builds ASSIGN a fixed value — approve to MaxUint256 or 0, setApprovalForAll and
+      // setMinters to a boolean — so a pending relay plus a direct re-submission lands on the same state
+      // instead of applying the operation twice.
       console.warn('[authorizations] gasless meta-tx failed, falling back to a direct tx:', e)
     }
   }
