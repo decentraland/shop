@@ -58,6 +58,8 @@ export type Fixtures = {
   publicNfts: unknown
   builderCollections: unknown
   builderItems: unknown
+  /** The builder's per-item contents map (file name → hash). A `video.mp4` entry is a showcase clip. */
+  builderItemContents: Record<string, string>
   profile: unknown
   authorize: unknown
   trade: unknown
@@ -83,6 +85,7 @@ function defaults(): Fixtures {
     publicNfts: fx.ownedNfts,
     builderCollections: fx.builderCollections,
     builderItems: fx.builderItems,
+    builderItemContents: { 'thumbnail.png': 'bafyfake' },
     profile: fx.profile,
     userStore: null,
     authorize: {
@@ -559,7 +562,7 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
   if (u.hostname.includes('builder-api')) {
     if (/\/v1\/collections\/.+\/items/.test(path)) return json(req, F.builderItems)
     if (/\/v1\/.+\/collections/.test(path)) return json(req, F.builderCollections)
-    if (/\/v1\/items\/.+\/contents$/.test(path)) return json(req, { data: { 'thumbnail.png': 'bafyfake' } })
+    if (/\/v1\/items\/.+\/contents$/.test(path)) return json(req, { data: F.builderItemContents })
     return json(req, { data: [] })
   }
 

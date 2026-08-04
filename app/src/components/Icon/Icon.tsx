@@ -68,6 +68,7 @@ export type IconName =
   | 'minus'
   | 'offer'
   | 'pen'
+  | 'play'
   | 'plus'
   | 'plus-thin'
   | 'search'

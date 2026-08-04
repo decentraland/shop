@@ -26,12 +26,13 @@ import { liveTradeId, markListingCancelled } from '~/lib/dead-listings'
 import { patchManageCaches } from '~/lib/manage-cache'
 import { isSaleSectionLoading } from '~/lib/pdp-loading'
 import { cancelListing } from '~/lib/buy'
-import { fetchPublishableItems, type PublishableItem } from '~/lib/builder'
+import { fetchPublishableItems, fetchItemVideoUrl, type PublishableItem } from '~/lib/builder'
 import { BuyModal } from '~/components/BuyModal'
 import { SellModal } from '~/components/SellModal'
 import { TransferModal } from '~/components/TransferModal'
 import { PrimaryListModal } from '~/components/PrimaryListModal'
 import { IssueModal } from '~/components/IssueModal'
+import { VideoShowcaseModal } from '~/components/VideoShowcaseModal'
 import { MarketCheckout } from '~/components/MarketCheckout'
 import { toast } from '~/store/toast'
 import { captureError } from '~/lib/monitoring'
@@ -256,6 +257,24 @@ export function ItemDetail() {
     enabled: !!current.contractAddress && !!current.itemId,
     staleTime: 5 * 60_000,
     queryFn: () => fetchItemDescription(current.contractAddress, current.itemId as string)
+  })
+
+  /**
+   * The creator's showcase clip, for smart wearables that ship one. A smart wearable's point is what it DOES
+   * in world, and neither the 3D preview (the garment, standing still) nor the thumbnail can show that — the
+   * marketplace surfaces the same clip from the same place (its getSmartWearableVideoShowcase).
+   *
+   * Gated on `isSmart` so an ordinary wearable never pays for the lookup: a plain wearable has no video, and
+   * this is a builder round-trip per page view. Failure and "no clip uploaded" are the same outcome (no
+   * button), so it doesn't retry and never surfaces an error.
+   */
+  const [showVideo, setShowVideo] = useState(false)
+  const { data: showcaseVideo } = useQuery({
+    queryKey: ['item-video', current.contractAddress, pageItemId],
+    enabled: !!current.isSmart && !!current.contractAddress && !!pageItemId,
+    staleTime: 30 * 60_000,
+    retry: false,
+    queryFn: () => fetchItemVideoUrl(current.contractAddress, pageItemId as string)
   })
 
   // Collection name — item records don't carry it (it lives on the collections entity), so resolve it
@@ -959,6 +978,14 @@ export function ItemDetail() {
               <Icon name={faved ? 'heart-solid' : 'heart'} size={18} />
             </S.Fav>
           ) : null}
+          {/* Over the preview, where the marketplace puts it: the clip is about this render, not about the
+              purchase, so it belongs to the viewer rather than to the info column. */}
+          {showcaseVideo ? (
+            <S.PlayShowcase data-play-showcase onClick={() => setShowVideo(true)} data-testid="play-showcase">
+              <Icon name="play" size={18} />
+              {t('itemDetail.playShowcase')}
+            </S.PlayShowcase>
+          ) : null}
         </S.Preview>
 
         <S.Info data-testid="item-info">
@@ -1540,6 +1567,9 @@ export function ItemDetail() {
             void refreshManage()
           }}
         />
+      ) : null}
+      {showVideo && showcaseVideo ? (
+        <VideoShowcaseModal src={showcaseVideo} itemName={current.name} onClose={() => setShowVideo(false)} />
       ) : null}
     </S.Detail>
   )
