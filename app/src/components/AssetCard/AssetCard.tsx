@@ -46,6 +46,20 @@ function useNameFillsRow(
   useLayoutEffect(() => {
     const rowEl = row.current
     if (!rowEl || typeof ResizeObserver === 'undefined') return
+    /**
+     * Only below the compact breakpoint. The measurement itself is right — a long name really does claim the
+     * footer row — but keying the layout on name LENGTH alone made a desktop grid inconsistent with itself:
+     * "Metaverse Maniacs Hockey Helmet" restructured into the compact card (price on its own row, round
+     * action, chips dropped) while "Lights of Liberty" beside it did not, at the same viewport. Two cards in
+     * one row looking structurally different reads as a bug, which is exactly how it was reported.
+     *
+     * Above the breakpoint there is room for the full layout, so the fix is to stop switching there rather
+     * than to loosen the threshold.
+     */
+    if (typeof window !== 'undefined' && window.matchMedia && !window.matchMedia('(max-width: 900px)').matches) {
+      setFills(false)
+      return
+    }
     let done = false
     const measure = () => {
       const nameEl = name.current
@@ -128,6 +142,9 @@ export function AssetCard(props: AssetCardProps) {
 
   const add = useCart(s => s.add)
   const inCart = useCart(s => s.items.some(i => i.id === item.id))
+  // How many copies of this row the cart already holds. A primitive selector (not the line object) so the
+  // card re-renders on a quantity change without subscribing to the line's identity.
+  const cartQty = useCart(s => s.items.find(i => i.id === item.id)?.quantity ?? 0)
   const address = useWallet(s => s.session?.address)
   // Your own (primary) listing — can't add it to the cart (see lib/ownership.ts).
   const own = isOwnListing(item, address)
@@ -204,6 +221,15 @@ export function AssetCard(props: AssetCardProps) {
   // sibling that was never listed): the price becomes the NOT FOR SALE tag and the action becomes VIEW.
   // Your own item keeps MANAGE.
   const notForSale = !own && item.priceCredits <= 0
+
+  // Whether the card has run out of copies to offer — the only case where the CTA may stop saying "Add to
+  // cart". Quantity is a PRIMARY (mint) concept: a primary row can hold several copies up to the remaining
+  // supply, so add() keeps incrementing it and the CTA must keep offering the action rather than flipping to
+  // a terminal "In cart" for something the buyer can still do. A SECONDARY row is one unique token (the cart
+  // clamps it to 1) and a primary at its supply cap has nothing left to give, so those two do flip — offering
+  // an add there would promise something add() silently drops. Mirrors the PDP (pages/ItemDetail addLabel).
+  const stockCap = typeof item.available === 'number' ? item.available : Infinity
+  const cartFull = inCart && (!!item.tokenId || cartQty >= stockCap)
 
   // The mint index of an owned copy (e.g. "#5013") — lets the owner tell otherwise-identical copies
   // apart. Absent for creations (primary), where the empty spacer keeps the footer height.
@@ -593,14 +619,14 @@ export function AssetCard(props: AssetCardProps) {
             ) : (
               <S.AddRound
                 data-testid="card-add-round"
-                data-in={(!own && inCart) || undefined}
+                data-in={(!own && cartFull) || undefined}
                 onClick={e => {
                   if (own) return goManage(e)
                   e.stopPropagation()
                   add(item, 'grid')
                 }}
-                disabled={!own && inCart}
-                aria-label={own ? t('assetCard.manage') : inCart ? t('assetCard.inCart') : t('assetCard.addToCart')}
+                disabled={!own && cartFull}
+                aria-label={own ? t('assetCard.manage') : cartFull ? t('assetCard.inCart') : t('assetCard.addToCart')}
               >
                 <Icon name={own ? 'pen' : 'plus'} size={18} />
               </S.AddRound>
@@ -613,17 +639,17 @@ export function AssetCard(props: AssetCardProps) {
               </S.ViewCta>
             ) : (
               <S.Cart
-                data-in={(!own && inCart) || undefined}
+                data-in={(!own && cartFull) || undefined}
                 data-testid="card-cart"
                 onClick={e => {
                   if (own) return goManage(e)
                   e.stopPropagation()
                   add(item, 'grid')
                 }}
-                disabled={!own && inCart}
+                disabled={!own && cartFull}
               >
                 <Icon name={own ? 'pen' : 'cart-solid'} />
-                {own ? t('assetCard.manage') : inCart ? t('assetCard.inCart') : t('assetCard.addToCart')}
+                {own ? t('assetCard.manage') : cartFull ? t('assetCard.inCart') : t('assetCard.addToCart')}
               </S.Cart>
             )}
           </S.Action>

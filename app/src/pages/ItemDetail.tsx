@@ -47,7 +47,7 @@ import { ResellersModal } from '~/components/ResellersModal'
 import { useSecondarySales } from '~/hooks/useSecondarySales'
 import { NotifyMe } from '~/components/NotifyMe'
 import { isNotifyAvailable } from '~/lib/notify'
-import { MakeOfferButton } from '~/components/MakeOfferButton'
+// import { MakeOfferButton } from '~/components/MakeOfferButton' // see the CTA block below
 import { Tooltip } from '~/components/Tooltip'
 import { ErrorNotice } from '~/components/ErrorNotice'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
@@ -1306,11 +1306,11 @@ export function ItemDetail() {
                         </S.AddCart>
                       </>
                     ) : (
-                      // No buyable listing → hide buy/add-cart and offer "Notify me when available" + the
-                      // (coming-soon) Make an offer CTA.
+                      // No buyable listing → hide buy/add-cart and offer "Notify me when available".
                       <>
                         <NotifyMe item={current} />
-                        <MakeOfferButton item={current} />
+                        {/* No secondary sales for now, so there is nothing to make an offer on. */}
+                        {/* <MakeOfferButton item={current} /> */}
                       </>
                     )}
                   </S.Ctas>

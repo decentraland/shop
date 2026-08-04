@@ -150,6 +150,7 @@
     "removeTitle": "Remove",
     "clearCart": "Clear cart",
     "purchaseSummary": "Purchase Summary",
+    "checkout": "Checkout",
     "buyWithCredits": "Buy with credits",
     "creatorTag": "Creator",
     "totalItems": "Total: {count, plural, one {# item} other {# items}}",
@@ -661,7 +662,8 @@
   },
   "loadMore": {
     "loading": "Loading…",
-    "loadMore": "Load more"
+    "loadMore": "Load more",
+    "retry": "Try again"
   },
   "recentlyViewed": {
     "title": "Recently viewed"

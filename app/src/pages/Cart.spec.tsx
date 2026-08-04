@@ -45,9 +45,12 @@ vi.mock('decentraland-transactions', () => ({
 }))
 
 // Plenty of credits: this file is about what happens AFTER the charge starts, so the balance must never be
-// what steers the flow (a short balance would open the pack picker instead).
+// what steers the flow (a short balance would open the pack picker instead). Mutable only because one case at
+// the bottom needs the OPPOSITE — a balance that funds no rail, which is what makes the summary panel fall
+// back to its plain checkout CTA.
+const { balance } = vi.hoisted(() => ({ balance: { cents: 100_000 } }))
 vi.mock('~/hooks/useBalance', () => ({
-  useBalance: () => ({ data: { balanceCents: 100_000, credits: 10_000 }, isError: false })
+  useBalance: () => ({ data: { balanceCents: balance.cents, credits: Math.floor(balance.cents / 10) }, isError: false })
 }))
 // No MANA, so `computePaymentOptions` (real) offers the credits rail only and one click charges.
 vi.mock('~/hooks/useManaBalance', () => ({ useManaBalance: () => ({ data: 0n }) }))
@@ -136,24 +139,23 @@ vi.mock('react-router-dom', async orig => ({
 
 const { Cart } = await import('~/pages/Cart')
 
-const item = (id: string, over: Partial<CatalogItem> = {}): CatalogItem =>
-  ({
-    id,
-    name: `Item ${id}`,
-    creator: '0xcreator',
-    contractAddress: '0xcontract',
-    itemId: id,
-    category: 'wearable',
-    rarity: 'common',
-    network: 'MATIC',
-    chainId: 80002,
-    thumbnail: '',
-    priceCredits: 20,
-    gender: null,
-    isSmart: false,
-    tradeId: `trade-${id}`,
-    ...over
-  })
+const item = (id: string, over: Partial<CatalogItem> = {}): CatalogItem => ({
+  id,
+  name: `Item ${id}`,
+  creator: '0xcreator',
+  contractAddress: '0xcontract',
+  itemId: id,
+  category: 'wearable',
+  rarity: 'common',
+  network: 'MATIC',
+  chainId: 80002,
+  thumbnail: '',
+  priceCredits: 20,
+  gender: null,
+  isSmart: false,
+  tradeId: `trade-${id}`,
+  ...over
+})
 
 // A resolved line as reviewCart returns it: a native trade, priced live.
 const line = (i: CatalogItem) => ({
@@ -208,7 +210,25 @@ beforeEach(() => {
   gaslessEnabled.mockReturnValue(false)
   cancelUsdIntents.mockResolvedValue(0)
   useCart.setState({ items: [], open: false })
+  balance.cents = 100_000
   stubAuthorize()
+})
+
+/**
+ * The cart page IS the checkout, so its primary CTA has to say so. It used to borrow `assetCard.buyNow` — the
+ * label the browse cards and the PDP use, where a click really does buy immediately — which promised a purchase
+ * one button before the one that makes it. Its own key now, and this pins that the shared one is gone from here
+ * (renaming `assetCard.buyNow` for the cards must not silently re-label this).
+ */
+describe('the Purchase Summary CTA', () => {
+  it('should read "Checkout", never "Buy now"', async () => {
+    // No rail is fundable at a zero balance (and there is no MANA), so the panel renders its plain CTA.
+    balance.cents = 0
+    renderCart([item('a')])
+
+    expect(await screen.findByRole('button', { name: /^checkout$/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /buy now/i })).not.toBeInTheDocument()
+  })
 })
 
 describe('when the buyer confirms the first wallet prompt and rejects the second', () => {

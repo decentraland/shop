@@ -223,6 +223,7 @@ export function MyAssets() {
     error: ownedError,
     hasNextPage,
     isFetchingNextPage,
+    isFetchNextPageError,
     fetchNextPage
   } = useInfiniteGrid<MyAsset>(
     ['my-assets', address, section, status, rarities, subCategory, search, serverSort],
@@ -581,6 +582,7 @@ export function MyAssets() {
               <LoadMore
                 hasNextPage={hasNextPage}
                 isFetching={isFetchingNextPage}
+                isError={isFetchNextPageError}
                 onLoadMore={() => void fetchNextPage()}
               />
             ) : null}
