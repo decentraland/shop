@@ -61,15 +61,18 @@ vi.mock('~/lib/analytics', async importOriginal => ({
   track: vi.fn()
 }))
 
-const { fetchShopListingForItem, fetchTradeForItem, fetchTrade } = vi.hoisted(() => ({
+const { fetchShopListingForItem, fetchTradeForItem, fetchTrade, fetchItemMeta } = vi.hoisted(() => ({
   fetchShopListingForItem: vi.fn(),
   fetchTradeForItem: vi.fn(),
-  fetchTrade: vi.fn()
+  fetchTrade: vi.fn(),
+  fetchItemMeta: vi.fn()
 }))
 vi.mock('~/lib/api', () => ({
   fetchShopListingForItem,
+  fetchUnifiedListingForItem: fetchShopListingForItem,
   fetchTradeForItem,
   fetchTrade,
+  fetchItemMeta,
   fetchItemResales: vi.fn().mockResolvedValue([]),
   fetchItemDescription: vi.fn().mockResolvedValue(''),
   fetchOwnedToken: vi.fn().mockResolvedValue(null),
@@ -145,12 +148,17 @@ beforeEach(() => {
   fetchShopListingForItem.mockResolvedValue(item())
   fetchTradeForItem.mockResolvedValue({ id: 'trade-1' })
   fetchItemVideoUrl.mockResolvedValue(null)
+  // The v1 traits read is the page's authority on `isSmart`; null means "no answer yet / failed".
+  fetchItemMeta.mockResolvedValue(null)
 })
 
 describe('ItemDetail — the showcase clip a creator uploaded', () => {
   it('should offer the clip over the preview and play it in a dialog', async () => {
     fetchItemVideoUrl.mockResolvedValue(VIDEO_URL)
-    renderPdp(newClient(), item({ isSmart: true }))
+    // Seeded as NOT smart, the way a deep link starts: the traits read is what makes it smart, and the
+    // clip has to appear off that answer rather than off the stub the page opened with.
+    fetchItemMeta.mockResolvedValue({ isSmart: true, utility: null })
+    renderPdp(newClient(), item({ isSmart: false }))
 
     await waitFor(() => expect(playCta()).toBeInTheDocument())
     // Nothing is playing until the visitor asks for it — no autoplaying video on the page itself.
@@ -169,6 +177,7 @@ describe('ItemDetail — the showcase clip a creator uploaded', () => {
 
   it('should close the dialog on Escape', async () => {
     fetchItemVideoUrl.mockResolvedValue(VIDEO_URL)
+    fetchItemMeta.mockResolvedValue({ isSmart: true, utility: null })
     renderPdp(newClient(), item({ isSmart: true }))
 
     await userEvent.click(await screen.findByTestId('play-showcase'))
@@ -179,6 +188,7 @@ describe('ItemDetail — the showcase clip a creator uploaded', () => {
   })
 
   it('should offer nothing when the creator uploaded no clip', async () => {
+    fetchItemMeta.mockResolvedValue({ isSmart: true, utility: null })
     renderPdp(newClient(), item({ isSmart: true }))
 
     await waitFor(() => expect(fetchItemVideoUrl).toHaveBeenCalled())
@@ -186,6 +196,7 @@ describe('ItemDetail — the showcase clip a creator uploaded', () => {
   })
 
   it('should not even look for a clip on an ordinary wearable', async () => {
+    fetchItemMeta.mockResolvedValue({ isSmart: false, utility: null })
     renderPdp(newClient(), item({ isSmart: false }))
 
     await waitFor(() => expect(screen.getByTestId('item-price')).toBeInTheDocument())

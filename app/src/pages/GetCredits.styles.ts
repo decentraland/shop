@@ -26,6 +26,11 @@ export const Hero = styled.section`
   border-radius: ${theme.radius.banner};
   overflow: hidden;
   padding: 82px clamp(16px, 7.06%, 122px) 129px;
+  /* The panel's own purple, under HeroBackdrop's artwork and sampled from it (its edges are #6c17a3, its
+     centre #9b28d3). The artwork is a separate image request, and until it arrived the panel was the page's
+     white: the white heading was invisible on it and the whole hero snapped from white to purple when the
+     file landed. With the base here the image only adds its silhouettes, so there is nothing to snap. */
+  background: radial-gradient(120% 100% at 50% 50%, #9b28d3 0%, #6c17a3 62%);
 
   ${theme.media.maxWidth('lg')} {
     padding: 48px 24px 56px;
@@ -463,15 +468,37 @@ const Shimmer = styled.span`
   }
 `
 
+/*
+ * The three bars below stand in for PackAmountRow, PackUnit and PackArt, and each one is the size of what
+ * REPLACES it — otherwise the grid resizes when the catalogue lands. Measured before this: the skeleton card
+ * was 446px tall against the real card's 402px, and its art bar 236px wide against the real 165px, so the
+ * whole row visibly collapsed and the artwork jumped inward. Heights track the line boxes of the real type
+ * (30px amount, 15px unit), which is why they are stated in px here and shrunk on mobile like the type is.
+ */
 export const SkAmount = styled(Shimmer)`
   width: 60%;
   height: 30px;
   border-radius: ${theme.radius.chip};
+
+  ${theme.media.maxWidth('mobile')} {
+    height: 24px;
+  }
 `
 
+// PackUnit ("CREDITS"). Without it the heading was 27px short and everything under it started too high.
+export const SkUnit = styled(Shimmer)`
+  width: 36%;
+  height: 15px;
+  border-radius: ${theme.radius.chip};
+
+  ${theme.media.maxWidth('mobile')} {
+    height: 12px;
+  }
+`
+
+// Same 70%-of-the-card share PackArt uses, so the artwork lands exactly where its placeholder was.
 export const SkArt = styled(Shimmer)`
-  width: 253.5px;
-  max-width: 100%;
+  width: 70%;
   aspect-ratio: 1;
   border-radius: 16px;
 `

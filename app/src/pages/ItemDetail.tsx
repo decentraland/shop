@@ -259,24 +259,6 @@ export function ItemDetail() {
     queryFn: () => fetchItemDescription(current.contractAddress, current.itemId as string)
   })
 
-  /**
-   * The creator's showcase clip, for smart wearables that ship one. A smart wearable's point is what it DOES
-   * in world, and neither the 3D preview (the garment, standing still) nor the thumbnail can show that — the
-   * marketplace surfaces the same clip from the same place (its getSmartWearableVideoShowcase).
-   *
-   * Gated on `isSmart` so an ordinary wearable never pays for the lookup: a plain wearable has no video, and
-   * this is a builder round-trip per page view. Failure and "no clip uploaded" are the same outcome (no
-   * button), so it doesn't retry and never surfaces an error.
-   */
-  const [showVideo, setShowVideo] = useState(false)
-  const { data: showcaseVideo } = useQuery({
-    queryKey: ['item-video', current.contractAddress, pageItemId],
-    enabled: !!current.isSmart && !!current.contractAddress && !!pageItemId,
-    staleTime: 30 * 60_000,
-    retry: false,
-    queryFn: () => fetchItemVideoUrl(current.contractAddress, pageItemId as string)
-  })
-
   // Collection name — item records don't carry it (it lives on the collections entity), so resolve it
   // by contract for the "Collection" badge shown beside the creator (see Figma 1052-151285).
   const { data: collection, isLoading: collectionLoading } = useQuery({
@@ -375,6 +357,25 @@ export function ItemDetail() {
   // to a possibly-stale `true` on the stub the page started from. Only "still loading" defers to `current`.
   const isSmart = itemTraits?.isSmart ?? current.isSmart
   const utility = itemTraits?.utility ?? null
+
+  /**
+   * The creator's showcase clip, for smart wearables that ship one. A smart wearable's point is what it DOES
+   * in world, and neither the 3D preview (the garment, standing still) nor the thumbnail can show that — the
+   * marketplace surfaces the same clip from the same place (its getSmartWearableVideoShowcase).
+   *
+   * Gated on the resolved `isSmart` above — not on the seeded `current.isSmart`, which is false on a deep
+   * link until the feed answers — so an ordinary wearable never pays for the lookup: a plain wearable has no
+   * clip, and this is a builder round-trip per page view. Failure and "no clip uploaded" are the same outcome
+   * (no button), so it doesn't retry and never surfaces an error.
+   */
+  const [showVideo, setShowVideo] = useState(false)
+  const { data: showcaseVideo } = useQuery({
+    queryKey: ['item-video', current.contractAddress, pageItemId],
+    enabled: isSmart && !!current.contractAddress && !!pageItemId,
+    staleTime: 30 * 60_000,
+    retry: false,
+    queryFn: () => fetchItemVideoUrl(current.contractAddress, pageItemId as string)
+  })
 
   // Both sources are filtered through the session's cancelled listings (see lib/dead-listings): the feed's
   // materialized view lags behind a take-down, so `current.tradeId` (seeded from a grid row that predates it)

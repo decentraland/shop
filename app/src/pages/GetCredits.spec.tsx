@@ -106,6 +106,13 @@ describe('when the pack catalogue is still loading', () => {
     expect(container.querySelectorAll('[data-testid="pack-skeleton"]').length).toBe(4)
     // The real (clickable) packs are not rendered yet.
     expect(screen.queryByRole('button', { name: /260 credits for \$29\.99/i })).not.toBeInTheDocument()
+
+    // One bar per element it stands in for: amount, unit, artwork, price. The unit bar is the one that was
+    // missing, and without it the skeleton card was 44px taller than the card that replaced it, so the whole
+    // grid resized on hand-off. A future refactor that drops a bar brings the jump back.
+    const skeleton = container.querySelector('[data-testid="pack-skeleton"]') as HTMLElement
+    const bars = [...skeleton.querySelectorAll('span')].filter(el => el.children.length === 0)
+    expect(bars).toHaveLength(4)
   })
 })
 
