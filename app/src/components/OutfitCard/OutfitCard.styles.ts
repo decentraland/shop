@@ -238,6 +238,10 @@ export const Price = styled.div`
 `
 
 export const Cta = styled(Button)`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   width: 100%;
   min-height: 40px;
   border-radius: 12px;
