@@ -40,7 +40,9 @@ vi.mock('~/lib/api', () => ({
 
 const cancelListing = vi.fn()
 vi.mock('~/lib/buy', () => ({ cancelListing: (...args: unknown[]) => cancelListing(...args) }))
-vi.mock('~/lib/import', () => ({ fetchImportable: vi.fn().mockResolvedValue({ creations: [], owned: [] }) }))
+
+const fetchImportable = vi.fn()
+vi.mock('~/lib/import', () => ({ fetchImportable: (...args: unknown[]) => fetchImportable(...args) }))
 
 const fetchPublishableItems = vi.fn()
 vi.mock('~/lib/builder', () => ({ fetchPublishableItems: (...args: unknown[]) => fetchPublishableItems(...args) }))
@@ -53,6 +55,31 @@ vi.mock('~/lib/trades', () => ({
 }))
 
 import { MyAssets } from '~/pages/MyAssets'
+import { MANA_PRICING_PROMPT, isPromptDismissed } from '~/lib/dismissed-prompts'
+
+const OTHER_ADDRESS = '0xdef0000000000000000000000000000000000def'
+
+// One classic (MANA-priced) listing, in the shape /v3/catalog/importable returns.
+function classicListing(overrides = {}) {
+  return {
+    oldTradeId: 'old-trade-1',
+    listingType: 'primary' as const,
+    contractAddress: '0xcollection',
+    itemId: '3',
+    tokenId: null,
+    name: 'Old Hat',
+    thumbnail: '',
+    rarity: 'legendary',
+    category: 'wearable',
+    wearableCategory: 'hat',
+    manaWei: '3000000000000000000000',
+    available: 1,
+    network: 'MATIC',
+    chainId: 80002,
+    suggestedCredits: 332,
+    ...overrides
+  }
+}
 
 function wearable(overrides = {}) {
   return {
@@ -105,9 +132,12 @@ function renderPageWithRoutes() {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  localStorage.clear()
+  walletState.session = session
   fetchMyAssets.mockResolvedValue({ assets: [wearable()], total: 1 })
   fetchCollectionSaleState.mockResolvedValue({})
   fetchPublishableItems.mockResolvedValue([])
+  fetchImportable.mockResolvedValue({ creations: [], owned: [] })
 })
 
 describe('when the My Assets page loads for a connected user', () => {
@@ -316,5 +346,106 @@ describe('when viewing My Creations', () => {
     // A creation has no specific tokenId, so MANAGE opens the generic /item detail route (by itemId),
     // not a /token route.
     expect(await screen.findByTestId('detail-path')).toHaveTextContent('/item/0xcreated/4')
+  })
+})
+
+describe('when the seller still has classic (MANA-priced) listings', () => {
+  beforeEach(() => {
+    fetchImportable.mockResolvedValue({ creations: [classicListing()], owned: [] })
+  })
+
+  it('should prompt them to switch to credit pricing', async () => {
+    renderPage()
+
+    expect(await screen.findByTestId('new-pricing-modal')).toBeInTheDocument()
+  })
+
+  it('should show the standing banner alongside it, counting the listings', async () => {
+    renderPage()
+
+    const banner = await screen.findByTestId('mana-pricing-banner')
+    expect(banner).toHaveTextContent('1 item is still using MANA pricing')
+    expect(screen.getByTestId('mana-pricing-banner-cta').getAttribute('href')).toBe('/import')
+  })
+
+  it('should send them to the migration tool when they accept', async () => {
+    const user = userEvent.setup()
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={['/my-assets']}>
+          <Routes>
+            <Route path="/my-assets" element={<MyAssets />} />
+            <Route path="/import" element={<DetailProbe />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    await user.click(await screen.findByTestId('new-pricing-confirm'))
+
+    expect(await screen.findByTestId('detail-path')).toHaveTextContent('/import')
+  })
+
+  it('should not re-open the prompt after a plain dismissal within the same visit', async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(await screen.findByTestId('new-pricing-later'))
+
+    await waitFor(() => expect(screen.queryByTestId('new-pricing-modal')).not.toBeInTheDocument())
+    // Nothing was persisted, so a later visit would still be prompted.
+    expect(isPromptDismissed(MANA_PRICING_PROMPT, session.address)).toBe(false)
+  })
+})
+
+describe('when the seller has no classic listings', () => {
+  it('should neither prompt nor show the banner', async () => {
+    renderPage()
+
+    expect(await screen.findByText('Cool Hat')).toBeInTheDocument()
+    expect(screen.queryByTestId('new-pricing-modal')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('mana-pricing-banner')).not.toBeInTheDocument()
+  })
+})
+
+describe('when the seller opts out of the pricing prompt', () => {
+  beforeEach(() => {
+    fetchImportable.mockResolvedValue({ creations: [classicListing()], owned: [] })
+  })
+
+  async function optOutAndUnmount() {
+    const user = userEvent.setup()
+    const view = renderPage()
+    await user.click(await screen.findByTestId('new-pricing-opt-out'))
+    await user.click(screen.getByTestId('new-pricing-later'))
+    await waitFor(() => expect(screen.queryByTestId('new-pricing-modal')).not.toBeInTheDocument())
+    view.unmount()
+  }
+
+  it('should keep the prompt away across a remount', async () => {
+    await optOutAndUnmount()
+
+    renderPage()
+
+    expect(await screen.findByText('Cool Hat')).toBeInTheDocument()
+    expect(screen.queryByTestId('new-pricing-modal')).not.toBeInTheDocument()
+  })
+
+  it('should still show the banner, so the tool stays reachable', async () => {
+    await optOutAndUnmount()
+
+    renderPage()
+
+    expect(await screen.findByTestId('mana-pricing-banner')).toBeInTheDocument()
+  })
+
+  it('should NOT silence the prompt for a different account on the same browser', async () => {
+    await optOutAndUnmount()
+
+    // A shared machine, or the same person switching accounts: the other seller has not been asked yet.
+    walletState.session = { ...session, address: OTHER_ADDRESS }
+    renderPage()
+
+    expect(await screen.findByTestId('new-pricing-modal')).toBeInTheDocument()
   })
 })

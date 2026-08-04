@@ -109,16 +109,25 @@ export function Assets() {
     isOnSale: status === 'not_for_sale' ? false : undefined
   }
 
-  const { items, total, isLoading, isPlaceholderData, error, hasNextPage, isFetchingNextPage, fetchNextPage } =
-    useInfiniteGrid<CatalogItem>(
-      isUnified ? ['shop-items', filters] : ['catalog-items', catalogFilters],
-      skip =>
-        isUnified
-          ? fetchShopItems({ ...filters, first: PAGE_SIZE, skip })
-          : fetchCatalogItems({ ...catalogFilters, first: PAGE_SIZE, skip }),
-      // NAMEs isn't a grid category — don't fire a bogus catalog fetch when it's selected.
-      { enabled: category !== 'names' }
-    )
+  const {
+    items,
+    total,
+    isLoading,
+    isPlaceholderData,
+    error,
+    hasNextPage,
+    isFetchingNextPage,
+    isFetchNextPageError,
+    fetchNextPage
+  } = useInfiniteGrid<CatalogItem>(
+    isUnified ? ['shop-items', filters] : ['catalog-items', catalogFilters],
+    skip =>
+      isUnified
+        ? fetchShopItems({ ...filters, first: PAGE_SIZE, skip })
+        : fetchCatalogItems({ ...catalogFilters, first: PAGE_SIZE, skip }),
+    // NAMEs isn't a grid category — don't fire a bogus catalog fetch when it's selected.
+    { enabled: category !== 'names' }
+  )
   const resultCount = total
 
   // Show skeletons both on the first load (no data yet) and while a NEW filter/search/sort set is
@@ -339,6 +348,7 @@ export function Assets() {
                 <LoadMore
                   hasNextPage={hasNextPage}
                   isFetching={isFetchingNextPage}
+                  isError={isFetchNextPageError}
                   onLoadMore={() => void fetchNextPage()}
                 />
               </>

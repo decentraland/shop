@@ -24,6 +24,7 @@ const colors = {
   muted2: '#a09ba8', // Neutrals/Gray 3
   gray0: '#43404a', // Neutrals/Gray 0 — filter labels, applied-filter chip bg
   gray4: '#cfcdd4', // Neutrals/Gray 4 — hairline borders on rarity swatch chips
+  textSecondary: 'rgba(22, 21, 24, 0.6)', // Figma "text/secondary" — unchecked checkbox outline
   line: '#e6e4ea', // subtle card border
   lineStrong: '#a09ba8', // search field / defined borders
   // The card outline. Figma draws it as a 0.25px Gray 3 stroke; translucency is what makes that work,
@@ -38,6 +39,8 @@ const colors = {
   accentHover: '#7a2bbf', // accent purple — hover shade (reusable on any purple CTA)
   accentActive: '#57178c', // accent purple — pressed shade (reusable on any purple CTA)
   navViolet: '#e3c9fb', // global (decentraland-ui2) navbar bar background — violet design
+  infoGreen: '#e0f7e7', // good-news callout fill (the pricing-migration explainer block)
+  promptLilac: '#f4e9ff', // nudge-banner fill (classic listings still to move)
   navOverlayHover: 'rgba(255, 255, 255, 0.35)', // violet-navbar tab/button hover fill
   navOverlayActive: 'rgba(255, 255, 255, 0.45)', // violet-navbar active/pressed fill
   magenta: '#c640cd', // brand magenta — gradient stop, outline-button border, card hover borders
@@ -47,6 +50,9 @@ const colors = {
   blackBtn: '#242129', // add-to-cart bg
   softWhite: '#fcfcfc',
   dclRed: '#ff2d55',
+  // The warm stop of `gradients.flare`/`ember`. Named because SVG gradient stops need the raw hex —
+  // a CSS gradient string can't be handed to a <stop> (see Icons/CreditMarkIcon).
+  flareAmber: '#ffbc5b',
   ok: '#1ea672',
   err: '#d33',
   // Saturated solid-fill variants of ok/err (badges, success checks, toast accents)
@@ -82,7 +88,8 @@ const radius = {
   chip: '4px',
   btn: '8px',
   pill: '50px',
-  banner: '24px'
+  banner: '24px',
+  modal: '16px' // modal shell + the callout blocks stacked inside it
 } as const
 
 const font = {

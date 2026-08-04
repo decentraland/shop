@@ -64,11 +64,10 @@ export function Creator() {
 
   // Listings (default) and collections are mutually exclusive: only one query is enabled at a time so
   // switching modes doesn't fire the other's fetch. Both hooks are always called (rules of hooks).
-  const { items, total, isLoading, error, hasNextPage, isFetchingNextPage, fetchNextPage } = useInfiniteGrid(
-    ['creator-listings', filters],
-    skip => fetchListings({ ...filters, first: PAGE_SIZE, skip }),
-    { enabled: !!address && !collectionsMode }
-  )
+  const { items, total, isLoading, error, hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage } =
+    useInfiniteGrid(['creator-listings', filters], skip => fetchListings({ ...filters, first: PAGE_SIZE, skip }), {
+      enabled: !!address && !collectionsMode
+    })
 
   const collections = useInfiniteGrid(
     ['creator-collections', address],
@@ -172,6 +171,7 @@ export function Creator() {
               <LoadMore
                 hasNextPage={collections.hasNextPage}
                 isFetching={collections.isFetchingNextPage}
+                isError={collections.isFetchNextPageError}
                 onLoadMore={() => void collections.fetchNextPage()}
               />
 
@@ -236,6 +236,7 @@ export function Creator() {
               <LoadMore
                 hasNextPage={hasNextPage}
                 isFetching={isFetchingNextPage}
+                isError={isFetchNextPageError}
                 onLoadMore={() => void fetchNextPage()}
               />
 

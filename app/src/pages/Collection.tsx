@@ -54,11 +54,12 @@ export function Collection() {
     sortBy
   }
 
-  const { items, total, isLoading, error, hasNextPage, isFetchingNextPage, fetchNextPage } = useInfiniteGrid(
-    ['collection-page', contractAddress, filters],
-    skip => fetchCollectionItems(contractAddress as string, { ...filters, first: PAGE_SIZE, skip }),
-    { enabled: !!contractAddress }
-  )
+  const { items, total, isLoading, error, hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage } =
+    useInfiniteGrid(
+      ['collection-page', contractAddress, filters],
+      skip => fetchCollectionItems(contractAddress as string, { ...filters, first: PAGE_SIZE, skip }),
+      { enabled: !!contractAddress }
+    )
 
   // Item records don't carry the collection name (it lives on the collections entity), so resolve it
   // separately — mirrors the marketplace's collectionAPI.fetchOne. Falls back to "Collection".
@@ -176,7 +177,12 @@ export function Collection() {
             )}
           </Grid>
 
-          <LoadMore hasNextPage={hasNextPage} isFetching={isFetchingNextPage} onLoadMore={() => void fetchNextPage()} />
+          <LoadMore
+            hasNextPage={hasNextPage}
+            isFetching={isFetchingNextPage}
+            isError={isFetchNextPageError}
+            onLoadMore={() => void fetchNextPage()}
+          />
 
           {!isLoading && !error && items.length === 0 ? <p className="muted">{t('collection.empty')}</p> : null}
         </BL.Main>

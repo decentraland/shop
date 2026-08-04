@@ -3,6 +3,7 @@ import { useLocation, useNavigate, Navigate } from 'react-router-dom'
 import { useWallet } from '~/store/wallet'
 import { config } from '~/config'
 import { Button } from '~/components/Button'
+import { Confetti } from '~/components/Confetti'
 import styled from '@emotion/styled'
 import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import { waitForSettlement, SettlementPendingError } from '~/lib/buy-gasless'
@@ -56,6 +57,58 @@ const SuccessBtn = styled(Button)`
   min-width: 160px;
   text-align: center;
 `
+
+/**
+ * DEV-ONLY preview of the confirmed screen: `/success?demo=1` synthesises the router state a real purchase
+ * hands over, so the completed page — and the confetti on it — can be reviewed on localhost without paying
+ * for anything. `settled: true` skips the settlement poll, exactly as the cart's own post-checkout navigate
+ * does, so it lands straight on the confirmed layout.
+ *
+ * Gated on `import.meta.env.DEV`, which Vite statically replaces with `false` in a production build: the
+ * branch AND the fixture below are dropped from the bundle rather than merely never taken (the same
+ * technique lib/featureFlags uses for its local flag overrides). A query string that could fake a purchase
+ * confirmation in production would be a phishing primitive, not a convenience.
+ */
+function demoState(search: string): SuccessNavState | null {
+  if (!import.meta.env.DEV) return null
+  if (new URLSearchParams(search).get('demo') !== '1') return null
+  return {
+    settled: true,
+    items: [
+      {
+        id: 'demo-1',
+        name: 'Demo Hat',
+        creator: '',
+        contractAddress: '0x0000000000000000000000000000000000000001',
+        itemId: '1',
+        category: 'wearable',
+        rarity: 'legendary',
+        network: 'MATIC',
+        chainId: config.chainId,
+        thumbnail: '',
+        priceCredits: 12,
+        gender: null,
+        isSmart: false
+      },
+      {
+        id: 'demo-2',
+        name: 'Demo Emote',
+        creator: '',
+        contractAddress: '0x0000000000000000000000000000000000000002',
+        itemId: '2',
+        category: 'emote',
+        rarity: 'rare',
+        network: 'MATIC',
+        chainId: config.chainId,
+        thumbnail: '',
+        priceCredits: 3,
+        gender: null,
+        isSmart: false,
+        quantity: 2
+      }
+    ]
+  }
+}
 
 const delay = (ms: number) => new Promise<void>(r => setTimeout(r, ms))
 
@@ -124,7 +177,10 @@ const JUMP_URL = config.chainId === 80002 ? 'https://decentraland.zone/jump' : '
 const EXPLORER_TX = config.chainId === 80002 ? 'https://amoy.polygonscan.com/tx/' : 'https://polygonscan.com/tx/'
 
 export function Success() {
-  const { state } = useLocation() as { state?: SuccessNavState }
+  const { state: navState, search } = useLocation() as { state?: SuccessNavState; search: string }
+  // A real purchase always arrives with router state; `?demo=1` stands in for one on a dev build only
+  // (see demoState). Router state wins, so the demo can never mask an actual purchase.
+  const state = navState ?? demoState(search)
   const navigate = useNavigate()
   const { session } = useWallet()
 
@@ -250,6 +306,9 @@ export function Success() {
   // hairlines), then the MY ASSETS / TRY IN WORLD CTAs.
   return (
     <S.Root>
+      {/* Only on the CONFIRMED screen — the item is really the buyer's by here. Celebrating over a
+          still-settling (or failed) purchase would be the worst possible moment for it. */}
+      <Confetti />
       <S.Done>
         <S.Banner role="status">
           <S.BannerCheck aria-hidden>

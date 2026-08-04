@@ -74,9 +74,13 @@ describe('at phone width', () => {
     expect(await overflowPx(page)).toBeLessThanOrEqual(1)
   })
 
-  // The sticky bottom bar is for actions. A not-for-sale item you don't own has none to offer while
-  // shop-server is unconfigured — notify-me hides itself, leaving only the disabled "coming soon" offer
-  // button — so the bar must not pin itself over the page for that.
+  // The sticky bottom bar is for actions. A not-for-sale item you don't own has none: notify-me hides itself
+  // while shop-server is unconfigured, and the "coming soon" offer button no longer renders at all (there are
+  // no secondary sales yet). So the bar must not pin itself over the page.
+  //
+  // Re-anchored: this used to wait for the offer button and walk up to its container. With that button gone
+  // the wait timed out, even though the invariant it guards became MORE true rather than less. It now asserts
+  // the absence directly — no pinned block anywhere on the surface — which is what the test was always about.
   it('does not pin the action bar for a not-for-sale item with nothing actionable in it', async () => {
     // A token owned by someone ELSE, with no listing: the buyer's not-for-sale surface. Ownership is
     // resolved from the owned-tokens lookup, so that has to be empty for the viewer not to be the owner.
@@ -106,17 +110,18 @@ describe('at phone width', () => {
       publicNfts: foreignToken,
       trade: null
     })
-    await waitForText(page, 'Make an offer')
+    await waitForText(page, 'Not for sale')
 
     const bar = await page.evaluate(() => {
-      const offer = document.querySelector('[data-testid="make-offer"]')
-      const block = offer?.closest('[data-buttons]') as HTMLElement | null
+      const block = document.querySelector('[data-buttons]') as HTMLElement | null
       return {
         pinned: !!block,
         position: block ? getComputedStyle(block).position : null
       }
     })
-    expect(bar.pinned, 'the CTA block should not carry data-buttons here').toBe(false)
+    expect(bar.pinned, 'nothing is actionable, so no CTA block should carry data-buttons').toBe(false)
+    // And the offer button really is gone, not merely unpinned.
+    expect(await page.$('[data-testid="make-offer"]')).toBeNull()
     expect(await overflowPx(page)).toBeLessThanOrEqual(1)
   })
 

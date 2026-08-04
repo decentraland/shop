@@ -33,8 +33,10 @@ export function ItemPreview({ item }: { item: CatalogItem }) {
   const profile = address && avatar ? address : 'default'
 
   const isEmote = item.category === 'emote'
-  // Default to the item shown alone (matches the marketplace) — the "On avatar" toggle opts into the worn view.
-  const [view, setView] = useState<'avatar' | 'item'>('item')
+  // LOCKED to the worn (avatar) view: this preview sits in a buying decision, and what a shopper is deciding
+  // is how the piece looks on them. The "On avatar / Item" switch that used to flip it is commented out at
+  // the bottom of this component — kept as state (not a constant) so restoring it is uncommenting one block.
+  const [view] = useState<'avatar' | 'item'>('avatar')
   const itemAlone = !isEmote && view === 'item'
   // The item-alone view needs no avatar, so it can render immediately; only the avatar/emote views wait for
   // the profile fetch to settle (so they mount once with the final avatar rather than default→avatar reload).
@@ -136,10 +138,14 @@ export function ItemPreview({ item }: { item: CatalogItem }) {
       {incompatible && !itemAlone ? (
         <S.Note data-preview-note>{t('itemPreview.shownOnBody', { shape: shapeLabel(mannequinShape) })}</S.Note>
       ) : null}
-      {!showControls ? null : !isEmote ? (
-        // On desktop this is a text pill ("On avatar / Item") pinned top-left; on mobile it collapses
-        // to an icon-only pill button-group at the bottom-right — the SVG glyphs show and the text
-        // labels hide. aria-label keeps each button named when its visible text is hidden.
+      {!showControls || !isEmote ? null : (
+        <S.EmoteControls data-preview-controls data-testid="emote-controls">
+          <EmoteControls wearablePreviewId="shop-item-preview" hideFrameInput />
+        </S.EmoteControls>
+      )}
+      {/* The "On avatar / Item" mode switch, kept for when the item-alone view comes back. On desktop it was
+          a text pill pinned top-left; on mobile an icon-only pair (figure + t-shirt) at the bottom-right.
+      {!showControls || isEmote ? null : (
         <S.Toggle data-preview-toggle role="group" aria-label={t('itemPreview.previewMode')}>
           <S.ToggleButton
             type="button"
@@ -162,11 +168,7 @@ export function ItemPreview({ item }: { item: CatalogItem }) {
             <S.ToggleLabel>{t('itemPreview.item')}</S.ToggleLabel>
           </S.ToggleButton>
         </S.Toggle>
-      ) : (
-        <S.EmoteControls data-preview-controls data-testid="emote-controls">
-          <EmoteControls wearablePreviewId="shop-item-preview" hideFrameInput />
-        </S.EmoteControls>
-      )}
+      )} */}
     </>
   )
 }

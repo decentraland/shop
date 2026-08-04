@@ -8,16 +8,23 @@ afterEach(async () => {
   app = undefined
 })
 
+// The migrate RUN itself stops short of its congrats screen under these mocks: taking the old listing
+// down needs a real cancelSignature tx, and the first item parks on it forever. This spec therefore
+// covers the page and the hand-off into the modal, not the outcome of the run. (It previously appeared
+// to cover the outcome by waiting for "in the Shop", but that matched a section subtitle that was
+// permanently on the page, so the wait returned before any listing had moved.)
 describe('import old listings', () => {
-  it('lists creations + owned items into the Shop, one at a time', async () => {
+  it('lists every importable item and hands the selection to the migrate modal', async () => {
     app = await launchApp({ path: '/import' })
     const { page } = app
 
-    // Both categories + both items, with auto-converted prices (100 MANA → ~270 credits).
-    await waitForText(page, 'Your creations')
-    await waitForText(page, 'Items you own')
+    // One flat list of everything importable, headed by the count of items still to move.
+    await waitForText(page, 'Bring your listings into the new shop!')
+    await waitForText(page, 'Update Pricing')
     await waitForText(page, 'Galaxy Hat')
     await waitForText(page, 'Nebula Jacket')
+    expect(await page.$eval('[data-testid="import-count"]', el => el.textContent)).toBe('2')
+
     // Auto-converted suggested prices live in the editable inputs (100 MANA → 270, 50 MANA → 135).
     const prices = await page.$$eval('[data-testid="imp-price-input"]', els =>
       els.map(e => (e as HTMLInputElement).value)
@@ -25,10 +32,13 @@ describe('import old listings', () => {
     expect(prices).toContain('270')
     expect(prices).toContain('135')
 
-    // List all → the migrate modal runs each item → congrats.
+    // List all → the migrate modal opens with both items queued at those prices.
     await clickWhenEnabled(page, 'button', /list all/i)
-    await waitForText(page, 'in the Shop', 40000)
-    expect(await page.evaluate(() => /in the Shop/i.test(document.body.innerText))).toBe(true)
+    await waitForText(page, 'Listing your items')
+    const queued = await page.$eval('[data-testid="modal"]', el => (el as HTMLElement).innerText)
+    expect(queued).toMatch(/Galaxy Hat/)
+    expect(queued).toMatch(/Nebula Jacket/)
+    expect(queued).toMatch(/1 of 2/)
 
     // The modal is centred in a fixed backdrop, so on a screen shorter than the card it overflowed in BOTH
     // directions at once, with nothing to scroll: its own top ended up above the scroll origin, out of

@@ -6,29 +6,30 @@ import { fetchImportable, type ImportItem } from '~/lib/import'
 import { toast } from '~/store/toast'
 import { MigrateModal, type MigrateEntry } from '~/components/MigrateModal'
 import { CURRENCY, creditsToUsd } from '~/lib/currency'
-import { CurrencyIcon } from '~/components/CurrencyIcon'
+import { CreditRate } from '~/components/CreditRate'
+import { CreditMarkIcon } from '~/components/Icons/CreditMarkIcon'
+import { Icon } from '~/components/Icon'
+import { categoryIcon } from '~/lib/itemIcons'
+import { rarityInk, rarityTint } from '~/lib/rarity'
+import { formatMana } from '~/lib/mana-format'
+import { capitalizeFirst } from '~/lib/text'
 import { useSeo } from '~/hooks/useSeo'
 import { useSecondarySales } from '~/hooks/useSecondarySales'
+import * as F from '~/styles/field.styles'
 import { t } from '~/intl/i18n'
 import * as S from './ImportListings.styles'
-import { theme } from '~/styles/theme'
 
-// `owned` is the SECONDARY half: re-listing a token you hold. It is only offered when the Shop offers
-// secondary sales at all — otherwise this page would be a back door into the flow the Sell action hides,
-// and it would sign exactly the resale listings we stopped creating everywhere else.
-const SECTIONS = [
-  {
-    key: 'creations' as const,
-    title: 'importListings.creations.title',
-    sub: 'importListings.creations.sub'
-  },
-  {
-    key: 'owned' as const,
-    title: 'importListings.owned.title',
-    sub: 'importListings.owned.sub',
-    secondary: true
+const LEARN_MORE_URL = 'https://docs.decentraland.org'
+
+// The old price is shown for reference only, so a malformed amount from the server drops the line
+// rather than taking the page down with a BigInt throw.
+function manaLabel(wei: string): string | null {
+  try {
+    return formatMana(BigInt(wei))
+  } catch {
+    return null
   }
-]
+}
 
 export function ImportListings() {
   useSeo({ title: t('seo.import.title'), noindex: true })
@@ -47,14 +48,13 @@ export function ImportListings() {
   })
 
   const secondarySales = useSecondarySales()
-  const sections = useMemo(() => SECTIONS.filter(sec => !sec.secondary || secondarySales), [secondarySales])
 
   const [prices, setPrices] = useState<Record<string, number>>({})
   const [excluded, setExcluded] = useState<Set<string>>(new Set())
   const [queue, setQueue] = useState<MigrateEntry[] | null>(null)
 
-  // Drives selection, pricing and the migrate queue. Excludes the secondary half when it is hidden, so
-  // "migrate all" cannot pick up a resale the page never showed.
+  // The secondary half is dropped while resales are off, so "list all" can never pick up a resale the
+  // page never showed.
   const all = useMemo(
     () => [...(data?.creations ?? []), ...(secondarySales ? (data?.owned ?? []) : [])],
     [data, secondarySales]
@@ -75,6 +75,8 @@ export function ImportListings() {
 
   const selectedItems = all.filter(i => isSelected(i.oldTradeId))
   const total = selectedItems.reduce((sum, i) => sum + priceOf(i), 0)
+  const allSelected = all.length > 0 && selectedItems.length === all.length
+  const partiallySelected = selectedItems.length > 0 && !allSelected
 
   function setPrice(id: string, raw: string) {
     const n = raw.replace(/[^\d]/g, '')
@@ -87,6 +89,9 @@ export function ImportListings() {
       else next.add(id)
       return next
     })
+  }
+  function toggleAll() {
+    setExcluded(allSelected ? new Set(all.map(i => i.oldTradeId)) : new Set())
   }
   function buildQueue(items: ImportItem[]): MigrateEntry[] {
     return items.map(i => ({ item: i, priceCredits: Math.max(1, priceOf(i)) }))
@@ -107,7 +112,6 @@ export function ImportListings() {
     toast.success(t('importListings.toastUpdated'))
   }
 
-  // ---- states -------------------------------------------------------------
   if (!session) {
     return (
       <S.Empty>
@@ -137,54 +141,88 @@ export function ImportListings() {
   return (
     <S.Root>
       <S.Head>
-        <S.Eyebrow>{t('importListings.eyebrow')}</S.Eyebrow>
-        <S.Title>
-          {t('importListings.titleLead')} <S.Grad>{t('importListings.titleAccent')}</S.Grad>
-        </S.Title>
-        <S.Lede>{t('importListings.lede', { currency: CURRENCY.name })}</S.Lede>
+        <S.Intro>
+          <S.Title>{t('importListings.title')}</S.Title>
+          <div>
+            {/* The design treats the currency as a proper noun mid-sentence, hence the capitalization. */}
+            <S.Lede>{t('importListings.lede', { currency: capitalizeFirst(CURRENCY.name) })}</S.Lede>
+            <S.LearnMore href={LEARN_MORE_URL} target="_blank" rel="noopener noreferrer">
+              {t('importListings.learnMore')}
+              <Icon name="external-link" className="ico" aria-hidden />
+            </S.LearnMore>
+          </div>
+        </S.Intro>
+        <CreditRate />
       </S.Head>
 
-      <S.Ratebar>
-        <CurrencyIcon className="ccy-mark" color={theme.colors.text} />{' '}
-        {t('importListings.rate', { currency: CURRENCY.nameSingular })}
-      </S.Ratebar>
+      <S.Divider />
 
-      {isLoading ? (
-        <S.List>
-          {Array.from({ length: 4 }).map((_, i) => (
-            <S.SkeletonRow key={i} />
-          ))}
-        </S.List>
-      ) : (
-        sections.map(sec => {
-          const items = data?.[sec.key] ?? []
-          if (items.length === 0) return null
-          return (
-            <S.Section key={sec.key}>
-              <S.SectionHead>
-                <S.SectionTitle>{t(sec.title)}</S.SectionTitle>
-                <S.SectionSub>{t(sec.sub)}</S.SectionSub>
-              </S.SectionHead>
-              <S.List>
-                {items.map(item => {
+      <S.Body>
+        <S.Progress data-testid="import-progress">
+          <S.Count data-testid="import-count">{all.length}</S.Count>
+          {t('importListings.updatePricing')}
+        </S.Progress>
+
+        <S.ListBlock>
+          <S.SelectAll>
+            <S.CheckSlot>
+              <F.Checkbox
+                type="checkbox"
+                checked={allSelected}
+                // Mirrored onto the DOM property as well as the attribute, so assistive tech reports
+                // a partial selection as "mixed" instead of plainly unchecked.
+                ref={el => {
+                  if (el) el.indeterminate = partiallySelected
+                }}
+                data-indeterminate={partiallySelected}
+                onChange={toggleAll}
+                data-testid="import-select-all"
+              />
+            </S.CheckSlot>
+            {t('importListings.selectAll')}
+          </S.SelectAll>
+
+          <S.List>
+            {isLoading
+              ? Array.from({ length: 4 }).map((_, i) => <S.SkeletonRow key={i} />)
+              : all.map(item => {
                   const credits = priceOf(item)
-                  const edited = credits !== item.suggestedCredits
+                  const catIco = categoryIcon({ ...item, wearableCategory: item.wearableCategory ?? undefined })
+                  const mana = manaLabel(item.manaWei)
                   return (
                     <S.Row data-off={isSelected(item.oldTradeId) ? undefined : true} key={item.oldTradeId}>
-                      <S.Check
-                        type="checkbox"
-                        checked={isSelected(item.oldTradeId)}
-                        onChange={() => toggle(item.oldTradeId)}
-                        aria-label={t('importListings.includeItem', { name: item.name })}
-                      />
-                      <S.Thumb>{item.thumbnail ? <img src={item.thumbnail} alt="" /> : null}</S.Thumb>
-                      <S.Meta>
+                      <S.Lead>
+                        <S.CheckSlot>
+                          <F.Checkbox
+                            type="checkbox"
+                            checked={isSelected(item.oldTradeId)}
+                            onChange={() => toggle(item.oldTradeId)}
+                            aria-label={t('importListings.includeItem', { name: item.name })}
+                          />
+                        </S.CheckSlot>
+                        <S.Thumb>{item.thumbnail ? <img src={item.thumbnail} alt="" /> : null}</S.Thumb>
+                      </S.Lead>
+
+                      <S.Info>
                         <S.Name title={item.name}>{item.name || t('importListings.itemFallback')}</S.Name>
-                        <S.Chip>{item.rarity}</S.Chip>
-                      </S.Meta>
+                        <S.Chips>
+                          <S.Chip
+                            data-variant="rarity"
+                            style={{ background: rarityTint(item.rarity), color: rarityInk(item.rarity) }}
+                          >
+                            {item.rarity}
+                          </S.Chip>
+                          {catIco ? (
+                            <S.Chip data-variant="icon">
+                              <Icon name={catIco} aria-hidden />
+                            </S.Chip>
+                          ) : null}
+                        </S.Chips>
+                      </S.Info>
+
                       <S.Price>
                         <S.PriceField>
-                          <CurrencyIcon size={15} color={theme.colors.text} />
+                          <CreditMarkIcon />
                           <S.PriceInput
                             data-testid="imp-price-input"
                             inputMode="numeric"
@@ -195,39 +233,21 @@ export function ImportListings() {
                         </S.PriceField>
                         <S.PriceSub>
                           <span>${creditsToUsd(credits).toFixed(2)}</span>
-                          {edited ? (
-                            <S.PriceReset
-                              onClick={() => setPrices(p => ({ ...p, [item.oldTradeId]: item.suggestedCredits }))}
-                            >
-                              {t('importListings.resetTo')} <CurrencyIcon className="ccy-mark" />
-                              {item.suggestedCredits.toLocaleString()}
-                            </S.PriceReset>
-                          ) : null}
+                          {mana ? <S.PriceWas>{t('importListings.wasMana', { amount: mana })}</S.PriceWas> : null}
                         </S.PriceSub>
                       </S.Price>
-                      <S.Action>
-                        <S.ListBtn
-                          size="sm"
-                          disabled={!isSelected(item.oldTradeId)}
-                          onClick={() => setQueue(buildQueue([item]))}
-                        >
-                          {t('importListings.list')}
-                        </S.ListBtn>
-                      </S.Action>
                     </S.Row>
                   )
                 })}
-              </S.List>
-            </S.Section>
-          )
-        })
-      )}
+          </S.List>
+        </S.ListBlock>
+      </S.Body>
 
       <S.Dock>
         <S.DockInner>
           <div>
             <S.DockTotal>
-              <CurrencyIcon className="ccy-mark" color={theme.colors.text} /> {total.toLocaleString()}
+              <CreditMarkIcon /> {total.toLocaleString()}
             </S.DockTotal>
             <S.DockSub>
               {t('importListings.selectedSummary', {

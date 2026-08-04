@@ -150,6 +150,7 @@
     "removeTitle": "Remove",
     "clearCart": "Clear cart",
     "purchaseSummary": "Purchase Summary",
+    "checkout": "Checkout",
     "buyWithCredits": "Buy with credits",
     "creatorTag": "Creator",
     "totalItems": "Total: {count, plural, one {# item} other {# items}}",
@@ -491,9 +492,6 @@
     "signInPrompt": "Sign in to sell your items.",
     "removedFromSale": "“{name}” is no longer for sale.",
     "removeListingError": "Couldn’t remove the listing — please try again.",
-    "importTitle": "Import your listings",
-    "importSub": "You have {count, plural, one {# item} other {# items}} for sale elsewhere — bring them into the Shop.",
-    "import": "Import",
     "ownedTitle": "Items you own",
     "ownedSub": "Wearables & emotes you’ve bought — resell them in the Shop.",
     "ownedError": "Couldn’t load your items — please try again.",
@@ -664,7 +662,8 @@
   },
   "loadMore": {
     "loading": "Loading…",
-    "loadMore": "Load more"
+    "loadMore": "Load more",
+    "retry": "Try again"
   },
   "recentlyViewed": {
     "title": "Recently viewed"
@@ -679,32 +678,43 @@
     "label": "Purchase successful"
   },
   "importListings": {
-    "creations": {
-      "title": "Your creations",
-      "sub": "Items you made. Put them on sale in the Shop."
-    },
-    "owned": {
-      "title": "Items you own",
-      "sub": "Things you've bought elsewhere — resell them in the Shop."
-    },
     "toastUpdated": "Your Shop is updated.",
     "signInTitle": "Import your listings",
     "signInBody": "Sign in to bring the items you already sell into the Shop.",
     "emptyTitle": "You're all caught up",
     "emptyBody": "Everything you sell is already in the Shop — nothing to import.",
     "goToMyAssets": "Go to My Assets",
-    "eyebrow": "Import to the Shop",
-    "titleLead": "Bring your listings",
-    "titleAccent": "into the Shop",
-    "lede": "These items are already for sale elsewhere. We suggested a price in {currency} for each — matched to today's rate and rounded up. Adjust anything, then list them.",
-    "rate": "1 {currency} = $0.10 · prices rounded up",
+    "title": "Bring your listings into the new shop!",
+    "lede": "Your items can now be priced in {currency}. We've suggested equivalent prices based on today's MANA exchange rate, but you can adjust them before publishing. Once you're ready, list your items in the new Shop.",
+    "learnMore": "Learn More",
+    "updatePricing": "Update Pricing",
+    "selectAll": "Select All",
     "includeItem": "Include {name}",
     "itemFallback": "Item",
     "priceAria": "Price in {currency} for {name}",
-    "resetTo": "Reset to",
-    "list": "List",
+    "wasMana": "({amount} MANA)",
     "selectedSummary": "{count, plural, one {# item} other {# items}} selected · ${usd}",
     "listAll": "List all ({count})"
+  },
+  "creditRate": {
+    "equals": "=",
+    "usdLabel": "$USD",
+    "aria": "1 {unit} equals {usd} US dollars"
+  },
+  "manaPricingBanner": {
+    "lead": "{count, plural, one {# item is} other {# items are}} still using MANA pricing.",
+    "accent": "Switch to Credits",
+    "trail": "to keep your prices stable.",
+    "cta": "Update prices"
+  },
+  "newPricing": {
+    "title": "New Pricing",
+    "close": "Close",
+    "infoTitle": "Switch your listings to Credits!",
+    "infoBody": "Your items can now be priced in Credits, giving buyers a clearer price and protecting your earnings from MANA price changes.",
+    "later": "Maybe later",
+    "confirm": "Update prices",
+    "optOut": "Don't show this again"
   },
   "sellModal": {
     "errorGeneric": "Couldn't list your item — please try again.",
