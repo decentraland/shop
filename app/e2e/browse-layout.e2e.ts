@@ -50,9 +50,10 @@ describe('collectibles browse layout', () => {
     expect(cardOverflow).toBe(false)
   })
 
-  // A name too long to sit beside the price takes the whole row and the price drops below it, next to a
-  // round action (the AssetCard measures this — no CSS can key off text length). Needs a real browser.
-  it('stacks the footer of a long-named card: price below the name, round action instead of Add to cart', async () => {
+  // One layout per breakpoint: the per-card measurement is gone, so however long the name, a desktop
+  // card keeps the ordinary footer — ellipsised name with the price beside it, chips, and the
+  // full-width Add to cart (the round action belongs to the mobile layout).
+  it('keeps a long-named card on the ordinary desktop layout (no per-card stacking)', async () => {
     const rows = (fx.unifiedListings as { data: Record<string, unknown>[] }).data
     const long = 'Asset Name Asset Name Asset Name Asset Name'
     app = await launchApp({
@@ -61,35 +62,33 @@ describe('collectibles browse layout', () => {
     })
     const { page } = app
     await waitForText(page, 'Nebula Jacket')
-    await page.waitForSelector('[data-testid="card"][data-stacked]')
+    await page.evaluate(() => document.fonts?.ready)
+    await page.waitForSelector('[data-testid="card-cart"]')
 
     const cards = await page.$$eval('[data-testid="card"]', els =>
       els.map(el => {
         const name = el.querySelector('[data-testid="card-link"]')?.getAttribute('aria-label') ?? ''
         const price = (el.querySelector('[data-testid="card-price"]') as HTMLElement).getBoundingClientRect()
         const author = (el.querySelector('[data-testid="card-author"]') as HTMLElement).getBoundingClientRect()
+        const roundEl = el.querySelector('[data-testid="card-add-round"]') as HTMLElement | null
         return {
           name,
-          stacked: el.hasAttribute('data-stacked'),
           cart: !!el.querySelector('[data-testid="card-cart"]'),
-          round: !!el.querySelector('[data-testid="card-add-round"]'),
-          // Is the price on its own line, under the name/author column?
+          roundShown: !!roundEl && getComputedStyle(roundEl).display !== 'none',
+          chips: !!el.querySelector('[data-chips]')?.childElementCount,
+          // The stacked layout's tell was the price dropping under the name/author column.
           priceBelow: price.top >= author.bottom
         }
       })
     )
 
-    const short = cards.find(c => c.name === 'Nebula Jacket')!
-    const wrapped = cards.find(c => c.name === long)!
-    // Short name: price beside it, full-width Add to cart (revealed on hover) still in the DOM.
-    expect(short.stacked).toBe(false)
-    expect(short.priceBelow).toBe(false)
-    expect(short.cart).toBe(true)
-    // Long name: price on the next row, and the round action replaces the full-width button.
-    expect(wrapped.stacked).toBe(true)
-    expect(wrapped.priceBelow).toBe(true)
-    expect(wrapped.cart).toBe(false)
-    expect(wrapped.round).toBe(true)
+    expect(cards.length).toBe(2)
+    for (const card of cards) {
+      expect(card.priceBelow, card.name).toBe(false)
+      expect(card.cart, card.name).toBe(true)
+      expect(card.roundShown, card.name).toBe(false)
+      expect(card.chips, card.name).toBe(true)
+    }
   })
 
   // ...but a name that only just misses the row must NOT restructure the card. This is the regression:
