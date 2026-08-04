@@ -43,8 +43,8 @@ function overflowPx(page: App['page']) {
 
 describe('at phone width', () => {
   it('the overview keeps its content and does not scroll sideways', async () => {
-    const page = await phone('/overview', 'Featured Products')
-    expect(await bodyText(page)).toMatch(/featured products/i)
+    const page = await phone('/overview', 'Trending Products')
+    expect(await bodyText(page)).toMatch(/trending products/i)
     expect(await overflowPx(page)).toBeLessThanOrEqual(1)
   })
 

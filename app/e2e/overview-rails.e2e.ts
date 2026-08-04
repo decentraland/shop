@@ -13,6 +13,10 @@ import * as fx from './fixtures'
  *
  * Needs a real browser: the point is which endpoint the page chooses, so a stubbed fetch would assert the
  * stub. The harness serves the two feeds from different fixtures, which is what makes the choice observable.
+ *
+ * The first rail is now TRENDING (`/v3/catalog/trending`), which the server draws from the same unified,
+ * credit-buyable universe — so these assertions still say what they said: the rail must reach the liquidity
+ * that only exists as legacy MANA-priced listings, and must not reach resales.
  */
 
 let app: App | undefined
@@ -42,7 +46,7 @@ describe('the overview rails', () => {
     })
     const { page } = app
 
-    await waitForText(page, 'Featured Products')
+    await waitForText(page, 'Trending Products')
     await waitForText(page, 'Legacy Era Jacket')
   })
 
@@ -54,7 +58,7 @@ describe('the overview rails', () => {
     })
     const { page } = app
 
-    await waitForText(page, 'Featured Products')
+    await waitForText(page, 'Trending Products')
     expect(await bodyText(page)).not.toMatch(/no items on sale right now/i)
   })
 
@@ -68,7 +72,7 @@ describe('the overview rails', () => {
     app = await launchApp({ path: '/overview' })
     const { page } = app
 
-    await waitForText(page, 'Featured Products')
+    await waitForText(page, 'Trending Products')
     const cardNames = await page.$$eval('[data-testid="card"] [title]', els =>
       els.map(e => e.getAttribute('title') ?? '')
     )

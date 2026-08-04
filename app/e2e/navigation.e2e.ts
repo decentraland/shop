@@ -21,7 +21,7 @@ describe('the sub-nav', () => {
   it('routes to each section without a full page load', async () => {
     app = await launchApp({ path: '/overview' })
     const { page } = app
-    await waitForText(page, 'Featured Products')
+    await waitForText(page, 'Trending Products')
 
     // Mark the document: a client-side route change must NOT clear it. A tab that hard-navigates (or
     // 404s and reloads) would.

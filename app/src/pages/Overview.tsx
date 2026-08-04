@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { fetchShopItems, type CatalogItem } from '~/lib/api'
+import { fetchShopItems, fetchTrendingItems, type CatalogItem } from '~/lib/api'
 import { AssetCard } from '~/components/AssetCard'
 import { SkeletonCards, SkeletonSettle } from '~/components/SkeletonCards'
 import { FollowedCreatorsRow } from '~/components/FollowedCreatorsRow'
@@ -9,6 +9,7 @@ import { OutfitsRow } from '~/components/OutfitsRow'
 import { TopCreators } from '~/components/TopCreators'
 import { t } from '~/intl/i18n'
 import { useSeo } from '~/hooks/useSeo'
+import { useSecondarySales } from '~/hooks/useSecondarySales'
 import { railPageCount, railPageFromScroll } from '~/lib/pagedRail'
 import carouselArrow from '~/assets/icons/carousel-arrow.svg'
 // Figma 5566:4449 "Web 1920x340", exported flat rather than rebuilt: the source is thirteen absolutely
@@ -150,15 +151,32 @@ export function Overview() {
   // Home page: the hook's site-wide default title/description is the best fit here (its title tail is
   // "Wearables & Emotes for Your Avatar", which we don't want to override), so pass nothing. Indexable.
   useSeo({})
-  // Featured / New Creations promote CREATORS, so they show PRIMARY (mint) listings only — no resales.
-  // The shop feed carries both, and a secondary (resale) row is the only kind with a per-token tokenId
-  // (it also carries no item name, which is why those cards rendered blank), so filter them out. Fetch
-  // a bigger page than we show so 24 primary rows survive the filter.
+  // New Creations promotes CREATORS, so it shows PRIMARY (mint) listings only — no resales. A secondary
+  // (resale) row is the only kind with a per-token tokenId and it carries no item name, which is why those
+  // cards used to render blank.
+  // `first` is exactly what the rail shows: listingType is a SERVER filter (see unifiedSearchParams), so
+  // nothing is dropped client-side and there is nothing to over-fetch for. It asked for 48 while two rails
+  // split the page between them; one rail of twelve makes three quarters of that payload dead weight.
   const { data, isLoading } = useQuery({
     queryKey: ['overview-listings'],
-    queryFn: () => fetchShopItems({ first: 48, sortBy: 'newest', listingType: 'primary' })
+    queryFn: () => fetchShopItems({ first: 12, sortBy: 'newest', listingType: 'primary' })
   })
   const items = data?.items ?? []
+
+  // The Trending row: ranked by the last day's sales, server-side (marketplace-server /v3/catalog/trending),
+  // which is also where every rule the row has to honour is applied — see lib/api fetchTrendingItems for why
+  // none of it is done here.
+  //
+  // Resales are excluded unless the Shop actually offers them. The flag resolves async and reads FALSE while
+  // it does, so the first request asks for primaries only and a flag-on environment refetches once it
+  // resolves (the flag is part of the query key). That order matters: the wrong way round shows a row of
+  // resales for a moment on a Shop that does not sell them.
+  const secondarySales = useSecondarySales()
+  const { data: trending, isLoading: trendingLoading } = useQuery({
+    queryKey: ['overview-trending', secondarySales],
+    queryFn: () => fetchTrendingItems({ first: 12, listingType: secondarySales ? undefined : 'primary' })
+  })
+  const trendingItems = trending ?? []
 
   return (
     <S.Overview className="overview">
@@ -178,20 +196,27 @@ export function Overview() {
         </S.HeroInner>
       </S.Hero>
 
+      {/* Trending replaces what used to be "Featured Products" — same slot, same card, a real ranking behind
+          it instead of "the newest twelve". It owns its own query and its own visibility: a day with no sales
+          (or an environment with none) has nothing to rank, and an empty rail titled Trending is worse than
+          no rail, so it disappears rather than falling back to something that is not trending. Gating it on
+          the listings query instead would tie it to a different feed's emptiness. */}
+      {trendingLoading || trendingItems.length > 0 ? (
+        <Carousel title={t('overview.trendingProducts')} items={trendingItems} loading={trendingLoading} />
+      ) : null}
+
       {isLoading || items.length > 0 ? (
         <>
-          <Carousel title={t('overview.featuredProducts')} items={items.slice(0, 12)} loading={isLoading} />
-
-          {/* New Creations carousel — needs a second page of listings (>12) to be worth showing.
-              While the ONE query behind both rails is in flight that is not knowable yet, so the row
-              renders its skeletons: a home page whose second rail materialises after the fact shoved
-              everything under it (outfits, creators, the footer) down by a full 438px, which is the
-              single biggest jump on this page. The trade is a catalogue that comes back with 12 rows or
-              fewer, where the reserved row is then dropped; that is the same sparse case the empty state
-              covers, and it costs one shift instead of one on every load. */}
-          {isLoading || items.length > 12 ? (
-            <Carousel title={t('overview.newCreations')} items={items.slice(12, 24)} loading={isLoading} />
-          ) : null}
+          {/* New Creations now shows the newest twelve — slice(0, 12), not slice(12, 24).
+              It was offset only because Featured consumed the first twelve; with Featured replaced by
+              Trending (which has its own query) nothing rendered items 0–11 any more, so the twelve
+              newest creations would have been invisible on the home page.
+              It renders its skeletons while the query is in flight rather than waiting to know whether
+              there is anything to show: a home page whose second rail materialises after the fact shoved
+              everything under it (outfits, creators, the footer) down by a full 438px, the single biggest
+              jump on this page. The enclosing branch is now the same condition — there is one listings
+              rail left, so a second guard on it would always be true. */}
+          <Carousel title={t('overview.newCreations')} items={items.slice(0, 12)} loading={isLoading} />
 
           {/* "Buy the Look" is the THIRD section, after both carousels. It sat between them for a while
               because that is the order the mobile Figma frame (1016:84664) draws; the product order is the

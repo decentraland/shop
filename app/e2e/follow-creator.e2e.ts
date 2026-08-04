@@ -69,7 +69,7 @@ describe('following a creator', () => {
     app = await launchApp({ path: '/overview', follows: true })
     const { page } = app
 
-    await waitForText(page, 'Featured Products')
+    await waitForText(page, 'Trending Products')
     // Nothing followed yet → the row renders nothing at all (not an empty shell).
     expect(await bodyText(page)).not.toMatch(/creators you follow/i)
 
@@ -80,7 +80,7 @@ describe('following a creator', () => {
     await waitForText(page, 'Following')
 
     expect(await clickByText(page, 'a', /overview/i)).toBe(true)
-    await waitForText(page, 'Featured Products')
+    await waitForText(page, 'Trending Products')
     expect(await bodyText(page)).toMatch(/creators you follow/i)
   })
 })
@@ -103,7 +103,7 @@ describe('follows hidden by the unset flag', () => {
     app = await launchApp({ path: '/overview', signedOut: true })
     const { page } = app
 
-    await waitForText(page, 'Featured Products')
+    await waitForText(page, 'Trending Products')
     // A visitor who followed creators in an earlier build still has them in localStorage; seed that and
     // reload, so this covers the stored-set case rather than only the empty one.
     await page.evaluate(
@@ -113,7 +113,7 @@ describe('follows hidden by the unset flag', () => {
     )
     await page.reload({ waitUntil: 'networkidle2' })
 
-    await waitForText(page, 'Featured Products')
+    await waitForText(page, 'Trending Products')
     expect(await bodyText(page)).not.toMatch(/creators you follow/i)
   })
 })

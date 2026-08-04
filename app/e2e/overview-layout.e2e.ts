@@ -38,7 +38,15 @@ const LANDMARK = 'top creators'
 
 // Staggered so the page is observed in the state a visitor on a slow connection sees: rails first, then
 // looks, then the ranking — each one a chance for the sections above it to move what is below.
-const DELAYS = { '/v3/catalog/unified': 600, '/v1/outfits': 1200, '/v1/rankings/': 1800, '/v2/catalog': 600 }
+const DELAYS = {
+  '/v3/catalog/unified': 600,
+  // The trending rail has its OWN query, so it needs its own delay: left instant it filled before the first
+  // sample and the reserved state these specs are about never existed for it.
+  '/v3/catalog/trending': 900,
+  '/v1/outfits': 1200,
+  '/v1/rankings/': 1800,
+  '/v2/catalog': 600
+}
 
 // Installed before anything renders: a layout-shift observer plus an rAF sampler that records where the
 // landmark heading sits from the very first frame it exists in. Reading positions after the fact cannot
@@ -96,7 +104,7 @@ const HEADINGS = `(() => {
     return el ? Math.round(el.getBoundingClientRect().top + window.scrollY) : null
   }
   return {
-    featured: at('featured products'),
+    trending: at('trending products'),
     newCreations: at('new creations'),
     buyTheLook: at('the look'),
     topCreators: at('${LANDMARK}'),
@@ -201,7 +209,7 @@ type Layout = {
   /** One entry per shifted node, so a CLS failure names what moved instead of only how much. */
   sources?: { value: number; tag: string; testid: string | null; text: string | null }[]
 }
-type Headings = { featured: number; newCreations: number; buyTheLook: number; topCreators: number; docHeight: number }
+type Headings = { trending: number; newCreations: number; buyTheLook: number; topCreators: number; docHeight: number }
 
 // Load the page at `width` with the feeds staggered, with the recorder running from the first frame.
 async function loadStaggered(width: number, height: number): Promise<Page> {
@@ -266,7 +274,11 @@ describe.each([
     expect(skeletons).toEqual({ cards: PER_RAIL * 2, outfits: OUTFIT_SKELETONS, creators: CREATOR_SKELETONS })
 
     // Every section heading — the loading page's shape is the settled page's shape.
-    expect(loading.featured).toBe(settled.featured)
+    // Non-null first: `at()` returns null for a heading that does not exist, and null === null would let
+    // this pass for a rail that had been renamed out from under it.
+    expect(settled.trending).not.toBeNull()
+    expect(settled.newCreations).not.toBeNull()
+    expect(loading.trending).toBe(settled.trending)
     expect(loading.newCreations).toBe(settled.newCreations)
     expect(loading.buyTheLook).toBe(settled.buyTheLook)
     expect(loading.topCreators).toBe(settled.topCreators)
