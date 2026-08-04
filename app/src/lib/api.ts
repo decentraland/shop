@@ -226,6 +226,26 @@ export async function fetchSecondarySaleState(
   return map
 }
 
+// Curated contract registry: every approved collection plus the marketplace's own contracts (LAND,
+// Estates, Names), keyed by LOWERCASED address → name. An NFT row carries the ITEM's name and never
+// its collection's, so this is the only place a collection address can be turned into a real name.
+// It is one request for the whole registry rather than a lookup per address, which is what makes it
+// usable for a list of collections; callers should cache it (it changes only when a collection is
+// approved).
+export type ContractRegistry = Map<string, string>
+
+export async function fetchContractRegistry(): Promise<ContractRegistry> {
+  const res = await fetch(`${NFT_V1}/contracts`)
+  if (!res.ok) throw new Error(`fetchContractRegistry ${res.status}`)
+  const { data } = (await res.json()) as { data?: Array<{ name?: string; address?: string }> }
+  const byAddress: ContractRegistry = new Map()
+  for (const contract of data ?? []) {
+    if (!contract.address || !contract.name) continue
+    byAddress.set(contract.address.toLowerCase(), contract.name)
+  }
+  return byAddress
+}
+
 type NftMeta = {
   name: string
   image: string
@@ -568,6 +588,23 @@ export async function fetchShopItems({ first = 100, ...filters }: ShopListingFil
   const json = (await res.json()) as { data?: ShopItemRaw[]; total?: number }
   const data = json.data ?? []
   return { items: data.map(shopItemToItem), total: json.total ?? data.length }
+}
+
+// Items SIMILAR to one item — the PDP's fallback rail for when the item's collection has nothing else to
+// show. Rows are the same item-unified shape as fetchShopItems (one card per item, credit-priced), so the
+// carousel renders them with the identical AssetCard. Similarity is decided server-side (same category,
+// ordered so the closest rarity leads); the anchor item is already excluded by the endpoint.
+// Unpaginated — the server caps `first`, and the response carries no total.
+export async function fetchRelatedItems(
+  contractAddress: string,
+  itemId: string,
+  { first = 10 }: { first?: number } = {}
+): Promise<UnifiedListing[]> {
+  const qs = new URLSearchParams({ contractAddress, itemId, first: String(first) })
+  const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/related?${qs.toString()}`)
+  if (!res.ok) throw new Error(`fetchRelatedItems ${res.status}`)
+  const json = (await res.json()) as { data?: ShopItemRaw[] }
+  return (json.data ?? []).map(shopItemToItem)
 }
 
 // The legacy (classic MANA-priced) listing shape that MarketCheckout (Buy Now) consumes. A legacy row

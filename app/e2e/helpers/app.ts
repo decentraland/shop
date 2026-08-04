@@ -204,6 +204,7 @@ function toCatalogRow(l: any) {
 // Set per launchApp run; read by the flag-file handler below.
 let secondarySalesFlag = true
 let outfitCreatorFlag = false
+let followsFlag = false
 
 // Stateful outfits: the mock shop-server. Seeded from F.outfits per run so studio mutations (save,
 // publish, delete) survive navigation within a test without leaking across runs.
@@ -224,7 +225,8 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
   if (method === 'OPTIONS') return req.respond({ status: 204, headers: CORS })
   // Decentraland feature flags. Unmocked this fetch fails and every flag reads false (fail-closed), which
   // would hide the secondary-sale surfaces the resale specs exist to cover. Serve them ON here so those
-  // specs test the FEATURE; the hidden-by-default behaviour has its own spec that overrides this.
+  // specs test the FEATURE; the hidden-by-default behaviour has its own spec that overrides this. Follows
+  // are the other way round — off is the shipped state, so the suite runs in it and the follows spec opts in.
   if (path.endsWith('/dapps.json')) {
     return req.respond({
       status: 200,
@@ -232,7 +234,8 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
       body: JSON.stringify({
         flags: {
           'dapps-shop-secondary-sales': secondarySalesFlag,
-          'dapps-shop-outfit-creators': outfitCreatorFlag
+          'dapps-shop-outfit-creators': outfitCreatorFlag,
+          'dapps-shop-follows': followsFlag
         },
         variants: outfitCreatorFlag
           ? { 'dapps-shop-outfit-creators': { enabled: true, payload: { value: fx.TEST_ADDRESS } } }
@@ -435,6 +438,20 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
       if (search) rows = rows.filter(c => String(c.name).toLowerCase().includes(search))
       return json(req, { data: rows, total: rows.length })
     }
+    // Curated contract registry (lib/api.ts → fetchContractRegistry): the Approvals page titles each
+    // selling row after the COLLECTION, whose name lives only here. Derived from the same collections
+    // fixture so the mock and production agree on what a collection is called. Note the field is
+    // `address`, not `contractAddress`.
+    if (path === '/v1/contracts') {
+      const rows = ((F.collections as { data: any[] }).data ?? []).map(c => ({
+        name: c.name,
+        address: c.contractAddress,
+        category: 'wearable',
+        network: 'MATIC',
+        chainId: 80002
+      }))
+      return json(req, { data: rows, total: rows.length })
+    }
     // Collection + Creator pages (lib/collections.ts → fetchCollectionItems/fetchCreatorItems).
     // Returns the collection's CATALOG items with server-computed priceCredits, filtered by the
     // contractAddress / creator query param.
@@ -625,6 +642,11 @@ export async function launchApp(
      * with a shop-server host configured). Defaults to the shared BASE server.
      */
     base?: string
+    /**
+     * Whether the mocked flag file reports creator follows as available. Defaults to FALSE — the shipped
+     * state, where the feature is hidden; the follows spec passes true to exercise the prototype.
+     */
+    follows?: boolean
   } = {}
 ): Promise<App> {
   const F = { ...defaults(), ...opts.fixtures }
@@ -633,6 +655,7 @@ export async function launchApp(
   secondarySalesFlag = opts.secondarySales ?? true
   outfitCreatorFlag = opts.outfitCreator ?? false
   outfitStore = structuredClone(((F.outfits as { outfits?: any[] })?.outfits ?? []) as any[])
+  followsFlag = opts.follows ?? false
   mintedCents = 0 // reset the per-run top-up accumulator so balances don't leak between tests
   favoritePicks = [] // reset the per-run picks so favorites don't leak between tests
   setManaBalanceWei(opts.manaBalanceWei ?? '0') // no MANA unless a test asks for it

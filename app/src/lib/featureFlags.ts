@@ -53,7 +53,28 @@ export enum FeatureFlag {
    * Address-list variant of accounts that see the outfit-authoring studio. COSMETIC: the real
    * gate is shop-server's OUTFIT_CREATORS allowlist, enforced against the signed-fetch address.
    */
-  SHOP_OUTFIT_CREATORS = 'shop-outfit-creators'
+  SHOP_OUTFIT_CREATORS = 'shop-outfit-creators',
+
+  /**
+   * Whether the wearable preview may run the Unity renderer at all. Shared with the builder, which reads the
+   * same `dapps-unity-wearable-preview` key to gate the item editor's preview — one switch turns the Unity
+   * preview off across every dapp that embeds it, without a deploy per app.
+   *
+   * A ceiling, not a request: the shop still applies its own device/connection heuristic on top (see
+   * `lib/pickRenderer`), so the flag being on does not mean a given visitor gets Unity.
+   */
+  UNITY_WEARABLE_PREVIEW = 'unity-wearable-preview',
+
+  /**
+   * Whether the Shop shows creator FOLLOWS — the Follow button on a creator's page and the "From creators
+   * you follow" row on the overview.
+   *
+   * Absent from the flag file, so it reads off and the surfaces stay hidden: what exists today is a
+   * client-side prototype (a localStorage store, no backend), and a follow that lives in one browser is a
+   * promise the product cannot keep. The store and its specs are kept intact behind this so finishing the
+   * feature is a server + a flag, not a rewrite.
+   */
+  SHOP_FOLLOWS = 'shop-follows'
 }
 
 /** The application whose flag file carries the flags above. */
