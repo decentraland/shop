@@ -12,6 +12,7 @@
     "myFavorites": "My Favorites",
     "activity": "Activity",
     "authorizations": "Approvals",
+    "outfits": "Outfit Studio",
     "searchPlaceholder": "Search items…",
     "searchAria": "Search the shop",
     "getCredits": "Get {currency}",
@@ -623,6 +624,96 @@
     "allInCart": "All in cart",
     "addAll": "Add all ({count}) to cart"
   },
+  "outfits": {
+    "rowTitle": "Shop the look",
+    "card": {
+      "items": "{count, plural, one {# item} other {# items}}",
+      "add": "Add to cart",
+      "unavailable": "No longer available"
+    },
+    "detail": {
+      "addCount": "{count, plural, one {Add # item to cart} other {Add # items to cart}}",
+      "nothingToAdd": "Everything here is already in your cart or sold by you",
+      "yourListing": "Your listing",
+      "yourListingHint": "You're selling some of these items, so they don't count toward the total.",
+      "inCart": "In your cart",
+      "resolveError": "We couldn't load this outfit's items.",
+      "retry": "Try again",
+      "notFoundTitle": "This outfit isn't available",
+      "notFoundBody": "It may no longer exist. Browse the shop to find your next look.",
+      "itemsCount": "{count, plural, one {# item in this outfit} other {# items in this outfit}}",
+      "totalPrice": "Total price",
+      "breadcrumbLooks": "Looks",
+      "breadcrumbAria": "Breadcrumb"
+    },
+    "studio": {
+      "title": "Outfit Studio",
+      "myOutfits": "My outfits",
+      "new": "New outfit",
+      "editTitle": "Edit outfit",
+      "signInPrompt": "Sign in to manage outfits.",
+      "signIn": "Sign in",
+      "notAvailable": "This area is only for the shop's styling team.",
+      "backToShop": "Back to the shop",
+      "untitled": "Untitled outfit",
+      "view": "View",
+      "edit": "Edit",
+      "draft": "Draft",
+      "publishedState": "Published",
+      "deleteTitle": "Delete this outfit?",
+      "deleteBody": "Unpublishing hides it from the shop but keeps it here. Deleting can't be undone.",
+      "confirmDelete": "Delete",
+      "cancel": "Cancel",
+      "unpublish": "Unpublish",
+      "unpublished": "Outfit unpublished",
+      "deleted": "Outfit deleted",
+      "saved": "Outfit saved",
+      "publishedToast": "Outfit published",
+      "saving": "Saving…",
+      "saveDraft": "Save",
+      "publish": "Publish",
+      "name": "Name",
+      "namePlaceholder": "e.g. Neon Nights",
+      "items": "Items",
+      "noItems": "No items yet — pick some from the catalog below.",
+      "maxItems": "An outfit can have up to 10 items.",
+      "remove": "Remove",
+      "searchPlaceholder": "Search wearables…",
+      "noResults": "No results",
+      "gradient": "Background colors",
+      "gradientTop": "Top",
+      "gradientBottom": "Bottom",
+      "gradientTopHex": "Top color hex code",
+      "gradientBottomHex": "Bottom color hex code",
+      "gradientHint": "The outfit is shown over these two colors, blending from top to bottom.",
+      "thumbnail": "Thumbnail",
+      "thumbnailHint": "PNG, JPEG or WebP, up to 1 MB. Portrait (3:4) works best — upload it with a transparent background so the colors show through.",
+      "upload": "Upload image",
+      "uploading": "Uploading…",
+      "bodyShape": "Made for",
+      "shape": {
+        "unisex": "Anyone",
+        "male": "Masculine",
+        "female": "Feminine"
+      },
+      "previewEmpty": "Pick items to see them on the mannequin.",
+      "needName": "Give the outfit a name to save it.",
+      "empty": "No outfits yet — create the first one."
+    },
+    "toast": {
+      "added": "Outfit added to cart",
+      "partial": "Added {added} of {total} items{unavailable, plural, =0 {} other { — # no longer available}}{inCart, plural, =0 {} other { — # already in your cart}}{own, plural, =0 {} other { — # sold by you}}"
+    },
+    "errors": {
+      "generic": "Something went wrong. Please try again.",
+      "notAllowed": "Your account can't manage outfits.",
+      "notPublishable": "Add a name, a thumbnail and 2–10 items before publishing.",
+      "invalidItems": "One of the items is duplicated or invalid.",
+      "tooLarge": "That image is too big — keep it under 1 MB.",
+      "unsupportedType": "Use a PNG, JPEG or WebP image.",
+      "notFound": "This outfit no longer exists."
+    }
+  },
   "footer": {
     "newsletterTitle": "Get the weekly highlights in your inbox",
     "newsletterFrameTitle": "Newsletter signup",
@@ -893,6 +984,9 @@
       "title": "Browse Collectibles",
       "searchTitle": "Search results for “{query}”",
       "description": "Browse thousands of wearables and emotes for your Decentraland avatar. Filter by category, rarity, and price to find your next look."
+    },
+    "outfit": {
+      "notFoundTitle": "Outfit not available"
     },
     "item": {
       "notFoundTitle": "Item not available",

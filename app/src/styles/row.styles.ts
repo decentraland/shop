@@ -40,6 +40,66 @@ export const ViewAll = styled(Link)`
   }
 `
 
+// Paged variant of the rail: fixed N cards per view (matching the Overview carousels), hidden
+// scrollbar, mandatory snap. Same padding/negative-margin dance as Track below — the side padding
+// reserves room for the first/last card's outward hover glow, the negative margin re-aligns the
+// first card with the section title.
+export const CarouselTrack = styled.div`
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: calc((100% - 64px) / 5);
+  gap: 16px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 12px 14px;
+  margin-left: -14px;
+  scroll-padding-inline: 14px;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+
+  &::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
+  }
+  & > * {
+    scroll-snap-align: start;
+  }
+
+  ${media.maxWidth('xl')} {
+    grid-auto-columns: calc((100% - 48px) / 4);
+  }
+  ${media.maxWidth('lg')} {
+    grid-auto-columns: calc((100% - 32px) / 3);
+  }
+  ${media.maxWidth('sm')} {
+    grid-auto-columns: calc((100% - 16px) / 2);
+  }
+`
+
+// Page indicators under a paged rail, one per viewport-width of scroll.
+export const Dots = styled.div`
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 12px;
+`
+
+export const Dot = styled.button`
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #d9d6de;
+  transition: background 0.15s ease;
+
+  &[data-active] {
+    background: ${colors.accent};
+  }
+`
+
 // Cards have an OUTWARD hover glow; an overflow-x scroller also clips overflow-y, so the rail reserves
 // room for the glow with PADDING on all sides rather than a negative margin (which would re-clip it).
 // The matching negative margin-left then pulls the track back by that 14px so the FIRST card's edge

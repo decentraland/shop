@@ -1,0 +1,1 @@
+export { OutfitPreview } from './OutfitPreview'

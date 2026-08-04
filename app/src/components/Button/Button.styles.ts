@@ -54,6 +54,22 @@ export const Root = styled.button`
     background: rgba(198, 64, 205, 0.06);
   }
 
+  /* Over-media CTA (Figma outfit card): solid white with the dark label, for buttons sitting on artwork. */
+  &[data-variant='white'] {
+    background: ${theme.colors.white};
+    color: ${theme.colors.text};
+    text-transform: uppercase;
+    letter-spacing: 0.046em;
+    font-size: 13px;
+  }
+  &[data-variant='white']:hover:not(:disabled) {
+    background: ${theme.colors.panel};
+  }
+  &[data-variant='white']:active:not(:disabled) {
+    background: ${theme.colors.panel};
+    transform: translateY(1px);
+  }
+
   &[data-variant='ghost'] {
     background: ${theme.colors.white};
     border: 1px solid ${theme.colors.lineStrong};

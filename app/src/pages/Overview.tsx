@@ -5,6 +5,7 @@ import { fetchShopItems, type CatalogItem } from '~/lib/api'
 import { AssetCard } from '~/components/AssetCard'
 import { SkeletonCards } from '~/components/SkeletonCards'
 import { FollowedCreatorsRow } from '~/components/FollowedCreatorsRow'
+import { OutfitsRow } from '~/components/OutfitsRow'
 import { RecentlyViewed } from '~/components/RecentlyViewed'
 import { WeekTopCreators } from '~/components/WeekTopCreators'
 import { t } from '~/intl/i18n'
@@ -187,6 +188,7 @@ export function Overview() {
       {/* Discovery rows, then the Week Top Creators ranking table dead last — matching the Figma frame
           order (913:135556): hero → Featured → promos → New Creations → … → Active Ranking at the very
           bottom. RecentlyViewed / FollowedCreatorsRow render nothing until they have data. */}
+      <OutfitsRow />
       <RecentlyViewed />
       <FollowedCreatorsRow />
       <WeekTopCreators />
