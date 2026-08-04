@@ -675,7 +675,7 @@
       "namePlaceholder": "p. ej. Noches de neón",
       "items": "Artículos",
       "noItems": "Aún no hay artículos: elige algunos del catálogo de abajo.",
-      "maxItems": "Un outfit puede tener hasta 10 artículos.",
+      "maxItems": "Un outfit puede tener hasta 20 artículos.",
       "remove": "Quitar",
       "searchPlaceholder": "Busca prendas…",
       "noResults": "Sin resultados",
@@ -715,7 +715,7 @@
     "errors": {
       "generic": "Algo salió mal. Prueba de nuevo.",
       "notAllowed": "Tu cuenta no puede gestionar outfits.",
-      "notPublishable": "Añade un nombre, una miniatura y de 2 a 10 artículos antes de publicar.",
+      "notPublishable": "Añade un nombre, una miniatura y de 1 a 20 artículos antes de publicar.",
       "invalidItems": "Uno de los artículos está duplicado o no es válido.",
       "tooLarge": "Esa imagen es demasiado grande: debe pesar menos de 1 MB.",
       "unsupportedType": "Usa una imagen PNG, JPEG o WebP.",

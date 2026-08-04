@@ -446,7 +446,7 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
     nameValid &&
     !!draft.thumbnailHash &&
     gradientValid &&
-    draft.items.length >= 2 &&
+    draft.items.length >= 1 &&
     draft.items.length <= MAX_OUTFIT_ITEMS
 
   async function save(published: boolean) {

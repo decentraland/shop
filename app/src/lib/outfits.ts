@@ -415,8 +415,8 @@ export function parseOutfitImport(raw: string): OutfitImport | null {
   }
 }
 
-/** How many items an outfit may hold; publishing additionally requires at least 2. */
-export const MAX_OUTFIT_ITEMS = 10
+/** How many items an outfit may hold; publishing additionally requires at least 1. */
+export const MAX_OUTFIT_ITEMS = 20
 
 /**
  * Toggle an item in an outfit's ref list, keeping the set slot-consistent: adding a wearable drops

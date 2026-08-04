@@ -675,7 +675,7 @@
       "namePlaceholder": "e.g. Neon Nights",
       "items": "Items",
       "noItems": "No items yet — pick some from the catalog below.",
-      "maxItems": "An outfit can have up to 10 items.",
+      "maxItems": "An outfit can have up to 20 items.",
       "remove": "Remove",
       "searchPlaceholder": "Search wearables…",
       "noResults": "No results",
@@ -715,7 +715,7 @@
     "errors": {
       "generic": "Something went wrong. Please try again.",
       "notAllowed": "Your account can't manage outfits.",
-      "notPublishable": "Add a name, a thumbnail and 2–10 items before publishing.",
+      "notPublishable": "Add a name, a thumbnail and 1–20 items before publishing.",
       "invalidItems": "One of the items is duplicated or invalid.",
       "tooLarge": "That image is too big — keep it under 1 MB.",
       "unsupportedType": "Use a PNG, JPEG or WebP image.",
