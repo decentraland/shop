@@ -21,6 +21,19 @@ export type CatalogItem = {
   network: string
   chainId: number
   thumbnail: string
+  /**
+   * The item's canonical asset URN, when the feed that produced the row carries one.
+   *
+   * The 3D preview needs it to load anything that is NOT a Polygon collections-v2 item: given only
+   * contractAddress + itemId the preview app SYNTHESIZES `urn:decentraland:matic:collections-v2:<contract>:<itemId>`,
+   * which is simply wrong for an Ethereum collections-v1 wearable (whose urn is
+   * `urn:decentraland:ethereum:collections-v1:<collection>:<name>`) and fails to resolve. See
+   * HoverPreviewLayer.
+   *
+   * Optional because only some feeds return it: /v3/catalog/items does (see lib/collections), the unified
+   * feed does not — and every unified row is Polygon, so contractAddress + itemId is correct there.
+   */
+  urn?: string
   priceCredits: number
   gender: 'male' | 'female' | 'unisex' | null
   // Smart wearable (carries an interactive scene/game.js). Surfaces a "Smart" badge on the card.
