@@ -3,6 +3,7 @@ import { OutfitCard } from '~/components/OutfitCard'
 import { useOutfitItems, useOutfits } from '~/hooks/useOutfits'
 import { isListingUnavailable, isOutfitsAvailable, outfitItemKey, type Outfit } from '~/lib/outfits'
 import { railPageCount, railPageFromScroll } from '~/lib/pagedRail'
+import { shuffle } from '~/lib/shuffle'
 import { t } from '~/intl/i18n'
 import carouselArrow from '~/assets/icons/carousel-arrow.svg'
 import * as Row from '~/styles/row.styles'
@@ -14,7 +15,12 @@ const MAX_DOTS = 6
 // until published outfits exist (and nothing at all when no shop-server is configured). One merged
 // catalog resolution covers every card — never one request per card.
 export function OutfitsRow() {
-  const { data: outfits = [], isLoading } = useOutfits()
+  const { data, isLoading } = useOutfits()
+
+  // The feed comes back newest-first, which would freeze the row in creation order — every visit
+  // shows the same few looks first. Shuffled once per fetched list (not per render), so the order
+  // varies between visits but the cards never re-order under the reader as the catalog settles.
+  const outfits = useMemo(() => shuffle(data ?? []), [data])
   const resolution = useOutfitItems(outfits)
 
   const trackRef = useRef<HTMLDivElement>(null)
