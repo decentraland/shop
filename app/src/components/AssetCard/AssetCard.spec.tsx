@@ -196,6 +196,86 @@ describe('AssetCard legacy (MANA-priced) rows', () => {
   })
 })
 
+/**
+ * THE CTA MUST NOT STOP OFFERING AN ACTION THE CART WILL STILL TAKE.
+ *
+ * A primary (mint) row can be bought several times, so `useCart.add` keeps incrementing it — but the card used
+ * to flip to a disabled "In cart" on the first add, which read as "you already have this, there is nothing more
+ * to do" for an item the buyer could still stack. The flip is now reserved for the two rows where a second copy
+ * genuinely does not exist: a secondary listing (one unique token, clamped to quantity 1 in store/cart) and a
+ * primary that has reached its remaining-supply cap. Both directions are asserted: keeping "Add to cart" on a
+ * line that cannot take another copy would be the same lie in reverse.
+ */
+describe('AssetCard add-to-cart CTA when the item is already in the cart', () => {
+  const label = (container: HTMLElement) => container.querySelector('[data-testid="card-cart"]')
+  const round = (container: HTMLElement) => container.querySelector('[data-testid="card-add-round"]')
+
+  describe('and the row is a PRIMARY (mint) listing with supply left', () => {
+    it('should keep offering "Add to cart", enabled, on both the full-width and the round action', () => {
+      const item = makeItem({ available: 5 })
+      useCart.setState({ items: [{ ...item, quantity: 1 }] })
+      const { container } = renderCard(item)
+
+      const cart = label(container) as HTMLButtonElement
+      expect(cart.textContent).toMatch(/add to cart/i)
+      expect(cart.textContent).not.toMatch(/in cart/i)
+      expect(cart.disabled).toBe(false)
+      const compact = round(container) as HTMLButtonElement
+      expect(compact.disabled).toBe(false)
+      expect(compact.getAttribute('aria-label')).toMatch(/add to cart/i)
+    })
+
+    it('should actually add another copy when clicked again', () => {
+      const item = makeItem({ available: 5 })
+      useCart.setState({ items: [{ ...item, quantity: 1 }] })
+      const { container } = renderCard(item)
+
+      fireEvent.click(label(container) as HTMLButtonElement)
+
+      expect(useCart.getState().items[0].quantity).toBe(2)
+    })
+
+    it('should keep offering it when the remaining supply is unknown (no cap to reach)', () => {
+      const item = makeItem({ available: undefined })
+      useCart.setState({ items: [{ ...item, quantity: 3 }] })
+      const { container } = renderCard(item)
+
+      expect((label(container) as HTMLButtonElement).disabled).toBe(false)
+      expect(label(container)?.textContent).toMatch(/add to cart/i)
+    })
+  })
+
+  describe('and there is no second copy to add', () => {
+    it('should show a disabled "In cart" for a SECONDARY listing (a single unique token)', () => {
+      // A tokenId is what makes the row secondary; the cart clamps such a line to quantity 1.
+      const item = makeItem({ tokenId: '9', itemId: null })
+      useCart.setState({ items: [{ ...item, quantity: 1 }] })
+      const { container } = renderCard(item)
+
+      const cart = label(container) as HTMLButtonElement
+      expect(cart.textContent).toMatch(/in cart/i)
+      expect(cart.disabled).toBe(true)
+      expect((round(container) as HTMLButtonElement).disabled).toBe(true)
+    })
+
+    it('should show a disabled "In cart" for a PRIMARY line at its remaining-supply cap', () => {
+      const item = makeItem({ available: 2 })
+      useCart.setState({ items: [{ ...item, quantity: 2 }] })
+      const { container } = renderCard(item)
+
+      const cart = label(container) as HTMLButtonElement
+      expect(cart.textContent).toMatch(/in cart/i)
+      expect(cart.disabled).toBe(true)
+    })
+  })
+
+  it('should read "Add to cart" for an item that is not in the cart at all', () => {
+    const { container } = renderCard(makeItem({ available: 5 }))
+    expect(label(container)?.textContent).toMatch(/add to cart/i)
+    expect((label(container) as HTMLButtonElement).disabled).toBe(false)
+  })
+})
+
 describe('AssetCard own-item MANAGE CTA', () => {
   const ME = '0x' + '11'.repeat(20)
 

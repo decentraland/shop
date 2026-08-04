@@ -1346,7 +1346,9 @@ export function Cart() {
                   onClick={() => void (review ? confirmPurchase() : checkout())}
                   disabled={working || allUnavailable}
                 >
-                  {working ? t('cart.working') : review ? t('marketCheckout.confirmPurchase') : t('assetCard.buyNow')}
+                  {/* Its own key, not the card's `assetCard.buyNow`: that label is shared with the browse
+                      cards and the PDP, which do buy immediately. This CTA opens the checkout. */}
+                  {working ? t('cart.working') : review ? t('marketCheckout.confirmPurchase') : t('cart.checkout')}
                 </S.Cta>
               )}
 

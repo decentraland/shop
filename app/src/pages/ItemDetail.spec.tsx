@@ -123,6 +123,27 @@ beforeEach(() => {
   useRelatedItems.mockReturnValue({ items: [], isFetched: true })
 })
 
+/**
+ * "Make an offer" is a bid, and a bid is a secondary-market action the Shop does not offer. The button (and its
+ * "coming soon" tooltip) is kept in the tree as a component, so what has to be pinned is that the PAGE no longer
+ * mounts it. The not-for-sale price block is asserted first so the absence below can't pass because the page
+ * never reached the state the button used to appear in.
+ */
+describe('ItemDetail — the not-for-sale CTA slot', () => {
+  beforeEach(() => {
+    fetchCollectionItems.mockResolvedValue({ items: [item({ id: 'a', name: 'Anchor Hat', itemId: '1' })], total: 1 })
+  })
+
+  it('should not render the "Make an offer" CTA for an item with no buyable listing', async () => {
+    renderPdp()
+
+    // We are in the state that used to carry the button: no listing resolved → "Not for Sale".
+    expect(await screen.findByTestId('item-price')).toHaveTextContent(/not for sale/i)
+    expect(screen.queryByTestId('make-offer')).not.toBeInTheDocument()
+    expect(screen.queryByText(/make an offer/i)).not.toBeInTheDocument()
+  })
+})
+
 describe('ItemDetail — the carousel below the fold', () => {
   describe('when the collection has other items', () => {
     beforeEach(() => {

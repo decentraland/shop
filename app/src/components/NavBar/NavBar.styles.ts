@@ -30,7 +30,10 @@ export const Subnav = styled.div`
   ${stacked} {
     height: auto;
     flex-wrap: wrap;
-    gap: 12px;
+    /* Column gap tightened to 8px: at 320px the CTA + balance + favourites + cart leave only a few pixels of
+       slack and three 12px gaps spend it, which is what wrapped the cart onto its own line. Rows keep 12px —
+       the search and tab strips have their own full-width basis, so this only affects the top row. */
+    gap: 12px 8px;
     padding: 12px 54px 0;
   }
 

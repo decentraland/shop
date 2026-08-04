@@ -20,6 +20,15 @@ export function useInfiniteGrid<T>(
     queryFn: ({ pageParam }) => fetchPage(pageParam),
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) => {
+      // An EMPTY page ends the list, whatever `total` claims. The offset is derived from how many items have
+      // actually arrived, so a page that adds none leaves it unchanged — and returning the same pageParam
+      // again means react-query appends another empty page, keeps `hasNextPage` true, and the grid requests
+      // that identical offset forever. Today no endpoint can trigger it (they all report `total: 0` for an
+      // over-the-end page, which stops the loop by accident), but "server-side filtering removed every row
+      // from a page that is not the last" is a normal thing for a feed to do, and the sibling marketplace
+      // shipped exactly this loop. Terminating on an empty page costs one page of pagination in that case
+      // and cannot spin.
+      if (lastPage.items.length === 0) return undefined
       const loaded = allPages.reduce((n, p) => n + p.items.length, 0)
       return loaded < lastPage.total ? loaded : undefined
     },
@@ -41,6 +50,10 @@ export function useInfiniteGrid<T>(
     error: query.error,
     hasNextPage: query.hasNextPage,
     isFetchingNextPage: query.isFetchingNextPage,
+    // Whether the LAST next-page fetch failed. Distinct from `isError`, which a failed next page also sets
+    // even though the pages already on screen are fine. <LoadMore/> needs it: after a failed page the auto
+    // trigger must stand down and let the buyer retry by hand (see LoadMore.tsx).
+    isFetchNextPageError: query.isFetchNextPageError,
     fetchNextPage: query.fetchNextPage
   }
 }

@@ -45,11 +45,29 @@ export const Period = styled.span`
 // Horizontal scroll on narrow screens so the table never forces the page to scroll sideways.
 export const Scroll = styled.div`
   overflow-x: auto;
+
+  /**
+   * Fade the right edge while there is more table to reach.
+   *
+   * Five columns do not fit a phone, so this scrolls — by design. What made it read as broken rather than as
+   * scrollable was the absence of any hint: the header was cut mid-word ("COLLECTION|S") against a hard edge,
+   * with the scrollbar hidden on touch. The same mask is what the browse tab strip uses for the same reason.
+   */
+  ${media.maxWidth('mobile')} {
+    mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 24px), transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 24px), transparent 100%);
+  }
 `
 
 export const Table = styled.table`
   width: 100%;
   min-width: 640px;
+
+  /* 640 is a desktop floor. Lowering it on mobile is what lets a fourth column reach the screen instead of
+     leaving three visible and two behind a scroll nobody knew was there. */
+  ${media.maxWidth('mobile')} {
+    min-width: 460px;
+  }
   border-collapse: separate;
   border-spacing: 0 8px; /* vertical gap between rows */
 `
@@ -80,7 +98,7 @@ export const Th = styled.th`
   }
 
   ${media.maxWidth('mobile')} {
-    padding: 10px 16px;
+    padding: 10px 8px;
   }
 `
 
@@ -101,7 +119,7 @@ export const Row = styled.tr`
 
   ${media.maxWidth('mobile')} {
     & td {
-      padding: 10px 16px;
+      padding: 10px 8px;
     }
   }
 `
@@ -109,6 +127,11 @@ export const Row = styled.tr`
 export const RankCell = styled.td`
   text-align: center;
   width: 96px;
+
+  /* 96px of rank is a quarter of a phone's width for a single digit. */
+  ${media.maxWidth('mobile')} {
+    width: 52px;
+  }
 `
 
 // Magenta rounded rank badge (1, 2, 3…).
@@ -134,6 +157,17 @@ export const Rank = styled.span`
 
 export const CreatorCell = styled.td`
   min-width: 200px;
+
+  /**
+   * The 200px floor is a DESKTOP floor. On a phone it is more than half the viewport before padding, so the
+   * table gave this column ~232px of a 375px row and squeezed the rank and the numbers into what was left —
+   * which is how the row became unreadable. Capped instead, and the name ellipsises rather than pushing.
+   */
+  ${media.maxWidth('mobile')} {
+    min-width: 0;
+    max-width: 132px;
+    overflow: hidden;
+  }
 `
 
 // CreatorBadge renders "By {name}" — bump it to the 16px table size + magenta name (Figma creator cell).
@@ -147,6 +181,19 @@ export const Creator = styled(CreatorBadge)`
   & [data-testid='creator-name'] {
     color: ${colors.accent};
     font-weight: 600;
+  }
+
+  /* The badge is a flex row, so the name needs min-width: 0 before it will shrink — without it the text keeps
+     its intrinsic width and the cap on the cell above just clips instead of ellipsising. */
+  ${media.maxWidth('mobile')} {
+    min-width: 0;
+
+    & [data-testid='creator-name'] {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      min-width: 0;
+    }
   }
   &[data-link]:hover [data-testid='creator-name'] {
     color: ${colors.accent};

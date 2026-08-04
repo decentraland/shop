@@ -144,11 +144,15 @@ export function FittingRoom() {
                 // still render. With a real avatar, its own shape is the target, so no override needed.
                 bodyShape={hasAvatar ? undefined : target}
                 urns={urns}
+                // Babylon on purpose (no `unity`): the Unity/aang renderer runs this in `mode=marketplace`,
+                // which previews a SINGLE urn and opens on the item-alone view — it never reads `type`, it
+                // remembers the last view in its own storage, and it draws its own wearable/avatar switch
+                // inside the scene. Babylon honours type=AVATAR with the whole urn list, keeps the rest of
+                // the profile's outfit on, and ships no in-scene controls.
                 type={PreviewType.AVATAR}
                 emote={PreviewEmote.FASHION}
                 disableBackground
                 disableFadeEffect
-                unity
                 onLoad={() => setPreviewReady(true)}
               />
               {!previewReady ? (

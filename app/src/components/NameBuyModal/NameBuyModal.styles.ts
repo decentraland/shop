@@ -445,4 +445,17 @@ export const ErrorBox = styled.div`
     flex: none;
     color: ${theme.colors.dclRed};
   }
+
+  /**
+   * Informational, not a failure. Used for "your payment went through, the NAME is on its way" and for the
+   * reason a purchase is not available yet (no price, not enough credits) — none of which is an error, and
+   * all of which would contradict themselves rendered in the red error treatment.
+   */
+  &[data-tone='info'] {
+    background: ${theme.colors.panel};
+
+    .ico {
+      color: ${theme.colors.accent};
+    }
+  }
 `

@@ -1,11 +1,10 @@
 import styled from '@emotion/styled'
 import { Button } from '~/components/Button'
+import { Shell } from '~/components/ManaPricingBanner/ManaPricingBanner.styles'
+import { Chip as BaseChip } from '~/styles/chip.styles'
 import { theme } from '~/styles/theme'
 
-const { colors, gradients, radius } = theme
-
-// The 620px restack is a page-specific breakpoint (not in theme.breakpoints), so it stays raw.
-const narrow = '@media (max-width: 620px)'
+const { colors, font, media, radius } = theme
 
 export const Empty = styled.div`
   max-width: 520px;
@@ -28,84 +27,129 @@ export const EmptyTitle = styled.h1`
   margin: 4px 0 0;
 `
 
-// The empty-state CTA sits below the copy.
 export const EmptyCta = styled(Button)`
   margin-top: 10px;
 `
 
 export const Root = styled.div`
-  max-width: 860px;
+  max-width: 1003px;
   margin: 0 auto;
   padding-bottom: 120px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-family: ${font.sans};
 `
 
 export const Head = styled.header`
-  margin-bottom: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 10px 12px;
 `
 
-export const Eyebrow = styled.span`
-  display: inline-block;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  color: ${colors.accent};
-  background: ${colors.rarityBg};
-  padding: 6px 12px;
-  border-radius: 999px;
-  margin-bottom: 14px;
+export const Intro = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 `
 
 export const Title = styled.h1`
-  font-size: clamp(26px, 4vw, 38px);
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  line-height: 1.08;
-  margin: 0 0 10px;
-`
-
-export const Grad = styled.span`
-  background: ${gradients.amethyst};
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  margin: 0;
+  font-weight: 600;
+  font-size: 20px;
+  line-height: 24px;
+  letter-spacing: 0.46px;
+  color: ${colors.text};
 `
 
 export const Lede = styled.p`
-  color: ${colors.muted};
-  max-width: 60ch;
   margin: 0;
+  font-weight: 500;
+  font-size: 14px;
+  line-height: 1.334;
+  color: ${colors.muted1};
 `
 
-export const Ratebar = styled.div`
-  font-size: 13px;
-  color: ${colors.muted};
-  margin: 16px 0 8px;
+export const LearnMore = styled.a`
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 30px;
+  text-decoration: underline;
+  color: ${colors.accent};
+
+  .ico {
+    width: 13px;
+    height: 13px;
+  }
+  &:focus-visible {
+    outline: 2px solid ${colors.accent};
+    outline-offset: 2px;
+  }
+`
+
+export const Divider = styled.hr`
+  width: 100%;
+  height: 0;
+  margin: 0;
+  border: 0;
+  border-top: 1px solid ${colors.line};
+`
+
+export const Body = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 12px 0;
+`
+
+// The same lilac strip as the My Assets nudge, carrying a count instead of a call to action.
+export const Progress = styled(Shell)`
+  font-size: 14px;
+  line-height: 1.334;
+  color: ${colors.text2};
+`
+
+export const Count = styled.span`
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: ${radius.pill};
+  background: ${colors.brandViolet};
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 1.6;
+  color: ${colors.white};
+`
+
+export const ListBlock = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+`
+
+export const SelectAll = styled.label`
   display: flex;
   align-items: center;
-  gap: 7px;
-`
-
-export const Section = styled.section`
-  margin-top: 26px;
-`
-
-export const SectionHead = styled.div`
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-bottom: 12px;
-`
-
-export const SectionTitle = styled.h2`
-  font-size: 19px;
-  font-weight: 800;
-`
-
-export const SectionSub = styled.span`
-  color: ${colors.muted};
+  align-self: flex-start;
   font-size: 14px;
+  line-height: 1.2;
+  color: ${colors.text};
+  cursor: pointer;
+`
+
+// A fixed 40px slot so the checkbox lines up with the one on every row below it.
+export const CheckSlot = styled.span`
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
 `
 
 export const List = styled.div`
@@ -115,136 +159,113 @@ export const List = styled.div`
 `
 
 export const Row = styled.article`
-  display: grid;
-  grid-template-columns: 22px 56px 1fr auto auto;
+  display: flex;
   align-items: center;
-  gap: 16px;
+  flex-wrap: wrap;
+  gap: 12px;
+  row-gap: 8px;
+  padding: 12px 24px 12px 0;
+  border: 1px solid ${colors.gray4};
+  border-radius: ${radius.card};
   background: ${colors.white};
-  border: 1px solid ${colors.line};
-  border-radius: 14px;
-  padding: 14px 18px;
-  transition:
-    box-shadow 0.18s ease,
-    opacity 0.25s ease;
+  overflow: hidden;
+  transition: opacity 0.25s ease;
 
-  &:hover {
-    box-shadow: 0 10px 28px rgba(46, 16, 74, 0.1);
-  }
   &[data-off] {
     opacity: 0.5;
   }
-
-  ${narrow} {
-    grid-template-columns: 22px 48px 1fr;
-    row-gap: 12px;
-  }
 `
 
-// The `shimmer` keyframe is global (index.css).
-export const SkeletonRow = styled.div`
-  display: block;
-  height: 86px;
-  border: 1px solid transparent;
-  border-radius: 14px;
-  background: linear-gradient(100deg, #ededed 30%, #f7f7f7 50%, #ededed 70%);
-  background-size: 200% 100%;
-  animation: shimmer 1.3s infinite linear;
-`
-
-export const Check = styled.input`
-  appearance: none;
-  width: 22px;
-  height: 22px;
-  border-radius: 7px;
-  border: 2px solid ${colors.lineStrong};
-  background: ${colors.white};
-  cursor: pointer;
-  display: grid;
-  place-items: center;
+// Checkbox and thumbnail read as one unit, so they sit flush rather than taking the row's gap.
+export const Lead = styled.div`
   flex: none;
-  transition:
-    background 0.15s,
-    border-color 0.15s;
-
-  &:checked {
-    background: ${colors.accent};
-    border-color: ${colors.accent};
-  }
-  &:checked::after {
-    content: '✓';
-    color: ${colors.white};
-    font-size: 13px;
-    font-weight: 800;
-  }
-  &:focus-visible {
-    outline: 2px solid ${colors.accent};
-    outline-offset: 2px;
-  }
+  display: flex;
+  align-items: center;
 `
 
 export const Thumb = styled.div`
-  width: 56px;
-  height: 56px;
-  border-radius: ${radius.card};
-  overflow: hidden;
   flex: none;
   display: grid;
   place-items: center;
-  background: radial-gradient(120% 120% at 30% 20%, rgba(165, 36, 179, 0.12), ${colors.media} 70%);
-  border: 1px solid ${colors.line};
+  width: 74.289px;
+  height: 74px;
+  border-radius: 6.482px;
+  background: ${colors.media};
+  overflow: hidden;
 
   & img {
-    width: 100%;
-    height: 100%;
+    width: 61.57px;
+    height: 61.281px;
     object-fit: contain;
+    filter: drop-shadow(0.303px 1.212px 1.516px rgba(0, 0, 0, 0.1));
   }
 `
 
-export const Meta = styled.div`
+export const Info = styled.div`
+  /* Basis (not min-width) is what makes the price column wrap to its own line on a phone; min-width: 0
+     then lets the name ellipsize once it is on a line of its own. */
+  flex: 1 1 150px;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px 8px;
 `
 
 export const Name = styled.div`
-  font-weight: 700;
-  font-size: 15px;
+  font-weight: 600;
+  font-size: 16px;
+  line-height: 1.2;
+  color: ${colors.text};
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 `
 
-export const Chip = styled.span`
-  display: inline-flex;
-  margin-top: 5px;
-  font-size: 10.5px;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: ${colors.rarity};
-  background: ${colors.rarityBg};
-  padding: 3px 9px;
-  border-radius: 5px;
+export const Chips = styled.div`
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
 `
 
-export const Price = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 3px;
+export const Chip = styled(BaseChip)`
+  padding: 1.623px 6.491px;
+  font-weight: 600;
+  font-size: 8.56px;
+  line-height: 11.851px;
 
-  ${narrow} {
-    grid-column: 2 / 4;
-    align-items: flex-start;
+  &[data-variant='icon'] {
+    padding: 1.623px 3.246px;
+  }
+  &[data-variant='icon'] .ico {
+    width: 14.605px;
+    height: 14.605px;
   }
 `
 
-export const PriceField = styled.div`
-  display: inline-flex;
-  align-items: center;
+export const Price = styled.div`
+  flex: none;
+  /* Right-aligns the block on the desktop row AND on the line it wraps to on narrow screens. */
+  margin-left: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
   gap: 4px;
-  border: 1.5px solid ${colors.lineStrong};
-  border-radius: 10px;
-  padding: 7px 12px;
-  background: ${colors.white};
+`
+
+export const PriceField = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 144px;
+  height: 42px;
+  padding: 8px;
+  border: 0.5px solid ${colors.muted2};
+  border-radius: ${radius.btn};
+  background: ${colors.panel};
   transition:
     border-color 0.15s,
     box-shadow 0.15s;
@@ -256,57 +277,42 @@ export const PriceField = styled.div`
 `
 
 export const PriceInput = styled.input`
-  width: 82px;
+  flex: 1 1 auto;
+  min-width: 0;
   border: 0;
   outline: 0;
   background: transparent;
   font: inherit;
-  font-weight: 800;
-  font-size: 17px;
+  font-weight: 600;
+  font-size: 16px;
   color: ${colors.text};
   text-align: right;
   font-variant-numeric: tabular-nums;
 `
 
 export const PriceSub = styled.div`
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  font-weight: 500;
   font-size: 12px;
+  color: ${colors.gray0};
+`
+
+export const PriceWas = styled.span`
+  font-weight: 300;
+  font-size: 10px;
   color: ${colors.muted};
-  display: flex;
-  align-items: center;
-  gap: 8px;
 `
 
-export const PriceReset = styled.button`
-  background: none;
-  border: 0;
-  padding: 0;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  color: ${colors.accent};
-  cursor: pointer;
-`
-
-export const Action = styled.div`
-  display: flex;
-  justify-content: flex-end;
-  min-width: 74px;
-
-  ${narrow} {
-    grid-column: 2 / 4;
-    justify-content: flex-start;
-  }
-`
-
-// The per-row "List" button: a subtle neutral fill instead of the default Button look.
-export const ListBtn = styled(Button)`
-  && {
-    background: ${colors.media};
-    color: ${colors.text2};
-  }
-  &&:hover:not(:disabled) {
-    background: #e3e0ea;
-  }
+// The `shimmer` keyframe is global (index.css).
+export const SkeletonRow = styled.div`
+  height: 101px;
+  border: 1px solid transparent;
+  border-radius: ${radius.card};
+  background: linear-gradient(100deg, #ededed 30%, #f7f7f7 50%, #ededed 70%);
+  background-size: 200% 100%;
+  animation: shimmer 1.3s infinite linear;
 `
 
 export const Dock = styled.div`
@@ -321,17 +327,26 @@ export const Dock = styled.div`
 `
 
 export const DockInner = styled.div`
-  max-width: 860px;
+  max-width: 1003px;
   margin: 0 auto;
   padding: 15px 20px;
   display: flex;
   align-items: center;
   gap: 16px;
+
+  ${media.maxWidth('mobile')} {
+    padding: 12px 16px;
+    gap: 12px;
+  }
 `
 
 export const DockTotal = styled.div`
-  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
   font-size: 16px;
+  color: ${colors.text};
 `
 
 export const DockSub = styled.div`
@@ -343,7 +358,7 @@ export const DockSpacer = styled.span`
   flex: 1 1 auto;
 `
 
-// The dock's "List all" CTA is a touch roomier than the base button.
 export const DockCta = styled(Button)`
+  flex: none;
   padding: 13px 24px;
 `

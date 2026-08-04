@@ -18,6 +18,9 @@ const { waitForSettlement, SettlementPendingError, fetchOwnsItem } = vi.hoisted(
 vi.mock('~/lib/buy-gasless', () => ({ waitForSettlement, SettlementPendingError }))
 // Partial mock: keep the real module (types + other exports) but stub the ownership check.
 vi.mock('~/lib/api', async orig => ({ ...(await orig<Record<string, unknown>>()), fetchOwnsItem }))
+// The confetti lazy-loads lottie-web, which drives real timers over a canvas — irrelevant here and noisy in
+// jsdom. The <Confetti/> wrapper (its reduced-motion decision and where it mounts) is what these assert.
+vi.mock('lottie-react', () => ({ default: () => <span data-testid="lottie" /> }))
 
 import { Success } from '~/pages/Success'
 
@@ -231,6 +234,102 @@ describe('Success settlement gating', () => {
       } finally {
         session.providerType = restore
       }
+    })
+  })
+
+  /**
+   * The confetti celebrates a purchase, so it must fire on the CONFIRMED screen and nowhere else: raining
+   * confetti over a "still processing" (or reverted) purchase would be celebrating something that hasn't
+   * happened, or didn't.
+   */
+  describe('the purchase confetti', () => {
+    const renderState = (state: Record<string, unknown>) => {
+      const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      return render(
+        <QueryClientProvider client={qc}>
+          <MemoryRouter initialEntries={[{ pathname: '/success', state: { items: [item], ...state } }]}>
+            <Routes>
+              <Route path="/success" element={<Success />} />
+            </Routes>
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+    }
+
+    it('fires on the confirmed screen', async () => {
+      renderState({ settled: true })
+
+      await screen.findByText(/your purchase was successful/i)
+      const confetti = screen.getByTestId('confetti')
+      // Decorative and non-blocking: out of the a11y tree, and it can never eat a click on the CTAs below it.
+      expect(confetti).toHaveAttribute('aria-hidden')
+    })
+
+    it('does not fire while the purchase is still settling', async () => {
+      waitForSettlement.mockReturnValue(new Promise(() => {})) // never settles
+      renderState({ txHash: '0xdeadbeef' })
+
+      await screen.findByText(/processing your purchase/i)
+      expect(screen.queryByTestId('confetti')).toBeNull()
+    })
+
+    it('does not fire when the purchase failed', async () => {
+      waitForSettlement.mockRejectedValue(new Error('Purchase reverted'))
+      renderState({ txHash: '0xdeadbeef' })
+
+      await waitFor(() => expect(screen.getByText(/didn.t go through/i)).toBeTruthy())
+      expect(screen.queryByTestId('confetti')).toBeNull()
+    })
+
+    it('respects prefers-reduced-motion — the page still confirms, nothing moves', async () => {
+      const spy = vi
+        .spyOn(window, 'matchMedia')
+        .mockImplementation(query => ({ matches: query.includes('prefers-reduced-motion') }) as MediaQueryList)
+      try {
+        renderState({ settled: true })
+
+        await screen.findByText(/your purchase was successful/i)
+        expect(screen.queryByTestId('confetti')).toBeNull()
+      } finally {
+        spy.mockRestore()
+      }
+    })
+  })
+
+  /**
+   * The dev-only way to see the confirmed screen (and the confetti) without paying: `/success?demo=1`. It is
+   * gated on `import.meta.env.DEV`, which Vite statically replaces with `false` in a production build — so what
+   * is testable here is the parsing, not the gate.
+   */
+  describe('the ?demo=1 preview', () => {
+    const renderAt = (path: string) => {
+      const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      return render(
+        <QueryClientProvider client={qc}>
+          <MemoryRouter initialEntries={[path]}>
+            <Routes>
+              <Route path="/success" element={<Success />} />
+              <Route path="/assets" element={<div>Browse</div>} />
+            </Routes>
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+    }
+
+    it('renders the confirmed screen with confetti and no router state at all', async () => {
+      renderAt('/success?demo=1')
+
+      await screen.findByText(/your purchase was successful/i)
+      expect(screen.getByTestId('confetti')).toBeInTheDocument()
+      expect(screen.getByText('Demo Hat')).toBeInTheDocument()
+    })
+
+    it('is inert without the exact flag — a bare /success still sends you back to browse', async () => {
+      renderAt('/success')
+      expect(await screen.findByText('Browse')).toBeInTheDocument()
+
+      renderAt('/success?demo=0')
+      await waitFor(() => expect(screen.getAllByText('Browse')).toHaveLength(2))
     })
   })
 
