@@ -551,7 +551,11 @@
     "paidWithMana": "Compra · pagada con MANA",
     "payoutPending": "Pendiente",
     "payoutPendingOn": "Credits disponibles el {date}",
-    "payoutCredited": "Cobrado en credits"
+    "payoutCredited": "Cobrado en credits",
+    "migrate": {
+      "chip": "Mueve tus publicaciones",
+      "chipAria": "Mueve tus publicaciones — {count, plural, one {queda # artículo} other {quedan # artículos}}"
+    }
   },
   "myFavorites": {
     "emptyTitle": "¡Aquí no hay nada... todavía!",
@@ -780,8 +784,6 @@
   },
   "importListings": {
     "toastUpdated": "Tu Tienda está actualizada.",
-    "signInTitle": "Importa tus publicaciones",
-    "signInBody": "Inicia sesión para traer a la Tienda los artículos que ya vendes.",
     "emptyTitle": "Estás al día",
     "emptyBody": "Todo lo que vendes ya está en la Tienda — no hay nada que importar.",
     "goToMyAssets": "Ir a Mis artículos",
@@ -790,6 +792,7 @@
     "learnMore": "Más información",
     "updatePricing": "Actualizar precios",
     "selectAll": "Seleccionar todo",
+    "selectAllAria": "Seleccionar todo lo que vas a mover",
     "includeItem": "Incluir {name}",
     "itemFallback": "Artículo",
     "priceAria": "Precio en {currency} para {name}",

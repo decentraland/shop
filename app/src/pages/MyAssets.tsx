@@ -11,7 +11,6 @@ import {
   type CatalogItem,
   type MyAsset
 } from '~/lib/api'
-import { fetchImportable } from '~/lib/import'
 import { fetchPublishableItems, type PublishableItem } from '~/lib/builder'
 import { Button } from '~/components/Button'
 import { AssetCard } from '~/components/AssetCard'
@@ -24,7 +23,7 @@ import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
 import { SUBCAT_MAP } from '~/lib/categories'
 import { capitalizeFirst } from '~/lib/text'
 import { useSeo } from '~/hooks/useSeo'
-import { useSecondarySales } from '~/hooks/useSecondarySales'
+import { useImportable } from '~/hooks/useImportable'
 import { t } from '~/intl/i18n'
 import { theme } from '~/styles/theme'
 import { ErrorNotice } from '~/components/ErrorNotice'
@@ -320,16 +319,10 @@ export function MyAssets() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [publishable, saleState, status, search, sort])
 
-  // Old (classic) listings the seller could import into the Shop → surfaces the import banner.
-  const secondarySales = useSecondarySales()
-  const { data: importable } = useQuery({
-    queryKey: ['importable', address],
-    queryFn: () => fetchImportable(address as string),
-    enabled: !!address
-  })
-  // Only what the import page will actually offer: counting the secondary half while it is hidden would
-  // badge a number the user cannot act on, and send them to a page that shows fewer rows than promised.
-  const importCount = (importable?.creations.length ?? 0) + (secondarySales ? (importable?.owned.length ?? 0) : 0)
+  // Old (classic) listings the seller could move into the Shop → surfaces the import banner. Shared
+  // with the Activity chip, so the two can never quote different numbers.
+  const { count: importableCount } = useImportable()
+  const importCount = importableCount ?? 0
 
   useEffect(() => {
     if (pricingPrompt !== 'idle' || importCount === 0) return

@@ -49,7 +49,6 @@ const StoreSettings = lazy(() => import('~/pages/StoreSettings').then(m => ({ de
 const MyAssets = lazy(() => import('~/pages/MyAssets').then(m => ({ default: m.MyAssets })))
 const MyFavorites = lazy(() => import('~/pages/MyFavorites').then(m => ({ default: m.MyFavorites })))
 const Activity = lazy(() => import('~/pages/Activity').then(m => ({ default: m.Activity })))
-const ImportListings = lazy(() => import('~/pages/ImportListings').then(m => ({ default: m.ImportListings })))
 const Cart = lazy(() => import('~/pages/Cart').then(m => ({ default: m.Cart })))
 const Authorizations = lazy(() => import('~/pages/Authorizations').then(m => ({ default: m.Authorizations })))
 const GetCredits = lazy(() => import('~/pages/GetCredits').then(m => ({ default: m.GetCredits })))
@@ -199,7 +198,10 @@ export function App() {
               <Route path="/assets" element={<RenamedPathRedirect to="/items" />} />
               <Route path="/assets/*" element={<RenamedPathRedirect to="/items" />} />
               <Route path="/my-assets" element={<RenamedPathRedirect to="/my-items" />} />
-              <Route path="/import" element={<ImportListings />} />
+              {/* The migration tool moved INTO Activity, behind a chip. /import stays as a redirect:
+                  it has been the target of the My Items nudge for months, so it is in histories and
+                  bookmarks — and the query is what lands on the tool rather than on the feed. */}
+              <Route path="/import" element={<Navigate to="/activity?view=migrate" replace />} />
               <Route path="/cart" element={<Cart />} />
               <Route path="/authorizations" element={<Authorizations />} />
               <Route path="/credits" element={<GetCredits />} />
