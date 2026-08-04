@@ -618,7 +618,9 @@
     "unfinished": "Sin terminar",
     "resume": "Continuar",
     "resuming": "Abriendo…",
-    "resumeExpired": "Ese pago expiró: elige un paquete para empezar de nuevo."
+    "resumeExpired": "Ese pago expiró: elige un paquete para empezar de nuevo.",
+    "resumePaid": "Ya pagaste esto: tus créditos están en camino.",
+    "resumeUnavailable": "No pudimos abrir la página de pago. Inténtalo de nuevo."
   },
   "myFavorites": {
     "emptyTitle": "¡Aquí no hay nada... todavía!",

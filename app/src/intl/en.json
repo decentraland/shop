@@ -618,7 +618,9 @@
     "unfinished": "Unfinished",
     "resume": "Continue",
     "resuming": "Opening…",
-    "resumeExpired": "That checkout has expired — pick a pack to start again."
+    "resumeExpired": "That checkout has expired — pick a pack to start again.",
+    "resumePaid": "You already paid for this — your credits are on the way.",
+    "resumeUnavailable": "Couldn't open the payment page. Please try again."
   },
   "myFavorites": {
     "emptyTitle": "Nothing here... yet!",

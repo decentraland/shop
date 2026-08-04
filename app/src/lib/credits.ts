@@ -273,24 +273,54 @@ export async function cancelCreditOrder(orderId: string, identity: AuthIdentity)
 }
 
 /**
- * The hosted page for a checkout the buyer left open, or null when it can no longer be paid.
+ * What became of an attempt to reopen a checkout the buyer left. These are four different things to
+ * SAY, which is why this is not `string | null`: collapsing them meant a transient network blip told
+ * a buyer their perfectly live checkout was dead and to start a new one, and — worse — so did the
+ * case where the money had already arrived.
+ */
+export type ResumeResult =
+  /** Still payable. Send the buyer back to this Stripe page. */
+  | { kind: 'url'; url: string }
+  /** The session is gone. The server has retired the order; the row will stop offering to resume. */
+  | { kind: 'expired' }
+  /** They already paid — the credits are on their way. Never tell this buyer to buy again. */
+  | { kind: 'paid' }
+  /** We could not find out (Stripe unreachable, our error, offline). The checkout may well be fine. */
+  | { kind: 'unavailable' }
+
+/**
+ * Reopens a checkout the buyer left, or explains why it cannot be.
  *
  * Asking costs a round trip to Stripe, so it happens on the click rather than while rendering the
- * feed. Null is a real answer, not an error: the session expired (the server retires the order as it
- * finds out) or the money already arrived. Either way there is nothing to go back to.
+ * feed. The server distinguishes the outcomes and returns the order's real `status` in the body of
+ * its 409 — this reads it rather than treating every non-2xx as "expired".
  */
-export async function resumeCreditOrder(orderId: string, identity: AuthIdentity): Promise<string | null> {
+export async function resumeCreditOrder(orderId: string, identity: AuthIdentity): Promise<ResumeResult> {
   try {
     const url = `${config.creditsServerUrl}/credits/orders/${encodeURIComponent(orderId)}/resume`
     const res = await signedFetch(url, { method: 'POST', identity, metadata: {} })
-    if (!res.ok) {
-      void res.body?.cancel()
-      return null
+
+    if (res.ok) {
+      const json = (await res.json()) as { url?: string }
+      return json.url ? { kind: 'url', url: json.url } : { kind: 'unavailable' }
     }
-    const json = (await res.json()) as { url?: string }
-    return json.url ?? null
+
+    // 409 is the server's considered answer and carries WHY. Anything else (502 upstream, 500, 404)
+    // means we did not get one, and the honest thing is to say so rather than declare the checkout
+    // dead on the buyer's behalf.
+    if (res.status !== 409) {
+      void res.body?.cancel()
+      return { kind: 'unavailable' }
+    }
+    const json = (await res.json().catch(() => null)) as { status?: string } | null
+    if (json?.status === 'abandoned') return { kind: 'expired' }
+    // 'processing' here means Stripe reported the session complete — the money arrived.
+    if (json?.status === 'processing' || json?.status === 'crediting' || json?.status === 'credited') {
+      return { kind: 'paid' }
+    }
+    return { kind: 'unavailable' }
   } catch {
-    return null
+    return { kind: 'unavailable' }
   }
 }
 
