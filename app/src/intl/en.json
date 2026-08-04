@@ -559,7 +559,11 @@
     "migrate": {
       "chip": "Listings",
       "chipAria": "Move your listings — {count, plural, one {# item} other {# items}} left"
-    }
+    },
+    "unfinished": "Unfinished",
+    "resume": "Continue",
+    "resuming": "Opening…",
+    "resumeExpired": "That checkout has expired — pick a pack to start again."
   },
   "myFavorites": {
     "emptyTitle": "Nothing here... yet!",

@@ -81,8 +81,13 @@ export function buildActivityFeed(input: {
   // as "you are owed credits". The server now retires those on a timer, past the point where the Stripe
   // session could still be paid — which is what makes dropping them safe here.
   //
-  // 'processing' rows are still KEPT. Now that dead orders get retired, a processing row means what it says:
-  // paid or payable, not yet credited. Hiding those would hide money the buyer is waiting on.
+  // 'processing' rows are still KEPT, and now mean exactly one thing: money arrived and the credits are
+  // not in the balance yet. Hiding those would hide money the buyer is waiting on.
+  //
+  // 'initiated' is KEPT too, and is the reason it is worth a state of its own: the checkout is unpaid but
+  // the buyer can still walk back into it (the row carries a Continue action — see Activity's
+  // CreditPurchaseCard). Dropping it would hide a purchase they are halfway through; showing it as
+  // PENDING, which is what it used to be, told them they were owed credits they had never paid for.
   const creditEntries: ActivityEntry[] = (input.creditOrders ?? [])
     .filter(o => o.status !== 'failed' && o.status !== 'abandoned')
     .map(order => ({ kind: 'credit', id: `credit:${order.id}`, createdAt: order.createdAt, order }))
