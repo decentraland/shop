@@ -115,7 +115,7 @@ export function CategoryFilter({
               onClick={() => clickTop(top)}
             >
               <S.CatLabel>{t(top.labelKey)}</S.CatLabel>
-              {top.expandable ? <Chevron up={open} size={24} color={theme.colors.text} /> : null}
+              {top.expandable ? <Chevron up={open} size={24} color={theme.colors.softWhite} /> : null}
             </S.Cat>
 
             {top.subs ? (

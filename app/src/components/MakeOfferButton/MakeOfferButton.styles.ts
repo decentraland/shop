@@ -13,10 +13,12 @@ export const Button = styled.button`
   width: 100%;
   height: 40px;
   padding: 0 12px;
-  border: 2px solid ${theme.colors.magenta};
+  /* Dark-theme test: white outline + label so it stays legible on the purple field; the lowered
+     opacity still reads as "coming soon". */
+  border: 2px solid ${theme.colors.softWhite};
   border-radius: 8px;
   background: transparent;
-  color: ${theme.colors.accent};
+  color: ${theme.colors.softWhite};
   font-family: ${theme.font.sans};
   font-weight: 600;
   font-size: 15px;
@@ -24,15 +26,15 @@ export const Button = styled.button`
   letter-spacing: 0.46px;
   text-transform: uppercase;
   cursor: not-allowed;
-  opacity: 0.55;
+  opacity: 0.6;
   transition: opacity 0.15s ease;
 
   &:hover,
   &:focus-visible {
-    opacity: 0.75;
+    opacity: 0.85;
   }
   &:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
+    outline: 2px solid ${theme.colors.softWhite};
     outline-offset: 2px;
   }
 `

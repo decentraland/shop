@@ -19,16 +19,12 @@ export const Head = styled.div`
   margin-bottom: 20px;
 `
 
+// Figma section header: Inter Semi Bold 20 / 1.5, true white.
 export const Title = styled.h2`
-  font-size: 50px;
-  font-weight: 900;
-  letter-spacing: -0.05em;
-  line-height: 1.1;
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.5;
   color: ${colors.softWhite};
-
-  ${media.maxWidth('mobile')} {
-    font-size: 32px;
-  }
 `
 
 export const ViewAll = styled(Link)`

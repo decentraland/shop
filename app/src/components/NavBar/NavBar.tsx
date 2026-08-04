@@ -83,8 +83,23 @@ export function NavBar() {
   const [debounced, setDebounced] = useState(urlQuery)
   const [open, setOpen] = useState(false)
   const [recent, setRecent] = useState<string[]>([])
+  // The translucent band washes out over light content, so it deepens once the page scrolls.
+  const [scrolled, setScrolled] = useState(false)
   const searchTimer = useRef<ReturnType<typeof setTimeout>>()
   const wrapRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const onScroll = () => {
+      const v = window.scrollY > 8
+      setScrolled(v)
+      // Mirrored on <body> so the global ui2 navbar (styled from TopNav via ancestor selectors,
+      // outside this component) can deepen in step with the sub-nav.
+      document.body.toggleAttribute('data-scrolled', v)
+    }
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
 
   // Re-establish the previous session on load (silent, no popup) — handles the return from /auth.
   useEffect(() => {
@@ -225,7 +240,7 @@ export function NavBar() {
       />
 
       {/* Shop sub-nav (sections + search + cart) — the row under the global DCL navbar. */}
-      <S.Subnav data-testid="subnav">
+      <S.Subnav data-testid="subnav" data-scrolled={scrolled || undefined}>
         <S.Tabs data-testid="subnav-tabs">
           <NavLink to="/overview">{t('nav.overview')}</NavLink>
           {/* Collectibles stays active across the item detail / collection / creator pages too (they're

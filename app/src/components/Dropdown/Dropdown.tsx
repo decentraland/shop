@@ -82,7 +82,7 @@ export function Dropdown({
         onClick={() => setOpen(!open)}
       >
         <S.Label>{triggerLabel}</S.Label>
-        <Chevron up={open} size={24} color={theme.colors.text2} />
+        <Chevron up={open} size={24} color={theme.colors.softWhite} />
       </S.Trigger>
 
       {open ? (

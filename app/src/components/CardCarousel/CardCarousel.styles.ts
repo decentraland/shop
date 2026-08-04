@@ -1,7 +1,7 @@
 import styled from '@emotion/styled'
 import { theme } from '~/styles/theme'
 
-const { colors, media } = theme
+const { media } = theme
 
 // Reuses the global `.row` head/title/viewall; adds the Figma side arrows + pagination dots.
 export const Carousel = styled.section`
@@ -110,16 +110,17 @@ export const Dots = styled.div`
   margin-top: 12px;
 `
 
+/* Figma "Carousel Dots" (verbatim): 12px circles, rgba(0,0,0,0.5) at rest, Brand/Orange active. */
 export const Dot = styled.button`
   width: 12px;
   height: 12px;
   padding: 0;
   border: 0;
   border-radius: 50%;
-  background: #d9d6de;
+  background: rgba(0, 0, 0, 0.5);
   transition: background 0.15s ease;
 
   &[data-active] {
-    background: ${colors.accent};
+    background: #ff7439;
   }
 `

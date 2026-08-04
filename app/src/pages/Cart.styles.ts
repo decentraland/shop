@@ -7,7 +7,7 @@ import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { ErrorNotice } from '~/components/ErrorNotice'
 import { Icon } from '~/components/Icon'
 
-const { colors, gradients, radius } = theme
+const { colors, radius } = theme
 
 // Cart-specific breakpoints from the Figma cart specs (two-column → single, then the fixed mobile
 // summary bar) — deliberately not the canonical app breakpoints.
@@ -37,7 +37,7 @@ export const Back = styled.button`
   padding: 0;
   border: 0;
   background: none;
-  color: ${colors.text2};
+  color: ${colors.softWhite};
   font-size: 14px;
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -46,7 +46,7 @@ export const Back = styled.button`
   transition: color 0.15s ease;
 
   &:hover {
-    color: ${colors.accent};
+    color: ${colors.gray4};
   }
   & .ico {
     width: 18px;
@@ -99,7 +99,7 @@ export const HeadCard = styled.div`
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  background: ${colors.white};
+  background: rgba(255, 255, 255, 0.08);
   border-radius: 16px;
   padding: 12px 12px 12px 24px;
 
@@ -112,7 +112,7 @@ export const HeadCard = styled.div`
 // Items card: the cart-card list, 24px padding all round so the last line has breathing room.
 export const Panel = styled.section`
   min-width: 0;
-  background: ${colors.white};
+  background: rgba(255, 255, 255, 0.08);
   border-radius: 16px;
   padding: 24px;
 
@@ -132,7 +132,7 @@ export const CartEmpty = styled(Panel)`
   min-height: 420px;
   padding: 48px 16px;
   text-align: center;
-  color: ${colors.text};
+  color: ${colors.softWhite};
 
   ${theme.media.maxWidth('mobile')} {
     min-height: 320px;
@@ -179,7 +179,7 @@ export const CartEmptyCta = styled(Link)`
   height: 56px;
   padding: 0 12px;
   border-radius: ${radius.card};
-  background: ${colors.accent};
+  background: linear-gradient(180deg, #ff7439 0%, #ff2d55 100%);
   color: ${colors.softWhite};
   font-size: 15px;
   font-weight: 600;
@@ -187,13 +187,13 @@ export const CartEmptyCta = styled(Link)`
   letter-spacing: 0.46px;
   text-transform: uppercase;
   text-decoration: none;
-  transition: background 0.15s ease;
+  transition: filter 0.15s ease;
 
   &:hover {
-    background: ${colors.accentHover};
+    filter: brightness(1.08);
   }
   &:focus-visible {
-    outline: 2px solid ${colors.accent};
+    outline: 2px solid ${colors.softWhite};
     outline-offset: 2px;
   }
 `
@@ -209,7 +209,7 @@ export const PanelBack = styled.button`
     border: 0;
     background: none;
     padding: 0;
-    color: ${colors.text};
+    color: ${colors.softWhite};
     cursor: pointer;
 
     & .ico {
@@ -224,7 +224,7 @@ export const PanelTitle = styled.h1`
   font-size: 14px;
   font-weight: 600;
   line-height: 1.57;
-  color: ${colors.text};
+  color: ${colors.softWhite};
 
   ${mobile} {
     flex: 1;
@@ -247,8 +247,8 @@ export const Fitting = styled.button`
   border-radius: ${radius.btn};
   background:
     linear-gradient(${colors.white}, ${colors.white}) padding-box,
-    ${gradients.amethyst} border-box;
-  color: ${colors.accent};
+    linear-gradient(180deg, #ff7439 0%, #ff2d55 100%) border-box;
+  color: ${colors.text};
   font-size: 13px;
   font-weight: 600;
   line-height: 24px;
@@ -261,7 +261,7 @@ export const Fitting = styled.button`
     filter 0.15s ease;
 
   &:hover:not(:disabled) {
-    box-shadow: 0 0 8px 0 rgba(165, 36, 179, 0.35);
+    box-shadow: 0 0 8px 0 rgba(255, 116, 57, 0.45);
   }
   &:active:not(:disabled) {
     filter: brightness(0.97);
@@ -293,8 +293,8 @@ export const Card = styled.div`
   display: flex;
   align-items: stretch;
   gap: 12px;
-  background: ${colors.white};
-  border: 1px solid ${colors.gray4};
+  background: rgba(20, 7, 32, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: ${radius.card};
   overflow: hidden;
 
@@ -381,14 +381,14 @@ const nameCss = css`
   font-size: 16px;
   font-weight: 600;
   line-height: 1.2;
-  color: ${colors.text};
+  color: ${colors.softWhite};
   text-decoration: none;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 
   a&:hover {
-    color: ${colors.accent};
+    color: ${colors.gray4};
   }
 
   ${mobile} {
@@ -412,7 +412,7 @@ export const NameLink = styled(Link)`
 export const Creator = styled(CreatorBadge)`
   font-size: 10px;
   line-height: 1.43;
-  color: ${colors.muted};
+  color: ${colors.gray4};
 
   & [data-avatar] {
     display: none;
@@ -437,7 +437,7 @@ export const Stepper = styled.div`
   align-items: center;
   gap: 8px;
   padding: 6px;
-  border: 0.5px solid ${colors.muted2};
+  border: 0.5px solid rgba(255, 255, 255, 0.6);
   border-radius: ${radius.pill};
 `
 
@@ -449,11 +449,11 @@ export const Step = styled.button`
   padding: 0;
   border: 0;
   background: none;
-  color: ${colors.text};
+  color: ${colors.softWhite};
   cursor: pointer;
 
   &:disabled {
-    color: ${colors.muted2};
+    color: rgba(255, 255, 255, 0.4);
     cursor: default;
   }
 `
@@ -463,7 +463,7 @@ export const Qty = styled.span`
   font-size: 14px;
   font-weight: 500;
   line-height: 1.2;
-  color: ${colors.text};
+  color: ${colors.softWhite};
   text-align: center;
 `
 
@@ -476,7 +476,7 @@ export const Price = styled.div`
   margin-left: auto;
   font-size: 24px;
   font-weight: 600;
-  color: ${colors.text2};
+  color: ${colors.softWhite};
 
   ${mobile} {
     font-size: 20px;
@@ -486,7 +486,7 @@ export const Price = styled.div`
 export const PriceIco = styled(CurrencyIcon)`
   width: 24px;
   height: 24px;
-  background: ${colors.text};
+  background: ${colors.softWhite};
 
   ${mobile} {
     width: 20px;
@@ -498,7 +498,7 @@ export const PriceWas = styled.span`
   margin-left: 6px;
   font-size: 14px;
   font-weight: 500;
-  color: ${colors.muted};
+  color: ${colors.gray4};
   text-decoration: line-through;
 `
 
@@ -519,7 +519,7 @@ export const Unavailable = styled.span`
   font-weight: 600;
   line-height: 1;
   text-transform: uppercase;
-  color: ${colors.text2};
+  color: ${colors.softWhite};
 `
 
 export const Warn = styled(Icon)`
@@ -533,13 +533,13 @@ export const Resales = styled(Link)`
   letter-spacing: 0.46px;
   text-transform: uppercase;
   text-decoration: underline;
-  color: ${colors.accent};
+  color: ${colors.softWhite};
 
   &:hover {
-    color: ${colors.accentHover};
+    color: ${colors.gray4};
   }
   &:focus-visible {
-    outline: 2px solid ${colors.accent};
+    outline: 2px solid ${colors.softWhite};
     outline-offset: 2px;
   }
 `
@@ -552,18 +552,18 @@ export const CreatorTag = styled.span`
   gap: 4px;
   padding: 2px 4px;
   border-radius: ${radius.chip};
-  background: #f4e9ff;
+  background: rgba(255, 255, 255, 0.16);
   font-size: 10px;
   font-weight: 400;
   line-height: 14px;
-  color: ${colors.text};
+  color: ${colors.softWhite};
 `
 
 // The glyph keeps the design's leaf size (11.31 × 10.94) rather than a square icon box.
 export const CreatorTagIco = styled(Icon)`
   width: 11.31px;
   height: 10.94px;
-  background: ${colors.text};
+  background: ${colors.softWhite};
 `
 
 const iconBtn = css`
@@ -574,7 +574,7 @@ const iconBtn = css`
   padding: 0;
   border: 0;
   background: none;
-  color: ${colors.muted};
+  color: ${colors.gray4};
   cursor: pointer;
   transition: color 0.12s ease;
 
@@ -588,7 +588,7 @@ export const Fav = styled.button`
   ${iconBtn};
 
   &:hover:not(:disabled) {
-    color: ${colors.text};
+    color: ${colors.white};
   }
   &[data-on] {
     color: ${colors.dclRed};
@@ -610,11 +610,11 @@ export const Utils = styled.div`
 
   & .link {
     font-size: 13px;
-    color: ${colors.muted};
+    color: ${colors.gray4};
     font-weight: 600;
   }
   & .link:hover:not(:disabled) {
-    color: ${colors.text};
+    color: ${colors.white};
   }
 `
 
@@ -623,8 +623,8 @@ export const Summary = styled.aside`
   top: 172px;
   display: flex;
   flex-direction: column;
-  background: ${colors.white};
-  box-shadow: 0 1px 3px rgba(22, 21, 24, 0.06);
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
   border-radius: 16px;
   padding: 16px;
 
@@ -640,17 +640,18 @@ export const Summary = styled.aside`
     z-index: 30;
     border: 0;
     border-radius: 16px 16px 0 0;
-    box-shadow: 0 -4px 20px rgba(22, 21, 24, 0.12);
+    background: #2b0e44;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.35);
   }
 `
 
 export const SummaryTitle = styled.h2`
   margin: 0 0 24px;
   padding-bottom: 16px;
-  border-bottom: 1px solid ${colors.gray4};
+  border-bottom: 1px solid rgba(255, 255, 255, 0.3);
   font-size: 24px;
   font-weight: 600;
-  color: ${colors.text};
+  color: ${colors.softWhite};
 
   ${mobile} {
     margin-bottom: 12px;
@@ -676,7 +677,7 @@ export const TotalLabel = styled.span`
   font-size: 14px;
   font-weight: 600;
   line-height: 1.57;
-  color: ${colors.muted1};
+  color: ${colors.gray4};
 `
 
 export const TotalValue = styled.span`
@@ -685,7 +686,7 @@ export const TotalValue = styled.span`
   gap: 8px;
   font-size: 24px;
   font-weight: 700;
-  color: ${colors.text};
+  color: ${colors.softWhite};
 `
 
 // Total + the exchange rate stacked under it, both flush right.
@@ -701,13 +702,13 @@ export const TotalRate = styled.span`
   font-size: 12px;
   font-weight: 400;
   line-height: 1;
-  color: ${colors.muted};
+  color: ${colors.gray4};
 `
 
 export const TotalIco = styled(CurrencyIcon)`
   width: 30px;
   height: 30px;
-  background: ${colors.text};
+  background: ${colors.softWhite};
   -webkit-mask-size: 24px 24px;
   mask-size: 24px 24px;
   -webkit-mask-position: left center;
@@ -719,19 +720,17 @@ export const Cta = styled.button`
   height: 56px;
   border: 0;
   border-radius: ${radius.btn};
-  background: ${gradients.amethyst};
+  background: linear-gradient(180deg, #ff7439 0%, #ff2d55 100%);
   color: ${colors.softWhite};
   font-size: 15px;
   font-weight: 600;
   letter-spacing: 0.046em;
   text-transform: uppercase;
   cursor: pointer;
-  transition:
-    background 0.15s ease,
-    filter 0.15s ease;
+  transition: filter 0.15s ease;
 
   &:hover:not(:disabled) {
-    background: ${colors.accent};
+    filter: brightness(1.08);
   }
   &:active:not(:disabled) {
     filter: brightness(0.95);
@@ -749,6 +748,7 @@ const msg = css`
 
 export const Msg = styled.p`
   ${msg};
+  color: ${colors.softWhite};
 `
 
 export const MsgNotice = styled(ErrorNotice)`
@@ -761,28 +761,12 @@ export const MsgNotice = styled(ErrorNotice)`
 // with no gray strip. The top margin sits ABOVE that band, so it shows the gray page background.
 export const Upsell = styled.div`
   position: relative;
-  /* Takes the leftover height so its white ::before covers it — see .page[data-route="/cart"]. */
   flex: 1 0 auto;
   margin-top: 48px;
-  /* The whole gap from the top of the cross-sell to the "You might also like" heading — the shared
-     carousel's own top margin is zeroed below so this padding isn't stacked on top of it. */
+  /* Dark-theme test: the cross-sell sits directly on the purple field (the old design put it on a
+     full-bleed white band). */
   padding: 47px 0 24px;
 
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    bottom: -80px; /* eat .page's bottom padding so the white reaches the footer */
-    left: 50%;
-    width: 100vw;
-    transform: translateX(-50%);
-    background: ${colors.bg};
-    z-index: 0;
-  }
-  & > * {
-    position: relative;
-    z-index: 1;
-  }
   & section {
     margin-top: 0;
   }

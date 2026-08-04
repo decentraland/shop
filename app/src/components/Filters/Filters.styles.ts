@@ -162,12 +162,6 @@ export const PriceBox = styled.span`
   }
 `
 
-export const PriceCoin = styled(Icon)`
-  width: 16px;
-  height: 16px;
-  color: ${theme.colors.softWhite};
-`
-
 export const PriceInput = styled.input`
   width: 100%;
   min-width: 0;
@@ -463,9 +457,12 @@ export const ToggleKnob = styled('span', noForward('on'))<{ on?: boolean }>`
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: ${theme.colors.white};
+  /* Figma toggle: gray-1 (#716b7c) knob at rest, white once on. */
+  background: ${({ on }) => (on ? theme.colors.white : theme.colors.muted)};
   box-shadow: 0 1px 2px rgba(22, 21, 24, 0.3);
-  transition: left 0.15s ease;
+  transition:
+    left 0.15s ease,
+    background 0.15s ease;
 
   ${theme.media.maxWidth('lg')} {
     width: 18px;

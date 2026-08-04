@@ -45,32 +45,13 @@ export const Sidebar = styled.aside`
     max-height: calc(100vh - 158px - 24px);
     overflow-y: auto;
     overscroll-behavior: contain;
-    /* Reserve the scrollbar gutter so revealing the bar on hover doesn't shift the filter content. */
-    scrollbar-gutter: stable;
-
-    /* Subtle scrollbar (matches the cart scroll list). The track width is reserved CONSTANTLY — the same
-       8px at rest and on hover — so revealing the scrollbar never consumes space and pushes the sidebar
-       content left. Only the THUMB fades in on hover; at rest both thumb and track are transparent, so
-       the gutter is invisible but its space is already held. Firefox keeps scrollbar-width: thin (not
-       none -> thin, which would also shift) and just recolours the thumb on hover. */
-    scrollbar-width: thin;
-    scrollbar-color: transparent transparent;
+    /* Scrollbar fully hidden (it used to fade in on hover, which read as a glitch on the dark theme).
+       Wheel/trackpad/keyboard scrolling still works; the column just never shows a bar. */
+    scrollbar-width: none;
+    -ms-overflow-style: none;
     &::-webkit-scrollbar {
-      width: 8px;
-    }
-    &::-webkit-scrollbar-track {
-      background: transparent;
-    }
-    &::-webkit-scrollbar-thumb {
-      background: transparent;
-      border-radius: 8px;
-      transition: background 0.2s ease;
-    }
-    &:hover {
-      scrollbar-color: ${theme.colors.muted2} transparent;
-    }
-    &:hover::-webkit-scrollbar-thumb {
-      background: ${theme.colors.muted2};
+      width: 0;
+      display: none;
     }
   }
 

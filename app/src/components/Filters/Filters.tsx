@@ -47,7 +47,7 @@ export function FilterSection({
   headerAria?: string
   children: ReactNode
 }) {
-  const chevron = <Chevron up={open} size={24} color={theme.colors.text} />
+  const chevron = <Chevron up={open} size={24} color={theme.colors.softWhite} />
   return (
     <S.Section>
       <S.Header
@@ -159,7 +159,6 @@ export function Filters({
           <S.PriceField>
             <S.PriceFieldLabel>{t('assets.min')}</S.PriceFieldLabel>
             <S.PriceBox>
-              <S.PriceCoin name={CURRENCY.iconName} aria-hidden />
               <S.PriceInput
                 type="number"
                 min="0"
@@ -174,7 +173,6 @@ export function Filters({
           <S.PriceField>
             <S.PriceFieldLabel>{t('assets.max')}</S.PriceFieldLabel>
             <S.PriceBox>
-              <S.PriceCoin name={CURRENCY.iconName} aria-hidden />
               <S.PriceInput
                 type="number"
                 min="0"

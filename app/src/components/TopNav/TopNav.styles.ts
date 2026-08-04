@@ -35,12 +35,18 @@ export const Skeleton = styled.div`
 export const NavbarViolet = styled.div`
   display: contents;
 
-  /* Bar background (dark-theme test): translucent near-black over the purple field, per Figma. */
+  /* Bar background (dark-theme test): translucent near-black over the purple field, per Figma. Like
+     the sub-nav, it deepens once the page scrolls (body[data-scrolled], set by NavBar) so it doesn't
+     wash out over light content passing underneath. */
   & nav::before {
     background: rgba(22, 21, 24, 0.4);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     box-shadow: none;
+    transition: background 0.25s ease;
+  }
+  body[data-scrolled] & nav::before {
+    background: rgba(22, 21, 24, 0.75);
   }
 
   /* Desktop nav tabs (Explore / Shop / Create / Learn): light text on the dark bar. Direct-child
@@ -58,6 +64,20 @@ export const NavbarViolet = styled.div`
   & nav > div:first-of-type > div > div > button.active {
     color: ${theme.colors.white};
     background-color: rgba(255, 255, 255, 0.18);
+  }
+
+  /* Signed-in right cluster: the notifications bell is a glyph ui2 leaves near-black — force the
+     cluster's buttons and any svg glyph to white so it reads on the dark bar. The profile pic is an
+     <img> and the unread badge a text span, so neither is affected by color/fill. */
+  & nav > div:last-of-type button {
+    color: ${theme.colors.softWhite};
+  }
+  & nav > div:last-of-type svg {
+    color: ${theme.colors.softWhite};
+    fill: currentColor;
+  }
+  & nav > div:last-of-type svg path {
+    fill: currentColor;
   }
 
   /* Sign-in button (signed-out state): light outline + text on the dark bar. The hamburger is

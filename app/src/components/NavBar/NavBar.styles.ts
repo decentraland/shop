@@ -24,11 +24,18 @@ export const Subnav = styled.div`
   height: 66px;
   /* 54px matches the ui2 Navbar's desktop side padding so the sub-nav aligns with the top nav. */
   padding: 0 54px;
-  /* Dark-theme test: translucent band over the purple field, hairline white divider (Figma). */
+  /* Dark-theme test: translucent band over the purple field, hairline white divider (Figma). At rest
+     it's the design's 20% black; once the page scrolls it deepens to 60% so the bar doesn't wash out
+     over light content passing underneath. */
   background: rgba(0, 0, 0, 0.2);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+  transition: background 0.25s ease;
+
+  &[data-scrolled] {
+    background: rgba(0, 0, 0, 0.6);
+  }
 
   ${stacked} {
     height: auto;
@@ -460,5 +467,4 @@ export const CartBadge = styled.span`
   display: grid;
   place-items: center;
   padding: 0 5px;
-  border: 2px solid ${colors.white};
 `

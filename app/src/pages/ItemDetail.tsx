@@ -51,7 +51,7 @@ import { Tooltip } from '~/components/Tooltip'
 import { ErrorNotice } from '~/components/ErrorNotice'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { Icon } from '~/components/Icon'
-import { rarityTint, rarityInk, rarityDescription } from '~/lib/rarity'
+import { rarityColor, readableText, rarityDescription } from '~/lib/rarity'
 import { categoryIcon, genderIcon } from '~/lib/itemIcons'
 import { saleDiscountPct } from '~/lib/sale'
 import { useSaleActive } from '~/hooks/useSaleActive'
@@ -59,7 +59,6 @@ import { track, itemProps } from '~/lib/analytics'
 import { recordViewed } from '~/lib/recently-viewed'
 import { isOwnListing } from '~/lib/ownership'
 import * as S from './ItemDetail.styles'
-import { theme } from '~/styles/theme'
 
 function isValidRarity(r: string): r is Rarity {
   return (Object.values(Rarity) as string[]).includes(r)
@@ -947,18 +946,18 @@ export function ItemDetail() {
               <S.Chips>
                 <S.DetailChip
                   data-variant="rarity"
-                  style={{ background: rarityTint(rarity), color: rarityInk(rarity) }}
+                  style={{ background: rarityColor(rarity), color: readableText(rarityColor(rarity)) }}
                   title={rarityDescription(current.rarity)}
                 >
                   {current.rarity}
                 </S.DetailChip>
                 <S.DetailChip>
-                  {catIco ? <Icon name={catIco} size={18} color={theme.colors.text2} /> : null}
+                  {catIco ? <Icon name={catIco} size={18} /> : null}
                   {categoryLabel(current)}
                 </S.DetailChip>
                 {gender ? (
                   <S.DetailChip>
-                    {genderIco ? <Icon name={genderIco} size={18} color={theme.colors.text2} /> : null}
+                    {genderIco ? <Icon name={genderIco} size={18} /> : null}
                     {gender}
                   </S.DetailChip>
                 ) : null}

@@ -554,6 +554,8 @@ export const CardChip = styled(Chip)`
   &[data-variant='icon'] .ico {
     width: 14.6px;
     height: 14.6px;
+    /* Overrides the base Chip's dark .ico tint — white glyphs on the dark card shell (Figma). */
+    color: ${colors.softWhite};
   }
   &[data-variant='smart'] {
     gap: 2px;

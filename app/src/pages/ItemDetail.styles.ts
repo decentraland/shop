@@ -25,7 +25,7 @@ export const Crumbs = styled.nav`
   align-items: center;
   gap: 8px;
   font-size: 13px;
-  color: ${colors.muted};
+  color: ${colors.gray4};
   margin-bottom: 24px;
 `
 
@@ -34,10 +34,10 @@ export const CrumbLink = styled.button`
   border: 0;
   padding: 0;
   font: inherit;
-  color: ${colors.muted};
+  color: ${colors.gray4};
 
   &:hover {
-    color: ${colors.text};
+    color: ${colors.white};
   }
 `
 
@@ -46,7 +46,7 @@ export const CrumbSep = styled.span`
 `
 
 export const CrumbCurrent = styled.span`
-  color: ${colors.text};
+  color: ${colors.softWhite};
   font-weight: 600;
 `
 
@@ -227,7 +227,7 @@ export const Title = styled.h1`
   font-size: 28px;
   font-weight: 600;
   line-height: 34px;
-  color: ${colors.text2};
+  color: ${colors.softWhite};
 
   ${media.maxWidth('lg')} {
     font-size: 20px;
@@ -243,17 +243,17 @@ export const Fav = styled.button`
   height: 40px;
   border-radius: 50%;
   border: 0;
-  background: ${colors.media};
+  background: rgba(255, 255, 255, 0.16);
   display: grid;
   place-items: center;
-  color: ${colors.text2};
+  color: ${colors.softWhite};
   cursor: pointer;
   transition:
     color 0.12s ease,
     background 0.12s ease;
 
   &:hover {
-    background: ${colors.line};
+    background: rgba(255, 255, 255, 0.28);
   }
   &[data-on] {
     color: ${colors.dclRed};
@@ -274,7 +274,7 @@ export const Label = styled.div`
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0;
-  color: ${colors.muted};
+  color: ${colors.gray4};
 `
 
 export const Chips = styled.div`
@@ -300,10 +300,15 @@ export const DetailChip = styled(Chip)`
   border-radius: 4px;
   letter-spacing: 0.02em;
   text-transform: uppercase;
+  background: rgba(255, 255, 255, 0.14);
+  color: ${colors.softWhite};
 
+  & .ico {
+    color: ${colors.softWhite};
+  }
   &[data-variant='cat'] {
-    background: ${colors.chip};
-    color: ${colors.text2};
+    background: rgba(255, 255, 255, 0.14);
+    color: ${colors.softWhite};
   }
 `
 
@@ -326,7 +331,7 @@ export const Description = styled(Section)`
 
 export const DescText = styled.p`
   margin: 0;
-  color: ${colors.text2};
+  color: ${colors.softWhite};
   font-size: 14px;
   line-height: 30px;
   display: -webkit-box;
@@ -372,7 +377,7 @@ export const MetaCol = styled.div`
 // Shared by both badge kinds, which both carry the same reach-in data hooks.
 const badgeDetailCss = css`
   &[data-testid='creator'] {
-    color: ${colors.accent};
+    color: ${colors.softWhite};
     font-size: 14px;
     gap: 12px;
   }
@@ -384,12 +389,12 @@ const badgeDetailCss = css`
     font-size: 18px;
   }
   [data-testid='creator-name'] {
-    color: ${colors.accent};
+    color: ${colors.softWhite};
     font-weight: 500;
     text-decoration: underline;
   }
   &[data-link]:hover [data-testid='creator-name'] {
-    color: ${colors.brandViolet};
+    color: ${colors.gray4};
   }
 `
 
@@ -403,7 +408,7 @@ export const DetailCollection = styled(CollectionBadge)`
 
 export const Divider = styled.hr`
   border: 0;
-  border-top: 1px solid ${colors.gray4};
+  border-top: 1px solid rgba(255, 255, 255, 0.3);
   margin: 24px 0 0;
   width: 100%;
 
@@ -451,14 +456,14 @@ export const StockValue = styled.div`
   font-size: 18px;
   font-weight: 500;
   line-height: 1;
-  color: ${colors.text2};
+  color: ${colors.softWhite};
 
   &[data-out] {
     font-size: 14px;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.02em;
-    color: ${colors.muted1};
+    color: ${colors.gray4};
   }
 `
 
@@ -467,7 +472,7 @@ export const PriceLabel = styled.div`
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0;
-  color: ${colors.muted1};
+  color: ${colors.gray4};
 `
 
 // Base price row. `data-variant`: none (unavailable) / sale (flash sale) — market carries the "≈" approx.
@@ -476,7 +481,7 @@ export const Price = styled.div`
   align-items: center;
   gap: 10px;
   font-weight: 700;
-  color: ${colors.text};
+  color: ${colors.softWhite};
 
   /* Not for sale: "Not for Sale" + an info tooltip, 14px semibold, no PRICE label. */
   &[data-variant='none'] {
@@ -485,7 +490,7 @@ export const Price = styled.div`
     gap: 6px;
     font-size: 14px;
     font-weight: 600;
-    color: ${colors.text};
+    color: ${colors.softWhite};
   }
   &[data-variant='sale'] {
     flex-wrap: wrap;
@@ -523,7 +528,7 @@ export const PriceInfo = styled.span`
 export const Approx = styled.span`
   font-size: 24px;
   font-weight: 700;
-  color: ${colors.text};
+  color: ${colors.softWhite};
   margin-right: -2px;
 `
 
@@ -586,8 +591,8 @@ export const Ctas = styled.div`
       z-index: 40;
       margin-top: 0;
       padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
-      background: ${colors.softWhite};
-      box-shadow: 0 -4px 16px rgba(22, 21, 24, 0.12);
+      background: #2b0e44;
+      box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.35);
     }
     &[data-dual] {
       flex-direction: row;
@@ -623,6 +628,16 @@ const ctaBox = css`
 // data-dual parent), where it flexes to share the row.
 export const DetailCta = styled(Button)`
   ${ctaBox};
+  /* Dark-theme test: BUY NOW rides the Flare gradient (Figma), not the amethyst purple. */
+  && {
+    background: linear-gradient(180deg, #ff7439 0%, #ff2d55 100%);
+  }
+  &&::before {
+    content: none;
+  }
+  &&:hover:not(:disabled) {
+    filter: brightness(1.08);
+  }
 
   ${media.maxWidth('lg')} {
     [data-dual] && {
@@ -685,8 +700,8 @@ export const AddCart = styled.button`
   align-items: center;
   justify-content: center;
   gap: 8px;
-  background: ${colors.blackBtn};
-  color: ${colors.softWhite};
+  background: ${colors.softWhite};
+  color: ${colors.text};
   border: 0;
   border-radius: 16px;
   font-weight: 600;
@@ -696,9 +711,8 @@ export const AddCart = styled.button`
   cursor: pointer;
   transition: background 0.15s ease;
 
-  /* Hover is the design's gray-0, not a brightness lift. */
   &:hover:not(:disabled) {
-    background: ${colors.gray0};
+    background: ${colors.media};
   }
   &:disabled {
     opacity: 0.55;
@@ -730,10 +744,10 @@ export const AddCartLabel = styled.span`
 export const OwnNote = styled.p`
   margin: 12px 0 0;
   font-size: 13px;
-  color: ${colors.muted};
+  color: ${colors.gray4};
 
   & a {
-    color: ${colors.accent};
+    color: ${colors.softWhite};
     font-weight: 600;
   }
 `
@@ -742,7 +756,7 @@ export const OwnNote = styled.p`
 export const ManageNote = styled.p`
   margin: 4px 0 0;
   font-size: 13px;
-  color: ${colors.muted};
+  color: ${colors.gray4};
 
   & a {
     color: ${colors.accent};
@@ -825,12 +839,12 @@ export const SkelBtn = styled.span`
 export const Diamond = styled(CurrencyIcon)`
   width: 30px;
   height: 30px;
-  color: ${colors.text};
+  color: ${colors.softWhite};
 
   &[data-was] {
     width: 20px;
     height: 20px;
-    color: ${colors.muted};
+    color: ${colors.gray4};
   }
 `
 
@@ -850,7 +864,7 @@ export const PrimarySaleBanner = styled.div`
   padding: 8px;
   margin: 16px 0;
   border-radius: ${radius.btn};
-  background: #f4e9ff;
+  background: rgba(22, 21, 24, 0.55);
 `
 
 export const FromCreator = styled.span`
@@ -859,19 +873,19 @@ export const FromCreator = styled.span`
   gap: 8px;
   font-size: 14px;
   line-height: 14px;
-  color: ${colors.text};
+  color: ${colors.softWhite};
 `
 
 export const FromCreatorIco = styled(Icon)`
   width: 20px;
   height: 20px;
-  color: ${colors.rarity};
+  color: ${colors.softWhite};
 `
 
 export const BannerCheck = styled(Icon)`
   width: 24px;
   height: 24px;
-  color: ${colors.rarity};
+  color: ${colors.white};
 `
 
 // Lowest-price + resellers link: a row below the CTAs. Left shows the cheapest resale price; right is an
