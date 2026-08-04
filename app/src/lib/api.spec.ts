@@ -689,6 +689,44 @@ describe('when fetching the item-unified browse feed', () => {
     })
   })
 
+  // The regression: a CollectionStore MINT is not a listing, so the feed sends `tradeId: null`. Taking
+  // that as the row id gave every mint the same id, and the cart — which dedupes lines on `id` —
+  // merged them: adding three different mints produced ONE line at quantity 3, so the buyer paid for
+  // three copies of whichever landed first and never received the other two.
+  it('should give a store mint an id of its own, since it has no trade to be identified by', async () => {
+    const mint = { ...itemRow, tradeId: null, itemId: '7', acquisition: 'store', contractAddress: '0xABC' }
+    fetchMock.mockResolvedValueOnce(jsonOk({ total: 1, data: [mint] }))
+
+    const { items } = await fetchShopItems()
+
+    expect(items[0].id).toBe('0xabc-7')
+    // `tradeId` stays absent — it is what tells checkout there is no trade to resolve.
+    expect(items[0].tradeId).toBeUndefined()
+  })
+
+  it('should keep two different store mints apart', async () => {
+    const mint = (contractAddress: string, itemId: string) => ({
+      ...itemRow,
+      tradeId: null,
+      acquisition: 'store',
+      contractAddress,
+      itemId
+    })
+    fetchMock.mockResolvedValueOnce(jsonOk({ total: 2, data: [mint('0xaaa', '1'), mint('0xbbb', '2')] }))
+
+    const { items } = await fetchShopItems()
+
+    expect(items[0].id).not.toBe(items[1].id)
+  })
+
+  it('should keep using the trade id when there is one', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ total: 1, data: [itemRow] }))
+
+    const { items } = await fetchShopItems()
+
+    expect(items[0].id).toBe('i-native')
+  })
+
   it('should serialise every supported filter alongside groupBy=item', async () => {
     fetchMock.mockResolvedValueOnce(jsonOk({ total: 0, data: [] }))
     await fetchShopItems({
