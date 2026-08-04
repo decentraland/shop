@@ -189,6 +189,12 @@ function outfit(i: number) {
 const fixtures = {
   unifiedListings: { data: Array.from({ length: 30 }, (_, i) => listing(i)), total: 30 },
   outfits: { outfits: [1, 2, 3, 4, 5, 6].map(outfit) },
+  // The looks above are built from items 0 and 1, and the row only shows a look while EVERY one of its
+  // items is still buyable from its creator (isBuyableFromCreator, which needs a mint price and supply).
+  // The shared shopListings fixture has item 1 as a RESALE, so inheriting it drops all six looks the
+  // moment resolution lands and the whole section disappears after settling — which is precisely the
+  // shift these specs exist to catch, reported as a fixture that never had a section to reserve.
+  shopListings: { data: [listing(0), listing(1)], total: 2 },
   rankings: {
     data: [1, 2, 3, 4].map(i => ({
       id: '0x' + String(i).repeat(40),

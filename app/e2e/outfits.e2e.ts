@@ -684,7 +684,7 @@ describe('outfits that include an emote', () => {
 
   it('drops the card from the row when the emote is no longer listed, keeping the detail page reachable', async () => {
     const page = await launch('/overview', { fixtures: emoteOutfitFixtures({ delisted: true }) })
-    await waitForText(page, 'Featured Products')
+    await waitForText(page, 'Trending Products')
     // The only published look carries an unlisted emote, so the row drops it — and with nothing left to
     // show, the row renders nothing rather than a card voicing a partial state.
     await page.waitForFunction(() => !document.querySelector('[data-testid="outfits-row"]'), { timeout: 20000 })
@@ -717,7 +717,7 @@ describe('outfits that include an emote', () => {
   // cannot buy complete.
   it('drops the card from the row when the emote is sold out, and says so on the detail page', async () => {
     const page = await launch('/overview', { fixtures: emoteOutfitFixtures({ soldOut: true }) })
-    await waitForText(page, 'Featured Products')
+    await waitForText(page, 'Trending Products')
     await page.waitForFunction(() => !document.querySelector('[data-testid="outfits-row"]'), { timeout: 20000 })
     expect(await page.$('[data-testid="outfit-card"]')).toBeNull()
 
