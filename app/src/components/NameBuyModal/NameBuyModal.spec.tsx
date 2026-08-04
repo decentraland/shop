@@ -222,6 +222,10 @@ describe('NameBuyModal', () => {
       // The dedicated copy, not the raw error and not the generic "please try again".
       expect(screen.queryByText(/RAW_ROUTE_COST_INTERNAL/)).toBeNull()
       expect(screen.queryByText(/couldn’t complete your purchase|couldn't complete your purchase/i)).toBeNull()
+      // …and it explains the temporariness without naming the cause. Every buyer reaches this screen,
+      // including one who has never heard of a network fee, and neither kind can act on the number that
+      // caused it — the only actionable part is "later".
+      expect(screen.queryByText(/network|gas|bridge/i)).toBeNull()
     })
 
     it('should show the failure message for any other error', async () => {

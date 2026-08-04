@@ -2,8 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { OutfitCard } from '~/components/OutfitCard'
 import { SkeletonOutfitCards, SkeletonSettle } from '~/components/SkeletonCards'
 import { useOutfitItems, useOutfits } from '~/hooks/useOutfits'
-import { isListingUnavailable, isOutfitsAvailable, outfitItemKey, type Outfit } from '~/lib/outfits'
+import { isBuyableFromCreator, isOutfitsAvailable, outfitItemKey, type Outfit } from '~/lib/outfits'
 import { railPageCount, railPageFromScroll } from '~/lib/pagedRail'
+import { shuffle } from '~/lib/shuffle'
 import { t } from '~/intl/i18n'
 import carouselArrow from '~/assets/icons/carousel-arrow.svg'
 import * as Row from '~/styles/row.styles'
@@ -19,28 +20,34 @@ const SKELETON_COUNT = 5
 // until published outfits exist (and nothing at all when no shop-server is configured). One merged
 // catalog resolution covers every card — never one request per card.
 export function OutfitsRow() {
-  const { data: outfits = [], isLoading } = useOutfits()
+  const { data, isLoading } = useOutfits()
+
+  // The feed comes back newest-first, which would freeze the row in creation order — every visit
+  // shows the same few looks first. Shuffled once per fetched list (not per render), so the order
+  // varies between visits but the cards never re-order under the reader as the catalog settles.
+  const outfits = useMemo(() => shuffle(data ?? []), [data])
   const resolution = useOutfitItems(outfits)
 
   const trackRef = useRef<HTMLDivElement>(null)
   const [pageCount, setPageCount] = useState(1)
   const [page, setPage] = useState(0)
 
-  // Only outfits whose EVERY item still resolves and carries a price survive (the rest stay
-  // reachable at /outfits/:id) — so a card on this row never voices a partial state and its CTA
-  // always reads "Add to cart". While resolving — or when the catalog is DOWN — every outfit stays
-  // visible and the cards degrade instead (skeleton total / no CTA): an outage must not empty the row.
+  // A shopper must never meet a look they cannot buy COMPLETE, whatever the reason. So an outfit is
+  // admitted only when every one of its items is still buyable from its creator — resolves, priced,
+  // supply left, mint still open (isBuyableFromCreator). Anything short of that is dropped; the reasons
+  // live on /outfits/:id, per item, where a partial look is honest. That also keeps a card's CTA always
+  // reading "Add to cart".
   //
-  // This is a DISPLAY filter, and it is as sharp as the /v2 catalog it reads: that feed reports
-  // delisting but not remaining supply, so a minted-out primary still looks alive here. The CTA does
-  // not trust it — it re-reads every item from the shop feed before anything becomes a cart line, and
-  // reports whatever died in between through the partial-add toast (see useOutfitCart).
+  // While resolving — or when the catalog is DOWN — every outfit stays visible and the cards degrade
+  // instead (skeleton total / no CTA): an outage is not a sell-out and must not empty the row. The CTA
+  // still re-reads every item from the shop feed before anything becomes a cart line, and reports
+  // whatever died in between through the partial-add toast (see useOutfitCart).
   const visible = useMemo(() => {
     if (resolution.isLoading || resolution.isError) return outfits
     return outfits.filter((outfit: Outfit) =>
       outfit.items.every(ref => {
         const item = resolution.byKey.get(outfitItemKey(ref))
-        return !!item && !isListingUnavailable(item)
+        return !!item && isBuyableFromCreator(item)
       })
     )
   }, [outfits, resolution])

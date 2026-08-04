@@ -55,6 +55,8 @@ import {
 
 // $1 in USD wei.
 const USD1 = '1000000000000000000'
+// 1 MANA in wei. The /v2 catalog quotes MANA, not USD.
+const MANA1 = '1000000000000000000'
 
 // A jsonOk/error factory for the mocked global fetch. Records the URL of each call.
 const fetchMock = vi.fn()
@@ -112,7 +114,7 @@ describe('when converting a USD-pegged wei amount to cents', () => {
 })
 
 describe('when fetching the browse catalog', () => {
-  it('should map raw items to CatalogItems and derive credits, gender and sub-category', async () => {
+  it('should map raw items to CatalogItems, carrying the MANA price rather than deriving credits', async () => {
     fetchMock.mockResolvedValueOnce(
       jsonOk({
         total: 1,
@@ -144,7 +146,11 @@ describe('when fetching the browse catalog', () => {
       itemId: '7',
       wearableCategory: 'hat',
       rarity: 'epic',
-      priceCredits: 10, // $1 = 10 credits
+      // The /v2 catalog prices in MANA: the row carries the raw wei and NO fixed credit price. Callers
+      // convert at the live rate (displayCredits) — reading this field as USD is what mispriced a
+      // 3-credit item as 150.
+      manaWei: MANA1,
+      priceCredits: 0,
       gender: 'unisex'
     })
   })
@@ -173,7 +179,7 @@ describe('when fetching the browse catalog', () => {
             category: 'wearable',
             network: 'MATIC',
             chainId: 80002,
-            minPrice: USD1
+            minPrice: MANA1
           }
         ]
       })
@@ -184,7 +190,9 @@ describe('when fetching the browse catalog', () => {
       itemId: null,
       rarity: 'common',
       thumbnail: '',
-      priceCredits: 10,
+      // No mint price, so the row falls back to the cheapest resale — still MANA, still unconverted.
+      manaWei: MANA1,
+      priceCredits: 0,
       gender: null,
       wearableCategory: undefined
     })
@@ -192,26 +200,28 @@ describe('when fetching the browse catalog', () => {
     expect(total).toBe(1)
   })
 
-  it('should round the credit price UP from the USD-pegged wei price', async () => {
+  it('should report supply and whether the creator is still selling, for the outfit row filter', async () => {
     fetchMock.mockResolvedValueOnce(
       jsonOk({
         total: 1,
         data: [
           {
             id: 'i3',
-            name: 'Cheap',
+            name: 'Resold',
             contractAddress: '0x1',
             category: 'wearable',
             network: 'MATIC',
             chainId: 80002,
-            // $0.11 → 1.1 credits → ceil → 2 credits.
-            price: '110000000000000000'
+            // Mint closed (no `price`), copies only on the secondary market.
+            price: '0',
+            minPrice: MANA1,
+            available: 0
           }
         ]
       })
     )
     const { items } = await fetchCatalog()
-    expect(items[0].priceCredits).toBe(2)
+    expect(items[0]).toMatchObject({ available: 0, hasPrimaryListing: false, manaWei: MANA1 })
   })
 
   it('should throw when the catalog request fails', async () => {

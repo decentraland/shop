@@ -16,6 +16,19 @@ export const Count = styled.span`
   font-size: 14px;
 `
 
+export const RateBanner = styled.p`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: ${colors.rarityBg};
+  color: ${colors.accent};
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin-bottom: 14px;
+  font-weight: 600;
+  font-size: 14px;
+`
+
 export const ErrorWrap = styled.div`
   display: flex;
   flex-direction: column;

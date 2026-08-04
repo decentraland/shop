@@ -8,7 +8,14 @@ import { t } from '~/intl/i18n'
 import { theme } from '~/styles/theme'
 import * as S from './OutfitItemPicker.styles'
 
-// The studio's catalog picker: search the shop's on-sale wearables and toggle them into the outfit.
+const CATEGORIES = [
+  { key: 'wearable', labelKey: 'categories.wearables' },
+  { key: 'emote', labelKey: 'categories.emotes' }
+] as const
+type PickerCategory = (typeof CATEGORIES)[number]['key']
+
+// The studio's catalog picker: search the shop's on-sale wearables or emotes and toggle them into the
+// outfit. The category is part of the query, so searching always searches within the selected one.
 // Slot consistency is the caller's job (toggleOutfitItem) — this only reports the pick.
 export function OutfitItemPicker({
   selectedKeys,
@@ -25,6 +32,7 @@ export function OutfitItemPicker({
    */
   canPick: (item: CatalogItem) => boolean
 }) {
+  const [category, setCategory] = useState<PickerCategory>('wearable')
   const [query, setQuery] = useState('')
   const [debounced, setDebounced] = useState('')
   useEffect(() => {
@@ -42,10 +50,10 @@ export function OutfitItemPicker({
     hasNextPage,
     isFetchingNextPage,
     fetchNextPage
-  } = useInfiniteGrid(['outfit-picker', debounced], skip =>
+  } = useInfiniteGrid(['outfit-picker', category, debounced], skip =>
     fetchShopItems({
       search: debounced || undefined,
-      category: 'wearable',
+      category,
       onSale: true,
       listingType: 'primary',
       first: 24,
@@ -53,6 +61,8 @@ export function OutfitItemPicker({
       sortBy: 'cheapest'
     })
   )
+  const searchLabel = t(category === 'emote' ? 'outfits.studio.searchEmotes' : 'outfits.studio.searchWearables')
+
   // Offset pages can overlap at the boundary while listings move — dedupe so React keys stay unique.
   const seen = new Set<string>()
   const items = fetched.filter(item => {
@@ -65,12 +75,26 @@ export function OutfitItemPicker({
 
   return (
     <S.Root data-testid="outfit-picker">
+      <S.Categories role="group" aria-label={t('outfits.studio.pickerCategory')} data-testid="outfit-picker-category">
+        {CATEGORIES.map(({ key, labelKey }) => (
+          <S.CategoryBtn
+            key={key}
+            type="button"
+            data-category={key}
+            data-selected={category === key || undefined}
+            aria-pressed={category === key}
+            onClick={() => { setCategory(key); setQuery('') }}
+          >
+            {t(labelKey)}
+          </S.CategoryBtn>
+        ))}
+      </S.Categories>
       <S.Search>
         <Icon name="search" color={theme.colors.muted} />
         <input
           value={query}
-          placeholder={t('outfits.studio.searchPlaceholder')}
-          aria-label={t('outfits.studio.searchPlaceholder')}
+          placeholder={searchLabel}
+          aria-label={searchLabel}
           onChange={e => setQuery(e.target.value)}
           data-testid="outfit-picker-search"
         />

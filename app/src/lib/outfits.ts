@@ -281,17 +281,34 @@ export type OutfitItemState = 'purchasable' | 'unavailable' | 'own_listing' | 'i
  * Whether the listing itself is dead: unpriced, or a primary (mint) listing with zero remaining
  * supply. Note `priceCredits > 0` alone misses sold-out primaries — they keep a listed price.
  *
- * SUPPLY IS ONLY VISIBLE ON THE SHOP FEEDS. `available` and `tokenId` are populated by
- * shopListingToItem / unifiedListingToItem (the /v3 feeds); the /v2 catalog rows that outfit refs
- * resolve to for display (useOutfitItems → fetchCatalogByIds) carry neither, so on those this
- * collapses to the price check alone. That is why nothing is ever ADDED to the cart off a /v2
- * row — see {@link resolveOutfitPurchases}, which re-reads each item from the shop feed before
- * it becomes a cart line.
+ * `available` and `tokenId` are populated by shopListingToItem / unifiedListingToItem (the /v3 feeds)
+ * AND by the /v2 by-ids path outfit refs resolve through for display. Nothing is ever ADDED to the
+ * cart off a /v2 row regardless — see {@link resolveOutfitPurchases}, which re-reads each item from
+ * the shop feed before it becomes a cart line.
  */
 export function isListingUnavailable(item: Pick<CatalogItem, 'priceCredits' | 'tokenId' | 'available'>): boolean {
   if (item.priceCredits <= 0) return true
   const isPrimary = !item.tokenId
   return isPrimary && typeof item.available === 'number' && item.available <= 0
+}
+
+/**
+ * Whether a shopper can still buy this item **from its creator** — a live mint with supply left.
+ * Deliberately stricter than {@link isListingUnavailable}: resale-only counts as NOT buyable here,
+ * because an outfit is authored from mints (the studio picker is primary-only) and a look assembled
+ * out of other people's resales is not the thing the creator published.
+ *
+ * This is the discovery row's admission test: a shopper must never meet an outfit they cannot buy
+ * complete, whatever the reason — delisted, minted out, unpriced, or creator-withdrawn. Reasons are
+ * the DETAIL page's job, per item.
+ *
+ * Only meaningful on rows that report supply and mint price separately (the /v2 by-ids path). A row
+ * with no `hasPrimaryListing` answer is treated as not-from-the-creator rather than assumed alive —
+ * an over-strict row is a missing card, an under-strict one is a shopper hitting a dead end.
+ */
+export function isBuyableFromCreator(item: CatalogItem): boolean {
+  if (isListingUnavailable(item)) return false
+  return item.hasPrimaryListing === true && (item.available ?? 0) > 0
 }
 
 /**
@@ -377,10 +394,11 @@ const IMPORT_ITEM_URN = /^urn:decentraland:(?:matic|amoy):collections-v2:(0x[0-9
 
 /**
  * Parse an avatar-preview link (or its bare query string) into outfit-import data: the
- * collections-v2 `urn` params become item refs (deduped, capped at {@link MAX_OUTFIT_ITEMS}), the
- * `bodyShape` base-avatar urn picks male/female, and skin/hair/eye colors ride along for the studio
- * preview. Anything else (off-chain wearables, the builder-relative `emote` path) is ignored.
- * Null when no usable item urns are found.
+ * collections-v2 `urn` params become item refs — wearables or emotes alike, both are outfit items
+ * (deduped, capped at {@link MAX_OUTFIT_ITEMS}) — the `bodyShape` base-avatar urn picks male/female,
+ * and skin/hair/eye colors ride along for the studio preview. Anything else (off-chain wearables, the
+ * builder-relative `emote` path, which names a builder-local file rather than a listed item) is
+ * ignored. Null when no usable item urns are found.
  */
 export function parseOutfitImport(raw: string): OutfitImport | null {
   const query = raw.includes('?') ? raw.slice(raw.indexOf('?') + 1) : raw
