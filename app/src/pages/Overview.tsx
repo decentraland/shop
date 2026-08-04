@@ -6,7 +6,7 @@ import { AssetCard } from '~/components/AssetCard'
 import { SkeletonCards } from '~/components/SkeletonCards'
 import { FollowedCreatorsRow } from '~/components/FollowedCreatorsRow'
 import { OutfitsRow } from '~/components/OutfitsRow'
-import { WeekTopCreators } from '~/components/WeekTopCreators'
+import { TopCreators } from '~/components/TopCreators'
 import { t } from '~/intl/i18n'
 import { useSeo } from '~/hooks/useSeo'
 import { railPageCount, railPageFromScroll } from '~/lib/pagedRail'
@@ -189,14 +189,14 @@ export function Overview() {
         </S.Empty>
       )}
 
-      {/* The creators ranking table is dead last (Figma 1878:67135). Recently viewed used to sit above it
-          and is gone: the home page now leads with what the Shop is selling, and a row of things you have
-          already looked at competes with that. The store still records views — nothing else read that row —
-          so bringing it back is re-adding the component, not rebuilding it.
+      {/* The creators section is dead last. Recently viewed used to sit above it and is gone: the home
+          page now leads with what the Shop is selling, and a row of things you have already looked at
+          competes with that. The store still records views — nothing else read that row — so bringing it
+          back is re-adding the component, not rebuilding it.
           FollowedCreatorsRow renders nothing until it has data (the follows flag is off), so it costs a
           fetch-free no-op here rather than an empty section. */}
       <FollowedCreatorsRow />
-      <WeekTopCreators />
+      <TopCreators />
     </S.Overview>
   )
 }

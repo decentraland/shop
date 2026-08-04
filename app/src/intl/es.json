@@ -755,15 +755,11 @@
     "pages": "Páginas del carrusel",
     "goToPage": "Ir a la página {page}"
   },
-  "weekTopCreators": {
-    "title": "Mejores creadores de la semana",
-    "rank": "Posición",
-    "creator": "Creador",
-    "collections": "Colecciones",
-    "sales": "Número de ventas",
-    "volume": "Volumen",
-    "viewCollections": "Ver colecciones",
-    "viewCollectionsBy": "Ver las colecciones de {name}"
+  "topCreators": {
+    "title": "Conoce a nuestros mejores creadores",
+    "viewCreations": "Ver creaciones",
+    "viewCreationsBy": "Ver las creaciones de {name}",
+    "stats": "{collections, plural, one {# colección} other {# colecciones}} | {items, plural, one {# artículo} other {# artículos}}"
   },
   "loadMore": {
     "loading": "Cargando…",

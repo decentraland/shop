@@ -755,15 +755,11 @@
     "pages": "Carousel pages",
     "goToPage": "Go to page {page}"
   },
-  "weekTopCreators": {
-    "title": "Week Top Creators",
-    "rank": "Rank",
-    "creator": "Creator",
-    "collections": "Collections",
-    "sales": "Number of sales",
-    "volume": "Volume",
-    "viewCollections": "View collections",
-    "viewCollectionsBy": "View collections by {name}"
+  "topCreators": {
+    "title": "Meet Our Top Creators",
+    "viewCreations": "View creations",
+    "viewCreationsBy": "View creations by {name}",
+    "stats": "{collections, plural, one {# collection} other {# collections}} | {items, plural, one {# item} other {# items}}"
   },
   "loadMore": {
     "loading": "Loading…",
