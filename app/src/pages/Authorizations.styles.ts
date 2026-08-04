@@ -30,10 +30,11 @@ export const Head = styled.div`
 export const Title = styled.h1`
   font-family: ${theme.font.sans};
   margin: 0;
+  color: ${theme.colors.softWhite};
 `
 
 export const Intro = styled.p`
-  color: ${theme.colors.muted};
+  color: ${theme.colors.gray4};
   font-size: 14px;
   margin: 0;
   max-width: 60ch;
@@ -47,7 +48,7 @@ export const GroupTitle = styled.h2`
   font-family: ${theme.font.sans};
   font-size: 15px;
   font-weight: 700;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
   margin: 0 0 10px;
 `
 
@@ -215,7 +216,7 @@ export const Spinner = styled.span`
 `
 
 export const EmptyHint = styled.p`
-  color: ${theme.colors.muted};
+  color: ${theme.colors.gray4};
   font-size: 14px;
   margin: 0;
 `
@@ -228,6 +229,7 @@ export const Empty = styled.div`
   text-align: center;
   padding: 90px 20px;
   min-height: 50vh;
+  color: ${theme.colors.softWhite};
 `
 
 export const EmptyTitle = styled.p`

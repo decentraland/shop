@@ -36,10 +36,11 @@ export const Head = styled.div`
 export const Title = styled.h1`
   font-family: ${theme.font.sans};
   margin: 0;
+  color: ${theme.colors.softWhite};
 `
 
 export const Count = styled.span`
-  color: ${theme.colors.muted};
+  color: ${theme.colors.gray4};
   font-size: 14px;
 `
 
@@ -371,6 +372,7 @@ export const Empty = styled.div`
   text-align: center;
   padding: 90px 20px;
   min-height: 50vh;
+  color: ${theme.colors.softWhite};
 `
 
 export const EmptyTitle = styled.p`
