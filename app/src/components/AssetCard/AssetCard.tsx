@@ -46,20 +46,6 @@ function useNameFillsRow(
   useLayoutEffect(() => {
     const rowEl = row.current
     if (!rowEl || typeof ResizeObserver === 'undefined') return
-    /**
-     * Only below the compact breakpoint. The measurement itself is right — a long name really does claim the
-     * footer row — but keying the layout on name LENGTH alone made a desktop grid inconsistent with itself:
-     * "Metaverse Maniacs Hockey Helmet" restructured into the compact card (price on its own row, round
-     * action, chips dropped) while "Lights of Liberty" beside it did not, at the same viewport. Two cards in
-     * one row looking structurally different reads as a bug, which is exactly how it was reported.
-     *
-     * Above the breakpoint there is room for the full layout, so the fix is to stop switching there rather
-     * than to loosen the threshold.
-     */
-    if (typeof window !== 'undefined' && window.matchMedia && !window.matchMedia('(max-width: 900px)').matches) {
-      setFills(false)
-      return
-    }
     let done = false
     const measure = () => {
       const nameEl = name.current

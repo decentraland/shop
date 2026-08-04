@@ -6,6 +6,16 @@ import styled from '@emotion/styled'
 export const Layer = styled.div`
   position: fixed;
   inset: 0;
-  z-index: 1;
+  /**
+   * NEGATIVE, and that is the whole trick.
+   *
+   * This layer renders INSIDE Success's Root, so it shares that stacking context with the card: a positive or
+   * zero z-index paints it above every in-flow sibling no matter what the parent's own z-index is, which is
+   * why raising Root did nothing. Only a negative value puts a positioned child behind its parent's content.
+   *
+   * The parent must then form a stacking context (Root sets position/z-index), or -1 would escape past it and
+   * hide behind the page background instead.
+   */
+  z-index: -1;
   pointer-events: none;
 `

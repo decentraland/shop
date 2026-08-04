@@ -12,6 +12,10 @@ const { colors, radius } = theme
 const narrow = '@media (max-width: 600px)'
 
 export const Root = styled.div`
+  /* Its own stacking context, above the confetti layer (z-index 0). Needed because z-index is inert without
+     a position, so the content would otherwise sit below the burst regardless of order. */
+  position: relative;
+  z-index: 1;
   max-width: 895px;
   margin: 0 auto;
   padding: 32px 12px;
