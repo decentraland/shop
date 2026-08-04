@@ -7,6 +7,7 @@ import { getAvatarBackgroundColor, getDisplayName } from '~/lib/avatarColor'
 import { shortAddress } from '~/lib/address'
 import { capitalizeFirst } from '~/lib/text'
 import { fetchCreatorItems } from '~/lib/collections'
+import { railPageCount, railPageFromScroll } from '~/lib/pagedRail'
 import { fetchTopCreators, type CreatorRank } from '~/lib/rankings'
 import * as S from './TopCreators.styles'
 
@@ -104,14 +105,13 @@ export function TopCreators() {
   const [pageCount, setPageCount] = useState(1)
   const [page, setPage] = useState(0)
 
-  // Same paging model as the Overview carousels: a page is one viewport-width of scroll, so the dots
-  // stay honest whether the row is scrolling one card at a time or not scrolling at all.
+  // Same paging model as the Overview carousels (see lib/pagedRail): a page is one viewport-width of
+  // scroll, so the dots stay honest whether the row scrolls one card at a time or not at all.
   const measure = useCallback(() => {
     const el = trackRef.current
     if (!el) return
-    const view = el.clientWidth
-    if (view <= 0) return
-    const pages = Math.max(1, Math.ceil((el.scrollWidth - view) / view) + 1)
+    if (el.clientWidth <= 0) return
+    const pages = railPageCount(el.scrollWidth, el.clientWidth)
     setPageCount(pages)
     setPage(current => Math.min(pages - 1, current))
   }, [])
@@ -120,7 +120,7 @@ export function TopCreators() {
     measure()
     const el = trackRef.current
     if (!el) return
-    const onScroll = () => setPage(Math.round(el.scrollLeft / Math.max(1, el.clientWidth)))
+    const onScroll = () => setPage(railPageFromScroll(el.scrollLeft, el.scrollWidth, el.clientWidth))
     el.addEventListener('scroll', onScroll, { passive: true })
     window.addEventListener('resize', measure)
     return () => {
