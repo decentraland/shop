@@ -6,6 +6,7 @@ import { useStore } from '~/hooks/useStore'
 import { getAvatarBackgroundColor, getDisplayName } from '~/lib/avatarColor'
 import { shortAddress } from '~/lib/address'
 import { capitalizeFirst } from '~/lib/text'
+import { fetchCreatorItems } from '~/lib/collections'
 import { fetchTopCreators, type CreatorRank } from '~/lib/rankings'
 import * as S from './TopCreators.styles'
 
@@ -16,7 +17,8 @@ import * as S from './TopCreators.styles'
 //
 // States: four skeleton cards while loading; on error OR an empty ranking the section renders nothing.
 // A card's blurb comes from the creator's store entity and is best-effort — when they never wrote one
-// it falls back to their ranking numbers, so every card keeps the same two lines.
+// it falls back to their collection and item counts. The blurb's two lines are reserved either way, so
+// nothing moves when it lands.
 
 const CARDS = 4
 
@@ -30,6 +32,18 @@ function creationsPath(address: string): string {
 function CreatorCard({ creator }: { creator: CreatorRank }) {
   const { data: profile } = useProfile(creator.id)
   const { data: store } = useStore(creator.id)
+  const description = store?.description ?? ''
+
+  // The item total for the fallback blurb. The ranking carries a collection count but no item count, so
+  // it takes a request of its own — one bounded to a single row, and only for a creator who wrote no
+  // blurb (and only once the store has answered, or it would fire for every card while that is in
+  // flight). Until it lands, or if it fails, the card simply has no second line.
+  const { data: items } = useQuery({
+    queryKey: ['creator-item-total', creator.id],
+    enabled: store !== undefined && !description,
+    staleTime: 5 * 60_000,
+    queryFn: () => fetchCreatorItems(creator.id, { first: 1 }).then(page => page.total)
+  })
 
   const name = profile?.name ? capitalizeFirst(profile.name) : shortAddress(creator.id)
   const face = profile?.avatar?.snapshots?.face256
@@ -42,7 +56,8 @@ function CreatorCard({ creator }: { creator: CreatorRank }) {
       ethAddress: profile?.ethAddress ?? creator.id
     })
   )
-  const blurb = store?.description || t('topCreators.stats', { collections: creator.collections, sales: creator.sales })
+  const blurb =
+    description || (items === undefined ? '' : t('topCreators.stats', { collections: creator.collections, items }))
 
   return (
     <S.Card

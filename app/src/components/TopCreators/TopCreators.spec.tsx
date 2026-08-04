@@ -7,12 +7,14 @@ import type { CreatorRank } from '~/lib/rankings'
 // The card's three sources are mocked at their own boundary so the tests drive the ranking, the
 // profile and the store blurb independently — a creator with no store entity is a real production
 // outcome (most creators never write one), and the card has to keep its two lines anyway.
-const { fetchTopCreators, useProfile, useStore } = vi.hoisted(() => ({
+const { fetchTopCreators, fetchCreatorItems, useProfile, useStore } = vi.hoisted(() => ({
   fetchTopCreators: vi.fn(),
+  fetchCreatorItems: vi.fn(),
   useProfile: vi.fn(),
   useStore: vi.fn()
 }))
 vi.mock('~/lib/rankings', () => ({ fetchTopCreators }))
+vi.mock('~/lib/collections', () => ({ fetchCreatorItems }))
 vi.mock('~/hooks/useProfile', () => ({ useProfile }))
 vi.mock('~/hooks/useStore', () => ({ useStore }))
 
@@ -44,7 +46,8 @@ beforeEach(() => {
   useStore.mockReset().mockImplementation((address?: string) => ({
     data: { cover: '', coverHash: '', description: BLURBS[address ?? ''] ?? '', links: {} }
   }))
-  fetchTopCreators.mockReset().mockResolvedValue([makeCreator(SOUL), makeCreator(FURY, { collections: 1, sales: 1 })])
+  fetchCreatorItems.mockReset().mockResolvedValue({ items: [], total: 1 })
+  fetchTopCreators.mockReset().mockResolvedValue([makeCreator(SOUL), makeCreator(FURY, { collections: 1 })])
 })
 
 describe('TopCreators cards', () => {
@@ -78,11 +81,21 @@ describe('TopCreators cards', () => {
     expect(await screen.findByText('Cyberpunk wearables | 3D Artist')).toBeTruthy()
   })
 
-  it('falls back to the ranking numbers when the creator has no store blurb', async () => {
+  it('falls back to the collection and item counts when the creator has no store blurb', async () => {
     renderSection()
-    await screen.findByRole('link', { name: 'View creations by Elemental Fury' })
     // Singular on both counts — the fallback pluralizes rather than reading "1 collections".
-    expect(screen.getByText('1 collection | 1 sale')).toBeTruthy()
+    expect(await screen.findByText('1 collection | 1 item')).toBeTruthy()
+    // Only for the creator who needs it, and bounded to a single row: the count comes off the page total.
+    expect(fetchCreatorItems).toHaveBeenCalledTimes(1)
+    expect(fetchCreatorItems).toHaveBeenCalledWith(FURY, { first: 1 })
+  })
+
+  it('leaves the blurb empty rather than guessing when the item count is unavailable', async () => {
+    fetchCreatorItems.mockRejectedValue(new Error('boom'))
+    renderSection()
+    const card = await screen.findByRole('link', { name: 'View creations by Elemental Fury' })
+    await vi.waitFor(() => expect(fetchCreatorItems).toHaveBeenCalled())
+    expect(card.textContent).not.toContain('collection')
   })
 })
 

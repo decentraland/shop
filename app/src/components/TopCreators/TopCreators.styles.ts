@@ -5,13 +5,19 @@ import { theme } from '~/styles/theme'
 
 const { colors, radius, gradients, media } = theme
 
-const AVATAR = 155
+const AVATAR = 145
+const AVATAR_MOBILE = 155
 // The CTA's height plus the gap above it — the slot the panel reserves for it permanently (see Panel).
 const CTA_SLOT = 56
-// The hover ring: its thickness and the clear space it leaves around the panel. Both are what the
-// Track reserves room for, since the ring is drawn OUTSIDE the panel's box.
+// The hover ring: its thickness and the clear space it leaves around the panel.
 const RING = 3
-const RING_GAP = 6
+const RING_GAP = 3
+// What the Track reserves on every side: the ring (drawn OUTSIDE the panel's box) plus the few pixels
+// the hover scale pushes it further out by, so neither is clipped by the scroller.
+const HOVER_ROOM = 12
+// One timing for the whole hover, slow enough to read as a single movement rather than a snap.
+const EASE = 'cubic-bezier(0.22, 0.61, 0.36, 1)'
+const DURATION = '0.28s'
 
 export { Root, Head, Title, Dots, Dot } from '~/styles/row.styles'
 
@@ -29,9 +35,9 @@ export const Track = styled.div`
   align-items: start;
   gap: 16px;
   overflow-x: auto;
-  padding: ${RING + RING_GAP}px;
-  margin-left: -${RING + RING_GAP}px;
-  scroll-padding-inline: ${RING + RING_GAP}px;
+  padding: ${HOVER_ROOM}px;
+  margin-left: -${HOVER_ROOM}px;
+  scroll-padding-inline: ${HOVER_ROOM}px;
   scroll-snap-type: x mandatory;
   scrollbar-width: none;
   -ms-overflow-style: none;
@@ -45,7 +51,8 @@ export const Track = styled.div`
     scroll-snap-align: start;
   }
 
-  /* Touch has no hover, so there is no ring to reserve room for: the card gets the full page gutter. */
+  /* Touch has no hover, so there is no ring or scale to reserve room for: the card gets the full page
+     gutter. */
   ${media.maxWidth('mobile')} {
     grid-auto-columns: 94%;
     padding: ${RING + RING_GAP}px 0;
@@ -66,15 +73,34 @@ const cardBase = css`
 
 export const Card = styled(Link)`
   ${cardBase};
+  transition: transform ${DURATION} ${EASE};
+
+  /* The same gentle lift AssetCard uses, gated to hover-capable devices so a touch tap — which
+     synthesizes :hover — never flashes it. z-index keeps the scaled card above its neighbours. */
+  @media (hover: hover) {
+    &:hover,
+    &:focus-visible {
+      transform: scale(1.02);
+      z-index: 1;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+
+    &:hover,
+    &:focus-visible {
+      transform: none;
+    }
+  }
 `
 
 export const SkeletonCard = styled.span`
   ${cardBase};
 `
 
-// Sits above the panel and covers the fill and the ring that run behind it. Same 155px at every width.
-// The white ring is drawn outside the circle (box-shadow, not a border) so the snapshot keeps the full
-// box.
+// Sits above the panel and covers the fill and the ring that run behind it. The white ring is drawn
+// outside the circle (box-shadow, not a border) so the snapshot keeps the full box.
 export const Avatar = styled.span`
   position: relative;
   z-index: 1;
@@ -83,7 +109,10 @@ export const Avatar = styled.span`
   width: ${AVATAR}px;
   height: ${AVATAR}px;
   border-radius: 50%;
-  box-shadow: 0 0 0 4px ${colors.white};
+  /* The white ring, plus a whisper of a shadow under it so the circle reads as sitting ON the panel. */
+  box-shadow:
+    0 0 0 4px ${colors.white},
+    0 5px 10px rgba(22, 21, 24, 0.08);
   overflow: hidden;
 
   & img {
@@ -91,6 +120,11 @@ export const Avatar = styled.span`
     width: 100%;
     height: 100%;
     object-fit: cover;
+  }
+
+  ${media.maxWidth('mobile')} {
+    width: ${AVATAR_MOBILE}px;
+    height: ${AVATAR_MOBILE}px;
   }
 `
 
@@ -129,8 +163,8 @@ export const Panel = styled.span`
     position: absolute;
     z-index: -1; /* isolate + negative z keeps both layers under the text instead of over it */
     transition:
-      inset 0.15s ease,
-      opacity 0.15s ease;
+      inset ${DURATION} ${EASE},
+      opacity ${DURATION} ${EASE};
   }
 
   &::before {
@@ -157,12 +191,15 @@ export const Panel = styled.span`
 
   ${fillBottom(CTA_SLOT)};
 
-  [data-testid='top-creator-card']:hover &,
-  [data-testid='top-creator-card']:focus-visible & {
-    ${fillBottom(0)};
+  /* Gated with the card's scale, for the same reason: a tap must not flash the ring. */
+  @media (hover: hover) {
+    [data-testid='top-creator-card']:hover &,
+    [data-testid='top-creator-card']:focus-visible & {
+      ${fillBottom(0)};
 
-    &::after {
-      opacity: 1;
+      &::after {
+        opacity: 1;
+      }
     }
   }
 
@@ -225,7 +262,7 @@ export const Cta = styled.span`
   text-transform: uppercase;
   white-space: nowrap;
   opacity: 0;
-  transition: opacity 0.15s ease;
+  transition: opacity ${DURATION} ${EASE};
 
   [data-testid='top-creator-card']:hover &,
   [data-testid='top-creator-card']:focus-visible & {

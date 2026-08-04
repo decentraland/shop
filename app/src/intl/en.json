@@ -759,7 +759,7 @@
     "title": "Meet Our Top Creators",
     "viewCreations": "View creations",
     "viewCreationsBy": "View creations by {name}",
-    "stats": "{collections, plural, one {# collection} other {# collections}} | {sales, plural, one {# sale} other {# sales}}"
+    "stats": "{collections, plural, one {# collection} other {# collections}} | {items, plural, one {# item} other {# items}}"
   },
   "loadMore": {
     "loading": "Loading…",

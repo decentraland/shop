@@ -759,7 +759,7 @@
     "title": "Conoce a nuestros mejores creadores",
     "viewCreations": "Ver creaciones",
     "viewCreationsBy": "Ver las creaciones de {name}",
-    "stats": "{collections, plural, one {# colección} other {# colecciones}} | {sales, plural, one {# venta} other {# ventas}}"
+    "stats": "{collections, plural, one {# colección} other {# colecciones}} | {items, plural, one {# artículo} other {# artículos}}"
   },
   "loadMore": {
     "loading": "Cargando…",
