@@ -857,7 +857,13 @@
     "assignToAvatar": "Assign NAME to avatar",
     "errorTitle": "Something went wrong",
     "errorGeneric": "We couldn’t complete your purchase. Please try again.",
-    "tryAgain": "Try again"
+    "tryAgain": "Try again",
+    "pendingHeaderTitle": "Purchase in progress",
+    "pendingBannerBold": "Your payment went through.",
+    "pendingBannerRest": "Your NAME is still being finalised and will appear in My Items shortly — you don't need to do anything.",
+    "priceUnavailable": "We can't price NAMEs right now. Please try again in a moment.",
+    "insufficientCredits": "You need {credits} more credits to buy this NAME.",
+    "errorRouteCost": "NAME registration is temporarily unavailable because network costs are unusually high. Please try again later."
   },
   "authorizations": {
     "title": "Approvals",
