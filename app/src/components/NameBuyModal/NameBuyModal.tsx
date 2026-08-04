@@ -92,7 +92,9 @@ export function NameBuyModal({
   }, [busy, onClose])
 
   async function buy() {
-    if (!session || !matches || startedRef.current) return
+    // Repeats every condition the CTA is disabled on, rather than trusting that it was. The button being
+    // disabled is a UI fact; this is the money call, and it should be safe to invoke from anywhere.
+    if (!session || !matches || priceUnavailable || insufficient || startedRef.current) return
     startedRef.current = true
     setPhase('completing')
     setError(null)
