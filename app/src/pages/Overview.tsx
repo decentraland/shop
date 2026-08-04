@@ -157,16 +157,16 @@ export function Overview() {
         <>
           <Carousel title={t('overview.featuredProducts')} items={items.slice(0, 12)} loading={isLoading} />
 
+          {/* "Buy the Look" sits BETWEEN the two carousels, which is the order Figma draws (1016:84664:
+              banner → Featured Products → Buy the Look → New Creations → the creators table). It
+              self-fetches and renders nothing until published outfits resolve, so on an environment with
+              no shop-server the section is simply absent — it is a place for outfits, not a guaranteed one. */}
+          <OutfitsRow />
+
           {/* New Creations carousel — needs a second page of listings (>12) to be worth showing. */}
           {items.length > 12 ? (
             <Carousel title={t('overview.newCreations')} items={items.slice(12, 24)} loading={false} />
           ) : null}
-
-          {/* "Buy the look" sits here, directly after New Creations, so the outfits land inside the
-              listings block rather than below the discovery rails. It self-fetches and renders nothing
-              until published outfits resolve, so on an environment with no shop-server this row is
-              simply absent — the section is a place for outfits, not a guaranteed one. */}
-          <OutfitsRow />
         </>
       ) : (
         <S.Empty>

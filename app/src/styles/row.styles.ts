@@ -19,16 +19,18 @@ export const Head = styled.div`
   margin-bottom: 20px;
 `
 
+// THE section heading for every titled row on the site. Straight off Figma's shared "Categories Dropdown"
+// component (913:135574 "Featured Products", 1878:67135 "Buy the Look" — same component, so one style):
+// Inter Semi Bold 20/1.5 in neutrals/soft-black-1, no tracking. It was a 50px black display face with
+// -0.05em tracking, which is a page-title treatment, not a section one — at that size two headings and a
+// carousel filled a screen on their own.
+// Deliberately NO mobile step-down: the mobile frame (1016:84664) draws the same 20px, and a heading this
+// size has nowhere to shrink to.
 export const Title = styled.h2`
-  font-size: 32px;
-  font-weight: 900;
-  letter-spacing: -0.03em;
-  line-height: 1.2;
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.5;
   color: ${colors.text};
-
-  ${media.maxWidth('mobile')} {
-    font-size: 24px;
-  }
 `
 
 export const ViewAll = styled(Link)`
