@@ -12,12 +12,14 @@ vi.mock('~/lib/analytics', () => ({ track: vi.fn() }))
 vi.mock('~/store/wallet', () => ({ useWallet: (sel: (s: unknown) => unknown) => sel({ session: undefined }) }))
 vi.mock('~/hooks/useProfile', () => ({ useProfile: () => ({ data: undefined }) }))
 vi.mock('~/components/LazyWearablePreview', () => ({
-  WearablePreview: (p: { urns?: string[]; onLoad?: () => void }) => {
+  WearablePreview: (p: { urns?: string[]; type?: string; unity?: boolean; onLoad?: () => void }) => {
     // Fire onLoad async (like the real iframe), not during render.
     useEffect(() => {
       p.onLoad?.()
     }, [p.onLoad])
-    return <div data-testid="wp" data-urns={(p.urns ?? []).join(',')} />
+    return (
+      <div data-testid="wp" data-urns={(p.urns ?? []).join(',')} data-type={p.type} data-unity={String(!!p.unity)} />
+    )
   }
 }))
 
@@ -68,6 +70,14 @@ describe('FittingRoom', () => {
       </MemoryRouter>
     )
     expect(container.firstChild).toBeNull()
+  })
+
+  it('always previews on the avatar, and not with the Unity renderer', () => {
+    open([hatA, top])
+    const wp = screen.getByTestId('wp')
+    expect(wp).toHaveAttribute('data-type', 'avatar')
+    // Unity/aang previews one urn in its marketplace mode and opens on the item-alone view, ignoring `type`.
+    expect(wp).toHaveAttribute('data-unity', 'false')
   })
 
   it('equips one item per slot by default (two hats → only one worn)', () => {
