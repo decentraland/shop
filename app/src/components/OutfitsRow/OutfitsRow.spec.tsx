@@ -51,9 +51,11 @@ function look(id: string, name: string): Outfit {
 }
 
 // A resolution in which the one item every look above is built from is live and priced, so the row's
-// "every item still buyable" display filter keeps the looks.
+// "every item still buyable" display filter keeps the looks. `hasPrimaryListing` is not decoration:
+// isBuyableFromCreator requires it, so an item without it makes the whole look unshowable and the row
+// renders nothing at all.
 const resolved = {
-  byKey: new Map([['0xc0-0', { id: '0xc0-0', priceCredits: 100, available: 5 } as never]]),
+  byKey: new Map([['0xc0-0', { id: '0xc0-0', priceCredits: 100, available: 5, hasPrimaryListing: true } as never]]),
   missing: new Set<string>(),
   isLoading: false,
   isError: false,
