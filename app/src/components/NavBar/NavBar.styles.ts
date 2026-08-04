@@ -54,6 +54,27 @@ export const Subnav = styled.div`
 // hidden on My Items). Put on a member of that group instead, the alignment either breaks on the route
 // without a search, or two auto margins split the slack and park the field mid-row.
 export const Tabs = styled.nav`
+  /**
+   * WIDE VIEWPORTS: the strip does not shrink, so no tab label is cut.
+   *
+   * The search field beside it stopped growing (see Search) and now shrinks from its 496px design width.
+   * That alone did not free the strip: flex shrinks EVERY shrinkable sibling in proportion, so the strip
+   * gave up width too and clipped at 1440 — measured, and no amount of extra shrink on the field fixed it
+   * (at shrink 6 the field only reached 422px and the strip still clipped). The strip has to refuse to
+   * shrink for the field to absorb the squeeze.
+   *
+   * Only above 1280px. Measured: with the strip fixed, 1440 and 1280 both fit with the field above its
+   * 240px floor, but from 1200 down the whole ROW stops fitting and the PAGE scrolls sideways — worse than
+   * a clipped label, since the strip at least scrolls on purpose. Below this the strip yields again and
+   * clips, which is the intended behaviour between the field's floor and the wrap at lg.
+   *
+   * 1280 rather than the xl token (1200): 1200 is inside the page-overflow range, so the token would
+   * reintroduce the very thing this avoids.
+   */
+  @media (min-width: 1280px) {
+    flex-shrink: 0;
+  }
+
   margin-right: auto;
   display: flex;
   gap: 40px;

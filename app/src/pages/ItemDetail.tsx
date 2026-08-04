@@ -8,7 +8,7 @@ import { useFavorite, useFavorites } from '~/store/favorites'
 import { useWallet } from '~/store/wallet'
 import { stashResumeIntent, takeResumeIntent } from '~/lib/auth-return'
 import {
-  fetchShopListingForItem,
+  fetchUnifiedListingForItem,
   fetchTradeForItem,
   fetchItemResales,
   fetchItemDescription,
@@ -213,7 +213,9 @@ export function ItemDetail() {
   // fetchShopListingForItem, which treats its 2nd arg as an itemId → the server matched nothing and
   // returned the collection's first listing (a WRONG item) on a cold load. Never pass a tokenId here.
   // Also runs when a seeded item (grid nav / sibling) is missing its stock (`available`) so the
-  // authoritative listing can backfill it. Never for a market/legacy item (not in this feed).
+  // authoritative listing can backfill it. Resolved through the UNIFIED feed so a LEGACY (MANA) listing
+  // counts as much as a native one — reading the shop-only feed here is what made a MANA-listed item show
+  // "Not for sale" on its own page while its card in the grid showed a price.
   // ITEM ROUTE ONLY: the token route hydrates from the specific token (ownedAsset / publicToken) and
   // must not be overwritten by the generic item listing (which carries no tokenId).
   const needsPrimaryStock = current.available == null && !current.tokenId
@@ -226,7 +228,7 @@ export function ItemDetail() {
     staleTime: 0,
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
-    queryFn: () => fetchShopListingForItem(current.contractAddress, pageItemId as string)
+    queryFn: () => fetchUnifiedListingForItem(current.contractAddress, pageItemId as string)
   })
   useEffect(() => {
     if (!deepLinkItem) return

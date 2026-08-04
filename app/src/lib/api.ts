@@ -436,6 +436,28 @@ export async function fetchShopListingForItem(contractAddress: string, itemId: s
   return listings[0] ? shopListingToItem(listings[0]) : null
 }
 
+/**
+ * The item's PRIMARY listing from the UNIFIED feed — native (USD-pegged) or legacy (classic MANA, converted
+ * to credits server-side at the live rate), whichever exists.
+ *
+ * This is what the item page resolves through, and the shop-only version above is why a MANA-listed item read
+ * as unlisted there: /v3/catalog/shop carries USD-pegged trades only, so an item with nothing but legacy
+ * liquidity came back empty and the page fell through to "Not for sale". Measured on one such collection: the
+ * shop feed returns 0 rows for it, the unified feed returns its trade with a credits price. The browse grid
+ * has always read the unified feed, which is why the same item looked buyable in a card and unlisted on its
+ * own page.
+ *
+ * `listingType: 'primary'` because this resolves the MINT. Resales are a separate list (fetchItemResales),
+ * and letting a secondary row answer here would price the page off someone's resale.
+ */
+export async function fetchUnifiedListingForItem(
+  contractAddress: string,
+  itemId: string
+): Promise<UnifiedListing | null> {
+  const { items } = await fetchUnified({ contractAddress, itemId, listingType: 'primary', first: 1 })
+  return items[0] ?? null
+}
+
 // Credit-buyable listings for the browse grid (primary + secondary, USD-pegged). All filtering
 // (category, rarity, price, sub-category, search, sort) happens server-side on /v3/catalog/shop.
 // Still used by the Overview drops row + the Cart upsell; the main browse grid uses fetchShopItems.
@@ -1106,9 +1128,10 @@ export async function fetchTradeDisplay(tradeId: string): Promise<PurchaseDispla
 // Open credit-buyable listing (Trade) for a catalog ITEM (primary/mint), or null if none. Resolves
 // the tradeId via the v3 shop feed (the v1 /orders endpoint doesn't index primary item orders).
 export async function fetchTradeForItem(contractAddress: string, itemId: string): Promise<Trade | null> {
-  const { listings } = await fetchShopListingsRaw({ contractAddress, itemId, first: 1 })
-  const tradeId = listings[0]?.tradeId
-  return tradeId ? fetchTrade(tradeId) : null
+  // UNIFIED, not shop: a legacy MANA listing is absent from the shop feed, and resolving through it is what
+  // made a MANA-listed item unbuyable on its own page. See fetchUnifiedListingForItem.
+  const listing = await fetchUnifiedListingForItem(contractAddress, itemId)
+  return listing?.tradeId ? fetchTrade(listing.tradeId) : null
 }
 
 // Name + thumbnail for a sold asset (a secondary sale carries a tokenId; a primary/mint sale an
