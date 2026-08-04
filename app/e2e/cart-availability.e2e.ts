@@ -61,10 +61,12 @@ describe('cart availability', () => {
     await waitForText(page, 'Nebula Jacket')
     await waitForText(page, 'No longer available')
 
-    // The all-unavailable message shows and the Buy now CTA is disabled.
+    // The all-unavailable message shows and the checkout CTA is disabled. The label is "Checkout" now, not
+    // "Buy now" — that CTA leads to a review step rather than buying on the spot, which is why it was
+    // renamed. What this asserts is the DISABLED state, so it follows the label rather than pinning it.
     await waitForText(page, 'None of these items are available anymore')
     const buyDisabled = await page.evaluate(() => {
-      const btn = [...document.querySelectorAll('button')].find(b => /buy now/i.test(b.textContent || ''))
+      const btn = [...document.querySelectorAll('button')].find(b => /checkout/i.test(b.textContent || ''))
       return !!btn && btn.disabled
     })
     expect(buyDisabled).toBe(true)
