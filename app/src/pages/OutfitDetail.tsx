@@ -5,6 +5,7 @@ import { Button } from '~/components/Button'
 import { CreatorName } from '~/components/CreatorName'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { ErrorNotice } from '~/components/ErrorNotice'
+import { EmoteControls } from '~/components/LazyEmoteControls'
 import { OutfitPreview } from '~/components/OutfitPreview'
 import { useProfile } from '~/hooks/useProfile'
 import { Icon } from '~/components/Icon'
@@ -26,7 +27,7 @@ import {
   type Outfit,
   type OutfitItemState
 } from '~/lib/outfits'
-import { itemUrn } from '~/lib/urn'
+import { outfitPreviewUrns, playingEmote } from '~/lib/outfit'
 import { t } from '~/intl/i18n'
 import { useCart } from '~/store/cart'
 import { useWallet } from '~/store/wallet'
@@ -185,10 +186,11 @@ function OutfitContent({ outfit }: { outfit: Outfit }) {
   const mannequinShape: BodyShapeUrn | undefined =
     outfit.bodyShape === 'female' ? BASE_FEMALE : outfit.bodyShape === 'male' ? BASE_MALE : undefined
 
-  const urns = useMemo(
-    () => rows.map(row => (row.item ? itemUrn(row.item) : null)).filter((urn): urn is string => !!urn),
-    [rows]
-  )
+  const resolvedItems = useMemo(() => rows.map(row => row.item).filter((item): item is CatalogItem => !!item), [rows])
+  const urns = useMemo(() => outfitPreviewUrns(resolvedItems), [resolvedItems])
+  // The preview plays the outfit's own emote, so it gets the same play/pause/mute controls an emote
+  // item page has.
+  const hasEmote = !!playingEmote(resolvedItems)
 
   const total = outfit.items.length
   const settled = !resolution.isLoading && !resolution.isError
@@ -220,6 +222,13 @@ function OutfitContent({ outfit }: { outfit: Outfit }) {
               bodyShape={hasAvatar ? undefined : mannequinShape}
               urns={urns}
               enabled={profileResolved && !resolution.isLoading}
+              controls={
+                hasEmote ? (
+                  <S.EmoteControls data-testid="outfit-emote-controls">
+                    <EmoteControls wearablePreviewId={PREVIEW_ID} hideFrameInput />
+                  </S.EmoteControls>
+                ) : null
+              }
             />
           )}
         </S.Preview>

@@ -53,7 +53,7 @@ vi.mock('ethers', async importOriginal => {
   }
 })
 
-import { readManaUsdRate, manaWeiToUsdWei, manaWeiToCredits, manaWeiToUsdCents } from '~/lib/mana-rate'
+import { readManaUsdRate, manaWeiToUsdWei, manaWeiToCredits, manaWeiToUsdCents, displayCredits } from '~/lib/mana-rate'
 
 // $0.50 per MANA at 8 decimals: rate 50000000, decimals 8 → manaWei * 5e7 / 1e8 = manaWei / 2.
 const RATE_HALF: ManaRate = { rate: 50000000n, decimals: 8 }
@@ -176,6 +176,27 @@ describe('when converting MANA wei to credits', () => {
   it('and the mana wei is malformed it should return null so the UI can show unavailable', () => {
     expect(manaWeiToCredits('oops', RATE_HALF)).toBeNull()
     expect(manaWeiToCredits('12.5', RATE_HALF)).toBeNull()
+  })
+})
+
+describe('when pricing a listing row for display', () => {
+  it('should convert a MANA-priced row at the live rate', () => {
+    expect(displayCredits({ manaWei: ONE_MANA, priceCredits: 0 }, RATE_TWO)).toBe(20)
+  })
+
+  it('should keep the fixed credits of a USD-pegged row, rate or no rate', () => {
+    expect(displayCredits({ manaWei: null, priceCredits: 7 }, RATE_TWO)).toBe(7)
+    expect(displayCredits({ priceCredits: 7 }, undefined)).toBe(7)
+  })
+
+  // Zero reads as "no price yet" everywhere (skeleton total, no CTA) — never as a real price, and never
+  // as a guess made off a rate we do not have.
+  it('should price a MANA row at nothing while the rate is unavailable', () => {
+    expect(displayCredits({ manaWei: ONE_MANA, priceCredits: 0 }, undefined)).toBe(0)
+  })
+
+  it('should price a malformed MANA amount at nothing rather than inventing 1 credit', () => {
+    expect(displayCredits({ manaWei: 'oops', priceCredits: 0 }, RATE_TWO)).toBe(0)
   })
 })
 

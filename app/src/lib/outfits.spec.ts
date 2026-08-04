@@ -35,6 +35,7 @@ import {
   resolveOutfitPurchases,
   saveOutfit,
   splitOutfitItems,
+  isBuyableFromCreator,
   thumbnailUrl,
   toggleOutfitItem,
   uploadThumbnail,
@@ -362,6 +363,46 @@ describe('when classifying resolved items', () => {
     expect(split.ownListing.map(i => i.id)).toEqual(['c'])
     expect(split.inCart.map(i => i.id)).toEqual(['d'])
   })
+
+  // The discovery row's admission test: buyable FROM THE CREATOR, whatever the reason it might not be.
+  describe('isBuyableFromCreator', () => {
+    const live = { available: 100, hasPrimaryListing: true }
+
+    it('admits a live mint with supply left', () => {
+      expect(isBuyableFromCreator(item({ ...live }))).toBe(true)
+    })
+
+    it('rejects a sold-out mint even though it keeps its listed price', () => {
+      expect(isBuyableFromCreator(item({ ...live, available: 0 }))).toBe(false)
+    })
+
+    it('rejects a resale-only item — the creator is no longer the seller', () => {
+      expect(isBuyableFromCreator(item({ available: 0, hasPrimaryListing: false }))).toBe(false)
+      // Supply left but the mint is closed: still not the creator's to sell.
+      expect(isBuyableFromCreator(item({ available: 5, hasPrimaryListing: false }))).toBe(false)
+    })
+
+    it('rejects an unpriced item', () => {
+      expect(isBuyableFromCreator(item({ ...live, priceCredits: 0 }))).toBe(false)
+    })
+
+    // A feed that never answers the question must not be read as a yes: an over-strict row costs a
+    // card, an under-strict one walks the shopper into a look they cannot complete.
+    it('rejects a row that reports neither supply nor seller', () => {
+      expect(isBuyableFromCreator(item({}))).toBe(false)
+    })
+  })
+
+  // An emote is an ordinary outfit item: same states, same purchasable filter, counted in the CTA.
+  it('should classify an emote exactly like a wearable', () => {
+    const emote = item({ id: 'e', itemId: '5', category: 'emote' })
+    expect(classifyOutfitItem(emote, { cartKeys: NO_CART })).toBe('purchasable')
+    expect(
+      classifyOutfitItem(item({ id: 'e', itemId: '5', category: 'emote', available: 0 }), { cartKeys: NO_CART })
+    ).toBe('unavailable')
+    const split = splitOutfitItems([item({ id: 'a', itemId: '1' }), emote], { cartKeys: NO_CART })
+    expect(split.purchasable.map(i => i.id)).toEqual(['a', 'e'])
+  })
 })
 
 describe('when toggling items in the studio selection', () => {
@@ -417,6 +458,21 @@ describe('when toggling items in the studio selection', () => {
   it('should ignore items with no itemId (a secondary token cannot be referenced)', () => {
     const picked = catalogItem({ itemId: null })
     expect(toggleOutfitItem([ref('1')], picked, new Map())).toEqual([ref('1')])
+  })
+
+  // Emotes occupy no avatar slot, so they only ever add to a look — they never take a wearable off.
+  it('should append an emote without displacing any wearable', () => {
+    const worn = catalogItem({ id: `${CONTRACT}-1`, itemId: '1', wearableCategory: 'upper_body' })
+    const emote = catalogItem({ id: 'trade-e', itemId: '9', category: 'emote', wearableCategory: 'dance' })
+    const resolved = new Map([[outfitItemKey(ref('1')), worn]])
+    expect(toggleOutfitItem([ref('1')], emote, resolved)).toEqual([ref('1'), ref('9')])
+  })
+
+  it('should let several emotes coexist', () => {
+    const first = catalogItem({ id: `${CONTRACT}-9`, itemId: '9', category: 'emote', wearableCategory: 'dance' })
+    const second = catalogItem({ id: 'trade-e2', itemId: '10', category: 'emote', wearableCategory: 'fun' })
+    const resolved = new Map([[outfitItemKey(ref('9')), first]])
+    expect(toggleOutfitItem([ref('9')], second, resolved)).toEqual([ref('9'), ref('10')])
   })
 })
 

@@ -439,6 +439,10 @@ export const SelectedRow = styled.li`
   border: 1px solid ${colors.line};
   border-radius: ${radius.card};
 
+  ${media.maxWidth('mobile')} {
+    flex-wrap: wrap;
+  }
+
   &[data-missing] {
     opacity: 0.6;
   }
@@ -470,6 +474,24 @@ export const SelName = styled.span`
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+`
+
+// On a phone the row has no width to spare, so the pill wraps onto its own line (order pushes it past
+// the price and the remove button) rather than squeezing the item name to nothing.
+export const SelHint = styled.span`
+  flex: none;
+  padding: 2px 8px;
+  border-radius: ${radius.pill};
+  border: 1px solid ${colors.lineStrong};
+  font-size: 11px;
+  font-weight: 600;
+  color: ${colors.muted};
+  white-space: nowrap;
+
+  ${media.maxWidth('mobile')} {
+    order: 1;
+    margin-left: 50px;
+  }
 `
 
 export const SelPrice = styled.span`

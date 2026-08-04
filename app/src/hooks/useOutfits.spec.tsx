@@ -18,6 +18,13 @@ vi.mock('~/lib/api', async importOriginal => {
   return { ...actual, fetchCatalogByIds: vi.fn(), fetchShopItems: vi.fn() }
 })
 
+// The live MANA rate the /v2 rows are priced at. Stubbed because the real hook reads the on-chain
+// oracle through `decentraland-transactions`, whose ESM directory imports vitest cannot resolve.
+const { manaRate } = vi.hoisted(() => ({
+  manaRate: { data: { rate: 26960836n, decimals: 8 }, isLoading: false, isError: false, refetch: vi.fn() }
+}))
+vi.mock('~/hooks/useManaRate', () => ({ useManaRate: () => manaRate }))
+
 // The studio is hidden entirely when there is no shop-server to author against, so every case here
 // needs a configured host to be about the allowlist rather than about availability.
 vi.mock('~/config', async importOriginal => {
