@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import { useWallet } from '~/store/wallet'
-import { fetchImportable, type ImportItem } from '~/lib/import'
+import { type ImportItem } from '~/lib/import'
 import { toast } from '~/store/toast'
 import { MigrateModal, type MigrateEntry } from '~/components/MigrateModal'
 import { CURRENCY, creditsToUsd } from '~/lib/currency'
@@ -14,8 +14,7 @@ import { categoryIcon } from '~/lib/itemIcons'
 import { rarityInk, rarityTint } from '~/lib/rarity'
 import { formatMana } from '~/lib/mana-format'
 import { capitalizeFirst } from '~/lib/text'
-import { useSeo } from '~/hooks/useSeo'
-import { useSecondarySales } from '~/hooks/useSecondarySales'
+import { useImportable } from '~/hooks/useImportable'
 import * as F from '~/styles/field.styles'
 import { t } from '~/intl/i18n'
 import * as S from './ImportListings.styles'
@@ -33,33 +32,14 @@ function manaLabel(wei: string): string | null {
 }
 
 export function ImportListings() {
-  useSeo({ title: t('seo.import.title'), noindex: true })
-  const { session, signIn, restore } = useWallet()
+  const { session } = useWallet()
   const qc = useQueryClient()
-  const address = session?.address
 
-  useEffect(() => {
-    void restore()
-  }, [restore])
-
-  const { data, isLoading } = useQuery({
-    queryKey: ['importable', address],
-    queryFn: () => fetchImportable(address as string),
-    enabled: !!address
-  })
-
-  const secondarySales = useSecondarySales()
+  const { items: all, isLoading } = useImportable()
 
   const [prices, setPrices] = useState<Record<string, number>>({})
   const [excluded, setExcluded] = useState<Set<string>>(new Set())
   const [queue, setQueue] = useState<MigrateEntry[] | null>(null)
-
-  // The secondary half is dropped while resales are off, so "list all" can never pick up a resale the
-  // page never showed.
-  const all = useMemo(
-    () => [...(data?.creations ?? []), ...(secondarySales ? (data?.owned ?? []) : [])],
-    [data, secondarySales]
-  )
 
   // Seed each price with the auto-converted suggestion (keep any edits the user already made).
   useEffect(() => {
@@ -111,19 +91,6 @@ export function ImportListings() {
     void qc.invalidateQueries({ queryKey: ['my-assets'] })
     void qc.invalidateQueries({ queryKey: ['collection-sale-state'] })
     toast.success(t('importListings.toastUpdated'))
-  }
-
-  if (!session) {
-    return (
-      <S.Empty>
-        <S.EmptyIco aria-hidden>📦</S.EmptyIco>
-        <S.EmptyTitle>{t('importListings.signInTitle')}</S.EmptyTitle>
-        <p className="muted">{t('importListings.signInBody')}</p>
-        <S.EmptyCta variant="purple" onClick={() => signIn()}>
-          {t('storeSettings.signIn')}
-        </S.EmptyCta>
-      </S.Empty>
-    )
   }
 
   if (!isLoading && all.length === 0) {
@@ -178,6 +145,9 @@ export function ImportListings() {
                 data-indeterminate={partiallySelected}
                 onChange={toggleAll}
                 data-testid="import-select-all"
+                // The visible "Select All" says nothing about WHAT, which is all a screen reader gets
+                // out of context. The spelled-out name still contains the visible label (WCAG 2.5.3).
+                aria-label={t('importListings.selectAllAria')}
               />
             </S.CheckSlot>
             {t('importListings.selectAll')}
@@ -198,6 +168,7 @@ export function ImportListings() {
                             type="checkbox"
                             checked={isSelected(item.oldTradeId)}
                             onChange={() => toggle(item.oldTradeId)}
+                            data-testid="import-row-check"
                             aria-label={t('importListings.includeItem', { name: item.name })}
                           />
                         </S.CheckSlot>

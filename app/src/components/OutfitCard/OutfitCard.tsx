@@ -1,5 +1,6 @@
 import type { MouseEvent } from 'react'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
+import { Icon } from '~/components/Icon'
 import { useOutfitCart, type OutfitItemsResolution } from '~/hooks/useOutfits'
 import { outfitFade, outfitGradient, thumbnailUrl, type Outfit } from '~/lib/outfits'
 import { t } from '~/intl/i18n'
@@ -67,6 +68,7 @@ export function OutfitCard({ outfit, resolution }: { outfit: Outfit; resolution:
             disabled={isAdding || split.purchasable.length === 0}
             aria-busy={isAdding || undefined}
           >
+            <Icon name="cart-solid" />
             {isAdding ? t('outfits.card.adding') : t('outfits.card.add')}
           </S.Cta>
         )}

@@ -62,6 +62,7 @@ export function CategoryFilter({
   collections = false,
   onCollections,
   hideAll = false,
+  hideNames = false,
   extraLabelKey = 'categories.collections'
 }: {
   category: string
@@ -79,6 +80,9 @@ export function CategoryFilter({
   // My Assets: hide the "Shop All" entry (owned sections only) and relabel the onCollections entry
   // (e.g. "My Creations") so the same category nav can be reused across pages.
   hideAll?: boolean
+  // Creator page: NAMEs are registered by whoever buys them, not published by a creator, so a
+  // creator-scoped NAMEs entry has nothing to filter and would just re-show their wearables/emotes.
+  hideNames?: boolean
   extraLabelKey?: string
 }) {
   // Accordion state is separate from the active category so clicking an open header collapses it
@@ -101,7 +105,7 @@ export function CategoryFilter({
   return (
     <S.Root data-flat={flat || undefined}>
       {title ? <S.Title>{title}</S.Title> : null}
-      {CATEGORIES.filter(top => !(hideAll && top.key === 'all')).map(top => {
+      {CATEGORIES.filter(top => !(hideAll && top.key === 'all') && !(hideNames && top.key === 'names')).map(top => {
         const open = expandedKey === top.key && !!top.subs
         // In collections mode nothing in the normal category list is highlighted.
         const selected = !collections && top.key === category

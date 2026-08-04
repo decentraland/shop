@@ -255,6 +255,35 @@ describe('outfits row on the overview', () => {
     else expect(await infoOpacity()).toBe('1')
   })
 
+  // The side arrows exist only when the rail actually pages, and the three-outfit fixture fits one
+  // desktop view — so this seeds enough looks for a second page.
+  it('pages the rail with the side arrows when the looks overflow one view', async () => {
+    const [full] = outfitFixtures().outfits.outfits
+    const many = Array.from({ length: 6 }, (_, i) => ({
+      ...full,
+      id: `aaaaaaaa-0000-4000-8000-00000000001${i}`,
+      name: `Look ${i + 1}`
+    }))
+    const page = await launch('/overview', { fixtures: { outfits: { outfits: many } } })
+    await page.waitForSelector('[data-testid="outfits-row-next"]', { timeout: 20000 })
+
+    // Hidden (disabled) at the first page, live at the last.
+    expect(await page.$eval('[data-testid="outfits-row-prev"]', el => (el as HTMLButtonElement).disabled)).toBe(true)
+
+    // The scroll is smooth, so settle on the arrows swapping state — the last page is only a sliver
+    // of a viewport wide, which is exactly the case a scrollLeft/width page index gets wrong.
+    await page.click('[data-testid="outfits-row-next"]')
+    await page.waitForFunction(
+      () => {
+        const prev = document.querySelector('[data-testid="outfits-row-prev"]') as HTMLButtonElement | null
+        const next = document.querySelector('[data-testid="outfits-row-next"]') as HTMLButtonElement | null
+        return !!prev && !!next && !prev.disabled && next.disabled
+      },
+      { timeout: 20000 }
+    )
+    expect(await page.$eval('[data-testid="outfits-row-track"]', el => el.scrollLeft > 0)).toBe(true)
+  })
+
   it('renders nothing at all when there are no published outfits', async () => {
     const page = await launch('/overview', { fixtures: { outfits: { outfits: [] } } })
     await waitForText(page, 'Featured Products')
@@ -333,7 +362,7 @@ describe('outfit studio', () => {
       timeout: 20000
     })
 
-    // New draft: a name alone is saveable; publish stays disabled until name+thumbnail+2 items.
+    // New draft: a name alone is saveable; publish stays disabled until name+thumbnail+an item.
     await page.click('[data-testid="outfit-studio-new"]')
     await page.waitForSelector('[data-testid="outfit-studio-editor"]', { timeout: 20000 })
     await page.type('[data-testid="outfit-studio-name"]', 'Fresh Look')

@@ -76,7 +76,6 @@
   },
   "creator": {
     "breadcrumb": "Items",
-    "category": "Category",
     "fallbackName": "Creator",
     "viewProfile": "View profile",
     "editStore": "Edit store",
@@ -90,16 +89,15 @@
     "following": "Following",
     "followTitle": "Follow creator",
     "unfollowTitle": "Unfollow creator",
-    "empty": "This creator has no items to show yet.",
+    "emptyNoCreations": "This creator hasn’t published anything yet.",
+    "emptyFilters": {
+      "title": "No items match these filters.",
+      "body": "This creator has {count, plural, one {# item} other {# items}}, but none of them match your current filters."
+    },
     "collectionsCount": "{count, plural, one {# collection} other {# collections}}",
     "collectionsEmpty": "This creator hasn’t published any collections yet.",
     "error": "Couldn’t load this creator — please try again.",
-    "breadcrumbAria": "Breadcrumb",
-    "priceMin": "Minimum price",
-    "priceMax": "Maximum price",
-    "priceMinPlaceholder": "Min",
-    "priceMaxPlaceholder": "Max",
-    "priceHint": "Price in {currency}"
+    "breadcrumbAria": "Breadcrumb"
   },
   "storeSettings": {
     "title": "Store settings",
@@ -553,7 +551,11 @@
     "paidWithMana": "Purchase · paid with MANA",
     "payoutPending": "Pending",
     "payoutPendingOn": "Credits available {date}",
-    "payoutCredited": "Paid in credits"
+    "payoutCredited": "Paid in credits",
+    "migrate": {
+      "chip": "Listings",
+      "chipAria": "Move your listings — {count, plural, one {# item} other {# items}} left"
+    }
   },
   "myFavorites": {
     "emptyTitle": "Nothing here... yet!",
@@ -677,7 +679,7 @@
       "namePlaceholder": "e.g. Neon Nights",
       "items": "Items",
       "noItems": "No items yet — pick some from the catalog below.",
-      "maxItems": "An outfit can have up to 10 items.",
+      "maxItems": "An outfit can have up to 20 items.",
       "remove": "Remove",
       "searchPlaceholder": "Search wearables…",
       "noResults": "No results",
@@ -717,7 +719,7 @@
     "errors": {
       "generic": "Something went wrong. Please try again.",
       "notAllowed": "Your account can't manage outfits.",
-      "notPublishable": "Add a name, a thumbnail and 2–10 items before publishing.",
+      "notPublishable": "Add a name, a thumbnail and 1–20 items before publishing.",
       "invalidItems": "One of the items is duplicated or invalid.",
       "tooLarge": "That image is too big — keep it under 1 MB.",
       "unsupportedType": "Use a PNG, JPEG or WebP image.",
@@ -753,15 +755,11 @@
     "pages": "Carousel pages",
     "goToPage": "Go to page {page}"
   },
-  "weekTopCreators": {
-    "title": "Week Top Creators",
-    "rank": "Rank",
-    "creator": "Creator",
-    "collections": "Collections",
-    "sales": "Number of sales",
-    "volume": "Volume",
-    "viewCollections": "View collections",
-    "viewCollectionsBy": "View collections by {name}"
+  "topCreators": {
+    "title": "Meet Our Top Creators",
+    "viewCreations": "View creations",
+    "viewCreationsBy": "View creations by {name}",
+    "stats": "{collections, plural, one {# collection} other {# collections}} | {items, plural, one {# item} other {# items}}"
   },
   "loadMore": {
     "loading": "Loading…",
@@ -782,8 +780,6 @@
   },
   "importListings": {
     "toastUpdated": "Your Shop is updated.",
-    "signInTitle": "Import your listings",
-    "signInBody": "Sign in to bring the items you already sell into the Shop.",
     "emptyTitle": "You're all caught up",
     "emptyBody": "Everything you sell is already in the Shop — nothing to import.",
     "goToMyAssets": "Go to My Items",
@@ -792,6 +788,7 @@
     "learnMore": "Learn More",
     "updatePricing": "Update Pricing",
     "selectAll": "Select All",
+    "selectAllAria": "Select all listings to move",
     "includeItem": "Include {name}",
     "itemFallback": "Item",
     "priceAria": "Price in {currency} for {name}",
@@ -903,7 +900,18 @@
     "statusUnlisted": "Not listed",
     "hintConfirm": "A couple of quick confirmations pop up per item (take down + re-list). Keep this open.",
     "hintManaged": "This only takes a moment — keep this open.",
-    "statusWaiting": "Waiting"
+    "statusWaiting": "Waiting",
+    "phaseCancel": "Taking down the old listing…",
+    "phaseCancelConfirm": "Confirm taking it down…",
+    "phaseConfirmingCancel": "Waiting for the network to confirm…",
+    "phaseAuthorise": "Setting up the Shop…",
+    "phaseAuthoriseConfirm": "Confirm the one-time approval…",
+    "phaseSign": "Preparing the new price…",
+    "phaseSignConfirm": "Sign the new listing…",
+    "phasePublishing": "Publishing…",
+    "phaseIndexing": "Waiting for the old listing to clear ({attempt}/{of})…",
+    "hintCount": "About {total} confirmations will pop up — take down and re-list, per item. Keep this open.",
+    "hintCountApproval": "About {total} confirmations will pop up: take down and re-list per item, plus a one-time approval for each collection. Keep this open."
   },
   "fittingRoom": {
     "title": "Fitting room",

@@ -6,9 +6,10 @@ import { AssetCard } from '~/components/AssetCard'
 import { SkeletonCards } from '~/components/SkeletonCards'
 import { FollowedCreatorsRow } from '~/components/FollowedCreatorsRow'
 import { OutfitsRow } from '~/components/OutfitsRow'
-import { WeekTopCreators } from '~/components/WeekTopCreators'
+import { TopCreators } from '~/components/TopCreators'
 import { t } from '~/intl/i18n'
 import { useSeo } from '~/hooks/useSeo'
+import { railPageCount, railPageFromScroll } from '~/lib/pagedRail'
 import carouselArrow from '~/assets/icons/carousel-arrow.svg'
 // Figma 5566:4449 "Web 1920x340", exported flat rather than rebuilt: the source is thirteen absolutely
 // positioned layers with per-layer blurs, two blend modes and an alpha mask, and it is a static
@@ -42,20 +43,19 @@ function Carousel({ title, items, loading }: { title: string; items: CatalogItem
     if (!el) return
     const view = el.clientWidth
     if (view <= 0) return
-    const pages = Math.max(1, Math.ceil((el.scrollWidth - view) / view) + 1)
-    setPageCount(pages)
-    setPage(Math.min(pages - 1, Math.round(el.scrollLeft / view)))
+    setPageCount(railPageCount(el.scrollWidth, view))
+    setPage(railPageFromScroll(el.scrollLeft, el.scrollWidth, view))
     const media = el.querySelector<HTMLElement>('[data-testid="card-media"]')
     const viewport = el.parentElement
     // 12px = the track's top padding; center on the media so the chevrons sit over the artwork.
-    if (viewport) viewport.style.setProperty('--ov-arrow-top', `${12 + (media ? media.offsetHeight : 150) / 2}px`)
+    if (viewport) viewport.style.setProperty('--rail-arrow-top', `${12 + (media ? media.offsetHeight : 150) / 2}px`)
   }, [])
 
   useEffect(() => {
     measure()
     const el = trackRef.current
     if (!el) return
-    const onScroll = () => setPage(Math.round(el.scrollLeft / Math.max(1, el.clientWidth)))
+    const onScroll = () => setPage(railPageFromScroll(el.scrollLeft, el.scrollWidth, el.clientWidth))
     el.addEventListener('scroll', onScroll, { passive: true })
     window.addEventListener('resize', measure)
     return () => {
@@ -190,14 +190,14 @@ export function Overview() {
         </S.Empty>
       )}
 
-      {/* The creators ranking table is dead last (Figma 1878:67135). Recently viewed used to sit above it
-          and is gone: the home page now leads with what the Shop is selling, and a row of things you have
-          already looked at competes with that. The store still records views — nothing else read that row —
-          so bringing it back is re-adding the component, not rebuilding it.
+      {/* The creators section is dead last. Recently viewed used to sit above it and is gone: the home
+          page now leads with what the Shop is selling, and a row of things you have already looked at
+          competes with that. The store still records views — nothing else read that row — so bringing it
+          back is re-adding the component, not rebuilding it.
           FollowedCreatorsRow renders nothing until it has data (the follows flag is off), so it costs a
           fetch-free no-op here rather than an empty section. */}
       <FollowedCreatorsRow />
-      <WeekTopCreators />
+      <TopCreators />
     </S.Overview>
   )
 }

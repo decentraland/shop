@@ -17,6 +17,7 @@ import { captureError } from '~/lib/monitoring'
 import {
   DEFAULT_OUTFIT_GRADIENT,
   MAX_OUTFIT_ITEMS,
+  MIN_OUTFIT_ITEMS,
   MAX_THUMBNAIL_BYTES,
   OutfitsError,
   deleteOutfit,
@@ -446,7 +447,7 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
     nameValid &&
     !!draft.thumbnailHash &&
     gradientValid &&
-    draft.items.length >= 2 &&
+    draft.items.length >= MIN_OUTFIT_ITEMS &&
     draft.items.length <= MAX_OUTFIT_ITEMS
 
   async function save(published: boolean) {

@@ -24,6 +24,14 @@ export const Section = styled.section`
      the left edge of a wide page. Centring only the list would leave the heading orphaned from it. */
   max-width: 760px;
   margin-inline: auto;
+
+  /* The migration tool's row (thumbnail + name + a 144px price field) does not survive the feed's
+     column: squeezed to 760px the price field lands on its own line on a desktop. Widening the whole
+     column keeps heading, chips and panel as one block, which is the point of the constraint above.
+     1003px is the tool's own width in the design, which puts its rows at the 979px they are drawn at. */
+  &[data-view='migrate'] {
+    max-width: 1003px;
+  }
 `
 
 export const Head = styled.div`
@@ -54,13 +62,23 @@ export const Tabs = styled.div`
 
 export const Tab = styled.button`
   appearance: none;
-  border: 1px solid ${theme.colors.line};
+  /* Figma draws the row as a 0.5px Gray 4 hairline, a shade darker and half the weight of the card
+     border this used, and sets the label a point smaller with the tracking the shop's other 13px
+     pills carry. */
+  border: 0.5px solid ${theme.colors.gray4};
   background: ${theme.colors.white};
   color: ${theme.colors.text};
   font-family: ${theme.font.sans};
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
-  padding: 8px 16px;
+  line-height: 24px;
+  letter-spacing: 0.46px;
+  /* The design gives the pill a flat 40px and no vertical padding, centring the 24px line box inside
+     it — so the height is the 40 it draws rather than the sum of a line box, padding and a border. */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
   min-height: 40px;
   border-radius: ${theme.radius.pill};
   cursor: pointer;
@@ -81,6 +99,69 @@ export const Tab = styled.button`
     border-color: ${theme.colors.accent};
     color: ${theme.colors.white};
   }
+`
+
+// The migration chip. Figma gives it the filter chips' own hairline and fill rather than a colour of
+// its own — it is drawn as a fourth chip in the row, and the violet count is the only thing marking it
+// out — so the only thing this adds to the pill is the corner the count hangs off.
+export const MigrateTab = styled(Tab)`
+  position: relative;
+
+  /* Violet-on-violet once the chip fills, so the badge inverts. Reached by test id rather than by
+     interpolating the styled def, which throws under vitest (see CLAUDE.md). */
+  &[data-active='true'] [data-testid='activity-migrate-count'] {
+    background: ${theme.colors.white};
+    color: ${theme.colors.accent};
+    /* See MigrateBadge: a white ring would vanish into the page here, since the disc itself is white. */
+    box-shadow: 0 0 0 2px ${theme.colors.accent};
+  }
+`
+
+// How many listings are still to move. Same 20px violet disc the tool uses over its own list, so the
+// chip and the panel it opens agree on what a count looks like.
+//
+// Figma hangs the disc OVER the chip's top-right corner rather than seating it inside the pill, so it
+// is out of flow: the chip is sized by its label alone, and the disc overhangs 2.5px to the right and
+// 5.5px above. Nothing between here and the page scroller clips, so the overhang is safe.
+export const MigrateBadge = styled.span`
+  position: absolute;
+  /* Offsets run from the chip's PADDING box, so they carry the 1px its hairline occupies in layout on
+     top of the 5.5 / 2.5 the design measures from the pill's outer edge. */
+  top: -6.5px;
+  right: -3.5px;
+  display: grid;
+  place-items: center;
+  /* The chip's tracking would otherwise widen the disc off its 20px. */
+  letter-spacing: normal;
+  /* Figma only ever draws a single digit, as a fixed 20px disc. The padding is what lets a two- or
+     three-figure count grow leftwards out of the corner instead of spilling out of the circle. */
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: ${theme.radius.pill};
+  background: ${theme.colors.brandViolet};
+  /**
+   * A ring, whose colour has to FOLLOW THE DISC rather than the page.
+   *
+   * The disc hangs off the corner: part of it sits on the chip, part on the page. Unselected it is violet
+   * on white, so it already reads and the white ring only separates it from the chip's grey hairline.
+   * Selected, the chip inverts it to white on violet — and a white disc against the white page has no edge
+   * at all along the half that overhangs, which is the state where the circle looked unfinished. That case
+   * needs the ring in the chip's accent instead (below), so the disc keeps a hard edge on both surfaces.
+   *
+   * box-shadow rather than a border: a border would grow the 20px disc the design fixes, while a spread
+   * shadow draws outside the box.
+   */
+  box-shadow: 0 0 0 2px ${theme.colors.white};
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 1.6;
+  color: ${theme.colors.white};
+`
+
+// Keeps the tool's own skeletons from jumping the page while its chunk loads.
+export const PanelFallback = styled.div`
+  min-height: 60vh;
 `
 
 export const List = styled.div`

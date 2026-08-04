@@ -21,7 +21,8 @@ export const EmptyIco = styled.span`
   font-size: 44px;
 `
 
-export const EmptyTitle = styled.h1`
+// h2, not h1: the tool is a section of the Activity page, which owns the page heading.
+export const EmptyTitle = styled.h2`
   font-size: 26px;
   font-weight: 800;
   margin: 4px 0 0;
@@ -54,7 +55,7 @@ export const Intro = styled.div`
   gap: 8px;
 `
 
-export const Title = styled.h1`
+export const Title = styled.h2`
   margin: 0;
   font-weight: 600;
   font-size: 20px;
@@ -91,12 +92,14 @@ export const LearnMore = styled.a`
   }
 `
 
+// Gray 4, not the subtler card hairline: this rule spans the full 1003px and has to stay readable as a
+// section break, which is the weight the design draws it at.
 export const Divider = styled.hr`
   width: 100%;
   height: 0;
   margin: 0;
   border: 0;
-  border-top: 1px solid ${colors.line};
+  border-top: 1px solid ${colors.gray4};
 `
 
 export const Body = styled.div`
@@ -235,8 +238,11 @@ export const Chip = styled(BaseChip)`
   font-size: 8.56px;
   line-height: 11.851px;
 
+  /* Same padding as the rarity chip beside it — the design sets the category chip flush with it, and
+     only the narrower gender chip (which this row does not carry) gets the tighter inset. Restated
+     rather than inherited because the shared chip's own icon variant is a more specific selector. */
   &[data-variant='icon'] {
-    padding: 1.623px 3.246px;
+    padding: 1.623px 6.491px;
   }
   &[data-variant='icon'] .ico {
     width: 14.605px;
@@ -267,14 +273,13 @@ export const PriceField = styled.div`
   border-radius: ${radius.btn};
   background: ${colors.panel};
 
-  /* The MONOCHROME credit glyph, in the text colour and matched to the amount beside it — this field used
-     the filled gradient mark, which at 17px next to a 16px figure read as a small warm smudge rather than a
-     unit. The mark is right for a price you are being shown; this is a price you are typing, so it belongs
-     to the input's own type. */
+  /* The MONOCHROME credit glyph, in the text colour and matched to the amount beside it: the filled
+     gradient mark is right for a price you are being SHOWN, and this is a price you are typing, so the
+     unit belongs to the input's own type. 17px is the size the design draws the mark at here. */
   & .ico {
     flex: 0 0 auto;
-    width: 22px;
-    height: 22px;
+    width: 17px;
+    height: 17px;
     color: ${colors.text};
   }
   transition:

@@ -2,7 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { OutfitCard } from '~/components/OutfitCard'
 import { useOutfitItems, useOutfits } from '~/hooks/useOutfits'
 import { isListingUnavailable, isOutfitsAvailable, outfitItemKey, type Outfit } from '~/lib/outfits'
+import { railPageCount, railPageFromScroll } from '~/lib/pagedRail'
 import { t } from '~/intl/i18n'
+import carouselArrow from '~/assets/icons/carousel-arrow.svg'
 import * as Row from '~/styles/row.styles'
 import * as S from './OutfitsRow.styles'
 
@@ -39,13 +41,12 @@ export function OutfitsRow() {
   }, [outfits, resolution])
 
   // Same paging model as the Overview carousels: a page is one viewport-width of scroll, so the
-  // dots stay honest across the responsive N-per-view tiers.
+  // arrows and dots stay honest across the responsive N-per-view tiers.
   const measure = useCallback(() => {
     const el = trackRef.current
     if (!el) return
-    const view = el.clientWidth
-    if (view <= 0) return
-    const pages = Math.max(1, Math.ceil((el.scrollWidth - view) / view) + 1)
+    if (el.clientWidth <= 0) return
+    const pages = railPageCount(el.scrollWidth, el.clientWidth)
     setPageCount(pages)
     setPage(current => Math.min(pages - 1, current))
   }, [])
@@ -54,7 +55,7 @@ export function OutfitsRow() {
     measure()
     const el = trackRef.current
     if (!el) return
-    const onScroll = () => setPage(Math.round(el.scrollLeft / Math.max(1, el.clientWidth)))
+    const onScroll = () => setPage(railPageFromScroll(el.scrollLeft, el.scrollWidth, el.clientWidth))
     el.addEventListener('scroll', onScroll, { passive: true })
     window.addEventListener('resize', measure)
     return () => {
@@ -88,11 +89,35 @@ export function OutfitsRow() {
       <Row.Head>
         <Row.Title>{title}</Row.Title>
       </Row.Head>
-      <S.Track ref={trackRef}>
-        {visible.map(outfit => (
-          <OutfitCard key={outfit.id} outfit={outfit} resolution={resolution} />
-        ))}
-      </S.Track>
+      <S.Viewport>
+        {pageCount > 1 ? (
+          <Row.Arrow
+            data-side="left"
+            data-testid="outfits-row-prev"
+            onClick={() => scrollToPage(page - 1)}
+            disabled={page <= 0}
+            aria-label={t('overview.previous')}
+          >
+            <img src={carouselArrow} alt="" aria-hidden />
+          </Row.Arrow>
+        ) : null}
+        <S.Track ref={trackRef} data-testid="outfits-row-track">
+          {visible.map(outfit => (
+            <OutfitCard key={outfit.id} outfit={outfit} resolution={resolution} />
+          ))}
+        </S.Track>
+        {pageCount > 1 ? (
+          <Row.Arrow
+            data-side="right"
+            data-testid="outfits-row-next"
+            onClick={() => scrollToPage(page + 1)}
+            disabled={page >= pageCount - 1}
+            aria-label={t('overview.next')}
+          >
+            <img src={carouselArrow} alt="" aria-hidden />
+          </Row.Arrow>
+        ) : null}
+      </S.Viewport>
       {pageCount > 1 ? (
         <Row.Dots data-testid="outfits-row-dots" aria-label={t('overview.carouselPages', { title })}>
           {Array.from({ length: dotCount }).map((_, i) => (

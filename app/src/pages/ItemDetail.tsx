@@ -22,6 +22,7 @@ import {
   type UnifiedListing
 } from '~/lib/api'
 import { itemIdFromTokenId } from '~/lib/token-id'
+import { liveTradeId, markListingCancelled } from '~/lib/dead-listings'
 import { patchManageCaches } from '~/lib/manage-cache'
 import { isSaleSectionLoading } from '~/lib/pdp-loading'
 import { cancelListing } from '~/lib/buy'
@@ -124,6 +125,7 @@ export function ItemDetail() {
   const isMarket = !!state?.market
   const marketPriceCredits = state?.marketPriceCredits ?? null
 
+  const qc = useQueryClient()
   const add = useCart(s => s.add)
   const cartItems = useCart(s => s.items)
   const toggleFav = useFavorites(s => s.toggle)
@@ -355,7 +357,11 @@ export function ItemDetail() {
   const isSmart = itemTraits?.isSmart ?? current.isSmart
   const utility = itemTraits?.utility ?? null
 
-  const buyableTradeId = current.tradeId ?? resolvedTradeId ?? undefined
+  // Both sources are filtered through the session's cancelled listings (see lib/dead-listings): the feed's
+  // materialized view lags behind a take-down, so `current.tradeId` (seeded from a grid row that predates it)
+  // and the resolved trade can both still name a listing we know is dead. Without that filter the page keeps
+  // offering the listing it just cancelled until a full reload.
+  const buyableTradeId = liveTradeId(qc, current.tradeId) ?? liveTradeId(qc, resolvedTradeId)
   const forSale = !!buyableTradeId
 
   // Cheapest open resale for this item — powers the "Lowest Price" line + resellers link (Figma
@@ -508,7 +514,6 @@ export function ItemDetail() {
   //  • CREATOR of a PRIMARY (mint) listing they published — `own` (isOwnListing) already flags it.
   //  • OWNER of a SECONDARY token they hold — resolved by querying the connected wallet's holding of
   //    this exact token (also reports whether it's listed + the trade id to take it down).
-  const qc = useQueryClient()
   const [showSell, setShowSell] = useState(false)
   const [showPrimary, setShowPrimary] = useState(false)
   const [showTransfer, setShowTransfer] = useState(false)
@@ -753,6 +758,13 @@ export function ItemDetail() {
       // corrected on the next window focus). Runs for the silent edit-price cancel too, so the old listing
       // disappears immediately before the relist modal reopens. refreshManage then reconciles.
       setJustListedCredits(null)
+      // Retire the trade so nothing can offer it back while the MV catches up: patchManageCaches below only
+      // reaches the TOKEN-scoped caches, and no-ops entirely without a tokenId — i.e. never on the /item
+      // route, where a creator's primary listing lives in this page's own item state instead.
+      markListingCancelled(qc, manageTradeId)
+      // …and drop it from that state, so the buyable-trade query stops short-circuiting on a dead id and can
+      // resolve whatever replaces it (the re-list half of an Edit price, say).
+      setCurrent(prev => (prev.tradeId === manageTradeId ? { ...prev, tradeId: undefined } : prev))
       void refreshManage()
       patchManageCaches(
         qc,

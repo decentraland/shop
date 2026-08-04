@@ -83,7 +83,10 @@ export function Filters({
   status,
   onStatus,
   smart,
-  onSmart
+  onSmart,
+  hideNames = false,
+  collections = false,
+  onCollections
 }: {
   category: string
   subCategory: string | null
@@ -99,6 +102,12 @@ export function Filters({
   onStatus: (s: FilterStatus) => void
   smart: boolean
   onSmart: (v: boolean) => void
+  // Creator page: no NAMEs entry, plus a "Collections" destination after the categories. Passed
+  // through to CategoryFilter so the creator storefront reuses this sidebar rather than growing a
+  // second one.
+  hideNames?: boolean
+  collections?: boolean
+  onCollections?: () => void
 }) {
   // Rarity starts collapsed (mirrors the previous sidebar + keeps the browse e2e meaningful); the rest
   // open by default so their content shows straight away.
@@ -122,11 +131,13 @@ export function Filters({
     onPriceMax(n >= PRICE_SLIDER_MAX ? '' : String(n))
   }
 
-  const categorySummary = subCategory
-    ? subCategoryLabel(subCategory)
-    : category !== 'wearable'
-      ? t(`categories.${category === 'emote' ? 'emotes' : category === 'all' ? 'shopAll' : category}`)
-      : ''
+  const categorySummary = collections
+    ? t('categories.collections')
+    : subCategory
+      ? subCategoryLabel(subCategory)
+      : category !== 'wearable'
+        ? t(`categories.${category === 'emote' ? 'emotes' : category === 'all' ? 'shopAll' : category}`)
+        : ''
   const priceSummary = min != null || max != null ? `${priceMin || '0'}-${priceMax || '∞'}` : ''
   const raritySummary = RARITIES.filter(r => rarities.includes(r))
     .map(capitalizeFirst)
@@ -143,7 +154,15 @@ export function Filters({
         summary={categorySummary}
         desktopStatic
       >
-        <CategoryFilter category={category} subCategory={subCategory} onCategory={onCategory} onSub={onSub} />
+        <CategoryFilter
+          category={category}
+          subCategory={subCategory}
+          onCategory={onCategory}
+          onSub={onSub}
+          hideNames={hideNames}
+          collections={collections}
+          onCollections={onCollections}
+        />
       </FilterSection>
 
       <S.Divider />

@@ -10,16 +10,36 @@ afterEach(async () => {
 
 // The migrate RUN itself stops short of its congrats screen under these mocks: taking the old listing
 // down needs a real cancelSignature tx, and the first item parks on it forever. This spec therefore
-// covers the page and the hand-off into the modal, not the outcome of the run. (It previously appeared
+// covers the tool and the hand-off into the modal, not the outcome of the run. (It previously appeared
 // to cover the outcome by waiting for "in the Shop", but that matched a section subtitle that was
 // permanently on the page, so the wait returned before any listing had moved.)
-describe('import old listings', () => {
+describe('move old listings', () => {
+  it('reaches the tool from the Activity chip, badged with what is left to move', async () => {
+    app = await launchApp({ path: '/activity' })
+    const { page } = app
+
+    await waitForText(page, 'Activity')
+
+    // The chip sits at the end of the filter row, carrying the count of listings still on MANA pricing.
+    await page.waitForSelector('[data-testid="activity-filter-migrate"]', { timeout: 20000 })
+    expect(await page.$eval('[data-testid="activity-migrate-count"]', el => el.textContent)).toBe('2')
+
+    await page.click('[data-testid="activity-filter-migrate"]')
+    await waitForText(page, 'Bring your listings into the new shop!')
+    // The feed is gone, replaced by the tool.
+    expect(await page.$('[data-testid="purchase-order"]')).toBeNull()
+  })
+
   it('lists every importable item and hands the selection to the migrate modal', async () => {
+    // /import was the tool's own route for months (the My Items nudge still points at it), so it has
+    // to keep landing on the tool — not on the feed, and not on a 404.
     app = await launchApp({ path: '/import' })
     const { page } = app
 
-    // One flat list of everything importable, headed by the count of items still to move.
     await waitForText(page, 'Bring your listings into the new shop!')
+    expect(new URL(page.url()).pathname + new URL(page.url()).search).toBe('/activity?view=migrate')
+
+    // One flat list of everything importable, headed by the count of items still to move.
     await waitForText(page, 'Update Pricing')
     await waitForText(page, 'Galaxy Hat')
     await waitForText(page, 'Nebula Jacket')
@@ -31,6 +51,15 @@ describe('import old listings', () => {
     )
     expect(prices).toContain('270')
     expect(prices).toContain('135')
+
+    // Select all drives every row's checkbox in one go, in both directions.
+    const rowChecks = () =>
+      page.$$eval('[data-testid="import-row-check"]', els => els.map(e => (e as HTMLInputElement).checked))
+    expect(await rowChecks()).toEqual([true, true])
+    await page.click('[data-testid="import-select-all"]')
+    expect(await rowChecks()).toEqual([false, false])
+    await page.click('[data-testid="import-select-all"]')
+    expect(await rowChecks()).toEqual([true, true])
 
     // List all → the migrate modal opens with both items queued at those prices.
     await clickWhenEnabled(page, 'button', /list all/i)

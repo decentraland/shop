@@ -111,6 +111,8 @@ export type CatalogItemsFilters = {
   first?: number
   skip?: number
   category?: string
+  // One creator's whole body of work (their storefront grid).
+  creator?: string
   rarities?: string[]
   wearableCategories?: string[]
   search?: string
@@ -119,34 +121,44 @@ export type CatalogItemsFilters = {
   isWearableSmart?: boolean
   // Listing status: true = on sale only, false = not-for-sale only, undefined = all.
   isOnSale?: boolean
+  // Credit-denominated price range. Distinct from the endpoint's MANA-wei minPrice/maxPrice, and it
+  // only ever matches items that ARE for sale (a not-for-sale item has no credit price to compare).
+  minPriceCredits?: number
+  maxPriceCredits?: number
 }
 
 export async function fetchCatalogItems({
   first = 48,
   skip = 0,
   category,
+  creator,
   rarities,
   wearableCategories,
   search,
   sortBy,
   isWearableSmart,
-  isOnSale
+  isOnSale,
+  minPriceCredits,
+  maxPriceCredits
 }: CatalogItemsFilters = {}): Promise<CollectionItemsPage> {
   const qs = new URLSearchParams({
     first: String(first),
     skip: String(skip),
     includeSocialEmotes: 'false'
   })
-  if (category && category !== 'all') qs.set('category', category)
+  // Only wearables and emotes are catalog categories. 'all' means no filter, and 'names' is a separate
+  // destination (not an item category) — sending either would be dropped server-side and silently
+  // return the unfiltered feed, which reads as a broken filter.
+  if (category === 'wearable' || category === 'emote') qs.set('category', category)
+  if (creator) qs.set('creator', creator)
   rarities?.forEach(r => qs.append('rarity', r))
   wearableCategories?.forEach(c => qs.append('wearableCategory', c))
   if (search) qs.set('search', search)
   if (sortBy) qs.set('sortBy', sortBy)
   if (isWearableSmart) qs.set('isWearableSmart', 'true')
   if (isOnSale != null) qs.set('isOnSale', String(isOnSale))
-  // NOTE: the credit price-range filter is intentionally omitted here — /v3/catalog/items takes a
-  // MANA-denominated minPrice/maxPrice (not credits), so wiring the shop's credit range to it would
-  // mis-filter. Left as a follow-up (needs a credit-aware range param on the endpoint).
+  if (minPriceCredits != null) qs.set('minPriceCredits', String(minPriceCredits))
+  if (maxPriceCredits != null) qs.set('maxPriceCredits', String(maxPriceCredits))
   const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/items?${qs.toString()}`)
   if (!res.ok) throw new Error(`fetchCatalogItems ${res.status}`)
   const { data, total } = (await res.json()) as { data: RawCollectionItem[]; total?: number }
@@ -201,46 +213,6 @@ export async function fetchCreatorCollections(
     itemCount: c.size ?? 0
   }))
   return { collections, total: total ?? skip + collections.length }
-}
-
-/**
- * Cover artwork for a whole table of creators at once, keyed by lower-cased creator address — the
- * thumbnails in the Overview "Week Top Creators" rows.
- *
- * There is no collection-artwork field to read: /v1/rankings/creators returns a collection COUNT and
- * nothing that identifies the collections, and a collection entity carries no image of its own. So the
- * artwork can only come from ITEMS. /v3/catalog/items takes a REPEATED creator param, which is what
- * lets one bounded request cover every row instead of one request per row. Items are de-duplicated by
- * collection, so a prolific creator's cell shows three different collections rather than three angles
- * on the same one.
- *
- * A single page cannot guarantee every creator appears in it — one creator with hundreds of items can
- * take most of it (measured against production: 9 of 10 ranked creators covered at first=40, and a
- * larger page did not improve on that). So a creator may come back with fewer thumbnails than asked
- * for, or none at all; callers must render that as an absence, not as a pending state.
- */
-export async function fetchCreatorCollectionThumbnails(
-  creators: string[],
-  { perCreator = 3, first = 40 }: { perCreator?: number; first?: number } = {}
-): Promise<Record<string, string[]>> {
-  if (creators.length === 0) return {}
-  const qs = new URLSearchParams({ first: String(first), includeSocialEmotes: 'false' })
-  creators.forEach(c => qs.append('creator', c))
-  const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/items?${qs.toString()}`)
-  if (!res.ok) throw new Error(`fetchCreatorCollectionThumbnails ${res.status}`)
-  const { data } = (await res.json()) as { data?: RawCollectionItem[] }
-  const byCreator: Record<string, string[]> = {}
-  const seen: Record<string, Set<string>> = {}
-  for (const item of data ?? []) {
-    const creator = item.creator?.toLowerCase()
-    if (!creator || !item.thumbnail) continue
-    const collections = (seen[creator] ??= new Set<string>())
-    if (collections.size >= perCreator || collections.has(item.contractAddress)) continue
-    collections.add(item.contractAddress)
-    const thumbnails = (byCreator[creator] ??= [])
-    thumbnails.push(item.thumbnail)
-  }
-  return byCreator
 }
 
 // A single collection's metadata (name + creator) by contract address. Item records don't carry the

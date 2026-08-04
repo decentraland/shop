@@ -429,6 +429,7 @@ export function AssetCard(props: AssetCardProps) {
                 <Icon name="pen" size={18} />
               </S.AddRoundLink>
               <S.CartLink
+                data-reveal
                 data-testid="card-manage"
                 href={props.manageHref}
                 target="_blank"
@@ -461,7 +462,11 @@ export function AssetCard(props: AssetCardProps) {
             <S.AddRound onClick={goManage} aria-label={t('assetCard.manage')}>
               <Icon name="pen" size={18} />
             </S.AddRound>
-            <S.Cart data-testid="card-manage" onClick={goManage}>
+            {/* `data-reveal` is what makes this appear: the hover rule in AssetCard.styles matches
+                `[data-testid='card-cart']` or `[data-reveal]`, and this button is neither `card-cart` nor
+                was it marked — so on a hover-capable desktop the chips hid on hover (they DO match
+                `[data-chips]`) and nothing took their place. The card had no visible action at all. */}
+            <S.Cart data-reveal data-testid="card-manage" onClick={goManage}>
               <Icon name="pen" size={20} />
               {t('assetCard.manage')}
             </S.Cart>

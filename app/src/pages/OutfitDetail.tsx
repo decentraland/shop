@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { PreviewRenderer } from '@dcl/schemas'
 import { useQuery } from '@tanstack/react-query'
 import { Button } from '~/components/Button'
 import { CreatorName } from '~/components/CreatorName'
@@ -31,9 +30,6 @@ import { itemUrn } from '~/lib/urn'
 import { t } from '~/intl/i18n'
 import { useCart } from '~/store/cart'
 import { useWallet } from '~/store/wallet'
-// The preview-mode toggle chrome is the item detail's — same control, same look (the page's Preview
-// container positions it via [data-preview-toggle], like ItemDetail does).
-import * as IP from '~/components/ItemPreview/ItemPreview.styles'
 import * as S from './OutfitDetail.styles'
 
 const PREVIEW_ID = 'outfit-detail-preview'
@@ -159,13 +155,6 @@ function OutfitContent({ outfit }: { outfit: Outfit }) {
   // artwork" everywhere below rather than pointing an <img> at a URL that cannot resolve.
   const thumb = thumbnailUrl(outfit.thumbnailHash)
 
-  // "On avatar / Look": the live try-on vs the creator's uploaded artwork. Overlay controls only
-  // for Babylon — Unity ships its own in-scene (same rule as the item detail); defaulting to UNITY
-  // means the Unity path never briefly flashes the toggle before the preview reports.
-  const [view, setView] = useState<'avatar' | 'item'>('avatar')
-  const [renderer, setRenderer] = useState<PreviewRenderer>(PreviewRenderer.UNITY)
-  const showControls = renderer === PreviewRenderer.BABYLON && !!thumb
-
   const viewedRef = useRef<string | null>(null)
   useEffect(() => {
     if (viewedRef.current === outfit.id) return
@@ -219,9 +208,10 @@ function OutfitContent({ outfit }: { outfit: Outfit }) {
         {/* The creator's two stops as a radial glow back BOTH branches: the live preview renders on
             a transparent background and the uploaded thumbnail is transparent too. */}
         <S.Preview data-testid="outfit-detail-preview" style={{ background: outfitRadialGradient(outfit) }}>
-          {/* The uploaded artwork: chosen via the toggle, or the fallback when nothing wearable
-              resolved (outage, or every pair delisted). */}
-          {thumb && (view === 'item' || (!resolution.isLoading && urns.length === 0)) ? (
+          {/* An outfit is only ever shown worn — no item-alone view, so no preview-mode toggle. The
+              uploaded artwork is the fallback for when nothing wearable resolved (outage, or every
+              pair delisted). */}
+          {thumb && !resolution.isLoading && urns.length === 0 ? (
             <S.PreviewFallback src={thumb} alt={outfit.name} />
           ) : (
             <OutfitPreview
@@ -230,38 +220,8 @@ function OutfitContent({ outfit }: { outfit: Outfit }) {
               bodyShape={hasAvatar ? undefined : mannequinShape}
               urns={urns}
               enabled={profileResolved && !resolution.isLoading}
-              onRenderer={setRenderer}
             />
           )}
-          {showControls ? (
-            <IP.Toggle
-              data-preview-toggle
-              data-testid="outfit-detail-toggle"
-              role="group"
-              aria-label={t('itemPreview.previewMode')}
-            >
-              <IP.ToggleButton
-                type="button"
-                data-active={view === 'avatar' || undefined}
-                aria-pressed={view === 'avatar'}
-                aria-label={t('itemPreview.onAvatar')}
-                onClick={() => setView('avatar')}
-              >
-                <IP.ToggleIcon name="view-avatar" size={18} />
-                <IP.ToggleLabel>{t('itemPreview.onAvatar')}</IP.ToggleLabel>
-              </IP.ToggleButton>
-              <IP.ToggleButton
-                type="button"
-                data-active={view === 'item' || undefined}
-                aria-pressed={view === 'item'}
-                aria-label={t('itemPreview.item')}
-                onClick={() => setView('item')}
-              >
-                <IP.ToggleIcon name="view-item" size={18} />
-                <IP.ToggleLabel>{t('itemPreview.item')}</IP.ToggleLabel>
-              </IP.ToggleButton>
-            </IP.Toggle>
-          ) : null}
         </S.Preview>
 
         <S.Info>

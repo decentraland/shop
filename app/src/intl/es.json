@@ -76,7 +76,6 @@
   },
   "creator": {
     "breadcrumb": "Artículos",
-    "category": "Categoría",
     "fallbackName": "Creador",
     "viewProfile": "Ver perfil",
     "editStore": "Editar tienda",
@@ -90,16 +89,15 @@
     "following": "Siguiendo",
     "followTitle": "Seguir al creador",
     "unfollowTitle": "Dejar de seguir al creador",
-    "empty": "Este creador todavía no tiene artículos para mostrar.",
+    "emptyNoCreations": "Este creador todavía no ha publicado nada.",
+    "emptyFilters": {
+      "title": "Ningún artículo coincide con estos filtros.",
+      "body": "Este creador tiene {count, plural, one {# artículo} other {# artículos}}, pero ninguno coincide con los filtros que elegiste."
+    },
     "collectionsCount": "{count, plural, one {# colección} other {# colecciones}}",
     "collectionsEmpty": "Este creador todavía no ha publicado colecciones.",
     "error": "No pudimos cargar este creador. Prueba de nuevo.",
-    "breadcrumbAria": "Ruta de navegación",
-    "priceMin": "Precio mínimo",
-    "priceMax": "Precio máximo",
-    "priceMinPlaceholder": "Mín",
-    "priceMaxPlaceholder": "Máx",
-    "priceHint": "Precio en {currency}"
+    "breadcrumbAria": "Ruta de navegación"
   },
   "storeSettings": {
     "title": "Configuración de la tienda",
@@ -553,7 +551,11 @@
     "paidWithMana": "Compra · pagada con MANA",
     "payoutPending": "Pendiente",
     "payoutPendingOn": "Credits disponibles el {date}",
-    "payoutCredited": "Cobrado en credits"
+    "payoutCredited": "Cobrado en credits",
+    "migrate": {
+      "chip": "Publicaciones",
+      "chipAria": "Mueve tus publicaciones — {count, plural, one {queda # artículo} other {quedan # artículos}}"
+    }
   },
   "myFavorites": {
     "emptyTitle": "¡Aquí no hay nada... todavía!",
@@ -677,7 +679,7 @@
       "namePlaceholder": "p. ej. Noches de neón",
       "items": "Artículos",
       "noItems": "Aún no hay artículos: elige algunos del catálogo de abajo.",
-      "maxItems": "Un outfit puede tener hasta 10 artículos.",
+      "maxItems": "Un outfit puede tener hasta 20 artículos.",
       "remove": "Quitar",
       "searchPlaceholder": "Busca prendas…",
       "noResults": "Sin resultados",
@@ -717,7 +719,7 @@
     "errors": {
       "generic": "Algo salió mal. Prueba de nuevo.",
       "notAllowed": "Tu cuenta no puede gestionar outfits.",
-      "notPublishable": "Añade un nombre, una miniatura y de 2 a 10 artículos antes de publicar.",
+      "notPublishable": "Añade un nombre, una miniatura y de 1 a 20 artículos antes de publicar.",
       "invalidItems": "Uno de los artículos está duplicado o no es válido.",
       "tooLarge": "Esa imagen es demasiado grande: debe pesar menos de 1 MB.",
       "unsupportedType": "Usa una imagen PNG, JPEG o WebP.",
@@ -753,15 +755,11 @@
     "pages": "Páginas del carrusel",
     "goToPage": "Ir a la página {page}"
   },
-  "weekTopCreators": {
-    "title": "Mejores creadores de la semana",
-    "rank": "Posición",
-    "creator": "Creador",
-    "collections": "Colecciones",
-    "sales": "Número de ventas",
-    "volume": "Volumen",
-    "viewCollections": "Ver colecciones",
-    "viewCollectionsBy": "Ver las colecciones de {name}"
+  "topCreators": {
+    "title": "Conoce a nuestros mejores creadores",
+    "viewCreations": "Ver creaciones",
+    "viewCreationsBy": "Ver las creaciones de {name}",
+    "stats": "{collections, plural, one {# colección} other {# colecciones}} | {items, plural, one {# artículo} other {# artículos}}"
   },
   "loadMore": {
     "loading": "Cargando…",
@@ -782,8 +780,6 @@
   },
   "importListings": {
     "toastUpdated": "Tu Tienda está actualizada.",
-    "signInTitle": "Importa tus publicaciones",
-    "signInBody": "Inicia sesión para traer a la Tienda los artículos que ya vendes.",
     "emptyTitle": "Estás al día",
     "emptyBody": "Todo lo que vendes ya está en la Tienda — no hay nada que importar.",
     "goToMyAssets": "Ir a Mis artículos",
@@ -792,6 +788,7 @@
     "learnMore": "Más información",
     "updatePricing": "Actualizar precios",
     "selectAll": "Seleccionar todo",
+    "selectAllAria": "Seleccionar todo lo que vas a mover",
     "includeItem": "Incluir {name}",
     "itemFallback": "Artículo",
     "priceAria": "Precio en {currency} para {name}",
@@ -903,7 +900,18 @@
     "statusUnlisted": "No publicado",
     "hintConfirm": "Aparecerán un par de confirmaciones rápidas por artículo (retirar + volver a publicar). Mantén esto abierto.",
     "hintManaged": "Esto solo lleva un momento — mantén esto abierto.",
-    "statusWaiting": "Esperando"
+    "statusWaiting": "Esperando",
+    "phaseCancel": "Dando de baja el listado anterior…",
+    "phaseCancelConfirm": "Confirmá la baja…",
+    "phaseConfirmingCancel": "Esperando la confirmación de la red…",
+    "phaseAuthorise": "Preparando la tienda…",
+    "phaseAuthoriseConfirm": "Confirmá la autorización por única vez…",
+    "phaseSign": "Preparando el precio nuevo…",
+    "phaseSignConfirm": "Firmá el nuevo listado…",
+    "phasePublishing": "Publicando…",
+    "phaseIndexing": "Esperando que se libere el listado anterior ({attempt}/{of})…",
+    "hintCount": "Van a aparecer unas {total} confirmaciones — dar de baja y volver a listar, por artículo. Dejá esto abierto.",
+    "hintCountApproval": "Van a aparecer unas {total} confirmaciones: dar de baja y volver a listar por artículo, más una autorización por única vez por colección. Dejá esto abierto."
   },
   "fittingRoom": {
     "title": "Probador",
