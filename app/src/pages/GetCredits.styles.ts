@@ -3,6 +3,10 @@ import { keyframes } from '@emotion/react'
 import { theme } from '~/styles/theme'
 import backdrop from '~/assets/credits/packs-backdrop.webp'
 
+// Gradient strokes are painted as masked pseudo-elements (CSS cannot gradient-fill a `border`): the layer is
+// filled edge to edge, then this mask keeps only the `padding`-wide rim by excluding the content box.
+const RING_MASK = `linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)`
+
 // Get credits page (Figma 1654-374586). The pack picker lives inside ONE full-bleed purple card
 // (Figma 1654-374620) that holds the heading and the pack row; the post-checkout states below stay on
 // the light page, where their own Figma frames (1208-242158 / 1208-243058) put them.
@@ -179,9 +183,9 @@ export const PackCard = styled.button`
   gap: 48px;
   min-width: 0;
   padding: 24px 16px 16px;
-  /* Figma 1654:372757 — a plain 1px amber stroke, NOT the Flare gradient this used to paint through a
-     masked pseudo-element. The gradient version also cost the two ::before/::after ring layers below. */
-  border: 1px solid ${theme.colors.flareAmber};
+  /* No real border in either state, so nothing about the card's box can change under the pointer — both
+     strokes are painted by the masked pseudo-elements below. See the hover block for why that matters. */
+  border: 0;
   border-radius: ${theme.radius.banner};
   background: rgba(21, 21, 21, 0.4);
   backdrop-filter: blur(3px);
@@ -193,18 +197,56 @@ export const PackCard = styled.button`
     background 0.15s ease,
     box-shadow 0.15s ease;
 
-  /* Hover / focus / active (Figma 1654:372756): purple fill, a 5px DCL-red stroke and the violet glow.
-     The stroke replaces a 6px gradient ring that floated outside the card — the design puts it on the card
-     edge, which is also why the border thickens in place rather than growing the element: box-sizing is
-     border-box, so the outer 351.5px is unchanged and the 4px comes off the content box, exactly as the two
-     Figma variants measure. */
+  /* Both strokes are GRADIENTS, and both are painted here rather than with a border property.
+     Two separate reasons, and each one alone would be enough:
+     1. CSS cannot gradient-fill a border, and background-clip fights the card's translucent fill.
+     2. A pseudo-element takes no part in layout. A real border that grows 1px → 5px on hover pulls 4px off
+        the content box (box-sizing is border-box), so the card's artwork and price shrank as the pointer
+        crossed it, which in a row of four made the hovered card visibly smaller than its neighbours.
+     The flat #ffbc5b / #ff2d55 that Figma's code export reports for these strokes are not the design: the
+     export cannot represent a gradient stroke, so it emits one stop. The give-away is the mobile variant,
+     which reports #c640cd — Flare's LAST stop where desktop reports its FIRST. The page-level frame
+     (1654:374620) renders both cards with a warm gradient edge, which is what these two rules paint. */
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    -webkit-mask: ${RING_MASK};
+    -webkit-mask-composite: xor;
+    mask: ${RING_MASK};
+    mask-composite: exclude;
+    transition: opacity 0.15s ease;
+  }
+  /* Resting hairline: 1px of Flare. */
+  &::before {
+    padding: 1px;
+    background: ${theme.gradients.flare};
+  }
+  /* Hover: the same edge at the 5px the design gives the selected card, in the warm half of the ramp. */
+  &::after {
+    padding: 5px;
+    background: ${theme.gradients.ember};
+    opacity: 0;
+  }
+
   &:hover,
   &:focus-visible,
   &:active {
     background: ${theme.colors.accent};
-    border-width: 5px;
-    border-color: ${theme.colors.dclRed};
     box-shadow: 0 0 8px ${theme.colors.brandViolet};
+  }
+  &:hover::before,
+  &:focus-visible::before,
+  &:active::before {
+    opacity: 0;
+  }
+  &:hover::after,
+  &:focus-visible::after,
+  &:active::after {
+    opacity: 1;
   }
   &:focus-visible {
     outline: none;
@@ -216,23 +258,22 @@ export const PackCard = styled.button`
   }
   &[data-skeleton='true']:hover {
     background: rgba(21, 21, 21, 0.4);
-    border-width: 1px;
-    border-color: ${theme.colors.flareAmber};
     box-shadow: none;
   }
+  &[data-skeleton='true']:hover::before {
+    opacity: 1;
+  }
+  &[data-skeleton='true']:hover::after {
+    opacity: 0;
+  }
 
-  /* Figma 1654:372759 — the mobile card is its own set of metrics, not a scaled-down desktop one. */
+  /* Figma 1654:372759 — the mobile card is its own set of metrics, not a scaled-down desktop one. The
+     stroke stays the same Flare hairline: the export's #c640cd for this variant is that gradient's last
+     stop, not a second colour. */
   ${theme.media.maxWidth('mobile')} {
     gap: 12px;
     padding: 8px;
     border-radius: 16px;
-    border-color: ${theme.colors.magenta};
-
-    &:hover,
-    &:focus-visible,
-    &:active {
-      border-color: ${theme.colors.dclRed};
-    }
   }
 `
 
