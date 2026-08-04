@@ -164,7 +164,7 @@ export function Assets() {
   // chips. It is not a rare race either: on production every unified row is `source: 'legacy'`, and the
   // rate costs three SEQUENTIAL oracle round-trips (see lib/mana-rate) against the item feed's one, so
   // the whole grid renders wrong first and corrects itself. Hold the skeleton for that window instead —
-  // an unfinished row is not ready to be a card. An oracle that actually fails leaves `isPending`, so the
+  // an unfinished row is not ready to be a card. An oracle that actually FAILS leaves `isPending` false, so the
   // view-card fallback + banner still take over rather than the grid hanging on a skeleton.
   const ratePendingForLegacy = isUnified && ratePending && items.some(i => (i as UnifiedListing).source === 'legacy')
 
