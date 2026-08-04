@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const { waitForTransaction } = vi.hoisted(() => ({ waitForTransaction: vi.fn() }))
+// readProvider is the seam the other relayed-path specs stub too, which is why the module keeps using it.
 vi.mock('~/lib/authorizations', () => ({ readProvider: () => ({ waitForTransaction }) }))
 
 const { confirmMetaTx, MetaTxRevertedError, MetaTxPendingError } = await import('~/lib/tx-confirm')

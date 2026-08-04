@@ -52,6 +52,17 @@ export class MetaTxPendingError extends Error {
  * take a compensating action (re-submitting, or telling the user to retry) on a pending outcome.
  */
 export async function confirmMetaTx(txHash: string, what: string, opts?: { timeoutMs?: number }): Promise<string> {
+  /**
+   * Deliberately lib/authorizations' readProvider, even though that module imports THIS one.
+   *
+   * Review flagged the cycle as fragile and suggested inlining `new JsonRpcProvider(config.rpcUrl)`, as
+   * buy-gasless does. Tried it and reverted: three specs stub `readProvider` to keep the relayed path
+   * offline, and an inlined constructor bypasses that stub and reaches the real ethers provider — the
+   * transfer spec then failed outright and the cancel spec silently took the direct fallback instead of
+   * the relayed path it was asserting. The cycle is safe because both sides are function exports called
+   * lazily, and it is the seam every test already mocks; a real fix means giving the provider its own
+   * module, which is a wider refactor than this bug warrants.
+   */
   const provider = readProvider()
   let receipt: ethers.providers.TransactionReceipt | null
   try {

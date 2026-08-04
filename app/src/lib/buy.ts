@@ -13,7 +13,7 @@ import { config } from '~/config'
 import { metaTxProviderShim, readProvider } from '~/lib/authorizations'
 import { gaslessConfig } from '~/lib/gasless-config'
 import { ensureChain } from '~/lib/trades'
-import { confirmMetaTx } from '~/lib/tx-confirm'
+import { confirmMetaTx, MetaTxPendingError } from '~/lib/tx-confirm'
 import {
   amoyGasOverrides,
   buildStoreUseCreditsArgs,
@@ -281,6 +281,11 @@ export async function transferItem(opts: {
       })
     } catch (e) {
       if (e instanceof MetaTransactionError && e.code === ErrorCode.USER_DENIED) throw e
+      // A PENDING meta-tx must NOT fall through to the direct path. Pending means no receipt yet, so the
+      // relayed transaction may still mine — re-submitting the transfer directly would run it TWICE.
+      // A revert is different: it consumed nothing, so retrying directly is right. Propagate the pending
+      // one and let the caller surface it; an unknown outcome is not a failure to paper over.
+      if (e instanceof MetaTxPendingError) throw e
       console.warn('[transferItem] gasless meta-tx failed, falling back to a direct tx:', e)
     }
   }
@@ -313,6 +318,10 @@ export async function cancelListing(opts: { trade: Trade; signer: ethers.Signer 
       return await cancelViaMetaTransaction(trade, signer as ethers.providers.JsonRpcSigner, seller)
     } catch (e) {
       if (e instanceof MetaTransactionError && e.code === ErrorCode.USER_DENIED) throw e
+      // No MetaTxPendingError guard here, unlike the purchase/transfer/mint paths: cancelSignature is
+      // idempotent, so a pending relay plus a direct re-submission at worst cancels an already-cancelled
+      // listing. The caller still learns nothing happened if BOTH fail, which is what matters — the
+      // migration flow may only record the listing as removed on a confirmed cancel.
       console.warn('[cancelListing] gasless meta-tx failed, falling back to a direct tx:', e)
     }
   }

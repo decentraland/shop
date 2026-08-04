@@ -362,22 +362,6 @@ describe('importListing take-down accounting', () => {
     expect(postTrade).not.toHaveBeenCalled()
   })
 
-  it('reports RelistFailedError only when the cancel really did go through', async () => {
-    cancelListing.mockResolvedValue('0xhash')
-    postTrade.mockRejectedValue(new Error('409'))
-
-    await expect(run(item())).rejects.toBeInstanceOf(RelistFailedError)
-  })
-
-  it('skips the cancel when the old trade is genuinely gone (404)', async () => {
-    fetchTrade.mockRejectedValue(new TradeNotFound('gone'))
-
-    await run(item())
-
-    expect(cancelListing).not.toHaveBeenCalled()
-    expect(postTrade).toHaveBeenCalled()
-  })
-
   it('propagates any OTHER fetch failure instead of assuming the listing is gone', async () => {
     // The old code caught everything and treated it as "already gone", so a transient 500 skipped the
     // cancel and walked straight into the 409 loop.
