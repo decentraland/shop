@@ -1344,7 +1344,18 @@ export function Cart() {
                   options={summaryRails.options}
                   totalCents={summaryTotalCents}
                   shortfall={summaryRails.manaShortfall}
-                  creditsLabel={review ? t('marketCheckout.confirmPurchase') : t('cart.buyWithCredits')}
+                  /* The summary line right above states the total, so the button does not repeat it. */
+                  showCreditsAmount={false}
+                  /* "Pay with credits" only earns its words when there is another rail to tell it apart
+                     from. On its own it is simply the checkout button, which is what the design draws — and
+                     naming the rail there would be odd, since the buyer never chose one. */
+                  creditsLabel={
+                    review
+                      ? t('marketCheckout.confirmPurchase')
+                      : summaryRails.options.length > 1
+                        ? t('cart.buyWithCredits')
+                        : t('cart.checkout')
+                  }
                   busy={working || allUnavailable}
                   onPay={method => void (review ? confirmPurchase() : checkout(method))}
                 />

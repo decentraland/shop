@@ -320,3 +320,38 @@ describe('when the cart is persisted to localStorage', () => {
     expect(JSON.parse(localStorage.getItem('dcl_shop_cart') as string).state.items).toEqual([])
   })
 })
+
+/**
+ * The fitting room shows the CART, so an empty cart leaves it with nothing to render — and, before this, it
+ * stayed open behind the empty state. Removing the last line there, going back to browse and adding
+ * something reopened the modal on top of the grid, because `add` raises the cart drawer and never lowered
+ * this. Reported as "it leaves the fitting room in an invalid state".
+ */
+describe('the fitting room and an emptying cart', () => {
+  it('should close the fitting room when the last line is removed', () => {
+    useCart.setState({ items: [item()], fittingOpen: true, open: false })
+    useCart.getState().remove('t1')
+    expect(useCart.getState().items).toEqual([])
+    expect(useCart.getState().fittingOpen).toBe(false)
+  })
+
+  it('should keep the fitting room open while any line survives', () => {
+    useCart.setState({ items: [item(), item({ id: 't2' })], fittingOpen: true, open: false })
+    useCart.getState().remove('t1')
+    expect(useCart.getState().fittingOpen).toBe(true)
+  })
+
+  it('should close the fitting room on clear()', () => {
+    useCart.setState({ items: [item()], fittingOpen: true, open: false })
+    useCart.getState().clear()
+    expect(useCart.getState().fittingOpen).toBe(false)
+  })
+
+  it('should never leave the fitting room open over the page an add came from', () => {
+    useCart.setState({ items: [], fittingOpen: true, open: false })
+    useCart.getState().add(item(), 'grid')
+    expect(useCart.getState().fittingOpen).toBe(false)
+    // The drawer is what an add raises.
+    expect(useCart.getState().open).toBe(true)
+  })
+})

@@ -1211,15 +1211,66 @@ describe('when resolving a purchased trade for display', () => {
 })
 
 describe('when resolving the open trade for a catalog item', () => {
-  it('should resolve the tradeId from the shop feed and then fetch that trade', async () => {
+  it('should resolve the tradeId from the UNIFIED feed and then fetch that trade', async () => {
     fetchMock
       .mockResolvedValueOnce(jsonOk({ data: [{ tradeId: 'tr-1', itemId: '3' }] }))
       .mockResolvedValueOnce(jsonOk({ data: { id: 'tr-1' } }))
 
     const trade = await fetchTradeForItem('0xc', '3')
     expect(trade).toEqual({ id: 'tr-1' })
-    expect(String(fetchMock.mock.calls[0][0])).toContain('https://market.test/v3/catalog/shop?')
+    expect(String(fetchMock.mock.calls[0][0])).toContain('https://market.test/v3/catalog/unified?')
     expect(String(fetchMock.mock.calls[1][0])).toBe('https://market.test/v1/trades/tr-1')
+  })
+
+  /**
+   * The reason this reads the unified feed and not the shop one. A LEGACY (MANA-priced) listing exists only in
+   * the unified feed; resolving through /v3/catalog/shop returned nothing for such an item, so its own page
+   * showed "Not for sale" while its card in the grid — which has always read the unified feed — showed a
+   * price. Verified against production: the shop feed answers 0 rows for one such collection, the unified
+   * feed answers with its trade.
+   */
+  it('should resolve a LEGACY listing, which only the unified feed carries', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonOk({ data: [{ tradeId: 'tr-legacy', itemId: '0', manaWei: '400000000000000000000', priceCredits: 80 }] })
+      )
+      .mockResolvedValueOnce(jsonOk({ data: { id: 'tr-legacy' } }))
+
+    expect(await fetchTradeForItem('0xc', '0')).toEqual({ id: 'tr-legacy' })
+    const url = String(fetchMock.mock.calls[0][0])
+    expect(url).toContain('v3/catalog/unified?')
+    // BOTH kinds are asked for: filtering the server call to primaries hid the live price of an item whose
+    // mint is sold out, which is the same "Not for sale" bug one step further in.
+    expect(url).not.toContain('listingType')
+  })
+
+  /**
+   * With a mint AND resales open, the page is priced off the MINT: a resale answering here would undercut the
+   * creator's own listing. The preference is applied over the rows, not by filtering the request.
+   */
+  it('should prefer the mint over a resale when both are listed', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonOk({
+          data: [
+            { tradeId: 'tr-resale', itemId: '3', tokenId: '7' },
+            { tradeId: 'tr-mint', itemId: '3', tokenId: null }
+          ]
+        })
+      )
+      .mockResolvedValueOnce(jsonOk({ data: { id: 'tr-mint' } }))
+
+    expect(await fetchTradeForItem('0xc', '3')).toEqual({ id: 'tr-mint' })
+    expect(String(fetchMock.mock.calls[1][0])).toBe('https://market.test/v1/trades/tr-mint')
+  })
+
+  // Sold out, resales open: the resale is the only live price, so it answers rather than nothing.
+  it('should fall back to a resale when the item has no mint listing', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonOk({ data: [{ tradeId: 'tr-resale', itemId: '3', tokenId: '7' }] }))
+      .mockResolvedValueOnce(jsonOk({ data: { id: 'tr-resale' } }))
+
+    expect(await fetchTradeForItem('0xc', '3')).toEqual({ id: 'tr-resale' })
   })
 
   it('should return null when no listing exists for the item', async () => {
@@ -1240,7 +1291,7 @@ describe('when resolving an item to its live trade', () => {
     expect(String(fetchMock.mock.calls[0][0])).toBe('https://market.test/v1/trades/tr-known')
   })
 
-  it('should re-resolve the current trade from the shop feed when the known tradeId is gone (404)', async () => {
+  it('should re-resolve the current trade from the UNIFIED feed when the known tradeId is gone (404)', async () => {
     fetchMock
       .mockResolvedValueOnce(httpError(404)) // stale tradeId 404s
       .mockResolvedValueOnce(jsonOk({ data: [{ tradeId: 'tr-fresh', itemId: '4' }] })) // shop feed
@@ -1248,7 +1299,7 @@ describe('when resolving an item to its live trade', () => {
     const trade = await resolveLiveTrade({ tradeId: 'tr-stale', contractAddress: '0xc', itemId: '4' })
     expect(trade).toEqual({ id: 'tr-fresh' })
     expect(String(fetchMock.mock.calls[0][0])).toBe('https://market.test/v1/trades/tr-stale')
-    expect(String(fetchMock.mock.calls[1][0])).toContain('https://market.test/v3/catalog/shop?')
+    expect(String(fetchMock.mock.calls[1][0])).toContain('https://market.test/v3/catalog/unified?')
     expect(String(fetchMock.mock.calls[2][0])).toBe('https://market.test/v1/trades/tr-fresh')
   })
 
@@ -1276,13 +1327,13 @@ describe('when resolving an item to its live trade', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
-  it('should resolve straight from the shop feed when there is no known tradeId', async () => {
+  it('should resolve straight from the UNIFIED feed when there is no known tradeId', async () => {
     fetchMock
       .mockResolvedValueOnce(jsonOk({ data: [{ tradeId: 'tr-feed', itemId: '4' }] }))
       .mockResolvedValueOnce(jsonOk({ data: { id: 'tr-feed' } }))
     const trade = await resolveLiveTrade({ contractAddress: '0xc', itemId: '4' })
     expect(trade).toEqual({ id: 'tr-feed' })
-    expect(String(fetchMock.mock.calls[0][0])).toContain('https://market.test/v3/catalog/shop?')
+    expect(String(fetchMock.mock.calls[0][0])).toContain('https://market.test/v3/catalog/unified?')
   })
 
   it('should return null when there is neither a tradeId nor an itemId', async () => {

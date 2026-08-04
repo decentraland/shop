@@ -37,7 +37,12 @@ const emoteListing = {
 
 describe('view an emote item detail page', () => {
   it('renders the emote PDP (with its play/scrub controls) without crashing', async () => {
-    app = await launchApp({ path: `/item/${COLLECTION}/2`, fixtures: { shopListings: emoteListing } })
+    // Both feeds carry it, as production does for a USD-pegged emote: the PDP resolves its listing from
+    // the UNIFIED feed (native + legacy in one), while the shop feed still answers the collection reads.
+    app = await launchApp({
+      path: `/item/${COLLECTION}/2`,
+      fixtures: { shopListings: emoteListing, unifiedListings: emoteListing }
+    })
     const { page } = app
 
     // The page resolves the emote and paints its header + buy CTA (no ErrorBoundary fallback).

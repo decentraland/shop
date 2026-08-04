@@ -439,6 +439,31 @@ export async function fetchShopListingForItem(contractAddress: string, itemId: s
   return listings[0] ? shopListingToItem(listings[0]) : null
 }
 
+/**
+ * The item's PRIMARY listing from the UNIFIED feed — native (USD-pegged) or legacy (classic MANA, converted
+ * to credits server-side at the live rate), whichever exists.
+ *
+ * This is what the item page resolves through, and the shop-only version above is why a MANA-listed item read
+ * as unlisted there: /v3/catalog/shop carries USD-pegged trades only, so an item with nothing but legacy
+ * liquidity came back empty and the page fell through to "Not for sale". Measured on one such collection: the
+ * shop feed returns 0 rows for it, the unified feed returns its trade with a credits price. The browse grid
+ * has always read the unified feed, which is why the same item looked buyable in a card and unlisted on its
+ * own page.
+ *
+ * The MINT answers when there is one — a page priced off someone's resale while the creator is still selling
+ * would undercut the creator's own listing. But asking the server for primaries ONLY is wrong: an item whose
+ * mint is sold out still has a live price, and filtering it away is the same "Not for sale" bug this function
+ * exists to fix, one step further in. So both kinds are fetched and the mint is preferred here.
+ */
+export async function fetchUnifiedListingForItem(
+  contractAddress: string,
+  itemId: string
+): Promise<UnifiedListing | null> {
+  const { items } = await fetchUnified({ contractAddress, itemId, first: 5 })
+  // A secondary row is the one scoped to a single token; a mint has no tokenId.
+  return items.find(i => !i.tokenId) ?? items[0] ?? null
+}
+
 // Credit-buyable listings for the browse grid (primary + secondary, USD-pegged). All filtering
 // (category, rarity, price, sub-category, search, sort) happens server-side on /v3/catalog/shop.
 // Still used by the Overview drops row + the Cart upsell; the main browse grid uses fetchShopItems.
@@ -1023,15 +1048,38 @@ export async function resolveLiveTrade(item: {
 }
 
 // Name + thumbnail for a collection ITEM (primary sales don't have a minted token yet).
-async function fetchItemMeta(
-  contractAddress: string,
-  itemId: string
-): Promise<{ name?: string; thumbnail?: string } | null> {
+/**
+ * Item metadata from the v1 items endpoint. Also the ONLY source of two fields the item detail page needs:
+ *
+ *  - `utility` — the creator's description of what the item unlocks. The v3 catalog does not carry it at
+ *    all, which is why the Shop showed no utility anywhere; the marketplace reads it from here too.
+ *  - `isSmart` — nested under `data.wearable`. It does reach the page through the collection feed, but not
+ *    on every path into it (a direct URL starts from a stub), so reading it here makes the badge
+ *    independent of how the visitor arrived.
+ */
+export type ItemMeta = { name?: string; thumbnail?: string; isSmart: boolean; utility: string | null }
+
+export async function fetchItemMeta(contractAddress: string, itemId: string): Promise<ItemMeta | null> {
   const qs = new URLSearchParams({ contractAddress, itemId, first: '1' })
   const res = await fetch(`${NFT_V1}/items?${qs.toString()}`)
   if (!res.ok) return null
-  const { data } = (await res.json()) as { data: Array<{ name?: string; thumbnail?: string }> }
-  return data?.[0] ?? null
+  const { data } = (await res.json()) as {
+    data: Array<{
+      name?: string
+      thumbnail?: string
+      utility?: string | null
+      data?: { wearable?: { isSmart?: boolean } }
+    }>
+  }
+  const row = data?.[0]
+  if (!row) return null
+  return {
+    name: row.name,
+    thumbnail: row.thumbnail,
+    isSmart: !!row.data?.wearable?.isSmart,
+    // Blank-but-present is the same as absent for rendering; normalise here so no caller has to trim.
+    utility: row.utility?.trim() || null
+  }
 }
 
 // A purchase-history row's display info, resolved from its trade: what was bought + what it cost.
@@ -1086,9 +1134,10 @@ export async function fetchTradeDisplay(tradeId: string): Promise<PurchaseDispla
 // Open credit-buyable listing (Trade) for a catalog ITEM (primary/mint), or null if none. Resolves
 // the tradeId via the v3 shop feed (the v1 /orders endpoint doesn't index primary item orders).
 export async function fetchTradeForItem(contractAddress: string, itemId: string): Promise<Trade | null> {
-  const { listings } = await fetchShopListingsRaw({ contractAddress, itemId, first: 1 })
-  const tradeId = listings[0]?.tradeId
-  return tradeId ? fetchTrade(tradeId) : null
+  // UNIFIED, not shop: a legacy MANA listing is absent from the shop feed, and resolving through it is what
+  // made a MANA-listed item unbuyable on its own page. See fetchUnifiedListingForItem.
+  const listing = await fetchUnifiedListingForItem(contractAddress, itemId)
+  return listing?.tradeId ? fetchTrade(listing.tradeId) : null
 }
 
 // Name + thumbnail for a sold asset (a secondary sale carries a tokenId; a primary/mint sale an

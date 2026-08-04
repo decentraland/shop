@@ -8,10 +8,11 @@ import { useFavorite, useFavorites } from '~/store/favorites'
 import { useWallet } from '~/store/wallet'
 import { stashResumeIntent, takeResumeIntent } from '~/lib/auth-return'
 import {
-  fetchShopListingForItem,
+  fetchUnifiedListingForItem,
   fetchTradeForItem,
   fetchItemResales,
   fetchItemDescription,
+  fetchItemMeta,
   fetchOwnedToken,
   fetchOwnedItemCount,
   fetchTokenById,
@@ -214,7 +215,9 @@ export function ItemDetail() {
   // fetchShopListingForItem, which treats its 2nd arg as an itemId → the server matched nothing and
   // returned the collection's first listing (a WRONG item) on a cold load. Never pass a tokenId here.
   // Also runs when a seeded item (grid nav / sibling) is missing its stock (`available`) so the
-  // authoritative listing can backfill it. Never for a market/legacy item (not in this feed).
+  // authoritative listing can backfill it. Resolved through the UNIFIED feed so a LEGACY (MANA) listing
+  // counts as much as a native one — reading the shop-only feed here is what made a MANA-listed item show
+  // "Not for sale" on its own page while its card in the grid showed a price.
   // ITEM ROUTE ONLY: the token route hydrates from the specific token (ownedAsset / publicToken) and
   // must not be overwritten by the generic item listing (which carries no tokenId).
   const needsPrimaryStock = current.available == null && !current.tokenId
@@ -227,7 +230,7 @@ export function ItemDetail() {
     staleTime: 0,
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
-    queryFn: () => fetchShopListingForItem(current.contractAddress, pageItemId as string)
+    queryFn: () => fetchUnifiedListingForItem(current.contractAddress, pageItemId as string)
   })
   useEffect(() => {
     if (!deepLinkItem) return
@@ -333,6 +336,26 @@ export function ItemDetail() {
       return null
     }
   })
+
+  /**
+   * Smart-wearable traits, from the v1 items endpoint — the only one that carries `utility` (the v3 catalog
+   * omits it entirely, which is why the Shop showed none of this). `isSmart` is read here too rather than
+   * trusted from `current`: arriving by URL starts the page from a stub whose isSmart is false, so the badge
+   * would have depended on how the visitor got here.
+   *
+   * Presentation only, so it is allowed to be slow and to fail quietly: no badge is the same as no utility.
+   */
+  const { data: itemTraits } = useQuery({
+    queryKey: ['item-traits', current.contractAddress, pageItemId],
+    enabled: !!current.contractAddress && !!pageItemId,
+    staleTime: 5 * 60_000,
+    retry: 1,
+    queryFn: () => fetchItemMeta(current.contractAddress, pageItemId as string)
+  })
+  // `??`, not `||`: once this query answers it is the authority, so a `false` from it must not fall through
+  // to a possibly-stale `true` on the stub the page started from. Only "still loading" defers to `current`.
+  const isSmart = itemTraits?.isSmart ?? current.isSmart
+  const utility = itemTraits?.utility ?? null
 
   // Both sources are filtered through the session's cancelled listings (see lib/dead-listings): the feed's
   // materialized view lags behind a take-down, so `current.tradeId` (seeded from a grid row that predates it)
@@ -988,18 +1011,48 @@ export function ItemDetail() {
                 {!isTokenRoute && current.issuedId ? (
                   <S.DetailChip data-testid="detail-issued">#{current.issuedId}</S.DetailChip>
                 ) : null}
+                {/* Smart wearable, and whether it unlocks something — the same two badges the marketplace
+                    shows, from the same two fields (`data.wearable.isSmart` and `utility`). */}
+                {isSmart ? (
+                  <S.DetailChip data-testid="detail-smart">
+                    <Icon name="smart" size={18} color={theme.colors.text2} />
+                    {t('itemDetail.smart')}
+                  </S.DetailChip>
+                ) : null}
+                {utility ? (
+                  <S.DetailChip data-testid="detail-utility-chip">
+                    <Icon name="utility" size={18} color={theme.colors.text2} />
+                    {t('itemDetail.utility')}
+                  </S.DetailChip>
+                ) : null}
               </S.Chips>
 
-              {description ? (
-                <S.Description>
-                  <S.Label>{t('itemDetail.description')}</S.Label>
-                  <S.DescText data-expanded={descExpanded || undefined}>{description}</S.DescText>
-                  {description.length > 140 ? (
-                    <S.DescToggle className="link" onClick={() => setDescExpanded(v => !v)}>
-                      {descExpanded ? t('itemDetail.showLess') : t('itemDetail.readMore')}
-                    </S.DescToggle>
+              {description || utility ? (
+                <S.DescRow>
+                  {description ? (
+                    <S.DescCol>
+                      <S.Description>
+                        <S.Label>{t('itemDetail.description')}</S.Label>
+                        <S.DescText data-expanded={descExpanded || undefined}>{description}</S.DescText>
+                        {description.length > 140 ? (
+                          <S.DescToggle className="link" onClick={() => setDescExpanded(v => !v)}>
+                            {descExpanded ? t('itemDetail.showLess') : t('itemDetail.readMore')}
+                          </S.DescToggle>
+                        ) : null}
+                      </S.Description>
+                    </S.DescCol>
                   ) : null}
-                </S.Description>
+                  {/* What the item unlocks, in the creator's own words. Reuses the description's type so the
+                      two columns read as a pair, and gets no read-more: utility copy is a line or two. */}
+                  {utility ? (
+                    <S.DescCol>
+                      <S.Description data-testid="detail-utility">
+                        <S.Label>{t('itemDetail.utility')}</S.Label>
+                        <S.DescText data-expanded>{utility}</S.DescText>
+                      </S.Description>
+                    </S.DescCol>
+                  ) : null}
+                </S.DescRow>
               ) : null}
 
               {current.creator || collection?.name || creatorPending || collectionPending ? (
@@ -1497,16 +1550,42 @@ export function ItemDetail() {
 function ItemInfoSkeleton() {
   return (
     <S.InfoSkel aria-hidden>
-      <span className="skeleton" />
+      <S.SkelTitle className="skeleton" />
       <S.SkelChips>
-        <span className="skeleton" />
-        <span className="skeleton" />
+        <S.SkelChip className="skeleton" />
+        <S.SkelChip className="skeleton" />
+        <S.SkelChip className="skeleton" />
       </S.SkelChips>
-      <span className="skeleton" />
-      <span className="skeleton" data-short />
+      {/* The SAME grids the loaded page uses (DescRow / Meta), not a stack of equal bars: reusing them is
+          what keeps the four labels on the same two columns before and after the data lands, so nothing
+          slides sideways. The old skeleton was a flat list of full-width lines and described a one-column
+          page that no longer exists. */}
+      <S.DescRow>
+        {[0, 1].map(i => (
+          <S.DescCol key={i}>
+            {/* Description, the real one, so the label-to-copy gap is the same 11px before and after. */}
+            <S.Description>
+              <S.SkelLabel className="skeleton" />
+              <S.SkelText>
+                <S.SkelLine className="skeleton" />
+                <S.SkelLine className="skeleton" />
+                <S.SkelLine className="skeleton" data-short />
+              </S.SkelText>
+            </S.Description>
+          </S.DescCol>
+        ))}
+      </S.DescRow>
+      <S.Meta>
+        {[0, 1].map(i => (
+          <S.MetaCol key={i} {...(i === 1 ? { 'data-collection': true } : {})}>
+            <S.SkelLabel className="skeleton" />
+            <S.SkelBadge />
+          </S.MetaCol>
+        ))}
+      </S.Meta>
       <S.Divider />
-      <span className="skeleton" />
-      <span className="skeleton" />
+      <S.SkelPrice className="skeleton" />
+      <S.SkelBtn className="skeleton" />
     </S.InfoSkel>
   )
 }

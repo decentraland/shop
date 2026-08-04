@@ -78,6 +78,7 @@ export type IconName =
   | 'slot-lower'
   | 'slot-upper'
   | 'smart'
+  | 'utility'
   | 'star-rounded'
   | 'trash'
   | 'twitter'

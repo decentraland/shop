@@ -202,9 +202,12 @@ function stubAuthorize() {
   })
 }
 
+// Targets the credits rail by its test id, not by its label: the label is copy that legitimately changes
+// with context (it reads "Checkout" when credits is the only rail and "Pay with credits" when there is
+// another to tell it apart from), and none of these tests are about the wording.
 async function pay() {
   const user = userEvent.setup()
-  const cta = await screen.findByRole('button', { name: /buy with credits/i })
+  const cta = await screen.findByTestId('pay-with-credits')
   await user.click(cta)
 }
 
@@ -426,6 +429,20 @@ describe('when the gasless rail relays one group and another hard-reverts', () =
  * every cart is a mint, so the chip labels all of them with the same word and says nothing — which is why
  * it is gated rather than merely styled differently.
  */
+/**
+ * The purchase summary states the total on the line directly above the button, so the button restating it
+ * put the same figure on screen twice a centimetre apart. The item flow keeps its amount — there the button
+ * is the only place the price appears.
+ */
+describe('when the cart summary offers the credits rail', () => {
+  it('should not repeat the total inside the pay button', async () => {
+    renderCart([item('a')])
+    const cta = await screen.findByTestId('pay-with-credits')
+    // No digits at all: the button names the action, the summary names the amount.
+    expect(cta.textContent ?? '').not.toMatch(/\d/)
+  })
+})
+
 describe('when a cart line is a primary (mint) listing', () => {
   it('should hide the Creator chip while secondary sales are off', async () => {
     secondarySales.on = false

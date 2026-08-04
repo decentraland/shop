@@ -346,6 +346,14 @@ export const Foot = styled.div`
 export const Total = styled.div`
   font-size: 14px;
   color: ${colors.text2};
+
+  /* The credit mark sits inline with the figure, so it takes the text's own colour and rides its baseline
+     rather than the line box's top. */
+  & .ico {
+    width: 14px;
+    height: 14px;
+    vertical-align: -2px;
+  }
 `
 
 export const CheckoutBtn = styled(Button)`
