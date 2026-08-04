@@ -192,10 +192,10 @@ describe('outfits row on the overview', () => {
     // The card has TWO specified resting states and the RUNNER picks which one is in force: a
     // pointer device gets the clean card that reveals on hover/focus, a hover-less one gets the
     // panel permanently (OutfitCard.styles.ts, `@media (hover: none)` — touch has no hover to
-    // reveal on). Chrome exposes no way to emulate the `hover` feature: neither
-    // page.emulateMediaFeatures (which rejects the name outright) nor a raw CDP
-    // Emulation.setEmulatedMedia moves it, because it follows the real input configuration — which
-    // is exactly what differs between a dev machine and a headless CI container.
+    // reveal on). A headless CI container reports the latter; a dev machine reports the former.
+    // Chrome exposes no way to pin it either: page.emulateMediaFeatures rejects the `hover` name
+    // outright, and a raw CDP Emulation.setEmulatedMedia does not move it, because it follows the
+    // real input configuration.
     //
     // So ask which treatment applies and assert THAT one, rather than hard-coding the one the
     // author's machine happens to report. The reveal itself is driven by FOCUS, which shares the
@@ -217,10 +217,36 @@ describe('outfits row on the overview', () => {
     if (pointer) await settleTo('0')
     else expect(await infoOpacity()).toBe('1')
 
+    // The CTA stays DISABLED until the catalog resolution settles, and a disabled button cannot take
+    // focus — `page.focus()` on one is a silent no-op. On a dev machine the catalog is back before
+    // the test gets here, so focus lands; on a slow runner it is not, and the assertions below were
+    // then reading a card nothing had focused. Wait for the button to be live, and prove the focus
+    // actually took, so a future failure here means the STYLES broke rather than the timing.
+    await page.waitForFunction(
+      () => {
+        const cta = document.querySelector<HTMLButtonElement>('[data-testid="outfit-card-cta"]')
+        return !!cta && !cta.disabled
+      },
+      { timeout: 20000 }
+    )
     await page.focus('[data-testid="outfit-card-cta"]')
+    await page.waitForFunction(() => document.activeElement?.getAttribute('data-testid') === 'outfit-card-cta', {
+      timeout: 10000
+    })
+
     await settleTo('1')
-    const outline = await page.$eval('[data-testid="outfit-card-thumb"]', el => getComputedStyle(el).outlineColor)
-    expect(outline).toBe('rgb(122, 43, 191)')
+
+    // The accent stroke has its own `transition: outline-color 0.2s`, so it must be waited on rather
+    // than sampled. Reading it once only worked where the opacity wait above happened to cover the
+    // same 200ms: on a hover-less runner the panel is ALREADY at opacity 1, so that wait returns
+    // immediately and this read landed at the very start of the stroke's fade — transparent.
+    await page.waitForFunction(
+      () => {
+        const frame = document.querySelector('[data-testid="outfit-card-thumb"]')
+        return !!frame && getComputedStyle(frame).outlineColor === 'rgb(122, 43, 191)'
+      },
+      { timeout: 10000 }
+    )
 
     // Blurring returns a pointer card to rest — the reveal is not sticky. A hover-less card keeps
     // its panel, which is the point of that branch.
