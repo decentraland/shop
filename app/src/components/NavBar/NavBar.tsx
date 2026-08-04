@@ -7,6 +7,7 @@ import { Icon } from '~/components/Icon'
 import { TopNav } from '~/components/TopNav'
 import { useWallet } from '~/store/wallet'
 import { useProfile } from '~/hooks/useProfile'
+import { useIsOutfitCreator } from '~/hooks/useOutfits'
 import { useBalance } from '~/hooks/useBalance'
 import { useManaBalance } from '~/hooks/useManaBalance'
 import { manaWeiToNumber } from '~/lib/mana-format'
@@ -58,6 +59,7 @@ const notificationsTheme = {
 
 export function NavBar() {
   const { session, connecting, signIn, disconnect, restore } = useWallet()
+  const isOutfitCreator = useIsOutfitCreator()
   const address = session?.address
   const { data: avatar, isLoading: isLoadingProfile } = useProfile(address)
   const { data: balance, isError: balanceError, isLoading: balanceLoading } = useBalance(session)
@@ -249,6 +251,12 @@ export function NavBar() {
               jargon (CONVENTIONS.md), so the entry point is hidden for them. */}
           {session && showsWalletConfirmations(session.providerType) ? (
             <NavLink to="/authorizations">{t('nav.authorizations')}</NavLink>
+          ) : null}
+          {/* Studio entry for the outfit team only — cosmetic gate, the server allowlist is the real one. */}
+          {isOutfitCreator ? (
+            <NavLink to="/outfits/manage" data-testid="nav-outfits">
+              {t('nav.outfits')}
+            </NavLink>
           ) : null}
         </S.Tabs>
         <S.Search ref={wrapRef}>
