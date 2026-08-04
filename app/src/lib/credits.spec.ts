@@ -12,6 +12,7 @@ vi.mock('~/config', () => ({ config: { creditsServerUrl: 'https://credits.exampl
 
 import {
   authorizeUsdCredit,
+  cancelCreditOrder,
   cancelUsdIntents,
   creditOrderPill,
   devMintCredit,
@@ -19,6 +20,7 @@ import {
   fetchUserPurchases,
   getUsdBalance,
   getUserCredits,
+  resumeCreditOrder,
   type CreditOrderStatus
 } from '~/lib/credits'
 
@@ -387,5 +389,75 @@ describe('creditOrderPill', () => {
   it('should never report money as available for a status that is not credited', () => {
     const notYet: CreditOrderStatus[] = ['initiated', 'processing', 'crediting', 'failed', 'abandoned']
     for (const status of notYet) expect(creditOrderPill(status)).not.toBe('SETTLED')
+  })
+})
+
+/**
+ * RETIRING AND RESUMING A CHECKOUT.
+ *
+ * Both talk to the credits server about an order the buyer walked away from, and both are deliberately
+ * forgiving: the server retires an abandoned order on its own, so a failed cancel must not surface as an
+ * error the buyer has to act on, and a resume that cannot produce a checkout URL has to say so rather than
+ * hand back something unusable.
+ *
+ * They also both consume the response body on the paths where they ignore it. An error response still
+ * carries a stream, and abandoning it unread holds the connection until GC — the same reason fetchTrade
+ * cancels its 404 body.
+ */
+describe('cancelCreditOrder', () => {
+  it('should POST to the order cancel endpoint with the signed identity', async () => {
+    const cancel = vi.fn()
+    signedFetch.mockResolvedValue({ ok: true, status: 200, body: { cancel } })
+
+    await cancelCreditOrder('order-1', IDENTITY)
+
+    const [url, opts] = signedFetch.mock.calls[0]
+    expect(String(url)).toContain('/credits/orders/order-1/cancel')
+    expect(opts).toMatchObject({ method: 'POST', identity: IDENTITY, metadata: {} })
+    // Nothing reads the body, so it must be released rather than left open.
+    expect(cancel).toHaveBeenCalled()
+  })
+
+  it('should escape an order id that would otherwise break the path', async () => {
+    signedFetch.mockResolvedValue({ ok: true, status: 200, body: { cancel: vi.fn() } })
+
+    await cancelCreditOrder('a/b?c', IDENTITY)
+
+    expect(String(signedFetch.mock.calls[0][0])).toContain('/credits/orders/a%2Fb%3Fc/cancel')
+  })
+
+  it('should swallow a failure, since the server retires the order anyway', async () => {
+    signedFetch.mockRejectedValue(new Error('network down'))
+
+    await expect(cancelCreditOrder('order-1', IDENTITY)).resolves.toBeUndefined()
+  })
+})
+
+describe('resumeCreditOrder', () => {
+  it('should return the checkout URL the server hands back', async () => {
+    signedFetch.mockResolvedValue({ ok: true, status: 200, json: async () => ({ url: 'https://pay.test/s1' }) })
+
+    await expect(resumeCreditOrder('order-1', IDENTITY)).resolves.toBe('https://pay.test/s1')
+    expect(String(signedFetch.mock.calls[0][0])).toContain('/credits/orders/order-1/resume')
+  })
+
+  it('should return null when the response carries no URL, rather than an unusable value', async () => {
+    signedFetch.mockResolvedValue({ ok: true, status: 200, json: async () => ({}) })
+
+    await expect(resumeCreditOrder('order-1', IDENTITY)).resolves.toBeNull()
+  })
+
+  it('should return null and release the body on a non-ok response', async () => {
+    const cancel = vi.fn()
+    signedFetch.mockResolvedValue({ ok: false, status: 409, body: { cancel }, json: async () => ({}) })
+
+    await expect(resumeCreditOrder('order-1', IDENTITY)).resolves.toBeNull()
+    expect(cancel).toHaveBeenCalled()
+  })
+
+  it('should return null when the request throws', async () => {
+    signedFetch.mockRejectedValue(new Error('network down'))
+
+    await expect(resumeCreditOrder('order-1', IDENTITY)).resolves.toBeNull()
   })
 })
