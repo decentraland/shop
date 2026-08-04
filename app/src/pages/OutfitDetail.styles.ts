@@ -80,37 +80,6 @@ export const Preview = styled.div`
     inset: 0;
     pointer-events: none;
   }
-
-  /* The on-avatar/item toggle, positioned exactly like the item detail's: a text pill top-left on
-     desktop, the icon-only button group bottom-right on narrow screens. */
-  & > [data-preview-toggle] {
-    position: absolute;
-    top: 16px;
-    left: 16px;
-    z-index: 2;
-    display: inline-flex;
-    gap: 2px;
-    padding: 3px;
-    background: rgba(255, 255, 255, 0.92);
-    border: 1px solid ${colors.line};
-    border-radius: 999px;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
-  }
-
-  ${media.maxWidth('lg')} {
-    & > [data-preview-toggle] {
-      top: auto;
-      left: auto;
-      bottom: 12px;
-      right: 12px;
-      gap: 0;
-      padding: 0;
-      background: transparent;
-      border: 0;
-      box-shadow: 0 1px 4px rgba(22, 21, 24, 0.18);
-      overflow: hidden;
-    }
-  }
 `
 
 // The uploaded artwork is a transparent-background portrait; contain floats the whole look on the

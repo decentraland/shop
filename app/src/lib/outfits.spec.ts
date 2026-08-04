@@ -15,6 +15,7 @@ vi.mock('~/lib/api', () => ({ fetchShopItems }))
 
 import {
   DEFAULT_OUTFIT_GRADIENT,
+  MAX_OUTFIT_ITEMS,
   OutfitsError,
   classifyOutfitItem,
   deleteOutfit,
@@ -499,10 +500,10 @@ describe('when importing from an avatar-preview link', () => {
 
   it('should cap the import at the outfit item limit', () => {
     const urns = Array.from(
-      { length: 12 },
+      { length: MAX_OUTFIT_ITEMS + 2 },
       (_, i) => `urn=urn:decentraland:matic:collections-v2:0x${String(i).padStart(40, '0')}:0`
     ).join('&')
-    expect(parseOutfitImport(urns)?.items).toHaveLength(10)
+    expect(parseOutfitImport(urns)?.items).toHaveLength(MAX_OUTFIT_ITEMS)
   })
 
   it('should return null when nothing usable is in the string', () => {

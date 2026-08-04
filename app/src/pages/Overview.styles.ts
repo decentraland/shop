@@ -165,63 +165,10 @@ export const Carousel = styled.section`
   margin-bottom: 40px;
 `
 
-export const Viewport = styled.div`
-  position: relative;
-`
-
-// White circle with a bold chevron. `--ov-arrow-top` (set in JS) centres them on the card media.
-export const Arrow = styled.button`
-  position: absolute;
-  top: var(--ov-arrow-top, 110px);
-  transform: translateY(-50%);
-  z-index: 5;
-  width: 44px;
-  height: 44px;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.18));
-  transition:
-    transform 0.15s ease,
-    filter 0.15s ease,
-    opacity 0.15s ease;
-
-  & img {
-    display: block;
-    width: 100%;
-    height: 100%;
-  }
-  // Arrows sit in the page gutter (nav-aligned 54px), not over the rail. The 44px circle + these
-  // offsets leave an equal ~8px gap to the first/last card: the track is pulled 14px flush-left so the
-  // first card sits at the gutter edge while the last keeps its 14px inset — hence the left arrow is
-  // pushed out further than the right so both gaps match.
-  &[data-side='right'] {
-    right: -38px;
-  }
-  &[data-side='left'] {
-    left: -52px;
-  }
-  &[data-side='left'] img {
-    transform: scaleX(-1);
-  }
-  &:hover:not(:disabled) {
-    transform: translateY(-50%) scale(1.07);
-  }
-  /* Hidden (not dimmed) at the ends so the two arrows never look mismatched. */
-  &:disabled {
-    opacity: 0;
-    pointer-events: none;
-  }
-
-  ${media.maxWidth('lg')} {
-    display: none;
-  }
-`
-
 // A grid of a FIXED whole number of cards per view (5 → 4 → 3 → 2) so an exact integer of cards always
 // fills the viewport with a 16px gap — no partial card is ever cut off. Scrollbar hidden.
-// The carousel rail + its page dots are the shared paged-rail primitives (OutfitsRow pages too).
-export { CarouselTrack as Track, Dots, Dot } from '~/styles/row.styles'
+// The carousel rail, its arrows and its page dots are the shared paged-rail primitives (OutfitsRow
+// pages the same way).
+export { CarouselTrack as Track, Viewport, Arrow, Dots, Dot } from '~/styles/row.styles'
 
 // Two side-by-side promo banners, stacking to one column on mobile.
