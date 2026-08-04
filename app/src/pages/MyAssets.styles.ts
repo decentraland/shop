@@ -119,13 +119,16 @@ export const SubPill = styled('button', noForward('selected'))<{ selected?: bool
 
 // ---------------- Main: search field ----------------
 
+// Lives in the FilterBar toolbar now (see MyAssets' `search` slot), so it carries no bottom margin of its
+// own — the toolbar's own margin is what separates the row from the grid — and it fills the width the slot
+// gives it instead of the whole main column.
 export const SearchBar = styled.div`
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 44px;
+  width: 100%;
+  height: 40px;
   padding: 0 12px;
-  margin-bottom: 16px;
   border: 1px solid ${theme.colors.lineStrong};
   border-radius: ${theme.radius.btn};
   background: ${theme.colors.white};

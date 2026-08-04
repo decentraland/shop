@@ -480,24 +480,12 @@ export function MyAssets() {
       </A.Sidebar>
 
       <A.Main>
-        <S.SearchBar>
-          <S.SearchIcon name="search" aria-hidden />
-          <S.SearchInput
-            type="search"
-            value={searchInput}
-            placeholder={t('myAssets.searchPlaceholder')}
-            aria-label={t('myAssets.searchPlaceholder')}
-            onChange={e => setSearchInput(e.target.value)}
-          />
-          {searchInput ? (
-            <S.SearchClear type="button" aria-label={t('myAssets.clearSearch')} onClick={() => setSearchInput('')}>
-              <S.ClearIcon name="close" aria-hidden />
-            </S.SearchClear>
-          ) : null}
-        </S.SearchBar>
-
         {importCount > 0 ? <S.ImportBanner count={importCount} /> : null}
 
+        {/* The search rides IN the toolbar, beside Sort By (Figma: count · search · SORT BY). It used to be
+            a full-width bar of its own above it, four rows under the sub-nav's global search — two fields on
+            screen at once with nothing to say which searched what, and the global one leaves the page. That
+            one is now hidden on this route (see NavBar), so this is the only search here. */}
         <FilterBar
           sort={sort}
           onSort={setSort}
@@ -508,6 +496,23 @@ export function MyAssets() {
           onOpenFilters={() => setFiltersOpen(true)}
           chips={chips}
           onClearChips={clearFilters}
+          search={
+            <S.SearchBar>
+              <S.SearchIcon name="search" aria-hidden />
+              <S.SearchInput
+                type="search"
+                value={searchInput}
+                placeholder={t('myAssets.searchPlaceholder')}
+                aria-label={t('myAssets.searchPlaceholder')}
+                onChange={e => setSearchInput(e.target.value)}
+              />
+              {searchInput ? (
+                <S.SearchClear type="button" aria-label={t('myAssets.clearSearch')} onClick={() => setSearchInput('')}>
+                  <S.ClearIcon name="close" aria-hidden />
+                </S.SearchClear>
+              ) : null}
+            </S.SearchBar>
+          }
         />
 
         {(section === 'creations' ? publishableError : !!ownedError) ? (

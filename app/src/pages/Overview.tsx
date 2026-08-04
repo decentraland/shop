@@ -10,7 +10,12 @@ import { WeekTopCreators } from '~/components/WeekTopCreators'
 import { t } from '~/intl/i18n'
 import { useSeo } from '~/hooks/useSeo'
 import carouselArrow from '~/assets/icons/carousel-arrow.svg'
-import heroBanner from '~/assets/overview/hero-fashion-week.png'
+// Figma 5566:4449 "Web 1920x340", exported flat rather than rebuilt: the source is thirteen absolutely
+// positioned layers with per-layer blurs, two blend modes and an alpha mask, and it is a static
+// illustration — reproducing that in CSS would be a lot of fragile geometry for a pixel-identical result.
+// WebP, not PNG: the export is fully opaque, so the alpha channel was dead weight, and the same art is
+// 90 KB here against 1.09 MB as a PNG.
+import heroBanner from '~/assets/overview/hero-credits-outfits.webp'
 import { Icon } from '~/components/Icon'
 import * as Row from '~/styles/row.styles'
 import * as S from './Overview.styles'
@@ -144,7 +149,9 @@ export function Overview() {
     <S.Overview className="overview">
       <S.Hero>
         <S.HeroBg src={heroBanner} alt="" aria-hidden />
-        <S.HeroScrim aria-hidden />
+        {/* No scrim over this banner: the artwork carries its own left-to-right darkening (a
+            multiply-blended gradient in the Figma source), so the separate scrim layer stacked a second
+            one on top and took the left half of the image to near-black. */}
         <S.HeroInner>
           <S.HeroTitle>{t('overview.heroTitle')}</S.HeroTitle>
           <S.HeroCta as={Link} to="/items" variant="purple">

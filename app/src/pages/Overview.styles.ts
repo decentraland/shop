@@ -77,7 +77,7 @@ export const Hero = styled.section`
   position: relative;
   display: flex;
   align-items: center;
-  aspect-ratio: 1721 / 304;
+  aspect-ratio: 1920 / 340;
   max-height: 340px;
   margin-bottom: 50px;
   overflow: hidden;
@@ -109,14 +109,6 @@ export const HeroBg = styled.img`
   height: 100%;
   object-fit: cover;
   object-position: center right;
-`
-
-// Left-to-right dark scrim so the title + CTA keep AA contrast over the busy art at every width.
-export const HeroScrim = styled.div`
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  background: linear-gradient(90deg, rgba(10, 11, 14, 0.78) 0%, rgba(10, 11, 14, 0.45) 38%, rgba(10, 11, 14, 0) 68%);
 `
 
 export const HeroInner = styled.div`
