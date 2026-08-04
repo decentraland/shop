@@ -8,6 +8,7 @@ import { MigrateModal, type MigrateEntry } from '~/components/MigrateModal'
 import { CURRENCY, creditsToUsd } from '~/lib/currency'
 import { CreditRate } from '~/components/CreditRate'
 import { CreditMarkIcon } from '~/components/Icons/CreditMarkIcon'
+import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { Icon } from '~/components/Icon'
 import { categoryIcon } from '~/lib/itemIcons'
 import { rarityInk, rarityTint } from '~/lib/rarity'
@@ -222,7 +223,8 @@ export function ImportListings() {
 
                       <S.Price>
                         <S.PriceField>
-                          <CreditMarkIcon />
+                          {/* Sized and coloured by PriceField's own `.ico` rule. */}
+                          <CurrencyIcon />
                           <S.PriceInput
                             data-testid="imp-price-input"
                             inputMode="numeric"

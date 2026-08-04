@@ -57,6 +57,9 @@ vi.mock('~/hooks/useManaBalance', () => ({ useManaBalance: () => ({ data: 0n }) 
 vi.mock('~/hooks/useManaRate', () => ({ useManaRate: () => ({ data: { rate: 50_000_000n, decimals: 8 } }) }))
 // Every line buyable: availability is a different concern with its own specs.
 vi.mock('~/hooks/useCartAvailability', () => ({ useCartAvailability: () => ({}) }))
+// The per-line "Creator" chip is gated on this; `secondarySales` lets a test pick the state it needs.
+const secondarySales = { on: false }
+vi.mock('~/hooks/useSecondarySales', () => ({ useSecondarySales: () => secondarySales.on }))
 
 const { authorizeUsdCredit, cancelUsdIntents } = vi.hoisted(() => ({
   authorizeUsdCredit: vi.fn(),
@@ -415,5 +418,25 @@ describe('when the gasless rail relays one group and another hard-reverts', () =
     // checkout completes and nothing is released.
     await waitFor(() => expect(navigate).toHaveBeenCalledWith('/success', expect.anything()))
     expect(cancelUsdIntents).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * The "Creator" chip exists to tell a MINT apart from a RESALE. With resales switched off, every line in
+ * every cart is a mint, so the chip labels all of them with the same word and says nothing — which is why
+ * it is gated rather than merely styled differently.
+ */
+describe('when a cart line is a primary (mint) listing', () => {
+  it('should hide the Creator chip while secondary sales are off', async () => {
+    secondarySales.on = false
+    renderCart([item('a')])
+    expect(await screen.findByText('Item a')).toBeTruthy()
+    expect(screen.queryByTestId('cart-creator-tag')).toBeNull()
+  })
+
+  it('should show the Creator chip once secondary sales are on', async () => {
+    secondarySales.on = true
+    renderCart([item('a')])
+    expect(await screen.findByTestId('cart-creator-tag')).toBeTruthy()
   })
 })

@@ -110,6 +110,15 @@ export const Hero = styled.section`
   margin-inline: calc(50% - 50vw);
   border-radius: 0;
 
+  /* …and then put the CONTENT back where the page's content is. The mirror image of the margin above: it
+     pulled the box out to the window edges, this pushes the copy back in by exactly the same distance, so
+     the headline starts on the same vertical line as every section title below it.
+     A percentage in padding resolves against the CONTAINING BLOCK's width — the .page content box — not
+     against this element's own 100vw, which is what makes the same expression work at every viewport,
+     including wider than the 1760px cap where the gutter is no longer 54px. Verified: 54px at a 1440
+     window, 134px at 1920 (the cap's own inset plus the gutter), 16px at 390. */
+  padding-inline: calc(50vw - 50%);
+
   ${media.maxWidth('mobile')} {
     aspect-ratio: auto;
     min-height: 200px;
@@ -126,6 +135,8 @@ export const HeroBg = styled.img`
   object-position: center right;
 `
 
+// No side padding of its own: the Hero's padding-inline already lands this on the page's content edge, and
+// the 64px this used to add is what put the headline out of line with the section titles below.
 export const HeroInner = styled.div`
   position: relative;
   z-index: 2;
@@ -133,11 +144,6 @@ export const HeroInner = styled.div`
   flex-direction: column;
   align-items: flex-start;
   gap: 32px;
-  padding: 0 64px;
-
-  ${media.maxWidth('mobile')} {
-    padding: 0 24px;
-  }
 `
 
 // Figma 1864:223112: Inter Bold 48/1.235 in white, sentence case — the uppercase this used to force is
