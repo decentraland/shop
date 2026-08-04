@@ -415,7 +415,7 @@ export function parseOutfitImport(raw: string): OutfitImport | null {
   }
 }
 
-/** How many items an outfit may hold; publishing additionally requires at least 1. */
+export const MIN_OUTFIT_ITEMS = 1
 export const MAX_OUTFIT_ITEMS = 20
 
 /**
