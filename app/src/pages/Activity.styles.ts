@@ -112,6 +112,8 @@ export const MigrateTab = styled(Tab)`
   &[data-active='true'] [data-testid='activity-migrate-count'] {
     background: ${theme.colors.white};
     color: ${theme.colors.accent};
+    /* See MigrateBadge: a white ring would vanish into the page here, since the disc itself is white. */
+    box-shadow: 0 0 0 2px ${theme.colors.accent};
   }
 `
 
@@ -138,6 +140,19 @@ export const MigrateBadge = styled.span`
   padding: 0 6px;
   border-radius: ${theme.radius.pill};
   background: ${theme.colors.brandViolet};
+  /**
+   * A ring, whose colour has to FOLLOW THE DISC rather than the page.
+   *
+   * The disc hangs off the corner: part of it sits on the chip, part on the page. Unselected it is violet
+   * on white, so it already reads and the white ring only separates it from the chip's grey hairline.
+   * Selected, the chip inverts it to white on violet — and a white disc against the white page has no edge
+   * at all along the half that overhangs, which is the state where the circle looked unfinished. That case
+   * needs the ring in the chip's accent instead (below), so the disc keeps a hard edge on both surfaces.
+   *
+   * box-shadow rather than a border: a border would grow the 20px disc the design fixes, while a spread
+   * shadow draws outside the box.
+   */
+  box-shadow: 0 0 0 2px ${theme.colors.white};
   font-weight: 600;
   font-size: 12px;
   line-height: 1.6;
