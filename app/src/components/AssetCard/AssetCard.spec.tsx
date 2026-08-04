@@ -329,6 +329,43 @@ describe('AssetCard own-item MANAGE CTA', () => {
   })
 })
 
+/**
+ * My Items renders every owned card in `manage-link` mode, whose only action is a MANAGE CTA revealed on
+ * card hover. The reveal is pure CSS — the rule in AssetCard.styles matches `[data-testid='card-cart']` or
+ * `[data-reveal]` — so jsdom cannot observe it, and what these cases pin is the HOOK the rule needs.
+ *
+ * Worth pinning because of how it failed: MANAGE carried neither marker, while the chips it replaces DO
+ * carry `[data-chips]`. Hovering therefore hid the chips and revealed nothing, and every card in My Items
+ * had no visible action at all — a missing attribute reading as a missing feature.
+ */
+describe('AssetCard manage-link mode', () => {
+  it('marks the MANAGE CTA as hover-revealable for an owned token', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <AssetCard item={makeItem({ priceCredits: 0, tokenId: '7' })} mode="manage-link" />
+      </MemoryRouter>
+    )
+    const cta = container.querySelector('[data-testid="card-manage"]')
+    expect(cta).toBeTruthy()
+    expect(cta?.hasAttribute('data-reveal')).toBe(true)
+  })
+
+  it('marks the MANAGE link as hover-revealable for an owned NAME', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <AssetCard
+          item={makeItem({ priceCredits: 0, category: 'name' })}
+          mode="manage-link"
+          manageHref="https://example.com/names"
+        />
+      </MemoryRouter>
+    )
+    const cta = container.querySelector('[data-testid="card-manage"]')
+    expect(cta).toBeTruthy()
+    expect(cta?.hasAttribute('data-reveal')).toBe(true)
+  })
+})
+
 describe('AssetCard view-only mode', () => {
   function renderView(item: CatalogItem) {
     return render(
