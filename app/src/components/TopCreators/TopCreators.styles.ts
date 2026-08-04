@@ -3,18 +3,25 @@ import { css } from '@emotion/react'
 import { Link } from 'react-router-dom'
 import { theme } from '~/styles/theme'
 
-const { colors, radius, media } = theme
+const { colors, radius, gradients, media } = theme
 
-const AVATAR = 112
-const AVATAR_MOBILE = 152
+const AVATAR = 155
 // The CTA's height plus the gap above it — the slot the panel reserves for it permanently (see Panel).
 const CTA_SLOT = 56
+// The hover ring: its thickness and the clear space it leaves around the panel. Both are what the
+// Track reserves room for, since the ring is drawn OUTSIDE the panel's box.
+const RING = 3
+const RING_GAP = 6
 
 export { Root, Head, Title, Dots, Dot } from '~/styles/row.styles'
 
 // Four cards fill the row exactly at desktop widths, so there is nothing to scroll and no dots. Below
 // the mobile breakpoint it becomes a one-card-per-page carousel with the next card peeking, which is
 // what tells a thumb the row scrolls. `align-items: start` keeps every card measuring its own height.
+//
+// An overflow-x scroller clips overflow-y too, so the room for the hover ring is PADDING on all sides
+// (the same dance styles/row.styles makes for the cards' outward glow); the matching negative margin
+// then pulls the first card back into line with the section title.
 export const Track = styled.div`
   display: grid;
   grid-auto-flow: column;
@@ -22,6 +29,9 @@ export const Track = styled.div`
   align-items: start;
   gap: 16px;
   overflow-x: auto;
+  padding: ${RING + RING_GAP}px;
+  margin-left: -${RING + RING_GAP}px;
+  scroll-padding-inline: ${RING + RING_GAP}px;
   scroll-snap-type: x mandatory;
   scrollbar-width: none;
   -ms-overflow-style: none;
@@ -35,8 +45,12 @@ export const Track = styled.div`
     scroll-snap-align: start;
   }
 
+  /* Touch has no hover, so there is no ring to reserve room for: the card gets the full page gutter. */
   ${media.maxWidth('mobile')} {
-    grid-auto-columns: 86%;
+    grid-auto-columns: 94%;
+    padding: ${RING + RING_GAP}px 0;
+    margin-left: 0;
+    scroll-padding-inline: 0;
   }
 `
 
@@ -58,8 +72,9 @@ export const SkeletonCard = styled.span`
   ${cardBase};
 `
 
-// Sits above the panel and covers the border that runs behind it. The white ring is drawn outside the
-// circle (box-shadow, not a border) so the snapshot keeps the full 112px box.
+// Sits above the panel and covers the fill and the ring that run behind it. Same 155px at every width.
+// The white ring is drawn outside the circle (box-shadow, not a border) so the snapshot keeps the full
+// box.
 export const Avatar = styled.span`
   position: relative;
   z-index: 1;
@@ -77,23 +92,27 @@ export const Avatar = styled.span`
     height: 100%;
     object-fit: cover;
   }
-
-  ${media.maxWidth('mobile')} {
-    width: ${AVATAR_MOBILE}px;
-    height: ${AVATAR_MOBILE}px;
-  }
 `
 
 /**
  * Starts at the avatar's centre, hence the negative margin and the matching top padding.
  *
  * The CTA's slot is part of the panel's box at ALL times, so no card ever changes height and nothing
- * below the row — the footer included — can move. What grows on hover is only the PAINTED box: the
- * fill and the border are drawn by a pseudo-element whose bottom edge stops above the empty slot while
- * the card is idle and covers it when the CTA appears. (Handing the slot over on hover instead is what
- * made the footer twitch: the swap was instant while the CTA's own box animated, so for the length of
- * the transition the card was up to 56px short.)
+ * below the row — the footer included — can move. What grows on hover is only what is PAINTED: the fill
+ * (::before) and the hover ring (::after) are drawn by pseudo-elements whose bottom edge stops above the
+ * empty slot while the card is idle and covers it when the CTA appears. (Handing the slot over on hover
+ * instead is what made the footer twitch: the swap was instant while the CTA's own box animated, so for
+ * the length of the transition the card was up to 56px short.)
  */
+const fillBottom = (inset: number) => css`
+  &::before {
+    inset: 0 0 ${inset}px;
+  }
+  &::after {
+    inset: -${RING + RING_GAP}px -${RING + RING_GAP}px ${inset - RING - RING_GAP}px;
+  }
+`
+
 export const Panel = styled.span`
   position: relative;
   isolation: isolate;
@@ -104,45 +123,60 @@ export const Panel = styled.span`
   margin-top: -${AVATAR / 2}px;
   padding: ${AVATAR / 2 + 16}px 16px 16px;
 
-  &::before {
+  &::before,
+  &::after {
     content: '';
     position: absolute;
-    inset: 0 0 ${CTA_SLOT}px;
-    z-index: -1; /* isolate + negative z keeps the fill under the text instead of over it */
-    border: 2px solid transparent;
-    border-radius: ${radius.modal};
-    background: ${colors.media};
+    z-index: -1; /* isolate + negative z keeps both layers under the text instead of over it */
     transition:
       inset 0.15s ease,
-      border-color 0.15s ease;
+      opacity 0.15s ease;
   }
 
-  [data-testid='top-creator-card']:hover &::before,
-  [data-testid='top-creator-card']:focus-visible &::before {
-    inset: 0;
-    border-color: ${colors.accent};
+  &::before {
+    border-radius: ${radius.modal};
+    background: ${colors.media};
+  }
+
+  /* The ring sits OUTSIDE the fill with clear space between the two, so the Track reserves room for it.
+     Stroked with a mask rather than a border because a border cannot carry a gradient. */
+  &::after {
+    padding: ${RING}px;
+    border-radius: calc(${radius.modal} + ${RING_GAP}px);
+    background: ${gradients.amethyst};
+    opacity: 0;
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+  }
+
+  ${fillBottom(CTA_SLOT)};
+
+  [data-testid='top-creator-card']:hover &,
+  [data-testid='top-creator-card']:focus-visible & {
+    ${fillBottom(0)};
+
+    &::after {
+      opacity: 1;
+    }
   }
 
   /* Nothing is ever hidden under a skeleton, so its box is the full one. */
-  &[data-skeleton]::before {
-    inset: 0;
+  &[data-skeleton] {
+    ${fillBottom(0)};
   }
 
-  /* Touch has no hover: the CTA is out permanently, so the box always covers it. */
+  /* Touch has no hover: the CTA is out permanently, so the fill always covers it. */
   @media (hover: none) {
-    &::before {
-      inset: 0;
-    }
+    ${fillBottom(0)};
   }
   ${media.maxWidth('mobile')} {
-    &::before {
-      inset: 0;
-    }
-  }
-
-  ${media.maxWidth('mobile')} {
-    margin-top: -${AVATAR_MOBILE / 2}px;
-    padding-top: ${AVATAR_MOBILE / 2 + 16}px;
+    ${fillBottom(0)};
   }
 `
 
@@ -150,15 +184,11 @@ export const Name = styled.span`
   max-width: 100%;
   overflow: hidden;
   color: ${colors.text};
-  font-size: 16px;
-  font-weight: 700;
+  font-size: 20px;
+  font-weight: 600;
   line-height: 1.5;
   text-overflow: ellipsis;
   white-space: nowrap;
-
-  ${media.maxWidth('mobile')} {
-    font-size: 18px;
-  }
 `
 
 // Two lines, always: clamped so a long blurb can't make one card taller than its neighbours, and
@@ -171,12 +201,8 @@ export const Desc = styled.span`
   margin-top: 4px;
   overflow: hidden;
   color: ${colors.text2};
-  font-size: 14px;
+  font-size: 16px;
   line-height: 1.43;
-
-  ${media.maxWidth('mobile')} {
-    font-size: 15px;
-  }
 `
 
 // Keeps its box whether it is showing or not (see Panel) and only fades — revealed by the CARD rather
@@ -189,7 +215,7 @@ export const Cta = styled.span`
   width: 100%;
   height: 40px;
   margin-top: 16px;
-  border-radius: ${radius.pill};
+  border-radius: ${radius.modal};
   background: ${colors.blackBtn};
   color: ${colors.softWhite};
   font-size: 13px;
