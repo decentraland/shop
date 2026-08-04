@@ -2,7 +2,7 @@ import { ethers } from 'ethers'
 import { useQuery } from '@tanstack/react-query'
 import { t } from '~/intl/i18n'
 import { useProfile } from '~/hooks/useProfile'
-import { CreditMarkIcon } from '~/components/Icons/CreditMarkIcon'
+import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { shortAddress } from '~/lib/address'
 import { capitalizeFirst } from '~/lib/text'
 import { fetchCreatorCollectionThumbnails } from '~/lib/collections'
@@ -10,8 +10,12 @@ import { fetchTopCreators, type CreatorRank } from '~/lib/rankings'
 import * as S from './WeekTopCreators.styles'
 
 // "Week Top Creators" table (Figma node 1914-293213). Real data from marketplace-server
-// /v1/rankings/creators/week (see lib/rankings.ts): Rank · Creator · Collections · Sales · Amount
-// earned. Amount earned = the creator's `earned` MANA (wei → whole MANA).
+// /v1/rankings/creators/week (see lib/rankings.ts): Rank · Creator · Collections · Sales · Volume.
+//
+// Volume is the ranking's `earned` field, MANA wei converted to whole MANA. It is labelled with the
+// app-wide currency mark, which is the CREDITS mark — so the number and its symbol disagree about the
+// denomination. Converting needs an oracle rate the client does not read here, so the mismatch is
+// carried over from before this redesign rather than papered over by relabelling the column.
 //
 // Each row is a single link to the creator's storefront with its Collections view selected; the
 // "view collections" pill the design reveals on hover is a LABEL on that link, not a second control
@@ -83,7 +87,7 @@ function CreatorRow({ rank, creator, thumbnails }: { rank: number; creator: Crea
       <S.AmountCell>
         <S.AmountRow>
           <S.Amount>
-            <CreditMarkIcon size={18} />
+            <CurrencyIcon size={18} />
             {formatManaVolume(creator.earned)}
           </S.Amount>
           {/* Visual only: the row's link is already named "view collections by …", so a second copy of

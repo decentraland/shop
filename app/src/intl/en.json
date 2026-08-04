@@ -757,7 +757,7 @@
     "creator": "Creator",
     "collections": "Collections",
     "sales": "Number of sales",
-    "volume": "Amount earned",
+    "volume": "Volume",
     "viewCollections": "View collections",
     "viewCollectionsBy": "View collections by {name}"
   },
