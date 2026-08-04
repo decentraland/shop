@@ -76,7 +76,6 @@
   },
   "creator": {
     "breadcrumb": "Artículos",
-    "category": "Categoría",
     "fallbackName": "Creador",
     "viewProfile": "Ver perfil",
     "editStore": "Editar tienda",
@@ -90,16 +89,15 @@
     "following": "Siguiendo",
     "followTitle": "Seguir al creador",
     "unfollowTitle": "Dejar de seguir al creador",
-    "empty": "Este creador todavía no tiene artículos para mostrar.",
+    "emptyNoCreations": "Este creador todavía no ha publicado nada.",
+    "emptyFilters": {
+      "title": "Ningún artículo coincide con estos filtros.",
+      "body": "Este creador tiene {count, plural, one {# artículo} other {# artículos}}, pero ninguno coincide con los filtros que elegiste."
+    },
     "collectionsCount": "{count, plural, one {# colección} other {# colecciones}}",
     "collectionsEmpty": "Este creador todavía no ha publicado colecciones.",
     "error": "No pudimos cargar este creador. Prueba de nuevo.",
-    "breadcrumbAria": "Ruta de navegación",
-    "priceMin": "Precio mínimo",
-    "priceMax": "Precio máximo",
-    "priceMinPlaceholder": "Mín",
-    "priceMaxPlaceholder": "Máx",
-    "priceHint": "Precio en {currency}"
+    "breadcrumbAria": "Ruta de navegación"
   },
   "storeSettings": {
     "title": "Configuración de la tienda",

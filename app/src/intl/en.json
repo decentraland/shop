@@ -76,7 +76,6 @@
   },
   "creator": {
     "breadcrumb": "Items",
-    "category": "Category",
     "fallbackName": "Creator",
     "viewProfile": "View profile",
     "editStore": "Edit store",
@@ -90,16 +89,15 @@
     "following": "Following",
     "followTitle": "Follow creator",
     "unfollowTitle": "Unfollow creator",
-    "empty": "This creator has no items to show yet.",
+    "emptyNoCreations": "This creator hasn’t published anything yet.",
+    "emptyFilters": {
+      "title": "No items match these filters.",
+      "body": "This creator has {count, plural, one {# item} other {# items}}, but none of them match your current filters."
+    },
     "collectionsCount": "{count, plural, one {# collection} other {# collections}}",
     "collectionsEmpty": "This creator hasn’t published any collections yet.",
     "error": "Couldn’t load this creator — please try again.",
-    "breadcrumbAria": "Breadcrumb",
-    "priceMin": "Minimum price",
-    "priceMax": "Maximum price",
-    "priceMinPlaceholder": "Min",
-    "priceMaxPlaceholder": "Max",
-    "priceHint": "Price in {currency}"
+    "breadcrumbAria": "Breadcrumb"
   },
   "storeSettings": {
     "title": "Store settings",

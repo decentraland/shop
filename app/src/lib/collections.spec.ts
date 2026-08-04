@@ -405,18 +405,53 @@ describe('when fetching the full catalog (browse "All" / "Not for Sale")', () =>
     expect(items[0].priceCredits).toBe(0)
   })
 
-  it('should omit the category param when it is "all" and never send a credit price range', async () => {
+  it('should omit the category param when it is "all"', async () => {
     const fetchMock = mockFetchOk([])
 
-    await fetchCatalogItems({ category: 'all', minPriceCredits: 5, maxPriceCredits: 50 } as never)
+    await fetchCatalogItems({ category: 'all' })
 
     const url = new URL(fetchMock.mock.calls[0][0] as string)
     expect(url.searchParams.has('category')).toBe(false)
-    // The credit price-range is intentionally not wired to this endpoint (MANA-denominated) — omitted.
+  })
+
+  it('should omit the category param for "names", which is a destination and not an item category', async () => {
+    const fetchMock = mockFetchOk([])
+
+    await fetchCatalogItems({ category: 'names' })
+
+    const url = new URL(fetchMock.mock.calls[0][0] as string)
+    expect(url.searchParams.has('category')).toBe(false)
+  })
+
+  it('should send the credit price range in credits (never the MANA-denominated minPrice/maxPrice)', async () => {
+    const fetchMock = mockFetchOk([])
+
+    await fetchCatalogItems({ minPriceCredits: 5, maxPriceCredits: 50 })
+
+    const url = new URL(fetchMock.mock.calls[0][0] as string)
+    expect(url.searchParams.get('minPriceCredits')).toBe('5')
+    expect(url.searchParams.get('maxPriceCredits')).toBe('50')
     expect(url.searchParams.has('minPrice')).toBe(false)
     expect(url.searchParams.has('maxPrice')).toBe(false)
+  })
+
+  it('should omit the credit price range when no bound is set', async () => {
+    const fetchMock = mockFetchOk([])
+
+    await fetchCatalogItems({})
+
+    const url = new URL(fetchMock.mock.calls[0][0] as string)
     expect(url.searchParams.has('minPriceCredits')).toBe(false)
     expect(url.searchParams.has('maxPriceCredits')).toBe(false)
+  })
+
+  it('should scope the feed to one creator when asked', async () => {
+    const fetchMock = mockFetchOk([])
+
+    await fetchCatalogItems({ creator: '0xcreator' })
+
+    const url = new URL(fetchMock.mock.calls[0][0] as string)
+    expect(url.searchParams.get('creator')).toBe('0xcreator')
   })
 
   it('should omit isOnSale entirely for the "all" status (undefined)', async () => {

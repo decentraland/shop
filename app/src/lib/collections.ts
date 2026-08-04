@@ -111,6 +111,8 @@ export type CatalogItemsFilters = {
   first?: number
   skip?: number
   category?: string
+  // One creator's whole body of work (their storefront grid).
+  creator?: string
   rarities?: string[]
   wearableCategories?: string[]
   search?: string
@@ -119,34 +121,44 @@ export type CatalogItemsFilters = {
   isWearableSmart?: boolean
   // Listing status: true = on sale only, false = not-for-sale only, undefined = all.
   isOnSale?: boolean
+  // Credit-denominated price range. Distinct from the endpoint's MANA-wei minPrice/maxPrice, and it
+  // only ever matches items that ARE for sale (a not-for-sale item has no credit price to compare).
+  minPriceCredits?: number
+  maxPriceCredits?: number
 }
 
 export async function fetchCatalogItems({
   first = 48,
   skip = 0,
   category,
+  creator,
   rarities,
   wearableCategories,
   search,
   sortBy,
   isWearableSmart,
-  isOnSale
+  isOnSale,
+  minPriceCredits,
+  maxPriceCredits
 }: CatalogItemsFilters = {}): Promise<CollectionItemsPage> {
   const qs = new URLSearchParams({
     first: String(first),
     skip: String(skip),
     includeSocialEmotes: 'false'
   })
-  if (category && category !== 'all') qs.set('category', category)
+  // Only wearables and emotes are catalog categories. 'all' means no filter, and 'names' is a separate
+  // destination (not an item category) — sending either would be dropped server-side and silently
+  // return the unfiltered feed, which reads as a broken filter.
+  if (category === 'wearable' || category === 'emote') qs.set('category', category)
+  if (creator) qs.set('creator', creator)
   rarities?.forEach(r => qs.append('rarity', r))
   wearableCategories?.forEach(c => qs.append('wearableCategory', c))
   if (search) qs.set('search', search)
   if (sortBy) qs.set('sortBy', sortBy)
   if (isWearableSmart) qs.set('isWearableSmart', 'true')
   if (isOnSale != null) qs.set('isOnSale', String(isOnSale))
-  // NOTE: the credit price-range filter is intentionally omitted here — /v3/catalog/items takes a
-  // MANA-denominated minPrice/maxPrice (not credits), so wiring the shop's credit range to it would
-  // mis-filter. Left as a follow-up (needs a credit-aware range param on the endpoint).
+  if (minPriceCredits != null) qs.set('minPriceCredits', String(minPriceCredits))
+  if (maxPriceCredits != null) qs.set('maxPriceCredits', String(maxPriceCredits))
   const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/items?${qs.toString()}`)
   if (!res.ok) throw new Error(`fetchCatalogItems ${res.status}`)
   const { data, total } = (await res.json()) as { data: RawCollectionItem[]; total?: number }
