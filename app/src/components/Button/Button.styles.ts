@@ -39,8 +39,14 @@ export const Root = styled.button`
     background: ${theme.colors.accent};
     transform: translateY(1px);
   }
+  /* Figma primary disabled: flat 20% purple fill (not a dimmed gradient). */
+  &[data-variant='purple']:disabled {
+    background: rgba(105, 31, 169, 0.2);
+    opacity: 1;
+  }
 
-  /* Outlined primary (Figma outlined variant): magenta border, purple label. */
+  /* Outlined primary (Figma outlined variant): magenta border + purple label; fills solid purple on
+     hover/press. */
   &[data-variant='outline'] {
     background: ${theme.colors.white};
     border: 2px solid ${theme.colors.magenta};
@@ -50,8 +56,18 @@ export const Root = styled.button`
     font-size: 13px;
     font-weight: 600;
   }
-  &[data-variant='outline']:hover:not(:disabled) {
-    background: rgba(198, 64, 205, 0.06);
+  &[data-variant='outline']:hover:not(:disabled),
+  &[data-variant='outline']:active:not(:disabled) {
+    background: ${theme.colors.accent};
+    border-color: ${theme.colors.accent};
+    color: ${theme.colors.softWhite};
+  }
+  &[data-variant='outline']:active:not(:disabled) {
+    transform: translateY(1px);
+  }
+  /* Figma outlined disabled: the whole control at 30% opacity. */
+  &[data-variant='outline']:disabled {
+    opacity: 0.3;
   }
 
   /* Over-media CTA (Figma outfit card): solid white with the dark label, for buttons sitting on artwork. */

@@ -7,6 +7,7 @@ import { Chip } from '~/styles/chip.styles'
 import { CreatorBadge } from '~/components/CreatorBadge'
 import { CreatorName } from '~/components/CreatorName'
 import { SaleCountdown } from '~/components/SaleCountdown'
+import { Icon } from '~/components/Icon'
 
 const { colors, radius, media } = theme
 
@@ -29,7 +30,9 @@ export const Card = styled.article`
   isolation: isolate;
   display: flex;
   flex-direction: column;
-  transition: box-shadow 0.15s ease;
+  transition:
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
 
   &::after {
     ${ringHairline};
@@ -39,6 +42,9 @@ export const Card = styled.article`
     &:hover,
     &:focus-within {
       ${ringLit};
+      /* A gentle lift on hover; z-index keeps the scaled card above its neighbours in the rail. */
+      transform: scale(1.025);
+      z-index: 1;
     }
     &:hover::after,
     &:focus-within::after {
@@ -87,14 +93,6 @@ export const Fav = styled.button`
   place-items: center;
   color: ${colors.text};
 
-  &[data-on] {
-    color: ${colors.dclRed};
-  }
-
-  & .ico {
-    margin-top: 2px;
-  }
-
   // The circle is 24px by design, which is under the comfortable tap size — an invisible ring around it
   // brings the hit area back to ~44px on touch without changing the visual.
   &::after {
@@ -102,6 +100,58 @@ export const Fav = styled.button`
     position: absolute;
     inset: -10px;
     border-radius: 50%;
+  }
+`
+
+// Holds the outline heart with the solid heart stacked exactly on top; the 2px nudge optically centres
+// the glyph in the circle.
+export const FavIcons = styled.span`
+  position: relative;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+`
+
+// The black outline stroke — the resting state. As the red fill arrives it fades out, so the favourited
+// heart ends as a clean solid glyph rather than a red fill sitting inside a black ring. The fade is
+// delayed to land just as the fill reaches full.
+export const FavOutline = styled(Icon)`
+  transition: opacity 160ms ease;
+
+  [data-on] & {
+    opacity: 0;
+    transition: opacity 140ms ease 160ms;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &,
+    [data-on] & {
+      transition: none;
+    }
+  }
+`
+
+// The filled heart grows from the centre to flood the outline when the card is favourited: a springy
+// pop on the way in, a quick fade-scale on the way out.
+export const FavFill = styled(Icon)`
+  position: absolute;
+  inset: 0;
+  color: ${colors.dclRed};
+  transform: scale(0);
+  transform-origin: center;
+  transition: transform 200ms ease-in;
+  pointer-events: none;
+
+  [data-on] & {
+    transform: scale(1);
+    transition: transform 280ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &,
+    [data-on] & {
+      transition: none;
+    }
   }
 `
 
