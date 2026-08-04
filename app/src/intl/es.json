@@ -553,7 +553,7 @@
     "payoutPendingOn": "Credits disponibles el {date}",
     "payoutCredited": "Cobrado en credits",
     "migrate": {
-      "chip": "Mueve tus publicaciones",
+      "chip": "Publicaciones",
       "chipAria": "Mueve tus publicaciones — {count, plural, one {queda # artículo} other {quedan # artículos}}"
     }
   },
