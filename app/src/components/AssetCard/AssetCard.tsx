@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCart } from '~/store/cart'
 import { useFavorite } from '~/store/favorites'
@@ -18,56 +18,6 @@ import type { CatalogItem } from '~/lib/api'
 import * as S from './AssetCard.styles'
 
 const HOVER_DELAY_MS = 120
-
-// A name long enough to claim the whole footer row switches the card to its compact layout: the price
-// drops to a second row beside a round action instead of sitting next to the name. CSS can't key off text
-// length, so measure it — the name's natural width against what the row leaves it beside the price. Both
-// inputs are the same in either layout, so the flag can't oscillate. Without layout (jsdom, a hidden
-// card) widths read 0 and it stays off.
-//
-// The comparison is deliberately NOT "does it overflow at all". The name box already ellipsises, so
-// overflowing by a character costs a character; switching layouts costs the whole card — the price moves,
-// the action changes shape, and the rarity/category/gender chips are dropped for want of room. Trading
-// that for a few pixels is a bad deal, and it was a visible one: a real 30-character catalogue name
-// ("Midnight Black Tuxedo Trousers") exceeded its row by 11px and restructured itself alone in a grid of
-// otherwise identical cards. So the name must want MEANINGFULLY more room than the row can offer — a
-// quarter again as much — which is the point where an ellipsis starts eating words rather than a letter.
-// For reference at the current card width: that same name wants 5% more and stays inline, while a name
-// long enough to be truncated to a stub wants ~60% more and still stacks.
-const NAME_STACK_RATIO = 1.25
-
-function useNameFillsRow(
-  row: React.RefObject<HTMLElement>,
-  name: React.RefObject<HTMLElement>,
-  price: { current: HTMLElement | null }
-) {
-  const [fills, setFills] = useState(false)
-
-  useLayoutEffect(() => {
-    const rowEl = row.current
-    if (!rowEl || typeof ResizeObserver === 'undefined') return
-    let done = false
-    const measure = () => {
-      const nameEl = name.current
-      if (done || !nameEl || !rowEl.clientWidth) return
-      // Scaling `available` rather than guarding it keeps the degenerate case right: if the price leaves
-      // the name no room at all, `available` is negative, so any name exceeds the threshold and stacks.
-      const available = rowEl.clientWidth - (price.current?.offsetWidth ?? 0) - S.TOP_GAP
-      setFills(nameEl.offsetWidth > available * NAME_STACK_RATIO)
-    }
-    measure()
-    const ro = new ResizeObserver(measure)
-    ro.observe(rowEl)
-    // Text widths shift when the web font swaps in.
-    void document.fonts?.ready.then(measure)
-    return () => {
-      done = true
-      ro.disconnect()
-    }
-  }, [row, name, price])
-
-  return fills
-}
 
 // Card variants:
 // - default (native, USD-pegged): fixed credit price + Add to cart.
@@ -114,17 +64,6 @@ export function AssetCard(props: AssetCardProps) {
   const navigate = useNavigate()
   const timer = useRef<ReturnType<typeof setTimeout>>()
   const mediaRef = useRef<HTMLDivElement>(null)
-  const topRef = useRef<HTMLDivElement>(null)
-  const nameRef = useRef<HTMLSpanElement>(null)
-  // The price slot is a <div> (price) or a <span> (NOT FOR SALE tag), so it's captured through a callback
-  // ref instead of being typed to one of them.
-  const priceRef = useRef<HTMLElement | null>(null)
-  const setPriceRef = useCallback((el: HTMLElement | null) => {
-    priceRef.current = el
-  }, [])
-  // Only the buyable (browse) and view-only footers reflow for a long name; the owner/creator footers
-  // and the NAME card keep their own layout, and leave the refs above unattached.
-  const stacked = useNameFillsRow(topRef, nameRef, priceRef)
 
   const add = useCart(s => s.add)
   const inCart = useCart(s => s.items.some(i => i.id === item.id))
@@ -215,15 +154,11 @@ export function AssetCard(props: AssetCardProps) {
     <S.CreatorEmpty>&nbsp;</S.CreatorEmpty>
   )
 
-  const nfs = (
-    <S.Nfs ref={setPriceRef} data-testid="card-nfs">
-      {t('assetCard.notForSale')}
-    </S.Nfs>
-  )
+  const nfs = <S.Nfs data-testid="card-nfs">{t('assetCard.notForSale')}</S.Nfs>
 
   const priceOrNfs = (listed: boolean) =>
     listed && item.priceCredits > 0 ? (
-      <S.Price ref={setPriceRef} data-testid="card-price" title={formatCreditsFull(item.priceCredits)}>
+      <S.Price data-testid="card-price" title={formatCreditsFull(item.priceCredits)}>
         <CurrencyIcon size={15} />
         {formatCredits(item.priceCredits)}
       </S.Price>
@@ -251,7 +186,7 @@ export function AssetCard(props: AssetCardProps) {
   // The browse card's price: the sale pair + countdown, or the plain fixed price. It sits beside the
   // name, or below it in the action row when the name fills the row.
   const browsePrice = onSale ? (
-    <S.Price ref={setPriceRef} data-variant="sale">
+    <S.Price data-variant="sale">
       <S.PriceNow data-testid="card-price-now" title={formatCreditsFull(item.priceCredits)}>
         <CurrencyIcon size={15} />
         {formatCredits(item.priceCredits)}
@@ -263,14 +198,13 @@ export function AssetCard(props: AssetCardProps) {
       <S.Countdown endsAt={item.saleEndsAt} testId="card-countdown" />
     </S.Price>
   ) : (
-    <S.Price ref={setPriceRef} data-testid="card-price" title={formatCreditsFull(item.priceCredits)}>
+    <S.Price data-testid="card-price" title={formatCreditsFull(item.priceCredits)}>
       <CurrencyIcon size={15} />
       {formatCredits(item.priceCredits)}
     </S.Price>
   )
 
-  // Chips at rest on the browse card; the action button swaps in for them on hover/focus. A stacked card
-  // gives the slot to the price instead, so it renders no chips at all.
+  // Chips at rest on the browse card; the action button swaps in for them on hover/focus.
   const browseChips = (
     <S.Chips data-chips>
       <S.CardChip
@@ -302,7 +236,6 @@ export function AssetCard(props: AssetCardProps) {
   return (
     <S.Card
       data-testid="card"
-      data-stacked={stacked || undefined}
       style={canOpen && !isNameItem ? { cursor: 'pointer' } : undefined}
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}
@@ -530,21 +463,19 @@ export function AssetCard(props: AssetCardProps) {
       ) : isView ? (
         <S.Body>
           {/* View-only footer: name on the left; on the right the credit price when the item is for sale,
-              or a small "NOT FOR SALE" tag when it isn't. A name that fills the row keeps it to itself and
-              the price drops to the row below (see useNameFillsRow). */}
-          <S.Top ref={topRef}>
+              or a small "NOT FOR SALE" tag when it isn't. */}
+          <S.Top>
             <S.Desc>
               <S.Name title={item.name}>
-                <span ref={nameRef}>{item.name}</span>
+                <span>{item.name}</span>
               </S.Name>
             </S.Desc>
-            {stacked ? null : priceOrNfs(true)}
+            {priceOrNfs(true)}
           </S.Top>
-          {/* Dark VIEW affordance — the full-width pill, or the round arrow on the compact card (mobile, or
-              stacked next to the price it made room for). Decorative (aria-hidden) either way: the
-              whole-card overlay link above is the accessible, keyboard-reachable navigation. */}
+          {/* Dark VIEW affordance — the full-width pill, or the round arrow on the compact (mobile) card.
+              Decorative (aria-hidden) either way: the whole-card overlay link above is the accessible,
+              keyboard-reachable navigation. */}
           <S.Action>
-            {stacked ? priceOrNfs(true) : null}
             <S.ViewRound data-testid="card-view-round" aria-hidden>
               <Icon name="arrow-right" size={18} />
             </S.ViewRound>
@@ -558,11 +489,11 @@ export function AssetCard(props: AssetCardProps) {
         <S.Body>
           {/* Title+author on one row with the price to their right (Figma). Desc holds the flexible column
               (min-width:0 so a long name ellipses instead of shoving the price out); the price never
-              shrinks. Once the name fills the row on its own, the price moves down to the action row. */}
-          <S.Top ref={topRef}>
+              shrinks. */}
+          <S.Top>
             <S.Desc>
               <S.Name title={item.name}>
-                <span ref={nameRef}>{item.name}</span>
+                <span>{item.name}</span>
               </S.Name>
               {/* "by {creator}" line under the title: resolves the creator address to a DCL profile name
                   (short-address fallback while loading / when unnamed) via the shared useProfile query, so
@@ -573,18 +504,16 @@ export function AssetCard(props: AssetCardProps) {
                 <S.CreatorEmpty>&nbsp;</S.CreatorEmpty>
               )}
             </S.Desc>
-            {stacked ? null : notForSale ? nfs : browsePrice}
+            {notForSale ? nfs : browsePrice}
           </S.Top>
 
           {/* Chips row and the primary action share one fixed-height slot so the card doesn't change size
               when the action is revealed on hover/focus — the button replaces the chips in place. Chips
               show at rest; on hover-capable devices the action reveals on hover or keyboard focus, and it's
               always shown where hover isn't available (touch). Both stay in the DOM so the action is
-              keyboard-reachable and touch-tappable. Stacked, the slot belongs to the price + the round
-              action: there's no room for the chips or the full-width button, so neither is rendered and
-              nothing swaps on hover. */}
+              keyboard-reachable and touch-tappable. */}
           <S.Action>
-            {stacked ? (notForSale ? nfs : browsePrice) : browseChips}
+            {browseChips}
 
             {/* Round add button — the compact card's primary action (Figma). Same behavior as the
                 full-width Cart below; only one is visible per breakpoint / layout. Nothing to buy → the
@@ -609,7 +538,7 @@ export function AssetCard(props: AssetCardProps) {
               </S.AddRound>
             )}
 
-            {stacked ? null : notForSale ? (
+            {notForSale ? (
               <S.ViewCta data-reveal data-testid="card-view" aria-hidden>
                 <Icon name="eye" size={20} />
                 {t('assetCard.view')}
