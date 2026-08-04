@@ -350,6 +350,8 @@
     "readMore": "Read more",
     "smart": "Smart",
     "utility": "Utility",
+    "exportBlocked": "Export",
+    "exportBlockedTooltip": "This Item doesn't allow VRM export",
     "playShowcase": "Play showcase",
     "showcaseTitle": "Showcase video",
     "showcaseClose": "Close",

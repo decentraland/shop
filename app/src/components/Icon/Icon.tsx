@@ -21,6 +21,7 @@ export type IconName =
   | 'arrow-left'
   | 'arrow-right'
   | 'arrow-up-right'
+  | 'ban'
   | 'bell'
   | 'carousel-arrow'
   | 'cart'

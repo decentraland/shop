@@ -24,9 +24,11 @@ import {
 import { itemIdFromTokenId } from '~/lib/token-id'
 import { liveTradeId, markListingCancelled } from '~/lib/dead-listings'
 import { patchManageCaches } from '~/lib/manage-cache'
+import { manaWeiToCredits } from '~/lib/mana-convert'
 import { isSaleSectionLoading } from '~/lib/pdp-loading'
 import { cancelListing } from '~/lib/buy'
 import { fetchPublishableItems, fetchItemVideoUrl, type PublishableItem } from '~/lib/builder'
+import { fetchVrmExportBlocked } from '~/lib/wearable-rules'
 import { BuyModal } from '~/components/BuyModal'
 import { SellModal } from '~/components/SellModal'
 import { TransferModal } from '~/components/TransferModal'
@@ -359,6 +361,21 @@ export function ItemDetail() {
   const utility = itemTraits?.utility ?? null
 
   /**
+   * VRM export, when the creator blocked it. `blockVrmExport` lives on the wearable's Catalyst entity and on no
+   * marketplace endpoint, so it costs its own lookup — worth it because it is a restriction the buyer inherits:
+   * they will not be able to take this item out to a VRM avatar. Stated exactly as the marketplace states it,
+   * badge and tooltip both. Wearables only, and only once the urn is known.
+   */
+  const itemUrnFromMeta = itemTraits?.urn ?? null
+  const { data: vrmBlocked } = useQuery({
+    queryKey: ['item-vrm', itemUrnFromMeta],
+    enabled: !!itemUrnFromMeta && current.category === 'wearable',
+    staleTime: 30 * 60_000,
+    retry: false,
+    queryFn: () => fetchVrmExportBlocked(itemUrnFromMeta as string)
+  })
+
+  /**
    * The creator's showcase clip, for smart wearables that ship one. A smart wearable's point is what it DOES
    * in world, and neither the 3D preview (the garment, standing still) nor the thumbnail can show that — the
    * marketplace surfaces the same clip from the same place (its getSmartWearableVideoShowcase).
@@ -431,7 +448,22 @@ export function ItemDetail() {
   // Market (legacy) checkout: the live MANA→USD rate (read only in market mode) + the LegacyListing
   // projection MarketCheckout expects, built from the UnifiedListing the grid passed in router state.
   // The price is only indicative until MarketCheckout locks it at authorize (see MarketCheckout).
-  const { data: manaRate } = useManaRate(isMarket)
+  /**
+   * A LEGACY (MANA-priced) listing is priced at the LIVE oracle rate, never at the server's snapshot.
+   *
+   * The unified feed reports a `priceCredits` for legacy rows too, and it is not the price the buyer pays:
+   * measured on production, a 25-MANA emote came back as 5 credits while the live rate makes it 17 — and 17
+   * is what checkout authorizes. The browse grid has always converted client-side for exactly this reason
+   * (see Assets.tsx), so a card showed 17 and this page showed 5 for the same item, depending on whether you
+   * arrived from the grid (which passes its live-rate item in router state) or opened the URL cold.
+   */
+  const listedManaWei = (current as Partial<UnifiedListing>).manaWei ?? null
+  const { data: manaRate } = useManaRate(isMarket || !!listedManaWei)
+  const liveLegacyCredits = listedManaWei && manaRate ? manaWeiToCredits(listedManaWei, manaRate) : null
+  useEffect(() => {
+    if (liveLegacyCredits == null) return
+    setCurrent(prev => (prev.priceCredits === liveLegacyCredits ? prev : { ...prev, priceCredits: liveLegacyCredits }))
+  }, [liveLegacyCredits])
   const marketListing: LegacyListing | null = useMemo(() => {
     if (!isMarket || !state?.item) return null
     const it = state.item as UnifiedListing
@@ -890,10 +922,13 @@ export function ItemDetail() {
     isSaleSectionLoading({
       isMarket,
       forSale,
-      priceKnown: current.priceCredits > 0 || manage,
+      priceKnown: (current.priceCredits > 0 && (!listedManaWei || liveLegacyCredits != null)) || manage,
+      // A legacy row whose live price has not landed yet is STILL RESOLVING, not settled: without this the
+      // "everything has settled" branch below concludes the section and paints the server's snapshot for a
+      // moment — the 5 that this whole fix is about, flashed before the 17.
+      stillResolving: stillResolving || (!!listedManaWei && liveLegacyCredits == null),
       manage,
       soldOutWithResale,
-      stillResolving,
       resolvingTrade,
       isTokenRoute,
       ownedAssetLoading,
@@ -1046,6 +1081,21 @@ export function ItemDetail() {
                     <Icon name="smart" size={18} color={theme.colors.text2} />
                     {t('itemDetail.smart')}
                   </S.DetailChip>
+                ) : null}
+                {/* Blocked VRM export, with the marketplace's own wording in the tooltip. Warning-coloured,
+                    unlike the neutral chips around it: this one is a restriction, not a feature. */}
+                {vrmBlocked ? (
+                  <Tooltip content={t('itemDetail.exportBlockedTooltip')}>
+                    <S.DetailChip
+                      data-variant="blocked"
+                      data-testid="detail-export-blocked"
+                      tabIndex={0}
+                      aria-label={t('itemDetail.exportBlockedTooltip')}
+                    >
+                      <Icon name="ban" size={16} />
+                      {t('itemDetail.exportBlocked')}
+                    </S.DetailChip>
+                  </Tooltip>
                 ) : null}
                 {utility ? (
                   <S.DetailChip data-testid="detail-utility-chip">

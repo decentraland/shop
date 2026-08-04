@@ -2,7 +2,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 vi.mock('~/config', () => ({ config: { peerUrl: 'https://peer.test' } }))
 
-import { fetchWearableRules, keepEquipped, hiddenBy, type WearableRule } from '~/lib/wearable-rules'
+import {
+  fetchWearableRules,
+  fetchVrmExportBlocked,
+  keepEquipped,
+  hiddenBy,
+  type WearableRule
+} from '~/lib/wearable-rules'
 
 function rule(urn: string, category: string, hides: string[] = [], replaces: string[] = []): WearableRule {
   return { urn, category, hides, replaces }
@@ -103,5 +109,36 @@ describe('when reading the rules from the Catalyst', () => {
   it('should not call out at all for an empty list', async () => {
     expect(await fetchWearableRules([])).toEqual([])
     expect(vi.mocked(fetch)).not.toHaveBeenCalled()
+  })
+})
+
+// `blockVrmExport` exists on the entity and on no marketplace endpoint, which is why it has its own read.
+describe('when asking whether VRM export is blocked', () => {
+  const entity = (blockVrmExport?: boolean) =>
+    ({
+      ok: true,
+      json: async () => [{ pointers: ['urn:a'], metadata: { data: { category: 'hat', blockVrmExport } } }]
+    }) as Response
+
+  it('should report the flag the creator set', async () => {
+    vi.mocked(fetch).mockResolvedValue(entity(true))
+    expect(await fetchVrmExportBlocked('urn:a')).toBe(true)
+  })
+
+  it('should report false when the flag is absent — most wearables allow it', async () => {
+    vi.mocked(fetch).mockResolvedValue(entity(undefined))
+    expect(await fetchVrmExportBlocked('urn:a')).toBe(false)
+  })
+
+  /**
+   * Null, not false: "we could not find out" and "export is allowed" are different answers, and the page shows
+   * the badge on neither — but only the first should ever be retried or reasoned about as unknown.
+   */
+  it('should answer null when the item or the Catalyst cannot be read', async () => {
+    vi.mocked(fetch).mockResolvedValue({ ok: true, json: async () => [] } as Response)
+    expect(await fetchVrmExportBlocked('urn:a')).toBeNull()
+
+    vi.mocked(fetch).mockRejectedValue(new Error('offline'))
+    expect(await fetchVrmExportBlocked('urn:a')).toBeNull()
   })
 })

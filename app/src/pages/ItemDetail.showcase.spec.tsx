@@ -6,11 +6,12 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { CatalogItem } from '~/lib/api'
 
 /**
- * THE SHOWCASE CLIP ON THE ITEM PAGE.
+ * WHAT THE ITEM PAGE TELLS YOU ABOUT A WEARABLE BEYOND ITS PRICE.
  *
- * A smart wearable's value is what it DOES in world, which neither the 3D preview (the garment, standing
- * still) nor the thumbnail can show — so creators may upload a clip and the page offers it over the preview.
- * These assert what the visitor gets, and just as importantly what an ordinary wearable does NOT pay for.
+ * Two things that live outside the catalog feed and are worth their own lookups: the creator's showcase clip
+ * (a smart wearable's value is what it DOES in world, which a still 3D preview cannot show) and a blocked VRM
+ * export (a restriction the buyer inherits). These assert what the visitor gets — and just as importantly,
+ * what an ordinary wearable does not pay for.
  */
 
 // ItemDetail pulls checkout, the builder client and the wallet transitively, and those reach
@@ -92,7 +93,11 @@ vi.mock('~/lib/collections', () => ({
     creator: '0xabc0000000000000000000000000000000000abc'
   })
 }))
-const { fetchItemVideoUrl } = vi.hoisted(() => ({ fetchItemVideoUrl: vi.fn() }))
+const { fetchItemVideoUrl, fetchVrmExportBlocked } = vi.hoisted(() => ({
+  fetchItemVideoUrl: vi.fn(),
+  fetchVrmExportBlocked: vi.fn()
+}))
+vi.mock('~/lib/wearable-rules', () => ({ fetchVrmExportBlocked }))
 vi.mock('~/lib/builder', () => ({ fetchPublishableItems: vi.fn().mockResolvedValue([]), fetchItemVideoUrl }))
 vi.mock('~/hooks/useRelatedItems', () => ({ useRelatedItems: () => ({ items: [], isFetched: true }) }))
 vi.mock('~/hooks/useManaRate', () => ({ useManaRate: () => ({ data: undefined, isError: false }) }))
@@ -150,6 +155,7 @@ beforeEach(() => {
   fetchItemVideoUrl.mockResolvedValue(null)
   // The v1 traits read is the page's authority on `isSmart`; null means "no answer yet / failed".
   fetchItemMeta.mockResolvedValue(null)
+  fetchVrmExportBlocked.mockResolvedValue(false)
 })
 
 describe('ItemDetail — the showcase clip a creator uploaded', () => {
@@ -202,5 +208,50 @@ describe('ItemDetail — the showcase clip a creator uploaded', () => {
     await waitFor(() => expect(screen.getByTestId('item-price')).toBeInTheDocument())
     expect(fetchItemVideoUrl).not.toHaveBeenCalled()
     expect(playCta()).not.toBeInTheDocument()
+  })
+})
+
+describe('ItemDetail — a wearable whose creator blocked VRM export', () => {
+  const URN = 'urn:decentraland:matic:collections-v2:0xanchor:1'
+
+  it('should say so in a badge, with the reason on hover', async () => {
+    fetchItemMeta.mockResolvedValue({ isSmart: false, utility: null, urn: URN })
+    fetchVrmExportBlocked.mockResolvedValue(true)
+    renderPdp(newClient(), item())
+
+    const badge = await screen.findByTestId('detail-export-blocked')
+    expect(badge).toHaveTextContent(/export/i)
+    // The tooltip's copy is also the accessible name, so it is not hover-only information.
+    expect(badge).toHaveAttribute('aria-label', "This Item doesn't allow VRM export")
+    expect(fetchVrmExportBlocked).toHaveBeenCalledWith(URN)
+  })
+
+  it('should say nothing when export is allowed', async () => {
+    fetchItemMeta.mockResolvedValue({ isSmart: false, utility: null, urn: URN })
+    fetchVrmExportBlocked.mockResolvedValue(false)
+    renderPdp(newClient(), item())
+
+    await waitFor(() => expect(fetchVrmExportBlocked).toHaveBeenCalled())
+    expect(screen.queryByTestId('detail-export-blocked')).not.toBeInTheDocument()
+  })
+
+  // The flag is a wearable's, and the lookup costs a Catalyst round-trip: an emote must not pay for it.
+  it('should not look it up for an emote', async () => {
+    fetchItemMeta.mockResolvedValue({ isSmart: false, utility: null, urn: URN })
+    renderPdp(newClient(), item({ category: 'emote', wearableCategory: 'dance' }))
+
+    await waitFor(() => expect(fetchItemMeta).toHaveBeenCalled())
+    expect(fetchVrmExportBlocked).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('detail-export-blocked')).not.toBeInTheDocument()
+  })
+
+  // Nothing to state is the honest default: a badge on a failed lookup would invent a restriction.
+  it('should say nothing when the lookup cannot answer', async () => {
+    fetchItemMeta.mockResolvedValue({ isSmart: false, utility: null, urn: URN })
+    fetchVrmExportBlocked.mockResolvedValue(null)
+    renderPdp(newClient(), item())
+
+    await waitFor(() => expect(fetchVrmExportBlocked).toHaveBeenCalled())
+    expect(screen.queryByTestId('detail-export-blocked')).not.toBeInTheDocument()
   })
 })

@@ -344,6 +344,19 @@ export const DetailChip = styled(Chip)`
     background: ${colors.chip};
     color: ${colors.text2};
   }
+
+  /* The blocked-VRM-export badge. Warning orange, tinted at 20% for the fill — the marketplace's own
+     #ff7439 on #ff743933, kept identical so the same restriction reads the same in both places. It is the
+     one chip in this row that reports a limitation rather than a feature, and it should not blend in. */
+  &[data-variant='blocked'] {
+    background: rgba(255, 116, 57, 0.2);
+    color: #ff7439;
+    cursor: help;
+  }
+  &[data-variant='blocked']:focus-visible {
+    outline: 2px solid #ff7439;
+    outline-offset: 2px;
+  }
 `
 
 export const Section = styled.div`

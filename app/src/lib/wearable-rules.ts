@@ -67,7 +67,36 @@ export function keepEquipped(equipped: WearableRule[], tryOnCategories: string[]
 
 type ActiveEntity = {
   pointers?: string[]
-  metadata?: { data?: { category?: string; hides?: string[]; replaces?: string[] } }
+  metadata?: { data?: { category?: string; hides?: string[]; replaces?: string[]; blockVrmExport?: boolean } }
+}
+
+// One POST for a batch of urns. The Catalyst holds the wearable's own definition, so both readers here come
+// through it. Rejects like any fetch; each caller decides what "no answer" means for it.
+async function fetchActiveEntities(urns: string[]): Promise<ActiveEntity[]> {
+  const res = await fetch(`${config.peerUrl}/content/entities/active`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ pointers: urns })
+  })
+  if (!res.ok) return []
+  return (await res.json()) as ActiveEntity[]
+}
+
+/**
+ * Whether the creator blocked VRM export for this wearable — `blockVrmExport` on the entity's data, which no
+ * marketplace-server endpoint carries (checked against production: the v1 item has no such field, the entity
+ * does). The item page states it as a badge, as the marketplace does: it is a real restriction on what the
+ * buyer can do with the item once they own it.
+ *
+ * Null when we could not find out, which the page treats as nothing to state — never a badge on a guess.
+ */
+export async function fetchVrmExportBlocked(urn: string): Promise<boolean | null> {
+  try {
+    const data = (await fetchActiveEntities([urn]))[0]?.metadata?.data
+    return data ? !!data.blockVrmExport : null
+  } catch {
+    return null
+  }
 }
 
 /**
@@ -81,13 +110,7 @@ type ActiveEntity = {
 export async function fetchWearableRules(urns: string[]): Promise<WearableRule[]> {
   if (urns.length === 0) return []
   try {
-    const res = await fetch(`${config.peerUrl}/content/entities/active`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ pointers: urns })
-    })
-    if (!res.ok) return []
-    const entities = (await res.json()) as ActiveEntity[]
+    const entities = await fetchActiveEntities(urns)
     const byUrn = new Map<string, WearableRule>()
     for (const entity of entities) {
       const data = entity.metadata?.data

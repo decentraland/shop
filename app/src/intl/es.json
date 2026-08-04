@@ -350,6 +350,8 @@
     "readMore": "Leer más",
     "smart": "Smart",
     "utility": "Utilidad",
+    "exportBlocked": "Exportar",
+    "exportBlockedTooltip": "Este artículo no permite la exportación de VRM",
     "playShowcase": "Ver el showcase",
     "showcaseTitle": "Video de showcase",
     "showcaseClose": "Cerrar",
