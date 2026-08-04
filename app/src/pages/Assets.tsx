@@ -26,8 +26,10 @@ import * as S from './Assets.styles'
 // Items fetched per page (infinite scroll pages by cumulative offset — see useInfiniteGrid).
 const PAGE_SIZE = 48
 
+const STATUSES: FilterStatus[] = ['all', 'on_sale', 'not_for_sale']
+
 export function Assets() {
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
   const q = (searchParams.get('q') ?? '').trim().toLowerCase()
 
@@ -40,12 +42,30 @@ export function Assets() {
     description: t('seo.collectibles.description')
   })
 
-  const [category, setCategory] = useState('wearable')
+  // Category and Status live in the URL so a filtered search is shareable and survives a refresh, and
+  // so the dropdown's "See all" lands on a state it can name. A SEARCH defaults to every category —
+  // the typeahead matches wearables and emotes alike, so pinning the grid to wearables would silently
+  // drop half the matches. Plain browsing still opens on Wearables.
+  const category = searchParams.get('category') ?? (q ? 'all' : 'wearable')
+  const statusParam = searchParams.get('status') as FilterStatus | null
+  const status: FilterStatus = statusParam && STATUSES.includes(statusParam) ? statusParam : 'on_sale'
+  // Write a filter to the URL, dropping it when it's back at its default so the address stays clean.
+  // `replace` keeps filter tweaks out of the history stack, as they were when this was local state.
+  const setParam = (key: string, value: string | null) =>
+    setSearchParams(
+      prev => {
+        const next = new URLSearchParams(prev)
+        if (value == null) next.delete(key)
+        else next.set(key, value)
+        return next
+      },
+      { replace: true }
+    )
+
   const [subCategory, setSubCategory] = useState<string | null>(null)
   const [rarities, setRarities] = useState<string[]>([])
   const [priceMin, setPriceMin] = useState('')
   const [priceMax, setPriceMax] = useState('')
-  const [status, setStatus] = useState<FilterStatus>('on_sale')
   const [smart, setSmart] = useState(false)
   const [sort, setSort] = useState('newest')
   const [filtersOpen, setFiltersOpen] = useState(false) // mobile filters drawer
@@ -179,20 +199,30 @@ export function Assets() {
   }, [category, subCategory, rarities, min, max, sort, status, smart, isLoading, isPlaceholderData, resultCount])
 
   function pickCategory(key: string) {
-    setCategory(key)
+    setParam('category', key)
     setSubCategory(null)
+  }
+  function setStatus(next: FilterStatus) {
+    setParam('status', next === 'on_sale' ? null : next)
   }
   function toggleRarity(r: string) {
     setRarities(rs => (rs.includes(r) ? rs.filter(x => x !== r) : [...rs, r]))
   }
   // Reset every filter to its default. Filters apply live, so this takes effect immediately.
   function clearFilters() {
-    setCategory('wearable')
+    setSearchParams(
+      prev => {
+        const next = new URLSearchParams(prev)
+        next.delete('category')
+        next.delete('status')
+        return next
+      },
+      { replace: true }
+    )
     setSubCategory(null)
     setRarities([])
     setPriceMin('')
     setPriceMax('')
-    setStatus('on_sale')
     setSmart(false)
   }
 

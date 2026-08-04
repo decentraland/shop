@@ -472,7 +472,18 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
       let rows = ((F.shopListings as { data: any[] }).data ?? []).map(toCatalogRow)
       if (ca) rows = rows.filter(r => String(r.contractAddress).toLowerCase() === ca.toLowerCase())
       if (creator) rows = rows.filter(r => String(r.creator).toLowerCase() === creator.toLowerCase())
-      return json(req, { data: rows })
+      // The browse filters, honored exactly as the other feeds honor them. `search` matches a substring
+      // of the NAME — the same rule /v3/catalog/unified applies, so the "All"/"Not for Sale" grid and
+      // the on-sale grid agree on what a query matches. Every fixture row is priced, hence on sale.
+      const catalogSearch = u.searchParams.get('search')?.toLowerCase()
+      const catalogRarity = u.searchParams.get('rarity')
+      const catalogCategory = u.searchParams.get('category')
+      const isOnSale = u.searchParams.get('isOnSale')
+      if (catalogSearch) rows = rows.filter(r => String(r.name).toLowerCase().includes(catalogSearch))
+      if (catalogRarity) rows = rows.filter(r => catalogRarity.split(',').includes(r.rarity))
+      if (catalogCategory) rows = rows.filter(r => r.category === catalogCategory)
+      if (isOnSale === 'false') rows = []
+      return json(req, { data: rows, total: rows.length })
     }
     if (path === '/v1/nfts') {
       // Creator search step 1 (lib/search.ts → fetchNameOwners): DCL names matching ?search=.
