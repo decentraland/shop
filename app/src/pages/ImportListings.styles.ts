@@ -266,6 +266,17 @@ export const PriceField = styled.div`
   border: 0.5px solid ${colors.muted2};
   border-radius: ${radius.btn};
   background: ${colors.panel};
+
+  /* The MONOCHROME credit glyph, in the text colour and matched to the amount beside it — this field used
+     the filled gradient mark, which at 17px next to a 16px figure read as a small warm smudge rather than a
+     unit. The mark is right for a price you are being shown; this is a price you are typing, so it belongs
+     to the input's own type. */
+  & .ico {
+    flex: 0 0 auto;
+    width: 22px;
+    height: 22px;
+    color: ${colors.text};
+  }
   transition:
     border-color 0.15s,
     box-shadow 0.15s;
