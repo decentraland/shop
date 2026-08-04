@@ -128,7 +128,7 @@
   "prelaunch": {
     "title": "We’re getting the shop ready",
     "body": "The shop isn’t open to everyone just yet. We’re putting the finishing touches on it — check back very soon.",
-    "connected": "Connected wallets that have early access will see the shop here.",
+    "connected": "Accounts with early access will see the shop here.",
     "signIn": "Sign in"
   },
   "cart": {
@@ -689,7 +689,11 @@
       "noItems": "No items yet — pick some from the catalog below.",
       "maxItems": "An outfit can have up to 20 items.",
       "remove": "Remove",
-      "searchPlaceholder": "Search wearables…",
+      "playsInPreview": "Plays in preview",
+      "needsWearable": "Add at least one wearable to publish.",
+      "pickerCategory": "What to browse",
+      "searchWearables": "Search wearables…",
+      "searchEmotes": "Search emotes…",
       "noResults": "No results",
       "gradient": "Background colors",
       "gradientTop": "Top",
@@ -919,7 +923,8 @@
     "phasePublishing": "Publishing…",
     "phaseIndexing": "Waiting for the old listing to clear ({attempt}/{of})…",
     "hintCount": "About {total} confirmations will pop up — take down and re-list, per item. Keep this open.",
-    "hintCountApproval": "About {total} confirmations will pop up: take down and re-list per item, plus a one-time approval for each collection. Keep this open."
+    "hintCountApproval": "About {total} confirmations will pop up: take down and re-list per item, plus a one-time approval for each collection. Keep this open.",
+    "phaseConfirmingCancelManaged": "Almost there…"
   },
   "fittingRoom": {
     "title": "Fitting room",
@@ -992,7 +997,7 @@
     "pendingBannerRest": "Your NAME is still being finalised and will appear in My Items shortly — you don't need to do anything.",
     "priceUnavailable": "We can't price NAMEs right now. Please try again in a moment.",
     "insufficientCredits": "You need {credits} more credits to buy this NAME.",
-    "errorRouteCost": "NAME registration is temporarily unavailable because network costs are unusually high. Please try again later."
+    "errorRouteCost": "NAME registration is temporarily unavailable. Please try again later."
   },
   "authorizations": {
     "title": "Approvals",

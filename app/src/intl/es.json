@@ -128,7 +128,7 @@
   "prelaunch": {
     "title": "Estamos preparando la tienda",
     "body": "La tienda todavía no está abierta para todos. Le estamos dando los últimos toques — vuelve muy pronto.",
-    "connected": "Las wallets conectadas con acceso anticipado verán la tienda aquí.",
+    "connected": "Las cuentas con acceso anticipado verán la tienda aquí.",
     "signIn": "Iniciar sesión"
   },
   "cart": {
@@ -689,7 +689,11 @@
       "noItems": "Aún no hay artículos: elige algunos del catálogo de abajo.",
       "maxItems": "Un outfit puede tener hasta 20 artículos.",
       "remove": "Quitar",
-      "searchPlaceholder": "Busca prendas…",
+      "playsInPreview": "Se reproduce en la vista previa",
+      "needsWearable": "Agrega al menos una prenda para publicar.",
+      "pickerCategory": "Qué explorar",
+      "searchWearables": "Busca prendas…",
+      "searchEmotes": "Busca emotes…",
       "noResults": "Sin resultados",
       "gradient": "Colores de fondo",
       "gradientTop": "Arriba",
@@ -919,7 +923,8 @@
     "phasePublishing": "Publicando…",
     "phaseIndexing": "Esperando que se libere la publicación anterior ({attempt}/{of})…",
     "hintCount": "Van a aparecer unas {total} confirmaciones — dar de baja y volver a publicar, por artículo. Deja esto abierto.",
-    "hintCountApproval": "Van a aparecer unas {total} confirmaciones: dar de baja y volver a publicar por artículo, más una autorización por única vez por colección. Deja esto abierto."
+    "hintCountApproval": "Van a aparecer unas {total} confirmaciones: dar de baja y volver a publicar por artículo, más una autorización por única vez por colección. Deja esto abierto.",
+    "phaseConfirmingCancelManaged": "Casi listo…"
   },
   "fittingRoom": {
     "title": "Probador",
@@ -992,7 +997,7 @@
     "pendingBannerRest": "Tu NAME se está terminando de registrar y aparecerá en Mis artículos en breve — no tienes que hacer nada.",
     "priceUnavailable": "No podemos calcular el precio de los NAMEs en este momento. Inténtalo de nuevo en un momento.",
     "insufficientCredits": "Te faltan {credits} créditos para comprar este NAME.",
-    "errorRouteCost": "El registro de NAMEs no está disponible temporalmente porque los costos de red están muy altos. Inténtalo de nuevo más tarde."
+    "errorRouteCost": "El registro de NAMEs no está disponible temporalmente. Inténtalo de nuevo más tarde."
   },
   "authorizations": {
     "title": "Autorizaciones",
