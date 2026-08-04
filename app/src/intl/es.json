@@ -128,7 +128,7 @@
   "prelaunch": {
     "title": "Estamos preparando la tienda",
     "body": "La tienda todavía no está abierta para todos. Le estamos dando los últimos toques — volvé muy pronto.",
-    "connected": "Las wallets con acceso anticipado van a ver la tienda acá.",
+    "connected": "Las cuentas con acceso anticipado verán la tienda aquí.",
     "signIn": "Iniciar sesión"
   },
   "cart": {
@@ -923,7 +923,8 @@
     "phasePublishing": "Publicando…",
     "phaseIndexing": "Esperando que se libere el listado anterior ({attempt}/{of})…",
     "hintCount": "Van a aparecer unas {total} confirmaciones — dar de baja y volver a listar, por artículo. Dejá esto abierto.",
-    "hintCountApproval": "Van a aparecer unas {total} confirmaciones: dar de baja y volver a listar por artículo, más una autorización por única vez por colección. Dejá esto abierto."
+    "hintCountApproval": "Van a aparecer unas {total} confirmaciones: dar de baja y volver a listar por artículo, más una autorización por única vez por colección. Dejá esto abierto.",
+    "phaseConfirmingCancelManaged": "Casi listo…"
   },
   "fittingRoom": {
     "title": "Probador",
@@ -996,7 +997,7 @@
     "pendingBannerRest": "Tu NAME se está terminando de registrar y aparecerá en Mis artículos en breve — no tenés que hacer nada.",
     "priceUnavailable": "No podemos calcular el precio de los NAMEs en este momento. Probá de nuevo en un rato.",
     "insufficientCredits": "Te faltan {credits} credits para comprar este NAME.",
-    "errorRouteCost": "El registro de NAMEs no está disponible temporalmente porque los costos de red están muy altos. Probá más tarde."
+    "errorRouteCost": "El registro de NAMEs no está disponible temporalmente. Prueba más tarde."
   },
   "authorizations": {
     "title": "Autorizaciones",

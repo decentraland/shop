@@ -33,7 +33,10 @@ function phaseLabel(phase: ImportPhase | null, showsConfirmations: boolean): str
     case 'cancelling':
       return showsConfirmations ? t('migrate.phaseCancelConfirm') : t('migrate.phaseCancel')
     case 'confirming-cancel':
-      return t('migrate.phaseConfirmingCancel')
+      // "the network" is not a thing a managed wallet's owner was ever shown. They saw no chain step to
+      // begin with, so naming one here introduces a system they can't see and can't act on — for them
+      // this is simply the tail of an action already under way.
+      return showsConfirmations ? t('migrate.phaseConfirmingCancel') : t('migrate.phaseConfirmingCancelManaged')
     case 'authorising':
       return showsConfirmations ? t('migrate.phaseAuthoriseConfirm') : t('migrate.phaseAuthorise')
     case 'signing':
@@ -223,7 +226,7 @@ export function MigrateModal({
               <S.Price>
                 <CurrencyIcon className="ccy-mark" /> {entry.priceCredits.toLocaleString()}
               </S.Price>
-              <S.Status>
+              <S.Status data-testid={statuses[i] === 'active' ? 'migrate-active-status' : undefined}>
                 {statuses[i] === 'active' ? (
                   <>
                     <S.Spin className="spinner" aria-hidden /> {phaseLabel(phases[i], showsConfirmations)}
