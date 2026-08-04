@@ -1,7 +1,7 @@
 import signedFetch from 'decentraland-crypto-fetch'
 import type { AuthIdentity } from '@dcl/crypto'
 import { config } from '~/config'
-import type { CatalogItem } from '~/lib/api'
+import { fetchShopItems, type CatalogItem } from '~/lib/api'
 import { slotOf } from '~/lib/outfit'
 import { isOwnListing } from '~/lib/ownership'
 
@@ -82,9 +82,19 @@ export function outfitErrorKey(code: string | undefined): string {
   return (code && ERROR_KEYS[code]) || 'outfits.errors.generic'
 }
 
-/** Public thumbnail URL for a stored hash (immutable, safe to cache forever). */
-export function thumbnailUrl(hash: string): string {
-  return `${config.shopServerUrl}/v1/outfits/thumbnails/${hash}`
+const THUMBNAIL_HASH = /^[0-9a-f]{64}$/
+
+/**
+ * Public thumbnail URL for a stored hash (immutable, safe to cache forever), or null when the outfit
+ * carries no usable hash — a draft ('') or anything that isn't the sha256 hex the server stores.
+ *
+ * Validated rather than interpolated blind: the server applies the same `^[0-9a-f]{64}$` before it
+ * serves the bytes, so a value that can't pass there has no business being built into a URL here
+ * either. Null (not '') so callers have to decide what to render — an empty `src` re-requests the
+ * current page rather than showing nothing.
+ */
+export function thumbnailUrl(hash: string): string | null {
+  return THUMBNAIL_HASH.test(hash) ? `${config.shopServerUrl}/v1/outfits/thumbnails/${hash}` : null
 }
 
 /**
@@ -270,6 +280,13 @@ export type OutfitItemState = 'purchasable' | 'unavailable' | 'own_listing' | 'i
 /**
  * Whether the listing itself is dead: unpriced, or a primary (mint) listing with zero remaining
  * supply. Note `priceCredits > 0` alone misses sold-out primaries — they keep a listed price.
+ *
+ * SUPPLY IS ONLY VISIBLE ON THE SHOP FEEDS. `available` and `tokenId` are populated by
+ * shopListingToItem / unifiedListingToItem (the /v3 feeds); the /v2 catalog rows that outfit refs
+ * resolve to for display (useOutfitItems → fetchCatalogByIds) carry neither, so on those this
+ * collapses to the price check alone. That is why nothing is ever ADDED to the cart off a /v2
+ * row — see {@link resolveOutfitPurchases}, which re-reads each item from the shop feed before
+ * it becomes a cart line.
  */
 export function isListingUnavailable(item: Pick<CatalogItem, 'priceCredits' | 'tokenId' | 'available'>): boolean {
   if (item.priceCredits <= 0) return true
@@ -277,14 +294,75 @@ export function isListingUnavailable(item: Pick<CatalogItem, 'priceCredits' | 't
   return isPrimary && typeof item.available === 'number' && item.available <= 0
 }
 
+/**
+ * One listing's identity, comparable ACROSS feeds. The shop feeds key a row by its trade id
+ * (`shopListingToItem` sets `id: l.tradeId`) while the /v2 catalog keys it by `contract-itemId`, so
+ * the raw `id` of the same wearable differs depending on where it was read — which made the same
+ * item added from the grid and from an outfit two separate cart lines, and made an outfit's
+ * "in your cart" badge blind to anything added elsewhere.
+ *
+ * A specific token (secondary) is its own listing, so it keys by tokenId; everything else keys by
+ * item. Note this agrees with {@link outfitItemKey} for a primary row by construction — an outfit
+ * ref and the item it resolves to produce the same string.
+ */
+export function listingIdentity(item: Pick<CatalogItem, 'contractAddress' | 'itemId' | 'tokenId'>): string {
+  const suffix = item.tokenId ? `t${item.tokenId}` : (item.itemId ?? '')
+  return `${item.contractAddress.toLowerCase()}-${suffix}`
+}
+
 export function classifyOutfitItem(
   item: CatalogItem,
-  options: { address?: string | null; cartIds: ReadonlySet<string> }
+  options: { address?: string | null; cartKeys: ReadonlySet<string> }
 ): OutfitItemState {
   if (isListingUnavailable(item)) return 'unavailable'
   if (isOwnListing(item, options.address)) return 'own_listing'
-  if (options.cartIds.has(item.id)) return 'in_cart'
+  if (options.cartKeys.has(listingIdentity(item))) return 'in_cart'
   return 'purchasable'
+}
+
+/**
+ * Re-read the outfit's items from the SHOP feed, which is what a cart line has to be built from.
+ *
+ * Outfit refs resolve for DISPLAY through the /v2 catalog: one batched request covers every card on
+ * the row, and a thumbnail + a price is all a card needs. But those rows carry no `acquisition`, no
+ * `tradeId` and no `available`, and a cart line needs all three — `acquisition` decides which
+ * purchase rail checkout takes (a CollectionStore mint has no trade to resolve, so a line missing it
+ * defaults to 'trade' and resolves to nothing, i.e. reads as sold-out in the cart it was just added
+ * to), and `available` is what makes a sold-out mint drop out before it is charged.
+ *
+ * So the add-all CTA resolves here first and adds THESE items — the very rows the browse grid would
+ * have put in the cart.
+ *
+ * Deliberately NOT restricted to `listingType: 'primary'`. The studio picker is primary-only, but
+ * that constrains AUTHORING, not shopping: a look whose jacket has since minted out but is still
+ * resold should stay buyable. `groupBy: 'item'` prices a row primary-if-present else cheapest
+ * credit-buyable resale — the same rule as the `price ?? minPrice` the /v2 row the card priced from
+ * uses — so what is added matches what was shown rather than undercutting it.
+ *
+ * One request per item — the unified feed has no id-list filter — but bounded by an outfit's 10-item
+ * ceiling and only ever on an explicit click. A rejection propagates: an item that fails to resolve
+ * is an OUTAGE, not a sell-out, and must never be reported as one (the caller aborts the whole add
+ * and offers a retry instead of quietly building a short basket).
+ */
+export async function resolveOutfitPurchases(refs: OutfitItemRef[]): Promise<Map<string, CatalogItem>> {
+  const resolved = await Promise.all(
+    refs.map(async ref => {
+      // No `onSale` filter: the unified handler does not read one, and passing it would imply a
+      // server-side guarantee that isn't there. Liveness is decided here, by isListingUnavailable.
+      const { items } = await fetchShopItems({
+        contractAddress: ref.contractAddress,
+        itemId: ref.itemId,
+        first: 1
+      })
+      const item = items[0]
+      return item && !isListingUnavailable(item) ? { key: outfitItemKey(ref), item } : null
+    })
+  )
+  const live = new Map<string, CatalogItem>()
+  for (const entry of resolved) {
+    if (entry) live.set(entry.key, entry.item)
+  }
+  return live
 }
 
 /** What a pasted avatar-preview link yields: item refs, and session-only presentation extras. */
@@ -376,7 +454,7 @@ export type OutfitItemsSplit = {
 
 export function splitOutfitItems(
   items: CatalogItem[],
-  options: { address?: string | null; cartIds: ReadonlySet<string> }
+  options: { address?: string | null; cartKeys: ReadonlySet<string> }
 ): OutfitItemsSplit {
   const split: OutfitItemsSplit = { purchasable: [], unavailable: [], ownListing: [], inCart: [] }
   for (const item of items) {
@@ -395,7 +473,11 @@ export function splitOutfitItems(
         split.purchasable.push(item)
         break
       default: {
-        split.purchasable.push(item)
+        // A new OutfitItemState with no case here is a compile error, not a silent bucket. It must
+        // never fall through to `purchasable`: an unrecognised state is unknown, and the one thing
+        // this split may not do is talk an item INTO the basket by default.
+        const exhaustive: never = state
+        void exhaustive
       }
     }
   }

@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { launchApp, type App } from './helpers/app'
 import { clickByAria, clickByText, waitForText } from './helpers/dom'
-import { buyTrade, ownedNftsOnSale } from './fixtures'
+import { buyTrade, ownedNftsOnSale, unifiedWithItem0Resale } from './fixtures'
 
 let app: App | undefined
 afterEach(async () => {
@@ -14,9 +14,16 @@ describe('owner management on the item detail page', () => {
     // Start on My Assets with an owned token that's ALREADY on sale, then open its detail page. The
     // detail page re-checks ownership of that exact token (/v1/nfts → the on-sale fixture) and swaps
     // the buy CTAs for the owner management actions.
+    // `unifiedWithItem0Resale` because the "view other resellers" link asserted below only renders
+    // when item 0 actually has other copies on sale.
     app = await launchApp({
       path: '/my-assets',
-      fixtures: { ownedNfts: ownedNftsOnSale, trade: buyTrade, importable: { data: [] } }
+      fixtures: {
+        ownedNfts: ownedNftsOnSale,
+        trade: buyTrade,
+        importable: { data: [] },
+        unifiedListings: unifiedWithItem0Resale
+      }
     })
     const { page } = app
 

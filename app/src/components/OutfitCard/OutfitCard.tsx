@@ -14,8 +14,11 @@ type Availability = 'full' | 'partial' | 'none' | 'resolving' | 'error'
 // catalog outage renders as "no total / no CTA", never as "no longer available" — an outage is not
 // a sell-out.
 export function OutfitCard({ outfit, resolution }: { outfit: Outfit; resolution: OutfitItemsResolution }) {
-  const { split, availableCount, totalCredits, addOutfit } = useOutfitCart(outfit, resolution)
+  const { split, availableCount, totalCredits, addOutfit, isAdding } = useOutfitCart(outfit, resolution)
   const total = outfit.items.length
+  // Null on a draft with no thumbnail yet (the studio's live card preview) — the gradient frame
+  // behind it is the whole card at that point, so there is simply nothing to lay over it.
+  const thumb = thumbnailUrl(outfit.thumbnailHash)
 
   const availability: Availability = resolution.isError
     ? 'error'
@@ -39,9 +42,7 @@ export function OutfitCard({ outfit, resolution }: { outfit: Outfit; resolution:
       {/* Thumbnails are uploaded with a transparent background, so the creator's gradient is what
           the look actually sits on. */}
       <S.Frame data-card-frame data-testid="outfit-card-thumb" style={{ background: outfitGradient(outfit) }} />
-      <S.Mask>
-        <S.Thumb data-card-media src={thumbnailUrl(outfit.thumbnailHash)} alt={outfit.name} loading="lazy" />
-      </S.Mask>
+      <S.Mask>{thumb ? <S.Thumb data-card-media src={thumb} alt={outfit.name} loading="lazy" /> : null}</S.Mask>
       <S.Fade data-card-fade style={{ background: outfitFade(outfit) }} />
       <S.Scrim data-card-scrim />
       <S.Body data-card-reveal data-testid="outfit-card-info">
@@ -63,9 +64,10 @@ export function OutfitCard({ outfit, resolution }: { outfit: Outfit; resolution:
             variant="white"
             data-testid="outfit-card-cta"
             onClick={onAdd}
-            disabled={split.purchasable.length === 0}
+            disabled={isAdding || split.purchasable.length === 0}
+            aria-busy={isAdding || undefined}
           >
-            {t('outfits.card.add')}
+            {isAdding ? t('outfits.card.adding') : t('outfits.card.add')}
           </S.Cta>
         )}
       </S.Body>

@@ -630,7 +630,8 @@
     "card": {
       "items": "{count, plural, one {# item} other {# items}}",
       "add": "Add to cart",
-      "unavailable": "No longer available"
+      "unavailable": "No longer available",
+      "adding": "Adding…"
     },
     "detail": {
       "addCount": "{count, plural, one {Add # item to cart} other {Add # items to cart}}",
@@ -710,7 +711,9 @@
     },
     "toast": {
       "added": "Outfit added to cart",
-      "partial": "Added {added} of {total} items{unavailable, plural, =0 {} other { — # no longer available}}{inCart, plural, =0 {} other { — # already in your cart}}{own, plural, =0 {} other { — # sold by you}}"
+      "partial": "Added {added} of {total} items{unavailable, plural, =0 {} other { — # no longer available}}{inCart, plural, =0 {} other { — # already in your cart}}{own, plural, =0 {} other { — # sold by you}}",
+      "noneLeft": "These items just sold out — nothing was added to your cart",
+      "addFailed": "We couldn't check these items right now. Nothing was added — please try again."
     },
     "errors": {
       "generic": "Something went wrong. Please try again.",

@@ -189,36 +189,44 @@ describe('outfits row on the overview', () => {
     await page.waitForSelector('[data-testid="outfit-card"]', { timeout: 20000 })
     await waitForText(page, 'Galaxy Look')
 
+    // The card has TWO specified resting states and the RUNNER picks which one is in force: a
+    // pointer device gets the clean card that reveals on hover/focus, a hover-less one gets the
+    // panel permanently (OutfitCard.styles.ts, `@media (hover: none)` — touch has no hover to
+    // reveal on). Chrome exposes no way to emulate the `hover` feature: neither
+    // page.emulateMediaFeatures (which rejects the name outright) nor a raw CDP
+    // Emulation.setEmulatedMedia moves it, because it follows the real input configuration — which
+    // is exactly what differs between a dev machine and a headless CI container.
+    //
+    // So ask which treatment applies and assert THAT one, rather than hard-coding the one the
+    // author's machine happens to report. The reveal itself is driven by FOCUS, which shares the
+    // hover rules: pointer hover proved flaky under host load, element.focus() is deterministic.
+    const pointer = await page.evaluate(() => matchMedia('(hover: hover)').matches)
+    const infoOpacity = () => page.$eval('[data-testid="outfit-card-info"]', el => getComputedStyle(el).opacity)
     // Settles (not one-shot): a transient mid-mount read is not the regression this guards against —
     // a rest-visible panel would never reach 0.
-    await page.waitForFunction(
-      () => {
-        const info = document.querySelector('[data-testid="outfit-card-info"]')
-        return !!info && getComputedStyle(info).opacity === '0'
-      },
-      { timeout: 20000 }
-    )
+    const settleTo = (value: string) =>
+      page.waitForFunction(
+        (expected: string) => {
+          const info = document.querySelector('[data-testid="outfit-card-info"]')
+          return !!info && getComputedStyle(info).opacity === expected
+        },
+        { timeout: 20000 },
+        value
+      )
+
+    if (pointer) await settleTo('0')
+    else expect(await infoOpacity()).toBe('1')
 
     await page.focus('[data-testid="outfit-card-cta"]')
-    await page.waitForFunction(
-      () => {
-        const info = document.querySelector('[data-testid="outfit-card-info"]')
-        return !!info && getComputedStyle(info).opacity === '1'
-      },
-      { timeout: 20000 }
-    )
+    await settleTo('1')
     const outline = await page.$eval('[data-testid="outfit-card-thumb"]', el => getComputedStyle(el).outlineColor)
     expect(outline).toBe('rgb(122, 43, 191)')
 
-    // Blurring returns the card to rest — the reveal is not sticky.
+    // Blurring returns a pointer card to rest — the reveal is not sticky. A hover-less card keeps
+    // its panel, which is the point of that branch.
     await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
-    await page.waitForFunction(
-      () => {
-        const info = document.querySelector('[data-testid="outfit-card-info"]')
-        return !!info && getComputedStyle(info).opacity === '0'
-      },
-      { timeout: 20000 }
-    )
+    if (pointer) await settleTo('0')
+    else expect(await infoOpacity()).toBe('1')
   })
 
   it('renders nothing at all when there are no published outfits', async () => {

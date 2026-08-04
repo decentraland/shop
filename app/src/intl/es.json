@@ -630,7 +630,8 @@
     "card": {
       "items": "{count, plural, one {# artículo} other {# artículos}}",
       "add": "Añadir al carrito",
-      "unavailable": "Ya no disponible"
+      "unavailable": "Ya no disponible",
+      "adding": "Añadiendo…"
     },
     "detail": {
       "addCount": "{count, plural, one {Añadir # artículo al carrito} other {Añadir # artículos al carrito}}",
@@ -710,7 +711,9 @@
     },
     "toast": {
       "added": "Outfit añadido al carrito",
-      "partial": "Se añadieron {added} de {total} artículos{unavailable, plural, =0 {} other { — # ya no disponibles}}{inCart, plural, =0 {} other { — # ya en tu carrito}}{own, plural, =0 {} other { — # los vendes tú}}"
+      "partial": "Se añadieron {added} de {total} artículos{unavailable, plural, =0 {} other { — # ya no disponibles}}{inCart, plural, =0 {} other { — # ya en tu carrito}}{own, plural, =0 {} other { — # los vendes tú}}",
+      "noneLeft": "Estos artículos acaban de agotarse — no se añadió nada a tu carrito",
+      "addFailed": "No pudimos comprobar estos artículos ahora mismo. No se añadió nada — inténtalo de nuevo."
     },
     "errors": {
       "generic": "Algo salió mal. Prueba de nuevo.",

@@ -20,6 +20,7 @@ import {
   classifyOutfitItem,
   fetchOutfit,
   isOutfitsAvailable,
+  listingIdentity,
   outfitItemKey,
   outfitRadialGradient,
   thumbnailUrl,
@@ -147,16 +148,23 @@ function ItemChips({ item }: { item: CatalogItem }) {
 
 function OutfitContent({ outfit }: { outfit: Outfit }) {
   const resolution = useOutfitItems(outfit)
-  const { split, availableCount, totalCredits, addOutfit } = useOutfitCart(outfit, resolution)
+  const { split, availableCount, totalCredits, addOutfit, isAdding } = useOutfitCart(outfit, resolution)
   const address = useWallet(s => s.session?.address)
-  const cartIds = useCart(s => s.items.map(i => i.id))
+  const cartItems = useCart(s => s.items)
+  // Compared on the cross-feed identity, so an item added from the browse grid (keyed by trade id)
+  // still reads as "in your cart" on a look that resolved it from the /v2 catalog.
+  const cartKeys = useMemo(() => new Set(cartItems.map(listingIdentity)), [cartItems])
+
+  // Null unless the outfit carries a real stored hash, so a draft/malformed value reads as "no
+  // artwork" everywhere below rather than pointing an <img> at a URL that cannot resolve.
+  const thumb = thumbnailUrl(outfit.thumbnailHash)
 
   // "On avatar / Look": the live try-on vs the creator's uploaded artwork. Overlay controls only
   // for Babylon — Unity ships its own in-scene (same rule as the item detail); defaulting to UNITY
   // means the Unity path never briefly flashes the toggle before the preview reports.
   const [view, setView] = useState<'avatar' | 'item'>('avatar')
   const [renderer, setRenderer] = useState<PreviewRenderer>(PreviewRenderer.UNITY)
-  const showControls = renderer === PreviewRenderer.BABYLON && !!outfit.thumbnailHash
+  const showControls = renderer === PreviewRenderer.BABYLON && !!thumb
 
   const viewedRef = useRef<string | null>(null)
   useEffect(() => {
@@ -168,14 +176,15 @@ function OutfitContent({ outfit }: { outfit: Outfit }) {
   // The record's items in their authored order, each with its live catalog item (or none — a pair the
   // catalog no longer returns) and what the CTA can do with it. On a resolution ERROR nothing is
   // classified — the list area shows the retry state instead.
-  const rows: ItemRow[] = useMemo(() => {
-    const cartSet = new Set(cartIds)
-    return outfit.items.map(ref => {
-      const key = outfitItemKey(ref)
-      const item = resolution.byKey.get(key) ?? null
-      return { key, item, state: item ? classifyOutfitItem(item, { address, cartIds: cartSet }) : 'missing' }
-    })
-  }, [outfit, resolution.byKey, address, cartIds])
+  const rows: ItemRow[] = useMemo(
+    () =>
+      outfit.items.map(ref => {
+        const key = outfitItemKey(ref)
+        const item = resolution.byKey.get(key) ?? null
+        return { key, item, state: item ? classifyOutfitItem(item, { address, cartKeys }) : 'missing' }
+      }),
+    [outfit, resolution.byKey, address, cartKeys]
+  )
 
   // Preview: the whole set worn on the viewer's own avatar ('default' mannequin when signed out),
   // regardless of purchasability — only unresolved pairs can't appear. Wait for the profile lookup
@@ -212,8 +221,8 @@ function OutfitContent({ outfit }: { outfit: Outfit }) {
         <S.Preview data-testid="outfit-detail-preview" style={{ background: outfitRadialGradient(outfit) }}>
           {/* The uploaded artwork: chosen via the toggle, or the fallback when nothing wearable
               resolved (outage, or every pair delisted). */}
-          {view === 'item' || (!resolution.isLoading && urns.length === 0 && outfit.thumbnailHash) ? (
-            <S.PreviewFallback src={thumbnailUrl(outfit.thumbnailHash)} alt={outfit.name} />
+          {thumb && (view === 'item' || (!resolution.isLoading && urns.length === 0)) ? (
+            <S.PreviewFallback src={thumb} alt={outfit.name} />
           ) : (
             <OutfitPreview
               id={PREVIEW_ID}
@@ -351,14 +360,17 @@ function OutfitContent({ outfit }: { outfit: Outfit }) {
                     variant="purple"
                     data-testid="outfit-detail-cta"
                     onClick={addOutfit}
-                    disabled={purchasable === 0}
+                    disabled={isAdding || purchasable === 0}
+                    aria-busy={isAdding || undefined}
                   >
-                    {purchasable > 0
-                      ? t('outfits.detail.addCount', { count: purchasable })
-                      : availableCount > 0
-                        ? t('outfits.detail.nothingToAdd')
-                        : t('outfits.card.unavailable')}
-                    {purchasable > 0 ? (
+                    {isAdding
+                      ? t('outfits.card.adding')
+                      : purchasable > 0
+                        ? t('outfits.detail.addCount', { count: purchasable })
+                        : availableCount > 0
+                          ? t('outfits.detail.nothingToAdd')
+                          : t('outfits.card.unavailable')}
+                    {!isAdding && purchasable > 0 ? (
                       <S.CtaPrice>
                         <CurrencyIcon size={16} />
                         {totalCredits.toLocaleString()}

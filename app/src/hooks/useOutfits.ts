@@ -1,13 +1,16 @@
-import { useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, type QueryClient } from '@tanstack/react-query'
 
 import { track } from '~/lib/analytics'
 import { fetchCatalogByIds, type CatalogItem } from '~/lib/api'
 import { FeatureFlag, getAddressListVariant, getIsFeatureEnabled } from '~/lib/featureFlags'
+import { captureError } from '~/lib/monitoring'
 import {
   fetchOutfits,
   isOutfitsAvailable,
+  listingIdentity,
   outfitItemKey,
+  resolveOutfitPurchases,
   splitOutfitItems,
   type Outfit,
   type OutfitItemsSplit
@@ -84,6 +87,8 @@ export type OutfitCart = {
   /** Credits the CTA would add (purchasable items only — matches its label). */
   totalCredits: number
   addOutfit: () => void
+  /** True while the CTA is re-reading live listings; disarms it so a double-click can't double-add. */
+  isAdding: boolean
 }
 
 /**
@@ -91,60 +96,104 @@ export type OutfitCart = {
  * quantity bumps — two outfits sharing a shirt yield one shirt), one outfit-level analytics event
  * with the skip-reason breakdown on top of the per-item `source: 'outfit'` events, and an honest
  * toast when anything was skipped.
+ *
+ * The add itself is ASYNC because what is displayed and what may be bought come from different
+ * feeds: the cards resolve through the batched /v2 catalog (cheap enough for a whole row), but a
+ * cart line has to carry the shop feed's `acquisition` / `available` / `tradeId` or checkout cannot
+ * take the right rail for it. So the CTA re-reads the items it is about to add and puts THOSE rows
+ * in the cart — see resolveOutfitPurchases.
  */
 export function useOutfitCart(outfit: Outfit, resolution: OutfitItemsResolution): OutfitCart {
   const add = useCart(s => s.add)
-  const cartIds = useCart(s => s.items.map(i => i.id))
+  const cartItems = useCart(s => s.items)
   const address = useWallet(s => s.session?.address)
+  const [isAdding, setIsAdding] = useState(false)
+
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
+
+  // Cart membership is compared on the cross-feed identity, not the raw `id`: a line added from the
+  // browse grid is keyed by its trade id, an outfit's /v2 row by `contract-itemId`, and the same
+  // wearable must count as "already in your cart" whichever door it came through.
+  const cartKeys = useMemo(() => new Set(cartItems.map(listingIdentity)), [cartItems])
 
   const resolved = useMemo(
     () =>
       outfit.items.map(ref => resolution.byKey.get(outfitItemKey(ref))).filter((item): item is CatalogItem => !!item),
     [outfit, resolution.byKey]
   )
-  const split = useMemo(
-    () => splitOutfitItems(resolved, { address, cartIds: new Set(cartIds) }),
-    [resolved, address, cartIds]
-  )
+  const split = useMemo(() => splitOutfitItems(resolved, { address, cartKeys }), [resolved, address, cartKeys])
   const missingCount = outfit.items.length - resolved.length
   const totalCredits = split.purchasable.reduce((n, item) => n + item.priceCredits, 0)
 
-  function addOutfit() {
-    const added = split.purchasable.length
-    if (added === 0) return
-    split.purchasable.forEach(item => add(item, 'outfit'))
+  const addOutfit = useCallback(() => {
+    if (isAdding || split.purchasable.length === 0) return
+    setIsAdding(true)
 
-    const unavailable = split.unavailable.length + missingCount
-    track('Shop Outfit Added To Cart', {
-      outfit_id: outfit.id,
-      items_added: added,
-      items_skipped_unavailable: unavailable,
-      items_skipped_in_cart: split.inCart.length,
-      items_skipped_own: split.ownListing.length,
-      total_credits: totalCredits
-    })
+    void (async () => {
+      try {
+        const live = await resolveOutfitPurchases(
+          split.purchasable.map(item => ({ contractAddress: item.contractAddress, itemId: item.itemId ?? '' }))
+        )
+        // Deliberately NOT gated on still being mounted: the cart and the toasts are global stores,
+        // and the click already happened. A card that unmounts mid-flight (the row re-resolving and
+        // re-filtering under it) must still deliver the basket the buyer asked for — only the local
+        // isAdding state below has to care about the unmount.
+        const items = [...live.values()]
+        items.forEach(item => add(item, 'outfit'))
 
-    if (added === outfit.items.length) {
-      toast.success(t('outfits.toast.added'))
-    } else {
-      toast.success(
-        t('outfits.toast.partial', {
-          added,
-          total: outfit.items.length,
-          unavailable,
-          inCart: split.inCart.length,
-          own: split.ownListing.length
+        const added = items.length
+        // An item the card offered but the shop feed no longer sells (delisted or minted out between
+        // the card rendering and this click) joins the unavailable count — it is a real sell-out, not
+        // the outage case, which throws and is handled below.
+        const unavailable = split.unavailable.length + missingCount + (split.purchasable.length - added)
+        track('Shop Outfit Added To Cart', {
+          outfit_id: outfit.id,
+          items_added: added,
+          items_skipped_unavailable: unavailable,
+          items_skipped_in_cart: split.inCart.length,
+          items_skipped_own: split.ownListing.length,
+          total_credits: items.reduce((n, item) => n + item.priceCredits, 0)
         })
-      )
-    }
-  }
+
+        if (added === 0) {
+          toast.error(t('outfits.toast.noneLeft'))
+        } else if (added === outfit.items.length) {
+          toast.success(t('outfits.toast.added'))
+        } else {
+          toast.success(
+            t('outfits.toast.partial', {
+              added,
+              total: outfit.items.length,
+              unavailable,
+              inCart: split.inCart.length,
+              own: split.ownListing.length
+            })
+          )
+        }
+      } catch (e) {
+        // Could not READ the listings — an outage is never rendered as a sell-out, and half a look is
+        // not a basket anyone asked for. Nothing is added; the CTA stays live to try again.
+        captureError(e, { flow: 'outfit-add-to-cart' })
+        toast.error(t('outfits.toast.addFailed'))
+      } finally {
+        if (mountedRef.current) setIsAdding(false)
+      }
+    })()
+  }, [isAdding, split, missingCount, outfit.id, outfit.items.length, add])
 
   return {
     split,
     missingCount,
     availableCount: split.purchasable.length + split.inCart.length,
     totalCredits,
-    addOutfit
+    addOutfit,
+    isAdding
   }
 }
 

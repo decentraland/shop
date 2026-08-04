@@ -19,10 +19,15 @@ export function OutfitsRow() {
   const [pageCount, setPageCount] = useState(1)
   const [page, setPage] = useState(0)
 
-  // Only outfits whose EVERY item is live and buyable survive resolution (the rest stay reachable
-  // at /outfits/:id) — so a card on this row never voices a partial state and its CTA always reads
-  // "Add to cart". While resolving — or when the catalog is DOWN — every outfit stays visible and
-  // the cards degrade instead (skeleton total / no CTA): an outage must not empty the row.
+  // Only outfits whose EVERY item still resolves and carries a price survive (the rest stay
+  // reachable at /outfits/:id) — so a card on this row never voices a partial state and its CTA
+  // always reads "Add to cart". While resolving — or when the catalog is DOWN — every outfit stays
+  // visible and the cards degrade instead (skeleton total / no CTA): an outage must not empty the row.
+  //
+  // This is a DISPLAY filter, and it is as sharp as the /v2 catalog it reads: that feed reports
+  // delisting but not remaining supply, so a minted-out primary still looks alive here. The CTA does
+  // not trust it — it re-reads every item from the shop feed before anything becomes a cart line, and
+  // reports whatever died in between through the partial-add toast (see useOutfitCart).
   const visible = useMemo(() => {
     if (resolution.isLoading || resolution.isError) return outfits
     return outfits.filter((outfit: Outfit) =>

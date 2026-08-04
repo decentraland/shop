@@ -8,6 +8,11 @@ vi.mock('decentraland-crypto-fetch', () => ({ default: signedFetch }))
 const { config } = vi.hoisted(() => ({ config: { shopServerUrl: '' } }))
 vi.mock('~/config', () => ({ config }))
 
+// The only thing lib/outfits pulls from lib/api at runtime: the shop-feed read that turns an outfit
+// ref into the row a cart line is actually built from.
+const { fetchShopItems } = vi.hoisted(() => ({ fetchShopItems: vi.fn() }))
+vi.mock('~/lib/api', () => ({ fetchShopItems }))
+
 import {
   DEFAULT_OUTFIT_GRADIENT,
   OutfitsError,
@@ -20,11 +25,13 @@ import {
   outfitFade,
   isListingUnavailable,
   isOutfitsAvailable,
+  listingIdentity,
   outfitErrorKey,
   outfitGradient,
   outfitRadialGradient,
   outfitItemKey,
   parseOutfitImport,
+  resolveOutfitPurchases,
   saveOutfit,
   splitOutfitItems,
   thumbnailUrl,
@@ -231,6 +238,17 @@ describe('when a shop-server host is configured', () => {
   it('should build immutable thumbnail URLs from the hash', () => {
     expect(thumbnailUrl('c'.repeat(64))).toBe(`https://shop.example/v1/outfits/thumbnails/${'c'.repeat(64)}`)
   })
+
+  // The server applies the same shape before it serves the bytes, so a value that could not pass
+  // there is never built into a URL here — a draft's '' most of all, which would otherwise produce
+  // a trailing-slash URL and an <img> pointed at it.
+  it('should refuse to build a URL from anything that is not a stored hash', () => {
+    expect(thumbnailUrl('')).toBeNull()
+    expect(thumbnailUrl('../../etc/passwd')).toBeNull()
+    expect(thumbnailUrl('C'.repeat(64))).toBeNull()
+    expect(thumbnailUrl('c'.repeat(63))).toBeNull()
+    expect(thumbnailUrl('c'.repeat(65))).toBeNull()
+  })
 })
 
 describe('when deriving item keys', () => {
@@ -259,13 +277,16 @@ describe('when mapping error codes to copy', () => {
 
 describe('when classifying resolved items', () => {
   const OWNER = '0x' + 'd'.repeat(40)
+  const CONTRACT = '0x' + 'a'.repeat(40)
+  /** The identity the default factory item resolves to — what a cart line for it keys under. */
+  const KEY = `${CONTRACT}-1`
 
   function item(overrides: Partial<CatalogItem>): CatalogItem {
     return {
       id: 'key-1',
       name: 'Hat',
       creator: '0x' + 'e'.repeat(40),
-      contractAddress: '0x' + 'a'.repeat(40),
+      contractAddress: CONTRACT,
       itemId: '1',
       category: 'wearable',
       rarity: 'rare',
@@ -283,7 +304,7 @@ describe('when classifying resolved items', () => {
 
   it('should mark unpriced items unavailable', () => {
     expect(isListingUnavailable(item({ priceCredits: 0 }))).toBe(true)
-    expect(classifyOutfitItem(item({ priceCredits: 0 }), { cartIds: NO_CART })).toBe('unavailable')
+    expect(classifyOutfitItem(item({ priceCredits: 0 }), { cartKeys: NO_CART })).toBe('unavailable')
   })
 
   it('should mark sold-out primaries unavailable even though they keep a listed price', () => {
@@ -300,21 +321,40 @@ describe('when classifying resolved items', () => {
 
   it("should mark the viewer's own primary listing", () => {
     const own = item({ creator: OWNER })
-    expect(classifyOutfitItem(own, { address: OWNER, cartIds: NO_CART })).toBe('own_listing')
+    expect(classifyOutfitItem(own, { address: OWNER, cartKeys: NO_CART })).toBe('own_listing')
   })
 
-  it('should mark items already in the cart by line id', () => {
-    expect(classifyOutfitItem(item({}), { cartIds: new Set(['key-1']) })).toBe('in_cart')
+  it('should mark items already in the cart', () => {
+    expect(classifyOutfitItem(item({}), { cartKeys: new Set([KEY]) })).toBe('in_cart')
+  })
+
+  // The whole point of keying on the identity rather than the row id: the browse grid stores a cart
+  // line under its TRADE id, an outfit resolves the same wearable off the /v2 catalog under
+  // `contract-itemId`, and "already in your cart" has to hold across that seam.
+  it('should recognise a cart line added from another feed (different row id, same listing)', () => {
+    const fromOutfitFeed = item({ id: `${CONTRACT}-1` })
+    const fromBrowseGrid = item({ id: 'trade-0xdeadbeef' })
+    expect(listingIdentity(fromBrowseGrid)).toBe(listingIdentity(fromOutfitFeed))
+    expect(classifyOutfitItem(fromOutfitFeed, { cartKeys: new Set([listingIdentity(fromBrowseGrid)]) })).toBe('in_cart')
+  })
+
+  it('should key a specific token separately from its item (a resale is its own listing)', () => {
+    expect(listingIdentity(item({ tokenId: '42' }))).not.toBe(listingIdentity(item({})))
   })
 
   it('should rank unavailability above cart membership (a dead line is dead)', () => {
-    expect(classifyOutfitItem(item({ priceCredits: 0 }), { cartIds: new Set(['key-1']) })).toBe('unavailable')
+    expect(classifyOutfitItem(item({ priceCredits: 0 }), { cartKeys: new Set([KEY]) })).toBe('unavailable')
   })
 
   it('should split a mixed set by state', () => {
     const split = splitOutfitItems(
-      [item({ id: 'a' }), item({ id: 'b', priceCredits: 0 }), item({ id: 'c', creator: OWNER }), item({ id: 'd' })],
-      { address: OWNER, cartIds: new Set(['d']) }
+      [
+        item({ id: 'a', itemId: '1' }),
+        item({ id: 'b', itemId: '2', priceCredits: 0 }),
+        item({ id: 'c', itemId: '3', creator: OWNER }),
+        item({ id: 'd', itemId: '4' })
+      ],
+      { address: OWNER, cartKeys: new Set([`${CONTRACT}-4`]) }
     )
     expect(split.purchasable.map(i => i.id)).toEqual(['a'])
     expect(split.unavailable.map(i => i.id)).toEqual(['b'])
@@ -486,5 +526,101 @@ describe('when deriving the bottom fade', () => {
   it('should fall back to the brand bottom color when the stop is unusable', () => {
     // #691fa9 → 105, 31, 169
     expect(outfitFade({ gradientFrom: '#a855f7', gradientTo: '' })).toContain('rgba(105, 31, 169, 0.8)')
+  })
+})
+
+// The seam this whole path exists for: what a card SHOWS comes from the /v2 catalog, what enters the
+// cart is re-read here from the shop feed, because only the latter carries `acquisition` (which rail
+// checkout takes) and `available` (whether a mint has anything left).
+describe('when resolving an outfit for the cart', () => {
+  const CONTRACT = '0x' + 'a'.repeat(40)
+  const REFS: OutfitItemRef[] = [
+    { contractAddress: CONTRACT, itemId: '1' },
+    { contractAddress: CONTRACT, itemId: '2' }
+  ]
+
+  function listing(overrides: Partial<CatalogItem>): CatalogItem {
+    return {
+      id: 'trade-1',
+      name: 'Hat',
+      creator: '0x' + 'e'.repeat(40),
+      contractAddress: CONTRACT,
+      itemId: '1',
+      category: 'wearable',
+      rarity: 'rare',
+      network: 'MATIC',
+      chainId: 80002,
+      thumbnail: '',
+      priceCredits: 10,
+      gender: null,
+      isSmart: false,
+      available: 5,
+      ...overrides
+    }
+  }
+
+  beforeEach(() => {
+    fetchShopItems.mockReset()
+  })
+
+  it('should key each resolved listing by its outfit ref', async () => {
+    fetchShopItems
+      .mockResolvedValueOnce({ items: [listing({ itemId: '1', id: 'trade-1' })], total: 1 })
+      .mockResolvedValueOnce({ items: [listing({ itemId: '2', id: 'trade-2' })], total: 1 })
+
+    const live = await resolveOutfitPurchases(REFS)
+
+    expect([...live.keys()]).toEqual([`${CONTRACT}-1`, `${CONTRACT}-2`])
+    // The row that goes in the cart is the SHOP feed's, trade id and all — not the /v2 catalog row.
+    expect(live.get(`${CONTRACT}-1`)?.id).toBe('trade-1')
+  })
+
+  it('should scope the read to the one item, not the whole feed', async () => {
+    fetchShopItems.mockResolvedValue({ items: [listing({})], total: 1 })
+    await resolveOutfitPurchases([REFS[0]])
+    expect(fetchShopItems).toHaveBeenCalledWith(
+      expect.objectContaining({ contractAddress: CONTRACT, itemId: '1', first: 1 })
+    )
+  })
+
+  // Authoring is primary-only; shopping is not. A look whose jacket minted out but is still resold
+  // stays buyable, and at the resale price the /v2 row already priced the card with.
+  it('should keep an item that is now only available as a resale', async () => {
+    fetchShopItems.mockResolvedValue({
+      items: [listing({ tokenId: '7', available: undefined, priceCredits: 135 })],
+      total: 1
+    })
+    const live = await resolveOutfitPurchases([REFS[0]])
+    expect(live.get(`${CONTRACT}-1`)?.tokenId).toBe('7')
+  })
+
+  it('should drop a ref the shop feed no longer sells', async () => {
+    fetchShopItems
+      .mockResolvedValueOnce({ items: [], total: 0 })
+      .mockResolvedValueOnce({ items: [listing({ itemId: '2' })], total: 1 })
+
+    const live = await resolveOutfitPurchases(REFS)
+
+    expect([...live.keys()]).toEqual([`${CONTRACT}-2`])
+  })
+
+  // The case the /v2 catalog cannot see at all: a mint that kept its price but has nothing left.
+  it('should drop a minted-out primary even though it still carries a price', async () => {
+    fetchShopItems
+      .mockResolvedValueOnce({ items: [listing({ itemId: '1', available: 0 })], total: 1 })
+      .mockResolvedValueOnce({ items: [listing({ itemId: '2' })], total: 1 })
+
+    const live = await resolveOutfitPurchases(REFS)
+
+    expect([...live.keys()]).toEqual([`${CONTRACT}-2`])
+  })
+
+  // An outage is not a sell-out. Rejecting is what lets the caller retry instead of quietly building
+  // a short basket and telling the buyer their look partly sold out.
+  it('should propagate a read failure rather than report the items as gone', async () => {
+    fetchShopItems.mockRejectedValueOnce(new Error('gateway down'))
+    fetchShopItems.mockResolvedValue({ items: [listing({})], total: 1 })
+
+    await expect(resolveOutfitPurchases(REFS)).rejects.toThrow('gateway down')
   })
 })

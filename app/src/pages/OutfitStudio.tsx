@@ -93,6 +93,18 @@ export function OutfitStudio() {
   return <StudioEditor key={id ?? 'new'} outfitId={mode === 'edit' ? (id as string) : null} />
 }
 
+// A list row's artwork over its gradient, or the empty plate when the draft has none yet. Its own
+// component so the URL is derived once and the row body stays a plain expression.
+function RowThumb({ outfit }: { outfit: Outfit }) {
+  const thumb = thumbnailUrl(outfit.thumbnailHash)
+  if (!thumb) return <S.RowThumbEmpty aria-hidden />
+  return (
+    <S.RowThumb style={{ background: outfitGradient(outfit) }}>
+      <img src={thumb} alt="" loading="lazy" />
+    </S.RowThumb>
+  )
+}
+
 function StudioList() {
   const session = useWallet(s => s.session)
   const queryClient = useQueryClient()
@@ -160,13 +172,7 @@ function StudioList() {
         <S.List>
           {outfits.map(outfit => (
             <S.Row key={outfit.id} data-testid="outfit-studio-row" data-published={outfit.published || undefined}>
-              {outfit.thumbnailHash ? (
-                <S.RowThumb style={{ background: outfitGradient(outfit) }}>
-                  <img src={thumbnailUrl(outfit.thumbnailHash)} alt="" loading="lazy" />
-                </S.RowThumb>
-              ) : (
-                <S.RowThumbEmpty aria-hidden />
-              )}
+              <RowThumb outfit={outfit} />
               <S.RowInfo>
                 <S.RowName>{outfit.name || t('outfits.studio.untitled')}</S.RowName>
                 <S.RowMeta>
@@ -346,11 +352,15 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
   const resolution = useOutfitItems(draft ?? undefined)
   const selectedKeys = useMemo(() => new Set((draft?.items ?? []).map(outfitItemKey)), [draft])
 
+  // Guarded on the RESULT of the toggle, not on the current count: at capacity, picking an item
+  // whose avatar slot is already taken SWAPS rather than grows, and refusing that would make a full
+  // outfit unable to change its hat without deleting something first.
+  const nextItems = (item: CatalogItem) => toggleOutfitItem(draft?.items ?? [], item, resolution.byKey)
+  const canPick = (item: CatalogItem) => !!item.itemId && nextItems(item).length <= MAX_OUTFIT_ITEMS
+
   function pick(item: CatalogItem) {
-    if (!draft || !item.itemId) return
-    const key = `${item.contractAddress.toLowerCase()}-${item.itemId}`
-    if (!selectedKeys.has(key) && draft.items.length >= MAX_OUTFIT_ITEMS) return
-    update({ items: toggleOutfitItem(draft.items, item, resolution.byKey) })
+    if (!draft || !canPick(item)) return
+    update({ items: nextItems(item) })
   }
 
   // Thumbnail: pre-validate type/size for friendlier errors than the server's, preview through an
@@ -456,7 +466,14 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
       } else {
         toast.success(t('outfits.studio.saved'))
       }
-      if (isNew) navigate(`/outfits/${saved.id}/edit`, { replace: true })
+      if (isNew) {
+        // The parent keys StudioEditor on the route id, so leaving /new REMOUNTS the editor against
+        // the saved id. Seed its record query with the row we are already holding: without this the
+        // fresh mount finds an empty cache, refetches (staleTime 0) and shows the loading gate — a
+        // spinner over a record that never left the client.
+        queryClient.setQueryData(['outfit', saved.id, true], saved)
+        navigate(`/outfits/${saved.id}/edit`, { replace: true })
+      }
     } catch (e) {
       // Form state is preserved on ANY failure — a revoked allowlist mid-session must not eat work.
       if (!(e instanceof OutfitsError)) captureError(e, { flow: 'outfit-save' })
@@ -507,7 +524,7 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
     )
   }
 
-  const thumbSrc = thumbLocal ?? (draft.thumbnailHash ? thumbnailUrl(draft.thumbnailHash) : null)
+  const thumbSrc = thumbLocal ?? thumbnailUrl(draft.thumbnailHash)
 
   // The draft dressed as a full record, for the real OutfitCard below.
   const cardPreview: Outfit = { ...draft, authorAddress: session?.address ?? '', createdAt: 0, updatedAt: 0 }
@@ -741,7 +758,7 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
             ) : null}
           </S.Field>
 
-          <OutfitItemPicker selectedKeys={selectedKeys} onPick={pick} full={draft.items.length >= MAX_OUTFIT_ITEMS} />
+          <OutfitItemPicker selectedKeys={selectedKeys} onPick={pick} canPick={canPick} />
         </S.Form>
       </S.Grid>
 

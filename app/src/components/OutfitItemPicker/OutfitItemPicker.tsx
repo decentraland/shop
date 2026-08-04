@@ -13,13 +13,17 @@ import * as S from './OutfitItemPicker.styles'
 export function OutfitItemPicker({
   selectedKeys,
   onPick,
-  full
+  canPick
 }: {
   /** `contract-itemId` keys currently in the outfit. */
   selectedKeys: ReadonlySet<string>
   onPick: (item: CatalogItem) => void
-  /** Outfit at capacity — adding disables, deselecting still works. */
-  full?: boolean
+  /**
+   * Whether this item can still be taken. Asked per item rather than passed as one "full" flag
+   * because capacity is not the whole answer: a full outfit can still accept an item that REPLACES
+   * the one already occupying its avatar slot. Deselecting is always allowed.
+   */
+  canPick: (item: CatalogItem) => boolean
 }) {
   const [query, setQuery] = useState('')
   const [debounced, setDebounced] = useState('')
@@ -92,7 +96,7 @@ export function OutfitItemPicker({
                 type="button"
                 data-testid="outfit-picker-item"
                 data-selected={selected || undefined}
-                disabled={full && !selected}
+                disabled={!selected && !canPick(item)}
                 onClick={() => onPick(item)}
                 title={item.name}
               >

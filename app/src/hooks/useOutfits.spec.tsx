@@ -3,9 +3,20 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useOutfitCreatorAccess } from '~/hooks/useOutfits'
+import { useOutfitCart, useOutfitCreatorAccess, useOutfitItems } from '~/hooks/useOutfits'
+import { fetchCatalogByIds, fetchShopItems, type CatalogItem, type UnifiedListing } from '~/lib/api'
 import { resetFeatureFlagsCache } from '~/lib/featureFlags'
+import type { Outfit } from '~/lib/outfits'
+import { useCart } from '~/store/cart'
+import { useToast } from '~/store/toast'
 import { useWallet } from '~/store/wallet'
+
+// The two feeds an outfit crosses: the batched catalog the cards render from, and the shop feed the
+// CTA re-reads before anything becomes a cart line.
+vi.mock('~/lib/api', async importOriginal => {
+  const actual = await importOriginal<typeof import('~/lib/api')>()
+  return { ...actual, fetchCatalogByIds: vi.fn(), fetchShopItems: vi.fn() }
+})
 
 // The studio is hidden entirely when there is no shop-server to author against, so every case here
 // needs a configured host to be about the allowlist rather than about availability.
@@ -146,5 +157,110 @@ describe('useOutfitCreatorAccess', () => {
     // Decided with the flag request still in flight.
     await waitFor(() => expect(result.current).toBe('denied'))
     resolveFlags({ ok: true, json: () => Promise.resolve(armed(CREATOR)) })
+  })
+})
+
+// The regression this guards: an outfit card resolves its items from the /v2 catalog, whose rows
+// carry no `acquisition`, `tradeId` or `available`. Adding THOSE rows to the cart produced a line
+// checkout could not take the right rail for — a CollectionStore mint, having no trade to resolve,
+// read as sold-out in the cart it had just been added to. The CTA must re-read from the shop feed
+// and add that row instead.
+describe('useOutfitCart', () => {
+  const CONTRACT = '0x' + 'a'.repeat(40)
+
+  const OUTFIT: Outfit = {
+    id: 'aaaaaaaa-0000-4000-8000-000000000001',
+    name: 'Galaxy Look',
+    thumbnailHash: 'a'.repeat(64),
+    items: [{ contractAddress: CONTRACT, itemId: '1' }],
+    bodyShape: 'unisex',
+    gradientFrom: '#a855f7',
+    gradientTo: '#e0219a',
+    authorAddress: CREATOR,
+    published: true,
+    createdAt: 1,
+    updatedAt: 1
+  }
+
+  // What /v2/catalog gives the card: keyed by `contract-itemId`, no listing detail whatsoever.
+  const DISPLAY_ROW = {
+    id: `${CONTRACT}-1`,
+    name: 'Galaxy Hat',
+    creator: CREATOR,
+    contractAddress: CONTRACT,
+    itemId: '1',
+    category: 'wearable',
+    rarity: 'epic',
+    network: 'MATIC',
+    chainId: 80002,
+    thumbnail: '',
+    priceCredits: 270,
+    gender: null,
+    isSmart: false
+  } as CatalogItem
+
+  // What the shop feed gives the CTA: the row the browse grid would have put in the cart.
+  const SHOP_ROW: UnifiedListing = {
+    ...DISPLAY_ROW,
+    id: 'trade-9',
+    tradeId: 'trade-9',
+    acquisition: 'store',
+    available: 5,
+    source: 'native',
+    manaWei: null
+  }
+
+  function useHarness() {
+    const resolution = useOutfitItems(OUTFIT)
+    return { resolution, cart: useOutfitCart(OUTFIT, resolution) }
+  }
+
+  beforeEach(() => {
+    useCart.setState({ items: [], open: false, justAddedCount: 0 })
+    useWallet.setState({ session: null, restored: true })
+    vi.mocked(fetchCatalogByIds).mockResolvedValue([DISPLAY_ROW])
+    vi.mocked(fetchShopItems).mockReset()
+  })
+
+  it('should put the shop-feed row in the cart, not the catalog row the card rendered', async () => {
+    vi.mocked(fetchShopItems).mockResolvedValue({ items: [SHOP_ROW], total: 1 })
+
+    const { result } = renderHook(useHarness, { wrapper })
+    await waitFor(() => expect(result.current.cart.split.purchasable).toHaveLength(1))
+    // The card priced itself off the catalog row, which knows nothing about how the item is bought.
+    expect(result.current.cart.split.purchasable[0].acquisition).toBeUndefined()
+
+    act(() => result.current.cart.addOutfit())
+    await waitFor(() => expect(useCart.getState().items).toHaveLength(1))
+
+    const line = useCart.getState().items[0]
+    expect(line.acquisition).toBe('store')
+    expect(line.tradeId).toBe('trade-9')
+    expect(line.available).toBe(5)
+  })
+
+  it('should add nothing when the listing read fails — an outage is not a sell-out', async () => {
+    vi.mocked(fetchShopItems).mockRejectedValue(new Error('gateway down'))
+
+    const { result } = renderHook(useHarness, { wrapper })
+    await waitFor(() => expect(result.current.cart.split.purchasable).toHaveLength(1))
+
+    act(() => result.current.cart.addOutfit())
+    await waitFor(() => expect(result.current.cart.isAdding).toBe(false))
+
+    expect(useCart.getState().items).toHaveLength(0)
+    expect(useToast.getState().toasts.some(t => t.kind === 'error')).toBe(true)
+  })
+
+  it('should drop an item that minted out between the card rendering and the click', async () => {
+    vi.mocked(fetchShopItems).mockResolvedValue({ items: [{ ...SHOP_ROW, available: 0 }], total: 1 })
+
+    const { result } = renderHook(useHarness, { wrapper })
+    await waitFor(() => expect(result.current.cart.split.purchasable).toHaveLength(1))
+
+    act(() => result.current.cart.addOutfit())
+    await waitFor(() => expect(result.current.cart.isAdding).toBe(false))
+
+    expect(useCart.getState().items).toHaveLength(0)
   })
 })

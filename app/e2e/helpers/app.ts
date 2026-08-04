@@ -412,6 +412,13 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
       const search = u.searchParams.get('search')?.toLowerCase()
       const rarity = u.searchParams.get('rarity')
       const category = u.searchParams.get('category')
+      // Item-scoped reads: the real handler parses both (shop-catalog-handler), and the outfits
+      // add-to-cart path resolves ONE item at a time through here. Without them the mock would answer
+      // every such lookup with the whole feed, i.e. the wrong listing for every item but the first.
+      const unifiedCa = u.searchParams.get('contractAddress')
+      const unifiedItemId = u.searchParams.get('itemId')
+      if (unifiedCa) items = items.filter(i => String(i.contractAddress).toLowerCase() === unifiedCa.toLowerCase())
+      if (unifiedItemId) items = items.filter(i => String(i.itemId) === unifiedItemId)
       if (search) items = items.filter(i => String(i.name).toLowerCase().includes(search))
       if (rarity) items = items.filter(i => rarity.split(',').includes(i.rarity))
       if (category) items = items.filter(i => i.category === category)
@@ -426,7 +433,11 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
       if (u.searchParams.get('sortBy') === 'cheapest') {
         items.sort((a, b) => (a.priceCredits ?? 0) - (b.priceCredits ?? 0))
       }
-      return json(req, { data: items, total: items.length })
+      // `total` is the unpaginated count (what the real server reports); `first` bounds the page.
+      const total = items.length
+      const first = Number(u.searchParams.get('first') ?? 0)
+      if (Number.isFinite(first) && first > 0) items = items.slice(0, first)
+      return json(req, { data: items, total })
     }
     // Collections entity: search dropdown "Collections" section (fetchCollectionSuggestions, ?search=)
     // + the Collection page name lookup (fetchCollection, ?contractAddress=). Honor both filters.
