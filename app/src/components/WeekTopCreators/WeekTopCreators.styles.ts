@@ -143,7 +143,11 @@ export const Th = styled.th`
     border-radius: ${radius.btn};
   }
 
+  /* Zero padding, not the 24px the creator label carries: text-align centres within the CONTENT box,
+     so leaving the padding in place would push these labels half of it off the column's centre. */
   &[data-center] {
+    padding-left: 0;
+    padding-right: 0;
     text-align: center;
   }
   /* Aligned with the amount itself (16px), not with the 24px the creator label uses. */
@@ -177,11 +181,18 @@ export const Row = styled.tr`
     padding: 0 8px 0 16px;
     vertical-align: middle;
   }
+  /* The card's rounded ends: it starts at the creator cell, since the rank chip stands apart. */
   & td:nth-of-type(2) {
     border-radius: ${radius.btn} 0 0 ${radius.btn};
   }
+  /* Padding lives here rather than on the cells themselves: a descendant selector outranks the cells'
+     own class, so declaring it there would lose to the shared rule above. */
+  & td:first-of-type {
+    padding: 0;
+  }
   & td:last-of-type {
     border-radius: 0 ${radius.btn} ${radius.btn} 0;
+    padding: 0 16px;
   }
 
   &:hover td,
@@ -230,6 +241,11 @@ export const Row = styled.tr`
     & td {
       padding: 0 8px;
     }
+    /* Restated because the desktop rule for this cell outranks the one above, and 16px of padding is
+       worth reclaiming from a 460px row. */
+    & td:last-of-type {
+      padding: 0 8px;
+    }
   }
 `
 
@@ -252,9 +268,10 @@ export const RowLink = styled(Link)`
   }
 `
 
+// Transparent: it only holds the chip and the row's overlay link. Its padding comes from Row, which
+// also owns the 16px the amount cell needs (see the note there).
 export const RankCell = styled.td`
   width: var(--rank-col);
-  padding: 0;
   text-align: left;
 `
 
@@ -407,9 +424,8 @@ export const Num = styled.td`
   font-variant-numeric: tabular-nums;
 `
 
-export const AmountCell = styled.td`
-  padding: 0 16px;
-`
+// Padding comes from Row (last-of-type), for the specificity reason noted there.
+export const AmountCell = styled.td``
 
 // The amount sits left and the CTA right, with the CTA's slot reserved whether or not it is showing —
 // which is what keeps the amount in the same place on every row, hovered or not.
