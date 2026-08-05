@@ -268,7 +268,14 @@ export const Cta = styled.span`
   text-transform: uppercase;
   white-space: nowrap;
   opacity: 0;
-  transition: opacity ${DURATION} ${EASE};
+  transition:
+    opacity ${DURATION} ${EASE},
+    background 0.15s ease;
+
+  /* Its own hover, on top of the card's reveal: the fill deepens to soft-black-2 (Figma 738:53251). */
+  [data-testid='top-creator-card']:hover &:hover {
+    background: ${colors.blackBtn};
+  }
 
   [data-testid='top-creator-card']:hover &,
   [data-testid='top-creator-card']:focus-visible & {

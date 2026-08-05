@@ -80,7 +80,10 @@ const gradients = {
   // Figma "DCL/Gradients/Flare" — the amber→red→magenta diagonal on the credit-pack hairline and the
   // "Recommended" pill. `ember` is its warm half, used for the thicker hover ring (no magenta stop).
   flare: 'linear-gradient(157.44deg, #ffbc5b 0%, #ff2d55 50.52%, #c640cd 100%)',
-  ember: 'linear-gradient(69deg, #ffbc5b 0%, #ff2d55 100%)'
+  ember: 'linear-gradient(69deg, #ffbc5b 0%, #ff2d55 100%)',
+  // Figma style "BUY Button" (738:53266) — the near-vertical orange→red on GET CREDITS and the promo
+  // CTAs. One token because those two must stay identical; they drifted apart once already.
+  buyBtn: 'linear-gradient(180.93deg, #ff7439 2.82%, #ff2d55 97.47%)'
 } as const
 
 const radius = {

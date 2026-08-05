@@ -8,6 +8,7 @@ import { CreatorBadge } from '~/components/CreatorBadge'
 import { CreatorName } from '~/components/CreatorName'
 import { SaleCountdown } from '~/components/SaleCountdown'
 import { Icon } from '~/components/Icon'
+import cartSolidUrl from '~/assets/icons/cart-solid.svg'
 
 const { colors, radius, media } = theme
 
@@ -676,14 +677,24 @@ const cartCss = css`
   @media (hover: none) and (min-width: 721px) {
     display: flex;
   }
-  &:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.3);
+  /* Hover/pressed flip the pill to solid white with a dark label and the FILLED cart (Figma
+     738:53264). The icon swap sets mask-image directly rather than the Icon's --icon-url variable,
+     which is an inline style and would need !important to beat. Double quotes are required: Vite
+     inlines the SVG as a data URI whose own attributes are single-quoted. */
+  &:hover:not(:disabled),
+  &:active:not(:disabled) {
+    background: ${colors.softWhite};
+    color: ${colors.blackBtn};
+  }
+  &:hover:not(:disabled) .ico,
+  &:active:not(:disabled) .ico {
+    -webkit-mask-image: url('${cartSolidUrl}');
+    mask-image: url('${cartSolidUrl}');
   }
   &[data-in],
   &:disabled {
-    background: rgba(255, 255, 255, 0.12);
-    color: rgba(252, 252, 252, 0.7);
-    opacity: 1;
+    background: rgba(255, 255, 255, 0.2);
+    opacity: 0.5;
     cursor: default;
   }
 

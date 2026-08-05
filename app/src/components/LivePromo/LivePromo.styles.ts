@@ -2,7 +2,7 @@ import styled from '@emotion/styled'
 import { Link } from 'react-router-dom'
 import { theme } from '~/styles/theme'
 
-const { colors, radius, media } = theme
+const { colors, radius, gradients, media } = theme
 
 // Live promo tile. The rounded card (CardBg) is inset from the wrapper's top by --lp-crest, and the
 // avatar spans the FULL wrapper — so its head rises past the card's top edge (the Figma outfit-card
@@ -120,7 +120,7 @@ export const Cta = styled.span`
   height: 40px;
   padding: 0 18px;
   border-radius: ${radius.btn};
-  background: linear-gradient(180deg, #ff7439 0%, #ff2d55 100%);
+  background: ${gradients.buyBtn};
   color: ${colors.softWhite};
   font-size: 13px;
   font-weight: 600;
@@ -137,7 +137,7 @@ export const Cta = styled.span`
     inset: -6px;
     border-radius: calc(${radius.btn} + 6px);
     padding: 2px;
-    background: linear-gradient(180deg, #ff7439 0%, #ff2d55 100%);
+    background: ${gradients.buyBtn};
     -webkit-mask:
       linear-gradient(#fff 0 0) content-box,
       linear-gradient(#fff 0 0);

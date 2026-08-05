@@ -233,8 +233,8 @@ export const Credits = styled(NavLink)`
   height: 40px;
   padding: 0 16px;
   border-radius: ${radius.btn};
-  /* Amethyst gradient, per the sub-nav's Figma button (1549:311779). */
-  background: ${gradients.amethyst};
+  /* The orange "BUY Button" gradient — the same fill the promo CTAs carry (Figma 738:53266). */
+  background: ${gradients.buyBtn};
   color: ${colors.softWhite};
   font-weight: 600;
   font-size: 13px;
@@ -251,7 +251,7 @@ export const Credits = styled(NavLink)`
     inset: -6px;
     border-radius: calc(${radius.btn} + 6px);
     padding: 2px;
-    background: ${gradients.amethyst};
+    background: ${gradients.buyBtn};
     -webkit-mask:
       linear-gradient(#fff 0 0) content-box,
       linear-gradient(#fff 0 0);

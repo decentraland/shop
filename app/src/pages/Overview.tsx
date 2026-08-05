@@ -214,6 +214,12 @@ export function Overview() {
         <Carousel title={t('overview.trendingProducts')} items={trendingItems} loading={trendingLoading} />
       ) : null}
 
+      {/* "Buy the Look" sits between the two listing rails, per the section order design settled on:
+          Trending → Buy the Look → New Creations → the promo tiles → creators. Outside the listings
+          branch below on purpose — it self-fetches from the outfit feed, so on an environment with no
+          shop-server the section is simply absent rather than gated on a query it does not use. */}
+      <OutfitsRow />
+
       {isLoading || items.length > 0 ? (
         <>
           {/* New Creations now shows the newest twelve — slice(0, 12), not slice(12, 24).
@@ -257,13 +263,6 @@ export function Overview() {
               fallbackAlt={t('overview.promoOutfitsAlt')}
             />
           </S.Promos>
-
-          {/* "Buy the Look" is the THIRD section, after both carousels. It sat between them for a while
-              because that is the order the mobile Figma frame (1016:84664) draws; the product order is the
-              one here — the two listing rails first, outfits under them.
-              It self-fetches and renders nothing until published outfits resolve, so on an environment with
-              no shop-server the section is simply absent — it is a place for outfits, not a guaranteed one. */}
-          <OutfitsRow />
         </>
       ) : (
         <S.Empty>
