@@ -46,10 +46,12 @@ vi.mock('~/lib/credits', () => ({
 const fetchTradeDisplay = vi.fn()
 const fetchAssetDisplay = vi.fn()
 const fetchUserSales = vi.fn()
+const fetchUnified = vi.fn()
 vi.mock('~/lib/api', () => ({
   fetchTradeDisplay: (...args: unknown[]) => fetchTradeDisplay(...args),
   fetchAssetDisplay: (...args: unknown[]) => fetchAssetDisplay(...args),
-  fetchUserSales: (...args: unknown[]) => fetchUserSales(...args)
+  fetchUserSales: (...args: unknown[]) => fetchUserSales(...args),
+  fetchUnified: (...args: unknown[]) => fetchUnified(...args)
 }))
 
 // 1 MANA = $0.50 → 10 MANA = 50 credits.
@@ -338,7 +340,8 @@ describe('when purchases and a sale are interleaved', () => {
 })
 
 describe('the migration chip', () => {
-  it('should not render at all when the seller has no classic listings', async () => {
+  it('should not render at all when the seller has no listings of any kind', async () => {
+    fetchUnified.mockResolvedValue({ items: [], total: 0 })
     renderPage()
     await screen.findByText('No activity yet')
 
@@ -376,6 +379,29 @@ describe('the migration chip', () => {
 
     rerender(<div />)
     expect(fetchImportable).toHaveBeenCalledTimes(1)
+  })
+
+  // The point of the change: the section is about HAVING listings, so a seller who already moved every
+  // one of them can still open it — and reach the "all set" state written for exactly them. Gated on the
+  // migratable count alone, that state was unreachable.
+  it('should render for a seller whose listings are all migrated already', async () => {
+    fetchImportable.mockResolvedValue({ creations: [], owned: [] })
+    fetchUnified.mockResolvedValue({ items: [], total: 4 })
+    renderPage()
+
+    const chip = await screen.findByTestId('activity-filter-migrate')
+    expect(chip).toHaveTextContent('Listings')
+    // No badge: nothing is outstanding, and a "0" would read as work to do.
+    expect(screen.queryByTestId('activity-migrate-count')).not.toBeInTheDocument()
+  })
+
+  it('should keep the badge counting only what is left to move, not every listing', async () => {
+    fetchImportable.mockResolvedValue({ creations: [importable()], owned: [] })
+    fetchUnified.mockResolvedValue({ items: [], total: 9 })
+    renderPage()
+
+    await screen.findByTestId('activity-filter-migrate')
+    expect(screen.getByTestId('activity-migrate-count')).toHaveTextContent('1')
   })
 
   it('should swap the feed for the migration tool when clicked', async () => {

@@ -6,30 +6,90 @@ import { theme } from '~/styles/theme'
 
 const { colors, font, media, radius } = theme
 
+// The "nothing left to migrate" state: a white card centred in the section.
 export const Empty = styled.div`
-  max-width: 520px;
-  margin: 0 auto;
-  text-align: center;
-  padding: 80px 20px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 24px;
+  padding: 24px 20px 80px;
 `
 
+export const EmptyCard = styled.div`
+  /* 615px in the design; capped rather than fixed so it still fits a phone. */
+  width: 100%;
+  max-width: 615px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  padding: 16px;
+  border-radius: ${radius.modal};
+  background: ${colors.white};
+  text-align: center;
+`
+
+/**
+ * The check ring. An `<img>`, NOT the project's Icon: this glyph is a coral→red GRADIENT stroke, and Icon
+ * paints every asset as a mask over currentColor, which would flatten it to one flat colour.
+ *
+ * Two boxes, as the design composes them: a 105px outer box holding an 84.837px leaf. That inner size is
+ * not arbitrary — it is what the design's own nested insets (12.5% then -3.86%) resolve to, and it is the
+ * asset's intrinsic size, so the ring is neither cropped nor upscaled.
+ */
 export const EmptyIco = styled.span`
-  font-size: 44px;
+  flex-shrink: 0;
+  width: 105px;
+  height: 105px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+
+  img {
+    width: 84.837px;
+    height: 84.837px;
+  }
+`
+
+export const EmptyText = styled.div`
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 16px;
+  line-height: 1.6;
+  color: ${colors.text};
 `
 
 // h2, not h1: the tool is a section of the Activity page, which owns the page heading.
 export const EmptyTitle = styled.h2`
-  font-size: 26px;
-  font-weight: 800;
-  margin: 4px 0 0;
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+`
+
+export const EmptyBody = styled.p`
+  margin: 0;
+  font-size: 16px;
+  font-weight: 400;
+`
+
+export const EmptyActions = styled.div`
+  width: 310px;
+  max-width: 100%;
+  padding-bottom: 16px;
 `
 
 export const EmptyCta = styled(Button)`
-  margin-top: 10px;
+  width: 100%;
+  height: 56px;
+  border-radius: 12px;
+  font-size: 15px;
+  /* The variant sets 0.046em, which at 15px is 0.69px; the design asks for 0.46px flat. */
+  letter-spacing: 0.46px;
 `
 
 export const Root = styled.div`

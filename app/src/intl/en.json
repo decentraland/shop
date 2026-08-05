@@ -803,9 +803,9 @@
   },
   "importListings": {
     "toastUpdated": "Your Shop is updated.",
-    "emptyTitle": "You're all caught up",
-    "emptyBody": "Everything you sell is already in the Shop — nothing to import.",
-    "goToMyAssets": "Go to My Items",
+    "emptyTitle": "You are all set!",
+    "emptyBody": "You can manage your listings from “My Items” section.",
+    "goToMyAssets": "My Items",
     "title": "Bring your listings into the new shop!",
     "lede": "Your items can now be priced in {currency}. We've suggested equivalent prices based on today's MANA exchange rate, but you can adjust them before publishing. Once you're ready, list your items in the new Shop.",
     "learnMore": "Learn More",

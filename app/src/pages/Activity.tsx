@@ -17,6 +17,7 @@ import { buildActivityFeed, filterActivity, type ActivityFilter, type ActivitySa
 import { indexPayouts, payoutForSale, type SalePayout } from '~/lib/payouts'
 import { useManaRate } from '~/hooks/useManaRate'
 import { useImportable } from '~/hooks/useImportable'
+import { useListingCount } from '~/hooks/useListingCount'
 import { LoadMore } from '~/components/LoadMore'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
@@ -431,14 +432,26 @@ export function Activity() {
 
   useSeo({ title: migrating ? t('seo.import.title') : t('nav.activity'), noindex: true })
 
-  // How many classic listings this seller could still move. Undefined until known — the chip renders
+  // How many classic listings this seller could still move. Undefined until known — the badge renders
   // nothing at all until then, so it never flashes in or badges a zero.
   const { count: importCount } = useImportable()
+  // …and how many listings they have at all, on either pricing.
+  const { count: listingCount } = useListingCount()
 
-  // The chip stays put while its own panel is open even once the count reaches zero, so finishing a
-  // migration cannot leave the row with no selected chip and the panel orphaned above its own
-  // "all caught up" state.
-  const showMigrate = importCount !== undefined && (importCount > 0 || migrating)
+  /**
+   * The chip is about HAVING listings, not about having migratable ones. Gating it on the migratable count
+   * alone hid the section from the seller who had already moved everything — the one person for whom the
+   * "you are all set" state was written — and there was no other way into it.
+   *
+   * ORed rather than swapped: `listingCount` is creator-scoped (the feed takes no seller filter), so it
+   * cannot see a resale of someone else's item. Keeping the migratable count in the condition means a
+   * reseller cannot lose a chip they have today.
+   *
+   * The chip also stays put while its own panel is open even once both counts reach zero, so finishing a
+   * migration cannot leave the row with no selected chip and the panel orphaned above its own state.
+   */
+  const counts = [importCount, listingCount]
+  const showMigrate = counts.some(c => c !== undefined) && (counts.some(c => (c ?? 0) > 0) || migrating)
 
   // The feed's four reads are pointless behind the tool, and their skeletons would otherwise decide
   // what the migrate panel is allowed to render.

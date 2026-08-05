@@ -17,6 +17,7 @@ import { capitalizeFirst } from '~/lib/text'
 import { useImportable } from '~/hooks/useImportable'
 import * as F from '~/styles/field.styles'
 import { t } from '~/intl/i18n'
+import doneRing from '~/assets/done-ring.svg'
 import * as S from './ImportListings.styles'
 
 const LEARN_MORE_URL = 'https://docs.decentraland.org'
@@ -95,13 +96,21 @@ export function ImportListings() {
 
   if (!isLoading && all.length === 0) {
     return (
-      <S.Empty>
-        <S.EmptyIco aria-hidden>✨</S.EmptyIco>
-        <S.EmptyTitle>{t('importListings.emptyTitle')}</S.EmptyTitle>
-        <p className="muted">{t('importListings.emptyBody')}</p>
-        <S.EmptyCta as={Link} to="/my-items" variant="purple">
-          {t('importListings.goToMyAssets')}
-        </S.EmptyCta>
+      <S.Empty data-testid="import-empty">
+        <S.EmptyCard>
+          <S.EmptyIco aria-hidden>
+            <img src={doneRing} alt="" width={85} height={85} />
+          </S.EmptyIco>
+          <S.EmptyText>
+            <S.EmptyTitle>{t('importListings.emptyTitle')}</S.EmptyTitle>
+            <S.EmptyBody>{t('importListings.emptyBody')}</S.EmptyBody>
+          </S.EmptyText>
+          <S.EmptyActions>
+            <S.EmptyCta as={Link} to="/my-items" variant="purple">
+              {t('importListings.goToMyAssets')}
+            </S.EmptyCta>
+          </S.EmptyActions>
+        </S.EmptyCard>
       </S.Empty>
     )
   }

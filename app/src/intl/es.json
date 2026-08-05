@@ -803,9 +803,9 @@
   },
   "importListings": {
     "toastUpdated": "Tu Tienda está actualizada.",
-    "emptyTitle": "Estás al día",
-    "emptyBody": "Todo lo que vendes ya está en la Tienda — no hay nada que importar.",
-    "goToMyAssets": "Ir a Mis artículos",
+    "emptyTitle": "¡Listo, ya está todo!",
+    "emptyBody": "Puedes gestionar tus publicaciones desde la sección «Mis artículos».",
+    "goToMyAssets": "Mis artículos",
     "title": "¡Trae tus publicaciones a la nueva tienda!",
     "lede": "Ahora puedes poner precio a tus artículos en {currency}. Sugerimos precios equivalentes según la tasa de cambio de MANA de hoy, pero puedes ajustarlos antes de publicar. Cuando estés listo, publica tus artículos en la nueva Tienda.",
     "learnMore": "Más información",
