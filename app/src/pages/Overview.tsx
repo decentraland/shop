@@ -21,6 +21,7 @@ import carouselArrow from '~/assets/icons/carousel-arrow.svg'
 // WebP, not PNG: the export is fully opaque, so the alpha channel was dead weight, and the same art is
 // 90 KB here against 1.09 MB as a PNG.
 import heroBanner from '~/assets/overview/hero-credits-outfits.webp'
+import heroBannerMobile from '~/assets/overview/hero-credits-mobile.webp'
 import { Icon } from '~/components/Icon'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import * as Row from '~/styles/row.styles'
@@ -184,7 +185,12 @@ export function Overview() {
   return (
     <S.Overview className="overview">
       <S.Hero>
-        <S.HeroBg src={heroBanner} alt="" aria-hidden />
+        {/* Phones get the design's own square collage (Figma 2004:322520) rather than a crop of the
+            wide banner — the mobile frame is a different composition, not a resize. */}
+        <picture>
+          <source media="(max-width: 768px)" srcSet={heroBannerMobile} />
+          <S.HeroBg src={heroBanner} alt="" aria-hidden />
+        </picture>
         {/* No scrim over this banner: the artwork carries its own left-to-right darkening (a
             multiply-blended gradient in the Figma source), so the separate scrim layer stacked a second
             one on top and took the left half of the image to near-black. */}

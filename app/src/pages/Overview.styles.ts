@@ -39,12 +39,6 @@ export const HeroCta = styled(Button)`
   border-radius: ${theme.radius.btn};
   font-size: 15px;
   letter-spacing: 0.46px;
-
-  ${media.maxWidth('mobile')} {
-    /* A 246px button is most of a phone's width; let it shrink rather than crowd the edges. */
-    width: auto;
-    max-width: 100%;
-  }
 `
 
 // The page scopes an override of the shared rail (RecentlyViewed / FollowedCreators render Row.Track,
@@ -120,11 +114,15 @@ export const Hero = styled.section`
      window, 134px at 1920 (the cap's own inset plus the gutter), 16px at 390. */
   padding-inline: calc(50vw - 50%);
 
+  /* The mobile frame (Figma 1016:89483) is a different composition, not a squeeze of the wide one:
+     a square collage with the copy CENTERED near its bottom edge (title block ends 43px above it). */
   ${media.maxWidth('mobile')} {
-    aspect-ratio: auto;
-    min-height: 200px;
+    aspect-ratio: 390 / 389;
     max-height: none;
     margin-top: -16px;
+    align-items: flex-end;
+    justify-content: center;
+    padding-bottom: 43px;
   }
 `
 
@@ -146,6 +144,11 @@ export const HeroInner = styled.div`
   flex-direction: column;
   align-items: flex-start;
   gap: 32px;
+
+  ${media.maxWidth('mobile')} {
+    align-items: center;
+    text-align: center;
+  }
 `
 
 // Figma 1864:223112: Inter Bold 48/1.235 in white, sentence case — the uppercase this used to force is
@@ -159,6 +162,11 @@ export const HeroTitle = styled.h1`
   font-size: clamp(28px, 4vw, 48px);
   font-weight: 700;
   line-height: 1.235;
+
+  /* Figma 2004:322552: the phone headline is a fixed 32, larger than the clamp's floor. */
+  ${media.maxWidth('mobile')} {
+    font-size: 32px;
+  }
 `
 
 // Reuses the global `.row` head/title/viewall; adds the Figma side arrows + pagination dots.

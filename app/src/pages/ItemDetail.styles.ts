@@ -69,9 +69,11 @@ export const Main = styled.div`
 export const Preview = styled.div`
   position: relative;
   aspect-ratio: 1045 / 752;
-  border-radius: 16px;
+  border-radius: ${radius.banner};
   overflow: hidden;
-  background: ${colors.media};
+  /* Dark-theme test: translucent black over the purple field — reads as a deeper violet (Figma
+     "PDP Image" 1052:151284). The preview iframe is transparent, so this is the scene's backdrop. */
+  background: rgba(0, 0, 0, 0.4);
 
   ${media.maxWidth('lg')} {
     aspect-ratio: 1 / 1;
