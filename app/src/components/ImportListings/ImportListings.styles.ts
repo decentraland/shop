@@ -379,8 +379,7 @@ export const DockCta = styled(Button)`
   padding: 13px 24px;
 `
 
-// The seller FAQ under the list (Figma 2123:439952 sits its frame 16px below what precedes it). The 12px
-// side gutter is Body's, so the rows line up with the listings above rather than with the page edge.
+// The 12px side gutter is Body's, so the FAQ rows line up with the listings above, not the page edge.
 export const FaqBlock = styled.div`
   padding: 16px 12px 0;
 `

@@ -20,7 +20,7 @@ import * as F from '~/styles/field.styles'
 import { t } from '~/intl/i18n'
 import * as S from './ImportListings.styles'
 
-// Figma 2123:439952. Keys, not copy — the strings live in the locale files. MANA is named here on purpose:
+// Keys, not copy — the strings live in the locale files. MANA is named here on purpose:
 // this is the creator-facing migration tool, whose surrounding copy already prices in MANA, and the
 // web2-first ban in CONVENTIONS.md is about the shopper-facing Shop. The buyers' FAQ never mentions it.
 const SELLER_FAQ: readonly FaqEntry[] = [

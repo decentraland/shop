@@ -58,8 +58,8 @@ function artFor(pack: CreditPack, index: number): string {
   return pack.artUrl ?? bundledArtFor(pack, index)
 }
 
-// Figma 2106:416524. No MANA, no wallet, nothing about chains — this is the shopper-facing list, so it
-// stays inside the web2-first rule (CONVENTIONS.md). "Marketplace" is the other product's name, not jargon.
+// No MANA, no wallet, nothing about chains — this is the shopper-facing list, so it stays inside the
+// web2-first rule (CONVENTIONS.md). "Marketplace" is the other product's name, not jargon.
 const BUYER_FAQ: readonly FaqEntry[] = [
   { question: 'faq.buyers.whatAreQ', answer: 'faq.buyers.whatAreA' },
   { question: 'faq.buyers.whatCanIBuyQ', answer: 'faq.buyers.whatCanIBuyA' },

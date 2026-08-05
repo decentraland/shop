@@ -4,8 +4,8 @@ import { t } from '~/intl/i18n'
 import * as S from './Faq.styles'
 
 /**
- * The "Learn More About Credits" accordion — Figma 2123:439952 (migration tool) and 2106:416524 (credits
- * page). Both surfaces render this; only the skin differs (see Faq.styles).
+ * The "Learn More About Credits" accordion. Both the migration tool and the credits page render this;
+ * only the skin differs (see Faq.styles).
  *
  * Rows open INDEPENDENTLY rather than one-at-a-time. Nothing in the design says which, and independent is
  * the forgiving reading: someone comparing two answers ("do I receive Credits?" against "can I change the

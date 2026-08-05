@@ -2,8 +2,6 @@ import styled from '@emotion/styled'
 import { theme } from '~/styles/theme'
 
 /**
- * Figma 2123:439952 (light, migration tool) and 2106:416524 (on the credits hero backdrop).
- *
  * ONE component with two skins, because that is how the design models it — a single FAQs component with a
  * `mode` of Light or Dark. The two differ only in how they separate a row from its surface: on a light page
  * a translucent black fill is enough, over the credits backdrop each row needs a white outline as well.
@@ -131,7 +129,7 @@ export const Header = styled.button`
     color: ${theme.colors.white};
   }
 
-  /* Hover, dark (Figma 2106:416550): the fill deepens and the outline goes from 0.5px to 3px.
+  /* On hover the dark skin deepens its fill and takes its outline from 0.5px to 3px.
      The extra 2.5px is an INSET SHADOW, not a fatter border. border-box keeps the outer box fixed, but
      height here is auto — content + padding + BORDER — so growing the border 0.5px → 3px added 5px of
      height and shoved every row below it down as the pointer crossed. A box-shadow takes no part in
