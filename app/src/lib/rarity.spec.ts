@@ -88,7 +88,7 @@ describe('when picking legible chip ink (rarityInk)', () => {
   })
 
   it('should darken a light rarity down to the target luminance while preserving the hue', () => {
-    // exotic #CAFF73 is near-white (lum ~223) → scaled down so it reads on the pale tint.
+    // exotic is the palette's brightest rarity → scaled down so it reads on the pale tint.
     const raw = rarityColor('exotic')
     const ink = rarityInk('exotic')
     expect(ink).not.toBe(raw)
@@ -99,8 +99,11 @@ describe('when picking legible chip ink (rarityInk)', () => {
   })
 
   it('should honor a custom target luminance', () => {
-    expect(luminance(rarityInk('exotic', 200))).toBeGreaterThan(198.5)
-    expect(luminance(rarityInk('exotic', 200))).toBeLessThan(201.5)
+    // rarityInk only ever DARKENS, so the target has to sit below the colour's own luminance for the
+    // scaling to kick in — derived from it here so re-tuning the palette can't invalidate the case.
+    const target = Math.round(luminance(rarityColor('exotic')) / 2)
+    expect(luminance(rarityInk('exotic', target))).toBeGreaterThan(target - 1.5)
+    expect(luminance(rarityInk('exotic', target))).toBeLessThan(target + 1.5)
   })
 
   it('and the rarity casing differs it should still resolve by lowercasing', () => {
