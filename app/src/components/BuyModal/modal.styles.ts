@@ -84,7 +84,7 @@ export const HeadRow = styled.div`
 export const Title = styled.h2`
   margin: 0;
   font-size: 20px;
-  font-weight: 600;
+  font-weight: 700;
   line-height: 1.6;
   color: ${colors.text};
 `
@@ -251,7 +251,7 @@ export const Pack = styled.button`
   transition: border-color 0.12s ease;
 
   &[data-on] {
-    border: 4px solid ${colors.magenta};
+    border: 4px solid #ff7439;
   }
 `
 
@@ -320,7 +320,7 @@ export const Btn = styled.button`
   /* Let the CTAs shrink so their min-content can't widen the modal past the viewport on mobile. */
   min-width: 0;
   height: 46px;
-  border-radius: ${radius.btn};
+  border-radius: ${radius.card};
   border: 0;
   cursor: pointer;
   font-size: 15px;
@@ -343,8 +343,8 @@ export const Btn = styled.button`
   }
   &[data-variant='outline'] {
     background: transparent;
-    border: 2px solid ${colors.accent};
-    color: ${colors.accent};
+    border: 0.5px solid ${colors.text};
+    color: ${colors.text2};
     font-size: 13px;
   }
   &[data-variant='ruby'] {

@@ -274,7 +274,7 @@
     "titleComplete": "Purchase complete!",
     "dialogAria": "Buy {name}",
     "close": "Close",
-    "dclBalance": "DCL Balance:",
+    "dclBalance": "My Credits Balance:",
     "myCreditsBalance": "My Credits Balance:",
     "signInToCheckout": "Sign in to check out.",
     "insufficientFunds": "Insufficient Funds.",
