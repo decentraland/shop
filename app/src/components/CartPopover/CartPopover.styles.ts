@@ -6,7 +6,7 @@ import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { CreatorBadge } from '~/components/CreatorBadge'
 import { Icon } from '~/components/Icon'
 
-const { colors, radius, font } = theme
+const { colors, radius, gradients, font } = theme
 
 const fade = keyframes`
   from { opacity: 0; }
@@ -370,10 +370,16 @@ export const TotalDiamond = styled(CurrencyIcon)`
   color: ${colors.text};
 `
 
+// Figma (2187:451640) sits the two CTAs side by side, each taking half the row.
 export const Ctas = styled.div`
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: 12px;
+
+  & > * {
+    flex: 1 1 0;
+    min-width: 0;
+  }
 `
 
 // data-variant='primary' (filled accent Link) | 'secondary' (magenta-outline button).
@@ -382,9 +388,9 @@ const ctaCss = css`
   align-items: center;
   justify-content: center;
   height: 46px;
-  border-radius: ${radius.btn};
+  border-radius: ${radius.card};
   font-family: ${font.sans};
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 600;
   line-height: 24px;
   letter-spacing: 0.46px;
@@ -392,21 +398,23 @@ const ctaCss = css`
   text-decoration: none;
   cursor: pointer;
 
+  /* The design system's pair (Figma 2187:453378/453391): the advancing action takes the primary
+     gradient on the right, the dismissing one a hairline soft-black outline on the left. */
   &[data-variant='primary'] {
     border: 0;
-    background: ${colors.accent};
-    color: ${colors.softWhite};
+    background: ${gradients.buyBtn};
+    color: ${colors.white};
   }
   &[data-variant='primary']:hover {
-    background: #58198c;
+    filter: brightness(1.08);
   }
   &[data-variant='secondary'] {
-    border: 2px solid ${colors.magenta};
+    border: 0.5px solid ${colors.text};
     background: ${colors.white};
-    color: ${colors.accent};
+    color: ${colors.text};
   }
   &[data-variant='secondary']:hover {
-    background: rgba(198, 64, 205, 0.06);
+    background: ${colors.media};
   }
 `
 

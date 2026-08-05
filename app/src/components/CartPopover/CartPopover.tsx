@@ -191,12 +191,12 @@ export function CartPopover() {
             </S.TotalVal>
           </S.TotalRow>
           <S.Ctas>
-            <S.Cta data-variant="primary" to="/cart" onClick={() => setOpen(false)}>
-              {t('cartPopover.goToCart')}
-            </S.Cta>
             <S.CtaButton data-variant="secondary" onClick={() => setOpen(false)}>
               {t('cartPopover.continueShopping')}
             </S.CtaButton>
+            <S.Cta data-variant="primary" to="/cart" onClick={() => setOpen(false)}>
+              {t('cartPopover.goToCart')}
+            </S.Cta>
           </S.Ctas>
         </S.Foot>
       </S.Panel>
