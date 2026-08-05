@@ -471,6 +471,11 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
       const listingType = u.searchParams.get('listingType')
       if (listingType === 'primary') items = items.filter(i => !i.tokenId)
       if (listingType === 'secondary') items = items.filter(i => !!i.tokenId)
+      // The real handler scopes this feed by creator, and Activity's listing count leans on it to decide
+      // whether the migration chip appears at all. Unfiltered, the mock answered "you have listings" for
+      // every wallet and the chip could not be tested.
+      const unifiedCreator = u.searchParams.get('creator')
+      if (unifiedCreator) items = items.filter(i => String(i.creator).toLowerCase() === unifiedCreator.toLowerCase())
       if (u.searchParams.get('sortBy') === 'cheapest') {
         items.sort((a, b) => (a.priceCredits ?? 0) - (b.priceCredits ?? 0))
       }

@@ -803,9 +803,9 @@
   },
   "importListings": {
     "toastUpdated": "Tu Tienda está actualizada.",
-    "emptyTitle": "Estás al día",
-    "emptyBody": "Todo lo que vendes ya está en la Tienda — no hay nada que importar.",
-    "goToMyAssets": "Ir a Mis artículos",
+    "emptyTitle": "¡Listo, ya está todo!",
+    "emptyBody": "Puedes gestionar tus publicaciones desde la sección «Mis artículos».",
+    "goToMyAssets": "Mis artículos",
     "title": "¡Trae tus publicaciones a la nueva tienda!",
     "lede": "Ahora puedes poner precio a tus artículos en {currency}. Sugerimos precios equivalentes según la tasa de cambio de MANA de hoy, pero puedes ajustarlos antes de publicar. Cuando estés listo, publica tus artículos en la nueva Tienda.",
     "learnMore": "Más información",
@@ -933,14 +933,10 @@
     "proceedsCredits": "Recibirás {count, plural, one {# crédito} other {# créditos}} por venta."
   },
   "migrate": {
-    "successTitle": "¡Estás en la Tienda! 🎉",
-    "nothingTitle": "No se publicó nada",
     "listedSummary": "{count, plural, one {# artículo está} other {# artículos están}} ahora a la venta con {currency}.",
-    "noneListed": "No se publicó ningún artículo.",
     "skippedSummary": "{count, plural, one {# omitido} other {# omitidos}} — puedes volver a intentarlo cuando quieras.",
     "unlistedSummary": "{count, plural, one {# artículo se retiró del marketplace anterior pero no se pudo volver a publicar — vuelve a publicarlo desde Mis artículos.} other {# artículos se retiraron del marketplace anterior pero no se pudieron volver a publicar — vuelve a publicarlos desde Mis artículos.}}",
     "goToMyAssets": "Ir a Mis artículos",
-    "viewInShop": "Ver en la Tienda",
     "listingTitle": "Publicando tus artículos",
     "subConfirm": "Retiramos cada publicación anterior y la volvemos a publicar por créditos — confirma cada paso.",
     "subManaged": "Moviendo tus artículos a la Tienda.",
@@ -966,7 +962,8 @@
     "phaseIndexing": "Esperando que se libere la publicación anterior ({attempt}/{of})…",
     "hintCount": "Van a aparecer unas {total} confirmaciones — dar de baja y volver a publicar, por artículo. Deja esto abierto.",
     "hintCountApproval": "Van a aparecer unas {total} confirmaciones: dar de baja y volver a publicar por artículo, más una autorización por única vez por colección. Deja esto abierto.",
-    "phaseConfirmingCancelManaged": "Casi listo…"
+    "phaseConfirmingCancelManaged": "Casi listo…",
+    "unlistedTitle": "Algunos artículos necesitan otro intento"
   },
   "fittingRoom": {
     "title": "Probador",

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, act } from '@testing-library/react'
+import { render, screen, act, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { ProviderType } from '@dcl/schemas'
 import type { ImportItem, ImportPhase } from '~/lib/import'
@@ -15,18 +15,26 @@ vi.mock('decentraland-transactions', () => ({
 // importListing is held open on the phase under test: the label is what the row shows WHILE waiting, so
 // a resolved call would race the assertion past it.
 const emitPhase = vi.fn<(onPhase: (phase: ImportPhase) => void) => void>()
+// Held open by default (the phase-label specs read what a row shows WHILE waiting); the outcome specs
+// below override it so the run can actually finish.
+const importListing = vi.fn(
+  (_item: ImportItem, _credits: number, _session: Session, opts: { onPhase: (p: ImportPhase) => void }) =>
+    new Promise<never>(() => emitPhase(opts.onPhase))
+)
 vi.mock('~/lib/import', async () => {
   const actual = await vi.importActual<typeof import('~/lib/import')>('~/lib/import')
   return {
     ...actual,
     countConfirmations: vi.fn().mockResolvedValue(null),
-    importListing: (
-      _item: ImportItem,
-      _credits: number,
-      _session: Session,
-      opts: { onPhase: (p: ImportPhase) => void }
-    ) => new Promise<never>(() => emitPhase(opts.onPhase))
+    importListing: (...args: Parameters<typeof importListing>) => importListing(...args)
   }
+})
+
+// Spied so the unlisted CTA's destination can be asserted; MemoryRouter still provides the rest.
+const navigate = vi.fn()
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom')
+  return { ...actual, useNavigate: () => navigate }
 })
 
 vi.mock('~/lib/analytics', () => ({ track: vi.fn() }))
@@ -102,5 +110,48 @@ describe('MigrateModal — waiting for the cancel to settle', () => {
   it('names the network for a self-custody wallet', async () => {
     const label = await renderAtPhase(ProviderType.INJECTED, { step: 'confirming-cancel' })
     expect(label).toMatch(/network/i)
+  })
+})
+
+describe('when the run finishes', () => {
+  function renderModal(onClose = vi.fn(), onDone = vi.fn()) {
+    render(
+      <MemoryRouter>
+        <MigrateModal
+          queue={[{ item, priceCredits: 270 }]}
+          session={session(ProviderType.INJECTED)}
+          onClose={onClose}
+          onDone={onDone}
+        />
+      </MemoryRouter>
+    )
+    return { onClose, onDone }
+  }
+
+  // No congratulations card: the list behind the modal refetches on close and says the same thing in
+  // place — either the rows still to move, or the all-set state.
+  it('closes itself when every row went through', async () => {
+    importListing.mockResolvedValue(undefined as never)
+    const onClose = vi.fn()
+    const onDone = vi.fn()
+    renderModal(onClose, onDone)
+
+    await vi.waitFor(() => expect(onClose).toHaveBeenCalled())
+    expect(onDone).toHaveBeenCalled()
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  // The one outcome that must NOT close itself: the old listing is gone and the re-list failed, so the
+  // item is for sale nowhere and the seller has to go re-list it.
+  it('stays open on an item left unlisted, and sends the seller to the creations tab', async () => {
+    const { RelistFailedError } = await vi.importActual<typeof import('~/lib/import')>('~/lib/import')
+    importListing.mockRejectedValue(new RelistFailedError('relist failed'))
+    const onClose = vi.fn()
+    renderModal(onClose)
+
+    await vi.waitFor(() => expect(screen.getByTestId('migrate-unlisted')).toBeTruthy())
+    expect(onClose).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'Go to My Items' }))
+    expect(navigate).toHaveBeenCalledWith('/my-items?section=creations')
   })
 })
