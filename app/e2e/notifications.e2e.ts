@@ -326,7 +326,14 @@ describe('notifications bell alignment', () => {
       const centre = (r: DOMRect) => (r.top + r.bottom) / 2
       const bell = document.querySelector('[data-testid="notifications-bell"]')!
       const glyph = document.querySelector('[data-testid="notifications-bell-icon"]')!
-      const group = bell.parentElement!.parentElement!.parentElement!
+      // The right-hand group is the nearest ancestor that also holds the avatar. Found by that relationship
+      // rather than by a fixed number of parent hops, because the shop puts more than the bell in ui2's
+      // slot now (the network selector shares it) and a hop count silently starts measuring the wrong box
+      // the moment anything nests differently — which reads as an alignment pass, not a broken test.
+      let group = bell.parentElement!
+      while (group.parentElement && !group.querySelector('button[aria-label="User menu"]')) {
+        group = group.parentElement
+      }
       const avatarHost = group.lastElementChild!
       const avatarInk = avatarHost.querySelector('svg, img')
       const badge = document.querySelector('[data-testid="notifications-badge"]')

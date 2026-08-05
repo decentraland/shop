@@ -20,6 +20,12 @@
     "getCredits": "Conseguir {currency}",
     "cart": "Carrito"
   },
+  "network": {
+    "title": "Selecciona una red",
+    "current": "Red: {network}",
+    "connected": "Conectado",
+    "confirmInWallet": "Confirma en tu billetera"
+  },
   "notifications": {
     "title": "Notificaciones",
     "titleUnread": "Notificaciones, {count} sin leer",
