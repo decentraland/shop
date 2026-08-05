@@ -1,7 +1,6 @@
 import styled from '@emotion/styled'
 import { keyframes } from '@emotion/react'
 import { theme } from '~/styles/theme'
-import backdrop from '~/assets/credits/packs-backdrop.webp'
 
 // Gradient strokes are painted as masked pseudo-elements (CSS cannot gradient-fill a `border`): the layer is
 // filled edge to edge, then this mask keeps only the `padding`-wide rim by excluding the content box.
@@ -17,20 +16,15 @@ export const Root = styled.div`
   gap: 24px;
 `
 
+// No panel and no artwork of its own: Figma's hero frame (1654:374619) renders TRANSPARENT — the packs
+// sit straight on the page's purple field, and the band the mock appears to show is just that field.
 export const Hero = styled.section`
   position: relative;
   isolation: isolate;
   display: flex;
   flex-direction: column;
   align-items: center;
-  border-radius: ${theme.radius.banner};
-  overflow: hidden;
   padding: 82px clamp(16px, 7.06%, 122px) 129px;
-  /* The panel's own purple, under HeroBackdrop's artwork and sampled from it (its edges are #6c17a3, its
-     centre #9b28d3). The artwork is a separate image request, and until it arrived the panel was the page's
-     white: the white heading was invisible on it and the whole hero snapped from white to purple when the
-     file landed. With the base here the image only adds its silhouettes, so there is nothing to snap. */
-  background: radial-gradient(120% 100% at 50% 50%, #9b28d3 0%, #6c17a3 62%);
 
   ${theme.media.maxWidth('lg')} {
     padding: 48px 24px 56px;
@@ -40,22 +34,10 @@ export const Hero = styled.section`
   }
 `
 
-export const HeroBackdrop = styled.div`
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  opacity: 0.9;
-  pointer-events: none;
-  background-image: url(${backdrop});
-  background-size: cover;
-  background-position: 50% 96%;
-  background-repeat: no-repeat;
-`
-
 /* Holds the pack panel and the redirect overlay together, so the overlay's `inset: 0` measures THIS box
    rather than the whole hero — the FAQ below must not pull the centred spinner down with it. No z-index or
-   isolation here on purpose: the backdrop's `z-index: -1` and the overlay's `1` both still resolve against
-   the hero's stacking context. */
+   isolation here on purpose: the overlay's `z-index: 1` still resolves against the hero's stacking
+   context. */
 export const HeroPanel = styled.div`
   position: relative;
   width: 100%;
@@ -461,17 +443,31 @@ export const PackPrice = styled.span`
    */
   margin-top: auto;
   width: 100%;
-  height: 48px;
+  height: 56px;
   padding: 0 12px;
   border-radius: ${theme.radius.card};
-  background: ${theme.colors.white};
+  /* Translucent at rest; the card's hover/selected state below flips it to the solid white the design
+     gives the chosen pack (Figma 2106:416252 vs 1654:372735). */
+  background: rgba(255, 255, 255, 0.2);
   font-family: ${theme.font.sans};
-  font-size: 16px;
-  font-weight: 800;
+  font-size: 15px;
+  font-weight: 700;
   line-height: 24px;
   letter-spacing: 0.46px;
-  color: ${theme.colors.text2};
+  color: ${theme.colors.softWhite};
   text-transform: uppercase;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+
+  [data-testid='pack']:hover &,
+  [data-testid='pack']:focus-visible &,
+  [data-testid='pack']:active & {
+    background: ${theme.colors.white};
+    color: ${theme.colors.text2};
+    font-size: 16px;
+    font-weight: 800;
+  }
 `
 
 const shimmer = keyframes`

@@ -319,7 +319,6 @@ export function GetCredits() {
       hidden pack buttons out of the tab order, so the covered grid can't be reached with the keyboard. */}
       {(phase === 'select' || phase === 'redirecting') && (
         <S.Hero data-testid="credits-hero">
-          <S.HeroBackdrop aria-hidden />
           <S.HeroPanel>
             <S.HeroInner $hidden={phase === 'redirecting'}>
               <S.Head>
