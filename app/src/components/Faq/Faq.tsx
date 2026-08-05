@@ -1,0 +1,89 @@
+import { useId, useState } from 'react'
+import { Icon } from '~/components/Icon'
+import { t } from '~/intl/i18n'
+import * as S from './Faq.styles'
+
+/**
+ * The "Learn More About Credits" accordion — Figma 2123:439952 (migration tool) and 2106:416524 (credits
+ * page). Both surfaces render this; only the skin differs (see Faq.styles).
+ *
+ * Rows open INDEPENDENTLY rather than one-at-a-time. Nothing in the design says which, and independent is
+ * the forgiving reading: someone comparing two answers ("do I receive Credits?" against "can I change the
+ * price later?") does not have their first answer yanked away by opening the second. It also matches the
+ * project's existing collapsible (CategoryFilter), where clicking an open header is what closes it.
+ *
+ * The questions and answers arrive as i18n KEYS, not text: the copy belongs to the locale files, and each
+ * page owns its own list, so this component never has to know which FAQ it is showing.
+ */
+export type FaqEntry = {
+  /** i18n key for the question — the visible label of the toggle. */
+  question: string
+  /** i18n key for the answer. A newline in the string renders as a line break (see S.Answer). */
+  answer: string
+}
+
+export function Faq({
+  title,
+  entries,
+  tone = 'light',
+  className
+}: {
+  /** i18n key for the section heading. */
+  title: string
+  entries: readonly FaqEntry[]
+  /** 'on-dark' is the outlined skin the credits hero backdrop needs. */
+  tone?: 'light' | 'on-dark'
+  className?: string
+}) {
+  // A row is open when its key is in the set. The set (not an index) so the list can be reordered or
+  // extended without silently opening a different question.
+  const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set())
+  const baseId = useId()
+
+  function toggle(key: string) {
+    setOpen(current => {
+      const next = new Set(current)
+      if (!next.delete(key)) next.add(key)
+      return next
+    })
+  }
+
+  return (
+    <S.Root className={className} data-tone={tone} data-testid="faq">
+      <S.Title>{t(title)}</S.Title>
+      <S.List>
+        {entries.map(entry => {
+          const isOpen = open.has(entry.question)
+          const panelId = `${baseId}-${entry.question}`
+          return (
+            <S.Item key={entry.question} data-open={isOpen} data-testid="faq-item">
+              <S.Header
+                type="button"
+                onClick={() => toggle(entry.question)}
+                aria-expanded={isOpen}
+                aria-controls={panelId}
+                data-open={isOpen}
+                data-testid="faq-question"
+              >
+                <S.Question>{t(entry.question)}</S.Question>
+                {/* Decorative: the button already announces its own state through aria-expanded, so a
+                    labelled icon would have the screen reader say it twice. */}
+                <S.Chevron data-open={isOpen} aria-hidden>
+                  <Icon name="chevron-up-line" size={36} />
+                </S.Chevron>
+              </S.Header>
+              {/* Unmounted while closed rather than hidden: an answer that stays in the DOM is still found
+                  by in-page search and read by a screen reader walking the page, which makes a collapsed
+                  FAQ a wall of text to anyone not using the toggles. */}
+              {isOpen && (
+                <S.Answer id={panelId} role="region" data-testid="faq-answer">
+                  {t(entry.answer)}
+                </S.Answer>
+              )}
+            </S.Item>
+          )
+        })}
+      </S.List>
+    </S.Root>
+  )
+}

@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { useWallet } from '~/store/wallet'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
+import { Faq, type FaqEntry } from '~/components/Faq'
 import { Icon } from '~/components/Icon'
 import { CURRENCY, formatAmount } from '~/lib/currency'
 import { detailRouteFor } from '~/lib/routes'
@@ -56,6 +57,17 @@ function bundledArtFor(pack: CreditPack, index: number): string {
 function artFor(pack: CreditPack, index: number): string {
   return pack.artUrl ?? bundledArtFor(pack, index)
 }
+
+// Figma 2106:416524. No MANA, no wallet, nothing about chains — this is the shopper-facing list, so it
+// stays inside the web2-first rule (CONVENTIONS.md). "Marketplace" is the other product's name, not jargon.
+const BUYER_FAQ: readonly FaqEntry[] = [
+  { question: 'faq.buyers.whatAreQ', answer: 'faq.buyers.whatAreA' },
+  { question: 'faq.buyers.whatCanIBuyQ', answer: 'faq.buyers.whatCanIBuyA' },
+  { question: 'faq.buyers.whereBuyQ', answer: 'faq.buyers.whereBuyA' },
+  { question: 'faq.buyers.whereUseQ', answer: 'faq.buyers.whereUseA' },
+  { question: 'faq.buyers.expireQ', answer: 'faq.buyers.expireA' },
+  { question: 'faq.buyers.transferQ', answer: 'faq.buyers.transferA' }
+]
 
 // Where "Get credits and start shopping" points. No credits-specific doc yet — link to the shop docs.
 const LEARN_MORE_URL = 'https://docs.decentraland.org'
@@ -298,30 +310,38 @@ export function GetCredits() {
       {(phase === 'select' || phase === 'redirecting') && (
         <S.Hero data-testid="credits-hero">
           <S.HeroBackdrop aria-hidden />
-          <S.HeroInner $hidden={phase === 'redirecting'}>
-            <S.Head>
-              <S.Title>{t('getCredits.title', { currency: CURRENCY.name })}</S.Title>
-              <S.SubRow>
-                <S.Sub>{t('getCredits.subtitle', { currency: CURRENCY.nameSingular })}</S.Sub>
-                <S.Learn href={LEARN_MORE_URL} target="_blank" rel="noreferrer">
-                  {t('getCredits.learnMore')}
-                  <Icon name="link-out" />
-                </S.Learn>
-              </S.SubRow>
-            </S.Head>
+          <S.HeroPanel>
+            <S.HeroInner $hidden={phase === 'redirecting'}>
+              <S.Head>
+                <S.Title>{t('getCredits.title', { currency: CURRENCY.name })}</S.Title>
+                <S.SubRow>
+                  <S.Sub>{t('getCredits.subtitle', { currency: CURRENCY.nameSingular })}</S.Sub>
+                  <S.Learn href={LEARN_MORE_URL} target="_blank" rel="noreferrer">
+                    {t('getCredits.learnMore')}
+                    <Icon name="link-out" />
+                  </S.Learn>
+                </S.SubRow>
+              </S.Head>
 
-            {canceledNote && <S.Note role="status">{t('getCredits.canceledNote')}</S.Note>}
+              {canceledNote && <S.Note role="status">{t('getCredits.canceledNote')}</S.Note>}
 
-            <PackGrid packs={packs} loading={packsLoading} onSelect={pack => void startCheckout(pack)} />
-          </S.HeroInner>
+              <PackGrid packs={packs} loading={packsLoading} onSelect={pack => void startCheckout(pack)} />
+            </S.HeroInner>
 
-          {/* Centred in the panel the grid just filled, over the same backdrop. */}
-          {phase === 'redirecting' && (
-            <S.RedirectStatus role="status" aria-live="polite">
-              <S.RedirectLogo src={loaderLogo} alt="" width={72} height={72} />
-              <S.RedirectNote>{t('getCredits.redirecting')}</S.RedirectNote>
-            </S.RedirectStatus>
-          )}
+            {/* Centred in the panel the grid just filled, over the same backdrop. */}
+            {phase === 'redirecting' && (
+              <S.RedirectStatus role="status" aria-live="polite">
+                <S.RedirectLogo src={loaderLogo} alt="" width={72} height={72} />
+                <S.RedirectNote>{t('getCredits.redirecting')}</S.RedirectNote>
+              </S.RedirectStatus>
+            )}
+          </S.HeroPanel>
+
+          {/* Inside the Hero, so it reads on the same backdrop the design puts it on — the outlined skin
+              is white-on-dark and would be invisible on the page below. */}
+          <S.FaqBlock>
+            <Faq title="faq.title" entries={BUYER_FAQ} tone="on-dark" />
+          </S.FaqBlock>
         </S.Hero>
       )}
 
