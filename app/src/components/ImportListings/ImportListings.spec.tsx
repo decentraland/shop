@@ -173,4 +173,18 @@ describe('when the seller has nothing left to move', () => {
 
     expect(screen.getByRole('link', { name: 'My Items' }).getAttribute('href')).toBe('/my-items?section=creations')
   })
+
+  /**
+   * The FAQ is the reason this page gets pasted to creators, and "all set" is exactly when it stops being a
+   * to-do list and becomes reference. The early return used to stop at the empty card, so reaching all-set
+   * took the explanation away at the moment it became shareable.
+   */
+  it('should still show the credits FAQ below the all-set state', () => {
+    useImportable.mockReturnValue({ items: [], count: 0, isLoading: false })
+    renderTool()
+
+    expect(screen.getByTestId('import-empty')).toBeInTheDocument()
+    expect(screen.getByText('Learn More About Credits')).toBeInTheDocument()
+    expect(screen.getByText('What are Credits?')).toBeInTheDocument()
+  })
 })

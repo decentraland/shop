@@ -37,7 +37,8 @@ describe('move old listings', () => {
     const { page } = app
 
     await waitForText(page, 'Bring your listings into the new shop!')
-    expect(new URL(page.url()).pathname + new URL(page.url()).search).toBe('/activity?view=migrate')
+    // Redirects to the shareable spelling — the one handed to creators.
+    expect(new URL(page.url()).pathname + new URL(page.url()).search).toBe('/activity?section=listings')
 
     // One flat list of everything importable, headed by the count of items still to move.
     await waitForText(page, 'Update Pricing')

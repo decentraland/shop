@@ -109,24 +109,36 @@ export function ImportListings() {
     toast.success(t('importListings.toastUpdated'))
   }
 
+  // Nothing to migrate — either the creator has no classic listings or they have already moved them all.
+  //
+  // The FAQ still renders. It answers "what are Credits", "how does pricing work", "when do I get paid" —
+  // questions a creator with nothing left to migrate has just as much reason to ask, and this page is the
+  // link we hand them to read the answers. The early return used to stop at the empty card, so reaching
+  // "all set" silently took the explanation away at the exact moment it became shareable.
   if (!isLoading && all.length === 0) {
     return (
-      <S.Empty data-testid="import-empty">
-        <S.EmptyCard>
-          <S.EmptyIco aria-hidden>
-            <img src={doneRing} alt="" width={85} height={85} />
-          </S.EmptyIco>
-          <S.EmptyText>
-            <S.EmptyTitle>{t('importListings.emptyTitle')}</S.EmptyTitle>
-            <S.EmptyBody>{t('importListings.emptyBody')}</S.EmptyBody>
-          </S.EmptyText>
-          <S.EmptyActions>
-            <S.EmptyCta as={Link} to={MY_CREATIONS} variant="purple">
-              {t('importListings.goToMyAssets')}
-            </S.EmptyCta>
-          </S.EmptyActions>
-        </S.EmptyCard>
-      </S.Empty>
+      <S.Root>
+        <S.Empty data-testid="import-empty">
+          <S.EmptyCard>
+            <S.EmptyIco aria-hidden>
+              <img src={doneRing} alt="" width={85} height={85} />
+            </S.EmptyIco>
+            <S.EmptyText>
+              <S.EmptyTitle>{t('importListings.emptyTitle')}</S.EmptyTitle>
+              <S.EmptyBody>{t('importListings.emptyBody')}</S.EmptyBody>
+            </S.EmptyText>
+            <S.EmptyActions>
+              <S.EmptyCta as={Link} to={MY_CREATIONS} variant="purple">
+                {t('importListings.goToMyAssets')}
+              </S.EmptyCta>
+            </S.EmptyActions>
+          </S.EmptyCard>
+        </S.Empty>
+
+        <S.FaqBlock>
+          <Faq title="faq.title" entries={SELLER_FAQ} />
+        </S.FaqBlock>
+      </S.Root>
     )
   }
 
