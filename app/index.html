@@ -21,7 +21,17 @@
     <meta name="apple-mobile-web-app-title" content="DCL Shop" />
     <link rel="manifest" href="/site.webmanifest" />
 
-    <!-- Open Graph -->
+    <!-- Open Graph.
+
+         These are not just the home page's tags — they are the tags EVERY shared shop link gets. The
+         classic social crawlers (Twitterbot, facebookexternalhit, Discordbot, Slackbot, WhatsApp,
+         LinkedInBot) do not execute JavaScript, and the CDN serves this same file for every route, so a
+         shared item / collection / creator URL is previewed from the block below and never from the
+         per-page tags src/hooks/useSeo.ts writes after mount. Keep this card generic and accurate for
+         that reason: it has to stand in for the whole site.
+
+         Making a shared item link carry the ITEM's own image needs the tags injected server-side, before
+         the HTML is sent — see the note at the top of src/hooks/useSeo.ts. -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Decentraland Shop" />
     <meta property="og:title" content="Decentraland Shop | Wearables & Emotes for Your Avatar" />

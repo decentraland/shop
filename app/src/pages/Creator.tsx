@@ -42,7 +42,17 @@ export function Creator() {
 
   // Per-page SEO — the creator's display name (or shortened address until the profile loads) as the
   // title, with a creator-scoped description. Indexable.
-  useSeo({ title: name, description: t('seo.creator.description', { name }) })
+  //
+  // The share image is the creator's own face snapshot (the same one the hero renders), which the profile
+  // service serves as a 256x256 square — the shape the hook's square-thumb card is built for. Absent for
+  // an address with no profile, in which case the default shop card applies. The store COVER is
+  // deliberately not used: it is a user upload of unknown aspect ratio, so it could not be described
+  // honestly on either card type.
+  useSeo({
+    title: name,
+    description: t('seo.creator.description', { name }),
+    image: profile?.avatar?.snapshots?.face256
+  })
 
   // 'all' (Shop All), not 'wearable': a creator who only makes emotes must not open on an empty grid.
   const [category, setCategory] = useState('all')

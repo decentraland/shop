@@ -1143,7 +1143,14 @@ export async function resolveLiveTrade(item: {
  *    on every path into it (a direct URL starts from a stub), so reading it here makes the badge
  *    independent of how the visitor arrived.
  */
-export type ItemMeta = { name?: string; thumbnail?: string; isSmart: boolean; utility: string | null }
+export type ItemMeta = {
+  name?: string
+  thumbnail?: string
+  isSmart: boolean
+  utility: string | null
+  /** The canonical asset urn, straight from the server — no need to rebuild one from contract + itemId. */
+  urn: string | null
+}
 
 export async function fetchItemMeta(contractAddress: string, itemId: string): Promise<ItemMeta | null> {
   const qs = new URLSearchParams({ contractAddress, itemId, first: '1' })
@@ -1154,6 +1161,7 @@ export async function fetchItemMeta(contractAddress: string, itemId: string): Pr
       name?: string
       thumbnail?: string
       utility?: string | null
+      urn?: string
       data?: { wearable?: { isSmart?: boolean } }
     }>
   }
@@ -1164,7 +1172,8 @@ export async function fetchItemMeta(contractAddress: string, itemId: string): Pr
     thumbnail: row.thumbnail,
     isSmart: !!row.data?.wearable?.isSmart,
     // Blank-but-present is the same as absent for rendering; normalise here so no caller has to trim.
-    utility: row.utility?.trim() || null
+    utility: row.utility?.trim() || null,
+    urn: row.urn ?? null
   }
 }
 

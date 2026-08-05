@@ -92,7 +92,7 @@ export const EmoteControls = styled.div`
   inset: 0;
   pointer-events: none;
 
-  & [class*="MuiBox"] {
+  & [class*='MuiBox'] {
     pointer-events: auto;
   }
 `

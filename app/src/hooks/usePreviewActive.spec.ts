@@ -56,10 +56,13 @@ describe('usePreviewActive', () => {
     expect(result.current.active).toBe(true)
   })
 
-  it('becomes inactive when the tab is hidden and active again when it is shown', () => {
+  // Deliberate: a hidden tab must NOT unmount the preview. It used to, and the reload on every tab switch
+  // was the visible cost — while a hidden tab's render loop is already clamped by the browser, so there was
+  // nothing to save. Only scrolling away unmounts.
+  it('stays active while the tab is hidden, so returning to it does not reload the scene', () => {
     const { result } = renderHook(() => usePreviewActive<HTMLDivElement>())
     act(() => setVisibility('hidden'))
-    expect(result.current.active).toBe(false)
+    expect(result.current.active).toBe(true)
     act(() => setVisibility('visible'))
     expect(result.current.active).toBe(true)
   })

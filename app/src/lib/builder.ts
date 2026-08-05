@@ -138,6 +138,25 @@ async function fetchItemContents(contractAddress: string, itemId: string): Promi
   }
 }
 
+// A creator may ship a showcase clip alongside a smart wearable's assets. The builder stores it as an
+// ordinary content entry, so the only thing that marks it is the file name.
+const VIDEO_FILE = 'video.mp4'
+
+/**
+ * The item's SHOWCASE VIDEO as a playable URL, or null when its creator did not upload one — which is the
+ * common case, including for every non-smart item. Same source the marketplace reads (its
+ * getSmartWearableVideoShowcase): the builder's per-item contents map, keyed by file name, resolved to a
+ * storage URL by hash. Nested paths count (`male/video.mp4`), hence the suffix match rather than a lookup.
+ *
+ * Fail-soft by construction: fetchItemContents swallows transport errors into an empty map, and an empty map
+ * means no video. A missing clip must never take the item page down with it.
+ */
+export async function fetchItemVideoUrl(contractAddress: string, itemId: string): Promise<string | null> {
+  const contents = await fetchItemContents(contractAddress, itemId)
+  const key = Object.keys(contents).find(name => name.endsWith(VIDEO_FILE))
+  return key ? contentUrl(contents[key]) : null
+}
+
 /**
  * The item's thumbnail as a loadable URL. The builder returns `thumbnail` as a filename, so we map it
  * through the item's `contents` (filename → hash). Falls back to the public per-item contents endpoint

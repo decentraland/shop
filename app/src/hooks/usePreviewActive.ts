@@ -1,19 +1,21 @@
 import { useEffect, useRef, useState } from 'react'
 
 // A heavy 3D preview (Unity/aang or Babylon) keeps a live WebGL context + render loop running even when
-// nobody's looking at it — pegging GPU/CPU while the tab is backgrounded or the preview is scrolled out
-// of view. The decentraland-ui2 wrapper exposes no "pause" message, so the pragmatic lever is to
-// conditionally render (unmount) the preview and remount it when it's on-screen AND the tab is visible.
+// nobody's looking at it. The decentraland-ui2 wrapper exposes no "pause" message, so the pragmatic lever is
+// to conditionally render (unmount) the preview and remount it when it is back on screen.
 //
-// Returns a ref to attach to the element that stands in for the preview's box, plus `active` — true only
-// while that element intersects the viewport and the tab isn't hidden. Starts `true` so an above-the-fold
-// preview mounts immediately (no first-paint flicker); the observer corrects it on the next frame.
+// SCROLL only, deliberately not tab visibility. Unmounting on `visibilitychange` meant every trip to another
+// tab threw the loaded scene away, and coming back paid the multi-second reload again, spinner and all — for
+// no saving: browsers already clamp rAF to a near-stop in a hidden tab, so the backgrounded preview costs
+// almost nothing to keep. Off-screen is the case where the render loop really does run at full speed with
+// nobody watching, and that one is still unmounted.
+//
+// Returns a ref to attach to the element that stands in for the preview's box, plus `active` — true while
+// that element intersects the viewport. Starts `true` so an above-the-fold preview mounts immediately (no
+// first-paint flicker); the observer corrects it on the next frame.
 export function usePreviewActive<T extends HTMLElement>() {
   const ref = useRef<T | null>(null)
   const [onScreen, setOnScreen] = useState(true)
-  const [tabVisible, setTabVisible] = useState(
-    () => typeof document === 'undefined' || document.visibilityState !== 'hidden'
-  )
 
   useEffect(() => {
     const el = ref.current
@@ -26,12 +28,5 @@ export function usePreviewActive<T extends HTMLElement>() {
     return () => io.disconnect()
   }, [])
 
-  useEffect(() => {
-    if (typeof document === 'undefined') return
-    const onVisibility = () => setTabVisible(document.visibilityState !== 'hidden')
-    document.addEventListener('visibilitychange', onVisibility)
-    return () => document.removeEventListener('visibilitychange', onVisibility)
-  }, [])
-
-  return { ref, active: onScreen && tabVisible }
+  return { ref, active: onScreen }
 }

@@ -412,8 +412,9 @@ function PackGrid({
   loading: boolean
   onSelect: (pack: CreditPack) => void
 }) {
-  // Content-shaped skeletons (same card shell as a real pack) while the catalogue loads, so the grid
-  // keeps its shape instead of flashing a bare spinner. Four matches the usual pack count.
+  // Content-shaped skeletons (same card shell as a real pack) while the catalogue loads, so the grid keeps
+  // its shape instead of flashing a bare spinner. Four matches the usual pack count. Every bar is sized like
+  // the element that replaces it (see SkAmount/SkUnit/SkArt), so the hand-off moves nothing.
   if (loading) {
     return (
       <S.Grid aria-busy="true" aria-label={t('getCredits.packsLoading', { currency: CURRENCY.name })}>
@@ -422,6 +423,7 @@ function PackGrid({
             <S.PackTop>
               <S.PackHeading>
                 <S.SkAmount />
+                <S.SkUnit />
               </S.PackHeading>
               <S.SkArt />
             </S.PackTop>

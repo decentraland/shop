@@ -58,6 +58,8 @@ export type Fixtures = {
   publicNfts: unknown
   builderCollections: unknown
   builderItems: unknown
+  /** The builder's per-item contents map (file name → hash). A `video.mp4` entry is a showcase clip. */
+  builderItemContents: Record<string, string>
   profile: unknown
   authorize: unknown
   trade: unknown
@@ -85,6 +87,7 @@ function defaults(): Fixtures {
     publicNfts: fx.ownedNfts,
     builderCollections: fx.builderCollections,
     builderItems: fx.builderItems,
+    builderItemContents: { 'thumbnail.png': 'bafyfake' },
     profile: fx.profile,
     userStore: null,
     authorize: {
@@ -213,7 +216,12 @@ function toCatalogRow(l: any) {
     price: isResale ? null : priceWei,
     minPrice: priceWei,
     available: l.available ?? 0,
-    priceCredits
+    priceCredits,
+    // The item page reads `isSmart` and `utility` from the v1 items shape, where isSmart lives NESTED under
+    // data.wearable (the catalog rows carry it flat). Kept faithful here so the smart-wearable badges and the
+    // showcase-clip lookup exercise the same field they read in production.
+    utility: l.utility ?? null,
+    data: { wearable: { category: l.wearableCategory, isSmart: !!l.isSmart } }
   }
 }
 
@@ -502,8 +510,12 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
     if (path === '/v3/catalog/items' || path === '/v1/items') {
       const ca = u.searchParams.get('contractAddress')
       const creator = u.searchParams.get('creator')
+      // itemId matters on the item route: fetchItemMeta asks for ONE item, and answering with the whole
+      // collection handed it the first row's traits — a different item's isSmart / utility.
+      const itemsItemId = u.searchParams.get('itemId')
       let rows = ((F.shopListings as { data: any[] }).data ?? []).map(toCatalogRow)
       if (ca) rows = rows.filter(r => String(r.contractAddress).toLowerCase() === ca.toLowerCase())
+      if (itemsItemId) rows = rows.filter(r => String(r.itemId) === itemsItemId)
       if (creator) rows = rows.filter(r => String(r.creator).toLowerCase() === creator.toLowerCase())
       // The browse filters, honored exactly as the other feeds honor them. `search` matches a substring
       // of the NAME — the same rule /v3/catalog/unified applies, so the "All"/"Not for Sale" grid and
@@ -596,7 +608,7 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
   if (u.hostname.includes('builder-api')) {
     if (/\/v1\/collections\/.+\/items/.test(path)) return json(req, F.builderItems)
     if (/\/v1\/.+\/collections/.test(path)) return json(req, F.builderCollections)
-    if (/\/v1\/items\/.+\/contents$/.test(path)) return json(req, { data: { 'thumbnail.png': 'bafyfake' } })
+    if (/\/v1\/items\/.+\/contents$/.test(path)) return json(req, { data: F.builderItemContents })
     return json(req, { data: [] })
   }
 
