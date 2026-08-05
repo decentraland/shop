@@ -8,7 +8,6 @@ import { CreatorBadge } from '~/components/CreatorBadge'
 import { CreatorName } from '~/components/CreatorName'
 import { SaleCountdown } from '~/components/SaleCountdown'
 import { Icon } from '~/components/Icon'
-import cartSolidUrl from '~/assets/icons/cart-solid.svg'
 
 const { colors, radius, media } = theme
 
@@ -677,19 +676,16 @@ const cartCss = css`
   @media (hover: none) and (min-width: 721px) {
     display: flex;
   }
-  /* Hover/pressed flip the pill to solid white with a dark label and the FILLED cart (Figma
-     738:53264). The icon swap sets mask-image directly rather than the Icon's --icon-url variable,
-     which is an inline style and would need !important to beat. Double quotes are required: Vite
-     inlines the SVG as a data URI whose own attributes are single-quoted. */
+  /* Hover/pressed flip the pill to solid white with a soft-black-2 label (Figma 738:53264). The
+     design also swaps in its Cart-filled glyph there; we don't ship that artwork — icons/cart-solid
+     is the same outline path at another scale — so the cart just inherits the dark label colour.
+     Do NOT swap it by overriding mask-image with the imported asset: Vite inlines the SVG as a data
+     URI whose attributes are single-quoted, and Prettier rewrites the url() to single quotes too,
+     which terminates the string early and drops the mask (the icon renders as a filled square). */
   &:hover:not(:disabled),
   &:active:not(:disabled) {
     background: ${colors.softWhite};
     color: ${colors.blackBtn};
-  }
-  &:hover:not(:disabled) .ico,
-  &:active:not(:disabled) .ico {
-    -webkit-mask-image: url('${cartSolidUrl}');
-    mask-image: url('${cartSolidUrl}');
   }
   &[data-in],
   &:disabled {
