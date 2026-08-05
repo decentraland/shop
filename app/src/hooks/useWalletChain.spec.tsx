@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, waitFor, act } from '@testing-library/react'
 import type { Session } from '~/lib/auth'
 
-// A .zone / dev deployment. Separate spec file from NetworkSelector's because the derived chain list is
+// A .zone / dev deployment. The derived chain list is
 // read off the config at module scope, and this is the half that must NOT offer mainnets.
 vi.mock('~/config', () => ({ config: { chainId: 80002 } }))
 

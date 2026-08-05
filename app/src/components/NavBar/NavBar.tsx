@@ -9,11 +9,11 @@ import { useWallet } from '~/store/wallet'
 import { useProfile } from '~/hooks/useProfile'
 import { useIsOutfitCreator } from '~/hooks/useOutfits'
 import { useBalance } from '~/hooks/useBalance'
+import { useWalletChain } from '~/hooks/useWalletChain'
 import { useManaBalance } from '~/hooks/useManaBalance'
 import { manaWeiToNumber } from '~/lib/mana-format'
 import { useCart } from '~/store/cart'
 import { CartPopover } from '~/components/CartPopover'
-import { NetworkSelector } from '~/components/NetworkSelector'
 import { SearchDropdown } from '~/components/SearchDropdown'
 import { CURRENCY } from '~/lib/currency'
 import { detailRouteFor } from '~/lib/routes'
@@ -43,6 +43,12 @@ export function NavBar() {
   const address = session?.address
   const { data: avatar, isLoading: isLoadingProfile } = useProfile(address)
   const { data: balance, isError: balanceError, isLoading: balanceLoading } = useBalance(session)
+  // Null for a managed (web2) wallet, so the hook never asks it where it is and ui2 hides its chain pill:
+  // those users have no network to choose, every rail they touch being a relayed signature that works from
+  // any chain — and network wording is what they must never be shown (CONVENTIONS.md).
+  const { chainId, chains, switchTo } = useWalletChain(
+    session && showsWalletConfirmations(session.providerType) ? session : null
+  )
   // Polygon MANA the wallet already holds. Drives the navbar chip (rendered only when > 0) and, in the
   // buy flow, which payment rails are offered. No skeleton: an absent/zero balance renders nothing.
   const { data: manaBalanceWei } = useManaBalance(session)
@@ -205,20 +211,17 @@ export function NavBar() {
         onClickShopCredits={() => navigate('/credits')}
         manaBalances={manaBalances}
         showManaBalancesInNavbar
-        // ui2's Navbar calls this its notification slot, but it is the ONE place a consumer can render
-        // into that row, so the network selector shares it with the bell. The selector goes first, next
-        // to the balance chips it belongs with; it renders nothing for managed wallets, in which case the
-        // slot is just the bell as before. ui2's own chain pill is deliberately left off — the
-        // `selectedChain`/`chains` props are not passed, see NetworkSelector for why.
+        // The chain pill goes INSIDE the profile panel, which is where the marketplace has it and where
+        // ui2's own UserCardPanel renders it once these three props are passed. Nothing is passed for a
+        // managed (web2) wallet: `useWalletChain` is given null, so it never asks the wallet where it is,
+        // `chains` stays empty and ui2 hides the pill. Those users have no network to choose — every rail
+        // they touch is a relayed signature that works from any chain.
+        selectedChain={chainId}
+        chains={chains}
+        onSelectChain={chain => void switchTo(chain)}
         notificationSlot={
           session ? (
             <S.NavSlot>
-              {/* Both halves of the slot are isolated, for the same reason: nothing in this row is worth
-                  white-screening the navbar over. The selector talks to the wallet, which is the least
-                  predictable surface the shop has — an injected provider can throw from anywhere. */}
-              <Sentry.ErrorBoundary fallback={<></>}>
-                <NetworkSelector />
-              </Sentry.ErrorBoundary>
               {/* A ui2 notification row can throw while rendering (e.g. one with an unparseable date →
                   formatDistanceToNow "Invalid time value"). Isolate it so a bad item renders nothing
                   instead of white-screening the whole navbar/app. */}
