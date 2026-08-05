@@ -165,9 +165,11 @@ describe('when fetching the buyer purchase history', () => {
     const result = await fetchUserPurchases('0xABC', IDENTITY)
 
     // The record is returned with the absent fields normalised to null — `txHash` (no settlement hash on
-    // the payload) and the item identity, which an older server omits entirely. One absent-value for every
-    // consumer to check instead of both null and undefined.
-    expect(result.items).toEqual([{ ...purchases[0], txHash: null, contractAddress: null, itemId: null }])
+    // the payload), the item identity and the submission hash, all of which an older server omits entirely.
+    // One absent-value for every consumer to check instead of both null and undefined.
+    expect(result.items).toEqual([
+      { ...purchases[0], txHash: null, contractAddress: null, itemId: null, submittedTxHash: null }
+    ])
     expect(signedFetch.mock.calls[0][0]).toBe('https://credits.example/users/0xabc/purchases')
   })
 

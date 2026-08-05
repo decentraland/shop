@@ -580,6 +580,7 @@
     "processing": "Procesando",
     "completed": "Completada",
     "failed": "Fallida",
+    "purchaseFailedNote": "Esta compra no se completó, así que no se te cobró. Tus créditos volvieron a tu saldo.",
     "sold": "Vendido",
     "polygonMana": "Polygon MANA",
     "purchaseLabel": "Compra",

@@ -23,6 +23,7 @@ import { buildUseCreditsArgs, type SpendableCredit } from '~/lib/trade-encoding'
 // The grouping and the per-group calldata live in ~/lib/buy so BOTH rails build the money call the same
 // way. buy.ts does not import this module, so the dependency runs one way only.
 import { buildGroupUseCreditsArgs, groupPurchases, type MixedPurchases } from '~/lib/buy'
+import { reportSubmittedTx } from '~/lib/purchase-report'
 
 const { Interface, hexZeroPad } = ethers.utils
 
@@ -290,6 +291,9 @@ export async function buyManyGasless(opts: {
     const functionData = new Interface(cm.abi).encodeFunctionData('useCredits', [args])
     const txHash = await relay(chainId, buyer, functionData, signer, onSigned)
     onBroadcast?.({ txHash, salts })
+    // See the same call in buy.ts: reported once here, next to the broadcast, so no checkout path can omit
+    // it. This rail needs it most — the relayed mint is where the expired-credit reverts came from.
+    reportSubmittedTx({ txHash, salts })
     hashes.push(txHash)
   }
   return hashes

@@ -13,6 +13,7 @@ import { config } from '~/config'
 import { metaTxProviderShim, readProvider } from '~/lib/authorizations'
 import { gaslessConfig } from '~/lib/gasless-config'
 import { requireChain } from '~/lib/network'
+import { reportSubmittedTx } from '~/lib/purchase-report'
 import { confirmMetaTx, MetaTxPendingError, MetaTxRevertedError, confirmMetaTxByEffect } from '~/lib/tx-confirm'
 import {
   amoyGasOverrides,
@@ -595,6 +596,10 @@ export async function buyManyWithCredits(opts: {
         // receipt: a group whose transaction was submitted and then failed to mine (timeout, RPC drop) has
         // still spent its credits, and its reservations must not be released either.
         onBroadcast?.({ txHash, salts })
+        // Told to the server here, at the one point where hash and salts are both in hand, rather than at
+        // each caller's onBroadcast — there are four of those and a purchase whose report was forgotten is
+        // a purchase that disappears if it fails. Fire and forget; it cannot fail the checkout.
+        reportSubmittedTx({ txHash, salts })
       })
     } catch (err) {
       // A definitive revert is the ONE post-broadcast failure whose credits are provably untouched. Reported
