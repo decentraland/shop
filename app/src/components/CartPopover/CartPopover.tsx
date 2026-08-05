@@ -8,7 +8,6 @@ import { t } from '~/intl/i18n'
 import { formatCredits, formatCreditsFull } from '~/lib/currency'
 import { useCartAvailability } from '~/hooks/useCartAvailability'
 import { isLineBuyable, type CartLineAvailability } from '~/lib/cart-availability'
-import type { CartNavState } from '~/pages/Cart'
 import * as S from './CartPopover.styles'
 
 // A single cart line: thumbnail (+ in-cart check), name, creator, quantity stepper, price, delete.
@@ -191,17 +190,16 @@ export function CartPopover() {
               {formatCredits(total)}
             </S.TotalVal>
           </S.TotalRow>
+          {/* Dismiss on the left, advance on the right. The advancing action is GO TO CART — it lands on
+              the cart and stops there. It used to be CHECKOUT, which carried `startCheckout` and had the
+              purchase already running on arrival: the buyer was committed before ever seeing what they
+              were buying. Reviewing the cart is the point of going to it. */}
           <S.Ctas>
-            <S.Cta data-variant="secondary" to="/cart" onClick={() => setOpen(false)}>
+            <S.CtaButton data-variant="secondary" type="button" onClick={() => setOpen(false)}>
+              {t('cartPopover.continueShopping')}
+            </S.CtaButton>
+            <S.Cta data-variant="primary" to="/cart" onClick={() => setOpen(false)}>
               {t('cartPopover.goToCart')}
-            </S.Cta>
-            <S.Cta
-              data-variant="primary"
-              to="/cart"
-              state={{ startCheckout: true } satisfies CartNavState}
-              onClick={() => setOpen(false)}
-            >
-              {t('cartPopover.checkout')}
             </S.Cta>
           </S.Ctas>
         </S.Foot>
