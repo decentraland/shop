@@ -2,16 +2,15 @@ import styled from '@emotion/styled'
 import { theme } from '~/styles/theme'
 
 // Holds the space of the lazy-loaded global DCL navbar (same height) so there's no layout shift; the
-// violet fill matches the restyled navbar bar (see NavbarViolet below) so it doesn't flash when it
-// hydrates.
+// fill matches the restyled navbar bar (see NavbarViolet below) so it doesn't flash when it hydrates.
 export const Skeleton = styled.div`
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   height: 92px;
-  /* Dark-theme test: solid stand-in close to the translucent bar over the purple field. */
-  background: #3c1358;
+  /* Dark-theme test: solid stand-in for the bar's #161518 at 40% over the purple field. */
+  background: #36184a;
   z-index: 50;
 
   ${theme.media.maxWidth('mobile')} {
@@ -35,18 +34,19 @@ export const Skeleton = styled.div`
 export const NavbarViolet = styled.div`
   display: contents;
 
-  /* Bar background (dark-theme test): translucent deep purple (#401458, per the designer) over the
-     page field. Like the sub-nav, it deepens once the page scrolls (body[data-scrolled], set by
-     NavBar) so it doesn't wash out over light content passing underneath. */
+  /* Bar background (dark-theme test): translucent near-black (#161518 at 40%, per the designer) over
+     the page field. It deepens to 80% once the page scrolls (body[data-scrolled], set by NavBar) so it
+     doesn't wash out over light content passing underneath. The sub-nav below uses its own #401458 —
+     the two bars are deliberately different colours. */
   & nav::before {
-    background: rgba(64, 20, 88, 0.2);
+    background: rgba(22, 21, 24, 0.4);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     box-shadow: none;
     transition: background 0.25s ease;
   }
   body[data-scrolled] & nav::before {
-    background: rgba(64, 20, 88, 0.8);
+    background: rgba(22, 21, 24, 0.8);
   }
 
   /* Desktop nav tabs (Explore / Shop / Create / Learn): light text on the dark bar. Direct-child

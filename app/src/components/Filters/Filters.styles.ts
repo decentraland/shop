@@ -353,15 +353,41 @@ export const StatusRow = styled.label`
   height: 40px;
   padding: 4px 4px 4px 24px;
   cursor: pointer;
+
+  /* The whole row is the target, so pointing at the label previews the same red the radio takes when
+     it is picked. Selected by tag rather than by interpolating StatusRadio (see CLAUDE.md). */
+  @media (hover: hover) {
+    &:hover input[type='radio'] {
+      border-color: ${theme.colors.dclRed};
+    }
+  }
 `
 
+// Figma 2103:411706 — the picked radio is primary red, not the accent purple.
 export const StatusRadio = styled.input`
+  appearance: none;
   width: 18px;
   height: 18px;
   margin: 0;
-  accent-color: ${theme.colors.accent};
+  border: 2px solid ${theme.colors.media};
+  border-radius: 50%;
+  background: transparent;
   cursor: pointer;
   flex: none;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+
+  /* The dot is painted as a background rather than a child element, which a replaced element can't
+     have. The half-pixel feather on the stop keeps its edge from going jagged. */
+  &:checked {
+    border-color: ${theme.colors.dclRed};
+    background: radial-gradient(circle at center, ${theme.colors.dclRed} 0 4px, transparent 4.5px);
+  }
+  &:focus-visible {
+    outline: 2px solid ${theme.colors.dclRed};
+    outline-offset: 2px;
+  }
 `
 
 export const StatusLabel = styled.span`

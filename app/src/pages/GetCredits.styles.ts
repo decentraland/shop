@@ -16,8 +16,8 @@ export const Root = styled.div`
   gap: 24px;
 `
 
-// No panel and no artwork of its own: Figma's hero frame (1654:374619) renders TRANSPARENT — the packs
-// sit straight on the page's purple field, and the band the mock appears to show is just that field.
+// The pack picker sits on a darkened band (Figma 1654:374619) — the page's purple field with 20% black
+// over it — which is what divides this section from the FAQ on the plain field below.
 export const Hero = styled.section`
   position: relative;
   isolation: isolate;
@@ -26,11 +26,29 @@ export const Hero = styled.section`
   align-items: center;
   padding: 82px clamp(16px, 7.06%, 122px) 129px;
 
+  /* Full-bleed and flush against the sub-nav, so it cancels the shell's gutter and top padding — a
+     background on the section itself would stop at the .page container's edges. */
+  &::before {
+    content: '';
+    position: absolute;
+    z-index: -1;
+    top: -28px;
+    bottom: 0;
+    left: 50%;
+    width: 100vw;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.2);
+  }
+
   ${theme.media.maxWidth('lg')} {
     padding: 48px 24px 56px;
   }
   ${theme.media.maxWidth('mobile')} {
     padding: 32px 16px 40px;
+
+    &::before {
+      top: -16px;
+    }
   }
 `
 
@@ -45,21 +63,23 @@ export const HeroPanel = styled.div`
   justify-content: center;
 `
 
-/* The buyer FAQ, 82px under the packs — the hero's own bottom padding already spaces it from the edge. */
+/* The buyer FAQ, below the band on the plain page field (Figma 2106:416524). It starts 79px under the
+   band's edge; Root's 24px gap covers part of that, so only the remainder is stated here. */
 export const FaqBlock = styled.div`
   width: 100%;
   max-width: 1478px;
-  margin-top: 82px;
+  margin: 0 auto;
+  margin-top: 55px;
 
   &:focus {
     outline: none;
   }
 
   ${theme.media.maxWidth('lg')} {
-    margin-top: 48px;
+    margin-top: 24px;
   }
   ${theme.media.maxWidth('mobile')} {
-    margin-top: 32px;
+    margin-top: 8px;
   }
 `
 
