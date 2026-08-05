@@ -35,18 +35,18 @@ export type MergedSuggestions = {
 // Identity is (contract, item) — NOT `id`, which is a tradeId on the unified feeds and a
 // contract-itemId on the catalog feed, so the same item arrives under two different ids across tiers.
 function identity(item: CatalogItem): string {
-  return `${item.contractAddress?.toLowerCase()}-${item.itemId ?? item.tokenId ?? item.id}`.toLowerCase()
+  return `${item.contractAddress}-${item.itemId ?? item.tokenId ?? item.id}`.toLowerCase()
 }
 
 function isAnchor(item: CatalogItem, anchor: SuggestionAnchor): boolean {
   if (anchor.id && item.id === anchor.id) return true
   if (anchor.itemId && item.itemId === anchor.itemId && sameContract(item, anchor)) return true
-  if (anchor.tokenId && item.tokenId === anchor.tokenId) return true
+  if (anchor.tokenId && item.tokenId === anchor.tokenId && sameContract(item, anchor)) return true
   return false
 }
 
 function sameContract(item: CatalogItem, anchor: SuggestionAnchor): boolean {
-  if (!anchor.contractAddress) return true
+  if (!anchor.contractAddress) return false
   return item.contractAddress?.toLowerCase() === anchor.contractAddress.toLowerCase()
 }
 
@@ -81,5 +81,5 @@ export function mergeSuggestions(
   take(tiers.creator ?? [], target)
   take(tiers.related ?? [], target)
 
-  return { items, isCollectionOnly: items.length === collectionCount }
+  return { items, isCollectionOnly: items.length > 0 && items.length === collectionCount }
 }

@@ -133,7 +133,7 @@ describe('mergeSuggestions', () => {
     const merged = mergeSuggestions({ collection: [], creator: [], related: [] }, anchor)
 
     expect(merged.items).toEqual([])
-    expect(merged.isCollectionOnly).toBe(true)
+    expect(merged.isCollectionOnly).toBe(false)
   })
 
   it('should treat a token listing as the anchor when the page is showing that token', () => {

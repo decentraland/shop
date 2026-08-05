@@ -50,10 +50,11 @@ const { useRelatedItems } = vi.hoisted(() => ({ useRelatedItems: vi.fn() }))
 vi.mock('~/hooks/useRelatedItems', () => ({ useRelatedItems }))
 
 vi.mock('~/lib/api', () => ({
-  fetchShopListingForItem: vi.fn().mockResolvedValue(null),
+  fetchUnifiedListingForItem: vi.fn().mockResolvedValue(null),
   fetchTradeForItem: vi.fn().mockResolvedValue(null),
   fetchItemResales: vi.fn().mockResolvedValue([]),
   fetchItemDescription: vi.fn().mockResolvedValue(''),
+  fetchItemMeta: vi.fn().mockResolvedValue(null),
   fetchOwnedToken: vi.fn().mockResolvedValue(null),
   fetchOwnedItemCount: vi.fn().mockResolvedValue(0),
   fetchTokenById: vi.fn().mockResolvedValue(null),
