@@ -141,8 +141,10 @@ export function ImportListings() {
           </S.EmptyCard>
         </S.Empty>
 
+        {/* The same outlined dark skin as the tool's own FAQ — the page under it is the violet field in
+            both states, so the light skin's black-on-translucent rows have nothing to sit on. */}
         <S.FaqBlock>
-          <Faq title="faq.title" entries={SELLER_FAQ} />
+          <Faq title="faq.title" entries={SELLER_FAQ} tone="on-dark" />
         </S.FaqBlock>
       </S.Root>
     )

@@ -28,9 +28,9 @@ const BASE = `http://localhost:${PORT}`
 let server: ChildProcess | undefined
 
 // What each section reserves with. Six per carousel (one more than the five cards the widest tier shows,
-// so a loading rail is full at every breakpoint), five looks, four creator cards.
+// so a loading rail is full at every breakpoint), six looks, four creator cards.
 const PER_RAIL = 6
-const OUTFIT_SKELETONS = 5
+const OUTFIT_SKELETONS = 6
 const CREATOR_SKELETONS = 4
 
 // The last section heading on the page: everything above it has to hold its height for this to stay put.
