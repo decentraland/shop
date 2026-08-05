@@ -74,9 +74,10 @@ export const NavbarViolet = styled.div`
   }
   & nav > div:last-of-type svg {
     color: ${theme.colors.softWhite};
-    fill: currentColor;
   }
-  & nav > div:last-of-type svg path {
+  /* Only paths that are FILLED shapes. The credits mark draws its octagon as a stroke over
+     fill="none", so filling every path turned the ring into a solid blob and swallowed the C. */
+  & nav > div:last-of-type svg path:not([stroke]) {
     fill: currentColor;
   }
 
@@ -95,16 +96,16 @@ export const NavbarViolet = styled.div`
     border-color: ${theme.colors.softWhite};
   }
 
-  /* Balance chips (shop credits + Polygon MANA): ui2 styles them near-white for its dark bar, which
-     is illegible on the light violet. The credits icon uses currentColor; the MANA diamond hardcodes
-     a near-white fill, so its paths need the explicit override. Targeted via the chips' aria-labels
-     ("<n> shop credits" / "<n> MANA on Polygon"), same contract as the hamburger below. */
+  /* Balance chips (shop credits + Polygon MANA) read WHITE on the dark bar — they were forced dark
+     back when this bar was light violet. The credits icon follows currentColor; the MANA diamond
+     hardcodes its own fill, so its paths need the explicit override. Targeted via the chips'
+     aria-labels ("<n> shop credits" / "<n> MANA on Polygon"), same contract as the hamburger below. */
   & nav button[aria-label$=' shop credits'],
   & nav button[aria-label*=' MANA on '] {
-    color: ${theme.colors.text2};
+    color: ${theme.colors.softWhite};
   }
-  & nav button[aria-label*=' MANA on '] svg path {
-    fill: ${theme.colors.text2};
+  & nav button[aria-label*=' MANA on '] svg path:not([stroke]) {
+    fill: ${theme.colors.softWhite};
   }
 
   /* Mobile hamburger / menu button: solid purple with a white icon (Figma node 1368-356253) — ui2's
