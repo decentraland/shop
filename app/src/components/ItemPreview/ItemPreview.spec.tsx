@@ -1,0 +1,99 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { PreviewRenderer, PreviewType } from '@dcl/schemas'
+import type { CatalogItem } from '~/lib/api'
+
+/**
+ * The PDP hero preview, and specifically its "On avatar / Item" switch.
+ *
+ * There was no spec here when the switch was removed, which is why nobody noticed until a shopper did:
+ * the preview still rendered, still looked right on first paint, and simply could not be flipped.
+ */
+
+// The heavy iframe stands in as a div carrying the props under test, and reports the Babylon renderer —
+// the switch is hidden under Unity, whose own scene ships one.
+const previewProps = vi.fn()
+vi.mock('~/components/LazyWearablePreview', () => ({
+  WearablePreview: (props: Record<string, unknown>) => {
+    previewProps(props)
+    const onRenderer = props.onRenderer as ((r: PreviewRenderer) => void) | undefined
+    return (
+      <div
+        data-testid="wearable-preview"
+        ref={() => onRenderer?.(PreviewRenderer.BABYLON)}
+        data-type={String(props.type)}
+        data-profile={String(props.profile)}
+      />
+    )
+  }
+}))
+
+vi.mock('~/store/wallet', () => ({ useWallet: () => undefined }))
+vi.mock('~/store/cart', () => ({ useCart: () => false }))
+vi.mock('~/hooks/useProfile', () => ({ useProfile: () => ({ data: undefined, isLoading: false }) }))
+vi.mock('~/hooks/usePreviewActive', () => ({
+  usePreviewActive: () => ({ ref: { current: null }, active: true })
+}))
+vi.mock('~/components/LazyEmoteControls', () => ({ EmoteControls: () => <div data-testid="emote-frame-input" /> }))
+
+import { ItemPreview } from './ItemPreview'
+
+function item(overrides: Partial<CatalogItem> = {}): CatalogItem {
+  return {
+    id: '0xc0-0',
+    name: 'Curious Cat Beanie',
+    contractAddress: '0xc0',
+    itemId: '0',
+    tokenId: null,
+    category: 'wearable',
+    rarity: 'uncommon',
+    priceCredits: 11,
+    thumbnail: '',
+    creator: '0xcc',
+    network: 'MATIC',
+    chainId: 137,
+    ...overrides
+  } as CatalogItem
+}
+
+const lastType = () => String(previewProps.mock.calls.at(-1)![0].type)
+
+describe('the item preview switch', () => {
+  beforeEach(() => previewProps.mockClear())
+
+  it('offers both views for a wearable', () => {
+    render(<ItemPreview item={item()} />)
+
+    expect(screen.getByRole('button', { name: 'On avatar' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Item' })).toBeTruthy()
+  })
+
+  it('opens worn, because that is the decision a shopper is making', () => {
+    render(<ItemPreview item={item()} />)
+
+    expect(lastType()).toBe(String(PreviewType.AVATAR))
+    expect(screen.getByRole('button', { name: 'On avatar' }).getAttribute('aria-pressed')).toBe('true')
+  })
+
+  it('flips to the item alone, and back', async () => {
+    const user = userEvent.setup()
+    render(<ItemPreview item={item()} />)
+
+    await user.click(screen.getByRole('button', { name: 'Item' }))
+    expect(lastType()).toBe(String(PreviewType.WEARABLE))
+    // No avatar to dress in the item-alone view, so none is requested.
+    expect(String(previewProps.mock.calls.at(-1)![0].profile)).toBe('undefined')
+
+    await user.click(screen.getByRole('button', { name: 'On avatar' }))
+    expect(lastType()).toBe(String(PreviewType.AVATAR))
+  })
+
+  // There is no item-alone view of a dance, so the switch would offer a state that does not exist.
+  it('offers no switch for an emote', () => {
+    render(<ItemPreview item={item({ category: 'emote' })} />)
+
+    expect(screen.queryByRole('button', { name: 'Item' })).toBeNull()
+    expect(screen.getByTestId('emote-frame-input')).toBeTruthy()
+  })
+})

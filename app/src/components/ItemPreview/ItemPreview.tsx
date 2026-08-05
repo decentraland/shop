@@ -14,9 +14,8 @@ import * as S from './ItemPreview.styles'
 
 const PREVIEW_ID = 'shop-item-preview'
 
-// The hero preview. Wearables DEFAULT to the item shown ALONE (PreviewType.WEARABLE — no avatar, no
-// emote), exactly how the marketplace item page loads (its try-on state starts OFF), so there's no odd
-// default avatar pose. The "On avatar / Item" toggle flips to AVATAR (worn) + a FASHION pose.
+// The hero preview. Wearables open WORN (avatar + a FASHION pose); the "On avatar / Item" toggle flips to
+// the item shown alone (PreviewType.WEARABLE — no avatar, no emote).
 // - emotes → no type (the preview app auto-detects + plays the emote on the avatar) + wheel zoom.
 // One shared iframe with a STABLE id and NO React key — so navigating item→item (or toggling avatar/item)
 // reloads the scene IN PLACE (the marketplace approach) instead of destroying + recreating the iframe,
@@ -33,10 +32,9 @@ export function ItemPreview({ item }: { item: CatalogItem }) {
   const profile = address && avatar ? address : 'default'
 
   const isEmote = item.category === 'emote'
-  // LOCKED to the worn (avatar) view: this preview sits in a buying decision, and what a shopper is deciding
-  // is how the piece looks on them. The "On avatar / Item" switch that used to flip it is commented out at
-  // the bottom of this component — kept as state (not a constant) so restoring it is uncommenting one block.
-  const [view] = useState<'avatar' | 'item'>('avatar')
+  // Opens on the worn view — what a shopper is deciding is how the piece looks on them — and the switch
+  // below flips to the item alone, which is the only way to actually inspect the piece.
+  const [view, setView] = useState<'avatar' | 'item'>('avatar')
   const itemAlone = !isEmote && view === 'item'
   // The item-alone view needs no avatar, so it can render immediately; only the avatar/emote views wait for
   // the profile fetch to settle (so they mount once with the final avatar rather than default→avatar reload).
@@ -143,8 +141,8 @@ export function ItemPreview({ item }: { item: CatalogItem }) {
           <EmoteControls wearablePreviewId="shop-item-preview" hideFrameInput />
         </S.EmoteControls>
       )}
-      {/* The "On avatar / Item" mode switch, kept for when the item-alone view comes back. On desktop it was
-          a text pill pinned top-left; on mobile an icon-only pair (figure + t-shirt) at the bottom-right.
+      {/* Hidden for an emote (there is no item-alone view of a dance) and for Unity, whose scene ships its
+          own controls. Desktop: a text pill top-left; mobile: an icon-only pair at the bottom-right. */}
       {!showControls || isEmote ? null : (
         <S.Toggle data-preview-toggle role="group" aria-label={t('itemPreview.previewMode')}>
           <S.ToggleButton
@@ -168,7 +166,7 @@ export function ItemPreview({ item }: { item: CatalogItem }) {
             <S.ToggleLabel>{t('itemPreview.item')}</S.ToggleLabel>
           </S.ToggleButton>
         </S.Toggle>
-      )} */}
+      )}
     </>
   )
 }
