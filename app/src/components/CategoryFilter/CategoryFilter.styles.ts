@@ -77,12 +77,7 @@ const rowCss = css`
 export const Cat = styled.button`
   ${rowCss};
 
-  /**
-   * Selected only — being EXPANDED no longer paints the row. Opening a category always selected it too,
-   * so the two flags moved together and the distinction never showed; the one case they came apart is
-   * after picking a sub-category, and there this tint was the parent staying lit under its own child.
-   * The rotated chevron is what says "open".
-   */
+  /* Selected only: being open is signalled by the rotated chevron, not by tinting the row. */
   &[data-selected] {
     background: rgba(255, 255, 255, 0.14);
   }
@@ -100,12 +95,7 @@ export const Sub = styled.button`
     font-weight: 600;
   }
 
-  /**
-   * The expand chevron tracks the row's label rather than carrying a colour of its own: gray4 at rest,
-   * white once the row is hovered or selected — the same two states the label moves between. It reads as
-   * part of the row, so a chevron that stayed grey under a white label would look like the bug this
-   * replaced (it used to inherit the near-black text colour, invisible against the dark panel).
-   */
+  /* The chevron tracks the row's label: gray4 at rest, white on hover and while selected. */
   [data-chevron] {
     color: ${colors.gray4};
   }

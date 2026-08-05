@@ -23,17 +23,8 @@ type Props = {
 // the dot count from the scroll extent, so it stays correct at every breakpoint without duplicating the
 // per-card width math.
 /**
- * The rail's geometry, measured off the cards themselves.
- *
- * Paging used to step by one `clientWidth`, which is NOT what a page of cards spans. The track is a grid
- * of `calc((100% - 64px) / 5)` columns inside 14px of side padding, so five cards plus their gaps come to
- * twelve pixels LESS than the viewport. Stepping by the viewport therefore aimed between two cards — and
- * the track is `scroll-snap-type: x mandatory`, so the browser overrode the target and snapped to whichever
- * card start was nearest. From the far end that is the position it was already at, which is why the left
- * arrow looked dead there while the dots (which scroll to an absolute offset) kept working.
- *
- * Reading the stride off two adjacent cards keeps this correct at every breakpoint without restating the
- * CSS column maths in JS, and every target it produces IS a snap point, so the browser agrees with it.
+ * The rail's geometry, measured off the cards. A page of cards spans slightly less than the viewport, and
+ * under mandatory snap only a card start is a scroll target the browser honours.
  */
 type RailGeometry = { cards: HTMLElement[]; stride: number; perView: number; pageCount: number; base: number }
 
@@ -57,12 +48,8 @@ function railGeometry(el: HTMLElement): RailGeometry | null {
 function pageFromScroll(el: HTMLElement, g: RailGeometry): number {
   const maxScroll = el.scrollWidth - el.clientWidth
   if (maxScroll <= 0) return 0
-  // The last page holds fewer cards than a full one, so its start sits short of `maxScroll` and the rail
-  // rests past it. Anchor the end explicitly or the final page can never read as current.
-  //
-  // 2px of slack, not 1: scrollLeft is fractional, and under browser zoom the device-pixel rounding can
-  // leave the resting position more than a pixel shy of the end. Overshooting the window costs nothing —
-  // the page before the last has its own start far more than 2px away.
+  // The last page is partial, so the rail rests past its start; anchor the end or it never reads as
+  // current. 2px of slack because scrollLeft is fractional and rounds off under zoom.
   if (el.scrollLeft >= maxScroll - 2) return g.pageCount - 1
   return Math.min(g.pageCount - 1, Math.round(el.scrollLeft / (g.perView * g.stride)))
 }
@@ -90,9 +77,8 @@ export function CardCarousel({ title, count, loading = false, viewAllTo, childre
     measure()
     const el = trackRef.current
     if (!el) return
-    // Coalesced to one read per frame. `railGeometry` reads `offsetLeft`, which forces the browser to
-    // flush layout — doing that on every scroll event means a synchronous reflow per event, for a whole
-    // burst of them during a single smooth scroll or trackpad flick.
+    // One read per frame: railGeometry reads offsetLeft, so an unthrottled handler forces a synchronous
+    // reflow on every scroll event.
     let frame = 0
     const onScroll = () => {
       if (frame) return
@@ -111,9 +97,8 @@ export function CardCarousel({ title, count, loading = false, viewAllTo, childre
     }
   }, [measure, count])
 
-  // Scroll to the START OF A CARD rather than to a multiple of the viewport width. Under mandatory snap
-  // only a card start is a position the browser will honour; anything else it overrides, which is what
-  // made the arrows unreliable at the end of the rail.
+  // Scroll to the start of a card, never to a multiple of the viewport width: under mandatory snap the
+  // browser overrides any other target.
   const scrollToPage = useCallback((p: number) => {
     const el = trackRef.current
     if (!el) return

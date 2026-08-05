@@ -263,7 +263,7 @@ export const PanelTitle = styled.h1`
   }
 `
 
-// Soft-black outline button (Figma 1551-315427).
+// Soft-black outline button.
 export const Fitting = styled.button`
   display: inline-flex;
   align-items: center;
@@ -271,8 +271,6 @@ export const Fitting = styled.button`
   gap: 8px;
   height: 40px;
   padding: 0 12px;
-  /* Figma 1551-315427: a plain 2px soft-black outline on no fill, replacing the amethyst gradient border
-     (which needed the two-background padding-box/border-box trick to exist at all). */
   border: 2px solid ${colors.text2};
   border-radius: ${radius.btn};
   background: none;
@@ -288,9 +286,7 @@ export const Fitting = styled.button`
     background 0.15s ease,
     filter 0.15s ease;
 
-  /* The design gives no hover for this node. A neutral wash keeps the outline's own colour rather than
-     the purple glow the gradient border used to justify — mixed from currentColor, which IS the border
-     colour, so it cannot drift from the token the way a second hardcoded rgba would. */
+  /* Mixed from currentColor so the wash cannot drift from the border colour. */
   &:hover:not(:disabled) {
     background: color-mix(in srgb, currentColor 6%, transparent);
   }

@@ -190,10 +190,8 @@ export function CartPopover() {
               {formatCredits(total)}
             </S.TotalVal>
           </S.TotalRow>
-          {/* Dismiss on the left, advance on the right. The advancing action is GO TO CART — it lands on
-              the cart and stops there. It used to be CHECKOUT, which carried `startCheckout` and had the
-              purchase already running on arrival: the buyer was committed before ever seeing what they
-              were buying. Reviewing the cart is the point of going to it. */}
+          {/* Dismiss on the left, advance on the right. Going to the cart stops there — no checkout starts
+              until the buyer has read it. */}
           <S.Ctas>
             <S.CtaButton data-variant="secondary" type="button" onClick={() => setOpen(false)}>
               {t('cartPopover.continueShopping')}

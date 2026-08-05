@@ -1106,11 +1106,6 @@ export function Cart() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navState?.resumeCheckout])
 
-  // The drawer used to be able to land here with the purchase ALREADY RUNNING (`startCheckout`), so the
-  // payment modal opened over a cart the buyer had never read. Arriving from the drawer now just arrives:
-  // checkout starts when the buyer presses the button on this page, having seen what is in it. The
-  // resume-after-top-up path below is unaffected — that one is finishing a checkout they did start.
-
   const working = busy || modal?.phase === 'processing'
 
   if (items.length === 0 && !modal) {

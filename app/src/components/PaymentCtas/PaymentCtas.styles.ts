@@ -48,14 +48,8 @@ const buttonBase = `
   }
 `
 
-/**
- * The primary purchase rail (Figma 1551-315504). Carries the shared `buyBtn` gradient — the Figma style
- * literally named "BUY Button" — rather than the amethyst it used to have, so the button that takes the
- * money looks the same here as it does on GET CREDITS and the promo CTAs.
- *
- * Everything else the node specifies (radius 12, padding, 15px/24 semibold, 0.46px uppercase) already
- * comes from `buttonBase`; the background is the whole delta.
- */
+// The primary purchase rail. Shares the buyBtn gradient with GET CREDITS and the promo CTAs so the button
+// that takes the money looks the same everywhere.
 export const CreditsBtn = styled.button`
   ${buttonBase}
   background: ${theme.gradients.buyBtn};

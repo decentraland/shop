@@ -150,10 +150,7 @@ export function CategoryFilter({
       {CATEGORIES.filter(top => !(hideAll && top.key === 'all') && !(hideNames && top.key === 'names')).map(top => {
         const open = expandedKey === top.key && !!top.subs
         // In collections mode nothing in the normal category list is highlighted.
-        //
-        // A sub-category takes the highlight FROM its parent. Picking "Head" leaves `category` on
-        // wearables, so without this the parent stayed lit alongside the child and two rows read as
-        // selected at once. Only ever one row is the selection.
+        // A sub-category takes the highlight from its parent, so only one row is ever selected.
         const selected = !collections && top.key === category && !subCategory
         return (
           <S.Group key={top.key}>
@@ -185,8 +182,8 @@ export function CategoryFilter({
                             <S.SubIcon name={sub.icon} aria-hidden />
                             <S.SubLabel data-sub-label>{t(sub.labelKey)}</S.SubLabel>
                           </S.SubLeft>
-                          {/* Tinted from the stylesheet rather than the `color` prop, which lands as an
-                              inline style that a :hover rule cannot override. See S.Sub. */}
+                          {/* Tinted in S.Sub: a color prop would be an inline style, which :hover cannot
+                              override. */}
                           {sub.expandable ? <Chevron up={subOpen} size={24} data-chevron /> : null}
                         </S.Sub>
 
