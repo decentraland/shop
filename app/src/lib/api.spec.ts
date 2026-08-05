@@ -44,6 +44,7 @@ import {
   fetchTrade,
   fetchTradeDisplay,
   fetchTradeForItem,
+  pickItemListing,
   fetchItemResales,
   fetchClassicItemOrders,
   resolveLiveTrade,
@@ -1718,5 +1719,34 @@ describe('fetchCatalog emote traits', () => {
     expect(item.emoteLoop).toBeUndefined()
     expect(item.emoteHasSound).toBeUndefined()
     expect(item.emoteHasProps).toBeUndefined()
+  })
+})
+
+/**
+ * An item with TWO open primaries — a creator who re-listed in USD without cancelling the old MANA order
+ * (seen on production: a 6-credit USD-pegged listing and a 5-MANA legacy one, live at the same time). The
+ * page must not pick by feed order: the browse grid collapses server-side to the USD-pegged row, so picking
+ * the other one is how the same item shows two different prices on two screens.
+ */
+describe('when an item has more than one open listing', () => {
+  const native = { source: 'native', tokenId: undefined, priceCredits: 6 } as never
+  const legacy = { source: 'legacy', tokenId: undefined, priceCredits: 4 } as never
+  const nativeResale = { source: 'native', tokenId: '7', priceCredits: 5 } as never
+
+  it('should prefer the USD-pegged listing over the legacy one, whatever order they arrive in', () => {
+    expect(pickItemListing([legacy, native])).toBe(native)
+    expect(pickItemListing([native, legacy])).toBe(native)
+  })
+
+  it('should prefer the mint over a resale', () => {
+    expect(pickItemListing([nativeResale, native])).toBe(native)
+  })
+
+  it('should fall back to a legacy mint before a USD-pegged resale — the creator’s own listing wins', () => {
+    expect(pickItemListing([nativeResale, legacy])).toBe(legacy)
+  })
+
+  it('should answer null for an item with nothing open', () => {
+    expect(pickItemListing([])).toBeNull()
   })
 })
