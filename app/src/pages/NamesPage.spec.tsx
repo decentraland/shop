@@ -91,6 +91,34 @@ describe('NamesPage', () => {
     expect(checkNameAvailability).not.toHaveBeenCalled()
   })
 
+  /**
+   * These messages used to sit in the hero's flow, so the panel grew and shrank as they came and went —
+   * on almost every keystroke, since the answer changes with the name. They now drop out of the input, the
+   * way the "taken" banner always has.
+   *
+   * jsdom does not lay anything out, so this asserts the structural precondition instead of the pixels:
+   * the message renders INSIDE the wrapper that owns the positioning context. Outside it — where it used
+   * to live — `position: absolute` would resolve against a different ancestor and the fix would be void.
+   */
+  it('should float the status message out of the input rather than growing the hero', async () => {
+    checkNameAvailability.mockReturnValue(new Promise(() => {})) // stays checking
+    renderPage()
+
+    await userEvent.type(screen.getByLabelText('Search for a NAME'), 'Checking')
+
+    const status = await screen.findByTestId('names-checking')
+    expect(screen.getByTestId('names-input-wrap')).toContainElement(status)
+  })
+
+  it('should float the too-short hint from the same wrapper', async () => {
+    renderPage()
+
+    await userEvent.type(screen.getByLabelText('Search for a NAME'), 'a')
+
+    const hint = await screen.findByText(/at least 2 characters/i)
+    expect(screen.getByTestId('names-input-wrap')).toContainElement(hint)
+  })
+
   it('should enable claim when the name is available', async () => {
     checkNameAvailability.mockResolvedValue('available')
     renderPage()

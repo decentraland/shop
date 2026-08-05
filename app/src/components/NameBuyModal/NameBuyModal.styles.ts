@@ -101,6 +101,59 @@ export const NameRow = styled.div`
   gap: 16px;
 `
 
+/**
+ * The NAME as a card, for the SUCCESS screen only (Figma 1368-354667): the glyph over a cerise→purple
+ * gradient with the claimed NAME across it in cyan and a verified tick.
+ *
+ * Deliberately NOT a variant of `Thumb`. That 56px square is what the confirm and processing screens use,
+ * and the design only draws this larger card once the NAME is actually the buyer's — turning Thumb into
+ * this would put a "you own it" flourish on the two screens where they do not own it yet.
+ */
+export const NameTile = styled.div`
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 137px;
+  height: 137px;
+  padding: 20px 0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: linear-gradient(180deg, #c640cd 0%, #691fa9 100%);
+`
+
+export const NameTileGlyph = styled.img`
+  display: block;
+  width: 47px;
+  height: 47px;
+`
+
+export const NameTileLabel = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 100%;
+  padding: 0 8px;
+  font-family: ${theme.font.sans};
+  font-size: 18px;
+  font-weight: 600;
+  /* The design's cyan — it has to read against the purple, which the body text colour would not. */
+  color: #34fee6;
+  /* A long NAME truncates rather than escaping the tile or wrapping into the glyph. */
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+`
+
+export const NameTileTick = styled.img`
+  flex: none;
+  display: block;
+  width: 14px;
+  height: 14px;
+`
+
 export const Thumb = styled.div`
   flex: none;
   display: grid;
