@@ -12,6 +12,19 @@ export const Viewport = styled(Row.Viewport)`
 `
 
 export const Track = styled(Row.CarouselTrack)`
+  /* Figma (2090:402105) fits SIX looks per view on the wide layout, not the base rail's five. The
+     lower tiers restate the base values — this appended block otherwise overrides them all. */
+  grid-auto-columns: calc((100% - 80px) / 6);
+
+  ${theme.media.maxWidth('xl')} {
+    grid-auto-columns: calc((100% - 48px) / 4);
+  }
+  ${theme.media.maxWidth('lg')} {
+    grid-auto-columns: calc((100% - 32px) / 3);
+  }
+  ${theme.media.maxWidth('sm')} {
+    grid-auto-columns: calc((100% - 16px) / 2);
+  }
   ${theme.media.maxWidth('mobile')} {
     grid-auto-columns: 100%;
     // The base track's hover-glow room (14px side padding + the re-aligning negative margin) left

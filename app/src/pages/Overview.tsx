@@ -228,10 +228,10 @@ export function Overview() {
               id="shop-promo-emotes"
               to="/items?category=emote"
               urns={[
-                'urn:decentraland:matic:collections-v2:0xe9f388ae27c726c4772c85a194e9791b1a0a913c:0',
-                'urn:decentraland:matic:collections-v2:0x0c956c74518ed34afb7b137d9ddfdaea7ca13751:0'
+                'urn:decentraland:matic:collections-v2:0x0c956c74518ed34afb7b137d9ddfdaea7ca13751:0',
+                'urn:decentraland:matic:collections-v2:0xe9f388ae27c726c4772c85a194e9791b1a0a913c:0'
               ]}
-              title={t('overview.bestRatedEmotes')}
+              title={t('overview.expressWithStyle')}
               cta={t('overview.exploreEmotes')}
               ariaLabel={t('overview.promoEmotesAria')}
               fallback={promoEmotes}
@@ -241,12 +241,11 @@ export function Overview() {
               id="shop-promo-outfits"
               to="/items"
               urns={[
-                'urn:decentraland:matic:collections-v2:0x6c3ca91dbac390d60d4267fdcf48576f6c051dbe:0',
-                'urn:decentraland:matic:collections-v2:0x9620151fe5e1c8fd0638a4840cf5e63d19b09765:0'
+                'urn:decentraland:matic:collections-v2:0x9620151fe5e1c8fd0638a4840cf5e63d19b09765:0',
+                'urn:decentraland:matic:collections-v2:0x6c3ca91dbac390d60d4267fdcf48576f6c051dbe:0'
               ]}
-              zoom={80}
-              title={t('overview.weekSelectedOutfits')}
-              cta={t('overview.exploreCollection')}
+              title={t('overview.findYourLook')}
+              cta={t('overview.exploreWearables')}
               ariaLabel={t('overview.promoOutfitsAria')}
               fallback={promoOutfits}
               fallbackAlt={t('overview.promoOutfitsAlt')}

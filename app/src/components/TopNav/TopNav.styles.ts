@@ -35,18 +35,18 @@ export const Skeleton = styled.div`
 export const NavbarViolet = styled.div`
   display: contents;
 
-  /* Bar background (dark-theme test): translucent near-black over the purple field, per Figma. Like
-     the sub-nav, it deepens once the page scrolls (body[data-scrolled], set by NavBar) so it doesn't
-     wash out over light content passing underneath. */
+  /* Bar background (dark-theme test): translucent deep purple (#401458, per the designer) over the
+     page field. Like the sub-nav, it deepens once the page scrolls (body[data-scrolled], set by
+     NavBar) so it doesn't wash out over light content passing underneath. */
   & nav::before {
-    background: rgba(22, 21, 24, 0.4);
+    background: rgba(64, 20, 88, 0.2);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     box-shadow: none;
     transition: background 0.25s ease;
   }
   body[data-scrolled] & nav::before {
-    background: rgba(22, 21, 24, 0.75);
+    background: rgba(64, 20, 88, 0.8);
   }
 
   /* Desktop nav tabs (Explore / Shop / Create / Learn): light text on the dark bar. Direct-child
