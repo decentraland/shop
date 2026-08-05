@@ -5,7 +5,7 @@ import { theme } from '~/styles/theme'
 
 const { colors, radius, media } = theme
 
-// White outlined pill shared by the "View profile" link and the (context-overridden) FollowButton.
+// Dark translucent pill shared by the "View profile" link and the (context-overridden) FollowButton.
 const pill = css`
   display: inline-flex;
   align-items: center;
@@ -23,7 +23,7 @@ const pill = css`
 `
 
 // Cover banner with a centered avatar/name/description/actions block. The FollowButton (rendered with
-// className "creator-hero__follow") is restyled to the white pill via `&&` so it beats Button's variant.
+// className "creator-hero__follow") is restyled to the dark pill via `&&` so it beats Button's variant.
 export const Root = styled.section`
   position: relative;
   border-radius: ${radius.card};
@@ -38,7 +38,7 @@ export const Root = styled.section`
     ${pill};
   }
   && .creator-hero__follow:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.14);
+    background: ${colors.blackBtn};
   }
 
   ${media.maxWidth('mobile')} {
@@ -204,6 +204,6 @@ export const View = styled.a`
   transition: background 0.15s ease;
 
   &:hover {
-    background: #242129;
+    background: ${colors.blackBtn};
   }
 `
