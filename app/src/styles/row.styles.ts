@@ -87,10 +87,14 @@ export const CarouselTrack = styled.div`
 `
 
 // Page indicators under a paged rail, one per viewport-width of scroll.
+// min-height is the height of one Dot, so a rail that renders this strip EMPTY — while it loads, or when
+// it has a single page — still occupies the 24px the populated strip does. Without it the box collapsed
+// to its margin and the dots' 12px arrived with the content, moving every section below the rail down.
 export const Dots = styled.div`
   display: flex;
   justify-content: center;
   gap: 8px;
+  min-height: 12px;
   margin-top: 12px;
 `
 

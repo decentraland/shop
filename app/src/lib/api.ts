@@ -710,6 +710,40 @@ export async function fetchRelatedItems(
   return (json.data ?? []).map(shopItemToItem)
 }
 
+/**
+ * The items TRENDING right now — what backs the home page's Trending row.
+ *
+ * Ranked server-side over the last day's sales (60% of the row by sale count, the rest by traded volume) and
+ * returned IN that order, so the caller must not re-sort it. Rows are the same item-unified shape as
+ * fetchShopItems, which is what lets the identical AssetCard render them at a real credit price.
+ *
+ * Both narrowing arguments are sent to the SERVER rather than applied to the result:
+ *
+ * - `includeSocialEmotes=false`, always. The Shop hides social emotes, and the row is a fixed number of
+ *   slots — filtering after the fact would spend slots on rows that are then thrown away, shrinking the row.
+ * - `listingType`, from the secondary-sales flag (see pages/Overview). Same reason.
+ *
+ * Unpaginated (the endpoint returns `{ data }` with no total): it is one carousel.
+ */
+export async function fetchTrendingItems({
+  first = 12,
+  listingType
+}: { first?: number; listingType?: 'primary' | 'secondary' } = {}): Promise<UnifiedListing[]> {
+  const qs = new URLSearchParams({ first: String(first), includeSocialEmotes: 'false' })
+  if (listingType) qs.set('listingType', listingType)
+  const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/trending?${qs.toString()}`)
+  if (!res.ok) {
+    // Read the body before throwing: the status alone cannot tell a 400 on a bad `first` apart from one
+    // on a bad `listingType`, and this row fails silently by design (it hides itself), so the message is
+    // the only place the reason survives. Best-effort — a body that cannot be read must not replace the
+    // status error with a parse error.
+    const detail = await res.text().catch(() => '')
+    throw new Error(`fetchTrendingItems ${res.status}${detail ? `: ${detail.slice(0, 200)}` : ''}`)
+  }
+  const json = (await res.json()) as { data?: ShopItemRaw[] }
+  return (json.data ?? []).map(shopItemToItem)
+}
+
 // The legacy (classic MANA-priced) listing shape that MarketCheckout (Buy Now) consumes. A legacy row
 // from the unified feed is projected into this shape before opening checkout (see pages/Assets). These
 // listings are priced in MANA (not USD-pegged) so their credit price FLUCTUATES with the market rate.
