@@ -394,6 +394,15 @@ export const StatusFloating = styled(Status)`
   left: 0;
   right: 0;
   z-index: 2;
+
+  /* Back into the flow on mobile, exactly as TakenBanner does and for the same reason: the claim button
+     moves out of the input and below InputWrap there, so anything floating out of the input lands on top
+     of it. The hero growing is the lesser problem of the two, and only the desktop panel was the
+     complaint. */
+  ${theme.media.maxWidth('mobile')} {
+    position: static;
+    margin-top: 8px;
+  }
 `
 
 // "Why buy a NAME?" section: a centered title + intro, then a row of four info cards (a 3D
