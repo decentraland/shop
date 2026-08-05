@@ -365,6 +365,18 @@ describe('when a session claims the cart', () => {
     expect(useCart.getState().owner).toBe(A.toLowerCase())
   })
 
+  it('should still empty an ADOPTED cart when the account then switches', () => {
+    // Reported: add signed out, sign in (adopted — correct), then switch accounts and the items were
+    // still there. Adoption has to leave a real owner behind, not a cart that any account can claim.
+    useCart.getState().add(item())
+    useCart.getState().reloadFor(A)
+
+    useCart.getState().reloadFor(B)
+
+    expect(useCart.getState().items).toEqual([])
+    expect(useCart.getState().owner).toBe(B.toLowerCase())
+  })
+
   it('should keep the items AND the owner tag on sign-out', () => {
     useCart.getState().reloadFor(A)
     useCart.getState().add(item())
