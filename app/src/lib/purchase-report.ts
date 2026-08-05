@@ -1,3 +1,4 @@
+import type { AuthIdentity } from '@dcl/crypto'
 import { reportIntentSubmission } from '~/lib/credits'
 import { captureError } from '~/lib/monitoring'
 import { useWallet } from '~/store/wallet'
@@ -24,7 +25,7 @@ export function reportSubmittedTx(info: { txHash: string; salts: string[] }): vo
 
   // Read the store defensively: a checkout can outlive the session it started in (a disconnect mid-flight),
   // and this must not be the thing that throws when it does.
-  let identity: NonNullable<ReturnType<typeof useWallet.getState>['session']>['identity'] | undefined
+  let identity: AuthIdentity | undefined
   try {
     identity = useWallet.getState().session?.identity
   } catch {
