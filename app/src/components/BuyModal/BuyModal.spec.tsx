@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { MemoryRouter, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { CatalogItem } from '~/lib/api'
 
@@ -117,12 +117,18 @@ const item = {
 
 // `resume` makes the modal confirm as soon as the price locks — the same call the Buy CTA makes, without
 // depending on button copy.
+function Location() {
+  const { pathname, search } = useLocation()
+  return <span data-testid="location">{`${pathname}${search}`}</span>
+}
+
 function renderModal({ resume }: { resume: boolean }) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={qc}>
       <MemoryRouter>
         <BuyModal item={item} onClose={vi.fn()} resume={resume} />
+        <Location />
       </MemoryRouter>
     </QueryClientProvider>
   )
@@ -215,6 +221,22 @@ describe('when post-purchase bookkeeping throws', () => {
     expect(await screen.findByText(/purchase complete/i)).toBeInTheDocument()
     expect(cancelUsdIntents).not.toHaveBeenCalled()
     expect(captureError).toHaveBeenCalled()
+  })
+})
+
+/**
+ * The success CTA promises the item is "in the My Items tab", so it has to actually go there. It used to
+ * navigate to `/items?tab=mine` — a route that ignores the param, dropping the buyer on the public
+ * Collectibles grid.
+ */
+describe('the post-purchase My Items CTA', () => {
+  it('should take the buyer to My Items, not the browse grid', async () => {
+    renderResuming()
+
+    expect(await screen.findByText(/purchase complete/i)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /my items/i }))
+
+    expect(screen.getByTestId('location')).toHaveTextContent('/my-items')
   })
 })
 

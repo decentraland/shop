@@ -796,7 +796,7 @@ export function BuyModal({
                   </M.SuccessText>
                 </M.Success>
                 <M.Ctas>
-                  <M.Btn data-variant="outline" onClick={() => navigate('/items?tab=mine')}>
+                  <M.Btn data-variant="outline" onClick={() => navigate('/my-items')}>
                     {t('buyModal.myAssets')}
                   </M.Btn>
                   <M.Btn data-variant="ruby" onClick={onClose}>
