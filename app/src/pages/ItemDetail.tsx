@@ -416,7 +416,18 @@ export function ItemDetail() {
   }, [current, siblings, pageItemId])
 
   const buyableTradeId = liveTradeId(qc, current.tradeId) ?? liveTradeId(qc, resolvedTradeId)
-  const forSale = !!buyableTradeId
+  /**
+   * A COLLECTION-STORE MINT is for sale and has no trade — it is minted straight from the store contract,
+   * so no tradeId will ever exist for it. Defining "for sale" as "has a trade" is what made this page say
+   * NOT FOR SALE about an item the browse grid was selling from the same feed, at a price the grid showed
+   * and this page did not (measured on production: `acquisition: 'store'`, 48 in stock, 20 MANA).
+   *
+   * The cart already buys these end-to-end (lib/cart-availability, lib/cart-checkout route the store rail),
+   * which is why the CTA below offers Add to cart for them and keeps Buy now for trades — BuyModal resolves
+   * a live trade and has no store rail of its own.
+   */
+  const isStoreMint = current.acquisition === 'store' && (current.available ?? 0) > 0
+  const forSale = !!buyableTradeId || isStoreMint
 
   // Cheapest open resale for this item — powers the "Lowest Price" line + resellers link (Figma
   // 1524-297513). Shares react-query's cache with <ResellersModal> (identical key), so no extra fetch.
@@ -1452,13 +1463,19 @@ export function ItemDetail() {
                       </S.ManageActions>
                     ) : forSale ? (
                       <>
-                        <S.DetailCta variant="purple" onClick={handleBuyNow} disabled={resolvingTrade}>
-                          <span>{t('assetCard.buyNow')}</span>
-                          <S.CtaPrice aria-hidden>
-                            <S.CtaDiamond />
-                            {current.priceCredits}
-                          </S.CtaPrice>
-                        </S.DetailCta>
+                        {/* Buy now only where there IS a trade to resolve: BuyModal buys through
+                            resolveLiveTrade and has no collection-store rail, so a store mint would open a
+                            modal that cannot complete. The cart does route that rail, so the mint's path is
+                            Add to cart — which is why this button is conditional and the next one is not. */}
+                        {buyableTradeId ? (
+                          <S.DetailCta variant="purple" onClick={handleBuyNow} disabled={resolvingTrade}>
+                            <span>{t('assetCard.buyNow')}</span>
+                            <S.CtaPrice aria-hidden>
+                              <S.CtaDiamond />
+                              {current.priceCredits}
+                            </S.CtaPrice>
+                          </S.DetailCta>
+                        ) : null}
                         <S.AddCart
                           onClick={handleAddToCart}
                           disabled={resolvingTrade || (isPrimary ? atStockCap : inCart)}

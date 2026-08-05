@@ -21,9 +21,15 @@ type RawCollectionItem = {
   // The canonical asset urn. /v3/catalog/items returns it on every row, and it is the ONLY thing that
   // identifies a non-Polygon item to the 3D preview — see CatalogItem.urn.
   urn?: string
-  // Server-computed whole credits (asset-aware: USD-pegged priced directly, MANA converted at the
-  // oracle rate; 0 when the item isn't for sale). We consume this as-is — no client conversion.
+  // Server-computed whole credits. Trustworthy ONLY for a USD-pegged listing: for a MANA-denominated one
+  // it is converted with the SERVER's rate, which is not the rate checkout charges (see lib/pricing).
   priceCredits?: number
+  // Mixed-unit price: USD wei when the row's listing is USD-pegged, MANA wei otherwise. `tradeId: null`
+  // with a price is unambiguous — a collection-store mint or a classic order, i.e. MANA.
+  price?: string | null
+  tradeId?: string | null
+  available?: string | number | null
+  isOnSale?: boolean
   data?: {
     wearable?: { category?: string; bodyShapes?: string[]; isSmart?: boolean }
     emote?: { category?: string; loop?: boolean; hasSound?: boolean; hasGeometry?: boolean }
@@ -59,8 +65,25 @@ function toCatalogItem(r: RawCollectionItem): CatalogItem {
     chainId: r.chainId,
     thumbnail: r.thumbnail ?? '',
     priceCredits: r.priceCredits ?? 0,
+    /**
+     * A row with NO trade is priced in MANA — a collection-store mint or a classic order. Carrying it as
+     * `manaWei` is what lets `displayCredits` price it at the LIVE rate, like the browse grid does: this feed
+     * also reports a `priceCredits`, but it is converted with the SERVER's rate. Measured on production, a
+     * 20-MANA store mint arrived as 4 credits while the live rate makes it 14 — the number the grid showed
+     * and this page did not.
+     *
+     * Deliberately NOT labelled `acquisition: 'store'`: this feed cannot tell a store mint from a classic
+     * order, and mislabelling one would route it to the wrong purchase rail. The unified feed (which the
+     * item page and the cart read) does carry that discriminator.
+     */
+    ...(r.tradeId == null && r.isOnSale && r.price ? { manaWei: r.price, available: toAvailable(r.available) } : {}),
     gender: toGender(r.data?.wearable?.bodyShapes)
   }
+}
+
+function toAvailable(value: string | number | null | undefined): number | undefined {
+  const n = Number(value)
+  return Number.isFinite(n) && n > 0 ? n : undefined
 }
 
 export type CollectionItemsPage = { items: CatalogItem[]; total: number }
