@@ -14,7 +14,7 @@ describe('get credits page', () => {
     const { page } = app
 
     // Header + the four packs (see src/lib/payments.ts CREDIT_PACKS: $5.99/$11.99/$29.99/$59.99).
-    await waitForText(page, 'Get credits')
+    await waitForText(page, 'Stock up on Credits')
     await page.waitForSelector('[data-testid="pack"]', { timeout: 20000 })
     expect(await page.evaluate(() => document.querySelectorAll('[data-testid="pack"]').length)).toBe(4)
     await waitForText(page, '$5.99')

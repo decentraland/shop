@@ -183,8 +183,8 @@
     }
   },
   "getCredits": {
-    "title": "¡Consigue {currency}!",
-    "subtitle": "¡Elige tu paquete de {currency} y prepárate para comprar!",
+    "title": "Carga tus créditos",
+    "subtitle": "Elige un paquete de créditos y consigue wearables y emotes hechos por creadores para armar un look que sea solo tuyo.",
     "learnMore": "Más información",
     "canceledNote": "Pago cancelado: no se realizó ningún cargo. Elige un paquete cuando quieras.",
     "packBadge": "Recomendado",
@@ -818,6 +818,37 @@
     "wasMana": "({amount} MANA)",
     "selectedSummary": "{count, plural, one {# artículo seleccionado} other {# artículos seleccionados}} · ${usd}",
     "listAll": "Publicar todo ({count})"
+  },
+  "faq": {
+    "title": "Más información sobre los créditos",
+    "sellers": {
+      "whatAreQ": "¿Qué son los créditos?",
+      "whatAreA": "Los créditos son la nueva forma de comprar artículos en el Shop de Decentraland. Compra un paquete de créditos y úsalo para comprar cualquier producto elegible. Los créditos tienen un valor estable: 1 crédito = US$0,10.",
+      "whyCreditsQ": "¿Por qué debería fijar el precio de mis artículos en créditos en lugar de MANA?",
+      "whyCreditsA": "Los créditos dan precios estables. Tus artículos mantienen el mismo valor en dólares sin importar cómo fluctúe el precio de MANA, así el precio es más predecible para ti y para quienes te compran.",
+      "receiveCreditsQ": "Si vendo un artículo con precio en créditos, ¿recibo créditos?",
+      "receiveCreditsA": "No. Las ganancias de los creadores se siguen pagando en MANA. Cuando se venda tu artículo, recibirás el equivalente en MANA del valor en dólares, según el tipo de cambio al momento de la compra.",
+      "changePriceQ": "¿Puedo cambiar después el precio en créditos?",
+      "changePriceA": "Sí. Puedes actualizar el precio en créditos de tu artículo cuando quieras desde la página «Mis artículos».",
+      "mustSwitchQ": "¿Tengo que pasar mis publicaciones actuales a créditos?",
+      "mustSwitchA": "No. Las publicaciones en MANA van a seguir funcionando. Igual te recomendamos actualizarlas a créditos para que sus precios se mantengan estables y alineados con la nueva experiencia de compra.",
+      "suggestedPriceQ": "¿Cómo se calcula el precio sugerido en créditos?",
+      "suggestedPriceA": "Se calcula un precio equivalente en créditos a partir de tu precio actual en MANA y del tipo de cambio al momento de la migración. Revísalo y ajústalo antes de publicar."
+    },
+    "buyers": {
+      "whatAreQ": "¿Qué son los créditos?",
+      "whatAreA": "Los créditos son la moneda de Decentraland para comprar nuevos wearables y emotes en el Shop.\nCompra un paquete de créditos y usa tu saldo para conseguir artículos hechos por creadores y armar un look que sea solo tuyo.",
+      "whatCanIBuyQ": "¿Qué puedo comprar con créditos?",
+      "whatCanIBuyA": "Los créditos sirven para comprar nuevos wearables y emotes en el Shop de Decentraland.\nLAND, NAMEs y los artículos de segunda mano siguen disponibles en el Marketplace.",
+      "whereBuyQ": "¿Dónde puedo comprar créditos?",
+      "whereBuyA": "Puedes comprar paquetes de créditos acá mismo, más arriba en esta página. También se pueden comprar dentro del mundo y desde el celular.\nPara conseguir el mejor precio, te recomendamos comprarlos desde la computadora o la web. En el celular el precio puede variar por las comisiones de las tiendas de aplicaciones.",
+      "whereUseQ": "¿Dónde puedo usar mis créditos?",
+      "whereUseA": "Los créditos quedan asociados a tu cuenta de Decentraland, no al dispositivo donde los compraste.\nCómpralos desde la computadora o la web y úsalos en todas partes, incluido el celular.",
+      "expireQ": "¿Los créditos vencen?",
+      "expireA": "No. Los créditos no vencen y se quedan en tu cuenta hasta que los uses.",
+      "transferQ": "¿Los créditos se pueden transferir o cambiar por dinero?",
+      "transferA": "No. Los créditos están asociados a tu cuenta: no se pueden transferir a otra cuenta, ni retirar, ni cambiar por dinero."
+    }
   },
   "creditRate": {
     "equals": "=",

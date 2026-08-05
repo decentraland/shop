@@ -52,6 +52,35 @@ export const HeroBackdrop = styled.div`
   background-repeat: no-repeat;
 `
 
+/* Holds the pack panel and the redirect overlay together, so the overlay's `inset: 0` measures THIS box
+   rather than the whole hero — the FAQ below must not pull the centred spinner down with it. No z-index or
+   isolation here on purpose: the backdrop's `z-index: -1` and the overlay's `1` both still resolve against
+   the hero's stacking context. */
+export const HeroPanel = styled.div`
+  position: relative;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+`
+
+/* The buyer FAQ, 82px under the packs — the hero's own bottom padding already spaces it from the edge. */
+export const FaqBlock = styled.div`
+  width: 100%;
+  max-width: 1478px;
+  margin-top: 82px;
+
+  &:focus {
+    outline: none;
+  }
+
+  ${theme.media.maxWidth('lg')} {
+    margin-top: 48px;
+  }
+  ${theme.media.maxWidth('mobile')} {
+    margin-top: 32px;
+  }
+`
+
 /* `$hidden` uses visibility, NOT display/unmount, while the Stripe redirect status shows over it: the panel
    must keep the exact height it had with the grid in it, or the footer jumps up for that moment. It also
    drops the hidden pack buttons out of the tab order. */
@@ -73,7 +102,7 @@ export const Head = styled.header`
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
   width: 100%;
   text-align: center;
 `
@@ -85,7 +114,6 @@ export const Title = styled.h1`
   font-weight: 700;
   line-height: 1.167;
   color: ${theme.colors.white};
-  text-transform: capitalize;
 
   ${theme.media.maxWidth('mobile')} {
     font-size: 28px;
@@ -113,10 +141,14 @@ export const Sub = styled.p`
   }
 `
 
-export const Learn = styled.a`
+export const Learn = styled.button`
+  appearance: none;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
   display: inline-flex;
   align-items: center;
-  gap: 2px;
   font-family: ${theme.font.sans};
   font-size: 20px;
   font-weight: 500;
@@ -125,10 +157,6 @@ export const Learn = styled.a`
   text-decoration: underline;
   text-underline-offset: 2px;
 
-  .ico {
-    width: 26px;
-    height: 26px;
-  }
   &:hover {
     opacity: 0.85;
   }

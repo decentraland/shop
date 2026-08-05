@@ -378,3 +378,8 @@ export const DockCta = styled(Button)`
   flex: none;
   padding: 13px 24px;
 `
+
+// The 12px side gutter is Body's, so the FAQ rows line up with the listings above, not the page edge.
+export const FaqBlock = styled.div`
+  padding: 16px 12px 0;
+`

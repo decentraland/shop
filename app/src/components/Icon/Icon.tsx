@@ -39,6 +39,7 @@ export type IconName =
   | 'cat-upper'
   | 'category-eyewear'
   | 'chevron-down'
+  | 'chevron-up-line'
   | 'clock'
   | 'close'
   | 'copy'
