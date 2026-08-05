@@ -34,6 +34,8 @@ import {
   fetchListings,
   fetchUnified,
   fetchShopItems,
+  fetchTrendingItems,
+  fetchContractRegistry,
   fetchMyAssets,
   fetchOwnedToken,
   fetchResaleTokenInfo,
@@ -53,6 +55,8 @@ import {
 
 // $1 in USD wei.
 const USD1 = '1000000000000000000'
+// 1 MANA in wei. The /v2 catalog quotes MANA, not USD.
+const MANA1 = '1000000000000000000'
 
 // A jsonOk/error factory for the mocked global fetch. Records the URL of each call.
 const fetchMock = vi.fn()
@@ -61,8 +65,10 @@ function jsonOk(body: unknown) {
   return { ok: true, status: 200, json: async () => body }
 }
 
-function httpError(status: number) {
-  return { ok: false, status, json: async () => ({}) }
+// A real Response can always be read as text, whatever the status — so an error stub that could not was
+// letting a caller which reads the body to report WHY it failed look like a crash.
+function httpError(status: number, body = '') {
+  return { ok: false, status, json: async () => ({}), text: async () => body }
 }
 
 function lastUrl(): string {
@@ -110,7 +116,7 @@ describe('when converting a USD-pegged wei amount to cents', () => {
 })
 
 describe('when fetching the browse catalog', () => {
-  it('should map raw items to CatalogItems and derive credits, gender and sub-category', async () => {
+  it('should map raw items to CatalogItems, carrying the MANA price rather than deriving credits', async () => {
     fetchMock.mockResolvedValueOnce(
       jsonOk({
         total: 1,
@@ -142,7 +148,11 @@ describe('when fetching the browse catalog', () => {
       itemId: '7',
       wearableCategory: 'hat',
       rarity: 'epic',
-      priceCredits: 10, // $1 = 10 credits
+      // The /v2 catalog prices in MANA: the row carries the raw wei and NO fixed credit price. Callers
+      // convert at the live rate (displayCredits) — reading this field as USD is what mispriced a
+      // 3-credit item as 150.
+      manaWei: MANA1,
+      priceCredits: 0,
       gender: 'unisex'
     })
   })
@@ -171,7 +181,7 @@ describe('when fetching the browse catalog', () => {
             category: 'wearable',
             network: 'MATIC',
             chainId: 80002,
-            minPrice: USD1
+            minPrice: MANA1
           }
         ]
       })
@@ -182,7 +192,9 @@ describe('when fetching the browse catalog', () => {
       itemId: null,
       rarity: 'common',
       thumbnail: '',
-      priceCredits: 10,
+      // No mint price, so the row falls back to the cheapest resale — still MANA, still unconverted.
+      manaWei: MANA1,
+      priceCredits: 0,
       gender: null,
       wearableCategory: undefined
     })
@@ -190,26 +202,28 @@ describe('when fetching the browse catalog', () => {
     expect(total).toBe(1)
   })
 
-  it('should round the credit price UP from the USD-pegged wei price', async () => {
+  it('should report supply and whether the creator is still selling, for the outfit row filter', async () => {
     fetchMock.mockResolvedValueOnce(
       jsonOk({
         total: 1,
         data: [
           {
             id: 'i3',
-            name: 'Cheap',
+            name: 'Resold',
             contractAddress: '0x1',
             category: 'wearable',
             network: 'MATIC',
             chainId: 80002,
-            // $0.11 → 1.1 credits → ceil → 2 credits.
-            price: '110000000000000000'
+            // Mint closed (no `price`), copies only on the secondary market.
+            price: '0',
+            minPrice: MANA1,
+            available: 0
           }
         ]
       })
     )
     const { items } = await fetchCatalog()
-    expect(items[0].priceCredits).toBe(2)
+    expect(items[0]).toMatchObject({ available: 0, hasPrimaryListing: false, manaWei: MANA1 })
   })
 
   it('should throw when the catalog request fails', async () => {
@@ -688,6 +702,44 @@ describe('when fetching the item-unified browse feed', () => {
     })
   })
 
+  // The regression: a CollectionStore MINT is not a listing, so the feed sends `tradeId: null`. Taking
+  // that as the row id gave every mint the same id, and the cart — which dedupes lines on `id` —
+  // merged them: adding three different mints produced ONE line at quantity 3, so the buyer paid for
+  // three copies of whichever landed first and never received the other two.
+  it('should give a store mint an id of its own, since it has no trade to be identified by', async () => {
+    const mint = { ...itemRow, tradeId: null, itemId: '7', acquisition: 'store', contractAddress: '0xABC' }
+    fetchMock.mockResolvedValueOnce(jsonOk({ total: 1, data: [mint] }))
+
+    const { items } = await fetchShopItems()
+
+    expect(items[0].id).toBe('0xabc-7')
+    // `tradeId` stays absent — it is what tells checkout there is no trade to resolve.
+    expect(items[0].tradeId).toBeUndefined()
+  })
+
+  it('should keep two different store mints apart', async () => {
+    const mint = (contractAddress: string, itemId: string) => ({
+      ...itemRow,
+      tradeId: null,
+      acquisition: 'store',
+      contractAddress,
+      itemId
+    })
+    fetchMock.mockResolvedValueOnce(jsonOk({ total: 2, data: [mint('0xaaa', '1'), mint('0xbbb', '2')] }))
+
+    const { items } = await fetchShopItems()
+
+    expect(items[0].id).not.toBe(items[1].id)
+  })
+
+  it('should keep using the trade id when there is one', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ total: 1, data: [itemRow] }))
+
+    const { items } = await fetchShopItems()
+
+    expect(items[0].id).toBe('i-native')
+  })
+
   it('should serialise every supported filter alongside groupBy=item', async () => {
     fetchMock.mockResolvedValueOnce(jsonOk({ total: 0, data: [] }))
     await fetchShopItems({
@@ -748,6 +800,194 @@ describe('when fetching the item-unified browse feed', () => {
   it('should throw when the item-unified request fails', async () => {
     fetchMock.mockResolvedValueOnce(httpError(502))
     await expect(fetchShopItems()).rejects.toThrow('fetchShopItems 502')
+  })
+})
+
+// The home page's Trending row. Everything asserted here is a rule the row cannot enforce itself: the
+// ranking, the social-emote exclusion and the resale exclusion are all decided by the server, so what the
+// client owes is a request that asks for them and a mapping that keeps the credit price intact.
+describe('when fetching the trending items', () => {
+  const trendingRow = {
+    tradeId: 't-trending',
+    listingType: 'primary',
+    contractAddress: '0xC0',
+    itemId: '5',
+    tokenId: null,
+    name: 'Hot Hat',
+    thumbnail: '',
+    rarity: 'epic',
+    category: 'wearable',
+    wearableCategory: 'hat',
+    creator: '0xa',
+    priceCredits: 42,
+    available: 100,
+    network: 'MATIC',
+    chainId: 80002,
+    source: 'native',
+    acquisition: 'trade',
+    manaWei: null,
+    listingCount: 2,
+    trendingSales: 17
+  }
+
+  it('should ask the trending endpoint, not re-sort a browse feed', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ data: [trendingRow] }))
+
+    await fetchTrendingItems()
+
+    const url = lastUrl()
+    expect(url).toContain('https://market.test/v3/catalog/trending?')
+    // No sortBy: the ranking IS the order, so asking the browse feed for `newest` (what the Featured row
+    // this replaces did) would not be a trending row at all.
+    expect(url).not.toContain('sortBy')
+    expect(url).not.toContain('groupBy')
+  })
+
+  it('should always ask the server to exclude social emotes', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ data: [] }))
+
+    await fetchTrendingItems()
+
+    expect(lastUrl()).toContain('includeSocialEmotes=false')
+  })
+
+  it('should ask the server for primary listings only when the Shop does not sell resales', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ data: [] }))
+
+    await fetchTrendingItems({ listingType: 'primary' })
+
+    expect(lastUrl()).toContain('listingType=primary')
+  })
+
+  it('should not constrain the listing type when resales are on', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ data: [] }))
+
+    await fetchTrendingItems({})
+
+    expect(lastUrl()).not.toContain('listingType')
+  })
+
+  it('should default to twelve slots and pass an explicit size through', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ data: [] }))
+    await fetchTrendingItems()
+    expect(lastUrl()).toContain('first=12')
+
+    fetchMock.mockResolvedValueOnce(jsonOk({ data: [] }))
+    await fetchTrendingItems({ first: 20 })
+    expect(lastUrl()).toContain('first=20')
+  })
+
+  it('should map rows to the same credit-priced card model the browse grid renders', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({ data: [trendingRow] }))
+
+    const items = await fetchTrendingItems()
+
+    expect(items).toHaveLength(1)
+    expect(items[0]).toMatchObject({
+      id: 't-trending',
+      tradeId: 't-trending',
+      name: 'Hot Hat',
+      priceCredits: 42,
+      listingCount: 2,
+      source: 'native'
+    })
+  })
+
+  it('should carry a credit price for a rate-converted legacy row too', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonOk({
+        data: [
+          { ...trendingRow, tradeId: 'legacy-1', source: 'legacy', priceCredits: 7, manaWei: '14000000000000000000' }
+        ]
+      })
+    )
+
+    const items = await fetchTrendingItems()
+
+    expect(items[0]).toMatchObject({ priceCredits: 7, manaWei: '14000000000000000000' })
+  })
+
+  it('should give a trending store mint an id of its own, since it has no trade', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonOk({ data: [{ ...trendingRow, tradeId: null, acquisition: 'store', contractAddress: '0xABC', itemId: '7' }] })
+    )
+
+    const items = await fetchTrendingItems()
+
+    expect(items[0].id).toBe('0xabc-7')
+    expect(items[0].tradeId).toBeUndefined()
+  })
+
+  it('should preserve the server ranking order rather than reordering it', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonOk({
+        data: [
+          { ...trendingRow, tradeId: 'a', priceCredits: 90 },
+          { ...trendingRow, tradeId: 'b', priceCredits: 1 },
+          { ...trendingRow, tradeId: 'c', priceCredits: 50 }
+        ]
+      })
+    )
+
+    const items = await fetchTrendingItems()
+
+    // Prices deliberately unsorted: any local sort (by price or name) would show up here.
+    expect(items.map(i => i.id)).toEqual(['a', 'b', 'c'])
+  })
+
+  it('should return an empty rail when the endpoint returns no data key', async () => {
+    fetchMock.mockResolvedValueOnce(jsonOk({}))
+
+    await expect(fetchTrendingItems()).resolves.toEqual([])
+  })
+
+  it('should throw when the trending request fails', async () => {
+    fetchMock.mockResolvedValueOnce(httpError(503))
+
+    await expect(fetchTrendingItems()).rejects.toThrow('fetchTrendingItems 503')
+  })
+
+  // The row hides itself when the ranking fails, so nothing reaches the reader — the thrown message is the
+  // only place the reason survives, and a status alone cannot tell one 400 from another.
+  it('should carry the server explanation into the error it throws', async () => {
+    fetchMock.mockResolvedValueOnce(httpError(400, 'days must be between 1 and 7'))
+
+    await expect(fetchTrendingItems()).rejects.toThrow('days must be between 1 and 7')
+  })
+})
+
+describe('when fetching the curated contract registry', () => {
+  it('should key the collection names by lowercased address', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonOk({
+        total: 2,
+        data: [
+          { name: 'Summer Capsule', address: '0xAAAA000000000000000000000000000000000001', category: 'wearable' },
+          { name: 'Names', address: '0xBBBB000000000000000000000000000000000002', category: 'ens' }
+        ]
+      })
+    )
+
+    const registry = await fetchContractRegistry()
+
+    expect(lastUrl()).toBe('https://market.test/v1/contracts')
+    expect(registry.get('0xaaaa000000000000000000000000000000000001')).toBe('Summer Capsule')
+    expect(registry.get('0xbbbb000000000000000000000000000000000002')).toBe('Names')
+  })
+
+  it('should skip entries with no usable name or address rather than mapping a blank', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonOk({ total: 3, data: [{ name: '', address: '0xa' }, { address: '0xb' }, { name: 'No address' }] })
+    )
+
+    const registry = await fetchContractRegistry()
+
+    expect(registry.size).toBe(0)
+  })
+
+  it('should throw when the registry request fails', async () => {
+    fetchMock.mockResolvedValueOnce(httpError(503))
+    await expect(fetchContractRegistry()).rejects.toThrow('fetchContractRegistry 503')
   })
 })
 
@@ -1137,15 +1377,66 @@ describe('when resolving a purchased trade for display', () => {
 })
 
 describe('when resolving the open trade for a catalog item', () => {
-  it('should resolve the tradeId from the shop feed and then fetch that trade', async () => {
+  it('should resolve the tradeId from the UNIFIED feed and then fetch that trade', async () => {
     fetchMock
       .mockResolvedValueOnce(jsonOk({ data: [{ tradeId: 'tr-1', itemId: '3' }] }))
       .mockResolvedValueOnce(jsonOk({ data: { id: 'tr-1' } }))
 
     const trade = await fetchTradeForItem('0xc', '3')
     expect(trade).toEqual({ id: 'tr-1' })
-    expect(String(fetchMock.mock.calls[0][0])).toContain('https://market.test/v3/catalog/shop?')
+    expect(String(fetchMock.mock.calls[0][0])).toContain('https://market.test/v3/catalog/unified?')
     expect(String(fetchMock.mock.calls[1][0])).toBe('https://market.test/v1/trades/tr-1')
+  })
+
+  /**
+   * The reason this reads the unified feed and not the shop one. A LEGACY (MANA-priced) listing exists only in
+   * the unified feed; resolving through /v3/catalog/shop returned nothing for such an item, so its own page
+   * showed "Not for sale" while its card in the grid — which has always read the unified feed — showed a
+   * price. Verified against production: the shop feed answers 0 rows for one such collection, the unified
+   * feed answers with its trade.
+   */
+  it('should resolve a LEGACY listing, which only the unified feed carries', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonOk({ data: [{ tradeId: 'tr-legacy', itemId: '0', manaWei: '400000000000000000000', priceCredits: 80 }] })
+      )
+      .mockResolvedValueOnce(jsonOk({ data: { id: 'tr-legacy' } }))
+
+    expect(await fetchTradeForItem('0xc', '0')).toEqual({ id: 'tr-legacy' })
+    const url = String(fetchMock.mock.calls[0][0])
+    expect(url).toContain('v3/catalog/unified?')
+    // BOTH kinds are asked for: filtering the server call to primaries hid the live price of an item whose
+    // mint is sold out, which is the same "Not for sale" bug one step further in.
+    expect(url).not.toContain('listingType')
+  })
+
+  /**
+   * With a mint AND resales open, the page is priced off the MINT: a resale answering here would undercut the
+   * creator's own listing. The preference is applied over the rows, not by filtering the request.
+   */
+  it('should prefer the mint over a resale when both are listed', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonOk({
+          data: [
+            { tradeId: 'tr-resale', itemId: '3', tokenId: '7' },
+            { tradeId: 'tr-mint', itemId: '3', tokenId: null }
+          ]
+        })
+      )
+      .mockResolvedValueOnce(jsonOk({ data: { id: 'tr-mint' } }))
+
+    expect(await fetchTradeForItem('0xc', '3')).toEqual({ id: 'tr-mint' })
+    expect(String(fetchMock.mock.calls[1][0])).toBe('https://market.test/v1/trades/tr-mint')
+  })
+
+  // Sold out, resales open: the resale is the only live price, so it answers rather than nothing.
+  it('should fall back to a resale when the item has no mint listing', async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonOk({ data: [{ tradeId: 'tr-resale', itemId: '3', tokenId: '7' }] }))
+      .mockResolvedValueOnce(jsonOk({ data: { id: 'tr-resale' } }))
+
+    expect(await fetchTradeForItem('0xc', '3')).toEqual({ id: 'tr-resale' })
   })
 
   it('should return null when no listing exists for the item', async () => {
@@ -1166,7 +1457,7 @@ describe('when resolving an item to its live trade', () => {
     expect(String(fetchMock.mock.calls[0][0])).toBe('https://market.test/v1/trades/tr-known')
   })
 
-  it('should re-resolve the current trade from the shop feed when the known tradeId is gone (404)', async () => {
+  it('should re-resolve the current trade from the UNIFIED feed when the known tradeId is gone (404)', async () => {
     fetchMock
       .mockResolvedValueOnce(httpError(404)) // stale tradeId 404s
       .mockResolvedValueOnce(jsonOk({ data: [{ tradeId: 'tr-fresh', itemId: '4' }] })) // shop feed
@@ -1174,7 +1465,7 @@ describe('when resolving an item to its live trade', () => {
     const trade = await resolveLiveTrade({ tradeId: 'tr-stale', contractAddress: '0xc', itemId: '4' })
     expect(trade).toEqual({ id: 'tr-fresh' })
     expect(String(fetchMock.mock.calls[0][0])).toBe('https://market.test/v1/trades/tr-stale')
-    expect(String(fetchMock.mock.calls[1][0])).toContain('https://market.test/v3/catalog/shop?')
+    expect(String(fetchMock.mock.calls[1][0])).toContain('https://market.test/v3/catalog/unified?')
     expect(String(fetchMock.mock.calls[2][0])).toBe('https://market.test/v1/trades/tr-fresh')
   })
 
@@ -1202,13 +1493,13 @@ describe('when resolving an item to its live trade', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
-  it('should resolve straight from the shop feed when there is no known tradeId', async () => {
+  it('should resolve straight from the UNIFIED feed when there is no known tradeId', async () => {
     fetchMock
       .mockResolvedValueOnce(jsonOk({ data: [{ tradeId: 'tr-feed', itemId: '4' }] }))
       .mockResolvedValueOnce(jsonOk({ data: { id: 'tr-feed' } }))
     const trade = await resolveLiveTrade({ contractAddress: '0xc', itemId: '4' })
     expect(trade).toEqual({ id: 'tr-feed' })
-    expect(String(fetchMock.mock.calls[0][0])).toContain('https://market.test/v3/catalog/shop?')
+    expect(String(fetchMock.mock.calls[0][0])).toContain('https://market.test/v3/catalog/unified?')
   })
 
   it('should return null when there is neither a tradeId nor an itemId', async () => {
@@ -1372,5 +1663,60 @@ describe('when fetching the user secondary sales', () => {
   it('should throw on a non-OK response', async () => {
     fetchMock.mockResolvedValueOnce(httpError(500))
     await expect(fetchUserSales('0xABC')).rejects.toThrow('fetchUserSales 500')
+  })
+})
+
+/**
+ * THE EMOTE TRAITS HAVE TO SURVIVE THE MAPPING.
+ *
+ * The detail page's play-mode / sound / props chips read `emoteLoop`, `emoteHasSound` and `emoteHasProps`,
+ * and the component specs hand those in directly — so they prove the chips render, not that the fields ever
+ * arrive. This asserts the other half: that toCatalogItem carries them off `data.emote`, which is where the
+ * catalogue already returns them (loop, hasSound, hasGeometry).
+ *
+ * `loop: false` is asserted explicitly because it is a value, not an absence: an emote that plays once has
+ * to stay distinguishable from a wearable, which has no such field at all.
+ */
+describe('fetchCatalog emote traits', () => {
+  const row = (emote: Record<string, unknown> | undefined) => ({
+    id: 'a',
+    name: 'Laser Face',
+    category: 'emote',
+    contractAddress: '0xc',
+    itemId: '1',
+    rarity: 'epic',
+    network: 'MATIC',
+    chainId: 80002,
+    data: emote ? { emote } : {}
+  })
+
+  const fetchOne = async (emote: Record<string, unknown> | undefined) => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ data: [row(emote)], total: 1 }) })
+    const { items } = await fetchCatalog({ first: 1, skip: 0 })
+    return items[0]
+  }
+
+  it('carries loop, sound and props off data.emote', async () => {
+    const item = await fetchOne({ loop: true, hasSound: true, hasGeometry: true })
+
+    expect(item.emoteLoop).toBe(true)
+    expect(item.emoteHasSound).toBe(true)
+    expect(item.emoteHasProps).toBe(true)
+  })
+
+  it('keeps loop false as false, not as absent', async () => {
+    const item = await fetchOne({ loop: false, hasSound: false, hasGeometry: false })
+
+    expect(item.emoteLoop).toBe(false)
+    expect(item.emoteHasSound).toBe(false)
+    expect(item.emoteHasProps).toBe(false)
+  })
+
+  it('leaves them undefined for an item with no emote data', async () => {
+    const item = await fetchOne(undefined)
+
+    expect(item.emoteLoop).toBeUndefined()
+    expect(item.emoteHasSound).toBeUndefined()
+    expect(item.emoteHasProps).toBeUndefined()
   })
 })

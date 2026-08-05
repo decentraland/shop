@@ -27,7 +27,18 @@ const { Interface, hexZeroPad } = ethers.utils
 export class GaslessUnavailableError extends Error {
   constructor(
     message: string,
-    readonly reason: 'disabled' | 'contract-account' | 'relayer' | 'unknown' = 'unknown'
+    /**
+     * `relayer-rejected` vs `relayer-unreachable` is a MONEY distinction, not a diagnostic one.
+     *
+     * Rejected means a response was parsed and carried no hash: the meta-transaction was provably NOT
+     * broadcast, so falling back to the direct rail with the same credit is safe. Unreachable means there is
+     * no usable response — a proxy 502, a reset connection — and the relayer may well have submitted before
+     * the connection died. Re-submitting the same credit then spends it twice from the caller's point of
+     * view: gas estimation reverts on the already-consumed credit, no receipt comes back, and the failure
+     * looks exactly like a pre-broadcast one to anything that cannot tell these two apart.
+     */
+    readonly reason:
+      'disabled' | 'contract-account' | 'relayer-rejected' | 'relayer-unreachable' | 'unknown' = 'unknown'
   ) {
     super(message)
     this.name = 'GaslessUnavailableError'
@@ -148,14 +159,16 @@ async function relay(
     })
     body = (await res.json()) as RelayerResponse
     if (!res.ok && body?.ok !== true && !body?.txHash) {
-      throw new GaslessUnavailableError(body?.message ?? `relayer ${res.status}`, 'relayer')
+      // A parsed body with no hash: an answer, and the answer is no.
+      throw new GaslessUnavailableError(body?.message ?? `relayer ${res.status}`, 'relayer-rejected')
     }
   } catch (e) {
     if (e instanceof GaslessUnavailableError) throw e
-    throw new GaslessUnavailableError((e as Error)?.message ?? 'relayer unreachable', 'relayer')
+    // No usable response — the request may have been submitted before this failed. Not the same as a refusal.
+    throw new GaslessUnavailableError((e as Error)?.message ?? 'relayer unreachable', 'relayer-unreachable')
   }
   if (body?.ok === false || !body?.txHash) {
-    throw new GaslessUnavailableError(body?.message ?? 'relayer rejected the transaction', 'relayer')
+    throw new GaslessUnavailableError(body?.message ?? 'relayer rejected the transaction', 'relayer-rejected')
   }
   return body.txHash
 }
@@ -244,9 +257,18 @@ export async function buyManyGasless(opts: {
   signer: ethers.Signer
   /** Fired once the buyer has signed the meta-tx (wallet prompt dismissed), before on-chain settlement. */
   onSigned?: () => void
+  /**
+   * Fired as each group's meta-transaction is RELAYED, with the credits it spends.
+   *
+   * The relayer has broadcast by the time `relay()` resolves, so those reservations must not be released on a
+   * later failure. This rail needed the signal for a second reason too: settlement is awaited per HASH by the
+   * caller, so pairing hash -> salts here is what lets a caller tell WHICH group reverted and which is still
+   * pending, instead of having to treat a mixed outcome as all-or-nothing.
+   */
+  onBroadcast?: (info: { txHash: string; salts: string[] }) => void
 }): Promise<string[]> {
   if (!gaslessConfig.enabled) throw new GaslessUnavailableError('gasless checkout disabled', 'disabled')
-  const { purchases, buyer, signer, onSigned } = opts
+  const { purchases, buyer, signer, onSigned, onBroadcast } = opts
   if (purchases.length === 0) throw new Error('No items to buy')
 
   const groups = new Map<string, CreditPurchase[]>()
@@ -269,7 +291,9 @@ export async function buyManyGasless(opts: {
     const args = buildUseCreditsArgs(marketplace.address, marketplace.abi, trades, buyer, credits, maxCreditedValue)
     const cm = getContract(ContractName.CreditsManager, chainId)
     const functionData = new Interface(cm.abi).encodeFunctionData('useCredits', [args])
-    hashes.push(await relay(chainId, buyer, functionData, signer, onSigned))
+    const txHash = await relay(chainId, buyer, functionData, signer, onSigned)
+    onBroadcast?.({ txHash, salts: credits.map(c => c.id) })
+    hashes.push(txHash)
   }
   return hashes
 }

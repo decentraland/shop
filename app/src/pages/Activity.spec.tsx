@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { PurchaseRecord } from '~/lib/credits'
 import type { PurchaseDisplay, SaleRecord } from '~/lib/api'
+import type { ImportItem } from '~/lib/import'
 import type { ManaRate } from '~/lib/mana-rate'
 
 const session = {
@@ -58,12 +59,26 @@ vi.mock('~/hooks/useManaRate', () => ({
   useManaRate: (...args: unknown[]) => useManaRate(...args)
 }))
 
+const fetchImportable = vi.fn()
+vi.mock('~/lib/import', () => ({
+  fetchImportable: (...args: unknown[]) => fetchImportable(...args)
+}))
+vi.mock('~/hooks/useSecondarySales', () => ({ useSecondarySales: () => true }))
+
+// The migration tool is lazy-loaded and covered by its own spec; this one is about the chip that
+// opens it and what replaces the feed when it does.
+vi.mock('~/components/ImportListings', () => ({
+  ImportListings: () => <div data-testid="import-panel" />
+}))
+
 import { Activity } from '~/pages/Activity'
 
 function record(overrides: Partial<PurchaseRecord> = {}): PurchaseRecord {
   return {
     id: Math.random().toString(36).slice(2),
     tradeId: 't-' + Math.random().toString(36).slice(2),
+    contractAddress: null,
+    itemId: null,
     usdCents: 100,
     credits: 10,
     status: 'SETTLED',
@@ -101,15 +116,37 @@ function sale(overrides: Partial<SaleRecord> = {}): SaleRecord {
   }
 }
 
-function renderPage() {
+function renderPage(path = '/activity') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[path]}>
         <Activity />
       </MemoryRouter>
     </QueryClientProvider>
   )
+}
+
+// One classic (MANA-priced) listing, in the shape /v3/catalog/importable returns.
+function importable(overrides: Partial<ImportItem> = {}): ImportItem {
+  return {
+    oldTradeId: 'old-' + Math.random().toString(36).slice(2),
+    listingType: 'primary',
+    contractAddress: '0xc0113c7104',
+    itemId: '0',
+    tokenId: null,
+    name: 'Galaxy Hat',
+    thumbnail: '',
+    rarity: 'epic',
+    category: 'wearable',
+    wearableCategory: 'hat',
+    manaWei: '100000000000000000000',
+    available: 100,
+    network: 'MATIC',
+    chainId: 80002,
+    suggestedCredits: 270,
+    ...overrides
+  }
 }
 
 beforeEach(() => {
@@ -129,6 +166,7 @@ beforeEach(() => {
   fetchUserSales.mockImplementation(() => Promise.resolve({ items: [], total: 0 }))
   fetchTradeDisplay.mockResolvedValue(null)
   fetchAssetDisplay.mockResolvedValue(null)
+  fetchImportable.mockResolvedValue({ creations: [], owned: [] })
   useManaRate.mockReturnValue({ data: RATE })
 })
 
@@ -139,6 +177,8 @@ describe('when the user is not signed in', () => {
     expect(screen.getByText('Sign in to see your activity')).toBeInTheDocument()
     expect(fetchUserPurchases).not.toHaveBeenCalled()
     expect(fetchUserSales).not.toHaveBeenCalled()
+    // No seller, so there is nothing to ask about — the chip's read must not fire either.
+    expect(fetchImportable).not.toHaveBeenCalled()
   })
 })
 
@@ -211,6 +251,54 @@ describe('when an item purchase cannot be resolved yet (indexing lag / no trade)
   })
 })
 
+// A CollectionStore mint has no trade. Resolving a purchase line only through its tradeId rendered every
+// mint as the nameless "Item" fallback above, with no link to its detail page.
+describe('when a purchase line is a mint with no trade', () => {
+  const COLLECTION = '0x3b5306be0da3202a5e7b00d1acc16a46cd88dfdc'
+
+  it('should resolve its name from the recorded item instead of a trade', async () => {
+    fetchUserPurchases.mockResolvedValue({
+      items: [record({ id: 'a', tradeId: null, contractAddress: COLLECTION, itemId: '12', txHash: '0xz', credits: 3 })],
+      total: 1
+    })
+    fetchAssetDisplay.mockResolvedValue(display({ name: 'Banana Crown', contractAddress: COLLECTION, itemId: '12' }))
+
+    renderPage()
+
+    expect(await screen.findByText('Banana Crown')).toBeInTheDocument()
+    expect(screen.queryByText('Item')).not.toBeInTheDocument()
+    // Resolved by item, never by trade — there is no trade to ask about.
+    expect(fetchAssetDisplay).toHaveBeenCalledWith(COLLECTION, { itemId: '12' })
+    expect(fetchTradeDisplay).not.toHaveBeenCalled()
+  })
+
+  it('should still fall back to the generic name when the item cannot be resolved', async () => {
+    fetchUserPurchases.mockResolvedValue({
+      items: [record({ id: 'a', tradeId: null, contractAddress: COLLECTION, itemId: '12', txHash: '0xz', credits: 3 })],
+      total: 1
+    })
+    fetchAssetDisplay.mockResolvedValue(null)
+
+    renderPage()
+
+    expect(await screen.findByText('Item')).toBeInTheDocument()
+  })
+
+  // The rows written before the server recorded the item: nothing to resolve, and nothing to crash on.
+  it('should render a line with neither a trade nor an item as the generic fallback', async () => {
+    fetchUserPurchases.mockResolvedValue({
+      items: [record({ id: 'a', tradeId: null, txHash: '0xz', credits: 3 })],
+      total: 1
+    })
+
+    renderPage()
+
+    expect(await screen.findByText('Item')).toBeInTheDocument()
+    expect(fetchAssetDisplay).not.toHaveBeenCalled()
+    expect(fetchTradeDisplay).not.toHaveBeenCalled()
+  })
+})
+
 describe('when purchases and a sale are interleaved', () => {
   beforeEach(() => {
     fetchUserPurchases.mockResolvedValue({
@@ -246,5 +334,99 @@ describe('when purchases and a sale are interleaved', () => {
     fireEvent.click(screen.getByTestId('activity-filter-sales'))
     await waitFor(() => expect(screen.queryByTestId('purchase-order')).not.toBeInTheDocument())
     expect(screen.getByTestId('activity-sale')).toBeInTheDocument()
+  })
+})
+
+describe('the migration chip', () => {
+  it('should not render at all when the seller has no classic listings', async () => {
+    renderPage()
+    await screen.findByText('No activity yet')
+
+    expect(screen.queryByTestId('activity-filter-migrate')).not.toBeInTheDocument()
+    // Not even an unbadged chip: the row is the three filters and nothing else.
+    expect(screen.getAllByRole('tab')).toHaveLength(3)
+  })
+
+  it('should render nothing while the count is still unknown', async () => {
+    fetchImportable.mockReturnValue(new Promise(() => {}))
+    renderPage()
+    await screen.findByText('No activity yet')
+
+    expect(screen.queryByTestId('activity-filter-migrate')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('activity-migrate-count')).not.toBeInTheDocument()
+  })
+
+  it('should render at the end of the chip row, badged with how many are left', async () => {
+    fetchImportable.mockResolvedValue({ creations: [importable(), importable()], owned: [importable()] })
+    renderPage()
+
+    const chip = await screen.findByTestId('activity-filter-migrate')
+    expect(chip).toHaveTextContent('Listings')
+    expect(screen.getByTestId('activity-migrate-count')).toHaveTextContent('3')
+    // Last of the four chips.
+    expect(screen.getAllByRole('tab').at(-1)).toBe(chip)
+    // The count is spelled out for a reader, since the badge alone says "3" of nothing.
+    expect(chip).toHaveAccessibleName('Move your listings — 3 items left')
+  })
+
+  it('should read the count ONCE for a render pass, not per render', async () => {
+    fetchImportable.mockResolvedValue({ creations: [importable()], owned: [] })
+    const { rerender } = renderPage()
+    await screen.findByTestId('activity-filter-migrate')
+
+    rerender(<div />)
+    expect(fetchImportable).toHaveBeenCalledTimes(1)
+  })
+
+  it('should swap the feed for the migration tool when clicked', async () => {
+    fetchImportable.mockResolvedValue({ creations: [importable()], owned: [] })
+    renderPage()
+
+    fireEvent.click(await screen.findByTestId('activity-filter-migrate'))
+
+    expect(await screen.findByTestId('import-panel')).toBeInTheDocument()
+    expect(screen.queryByText('No activity yet')).not.toBeInTheDocument()
+    expect(screen.getByTestId('activity-filter-migrate')).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByTestId('activity-filter-all')).toHaveAttribute('aria-selected', 'false')
+  })
+
+  // What /import redirects to, so the redirect lands on the tool rather than on the feed.
+  it('should open the tool straight away from the view query', async () => {
+    fetchImportable.mockResolvedValue({ creations: [importable()], owned: [] })
+    renderPage('/activity?view=migrate')
+
+    expect(await screen.findByTestId('import-panel')).toBeInTheDocument()
+    expect(await screen.findByTestId('activity-filter-migrate')).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('should keep the chip while its own panel is open even with nothing left to move', async () => {
+    renderPage('/activity?view=migrate')
+
+    const chip = await screen.findByTestId('activity-filter-migrate')
+    // Present so the row still has a selected chip, but with no zero badge on it.
+    expect(chip).toHaveAttribute('aria-selected', 'true')
+    expect(screen.queryByTestId('activity-migrate-count')).not.toBeInTheDocument()
+    // No count to spell out, so the name falls back to the chip's own label.
+    expect(chip).toHaveAccessibleName('Listings')
+  })
+
+  it('should go back to the feed when a filter chip is picked', async () => {
+    fetchImportable.mockResolvedValue({ creations: [importable()], owned: [] })
+    renderPage('/activity?view=migrate')
+    await screen.findByTestId('import-panel')
+
+    fireEvent.click(screen.getByTestId('activity-filter-purchases'))
+
+    await waitFor(() => expect(screen.queryByTestId('import-panel')).not.toBeInTheDocument())
+    expect(screen.getByTestId('activity-filter-purchases')).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('should not read the feed while the migration tool is what is on screen', async () => {
+    fetchImportable.mockResolvedValue({ creations: [importable()], owned: [] })
+    renderPage('/activity?view=migrate')
+    await screen.findByTestId('import-panel')
+
+    expect(fetchUserPurchases).not.toHaveBeenCalled()
+    expect(fetchUserSales).not.toHaveBeenCalled()
   })
 })

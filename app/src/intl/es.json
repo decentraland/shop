@@ -12,12 +12,17 @@
     "myFavorites": "Mis favoritos",
     "activity": "Actividad",
     "authorizations": "Autorizaciones",
+    "outfits": "Estudio de outfits",
     "searchPlaceholder": "Busca artículo, creador, colección, nombre...",
     "searchAria": "Buscar en la tienda",
-    "polygonMana": "Polygon MANA",
-    "yourBalance": "Tus {currency}",
     "getCredits": "Conseguir {currency}",
     "cart": "Carrito"
+  },
+  "notifications": {
+    "title": "Notificaciones",
+    "titleUnread": "Notificaciones, {count} sin leer",
+    "empty": "Todavía no tienes notificaciones.",
+    "loading": "Cargando notificaciones…"
   },
   "search": {
     "suggestions": "Sugerencias de búsqueda",
@@ -77,7 +82,6 @@
   },
   "creator": {
     "breadcrumb": "Artículos",
-    "category": "Categoría",
     "fallbackName": "Creador",
     "viewProfile": "Ver perfil",
     "editStore": "Editar tienda",
@@ -91,16 +95,15 @@
     "following": "Siguiendo",
     "followTitle": "Seguir al creador",
     "unfollowTitle": "Dejar de seguir al creador",
-    "empty": "Este creador todavía no tiene artículos para mostrar.",
+    "emptyNoCreations": "Este creador todavía no ha publicado nada.",
+    "emptyFilters": {
+      "title": "Ningún artículo coincide con estos filtros.",
+      "body": "Este creador tiene {count, plural, one {# artículo} other {# artículos}}, pero ninguno coincide con los filtros que elegiste."
+    },
     "collectionsCount": "{count, plural, one {# colección} other {# colecciones}}",
     "collectionsEmpty": "Este creador todavía no ha publicado colecciones.",
     "error": "No pudimos cargar este creador. Prueba de nuevo.",
-    "breadcrumbAria": "Ruta de navegación",
-    "priceMin": "Precio mínimo",
-    "priceMax": "Precio máximo",
-    "priceMinPlaceholder": "Mín",
-    "priceMaxPlaceholder": "Máx",
-    "priceHint": "Precio en {currency}"
+    "breadcrumbAria": "Ruta de navegación"
   },
   "storeSettings": {
     "title": "Configuración de la tienda",
@@ -130,8 +133,8 @@
   },
   "prelaunch": {
     "title": "Estamos preparando la tienda",
-    "body": "La tienda todavía no está abierta para todos. Le estamos dando los últimos toques — volvé muy pronto.",
-    "connected": "Las wallets con acceso anticipado van a ver la tienda acá.",
+    "body": "La tienda todavía no está abierta para todos. Le estamos dando los últimos toques — vuelve muy pronto.",
+    "connected": "Las cuentas con acceso anticipado verán la tienda aquí.",
     "signIn": "Iniciar sesión"
   },
   "cart": {
@@ -152,8 +155,9 @@
     "removeTitle": "Quitar",
     "clearCart": "Vaciar carrito",
     "purchaseSummary": "Resumen de compra",
-    "buyWithCredits": "Pagar con credits",
-    "creatorTag": "Creator",
+    "checkout": "Finalizar compra",
+    "buyWithCredits": "Pagar con créditos",
+    "creatorTag": "Creador",
     "totalItems": "Total: {count, plural, one {# artículo} other {# artículos}}",
     "working": "Procesando…",
     "signInHint": "Te pediremos que inicies sesión primero.",
@@ -168,7 +172,8 @@
     "error": {
       "insufficient": "No tienes suficientes {currency}. Consigue más primero.",
       "noneAvailable": "Ninguno de estos artículos está disponible para comprar en este momento.",
-      "listingChanged": "Uno o más artículos cambiaron. Revisa tu carrito e inténtalo de nuevo."
+      "listingChanged": "Uno o más artículos cambiaron. Revisa tu carrito e inténtalo de nuevo.",
+      "partiallyBought": "Una parte de tu compra se completó: ya tienes esos artículos en Mis artículos. El resto sigue en tu carrito, así que puedes intentarlo de nuevo sin pagar dos veces."
     },
     "drop": {
       "unavailable": "{count, plural, one {# que ya no está disponible} other {# que ya no están disponibles}}",
@@ -185,6 +190,8 @@
     "packBadge": "Recomendado",
     "packUnit": "{currency}",
     "packAria": "Consigue {amount} por ${usd}",
+    "packBonus": "+{bonus} extra",
+    "packAriaBonus": "Consigue {amount} por ${usd} — {bonus} más que {baseline}",
     "packsLoading": "Cargando paquetes de {currency}…",
     "creditsAmount": "{credits} {currency}",
     "redirecting": "Redirigiendo al pago seguro…",
@@ -221,7 +228,6 @@
     "addToFavorites": "Agregar a favoritos",
     "removeFromFavorites": "Quitar de favoritos",
     "marketPrice": "Precio de mercado",
-    "onSaleCount": "{count, plural, one {# en venta} other {# en venta}}",
     "unavailable": "No disponible",
     "buyNow": "Comprar ahora",
     "yourItem": "Tu artículo",
@@ -251,13 +257,13 @@
     "authorize": "Autorizar",
     "authorizing": "Autorizando…",
     "sellTitle": "Una aprobación rápida primero",
-    "sellReason": "Permite que la Shop entregue «{name}» cuando se venda. Es una aprobación única para esta colección — no te lo volveremos a pedir.",
+    "sellReason": "Permite que el Shop entregue «{name}» cuando se venda. Es una aprobación única para esta colección — no te lo volveremos a pedir.",
     "buyTitle": "Una aprobación rápida primero",
-    "buyReason": "Permite que la Shop cubra las compras con tu saldo. Es una aprobación única — no te lo volveremos a pedir.",
+    "buyReason": "Permite que el Shop cubra las compras con tu saldo. Es una aprobación única — no te lo volveremos a pedir.",
     "buyName": "Cubrir compras con tu saldo",
     "manaTitle": "Una aprobación rápida primero",
     "manaName": "Pagar con tu MANA",
-    "manaReason": "Permití que el Shop use tu MANA para pagar esta compra. Es una aprobación única — no te lo vamos a volver a pedir.",
+    "manaReason": "Permite que el Shop use tu MANA para pagar esta compra. Es una aprobación única — no te lo volveremos a pedir.",
     "note": "Sin comisiones de gas, y tú mantienes el control — puedes desactivarla cuando quieras desde Autorizaciones.",
     "errorRejected": "Descartaste la aprobación. Haz clic en Autorizar para intentarlo de nuevo.",
     "errorGeneric": "No se pudo completar la aprobación. Inténtalo de nuevo."
@@ -311,7 +317,8 @@
     "errorTitle": "¡Ups! Algo salió mal",
     "errorHeadline": "No pudimos completar tu compra esta vez.",
     "errorBody": "Tranquilo, tus créditos están a salvo. Inténtalo de nuevo en un momento.",
-    "tryAgain": "Reintentar"
+    "tryAgain": "Reintentar",
+    "confirmMultiple": "Confirma {current} de {total} aprobaciones"
   },
   "marketCheckout": {
     "finalPrice": "Precio final",
@@ -336,6 +343,7 @@
     "categoryEmote": "Emote",
     "categoryWearable": "Wearable",
     "moreFromCollection": "Más de esta colección",
+    "relatedItems": "Artículos similares",
     "notForSale": "No está a la venta",
     "checking": "Comprobando…",
     "maxInCart": "Máximo en el carrito",
@@ -346,6 +354,8 @@
     "description": "Descripción",
     "showLess": "Ver menos",
     "readMore": "Leer más",
+    "smart": "Smart",
+    "utility": "Utilidad",
     "creator": "Creador",
     "collection": "Colección",
     "price": "Precio",
@@ -361,15 +371,19 @@
     "manageRemove": "Quitar de la venta",
     "manageWorking": "Procesando…",
     "updateConfirmCancel": "Confirma la cancelación",
-    "updateCanceling": "Cancelando el listado actual…",
-    "updateHelper": "Editar el precio primero cancela tu listado actual y luego lo vuelve a publicar al nuevo precio.",
+    "updateCanceling": "Cancelando la publicación actual…",
+    "updateHelper": "Editar el precio primero cancela tu publicación actual y luego la vuelve a publicar al nuevo precio.",
     "buyFromCreator": "Compra directamente del creador",
     "lowestPrice": "Precio más bajo:",
     "viewAllResellers": "Ver otros revendedores",
     "originalPrice": "Precio original",
     "resalePrice": "Precio de reventa",
     "soldOut": "Agotado",
-    "youOwnN": "Tienes {count, plural, one {# copia} other {# copias}} de este — gestiónalas en"
+    "youOwnN": "Tienes {count, plural, one {# copia} other {# copias}} de este — gestiónalas en",
+    "playLoop": "Bucle",
+    "playOnce": "Una vez",
+    "emoteSound": "Sonido",
+    "emoteProps": "Accesorios"
   },
   "transfer": {
     "title": "Transferir artículo",
@@ -433,6 +447,7 @@
     "confirmingAfter": "— esto suele tardar unos segundos. Mantén esta pestaña abierta.",
     "itemCount": "{count, plural, one {# artículo} other {# artículos}}",
     "viewTransaction": "Ver recibo ↗",
+    "viewTransactionNumbered": "Recibo {n} de {total} ↗",
     "stillProcessingTitle": "Sigue procesándose…",
     "timedOutBefore": "Esto está tardando más de lo habitual en confirmarse. Puede que tu compra aún se complete: revisa",
     "timedOutAfter": "en unos minutos para ver el estado final. No necesitas comprar de nuevo.",
@@ -447,8 +462,8 @@
     "viewOrder": "Ver pedido",
     "useItInWorld": "Úsalo en el mundo",
     "bannerTitle": "¡Tu compra se realizó con éxito!",
-    "bannerBody": "Puedes encontrar tu artículo en la pestaña Mis Activos.",
-    "myAssets": "Mis Activos",
+    "bannerBody": "Puedes encontrar tu artículo en la pestaña Mis artículos.",
+    "myAssets": "Mis artículos",
     "tryInWorld": "Probar en el mundo"
   },
   "itemPreview": {
@@ -487,9 +502,6 @@
     "signInPrompt": "Inicia sesión para vender tus artículos.",
     "removedFromSale": "«{name}» ya no está a la venta.",
     "removeListingError": "No pudimos quitar la publicación. Inténtalo de nuevo.",
-    "importTitle": "Importa tus publicaciones",
-    "importSub": "Tienes {count, plural, one {# artículo} other {# artículos}} a la venta en otro lugar; tráelos a la tienda.",
-    "import": "Importar",
     "ownedTitle": "Artículos que tienes",
     "ownedSub": "Wearables y emotes que compraste: revéndelos en la tienda.",
     "ownedError": "No pudimos cargar tus artículos. Inténtalo de nuevo.",
@@ -498,10 +510,10 @@
     "removing": "Quitando…",
     "removeListing": "Quitar de la venta",
     "putOnSale": "Poner a la venta",
-    "ownedEmpty": "Los artículos que tengas aparecerán acá. Explorá la tienda y armá tu colección.",
-    "namesEmpty": "Reclamá un NAME único para destacarte en Decentraland — va a aparecer acá cuando sea tuyo.",
-    "emptyOwnedTitle": "Todavía no hay nada acá",
-    "emptyNamesTitle": "Todavía no tenés NAMEs",
+    "ownedEmpty": "Los artículos que tengas aparecerán aquí. Explora la tienda y empieza tu colección.",
+    "namesEmpty": "Reclama un NAME único para destacar en Decentraland — aparecerá aquí cuando sea tuyo.",
+    "emptyOwnedTitle": "Todavía no hay nada aquí",
+    "emptyNamesTitle": "Todavía no tienes NAMEs",
     "emptyCreationsTitle": "Todavía no hay creaciones",
     "emptyBrowse": "Ver coleccionables",
     "creationsTitle": "Tus creaciones",
@@ -509,10 +521,10 @@
     "collectionsError": "No pudimos cargar tus colecciones en este momento. Inténtalo de nuevo en un momento.",
     "nothingToPublish": "Todavía no tienes artículos para publicar.",
     "available": "{count, plural, one {# disponible} other {# disponibles}}",
-    "assetsHeading": "Activos",
+    "assetsHeading": "Artículos",
     "sectionWearables": "Wearables",
     "sectionEmotes": "Emotes",
-    "sectionNames": "Nombres",
+    "sectionNames": "NAMEs",
     "sectionCreations": "Mis creaciones",
     "searchPlaceholder": "Busca tus artículos",
     "clearSearch": "Borrar búsqueda"
@@ -548,8 +560,16 @@
     "boughtFrom": "Comprado a {account}",
     "paidWithMana": "Compra · pagada con MANA",
     "payoutPending": "Pendiente",
-    "payoutPendingOn": "Credits disponibles el {date}",
-    "payoutCredited": "Cobrado en credits"
+    "payoutPendingOn": "Créditos disponibles el {date}",
+    "payoutCredited": "Cobrado en créditos",
+    "migrate": {
+      "chip": "Publicaciones",
+      "chipAria": "Mueve tus publicaciones — {count, plural, one {queda # artículo} other {quedan # artículos}}"
+    },
+    "unfinished": "Sin terminar",
+    "resume": "Continuar",
+    "resuming": "Abriendo…",
+    "resumeExpired": "Ese pago expiró: elige un paquete para empezar de nuevo."
   },
   "myFavorites": {
     "emptyTitle": "¡Aquí no hay nada... todavía!",
@@ -568,9 +588,9 @@
     "next": "Siguiente",
     "carouselPages": "Páginas de {title}",
     "goToPage": "Ir a la página {page}",
-    "heroTitle": "Outfits de la semana de la moda",
-    "exploreCollection": "Explorar colección",
-    "featuredProducts": "Productos destacados",
+    "heroTitle": "Una nueva forma de comprar",
+    "heroCta": "Comprar créditos",
+    "trendingProducts": "Productos en tendencia",
     "newCreations": "Nuevas creaciones",
     "readyToUseAvatars": "Avatares listos para usar",
     "addLook": "Agregar al carrito",
@@ -581,6 +601,7 @@
     "bestRatedEmotes": "Emotes mejor valorados",
     "exploreEmotes": "Explora los emotes",
     "weekSelectedOutfits": "Outfits seleccionados de la semana",
+    "exploreCollection": "Explora la colección",
     "promoOutfitsAria": "Outfits seleccionados de la semana: explorar colección",
     "promoOutfitsAlt": "Outfits seleccionados de la semana",
     "emptyTitle": "Se avecinan nuevos lanzamientos",
@@ -627,6 +648,110 @@
     "allInCart": "Todo en el carrito",
     "addAll": "Añadir todo ({count}) al carrito"
   },
+  "outfits": {
+    "rowTitle": "Compra el look",
+    "card": {
+      "items": "{count, plural, one {# artículo} other {# artículos}}",
+      "add": "Añadir al carrito",
+      "unavailable": "Ya no disponible",
+      "adding": "Añadiendo…"
+    },
+    "detail": {
+      "addCount": "{count, plural, one {Añadir # artículo al carrito} other {Añadir # artículos al carrito}}",
+      "nothingToAdd": "Todo esto ya está en tu carrito o lo vendes tú",
+      "yourListing": "Lo vendes tú",
+      "yourListingHint": "Algunos de estos artículos los vendes tú, así que no cuentan para el total.",
+      "inCart": "En tu carrito",
+      "resolveError": "No pudimos cargar los artículos de este outfit.",
+      "retry": "Prueba de nuevo",
+      "notFoundTitle": "Este outfit no está disponible",
+      "notFoundBody": "Puede que ya no exista. Explora la tienda para encontrar tu próximo look.",
+      "itemsCount": "{count, plural, one {# artículo en este outfit} other {# artículos en este outfit}}",
+      "totalPrice": "Precio total",
+      "breadcrumbLooks": "Looks",
+      "breadcrumbAria": "Ruta de navegación"
+    },
+    "studio": {
+      "title": "Estudio de outfits",
+      "myOutfits": "Mis outfits",
+      "new": "Nuevo outfit",
+      "editTitle": "Editar outfit",
+      "signInPrompt": "Inicia sesión para gestionar outfits.",
+      "signIn": "Inicia sesión",
+      "notAvailable": "Esta sección es solo para el equipo de estilismo de la tienda.",
+      "backToShop": "Volver a la tienda",
+      "untitled": "Outfit sin nombre",
+      "view": "Ver",
+      "edit": "Editar",
+      "draft": "Borrador",
+      "publishedState": "Publicado",
+      "deleteTitle": "¿Eliminar este outfit?",
+      "deleteBody": "Si lo despublicas, desaparece de la tienda pero se conserva aquí. Si lo eliminas, no se puede deshacer.",
+      "confirmDelete": "Eliminar",
+      "cancel": "Cancelar",
+      "unpublish": "Despublicar",
+      "unpublished": "Outfit despublicado",
+      "deleted": "Outfit eliminado",
+      "saved": "Outfit guardado",
+      "publishedToast": "Outfit publicado",
+      "saving": "Guardando…",
+      "saveDraft": "Guardar",
+      "publish": "Publicar",
+      "name": "Nombre",
+      "namePlaceholder": "p. ej. Noches de neón",
+      "items": "Artículos",
+      "noItems": "Aún no hay artículos: elige algunos del catálogo de abajo.",
+      "maxItems": "Un outfit puede tener hasta 20 artículos.",
+      "remove": "Quitar",
+      "playsInPreview": "Se reproduce en la vista previa",
+      "needsWearable": "Agrega al menos una prenda para publicar.",
+      "pickerCategory": "Qué explorar",
+      "searchWearables": "Busca prendas…",
+      "searchEmotes": "Busca emotes…",
+      "noResults": "Sin resultados",
+      "gradient": "Colores de fondo",
+      "gradientTop": "Arriba",
+      "gradientBottom": "Abajo",
+      "gradientTopHex": "Código hex del color de arriba",
+      "gradientBottomHex": "Código hex del color de abajo",
+      "gradientHint": "El outfit se muestra sobre estos dos colores, degradando de arriba hacia abajo.",
+      "thumbnail": "Miniatura",
+      "thumbnailHint": "PNG, JPEG o WebP, de hasta 1 MB. El formato vertical (3:4) funciona mejor; súbela con fondo transparente para que se vean los colores.",
+      "upload": "Subir imagen",
+      "uploading": "Subiendo…",
+      "bodyShape": "Forma del cuerpo",
+      "shape": {
+        "unisex": "Ambos",
+        "male": "Masculino",
+        "female": "Femenino"
+      },
+      "previewEmpty": "Elige artículos para verlos en el maniquí.",
+      "needName": "Ponle un nombre al outfit para guardarlo.",
+      "empty": "Aún no hay outfits: crea el primero.",
+      "cardPreview": "Vista previa de la tarjeta",
+      "import": "Importar desde un enlace de vista previa",
+      "importPlaceholder": "Pega un enlace o código de vista previa del avatar…",
+      "importApply": "Importar",
+      "importHint": "Pega el enlace de vista previa del editor de avatares: sus artículos, forma del cuerpo y colores completan el outfit.",
+      "importError": "No encontramos artículos del outfit en ese enlace.",
+      "importSuccess": "{count, plural, one {# artículo importado} other {# artículos importados}}"
+    },
+    "toast": {
+      "added": "Outfit añadido al carrito",
+      "partial": "Se añadieron {added} de {total} artículos{unavailable, plural, =0 {} other { — # ya no disponibles}}{inCart, plural, =0 {} other { — # ya en tu carrito}}{own, plural, =0 {} other { — # los vendes tú}}",
+      "noneLeft": "Estos artículos acaban de agotarse — no se añadió nada a tu carrito",
+      "addFailed": "No pudimos comprobar estos artículos ahora mismo. No se añadió nada — inténtalo de nuevo."
+    },
+    "errors": {
+      "generic": "Algo salió mal. Prueba de nuevo.",
+      "notAllowed": "Tu cuenta no puede gestionar outfits.",
+      "notPublishable": "Añade un nombre, una miniatura y de 1 a 20 artículos antes de publicar.",
+      "invalidItems": "Uno de los artículos está duplicado o no es válido.",
+      "tooLarge": "Esa imagen es demasiado grande: debe pesar menos de 1 MB.",
+      "unsupportedType": "Usa una imagen PNG, JPEG o WebP.",
+      "notFound": "Este outfit ya no existe."
+    }
+  },
   "footer": {
     "newsletterTitle": "Recibe lo más destacado de la semana en tu correo",
     "newsletterFrameTitle": "Suscripción al boletín",
@@ -656,18 +781,16 @@
     "pages": "Páginas del carrusel",
     "goToPage": "Ir a la página {page}"
   },
-  "weekTopCreators": {
-    "title": "Mejores creadores de la semana",
-    "thisWeek": "Esta semana",
-    "rank": "Posición",
-    "creator": "Creador",
-    "collections": "Colecciones",
-    "sales": "Ventas",
-    "volume": "Volumen"
+  "topCreators": {
+    "title": "Conoce a nuestros mejores creadores",
+    "viewCreations": "Ver creaciones",
+    "viewCreationsBy": "Ver las creaciones de {name}",
+    "stats": "{collections, plural, one {# colección} other {# colecciones}} | {items, plural, one {# artículo} other {# artículos}}"
   },
   "loadMore": {
     "loading": "Cargando…",
-    "loadMore": "Cargar más"
+    "loadMore": "Cargar más",
+    "retry": "Reintentar"
   },
   "recentlyViewed": {
     "title": "Vistos recientemente"
@@ -682,36 +805,46 @@
     "label": "Compra exitosa"
   },
   "importListings": {
-    "creations": {
-      "title": "Tus creaciones",
-      "sub": "Artículos que creaste. Ponlos a la venta en la Tienda."
-    },
-    "owned": {
-      "title": "Artículos que posees",
-      "sub": "Cosas que compraste en otro lugar — revéndelas en la Tienda."
-    },
     "toastUpdated": "Tu Tienda está actualizada.",
-    "signInTitle": "Importa tus publicaciones",
-    "signInBody": "Inicia sesión para traer a la Tienda los artículos que ya vendes.",
     "emptyTitle": "Estás al día",
     "emptyBody": "Todo lo que vendes ya está en la Tienda — no hay nada que importar.",
     "goToMyAssets": "Ir a Mis artículos",
-    "eyebrow": "Importar a la Tienda",
-    "titleLead": "Trae tus publicaciones",
-    "titleAccent": "a la Tienda",
-    "lede": "Estos artículos ya están a la venta en otro lugar. Sugerimos un precio en {currency} para cada uno, ajustado a la tasa de hoy y redondeado hacia arriba. Ajusta lo que quieras y publícalos.",
-    "rate": "1 {currency} = $0.10 · precios redondeados hacia arriba",
+    "title": "¡Trae tus publicaciones a la nueva tienda!",
+    "lede": "Ahora puedes poner precio a tus artículos en {currency}. Sugerimos precios equivalentes según la tasa de cambio de MANA de hoy, pero puedes ajustarlos antes de publicar. Cuando estés listo, publica tus artículos en la nueva Tienda.",
+    "learnMore": "Más información",
+    "updatePricing": "Actualizar precios",
+    "selectAll": "Seleccionar todo",
+    "selectAllAria": "Seleccionar todo lo que vas a mover",
     "includeItem": "Incluir {name}",
     "itemFallback": "Artículo",
     "priceAria": "Precio en {currency} para {name}",
-    "resetTo": "Restablecer a",
-    "list": "Publicar",
+    "wasMana": "({amount} MANA)",
     "selectedSummary": "{count, plural, one {# artículo seleccionado} other {# artículos seleccionados}} · ${usd}",
     "listAll": "Publicar todo ({count})"
   },
+  "creditRate": {
+    "equals": "=",
+    "usdLabel": "$USD",
+    "aria": "1 {unit} equivale a {usd} dólares estadounidenses"
+  },
+  "manaPricingBanner": {
+    "lead": "{count, plural, one {# artículo sigue usando} other {# artículos siguen usando}} precios en MANA.",
+    "accent": "Cambia a créditos",
+    "trail": "para mantener tus precios estables.",
+    "cta": "Actualizar precios"
+  },
+  "newPricing": {
+    "title": "Precios nuevos",
+    "close": "Cerrar",
+    "infoTitle": "¡Cambia tus publicaciones a créditos!",
+    "infoBody": "Ahora puedes poner precio a tus artículos en créditos, para que los compradores vean un precio más claro y tus ganancias no dependan de los cambios de precio de MANA.",
+    "later": "Quizás más tarde",
+    "confirm": "Actualizar precios",
+    "optOut": "No mostrar esto de nuevo"
+  },
   "sellModal": {
     "errorGeneric": "No pudimos publicar tu artículo. Inténtalo de nuevo.",
-    "errorWholeNumber": "Introduce un número entero de credits",
+    "errorWholeNumber": "Introduce un número entero de créditos",
     "statusPreparing": "Preparando tu artículo…",
     "statusListing": "Publicando tu artículo…",
     "statusPublishing": "Publicando…",
@@ -739,11 +872,11 @@
     "successOnSale": "¡Tu artículo ya está a la venta!",
     "successManage": "Puedes gestionar tu venta desde Mis artículos.",
     "myItems": "Mis artículos",
-    "proceedsCredits": "Recibirás {count, plural, one {# credit} other {# credits}} cuando se venda."
+    "proceedsCredits": "Recibirás {count, plural, one {# crédito} other {# créditos}} cuando se venda."
   },
   "primaryList": {
     "errorGeneric": "No pudimos publicar tu artículo. Inténtalo de nuevo.",
-    "errorWholeNumber": "Introduce un número entero de credits",
+    "errorWholeNumber": "Introduce un número entero de créditos",
     "statusEnabling": "Activando las ventas de esta colección…",
     "statusPublishing": "Publicando tu artículo…",
     "statusFinishing": "Finalizando…",
@@ -769,7 +902,7 @@
     "readyManaged": "Esta colección está lista — publicar es instantáneo.",
     "cancel": "Cancelar",
     "checking": "Comprobando…",
-    "proceedsCredits": "Recibirás {count, plural, one {# credit} other {# credits}} por venta."
+    "proceedsCredits": "Recibirás {count, plural, one {# crédito} other {# créditos}} por venta."
   },
   "migrate": {
     "successTitle": "¡Estás en la Tienda! 🎉",
@@ -781,7 +914,7 @@
     "goToMyAssets": "Ir a Mis artículos",
     "viewInShop": "Ver en la Tienda",
     "listingTitle": "Publicando tus artículos",
-    "subConfirm": "Retiramos cada publicación anterior y la volvemos a publicar por credits — confirma cada paso.",
+    "subConfirm": "Retiramos cada publicación anterior y la volvemos a publicar por créditos — confirma cada paso.",
     "subManaged": "Moviendo tus artículos a la Tienda.",
     "progressCount": "{current} de {total}",
     "itemFallback": "Artículo",
@@ -793,7 +926,19 @@
     "statusUnlisted": "No publicado",
     "hintConfirm": "Aparecerán un par de confirmaciones rápidas por artículo (retirar + volver a publicar). Mantén esto abierto.",
     "hintManaged": "Esto solo lleva un momento — mantén esto abierto.",
-    "statusWaiting": "Esperando"
+    "statusWaiting": "Esperando",
+    "phaseCancel": "Dando de baja la publicación anterior…",
+    "phaseCancelConfirm": "Confirma la baja…",
+    "phaseConfirmingCancel": "Esperando la confirmación de la red…",
+    "phaseAuthorise": "Preparando la tienda…",
+    "phaseAuthoriseConfirm": "Confirma la autorización por única vez…",
+    "phaseSign": "Preparando el precio nuevo…",
+    "phaseSignConfirm": "Firma la nueva publicación…",
+    "phasePublishing": "Publicando…",
+    "phaseIndexing": "Esperando que se libere la publicación anterior ({attempt}/{of})…",
+    "hintCount": "Van a aparecer unas {total} confirmaciones — dar de baja y volver a publicar, por artículo. Deja esto abierto.",
+    "hintCountApproval": "Van a aparecer unas {total} confirmaciones: dar de baja y volver a publicar por artículo, más una autorización por única vez por colección. Deja esto abierto.",
+    "phaseConfirmingCancelManaged": "Casi listo…"
   },
   "fittingRoom": {
     "title": "Probador",
@@ -828,7 +973,7 @@
     "claim": "Reclamar NAME",
     "checking": "Comprobando disponibilidad…",
     "available": "¡{name} está disponible!",
-    "taken": "Este NAME ya está en uso. Elegí otro o hacele una oferta al dueño.",
+    "taken": "Este NAME ya está en uso. Elige otro NAME o hazle una oferta al dueño.",
     "takenMakeOffer": "Hacer oferta",
     "tooShort": "Los NAMEs deben tener al menos {min} caracteres.",
     "checkError": "No pudimos comprobar ese NAME ahora mismo; aún puedes intentar reclamarlo.",
@@ -838,7 +983,7 @@
     "why1": "Destaca con un NAME único que es inconfundiblemente tuyo.",
     "why2Title": "Desbloquea tu propio World",
     "why2": "Crea y personaliza un espacio 3D propio con una dirección como",
-    "why2Address": "yourname.dcl.eth.",
+    "why2Address": "tunombre.dcl.eth.",
     "why3Title": "Invita a tus amigos y gana",
     "why3": "Comparte tu enlace de invitación y gana recompensas cuando tus amigos se unan.",
     "why4Title": "Ten voz en el futuro de Decentraland",
@@ -860,21 +1005,28 @@
     "assignToAvatar": "Asignar NAME al avatar",
     "errorTitle": "Algo salió mal",
     "errorGeneric": "No pudimos completar tu compra. Inténtalo de nuevo.",
-    "tryAgain": "Reintentar"
+    "tryAgain": "Reintentar",
+    "pendingHeaderTitle": "Compra en proceso",
+    "pendingBannerBold": "Tu pago se procesó.",
+    "pendingBannerRest": "Tu NAME se está terminando de registrar y aparecerá en Mis artículos en breve — no tienes que hacer nada.",
+    "priceUnavailable": "No podemos calcular el precio de los NAMEs en este momento. Inténtalo de nuevo en un momento.",
+    "insufficientCredits": "Te faltan {credits} créditos para comprar este NAME.",
+    "errorRouteCost": "El registro de NAMEs no está disponible temporalmente. Inténtalo de nuevo más tarde."
   },
   "authorizations": {
     "title": "Autorizaciones",
-    "intro": "Las autorizaciones únicas permiten que la Shop actúe en tu nombre. Tú tienes el control: desactiva la que quieras cuando quieras.",
+    "intro": "Las autorizaciones únicas permiten que el Shop actúe en tu nombre. Tú tienes el control: desactiva la que quieras cuando quieras.",
     "buyingTitle": "Para comprar",
     "sellingTitle": "Para vender",
     "creditsName": "Completar una compra con MANA",
-    "creditsDesc": "Permite que el Shop tome MANA para cubrir la parte que tus credits no alcanzan, cuando pagás con los dos.",
+    "creditsDesc": "Permite que el Shop tome MANA para cubrir la parte que tus créditos no alcanzan, cuando pagas con los dos.",
     "manaName": "Pagar una compra entera con MANA",
-    "manaDesc": "Permite que el Shop tome MANA cuando pagás un ítem enteramente en MANA, sin gastar credits.",
-    "sellingDesc": "Permite que la Shop entregue un artículo de esta colección cuando se venda.",
+    "manaDesc": "Permite que el Shop tome MANA cuando pagas un artículo enteramente en MANA, sin gastar créditos.",
+    "sellingDesc": "Permite que el Shop transfiera artículos de esta colección cuando se vendan. Abarca la colección completa, no un solo artículo.",
     "sellingEmpty": "Todavía no hay nada que autorizar. Las autorizaciones para vender aparecen aquí cuando tienes coleccionables.",
+    "sellingTruncated": "Tienes muchos coleccionables, así que esta lista cubre las colecciones de los {count} más recientes.",
     "mintingTitle": "Para acuñar",
-    "mintingDesc": "Permite que la Shop acuñe artículos de esta colección en tu nombre.",
+    "mintingDesc": "Permite que el Shop acuñe artículos de esta colección en tu nombre.",
     "mintingEmpty": "Todavía no hay nada que autorizar. Las autorizaciones para acuñar aparecen aquí cuando publicas una colección.",
     "collectionFallback": "Tu colección",
     "active": "Activada",
@@ -897,6 +1049,9 @@
       "title": "Explorar coleccionables",
       "searchTitle": "Resultados para «{query}»",
       "description": "Explora miles de wearables y emotes para tu avatar de Decentraland. Filtra por categoría, rareza y precio para encontrar tu próximo look."
+    },
+    "outfit": {
+      "notFoundTitle": "Outfit no disponible"
     },
     "item": {
       "notFoundTitle": "Artículo no disponible",

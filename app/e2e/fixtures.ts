@@ -300,6 +300,25 @@ export const unifiedListings = {
   total: 3
 }
 
+/**
+ * `unifiedListings` plus a RESALE of item 0, for the specs that open item 0's detail page and expect
+ * other copies to be on sale (the resellers modal, and the owner-management view whose "view other
+ * resellers" link only appears when there are any). The base fixture only carries item 0's primary —
+ * its `listingCount: 3` has always implied resales it never provided, and the mock used to paper over
+ * that by ignoring the `contractAddress`/`itemId` filter and handing back item 1's resale instead.
+ *
+ * Opt-in rather than folded into the base fixture: `unifiedListings` also feeds the browse grid,
+ * where an extra row changes what other specs count.
+ */
+export const unifiedWithItem0Resale = {
+  data: [
+    ...unifiedListings.data,
+    // Reads as trade-2 / token 7 so the `buyTrade` fixture still matches the row the buy specs click.
+    { ...unifiedListings.data[1], itemId: '0', name: 'Galaxy Hat', wearableCategory: 'hat' }
+  ],
+  total: 4
+}
+
 // --- Credits balance (credits-server /users/:addr/credits) ---
 export const creditsResponse = {
   credits: [],

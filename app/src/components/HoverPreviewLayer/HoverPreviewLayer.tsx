@@ -4,7 +4,6 @@ import { useLocation } from 'react-router-dom'
 import { PreviewEmote, PreviewType } from '@dcl/schemas'
 import { PreviewMessageType, sendMessage } from '@dcl/schemas/dist/dapps/preview'
 import { WearablePreview } from '~/components/LazyWearablePreview'
-import { config } from '~/config'
 import { useHoverPreview } from '~/store/hoverPreview'
 import { useWallet } from '~/store/wallet'
 import { useProfile } from '~/hooks/useProfile'
@@ -107,10 +106,21 @@ export function HoverPreviewLayer() {
     // On the connected avatar when it can wear the item (emotes are shape-agnostic, so any avatar works);
     // otherwise a default mannequin of a shape the item DOES support, so gendered items never render invisible.
     const onAvatar = !!address && !!avatar && isCompatible(item, avatarShape(avatar))
+    // Identify the asset by its URN when the row carries one, and only fall back to contractAddress +
+    // itemId when it doesn't. The fallback is not equivalent: from a bare contract + item the preview app
+    // builds `urn:decentraland:matic:collections-v2:<contract>:<itemId>` and looks THAT up, so it only ever
+    // works for Polygon collections-v2. An Ethereum collections-v1 wearable answers
+    // "Could not find wearable or emote for urn=…matic:collections-v2…", the scene never loads, no LOAD
+    // event arrives and `ready` stays false — the layer sits at opacity 0 and the hover preview looks
+    // simply absent. That is most of the Not-for-Sale grid (measured: 28 of 48 rows are ETHEREUM), which is
+    // why hover previews worked on the on-sale grid (100% Polygon) and not there. The two are mutually
+    // exclusive so the preview cannot resolve one and render the other.
+    const urnOptions = item.urn
+      ? { urns: [item.urn] }
+      : { contractAddress: item.contractAddress, itemId: item.itemId ?? undefined }
     sendMessage(iframe.contentWindow, PreviewMessageType.UPDATE, {
       options: {
-        contractAddress: item.contractAddress,
-        itemId: item.itemId ?? undefined,
+        ...urnOptions,
         profile: onAvatar ? address : 'default',
         // Load straight into the fashion pose (like the per-card previews) so the avatar doesn't flash
         // a T-pose; emotes auto-detect + play their own animation.
@@ -165,14 +175,7 @@ export function HoverPreviewLayer() {
 
   return (
     <Wrap aria-hidden style={wrapStyle}>
-      <WearablePreview
-        id={IFRAME_ID}
-        profile="default"
-        disableBackground
-        disableFadeEffect
-        dev={config.chainId === 80002}
-        onLoad={handleLoad}
-      />
+      <WearablePreview id={IFRAME_ID} profile="default" disableBackground disableFadeEffect onLoad={handleLoad} />
     </Wrap>
   )
 }

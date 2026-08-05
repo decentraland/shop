@@ -21,24 +21,63 @@ export type CatalogItem = {
   network: string
   chainId: number
   thumbnail: string
+  /**
+   * The item's canonical asset URN, when the feed that produced the row carries one.
+   *
+   * The 3D preview needs it to load anything that is NOT a Polygon collections-v2 item: given only
+   * contractAddress + itemId the preview app SYNTHESIZES `urn:decentraland:matic:collections-v2:<contract>:<itemId>`,
+   * which is simply wrong for an Ethereum collections-v1 wearable (whose urn is
+   * `urn:decentraland:ethereum:collections-v1:<collection>:<name>`) and fails to resolve. See
+   * HoverPreviewLayer.
+   *
+   * Optional because only some feeds return it: /v3/catalog/items does (see lib/collections), the unified
+   * feed does not — and every unified row is Polygon, so contractAddress + itemId is correct there.
+   */
+  urn?: string
+  // Fixed credits for a USD-pegged row. ZERO on a MANA-priced row, whose credit price fluctuates: those
+  // carry `manaWei` and are priced for display at the live rate — see `displayCredits`.
   priceCredits: number
+  // Raw MANA price (wei) when this row is MANA-priced (legacy listings, and every row the /v2 catalog
+  // serves). Null/absent on USD-pegged rows, which price in credits directly.
+  manaWei?: string | null
   gender: 'male' | 'female' | 'unisex' | null
   // Smart wearable (carries an interactive scene/game.js). Surfaces a "Smart" badge on the card.
   isSmart: boolean
+  /**
+   * Emote playback traits, straight from the catalogue's `data.emote`. They exist for wearables too in the
+   * response shape but are only ever set on emotes, so the chips key on the category rather than on absence:
+   * `loop: false` is a MEANINGFUL value (play once) and must not read the same as "not an emote".
+   */
+  emoteLoop?: boolean
+  emoteHasSound?: boolean
+  emoteHasProps?: boolean
   // Present for secondary listings (a specific token on sale): the open USD-pegged trade + its token.
   // Checkout uses `tradeId` directly instead of resolving by itemId.
   tradeId?: string
   tokenId?: string
+  /**
+   * How this row is acquired — `undefined` means 'trade' (see ListingAcquisition).
+   *
+   * Lives on CatalogItem rather than only on UnifiedListing because the CART persists CatalogItems: a line
+   * has to still know it is a mint when checkout resolves it, potentially in a later session. Optional for
+   * the same reason — carts saved before this existed carry no value, and every one of those is a trade.
+   */
+  acquisition?: ListingAcquisition
   // The token's mint index within its item (e.g. "5013" → the 5013th ever minted). Present only for a
   // specific owned/secondary token; lets the UI tell otherwise-identical copies apart ("#5013").
   issuedId?: string
   // Current owner (the reseller) for a SECONDARY per-token listing, from the shop feed. Lets the PDP
   // resale list show who's selling without a per-token lookup. Absent for primary/catalog rows.
   seller?: string
-  // Remaining mintable supply for a PRIMARY listing (from the shop feed). Absent for secondary
-  // listings (a specific token has no stock concept) and for catalog-only items. Surfaces the STOCK
-  // figure next to the price on the item detail page.
+  // Remaining mintable supply for a PRIMARY listing (from the shop feed, and from the /v2 catalog on
+  // the by-ids path). Absent for secondary listings (a specific token has no stock concept). Surfaces
+  // the STOCK figure next to the price on the item detail page.
   available?: number
+  // Whether the CREATOR is still selling this item (a mint exists), as opposed to it being resale-only.
+  // Populated on the /v2 by-ids path, where the mint price and the resale floor arrive as separate
+  // fields; absent on feeds that report a single already-chosen listing. Outfits use it to keep a look
+  // off the discovery row once any of its items can no longer be bought from its creator.
+  hasPrimaryListing?: boolean
   // How many open credit-buyable listings this item has, from the item-unified browse feed
   // (/v3/catalog/unified?groupBy=item). Present only on that feed's rows; > 1 surfaces a badge on the
   // card telling the user there are more copies to see on the item detail page. Absent everywhere else.
@@ -61,11 +100,15 @@ type RawCatalogItem = {
   network: string
   chainId: number
   thumbnail?: string
+  /** The CREATOR's mint price (MANA wei). Zero/absent means the creator is no longer selling it. */
   price?: string | null
+  /** Cheapest RESALE (MANA wei) — a different seller, not the creator. */
   minPrice?: string | null
+  /** Remaining mintable supply. */
+  available?: number
   data?: {
     wearable?: { category?: string; bodyShapes?: string[]; description?: string; isSmart?: boolean }
-    emote?: { category?: string; description?: string }
+    emote?: { category?: string; description?: string; loop?: boolean; hasSound?: boolean; hasGeometry?: boolean }
   }
 }
 
@@ -108,6 +151,9 @@ function toGender(bodyShapes?: string[]): CatalogItem['gender'] {
 }
 
 function toCatalogItem(r: RawCatalogItem): CatalogItem {
+  // A closed mint reports a ZERO price rather than omitting the field, so `??` would keep the '0' and
+  // price the row at nothing instead of falling back to the cheapest resale.
+  const mintWei = r.price && r.price !== '0' ? r.price : null
   return {
     id: r.id,
     name: r.name,
@@ -120,9 +166,23 @@ function toCatalogItem(r: RawCatalogItem): CatalogItem {
     network: r.network,
     chainId: r.chainId,
     thumbnail: r.thumbnail ?? '',
-    priceCredits: toCredits(r.price ?? r.minPrice),
+    // The /v2 catalog prices in MANA, not in USD — so this row carries `manaWei` and NO fixed credit
+    // price. Callers convert at the live rate through `displayCredits`, exactly as the browse grid does
+    // for any other MANA-priced row. (Reading `price` as USD wei is what made a 3-credit item render as
+    // 150: 15 MANA ≠ $15.)
+    manaWei: mintWei ?? r.minPrice ?? null,
+    priceCredits: 0,
     gender: toGender(r.data?.wearable?.bodyShapes),
-    isSmart: r.data?.wearable?.isSmart ?? false
+    isSmart: r.data?.wearable?.isSmart ?? false,
+    emoteLoop: r.data?.emote?.loop,
+    emoteHasSound: r.data?.emote?.hasSound,
+    emoteHasProps: r.data?.emote?.hasGeometry,
+    // Supply and who is selling. Both come straight off the /v2 row, and together they decide whether a
+    // shopper can still buy the item FROM ITS CREATOR (a mint) rather than from a reseller. Passed
+    // through undefined rather than defaulted, so a feed that omits supply keeps meaning "unknown"
+    // (AssetCard reads it as an unbounded stock cap) instead of silently reading as sold out.
+    available: r.available,
+    hasPrimaryListing: !!mintWei
   }
 }
 
@@ -198,7 +258,9 @@ export async function fetchCollectionSaleState(
   const { listings } = await fetchShopListingsRaw({ contractAddress, first: 200 })
   const map: Record<string, { isOnSale: boolean; priceCredits: number; tradeId: string }> = {}
   for (const l of listings) {
-    if (l.listingType !== 'primary' || l.itemId == null) continue
+    // A CollectionStore mint carries no tradeId, and this map exists to hand My Assets a trade it can
+    // CANCEL — so a row without one is not what this describes and is skipped rather than coerced.
+    if (l.listingType !== 'primary' || l.itemId == null || !l.tradeId) continue
     map[String(l.itemId)] = { isOnSale: true, priceCredits: l.priceCredits, tradeId: l.tradeId }
   }
   return map
@@ -215,10 +277,31 @@ export async function fetchSecondarySaleState(
   const { listings } = await fetchShopListingsRaw({ contractAddress, first: 200 })
   const map: Record<string, { priceCredits: number; tradeId: string }> = {}
   for (const l of listings) {
-    if (l.listingType !== 'secondary' || l.tokenId == null) continue
+    // Same reason as fetchCollectionSaleState: no tradeId, nothing to cancel, not this map's subject.
+    if (l.listingType !== 'secondary' || l.tokenId == null || !l.tradeId) continue
     map[String(l.tokenId)] = { priceCredits: l.priceCredits, tradeId: l.tradeId }
   }
   return map
+}
+
+// Curated contract registry: every approved collection plus the marketplace's own contracts (LAND,
+// Estates, Names), keyed by LOWERCASED address → name. An NFT row carries the ITEM's name and never
+// its collection's, so this is the only place a collection address can be turned into a real name.
+// It is one request for the whole registry rather than a lookup per address, which is what makes it
+// usable for a list of collections; callers should cache it (it changes only when a collection is
+// approved).
+export type ContractRegistry = Map<string, string>
+
+export async function fetchContractRegistry(): Promise<ContractRegistry> {
+  const res = await fetch(`${NFT_V1}/contracts`)
+  if (!res.ok) throw new Error(`fetchContractRegistry ${res.status}`)
+  const { data } = (await res.json()) as { data?: Array<{ name?: string; address?: string }> }
+  const byAddress: ContractRegistry = new Map()
+  for (const contract of data ?? []) {
+    if (!contract.address || !contract.name) continue
+    byAddress.set(contract.address.toLowerCase(), contract.name)
+  }
+  return byAddress
 }
 
 type NftMeta = {
@@ -244,7 +327,9 @@ async function fetchNftMeta(contractAddress: string, tokenId: string): Promise<N
 // ---------------------------------------------------------------------------
 
 type ShopListingRaw = {
-  tradeId: string
+  // NULL for a CollectionStore mint — it is not a listing and has no trade. Typed as a plain
+  // `string` until now, which is why nothing flagged the `id` below as possibly null.
+  tradeId: string | null
   listingType: 'primary' | 'secondary'
   contractAddress: string
   itemId: string | null
@@ -274,10 +359,28 @@ type ShopListingRaw = {
   saleEndsAt?: number | null
 }
 
+/**
+ * A row's identity for the CART, which dedupes lines on `id`.
+ *
+ * A trade has one already. A CollectionStore MINT does not — it is not a listing, so the feed sends
+ * `tradeId: null` — and taking that null as the id made every mint in the cart the SAME line: the
+ * second one added found the first (`null === null`) and bumped its quantity instead of taking its
+ * own row. A buyer adding three different mints got three copies of whichever landed first, and
+ * never the other two. So a mint keys by what it actually is: the item being minted.
+ *
+ * Deliberately the same `contract-itemId` shape the /v2 catalog uses as its own id, so a mint read
+ * from either feed lands on one cart line rather than two.
+ */
+function listingRowId(l: ShopListingRaw): string {
+  if (l.tradeId) return l.tradeId
+  const suffix = l.tokenId ? `t${l.tokenId}` : (l.itemId ?? '')
+  return `${(l.contractAddress ?? '').toLowerCase()}-${suffix}`
+}
+
 function shopListingToItem(l: ShopListingRaw): CatalogItem {
   return {
-    id: l.tradeId,
-    tradeId: l.tradeId,
+    id: listingRowId(l),
+    tradeId: l.tradeId ?? undefined,
     name: l.name,
     creator: l.creator, // full address — the UI resolves the profile name/avatar (see CreatorBadge)
     contractAddress: l.contractAddress,
@@ -351,10 +454,37 @@ async function fetchShopListingsRaw(
   if (params.maxPriceCredits != null) qs.set('maxPriceCredits', String(params.maxPriceCredits))
   if (params.search) qs.set('search', params.search)
   if (params.sortBy) qs.set('sortBy', params.sortBy)
+  if (params.isSmart) qs.set('isSmart', 'true')
+  if (params.onSale != null) qs.set('onSale', String(params.onSale))
+  if (params.listingType) qs.set('listingType', params.listingType)
   const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/shop?${qs.toString()}`)
   if (!res.ok) throw new Error(`fetchShopListings ${res.status}`)
   const json = (await res.json()) as { data?: ShopListingRaw[]; total?: number }
   return { listings: json.data ?? [], total: json.total ?? 0 }
+}
+
+/**
+ * Re-read a CollectionStore mint's LIVE price and remaining supply, or null when it is no longer mintable.
+ *
+ * The mint counterpart to re-resolving a trade before charging. Both facts can move with no listing change:
+ * another buyer takes the last unit, or the creator re-prices the item. Neither is pinned by a signature the
+ * way a trade's price is, and `CollectionStore.buy` re-validates the price on-chain and reverts if it moved,
+ * so both have to be read again at checkout rather than trusted from the cart snapshot.
+ *
+ * Queries the unified feed by (contract, item) and accepts the row ONLY if it still comes back as a store
+ * mint. A row that has become a trade is not mintable through this path, and treating it as one would build
+ * calldata for the wrong contract.
+ */
+export async function fetchStoreMintState(
+  contractAddress: string,
+  itemId: string
+): Promise<{ priceWei: string; available: number } | null> {
+  const { items } = await fetchUnified({ contractAddress, itemId, first: 1 })
+  const row = items[0]
+  if (!row || row.acquisition !== 'store' || !row.manaWei) return null
+  // `available` is the remaining mintable supply the feed reports. Absent means the server did not say, and
+  // guessing "plenty" here would let a sold-out item through to a revert — so treat it as none left.
+  return { priceWei: row.manaWei, available: row.available ?? 0 }
 }
 
 // A single credit-buyable listing for a specific item (primary) — used to hydrate the item detail
@@ -362,6 +492,31 @@ async function fetchShopListingsRaw(
 export async function fetchShopListingForItem(contractAddress: string, itemId: string): Promise<CatalogItem | null> {
   const { listings } = await fetchShopListingsRaw({ contractAddress, itemId, first: 1 })
   return listings[0] ? shopListingToItem(listings[0]) : null
+}
+
+/**
+ * The item's PRIMARY listing from the UNIFIED feed — native (USD-pegged) or legacy (classic MANA, converted
+ * to credits server-side at the live rate), whichever exists.
+ *
+ * This is what the item page resolves through, and the shop-only version above is why a MANA-listed item read
+ * as unlisted there: /v3/catalog/shop carries USD-pegged trades only, so an item with nothing but legacy
+ * liquidity came back empty and the page fell through to "Not for sale". Measured on one such collection: the
+ * shop feed returns 0 rows for it, the unified feed returns its trade with a credits price. The browse grid
+ * has always read the unified feed, which is why the same item looked buyable in a card and unlisted on its
+ * own page.
+ *
+ * The MINT answers when there is one — a page priced off someone's resale while the creator is still selling
+ * would undercut the creator's own listing. But asking the server for primaries ONLY is wrong: an item whose
+ * mint is sold out still has a live price, and filtering it away is the same "Not for sale" bug this function
+ * exists to fix, one step further in. So both kinds are fetched and the mint is preferred here.
+ */
+export async function fetchUnifiedListingForItem(
+  contractAddress: string,
+  itemId: string
+): Promise<UnifiedListing | null> {
+  const { items } = await fetchUnified({ contractAddress, itemId, first: 5 })
+  // A secondary row is the one scoped to a single token; a mint has no tokenId.
+  return items.find(i => !i.tokenId) ?? items[0] ?? null
 }
 
 // Credit-buyable listings for the browse grid (primary + secondary, USD-pegged). All filtering
@@ -441,19 +596,41 @@ export async function fetchClassicItemOrders(contractAddress: string, itemId: st
 
 export type ListingSource = 'native' | 'legacy'
 
+/**
+ * How the buyer acquires the row — a SEPARATE question from how it is priced (`source`).
+ *
+ * - 'trade': an offchain signed order, bought with `accept([trade])`.
+ * - 'store': a CollectionStore mint, bought with `CollectionStore.buy([...])`. Not a listing: no order and
+ *   nothing signed, and its `tradeId` is therefore absent.
+ *
+ * Defaults to 'trade' when the server does not send it, so a client running against an older
+ * marketplace-server keeps working instead of silently classifying every row as a mint.
+ */
+export type ListingAcquisition = 'trade' | 'store'
+
 export type UnifiedListing = CatalogItem & {
   source: ListingSource
+  acquisition: ListingAcquisition
   // Raw MANA wei price for legacy rows (converted to fluctuating credits in the UI); null for native.
+  // A store mint is MANA-priced, so it always carries one.
   manaWei: string | null
 }
 
 type UnifiedListingRaw = ShopListingRaw & {
   source: ListingSource
+  acquisition?: ListingAcquisition
   manaWei?: string | null
 }
 
 function unifiedListingToItem(l: UnifiedListingRaw): UnifiedListing {
-  return { ...shopListingToItem(l), source: l.source, manaWei: l.manaWei ?? null }
+  return {
+    ...shopListingToItem(l),
+    source: l.source,
+    // Fall back to 'trade': every row was a trade before the store branch existed, so an older server that
+    // omits the field describes trades. Defaulting the other way would route real trades down the mint path.
+    acquisition: l.acquisition ?? 'trade',
+    manaWei: l.manaWei ?? null
+  }
 }
 
 // Shared query string for the /v3/catalog/unified feed (same params as fetchListings). `groupBy='item'`
@@ -517,6 +694,57 @@ export async function fetchShopItems({ first = 100, ...filters }: ShopListingFil
   const json = (await res.json()) as { data?: ShopItemRaw[]; total?: number }
   const data = json.data ?? []
   return { items: data.map(shopItemToItem), total: json.total ?? data.length }
+}
+
+// Items SIMILAR to one item — the PDP's fallback rail for when the item's collection has nothing else to
+// show. Rows are the same item-unified shape as fetchShopItems (one card per item, credit-priced), so the
+// carousel renders them with the identical AssetCard. Similarity is decided server-side (same category,
+// ordered so the closest rarity leads); the anchor item is already excluded by the endpoint.
+// Unpaginated — the server caps `first`, and the response carries no total.
+export async function fetchRelatedItems(
+  contractAddress: string,
+  itemId: string,
+  { first = 10 }: { first?: number } = {}
+): Promise<UnifiedListing[]> {
+  const qs = new URLSearchParams({ contractAddress, itemId, first: String(first) })
+  const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/related?${qs.toString()}`)
+  if (!res.ok) throw new Error(`fetchRelatedItems ${res.status}`)
+  const json = (await res.json()) as { data?: ShopItemRaw[] }
+  return (json.data ?? []).map(shopItemToItem)
+}
+
+/**
+ * The items TRENDING right now — what backs the home page's Trending row.
+ *
+ * Ranked server-side over the last day's sales (60% of the row by sale count, the rest by traded volume) and
+ * returned IN that order, so the caller must not re-sort it. Rows are the same item-unified shape as
+ * fetchShopItems, which is what lets the identical AssetCard render them at a real credit price.
+ *
+ * Both narrowing arguments are sent to the SERVER rather than applied to the result:
+ *
+ * - `includeSocialEmotes=false`, always. The Shop hides social emotes, and the row is a fixed number of
+ *   slots — filtering after the fact would spend slots on rows that are then thrown away, shrinking the row.
+ * - `listingType`, from the secondary-sales flag (see pages/Overview). Same reason.
+ *
+ * Unpaginated (the endpoint returns `{ data }` with no total): it is one carousel.
+ */
+export async function fetchTrendingItems({
+  first = 12,
+  listingType
+}: { first?: number; listingType?: 'primary' | 'secondary' } = {}): Promise<UnifiedListing[]> {
+  const qs = new URLSearchParams({ first: String(first), includeSocialEmotes: 'false' })
+  if (listingType) qs.set('listingType', listingType)
+  const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/trending?${qs.toString()}`)
+  if (!res.ok) {
+    // Read the body before throwing: the status alone cannot tell a 400 on a bad `first` apart from one
+    // on a bad `listingType`, and this row fails silently by design (it hides itself), so the message is
+    // the only place the reason survives. Best-effort — a body that cannot be read must not replace the
+    // status error with a parse error.
+    const detail = await res.text().catch(() => '')
+    throw new Error(`fetchTrendingItems ${res.status}${detail ? `: ${detail.slice(0, 200)}` : ''}`)
+  }
+  const json = (await res.json()) as { data?: ShopItemRaw[] }
+  return (json.data ?? []).map(shopItemToItem)
 }
 
 // The legacy (classic MANA-priced) listing shape that MarketCheckout (Buy Now) consumes. A legacy row
@@ -909,15 +1137,38 @@ export async function resolveLiveTrade(item: {
 }
 
 // Name + thumbnail for a collection ITEM (primary sales don't have a minted token yet).
-async function fetchItemMeta(
-  contractAddress: string,
-  itemId: string
-): Promise<{ name?: string; thumbnail?: string } | null> {
+/**
+ * Item metadata from the v1 items endpoint. Also the ONLY source of two fields the item detail page needs:
+ *
+ *  - `utility` — the creator's description of what the item unlocks. The v3 catalog does not carry it at
+ *    all, which is why the Shop showed no utility anywhere; the marketplace reads it from here too.
+ *  - `isSmart` — nested under `data.wearable`. It does reach the page through the collection feed, but not
+ *    on every path into it (a direct URL starts from a stub), so reading it here makes the badge
+ *    independent of how the visitor arrived.
+ */
+export type ItemMeta = { name?: string; thumbnail?: string; isSmart: boolean; utility: string | null }
+
+export async function fetchItemMeta(contractAddress: string, itemId: string): Promise<ItemMeta | null> {
   const qs = new URLSearchParams({ contractAddress, itemId, first: '1' })
   const res = await fetch(`${NFT_V1}/items?${qs.toString()}`)
   if (!res.ok) return null
-  const { data } = (await res.json()) as { data: Array<{ name?: string; thumbnail?: string }> }
-  return data?.[0] ?? null
+  const { data } = (await res.json()) as {
+    data: Array<{
+      name?: string
+      thumbnail?: string
+      utility?: string | null
+      data?: { wearable?: { isSmart?: boolean } }
+    }>
+  }
+  const row = data?.[0]
+  if (!row) return null
+  return {
+    name: row.name,
+    thumbnail: row.thumbnail,
+    isSmart: !!row.data?.wearable?.isSmart,
+    // Blank-but-present is the same as absent for rendering; normalise here so no caller has to trim.
+    utility: row.utility?.trim() || null
+  }
 }
 
 // A purchase-history row's display info, resolved from its trade: what was bought + what it cost.
@@ -972,9 +1223,10 @@ export async function fetchTradeDisplay(tradeId: string): Promise<PurchaseDispla
 // Open credit-buyable listing (Trade) for a catalog ITEM (primary/mint), or null if none. Resolves
 // the tradeId via the v3 shop feed (the v1 /orders endpoint doesn't index primary item orders).
 export async function fetchTradeForItem(contractAddress: string, itemId: string): Promise<Trade | null> {
-  const { listings } = await fetchShopListingsRaw({ contractAddress, itemId, first: 1 })
-  const tradeId = listings[0]?.tradeId
-  return tradeId ? fetchTrade(tradeId) : null
+  // UNIFIED, not shop: a legacy MANA listing is absent from the shop feed, and resolving through it is what
+  // made a MANA-listed item unbuyable on its own page. See fetchUnifiedListingForItem.
+  const listing = await fetchUnifiedListingForItem(contractAddress, itemId)
+  return listing?.tradeId ? fetchTrade(listing.tradeId) : null
 }
 
 // Name + thumbnail for a sold asset (a secondary sale carries a tokenId; a primary/mint sale an

@@ -448,11 +448,20 @@ export const Card = styled.article`
   overflow: hidden;
 `
 
-// The gradient background is baked into the illustration asset (a 388×235 render), so the image both
-// fills and colors the media panel — the container just keeps its aspect ratio as the card flexes.
+/**
+ * The gradient background is baked into the illustration asset (a 388×235 render), so the image both fills
+ * and colors the media panel — the container just keeps its aspect ratio as the card flexes.
+ *
+ * It BLEEDS over the card's border on the three sides it touches. `width: 100%` fills the content box,
+ * which the border insets, so the border drew a hairline between the artwork and the card's outer edge on
+ * the top and both sides — measured at 1px each, an image of 289×175 inside a 291-wide card. Reaching past
+ * it is what makes the artwork read as the top of the card rather than as a picture placed inside one.
+ * `overflow: hidden` on the card keeps the top corners following its radius.
+ */
 export const CardMedia = styled.img`
   display: block;
-  width: 100%;
+  width: calc(100% + 0.5px);
+  margin: -0.25px -0.25px 0;
   aspect-ratio: 388 / 235;
   object-fit: cover;
 `

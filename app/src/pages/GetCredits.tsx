@@ -10,6 +10,7 @@ import { useSeo } from '~/hooks/useSeo'
 import { track, errorCode } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
 import { t } from '~/intl/i18n'
+import { cancelCreditOrder } from '~/lib/credits'
 import { RESUME_BUY_KEY } from '~/lib/resume-buy'
 import { RESUME_CART_KEY } from '~/lib/cart-checkout'
 import type { CartNavState } from '~/pages/Cart'
@@ -20,7 +21,7 @@ import packChest from '~/assets/credits/pack-chest.webp'
 import creditCoin from '~/assets/credits/credit-coin.webp'
 import checkCircle from '~/assets/credits/check-circle.svg'
 import loaderLogo from '~/assets/credits/loader-logo.svg'
-import { createPackCheckout, pollCreditGrant, isMockPayments, type CreditPack } from '~/lib/payments'
+import { createPackCheckout, packBonus, pollCreditGrant, isMockPayments, type CreditPack } from '~/lib/payments'
 import { useCreditPacks } from '~/hooks/useCreditPacks'
 import * as S from './GetCredits.styles'
 
@@ -256,6 +257,11 @@ export function GetCredits() {
       // Buyer abandoned Stripe's hosted checkout (came back via `?canceled=1`). The single biggest
       // drop in a payments funnel — tracked so we can measure hosted-page abandonment.
       track('Shop Buy Credits Cancelled', { order_id: orderId, provider: CREDITS_PROVIDER })
+      // Retire the order now rather than leaving it to look like a pending purchase in Activity until
+      // the session ages out. Fire-and-forget on purpose: the server does not take our word for it (it
+      // expires the session at Stripe first) and reaches the same end without us via
+      // `checkout.session.expired`, so there is nothing here worth making the buyer wait on or see fail.
+      if (orderId && session) void cancelCreditOrder(orderId, session.identity)
       clearReturnParams()
       setCanceledNote(true)
       setPhase('select')
@@ -366,7 +372,7 @@ export function GetCredits() {
             <S.ActionButton data-variant="outline" onClick={reset}>
               {t('getCredits.buyMore', { currency: CURRENCY.name })}
             </S.ActionButton>
-            <S.ActionButton onClick={() => navigate('/assets')}>{t('getCredits.startShopping')}</S.ActionButton>
+            <S.ActionButton onClick={() => navigate('/items')}>{t('getCredits.startShopping')}</S.ActionButton>
           </S.Actions>
         </S.Success>
       )}
@@ -376,7 +382,7 @@ export function GetCredits() {
           <S.StatusTitle>{t('getCredits.pendingTitle', { currency: CURRENCY.name })}</S.StatusTitle>
           <S.Muted>{t('getCredits.pendingBody')}</S.Muted>
           <S.StatusActions>
-            <S.ActionButton onClick={() => navigate('/assets')}>{t('getCredits.startShopping')}</S.ActionButton>
+            <S.ActionButton onClick={() => navigate('/items')}>{t('getCredits.startShopping')}</S.ActionButton>
             <S.ActionButton data-variant="outline" onClick={reset}>
               {t('getCredits.done')}
             </S.ActionButton>
@@ -427,31 +433,49 @@ function PackGrid({
   }
   return (
     <S.Grid>
-      {packs.map((pack, i) => (
-        <S.PackCard
-          key={pack.id}
-          type="button"
-          data-testid="pack"
-          data-best={pack.bestValue ? 'true' : undefined}
-          onClick={() => onSelect(pack)}
-          aria-label={t('getCredits.packAria', { amount: formatAmount(pack.credits), usd: pack.usd })}
-        >
-          {pack.bestValue && (
-            <S.PackBadge>
-              <Icon name="star-rounded" />
-              {t('getCredits.packBadge')}
-            </S.PackBadge>
-          )}
-          <S.PackTop>
-            <S.PackHeading>
-              <S.PackAmountRow>
-                <CurrencyIcon />
-                <S.PackAmount>{pack.credits}</S.PackAmount>
-              </S.PackAmountRow>
-              <S.PackUnit>{t('getCredits.packUnit', { currency: CURRENCY.name })}</S.PackUnit>
-            </S.PackHeading>
-            <S.PackArt>
-              {/* onError is the second half of the fallback: `artFor` picks the remote URL when the
+      {packs.map((pack, i) => {
+        // What the same money buys at the entry pack's rate — null on the entry pack itself, which is
+        // the baseline. See packBonus() for why that reference is the only honest one.
+        const bonus = packBonus(pack, packs)
+        return (
+          <S.PackCard
+            key={pack.id}
+            type="button"
+            data-testid="pack"
+            data-best={pack.bestValue ? 'true' : undefined}
+            onClick={() => onSelect(pack)}
+            aria-label={
+              bonus
+                ? t('getCredits.packAriaBonus', {
+                    amount: formatAmount(pack.credits),
+                    usd: pack.usd,
+                    bonus: bonus.bonus,
+                    baseline: bonus.baseline
+                  })
+                : t('getCredits.packAria', { amount: formatAmount(pack.credits), usd: pack.usd })
+            }
+          >
+            {pack.bestValue && (
+              <S.PackBadge>
+                <Icon name="star-rounded" />
+                {t('getCredits.packBadge')}
+              </S.PackBadge>
+            )}
+            <S.PackTop>
+              <S.PackHeading>
+                <S.PackAmountRow>
+                  <CurrencyIcon />
+                  <S.PackAmount>{pack.credits}</S.PackAmount>
+                </S.PackAmountRow>
+                <S.PackUnit>{t('getCredits.packUnit', { currency: CURRENCY.name })}</S.PackUnit>
+                {/* The struck-through baseline + "+N bonus" pill that used to sit here is gone: the redesign
+                    (1654:372757) has no such row, and the packs it prices are flat — every one buys credits
+                    at the same rate, so there was no bonus to state and the row rendered as reserved empty
+                    space in all four cards. `bonus` is still computed for the aria-label, which is the one
+                    place a rate difference would still need announcing if the catalogue ever grows one. */}
+              </S.PackHeading>
+              <S.PackArt>
+                {/* onError is the second half of the fallback: `artFor` picks the remote URL when the
                   catalogue has one, and if that request fails we swap to the bundled asset rather than
                   leave a broken image in a card the buyer is about to click.
 
@@ -459,24 +483,25 @@ function PackGrid({
                   ABSOLUTE url while the bundled import is a root-relative path, so that comparison never
                   matches and a bundled asset that also failed would re-assign forever, hammering the
                   network from inside its own error handler. */}
-              <img
-                src={artFor(pack, i)}
-                alt=""
-                loading="lazy"
-                width={507}
-                height={507}
-                onError={e => {
-                  const img = e.currentTarget
-                  if (img.dataset.artFallback) return
-                  img.dataset.artFallback = 'done'
-                  img.src = bundledArtFor(pack, i)
-                }}
-              />
-            </S.PackArt>
-          </S.PackTop>
-          <S.PackPrice>${pack.usd.toFixed(2)}</S.PackPrice>
-        </S.PackCard>
-      ))}
+                <img
+                  src={artFor(pack, i)}
+                  alt=""
+                  loading="lazy"
+                  width={507}
+                  height={507}
+                  onError={e => {
+                    const img = e.currentTarget
+                    if (img.dataset.artFallback) return
+                    img.dataset.artFallback = 'done'
+                    img.src = bundledArtFor(pack, i)
+                  }}
+                />
+              </S.PackArt>
+            </S.PackTop>
+            <S.PackPrice>${pack.usd.toFixed(2)}</S.PackPrice>
+          </S.PackCard>
+        )
+      })}
     </S.Grid>
   )
 }

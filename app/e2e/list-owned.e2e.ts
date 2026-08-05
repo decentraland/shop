@@ -10,7 +10,7 @@ afterEach(async () => {
 
 describe('list an owned item (secondary) from its detail page', () => {
   it('opens an owned wearable from My Assets via MANAGE and lists it for sale', async () => {
-    app = await launchApp({ path: '/my-assets', fixtures: { importable: { data: [] } } })
+    app = await launchApp({ path: '/my-items', fixtures: { importable: { data: [] } } })
     const { page } = app
 
     // Redesigned My Assets: the owned wearables grid is the default section, and each owned card's ONLY

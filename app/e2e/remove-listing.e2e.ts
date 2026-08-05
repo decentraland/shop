@@ -16,7 +16,7 @@ describe('remove (cancel) a listing from the detail page', () => {
     // ethers cancelSignature([onChainTrade]) through the mock wallet (eth_sendTransaction → canned hash
     // → success receipt). No importable → no banner.
     app = await launchApp({
-      path: '/my-assets',
+      path: '/my-items',
       fixtures: { ownedNfts: ownedNftsOnSale, trade: buyTrade, importable: { data: [] } }
     })
     const { page } = app

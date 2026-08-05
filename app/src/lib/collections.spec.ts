@@ -21,6 +21,7 @@ type RawItem = {
   network: string
   chainId: number
   thumbnail?: string
+  urn?: string
   // Server-computed whole credits (asset-aware). The client no longer converts.
   priceCredits?: number
   data?: {
@@ -41,6 +42,7 @@ function rawItem(overrides: Partial<RawItem> = {}): RawItem {
     network: 'MATIC',
     chainId: 137,
     thumbnail: 'http://img.test/hat.png',
+    urn: 'urn:decentraland:matic:collections-v2:0xcollection:7',
     priceCredits: 10,
     data: { wearable: { category: 'hat', bodyShapes: ['urn:BaseMale'] } },
     ...overrides
@@ -142,6 +144,7 @@ describe('when fetching a collection carousel', () => {
       creator: '0xcreator',
       contractAddress: '0xcollection',
       itemId: '7',
+      urn: 'urn:decentraland:matic:collections-v2:0xcollection:7',
       category: 'wearable',
       wearableCategory: 'hat',
       rarity: 'epic',
@@ -404,18 +407,67 @@ describe('when fetching the full catalog (browse "All" / "Not for Sale")', () =>
     expect(items[0].priceCredits).toBe(0)
   })
 
-  it('should omit the category param when it is "all" and never send a credit price range', async () => {
+  // The endpoint returns the canonical urn on every row, and it is the ONLY identifier the 3D preview can
+  // use for a non-Polygon item (see CatalogItem.urn / HoverPreviewLayer): from contractAddress + itemId the
+  // preview assumes matic:collections-v2 and finds nothing for an Ethereum collections-v1 wearable — which
+  // is most of the "Not for Sale" grid. Dropping the field in the mapper is what silently disabled it.
+  it('should carry the item urn through to the card row', async () => {
+    mockFetchOk([
+      rawItem({ urn: 'urn:decentraland:ethereum:collections-v1:exclusive_masks:theater_mask', network: 'ETHEREUM' })
+    ])
+
+    const { items } = await fetchCatalogItems({ isOnSale: false })
+
+    expect(items[0].urn).toBe('urn:decentraland:ethereum:collections-v1:exclusive_masks:theater_mask')
+  })
+
+  it('should omit the category param when it is "all"', async () => {
     const fetchMock = mockFetchOk([])
 
-    await fetchCatalogItems({ category: 'all', minPriceCredits: 5, maxPriceCredits: 50 } as never)
+    await fetchCatalogItems({ category: 'all' })
 
     const url = new URL(fetchMock.mock.calls[0][0] as string)
     expect(url.searchParams.has('category')).toBe(false)
-    // The credit price-range is intentionally not wired to this endpoint (MANA-denominated) — omitted.
+  })
+
+  it('should omit the category param for "names", which is a destination and not an item category', async () => {
+    const fetchMock = mockFetchOk([])
+
+    await fetchCatalogItems({ category: 'names' })
+
+    const url = new URL(fetchMock.mock.calls[0][0] as string)
+    expect(url.searchParams.has('category')).toBe(false)
+  })
+
+  it('should send the credit price range in credits (never the MANA-denominated minPrice/maxPrice)', async () => {
+    const fetchMock = mockFetchOk([])
+
+    await fetchCatalogItems({ minPriceCredits: 5, maxPriceCredits: 50 })
+
+    const url = new URL(fetchMock.mock.calls[0][0] as string)
+    expect(url.searchParams.get('minPriceCredits')).toBe('5')
+    expect(url.searchParams.get('maxPriceCredits')).toBe('50')
     expect(url.searchParams.has('minPrice')).toBe(false)
     expect(url.searchParams.has('maxPrice')).toBe(false)
+  })
+
+  it('should omit the credit price range when no bound is set', async () => {
+    const fetchMock = mockFetchOk([])
+
+    await fetchCatalogItems({})
+
+    const url = new URL(fetchMock.mock.calls[0][0] as string)
     expect(url.searchParams.has('minPriceCredits')).toBe(false)
     expect(url.searchParams.has('maxPriceCredits')).toBe(false)
+  })
+
+  it('should scope the feed to one creator when asked', async () => {
+    const fetchMock = mockFetchOk([])
+
+    await fetchCatalogItems({ creator: '0xcreator' })
+
+    const url = new URL(fetchMock.mock.calls[0][0] as string)
+    expect(url.searchParams.get('creator')).toBe('0xcreator')
   })
 
   it('should omit isOnSale entirely for the "all" status (undefined)', async () => {

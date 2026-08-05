@@ -13,13 +13,27 @@ import { isOwnTrade } from '~/lib/ownership'
 // the UI can prune the unbuyable ones, show the updated total, and ask for confirmation when anything
 // differs from what was displayed.
 
+/**
+ * How a resolved line settles on-chain. A discriminated union rather than an optional `trade`, so every
+ * consumer is forced by the compiler to say which path it handles — this decides which contract gets called
+ * with the buyer's credits, and a silent `undefined` there is the shape of a lost or wrong charge.
+ */
+export type LineSettlement =
+  | { acquisition: 'trade'; trade: Trade }
+  /**
+   * A CollectionStore mint. `priceWei` is the LIVE MANA price re-read at review time, not the snapshot the
+   * cart stored: CollectionStore.buy takes the price as an argument and the contract re-validates it against
+   * the item's current on-chain price, reverting if it moved. A trade cannot fail that way — its price is
+   * signed into the order — so this is the one path where a stale quote is a revert rather than a bad number.
+   */
+  | { acquisition: 'store'; priceWei: string }
+
 export type ResolvedLine = {
   item: CatalogItem
-  trade: Trade
-  usdCents: number // authoritative USD amount from the live trade (what we authorize) — PER UNIT
+  usdCents: number // authoritative USD amount from the live listing (what we authorize) — PER UNIT
   priceCredits: number // whole credits shown for that amount (1 credit = $0.10, rounded up) — PER UNIT
   quantity: number // how many units of this line to buy (always 1 for a secondary token)
-}
+} & LineSettlement
 
 export type CartReview = {
   buyable: ResolvedLine[] // resolvable, not the buyer's own — safe to charge
@@ -37,6 +51,16 @@ export const RESUME_CART_KEY = 'dcl_shop_resume_cart'
 
 // Resolves an item to its current on-chain-signed trade, or null when there's no live listing.
 export type TradeResolver = (item: CatalogItem) => Promise<Trade | null>
+
+/**
+ * Re-reads a CollectionStore mint's LIVE price and remaining supply, or null when it is no longer mintable.
+ *
+ * The mint equivalent of re-resolving a trade, and needed for the same reason: the cart's stored snapshot can
+ * be stale by checkout. Both fields can move without any listing changing — another buyer takes the last unit
+ * (`available` hits 0) or the creator re-prices the item — and unlike a trade there is no signature pinning
+ * either, so both have to be read again before the buyer is charged.
+ */
+export type StoreResolver = (item: CatalogItem) => Promise<{ priceWei: string; available: number } | null>
 
 // USD cents → whole credits shown (1 credit = $0.10, rounded up — the shop's whole-credit model).
 export function centsToCredits(usdCents: number): number {
@@ -95,7 +119,13 @@ export async function reviewCart(
    * `lineUsdCents`. Omit it and legacy lines resolve as `unavailable` rather than being priced off a
    * missing rate: showing "no longer available" is recoverable, charging the wrong amount is not.
    */
-  rate?: ManaRate
+  rate?: ManaRate,
+  /**
+   * Re-reads a CollectionStore mint's live price + supply. Omit it and mints resolve as `unavailable`
+   * rather than being charged off the cart's snapshot — the same fail-closed choice as `rate` above, and it
+   * is what keeps a client that has not wired the store path from charging one.
+   */
+  resolveStore?: StoreResolver
 ): Promise<CartReview> {
   const buyable: ResolvedLine[] = []
   const unavailable: CatalogItem[] = []
@@ -106,6 +136,41 @@ export async function reviewCart(
     // `received`, a bad amount) classifies the row as unavailable rather than throwing out of
     // reviewCart — one bad row must never abort the basket.
     try {
+      // Quantity applies only to primary (mint) lines; a secondary token is always a single unit.
+      const quantity = !item.tokenId ? Math.max(1, Math.floor(item.quantity ?? 1)) : 1
+
+      // A CollectionStore mint has no trade to resolve, so it takes its own branch. `?? 'trade'` because a
+      // cart persisted before mints existed carries no value, and every one of those rows is a trade.
+      if ((item.acquisition ?? 'trade') === 'store') {
+        // No resolver wired (or no rate) → unavailable, never charged off the cart's snapshot.
+        const live = resolveStore ? await resolveStore(item) : null
+        if (!live || !rate) {
+          unavailable.push(item)
+          continue
+        }
+        // Supply is finite and shrinks as others mint, so a sold-out item has to drop out here rather than
+        // revert on-chain after the buyer has paid gas. `quantity` matters: buying 3 of 2 remaining reverts
+        // for the whole batch, so the line is unbuyable rather than silently reduced.
+        if (live.available < quantity) {
+          unavailable.push(item)
+          continue
+        }
+        const usdCents = manaWeiToUsdCents(live.priceWei, rate)
+        if (!Number.isFinite(usdCents) || usdCents <= 0) {
+          unavailable.push(item)
+          continue
+        }
+        buyable.push({
+          item,
+          acquisition: 'store',
+          priceWei: live.priceWei,
+          usdCents,
+          priceCredits: centsToCredits(usdCents),
+          quantity
+        })
+        continue
+      }
+
       const trade = await resolve(item)
       if (!trade) {
         unavailable.push(item)
@@ -122,9 +187,7 @@ export async function reviewCart(
         unavailable.push(item)
         continue
       }
-      // Quantity applies only to primary (mint) lines; a secondary token is always a single unit.
-      const quantity = !item.tokenId ? Math.max(1, Math.floor(item.quantity ?? 1)) : 1
-      buyable.push({ item, trade, usdCents, priceCredits: centsToCredits(usdCents), quantity })
+      buyable.push({ item, acquisition: 'trade', trade, usdCents, priceCredits: centsToCredits(usdCents), quantity })
     } catch {
       unavailable.push(item)
     }
@@ -136,4 +199,60 @@ export async function reviewCart(
     unavailable.length > 0 || own.length > 0 || buyable.some(line => line.priceCredits !== line.item.priceCredits)
 
   return { buyable, unavailable, own, liveTotalCredits, orderChanged }
+}
+
+/**
+ * Split a failed checkout's reservations into "must not touch" and "release now", and name what was bought.
+ *
+ * A mixed basket needs one transaction per group, so a buyer can confirm the first wallet prompt and reject the
+ * second — and by then the first is irreversibly on its way. That makes two different things true at once, and
+ * this is where they are decided:
+ *
+ *  - a BROADCAST group's credits are spent for good, so its reservations must be left alone. Releasing them
+ *    raises the balance by money already spent; the reconciler re-debits it once the squid indexes the
+ *    consumption, and anything bought in the gap drives the balance negative.
+ *  - an UNBROADCAST group's reservations must be released now, or that much of the buyer's balance stays
+ *    stranded until the TTL expires.
+ *  - a BROADCAST-THEN-REVERTED group consumed nothing (a revert rolls the whole call back), so it belongs with
+ *    the second case — and its lines must NOT leave the cart, because the buyer bought nothing. This is why
+ *    release and ownership are two separate inputs here rather than one `broadcast` set doing both jobs: using
+ *    broadcast as a proxy for ownership empties the cart of a buyer whose transaction failed.
+ *
+ * Pure, and outside the page component, because the page cannot be tested at this level — the first version of
+ * this logic shipped with the item-id half silently doing nothing, and no test could see it.
+ *
+ * A reservation carries the line it paid for, PAIRED at creation rather than tracked in a second structure
+ * beside the salt list. Both halves are needed here, and two structures stay in step only by remembering to
+ * write both: the first version did keep a parallel map, the caller never populated it, and that typechecked
+ * and passed every test asserting on the salts while the cart cleanup silently did nothing (Jarvis P1). A
+ * salt is still the only identifier that survives from the reservation through to the broadcast — it just
+ * no longer travels alone.
+ */
+export type Reservation = {
+  /** The ephemeral credit's salt, as the broadcast reports it. */
+  salt: string
+  /** The cart line this reservation pays for. */
+  itemId: string
+}
+
+export function partitionReservations(opts: {
+  /** Every reservation this checkout made, in order. */
+  reservations: readonly Reservation[]
+  /**
+   * Salts that MAY have been consumed on-chain — broadcast, and not known to have reverted.
+   *
+   * This is the release decision, and it is deliberately the pessimistic set: anything in here is left alone.
+   */
+  spent: ReadonlySet<string>
+  /**
+   * Salts whose transaction MINED SUCCESSFULLY. This is the ownership decision — only these lines leave the
+   * cart. Always a subset of `spent`; a broadcast that reverted is in neither.
+   */
+  settled: ReadonlySet<string>
+}): { toRelease: string[]; boughtItemIds: string[] } {
+  const { reservations, spent, settled } = opts
+  const toRelease = reservations.filter(r => !spent.has(r.salt)).map(r => r.salt)
+  // De-duplicated: a quantity-2 line reserves two salts, and the cart holds one row for it.
+  const boughtItemIds = [...new Set(reservations.filter(r => settled.has(r.salt)).map(r => r.itemId))]
+  return { toRelease, boughtItemIds }
 }

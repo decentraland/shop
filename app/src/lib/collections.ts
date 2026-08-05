@@ -18,12 +18,15 @@ type RawCollectionItem = {
   network: string
   chainId: number
   thumbnail?: string
+  // The canonical asset urn. /v3/catalog/items returns it on every row, and it is the ONLY thing that
+  // identifies a non-Polygon item to the 3D preview — see CatalogItem.urn.
+  urn?: string
   // Server-computed whole credits (asset-aware: USD-pegged priced directly, MANA converted at the
   // oracle rate; 0 when the item isn't for sale). We consume this as-is — no client conversion.
   priceCredits?: number
   data?: {
     wearable?: { category?: string; bodyShapes?: string[]; isSmart?: boolean }
-    emote?: { category?: string }
+    emote?: { category?: string; loop?: boolean; hasSound?: boolean; hasGeometry?: boolean }
   }
 }
 
@@ -44,8 +47,12 @@ function toCatalogItem(r: RawCollectionItem): CatalogItem {
     creator: r.creator ?? '',
     contractAddress: r.contractAddress,
     itemId: r.itemId ?? null,
+    urn: r.urn,
     category: r.category,
     wearableCategory: r.data?.wearable?.category ?? r.data?.emote?.category,
+    emoteLoop: r.data?.emote?.loop,
+    emoteHasSound: r.data?.emote?.hasSound,
+    emoteHasProps: r.data?.emote?.hasGeometry,
     rarity: r.rarity ?? 'common',
     isSmart: !!r.data?.wearable?.isSmart,
     network: r.network,
@@ -111,6 +118,8 @@ export type CatalogItemsFilters = {
   first?: number
   skip?: number
   category?: string
+  // One creator's whole body of work (their storefront grid).
+  creator?: string
   rarities?: string[]
   wearableCategories?: string[]
   search?: string
@@ -119,34 +128,44 @@ export type CatalogItemsFilters = {
   isWearableSmart?: boolean
   // Listing status: true = on sale only, false = not-for-sale only, undefined = all.
   isOnSale?: boolean
+  // Credit-denominated price range. Distinct from the endpoint's MANA-wei minPrice/maxPrice, and it
+  // only ever matches items that ARE for sale (a not-for-sale item has no credit price to compare).
+  minPriceCredits?: number
+  maxPriceCredits?: number
 }
 
 export async function fetchCatalogItems({
   first = 48,
   skip = 0,
   category,
+  creator,
   rarities,
   wearableCategories,
   search,
   sortBy,
   isWearableSmart,
-  isOnSale
+  isOnSale,
+  minPriceCredits,
+  maxPriceCredits
 }: CatalogItemsFilters = {}): Promise<CollectionItemsPage> {
   const qs = new URLSearchParams({
     first: String(first),
     skip: String(skip),
     includeSocialEmotes: 'false'
   })
-  if (category && category !== 'all') qs.set('category', category)
+  // Only wearables and emotes are catalog categories. 'all' means no filter, and 'names' is a separate
+  // destination (not an item category) — sending either would be dropped server-side and silently
+  // return the unfiltered feed, which reads as a broken filter.
+  if (category === 'wearable' || category === 'emote') qs.set('category', category)
+  if (creator) qs.set('creator', creator)
   rarities?.forEach(r => qs.append('rarity', r))
   wearableCategories?.forEach(c => qs.append('wearableCategory', c))
   if (search) qs.set('search', search)
   if (sortBy) qs.set('sortBy', sortBy)
   if (isWearableSmart) qs.set('isWearableSmart', 'true')
   if (isOnSale != null) qs.set('isOnSale', String(isOnSale))
-  // NOTE: the credit price-range filter is intentionally omitted here — /v3/catalog/items takes a
-  // MANA-denominated minPrice/maxPrice (not credits), so wiring the shop's credit range to it would
-  // mis-filter. Left as a follow-up (needs a credit-aware range param on the endpoint).
+  if (minPriceCredits != null) qs.set('minPriceCredits', String(minPriceCredits))
+  if (maxPriceCredits != null) qs.set('maxPriceCredits', String(maxPriceCredits))
   const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/items?${qs.toString()}`)
   if (!res.ok) throw new Error(`fetchCatalogItems ${res.status}`)
   const { data, total } = (await res.json()) as { data: RawCollectionItem[]; total?: number }

@@ -21,16 +21,16 @@ describe('the sub-nav', () => {
   it('routes to each section without a full page load', async () => {
     app = await launchApp({ path: '/overview' })
     const { page } = app
-    await waitForText(page, 'Featured Products')
+    await waitForText(page, 'Trending Products')
 
     // Mark the document: a client-side route change must NOT clear it. A tab that hard-navigates (or
     // 404s and reloads) would.
     await page.evaluate(() => ((window as unknown as { __spa?: boolean }).__spa = true))
 
     for (const [label, expected] of [
-      ['collectibles', '/assets'],
+      ['collectibles', '/items'],
       ['activity', '/activity'],
-      ['my assets', '/my-assets'],
+      ['my items', '/my-items'],
       ['overview', '/overview']
     ] as const) {
       expect(await clickByText(page, 'a', new RegExp(`^${label}$`, 'i'))).toBe(true)

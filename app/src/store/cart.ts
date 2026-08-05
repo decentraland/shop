@@ -4,7 +4,7 @@ import type { CatalogItem } from '~/lib/api'
 import { track, creditsToUsd } from '~/lib/analytics'
 
 // Where an add-to-cart happened (funnel attribution — see design/SHOP_TRACKING_SPEC.md §5.3).
-export type AddToCartSource = 'grid' | 'item_detail' | 'carousel' | 'upsell' | 'collection' | 'creator'
+export type AddToCartSource = 'grid' | 'item_detail' | 'carousel' | 'upsell' | 'collection' | 'creator' | 'outfit'
 
 // A cart line: a catalog item plus how many units of it the buyer wants. Quantity is meaningful ONLY
 // for PRIMARY (mint) lines — a buyer can mint N copies up to the remaining supply (`available`). A
@@ -91,11 +91,15 @@ export const useCart = create<CartState>()(
             ? {
                 items: s.items.map(i => (i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i)),
                 open: true,
+                fittingOpen: false,
                 justAddedCount: (s.open ? s.justAddedCount : 0) + 1
               }
             : {
                 items: [...s.items, withQuantity(item)],
                 open: true,
+                // The drawer is the surface an add raises; belt and braces so no path can leave the fitting
+                // room open over the page the buyer is actually looking at.
+                fittingOpen: false,
                 justAddedCount: (s.open ? s.justAddedCount : 0) + 1
               }
         )
@@ -114,7 +118,14 @@ export const useCart = create<CartState>()(
       },
       remove: id => {
         const item = get().items.find(i => i.id === id)
-        set(s => ({ items: s.items.filter(i => i.id !== id) }))
+        set(s => {
+          const items = s.items.filter(i => i.id !== id)
+          // Emptying the cart closes the fitting room: everything it shows IS the cart, so with nothing left
+          // it can only render its own empty state — and, worse, it stayed OPEN behind the scenes. Removing
+          // the last line there and then going back to browse and adding something reopened the modal on top
+          // of the grid, because `add` raises the cart drawer and never knew to lower this.
+          return items.length === 0 ? { items, fittingOpen: false } : { items }
+        })
         if (item) track('Shop Removed From Cart', { item_id: item.itemId ?? null, cart_size: get().items.length })
       },
       setQuantity: (id, quantity) =>
@@ -137,7 +148,7 @@ export const useCart = create<CartState>()(
             i.id === id && isPrimaryLine(i) && i.quantity > 1 ? { ...i, quantity: i.quantity - 1 } : i
           )
         })),
-      clear: () => set({ items: [] }),
+      clear: () => set({ items: [], fittingOpen: false }),
       // Silent restore (no analytics, no popover) — the buyer already added these before topping up.
       // Coerce each line's quantity so an older snapshot (pre-quantity) rehydrates safely.
       restore: items => set(s => (s.items.length ? {} : { items: items.map(withQuantity) })),

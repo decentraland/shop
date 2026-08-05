@@ -135,17 +135,20 @@ describe('AssetCard hover-preview skeleton', () => {
 })
 
 describe('AssetCard listings badge (item-unified feed)', () => {
-  it('shows a "N on sale" badge when the item has more than one listing', () => {
-    const { container } = renderCard(makeItem({ listingCount: 3 }))
-    const badge = container.querySelector('[data-testid="card-listings"]')
-    expect(badge?.textContent).toMatch(/3 on sale/i)
-  })
-
-  it('shows no badge for a single-listing item or when listingCount is absent', () => {
-    const { container: single } = renderCard(makeItem({ listingCount: 1 }))
-    expect(single.querySelector('[data-testid="card-listings"]')).toBeNull()
-    const { container: none } = renderCard(makeItem())
-    expect(none.querySelector('[data-testid="card-listings"]')).toBeNull()
+  /**
+   * Inverted from asserting the badge to asserting its ABSENCE. The count is of secondary listings, and
+   * there are no secondary sales, so the badge could only ever mislead: a shopper reading "2 on sale"
+   * expects a second copy to buy and there is none. It was still rendering in production, which also
+   * means the count cannot be assumed to have collapsed to 1 on its own.
+   *
+   * `listingCount` is deliberately kept on the API type — the item-unified feed still returns it and the
+   * price collapse uses it. Only the chip is gone.
+   */
+  it('shows no listings badge, whatever the count says', () => {
+    for (const listingCount of [3, 2, 1, undefined]) {
+      const { container } = renderCard(makeItem({ listingCount }))
+      expect(container.querySelector('[data-testid="card-listings"]')).toBeNull()
+    }
   })
 })
 
@@ -178,9 +181,9 @@ describe('AssetCard legacy (MANA-priced) rows', () => {
   it('opens the detail page with the plain { item, tradeId } state, not a market state', () => {
     const item = makeItem({ contractAddress: '0xc', itemId: '1', tradeId: 'trade-1' })
     const { container } = render(
-      <MemoryRouter initialEntries={['/assets']}>
+      <MemoryRouter initialEntries={['/items']}>
         <Routes>
-          <Route path="/assets" element={<AssetCard item={item} />} />
+          <Route path="/items" element={<AssetCard item={item} />} />
           <Route path="/item/:contractAddress/:seg" element={<LocationProbe />} />
         </Routes>
       </MemoryRouter>
@@ -193,6 +196,86 @@ describe('AssetCard legacy (MANA-priced) rows', () => {
     expect(state.tradeId).toBe('trade-1')
     expect(state.market).toBeUndefined()
     expect(state.marketPriceCredits).toBeUndefined()
+  })
+})
+
+/**
+ * THE CTA MUST NOT STOP OFFERING AN ACTION THE CART WILL STILL TAKE.
+ *
+ * A primary (mint) row can be bought several times, so `useCart.add` keeps incrementing it — but the card used
+ * to flip to a disabled "In cart" on the first add, which read as "you already have this, there is nothing more
+ * to do" for an item the buyer could still stack. The flip is now reserved for the two rows where a second copy
+ * genuinely does not exist: a secondary listing (one unique token, clamped to quantity 1 in store/cart) and a
+ * primary that has reached its remaining-supply cap. Both directions are asserted: keeping "Add to cart" on a
+ * line that cannot take another copy would be the same lie in reverse.
+ */
+describe('AssetCard add-to-cart CTA when the item is already in the cart', () => {
+  const label = (container: HTMLElement) => container.querySelector('[data-testid="card-cart"]')
+  const round = (container: HTMLElement) => container.querySelector('[data-testid="card-add-round"]')
+
+  describe('and the row is a PRIMARY (mint) listing with supply left', () => {
+    it('should keep offering "Add to cart", enabled, on both the full-width and the round action', () => {
+      const item = makeItem({ available: 5 })
+      useCart.setState({ items: [{ ...item, quantity: 1 }] })
+      const { container } = renderCard(item)
+
+      const cart = label(container) as HTMLButtonElement
+      expect(cart.textContent).toMatch(/add to cart/i)
+      expect(cart.textContent).not.toMatch(/in cart/i)
+      expect(cart.disabled).toBe(false)
+      const compact = round(container) as HTMLButtonElement
+      expect(compact.disabled).toBe(false)
+      expect(compact.getAttribute('aria-label')).toMatch(/add to cart/i)
+    })
+
+    it('should actually add another copy when clicked again', () => {
+      const item = makeItem({ available: 5 })
+      useCart.setState({ items: [{ ...item, quantity: 1 }] })
+      const { container } = renderCard(item)
+
+      fireEvent.click(label(container) as HTMLButtonElement)
+
+      expect(useCart.getState().items[0].quantity).toBe(2)
+    })
+
+    it('should keep offering it when the remaining supply is unknown (no cap to reach)', () => {
+      const item = makeItem({ available: undefined })
+      useCart.setState({ items: [{ ...item, quantity: 3 }] })
+      const { container } = renderCard(item)
+
+      expect((label(container) as HTMLButtonElement).disabled).toBe(false)
+      expect(label(container)?.textContent).toMatch(/add to cart/i)
+    })
+  })
+
+  describe('and there is no second copy to add', () => {
+    it('should show a disabled "In cart" for a SECONDARY listing (a single unique token)', () => {
+      // A tokenId is what makes the row secondary; the cart clamps such a line to quantity 1.
+      const item = makeItem({ tokenId: '9', itemId: null })
+      useCart.setState({ items: [{ ...item, quantity: 1 }] })
+      const { container } = renderCard(item)
+
+      const cart = label(container) as HTMLButtonElement
+      expect(cart.textContent).toMatch(/in cart/i)
+      expect(cart.disabled).toBe(true)
+      expect((round(container) as HTMLButtonElement).disabled).toBe(true)
+    })
+
+    it('should show a disabled "In cart" for a PRIMARY line at its remaining-supply cap', () => {
+      const item = makeItem({ available: 2 })
+      useCart.setState({ items: [{ ...item, quantity: 2 }] })
+      const { container } = renderCard(item)
+
+      const cart = label(container) as HTMLButtonElement
+      expect(cart.textContent).toMatch(/in cart/i)
+      expect(cart.disabled).toBe(true)
+    })
+  })
+
+  it('should read "Add to cart" for an item that is not in the cart at all', () => {
+    const { container } = renderCard(makeItem({ available: 5 }))
+    expect(label(container)?.textContent).toMatch(/add to cart/i)
+    expect((label(container) as HTMLButtonElement).disabled).toBe(false)
   })
 })
 
@@ -230,9 +313,9 @@ describe('AssetCard own-item MANAGE CTA', () => {
     useWallet.setState({ session: { address: ME } as never })
     const item = makeItem({ creator: ME, contractAddress: '0xc', itemId: '1' })
     const { container } = renderWithQuery(
-      <MemoryRouter initialEntries={['/assets']}>
+      <MemoryRouter initialEntries={['/items']}>
         <Routes>
-          <Route path="/assets" element={<AssetCard item={item} />} />
+          <Route path="/items" element={<AssetCard item={item} />} />
           <Route path="/item/:contractAddress/:seg" element={<LocationProbe />} />
         </Routes>
       </MemoryRouter>
@@ -243,6 +326,43 @@ describe('AssetCard own-item MANAGE CTA', () => {
     expect(state.item?.id).toBe(item.id)
     // …and it never added your own item to the cart.
     expect(useCart.getState().items).toHaveLength(0)
+  })
+})
+
+/**
+ * My Items renders every owned card in `manage-link` mode, whose only action is a MANAGE CTA revealed on
+ * card hover. The reveal is pure CSS — the rule in AssetCard.styles matches `[data-testid='card-cart']` or
+ * `[data-reveal]` — so jsdom cannot observe it, and what these cases pin is the HOOK the rule needs.
+ *
+ * Worth pinning because of how it failed: MANAGE carried neither marker, while the chips it replaces DO
+ * carry `[data-chips]`. Hovering therefore hid the chips and revealed nothing, and every card in My Items
+ * had no visible action at all — a missing attribute reading as a missing feature.
+ */
+describe('AssetCard manage-link mode', () => {
+  it('marks the MANAGE CTA as hover-revealable for an owned token', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <AssetCard item={makeItem({ priceCredits: 0, tokenId: '7' })} mode="manage-link" />
+      </MemoryRouter>
+    )
+    const cta = container.querySelector('[data-testid="card-manage"]')
+    expect(cta).toBeTruthy()
+    expect(cta?.hasAttribute('data-reveal')).toBe(true)
+  })
+
+  it('marks the MANAGE link as hover-revealable for an owned NAME', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <AssetCard
+          item={makeItem({ priceCredits: 0, category: 'name' })}
+          mode="manage-link"
+          manageHref="https://example.com/names"
+        />
+      </MemoryRouter>
+    )
+    const cta = container.querySelector('[data-testid="card-manage"]')
+    expect(cta).toBeTruthy()
+    expect(cta?.hasAttribute('data-reveal')).toBe(true)
   })
 })
 
@@ -264,6 +384,27 @@ describe('AssetCard view-only mode', () => {
     expect(container.querySelector('[data-testid="card-add-round"]')).toBeNull()
   })
 
+  /**
+   * VIEW sits in the slot Add-to-cart occupies on a browse card, so it takes Add-to-cart's treatment:
+   * chips at rest, the dark pill revealed on hover / keyboard focus. It used to be an always-visible pill
+   * instead, so the whole "Not for Sale" grid showed a dark full-width button at rest while every
+   * neighbouring grid showed chips. The reveal itself is CSS keyed off `[data-reveal]` (and the chips off
+   * `[data-chips]`), which jsdom can't evaluate — these pin the hooks the rule needs.
+   */
+  it('reveals the VIEW cta on hover instead of showing it permanently', () => {
+    const { container } = renderView(makeItem({ priceCredits: 0 }))
+    const cta = container.querySelector('[data-testid="card-view"]')
+    expect(cta).toBeTruthy()
+    expect(cta?.hasAttribute('data-reveal')).toBe(true)
+  })
+
+  it('shows the rarity chips at rest, so the revealed cta has something to replace', () => {
+    const { container } = renderView(makeItem({ priceCredits: 0, rarity: 'mythic' }))
+    const chips = container.querySelector('[data-chips]')
+    expect(chips).toBeTruthy()
+    expect(chips?.textContent).toMatch(/mythic/i)
+  })
+
   it('shows the credit price (not the tag) + VIEW button for a for-sale catalog item', () => {
     const { container } = renderView(makeItem({ priceCredits: 42 }))
     expect(container.querySelector('[data-testid="card-nfs"]')).toBeNull()
@@ -275,9 +416,9 @@ describe('AssetCard view-only mode', () => {
   it('navigates to the item detail via the whole-card link, seeding the item in router state', () => {
     const item = makeItem({ priceCredits: 0, contractAddress: '0xc', itemId: '1' })
     const { container } = render(
-      <MemoryRouter initialEntries={['/assets']}>
+      <MemoryRouter initialEntries={['/items']}>
         <Routes>
-          <Route path="/assets" element={<AssetCard item={item} mode="view" />} />
+          <Route path="/items" element={<AssetCard item={item} mode="view" />} />
           <Route path="/item/:contractAddress/:seg" element={<LocationProbe />} />
         </Routes>
       </MemoryRouter>
@@ -296,9 +437,9 @@ describe('AssetCard manage-link mode (owned My Assets card)', () => {
     // A held token carries a tokenId — the MANAGE cta opens the specific /token/:contract/:tokenId page.
     const item = makeItem({ contractAddress: '0xc', tokenId: '9', itemId: null })
     const { container } = render(
-      <MemoryRouter initialEntries={['/my-assets']}>
+      <MemoryRouter initialEntries={['/my-items']}>
         <Routes>
-          <Route path="/my-assets" element={<AssetCard item={item} mode="manage-link" />} />
+          <Route path="/my-items" element={<AssetCard item={item} mode="manage-link" />} />
           <Route path="/token/:contractAddress/:seg" element={<LocationProbe />} />
         </Routes>
       </MemoryRouter>

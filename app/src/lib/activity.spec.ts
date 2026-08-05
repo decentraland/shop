@@ -20,6 +20,8 @@ function purchase(overrides: Partial<PurchaseRecord> = {}): PurchaseRecord {
   return {
     id: Math.random().toString(36).slice(2),
     tradeId: 't-' + Math.random().toString(36).slice(2),
+    contractAddress: null,
+    itemId: null,
     usdCents: 100,
     credits: 10,
     status: 'SETTLED',
@@ -221,6 +223,8 @@ describe('MANA-paid purchases', () => {
     const purchase = {
       id: 'p1',
       tradeId: 't1',
+      contractAddress: null,
+      itemId: null,
       usdCents: 1000,
       credits: 100,
       status: 'SETTLED' as const,
@@ -237,6 +241,8 @@ describe('MANA-paid purchases', () => {
     const purchase = {
       id: 'p1',
       tradeId: 't1',
+      contractAddress: null,
+      itemId: null,
       usdCents: 1000,
       credits: 100,
       status: 'SETTLED' as const,

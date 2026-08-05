@@ -13,7 +13,7 @@ export function NotFound() {
       <S.Ico name="cart" size={44} />
       <S.Title>{t('notFound.title')}</S.Title>
       <p className="muted">{t('notFound.body')}</p>
-      <Button as={Link} to="/assets" variant="purple">
+      <Button as={Link} to="/items" variant="purple">
         {t('notFound.cta')}
       </Button>
     </S.Root>

@@ -14,7 +14,12 @@ describe('publish a created item (primary)', () => {
     // yet, so it must NOT resolve as a catalog listing — otherwise the item detail would overwrite the
     // creator (the browse catalog's `creator` is a third party) and stop recognizing you as the creator.
     // The creation still shows under "My Creations" (that grid reads the builder feed, not the catalog).
-    app = await launchApp({ path: '/my-assets', fixtures: { importable: { data: [] }, shopListings: { data: [] } } })
+    // Empty in BOTH catalog feeds — the item page resolves its listing from the unified one, so a row left
+    // there would make the creation read as already for sale and the creator view would never appear.
+    app = await launchApp({
+      path: '/my-items',
+      fixtures: { importable: { data: [] }, shopListings: { data: [] }, unifiedListings: { data: [] } }
+    })
     const { page } = app
 
     // Redesigned My Assets: creations live behind the sidebar "My Creations" section. Land on the owned

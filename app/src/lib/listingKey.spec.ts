@@ -5,6 +5,9 @@ import type { UnifiedListing } from '~/lib/api'
 // Minimal factory — listingKey only reads source/tradeId/contractAddress/itemId/tokenId.
 function listing(over: Partial<UnifiedListing>): UnifiedListing {
   return {
+    // Defaults to a trade: that is what every row was before CollectionStore mints entered the feed, and
+    // the cases below are all about trades. A store case overrides it explicitly.
+    acquisition: 'trade',
     id: '',
     name: '',
     creator: '',

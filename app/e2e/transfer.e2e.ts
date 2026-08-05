@@ -28,7 +28,7 @@ async function openTransfer(page: App['page']) {
   await waitForText(page, 'Recipient address')
 }
 
-const OWNED = { path: '/my-assets', fixtures: { ownedNfts, importable: { data: [] } } }
+const OWNED = { path: '/my-items', fixtures: { ownedNfts, importable: { data: [] } } }
 
 describe('transferring an owned item', () => {
   it('opens from the owner actions and warns that it cannot be undone', async () => {

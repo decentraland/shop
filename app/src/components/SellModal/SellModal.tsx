@@ -188,7 +188,7 @@ export function SellModal({
 
   function goToMyItems() {
     onClose()
-    navigate('/my-assets')
+    navigate('/my-items')
   }
 
   // Success state (Figma 1528-306276): green banner + manage-from-My-Items copy + My items / Done actions.

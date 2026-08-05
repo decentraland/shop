@@ -19,7 +19,8 @@ describe('search bar', () => {
     await page.waitForSelector(SEARCH)
     await page.type(SEARCH, 'Nebula')
 
-    // The dropdown fetches /v3/catalog/shop?search=Nebula and shows the matching item.
+    // The dropdown fetches the same feed the results grid uses (/v3/catalog/unified?groupBy=item)
+    // and shows the matching item.
     await page.waitForSelector('[data-testid="search-pop"]')
     await waitForText(page, 'Nebula Jacket')
     // "Galaxy Hat" doesn't match the query → not suggested.
@@ -95,7 +96,7 @@ describe('search bar', () => {
     await page.waitForFunction(() => /\/creator\//.test(location.pathname))
   })
 
-  it('runs a full search on Enter and lands on /assets?q=', async () => {
+  it('runs a full search on Enter and lands on /items?q=', async () => {
     app = await launchApp({ path: '/overview' })
     const { page } = app
 
@@ -103,9 +104,53 @@ describe('search bar', () => {
     await page.type(SEARCH, 'Galaxy')
     await page.keyboard.press('Enter')
 
-    await page.waitForFunction(() => location.pathname === '/assets' && /q=Galaxy/i.test(location.search))
+    await page.waitForFunction(() => location.pathname === '/items' && /q=Galaxy/i.test(location.search))
     // The results header echoes the query, and the matching item renders in the grid.
     await waitForText(page, 'Galaxy Hat')
+  })
+
+  // The bug this guards: the dropdown, the on-sale grid and the all/not-for-sale grid used to run
+  // three different server-side searches, so one query could suggest an item the grid then hid, and
+  // widening Status from "On Sale" to "All" could drop the results to zero.
+  it('suggests the same item the results grid then shows', async () => {
+    app = await launchApp({ path: '/overview' })
+    const { page } = app
+
+    await page.waitForSelector(SEARCH)
+    await page.type(SEARCH, 'Nebula')
+    await page.waitForSelector('[data-testid="search-pop-row"][data-kind="item"]')
+    const suggested = await page.$eval('[data-testid="search-pop-row"][data-kind="item"]', el => el.textContent ?? '')
+    expect(suggested).toMatch(/nebula jacket/i)
+
+    await page.keyboard.press('Enter')
+    await page.waitForFunction(() => location.pathname === '/items')
+    await waitForText(page, 'Nebula Jacket')
+  })
+
+  it('keeps a search result when Status widens from On Sale to All', async () => {
+    app = await launchApp({ path: '/items?q=Nebula' })
+    const { page } = app
+
+    await waitForText(page, 'Nebula Jacket')
+    // Status radios, in order: All, On Sale, Not for Sale.
+    await page.waitForSelector('[data-testid="browse-sidebar"] input[type="radio"]')
+    await page.$$eval('[data-testid="browse-sidebar"] input[type="radio"]', els => (els[0] as HTMLElement).click())
+
+    // "All" must be a superset of "On Sale" — the item stays, and the choice lands in the URL so the
+    // view can be shared or refreshed.
+    await page.waitForFunction(() => /status=all/.test(location.search) && /q=Nebula/.test(location.search))
+    await waitForText(page, 'Nebula Jacket')
+  })
+
+  it('restores a shared not-for-sale search from the URL', async () => {
+    app = await launchApp({ path: '/items?q=Nebula&status=not_for_sale' })
+    const { page } = app
+
+    await page.waitForSelector('[data-testid="browse-empty"]')
+    const checked = await page.$$eval('[data-testid="browse-sidebar"] input[type="radio"]', els =>
+      els.map(el => (el as HTMLInputElement).checked)
+    )
+    expect(checked).toEqual([false, false, true])
   })
 
   it('keeps the suggestions dropdown wide and on-screen on a mobile viewport', async () => {
@@ -129,7 +174,7 @@ describe('search bar', () => {
 
   it('reflects the URL query in the input on a deep link', async () => {
     // Landing directly on a filtered URL must pre-fill the search box (previously it stayed blank).
-    app = await launchApp({ path: '/assets?q=Nebula' })
+    app = await launchApp({ path: '/items?q=Nebula' })
     const { page } = app
 
     await page.waitForSelector(SEARCH)
@@ -137,28 +182,30 @@ describe('search bar', () => {
     expect(value).toBe('Nebula')
   })
 
-  it('clears the search with the clear button and returns to /assets', async () => {
-    app = await launchApp({ path: '/assets?q=Nebula' })
+  it('clears the search with the clear button and returns to /items', async () => {
+    app = await launchApp({ path: '/items?q=Nebula' })
     const { page } = app
 
     await page.waitForSelector('[data-testid="subnav-search-clear"]')
     await page.click('[data-testid="subnav-search-clear"]')
 
-    await page.waitForFunction(() => location.pathname === '/assets' && location.search === '')
+    await page.waitForFunction(() => location.pathname === '/items' && location.search === '')
     const value = await page.$eval(SEARCH, el => (el as HTMLInputElement).value)
     expect(value).toBe('')
   })
 
-  // The sub-nav's other items (tab strip + balance/credits/cart) used to squeeze the field down to the
+  // The sub-nav's other items (tab strip + credits/cart) used to squeeze the field down to the
   // bare magnifier well above the mobile breakpoint — 94px of input at 1280, 14px at 1200 — and then
   // pushed the page into horizontal overflow. The strip yields (and scrolls) above `lg`; at `lg` and
-  // below the row wraps and the field gets its own line. A MANA balance is in play because that chip
-  // only renders for a wallet holding MANA and it is ~85px of the row's rigid width.
+  // below the row wraps and the field gets its own line. A MANA balance is kept in play so the run
+  // still covers the widest navbar (the chip now lives in the GLOBAL navbar as a ui2 chip with no
+  // testid; its aria-label is the stable hook) — waiting on it also keeps the balance fetch settled
+  // before the widths are measured.
   it('keeps the field usable, and the page unscrolled sideways, as the window narrows', async () => {
-    app = await launchApp({ path: '/assets', manaBalanceWei: '5000000000000000000' })
+    app = await launchApp({ path: '/items', manaBalanceWei: '5000000000000000000' })
     const { page } = app
     await page.waitForSelector(SEARCH)
-    await page.waitForSelector('[data-testid="subnav-mana-balance"]')
+    await page.waitForSelector('button[aria-label$="MANA on Polygon"]')
 
     for (const width of [1512, 1280, 1024, 901, 900, 800, 780, 769]) {
       await page.setViewport({ width, height: 860 })
@@ -198,7 +245,7 @@ describe('search bar', () => {
   })
 
   it('gives the tab strip its own row below lg, and keeps it whole on a desktop window', async () => {
-    app = await launchApp({ path: '/assets' })
+    app = await launchApp({ path: '/items' })
     const { page } = app
     await page.waitForSelector('[data-testid="subnav-tabs"]')
     const tabsClipped = async () =>
@@ -221,7 +268,7 @@ describe('search bar', () => {
   })
 
   it('centres the clear button glyph inside its round hover fill', async () => {
-    app = await launchApp({ path: '/assets?q=Nebula' })
+    app = await launchApp({ path: '/items?q=Nebula' })
     const { page } = app
     await page.waitForSelector('[data-testid="subnav-search-clear"]')
 

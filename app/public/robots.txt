@@ -1,4 +1,6 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://shop.decentraland.zone/sitemap.xml
+# Same host as sitemap.xml's own entries and index.html's canonical: the Shop is served by path under
+# /shop, and shop.decentraland.zone does not resolve.
+Sitemap: https://decentraland.org/shop/sitemap.xml

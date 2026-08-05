@@ -18,6 +18,7 @@ import {
 import { buyWithCredits, type SpendableCredit } from '~/lib/buy'
 import { gaslessConfig } from '~/lib/gasless-config'
 import { amoyGasOverrides, getOnChainTrade } from '~/lib/trade-encoding'
+import { confirmMetaTx, MetaTxPendingError } from '~/lib/tx-confirm'
 
 type MarketplaceAcceptContract = ethers.Contract & {
   accept(trades: unknown[], overrides?: ethers.Overrides): Promise<ethers.ContractTransaction>
@@ -125,10 +126,15 @@ async function acceptPayingMana(opts: {
       })
       // Broadcast (the buyer signed) — flip the UI to "completing…" before we wait for the receipt.
       onSigned?.()
-      await rpc.waitForTransaction(txHash, 1, 120_000)
+      await confirmMetaTx(txHash, 'the MANA purchase')
       return txHash
     } catch (e) {
       if (e instanceof MetaTransactionError && e.code === ErrorCode.USER_DENIED) throw e
+      // A PENDING meta-tx must NOT fall through to the direct path. Pending means no receipt yet, so the
+      // relayed transaction may still mine — re-submitting the purchase directly would run it TWICE.
+      // A revert is different: it consumed nothing, so retrying directly is right. Propagate the pending
+      // one and let the caller surface it; an unknown outcome is not a failure to paper over.
+      if (e instanceof MetaTxPendingError) throw e
       console.warn('[buyWithMana] gasless meta-tx failed, falling back to a direct tx:', e)
     }
   }
@@ -173,8 +179,15 @@ export async function buyWithCreditsAndMana(opts: {
   credits: SpendableCredit[]
   /** MANA (wei) the buyer covers out of pocket. MUST be <= their balance; unused MANA is refunded. */
   manaGapWei: bigint
+  /**
+   * Forwarded to buyWithCredits, which settles this rail. The caller needs them for the same reason the
+   * credits-only rail does: this spends an ephemeral credit through `useCredits`, so once the transaction is
+   * broadcast that credit may be consumed and its reservation must not be released.
+   */
+  onBroadcast?: (info: { txHash: string }) => void
+  onReverted?: (info: { txHash: string | null }) => void
 }): Promise<string> {
-  const { trade, buyer, signer, credits, manaGapWei } = opts
+  const { trade, buyer, signer, credits, manaGapWei, onBroadcast, onReverted } = opts
   if (credits.length === 0) throw new Error('No credits to spend — use buyWithMana for a MANA-only purchase')
   if (manaGapWei <= 0n) throw new Error('No MANA gap to cover — use buyWithCredits for a credits-only purchase')
 
@@ -196,5 +209,5 @@ export async function buyWithCreditsAndMana(opts: {
   const creditsValue = credits.reduce((acc, c) => acc + BigInt(c.availableAmount), 0n)
   const maxCreditedValue = (creditsValue + manaGapWei).toString()
 
-  return buyWithCredits({ trade, buyer, signer, credits, maxCreditedValue })
+  return buyWithCredits({ trade, buyer, signer, credits, maxCreditedValue, onBroadcast, onReverted })
 }

@@ -1,5 +1,5 @@
 import type { Trade } from '@dcl/schemas'
-import { resolveLiveTrade, usdWeiToCents, TradeNotFoundError, type CatalogItem } from '~/lib/api'
+import { resolveLiveTrade, fetchStoreMintState, usdWeiToCents, TradeNotFoundError, type CatalogItem } from '~/lib/api'
 
 // A cart line's live sellability, checked when the cart opens.
 //   available   → the underlying listing still resolves and is buyable
@@ -34,14 +34,43 @@ export function classifyTrade(item: Pick<CatalogItem, 'tokenId'>, trade: Trade |
   return 'available'
 }
 
-// Resolve a single cart line's current availability. Reuses resolveLiveTrade — the exact resolver
-// checkout uses — so the cart's judgement matches the basket review. A definitively-missing trade
-// (a TradeNotFoundError with no item fallback, i.e. a sold/cancelled secondary token) classifies as
+/**
+ * Classify a CollectionStore (mint) line against its freshly-read live mint state, or null when the item is
+ * no longer mintable through the store.
+ *
+ * Remaining stock is the only availability question a mint has: there is no signature to expire and no trade
+ * to disappear, so the two conditions classifyTrade checks do not exist here. A zero price still reads as
+ * unavailable for the same reason it does for a trade — nothing legitimately costs nothing, and buying it
+ * would build calldata the contract rejects.
+ *
+ * Quantity-vs-stock is deliberately NOT checked here. The stepper already caps increments at the line's
+ * stock, and reviewCart re-checks the requested quantity against live stock before charging, so a line
+ * asking for more copies than remain still reads as buyable rather than showing "Out of stock" — which
+ * would be the wrong words for it, and would hide a line the buyer can still get by lowering the count.
+ */
+export function classifyStoreMint(state: { priceWei: string; available: number } | null): CartLineAvailability {
+  if (!state || state.available <= 0) return 'sold-out'
+  const price = Number(state.priceWei)
+  if (!Number.isFinite(price) || price <= 0) return 'unavailable'
+  return 'available'
+}
+
+// Resolve a single cart line's current availability. Reuses resolveLiveTrade / fetchStoreMintState — the
+// exact resolvers checkout uses — so the cart's judgement matches the basket review. A definitively-missing
+// trade (a TradeNotFoundError with no item fallback, i.e. a sold/cancelled secondary token) classifies as
 // not-available rather than throwing; any OTHER failure (network, 5xx) propagates so the caller can
 // stay optimistic instead of caching a false "unavailable".
 export async function resolveLineAvailability(
-  item: Pick<CatalogItem, 'tradeId' | 'tokenId' | 'itemId' | 'contractAddress'>
+  item: Pick<CatalogItem, 'tradeId' | 'tokenId' | 'itemId' | 'contractAddress' | 'acquisition'>
 ): Promise<CartLineAvailability> {
+  // A CollectionStore mint has no trade to resolve, so asking resolveLiveTrade for one always fails —
+  // which classified as sold-out and made EVERY store line permanently unbuyable in the cart, excluded
+  // from the total and from checkout, even though the store purchase path itself works. Its availability
+  // comes from live mint state instead.
+  if (item.acquisition === 'store') {
+    if (!item.contractAddress || !item.itemId) return 'unavailable'
+    return classifyStoreMint(await fetchStoreMintState(item.contractAddress, item.itemId))
+  }
   try {
     const trade = await resolveLiveTrade(item)
     return classifyTrade(item, trade)

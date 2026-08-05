@@ -8,10 +8,11 @@ import { useFavorite, useFavorites } from '~/store/favorites'
 import { useWallet } from '~/store/wallet'
 import { stashResumeIntent, takeResumeIntent } from '~/lib/auth-return'
 import {
-  fetchShopListingForItem,
+  fetchUnifiedListingForItem,
   fetchTradeForItem,
   fetchItemResales,
   fetchItemDescription,
+  fetchItemMeta,
   fetchOwnedToken,
   fetchOwnedItemCount,
   fetchTokenById,
@@ -21,6 +22,7 @@ import {
   type UnifiedListing
 } from '~/lib/api'
 import { itemIdFromTokenId } from '~/lib/token-id'
+import { liveTradeId, markListingCancelled } from '~/lib/dead-listings'
 import { patchManageCaches } from '~/lib/manage-cache'
 import { isSaleSectionLoading } from '~/lib/pdp-loading'
 import { cancelListing } from '~/lib/buy'
@@ -36,9 +38,11 @@ import { captureError } from '~/lib/monitoring'
 import { isRejection } from '~/lib/errors'
 import { isManagedWallet } from '~/lib/wallet'
 import { useManaRate } from '~/hooks/useManaRate'
+import { useRelatedItems } from '~/hooks/useRelatedItems'
 import { useSeo } from '~/hooks/useSeo'
 import { shortAddress } from '~/lib/address'
 import { t } from '~/intl/i18n'
+import { theme } from '~/styles/theme'
 import { fetchCollectionItems, fetchCollection } from '~/lib/collections'
 import { ItemPreview } from '~/components/ItemPreview'
 import { CollectionCarousel } from '~/components/CollectionCarousel'
@@ -46,7 +50,7 @@ import { ResellersModal } from '~/components/ResellersModal'
 import { useSecondarySales } from '~/hooks/useSecondarySales'
 import { NotifyMe } from '~/components/NotifyMe'
 import { isNotifyAvailable } from '~/lib/notify'
-import { MakeOfferButton } from '~/components/MakeOfferButton'
+// import { MakeOfferButton } from '~/components/MakeOfferButton' // see the CTA block below
 import { Tooltip } from '~/components/Tooltip'
 import { ErrorNotice } from '~/components/ErrorNotice'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
@@ -121,6 +125,7 @@ export function ItemDetail() {
   const isMarket = !!state?.market
   const marketPriceCredits = state?.marketPriceCredits ?? null
 
+  const qc = useQueryClient()
   const add = useCart(s => s.add)
   const cartItems = useCart(s => s.items)
   const toggleFav = useFavorites(s => s.toggle)
@@ -210,7 +215,9 @@ export function ItemDetail() {
   // fetchShopListingForItem, which treats its 2nd arg as an itemId → the server matched nothing and
   // returned the collection's first listing (a WRONG item) on a cold load. Never pass a tokenId here.
   // Also runs when a seeded item (grid nav / sibling) is missing its stock (`available`) so the
-  // authoritative listing can backfill it. Never for a market/legacy item (not in this feed).
+  // authoritative listing can backfill it. Resolved through the UNIFIED feed so a LEGACY (MANA) listing
+  // counts as much as a native one — reading the shop-only feed here is what made a MANA-listed item show
+  // "Not for sale" on its own page while its card in the grid showed a price.
   // ITEM ROUTE ONLY: the token route hydrates from the specific token (ownedAsset / publicToken) and
   // must not be overwritten by the generic item listing (which carries no tokenId).
   const needsPrimaryStock = current.available == null && !current.tokenId
@@ -223,7 +230,7 @@ export function ItemDetail() {
     staleTime: 0,
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
-    queryFn: () => fetchShopListingForItem(current.contractAddress, pageItemId as string)
+    queryFn: () => fetchUnifiedListingForItem(current.contractAddress, pageItemId as string)
   })
   useEffect(() => {
     if (!deepLinkItem) return
@@ -300,6 +307,12 @@ export function ItemDetail() {
     return out
   }, [siblings, current.id, current.itemId, current.tokenId])
 
+  // Fallback rail: a single-item collection leaves the carousel with nothing to render, and the page below
+  // the fold goes blank. So once the collection has come back empty-handed, ask for SIMILAR items instead.
+  // Gated on siblingsFetched so a slow collection read doesn't fire both requests and swap rails mid-view.
+  const noSiblings = siblingsFetched && carouselItems.length === 0
+  const { items: relatedItems } = useRelatedItems(current.contractAddress, pageItemId, { enabled: noSiblings })
+
   // Resolve a buyable trade for the current item (needed for BUY NOW + a valid cart entry). Secondary
   // listings carry their tradeId directly; catalog items resolve the cheapest open listing by itemId.
   const { data: resolvedTradeId, isLoading: resolvingTrade } = useQuery({
@@ -324,7 +337,48 @@ export function ItemDetail() {
     }
   })
 
-  const buyableTradeId = current.tradeId ?? resolvedTradeId ?? undefined
+  /**
+   * Smart-wearable traits, from the v1 items endpoint — the only one that carries `utility` (the v3 catalog
+   * omits it entirely, which is why the Shop showed none of this). `isSmart` is read here too rather than
+   * trusted from `current`: arriving by URL starts the page from a stub whose isSmart is false, so the badge
+   * would have depended on how the visitor got here.
+   *
+   * Presentation only, so it is allowed to be slow and to fail quietly: no badge is the same as no utility.
+   */
+  const { data: itemTraits } = useQuery({
+    queryKey: ['item-traits', current.contractAddress, pageItemId],
+    enabled: !!current.contractAddress && !!pageItemId,
+    staleTime: 5 * 60_000,
+    retry: 1,
+    queryFn: () => fetchItemMeta(current.contractAddress, pageItemId as string)
+  })
+  // `??`, not `||`: once this query answers it is the authority, so a `false` from it must not fall through
+  // to a possibly-stale `true` on the stub the page started from. Only "still loading" defers to `current`.
+  const isSmart = itemTraits?.isSmart ?? current.isSmart
+  const utility = itemTraits?.utility ?? null
+
+  // Both sources are filtered through the session's cancelled listings (see lib/dead-listings): the feed's
+  // materialized view lags behind a take-down, so `current.tradeId` (seeded from a grid row that predates it)
+  // and the resolved trade can both still name a listing we know is dead. Without that filter the page keeps
+  // offering the listing it just cancelled until a full reload.
+  /**
+   * Emote playback traits, from whichever row actually carries them.
+   *
+   * `current` is seeded from the shop feed, and /v3/catalog/shop is FLAT — no `data` object at all, so no
+   * loop / hasSound / hasGeometry. The backfill below cannot help either: it bails out once `current.name`
+   * is set, which it always is when you arrive from the grid. /v3/catalog/items does return them, and the
+   * sibling list is already fetched from it, so the row for THIS item is the source.
+   *
+   * Read at render time and narrowly — only these three fields — rather than merged into `current`, which
+   * the authoritative deep-link row owns and must not be clobbered by a generic catalogue sibling.
+   */
+  const emoteTraits = useMemo(() => {
+    if (current.emoteLoop !== undefined) return current
+    const match = pageItemId ? siblings.find(sib => sib.itemId === pageItemId) : undefined
+    return match ?? current
+  }, [current, siblings, pageItemId])
+
+  const buyableTradeId = liveTradeId(qc, current.tradeId) ?? liveTradeId(qc, resolvedTradeId)
   const forSale = !!buyableTradeId
 
   // Cheapest open resale for this item — powers the "Lowest Price" line + resellers link (Figma
@@ -466,6 +520,7 @@ export function ItemDetail() {
   const genderIco = genderIcon(current.gender)
   const onSale = forSale && saleActive
   const collectionTitle = t('itemDetail.moreFromCollection')
+  const relatedTitle = t('itemDetail.relatedItems')
 
   // Your own (primary) listing — you can't buy it (see lib/ownership.ts). Secondary self-listings are
   // caught authoritatively at buy time by isOwnTrade.
@@ -476,7 +531,6 @@ export function ItemDetail() {
   //  • CREATOR of a PRIMARY (mint) listing they published — `own` (isOwnListing) already flags it.
   //  • OWNER of a SECONDARY token they hold — resolved by querying the connected wallet's holding of
   //    this exact token (also reports whether it's listed + the trade id to take it down).
-  const qc = useQueryClient()
   const [showSell, setShowSell] = useState(false)
   const [showPrimary, setShowPrimary] = useState(false)
   const [showTransfer, setShowTransfer] = useState(false)
@@ -721,6 +775,13 @@ export function ItemDetail() {
       // corrected on the next window focus). Runs for the silent edit-price cancel too, so the old listing
       // disappears immediately before the relist modal reopens. refreshManage then reconciles.
       setJustListedCredits(null)
+      // Retire the trade so nothing can offer it back while the MV catches up: patchManageCaches below only
+      // reaches the TOKEN-scoped caches, and no-ops entirely without a tokenId — i.e. never on the /item
+      // route, where a creator's primary listing lives in this page's own item state instead.
+      markListingCancelled(qc, manageTradeId)
+      // …and drop it from that state, so the buyable-trade query stops short-circuiting on a dead id and can
+      // resolve whatever replaces it (the re-list half of an Edit price, say).
+      setCurrent(prev => (prev.tradeId === manageTradeId ? { ...prev, tradeId: undefined } : prev))
       void refreshManage()
       patchManageCaches(
         qc,
@@ -874,7 +935,7 @@ export function ItemDetail() {
         <S.NotFoundIco name="cart" />
         <S.NotFoundTitle>{t('itemDetail.notAvailableTitle')}</S.NotFoundTitle>
         <p className="muted">{t('itemDetail.notAvailableBody')}</p>
-        <S.NotFoundCta variant="purple" onClick={() => navigate('/assets')}>
+        <S.NotFoundCta variant="purple" onClick={() => navigate('/items')}>
           {t('notFound.cta')}
         </S.NotFoundCta>
       </S.Detail>
@@ -884,7 +945,7 @@ export function ItemDetail() {
   return (
     <S.Detail>
       <S.Crumbs aria-label={t('itemDetail.breadcrumbAria')}>
-        <S.CrumbLink onClick={() => navigate('/assets')}>{t('nav.collectibles')}</S.CrumbLink>
+        <S.CrumbLink onClick={() => navigate('/items')}>{t('nav.collectibles')}</S.CrumbLink>
         <S.CrumbSep>/</S.CrumbSep>
         <S.CrumbCurrent>{current.name || t('itemDetail.itemFallback')}</S.CrumbCurrent>
       </S.Crumbs>
@@ -967,18 +1028,73 @@ export function ItemDetail() {
                 {!isTokenRoute && current.issuedId ? (
                   <S.DetailChip data-testid="detail-issued">#{current.issuedId}</S.DetailChip>
                 ) : null}
+                {/* Smart wearable, and whether it unlocks something — the same two badges the marketplace
+                    shows, from the same two fields (`data.wearable.isSmart` and `utility`). */}
+                {isSmart ? (
+                  <S.DetailChip data-testid="detail-smart">
+                    <Icon name="smart" size={18} color={theme.colors.text2} />
+                    {t('itemDetail.smart')}
+                  </S.DetailChip>
+                ) : null}
+                {/* Emote playback traits — the same three the marketplace's emote detail shows, from the same fields
+                    (data.emote loop / hasSound / hasGeometry). loop is deliberately tri-state: false means play-once,
+                    which is a fact worth stating, so only undefined — i.e. a wearable — hides the chip. */}
+                {emoteTraits.emoteLoop !== undefined ? (
+                  <S.DetailChip data-testid="detail-play-mode">
+                    <Icon
+                      name={emoteTraits.emoteLoop ? 'play-loop' : 'play-once'}
+                      size={18}
+                      color={theme.colors.text2}
+                    />
+                    {emoteTraits.emoteLoop ? t('itemDetail.playLoop') : t('itemDetail.playOnce')}
+                  </S.DetailChip>
+                ) : null}
+                {emoteTraits.emoteHasSound ? (
+                  <S.DetailChip data-testid="detail-sound">
+                    <Icon name="sound" size={18} color={theme.colors.text2} />
+                    {t('itemDetail.emoteSound')}
+                  </S.DetailChip>
+                ) : null}
+                {emoteTraits.emoteHasProps ? (
+                  <S.DetailChip data-testid="detail-props">
+                    <Icon name="props" size={18} color={theme.colors.text2} />
+                    {t('itemDetail.emoteProps')}
+                  </S.DetailChip>
+                ) : null}
+                {utility ? (
+                  <S.DetailChip data-testid="detail-utility-chip">
+                    <Icon name="utility" size={18} color={theme.colors.text2} />
+                    {t('itemDetail.utility')}
+                  </S.DetailChip>
+                ) : null}
               </S.Chips>
 
-              {description ? (
-                <S.Description>
-                  <S.Label>{t('itemDetail.description')}</S.Label>
-                  <S.DescText data-expanded={descExpanded || undefined}>{description}</S.DescText>
-                  {description.length > 140 ? (
-                    <S.DescToggle className="link" onClick={() => setDescExpanded(v => !v)}>
-                      {descExpanded ? t('itemDetail.showLess') : t('itemDetail.readMore')}
-                    </S.DescToggle>
+              {description || utility ? (
+                <S.DescRow>
+                  {description ? (
+                    <S.DescCol>
+                      <S.Description>
+                        <S.Label>{t('itemDetail.description')}</S.Label>
+                        <S.DescText data-expanded={descExpanded || undefined}>{description}</S.DescText>
+                        {description.length > 140 ? (
+                          <S.DescToggle className="link" onClick={() => setDescExpanded(v => !v)}>
+                            {descExpanded ? t('itemDetail.showLess') : t('itemDetail.readMore')}
+                          </S.DescToggle>
+                        ) : null}
+                      </S.Description>
+                    </S.DescCol>
                   ) : null}
-                </S.Description>
+                  {/* What the item unlocks, in the creator's own words. Reuses the description's type so the
+                      two columns read as a pair, and gets no read-more: utility copy is a line or two. */}
+                  {utility ? (
+                    <S.DescCol>
+                      <S.Description data-testid="detail-utility">
+                        <S.Label>{t('itemDetail.utility')}</S.Label>
+                        <S.DescText data-expanded>{utility}</S.DescText>
+                      </S.Description>
+                    </S.DescCol>
+                  ) : null}
+                </S.DescRow>
               ) : null}
 
               {current.creator || collection?.name || creatorPending || collectionPending ? (
@@ -1032,8 +1148,12 @@ export function ItemDetail() {
               ) : (
                 <>
                   {/* Primary-sale banner (Figma 1524-297513): buying a fresh mint straight from the creator.
-                      Only for a primary (mint) listing that's actually on sale. */}
-                  {!manage && !isMarket && forSale && !current.tokenId ? (
+                      Only for a primary (mint) listing that's actually on sale.
+                      Also only while SECONDARY sales exist. The banner's whole job is to distinguish this
+                      listing from a resale, and with resales off there is nothing to distinguish it from —
+                      every listing in the Shop is a mint from its creator, so the row says something that is
+                      true of the entire catalogue and reads as noise. It comes back with the flag. */}
+                  {secondarySales && !manage && !isMarket && forSale && !current.tokenId ? (
                     <S.PrimarySaleBanner data-testid="buy-from-creator">
                       <S.FromCreator>
                         <S.FromCreatorIco name="buy-from-creator" />
@@ -1234,9 +1354,9 @@ export function ItemDetail() {
                         wallets. Shown alongside the primary CTAs whenever this item is still mintable
                         (published + remaining supply > 0 → publishableItem is present). Gasless. */}
                         {manageAsPrimary && publishableItem ? (
-                          <S.OutlineCta onClick={() => setShowIssue(true)} disabled={managing !== null}>
-                            <span>{t('itemDetail.manageIssue')}</span>
-                          </S.OutlineCta>
+                          <S.LinkCta type="button" onClick={() => setShowIssue(true)} disabled={managing !== null}>
+                            {t('itemDetail.manageIssue')}
+                          </S.LinkCta>
                         ) : null}
                         {managing === 'update' ? (
                           // Only note kept in the manage view: explain the two-step nature while the
@@ -1297,11 +1417,11 @@ export function ItemDetail() {
                         </S.AddCart>
                       </>
                     ) : (
-                      // No buyable listing → hide buy/add-cart and offer "Notify me when available" + the
-                      // (coming-soon) Make an offer CTA.
+                      // No buyable listing → hide buy/add-cart and offer "Notify me when available".
                       <>
                         <NotifyMe item={current} />
-                        <MakeOfferButton item={current} />
+                        {/* No secondary sales for now, so there is nothing to make an offer on. */}
+                        {/* <MakeOfferButton item={current} /> */}
                       </>
                     )}
                   </S.Ctas>
@@ -1330,7 +1450,7 @@ export function ItemDetail() {
                   {!manage && !isMarket && ownedItemCount > 0 ? (
                     <S.OwnNote data-testid="you-own-note">
                       {t('itemDetail.youOwnN', { count: ownedItemCount })}{' '}
-                      <Link to="/my-assets">{t('nav.myAssets')}</Link>
+                      <Link to="/my-items">{t('nav.myAssets')}</Link>
                       {/* TODO: deep-link to My Assets filtered by this collection once that filter exists. */}
                     </S.OwnNote>
                   ) : null}
@@ -1341,11 +1461,18 @@ export function ItemDetail() {
         </S.Info>
       </S.Main>
 
-      <CollectionCarousel
-        title={collectionTitle}
-        items={carouselItems}
-        onViewAll={current.contractAddress ? () => navigate(`/collection/${current.contractAddress}`) : undefined}
-      />
+      {/* One rail, two data sources. The related fallback gets no "View all": there is no page that lists
+          "similar items", and a link to the collection would lead somewhere with nothing in it. Either way
+          CollectionCarousel renders nothing when its items are empty, so no bare heading can appear. */}
+      {noSiblings ? (
+        <CollectionCarousel title={relatedTitle} items={relatedItems} />
+      ) : (
+        <CollectionCarousel
+          title={collectionTitle}
+          items={carouselItems}
+          onViewAll={current.contractAddress ? () => navigate(`/collection/${current.contractAddress}`) : undefined}
+        />
+      )}
 
       {showBuy && isMarket && marketListing && manaRate ? (
         <MarketCheckout
@@ -1465,16 +1592,42 @@ export function ItemDetail() {
 function ItemInfoSkeleton() {
   return (
     <S.InfoSkel aria-hidden>
-      <span className="skeleton" />
+      <S.SkelTitle className="skeleton" />
       <S.SkelChips>
-        <span className="skeleton" />
-        <span className="skeleton" />
+        <S.SkelChip className="skeleton" />
+        <S.SkelChip className="skeleton" />
+        <S.SkelChip className="skeleton" />
       </S.SkelChips>
-      <span className="skeleton" />
-      <span className="skeleton" data-short />
+      {/* The SAME grids the loaded page uses (DescRow / Meta), not a stack of equal bars: reusing them is
+          what keeps the four labels on the same two columns before and after the data lands, so nothing
+          slides sideways. The old skeleton was a flat list of full-width lines and described a one-column
+          page that no longer exists. */}
+      <S.DescRow>
+        {[0, 1].map(i => (
+          <S.DescCol key={i}>
+            {/* Description, the real one, so the label-to-copy gap is the same 11px before and after. */}
+            <S.Description>
+              <S.SkelLabel className="skeleton" />
+              <S.SkelText>
+                <S.SkelLine className="skeleton" />
+                <S.SkelLine className="skeleton" />
+                <S.SkelLine className="skeleton" data-short />
+              </S.SkelText>
+            </S.Description>
+          </S.DescCol>
+        ))}
+      </S.DescRow>
+      <S.Meta>
+        {[0, 1].map(i => (
+          <S.MetaCol key={i} {...(i === 1 ? { 'data-collection': true } : {})}>
+            <S.SkelLabel className="skeleton" />
+            <S.SkelBadge />
+          </S.MetaCol>
+        ))}
+      </S.Meta>
       <S.Divider />
-      <span className="skeleton" />
-      <span className="skeleton" />
+      <S.SkelPrice className="skeleton" />
+      <S.SkelBtn className="skeleton" />
     </S.InfoSkel>
   )
 }

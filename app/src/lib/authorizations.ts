@@ -12,6 +12,7 @@ import {
 import { config } from '~/config'
 import { gaslessConfig } from '~/lib/gasless-config'
 import { showsWalletConfirmations } from '~/lib/wallet-kind'
+import { confirmMetaTx } from '~/lib/tx-confirm'
 
 // The shop's on-chain approvals ("authorizations"). Mirrors the marketplace's decentraland-dapps
 // authorization model, trimmed to what the shop's flows actually touch:
@@ -204,7 +205,7 @@ async function grantViaMetaTransaction(
   const txHash = await sendMetaTransaction(provider, rpc, functionData, contractData, {
     serverURL: gaslessConfig.relayerUrl
   })
-  await rpc.waitForTransaction(txHash, 1, 120_000)
+  await confirmMetaTx(txHash, 'the authorization')
 }
 
 // Grant (active=true) or revoke (active=false) an authorization. GASLESS FOR EVERY WALLET: the wallet
@@ -230,6 +231,11 @@ export async function setAuthorization(opts: {
       if (e instanceof MetaTransactionError && e.code === ErrorCode.USER_DENIED) throw e
       // Relayer down / contract account / flag off → fall through to a direct (gas-paying) tx. Log it
       // so the fallback (and any managed wallet that then hits INSUFFICIENT_FUNDS) is diagnosable.
+      //
+      // Deliberately NO MetaTxPendingError guard here, unlike the purchase/transfer/mint paths: all three
+      // calls this builds ASSIGN a fixed value — approve to MaxUint256 or 0, setApprovalForAll and
+      // setMinters to a boolean — so a pending relay plus a direct re-submission lands on the same state
+      // instead of applying the operation twice.
       console.warn('[authorizations] gasless meta-tx failed, falling back to a direct tx:', e)
     }
   }

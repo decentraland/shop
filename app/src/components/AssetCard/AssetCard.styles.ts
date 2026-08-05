@@ -226,25 +226,6 @@ export const Skeleton = styled.div`
   }
 `
 
-// "N on sale" badge: flags that an item has multiple copies on sale so the user knows there's a resale
-// list on the detail page. Anchored bottom-left so it clears the fav button and the flash-sale ribbon.
-export const Listings = styled.span`
-  position: absolute;
-  bottom: 10px;
-  left: 10px;
-  z-index: 4;
-  display: inline-flex;
-  align-items: center;
-  background: rgba(22, 20, 27, 0.82);
-  color: ${colors.white};
-  font-weight: 600;
-  font-size: 10px;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-  border-radius: 6px;
-  padding: 3px 7px;
-`
-
 // A NAME's media: no thumbnail, just the typographic "@name" tile, violet and centred.
 export const NameMedia = styled.div`
   display: flex;
@@ -573,36 +554,6 @@ export const CardChip = styled(Chip)`
   }
 `
 
-// Full-width dark VIEW affordance on the view-only card. Unlike Cart it's ALWAYS visible (no hover
-// reveal) and carries no click handler — the whole-card overlay link navigates. The compact card uses the
-// round ViewRound instead.
-export const View = styled.span`
-  position: relative;
-  z-index: 1;
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  background: ${colors.blackBtn};
-  color: ${colors.softWhite};
-  border-radius: ${radius.btn};
-  height: 40px;
-  font-weight: 600;
-  font-size: 13px;
-  text-transform: uppercase;
-  letter-spacing: 0.046em;
-
-  & .ico {
-    width: 20px;
-    height: 20px;
-  }
-
-  ${media.maxWidth('sm')} {
-    display: none;
-  }
-`
-
 // The compact card's round action: 32px circle, no label.
 const roundCss = css`
   align-self: center;
@@ -748,9 +699,10 @@ export const Cart = styled.button`
   ${cartCss};
 `
 
-// The browse card's action when the item isn't for sale: VIEW takes Add-to-cart's place, so it gets the
-// same hover reveal (via data-reveal) rather than the always-visible pill of a view-only card. Decorative
-// — the whole-card overlay link navigates.
+// VIEW as the card's action, wherever there is nothing to buy: the browse card's not-for-sale row and the
+// view-only ('All' / 'Not for Sale') card both put it where Add-to-cart would go, so it takes Add-to-cart's
+// treatment — hidden at rest, revealed on hover/focus via `data-reveal`. It carries no handler; the
+// whole-card overlay link navigates, which is why a plain span can stand in for the button.
 export const ViewCta = styled.span`
   ${cartCss};
 

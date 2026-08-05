@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Icon } from '~/components/Icon'
 import { config } from '~/config'
@@ -11,7 +11,6 @@ import {
   type CatalogItem,
   type MyAsset
 } from '~/lib/api'
-import { fetchImportable } from '~/lib/import'
 import { fetchPublishableItems, type PublishableItem } from '~/lib/builder'
 import { Button } from '~/components/Button'
 import { AssetCard } from '~/components/AssetCard'
@@ -24,10 +23,12 @@ import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
 import { SUBCAT_MAP } from '~/lib/categories'
 import { capitalizeFirst } from '~/lib/text'
 import { useSeo } from '~/hooks/useSeo'
-import { useSecondarySales } from '~/hooks/useSecondarySales'
+import { useImportable } from '~/hooks/useImportable'
 import { t } from '~/intl/i18n'
 import { theme } from '~/styles/theme'
 import { ErrorNotice } from '~/components/ErrorNotice'
+import { NewPricingModal } from '~/components/NewPricingModal'
+import { dismissPrompt, isPromptDismissed, MANA_PRICING_PROMPT } from '~/lib/dismissed-prompts'
 import * as A from './Assets.styles'
 import * as F from '~/components/Filters/Filters.styles'
 import * as S from './MyAssets.styles'
@@ -131,6 +132,7 @@ function publishableToItem(p: PublishableItem, price: number, creator: string): 
 export function MyAssets() {
   useSeo({ title: t('nav.myAssets'), noindex: true })
   const { session, error, signIn, restore } = useWallet()
+  const navigate = useNavigate()
 
   // The active section lives in the URL (?section=…) so it survives refresh + is shareable. Fall back to
   // 'wearables' for a missing/unknown value.
@@ -147,6 +149,9 @@ export function MyAssets() {
   // Collapsible filter groups — same defaults as Collectibles (rarity starts collapsed).
   const [openStatus, setOpenStatus] = useState(true)
   const [openRarity, setOpenRarity] = useState(false)
+  // 'idle' → 'open' → 'closed' is one-way, so the prompt can fire at most once per visit even though
+  // the classic-listing count it waits on keeps refetching underneath.
+  const [pricingPrompt, setPricingPrompt] = useState<'idle' | 'open' | 'closed'>('idle')
 
   useEffect(() => {
     void restore()
@@ -217,6 +222,7 @@ export function MyAssets() {
     error: ownedError,
     hasNextPage,
     isFetchingNextPage,
+    isFetchNextPageError,
     fetchNextPage
   } = useInfiniteGrid<MyAsset>(
     ['my-assets', address, section, status, rarities, subCategory, search, serverSort],
@@ -313,16 +319,22 @@ export function MyAssets() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [publishable, saleState, status, search, sort])
 
-  // Old (classic) listings the seller could import into the Shop → surfaces the import banner.
-  const secondarySales = useSecondarySales()
-  const { data: importable } = useQuery({
-    queryKey: ['importable', address],
-    queryFn: () => fetchImportable(address as string),
-    enabled: !!address
-  })
-  // Only what the import page will actually offer: counting the secondary half while it is hidden would
-  // badge a number the user cannot act on, and send them to a page that shows fewer rows than promised.
-  const importCount = (importable?.creations.length ?? 0) + (secondarySales ? (importable?.owned.length ?? 0) : 0)
+  // Old (classic) listings the seller could move into the Shop → surfaces the import banner. Shared
+  // with the Activity chip, so the two can never quote different numbers.
+  const { count: importableCount } = useImportable()
+  const importCount = importableCount ?? 0
+
+  useEffect(() => {
+    if (pricingPrompt !== 'idle' || importCount === 0) return
+    if (isPromptDismissed(MANA_PRICING_PROMPT, address)) return
+    setPricingPrompt('open')
+  }, [pricingPrompt, importCount, address])
+
+  // The opt-out only silences this prompt; the banner stays, so the tool is always still reachable.
+  function closePricingPrompt(optOut: boolean) {
+    if (optOut) dismissPrompt(MANA_PRICING_PROMPT, address)
+    setPricingPrompt('closed')
+  }
 
   // ---------------- Sign-in gate ----------------
   if (!session) {
@@ -461,33 +473,12 @@ export function MyAssets() {
       </A.Sidebar>
 
       <A.Main>
-        <S.SearchBar>
-          <S.SearchIcon name="search" aria-hidden />
-          <S.SearchInput
-            type="search"
-            value={searchInput}
-            placeholder={t('myAssets.searchPlaceholder')}
-            aria-label={t('myAssets.searchPlaceholder')}
-            onChange={e => setSearchInput(e.target.value)}
-          />
-          {searchInput ? (
-            <S.SearchClear type="button" aria-label={t('myAssets.clearSearch')} onClick={() => setSearchInput('')}>
-              <S.ClearIcon name="close" aria-hidden />
-            </S.SearchClear>
-          ) : null}
-        </S.SearchBar>
+        {importCount > 0 ? <S.ImportBanner count={importCount} /> : null}
 
-        {importCount > 0 ? (
-          <S.ImportBanner to="/import">
-            <span aria-hidden>📦</span>
-            <S.ImportText>
-              <S.ImportTitle>{t('myAssets.importTitle')}</S.ImportTitle>
-              <S.ImportSub>{t('myAssets.importSub', { count: importCount })}</S.ImportSub>
-            </S.ImportText>
-            <S.ImportCta>{t('myAssets.import')}</S.ImportCta>
-          </S.ImportBanner>
-        ) : null}
-
+        {/* The search rides IN the toolbar, beside Sort By (Figma: count · search · SORT BY). It used to be
+            a full-width bar of its own above it, four rows under the sub-nav's global search — two fields on
+            screen at once with nothing to say which searched what, and the global one leaves the page. That
+            one is now hidden on this route (see NavBar), so this is the only search here. */}
         <FilterBar
           sort={sort}
           onSort={setSort}
@@ -498,6 +489,23 @@ export function MyAssets() {
           onOpenFilters={() => setFiltersOpen(true)}
           chips={chips}
           onClearChips={clearFilters}
+          search={
+            <S.SearchBar>
+              <S.SearchIcon name="search" aria-hidden />
+              <S.SearchInput
+                type="search"
+                value={searchInput}
+                placeholder={t('myAssets.searchPlaceholder')}
+                aria-label={t('myAssets.searchPlaceholder')}
+                onChange={e => setSearchInput(e.target.value)}
+              />
+              {searchInput ? (
+                <S.SearchClear type="button" aria-label={t('myAssets.clearSearch')} onClick={() => setSearchInput('')}>
+                  <S.ClearIcon name="close" aria-hidden />
+                </S.SearchClear>
+              ) : null}
+            </S.SearchBar>
+          }
         />
 
         {(section === 'creations' ? publishableError : !!ownedError) ? (
@@ -572,6 +580,7 @@ export function MyAssets() {
               <LoadMore
                 hasNextPage={hasNextPage}
                 isFetching={isFetchingNextPage}
+                isError={isFetchNextPageError}
                 onLoadMore={() => void fetchNextPage()}
               />
             ) : null}
@@ -588,12 +597,22 @@ export function MyAssets() {
                   {section === 'names' ? t('myAssets.emptyNamesTitle') : t('myAssets.emptyOwnedTitle')}
                 </S.EmptyTitle>
                 <S.EmptyText>{section === 'names' ? t('myAssets.namesEmpty') : t('myAssets.ownedEmpty')}</S.EmptyText>
-                {section !== 'names' ? <S.EmptyCta to="/assets">{t('myAssets.emptyBrowse')}</S.EmptyCta> : null}
+                {section !== 'names' ? <S.EmptyCta to="/items">{t('myAssets.emptyBrowse')}</S.EmptyCta> : null}
               </S.EmptyState>
             ) : null}
           </>
         )}
       </A.Main>
+
+      {pricingPrompt === 'open' ? (
+        <NewPricingModal
+          onClose={closePricingPrompt}
+          onConfirm={optOut => {
+            closePricingPrompt(optOut)
+            navigate('/import')
+          }}
+        />
+      ) : null}
     </A.Root>
   )
 }

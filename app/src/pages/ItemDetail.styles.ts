@@ -319,14 +319,10 @@ export const Section = styled.div`
   gap: 8px;
 `
 
+// Always inside DescRow, which owns the spacing above it and the responsive order — its own margin here
+// would stack on top of the row's, and its `order` no longer applies from inside a column.
 export const Description = styled(Section)`
-  margin-top: 15px;
   gap: 11px;
-
-  ${media.maxWidth('lg')} {
-    order: 3;
-    margin-top: 20px;
-  }
 `
 
 export const DescText = styled.p`
@@ -350,10 +346,49 @@ export const DescToggle = styled.button`
   align-self: flex-start;
 `
 
-export const Meta = styled.div`
-  display: flex;
-  justify-content: space-between;
+/**
+ * DESCRIPTION and UTILITY share a row, as the design pairs them (and as Meta pairs creator + collection).
+ * The row carries the responsive `order` that Description used to own: nesting Description inside it took
+ * that element out of the info column, so its own order no longer applied there.
+ * Below lg the two stack — side by side they would each be ~150px wide, which is not a column of prose.
+ */
+/**
+ * ONE column geometry for both label pairs — description/utility and creator/collection.
+ *
+ * They used to disagree: this row was two equal halves while Meta was `space-between` with shrink-to-fit
+ * columns, so UTILITY landed at 50% while COLLECTION landed wherever its content happened to start, and the
+ * four labels formed two ragged columns instead of two straight ones. A shared grid makes every left label
+ * start at the same x and every right label start at the same x, whatever their contents.
+ */
+const infoRowCss = css`
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 16px;
+`
+
+export const DescRow = styled.div`
+  ${infoRowCss};
+  /* Clears the chips above. The pair below sits at 32px, so this is the tighter of the two steps: the
+     description belongs to the heading block it follows, the creator/collection pair is a new subject. */
+  margin-top: 24px;
+
+  ${media.maxWidth('lg')} {
+    order: 3;
+    grid-template-columns: 1fr;
+    /* Stacked, the two blocks need real separation — as one column they would read as one paragraph. */
+    gap: 20px;
+    margin-top: 20px;
+  }
+`
+
+// min-width: 0 so a long unbroken utility string wraps inside its column instead of widening the track and
+// pushing the description out.
+export const DescCol = styled.div`
+  min-width: 0;
+`
+
+export const Meta = styled.div`
+  ${infoRowCss};
   margin-top: 32px;
 
   ${media.maxWidth('lg')} {
@@ -668,6 +703,34 @@ export const DarkCta = styled(Button)`
 `
 
 // Dark-outline CTA — the secondary manage action (Transfer / Remove from sale).
+/**
+ * ISSUE COPIES is a text link, not a third button.
+ *
+ * It used to reuse OutlineCta, which made it visually identical to REMOVE FROM SALE directly above — two
+ * outlined buttons of equal weight, so nothing said which was the ordinary action and which was the rare
+ * one. The design ranks them: filled for Edit price, outlined for Remove from sale, and a plain underlined
+ * link for issuing copies.
+ */
+export const LinkCta = styled.button`
+  align-self: center;
+  border: 0;
+  background: none;
+  padding: 8px 0;
+  color: ${theme.colors.accent};
+  font-weight: 600;
+  font-size: 13px;
+  line-height: 24px;
+  letter-spacing: 0.46px;
+  text-transform: uppercase;
+  text-decoration: underline;
+  cursor: pointer;
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+`
+
 export const OutlineCta = styled(Button)`
   ${ctaBox};
   && {
@@ -788,21 +851,81 @@ export const NotFoundTitle = styled.h1`
   font-size: 22px;
 `
 
+/**
+ * No gap of its own: every block below carries the SAME margin as its loaded counterpart (chips 12,
+ * description row 24, meta 32, divider its own). A gap here would add to those and the placeholder would
+ * describe a page with different rhythm than the one that replaces it — which is exactly how the two drifted
+ * apart the last time this layout changed.
+ */
 export const InfoSkel = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 16px;
 `
 
+// A label bar (DESCRIPTION / UTILITY / CREATOR / COLLECTION), matched to the 12px uppercase label. Blocks
+// explicitly: these bars also sit inside plain block columns, where a span would collapse to zero size.
+export const SkelLabel = styled.span`
+  display: block;
+  height: 15px;
+  width: 84px;
+  border-radius: 4px;
+`
+
+/**
+ * Stands in for DescText, whose 14px copy sits on a 30px line box. Three bars on that same 30px pitch
+ * (14 + 16 gap, plus the 8px half-leading top and bottom) make the block exactly as tall as a three-line
+ * description, so Meta below it doesn't move when the copy arrives.
+ */
+export const SkelText = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  gap: 16px;
+  padding: 8px 0;
+`
+
+// The creator/collection badge: the 40px avatar and the name beside it, in the 48px box the real badge
+// occupies (its link's line box is taller than the avatar).
+export const SkelBadge = styled.span`
+  display: inline-flex;
+  align-items: center;
+  height: 48px;
+  gap: 10px;
+  background: none !important;
+
+  &::before,
+  &::after {
+    content: '';
+    display: block;
+  }
+  &::before {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: ${colors.media};
+  }
+  &::after {
+    width: 96px;
+    height: 14px;
+    border-radius: 6px;
+    background: ${colors.media};
+  }
+`
+
+// The loaded heading row is 40px tall — the 40px favourite button sets it, not the 34px title — so the bar
+// carries the 3px of slack on both sides that the button contributes. Without it the chips start 6px high.
 export const SkelTitle = styled.span`
   height: 34px;
   width: 70%;
+  margin: 3px 0;
   border-radius: 8px;
 `
 
 export const SkelChips = styled.div`
   display: flex;
   gap: 8px;
+  /* Same as Chips above, so the row does not move when the real chips arrive. */
+  margin-top: 12px;
 `
 
 export const SkelChip = styled.span`
@@ -821,17 +944,22 @@ export const SkelLine = styled.span`
   }
 `
 
+// The price row sits 16px under the rule and occupies 43px; the bar itself is the height of the number, so
+// the rest of that box is margin. Same idea for the CTA: 42px tall, 20px under the price.
 export const SkelPrice = styled.span`
+  display: block;
   height: 30px;
   width: 40%;
+  margin: 16px 0 13px;
   border-radius: 8px;
 `
 
 export const SkelBtn = styled.span`
-  height: 48px;
+  display: block;
+  height: 42px;
   width: 100%;
   border-radius: 8px;
-  margin-top: 8px;
+  margin-top: 20px;
 `
 
 // The credits mark beside a price. Matches the price number (near-black) per the Figma credits mark,

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { config } from '~/config'
 import {
   FeatureFlag,
+  getAddressListVariant,
   getIsFeatureEnabled,
   getIsProceedsToTreasuryEnabled,
   resetFeatureFlagsCache
@@ -244,6 +245,52 @@ describe('featureFlags', () => {
       mockFlags({})
 
       await expect(getIsFeatureEnabled(FeatureFlag.PROCEEDS_TO_TREASURY)).resolves.toBe(false)
+    })
+  })
+
+  describe('dev variant overrides', () => {
+    const ADDR_A = '0x' + 'a'.repeat(40)
+    const ADDR_B = '0x' + 'b'.repeat(40)
+
+    afterEach(() => {
+      vi.unstubAllEnvs()
+    })
+
+    it('should serve the override payload without consulting the service', async () => {
+      vi.stubEnv('DEV', true)
+      vi.stubEnv('VITE_FEATURE_FLAG_VARIANT_OVERRIDES', `shop-outfit-creators:${ADDR_A},${ADDR_B}`)
+      const fetchMock = mockFlags({})
+
+      await expect(getAddressListVariant(FeatureFlag.SHOP_OUTFIT_CREATORS)).resolves.toEqual([ADDR_A, ADDR_B])
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('should parse the override exactly like a dashboard payload (drop junk, lowercase, dedupe)', async () => {
+      vi.stubEnv('DEV', true)
+      vi.stubEnv(
+        'VITE_FEATURE_FLAG_VARIANT_OVERRIDES',
+        `shop-outfit-creators:${ADDR_A.toUpperCase().replace('0X', '0x')}, not-an-address ,${ADDR_A}`
+      )
+      mockFlags({})
+
+      await expect(getAddressListVariant(FeatureFlag.SHOP_OUTFIT_CREATORS)).resolves.toEqual([ADDR_A])
+    })
+
+    it('should fall through to the service for flags the override does not name', async () => {
+      vi.stubEnv('DEV', true)
+      vi.stubEnv('VITE_FEATURE_FLAG_VARIANT_OVERRIDES', `shop-outfit-creators:${ADDR_A}`)
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            flags: {},
+            variants: { 'dapps-shop-prelaunch': { enabled: true, payload: { value: ADDR_B } } }
+          })
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      await expect(getAddressListVariant(FeatureFlag.SHOP_PRELAUNCH)).resolves.toEqual([ADDR_B])
+      expect(fetchMock).toHaveBeenCalled()
     })
   })
 })

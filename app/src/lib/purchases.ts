@@ -56,33 +56,62 @@ export function groupPurchases(records: PurchaseRecord[]): PurchaseOrder[] {
 }
 
 // One rendered row of an order: the same item bought N times in one cart is ONE line with a quantity
-// and a summed price, rather than N identical rows. Lines without a tradeId can't be proven identical,
-// so each stays on its own row (keyed by its record id). Resolution (name/thumbnail) is done once per
-// row from `tradeId`.
+// and a summed price, rather than N identical rows. Resolution (name/thumbnail) is done once per row,
+// from `tradeId` when there is one and from the item otherwise.
+//
+// A line is folded by whatever identifies WHAT it bought. A trade id does, and so does an item — which is
+// what lets a CollectionStore mint bought ×3 collapse into one row too; it has no trade, so before the item
+// was recorded those three arrived as three identical anonymous rows. A line with neither is unidentifiable
+// and stays on its own row, keyed by its record id.
 export type OrderLineItem = {
   key: string
   tradeId: string | null
+  contractAddress: string | null
+  itemId: string | null
   quantity: number
   credits: number
 }
 
+// The identity two lines must share to be the same row. Prefixed per kind so a trade id can never collide
+// with an item key.
+function foldKey(line: PurchaseRecord): string | null {
+  if (line.tradeId) return `trade:${line.tradeId}`
+  if (line.contractAddress && line.itemId) return `item:${line.contractAddress.toLowerCase()}:${line.itemId}`
+  return null
+}
+
 export function foldOrderLines(lines: PurchaseRecord[]): OrderLineItem[] {
   const out: OrderLineItem[] = []
-  const byTrade = new Map<string, OrderLineItem>()
+  const byKey = new Map<string, OrderLineItem>()
   for (const line of lines) {
-    if (line.tradeId) {
-      const existing = byTrade.get(line.tradeId)
-      if (existing) {
-        existing.quantity += 1
-        existing.credits += line.credits
-        continue
-      }
-      const item: OrderLineItem = { key: line.tradeId, tradeId: line.tradeId, quantity: 1, credits: line.credits }
-      byTrade.set(line.tradeId, item)
-      out.push(item)
-    } else {
-      out.push({ key: line.id, tradeId: null, quantity: 1, credits: line.credits })
+    const key = foldKey(line)
+    if (!key) {
+      out.push({
+        key: line.id,
+        tradeId: null,
+        contractAddress: line.contractAddress ?? null,
+        itemId: line.itemId ?? null,
+        quantity: 1,
+        credits: line.credits
+      })
+      continue
     }
+    const existing = byKey.get(key)
+    if (existing) {
+      existing.quantity += 1
+      existing.credits += line.credits
+      continue
+    }
+    const item: OrderLineItem = {
+      key,
+      tradeId: line.tradeId,
+      contractAddress: line.contractAddress ?? null,
+      itemId: line.itemId ?? null,
+      quantity: 1,
+      credits: line.credits
+    }
+    byKey.set(key, item)
+    out.push(item)
   }
   return out
 }

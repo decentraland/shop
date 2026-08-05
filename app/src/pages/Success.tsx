@@ -3,6 +3,7 @@ import { useLocation, useNavigate, Navigate } from 'react-router-dom'
 import { useWallet } from '~/store/wallet'
 import { config } from '~/config'
 import { Button } from '~/components/Button'
+import { Confetti } from '~/components/Confetti'
 import styled from '@emotion/styled'
 import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import { waitForSettlement, SettlementPendingError } from '~/lib/buy-gasless'
@@ -33,6 +34,18 @@ export type SuccessNavState = {
   // The cart sends per-line entries carrying `quantity` (a primary/mint line can be bought × N).
   items?: Array<CatalogItem & { quantity?: number }>
   txHash?: string
+  /**
+   * EVERY settlement transaction, in the order they were signed — one receipt link each.
+   *
+   * A basket is normally one transaction, but a MIXED basket cannot be: CreditsManager.useCredits carries a
+   * single external call, so trades and CollectionStore mints settle in one transaction per group (see
+   * lib/buy.ts groupPurchases). Passing only the first hash silently dropped the other receipt — the buyer
+   * saw a link for one half of a purchase they made in one go.
+   *
+   * `txHash` stays the FIRST of these: the settlement poll verifies a single hash, and a direct buy
+   * (MarketCheckout) only ever has one. Producers with one transaction may send just `txHash`.
+   */
+  txHashes?: string[]
   // The cart already waited for full settlement before routing here → skip re-polling.
   settled?: boolean
   // Credits that landed with a mid-checkout top-up (buy-credits-and-item-together) — shown above the
@@ -44,6 +57,58 @@ const SuccessBtn = styled(Button)`
   min-width: 160px;
   text-align: center;
 `
+
+/**
+ * DEV-ONLY preview of the confirmed screen: `/success?demo=1` synthesises the router state a real purchase
+ * hands over, so the completed page — and the confetti on it — can be reviewed on localhost without paying
+ * for anything. `settled: true` skips the settlement poll, exactly as the cart's own post-checkout navigate
+ * does, so it lands straight on the confirmed layout.
+ *
+ * Gated on `import.meta.env.DEV`, which Vite statically replaces with `false` in a production build: the
+ * branch AND the fixture below are dropped from the bundle rather than merely never taken (the same
+ * technique lib/featureFlags uses for its local flag overrides). A query string that could fake a purchase
+ * confirmation in production would be a phishing primitive, not a convenience.
+ */
+function demoState(search: string): SuccessNavState | null {
+  if (!import.meta.env.DEV) return null
+  if (new URLSearchParams(search).get('demo') !== '1') return null
+  return {
+    settled: true,
+    items: [
+      {
+        id: 'demo-1',
+        name: 'Demo Hat',
+        creator: '',
+        contractAddress: '0x0000000000000000000000000000000000000001',
+        itemId: '1',
+        category: 'wearable',
+        rarity: 'legendary',
+        network: 'MATIC',
+        chainId: config.chainId,
+        thumbnail: '',
+        priceCredits: 12,
+        gender: null,
+        isSmart: false
+      },
+      {
+        id: 'demo-2',
+        name: 'Demo Emote',
+        creator: '',
+        contractAddress: '0x0000000000000000000000000000000000000002',
+        itemId: '2',
+        category: 'emote',
+        rarity: 'rare',
+        network: 'MATIC',
+        chainId: config.chainId,
+        thumbnail: '',
+        priceCredits: 3,
+        gender: null,
+        isSmart: false,
+        quantity: 2
+      }
+    ]
+  }
+}
 
 const delay = (ms: number) => new Promise<void>(r => setTimeout(r, ms))
 
@@ -112,7 +177,10 @@ const JUMP_URL = config.chainId === 80002 ? 'https://decentraland.zone/jump' : '
 const EXPLORER_TX = config.chainId === 80002 ? 'https://amoy.polygonscan.com/tx/' : 'https://polygonscan.com/tx/'
 
 export function Success() {
-  const { state } = useLocation() as { state?: SuccessNavState }
+  const { state: navState, search } = useLocation() as { state?: SuccessNavState; search: string }
+  // A real purchase always arrives with router state; `?demo=1` stands in for one on a dev build only
+  // (see demoState). Router state wins, so the demo can never mask an actual purchase.
+  const state = navState ?? demoState(search)
   const navigate = useNavigate()
   const { session } = useWallet()
 
@@ -138,18 +206,28 @@ export function Success() {
 
   const items = purchasedItems
   // Direct hit / refresh with no purchase context → send home.
-  if (items.length === 0) return <Navigate to="/assets" replace />
+  if (items.length === 0) return <Navigate to="/items" replace />
 
   const hero = items[0]
 
-  // Self-custody users additionally get a link to the on-chain tx; managed users never see it.
-  const showExplorer = !!txHash && showsWalletConfirmations(session?.providerType)
+  // Every settlement transaction this purchase produced — usually one, but a mixed basket settles as one
+  // per group. Falls back to the single `txHash` for producers that only have one.
+  const txHashes = state?.txHashes?.length ? state.txHashes : txHash ? [txHash] : []
 
-  const receiptLink = showExplorer ? (
-    <S.Receipt href={`${EXPLORER_TX}${txHash}`} target="_blank" rel="noreferrer">
-      {t('success.viewTransaction')}
-    </S.Receipt>
-  ) : null
+  // Self-custody users additionally get a link to the on-chain tx; managed users never see it.
+  const showExplorer = txHashes.length > 0 && showsWalletConfirmations(session?.providerType)
+
+  // One link per transaction. Numbered only when there IS more than one — a single purchase keeps reading
+  // "View receipt", with no "1 of 1" to explain away.
+  const receiptLink = showExplorer
+    ? txHashes.map((hash, i) => (
+        <S.Receipt key={hash} href={`${EXPLORER_TX}${hash}`} target="_blank" rel="noreferrer">
+          {txHashes.length > 1
+            ? t('success.viewTransactionNumbered', { n: i + 1, total: txHashes.length })
+            : t('success.viewTransaction')}
+        </S.Receipt>
+      ))
+    : null
 
   // Still working (or a dead-end) → a centered status panel. The pixel-perfect Figma layout
   // (green banner + item list + CTAs) is only the CONFIRMED state.
@@ -201,7 +279,7 @@ export function Success() {
                 <SuccessBtn variant="purple" onClick={() => navigate('/activity')}>
                   {t('success.viewActivity')}
                 </SuccessBtn>
-                <SuccessBtn variant="ghost" onClick={() => navigate('/assets')}>
+                <SuccessBtn variant="ghost" onClick={() => navigate('/items')}>
                   {t('success.keepShopping')}
                 </SuccessBtn>
               </S.Actions>
@@ -212,7 +290,7 @@ export function Success() {
               <S.Sub>{t('success.failedBody')}</S.Sub>
               {receiptLink ? <S.Links>{receiptLink}</S.Links> : null}
               <S.Actions>
-                <SuccessBtn variant="purple" onClick={() => navigate('/assets')}>
+                <SuccessBtn variant="purple" onClick={() => navigate('/items')}>
                   {t('success.backToShop')}
                 </SuccessBtn>
               </S.Actions>
@@ -228,6 +306,9 @@ export function Success() {
   // hairlines), then the MY ASSETS / TRY IN WORLD CTAs.
   return (
     <S.Root>
+      {/* Only on the CONFIRMED screen — the item is really the buyer's by here. Celebrating over a
+          still-settling (or failed) purchase would be the worst possible moment for it. */}
+      <Confetti />
       <S.Done>
         <S.Banner role="status">
           <S.BannerCheck aria-hidden>
@@ -305,7 +386,7 @@ export function Success() {
         {receiptLink ? <S.Links data-receipt>{receiptLink}</S.Links> : null}
 
         <S.Ctas>
-          <S.Cta data-variant="ghost" onClick={() => navigate('/my-assets')}>
+          <S.Cta data-variant="ghost" onClick={() => navigate('/my-items')}>
             {t('success.myAssets')}
           </S.Cta>
           <S.CtaLink data-variant="ruby" href={JUMP_URL} target="_blank" rel="noreferrer">

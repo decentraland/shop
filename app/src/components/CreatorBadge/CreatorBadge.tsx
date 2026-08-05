@@ -7,7 +7,7 @@ import * as S from './badge.styles'
 
 // Show a creator/seller by their DCL profile (avatar + name), falling back to a short address.
 // Uses the shared useProfile query so many cards with the same creator dedupe to one fetch.
-// `linkToProfile` makes it clickable → the creator's storefront (/assets/creator/:address); it stops
+// `linkToProfile` makes it clickable → the creator's storefront (/items/creator/:address); it stops
 // propagation so it works inside a clickable card without also opening the item.
 function shortAddress(addr: string): string {
   return /^0x[a-fA-F0-9]{40}$/.test(addr) ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : addr
@@ -80,7 +80,7 @@ export function CreatorBadge({
         data-testid="creator"
         onClick={e => {
           e.stopPropagation()
-          navigate(`/assets/creator/${address}`)
+          navigate(`/items/creator/${address}`)
         }}
       >
         {inner}

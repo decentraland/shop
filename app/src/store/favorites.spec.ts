@@ -266,4 +266,62 @@ describe('when signed in (server-backed)', () => {
     useFavorites.getState().reloadFor(null)
     expect(useFavorites.getState().items[keyOf('z')]?.id).toBe('z')
   })
+
+  /**
+   * The bug this pins: "I favorited an item, opened My Favorites, and it wasn't there until I reloaded."
+   *
+   * A hydrate answers with the list as it was when its FIRST request went out. Toggle while those two
+   * requests are in flight and the hydrate's reply is already stale — applying it verbatim dropped the heart
+   * the user had just clicked, even though its POST went on to succeed. Hence the reload making it appear:
+   * the server had it all along, only the in-memory list had been rewound.
+   */
+  it('should keep a favorite added WHILE a hydrate is still in flight', async () => {
+    const a = makeItem('a')
+    const b = makeItem('b')
+    // The hydrate's requests resolve only when we say so, so the toggle lands strictly inside its window.
+    let releaseIds: (ids: string[]) => void = () => {}
+    fetchFavoriteIds.mockImplementationOnce(() => new Promise(res => (releaseIds = res)))
+    fetchCatalogByIds.mockResolvedValueOnce([a])
+    setFavorite.mockResolvedValue(undefined)
+
+    useFavorites.getState().reloadFor('0xAAA', IDENTITY)
+    expect(useFavorites.getState().status).toBe('loading')
+
+    // The user hearts something the in-flight server list cannot know about yet.
+    useFavorites.getState().toggle(b)
+    expect(useFavorites.getState().items[keyOf('b')]?.id).toBe('b')
+
+    releaseIds([keyOf('a')])
+    await vi.waitFor(() => expect(useFavorites.getState().status).toBe('ready'))
+
+    // Both survive: the server's item AND the one added mid-flight.
+    expect(useFavorites.getState().items[keyOf('a')]?.id).toBe('a')
+    expect(useFavorites.getState().items[keyOf('b')]?.id).toBe('b')
+  })
+
+  /**
+   * The other half of the rule. A toggle made BEFORE a hydrate starts must NOT be re-applied over its
+   * result: that read is newer, so it is the authority — including when it disagrees, which is how a
+   * favorite removed on another device shows up here.
+   */
+  it('should let a hydrate that started AFTER a toggle win over it', async () => {
+    const a = makeItem('a')
+    setFavorite.mockResolvedValue(undefined)
+    fetchFavoriteIds.mockResolvedValueOnce([])
+    fetchCatalogByIds.mockResolvedValueOnce([])
+    useFavorites.getState().reloadFor('0xAAA', IDENTITY)
+    await vi.waitFor(() => expect(useFavorites.getState().status).toBe('ready'))
+
+    // Heart it here, and let its POST land.
+    useFavorites.getState().toggle(a)
+    expect(useFavorites.getState().items[keyOf('a')]?.id).toBe('a')
+    await vi.waitFor(() => expect(setFavorite).toHaveBeenCalled())
+
+    // Now a fresh hydrate reports it is NOT on the list (say it was removed elsewhere). The newer read wins.
+    fetchFavoriteIds.mockResolvedValueOnce([])
+    fetchCatalogByIds.mockResolvedValueOnce([])
+    useFavorites.getState().retry()
+    await vi.waitFor(() => expect(useFavorites.getState().status).toBe('ready'))
+    expect(useFavorites.getState().items[keyOf('a')]).toBeUndefined()
+  })
 })

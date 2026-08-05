@@ -26,30 +26,46 @@ import * as S from './Assets.styles'
 // Items fetched per page (infinite scroll pages by cumulative offset — see useInfiniteGrid).
 const PAGE_SIZE = 48
 
+const STATUSES: FilterStatus[] = ['all', 'on_sale', 'not_for_sale']
+
 export function Assets() {
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
   const q = (searchParams.get('q') ?? '').trim().toLowerCase()
 
   // Collectibles grid SEO. Fold the (case-preserved) search term into the title when present; the
   // description stays generic. Canonical/og:url naturally drop the ?q= (the hook uses the pathname),
-  // so search variants collapse onto /assets. Indexable.
+  // so search variants collapse onto /items. Indexable.
   const rawQuery = (searchParams.get('q') ?? '').trim()
   useSeo({
     title: rawQuery ? t('seo.collectibles.searchTitle', { query: rawQuery }) : t('seo.collectibles.title'),
     description: t('seo.collectibles.description')
   })
 
-  // ?category=wearable|emote|names deep-links a tab (e.g. the home's emote promo); state after mount.
-  const [category, setCategory] = useState(() => {
-    const c = new URLSearchParams(window.location.search).get('category')
-    return c === 'emote' || c === 'names' ? c : 'wearable'
-  })
+  // Category and Status live in the URL so a filtered search is shareable and survives a refresh, and
+  // so the dropdown's "See all" lands on a state it can name. A SEARCH defaults to every category —
+  // the typeahead matches wearables and emotes alike, so pinning the grid to wearables would silently
+  // drop half the matches. Plain browsing still opens on Wearables.
+  const category = searchParams.get('category') ?? (q ? 'all' : 'wearable')
+  const statusParam = searchParams.get('status') as FilterStatus | null
+  const status: FilterStatus = statusParam && STATUSES.includes(statusParam) ? statusParam : 'on_sale'
+  // Write a filter to the URL, dropping it when it's back at its default so the address stays clean.
+  // `replace` keeps filter tweaks out of the history stack, as they were when this was local state.
+  const setParam = (key: string, value: string | null) =>
+    setSearchParams(
+      prev => {
+        const next = new URLSearchParams(prev)
+        if (value == null) next.delete(key)
+        else next.set(key, value)
+        return next
+      },
+      { replace: true }
+    )
+
   const [subCategory, setSubCategory] = useState<string | null>(null)
   const [rarities, setRarities] = useState<string[]>([])
   const [priceMin, setPriceMin] = useState('')
   const [priceMax, setPriceMax] = useState('')
-  const [status, setStatus] = useState<FilterStatus>('on_sale')
   const [smart, setSmart] = useState(false)
   const [sort, setSort] = useState('newest')
   const [filtersOpen, setFiltersOpen] = useState(false) // mobile filters drawer
@@ -113,32 +129,52 @@ export function Assets() {
     isOnSale: status === 'not_for_sale' ? false : undefined
   }
 
-  const { items, total, isLoading, isPlaceholderData, error, hasNextPage, isFetchingNextPage, fetchNextPage } =
-    useInfiniteGrid<CatalogItem>(
-      isUnified ? ['shop-items', filters] : ['catalog-items', catalogFilters],
-      skip =>
-        isUnified
-          ? fetchShopItems({ ...filters, first: PAGE_SIZE, skip })
-          : fetchCatalogItems({ ...catalogFilters, first: PAGE_SIZE, skip }),
-      // NAMEs isn't a grid category — don't fire a bogus catalog fetch when it's selected.
-      { enabled: category !== 'names' }
-    )
+  const {
+    items,
+    total,
+    isLoading,
+    isPlaceholderData,
+    error,
+    hasNextPage,
+    isFetchingNextPage,
+    isFetchNextPageError,
+    fetchNextPage
+  } = useInfiniteGrid<CatalogItem>(
+    isUnified ? ['shop-items', filters] : ['catalog-items', catalogFilters],
+    skip =>
+      isUnified
+        ? fetchShopItems({ ...filters, first: PAGE_SIZE, skip })
+        : fetchCatalogItems({ ...catalogFilters, first: PAGE_SIZE, skip }),
+    // NAMEs isn't a grid category — don't fire a bogus catalog fetch when it's selected.
+    { enabled: category !== 'names' }
+  )
   const resultCount = total
+
+  // The live market rate powers the legacy cards' fluctuating credit prices. If the oracle is
+  // stale/down we still list the items but disable Buy Now with a notice (rather than pricing off a
+  // bad rate) — native (fixed-price) cards are unaffected. Mirrors the old Market tab.
+  const { data: rate, isError: rateError, isPending: ratePending } = useManaRate()
+  const priceOf = (item: UnifiedListing): number | null =>
+    rate && item.manaWei ? manaWeiToCredits(item.manaWei, rate) : null
+
+  // A legacy row we cannot price falls into the view-card branch below, and `priceOf` returns null for
+  // BOTH reasons it can be unpriceable: the oracle read FAILED, or it is still in flight. Only the first
+  // is a real answer. Treating the second as one published a card in a mode the data never justified —
+  // a full-width dark VIEW pill that is not part of the on-sale card at all, with no creator line and no
+  // chips. It is not a rare race either: on production every unified row is `source: 'legacy'`, and the
+  // rate costs three SEQUENTIAL oracle round-trips (see lib/mana-rate) against the item feed's one, so
+  // the whole grid renders wrong first and corrects itself. Hold the skeleton for that window instead —
+  // an unfinished row is not ready to be a card. An oracle that actually FAILS leaves `isPending` false, so the
+  // view-card fallback + banner still take over rather than the grid hanging on a skeleton.
+  const ratePendingForLegacy = isUnified && ratePending && items.some(i => (i as UnifiedListing).source === 'legacy')
 
   // Show skeletons both on the first load (no data yet) and while a NEW filter/search/sort set is
   // in-flight — in that window react-query is still handing us the PREVIOUS results (keepPreviousData),
   // so without this the grid would keep the now-stale cards on screen until the new data lands. On the
   // filter-change case keep the skeleton count equal to the number of cards currently shown so the grid
   // height doesn't jump; on the very first load fall back to a sensible full-ish grid.
-  const showGridSkeletons = isLoading || isPlaceholderData
+  const showGridSkeletons = isLoading || isPlaceholderData || ratePendingForLegacy
   const gridSkeletonCount = isLoading ? 15 : Math.min(Math.max(items.length, 1), PAGE_SIZE)
-
-  // The live market rate powers the legacy cards' fluctuating "≈" credit prices. If the oracle is
-  // stale/down we still list the items but disable Buy Now with a notice (rather than pricing off a
-  // bad rate) — native (fixed-price) cards are unaffected. Mirrors the old Market tab.
-  const { data: rate, isError: rateError } = useManaRate()
-  const priceOf = (item: UnifiedListing): number | null =>
-    rate && item.manaWei ? manaWeiToCredits(item.manaWei, rate) : null
 
   // Funnel: fire 'Shop Searched'/'Shop Applied Filter' once per change, AFTER results resolve so
   // result_count is accurate (see design/SHOP_TRACKING_SPEC.md §5.2). Refs dedupe + skip the initial load.
@@ -174,20 +210,30 @@ export function Assets() {
   }, [category, subCategory, rarities, min, max, sort, status, smart, isLoading, isPlaceholderData, resultCount])
 
   function pickCategory(key: string) {
-    setCategory(key)
+    setParam('category', key)
     setSubCategory(null)
+  }
+  function setStatus(next: FilterStatus) {
+    setParam('status', next === 'on_sale' ? null : next)
   }
   function toggleRarity(r: string) {
     setRarities(rs => (rs.includes(r) ? rs.filter(x => x !== r) : [...rs, r]))
   }
   // Reset every filter to its default. Filters apply live, so this takes effect immediately.
   function clearFilters() {
-    setCategory('wearable')
+    setSearchParams(
+      prev => {
+        const next = new URLSearchParams(prev)
+        next.delete('category')
+        next.delete('status')
+        return next
+      },
+      { replace: true }
+    )
     setSubCategory(null)
     setRarities([])
     setPriceMin('')
     setPriceMax('')
-    setStatus('on_sale')
     setSmart(false)
   }
 
@@ -327,7 +373,9 @@ export function Assets() {
                         // carries is the LIVE-rate price, not the server's snapshot, since that is what
                         // checkout will authorize. With no rate we cannot price it at all — render it as a
                         // view card rather than invite a purchase at a stale number (the banner above
-                        // already explains why).
+                        // already explains why). By here the oracle has SETTLED: a read still in flight is
+                        // held on the skeleton above (see ratePendingForLegacy), so this branch means the
+                        // rate genuinely failed and never a row that is merely still loading.
                         const livePrice = priceOf(unified)
                         return livePrice == null ? (
                           <AssetCard key={listingKey(item)} item={item} mode="view" />
@@ -343,6 +391,7 @@ export function Assets() {
                 <LoadMore
                   hasNextPage={hasNextPage}
                   isFetching={isFetchingNextPage}
+                  isError={isFetchNextPageError}
                   onLoadMore={() => void fetchNextPage()}
                 />
               </>

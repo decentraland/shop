@@ -7,9 +7,13 @@ vi.mock('~/config', () => ({
 
 const postTrade = vi.fn()
 const fetchTrade = vi.fn()
+// Hoisted with the mock: vi.mock is lifted to the top of the file, so a plain top-level class would
+// still be uninitialised when the factory runs.
+const { TradeNotFound } = vi.hoisted(() => ({ TradeNotFound: class TradeNotFound extends Error {} }))
 vi.mock('~/lib/api', () => ({
   postTrade: (...args: unknown[]) => postTrade(...args),
-  fetchTrade: (...args: unknown[]) => fetchTrade(...args)
+  fetchTrade: (...args: unknown[]) => fetchTrade(...args),
+  TradeNotFoundError: TradeNotFound
 }))
 
 const cancelListing = vi.fn()
@@ -32,14 +36,29 @@ const ensureMinter = vi.fn()
 const ensureApproval = vi.fn()
 const createPrimaryUsdPeggedListing = vi.fn()
 const createUsdPeggedListing = vi.fn()
+const isMarketplaceMinter = vi.fn()
 vi.mock('~/lib/trades', () => ({
   ensureMinter: (...args: unknown[]) => ensureMinter(...args),
   ensureApproval: (...args: unknown[]) => ensureApproval(...args),
   createPrimaryUsdPeggedListing: (...args: unknown[]) => createPrimaryUsdPeggedListing(...args),
-  createUsdPeggedListing: (...args: unknown[]) => createUsdPeggedListing(...args)
+  createUsdPeggedListing: (...args: unknown[]) => createUsdPeggedListing(...args),
+  isMarketplaceMinter: (...args: unknown[]) => isMarketplaceMinter(...args)
 }))
 
-import { fetchImportable, importListing, RelistFailedError, type ImportItem, type ImportListing } from '~/lib/import'
+const getAuthorizationStatus = vi.fn()
+vi.mock('~/lib/authorizations', () => ({
+  getAuthorizationStatus: (...args: unknown[]) => getAuthorizationStatus(...args),
+  getCollectionSellingAuthorization: (contractAddress: string) => ({ contractAddress })
+}))
+
+import {
+  countConfirmations,
+  fetchImportable,
+  importListing,
+  RelistFailedError,
+  type ImportItem,
+  type ImportListing
+} from '~/lib/import'
 
 const listing = (over: Partial<ImportListing> = {}): ImportListing => ({
   oldTradeId: 'old-1',
@@ -251,8 +270,14 @@ describe('when migrating (taking the old listing down first)', () => {
     expect(cancelListing.mock.invocationCallOrder[0]).toBeLessThan(postTrade.mock.invocationCallOrder[0])
   })
 
-  it('and the old trade cannot be fetched it should skip cancelling and still re-list', async () => {
-    fetchTrade.mockRejectedValue(new Error('gone'))
+  /**
+   * Narrowed from "cannot be fetched" to "is gone". It used to reject with a generic Error and still
+   * expect the re-list to proceed, which is the defect it was pinning: any failure to ASK was read as
+   * proof the listing was down, so a transient 500 skipped the cancel and every re-list then hit
+   * `409 already an open order`. Only a 404 is evidence. The other branch is covered below.
+   */
+  it('and the old trade is genuinely gone (404) it should skip cancelling and still re-list', async () => {
+    fetchTrade.mockRejectedValue(new TradeNotFound('gone'))
 
     await expect(importListing(item(), 10, session)).resolves.toBeUndefined()
     expect(cancelListing).not.toHaveBeenCalled()
@@ -312,5 +337,157 @@ describe('when the marketplace has not yet cleared the old order', () => {
     // this isolates the retry policy — a non-conflict error is thrown after a single POST attempt.
     await expect(importListing(item(), 10, session, { cancelOld: false })).rejects.toThrow('nope')
     expect(postTrade).toHaveBeenCalledTimes(1)
+  })
+})
+
+/**
+ * WHAT `removedOld` IS ALLOWED TO MEAN.
+ *
+ * The migration takes the old MANA listing down and re-lists for credits. The take-down is the one
+ * irreversible step, so the flow only tells the seller "your old listing was removed" when it really is.
+ *
+ * In production it said so wrongly: the gasless cancel resolved on a receipt it never checked, so a
+ * transaction that mined and REVERTED read as success. Every re-list attempt then hit
+ * `409 already an open order`, the tool hung, and the seller was told to re-list an item that was still
+ * live in the old marketplace — a retry on that false premise could have listed it twice.
+ */
+describe('importListing take-down accounting', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    readManaUsdRate.mockResolvedValue({ rate: 50_000_000n, decimals: 8 })
+    manaWeiToCredits.mockReturnValue(10)
+    getIsSecondarySalesEnabled.mockResolvedValue(true)
+    fetchTrade.mockResolvedValue({ id: 'old-1', chainId: 80002 })
+    createPrimaryUsdPeggedListing.mockResolvedValue({ id: 'new-1' })
+    postTrade.mockResolvedValue(undefined)
+  })
+
+  const run = (it: ImportItem) => importListing(it, 50, session)
+
+  it('does NOT claim the listing was removed when the cancel fails', async () => {
+    // A revert, or a wait that never confirms: either way the old listing may still be open, so the
+    // error must be the cancel's own — never RelistFailedError, which tells the seller it came down.
+    cancelListing.mockRejectedValue(new Error('the listing cancellation reverted on-chain'))
+
+    const err = await run(item()).catch(e => e)
+
+    expect(err).not.toBeInstanceOf(RelistFailedError)
+    expect(err.message).toMatch(/cancel/i)
+    // And it must not have gone on to re-list on top of a listing that may still be live.
+    expect(postTrade).not.toHaveBeenCalled()
+  })
+
+  it('propagates any OTHER fetch failure instead of assuming the listing is gone', async () => {
+    // The old code caught everything and treated it as "already gone", so a transient 500 skipped the
+    // cancel and walked straight into the 409 loop.
+    fetchTrade.mockRejectedValue(new Error('fetchTrade 500'))
+
+    await expect(run(item())).rejects.toThrow(/500/)
+    expect(cancelListing).not.toHaveBeenCalled()
+    expect(postTrade).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * WHAT THE SELLER IS WAITING FOR.
+ *
+ * Migrating one item is up to four steps and two of them wait on things nobody can see: the cancel waits
+ * for an on-chain confirmation, then the re-list waits for the indexer to clear the old order — the 409
+ * backoff, up to ~37s. Both looked identical to a stalled spinner, so a run that worked read as broken.
+ */
+describe('importListing progress reporting', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    readManaUsdRate.mockResolvedValue({ rate: 50_000_000n, decimals: 8 })
+    manaWeiToCredits.mockReturnValue(10)
+    getIsSecondarySalesEnabled.mockResolvedValue(true)
+    fetchTrade.mockResolvedValue({ id: 'old-1', chainId: 80002 })
+    createPrimaryUsdPeggedListing.mockResolvedValue({ id: 'new-1' })
+    postTrade.mockResolvedValue(undefined)
+    cancelListing.mockResolvedValue('0xhash')
+  })
+
+  it('reports each step in the order it happens', async () => {
+    const seen: string[] = []
+    await importListing(item({ listingType: 'primary', itemId: '3' }), 10, session, {
+      onPhase: p => seen.push(p.step)
+    })
+
+    // The cancel is two phases on purpose: the seller signs, then everyone waits for the chain.
+    expect(seen).toEqual(['cancelling', 'confirming-cancel', 'authorising', 'signing', 'publishing'])
+  })
+
+  it('reports the indexer wait with its attempt number, so a live retry is not mistaken for a hang', async () => {
+    // Two 409s then success: the exact shape that produced a silent multi-second pause.
+    postTrade
+      .mockRejectedValueOnce(new Error('There is already an open order for this Item'))
+      .mockRejectedValueOnce(new Error('There is already an open order for this Item'))
+      .mockResolvedValueOnce(undefined)
+
+    const seen: { step: string; attempt?: number }[] = []
+    await importListing(item({ listingType: 'primary', itemId: '3' }), 10, session, {
+      onPhase: p => seen.push(p)
+    })
+
+    const waits = seen.filter(p => p.step === 'indexing')
+    expect(waits.map(w => w.attempt)).toEqual([1, 2])
+    // And it does not keep claiming to be "publishing" while it is really waiting.
+    expect(seen.filter(p => p.step === 'publishing')).toHaveLength(1)
+  }, 30_000)
+
+  it('does not require a progress callback', async () => {
+    await expect(importListing(item({ listingType: 'primary', itemId: '3' }), 10, session)).resolves.toBeUndefined()
+  })
+})
+
+/**
+ * WHAT THE SELLER IS PROMISED.
+ *
+ * The modal used to say "a couple per item (take down + re-list)", which undercounts: a collection whose
+ * minter rights are not granted yet adds a THIRD prompt, once per collection. Someone told to expect two
+ * and then asked a third time reasonably concludes something broke.
+ */
+describe('countConfirmations', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    isMarketplaceMinter.mockResolvedValue(true)
+  })
+
+  it('counts two per item when every collection is already enabled', async () => {
+    const items = [item({ itemId: '1', listingType: 'primary' }), item({ itemId: '2', listingType: 'primary' })]
+
+    await expect(countConfirmations(items, '0xowner')).resolves.toEqual({ perItem: 2, approvals: 0, total: 4 })
+  })
+
+  it('adds ONE approval per collection, not per item', async () => {
+    isMarketplaceMinter.mockResolvedValue(false)
+    // Three items, one collection: the approval is granted once and the later items skip it.
+    const items = [
+      item({ itemId: '1', listingType: 'primary' }),
+      item({ itemId: '2', listingType: 'primary' }),
+      item({ itemId: '3', listingType: 'primary' })
+    ]
+
+    const count = await countConfirmations(items, '0xowner')
+
+    expect(count).toEqual({ perItem: 2, approvals: 1, total: 7 })
+    // And it reads the chain once per collection rather than once per item.
+    expect(isMarketplaceMinter).toHaveBeenCalledTimes(1)
+  })
+
+  it('counts an approval for each distinct collection that needs one', async () => {
+    isMarketplaceMinter.mockResolvedValue(false)
+    const items = [
+      item({ itemId: '1', listingType: 'primary', contractAddress: '0xaaa' }),
+      item({ itemId: '1', listingType: 'primary', contractAddress: '0xbbb' })
+    ]
+
+    await expect(countConfirmations(items, '0xowner')).resolves.toEqual({ perItem: 2, approvals: 2, total: 6 })
+  })
+
+  it('returns null when a read fails, so the UI can stay vague instead of lying', async () => {
+    isMarketplaceMinter.mockRejectedValue(new Error('rpc down'))
+
+    await expect(countConfirmations([item({ itemId: '1', listingType: 'primary' })], '0xowner')).resolves.toBeNull()
   })
 })

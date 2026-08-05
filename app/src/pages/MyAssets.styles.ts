@@ -1,6 +1,7 @@
 import styled from '@emotion/styled'
 import { Link } from 'react-router-dom'
 import { Icon } from '~/components/Icon'
+import { ManaPricingBanner } from '~/components/ManaPricingBanner'
 import { noForward } from '~/styles/emotion'
 import { theme } from '~/styles/theme'
 
@@ -118,13 +119,16 @@ export const SubPill = styled('button', noForward('selected'))<{ selected?: bool
 
 // ---------------- Main: search field ----------------
 
+// Lives in the FilterBar toolbar now (see MyAssets' `search` slot), so it carries no bottom margin of its
+// own — the toolbar's own margin is what separates the row from the grid — and it fills the width the slot
+// gives it instead of the whole main column.
 export const SearchBar = styled.div`
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 44px;
+  width: 100%;
+  height: 40px;
   padding: 0 12px;
-  margin-bottom: 16px;
   border: 1px solid ${theme.colors.lineStrong};
   border-radius: ${theme.radius.btn};
   background: ${theme.colors.white};
@@ -287,50 +291,6 @@ export const GateText = styled.p`
 `
 
 // Import banner (surfaces classic listings the seller can bring into the Shop).
-export const ImportBanner = styled(Link)`
-  display: flex;
-  align-items: center;
-  gap: 12px;
+export const ImportBanner = styled(ManaPricingBanner)`
   margin-bottom: 16px;
-  padding: 12px 16px;
-  border-radius: ${theme.radius.btn};
-  background: ${theme.colors.rarityBg};
-  color: ${theme.colors.text};
-  text-decoration: none;
-
-  &:hover {
-    filter: brightness(0.98);
-  }
-  &:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
-    outline-offset: 2px;
-  }
-`
-
-export const ImportText = styled.span`
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-width: 0;
-  font-family: ${theme.font.sans};
-`
-
-export const ImportTitle = styled.strong`
-  font-weight: 600;
-  font-size: 14px;
-  color: ${theme.colors.text};
-`
-
-export const ImportSub = styled.span`
-  font-size: 12px;
-  color: ${theme.colors.muted};
-`
-
-export const ImportCta = styled.span`
-  flex: none;
-  font-weight: 600;
-  font-size: 13px;
-  color: ${theme.colors.accent};
-  text-transform: uppercase;
-  letter-spacing: 0.046em;
 `

@@ -27,9 +27,10 @@ const HOVER_DELAY_MS = 120
 // catalogue, one price treatment, no approximation marks.
 // - 'view' (view-only browse — the "All" / "Not for Sale" grids): NO trade happens inline, so the
 //   card drops Add-to-cart/Buy-now entirely. The footer shows the credit price when the item IS for
-//   sale (priceCredits > 0) or a small "NOT FOR SALE" tag when it isn't, plus a full-width dark VIEW
-//   button that opens the item detail. The whole card is the link, so the VIEW pill is a decorative
-//   affordance (aria-hidden) — no duplicate tab stop.
+//   sale (priceCredits > 0) or a small "NOT FOR SALE" tag when it isn't, and the action slot holds
+//   chips at rest with a full-width dark VIEW button revealed on hover — Add-to-cart's slot and
+//   Add-to-cart's reveal. The whole card is the link, so the VIEW pill is a decorative affordance
+//   (aria-hidden) — no duplicate tab stop.
 // - 'manage' (My Creations — the creator view of a PRIMARY item they published): renders like a view
 //   card (media + name + price-or-"NOT FOR SALE"), but the footer button is a real control — "List for
 //   sale" (dark) when the item isn't listed, "Remove from sale" (ghost) when it is — wired to
@@ -67,6 +68,9 @@ export function AssetCard(props: AssetCardProps) {
 
   const add = useCart(s => s.add)
   const inCart = useCart(s => s.items.some(i => i.id === item.id))
+  // How many copies of this row the cart already holds. A primitive selector (not the line object) so the
+  // card re-renders on a quantity change without subscribing to the line's identity.
+  const cartQty = useCart(s => s.items.find(i => i.id === item.id)?.quantity ?? 0)
   const address = useWallet(s => s.session?.address)
   // Your own (primary) listing — can't add it to the cart (see lib/ownership.ts).
   const own = isOwnListing(item, address)
@@ -143,6 +147,15 @@ export function AssetCard(props: AssetCardProps) {
   // sibling that was never listed): the price becomes the NOT FOR SALE tag and the action becomes VIEW.
   // Your own item keeps MANAGE.
   const notForSale = !own && item.priceCredits <= 0
+
+  // Whether the card has run out of copies to offer — the only case where the CTA may stop saying "Add to
+  // cart". Quantity is a PRIMARY (mint) concept: a primary row can hold several copies up to the remaining
+  // supply, so add() keeps incrementing it and the CTA must keep offering the action rather than flipping to
+  // a terminal "In cart" for something the buyer can still do. A SECONDARY row is one unique token (the cart
+  // clamps it to 1) and a primary at its supply cap has nothing left to give, so those two do flip — offering
+  // an add there would promise something add() silently drops. Mirrors the PDP (pages/ItemDetail addLabel).
+  const stockCap = typeof item.available === 'number' ? item.available : Infinity
+  const cartFull = inCart && (!!item.tokenId || cartQty >= stockCap)
 
   // The mint index of an owned copy (e.g. "#5013") — lets the owner tell otherwise-identical copies
   // apart. Absent for creations (primary), where the empty spacer keeps the footer height.
@@ -298,11 +311,6 @@ export function AssetCard(props: AssetCardProps) {
           </S.SaleBadge>
         ) : null}
         {canPreview && isPreviewing && !previewReady ? <S.Skeleton data-testid="card-skeleton" aria-hidden /> : null}
-        {item.listingCount && item.listingCount > 1 ? (
-          <S.Listings data-testid="card-listings">
-            {t('assetCard.onSaleCount', { count: item.listingCount })}
-          </S.Listings>
-        ) : null}
         {/* Flat thumbnail stays visible the whole time the 3D loads (no empty frame); it only fades out
             once the shared preview has this item's scene ready, crossfading into the 3D. */}
         {isNameItem ? (
@@ -422,6 +430,7 @@ export function AssetCard(props: AssetCardProps) {
                 <Icon name="pen" size={18} />
               </S.AddRoundLink>
               <S.CartLink
+                data-reveal
                 data-testid="card-manage"
                 href={props.manageHref}
                 target="_blank"
@@ -454,7 +463,11 @@ export function AssetCard(props: AssetCardProps) {
             <S.AddRound onClick={goManage} aria-label={t('assetCard.manage')}>
               <Icon name="pen" size={18} />
             </S.AddRound>
-            <S.Cart data-testid="card-manage" onClick={goManage}>
+            {/* `data-reveal` is what makes this appear: the hover rule in AssetCard.styles matches
+                `[data-testid='card-cart']` or `[data-reveal]`, and this button is neither `card-cart` nor
+                was it marked — so on a hover-capable desktop the chips hid on hover (they DO match
+                `[data-chips]`) and nothing took their place. The card had no visible action at all. */}
+            <S.Cart data-reveal data-testid="card-manage" onClick={goManage}>
               <Icon name="pen" size={20} />
               {t('assetCard.manage')}
             </S.Cart>
@@ -472,17 +485,22 @@ export function AssetCard(props: AssetCardProps) {
             </S.Desc>
             {priceOrNfs(true)}
           </S.Top>
-          {/* Dark VIEW affordance — the full-width pill, or the round arrow on the compact (mobile) card.
-              Decorative (aria-hidden) either way: the whole-card overlay link above is the accessible,
+          {/* Chips at rest, the dark VIEW affordance revealed on hover / keyboard focus — the SAME swap
+              every other card makes in this slot (browse Add-to-cart, My Items MANAGE), via `data-reveal`.
+              It used to be an always-visible pill, which left the Not-for-Sale grid showing a dark
+              full-width button on all 48 cards at rest while its neighbours showed chips. The compact
+              (mobile) card keeps the round arrow, which has no hover to reveal it. Decorative
+              (aria-hidden) either way: the whole-card overlay link above is the accessible,
               keyboard-reachable navigation. */}
           <S.Action>
+            {chips}
             <S.ViewRound data-testid="card-view-round" aria-hidden>
               <Icon name="arrow-right" size={18} />
             </S.ViewRound>
-            <S.View data-testid="card-view" aria-hidden>
+            <S.ViewCta data-reveal data-testid="card-view" aria-hidden>
               <Icon name="eye" size={20} />
               {t('assetCard.view')}
-            </S.View>
+            </S.ViewCta>
           </S.Action>
         </S.Body>
       ) : (
@@ -525,14 +543,14 @@ export function AssetCard(props: AssetCardProps) {
             ) : (
               <S.AddRound
                 data-testid="card-add-round"
-                data-in={(!own && inCart) || undefined}
+                data-in={(!own && cartFull) || undefined}
                 onClick={e => {
                   if (own) return goManage(e)
                   e.stopPropagation()
                   add(item, 'grid')
                 }}
-                disabled={!own && inCart}
-                aria-label={own ? t('assetCard.manage') : inCart ? t('assetCard.inCart') : t('assetCard.addToCart')}
+                disabled={!own && cartFull}
+                aria-label={own ? t('assetCard.manage') : cartFull ? t('assetCard.inCart') : t('assetCard.addToCart')}
               >
                 <Icon name={own ? 'pen' : 'plus'} size={18} />
               </S.AddRound>
@@ -545,17 +563,17 @@ export function AssetCard(props: AssetCardProps) {
               </S.ViewCta>
             ) : (
               <S.Cart
-                data-in={(!own && inCart) || undefined}
+                data-in={(!own && cartFull) || undefined}
                 data-testid="card-cart"
                 onClick={e => {
                   if (own) return goManage(e)
                   e.stopPropagation()
                   add(item, 'grid')
                 }}
-                disabled={!own && inCart}
+                disabled={!own && cartFull}
               >
                 <Icon name={own ? 'pen' : 'cart-solid'} />
-                {own ? t('assetCard.manage') : inCart ? t('assetCard.inCart') : t('assetCard.addToCart')}
+                {own ? t('assetCard.manage') : cartFull ? t('assetCard.inCart') : t('assetCard.addToCart')}
               </S.Cart>
             )}
           </S.Action>

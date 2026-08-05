@@ -1,12 +1,13 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { resolveGridView } from './Creator.view'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { fetchListings } from '~/lib/api'
-import { fetchCreatorCollections } from '~/lib/collections'
+import { useQuery } from '@tanstack/react-query'
+import { fetchCatalogItems, fetchCreatorCollections } from '~/lib/collections'
 import { AssetCard } from '~/components/AssetCard'
 import { CollectionCard } from '~/components/CollectionCard'
 import { CreatorHero } from '~/components/CreatorHero'
-import { CategoryFilter } from '~/components/CategoryFilter'
-import { FilterBar, FilterPanel, SORTS } from '~/components/FilterBar'
+import { Filters, type FilterStatus } from '~/components/Filters'
+import { FilterBar, type FilterChip, RARITIES, SORTS } from '~/components/FilterBar'
 import { AddAllToCart } from '~/components/AddAllToCart'
 import { SkeletonCards } from '~/components/SkeletonCards'
 import { LoadMore } from '~/components/LoadMore'
@@ -14,21 +15,23 @@ import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
 import { useSeo } from '~/hooks/useSeo'
 import { useProfile } from '~/hooks/useProfile'
 import { SUBCAT_MAP } from '~/lib/categories'
-import { CURRENCY } from '~/lib/currency'
+import { capitalizeFirst } from '~/lib/text'
 import { shortAddress } from '~/lib/address'
 import { t } from '~/intl/i18n'
 import { ErrorNotice } from '~/components/ErrorNotice'
 import * as CP from '~/styles/collectionPage.styles'
-import * as FP from '~/styles/filterPop.styles'
-import * as BL from '~/styles/browseLayout.styles'
+import * as A from './Assets.styles'
 import { Grid } from '~/styles/grid.styles'
 
 const PAGE_SIZE = 48
 
-// A creator's storefront: their credit-buyable listings, browsable with the same category/rarity/
-// price/sort controls as the main Shop grid — scoped to this creator via /v3/catalog/shop?creator=.
-// A cover-image hero (CreatorHero) sits on top. Prices are true shop credits (not the MANA the old
-// /v1/items feed returned), because this now reads the curated USD-pegged shop catalog.
+// A creator's storefront: EVERY item they published, browsable with the same sidebar filters as the main
+// Shop grid, scoped to this creator. A cover-image hero (CreatorHero) sits on top.
+//
+// The grid reads /v3/catalog/items (full catalog, credit-priced) rather than a listings feed, because a
+// creator page has to show their body of work whether or not any of it is currently for sale. The old
+// /v3/catalog/shop source only knew about NATIVE (shop-native, USD-pegged) listings, so a creator who
+// never listed through the Shop — nearly every legacy creator — rendered as an empty storefront.
 export function Creator() {
   const { address } = useParams<{ address: string }>()
   const navigate = useNavigate()
@@ -41,12 +44,32 @@ export function Creator() {
   // title, with a creator-scoped description. Indexable.
   useSeo({ title: name, description: t('seo.creator.description', { name }) })
 
-  const [category, setCategory] = useState('wearable')
+  // 'all' (Shop All), not 'wearable': a creator who only makes emotes must not open on an empty grid.
+  const [category, setCategory] = useState('all')
   const [subCategory, setSubCategory] = useState<string | null>(null)
   const [rarities, setRarities] = useState<string[]>([])
   const [priceMin, setPriceMin] = useState('')
   const [priceMax, setPriceMax] = useState('')
+  // Unlike browse (which opens on 'on_sale'), a storefront opens on everything the creator has made.
+  const [status, setStatus] = useState<FilterStatus>('all')
+  const [smart, setSmart] = useState(false)
   const [sort, setSort] = useState('newest')
+  const [filtersOpen, setFiltersOpen] = useState(false) // mobile filters drawer
+
+  // Close the mobile filters drawer on Escape and lock body scroll while it's open (mirrors Assets).
+  useEffect(() => {
+    if (!filtersOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setFiltersOpen(false)
+    }
+    document.addEventListener('keydown', onKey)
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prevOverflow
+    }
+  }, [filtersOpen])
 
   const min = priceMin && !Number.isNaN(Number(priceMin)) ? Number(priceMin) : undefined
   const max = priceMax && !Number.isNaN(Number(priceMax)) ? Number(priceMax) : undefined
@@ -59,16 +82,36 @@ export function Creator() {
     wearableCategories,
     minPriceCredits: min,
     maxPriceCredits: max,
+    isWearableSmart: smart || undefined,
+    // Unset = every item; the sidebar's Status radio narrows it.
+    isOnSale: status === 'all' ? undefined : status === 'on_sale',
     sortBy
   }
 
   // Listings (default) and collections are mutually exclusive: only one query is enabled at a time so
   // switching modes doesn't fire the other's fetch. Both hooks are always called (rules of hooks).
-  const { items, total, isLoading, error, hasNextPage, isFetchingNextPage, fetchNextPage } = useInfiniteGrid(
-    ['creator-listings', filters],
-    skip => fetchListings({ ...filters, first: PAGE_SIZE, skip }),
-    { enabled: !!address && !collectionsMode }
-  )
+  const {
+    items,
+    total,
+    isLoading,
+    isPlaceholderData,
+    error,
+    hasNextPage,
+    isFetchingNextPage,
+    isFetchNextPageError,
+    fetchNextPage
+  } = useInfiniteGrid(['creator-items', filters], skip => fetchCatalogItems({ ...filters, first: PAGE_SIZE, skip }), {
+    enabled: !!address && !collectionsMode
+  })
+
+  // The creator's UNFILTERED item count, so an empty grid can tell "this creator has published nothing"
+  // apart from "your filters match nothing". Without it both look identical and the page accuses a
+  // working creator of having no work. first=1 — only the total is read.
+  const baseline = useQuery({
+    queryKey: ['creator-item-count', address],
+    queryFn: () => fetchCatalogItems({ creator: address, first: 1 }).then(r => r.total),
+    enabled: !!address
+  })
 
   const collections = useInfiniteGrid(
     ['creator-collections', address],
@@ -107,45 +150,115 @@ export function Creator() {
   function toggleRarity(r: string) {
     setRarities(rs => (rs.includes(r) ? rs.filter(x => x !== r) : [...rs, r]))
   }
-  function reset() {
-    setCategory('wearable')
+  function clearFilters() {
+    setCategory('all')
     setSubCategory(null)
     setRarities([])
     setPriceMin('')
     setPriceMax('')
+    setStatus('all')
+    setSmart(false)
   }
 
-  const priceActive = !!(min || max)
-  const priceLabel = priceActive ? `${priceMin || '0'}–${priceMax || '∞'}` : t('filter.price')
-  const anyActive = category !== 'wearable' || !!subCategory || rarities.length > 0 || priceActive
+  // Applied-filter chips above the grid; each removes just its own filter (same treatment as browse).
+  const chips: FilterChip[] = []
+  if (category === 'wearable' || category === 'emote')
+    chips.push({
+      key: 'category',
+      label: t(category === 'emote' ? 'categories.emotes' : 'categories.wearables'),
+      onRemove: () => pickCategory('all')
+    })
+  if (min != null || max != null)
+    chips.push({
+      key: 'price',
+      label: t('filter.price'),
+      onRemove: () => {
+        setPriceMin('')
+        setPriceMax('')
+      }
+    })
+  for (const r of RARITIES)
+    if (rarities.includes(r))
+      chips.push({ key: `rarity-${r}`, label: capitalizeFirst(r), onRemove: () => toggleRarity(r) })
+  if (smart) chips.push({ key: 'smart', label: t('filter.smart'), onRemove: () => setSmart(false) })
+  if (status !== 'all')
+    chips.push({
+      key: 'status',
+      label: status === 'on_sale' ? t('filter.onSale') : t('filter.notForSale'),
+      onRemove: () => setStatus('all')
+    })
+
+  // Keep the stale previous page's cards off screen while a new filter set resolves (keepPreviousData).
+  const view = resolveGridView({
+    gridLoading: isLoading || isPlaceholderData,
+    gridError: !!error,
+    gridCount: items.length,
+    baselinePending: baseline.isPending,
+    baselineError: baseline.isError,
+    baselineCount: baseline.data
+  })
+  const showGridSkeletons = view === 'skeletons'
+  const buyable = items.filter(i => i.priceCredits > 0)
+
+  // Which of the three empty states applies, if any. They are genuinely different facts and each got
+  // reported as "this creator has no items": a failed request, a filter set that excludes everything,
+  // and a creator who really has published nothing.
+  const emptyKind = view === 'items' || view === 'skeletons' ? null : view
 
   return (
     <CP.Page>
       <CP.Crumbs aria-label={t('creator.breadcrumbAria')}>
-        <CP.CrumbLink onClick={() => navigate('/assets')}>{t('creator.breadcrumb')}</CP.CrumbLink>
+        <CP.CrumbLink onClick={() => navigate('/items')}>{t('creator.breadcrumb')}</CP.CrumbLink>
         <span>/</span>
         <CP.CrumbCurrent>{name}</CP.CrumbCurrent>
       </CP.Crumbs>
 
       {address ? <CreatorHero address={address} /> : null}
 
-      {!collectionsMode && !isLoading && items.length > 0 ? <AddAllToCart items={items} source="creator" /> : null}
+      {!collectionsMode && !showGridSkeletons && buyable.length > 0 ? (
+        <AddAllToCart items={buyable} source="creator" />
+      ) : null}
 
-      <BL.Browse>
-        <BL.Sidebar>
-          <CategoryFilter
-            category={category}
-            subCategory={subCategory}
-            onCategory={pickCategory}
-            onSub={setSubCategory}
-            title={t('creator.category')}
-            flat
-            collections={collectionsMode}
-            onCollections={toggleCollections}
-          />
-        </BL.Sidebar>
+      <A.Root>
+        {filtersOpen ? <A.Scrim onClick={() => setFiltersOpen(false)} aria-hidden /> : null}
+        <A.Sidebar data-open={filtersOpen || undefined} data-testid="creator-sidebar">
+          <A.DrawerHead>
+            <A.DrawerTitle>{t('assets.filters')}</A.DrawerTitle>
+            <A.CloseBtn onClick={() => setFiltersOpen(false)} aria-label={t('assets.closeFilters')}>
+              ✕
+            </A.CloseBtn>
+          </A.DrawerHead>
 
-        <BL.Main>
+          <A.SidebarScroll>
+            <Filters
+              category={category}
+              subCategory={subCategory}
+              onCategory={pickCategory}
+              onSub={setSubCategory}
+              priceMin={priceMin}
+              priceMax={priceMax}
+              onPriceMin={setPriceMin}
+              onPriceMax={setPriceMax}
+              rarities={rarities}
+              onToggleRarity={toggleRarity}
+              status={status}
+              onStatus={setStatus}
+              smart={smart}
+              onSmart={setSmart}
+              hideNames
+              collections={collectionsMode}
+              onCollections={toggleCollections}
+            />
+          </A.SidebarScroll>
+
+          <A.DrawerFoot>
+            <A.ShowItems type="button" onClick={() => setFiltersOpen(false)}>
+              {t('assets.showItems')}
+            </A.ShowItems>
+          </A.DrawerFoot>
+        </A.Sidebar>
+
+        <A.Main>
           {collectionsMode ? (
             <>
               <CP.CollectionsBar>
@@ -172,6 +285,7 @@ export function Creator() {
               <LoadMore
                 hasNextPage={collections.hasNextPage}
                 isFetching={collections.isFetchingNextPage}
+                isError={collections.isFetchNextPageError}
                 onLoadMore={() => void collections.fetchNextPage()}
               />
 
@@ -182,52 +296,31 @@ export function Creator() {
           ) : (
             <>
               <FilterBar
-                rarities={rarities}
-                onToggleRarity={toggleRarity}
                 sort={sort}
                 onSort={setSort}
                 total={total}
-                loading={isLoading}
-                anyActive={anyActive}
-                onClear={reset}
-                renderTrailing={panel => (
-                  <FilterPanel panelKey="price" label={priceLabel} active={priceActive} panel={panel}>
-                    <FP.Pop data-variant="price">
-                      <FP.PriceRow>
-                        <input
-                          type="number"
-                          min="0"
-                          aria-label={t('creator.priceMin')}
-                          placeholder={t('creator.priceMinPlaceholder')}
-                          value={priceMin}
-                          onChange={e => setPriceMin(e.target.value)}
-                        />
-                        <span>–</span>
-                        <input
-                          type="number"
-                          min="0"
-                          aria-label={t('creator.priceMax')}
-                          placeholder={t('creator.priceMaxPlaceholder')}
-                          value={priceMax}
-                          onChange={e => setPriceMax(e.target.value)}
-                        />
-                      </FP.PriceRow>
-                      <FP.Hint>{t('creator.priceHint', { currency: CURRENCY.name })}</FP.Hint>
-                    </FP.Pop>
-                  </FilterPanel>
-                )}
+                loading={showGridSkeletons}
+                onOpenFilters={() => setFiltersOpen(true)}
+                chips={chips}
+                onClearChips={clearFilters}
               />
 
-              {error ? <ErrorNotice message={t('creator.error')} /> : null}
+              {error ? <ErrorNotice message={t('creator.error')} testId="creator-error" /> : null}
 
-              <Grid>
-                {isLoading ? (
+              <Grid data-testid="creator-grid">
+                {showGridSkeletons ? (
                   <SkeletonCards count={15} />
                 ) : (
                   <>
-                    {items.map(item => (
-                      <AssetCard key={item.id} item={item} />
-                    ))}
+                    {items.map(item =>
+                      // A creation that isn't for sale has no price and nothing to add to a cart, so it
+                      // renders as a VIEW card (same treatment browse gives its not-for-sale grids).
+                      item.priceCredits > 0 ? (
+                        <AssetCard key={item.id} item={item} />
+                      ) : (
+                        <AssetCard key={item.id} item={item} mode="view" />
+                      )
+                    )}
                     {isFetchingNextPage ? <SkeletonCards count={6} /> : null}
                   </>
                 )}
@@ -236,14 +329,33 @@ export function Creator() {
               <LoadMore
                 hasNextPage={hasNextPage}
                 isFetching={isFetchingNextPage}
+                isError={isFetchNextPageError}
                 onLoadMore={() => void fetchNextPage()}
               />
 
-              {!isLoading && !error && items.length === 0 ? <p className="muted">{t('creator.empty')}</p> : null}
+              {emptyKind === 'error' ? (
+                <ErrorNotice message={t('creator.error')} testId="creator-empty-error" />
+              ) : emptyKind === 'no-creations' ? (
+                <p className="muted" data-testid="creator-empty-none">
+                  {t('creator.emptyNoCreations')}
+                </p>
+              ) : emptyKind === 'filters' ? (
+                <A.EmptyState data-testid="creator-empty-filters">
+                  <A.EmptyText>
+                    <A.EmptyTitle>{t('creator.emptyFilters.title')}</A.EmptyTitle>
+                    <A.EmptyBody>{t('creator.emptyFilters.body', { count: baseline.data ?? 0 })}</A.EmptyBody>
+                  </A.EmptyText>
+                  <A.EmptyCta>
+                    <A.EmptyBtn type="button" onClick={clearFilters}>
+                      {t('filterBar.clearAll')}
+                    </A.EmptyBtn>
+                  </A.EmptyCta>
+                </A.EmptyState>
+              ) : null}
             </>
           )}
-        </BL.Main>
-      </BL.Browse>
+        </A.Main>
+      </A.Root>
     </CP.Page>
   )
 }

@@ -8,16 +8,21 @@
   "nav": {
     "overview": "Overview",
     "collectibles": "Collectibles",
-    "myAssets": "My Assets",
+    "myAssets": "My Items",
     "myFavorites": "My Favorites",
     "activity": "Activity",
     "authorizations": "Approvals",
+    "outfits": "Outfit Studio",
     "searchPlaceholder": "Search item, creator, collection, name...",
     "searchAria": "Search the shop",
-    "polygonMana": "Polygon MANA",
-    "yourBalance": "Your {currency}",
     "getCredits": "Get {currency}",
     "cart": "Cart"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "titleUnread": "Notifications, {count} unread",
+    "empty": "You have no notifications yet.",
+    "loading": "Loading notifications…"
   },
   "search": {
     "suggestions": "Search suggestions",
@@ -76,8 +81,7 @@
     "miscellaneous": "Miscellaneous"
   },
   "creator": {
-    "breadcrumb": "Assets",
-    "category": "Category",
+    "breadcrumb": "Items",
     "fallbackName": "Creator",
     "viewProfile": "View profile",
     "editStore": "Edit store",
@@ -91,16 +95,15 @@
     "following": "Following",
     "followTitle": "Follow creator",
     "unfollowTitle": "Unfollow creator",
-    "empty": "This creator has no items to show yet.",
+    "emptyNoCreations": "This creator hasn’t published anything yet.",
+    "emptyFilters": {
+      "title": "No items match these filters.",
+      "body": "This creator has {count, plural, one {# item} other {# items}}, but none of them match your current filters."
+    },
     "collectionsCount": "{count, plural, one {# collection} other {# collections}}",
     "collectionsEmpty": "This creator hasn’t published any collections yet.",
     "error": "Couldn’t load this creator — please try again.",
-    "breadcrumbAria": "Breadcrumb",
-    "priceMin": "Minimum price",
-    "priceMax": "Maximum price",
-    "priceMinPlaceholder": "Min",
-    "priceMaxPlaceholder": "Max",
-    "priceHint": "Price in {currency}"
+    "breadcrumbAria": "Breadcrumb"
   },
   "storeSettings": {
     "title": "Store settings",
@@ -131,7 +134,7 @@
   "prelaunch": {
     "title": "We’re getting the shop ready",
     "body": "The shop isn’t open to everyone just yet. We’re putting the finishing touches on it — check back very soon.",
-    "connected": "Connected wallets that have early access will see the shop here.",
+    "connected": "Accounts with early access will see the shop here.",
     "signIn": "Sign in"
   },
   "cart": {
@@ -152,6 +155,7 @@
     "removeTitle": "Remove",
     "clearCart": "Clear cart",
     "purchaseSummary": "Purchase Summary",
+    "checkout": "Checkout",
     "buyWithCredits": "Buy with credits",
     "creatorTag": "Creator",
     "totalItems": "Total: {count, plural, one {# item} other {# items}}",
@@ -168,7 +172,8 @@
     "error": {
       "insufficient": "You don't have enough {currency} — get more first.",
       "noneAvailable": "None of these items are available to buy right now.",
-      "listingChanged": "One or more items changed — please review your cart and try again."
+      "listingChanged": "One or more items changed — please review your cart and try again.",
+      "partiallyBought": "Part of your purchase went through. Those items are in My Items — the rest are still in your cart, so you can try again without paying twice."
     },
     "drop": {
       "unavailable": "{count} no longer available",
@@ -185,6 +190,8 @@
     "packBadge": "Recommended",
     "packUnit": "{currency}",
     "packAria": "Get {amount} for ${usd}",
+    "packBonus": "+{bonus} bonus",
+    "packAriaBonus": "Get {amount} for ${usd} — {bonus} more than {baseline}",
     "packsLoading": "Loading {currency} packs…",
     "creditsAmount": "{credits} {currency}",
     "redirecting": "Redirecting to secure checkout…",
@@ -221,7 +228,6 @@
     "addToFavorites": "Add to favorites",
     "removeFromFavorites": "Remove from favorites",
     "marketPrice": "Market price",
-    "onSaleCount": "{count, plural, one {# on sale} other {# on sale}}",
     "unavailable": "Unavailable",
     "buyNow": "Buy now",
     "yourItem": "Your item",
@@ -263,7 +269,7 @@
     "errorGeneric": "Couldn’t complete the approval — please try again."
   },
   "buyModal": {
-    "titleBuy": "Buy Asset",
+    "titleBuy": "Buy Item",
     "titleNoFunds": "Buy Credits and Item",
     "titleComplete": "Purchase complete!",
     "dialogAria": "Buy {name}",
@@ -293,8 +299,8 @@
     "completingPurchase": "Completing Purchase…",
     "completingTransaction": "Completing your purchase…",
     "confirmToContinue": "Confirm to continue…",
-    "successBody": "You can find your item in the My Assets tab.",
-    "myAssets": "My assets",
+    "successBody": "You can find your item in the My Items tab.",
+    "myAssets": "My items",
     "tryInWorld": "Try in world",
     "itemFallback": "Item",
     "error": {
@@ -303,7 +309,7 @@
     }
   },
   "cartCheckout": {
-    "titleBuy": "Buy Assets",
+    "titleBuy": "Buy Items",
     "titleNoFunds": "Buy Credits and Items",
     "dialogAria": "Check out your cart",
     "qty": "× {count}",
@@ -311,7 +317,8 @@
     "errorTitle": "Oops! Something went wrong",
     "errorHeadline": "We couldn't complete your purchase this time.",
     "errorBody": "Don't worry, your credits are safe. Please try again in a moment.",
-    "tryAgain": "Try again"
+    "tryAgain": "Try again",
+    "confirmMultiple": "Confirm {current} of {total} approvals"
   },
   "marketCheckout": {
     "finalPrice": "Final price",
@@ -336,6 +343,7 @@
     "categoryEmote": "Emote",
     "categoryWearable": "Wearable",
     "moreFromCollection": "More from this collection",
+    "relatedItems": "Similar items",
     "notForSale": "Not for sale",
     "checking": "Checking…",
     "maxInCart": "Max in cart",
@@ -346,6 +354,8 @@
     "description": "Description",
     "showLess": "Show less",
     "readMore": "Read more",
+    "smart": "Smart",
+    "utility": "Utility",
     "creator": "Creator",
     "collection": "Collection",
     "price": "Price",
@@ -369,7 +379,11 @@
     "originalPrice": "Original price",
     "resalePrice": "Resale price",
     "soldOut": "Sold out",
-    "youOwnN": "You own {count, plural, one {# copy} other {# copies}} of this — manage in"
+    "youOwnN": "You own {count, plural, one {# copy} other {# copies}} of this — manage in",
+    "playLoop": "Play loop",
+    "playOnce": "Play once",
+    "emoteSound": "Sound",
+    "emoteProps": "Props"
   },
   "transfer": {
     "title": "Transfer item",
@@ -433,6 +447,7 @@
     "confirmingAfter": "— this usually takes a few seconds. Keep this tab open.",
     "itemCount": "{count, plural, one {# item} other {# items}}",
     "viewTransaction": "View receipt ↗",
+    "viewTransactionNumbered": "Receipt {n} of {total} ↗",
     "stillProcessingTitle": "Still processing…",
     "timedOutBefore": "This is taking longer than usual to confirm. Your purchase may still complete — check",
     "timedOutAfter": "in a few minutes to see the final status. No need to buy again.",
@@ -447,8 +462,8 @@
     "viewOrder": "View order",
     "useItInWorld": "Use it in-world",
     "bannerTitle": "Your purchase was successful!",
-    "bannerBody": "You can find your item in the My Assets tab.",
-    "myAssets": "My Assets",
+    "bannerBody": "You can find your item in the My Items tab.",
+    "myAssets": "My Items",
     "tryInWorld": "Try in World"
   },
   "itemPreview": {
@@ -487,9 +502,6 @@
     "signInPrompt": "Sign in to sell your items.",
     "removedFromSale": "“{name}” is no longer for sale.",
     "removeListingError": "Couldn’t remove the listing — please try again.",
-    "importTitle": "Import your listings",
-    "importSub": "You have {count, plural, one {# item} other {# items}} for sale elsewhere — bring them into the Shop.",
-    "import": "Import",
     "ownedTitle": "Items you own",
     "ownedSub": "Wearables & emotes you’ve bought — resell them in the Shop.",
     "ownedError": "Couldn’t load your items — please try again.",
@@ -509,7 +521,7 @@
     "collectionsError": "We couldn’t load your collections right now. Please try again in a moment.",
     "nothingToPublish": "You don’t have any items to publish yet.",
     "available": "{count, number} available",
-    "assetsHeading": "Assets",
+    "assetsHeading": "Items",
     "sectionWearables": "Wearables",
     "sectionEmotes": "Emotes",
     "sectionNames": "Names",
@@ -549,7 +561,15 @@
     "paidWithMana": "Purchase · paid with MANA",
     "payoutPending": "Pending",
     "payoutPendingOn": "Credits available {date}",
-    "payoutCredited": "Paid in credits"
+    "payoutCredited": "Paid in credits",
+    "migrate": {
+      "chip": "Listings",
+      "chipAria": "Move your listings — {count, plural, one {# item} other {# items}} left"
+    },
+    "unfinished": "Unfinished",
+    "resume": "Continue",
+    "resuming": "Opening…",
+    "resumeExpired": "That checkout has expired — pick a pack to start again."
   },
   "myFavorites": {
     "emptyTitle": "Nothing here... yet!",
@@ -568,9 +588,9 @@
     "next": "Next",
     "carouselPages": "{title} pages",
     "goToPage": "Go to page {page}",
-    "heroTitle": "Fashion week outfits",
-    "exploreCollection": "Explore collection",
-    "featuredProducts": "Featured Products",
+    "heroTitle": "A New Way to Shop",
+    "heroCta": "Buy credits",
+    "trendingProducts": "Trending Products",
     "newCreations": "New Creations",
     "readyToUseAvatars": "Ready to use avatars",
     "addLook": "Add to cart",
@@ -581,6 +601,7 @@
     "bestRatedEmotes": "Best rated emotes",
     "exploreEmotes": "Explore emotes",
     "weekSelectedOutfits": "Week selected outfits",
+    "exploreCollection": "Explore collection",
     "promoOutfitsAria": "Week selected outfits — explore collection",
     "promoOutfitsAlt": "Week selected outfits",
     "emptyTitle": "New drops are on the way",
@@ -627,6 +648,110 @@
     "allInCart": "All in cart",
     "addAll": "Add all ({count}) to cart"
   },
+  "outfits": {
+    "rowTitle": "Buy the Look",
+    "card": {
+      "items": "{count, plural, one {# item} other {# items}}",
+      "add": "Add to cart",
+      "unavailable": "No longer available",
+      "adding": "Adding…"
+    },
+    "detail": {
+      "addCount": "{count, plural, one {Add # item to cart} other {Add # items to cart}}",
+      "nothingToAdd": "Everything here is already in your cart or sold by you",
+      "yourListing": "Your listing",
+      "yourListingHint": "You're selling some of these items, so they don't count toward the total.",
+      "inCart": "In your cart",
+      "resolveError": "We couldn't load this outfit's items.",
+      "retry": "Try again",
+      "notFoundTitle": "This outfit isn't available",
+      "notFoundBody": "It may no longer exist. Browse the shop to find your next look.",
+      "itemsCount": "{count, plural, one {# item in this outfit} other {# items in this outfit}}",
+      "totalPrice": "Total price",
+      "breadcrumbLooks": "Looks",
+      "breadcrumbAria": "Breadcrumb"
+    },
+    "studio": {
+      "title": "Outfit Studio",
+      "myOutfits": "My outfits",
+      "new": "New outfit",
+      "editTitle": "Edit outfit",
+      "signInPrompt": "Sign in to manage outfits.",
+      "signIn": "Sign in",
+      "notAvailable": "This area is only for the shop's styling team.",
+      "backToShop": "Back to the shop",
+      "untitled": "Untitled outfit",
+      "view": "View",
+      "edit": "Edit",
+      "draft": "Draft",
+      "publishedState": "Published",
+      "deleteTitle": "Delete this outfit?",
+      "deleteBody": "Unpublishing hides it from the shop but keeps it here. Deleting can't be undone.",
+      "confirmDelete": "Delete",
+      "cancel": "Cancel",
+      "unpublish": "Unpublish",
+      "unpublished": "Outfit unpublished",
+      "deleted": "Outfit deleted",
+      "saved": "Outfit saved",
+      "publishedToast": "Outfit published",
+      "saving": "Saving…",
+      "saveDraft": "Save",
+      "publish": "Publish",
+      "name": "Name",
+      "namePlaceholder": "e.g. Neon Nights",
+      "items": "Items",
+      "noItems": "No items yet — pick some from the catalog below.",
+      "maxItems": "An outfit can have up to 20 items.",
+      "remove": "Remove",
+      "playsInPreview": "Plays in preview",
+      "needsWearable": "Add at least one wearable to publish.",
+      "pickerCategory": "What to browse",
+      "searchWearables": "Search wearables…",
+      "searchEmotes": "Search emotes…",
+      "noResults": "No results",
+      "gradient": "Background colors",
+      "gradientTop": "Top",
+      "gradientBottom": "Bottom",
+      "gradientTopHex": "Top color hex code",
+      "gradientBottomHex": "Bottom color hex code",
+      "gradientHint": "The outfit is shown over these two colors, blending from top to bottom.",
+      "thumbnail": "Thumbnail",
+      "thumbnailHint": "PNG, JPEG or WebP, up to 1 MB. Portrait (3:4) works best — upload it with a transparent background so the colors show through.",
+      "upload": "Upload image",
+      "uploading": "Uploading…",
+      "bodyShape": "Body shape",
+      "shape": {
+        "unisex": "Both",
+        "male": "Male",
+        "female": "Female"
+      },
+      "previewEmpty": "Pick items to see them on the mannequin.",
+      "needName": "Give the outfit a name to save it.",
+      "empty": "No outfits yet — create the first one.",
+      "cardPreview": "Card preview",
+      "import": "Import from a preview link",
+      "importPlaceholder": "Paste an avatar preview link or code…",
+      "importApply": "Import",
+      "importHint": "Paste the preview link from the avatar editor — its items, body shape and colors fill the outfit.",
+      "importError": "We couldn't find outfit items in that link.",
+      "importSuccess": "{count, plural, one {# item imported} other {# items imported}}"
+    },
+    "toast": {
+      "added": "Outfit added to cart",
+      "partial": "Added {added} of {total} items{unavailable, plural, =0 {} other { — # no longer available}}{inCart, plural, =0 {} other { — # already in your cart}}{own, plural, =0 {} other { — # sold by you}}",
+      "noneLeft": "These items just sold out — nothing was added to your cart",
+      "addFailed": "We couldn't check these items right now. Nothing was added — please try again."
+    },
+    "errors": {
+      "generic": "Something went wrong. Please try again.",
+      "notAllowed": "Your account can't manage outfits.",
+      "notPublishable": "Add a name, a thumbnail and 1–20 items before publishing.",
+      "invalidItems": "One of the items is duplicated or invalid.",
+      "tooLarge": "That image is too big — keep it under 1 MB.",
+      "unsupportedType": "Use a PNG, JPEG or WebP image.",
+      "notFound": "This outfit no longer exists."
+    }
+  },
   "footer": {
     "newsletterTitle": "Get the weekly highlights in your inbox",
     "newsletterFrameTitle": "Newsletter signup",
@@ -656,18 +781,16 @@
     "pages": "Carousel pages",
     "goToPage": "Go to page {page}"
   },
-  "weekTopCreators": {
-    "title": "Week Top Creators",
-    "thisWeek": "This Week",
-    "rank": "Rank",
-    "creator": "Creator",
-    "collections": "Collections",
-    "sales": "Sales",
-    "volume": "Volume"
+  "topCreators": {
+    "title": "Meet Our Top Creators",
+    "viewCreations": "View creations",
+    "viewCreationsBy": "View creations by {name}",
+    "stats": "{collections, plural, one {# collection} other {# collections}} | {items, plural, one {# item} other {# items}}"
   },
   "loadMore": {
     "loading": "Loading…",
-    "loadMore": "Load more"
+    "loadMore": "Load more",
+    "retry": "Try again"
   },
   "recentlyViewed": {
     "title": "Recently viewed"
@@ -682,32 +805,42 @@
     "label": "Purchase successful"
   },
   "importListings": {
-    "creations": {
-      "title": "Your creations",
-      "sub": "Items you made. Put them on sale in the Shop."
-    },
-    "owned": {
-      "title": "Items you own",
-      "sub": "Things you've bought elsewhere — resell them in the Shop."
-    },
     "toastUpdated": "Your Shop is updated.",
-    "signInTitle": "Import your listings",
-    "signInBody": "Sign in to bring the items you already sell into the Shop.",
     "emptyTitle": "You're all caught up",
     "emptyBody": "Everything you sell is already in the Shop — nothing to import.",
-    "goToMyAssets": "Go to My Assets",
-    "eyebrow": "Import to the Shop",
-    "titleLead": "Bring your listings",
-    "titleAccent": "into the Shop",
-    "lede": "These items are already for sale elsewhere. We suggested a price in {currency} for each — matched to today's rate and rounded up. Adjust anything, then list them.",
-    "rate": "1 {currency} = $0.10 · prices rounded up",
+    "goToMyAssets": "Go to My Items",
+    "title": "Bring your listings into the new shop!",
+    "lede": "Your items can now be priced in {currency}. We've suggested equivalent prices based on today's MANA exchange rate, but you can adjust them before publishing. Once you're ready, list your items in the new Shop.",
+    "learnMore": "Learn More",
+    "updatePricing": "Update Pricing",
+    "selectAll": "Select All",
+    "selectAllAria": "Select all listings to move",
     "includeItem": "Include {name}",
     "itemFallback": "Item",
     "priceAria": "Price in {currency} for {name}",
-    "resetTo": "Reset to",
-    "list": "List",
+    "wasMana": "({amount} MANA)",
     "selectedSummary": "{count, plural, one {# item} other {# items}} selected · ${usd}",
     "listAll": "List all ({count})"
+  },
+  "creditRate": {
+    "equals": "=",
+    "usdLabel": "$USD",
+    "aria": "1 {unit} equals {usd} US dollars"
+  },
+  "manaPricingBanner": {
+    "lead": "{count, plural, one {# item is} other {# items are}} still using MANA pricing.",
+    "accent": "Switch to Credits",
+    "trail": "to keep your prices stable.",
+    "cta": "Update prices"
+  },
+  "newPricing": {
+    "title": "New Pricing",
+    "close": "Close",
+    "infoTitle": "Switch your listings to Credits!",
+    "infoBody": "Your items can now be priced in Credits, giving buyers a clearer price and protecting your earnings from MANA price changes.",
+    "later": "Maybe later",
+    "confirm": "Update prices",
+    "optOut": "Don't show this again"
   },
   "sellModal": {
     "errorGeneric": "Couldn't list your item — please try again.",
@@ -777,8 +910,8 @@
     "listedSummary": "{count, plural, one {# item is} other {# items are}} now for sale with {currency}.",
     "noneListed": "No items were listed.",
     "skippedSummary": "{count, plural, one {# skipped} other {# skipped}} — you can try those again anytime.",
-    "unlistedSummary": "{count, plural, one {# item was taken off the old marketplace but couldn't be re-listed — re-list it from My Assets.} other {# items were taken off the old marketplace but couldn't be re-listed — re-list them from My Assets.}}",
-    "goToMyAssets": "Go to My Assets",
+    "unlistedSummary": "{count, plural, one {# item was taken off the old marketplace but couldn't be re-listed — re-list it from My Items.} other {# items were taken off the old marketplace but couldn't be re-listed — re-list them from My Items.}}",
+    "goToMyAssets": "Go to My Items",
     "viewInShop": "View in Shop",
     "listingTitle": "Listing your items",
     "subConfirm": "We take down each old listing and re-list it for credits — confirm each step.",
@@ -789,11 +922,23 @@
     "statusAdding": "Adding…",
     "statusSkipped": "Skipped",
     "statusFailed": "Failed",
-    "unlistedTooltip": "Removed from the old marketplace but not re-listed — re-list it from My Assets.",
+    "unlistedTooltip": "Removed from the old marketplace but not re-listed — re-list it from My Items.",
     "statusUnlisted": "Not listed",
     "hintConfirm": "A couple of quick confirmations pop up per item (take down + re-list). Keep this open.",
     "hintManaged": "This only takes a moment — keep this open.",
-    "statusWaiting": "Waiting"
+    "statusWaiting": "Waiting",
+    "phaseCancel": "Taking down the old listing…",
+    "phaseCancelConfirm": "Confirm taking it down…",
+    "phaseConfirmingCancel": "Waiting for the network to confirm…",
+    "phaseAuthorise": "Setting up the Shop…",
+    "phaseAuthoriseConfirm": "Confirm the one-time approval…",
+    "phaseSign": "Preparing the new price…",
+    "phaseSignConfirm": "Sign the new listing…",
+    "phasePublishing": "Publishing…",
+    "phaseIndexing": "Waiting for the old listing to clear ({attempt}/{of})…",
+    "hintCount": "About {total} confirmations will pop up — take down and re-list, per item. Keep this open.",
+    "hintCountApproval": "About {total} confirmations will pop up: take down and re-list per item, plus a one-time approval for each collection. Keep this open.",
+    "phaseConfirmingCancelManaged": "Almost there…"
   },
   "fittingRoom": {
     "title": "Fitting room",
@@ -860,7 +1005,13 @@
     "assignToAvatar": "Assign NAME to avatar",
     "errorTitle": "Something went wrong",
     "errorGeneric": "We couldn’t complete your purchase. Please try again.",
-    "tryAgain": "Try again"
+    "tryAgain": "Try again",
+    "pendingHeaderTitle": "Purchase in progress",
+    "pendingBannerBold": "Your payment went through.",
+    "pendingBannerRest": "Your NAME is still being finalised and will appear in My Items shortly — you don't need to do anything.",
+    "priceUnavailable": "We can't price NAMEs right now. Please try again in a moment.",
+    "insufficientCredits": "You need {credits} more credits to buy this NAME.",
+    "errorRouteCost": "NAME registration is temporarily unavailable. Please try again later."
   },
   "authorizations": {
     "title": "Approvals",
@@ -871,8 +1022,9 @@
     "creditsDesc": "Lets the Shop take MANA to cover the part your credits don’t reach, when you pay with both.",
     "manaName": "Pay a whole purchase with MANA",
     "manaDesc": "Lets the Shop take MANA when you pay for an item entirely in MANA, spending no credits.",
-    "sellingDesc": "Lets the Shop hand over an item from this collection when it sells.",
+    "sellingDesc": "Lets the Shop transfer items from this collection when they sell. It covers the whole collection, not a single item.",
     "sellingEmpty": "Nothing to approve yet. Approvals for selling appear here once you own collectibles.",
+    "sellingTruncated": "You own a lot of collectibles, so this list covers the collections behind your {count} most recent ones.",
     "mintingTitle": "For minting",
     "mintingDesc": "Lets the Shop mint items from this collection on your behalf.",
     "mintingEmpty": "Nothing to approve yet. Approvals for minting appear here once you publish a collection.",
@@ -897,6 +1049,9 @@
       "title": "Browse Collectibles",
       "searchTitle": "Search results for “{query}”",
       "description": "Browse thousands of wearables and emotes for your Decentraland avatar. Filter by category, rarity, and price to find your next look."
+    },
+    "outfit": {
+      "notFoundTitle": "Outfit not available"
     },
     "item": {
       "notFoundTitle": "Item not available",

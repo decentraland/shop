@@ -130,6 +130,41 @@ describe('when adding an item to the cart', () => {
   })
 })
 
+// The bug this guards, seen in production: three different CollectionStore mints were added from one
+// outfit and became a SINGLE line at quantity 3. Mints carry no tradeId, the feed mapper took that
+// null as the row id, and `find(i => i.id === item.id)` matched null against null — so the buyer paid
+// for three copies of whichever landed first and never received the other two. Lines are told apart
+// by `id`, so distinct products must arrive with distinct ids (see listingRowId in lib/api).
+describe('when adding several store mints, which carry no trade id', () => {
+  it('should keep each mint on its own line rather than raising one line to quantity 3', () => {
+    const mints = [
+      item({ id: '0xaaa-1', contractAddress: '0xaaa', itemId: '1', name: 'Yoga Outfit', tradeId: undefined }),
+      item({ id: '0xbbb-0', contractAddress: '0xbbb', itemId: '0', name: 'Broken Chain', tradeId: undefined }),
+      item({ id: '0xccc-0', contractAddress: '0xccc', itemId: '0', name: "DASH ELite's", tradeId: undefined })
+    ]
+
+    mints.forEach(mint => useCart.getState().add(mint, 'outfit'))
+
+    const { items } = useCart.getState()
+    expect(items).toHaveLength(3)
+    expect(items.map(i => i.name)).toEqual(['Yoga Outfit', 'Broken Chain', "DASH ELite's"])
+    expect(items.every(i => i.quantity === 1)).toBe(true)
+  })
+
+  // The flip side: the SAME mint added twice is still one line at quantity 2, because a mint can
+  // legitimately be bought in multiples.
+  it('should still stack the same mint added twice', () => {
+    const mint = item({ id: '0xaaa-1', contractAddress: '0xaaa', itemId: '1', tradeId: undefined, available: 10 })
+
+    useCart.getState().add(mint, 'outfit')
+    useCart.getState().add(mint, 'outfit')
+
+    const { items } = useCart.getState()
+    expect(items).toHaveLength(1)
+    expect(items[0].quantity).toBe(2)
+  })
+})
+
 describe('when changing a line quantity', () => {
   it('increment/decrement move a PRIMARY line within [1, stock]', () => {
     useCart.setState({ items: [{ ...item({ available: 3 }), quantity: 1 }] })
@@ -283,5 +318,40 @@ describe('when the cart is persisted to localStorage', () => {
 
     expect(useCart.getState().items).toEqual([])
     expect(JSON.parse(localStorage.getItem('dcl_shop_cart') as string).state.items).toEqual([])
+  })
+})
+
+/**
+ * The fitting room shows the CART, so an empty cart leaves it with nothing to render — and, before this, it
+ * stayed open behind the empty state. Removing the last line there, going back to browse and adding
+ * something reopened the modal on top of the grid, because `add` raises the cart drawer and never lowered
+ * this. Reported as "it leaves the fitting room in an invalid state".
+ */
+describe('the fitting room and an emptying cart', () => {
+  it('should close the fitting room when the last line is removed', () => {
+    useCart.setState({ items: [item()], fittingOpen: true, open: false })
+    useCart.getState().remove('t1')
+    expect(useCart.getState().items).toEqual([])
+    expect(useCart.getState().fittingOpen).toBe(false)
+  })
+
+  it('should keep the fitting room open while any line survives', () => {
+    useCart.setState({ items: [item(), item({ id: 't2' })], fittingOpen: true, open: false })
+    useCart.getState().remove('t1')
+    expect(useCart.getState().fittingOpen).toBe(true)
+  })
+
+  it('should close the fitting room on clear()', () => {
+    useCart.setState({ items: [item()], fittingOpen: true, open: false })
+    useCart.getState().clear()
+    expect(useCart.getState().fittingOpen).toBe(false)
+  })
+
+  it('should never leave the fitting room open over the page an add came from', () => {
+    useCart.setState({ items: [], fittingOpen: true, open: false })
+    useCart.getState().add(item(), 'grid')
+    expect(useCart.getState().fittingOpen).toBe(false)
+    // The drawer is what an add raises.
+    expect(useCart.getState().open).toBe(true)
   })
 })

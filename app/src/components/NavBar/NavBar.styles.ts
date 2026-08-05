@@ -40,7 +40,10 @@ export const Subnav = styled.div`
   ${stacked} {
     height: auto;
     flex-wrap: wrap;
-    gap: 12px;
+    /* Column gap tightened to 8px: at 320px the CTA + balance + favourites + cart leave only a few pixels of
+       slack and three 12px gaps spend it, which is what wrapped the cart onto its own line. Rows keep 12px —
+       the search and tab strips have their own full-width basis, so this only affects the top row. */
+    gap: 12px 8px;
     padding: 12px 54px 0;
   }
 
@@ -55,7 +58,34 @@ export const Subnav = styled.div`
 // search field to nothing and, once even that runs out, pushes the whole page into horizontal overflow.
 // The strip scrolls instead — the mask on its right edge is what tells you there is more to reach, since
 // the scrollbar is hidden. Below `lg` the strip has its own full-width row and none of this applies.
+// Holds the row's ONE auto margin, and it is on the tab strip rather than on anything to its right on
+// purpose: everything after the tabs — the search field, the CTA, favourites, the cart — then travels
+// together against the right edge, and it keeps doing that whether or not the search is rendered (it is
+// hidden on My Items). Put on a member of that group instead, the alignment either breaks on the route
+// without a search, or two auto margins split the slack and park the field mid-row.
 export const Tabs = styled.nav`
+  /**
+   * WIDE VIEWPORTS: the strip does not shrink, so no tab label is cut.
+   *
+   * The search field beside it stopped growing (see Search) and now shrinks from its 496px design width.
+   * That alone did not free the strip: flex shrinks EVERY shrinkable sibling in proportion, so the strip
+   * gave up width too and clipped at 1440 — measured, and no amount of extra shrink on the field fixed it
+   * (at shrink 6 the field only reached 422px and the strip still clipped). The strip has to refuse to
+   * shrink for the field to absorb the squeeze.
+   *
+   * Only above 1280px. Measured: with the strip fixed, 1440 and 1280 both fit with the field above its
+   * 240px floor, but from 1200 down the whole ROW stops fitting and the PAGE scrolls sideways — worse than
+   * a clipped label, since the strip at least scrolls on purpose. Below this the strip yields again and
+   * clips, which is the intended behaviour between the field's floor and the wrap at lg.
+   *
+   * 1280 rather than the xl token (1200): 1200 is inside the page-overflow range, so the token would
+   * reintroduce the very thing this avoids.
+   */
+  @media (min-width: 1280px) {
+    flex-shrink: 0;
+  }
+
+  margin-right: auto;
   display: flex;
   gap: 40px;
   height: 100%;
@@ -121,11 +151,15 @@ export const Tabs = styled.nav`
 // position:relative is the offset parent for the SearchDropdown's absolutely-positioned panel.
 export const Search = styled.div`
   position: relative;
-  margin-left: auto;
-  /* 240px of field is the FLOOR (flex-shrink: 0 makes the basis hard), growing into whatever slack the
-     row has left up to the 496px design width. The field used to be plain flexible, so the other items
-     shrank it with the window until only the magnifier was left — visually a search "icon", but not a
-     control that opens anything, so the search was simply gone. The tab strip yields instead. */
+  /* This field once carried the row's auto left margin, and that made the whole right-hand group's
+     alignment depend on a sibling only some routes render — on My Items, where it is hidden, the CTA,
+     favourites and cart collapsed back against the tab strip. The margin lives on Tabs now, so the field is
+     simply the first member of the group rather than the thing holding it up. */
+  /* Grows from a 240px basis but never past the design's 496px. The basis matters: a 496px basis is claimed
+     up front and, once the row is tight, the strip beside it gives up label width instead — tabs clipped at
+     1440. Capping the GROWTH instead is what lets the field reach its design width and still leave the rest
+     of the slack to the tab strip's auto margin, so the field travels with the buttons on its right rather
+     than stretching to meet them. 240px is the floor because below it the field is just a magnifier. */
   flex: 1 0 240px;
   max-width: 496px;
   display: flex;
@@ -151,10 +185,9 @@ export const Search = styled.div`
 
   ${stacked} {
     order: 5;
-    /* Own row here — full width, so the desktop floor and cap must not hold it back. */
+    /* Own row here — full width, so neither the desktop basis nor its cap may hold it back. */
     flex: 1 0 100%;
     max-width: none;
-    margin-left: 0;
   }
 
   ${mobile} {
@@ -189,62 +222,8 @@ export const SearchClear = styled.button`
   }
 `
 
-// Polygon MANA balance chip — same metrics as the credits balance so the pair reads as one row. Only
-// rendered when the wallet holds MANA (see NavBar).
-export const Mana = styled.span`
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  height: 40px;
-  padding: 0 4px;
-  border-radius: 4px;
-  color: ${colors.softWhite};
-  font-weight: 600;
-  font-size: 16px;
-  letter-spacing: -0.03em;
-  white-space: nowrap;
-`
-
-export const ManaIco = styled.img`
-  width: 18px;
-  height: 18px;
-  display: block;
-`
-
-// Persistent credit balance chip (transparent per Figma).
-export const Balance = styled.span`
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  height: 40px;
-  padding: 0 4px;
-  border-radius: 4px;
-  background: transparent;
-  color: ${colors.softWhite};
-  font-weight: 600;
-  font-size: 16px;
-  letter-spacing: -0.03em;
-  white-space: nowrap;
-
-  ${stacked} {
-    order: 2;
-  }
-`
-
-export const BalanceIco = styled(CurrencyIcon)`
-  width: 20px;
-  height: 20px;
-  color: ${colors.softWhite};
-`
-
-// Sized loading placeholder; the shimmer comes from the global `skeleton` class it also carries.
-export const BalanceSkel = styled.span`
-  display: inline-block;
-  width: 26px;
-  height: 16px;
-  border-radius: 5px;
-`
-
+// No auto margin here: Tabs carries the row's single one, which is what keeps this group — and the search
+// field before it — against the right edge on every route.
 export const Credits = styled(NavLink)`
   position: relative;
   display: inline-flex;

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { countConfirmations, type ImportPhase } from '~/lib/import'
 import { Button } from '~/components/Button'
 import type { Session } from '~/lib/auth'
 import { importListing, RelistFailedError, type ImportItem } from '~/lib/import'
@@ -20,6 +21,36 @@ type Status = 'pending' | 'active' | 'done' | 'skipped' | 'failed' | 'unlisted'
 
 // Lists a queue of old items into the Shop one at a time (each needs one confirmation). Shows live
 // progress, then a congrats. Closing refreshes the pages behind it (via onDone).
+/**
+ * The active row's caption.
+ *
+ * Falls back to the previous generic wording until the first phase arrives, so the cell is never blank. The
+ * wallet-kind split only applies to steps that PROMPT: a managed wallet signs without a dialog, so telling
+ * its owner to "confirm" would be wrong, while the waiting steps read the same either way.
+ */
+function phaseLabel(phase: ImportPhase | null, showsConfirmations: boolean): string {
+  switch (phase?.step) {
+    case 'cancelling':
+      return showsConfirmations ? t('migrate.phaseCancelConfirm') : t('migrate.phaseCancel')
+    case 'confirming-cancel':
+      // "the network" is not a thing a managed wallet's owner was ever shown. They saw no chain step to
+      // begin with, so naming one here introduces a system they can't see and can't act on — for them
+      // this is simply the tail of an action already under way.
+      return showsConfirmations ? t('migrate.phaseConfirmingCancel') : t('migrate.phaseConfirmingCancelManaged')
+    case 'authorising':
+      return showsConfirmations ? t('migrate.phaseAuthoriseConfirm') : t('migrate.phaseAuthorise')
+    case 'signing':
+      return showsConfirmations ? t('migrate.phaseSignConfirm') : t('migrate.phaseSign')
+    case 'publishing':
+      return t('migrate.phasePublishing')
+    case 'indexing':
+      // The long wait. Naming the attempt is what tells a live retry apart from a hung request.
+      return t('migrate.phaseIndexing', { attempt: phase.attempt, of: phase.of })
+    default:
+      return showsConfirmations ? t('migrate.statusConfirm') : t('migrate.statusAdding')
+  }
+}
+
 export function MigrateModal({
   queue,
   session,
@@ -33,6 +64,15 @@ export function MigrateModal({
 }) {
   const navigate = useNavigate()
   const showsConfirmations = showsWalletConfirmations(session.providerType)
+  // Per-row phase so the spinner can say what it is waiting on. Only the active row ever holds one.
+  const [phases, setPhases] = useState<(ImportPhase | null)[]>(() => queue.map(() => null))
+  /**
+   * The real number of prompts, read from the chain before anything is signed.
+   *
+   * null means "not counted" — either still reading, or a read failed — and renders the old vague wording.
+   * Only self-custody wallets ever see a prompt, so a managed wallet never pays for this read.
+   */
+  const [prompts, setPrompts] = useState<{ approvals: number; total: number } | null>(null)
   const [statuses, setStatuses] = useState<Status[]>(() => queue.map(() => 'pending'))
   const [phase, setPhase] = useState<'running' | 'finished'>('running')
   const started = useRef(false)
@@ -42,12 +82,33 @@ export function MigrateModal({
     started.current = true
 
     let cancelled = false
+
+    if (showsConfirmations) {
+      // `void` + catch: this is a hint, so a failed read must leave the vague wording standing rather than
+      // surface an error or reject unhandled. countConfirmations already returns null on failure; the catch
+      // covers anything it cannot (an import-time throw), so the modal can never break on a hint.
+      void countConfirmations(
+        queue.map(e => e.item),
+        session.address
+      )
+        .then(c => {
+          if (!cancelled && c) setPrompts({ approvals: c.approvals, total: c.total })
+        })
+        .catch(() => {
+          /* keep the vague hint */
+        })
+    }
+
     const migrateItems = async () => {
       for (let i = 0; i < queue.length; i++) {
         if (cancelled) return
         setStatuses(s => s.map((v, idx) => (idx === i ? 'active' : v)))
         try {
-          await importListing(queue[i].item, queue[i].priceCredits, session)
+          await importListing(queue[i].item, queue[i].priceCredits, session, {
+            onPhase: phase => {
+              if (!cancelled) setPhases(p => p.map((v, idx) => (idx === i ? phase : v)))
+            }
+          })
           track('Shop Migrated Listing', {
             item_id: queue[i].item.itemId ?? queue[i].item.oldTradeId ?? null,
             contract_address: queue[i].item.contractAddress,
@@ -121,7 +182,7 @@ export function MigrateModal({
                 onClick={() => {
                   onDone()
                   onClose()
-                  navigate('/my-assets')
+                  navigate('/my-items')
                 }}
               >
                 {t('migrate.goToMyAssets')}
@@ -132,7 +193,7 @@ export function MigrateModal({
                 onClick={() => {
                   onDone()
                   onClose()
-                  navigate('/assets')
+                  navigate('/items')
                 }}
               >
                 {t('migrate.viewInShop')}
@@ -165,11 +226,10 @@ export function MigrateModal({
               <S.Price>
                 <CurrencyIcon className="ccy-mark" /> {entry.priceCredits.toLocaleString()}
               </S.Price>
-              <S.Status>
+              <S.Status data-testid={statuses[i] === 'active' ? 'migrate-active-status' : undefined}>
                 {statuses[i] === 'active' ? (
                   <>
-                    <S.Spin className="spinner" aria-hidden />{' '}
-                    {showsConfirmations ? t('migrate.statusConfirm') : t('migrate.statusAdding')}
+                    <S.Spin className="spinner" aria-hidden /> {phaseLabel(phases[i], showsConfirmations)}
                   </>
                 ) : statuses[i] === 'done' ? (
                   <S.Tick>
@@ -190,7 +250,11 @@ export function MigrateModal({
         </S.List>
 
         <S.Hint className="muted small">
-          {showsConfirmations ? t('migrate.hintConfirm') : t('migrate.hintManaged')}
+          {!showsConfirmations
+            ? t('migrate.hintManaged')
+            : prompts
+              ? t(prompts.approvals > 0 ? 'migrate.hintCountApproval' : 'migrate.hintCount', { total: prompts.total })
+              : t('migrate.hintConfirm')}
         </S.Hint>
       </S.Modal>
     </M.Backdrop>

@@ -16,7 +16,6 @@ import type { IconName } from '~/components/Icon'
 export const CURRENCY = {
   name: 'credits', // plural, lowercase — capitalize at the call site if it starts a sentence
   nameSingular: 'credit',
-  symbol: '◈', // compact glyph for tight spaces (e.g. "◈ 500")
   iconName: 'credits' as IconName
 } as const
 

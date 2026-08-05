@@ -38,6 +38,9 @@ type Props = {
   // Self-custody (MetaMask etc.) users get a "confirm to continue" prompt; managed (social) users sign
   // transparently, so they never see a confirmation step. Never leak "wallet/transaction" — see CONVENTIONS.
   isSelfCustody?: boolean
+  // How many confirmations the basket needs and which one is pending. Only meaningful above 1, and only
+  // rendered for self-custody buyers — see Processing.
+  signatures?: { current: number; total: number }
   // nofunds
   lines?: CheckoutLine[]
   shortfallCredits?: number
@@ -123,6 +126,7 @@ export function CartCheckoutModal(props: Props) {
             step={props.step ?? 1}
             total={props.total ?? 1}
             isSelfCustody={!!props.isSelfCustody}
+            signatures={props.signatures}
           />
         )}
         {phase === 'nofunds' && (
@@ -140,8 +144,14 @@ export function CartCheckoutModal(props: Props) {
           <M.Body>
             <M.BuyError data-testid="buy-error">
               <M.BuyErrorArt src={buyErrorAvatar} alt="" width={64} height={80} />
+              {/*
+                A caller-supplied message REPLACES the generic body, keeping the headline that gives the panel
+                its shape. The prop was declared and never read, so every failure rendered the same
+                "Don't worry, your credits are safe" — including a partial purchase, where credits had in fact
+                been spent and an item had already left the cart.
+              */}
               <M.BuyErrorText>
-                <b>{t('cartCheckout.errorHeadline')}</b> {t('cartCheckout.errorBody')}
+                <b>{t('cartCheckout.errorHeadline')}</b> {props.message ?? t('cartCheckout.errorBody')}
               </M.BuyErrorText>
             </M.BuyError>
             <M.Ctas>
@@ -163,28 +173,41 @@ export function CartCheckoutModal(props: Props) {
 // purchase hasn't made:
 //  - reserving: the N units' credits are reserved sequentially (silent) → a DETERMINATE bar fills to
 //    step/total, with an "n/N" counter when there's more than one unit.
-//  - awaiting-signature: ONE wallet prompt to sign/confirm the purchase → an INDETERMINATE bar (the
+//  - awaiting-signature: a wallet prompt to sign/confirm the purchase → an INDETERMINATE bar (the
 //    buyer hasn't acted yet, so showing a near-full bar would be a lie).
-//  - settling: the single tx confirms on-chain → INDETERMINATE bar, "Completing transaction…".
+//  - settling: the tx confirms on-chain → INDETERMINATE bar, "Completing transaction…".
 function Processing({
   stage,
   step,
   total,
-  isSelfCustody
+  isSelfCustody,
+  signatures
 }: {
   stage: CheckoutStage
   step: number
   total: number
   isSelfCustody: boolean
+  /**
+   * How many wallet confirmations this basket needs, and which one is pending. Supplied only when it is
+   * more than one, which happens when the basket spans two purchase paths (an offchain trade and a
+   * CollectionStore mint cannot share a transaction) or two marketplaces.
+   *
+   * Shown ONLY to self-custody buyers. A managed-wallet buyer never confirms anything, so telling them
+   * about "2 approvals" would invent a step that does not exist for them — the split stays invisible.
+   */
+  signatures?: { current: number; total: number }
 }) {
   const reserving = stage === 'reserving'
   const pct = total > 0 ? Math.min(100, Math.round((step / total) * 100)) : 0
   // Managed (social) users never confirm anything, so they never see a "confirm" prompt — they go
   // straight to "completing". Copy is web2-first: no "wallet"/"transaction" for anyone (see CONVENTIONS).
+  const multiSig = isSelfCustody && signatures && signatures.total > 1
   const text =
     stage === 'awaiting-signature'
       ? isSelfCustody
-        ? t('buyModal.confirmToContinue')
+        ? multiSig
+          ? t('cartCheckout.confirmMultiple', { current: signatures.current, total: signatures.total })
+          : t('buyModal.confirmToContinue')
         : t('buyModal.completingTransaction')
       : stage === 'settling'
         ? t('buyModal.completingTransaction')
