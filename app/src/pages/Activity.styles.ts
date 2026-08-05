@@ -498,6 +498,13 @@ export const EmptyTitle = styled.p`
   margin: 6px 0 0;
 `
 
+// The line under the title. Not the global `.muted` utility: that is the light theme's grey and it
+// vanishes on the purple field — this stays in the block's own white.
+export const EmptyBody = styled.p`
+  margin: 0;
+  color: ${theme.colors.softWhite};
+`
+
 export const EmptyCta = styled(Button)`
   margin-top: 12px;
 `

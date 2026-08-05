@@ -414,7 +414,7 @@ function EmptyState({ filter }: { filter: ActivityFilter }) {
     <S.Empty>
       <Icon name={copy.icon as 'cart'} size={40} color={theme.colors.muted2} />
       <S.EmptyTitle>{copy.title}</S.EmptyTitle>
-      <p className="muted">{copy.body}</p>
+      <S.EmptyBody>{copy.body}</S.EmptyBody>
       {filter !== 'sales' ? (
         <S.EmptyCta as={Link} to="/items" variant="purple">
           {t('notFound.cta')}
@@ -510,7 +510,7 @@ export function Activity() {
       <S.Empty>
         <Icon name="clock" size={40} color={theme.colors.muted2} />
         <S.EmptyTitle>{t('activity.signInTitle')}</S.EmptyTitle>
-        <p className="muted">{t('activity.signInBody')}</p>
+        <S.EmptyBody>{t('activity.signInBody')}</S.EmptyBody>
       </S.Empty>
     )
   }
