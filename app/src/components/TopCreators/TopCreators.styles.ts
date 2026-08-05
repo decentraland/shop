@@ -3,12 +3,12 @@ import { css } from '@emotion/react'
 import { Link } from 'react-router-dom'
 import { theme } from '~/styles/theme'
 
-const { colors, radius, gradients, media } = theme
+const { colors, radius, media } = theme
 
-const AVATAR = 145
+const AVATAR = 154
 const AVATAR_MOBILE = 155
 // The CTA's height plus the gap above it — the slot the panel reserves for it permanently (see Panel).
-const CTA_SLOT = 56
+const CTA_SLOT = 62
 // The hover ring: its thickness and the clear space it leaves around the panel.
 const RING = 3
 const RING_GAP = 3
@@ -109,10 +109,9 @@ export const Avatar = styled.span`
   width: ${AVATAR}px;
   height: ${AVATAR}px;
   border-radius: 50%;
-  /* The white ring, plus a whisper of a shadow under it so the circle reads as sitting ON the panel. */
-  box-shadow:
-    0 0 0 4px ${colors.white},
-    0 5px 10px rgba(22, 21, 24, 0.08);
+  /* Deep-purple ring around the snapshot (Figma 2043:322624), drawn outside so the image keeps the
+     full box. */
+  box-shadow: 0 0 0 5px #601f85;
   overflow: hidden;
 
   & img {
@@ -155,12 +154,12 @@ export const Panel = styled.span`
   align-items: center;
   width: 100%;
   margin-top: -${AVATAR / 2}px;
-  padding: ${AVATAR / 2 + 16}px 16px 16px;
+  padding: ${AVATAR / 2 + 7}px 24px 16px;
 
   /* The offset is half the avatar, so it has to follow the mobile avatar up as well. */
   ${media.maxWidth('mobile')} {
     margin-top: -${AVATAR_MOBILE / 2}px;
-    padding-top: ${AVATAR_MOBILE / 2 + 16}px;
+    padding-top: ${AVATAR_MOBILE / 2 + 7}px;
   }
 
   &::before,
@@ -175,15 +174,16 @@ export const Panel = styled.span`
 
   &::before {
     border-radius: ${radius.modal};
-    background: ${colors.media};
+    /* Dark-theme test: translucent black over the purple field (Figma "Info" fill). */
+    background: rgba(0, 0, 0, 0.4);
   }
 
   /* The ring sits OUTSIDE the fill with clear space between the two, so the Track reserves room for it.
      Stroked with a mask rather than a border because a border cannot carry a gradient. */
   &::after {
     padding: ${RING}px;
-    border-radius: calc(${radius.modal} + ${RING_GAP}px);
-    background: ${gradients.amethyst};
+    border-radius: calc(${radius.modal} + ${RING + RING_GAP}px);
+    background: ${colors.dclRed};
     opacity: 0;
     -webkit-mask:
       linear-gradient(#000 0 0) content-box,
@@ -226,10 +226,10 @@ export const Panel = styled.span`
 export const Name = styled.span`
   max-width: 100%;
   overflow: hidden;
-  color: ${colors.text};
+  color: ${colors.white};
   font-size: 20px;
   font-weight: 600;
-  line-height: 1.5;
+  line-height: 1.6;
   text-overflow: ellipsis;
   white-space: nowrap;
 `
@@ -240,12 +240,12 @@ export const Desc = styled.span`
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
-  min-height: 2.86em;
+  min-height: 3.2em;
   margin-top: 4px;
   overflow: hidden;
-  color: ${colors.text2};
+  color: ${colors.gray4};
   font-size: 16px;
-  line-height: 1.43;
+  line-height: 1.6;
 `
 
 // Keeps its box whether it is showing or not (see Panel) and only fades — revealed by the CARD rather
@@ -256,10 +256,10 @@ export const Cta = styled.span`
   align-items: center;
   justify-content: center;
   width: 100%;
-  height: 40px;
+  height: 46px;
   margin-top: 16px;
-  border-radius: ${radius.modal};
-  background: ${colors.blackBtn};
+  border-radius: ${radius.card};
+  background: rgba(0, 0, 0, 0.4);
   color: ${colors.softWhite};
   font-size: 13px;
   font-weight: 600;
@@ -268,7 +268,14 @@ export const Cta = styled.span`
   text-transform: uppercase;
   white-space: nowrap;
   opacity: 0;
-  transition: opacity ${DURATION} ${EASE};
+  transition:
+    opacity ${DURATION} ${EASE},
+    background 0.15s ease;
+
+  /* Its own hover, on top of the card's reveal: the fill deepens to soft-black-2 (Figma 738:53251). */
+  [data-testid='top-creator-card']:hover &:hover {
+    background: ${colors.blackBtn};
+  }
 
   [data-testid='top-creator-card']:hover &,
   [data-testid='top-creator-card']:focus-visible & {
@@ -299,7 +306,7 @@ export const SkeletonDescBlock = styled.span`
   flex-direction: column;
   align-items: center;
   width: 100%;
-  min-height: 2.86em;
+  min-height: 3.2em;
   margin-top: 4px;
   font-size: 16px;
 `
@@ -321,7 +328,7 @@ export const SkeletonDesc = styled.span`
 // 56px the moment the ranking landed.
 export const SkeletonCta = styled.span`
   width: 100%;
-  height: 40px;
+  height: 46px;
   margin-top: 16px;
-  border-radius: ${radius.modal};
+  border-radius: ${radius.card};
 `

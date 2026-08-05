@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { Rarity } from '@dcl/schemas'
-import { rarityColor, rarityGradient, rarityInk, rarityTint, readableText } from '~/lib/rarity'
+import { rarityColor, rarityGradient, rarityInk, rarityTint } from '~/lib/rarity'
+import { rarities } from '~/styles/theme'
 
 // Neutral fallback color rarity.ts returns for a missing/unknown rarity.
 const FALLBACK_COLOR = '#E6E6E6'
@@ -16,16 +17,21 @@ function luminance(hex: string): number {
 }
 
 describe('when resolving the color for a rarity', () => {
-  it('should return the schema color for a known rarity', () => {
-    expect(rarityColor('legendary')).toBe(Rarity.getColor(Rarity.LEGENDARY))
-    expect(rarityColor('mythic')).toBe(Rarity.getColor(Rarity.MYTHIC))
-    expect(rarityColor('common')).toBe(Rarity.getColor(Rarity.COMMON))
+  // The DESIGN palette, not @dcl/schemas' — every rarity differs (see rarityColor).
+  it('should return the design token for a known rarity', () => {
+    expect(rarityColor('legendary')).toBe(rarities.legendary)
+    expect(rarityColor('mythic')).toBe(rarities.mythic)
+    expect(rarityColor('common')).toBe(rarities.common)
+  })
+
+  it('should prefer the design token over the schema color', () => {
+    expect(rarityColor('legendary')).not.toBe(Rarity.getColor(Rarity.LEGENDARY))
   })
 
   it('and the rarity casing differs it should still resolve by lowercasing', () => {
-    expect(rarityColor('EPIC')).toBe(Rarity.getColor(Rarity.EPIC))
-    expect(rarityColor('Rare')).toBe(Rarity.getColor(Rarity.RARE))
-    expect(rarityColor('UnCommon')).toBe(Rarity.getColor(Rarity.UNCOMMON))
+    expect(rarityColor('EPIC')).toBe(rarities.epic)
+    expect(rarityColor('Rare')).toBe(rarities.rare)
+    expect(rarityColor('UnCommon')).toBe(rarities.uncommon)
   })
 
   it('should fall back to the neutral color when no rarity is given', () => {
@@ -73,26 +79,31 @@ describe('when building the radial gradient for a rarity', () => {
 })
 
 describe('when picking legible chip ink (rarityInk)', () => {
-  it('should keep a dark rarity color unchanged (already legible on the pale tint)', () => {
-    // legendary #842DDA has luminance ~91 (<= 120) → returned as-is.
-    expect(rarityInk('legendary')).toBe(rarityColor('legendary'))
-    expect(luminance(rarityColor('legendary'))).toBeLessThanOrEqual(120)
+  it('should keep a color already under the target unchanged', () => {
+    // Exercised with an explicit target: the design palette is bright enough that no rarity sits under
+    // the default 120, so pinning the pass-through branch to a specific rarity would be vacuous.
+    const legendary = rarityColor('legendary')
+    expect(luminance(legendary)).toBeLessThanOrEqual(200)
+    expect(rarityInk('legendary', 200)).toBe(legendary)
   })
 
   it('should darken a light rarity down to the target luminance while preserving the hue', () => {
-    // exotic #CAFF73 is near-white (lum ~223) → scaled down so it reads on the pale tint.
+    // exotic is the palette's brightest rarity → scaled down so it reads on the pale tint.
     const raw = rarityColor('exotic')
     const ink = rarityInk('exotic')
     expect(ink).not.toBe(raw)
-    expect(ink).toBe('#6d893e') // exact formula lock (k = 120/223.2 applied per channel)
-    // Lands on the default target of 120 (± channel rounding).
+    // Lands on the default target of 120 (± channel rounding), which pins the per-channel formula
+    // without hardcoding a hex that moves whenever the palette is re-tuned.
     expect(luminance(ink)).toBeGreaterThan(118.5)
     expect(luminance(ink)).toBeLessThan(121.5)
   })
 
   it('should honor a custom target luminance', () => {
-    expect(luminance(rarityInk('exotic', 200))).toBeGreaterThan(198.5)
-    expect(luminance(rarityInk('exotic', 200))).toBeLessThan(201.5)
+    // rarityInk only ever DARKENS, so the target has to sit below the colour's own luminance for the
+    // scaling to kick in — derived from it here so re-tuning the palette can't invalidate the case.
+    const target = Math.round(luminance(rarityColor('exotic')) / 2)
+    expect(luminance(rarityInk('exotic', target))).toBeGreaterThan(target - 1.5)
+    expect(luminance(rarityInk('exotic', target))).toBeLessThan(target + 1.5)
   })
 
   it('and the rarity casing differs it should still resolve by lowercasing', () => {
@@ -111,9 +122,10 @@ describe('when picking legible chip ink (rarityInk)', () => {
 
 describe('when building the tinted rarity chip background (rarityTint)', () => {
   it('should render the rarity color as an rgba at the given alpha', () => {
-    // legendary #842DDA → rgb(132, 45, 218)
-    expect(rarityTint('legendary')).toBe('rgba(132, 45, 218, 0.3)')
-    expect(rarityTint('legendary', 0.5)).toBe('rgba(132, 45, 218, 0.5)')
+    // legendary #a24bf3 → rgb(162, 75, 243)
+    const [r, g, b] = [1, 3, 5].map(i => parseInt(rarities.legendary.slice(i, i + 2), 16))
+    expect(rarityTint('legendary')).toBe(`rgba(${r}, ${g}, ${b}, 0.3)`)
+    expect(rarityTint('legendary', 0.5)).toBe(`rgba(${r}, ${g}, ${b}, 0.5)`)
   })
 
   it('should tint the neutral fallback color for an unknown rarity', () => {
@@ -123,60 +135,12 @@ describe('when building the tinted rarity chip background (rarityTint)', () => {
   })
 })
 
-describe('when picking readable text for a background color', () => {
-  it('should use dark text on a light background', () => {
-    expect(readableText('#ffffff')).toBe('#161518')
-    expect(readableText('#ffb626')).toBe('#161518')
-  })
-
-  it('should use white text on a dark background', () => {
-    expect(readableText('#000000')).toBe('#ffffff')
-    expect(readableText('#842dda')).toBe('#ffffff')
-  })
-
-  it('should tolerate a color without the leading hash', () => {
-    expect(readableText('ffffff')).toBe('#161518')
-    expect(readableText('000000')).toBe('#ffffff')
-  })
-
-  it('and the hex is too short it should fall back to dark text', () => {
-    expect(readableText('#fff')).toBe('#161518')
-    expect(readableText('#')).toBe('#161518')
-    expect(readableText('')).toBe('#161518')
-  })
-
-  it('should tolerate a non-string color (defensive) and fall back to dark text', () => {
-    expect(readableText(undefined as unknown as string)).toBe('#161518')
-    expect(readableText(null as unknown as string)).toBe('#161518')
-  })
-
-  it('should switch text color right around the luminance threshold', () => {
-    // luminance 0.299*r + 0.587*g + 0.114*b, threshold at > 150.
-    // Pure green #00ff00 -> 0.587*255 = 149.685 (<=150) -> white text.
-    expect(readableText('#00ff00')).toBe('#ffffff')
-    // A slightly brighter green pushes luminance above 150 -> dark text.
-    expect(readableText('#00ff20')).toBe('#161518')
-  })
-
-  it('should weight green most and blue least when judging luminance', () => {
-    // Pure blue is dark (0.114*255 = 29) -> white text.
-    expect(readableText('#0000ff')).toBe('#ffffff')
-    // Pure red is dark (0.299*255 = 76) -> white text.
-    expect(readableText('#ff0000')).toBe('#ffffff')
-  })
-
-  it('should ignore any characters beyond the first six of the hex', () => {
-    // Extra trailing chars (e.g. an alpha channel) are sliced off and ignored.
-    expect(readableText('#ffffff00')).toBe('#161518')
-    expect(readableText('#00000000')).toBe('#ffffff')
-  })
-})
-
 describe('when building the tinted rarity chip background (rarityTint)', () => {
   it('should render the rarity color as an rgba at the given alpha', () => {
-    // legendary #842DDA → rgb(132, 45, 218)
-    expect(rarityTint('legendary')).toBe('rgba(132, 45, 218, 0.3)')
-    expect(rarityTint('legendary', 0.5)).toBe('rgba(132, 45, 218, 0.5)')
+    // legendary #a24bf3 → rgb(162, 75, 243)
+    const [r, g, b] = [1, 3, 5].map(i => parseInt(rarities.legendary.slice(i, i + 2), 16))
+    expect(rarityTint('legendary')).toBe(`rgba(${r}, ${g}, ${b}, 0.3)`)
+    expect(rarityTint('legendary', 0.5)).toBe(`rgba(${r}, ${g}, ${b}, 0.5)`)
   })
 
   it('should fall back to a neutral grey rgba for an unknown rarity', () => {

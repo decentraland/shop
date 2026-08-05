@@ -86,6 +86,24 @@ export const Root = styled.button`
     opacity: 0.3;
   }
 
+  /* Primary red — the flat Primary fill, for a CTA that is already the one thing to do on the surface it
+     sits on (the migration dock). The orange→red gradient treatment stays with GET / BUY CREDITS, which
+     have to stand out from OTHER ctas around them. */
+  &[data-variant='red'] {
+    background: ${theme.colors.dclRed};
+    color: ${theme.colors.white};
+    text-transform: uppercase;
+    letter-spacing: 0.046em;
+    font-size: 13px;
+  }
+  &[data-variant='red']:hover:not(:disabled),
+  &[data-variant='red']:active:not(:disabled) {
+    filter: brightness(0.94);
+  }
+  &[data-variant='red']:active:not(:disabled) {
+    transform: translateY(1px);
+  }
+
   /* Over-media CTA (Figma outfit card): solid white with the dark label, for buttons sitting on artwork. */
   &[data-variant='white'] {
     background: ${theme.colors.white};

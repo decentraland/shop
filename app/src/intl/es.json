@@ -15,7 +15,7 @@
     "activity": "Actividad",
     "authorizations": "Autorizaciones",
     "outfits": "Estudio de outfits",
-    "searchPlaceholder": "Busca artículos…",
+    "searchPlaceholder": "Busca artículo, creador, colección, nombre...",
     "searchAria": "Buscar en la tienda",
     "getCredits": "Conseguir {currency}",
     "cart": "Carrito"
@@ -304,7 +304,7 @@
     "titleComplete": "¡Compra completada!",
     "dialogAria": "Comprar {name}",
     "close": "Cerrar",
-    "dclBalance": "Saldo de DCL:",
+    "dclBalance": "Tu saldo de créditos:",
     "myCreditsBalance": "Saldo de mis créditos:",
     "signInToCheckout": "Inicia sesión para finalizar la compra.",
     "insufficientFunds": "Fondos insuficientes.",
@@ -634,10 +634,18 @@
     "heroCta": "Comprar créditos",
     "trendingProducts": "Productos en tendencia",
     "newCreations": "Nuevas creaciones",
-    "promoEmotesAria": "Emotes mejor valorados: explorar colección",
-    "promoEmotesAlt": "Emotes mejor valorados",
-    "promoOutfitsAria": "Outfits seleccionados de la semana: explorar colección",
-    "promoOutfitsAlt": "Outfits seleccionados de la semana",
+    "readyToUseAvatars": "Avatares listos para usar",
+    "addLook": "Agregar al carrito",
+    "addLookLoading": "Agregando…",
+    "addLookDone": "Agregado",
+    "promoEmotesAria": "Exprésate con estilo: explora los emotes",
+    "promoEmotesAlt": "Exprésate con estilo",
+    "expressWithStyle": "Exprésate\ncon estilo",
+    "exploreEmotes": "Explora los emotes",
+    "findYourLook": "Encuentra\ntu look",
+    "exploreWearables": "Explora los wearables",
+    "promoOutfitsAria": "Encuentra tu look: explora los wearables",
+    "promoOutfitsAlt": "Encuentra tu look",
     "emptyTitle": "Se avecinan nuevos lanzamientos",
     "emptyBody": "No hay artículos a la venta en este momento; vuelve pronto."
   },
@@ -661,7 +669,7 @@
     "bannerAdded": "añadido al carrito correctamente.",
     "total": "Total: {count, plural, one {# artículo} other {# artículos}}",
     "goToCart": "Ir al carrito",
-    "continueShopping": "Seguir comprando"
+    "checkout": "Finalizar compra"
   },
   "filterBar": {
     "sortNewest": "Más recientes",
@@ -854,7 +862,9 @@
     "priceAria": "Precio en {currency} para {name}",
     "wasMana": "({amount} MANA)",
     "selectedSummary": "{count, plural, one {# artículo seleccionado} other {# artículos seleccionados}} · ${usd}",
-    "listAll": "Publicar todo ({count})"
+    "listAll": "Publicar {count, plural, one {# artículo} other {# artículos}} ({count})",
+    "toastFailed": "No pudimos actualizar tus publicaciones. Inténtalo de nuevo.",
+    "toastPartial": "Algunas publicaciones no se pudieron actualizar."
   },
   "faq": {
     "title": "Más información sobre los créditos",
@@ -1000,7 +1010,9 @@
     "hintCount": "Van a aparecer unas {total} confirmaciones — dar de baja y volver a publicar, por artículo. Deja esto abierto.",
     "hintCountApproval": "Van a aparecer unas {total} confirmaciones: dar de baja y volver a publicar por artículo, más una autorización por única vez por colección. Deja esto abierto.",
     "phaseConfirmingCancelManaged": "Casi listo…",
-    "unlistedTitle": "Algunos artículos necesitan otro intento"
+    "unlistedTitle": "Algunos artículos necesitan otro intento",
+    "failedTitle": "Algunos artículos no se pudieron publicar",
+    "failedSummary": "{count, plural, one {# artículo no se pudo publicar — puedes volver a intentarlo cuando quieras.} other {# artículos no se pudieron publicar — puedes volver a intentarlo cuando quieras.}}"
   },
   "fittingRoom": {
     "title": "Probador",

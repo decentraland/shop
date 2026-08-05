@@ -12,10 +12,19 @@ import { track } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
 import { t } from '~/intl/i18n'
 import { CheckmarkIcon } from '~/components/Icons/CheckmarkIcon'
+import { AlertRingIcon } from '~/components/Icons/AlertRingIcon'
 import * as M from '~/styles/modal.styles'
 import * as S from './MigrateModal.styles'
 
 export type MigrateEntry = { item: ImportItem; priceCredits: number }
+
+/**
+ * What a finished run actually did, reported to the caller so it can tell the seller the truth: a run
+ * where nothing listed is not an update, and one with failures in it is not a success.
+ *
+ * `cancelled` counts the items the seller declined — a choice, not a failure.
+ */
+export type MigrateResult = { listed: number; failed: number; cancelled: number }
 // 'unlisted' = the old listing was taken down but re-listing failed → the item now has NO listing and
 // must be re-listed from My Assets (distinct from 'skipped', which leaves the old listing intact).
 type Status = 'pending' | 'active' | 'done' | 'skipped' | 'failed' | 'unlisted'
@@ -61,7 +70,7 @@ export function MigrateModal({
   queue: MigrateEntry[]
   session: Session
   onClose: () => void
-  onDone: () => void
+  onDone: (result: MigrateResult) => void
 }) {
   const navigate = useNavigate()
   const showsConfirmations = showsWalletConfirmations(session.providerType)
@@ -151,13 +160,16 @@ export function MigrateModal({
   const activeIndex = statuses.findIndex(s => s === 'active')
   const progress = Math.round((statuses.filter(s => s !== 'pending' && s !== 'active').length / queue.length) * 100)
 
+  // Declined by the seller, which is not a failure; 'failed' and 'unlisted' are.
+  const cancelled = statuses.filter(s => s === 'skipped').length
+  const failed = statuses.filter(s => s === 'failed').length
+  const unlisted = statuses.filter(s => s === 'unlisted').length
+  const failures = failed + unlisted
+
   function finish() {
-    onDone()
+    onDone({ listed: listedCount, failed: failures, cancelled })
     onClose()
   }
-
-  const skipped = statuses.filter(s => s === 'skipped' || s === 'failed').length
-  const unlisted = statuses.filter(s => s === 'unlisted').length
 
   /**
    * A clean finish closes itself. There is nothing to announce that the list behind this modal does not
@@ -165,43 +177,57 @@ export function MigrateModal({
    * all-set state if none are left. A congratulations card in front of that is a click between them and
    * the answer.
    *
-   * An item left UNLISTED is the exception and does NOT auto-close. Its old listing is gone and the
-   * re-list failed, so it is for sale nowhere — the one outcome the seller has to be told about and act
-   * on, which a self-closing modal would swallow.
+   * A FAILURE is the exception and does NOT auto-close — it is the one outcome the seller has to be told
+   * about, and closing onto the all-set card would report a success that did not happen. An item left
+   * unlisted is the sharpest case: its old listing is gone and the re-list failed, so it is for sale
+   * nowhere and has to be re-listed from My Items.
    */
   const closed = useRef(false)
   useEffect(() => {
-    if (phase !== 'finished' || unlisted > 0 || closed.current) return
+    if (phase !== 'finished' || failures > 0 || closed.current) return
     closed.current = true
     finish()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, unlisted])
+  }, [phase, failures])
 
   if (phase === 'finished') {
-    if (unlisted === 0) return null
+    if (failures === 0) return null
     return (
       <M.Backdrop role="presentation">
-        <M.Modal data-success role="dialog" aria-modal="true" data-testid="migrate-unlisted">
-          <M.Title>{t('migrate.unlistedTitle')}</M.Title>
+        <M.Modal
+          data-failure
+          role="dialog"
+          aria-modal="true"
+          data-testid={unlisted > 0 ? 'migrate-unlisted' : 'migrate-failed'}
+        >
+          <S.Outcome aria-hidden>
+            <AlertRingIcon size={72} />
+          </S.Outcome>
+          <M.Title>{unlisted > 0 ? t('migrate.unlistedTitle') : t('migrate.failedTitle')}</M.Title>
           <p className="muted" style={{ margin: 0 }}>
-            {t('migrate.unlistedSummary', { count: unlisted })}
+            {unlisted > 0 ? t('migrate.unlistedSummary', { count: unlisted }) : ''}
+            {failed > 0 ? (unlisted > 0 ? ' ' : '') + t('migrate.failedSummary', { count: failed }) : ''}
             {listedCount > 0 ? ' ' + t('migrate.listedSummary', { count: listedCount, currency: CURRENCY.name }) : ''}
-            {skipped > 0 ? ' ' + t('migrate.skippedSummary', { count: skipped }) : ''}
+            {cancelled > 0 ? ' ' + t('migrate.skippedSummary', { count: cancelled }) : ''}
           </p>
           <M.Actions data-actions>
             <Button variant="ghost" onClick={finish}>
               {t('getCredits.done')}
             </Button>
-            <Button
-              variant="purple"
-              onClick={() => {
-                onDone()
-                onClose()
-                navigate(MY_CREATIONS)
-              }}
-            >
-              {t('migrate.goToMyAssets')}
-            </Button>
+            {/* Only where it is the fix: an unlisted item has to be re-listed from My Items. A plain
+                failure left the old listing standing, so there is nothing to do there. */}
+            {unlisted > 0 ? (
+              <Button
+                variant="purple"
+                onClick={() => {
+                  onDone({ listed: listedCount, failed: failures, cancelled })
+                  onClose()
+                  navigate(MY_CREATIONS)
+                }}
+              >
+                {t('migrate.goToMyAssets')}
+              </Button>
+            ) : null}
           </M.Actions>
         </M.Modal>
       </M.Backdrop>
@@ -241,9 +267,9 @@ export function MigrateModal({
                 ) : statuses[i] === 'skipped' ? (
                   <S.Skip>{t('migrate.statusSkipped')}</S.Skip>
                 ) : statuses[i] === 'failed' ? (
-                  <S.Skip>{t('migrate.statusFailed')}</S.Skip>
+                  <S.Fail>{t('migrate.statusFailed')}</S.Fail>
                 ) : statuses[i] === 'unlisted' ? (
-                  <S.Skip title={t('migrate.unlistedTooltip')}>{t('migrate.statusUnlisted')}</S.Skip>
+                  <S.Fail title={t('migrate.unlistedTooltip')}>{t('migrate.statusUnlisted')}</S.Fail>
                 ) : (
                   <S.Wait>{t('migrate.statusWaiting')}</S.Wait>
                 )}

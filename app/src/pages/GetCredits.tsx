@@ -318,40 +318,41 @@ export function GetCredits() {
       pulled the footer up for the moment before the redirect left the page. `visibility` also takes the
       hidden pack buttons out of the tab order, so the covered grid can't be reached with the keyboard. */}
       {(phase === 'select' || phase === 'redirecting') && (
-        <S.Hero data-testid="credits-hero">
-          <S.HeroBackdrop aria-hidden />
-          <S.HeroPanel>
-            <S.HeroInner $hidden={phase === 'redirecting'}>
-              <S.Head>
-                <S.Title>{t('getCredits.title')}</S.Title>
-                <S.SubRow>
-                  <S.Sub>{t('getCredits.subtitle')}</S.Sub>
-                  <S.Learn type="button" onClick={scrollToFaq} data-testid="credits-learn-more">
-                    {t('getCredits.learnMore')}
-                  </S.Learn>
-                </S.SubRow>
-              </S.Head>
+        <>
+          <S.Hero data-testid="credits-hero">
+            <S.HeroPanel>
+              <S.HeroInner $hidden={phase === 'redirecting'}>
+                <S.Head>
+                  <S.Title>{t('getCredits.title')}</S.Title>
+                  <S.SubRow>
+                    <S.Sub>{t('getCredits.subtitle')}</S.Sub>
+                    <S.Learn type="button" onClick={scrollToFaq} data-testid="credits-learn-more">
+                      {t('getCredits.learnMore')}
+                    </S.Learn>
+                  </S.SubRow>
+                </S.Head>
 
-              {canceledNote && <S.Note role="status">{t('getCredits.canceledNote')}</S.Note>}
+                {canceledNote && <S.Note role="status">{t('getCredits.canceledNote')}</S.Note>}
 
-              <PackGrid packs={packs} loading={packsLoading} onSelect={pack => void startCheckout(pack)} />
-            </S.HeroInner>
+                <PackGrid packs={packs} loading={packsLoading} onSelect={pack => void startCheckout(pack)} />
+              </S.HeroInner>
 
-            {/* Centred in the panel the grid just filled, over the same backdrop. */}
-            {phase === 'redirecting' && (
-              <S.RedirectStatus role="status" aria-live="polite">
-                <S.RedirectLogo src={loaderLogo} alt="" width={72} height={72} />
-                <S.RedirectNote>{t('getCredits.redirecting')}</S.RedirectNote>
-              </S.RedirectStatus>
-            )}
-          </S.HeroPanel>
+              {/* Centred in the panel the grid just filled, over the same backdrop. */}
+              {phase === 'redirecting' && (
+                <S.RedirectStatus role="status" aria-live="polite">
+                  <S.RedirectLogo src={loaderLogo} alt="" width={72} height={72} />
+                  <S.RedirectNote>{t('getCredits.redirecting')}</S.RedirectNote>
+                </S.RedirectStatus>
+              )}
+            </S.HeroPanel>
+          </S.Hero>
 
-          {/* Inside the Hero, so it reads on the same backdrop the design puts it on — the outlined skin
-              is white-on-dark and would be invisible on the page below. */}
+          {/* Outside the band on purpose: the design puts the FAQ on the plain page field, and the band's
+              edge is what separates the two sections. */}
           <S.FaqBlock ref={faqRef} tabIndex={-1} data-testid="credits-faq">
             <Faq title="faq.title" entries={BUYER_FAQ} tone="on-dark" />
           </S.FaqBlock>
-        </S.Hero>
+        </>
       )}
 
       {phase === 'processing' && (

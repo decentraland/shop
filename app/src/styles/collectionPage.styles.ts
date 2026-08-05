@@ -11,12 +11,13 @@ export const Page = styled.div`
   margin: 0 auto;
 `
 
+/* Dark-theme test: same crumb palette as ItemDetail's — gray-4 trail, white current page. */
 export const Crumbs = styled.nav`
   display: flex;
   align-items: center;
   gap: 8px;
   font-size: 13px;
-  color: ${colors.muted};
+  color: ${colors.gray4};
   margin-bottom: 18px;
 `
 
@@ -24,16 +25,17 @@ export const CrumbLink = styled.button`
   background: none;
   border: 0;
   padding: 0;
-  color: ${colors.muted};
+  color: ${colors.gray4};
   cursor: pointer;
 
   &:hover {
-    color: ${colors.text};
+    color: ${colors.white};
   }
 `
 
 export const CrumbCurrent = styled.span`
-  color: ${colors.text};
+  color: ${colors.softWhite};
+  font-weight: 600;
 `
 
 // Creator → Collections view: a count bar mirroring the item grid's FilterBar spacing.

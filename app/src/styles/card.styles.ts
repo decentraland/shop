@@ -31,9 +31,11 @@ export const ringLit = css`
   outline: none;
 `
 
-export const ringGradient = css`
+// Hover stroke (Figma "Marketplace Cards" hover, 635:789): 3px of the Cerise gradient
+// (#ff2d55 → #c640cd). A gradient fill masked down to the ring, since a border can't carry one.
+export const ringHover = css`
   border: 0;
-  padding: 2px;
+  padding: 3px;
   background: ${gradients.cerise};
   -webkit-mask:
     linear-gradient(#000 0 0) content-box,

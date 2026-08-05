@@ -2,7 +2,7 @@ import styled from '@emotion/styled'
 import { css, type SerializedStyles } from '@emotion/react'
 import { Link } from 'react-router-dom'
 import { theme } from '~/styles/theme'
-import { ringHairline, ringLit, ringGradient } from '~/styles/card.styles'
+import { ringHairline, ringLit, ringHover } from '~/styles/card.styles'
 import { Chip } from '~/styles/chip.styles'
 import { CreatorBadge } from '~/components/CreatorBadge'
 import { CreatorName } from '~/components/CreatorName'
@@ -23,7 +23,14 @@ export const TOP_GAP = 10
 // doubles as the action/chips reveal.
 export const Card = styled.article`
   height: 300px;
-  background: ${colors.bg};
+  /* Dark-theme test: deep-purple card shell under the light media (Figma). */
+  background: #240c32;
+
+  /* The compact card is its own set of metrics, not a scaled-down desktop one (Figma 1040:149086):
+     250px tall over 300, split 136 media / 114 info. */
+  ${media.maxWidth('sm')} {
+    height: 250px;
+  }
   border-radius: ${radius.card};
   overflow: hidden;
   position: relative;
@@ -48,7 +55,7 @@ export const Card = styled.article`
     }
     &:hover::after,
     &:focus-within::after {
-      ${ringGradient};
+      ${ringHover};
     }
   }
 
@@ -169,10 +176,6 @@ export const Media = styled.div`
   min-height: 0;
   background: ${colors.media};
   overflow: hidden;
-
-  ${media.maxWidth('sm')} {
-    aspect-ratio: 201 / 213;
-  }
 `
 
 // Corner ribbon on the media (fav sits top-right, so this anchors top-left).
@@ -268,11 +271,12 @@ export const Img = styled.img`
   }
 `
 
-// Fixed 96px footer. On mobile it becomes a grid (name/creator row, then price + round add) — see Top.
+// Fixed 112px footer with a 16px inset (Figma 1038:144862 — 188px of media over a 112px info block on
+// the 300px card). On mobile it becomes a grid (name/creator row, then price + round add) — see Top.
 export const Body = styled.div`
-  flex: 0 0 96px;
-  height: 96px;
-  padding: 8px;
+  flex: 0 0 112px;
+  height: 112px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -289,23 +293,25 @@ export const Body = styled.div`
     }
   }
 
-  // data-name = a NAME card's footer: it hugs its single row (@name + NOT FOR SALE) with a bit more
-  // vertical breathing room, and the @name tile above keeps the extra height.
+  // data-name = a NAME card's footer: it hugs its single row (@name + NOT FOR SALE), and the @name tile
+  // above keeps the height it gives back. The 16px inset already supplies the breathing room this used
+  // to add on top of the old 8px base.
   &[data-name] {
     flex: 0 0 auto;
     height: auto;
-    padding-top: 14px;
-    padding-bottom: 14px;
   }
 
+  // Figma 1040:149086: 114px of info under 136px of media, same 16px inset as the wide card, with the
+  // name/creator block and the price+add row only 6px apart.
   ${media.maxWidth('sm')} {
     display: grid;
-    height: auto;
+    flex: 0 0 114px;
+    height: 114px;
     grid-template-columns: 1fr auto;
     grid-template-areas: 'desc desc' 'price add';
     align-items: center;
-    row-gap: 10px;
-    padding: 8px;
+    row-gap: 6px;
+    padding: 16px;
 
     // NAME cards have no price/round-add split the wearable grid is built for — keep them a simple
     // stacked column so the mobile layout stays tidy.
@@ -348,7 +354,7 @@ export const Name = styled.div`
   font-weight: 600;
   font-size: 14px;
   line-height: 1.35;
-  color: ${colors.text};
+  color: ${colors.softWhite};
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -398,7 +404,7 @@ export const CreatorEmpty = styled.div`
 // "by {creator}" subtitle under the title on the browse card. Single line, ellipsised so a long name
 // never pushes the fixed 96px body out of shape.
 export const Author = styled(CreatorName)`
-  color: ${colors.muted};
+  color: ${colors.softWhite};
   font-size: 11px;
   line-height: 1.3;
   white-space: nowrap;
@@ -415,7 +421,7 @@ export const Price = styled.div`
   gap: 6px;
   font-weight: 600;
   font-size: 16px;
-  color: ${colors.text2};
+  color: ${colors.softWhite};
   white-space: nowrap;
 
   &[data-variant='sale'] {
@@ -523,20 +529,25 @@ export const CardChip = styled(Chip)`
   font-weight: 600;
   padding: 0 6.5px;
   letter-spacing: 0.01em;
-  border-radius: 4px;
+  border-radius: 6px;
 
+  /* Dark-theme test: icon chips are translucent panels with white glyphs on the dark card shell. */
   &[data-variant='icon'] {
     padding: 0 5px;
+    background: rgba(255, 255, 255, 0.14);
+    color: ${colors.softWhite};
   }
   &[data-variant='icon'] .ico {
     width: 14.6px;
     height: 14.6px;
+    /* Overrides the base Chip's dark .ico tint — white glyphs on the dark card shell (Figma). */
+    color: ${colors.softWhite};
   }
   &[data-variant='smart'] {
     gap: 2px;
     padding: 4px 4px 4px 2px;
-    background: ${colors.chip};
-    color: ${colors.text2};
+    background: rgba(255, 255, 255, 0.14);
+    color: ${colors.softWhite};
     text-transform: uppercase;
     letter-spacing: 0.02em;
   }
@@ -625,13 +636,18 @@ export const Manage = styled.button`
     opacity: 0.6;
     cursor: default;
   }
+  /* Figma's outlined button (738:53258 rest / 738:53259 hover): a white hairline with a soft-white
+     label on the dark card, filling solid white with a soft-black label under the pointer. It used to
+     carry a near-black label on a transparent fill — a light-theme pairing that was unreadable here. */
   &[data-ghost] {
     background: transparent;
-    color: ${colors.text};
-    border: 1px solid ${colors.lineStrong};
+    color: ${colors.softWhite};
+    border: 0.5px solid ${colors.white};
   }
-  &[data-ghost]:hover:not(:disabled) {
-    background: ${colors.media};
+  &[data-ghost]:hover:not(:disabled),
+  &[data-ghost]:active:not(:disabled) {
+    background: ${colors.softWhite};
+    color: ${colors.text};
   }
 
   @media (hover: hover) {
@@ -655,27 +671,36 @@ const cartCss = css`
   align-items: center;
   justify-content: center;
   gap: 8px;
-  background: ${colors.blackBtn};
+  /* Dark-theme test: translucent white pill, white label (Figma 738:53265). */
+  background: rgba(255, 255, 255, 0.2);
   color: ${colors.softWhite};
   border: 0;
-  border-radius: ${radius.btn};
+  border-radius: ${radius.card};
   height: 40px;
   font-weight: 600;
   font-size: 13px;
   text-transform: uppercase;
-  letter-spacing: 0.046em;
+  letter-spacing: 0.46px;
   transition: background 0.15s ease;
 
   @media (hover: none) and (min-width: 721px) {
     display: flex;
   }
-  &:hover:not(:disabled) {
-    background: ${colors.gray0};
+  /* Hover/pressed flip the pill to solid white with a soft-black-2 label (Figma 738:53264). The
+     design also swaps in its Cart-filled glyph there; we don't ship that artwork — icons/cart-solid
+     is the same outline path at another scale — so the cart just inherits the dark label colour.
+     Do NOT swap it by overriding mask-image with the imported asset: Vite inlines the SVG as a data
+     URI whose attributes are single-quoted, and Prettier rewrites the url() to single quotes too,
+     which terminates the string early and drops the mask (the icon renders as a filled square). */
+  &:hover:not(:disabled),
+  &:active:not(:disabled) {
+    background: ${colors.softWhite};
+    color: ${colors.blackBtn};
   }
   &[data-in],
   &:disabled {
-    background: ${colors.gray0};
-    opacity: 1;
+    background: rgba(255, 255, 255, 0.2);
+    opacity: 0.5;
     cursor: default;
   }
 

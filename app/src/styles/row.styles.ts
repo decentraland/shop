@@ -30,14 +30,14 @@ export const Title = styled.h2`
   font-size: 20px;
   font-weight: 600;
   line-height: 1.5;
-  color: ${colors.text};
+  color: ${colors.softWhite};
 `
 
 export const ViewAll = styled(Link)`
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  color: ${colors.accent};
+  color: ${colors.softWhite};
   font-weight: 600;
   font-size: 15px;
   letter-spacing: 0.046em;
@@ -98,17 +98,19 @@ export const Dots = styled.div`
   margin-top: 12px;
 `
 
+// Figma "Carousel Dots" (verbatim): translucent black at rest — which reads as a deeper purple over
+// the page field — and Neutrals/Gray 5 for the active page.
 export const Dot = styled.button`
   width: 12px;
   height: 12px;
   padding: 0;
   border: 0;
   border-radius: 50%;
-  background: #d9d6de;
+  background: rgba(0, 0, 0, 0.5);
   transition: background 0.15s ease;
 
   &[data-active] {
-    background: ${colors.accent};
+    background: ${colors.media};
   }
 `
 

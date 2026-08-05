@@ -17,7 +17,7 @@ export const Root = styled.div`
 
 export const Divider = styled.div`
   height: 1px;
-  background: ${theme.colors.media};
+  background: rgba(255, 255, 255, 0.25);
   width: 100%;
 `
 
@@ -43,7 +43,7 @@ export const Header = styled('button', noForward('desktopStatic'))<{ desktopStat
   border: 0;
   border-radius: 4px;
   background: transparent;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
   text-align: left;
   cursor: pointer;
 
@@ -53,7 +53,7 @@ export const Header = styled('button', noForward('desktopStatic'))<{ desktopStat
 
   @media (hover: hover) {
     &:hover {
-      background: #f5f4f7;
+      background: rgba(255, 255, 255, 0.08);
     }
   }
   &:focus-visible {
@@ -75,7 +75,7 @@ export const Title = styled.span`
   font-weight: 600;
   font-size: 14px;
   line-height: 1.43;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
 
   ${theme.media.maxWidth('lg')} {
     font-size: 16px;
@@ -97,7 +97,7 @@ export const Summary = styled('p', noForward('desktopHidden'))<{ desktopHidden?:
   font-weight: 400;
   font-size: 12px;
   line-height: normal;
-  color: ${theme.colors.muted};
+  color: ${theme.colors.gray4};
   text-transform: capitalize;
 
   ${({ desktopHidden }) => (desktopHidden ? `${theme.media.minWidth('lg')} { display: none; }` : '')}
@@ -144,7 +144,7 @@ export const PriceFieldLabel = styled.span`
   font-family: ${theme.font.sans};
   font-weight: 400;
   font-size: 12px;
-  color: ${theme.colors.muted};
+  color: ${theme.colors.gray4};
 `
 
 export const PriceBox = styled.span`
@@ -153,19 +153,13 @@ export const PriceBox = styled.span`
   gap: 4px;
   height: 42px;
   padding: 8px;
-  border: 0.5px solid ${theme.colors.text};
+  border: 0.5px solid ${theme.colors.softWhite};
   border-radius: 8px;
-  background: ${theme.colors.white};
+  background: rgba(0, 0, 0, 0.1);
 
   &:focus-within {
     border-color: ${theme.rarities.epic};
   }
-`
-
-export const PriceCoin = styled(Icon)`
-  width: 16px;
-  height: 16px;
-  color: ${theme.colors.text};
 `
 
 export const PriceInput = styled.input`
@@ -176,7 +170,7 @@ export const PriceInput = styled.input`
   padding: 0;
   font-family: ${theme.font.sans};
   font-size: 13px;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
 
   &:focus {
     outline: 0;
@@ -190,7 +184,7 @@ export const PriceInput = styled.input`
 
 export const PriceTo = styled.span`
   padding-bottom: 12px;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
   font-family: ${theme.font.sans};
   font-size: 13px;
 `
@@ -208,7 +202,7 @@ export const SliderTrack = styled.div`
   right: 0;
   height: 2px;
   transform: translateY(-50%);
-  background: ${theme.colors.media};
+  background: rgba(255, 255, 255, 0.3);
   border-radius: 2px;
 `
 
@@ -272,13 +266,13 @@ export const SliderRangeVal = styled.span`
   gap: 2px;
   font-family: ${theme.font.sans};
   font-size: 13px;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
 `
 
 export const RangeCoin = styled(Icon)`
   width: 16px;
   height: 16px;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
 `
 
 // ---------------- Rarity ----------------
@@ -294,18 +288,24 @@ export const RarityChips = styled.div`
   }
 `
 
+// Figma "Rarity Label" (1304:302245/302246): at rest a hairline translucent-white outline over the
+// page field; selected it fills with translucent black and the outline goes solid soft-white.
 export const RarityChip = styled('button', noForward('selected'))<{ selected?: boolean }>`
   display: inline-flex;
   align-items: center;
   gap: 4px;
   padding: 4px 8px;
   border-radius: 6px;
-  background: ${theme.colors.softWhite};
-  border: ${({ selected }) => (selected ? `1px solid ${theme.colors.text}` : `0.5px solid ${theme.colors.gray4}`)};
+  background: ${({ selected }) => (selected ? 'rgba(0, 0, 0, 0.3)' : 'transparent')};
+  border: ${({ selected }) =>
+    selected ? `1px solid ${theme.colors.softWhite}` : '0.5px solid rgba(255, 255, 255, 0.3)'};
   cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
 
   &:hover {
-    border-color: ${theme.colors.text};
+    border-color: ${theme.colors.softWhite};
   }
   &:focus-visible {
     outline: 2px solid ${theme.colors.accent};
@@ -335,7 +335,8 @@ export const RarityName = styled('span', noForward('selected'))<{ selected?: boo
   font-weight: ${({ selected }) => (selected ? 600 : 400)};
   font-size: 12px;
   line-height: 1.43;
-  color: ${({ selected }) => (selected ? theme.colors.text2 : theme.colors.gray0)};
+  /* Gray 5 at rest, soft-white when selected (Figma) — both read on the purple field. */
+  color: ${({ selected }) => (selected ? theme.colors.softWhite : theme.colors.media)};
   text-transform: capitalize;
 
   ${theme.media.maxWidth('lg')} {
@@ -352,15 +353,41 @@ export const StatusRow = styled.label`
   height: 40px;
   padding: 4px 4px 4px 24px;
   cursor: pointer;
+
+  /* The whole row is the target, so pointing at the label previews the same red the radio takes when
+     it is picked. Selected by tag rather than by interpolating StatusRadio (see CLAUDE.md). */
+  @media (hover: hover) {
+    &:hover input[type='radio'] {
+      border-color: ${theme.colors.dclRed};
+    }
+  }
 `
 
+// Figma 2103:411706 — the picked radio is primary red, not the accent purple.
 export const StatusRadio = styled.input`
+  appearance: none;
   width: 18px;
   height: 18px;
   margin: 0;
-  accent-color: ${theme.colors.accent};
+  border: 2px solid ${theme.colors.media};
+  border-radius: 50%;
+  background: transparent;
   cursor: pointer;
   flex: none;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+
+  /* The dot is painted as a background rather than a child element, which a replaced element can't
+     have. The half-pixel feather on the stop keeps its edge from going jagged. */
+  &:checked {
+    border-color: ${theme.colors.dclRed};
+    background: radial-gradient(circle at center, ${theme.colors.dclRed} 0 4px, transparent 4.5px);
+  }
+  &:focus-visible {
+    outline: 2px solid ${theme.colors.dclRed};
+    outline-offset: 2px;
+  }
 `
 
 export const StatusLabel = styled.span`
@@ -368,7 +395,7 @@ export const StatusLabel = styled.span`
   font-weight: 400;
   font-size: 14px;
   line-height: 1.43;
-  color: ${theme.colors.gray0};
+  color: ${theme.colors.gray4};
 `
 
 // ---------------- Smart (toggle row) ----------------
@@ -398,7 +425,7 @@ export const SmartLeft = styled.div`
 export const SmartFlash = styled(Icon)`
   width: 14px;
   height: 14px;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
 
   ${theme.media.maxWidth('lg')} {
     width: 16px;
@@ -411,7 +438,7 @@ export const SmartTitle = styled.span`
   font-weight: 600;
   font-size: 14px;
   line-height: 1.43;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
   /* Figma labels SMART in uppercase (the flash-feature label), unlike the title-case section names. */
   text-transform: uppercase;
 
@@ -427,16 +454,16 @@ export const SmartInfo = styled(Icon)`
   color: ${theme.colors.muted2};
 `
 
-// Track + knob switch (Figma "Toggle"). Off = gray-5 track / gray-4 border, knob left; on = accent
-// track, knob right.
+// Track + knob switch (Figma "Switch" 2094:409127). Off = translucent white track, knob left; on =
+// Brand/Ruby track, knob right. No border — the design's track is a plain filled pill.
 export const Toggle = styled('button', noForward('on'))<{ on?: boolean }>`
   position: relative;
   width: 24px;
   height: 14px;
   padding: 0;
   border-radius: 100px;
-  border: 1px solid ${({ on }) => (on ? theme.colors.accent : theme.colors.gray4)};
-  background: ${({ on }) => (on ? theme.colors.accent : theme.colors.media)};
+  border: 0;
+  background: ${({ on }) => (on ? theme.colors.dclRed : 'rgba(255, 255, 255, 0.1)')};
   cursor: pointer;
   flex: none;
   transition:
@@ -463,7 +490,8 @@ export const ToggleKnob = styled('span', noForward('on'))<{ on?: boolean }>`
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: ${theme.colors.white};
+  /* White knob in both states (Figma switch knob is soft-white) — only its position animates. */
+  background: ${theme.colors.softWhite};
   box-shadow: 0 1px 2px rgba(22, 21, 24, 0.3);
   transition: left 0.15s ease;
 

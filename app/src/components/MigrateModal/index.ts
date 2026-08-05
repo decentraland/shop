@@ -1,1 +1,1 @@
-export { MigrateModal, type MigrateEntry } from './MigrateModal'
+export { MigrateModal, type MigrateEntry, type MigrateResult } from './MigrateModal'

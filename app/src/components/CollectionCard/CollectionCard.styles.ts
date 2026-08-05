@@ -1,6 +1,6 @@
 import styled from '@emotion/styled'
 import { theme } from '~/styles/theme'
-import { ringHairline, ringLit, ringGradient } from '~/styles/card.styles'
+import { ringHairline, ringLit, ringHover } from '~/styles/card.styles'
 import { CreatorBadge } from '~/components/CreatorBadge'
 import { CollectionMosaic } from '~/components/CollectionThumb'
 
@@ -29,7 +29,7 @@ export const Card = styled.article`
     ${ringLit};
   }
   &:focus-visible::after {
-    ${ringGradient};
+    ${ringHover};
   }
 
   // The swap is a pointer affordance only: keyboard focus must not hide the creator row, whose profile
@@ -40,7 +40,7 @@ export const Card = styled.article`
       ${ringLit};
     }
     &:hover::after {
-      ${ringGradient};
+      ${ringHover};
     }
     &:hover [data-view] {
       visibility: visible;

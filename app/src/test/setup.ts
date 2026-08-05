@@ -1,5 +1,14 @@
 import { beforeEach } from 'vitest'
+import { configure } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
+
+/**
+ * `findBy*` / `waitFor` default to a 1s ceiling. A page spec mounts a full route and waits for several
+ * react-query reads to settle, which already spends most of that second on an idle machine — on a loaded CI
+ * runner it overruns, and the failure reads as "unable to find element" on markup that does arrive. The
+ * ceiling only bounds how long a wait may take, so raising it changes no assertion.
+ */
+configure({ asyncUtilTimeout: 5000 })
 
 /**
  * Neutralise the local dev flag overrides for every test.

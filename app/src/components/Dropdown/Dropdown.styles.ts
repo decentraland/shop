@@ -14,10 +14,10 @@ export const Trigger = styled.button`
   justify-content: space-between;
   gap: 24px;
   padding: 4px 4px 4px 12px;
-  background: ${colors.softWhite};
-  border: 1px solid ${colors.text2};
+  background: rgba(0, 0, 0, 0.12);
+  border: 0.5px solid ${colors.muted2};
   border-radius: ${radius.btn};
-  color: ${colors.text2};
+  color: #ecebed;
   font-weight: 600;
   font-size: 12px;
   line-height: 1.43;
@@ -27,7 +27,7 @@ export const Trigger = styled.button`
   transition: border-color 0.15s ease;
 
   &:hover {
-    border-color: #000;
+    border-color: ${colors.white};
   }
   &:focus-visible {
     outline: 0;

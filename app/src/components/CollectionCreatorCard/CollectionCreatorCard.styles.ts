@@ -35,7 +35,7 @@ export const Name = styled.h2`
   font-size: 20px;
   font-weight: 700;
   line-height: 1.3;
-  color: ${colors.text};
+  color: ${colors.softWhite};
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -51,7 +51,7 @@ export const Account = styled.button`
   border: 0;
   border-radius: ${radius.btn};
   background: none;
-  color: ${colors.muted};
+  color: ${colors.gray4};
   font: inherit;
   font-size: 14px;
   cursor: pointer;
@@ -60,12 +60,13 @@ export const Account = styled.button`
     background 0.15s ease;
 
   &:hover {
-    color: ${colors.text};
-    background: ${colors.media};
+    color: ${colors.white};
+    background: rgba(255, 255, 255, 0.12);
   }
 `
 
-// Full-width outlined pill CTA.
+// Full-width outlined pill CTA. Dark-theme test: white outline + label on the purple field (same
+// treatment as MakeOfferButton); fills white on hover.
 export const View = styled.a`
   display: inline-flex;
   align-items: center;
@@ -73,10 +74,10 @@ export const View = styled.a`
   width: 100%;
   height: 44px;
   padding: 0 20px;
-  border: 2px solid ${colors.accent};
+  border: 2px solid ${colors.softWhite};
   border-radius: ${radius.btn};
   background: transparent;
-  color: ${colors.accent};
+  color: ${colors.softWhite};
   font-weight: 600;
   font-size: 13px;
   text-transform: uppercase;
@@ -87,7 +88,7 @@ export const View = styled.a`
     color 0.15s ease;
 
   &:hover {
-    background: ${colors.accent};
-    color: ${colors.white};
+    background: ${colors.softWhite};
+    color: ${colors.text};
   }
 `

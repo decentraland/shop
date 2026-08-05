@@ -208,7 +208,10 @@ export async function fetchCatalog({
 // Hydrate catalog items from their marketplace item ids (`contract-itemId`) — how the favorites page
 // turns the server's pick ids back into renderable items. Returned in the ids' order; ids the catalog
 // no longer knows (delisted/unpublished) are silently absent. Chunked to keep URLs bounded.
-export async function fetchCatalogByIds(ids: string[]): Promise<CatalogItem[]> {
+export async function fetchCatalogByIds(
+  ids: string[],
+  baseUrl: string = config.marketplaceServerUrl
+): Promise<CatalogItem[]> {
   if (ids.length === 0) return []
   const CHUNK = 50
   const chunks: string[][] = []
@@ -218,7 +221,7 @@ export async function fetchCatalogByIds(ids: string[]): Promise<CatalogItem[]> {
       // The server-side filter is a repeated `id` param (getItemsParams reads `params.getList('id')`).
       const qs = new URLSearchParams({ first: String(chunk.length) })
       for (const id of chunk) qs.append('id', id)
-      const res = await fetch(`${config.marketplaceServerUrl}/v2/catalog?${qs.toString()}`)
+      const res = await fetch(`${baseUrl}/v2/catalog?${qs.toString()}`)
       if (!res.ok) {
         void res.body?.cancel()
         throw new Error(`fetchCatalogByIds (${res.status})`)

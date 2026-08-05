@@ -19,6 +19,7 @@ import { invalidateAfterPurchase } from '~/lib/after-purchase'
 import { AuthorizeStep } from '~/components/AuthorizeStep'
 import { ContractName, getContract, getContractName } from 'decentraland-transactions'
 import manaLight from '~/assets/mana-matic-light.svg'
+import packCoin from '~/assets/credits/pack-coin.webp'
 import {
   getAuthorizationStatus,
   getManaSpendingAuthorization,
@@ -737,7 +738,7 @@ export function BuyModal({
                     const on = p.id === selectedPack
                     return (
                       <M.Pack key={p.id} data-on={on || undefined} onClick={() => setSelectedPack(p.id)}>
-                        <M.PackIco />
+                        <M.PackIco src={packCoin} alt="" />
                         <M.PackAmount>{formatCredits(packCredits)}</M.PackAmount>
                         <M.PackUsd>(${p.usd.toFixed(2)})</M.PackUsd>
                       </M.Pack>

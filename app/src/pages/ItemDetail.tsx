@@ -58,7 +58,7 @@ import { Tooltip } from '~/components/Tooltip'
 import { ErrorNotice } from '~/components/ErrorNotice'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { Icon } from '~/components/Icon'
-import { rarityTint, rarityInk, rarityDescription } from '~/lib/rarity'
+import { rarityColor, rarityDescription } from '~/lib/rarity'
 import { categoryIcon, genderIcon } from '~/lib/itemIcons'
 import { saleDiscountPct } from '~/lib/sale'
 import { useSaleActive } from '~/hooks/useSaleActive'
@@ -66,7 +66,6 @@ import { track, itemProps } from '~/lib/analytics'
 import { recordViewed } from '~/lib/recently-viewed'
 import { isOwnListing } from '~/lib/ownership'
 import * as S from './ItemDetail.styles'
-import { theme } from '~/styles/theme'
 
 function isValidRarity(r: string): r is Rarity {
   return (Object.values(Rarity) as string[]).includes(r)
@@ -1123,18 +1122,18 @@ export function ItemDetail() {
               <S.Chips>
                 <S.DetailChip
                   data-variant="rarity"
-                  style={{ background: rarityTint(rarity), color: rarityInk(rarity) }}
+                  style={{ background: rarityColor(rarity) }}
                   title={rarityDescription(current.rarity)}
                 >
                   {current.rarity}
                 </S.DetailChip>
                 <S.DetailChip>
-                  {catIco ? <Icon name={catIco} size={18} color={theme.colors.text2} /> : null}
+                  {catIco ? <Icon name={catIco} size={18} /> : null}
                   {categoryLabel(current)}
                 </S.DetailChip>
                 {gender ? (
                   <S.DetailChip>
-                    {genderIco ? <Icon name={genderIco} size={18} color={theme.colors.text2} /> : null}
+                    {genderIco ? <Icon name={genderIco} size={18} /> : null}
                     {gender}
                   </S.DetailChip>
                 ) : null}
@@ -1148,7 +1147,7 @@ export function ItemDetail() {
                     shows, from the same two fields (`data.wearable.isSmart` and `utility`). */}
                 {isSmart ? (
                   <S.DetailChip data-testid="detail-smart">
-                    <Icon name="smart" size={18} color={theme.colors.text2} />
+                    <Icon name="smart" size={18} />
                     {t('itemDetail.smart')}
                   </S.DetailChip>
                 ) : null}
@@ -1157,23 +1156,19 @@ export function ItemDetail() {
                     which is a fact worth stating, so only undefined — i.e. a wearable — hides the chip. */}
                 {emoteTraits.emoteLoop !== undefined ? (
                   <S.DetailChip data-testid="detail-play-mode">
-                    <Icon
-                      name={emoteTraits.emoteLoop ? 'play-loop' : 'play-once'}
-                      size={18}
-                      color={theme.colors.text2}
-                    />
+                    <Icon name={emoteTraits.emoteLoop ? 'play-loop' : 'play-once'} size={18} />
                     {emoteTraits.emoteLoop ? t('itemDetail.playLoop') : t('itemDetail.playOnce')}
                   </S.DetailChip>
                 ) : null}
                 {emoteTraits.emoteHasSound ? (
                   <S.DetailChip data-testid="detail-sound">
-                    <Icon name="sound" size={18} color={theme.colors.text2} />
+                    <Icon name="sound" size={18} />
                     {t('itemDetail.emoteSound')}
                   </S.DetailChip>
                 ) : null}
                 {emoteTraits.emoteHasProps ? (
                   <S.DetailChip data-testid="detail-props">
-                    <Icon name="props" size={18} color={theme.colors.text2} />
+                    <Icon name="props" size={18} />
                     {t('itemDetail.emoteProps')}
                   </S.DetailChip>
                 ) : null}
@@ -1194,7 +1189,7 @@ export function ItemDetail() {
                 ) : null}
                 {utility ? (
                   <S.DetailChip data-testid="detail-utility-chip">
-                    <Icon name="utility" size={18} color={theme.colors.text2} />
+                    <Icon name="utility" size={18} />
                     {t('itemDetail.utility')}
                   </S.DetailChip>
                 ) : null}
@@ -1569,7 +1564,7 @@ export function ItemDetail() {
                           disabled={resolvingTrade || (isPrimary ? atStockCap : inCart)}
                           aria-label={addLabel}
                         >
-                          <Icon name="cart-solid" />
+                          <Icon name="cart" />
                           <S.AddCartLabel>{addLabel}</S.AddCartLabel>
                         </S.AddCart>
                       </>
@@ -1593,7 +1588,7 @@ export function ItemDetail() {
                           disabled={resaleInCart}
                           aria-label={resaleInCart ? t('assetCard.inCart') : t('assetCard.addToCart')}
                         >
-                          <Icon name="cart-solid" />
+                          <Icon name="cart" />
                           <S.AddCartLabel>
                             {resaleInCart ? t('assetCard.inCart') : t('assetCard.addToCart')}
                           </S.AddCartLabel>

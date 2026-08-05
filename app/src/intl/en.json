@@ -15,7 +15,7 @@
     "activity": "Activity",
     "authorizations": "Approvals",
     "outfits": "Outfit Studio",
-    "searchPlaceholder": "Search items…",
+    "searchPlaceholder": "Search item, creator, collection, name...",
     "searchAria": "Search the shop",
     "getCredits": "Get {currency}",
     "cart": "Cart"
@@ -304,7 +304,7 @@
     "titleComplete": "Purchase complete!",
     "dialogAria": "Buy {name}",
     "close": "Close",
-    "dclBalance": "DCL Balance:",
+    "dclBalance": "My Credits Balance:",
     "myCreditsBalance": "My Credits Balance:",
     "signInToCheckout": "Sign in to check out.",
     "insufficientFunds": "Insufficient Funds.",
@@ -634,10 +634,18 @@
     "heroCta": "Buy credits",
     "trendingProducts": "Trending Products",
     "newCreations": "New Creations",
-    "promoEmotesAria": "Best rated emotes — explore collection",
-    "promoEmotesAlt": "Best rated emotes",
-    "promoOutfitsAria": "Week selected outfits — explore collection",
-    "promoOutfitsAlt": "Week selected outfits",
+    "readyToUseAvatars": "Ready to use avatars",
+    "addLook": "Add to cart",
+    "addLookLoading": "Adding…",
+    "addLookDone": "Added",
+    "promoEmotesAria": "Express with style — explore emotes",
+    "promoEmotesAlt": "Express with style",
+    "expressWithStyle": "Express\nwith style",
+    "exploreEmotes": "Explore emotes",
+    "findYourLook": "Find your\nlook",
+    "exploreWearables": "Explore wearables",
+    "promoOutfitsAria": "Find your look — explore wearables",
+    "promoOutfitsAlt": "Find your look",
     "emptyTitle": "New drops are on the way",
     "emptyBody": "There are no items on sale right now — check back soon."
   },
@@ -661,7 +669,7 @@
     "bannerAdded": "successfully added to cart!",
     "total": "Total: {count, plural, one {# item} other {# items}}",
     "goToCart": "Go to cart",
-    "continueShopping": "Continue shopping"
+    "checkout": "Checkout"
   },
   "filterBar": {
     "sortNewest": "Newest",
@@ -854,7 +862,9 @@
     "priceAria": "Price in {currency} for {name}",
     "wasMana": "({amount} MANA)",
     "selectedSummary": "{count, plural, one {# item} other {# items}} selected · ${usd}",
-    "listAll": "List all ({count})"
+    "listAll": "List {count, plural, one {# item} other {# items}} ({count})",
+    "toastFailed": "We couldn't update your listings. Please try again.",
+    "toastPartial": "Some listings couldn't be updated."
   },
   "faq": {
     "title": "Learn More About Credits",
@@ -1000,7 +1010,9 @@
     "hintCount": "About {total} confirmations will pop up — take down and re-list, per item. Keep this open.",
     "hintCountApproval": "About {total} confirmations will pop up: take down and re-list per item, plus a one-time approval for each collection. Keep this open.",
     "phaseConfirmingCancelManaged": "Almost there…",
-    "unlistedTitle": "Some items need another try"
+    "unlistedTitle": "Some items need another try",
+    "failedTitle": "Some items couldn't be listed",
+    "failedSummary": "{count, plural, one {# item couldn't be listed — you can try again anytime.} other {# items couldn't be listed — you can try again anytime.}}"
   },
   "fittingRoom": {
     "title": "Fitting room",

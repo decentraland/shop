@@ -2,15 +2,15 @@ import styled from '@emotion/styled'
 import { theme } from '~/styles/theme'
 
 // Holds the space of the lazy-loaded global DCL navbar (same height) so there's no layout shift; the
-// violet fill matches the restyled navbar bar (see NavbarViolet below) so it doesn't flash when it
-// hydrates.
+// fill matches the restyled navbar bar (see NavbarViolet below) so it doesn't flash when it hydrates.
 export const Skeleton = styled.div`
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   height: 92px;
-  background: ${theme.colors.navViolet};
+  /* Dark-theme test: solid stand-in for the bar's #161518 at 40% over the purple field. */
+  background: #36184a;
   z-index: 50;
 
   ${theme.media.maxWidth('mobile')} {
@@ -34,56 +34,78 @@ export const Skeleton = styled.div`
 export const NavbarViolet = styled.div`
   display: contents;
 
-  /* Bar background: flat light violet — drop ui2's dark translucent fill, blur and shadow. */
+  /* Bar background (dark-theme test): translucent near-black (#161518 at 40%, per the designer) over
+     the page field. It deepens to 80% once the page scrolls (body[data-scrolled], set by NavBar) so it
+     doesn't wash out over light content passing underneath. The sub-nav below uses its own #401458 —
+     the two bars are deliberately different colours. */
   & nav::before {
-    background: ${theme.colors.navViolet};
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
+    background: rgba(22, 21, 24, 0.4);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
     box-shadow: none;
+    transition: background 0.25s ease;
+  }
+  body[data-scrolled] & nav::before {
+    background: rgba(22, 21, 24, 0.8);
   }
 
-  /* Desktop nav tabs (Explore / Shop / Create / Learn): dark text on the light bar. Direct-child
+  /* Desktop nav tabs (Explore / Shop / Create / Learn): light text on the dark bar. Direct-child
      selectors deliberately exclude the dark dropdown panels that open on hover. */
   & nav > div:first-of-type > div > a,
   & nav > div:first-of-type > div > div > button {
-    color: ${theme.colors.text2};
+    color: #ecebed;
   }
   & nav > div:first-of-type > div > a:hover,
   & nav > div:first-of-type > div > div > button:hover {
-    color: ${theme.colors.text2};
-    background-color: ${theme.colors.navOverlayHover};
+    color: ${theme.colors.white};
+    background-color: rgba(255, 255, 255, 0.12);
   }
   & nav > div:first-of-type > div > a.active,
   & nav > div:first-of-type > div > div > button.active {
-    color: ${theme.colors.text2};
-    background-color: ${theme.colors.navOverlayActive};
+    color: ${theme.colors.white};
+    background-color: rgba(255, 255, 255, 0.18);
   }
 
-  /* Sign-in button (signed-out state): dark outline + text instead of ui2's near-white, which would
-     be invisible on the violet bar. The hamburger is excluded via :not([aria-label]). */
+  /* Signed-in right cluster: the notifications bell is a glyph ui2 leaves near-black — force the
+     cluster's buttons and any svg glyph to white so it reads on the dark bar. The profile pic is an
+     <img> and the unread badge a text span, so neither is affected by color/fill. */
+  & nav > div:last-of-type button {
+    color: ${theme.colors.softWhite};
+  }
+  & nav > div:last-of-type svg {
+    color: ${theme.colors.softWhite};
+  }
+  /* Only paths that are FILLED shapes. The credits mark draws its octagon as a stroke over
+     fill="none", so filling every path turned the ring into a solid blob and swallowed the C. */
+  & nav > div:last-of-type svg path:not([stroke]) {
+    fill: currentColor;
+  }
+
+  /* Sign-in button (signed-out state): light outline + text on the dark bar. The hamburger is
+     excluded via :not([aria-label]). */
   & nav > div:last-of-type > button:not([aria-label]) {
-    color: ${theme.colors.text2};
-    border-color: ${theme.colors.text2};
+    color: ${theme.colors.softWhite};
+    border-color: ${theme.colors.softWhite};
   }
   & nav > div:last-of-type > button:not([aria-label]):hover {
-    background-color: ${theme.colors.navOverlayHover};
-    border-color: ${theme.colors.text2};
+    background-color: rgba(255, 255, 255, 0.12);
+    border-color: ${theme.colors.softWhite};
   }
   & nav > div:last-of-type > button:not([aria-label]):active {
-    background-color: ${theme.colors.navOverlayActive};
-    border-color: ${theme.colors.text2};
+    background-color: rgba(255, 255, 255, 0.18);
+    border-color: ${theme.colors.softWhite};
   }
 
-  /* Balance chips (shop credits + Polygon MANA): ui2 styles them near-white for its dark bar, which
-     is illegible on the light violet. The credits icon uses currentColor; the MANA diamond hardcodes
-     a near-white fill, so its paths need the explicit override. Targeted via the chips' aria-labels
-     ("<n> shop credits" / "<n> MANA on Polygon"), same contract as the hamburger below. */
+  /* Balance chips (shop credits + Polygon MANA) read WHITE on the dark bar — they were forced dark
+     back when this bar was light violet. The credits icon follows currentColor; the MANA diamond
+     hardcodes its own fill, so its paths need the explicit override. Targeted via the chips'
+     aria-labels ("<n> shop credits" / "<n> MANA on Polygon"), same contract as the hamburger below. */
   & nav button[aria-label$=' shop credits'],
   & nav button[aria-label*=' MANA on '] {
-    color: ${theme.colors.text2};
+    color: ${theme.colors.softWhite};
   }
-  & nav button[aria-label*=' MANA on '] svg path {
-    fill: ${theme.colors.text2};
+  & nav button[aria-label*=' MANA on '] svg path:not([stroke]) {
+    fill: ${theme.colors.softWhite};
   }
 
   /* Mobile hamburger / menu button: solid purple with a white icon (Figma node 1368-356253) — ui2's

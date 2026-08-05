@@ -29,7 +29,7 @@ export const Backdrop = styled.div`
   z-index: ${z.overlay};
 `
 
-// data-success centers the layout for the post-listing confirmation view.
+// data-success / data-failure center the layout for an outcome view (a confirmation or a failure report).
 export const Modal = styled.div`
   background: ${colors.white};
   border-radius: ${radius.card};
@@ -44,11 +44,13 @@ export const Modal = styled.div`
   flex-direction: column;
   gap: 12px;
 
-  &[data-success] {
+  &[data-success],
+  &[data-failure] {
     text-align: center;
     align-items: center;
   }
-  &[data-success] [data-actions] {
+  &[data-success] [data-actions],
+  &[data-failure] [data-actions] {
     justify-content: center;
     width: 100%;
   }

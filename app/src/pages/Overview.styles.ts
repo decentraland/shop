@@ -37,13 +37,50 @@ export const HeroCta = styled(Button)`
   height: 52px;
   padding: 0 16px;
   border-radius: ${theme.radius.btn};
-  font-size: 15px;
-  letter-spacing: 0.46px;
 
-  ${media.maxWidth('mobile')} {
-    /* A 246px button is most of a phone's width; let it shrink rather than crowd the edges. */
-    width: auto;
-    max-width: 100%;
+  /* Both entry points into buying credits look and behave alike, so this carries the nav's GET CREDITS
+     treatment: the orange BUY Button gradient, and a hover that keeps the gradient and adds the ring
+     rather than filling flat (the design system's Credits type). Doubled ampersands because the purple
+     variant's own rules are an attribute selector and outweigh this class on their own. */
+  && {
+    background: ${theme.gradients.buyBtn};
+    font-size: 15px;
+    letter-spacing: 0.46px;
+    transition: filter 0.15s ease;
+  }
+  /* The variant fades a solid accent overlay in on hover; the credits button has no flat state. */
+  &&::before {
+    content: none;
+  }
+  /* Hover ring: a gradient stroke OUTSIDE the button with a gap the page shows through — masked, since
+     a plain outline can't take a gradient. */
+  &&::after {
+    content: '';
+    position: absolute;
+    inset: -6px;
+    border-radius: calc(${theme.radius.btn} + 6px);
+    padding: 2px;
+    background: ${theme.gradients.buyBtn};
+    -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    mask-composite: exclude;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    pointer-events: none;
+  }
+  &&:hover:not(:disabled) {
+    filter: brightness(1.08);
+  }
+  &&:hover:not(:disabled)::after {
+    opacity: 1;
+  }
+  &&:active:not(:disabled) {
+    filter: brightness(0.95);
   }
 `
 
@@ -87,7 +124,8 @@ export const Overview = styled.div`
   }
 `
 
-// Full-bleed rounded banner: the art is a single background image, title + CTA overlaid on the left.
+// Full-bleed banner (Figma dark theme): breaks out of the centred page container to run edge to edge,
+// flush under the sub-nav. The art is a single background image, title + CTA overlaid on the left.
 export const Hero = styled.section`
   position: relative;
   display: flex;
@@ -119,10 +157,15 @@ export const Hero = styled.section`
      window, 134px at 1920 (the cap's own inset plus the gutter), 16px at 390. */
   padding-inline: calc(50vw - 50%);
 
+  /* The mobile frame (Figma 1016:89483) is a different composition, not a squeeze of the wide one:
+     a square collage with the copy CENTERED near its bottom edge (title block ends 43px above it). */
   ${media.maxWidth('mobile')} {
-    aspect-ratio: auto;
-    min-height: 200px;
+    aspect-ratio: 390 / 389;
     max-height: none;
+    margin-top: -16px;
+    align-items: flex-end;
+    justify-content: center;
+    padding-bottom: 43px;
   }
 `
 
@@ -144,6 +187,11 @@ export const HeroInner = styled.div`
   flex-direction: column;
   align-items: flex-start;
   gap: 32px;
+
+  ${media.maxWidth('mobile')} {
+    align-items: center;
+    text-align: center;
+  }
 `
 
 // Figma 1864:223112: Inter Bold 48/1.235 in white, sentence case — the uppercase this used to force is
@@ -157,6 +205,11 @@ export const HeroTitle = styled.h1`
   font-size: clamp(28px, 4vw, 48px);
   font-weight: 700;
   line-height: 1.235;
+
+  /* Figma 2004:322552: the phone headline is a fixed 32, larger than the clamp's floor. */
+  ${media.maxWidth('mobile')} {
+    font-size: 32px;
+  }
 `
 
 // Reuses the global `.row` head/title/viewall; adds the Figma side arrows + pagination dots.
@@ -171,4 +224,14 @@ export const Carousel = styled.section`
 // pages the same way).
 export { CarouselTrack as Track, Viewport, Arrow, Dots, Dot } from '~/styles/row.styles'
 
-// Two side-by-side promo banners, stacking to one column on mobile.
+// Two side-by-side live promo tiles (LivePromo), stacking to one column on mobile.
+export const Promos = styled.section`
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin: 0 0 50px;
+
+  ${media.maxWidth('mobile')} {
+    grid-template-columns: 1fr;
+  }
+`

@@ -9,6 +9,9 @@ import { OutfitsRow } from '~/components/OutfitsRow'
 import { TopCreators } from '~/components/TopCreators'
 import { t } from '~/intl/i18n'
 import { useSeo } from '~/hooks/useSeo'
+import { LivePromo } from '~/components/LivePromo'
+import promoEmotes from '~/assets/overview/promo-best-rated-emotes.png'
+import promoOutfits from '~/assets/overview/promo-week-selected-outfits.png'
 import { useSecondarySales } from '~/hooks/useSecondarySales'
 import { railPageCount, railPageFromScroll } from '~/lib/pagedRail'
 import carouselArrow from '~/assets/icons/carousel-arrow.svg'
@@ -18,6 +21,7 @@ import carouselArrow from '~/assets/icons/carousel-arrow.svg'
 // WebP, not PNG: the export is fully opaque, so the alpha channel was dead weight, and the same art is
 // 90 KB here against 1.09 MB as a PNG.
 import heroBanner from '~/assets/overview/hero-credits-outfits.webp'
+import heroBannerMobile from '~/assets/overview/hero-credits-mobile.webp'
 import { Icon } from '~/components/Icon'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import * as Row from '~/styles/row.styles'
@@ -181,7 +185,12 @@ export function Overview() {
   return (
     <S.Overview className="overview">
       <S.Hero>
-        <S.HeroBg src={heroBanner} alt="" aria-hidden />
+        {/* Phones get the design's own square collage (Figma 2004:322520) rather than a crop of the
+            wide banner — the mobile frame is a different composition, not a resize. */}
+        <picture>
+          <source media="(max-width: 768px)" srcSet={heroBannerMobile} />
+          <S.HeroBg src={heroBanner} alt="" aria-hidden />
+        </picture>
         {/* No scrim over this banner: the artwork carries its own left-to-right darkening (a
             multiply-blended gradient in the Figma source), so the separate scrim layer stacked a second
             one on top and took the left half of the image to near-black. */}
@@ -205,6 +214,12 @@ export function Overview() {
         <Carousel title={t('overview.trendingProducts')} items={trendingItems} loading={trendingLoading} />
       ) : null}
 
+      {/* "Buy the Look" sits between the two listing rails, per the section order design settled on:
+          Trending → Buy the Look → New Creations → the promo tiles → creators. Outside the listings
+          branch below on purpose — it self-fetches from the outfit feed, so on an environment with no
+          shop-server the section is simply absent rather than gated on a query it does not use. */}
+      <OutfitsRow />
+
       {isLoading || items.length > 0 ? (
         <>
           {/* New Creations now shows the newest twelve — slice(0, 12), not slice(12, 24).
@@ -218,12 +233,36 @@ export function Overview() {
               rail left, so a second guard on it would always be true. */}
           <Carousel title={t('overview.newCreations')} items={items.slice(0, 12)} loading={isLoading} />
 
-          {/* "Buy the Look" is the THIRD section, after both carousels. It sat between them for a while
-              because that is the order the mobile Figma frame (1016:84664) draws; the product order is the
-              one here — the two listing rails first, outfits under them.
-              It self-fetches and renders nothing until published outfits resolve, so on an environment with
-              no shop-server the section is simply absent — it is a place for outfits, not a guaranteed one. */}
-          <OutfitsRow />
+          {/* Live promo tiles: real avatars over the fitting room's animated backdrop — the monkey
+              playing HOT SAX for emotes, the week's featured skin doing Catwalk & Twirls for outfits. */}
+          <S.Promos>
+            <LivePromo
+              id="shop-promo-emotes"
+              to="/items?category=emote"
+              urns={[
+                'urn:decentraland:matic:collections-v2:0x0c956c74518ed34afb7b137d9ddfdaea7ca13751:0',
+                'urn:decentraland:matic:collections-v2:0xe9f388ae27c726c4772c85a194e9791b1a0a913c:0'
+              ]}
+              title={t('overview.expressWithStyle')}
+              cta={t('overview.exploreEmotes')}
+              ariaLabel={t('overview.promoEmotesAria')}
+              fallback={promoEmotes}
+              fallbackAlt={t('overview.promoEmotesAlt')}
+            />
+            <LivePromo
+              id="shop-promo-outfits"
+              to="/items"
+              urns={[
+                'urn:decentraland:matic:collections-v2:0x9620151fe5e1c8fd0638a4840cf5e63d19b09765:0',
+                'urn:decentraland:matic:collections-v2:0x6c3ca91dbac390d60d4267fdcf48576f6c051dbe:0'
+              ]}
+              title={t('overview.findYourLook')}
+              cta={t('overview.exploreWearables')}
+              ariaLabel={t('overview.promoOutfitsAria')}
+              fallback={promoOutfits}
+              fallbackAlt={t('overview.promoOutfitsAlt')}
+            />
+          </S.Promos>
         </>
       ) : (
         <S.Empty>

@@ -11,8 +11,13 @@ export const Head = styled.div`
   margin-bottom: 20px;
 `
 
+export const Title = styled.h1`
+  margin: 0;
+  color: ${colors.softWhite};
+`
+
 export const Count = styled.span`
-  color: ${colors.muted};
+  color: ${colors.gray4};
   font-size: 14px;
 `
 
@@ -60,6 +65,7 @@ export const Retry = styled.button`
   }
 `
 
+// No card: the empty state sits directly on the page's purple field, white text on it.
 export const Empty = styled.div`
   display: flex;
   flex-direction: column;
@@ -68,10 +74,8 @@ export const Empty = styled.div`
   gap: 24px;
   min-height: 50vh;
   padding: 48px 16px;
-  background: ${colors.white};
-  border-radius: 16px;
   text-align: center;
-  color: ${colors.text};
+  color: ${colors.softWhite};
 `
 
 export const EmptyIcon = styled.img`

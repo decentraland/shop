@@ -84,7 +84,7 @@ export const HeadRow = styled.div`
 export const Title = styled.h2`
   margin: 0;
   font-size: 20px;
-  font-weight: 600;
+  font-weight: 700;
   line-height: 1.6;
   color: ${colors.text};
 `
@@ -197,15 +197,15 @@ export const AssetPrice = styled.div`
   gap: 4px;
 
   & span {
-    font-size: 24px;
+    font-size: 20.5px;
     font-weight: 600;
     color: ${colors.text2};
   }
 `
 
 export const AssetPriceIco = styled(CurrencyIcon)`
-  width: 24px;
-  height: 24px;
+  width: 21.5px;
+  height: 21.5px;
   background: ${colors.text2};
 `
 
@@ -225,7 +225,6 @@ export const WarningText = styled.p`
   font-size: 14px;
   line-height: 1.334;
   color: ${colors.text2};
-  text-align: center;
 
   & b {
     font-weight: 700;
@@ -251,14 +250,16 @@ export const Pack = styled.button`
   transition: border-color 0.12s ease;
 
   &[data-on] {
-    border: 4px solid ${colors.magenta};
+    border: 4px solid #ff7439;
   }
 `
 
-export const PackIco = styled(CurrencyIcon)`
+// The pack tiles carry the design's ILLUSTRATED coin (Figma "Credits Packs Item"), not the flat
+// currency mark the prices use — it is artwork, so it ships as an image rather than a mask icon.
+export const PackIco = styled.img`
   width: 24px;
-  height: 24px;
-  background: ${colors.text};
+  height: 26px;
+  flex: none;
 `
 
 export const PackAmount = styled.span`
@@ -320,7 +321,7 @@ export const Btn = styled.button`
   /* Let the CTAs shrink so their min-content can't widen the modal past the viewport on mobile. */
   min-width: 0;
   height: 46px;
-  border-radius: ${radius.btn};
+  border-radius: ${radius.card};
   border: 0;
   cursor: pointer;
   font-size: 15px;
@@ -335,15 +336,28 @@ export const Btn = styled.button`
   &[data-full] {
     width: 100%;
   }
+  /* The design system's primary fill (Figma 738:53266 "BUY Button") — the same gradient the cart's
+     CHECKOUT carries, so the two ends of the buy flow match. */
   &[data-variant='gradient'] {
-    background: ${gradients.amethyst};
+    background: ${gradients.buyBtn};
     color: ${colors.softWhite};
+  }
+  &[data-variant='gradient']:hover:not(:disabled),
+  &[data-variant='gradient']:active:not(:disabled) {
+    background-image: linear-gradient(${colors.dclRed}, ${colors.dclRed});
   }
   &[data-variant='outline'] {
     background: transparent;
-    border: 2px solid ${colors.accent};
-    color: ${colors.accent};
+    border: 0.5px solid ${colors.text};
+    color: ${colors.text2};
     font-size: 13px;
+  }
+  /* Figma's outlined hover (738:53251), which on this light card is the readable half of the pair: the
+     white-fill hover the dark-field buttons take would be invisible here. Same treatment as the
+     drawer's dismissing CTA (CartPopover ctaCss) — the two sit in one flow. */
+  &[data-variant='outline']:hover:not(:disabled) {
+    background: ${colors.text2};
+    color: ${colors.softWhite};
   }
   &[data-variant='ruby'] {
     background: ${colors.dclRed};

@@ -45,32 +45,13 @@ export const Sidebar = styled.aside`
     max-height: calc(100vh - 158px - 24px);
     overflow-y: auto;
     overscroll-behavior: contain;
-    /* Reserve the scrollbar gutter so revealing the bar on hover doesn't shift the filter content. */
-    scrollbar-gutter: stable;
-
-    /* Subtle scrollbar (matches the cart scroll list). The track width is reserved CONSTANTLY — the same
-       8px at rest and on hover — so revealing the scrollbar never consumes space and pushes the sidebar
-       content left. Only the THUMB fades in on hover; at rest both thumb and track are transparent, so
-       the gutter is invisible but its space is already held. Firefox keeps scrollbar-width: thin (not
-       none -> thin, which would also shift) and just recolours the thumb on hover. */
-    scrollbar-width: thin;
-    scrollbar-color: transparent transparent;
+    /* Scrollbar fully hidden (it used to fade in on hover, which read as a glitch on the dark theme).
+       Wheel/trackpad/keyboard scrolling still works; the column just never shows a bar. */
+    scrollbar-width: none;
+    -ms-overflow-style: none;
     &::-webkit-scrollbar {
-      width: 8px;
-    }
-    &::-webkit-scrollbar-track {
-      background: transparent;
-    }
-    &::-webkit-scrollbar-thumb {
-      background: transparent;
-      border-radius: 8px;
-      transition: background 0.2s ease;
-    }
-    &:hover {
-      scrollbar-color: ${theme.colors.muted2} transparent;
-    }
-    &:hover::-webkit-scrollbar-thumb {
-      background: ${theme.colors.muted2};
+      width: 0;
+      display: none;
     }
   }
 
@@ -86,7 +67,7 @@ export const Sidebar = styled.aside`
     display: flex;
     flex-direction: column;
     border-radius: 16px 16px 0 0;
-    background: ${theme.colors.white};
+    background: #2b0e44;
     padding: 0 16px;
     box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.18);
     transform: translateY(100%);
@@ -130,7 +111,7 @@ export const DrawerHead = styled.div`
     display: flex;
     align-items: center;
     justify-content: space-between;
-    background: ${theme.colors.white};
+    background: #2b0e44;
     margin: 0 -16px 8px;
     padding: 16px 16px 12px;
     border-radius: 16px 16px 0 0;
@@ -143,7 +124,7 @@ export const DrawerTitle = styled.span`
   font-size: 15px;
   letter-spacing: 0.46px;
   text-transform: uppercase;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
 `
 
 export const CloseBtn = styled.button`
@@ -152,12 +133,12 @@ export const CloseBtn = styled.button`
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: ${theme.colors.chip};
+  background: rgba(255, 255, 255, 0.16);
   border: 0;
   font-size: 15px;
   line-height: 1;
   cursor: pointer;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
 
   &:focus-visible {
     outline: 2px solid ${theme.colors.accent};
@@ -178,7 +159,7 @@ export const DrawerFoot = styled.div`
     bottom: 0;
     margin: 8px -16px 0;
     padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
-    background: ${theme.colors.white};
+    background: #2b0e44;
     box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.25);
     z-index: 1;
   }
@@ -230,6 +211,8 @@ export const MarketBanner = styled.p`
 
 // Zero-results state for the grid (search/filters returned nothing) — a white rounded card centering
 // an illustration, the "Oops!" copy and an Explore Shop CTA.
+// Figma "EMpty states" (2103:412914): a translucent-black panel over the purple field, not a white
+// card — the page has no light surfaces, so a white block here read as a hole in the layout.
 export const EmptyState = styled.div`
   display: flex;
   flex-direction: column;
@@ -238,7 +221,7 @@ export const EmptyState = styled.div`
   gap: 24px;
   padding: 48px 16px;
   border-radius: 16px;
-  background: ${theme.colors.white};
+  background: rgba(0, 0, 0, 0.2);
   text-align: center;
 `
 
@@ -253,7 +236,7 @@ export const EmptyText = styled.div`
   align-items: center;
   gap: 12px;
   padding-bottom: 16px;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
 `
 
 export const EmptyTitle = styled.p`
@@ -291,11 +274,12 @@ export const EmptyBtn = styled.button`
   justify-content: center;
   gap: 8px;
   width: 100%;
-  height: 56px;
+  height: 52px;
   padding: 0 12px;
   border: 0;
   border-radius: 12px;
-  background: ${theme.colors.accent};
+  /* The design's own CTA here is a deeper translucent black on the panel, not a solid purple. */
+  background: rgba(0, 0, 0, 0.4);
   color: ${theme.colors.softWhite};
   font-family: ${theme.font.sans};
   font-weight: 600;
@@ -306,13 +290,13 @@ export const EmptyBtn = styled.button`
   cursor: pointer;
 
   &:hover {
-    background: ${theme.colors.accentHover};
+    background: rgba(0, 0, 0, 0.55);
   }
   &:active {
-    background: ${theme.colors.accentActive};
+    background: rgba(0, 0, 0, 0.65);
   }
   &:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
+    outline: 2px solid ${theme.colors.softWhite};
     outline-offset: 2px;
   }
 `

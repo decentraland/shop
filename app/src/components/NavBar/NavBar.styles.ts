@@ -4,7 +4,7 @@ import { theme } from '~/styles/theme'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { Icon } from '~/components/Icon'
 
-const { colors, gradients, radius, media } = theme
+const { colors, radius, gradients, media } = theme
 
 const mobile = media.maxWidth('mobile')
 // One row cannot hold the tab strip, a usable search field AND the balance/credits/cart cluster below
@@ -24,8 +24,18 @@ export const Subnav = styled.div`
   height: 66px;
   /* 54px matches the ui2 Navbar's desktop side padding so the sub-nav aligns with the top nav. */
   padding: 0 54px;
-  background: ${colors.white};
-  border-bottom: 1px solid ${colors.line};
+  /* Dark-theme test: translucent deep purple (#401458, per the designer) over the page field, hairline
+     white divider. 20% at rest, deepening to 80% once the page scrolls so the bar doesn't wash out over
+     light content passing underneath — the same treatment the top nav carries. */
+  background: rgba(64, 20, 88, 0.2);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+  transition: background 0.25s ease;
+
+  &[data-scrolled] {
+    background: rgba(64, 20, 88, 0.8);
+  }
 
   ${stacked} {
     height: auto;
@@ -111,11 +121,12 @@ export const Tabs = styled.nav`
     border-bottom: 4px solid transparent;
   }
   & a:hover {
-    color: ${colors.text};
+    color: ${colors.white};
   }
+  /* Active tab: white label + orange underline (Figma dark theme). */
   & a.active {
-    color: ${colors.text};
-    border-bottom-color: ${colors.text};
+    color: ${colors.white};
+    border-bottom-color: #ff7439;
   }
 
   ${stacked} {
@@ -154,8 +165,8 @@ export const Search = styled.div`
   display: flex;
   align-items: center;
   gap: 10px;
-  background: rgba(0, 0, 0, 0.05);
-  border: 1px solid ${colors.lineStrong};
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid #c6bcd7;
   border-radius: ${radius.pill};
   padding: 0 16px;
   height: 40px;
@@ -166,10 +177,10 @@ export const Search = styled.div`
     width: 100%;
     font-size: 15px;
     background: transparent;
-    color: ${colors.text};
+    color: ${colors.white};
   }
   & input::placeholder {
-    color: ${colors.muted};
+    color: ${colors.muted2};
   }
 
   ${stacked} {
@@ -199,15 +210,15 @@ export const SearchClear = styled.button`
   padding: 0;
   border: 0;
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.08);
-  color: ${colors.muted};
+  background: rgba(255, 255, 255, 0.14);
+  color: ${colors.muted2};
   font-size: 15px;
   line-height: 1;
   cursor: pointer;
 
   &:hover {
-    background: rgba(0, 0, 0, 0.16);
-    color: ${colors.text};
+    background: rgba(255, 255, 255, 0.26);
+    color: ${colors.white};
   }
 `
 
@@ -222,12 +233,13 @@ export const Credits = styled(NavLink)`
   height: 40px;
   padding: 0 16px;
   border-radius: ${radius.btn};
-  background: ${gradients.amethyst};
+  /* The orange "BUY Button" gradient — the same fill the promo CTAs carry (Figma 738:53266). */
+  background: ${gradients.buyBtn};
   color: ${colors.softWhite};
   font-weight: 600;
   font-size: 13px;
   text-transform: uppercase;
-  letter-spacing: 0.046em;
+  letter-spacing: 0.46px;
   white-space: nowrap;
   transition: filter 0.15s ease;
 
@@ -239,7 +251,7 @@ export const Credits = styled(NavLink)`
     inset: -6px;
     border-radius: calc(${radius.btn} + 6px);
     padding: 2px;
-    background: ${gradients.amethyst};
+    background: ${gradients.buyBtn};
     -webkit-mask:
       linear-gradient(#fff 0 0) content-box,
       linear-gradient(#fff 0 0);
@@ -281,13 +293,13 @@ export const Fav = styled(NavLink)`
   width: 40px;
   height: 40px;
   border-radius: ${radius.btn};
-  color: ${colors.text2};
+  color: #ecebed;
   transition:
     background 0.12s ease,
     color 0.12s ease;
 
   &:hover {
-    background: ${colors.media};
+    background: rgba(255, 255, 255, 0.12);
   }
 
   ${stacked} {
@@ -320,12 +332,12 @@ export const FavOutline = styled(Icon)`
   }
 `
 
-// The solid black heart grows from the centre when the favourites route is active: springy pop in,
+// The solid heart grows from the centre when the favourites route is active: springy pop in,
 // quick scale-out on leave.
 export const FavFill = styled(Icon)`
   position: absolute;
   inset: 0;
-  color: ${colors.text};
+  color: ${colors.white};
   transform: scale(0);
   transform-origin: center;
   transition: transform 200ms ease-in;
@@ -361,7 +373,7 @@ export const Cart = styled.button`
   height: 40px;
   background: transparent;
   border-radius: ${radius.btn};
-  color: ${colors.text2};
+  color: #ecebed;
   border: 0;
   padding: 0;
   font: inherit;
@@ -369,7 +381,7 @@ export const Cart = styled.button`
   transition: background 0.12s ease;
 
   &:hover {
-    background: ${colors.media};
+    background: rgba(255, 255, 255, 0.12);
   }
 `
 
@@ -401,7 +413,7 @@ export const CartOutline = styled(Icon)`
 export const CartFill = styled(Icon)`
   position: absolute;
   inset: 0;
-  color: ${colors.text};
+  color: ${colors.white};
   transform: scale(0);
   transform-origin: center;
   transition: transform 200ms ease-in;
@@ -424,7 +436,8 @@ export const CartBadge = styled.span`
   position: absolute;
   top: -4px;
   right: -4px;
-  background: ${colors.brandViolet};
+  /* Brand/Ruby, per the Figma sub-nav (2090:385780) — was the brand violet. */
+  background: ${colors.dclRed};
   color: ${colors.white};
   font-size: 12px;
   font-weight: 600;
@@ -434,7 +447,6 @@ export const CartBadge = styled.span`
   display: grid;
   place-items: center;
   padding: 0 5px;
-  border: 2px solid ${colors.white};
 `
 
 // The cluster the shop hands to ui2's Navbar as its `notificationSlot` — the only place a consumer can

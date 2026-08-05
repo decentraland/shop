@@ -95,6 +95,7 @@ export type IconName =
   | 'play-loop'
   | 'play-once'
   | 'props'
+  | 'refresh'
   | 'sound'
   | 'smart'
   | 'utility'
