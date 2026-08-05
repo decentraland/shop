@@ -1,9 +1,15 @@
 import { lazy, Suspense, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useSearchParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useWallet } from '~/store/wallet'
-import { fetchUserPurchases, fetchUserCreditOrders, creditOrderPill, type CreditOrder } from '~/lib/credits'
+import {
+  fetchUserPurchases,
+  fetchUserCreditOrders,
+  creditOrderPill,
+  resumeCreditOrder,
+  type CreditOrder
+} from '~/lib/credits'
 import { detailRouteFor } from '~/lib/routes'
 import { fetchTradeDisplay, fetchAssetDisplay, fetchUserSales, type SaleRecord } from '~/lib/api'
 import { foldOrderLines, type PurchaseOrder, type OrderLineItem } from '~/lib/purchases'
@@ -20,6 +26,7 @@ import manaSymbol from '~/assets/mana-matic.svg'
 import { Icon } from '~/components/Icon'
 import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
+import { toast } from '~/store/toast'
 import * as S from './Activity.styles'
 import { theme } from '~/styles/theme'
 
@@ -322,11 +329,44 @@ function SaleCard({ sale, payout }: { sale: ActivitySale; payout: SalePayout }) 
 // card's income treatment.
 function CreditPurchaseCard({ order }: { order: CreditOrder }) {
   const usd = `$${(order.usdCents / 100).toFixed(2)}`
-  // The credits-server speaks processing/crediting/credited/failed — mapped to the pill's own vocabulary in
-  // lib/credits, so nothing here compares against a value the server cannot send.
+  // The credits-server speaks initiated/processing/crediting/credited/failed — mapped to the pill's own
+  // vocabulary in lib/credits, so nothing here compares against a value the server cannot send.
   const pill = creditOrderPill(order.status)
   const pillLabel =
-    pill === 'SETTLED' ? t('activity.completed') : pill === 'FAILED' ? t('activity.failed') : t('activity.processing')
+    pill === 'SETTLED'
+      ? t('activity.completed')
+      : pill === 'FAILED'
+        ? t('activity.failed')
+        : pill === 'UNFINISHED'
+          ? t('activity.unfinished')
+          : t('activity.processing')
+
+  const session = useWallet(s => s.session)
+  const queryClient = useQueryClient()
+  const [resuming, setResuming] = useState(false)
+  // Only an unpaid checkout can be picked back up, and only while its hosted session is alive — which
+  // the server confirms with Stripe on the click. Rendering the action is therefore a guess; the click
+  // is what settles it, and a session that turns out to be dead retires the order there and then.
+  const canResume = order.status === 'initiated' && !!session
+
+  async function onResume() {
+    if (!session || resuming) return
+    setResuming(true)
+    try {
+      const url = await resumeCreditOrder(order.id, session.identity)
+      if (url) {
+        window.location.href = url
+        return
+      }
+      // The checkout died while it sat in the feed. The server has already retired it, so refreshing
+      // the list is what tells the buyer — rather than an error about something they cannot act on.
+      toast.info(t('activity.resumeExpired'))
+      void queryClient.invalidateQueries({ queryKey: ['credit-orders'] })
+    } finally {
+      setResuming(false)
+    }
+  }
+
   return (
     <S.Card data-testid="credit-order">
       <S.CardHead>
@@ -342,6 +382,16 @@ function CreditPurchaseCard({ order }: { order: CreditOrder }) {
           </S.SubCount>
         </S.HeadLeft>
         <S.HeadRight>
+          {canResume ? (
+            <S.ResumeButton
+              type="button"
+              onClick={() => void onResume()}
+              disabled={resuming}
+              data-testid="resume-order"
+            >
+              {resuming ? t('activity.resuming') : t('activity.resume')}
+            </S.ResumeButton>
+          ) : null}
           <S.Pill data-status={pill}>{pillLabel}</S.Pill>
           <S.Total data-kind="income">
             +<CurrencyIcon className="ccy-mark" /> {order.credits}

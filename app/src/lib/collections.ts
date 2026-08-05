@@ -18,12 +18,15 @@ type RawCollectionItem = {
   network: string
   chainId: number
   thumbnail?: string
+  // The canonical asset urn. /v3/catalog/items returns it on every row, and it is the ONLY thing that
+  // identifies a non-Polygon item to the 3D preview — see CatalogItem.urn.
+  urn?: string
   // Server-computed whole credits (asset-aware: USD-pegged priced directly, MANA converted at the
   // oracle rate; 0 when the item isn't for sale). We consume this as-is — no client conversion.
   priceCredits?: number
   data?: {
     wearable?: { category?: string; bodyShapes?: string[]; isSmart?: boolean }
-    emote?: { category?: string }
+    emote?: { category?: string; loop?: boolean; hasSound?: boolean; hasGeometry?: boolean }
   }
 }
 
@@ -44,8 +47,12 @@ function toCatalogItem(r: RawCollectionItem): CatalogItem {
     creator: r.creator ?? '',
     contractAddress: r.contractAddress,
     itemId: r.itemId ?? null,
+    urn: r.urn,
     category: r.category,
     wearableCategory: r.data?.wearable?.category ?? r.data?.emote?.category,
+    emoteLoop: r.data?.emote?.loop,
+    emoteHasSound: r.data?.emote?.hasSound,
+    emoteHasProps: r.data?.emote?.hasGeometry,
     rarity: r.rarity ?? 'common',
     isSmart: !!r.data?.wearable?.isSmart,
     network: r.network,

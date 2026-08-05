@@ -10,6 +10,7 @@ import { useSeo } from '~/hooks/useSeo'
 import { track, errorCode } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
 import { t } from '~/intl/i18n'
+import { cancelCreditOrder } from '~/lib/credits'
 import { RESUME_BUY_KEY } from '~/lib/resume-buy'
 import { RESUME_CART_KEY } from '~/lib/cart-checkout'
 import type { CartNavState } from '~/pages/Cart'
@@ -256,6 +257,11 @@ export function GetCredits() {
       // Buyer abandoned Stripe's hosted checkout (came back via `?canceled=1`). The single biggest
       // drop in a payments funnel — tracked so we can measure hosted-page abandonment.
       track('Shop Buy Credits Cancelled', { order_id: orderId, provider: CREDITS_PROVIDER })
+      // Retire the order now rather than leaving it to look like a pending purchase in Activity until
+      // the session ages out. Fire-and-forget on purpose: the server does not take our word for it (it
+      // expires the session at Stripe first) and reaches the same end without us via
+      // `checkout.session.expired`, so there is nothing here worth making the buyer wait on or see fail.
+      if (orderId && session) void cancelCreditOrder(orderId, session.identity)
       clearReturnParams()
       setCanceledNote(true)
       setPhase('select')

@@ -41,6 +41,11 @@ function emitPackageJson() {
 
 export default defineConfig({
   base,
+  // Two dev servers on one checkout would otherwise share `node_modules/.vite` and clobber each other's
+  // dep optimization — the second one's browser then 504s on stale, already-rewritten dep URLs and the
+  // page crashes. The e2e suite does exactly that: a shared server plus the outfits spec's own. Give
+  // each a private cache dir via this env var (see e2e/helpers/app.ts `hermeticViteEnv`).
+  cacheDir: process.env.VITE_CACHE_DIR || undefined,
   plugins: [
     react(),
     nodePolyfills({ globals: { Buffer: true, global: true, process: true } }),
@@ -113,6 +118,8 @@ export default defineConfig({
   server: {
     port: 5173,
     // Proxy the auth app so sign-in works on localhost (same-origin → shared identity storage).
+    // Vercel previews need the same thing and get it from the rewrite in vercel.json — keep the two
+    // in step, and note that neither applies to a real deploy, where /auth is genuinely same-origin.
     //
     // The key is a REGEXP, not a plain prefix, and that matters: a plain '/auth' also matches
     // /authorizations, so the Approvals page got proxied to decentraland.zone and a hard load (or a

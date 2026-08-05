@@ -1,19 +1,98 @@
 import styled from '@emotion/styled'
 import { theme } from '~/styles/theme'
 
-const { colors, radius } = theme
+const { colors, radius, media } = theme
+
+// How long a skeleton takes to dissolve into the content that replaced it. Exported because the
+// component unmounts the fading layer on the same timing (see SkeletonCards.tsx).
+export const SETTLE_MS = 250
+
+// The placeholder fill, shared by every skeleton shape here so a rail of cards and a rail of outfits
+// shimmer as one surface.
+const shimmerFill = `
+  background: linear-gradient(100deg, #efeef2 30%, #e2e0e7 50%, #efeef2 70%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite linear;
+`
 
 // A card-shaped shimmer placeholder, sized to the real AssetCard so a loading grid/rail holds its
-// eventual height.
+// eventual height. 300px is AssetCard's own fixed height (AssetCard.styles Card) at EVERY breakpoint —
+// measured against the real card in the browser at 218.8x300 (desktop) and 156.5x300 (375px), which is
+// this box exactly.
 export const SkeletonCard = styled.div`
   min-height: 300px;
   border: 1px solid ${colors.line};
   border-radius: ${radius.card};
-  background: linear-gradient(100deg, #efeef2 30%, #e2e0e7 50%, #efeef2 70%);
-  background-size: 200% 100%;
-  animation: shimmer 1.4s infinite linear;
+  ${shimmerFill};
 
   @media (prefers-reduced-motion: reduce) {
     animation: none;
+  }
+`
+
+// An OUTFIT-shaped placeholder ("Shop the look"). The real OutfitCard is a transparent 27:40 box whose
+// VISIBLE card is its bottom 90% — the top 10% is headroom the look's head crests into — rounded 15px
+// (OutfitCard.styles). Those three numbers are restated rather than imported because they are that
+// card's geometry rather than tokens; what keeps the two in step is the e2e measuring one against the
+// other (218.8x324.14 desktop, 343x457.33 at 375px — matched by the aspect ratios below).
+export const SkeletonOutfitCard = styled.div`
+  position: relative;
+  aspect-ratio: 27 / 40;
+
+  ${media.maxWidth('mobile')} {
+    aspect-ratio: 3 / 4;
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 10%;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    border-radius: 15px;
+    ${shimmerFill};
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &::after {
+      animation: none;
+    }
+  }
+`
+
+/**
+ * The skeletons' exit: the placeholder rail laid OVER the cards that replaced it, fading out.
+ *
+ * The same crossfade AssetCard makes when its flat thumbnail dissolves into the 3D preview
+ * (AssetCard.styles Img + data-hidden) — the outgoing layer stays visible over the incoming content and
+ * fades, instead of the two swapping in a single frame. Absolutely positioned, so it is out of flow and
+ * costs no layout (the height is held by the real cards underneath), and pointer-events: none so those
+ * cards stay clickable the whole time it is on screen.
+ *
+ * Deliberately geometry-FREE: the caller puts its own rail (the very styled track it uses for the real
+ * cards) inside, so the fading copy cannot drift from the rail it covers at any breakpoint.
+ */
+export const SkeletonSettleLayer = styled.div`
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  overflow: hidden;
+  pointer-events: none;
+  animation: skeleton-settle ${SETTLE_MS}ms ease forwards;
+
+  @keyframes skeleton-settle {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
+  }
+
+  /* Someone who asked for less motion gets the plain swap: the space was already reserved by the
+     skeletons, so there is nothing left for a fade to smooth over. */
+  @media (prefers-reduced-motion: reduce) {
+    display: none;
   }
 `

@@ -99,12 +99,17 @@ function CreatorCard({ address }: { address: string }) {
 
 function SkeletonCard() {
   return (
-    <S.SkeletonCard aria-hidden>
+    <S.SkeletonCard aria-hidden data-testid="top-creator-skeleton">
       <S.Avatar className="skeleton" />
       <S.Panel data-skeleton>
         <S.SkeletonName className="skeleton" />
-        <S.SkeletonDesc className="skeleton" />
-        <S.SkeletonDesc className="skeleton" data-short />
+        {/* The two bars go inside a stand-in for the blurb's own box rather than stacking loose in the
+            panel: loose, their heights and margins summed 2px past the real Desc's two-line floor, and
+            those 2px were the footer sitting lower under a loading row than under a loaded one. */}
+        <S.SkeletonDescBlock>
+          <S.SkeletonDesc className="skeleton" />
+          <S.SkeletonDesc className="skeleton" data-short />
+        </S.SkeletonDescBlock>
         <S.SkeletonCta className="skeleton" />
       </S.Panel>
     </S.SkeletonCard>

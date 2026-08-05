@@ -3,6 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import type { UnifiedListing } from '~/lib/api'
 
 // Assets pulls a lot of heavy ESM transitively (checkout + names libs → decentraland-transactions
 // cross-chain), which doesn't resolve under vitest — mock those seams. We only care that selecting
@@ -13,7 +14,16 @@ vi.mock('~/lib/api', () => ({
 }))
 vi.mock('~/lib/collections', () => ({ fetchCatalogItems: vi.fn().mockResolvedValue({ items: [], total: 0 }) }))
 vi.mock('~/lib/mana-rate', () => ({ manaWeiToCredits: () => 10, manaWeiToUsdCents: () => 100 }))
-vi.mock('~/hooks/useManaRate', () => ({ useManaRate: () => ({ data: undefined, isError: false }) }))
+// The oracle read is a query with THREE states the grid has to tell apart (pending / errored / resolved),
+// so it's a controllable stub rather than a fixed value. Default: settled with no rate (the errored case).
+const { useManaRate } = vi.hoisted(() => ({
+  useManaRate: vi.fn((): { data?: { rate: bigint; decimals: number }; isError: boolean; isPending: boolean } => ({
+    data: undefined,
+    isError: false,
+    isPending: false
+  }))
+}))
+vi.mock('~/hooks/useManaRate', () => ({ useManaRate }))
 vi.mock('~/lib/buy', () => ({ buyWithCredits: vi.fn() }))
 vi.mock('~/lib/gasless-config', () => ({ gaslessEnabled: () => false }))
 vi.mock('~/lib/buy-gasless', () => ({
@@ -22,7 +32,13 @@ vi.mock('~/lib/buy-gasless', () => ({
   GaslessUnavailableError: class extends Error {},
   SettlementPendingError: class extends Error {}
 }))
-vi.mock('~/lib/analytics', () => ({ track: vi.fn(), errorCode: () => 'x', isUserRejection: () => false }))
+vi.mock('~/lib/analytics', () => ({
+  track: vi.fn(),
+  errorCode: () => 'x',
+  isUserRejection: () => false,
+  // Reached through lib/ownership when a real AssetCard renders in the grid (own-listing check).
+  isPrimaryItem: (item: { itemId?: string | null; tokenId?: string }) => !item.tokenId && !!item.itemId
+}))
 
 // The names lib (heavy) — stand-ins are enough for the NAMEs page to mount.
 vi.mock('~/lib/names', () => ({
@@ -78,7 +94,76 @@ async function lastShopItemsCall() {
   return vi.mocked(fetchShopItems).mock.calls.at(-1)![0]
 }
 
-beforeEach(() => vi.clearAllMocks())
+beforeEach(() => {
+  vi.clearAllMocks()
+  useManaRate.mockReturnValue({ data: undefined, isError: false, isPending: false })
+  vi.mocked(fetchShopItems).mockResolvedValue({ items: [], total: 0 })
+})
+
+/**
+ * The on-sale grid renders a legacy row at the LIVE oracle rate, and a legacy row it cannot price is
+ * rendered as a view-only card instead (no purchase at a stale number). "Cannot price" has to mean the
+ * oracle read FAILED, never that it is still running — the two were indistinguishable, so for the whole
+ * window between the item feed landing (one request) and the oracle answering (three sequential on-chain
+ * round-trips, see lib/mana-rate) the grid published every row as a VIEW card: a full-width dark CTA that
+ * is not part of the on-sale card at all, with no creator line and no chips. Production makes it the rule
+ * rather than a rare race — every row of /v3/catalog/unified is `source: 'legacy'`.
+ */
+describe('Assets — on-sale grid while the MANA oracle read is in flight', () => {
+  const legacyRow = {
+    id: 'l1',
+    name: 'Legacy Hat',
+    creator: '0xc'.padEnd(42, '0'),
+    contractAddress: '0xabc',
+    itemId: '3',
+    category: 'wearable',
+    rarity: 'rare',
+    network: 'MATIC',
+    chainId: 80002,
+    thumbnail: '',
+    priceCredits: 5,
+    gender: null,
+    isSmart: false,
+    source: 'legacy',
+    acquisition: 'trade',
+    manaWei: '15000000000000000000'
+  } as UnifiedListing
+
+  it('should keep the skeleton up rather than render the row as a VIEW card', async () => {
+    vi.mocked(fetchShopItems).mockResolvedValue({ items: [legacyRow], total: 1 })
+    useManaRate.mockReturnValue({ data: undefined, isError: false, isPending: true })
+
+    renderAssets()
+    // The row HAS arrived (the count is rendered from the same response) — what must not have happened is
+    // committing it to a card while the price it would show is still unknown.
+    await waitFor(() => expect(screen.getByTestId('browse-count').textContent).toContain('1'))
+
+    expect(screen.queryByTestId('card-view')).toBeNull()
+    expect(screen.queryByTestId('card')).toBeNull()
+  })
+
+  it('should render the row as an ordinary add-to-cart card once the rate resolves', async () => {
+    vi.mocked(fetchShopItems).mockResolvedValue({ items: [legacyRow], total: 1 })
+    useManaRate.mockReturnValue({ data: { rate: 1n, decimals: 8 }, isError: false, isPending: false })
+
+    renderAssets()
+
+    expect(await screen.findByTestId('card')).toBeInTheDocument()
+    expect(screen.getByTestId('card-cart')).toBeInTheDocument()
+    expect(screen.queryByTestId('card-view')).toBeNull()
+  })
+
+  it('should still fall back to a VIEW card when the oracle read has settled with no rate', async () => {
+    vi.mocked(fetchShopItems).mockResolvedValue({ items: [legacyRow], total: 1 })
+    useManaRate.mockReturnValue({ data: undefined, isError: true, isPending: false })
+
+    renderAssets()
+
+    // A failed read is a real answer: the row is unpriceable, so it must not offer a purchase.
+    expect(await screen.findByTestId('card-view')).toBeInTheDocument()
+    expect(screen.queryByTestId('card-cart')).toBeNull()
+  })
+})
 
 describe('Assets — NAMEs category', () => {
   it('should render the collectibles grid by default (not the NAMEs page)', () => {

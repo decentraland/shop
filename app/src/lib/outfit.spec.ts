@@ -1,5 +1,14 @@
 import { describe, it, expect, vi } from 'vitest'
-import { isWearable, slotOf, defaultWorn, toggleWorn, conflictingIds, wornUrns } from './outfit'
+import {
+  isWearable,
+  slotOf,
+  defaultWorn,
+  toggleWorn,
+  conflictingIds,
+  wornUrns,
+  outfitPreviewUrns,
+  playingEmote
+} from './outfit'
 import type { CatalogItem } from '~/lib/api'
 
 // itemUrn (via wornUrns) reads config.chainId — pin it so URNs are deterministic (amoy).
@@ -103,5 +112,36 @@ describe('wornUrns', () => {
   it('skips wearables with no itemId (no equippable URN)', () => {
     const noItem = item({ id: 'n', wearableCategory: 'hat', itemId: null })
     expect(wornUrns([noItem], new Set(['n']))).toEqual([])
+  })
+})
+
+describe('outfitPreviewUrns', () => {
+  const urn = (itemId: string) => `urn:decentraland:amoy:collections-v2:0xc:${itemId}`
+
+  it('keeps the wearables in authored order when there is no emote', () => {
+    expect(outfitPreviewUrns([hatA, top])).toEqual([urn('10'), urn('12')])
+  })
+
+  // Position, not membership: Unity's marketplace mode reads urns[0] and ignores the rest.
+  it('puts the emote FIRST, ahead of every wearable', () => {
+    expect(outfitPreviewUrns([hatA, top, danceEmote])).toEqual([urn('13'), urn('10'), urn('12')])
+  })
+
+  it('sends only the first emote, so both renderers play the same one', () => {
+    const second = item({ id: 'e2', category: 'emote', wearableCategory: 'fun', itemId: '14' })
+    expect(outfitPreviewUrns([danceEmote, hatA, second])).toEqual([urn('13'), urn('10')])
+  })
+
+  it('skips items with no itemId', () => {
+    const noItem = item({ id: 'n', wearableCategory: 'hat', itemId: null })
+    expect(outfitPreviewUrns([noItem, top])).toEqual([urn('12')])
+  })
+})
+
+describe('playingEmote', () => {
+  it('is the first emote in authored order, or nothing', () => {
+    const second = item({ id: 'e2', category: 'emote', itemId: '14' })
+    expect(playingEmote([hatA, danceEmote, second])?.id).toBe('e')
+    expect(playingEmote([hatA, top])).toBeUndefined()
   })
 })

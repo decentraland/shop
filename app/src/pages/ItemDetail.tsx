@@ -398,6 +398,23 @@ export function ItemDetail() {
   // materialized view lags behind a take-down, so `current.tradeId` (seeded from a grid row that predates it)
   // and the resolved trade can both still name a listing we know is dead. Without that filter the page keeps
   // offering the listing it just cancelled until a full reload.
+  /**
+   * Emote playback traits, from whichever row actually carries them.
+   *
+   * `current` is seeded from the shop feed, and /v3/catalog/shop is FLAT — no `data` object at all, so no
+   * loop / hasSound / hasGeometry. The backfill below cannot help either: it bails out once `current.name`
+   * is set, which it always is when you arrive from the grid. /v3/catalog/items does return them, and the
+   * sibling list is already fetched from it, so the row for THIS item is the source.
+   *
+   * Read at render time and narrowly — only these three fields — rather than merged into `current`, which
+   * the authoritative deep-link row owns and must not be clobbered by a generic catalogue sibling.
+   */
+  const emoteTraits = useMemo(() => {
+    if (current.emoteLoop !== undefined) return current
+    const match = pageItemId ? siblings.find(sib => sib.itemId === pageItemId) : undefined
+    return match ?? current
+  }, [current, siblings, pageItemId])
+
   const buyableTradeId = liveTradeId(qc, current.tradeId) ?? liveTradeId(qc, resolvedTradeId)
   const forSale = !!buyableTradeId
 
@@ -1082,6 +1099,31 @@ export function ItemDetail() {
                     {t('itemDetail.smart')}
                   </S.DetailChip>
                 ) : null}
+                {/* Emote playback traits — the same three the marketplace's emote detail shows, from the same fields
+                    (data.emote loop / hasSound / hasGeometry). loop is deliberately tri-state: false means play-once,
+                    which is a fact worth stating, so only undefined — i.e. a wearable — hides the chip. */}
+                {emoteTraits.emoteLoop !== undefined ? (
+                  <S.DetailChip data-testid="detail-play-mode">
+                    <Icon
+                      name={emoteTraits.emoteLoop ? 'play-loop' : 'play-once'}
+                      size={18}
+                      color={theme.colors.text2}
+                    />
+                    {emoteTraits.emoteLoop ? t('itemDetail.playLoop') : t('itemDetail.playOnce')}
+                  </S.DetailChip>
+                ) : null}
+                {emoteTraits.emoteHasSound ? (
+                  <S.DetailChip data-testid="detail-sound">
+                    <Icon name="sound" size={18} color={theme.colors.text2} />
+                    {t('itemDetail.emoteSound')}
+                  </S.DetailChip>
+                ) : null}
+                {emoteTraits.emoteHasProps ? (
+                  <S.DetailChip data-testid="detail-props">
+                    <Icon name="props" size={18} color={theme.colors.text2} />
+                    {t('itemDetail.emoteProps')}
+                  </S.DetailChip>
+                ) : null}
                 {/* Blocked VRM export, with the marketplace's own wording in the tooltip. Warning-coloured,
                     unlike the neutral chips around it: this one is a restriction, not a feature. */}
                 {vrmBlocked ? (
@@ -1390,9 +1432,9 @@ export function ItemDetail() {
                         wallets. Shown alongside the primary CTAs whenever this item is still mintable
                         (published + remaining supply > 0 → publishableItem is present). Gasless. */}
                         {manageAsPrimary && publishableItem ? (
-                          <S.OutlineCta onClick={() => setShowIssue(true)} disabled={managing !== null}>
-                            <span>{t('itemDetail.manageIssue')}</span>
-                          </S.OutlineCta>
+                          <S.LinkCta type="button" onClick={() => setShowIssue(true)} disabled={managing !== null}>
+                            {t('itemDetail.manageIssue')}
+                          </S.LinkCta>
                         ) : null}
                         {managing === 'update' ? (
                           // Only note kept in the manage view: explain the two-step nature while the

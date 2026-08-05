@@ -196,7 +196,7 @@ describe('ItemDetail — pricing a MANA-listed item opened cold', () => {
 
   it('should leave a USD-pegged listing exactly as the feed priced it', async () => {
     // No manaWei → native row: its priceCredits IS the price, and no conversion applies.
-    fetchShopListingForItem.mockResolvedValue(legacyListing({ manaWei: null, priceCredits: 42 } as never))
+    fetchShopListingForItem.mockResolvedValue(legacyListing({ manaWei: null, priceCredits: 42 }))
     renderCold(newClient())
 
     await waitFor(() => expect(priceText()).toContain('42'))

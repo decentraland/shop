@@ -5,6 +5,7 @@ import { Button } from '~/components/Button'
 import { CreatorName } from '~/components/CreatorName'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { ErrorNotice } from '~/components/ErrorNotice'
+import { EmoteControls } from '~/components/LazyEmoteControls'
 import { OutfitPreview } from '~/components/OutfitPreview'
 import { useProfile } from '~/hooks/useProfile'
 import { useTryOnAvatar } from '~/hooks/useTryOnAvatar'
@@ -27,8 +28,7 @@ import {
   type Outfit,
   type OutfitItemState
 } from '~/lib/outfits'
-import { slotOf } from '~/lib/outfit'
-import { itemUrn } from '~/lib/urn'
+import { outfitPreviewUrns, playingEmote, slotOf } from '~/lib/outfit'
 import { t } from '~/intl/i18n'
 import { useCart } from '~/store/cart'
 import { useWallet } from '~/store/wallet'
@@ -195,16 +195,14 @@ function OutfitContent({ outfit }: { outfit: Outfit }) {
   const mannequinShape: BodyShapeUrn | undefined =
     outfit.bodyShape === 'female' ? BASE_FEMALE : outfit.bodyShape === 'male' ? BASE_MALE : undefined
 
-  const urns = useMemo(
-    () => rows.map(row => (row.item ? itemUrn(row.item) : null)).filter((urn): urn is string => !!urn),
-    [rows]
-  )
+  const resolvedItems = useMemo(() => rows.map(row => row.item).filter((item): item is CatalogItem => !!item), [rows])
+  const urns = useMemo(() => outfitPreviewUrns(resolvedItems), [resolvedItems])
+  // The preview plays the outfit's own emote, so it gets the same play/pause/mute controls an emote
+  // item page has.
+  const hasEmote = useMemo(() => !!playingEmote(resolvedItems), [resolvedItems])
   // The same hide problem the fitting room had: worn on the viewer's own avatar, an equipped skin covers the
   // outfit's body wearables and the preview shows the avatar unchanged. Composed here for the same reason.
-  const tryOnCategories = useMemo(
-    () => rows.map(row => (row.item ? (slotOf(row.item) ?? '') : '')).filter(Boolean),
-    [rows]
-  )
+  const tryOnCategories = useMemo(() => resolvedItems.map(item => slotOf(item) ?? '').filter(Boolean), [resolvedItems])
   const tryOn = useTryOnAvatar({ address, tryOnUrns: urns, tryOnCategories })
 
   const total = outfit.items.length
@@ -240,6 +238,13 @@ function OutfitContent({ outfit }: { outfit: Outfit }) {
               hair={tryOn.hair}
               eyes={tryOn.eyes}
               enabled={profileResolved && !tryOn.isLoading && !resolution.isLoading}
+              controls={
+                hasEmote ? (
+                  <S.EmoteControls data-testid="outfit-emote-controls">
+                    <EmoteControls wearablePreviewId={PREVIEW_ID} hideFrameInput />
+                  </S.EmoteControls>
+                ) : null
+              }
             />
           )}
         </S.Preview>

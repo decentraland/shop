@@ -21,10 +21,36 @@ export type CatalogItem = {
   network: string
   chainId: number
   thumbnail: string
+  /**
+   * The item's canonical asset URN, when the feed that produced the row carries one.
+   *
+   * The 3D preview needs it to load anything that is NOT a Polygon collections-v2 item: given only
+   * contractAddress + itemId the preview app SYNTHESIZES `urn:decentraland:matic:collections-v2:<contract>:<itemId>`,
+   * which is simply wrong for an Ethereum collections-v1 wearable (whose urn is
+   * `urn:decentraland:ethereum:collections-v1:<collection>:<name>`) and fails to resolve. See
+   * HoverPreviewLayer.
+   *
+   * Optional because only some feeds return it: /v3/catalog/items does (see lib/collections), the unified
+   * feed does not — and every unified row is Polygon, so contractAddress + itemId is correct there.
+   */
+  urn?: string
+  // Fixed credits for a USD-pegged row. ZERO on a MANA-priced row, whose credit price fluctuates: those
+  // carry `manaWei` and are priced for display at the live rate — see `displayCredits`.
   priceCredits: number
+  // Raw MANA price (wei) when this row is MANA-priced (legacy listings, and every row the /v2 catalog
+  // serves). Null/absent on USD-pegged rows, which price in credits directly.
+  manaWei?: string | null
   gender: 'male' | 'female' | 'unisex' | null
   // Smart wearable (carries an interactive scene/game.js). Surfaces a "Smart" badge on the card.
   isSmart: boolean
+  /**
+   * Emote playback traits, straight from the catalogue's `data.emote`. They exist for wearables too in the
+   * response shape but are only ever set on emotes, so the chips key on the category rather than on absence:
+   * `loop: false` is a MEANINGFUL value (play once) and must not read the same as "not an emote".
+   */
+  emoteLoop?: boolean
+  emoteHasSound?: boolean
+  emoteHasProps?: boolean
   // Present for secondary listings (a specific token on sale): the open USD-pegged trade + its token.
   // Checkout uses `tradeId` directly instead of resolving by itemId.
   tradeId?: string
@@ -43,10 +69,15 @@ export type CatalogItem = {
   // Current owner (the reseller) for a SECONDARY per-token listing, from the shop feed. Lets the PDP
   // resale list show who's selling without a per-token lookup. Absent for primary/catalog rows.
   seller?: string
-  // Remaining mintable supply for a PRIMARY listing (from the shop feed). Absent for secondary
-  // listings (a specific token has no stock concept) and for catalog-only items. Surfaces the STOCK
-  // figure next to the price on the item detail page.
+  // Remaining mintable supply for a PRIMARY listing (from the shop feed, and from the /v2 catalog on
+  // the by-ids path). Absent for secondary listings (a specific token has no stock concept). Surfaces
+  // the STOCK figure next to the price on the item detail page.
   available?: number
+  // Whether the CREATOR is still selling this item (a mint exists), as opposed to it being resale-only.
+  // Populated on the /v2 by-ids path, where the mint price and the resale floor arrive as separate
+  // fields; absent on feeds that report a single already-chosen listing. Outfits use it to keep a look
+  // off the discovery row once any of its items can no longer be bought from its creator.
+  hasPrimaryListing?: boolean
   // How many open credit-buyable listings this item has, from the item-unified browse feed
   // (/v3/catalog/unified?groupBy=item). Present only on that feed's rows; > 1 surfaces a badge on the
   // card telling the user there are more copies to see on the item detail page. Absent everywhere else.
@@ -69,11 +100,15 @@ type RawCatalogItem = {
   network: string
   chainId: number
   thumbnail?: string
+  /** The CREATOR's mint price (MANA wei). Zero/absent means the creator is no longer selling it. */
   price?: string | null
+  /** Cheapest RESALE (MANA wei) — a different seller, not the creator. */
   minPrice?: string | null
+  /** Remaining mintable supply. */
+  available?: number
   data?: {
     wearable?: { category?: string; bodyShapes?: string[]; description?: string; isSmart?: boolean }
-    emote?: { category?: string; description?: string }
+    emote?: { category?: string; description?: string; loop?: boolean; hasSound?: boolean; hasGeometry?: boolean }
   }
 }
 
@@ -116,6 +151,9 @@ function toGender(bodyShapes?: string[]): CatalogItem['gender'] {
 }
 
 function toCatalogItem(r: RawCatalogItem): CatalogItem {
+  // A closed mint reports a ZERO price rather than omitting the field, so `??` would keep the '0' and
+  // price the row at nothing instead of falling back to the cheapest resale.
+  const mintWei = r.price && r.price !== '0' ? r.price : null
   return {
     id: r.id,
     name: r.name,
@@ -128,9 +166,23 @@ function toCatalogItem(r: RawCatalogItem): CatalogItem {
     network: r.network,
     chainId: r.chainId,
     thumbnail: r.thumbnail ?? '',
-    priceCredits: toCredits(r.price ?? r.minPrice),
+    // The /v2 catalog prices in MANA, not in USD — so this row carries `manaWei` and NO fixed credit
+    // price. Callers convert at the live rate through `displayCredits`, exactly as the browse grid does
+    // for any other MANA-priced row. (Reading `price` as USD wei is what made a 3-credit item render as
+    // 150: 15 MANA ≠ $15.)
+    manaWei: mintWei ?? r.minPrice ?? null,
+    priceCredits: 0,
     gender: toGender(r.data?.wearable?.bodyShapes),
-    isSmart: r.data?.wearable?.isSmart ?? false
+    isSmart: r.data?.wearable?.isSmart ?? false,
+    emoteLoop: r.data?.emote?.loop,
+    emoteHasSound: r.data?.emote?.hasSound,
+    emoteHasProps: r.data?.emote?.hasGeometry,
+    // Supply and who is selling. Both come straight off the /v2 row, and together they decide whether a
+    // shopper can still buy the item FROM ITS CREATOR (a mint) rather than from a reseller. Passed
+    // through undefined rather than defaulted, so a feed that omits supply keeps meaning "unknown"
+    // (AssetCard reads it as an unbounded stock cap) instead of silently reading as sold out.
+    available: r.available,
+    hasPrimaryListing: !!mintWei
   }
 }
 
@@ -654,6 +706,40 @@ export async function fetchRelatedItems(
   const qs = new URLSearchParams({ contractAddress, itemId, first: String(first) })
   const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/related?${qs.toString()}`)
   if (!res.ok) throw new Error(`fetchRelatedItems ${res.status}`)
+  const json = (await res.json()) as { data?: ShopItemRaw[] }
+  return (json.data ?? []).map(shopItemToItem)
+}
+
+/**
+ * The items TRENDING right now — what backs the home page's Trending row.
+ *
+ * Ranked server-side over the last day's sales (60% of the row by sale count, the rest by traded volume) and
+ * returned IN that order, so the caller must not re-sort it. Rows are the same item-unified shape as
+ * fetchShopItems, which is what lets the identical AssetCard render them at a real credit price.
+ *
+ * Both narrowing arguments are sent to the SERVER rather than applied to the result:
+ *
+ * - `includeSocialEmotes=false`, always. The Shop hides social emotes, and the row is a fixed number of
+ *   slots — filtering after the fact would spend slots on rows that are then thrown away, shrinking the row.
+ * - `listingType`, from the secondary-sales flag (see pages/Overview). Same reason.
+ *
+ * Unpaginated (the endpoint returns `{ data }` with no total): it is one carousel.
+ */
+export async function fetchTrendingItems({
+  first = 12,
+  listingType
+}: { first?: number; listingType?: 'primary' | 'secondary' } = {}): Promise<UnifiedListing[]> {
+  const qs = new URLSearchParams({ first: String(first), includeSocialEmotes: 'false' })
+  if (listingType) qs.set('listingType', listingType)
+  const res = await fetch(`${config.marketplaceServerUrl}/v3/catalog/trending?${qs.toString()}`)
+  if (!res.ok) {
+    // Read the body before throwing: the status alone cannot tell a 400 on a bad `first` apart from one
+    // on a bad `listingType`, and this row fails silently by design (it hides itself), so the message is
+    // the only place the reason survives. Best-effort — a body that cannot be read must not replace the
+    // status error with a parse error.
+    const detail = await res.text().catch(() => '')
+    throw new Error(`fetchTrendingItems ${res.status}${detail ? `: ${detail.slice(0, 200)}` : ''}`)
+  }
   const json = (await res.json()) as { data?: ShopItemRaw[] }
   return (json.data ?? []).map(shopItemToItem)
 }

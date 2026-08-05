@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, type QueryClient } from '@tanstack/react-query'
 
+import { useManaRate } from '~/hooks/useManaRate'
 import { track } from '~/lib/analytics'
 import { fetchCatalogByIds, type CatalogItem } from '~/lib/api'
 import { FeatureFlag, getAddressListVariant, getIsFeatureEnabled } from '~/lib/featureFlags'
+import { displayCredits } from '~/lib/mana-convert'
 import { captureError } from '~/lib/monitoring'
 import {
   fetchOutfits,
@@ -49,6 +51,12 @@ type OutfitLike = Pick<Outfit, 'items'>
  * One merged catalog resolution for any number of outfits (a carousel resolves all its cards with
  * a single request instead of one per card). Keys resolve through fetchCatalogByIds, whose v2
  * catalog ids ARE the `contract-itemId` pairs outfits store.
+ *
+ * Those rows are MANA-priced, so this is also where they get their credit price, at the live oracle
+ * rate — the same rule and the same helper the browse grid uses for a legacy card. The rate is folded
+ * into `isLoading`/`isError` rather than left to each surface: a row with no rate yet has no honest
+ * price, and every outfit surface already knows how to wait (or to show a retry) rather than price an
+ * item at zero and call it unavailable.
  */
 export function useOutfitItems(outfits: OutfitLike[] | OutfitLike | undefined): OutfitItemsResolution {
   const list = useMemo(() => (Array.isArray(outfits) ? outfits : outfits ? [outfits] : []), [outfits])
@@ -63,18 +71,24 @@ export function useOutfitItems(outfits: OutfitLike[] | OutfitLike | undefined): 
     enabled: keys.length > 0,
     staleTime: 60_000
   })
+  // Not part of the query key: the rate ticks every minute and must never invalidate the catalog read.
+  const { data: rate, isLoading: rateLoading, isError: rateError, refetch: refetchRate } = useManaRate()
 
   return useMemo(() => {
-    const byKey = new Map((data ?? []).map(item => [item.id, item]))
+    const priced = (data ?? []).map(item => ({ ...item, priceCredits: displayCredits(item, rate) }))
+    const byKey = new Map(priced.map(item => [item.id, item]))
     const missing = new Set(data ? keys.filter(key => !byKey.has(key)) : [])
     return {
       byKey,
       missing,
-      isLoading: keys.length > 0 && isLoading,
-      isError,
-      retry: () => void refetch()
+      isLoading: keys.length > 0 && (isLoading || rateLoading),
+      isError: isError || rateError,
+      retry: () => {
+        void refetch()
+        void refetchRate()
+      }
     }
-  }, [data, keys, isLoading, isError, refetch])
+  }, [data, keys, isLoading, isError, refetch, rate, rateLoading, rateError, refetchRate])
 }
 
 export type OutfitCart = {

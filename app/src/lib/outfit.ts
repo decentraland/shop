@@ -103,6 +103,29 @@ export function conflictingIds(items: CatalogItem[]): Set<string> {
   return conflicts
 }
 
+/** The first emote among an outfit's items — the one its preview plays. */
+export function playingEmote(items: CatalogItem[]): CatalogItem | undefined {
+  return items.find(item => item.category === 'emote')
+}
+
+// The URNs an outfit's preview wears, and the order is load-bearing: the emote that plays goes FIRST,
+// because the renderers pick one differently — Babylon takes the LAST emote it finds among the urns,
+// while Unity's marketplace mode reads urns[0] and nothing else. Sending only one emote makes both
+// land on the same one. The extra emotes are dropped: they can't be worn, and they would only compete
+// for that pick.
+export function outfitPreviewUrns(items: CatalogItem[]): string[] {
+  const playing = playingEmote(items)
+  const urns: string[] = []
+  const playingUrn = playing ? itemUrn(playing) : null
+  if (playingUrn) urns.push(playingUrn)
+  for (const item of items) {
+    if (!isWearable(item)) continue
+    const urn = itemUrn(item)
+    if (urn) urns.push(urn)
+  }
+  return urns
+}
+
 // The wearable URNs for the currently-equipped items, in cart order, for WearablePreview's `urns`.
 export function wornUrns(items: CatalogItem[], worn: Set<string>, target: BodyShapeUrn | null = null): string[] {
   const urns: string[] = []

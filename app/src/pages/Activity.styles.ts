@@ -263,6 +263,37 @@ export const Pill = styled.span`
     background: rgba(214, 61, 61, 0.14);
     color: #b02a2a;
   }
+  /* Nobody paid and nobody is owed anything — deliberately the quietest of the four. Reusing PENDING's
+     amber here is what made an abandoned checkout look like money on its way. */
+  &[data-status='UNFINISHED'] {
+    background: ${theme.colors.line};
+    color: ${theme.colors.muted};
+  }
+`
+
+// Picks a checkout back up where the buyer left it. Sits beside the pill rather than under the card:
+// it belongs to the row's status, and this is the only credit row that carries an action at all.
+export const ResumeButton = styled.button`
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 4px 10px;
+  border-radius: ${theme.radius.pill};
+  white-space: nowrap;
+  border: 1px solid ${theme.colors.accent};
+  background: transparent;
+  color: ${theme.colors.accent};
+  cursor: pointer;
+  transition: background 0.15s ease;
+
+  &:hover:not(:disabled) {
+    background: rgba(103, 58, 183, 0.08);
+  }
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
 `
 
 export const Total = styled.div`

@@ -158,7 +158,13 @@ export async function fetchUserPurchases(
  * downstream: none of them could ever match, so dead orders were never filtered out of the Activity feed
  * and every row rendered as "Completed". The compiler cannot catch that — the type IS the lie.
  */
-export type CreditOrderStatus = 'processing' | 'crediting' | 'credited' | 'failed' | 'abandoned'
+/**
+ * `initiated` — the checkout was opened and nobody has paid; the buyer can still finish it while the
+ * hosted session lives. `processing` — money arrived and the credits are not in the balance yet.
+ * The server used to collapse both into `processing`, which is why an abandoned checkout read as a
+ * pending purchase for a day (see credits-server's stripe-orders-initiated migration).
+ */
+export type CreditOrderStatus = 'initiated' | 'processing' | 'crediting' | 'credited' | 'failed' | 'abandoned'
 
 export type CreditOrder = {
   id: string
@@ -172,14 +178,18 @@ export type CreditOrder = {
  * A credit order's status as the Activity feed's pill vocabulary. Keeps the server's wording out of the
  * components, and gives the mapping one testable home instead of an equality check at each render site.
  */
-export function creditOrderPill(status: CreditOrderStatus): 'SETTLED' | 'PENDING' | 'FAILED' {
+export function creditOrderPill(status: CreditOrderStatus): 'SETTLED' | 'PENDING' | 'UNFINISHED' | 'FAILED' {
   if (status === 'credited') return 'SETTLED'
-  // 'abandoned' is a checkout that was opened and never paid, retired by the server on a timer. The
-  // Activity feed drops it entirely, so this is only reached if some other surface renders such an order
-  // directly. 'FAILED' is the honest bucket of the three: terminal, and no credits were ever granted.
+  // 'abandoned' is a checkout that was opened and never paid. The Activity feed drops it entirely, so
+  // this is only reached if some other surface renders such an order directly. 'FAILED' is the honest
+  // bucket of the three: terminal, and no credits were ever granted.
   if (status === 'failed' || status === 'abandoned') return 'FAILED'
-  // 'processing' (checkout opened, possibly abandoned) and 'crediting' (paid, grant in flight) are both
-  // "not money in the balance yet", which is all the pill needs to say.
+  // Nobody has paid yet, and the buyer can still go back and do it — so this must NOT read as money on
+  // its way. It is the state the whole split exists to separate: saying PENDING here is what told a
+  // buyer who had walked away that they were owed credits.
+  if (status === 'initiated') return 'UNFINISHED'
+  // 'processing' (money in, grant unfinished) and 'crediting' (grant in flight) are both "paid, not in
+  // the balance yet", which is all the pill needs to say.
   return 'PENDING'
 }
 
@@ -225,6 +235,45 @@ export async function fetchUserCreditOrders(
     return { items, total, payouts }
   } catch {
     return { items: [], total: 0, payouts: [] }
+  }
+}
+
+/**
+ * Tells the server the buyer walked away from a checkout, so the order stops reading as a pending
+ * purchase. Best-effort and deliberately silent: the server does NOT take our word for it — it asks
+ * Stripe to expire the session and retires the order only if Stripe agrees — and the same retirement
+ * happens without us via `checkout.session.expired`. So a failure here costs nothing but time, and is
+ * never worth an error in front of somebody who has just decided not to buy anything.
+ */
+export async function cancelCreditOrder(orderId: string, identity: AuthIdentity): Promise<void> {
+  try {
+    const url = `${config.creditsServerUrl}/credits/orders/${encodeURIComponent(orderId)}/cancel`
+    const res = await signedFetch(url, { method: 'POST', identity, metadata: {} })
+    void res.body?.cancel()
+  } catch {
+    /* the server retires it on its own — see the note above */
+  }
+}
+
+/**
+ * The hosted page for a checkout the buyer left open, or null when it can no longer be paid.
+ *
+ * Asking costs a round trip to Stripe, so it happens on the click rather than while rendering the
+ * feed. Null is a real answer, not an error: the session expired (the server retires the order as it
+ * finds out) or the money already arrived. Either way there is nothing to go back to.
+ */
+export async function resumeCreditOrder(orderId: string, identity: AuthIdentity): Promise<string | null> {
+  try {
+    const url = `${config.creditsServerUrl}/credits/orders/${encodeURIComponent(orderId)}/resume`
+    const res = await signedFetch(url, { method: 'POST', identity, metadata: {} })
+    if (!res.ok) {
+      void res.body?.cancel()
+      return null
+    }
+    const json = (await res.json()) as { url?: string }
+    return json.url ?? null
+  } catch {
+    return null
   }
 }
 

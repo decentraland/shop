@@ -290,10 +290,27 @@ export const SkeletonName = styled.span`
   height: 30px;
 `
 
+// The blurb's box, restated: Desc's own margin and its two-line floor, at the font size that floor is
+// expressed in. The bars inside are shorter than the two text lines they stand for, so what fixes the
+// card's height is this box rather than the bars — a loading card and a loaded one are the same height to
+// the pixel, which is what keeps the footer still.
+export const SkeletonDescBlock = styled.span`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  min-height: 2.86em;
+  margin-top: 4px;
+  font-size: 16px;
+`
+
 export const SkeletonDesc = styled.span`
   width: 90%;
   height: 18px;
-  margin-top: 8px;
+
+  & + & {
+    margin-top: 8px;
+  }
 
   &[data-short] {
     width: 70%;
