@@ -111,6 +111,46 @@ describe('useWalletChain', () => {
     })
   })
 
+  describe('when a switch is already awaiting the wallet', () => {
+    it('should ignore a second request until the first one answers', async () => {
+      let release!: () => void
+      const held = new Promise<void>(resolve => {
+        release = resolve
+      })
+      const { session, send } = makeSession(async method => {
+        if (method === 'eth_chainId') return '0x13882'
+        if (method === 'wallet_switchEthereumChain') {
+          await held
+          return null
+        }
+        return null
+      })
+      const { result } = renderHook(() => useWalletChain(session))
+      await waitFor(() => expect(result.current.chainId).toBe(80002))
+
+      // First request goes out and parks in the wallet, awaiting confirmation. Started inside act (but
+      // deliberately not awaited) so the pending state flushes while the request is still open.
+      let first!: Promise<void>
+      await act(async () => {
+        first = result.current.switchTo(11155111)
+      })
+      expect(result.current.pendingChainId).toBe(11155111)
+
+      // A second click while that prompt is still open must not queue another request behind it.
+      await act(async () => {
+        await result.current.switchTo(80002)
+      })
+      expect(send.mock.calls.filter(([m]) => m === 'wallet_switchEthereumChain')).toHaveLength(1)
+      expect(result.current.pendingChainId).toBe(11155111)
+
+      await act(async () => {
+        release()
+        await first
+      })
+      expect(result.current.pendingChainId).toBeUndefined()
+    })
+  })
+
   describe('when the wallet answers eth_chainId with something unusable', () => {
     it('should keep the last known chain rather than blank the label', async () => {
       const { session } = makeSession(async () => {

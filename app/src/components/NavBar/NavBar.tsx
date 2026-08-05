@@ -213,7 +213,12 @@ export function NavBar() {
         notificationSlot={
           session ? (
             <S.NavSlot>
-              <NetworkSelector />
+              {/* Both halves of the slot are isolated, for the same reason: nothing in this row is worth
+                  white-screening the navbar over. The selector talks to the wallet, which is the least
+                  predictable surface the shop has — an injected provider can throw from anywhere. */}
+              <Sentry.ErrorBoundary fallback={<></>}>
+                <NetworkSelector />
+              </Sentry.ErrorBoundary>
               {/* A ui2 notification row can throw while rendering (e.g. one with an unparseable date →
                   formatDistanceToNow "Invalid time value"). Isolate it so a bad item renders nothing
                   instead of white-screening the whole navbar/app. */}

@@ -94,11 +94,16 @@ export function supportedChains(configuredChainId: number = config.chainId): num
  * Deliberately `eth_chainId` rather than `provider.getNetwork()`: ethers caches the network a
  * Web3Provider first detected, so a wallet moved after page load is measured against a stale value —
  * and once ethers does notice, it throws `underlying network changed` instead of answering.
+ *
+ * An unusable answer THROWS rather than falling back to `provider.getNetwork()`. Falling back would
+ * reach for the very cache this function exists to avoid, and answer with a number that is plausible and
+ * possibly wrong — worse than not answering. Callers keep the last known chain instead.
  */
 async function readChainId(provider: ethers.providers.Web3Provider): Promise<number> {
   const raw = (await provider.send('eth_chainId', [])) as string | number
   const parsed = typeof raw === 'string' ? parseInt(raw, 16) : Number(raw)
-  return Number.isFinite(parsed) ? parsed : (await provider.getNetwork()).chainId
+  if (!Number.isFinite(parsed)) throw new Error(`Wallet answered eth_chainId with an unusable value: ${String(raw)}`)
+  return parsed
 }
 
 export type WalletChain = {
@@ -162,7 +167,10 @@ export function useWalletChain(session: Session | null): WalletChain {
 
   const switchTo = useCallback(
     async (target: number) => {
-      if (!web3Provider || target === chainId) return
+      // One request in flight at a time. Wallets serialise these anyway, so the end state was already
+      // correct — but two clicks in quick succession would move `pendingChainId` to the second target and
+      // make the first request's reply look like it answered the second.
+      if (!web3Provider || target === chainId || pendingChainId !== undefined) return
       setPendingChainId(target)
       try {
         try {
@@ -191,7 +199,7 @@ export function useWalletChain(session: Session | null): WalletChain {
         setPendingChainId(undefined)
       }
     },
-    [web3Provider, chainId]
+    [web3Provider, chainId, pendingChainId]
   )
 
   return { chainId, chains, pendingChainId, switchTo }
