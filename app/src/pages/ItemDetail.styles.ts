@@ -9,7 +9,7 @@ import { CreatorBadge } from '~/components/CreatorBadge'
 import { CollectionBadge } from '~/components/CollectionBadge'
 import { SaleCountdown } from '~/components/SaleCountdown'
 
-const { colors, radius, media, font } = theme
+const { colors, radius, media, font, gradients } = theme
 
 export const Detail = styled.div`
   max-width: 1721px;
@@ -557,12 +557,13 @@ export const StockValue = styled.div`
   }
 `
 
+// PRICE / STOCK captions: Gray 3, not Gray 4 (Figma 867:61020 / 867:61044).
 export const PriceLabel = styled.div`
   font-size: 14px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0;
-  color: ${colors.gray4};
+  color: ${colors.muted2};
 `
 
 // Base price row. `data-variant`: none (unavailable) / sale (flash sale) — market carries the "≈" approx.
@@ -718,15 +719,17 @@ const ctaBox = css`
 // data-dual parent), where it flexes to share the row.
 export const DetailCta = styled(Button)`
   ${ctaBox};
-  /* Dark-theme test: solid orange BUY NOW (Figma 867:61063). */
+  /* The design system's primary fill (Figma 867:61063 carries the "BUY Button" gradient), same as the
+     cart's CHECKOUT and the credits CTA. This read as a flat #fb5c19 for a while — that colour was
+     sampled off the flattened render rather than the node's fill. */
   && {
-    background: #fb5c19;
+    background: ${gradients.buyBtn};
   }
   &&::before {
     content: none;
   }
   &&:hover:not(:disabled) {
-    filter: brightness(1.08);
+    background-image: linear-gradient(${colors.dclRed}, ${colors.dclRed});
   }
 
   ${media.maxWidth('lg')} {
