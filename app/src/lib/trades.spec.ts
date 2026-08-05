@@ -1,3 +1,4 @@
+import { hexChain } from '~/test/chain'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { ChainId, Network, TradeAssetType, TradeType, type Trade, type TradeCreation } from '@dcl/schemas'
 
@@ -127,7 +128,9 @@ const COLLECTION = '0x00000000000000000000000000000000000000CC'
 
 // A signer whose on-chain send/network responses we can steer per test.
 function makeSigner(overrides: Record<string, unknown> = {}) {
-  const send = vi.fn().mockResolvedValue(undefined)
+  // Answers `eth_chainId`, which is the read requireChain makes. These mocks only had `getNetwork`, and
+  // passed only because activeChainId used to fall back to it — the stale cache it exists to avoid.
+  const send = vi.fn(async (method: string) => (method === 'eth_chainId' ? hexChain(ChainId.MATIC_AMOY) : undefined))
   const getNetwork = vi.fn().mockResolvedValue({ chainId: ChainId.MATIC_AMOY })
   const signTypedData = vi.fn().mockResolvedValue('0xdeadbeef')
   return {
@@ -321,7 +324,9 @@ describe('when ensuring the marketplace is approved as operator', () => {
   it('should refuse to approve on the wrong network, without asking the wallet to switch', async () => {
     isApprovedForAllMock.mockResolvedValue(false)
     setApprovalForAllMock.mockResolvedValue({ wait: vi.fn().mockResolvedValue(undefined) })
-    const send = vi.fn().mockResolvedValue(undefined)
+    const send = vi.fn(async (method: string) =>
+      method === 'eth_chainId' ? hexChain(ChainId.ETHEREUM_MAINNET) : undefined
+    )
     const getNetwork = vi.fn().mockResolvedValue({ chainId: ChainId.ETHEREUM_MAINNET })
     const signer = makeSigner({ provider: { getNetwork, send } })
 
@@ -508,7 +513,9 @@ describe('when ensuring the marketplace is a minter', () => {
   it('should refuse to grant minting rights on the wrong network, without switching the wallet', async () => {
     globalMintersMock.mockResolvedValue(false)
     setMintersMock.mockResolvedValue({ wait: vi.fn().mockResolvedValue(undefined) })
-    const send = vi.fn().mockResolvedValue(undefined)
+    const send = vi.fn(async (method: string) =>
+      method === 'eth_chainId' ? hexChain(ChainId.ETHEREUM_MAINNET) : undefined
+    )
     const getNetwork = vi.fn().mockResolvedValue({ chainId: ChainId.ETHEREUM_MAINNET })
     const signer = makeSigner({ provider: { getNetwork, send } })
 

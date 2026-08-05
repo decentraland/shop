@@ -2,9 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 // Deep imports: @dcl/schemas' root barrel re-exports `getChainName` but NOT `getNetwork` /
 // `getNetworkMapping`, so the chain helpers have to come from the module itself (same convention the
 // preview helpers already use). Vite bundles all of @dcl/schemas into one chunk either way.
-import { ChainId, getChainName, getNetwork, getNetworkMapping } from '@dcl/schemas/dist/dapps/chain-id'
+import { ChainId, getNetwork, getNetworkMapping } from '@dcl/schemas/dist/dapps/chain-id'
 import { Network } from '@dcl/schemas/dist/dapps/network'
 import { ethers } from 'ethers'
+// lib/network owns the chain vocabulary — the live read, the Amoy add-params and the labels — so the
+// navbar and the gas-paying legs cannot disagree about what chain the wallet is on or how Amoy is added.
+import { activeChainId as readChainId, AMOY_ADD_PARAMS } from '~/lib/network'
 import { config } from '~/config'
 import type { Session } from '~/lib/auth'
 import { captureError } from '~/lib/monitoring'
@@ -14,7 +17,7 @@ import { captureError } from '~/lib/monitoring'
  *
  * The shop never showed this. A wallet parked on Ethereum while the shop runs on Polygon produced a
  * wallet error that named a contract rather than the network, so the only way to find out was to open the
- * marketplace, read its selector, come back, and guess. This hook is the read half of that gap; the
+ * marketplace, read its selector, come back, and guess. This hook is the read half of that gap.
  * The navbar passes what this returns to ui2's own chain pill, which lives in the profile panel.
  *
  * ⚠️ `switchTo` MUST be called from inside a user gesture (the click on an option). Wallets only honour
@@ -34,13 +37,6 @@ type Eip1193 = {
 // pull the whole ERC20/ERC721/meta-tx authorization layer (and its config + ethers contract graph) into
 // the navbar's chunk, which is on every page. Four literals are the cheaper dependency. If they ever
 // need to change, change them in both places.
-const AMOY_ADD_PARAMS = {
-  chainId: '0x13882',
-  chainName: 'Polygon Amoy',
-  nativeCurrency: { name: 'POL', symbol: 'POL', decimals: 18 },
-  rpcUrls: ['https://rpc-amoy.polygon.technology'],
-  blockExplorerUrls: ['https://amoy.polygonscan.com']
-}
 
 /** The wallet declined the request. Not an error to recover from — the user answered. */
 const USER_REJECTED = 4001
@@ -57,11 +53,6 @@ const UNKNOWN_CHAIN = 4902
  */
 const AMOY_CHAIN_ID: number = ChainId.MATIC_AMOY
 const KNOWN_CHAINS = Object.values(ChainId).filter((id): id is ChainId => typeof id === 'number')
-
-/** Human name for a chain — "Polygon", "Ethereum Mainnet", "Amoy". Falls back to the id. */
-export function chainLabel(chainId: number): string {
-  return getChainName(chainId) ?? `Chain ${chainId}`
-}
 
 /**
  * The networks this deployment can actually transact on, newest-first: the shop's own chain, then its
@@ -86,24 +77,6 @@ export function supportedChains(configuredChainId: number = config.chainId): num
     }
   })
   return counterpart !== undefined && counterpart !== own ? [own, counterpart] : [own]
-}
-
-/**
- * Which chain the wallet is on RIGHT NOW.
- *
- * Deliberately `eth_chainId` rather than `provider.getNetwork()`: ethers caches the network a
- * Web3Provider first detected, so a wallet moved after page load is measured against a stale value —
- * and once ethers does notice, it throws `underlying network changed` instead of answering.
- *
- * An unusable answer THROWS rather than falling back to `provider.getNetwork()`. Falling back would
- * reach for the very cache this function exists to avoid, and answer with a number that is plausible and
- * possibly wrong — worse than not answering. Callers keep the last known chain instead.
- */
-async function readChainId(provider: ethers.providers.Web3Provider): Promise<number> {
-  const raw = (await provider.send('eth_chainId', [])) as string | number
-  const parsed = typeof raw === 'string' ? parseInt(raw, 16) : Number(raw)
-  if (!Number.isFinite(parsed)) throw new Error(`Wallet answered eth_chainId with an unusable value: ${String(raw)}`)
-  return parsed
 }
 
 export type WalletChain = {

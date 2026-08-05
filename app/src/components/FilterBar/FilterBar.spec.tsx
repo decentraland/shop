@@ -24,10 +24,12 @@ describe('FilterBar', () => {
       expect(screen.getByText('1 Item')).toBeTruthy()
     })
 
-    it('should show a placeholder count while loading', () => {
+    it('should shimmer while loading instead of showing an ellipsis', () => {
       render(<FilterBar {...base} loading />)
-      // The toolbar has two responsive count spans (one shown per breakpoint via CSS), so both render.
-      expect(screen.getAllByText('…').length).toBeGreaterThan(0)
+      // The '…' this replaces was also what a screen reader announced. The bar is sized to the number so
+      // the toolbar keeps its height and the grid below cannot shift when the count lands.
+      expect(screen.getAllByTestId('browse-count-skeleton').length).toBeGreaterThan(0)
+      expect(screen.queryByText('…')).toBeNull()
     })
 
     it('should append the query to the count when present', () => {

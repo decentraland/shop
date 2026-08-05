@@ -34,11 +34,14 @@ describe('reading the wallet chain', () => {
     expect(await activeChainId(w.provider as never)).toBe(137)
   })
 
-  it("falls back to ethers' own detection when the answer is unusable", async () => {
+  // It used to fall back to `provider.getNetwork()` here, which is the exact cache this function exists to
+  // avoid: it would answer with a plausible, possibly stale chain, and a wrong chain on a gas-paying leg
+  // means submitting to an address that holds no code — a green receipt for nothing.
+  it('throws on an unusable answer rather than reaching for the cache it avoids', async () => {
     const send = vi.fn(async () => undefined)
     const provider = { send, getNetwork: vi.fn().mockResolvedValue({ chainId: 80002 }) }
-    expect(await activeChainId(provider as never)).toBe(80002)
-    expect(provider.getNetwork).toHaveBeenCalled()
+    await expect(activeChainId(provider as never)).rejects.toThrow(/unusable/)
+    expect(provider.getNetwork).not.toHaveBeenCalled()
   })
 })
 
@@ -149,6 +152,6 @@ describe('naming a chain', () => {
   })
 
   it('still says something for a chain we do not know', () => {
-    expect(chainLabel(1234)).toBe('chain 1234')
+    expect(chainLabel(1234)).toBe('Chain 1234')
   })
 })

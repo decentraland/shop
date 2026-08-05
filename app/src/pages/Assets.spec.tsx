@@ -180,6 +180,60 @@ describe('Assets — NAMEs category', () => {
   })
 })
 
+// What a refresh replays: the address is the state, so every filter in it has to reach the query. These
+// used to live in useState, so a reload sent the default query and the grid silently ignored the sidebar.
+describe('Assets — the item counter while it loads', () => {
+  // It used to render a bare '…', which is also what a screen reader announced. A shimmer sized to the
+  // number keeps the toolbar's height so the grid below cannot shift when the count lands.
+  it('should shimmer instead of showing an ellipsis, and say nothing to a screen reader', () => {
+    renderAssets()
+
+    const count = screen.getByTestId('browse-count')
+    expect(screen.getByTestId('browse-count-skeleton')).toBeInTheDocument()
+    expect(count.textContent).not.toContain('…')
+    expect(count).toHaveAttribute('aria-busy', 'true')
+  })
+
+  it('should replace it with the real count once it lands', async () => {
+    renderAssets()
+
+    await waitFor(() => expect(screen.getByTestId('browse-count').textContent).toMatch(/\d/))
+    expect(screen.queryByTestId('browse-count-skeleton')).not.toBeInTheDocument()
+    expect(screen.getByTestId('browse-count')).not.toHaveAttribute('aria-busy')
+  })
+})
+
+describe('Assets — filters survive a reload', () => {
+  it('should send every filter the address carries to the query', async () => {
+    renderAssets('/items?category=emote&rarities=epic,rare&priceMin=5&priceMax=40&smart=true')
+
+    expect(await lastShopItemsCall()).toMatchObject({
+      category: 'emote',
+      rarities: ['epic', 'rare'],
+      minPriceCredits: 5,
+      maxPriceCredits: 40,
+      isSmart: true
+    })
+  })
+
+  it('should show them as applied, not just apply them', async () => {
+    renderAssets('/items?rarities=epic&smart=true')
+
+    const chips = await screen.findByTestId('filter-chips')
+    expect(chips.textContent).toContain('Epic')
+    expect(chips.textContent).toContain('Smart')
+  })
+
+  it('should keep the address clean when nothing is chosen', async () => {
+    renderAssets('/items')
+
+    const call = (await lastShopItemsCall())!
+    expect(call).toMatchObject({ category: 'wearable' })
+    expect(call.rarities).toBeUndefined()
+    expect(call.isSmart).toBeUndefined()
+  })
+})
+
 describe('Assets — search scope', () => {
   it('should search every category so emote matches are not silently dropped', async () => {
     renderAssets('/items?q=chapeau')
