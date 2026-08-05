@@ -24,15 +24,44 @@ type AggregatorContract = ethers.Contract & {
   latestRoundData(): Promise<[ethers.BigNumber, ethers.BigNumber, ethers.BigNumber, ethers.BigNumber, ethers.BigNumber]>
 }
 
-// The connected address's MANA balance in wei (18 decimals). ERC20 balanceOf on the MANA token for
-// the target chain. Returns a bigint so the caller can compare it against a trade's MANA price without
-// float drift.
+// The read-only RPC for a chain. MANA is deployed on both Polygon and Ethereum L1 at DIFFERENT
+// addresses, so the contract's chain and the RPC it is queried over must always agree: resolving the L1
+// MANA address and then calling balanceOf on the Polygon RPC hits an address that holds no such
+// contract there, which answers 0 instead of failing — a wrong balance, not an error.
+function rpcUrlForChain(chainId: number): string {
+  return chainId === config.ethereumChainId ? config.ethereumRpcUrl : config.rpcUrl
+}
+
+// An address's MANA balance in wei (18 decimals) on ONE chain. ERC20 balanceOf on that chain's MANA
+// token, over that chain's own RPC. Returns a bigint so the caller can compare it against a trade's
+// MANA price without float drift.
+//
+// Defaults to the shop's settlement chain (Polygon). Callers deciding whether MANA can PAY for
+// something must keep that default: a Polygon trade cannot be settled with L1 MANA, so the balance that
+// gates a payment rail is the Polygon one regardless of where the wallet currently sits.
 export async function readManaBalanceWei(address: string, chainId: number = config.chainId): Promise<bigint> {
   const mana = getContract(ContractName.MANAToken, chainId)
-  const provider = new ethers.providers.JsonRpcProvider(config.rpcUrl)
+  const provider = new ethers.providers.JsonRpcProvider(rpcUrlForChain(chainId))
   const erc20 = new ethers.Contract(mana.address, ERC20_BALANCE_ABI, provider) as Erc20BalanceContract
   const balance = await erc20.balanceOf(address)
   return BigInt(balance.toString())
+}
+
+// MANA held on BOTH chains, for DISPLAY only (the navbar shows what the wallet owns, wherever it sits).
+// Read over each chain's own RPC and never through the wallet's provider, so the figures do not depend
+// on the connected network — a wallet on Ethereum still sees its Polygon MANA, and vice versa. This
+// mirrors what the marketplace does (decentraland-dapps' buildWallet walks the app chain's whole
+// network mapping rather than just the connected chain).
+//
+// Per-chain failures are isolated: one RPC being down must not blank out the other chain's balance, so
+// a rejected read reports 0n for that chain instead of failing the pair. Same trade-off dapps' own
+// fetchManaBalance makes.
+export async function readManaBalancesWei(address: string): Promise<{ ethereum: bigint; matic: bigint }> {
+  const [ethereum, matic] = await Promise.all([
+    readManaBalanceWei(address, config.ethereumChainId).catch(() => 0n),
+    readManaBalanceWei(address, config.chainId).catch(() => 0n)
+  ])
+  return { ethereum, matic }
 }
 
 // The MANA (wei) a trade costs RIGHT NOW, for display + the sufficiency gate. USD-pegged trades read

@@ -1,6 +1,7 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { NavLink, useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import * as Sentry from '@sentry/react'
+import { Network } from '@dcl/schemas'
 import { Experimental_CssVarsProvider as CssVarsProvider } from '@mui/material/styles'
 import { light as ui2Light } from 'decentraland-ui2/dist/theme'
 import { Icon } from '~/components/Icon'
@@ -10,7 +11,7 @@ import { useProfile } from '~/hooks/useProfile'
 import { useIsOutfitCreator } from '~/hooks/useOutfits'
 import { useBalance } from '~/hooks/useBalance'
 import { useWalletChain } from '~/hooks/useWalletChain'
-import { useManaBalance } from '~/hooks/useManaBalance'
+import { useManaBalances } from '~/hooks/useManaBalance'
 import { manaWeiToNumber } from '~/lib/mana-format'
 import { useCart } from '~/store/cart'
 import { CartPopover } from '~/components/CartPopover'
@@ -49,9 +50,10 @@ export function NavBar() {
   const { chainId, chains, switchTo } = useWalletChain(
     session && showsWalletConfirmations(session.providerType) ? session : null
   )
-  // Polygon MANA the wallet already holds. Drives the navbar chip (rendered only when > 0) and, in the
-  // buy flow, which payment rails are offered. No skeleton: an absent/zero balance renders nothing.
-  const { data: manaBalanceWei } = useManaBalance(session)
+  // MANA the wallet holds on Ethereum AND Polygon. Drives the navbar chips (each rendered only when
+  // > 0). Read per chain over that chain's own RPC, so both show regardless of the connected network.
+  // No skeleton: an absent/zero balance renders nothing.
+  const { data: manaBalancesWei } = useManaBalances(session)
   const cartCount = useCart(s => s.items.reduce((n, i) => n + i.quantity, 0))
   const openCart = useCart(s => s.setOpen)
   const navigate = useNavigate()
@@ -73,8 +75,16 @@ export function NavBar() {
   // a dash would need a string prop), the loaded count (incl. 0) otherwise. MANA: only when the wallet
   // actually holds some, so the web2-first navbar shows no crypto by default.
   const shopCredits = session && !balanceLoading && !balanceError ? (balance?.credits ?? 0) : undefined
-  const manaBalances =
-    session && manaBalanceWei != null && manaBalanceWei > 0n ? { MATIC: manaWeiToNumber(manaBalanceWei) } : undefined
+  // One entry per chain the wallet actually holds MANA on, so a user with MANA on both sees both and a
+  // user with none still sees no crypto at all. Memoised because a fresh object on every render would
+  // hand ui2 a new prop identity each time.
+  const manaBalances = useMemo((): Partial<Record<Network, number>> | undefined => {
+    if (!session || !manaBalancesWei) return undefined
+    const balances: Partial<Record<Network, number>> = {}
+    if (manaBalancesWei.ethereum > 0n) balances[Network.ETHEREUM] = manaWeiToNumber(manaBalancesWei.ethereum)
+    if (manaBalancesWei.matic > 0n) balances[Network.MATIC] = manaWeiToNumber(manaBalancesWei.matic)
+    return Object.keys(balances).length > 0 ? balances : undefined
+  }, [session, manaBalancesWei])
 
   // What the input shows (drives the box) and what the dropdown queries (debounced) are separate:
   // the box updates instantly on keystroke; the dropdown lags 300ms so we don't fetch every letter.

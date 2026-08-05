@@ -28,6 +28,7 @@ const ITEM_PATH = `/item/${COLLECTION}/1`
 const has = (page: App['page'], testId: string) => page.$(`[data-testid="${testId}"]`).then(el => !!el)
 // The MANA balance now renders as a ui2 navbar chip (no testid); its aria-label is the stable hook.
 const MANA_CHIP = 'button[aria-label$="MANA on Polygon"]'
+const ETHEREUM_MANA_CHIP = 'button[aria-label$="MANA on Ethereum"]'
 
 // The Buy Now picker is SELECT-then-confirm (Figma 1654-371913): rows are checkboxes and one BUY submits.
 // Ticking both rows is how a mixed credits + MANA payment is expressed, so there is no "combined" row.
@@ -61,6 +62,42 @@ describe('paying with MANA in the buy flow', () => {
     await page.waitForSelector(MANA_CHIP, { timeout: 20000 })
     const chip = await page.$eval(MANA_CHIP, el => el.textContent ?? '')
     expect(chip).toContain('1,000')
+  })
+
+  describe('and the wallet also holds MANA on Ethereum', () => {
+    it('should show a chip per chain, so an L1 balance is not hidden by the connected network', async () => {
+      // The bug this guards: the balance used to be read over the shop's Polygon RPC no matter which
+      // chain it belonged to, so L1 MANA resolved against a non-MANA address and reported nothing.
+      app = await launchApp({
+        path: ITEM_PATH,
+        fixtures: { trade: buyTrade },
+        manaBalanceWei: PLENTY_OF_MANA,
+        ethereumManaBalanceWei: SOME_MANA
+      })
+      const { page } = app
+
+      await page.waitForSelector(MANA_CHIP, { timeout: 20000 })
+      await page.waitForSelector(ETHEREUM_MANA_CHIP, { timeout: 20000 })
+      expect(await page.$eval(MANA_CHIP, el => el.textContent ?? '')).toContain('1,000')
+      expect(await page.$eval(ETHEREUM_MANA_CHIP, el => el.textContent ?? '')).toContain('40')
+    })
+
+    it('should not offer L1 MANA as a payment rail, since a Polygon trade cannot settle with it', async () => {
+      app = await launchApp({
+        path: ITEM_PATH,
+        fixtures: { trade: buyTrade },
+        ethereumManaBalanceWei: PLENTY_OF_MANA // L1 only — nothing spendable on Polygon
+      })
+      const { page } = app
+
+      await page.waitForSelector(ETHEREUM_MANA_CHIP, { timeout: 20000 })
+      expect(await page.$(MANA_CHIP).then(el => !!el)).toBe(false)
+
+      await clickWhenEnabled(page, 'button', /buy now/i)
+      await waitForText(page, 'Buy Item')
+      // The plain single-CTA modal: no MANA rail, exactly as when the wallet holds no MANA at all.
+      expect(await has(page, 'pay-with-mana')).toBe(false)
+    })
   })
 
   it('offers credits AND mana when either balance covers the price, and completes with credits', async () => {

@@ -63,6 +63,17 @@ export const config = {
   authUrl: env.VITE_AUTH_URL ?? base.get('AUTH_URL'),
   rpcUrl: env.VITE_RPC_URL ?? base.get('RPC_URL'),
   /**
+   * Ethereum L1 — the OTHER chain MANA lives on. The shop itself settles only on `chainId` (Polygon),
+   * so these are read-only: they exist so a balance on L1 can be displayed without asking the wallet to
+   * switch networks, exactly like `rpcUrl` does for Polygon.
+   *
+   * MANA is deployed on both chains at different addresses, so the RPC and the chainId must travel
+   * together: resolving the contract for one chain and then querying it over the other chain's RPC
+   * silently reads a non-MANA address and reports 0 rather than failing.
+   */
+  ethereumChainId: Number(env.VITE_ETHEREUM_CHAIN_ID ?? base.get('ETHEREUM_CHAIN_ID')),
+  ethereumRpcUrl: env.VITE_ETHEREUM_RPC_URL ?? base.get('ETHEREUM_RPC_URL'),
+  /**
    * Meta-transaction relayer (transactions-server shape; the POST target is `${relayerUrl}/transactions`).
    *
    * CHAIN-BOUND, which is why it sits next to rpcUrl: a relayer only submits on the chain it is configured

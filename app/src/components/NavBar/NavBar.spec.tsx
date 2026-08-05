@@ -36,7 +36,10 @@ vi.mock('~/store/wallet', () => ({
 vi.mock('~/hooks/useProfile', () => ({ useProfile: () => ({ data: undefined, isLoading: false }) }))
 vi.mock('~/hooks/useOutfits', () => ({ useIsOutfitCreator: () => false }))
 vi.mock('~/hooks/useBalance', () => ({ useBalance: () => ({ data: 0, isError: false, isLoading: false }) }))
-vi.mock('~/hooks/useManaBalance', () => ({ useManaBalance: () => ({ data: undefined }) }))
+vi.mock('~/hooks/useManaBalance', () => ({
+  useManaBalance: () => ({ data: undefined }),
+  useManaBalances: () => ({ data: undefined })
+}))
 vi.mock('~/store/cart', () => ({ useCart: () => 0 }))
 vi.mock('~/components/CartPopover', () => ({ CartPopover: () => null }))
 vi.mock('~/components/SearchDropdown', () => ({ SearchDropdown: () => null }))
