@@ -90,9 +90,12 @@ export const EmptyCta = styled(Button)`
   font-size: 15px;
   /* The variant sets 0.046em, which at 15px is 0.69px; the design asks for 0.46px flat. */
   letter-spacing: 0.46px;
-  /* Filled FLAT with the accent here, not with the purple variant's amethyst gradient — so the variant's
-     own hover overlay (that same accent) has to step up a shade to still read as a hover. */
-  background: ${colors.accent};
+  /* Filled FLAT with the accent here, not with the purple variant's amethyst gradient. Doubled ampersand
+     because the variant's own fill is an attribute selector, which outranks a plain declaration — and the
+     variant's hover overlay is that same accent, so it steps up a shade to still read as a hover. */
+  &&[data-variant='purple'] {
+    background: ${colors.accent};
+  }
 
   &:hover:not(:disabled)::before,
   &:active:not(:disabled)::before {
