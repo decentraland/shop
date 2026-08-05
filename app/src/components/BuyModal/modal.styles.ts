@@ -352,6 +352,13 @@ export const Btn = styled.button`
     color: ${colors.text2};
     font-size: 13px;
   }
+  /* Figma's outlined hover (738:53251), which on this light card is the readable half of the pair: the
+     white-fill hover the dark-field buttons take would be invisible here. Same treatment as the
+     drawer's dismissing CTA (CartPopover ctaCss) — the two sit in one flow. */
+  &[data-variant='outline']:hover:not(:disabled) {
+    background: ${colors.text2};
+    color: ${colors.softWhite};
+  }
   &[data-variant='ruby'] {
     background: ${colors.dclRed};
     color: ${colors.softWhite};

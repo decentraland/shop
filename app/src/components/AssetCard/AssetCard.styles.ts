@@ -25,6 +25,12 @@ export const Card = styled.article`
   height: 300px;
   /* Dark-theme test: deep-purple card shell under the light media (Figma). */
   background: #240c32;
+
+  /* The compact card is its own set of metrics, not a scaled-down desktop one (Figma 1040:149086):
+     250px tall over 300, split 136 media / 114 info. */
+  ${media.maxWidth('sm')} {
+    height: 250px;
+  }
   border-radius: ${radius.card};
   overflow: hidden;
   position: relative;
@@ -170,10 +176,6 @@ export const Media = styled.div`
   min-height: 0;
   background: ${colors.media};
   overflow: hidden;
-
-  ${media.maxWidth('sm')} {
-    aspect-ratio: 201 / 213;
-  }
 `
 
 // Corner ribbon on the media (fav sits top-right, so this anchors top-left).
@@ -269,11 +271,12 @@ export const Img = styled.img`
   }
 `
 
-// Fixed 96px footer. On mobile it becomes a grid (name/creator row, then price + round add) — see Top.
+// Fixed 112px footer with a 16px inset (Figma 1038:144862 — 188px of media over a 112px info block on
+// the 300px card). On mobile it becomes a grid (name/creator row, then price + round add) — see Top.
 export const Body = styled.div`
-  flex: 0 0 96px;
-  height: 96px;
-  padding: 8px;
+  flex: 0 0 112px;
+  height: 112px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -290,23 +293,25 @@ export const Body = styled.div`
     }
   }
 
-  // data-name = a NAME card's footer: it hugs its single row (@name + NOT FOR SALE) with a bit more
-  // vertical breathing room, and the @name tile above keeps the extra height.
+  // data-name = a NAME card's footer: it hugs its single row (@name + NOT FOR SALE), and the @name tile
+  // above keeps the height it gives back. The 16px inset already supplies the breathing room this used
+  // to add on top of the old 8px base.
   &[data-name] {
     flex: 0 0 auto;
     height: auto;
-    padding-top: 14px;
-    padding-bottom: 14px;
   }
 
+  // Figma 1040:149086: 114px of info under 136px of media, same 16px inset as the wide card, with the
+  // name/creator block and the price+add row only 6px apart.
   ${media.maxWidth('sm')} {
     display: grid;
-    height: auto;
+    flex: 0 0 114px;
+    height: 114px;
     grid-template-columns: 1fr auto;
     grid-template-areas: 'desc desc' 'price add';
     align-items: center;
-    row-gap: 10px;
-    padding: 8px;
+    row-gap: 6px;
+    padding: 16px;
 
     // NAME cards have no price/round-add split the wearable grid is built for — keep them a simple
     // stacked column so the mobile layout stays tidy.
@@ -631,13 +636,18 @@ export const Manage = styled.button`
     opacity: 0.6;
     cursor: default;
   }
+  /* Figma's outlined button (738:53258 rest / 738:53259 hover): a white hairline with a soft-white
+     label on the dark card, filling solid white with a soft-black label under the pointer. It used to
+     carry a near-black label on a transparent fill — a light-theme pairing that was unreadable here. */
   &[data-ghost] {
     background: transparent;
-    color: ${colors.text};
-    border: 1px solid ${colors.lineStrong};
+    color: ${colors.softWhite};
+    border: 0.5px solid ${colors.white};
   }
-  &[data-ghost]:hover:not(:disabled) {
-    background: ${colors.media};
+  &[data-ghost]:hover:not(:disabled),
+  &[data-ghost]:active:not(:disabled) {
+    background: ${colors.softWhite};
+    color: ${colors.text};
   }
 
   @media (hover: hover) {

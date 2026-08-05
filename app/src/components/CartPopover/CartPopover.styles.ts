@@ -414,8 +414,11 @@ const ctaCss = css`
     background: ${colors.white};
     color: ${colors.text};
   }
+  /* Figma's outlined hover (738:53251): the fill inverts to soft-black-2 with a soft-white label. The
+     white-fill hover the dark-field buttons take would be invisible on this light drawer. */
   &[data-variant='secondary']:hover {
-    background: ${colors.media};
+    background: ${colors.text2};
+    color: ${colors.softWhite};
   }
 `
 
