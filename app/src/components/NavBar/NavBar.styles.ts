@@ -4,7 +4,7 @@ import { theme } from '~/styles/theme'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { Icon } from '~/components/Icon'
 
-const { colors, radius, media } = theme
+const { colors, radius, gradients, media } = theme
 
 const mobile = media.maxWidth('mobile')
 // One row cannot hold the tab strip, a usable search field AND the balance/credits/cart cluster below
@@ -233,13 +233,13 @@ export const Credits = styled(NavLink)`
   height: 40px;
   padding: 0 16px;
   border-radius: ${radius.btn};
-  /* Dark-theme test: "Flare" gradient (orange → DCL red) replaces amethyst on the purple field. */
-  background: linear-gradient(180deg, #ff7439 0%, #ff2d55 100%);
+  /* Amethyst gradient, per the sub-nav's Figma button (1549:311779). */
+  background: ${gradients.amethyst};
   color: ${colors.softWhite};
   font-weight: 600;
   font-size: 13px;
   text-transform: uppercase;
-  letter-spacing: 0.046em;
+  letter-spacing: 0.46px;
   white-space: nowrap;
   transition: filter 0.15s ease;
 
@@ -251,7 +251,7 @@ export const Credits = styled(NavLink)`
     inset: -6px;
     border-radius: calc(${radius.btn} + 6px);
     padding: 2px;
-    background: linear-gradient(180deg, #ff7439 0%, #ff2d55 100%);
+    background: ${gradients.amethyst};
     -webkit-mask:
       linear-gradient(#fff 0 0) content-box,
       linear-gradient(#fff 0 0);
