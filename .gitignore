@@ -23,6 +23,10 @@ coverage/
 # Tool run output
 tools/*/out/
 
+# Raw 1080×1600 avatar source PNGs — working files for the "Ready to use avatars" showcase; only the
+# optimized avatar-*.webp beside them get imported/committed.
+app/src/assets/overview/avatars/test/
+
 # Editor / OS
 .DS_Store
 *.log

@@ -19,7 +19,7 @@ export const Head = styled.div`
 export const Title = styled.h2`
   font-size: 22px;
   font-weight: 700;
-  color: ${colors.text};
+  color: ${colors.softWhite};
 `
 
 export const ViewAll = styled.button`
@@ -29,7 +29,7 @@ export const ViewAll = styled.button`
   background: none;
   border: 0;
   padding: 0;
-  color: ${colors.accent};
+  color: ${colors.softWhite};
   font-weight: 700;
   font-size: 13px;
   letter-spacing: 0.046em;
@@ -153,8 +153,8 @@ export const Dot = styled.button`
   border-radius: 50%;
   border: 0;
   padding: 0;
-  background: ${colors.lineStrong};
-  opacity: 0.5;
+  /* Figma "Carousel Dots" (verbatim): rgba(0,0,0,0.5) at rest, Brand/Orange active. */
+  background: rgba(0, 0, 0, 0.5);
   cursor: pointer;
   transition:
     opacity 0.12s ease,
@@ -165,7 +165,7 @@ export const Dot = styled.button`
     opacity: 0.8;
   }
   &[data-active] {
-    background: ${colors.accent};
+    background: #ff7439;
     opacity: 1;
     transform: scale(1.1);
   }

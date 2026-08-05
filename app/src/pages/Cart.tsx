@@ -75,6 +75,9 @@ export type CartNavState = {
   resumeCheckout?: boolean
   // Credits that just landed, forwarded to the /success page for the combined credits+items view.
   creditsAdded?: number
+  // The cart drawer's CHECKOUT: land on /cart with the flow already running, so the drawer doesn't
+  // have to host a second copy of it (sign-in gate, trade review, payment modal all live here).
+  startCheckout?: boolean
 }
 
 // Cart-specific mapping: the "listing changed" message is plural (a multi-item cart), so it maps
@@ -1106,6 +1109,23 @@ export function Cart() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navState?.resumeCheckout])
 
+  // Arrived from the drawer's CHECKOUT — run the same flow its own button would. Fires once; the
+  // sign-in gate and everything downstream is checkout()'s own business.
+  // The once-guard lives INSIDE the timeout, not around the scheduling: StrictMode's dev double-mount
+  // would otherwise set the flag on the first pass, have the cleanup cancel the only scheduled call,
+  // and then short-circuit the second — so the checkout never ran at all.
+  const startedRef = useRef(false)
+  useEffect(() => {
+    if (!navState?.startCheckout) return
+    const id = setTimeout(() => {
+      if (startedRef.current) return
+      startedRef.current = true
+      void checkout()
+    }, 0)
+    return () => clearTimeout(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navState?.startCheckout])
+
   const working = busy || modal?.phase === 'processing'
 
   if (items.length === 0 && !modal) {
@@ -1341,36 +1361,46 @@ export function Cart() {
                   1558-320267). Priced off the cart's own line prices — the same number the total above
                   shows — so the buttons and the total can never disagree. The authoritative price is
                   re-resolved on click; a rail that stops being viable after that falls back to the modal. */}
-              {summaryRails.options.length > 0 || summaryRails.manaShortfall ? (
-                <PaymentCtas
-                  options={summaryRails.options}
-                  totalCents={summaryTotalCents}
-                  shortfall={summaryRails.manaShortfall}
-                  /* The summary line right above states the total, so the button does not repeat it. */
-                  showCreditsAmount={false}
-                  /* "Pay with credits" only earns its words when there is another rail to tell it apart
+              {/* Always rendered. It used to be gated on there being a payable rail or held MANA, which is
+                  what made the checkout button come and go with the wallet's contents; `creditsFallback`
+                  below means this component always has at least the credits CTA to show. */}
+              <PaymentCtas
+                options={summaryRails.options}
+                totalCents={summaryTotalCents}
+                shortfall={summaryRails.manaShortfall}
+                /* The summary line right above states the total, so the button does not repeat it. */
+                showCreditsAmount={false}
+                /* "Pay with credits" only earns its words when there is another rail to tell it apart
                      from. On its own it is simply the checkout button, which is what the design draws — and
                      naming the rail there would be odd, since the buyer never chose one. */
-                  creditsLabel={
-                    review
+                creditsLabel={
+                  review
+                    ? t('marketCheckout.confirmPurchase')
+                    : summaryRails.options.length > 1
+                      ? t('cart.buyWithCredits')
+                      : t('cart.checkout')
+                }
+                busy={working || allUnavailable}
+                onPay={method => void (review ? confirmPurchase() : checkout(method))}
+                /**
+                 * The credits CTA stays put even when the balance falls short, and opens the checkout — the
+                 * modal is where a top-up is offered. This replaces the plain checkout button that used to
+                 * live in an `else` here: that button was the fallback a buyer with NO MANA always got, and
+                 * the bug was that holding some MANA routed past it. Now the route to buying more credits
+                 * does not depend on the MANA balance at all.
+                 *
+                 * Its own label key, not the card's `assetCard.buyNow`: that one is shared with the browse
+                 * cards and the PDP, which buy immediately. This opens the checkout.
+                 */
+                creditsFallback={{
+                  label: working
+                    ? t('cart.working')
+                    : review
                       ? t('marketCheckout.confirmPurchase')
-                      : summaryRails.options.length > 1
-                        ? t('cart.buyWithCredits')
-                        : t('cart.checkout')
-                  }
-                  busy={working || allUnavailable}
-                  onPay={method => void (review ? confirmPurchase() : checkout(method))}
-                />
-              ) : (
-                <S.Cta
-                  onClick={() => void (review ? confirmPurchase() : checkout())}
-                  disabled={working || allUnavailable}
-                >
-                  {/* Its own key, not the card's `assetCard.buyNow`: that label is shared with the browse
-                      cards and the PDP, which do buy immediately. This CTA opens the checkout. */}
-                  {working ? t('cart.working') : review ? t('marketCheckout.confirmPurchase') : t('cart.checkout')}
-                </S.Cta>
-              )}
+                      : t('cart.checkout'),
+                  onClick: () => void (review ? confirmPurchase() : checkout())
+                }}
+              />
 
               {allUnavailable ? <S.Msg className="muted">{t('cart.allUnavailable')}</S.Msg> : null}
               {!session ? <S.Msg className="muted">{t('cart.signInHint')}</S.Msg> : null}

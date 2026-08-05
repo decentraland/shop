@@ -16,9 +16,12 @@ export const Chip = styled.span`
   background: ${colors.chip};
   color: #555;
 
+  /* The rarity chip is a SOLID fill in the rarity's own colour with a white label (Figma) — the label
+     never switches to dark ink, however light the fill. Call sites paint the fill inline from
+     lib/rarity's rarityColor; the tint here is only what shows if one doesn't. */
   &[data-variant='rarity'] {
     background: ${colors.rarityBg};
-    color: ${colors.rarity};
+    color: ${colors.white};
     text-transform: uppercase;
   }
   &[data-variant='icon'] {

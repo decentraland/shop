@@ -1,11 +1,5 @@
 import type { Trade } from '@dcl/schemas'
-import {
-  resolveLiveTrade,
-  fetchStoreMintState,
-  usdWeiToCents,
-  TradeNotFoundError,
-  type CatalogItem
-} from '~/lib/api'
+import { resolveLiveTrade, fetchStoreMintState, usdWeiToCents, TradeNotFoundError, type CatalogItem } from '~/lib/api'
 
 // A cart line's live sellability, checked when the cart opens.
 //   available   → the underlying listing still resolves and is buyable

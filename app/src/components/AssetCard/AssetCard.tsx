@@ -6,7 +6,7 @@ import { useHoverPreview } from '~/store/hoverPreview'
 import { useWallet } from '~/store/wallet'
 import { isOwnListing } from '~/lib/ownership'
 import { detailRouteFor } from '~/lib/routes'
-import { rarityInk, rarityTint, rarityDescription, rarityLabel } from '~/lib/rarity'
+import { rarityColor, rarityDescription, rarityLabel } from '~/lib/rarity'
 import { categoryIcon, genderIcon } from '~/lib/itemIcons'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { Icon } from '~/components/Icon'
@@ -185,7 +185,7 @@ export function AssetCard(props: AssetCardProps) {
     <S.Chips data-chips>
       <S.CardChip
         data-variant="rarity"
-        style={{ background: rarityTint(item.rarity), color: rarityInk(item.rarity) }}
+        style={{ background: rarityColor(item.rarity) }}
         title={rarityDescription(item.rarity)}
       >
         {rarityLabel(item.rarity)}
@@ -224,7 +224,7 @@ export function AssetCard(props: AssetCardProps) {
     <S.Chips data-chips>
       <S.CardChip
         data-variant="rarity"
-        style={{ background: rarityTint(item.rarity), color: rarityInk(item.rarity) }}
+        style={{ background: rarityColor(item.rarity) }}
         title={rarityDescription(item.rarity)}
       >
         {rarityLabel(item.rarity)}
@@ -588,7 +588,7 @@ export function AssetCard(props: AssetCardProps) {
                 }}
                 disabled={!own && cartFull}
               >
-                <Icon name={own ? 'pen' : 'cart-solid'} />
+                <Icon name={own ? 'pen' : 'cart'} />
                 {own ? t('assetCard.manage') : cartFull ? t('assetCard.inCart') : t('assetCard.addToCart')}
               </S.Cart>
             )}

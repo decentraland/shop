@@ -1,6 +1,7 @@
 import { t } from '~/intl/i18n'
 import { Rarity } from '@dcl/schemas'
 import { capitalizeFirst } from '~/lib/text'
+import { rarities } from '~/styles/theme'
 
 // Per-rarity radial gradient (light center → dark edge), matching how the marketplace renders an
 // item's image background. Falls back to a neutral grey wash for unknown rarities.
@@ -20,9 +21,16 @@ function luminance([r, g, b]: [number, number, number]): number {
   return 0.299 * r + 0.587 * g + 0.114 * b
 }
 
-// Real per-rarity color (common grey -> mythic pink, etc.) instead of one flat purple wash.
+// Real per-rarity color (common cyan -> mythic pink, etc.) instead of one flat purple wash.
+//
+// Reads the DESIGN's palette (theme.rarities, the Figma "Rarities/*" variables) rather than
+// @dcl/schemas' Rarity.getColor: the designer re-tuned all eight for the dark field, so every one
+// differs (legendary #842dda -> #a24bf3, common #abc1c1 -> #73d3d3, …). The schema stays the fallback
+// for a rarity the design has no token for, then the neutral grey.
 export function rarityColor(rarity?: string | null): string {
-  return rarity ? Rarity.getColor(rarity.toLowerCase() as Rarity) || FALLBACK_COLOR : FALLBACK_COLOR
+  if (!rarity) return FALLBACK_COLOR
+  const key = rarity.toLowerCase()
+  return rarities[key as keyof typeof rarities] || Rarity.getColor(key as Rarity) || FALLBACK_COLOR
 }
 
 // The marketplace rarity chip is a TINTED chip: the rarity's own color at low alpha for the
@@ -91,13 +99,4 @@ export function rarityGradient(rarity?: string | null): string {
   } catch {
     return FALLBACK_GRADIENT
   }
-}
-
-// Pick black or white text for a solid background by perceived luminance (same threshold the reskin
-// uses): light chip -> dark text, dark chip -> white text. Tolerates a non-string (defends against a
-// missing color upstream) by falling back to dark text rather than throwing.
-export function readableText(hex: string): string {
-  const rgb = parseHex(hex)
-  if (!rgb) return '#161518'
-  return luminance(rgb) > 150 ? '#161518' : '#ffffff'
 }

@@ -61,7 +61,7 @@ export function MyFavorites() {
   return (
     <section>
       <S.Head>
-        <h1>{t('nav.myFavorites')}</h1>
+        <S.Title>{t('nav.myFavorites')}</S.Title>
         {!loading ? <S.Count>{t('myFavorites.itemCount', { count: items.length })}</S.Count> : null}
       </S.Head>
       {rateError && hasManaItems ? <S.RateBanner>{t('assets.marketUnavailable')}</S.RateBanner> : null}

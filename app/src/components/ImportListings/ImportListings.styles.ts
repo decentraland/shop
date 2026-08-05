@@ -90,6 +90,14 @@ export const EmptyCta = styled(Button)`
   font-size: 15px;
   /* The variant sets 0.046em, which at 15px is 0.69px; the design asks for 0.46px flat. */
   letter-spacing: 0.46px;
+  /* Filled FLAT with the accent here, not with the purple variant's amethyst gradient — so the variant's
+     own hover overlay (that same accent) has to step up a shade to still read as a hover. */
+  background: ${colors.accent};
+
+  &:hover:not(:disabled)::before,
+  &:active:not(:disabled)::before {
+    background: ${colors.accentHover};
+  }
 `
 
 export const Root = styled.div`
@@ -121,15 +129,17 @@ export const Title = styled.h2`
   font-size: 20px;
   line-height: 24px;
   letter-spacing: 0.46px;
-  color: ${colors.text};
+  color: ${colors.white};
 `
 
+// Gray 4, the dimmer of the two whites the design sets on this field — the heading above it is the
+// bright one, and the pair is what keeps the paragraph from competing with it.
 export const Lede = styled.p`
   margin: 0;
   font-weight: 500;
   font-size: 14px;
   line-height: 1.334;
-  color: ${colors.muted1};
+  color: ${colors.gray4};
 `
 
 export const LearnMore = styled.a`
@@ -140,33 +150,33 @@ export const LearnMore = styled.a`
   font-size: 14px;
   line-height: 30px;
   text-decoration: underline;
-  color: ${colors.accent};
+  color: ${colors.white};
 
   .ico {
     width: 13px;
     height: 13px;
   }
   &:focus-visible {
-    outline: 2px solid ${colors.accent};
+    outline: 2px solid ${colors.white};
     outline-offset: 2px;
   }
 `
 
-// Gray 4, not the subtler card hairline: this rule spans the full 1003px and has to stay readable as a
-// section break, which is the weight the design draws it at.
+// White at a quarter strength, which is what the design's hairline composites to over the violet page.
+// A solid grey (even Gray 4) reads as a bright rule there rather than as a section break.
 export const Divider = styled.hr`
   width: 100%;
   height: 0;
   margin: 0;
   border: 0;
-  border-top: 1px solid ${colors.gray4};
+  border-top: 1px solid rgba(255, 255, 255, 0.25);
 `
 
 export const Body = styled.div`
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 8px 12px 0;
+  padding: 12px;
 `
 
 // The same lilac strip as the My Assets nudge, carrying a count instead of a call to action.
@@ -183,7 +193,7 @@ export const Count = styled.span`
   width: 20px;
   height: 20px;
   border-radius: ${radius.pill};
-  background: ${colors.brandViolet};
+  background: ${colors.dclRed};
   font-weight: 600;
   font-size: 12px;
   line-height: 1.6;
@@ -202,17 +212,43 @@ export const SelectAll = styled.label`
   align-self: flex-start;
   font-size: 14px;
   line-height: 1.2;
-  color: ${colors.text};
+  color: ${colors.white};
   cursor: pointer;
 `
 
-// A fixed 40px slot so the checkbox lines up with the one on every row below it.
+/**
+ * A fixed 40px slot so the checkbox lines up with the one on every row below it.
+ *
+ * It also dresses the checkbox it holds, because the design gives this tool two skins of the shared
+ * control and neither is the primitive's default: ticked is the primary red here, not violet, and the
+ * `on-dark` slot (Select All, which sits on the violet page rather than on a white row) drops the white
+ * fill for the page itself so only the outline shows.
+ */
 export const CheckSlot = styled.span`
   flex: none;
   display: grid;
   place-items: center;
   width: 40px;
   height: 40px;
+
+  & input:checked,
+  & input[data-indeterminate='true'] {
+    background: ${colors.dclRed};
+    border-color: ${colors.dclRed};
+  }
+
+  &[data-tone='on-dark'] input {
+    background: transparent;
+    border-color: ${colors.white};
+  }
+  &[data-tone='on-dark'] input:checked,
+  &[data-tone='on-dark'] input[data-indeterminate='true'] {
+    background: ${colors.dclRed};
+    border-color: ${colors.dclRed};
+  }
+  &[data-tone='on-dark'] input:focus-visible {
+    outline-color: ${colors.white};
+  }
 `
 
 export const List = styled.div`
@@ -233,10 +269,6 @@ export const Row = styled.article`
   background: ${colors.white};
   overflow: hidden;
   transition: opacity 0.25s ease;
-
-  &[data-off] {
-    opacity: 0.5;
-  }
 `
 
 // Checkbox and thumbnail read as one unit, so they sit flush rather than taking the row's gap.
@@ -244,6 +276,12 @@ export const Lead = styled.div`
   flex: none;
   display: flex;
   align-items: center;
+
+  /* On a phone the design tops the checkbox against the thumbnail instead of centring it — the card is
+     three lines tall there, and a centred tick drifts away from the item it belongs to. */
+  ${media.maxWidth('mobile')} {
+    align-items: flex-start;
+  }
 `
 
 export const Thumb = styled.div`
@@ -274,6 +312,12 @@ export const Info = styled.div`
   justify-content: center;
   gap: 8px;
   padding: 16px 8px;
+
+  /* A smaller basis on a phone, where the name and chips have to STAY beside the thumbnail: at 150px the
+     pair no longer fits the line on the narrowest handsets and the block dropped below the artwork. */
+  ${media.maxWidth('mobile')} {
+    flex-basis: 100px;
+  }
 `
 
 export const Name = styled.div`
@@ -312,13 +356,21 @@ export const Chip = styled(BaseChip)`
 
 export const Price = styled.div`
   flex: none;
-  /* Right-aligns the block on the desktop row AND on the line it wraps to on narrow screens. */
+  /* Right-aligns the block on the desktop row. */
   margin-left: auto;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   justify-content: center;
   gap: 4px;
+
+  /* The phone card gives the price a line of its own, running the full width of the row — but indented by
+     the checkbox slot, so it starts under the thumbnail rather than under the tick. */
+  ${media.maxWidth('mobile')} {
+    flex: 1 1 100%;
+    margin-left: 40px;
+    align-items: stretch;
+  }
 `
 
 export const PriceField = styled.div`
@@ -333,14 +385,14 @@ export const PriceField = styled.div`
   border-radius: ${radius.btn};
   background: ${colors.panel};
 
-  /* The MONOCHROME credit glyph, in the text colour and matched to the amount beside it: the filled
-     gradient mark is right for a price you are being SHOWN, and this is a price you are typing, so the
-     unit belongs to the input's own type. 17px is the size the design draws the mark at here. */
+  /* The OUTLINED credit glyph, not the filled gradient mark: the filled one is right for a price you are
+     being shown, and this is a price you are typing. The design still draws it in the currency's own red
+     rather than in the input's ink, so the unit stays legible as a unit. 17px is the size it draws at. */
   & .ico {
     flex: 0 0 auto;
     width: 17px;
     height: 17px;
-    color: ${colors.text};
+    color: ${colors.dclRed};
   }
   transition:
     border-color 0.15s,
@@ -349,6 +401,10 @@ export const PriceField = styled.div`
   &:focus-within {
     border-color: ${colors.accent};
     box-shadow: 0 0 0 3px ${colors.rarityBg};
+  }
+
+  ${media.maxWidth('mobile')} {
+    width: 100%;
   }
 `
 
@@ -373,6 +429,11 @@ export const PriceSub = styled.div`
   font-weight: 500;
   font-size: 12px;
   color: ${colors.gray0};
+
+  /* Centred under the full-width field it converts, not parked at its right edge. */
+  ${media.maxWidth('mobile')} {
+    justify-content: center;
+  }
 `
 
 export const PriceWas = styled.span`
@@ -397,7 +458,7 @@ export const Dock = styled.div`
   right: 0;
   bottom: 0;
   z-index: 30;
-  background: rgba(255, 255, 255, 0.9);
+  background: ${colors.white};
   backdrop-filter: blur(12px);
   border-top: 1px solid ${colors.line};
 `
@@ -410,8 +471,23 @@ export const DockInner = styled.div`
   align-items: center;
   gap: 16px;
 
+  /* On a phone the design stacks the bar: the summary line, then the cta across the full width. */
   ${media.maxWidth('mobile')} {
+    flex-direction: column;
+    align-items: stretch;
     padding: 12px 16px;
+    gap: 12px;
+  }
+`
+
+// row-reverse on a phone, where the design reads the total on the RIGHT of the line and the count on
+// the left — the stacked total-over-count block is the desktop arrangement.
+export const DockInfo = styled.div`
+  ${media.maxWidth('mobile')} {
+    display: flex;
+    flex-direction: row-reverse;
+    align-items: center;
+    justify-content: space-between;
     gap: 12px;
   }
 `
@@ -423,6 +499,11 @@ export const DockTotal = styled.div`
   font-weight: 600;
   font-size: 16px;
   color: ${colors.text};
+
+  & .ico {
+    width: 17px;
+    height: 17px;
+  }
 `
 
 export const DockSub = styled.div`
@@ -432,14 +513,39 @@ export const DockSub = styled.div`
 
 export const DockSpacer = styled.span`
   flex: 1 1 auto;
+
+  ${media.maxWidth('mobile')} {
+    display: none;
+  }
 `
 
 export const DockCta = styled(Button)`
   flex: none;
+  min-width: 260px;
   padding: 13px 24px;
+
+  ${media.maxWidth('mobile')} {
+    min-width: 0;
+  }
 `
 
 // The 12px side gutter is Body's, so the FAQ rows line up with the listings above, not the page edge.
 export const FaqBlock = styled.div`
   padding: 16px 12px 0;
+
+  /* The outlined dark rows, but NOT the credits page's centred 32px heading that ships with them: here
+     the section is one more block in the tool's left-aligned column, so the heading keeps the light
+     skin's size and alignment. The doubled ampersand is what outranks Faq's own tone selectors, which
+     Emotion inserts after this block (the Faq renders inside it). */
+  && [data-tone='on-dark'] {
+    align-items: stretch;
+  }
+  && [data-testid='faq-title'] {
+    font-size: 20px;
+    text-align: left;
+
+    ${media.maxWidth('mobile')} {
+      font-size: 18px;
+    }
+  }
 `

@@ -30,7 +30,21 @@ vi.mock('~/hooks/useImportable', () => ({
   useImportable: () => useImportable()
 }))
 
+// Stands in for the run itself: the outcomes below are what the real modal reports through onDone, and
+// what the tool does with them (which toast, if any) is the thing under test.
+vi.mock('~/components/MigrateModal', () => ({
+  MigrateModal: ({ onDone }: { onDone: (r: { listed: number; failed: number; cancelled: number }) => void }) => (
+    <div>
+      <button onClick={() => onDone({ listed: 3, failed: 0, cancelled: 0 })}>finish clean</button>
+      <button onClick={() => onDone({ listed: 2, failed: 1, cancelled: 0 })}>finish partial</button>
+      <button onClick={() => onDone({ listed: 0, failed: 3, cancelled: 0 })}>finish failed</button>
+      <button onClick={() => onDone({ listed: 0, failed: 0, cancelled: 3 })}>finish cancelled</button>
+    </div>
+  )
+}))
+
 import { ImportListings } from './ImportListings'
+import { useToast } from '~/store/toast'
 
 function item(overrides: Partial<ImportItem> = {}): ImportItem {
   return {
@@ -79,6 +93,7 @@ function row(name: string): HTMLInputElement {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  useToast.setState({ toasts: [] })
   useImportable.mockReturnValue({ items: ITEMS, count: ITEMS.length, isLoading: false })
 })
 
@@ -150,6 +165,34 @@ describe('Select all', () => {
   it('should leave no row disabled for it to skip', () => {
     renderTool()
     for (const name of ['Galaxy Hat', 'Nebula Jacket', 'Comet Boots']) expect(row(name).disabled).toBe(false)
+  })
+})
+
+describe('when the run comes back', () => {
+  function finish(label: string) {
+    renderTool()
+    fireEvent.click(screen.getByTestId('import-list-all'))
+    fireEvent.click(screen.getByRole('button', { name: label }))
+    return useToast.getState().toasts
+  }
+
+  it('should confirm a clean run', () => {
+    expect(finish('finish clean')).toEqual([expect.objectContaining({ kind: 'success' })])
+  })
+
+  // The point of the split: a run with a failure in it is never announced as an update, whether or not
+  // some items made it through.
+  it('should report a failure as one, not as an update', () => {
+    expect(finish('finish failed')).toEqual([expect.objectContaining({ kind: 'error' })])
+  })
+
+  it('should report a partly failed run as a failure too', () => {
+    expect(finish('finish partial')).toEqual([expect.objectContaining({ kind: 'error' })])
+  })
+
+  // Declining every prompt is a choice, not an outcome to announce either way.
+  it('should say nothing when the seller declined every item', () => {
+    expect(finish('finish cancelled')).toEqual([])
   })
 })
 

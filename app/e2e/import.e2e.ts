@@ -63,7 +63,9 @@ describe('move old listings', () => {
     expect(await rowChecks()).toEqual([true, true])
 
     // List all → the migrate modal opens with both items queued at those prices.
-    await clickWhenEnabled(page, 'button', /list all/i)
+    // By test id, not by label: the cta's copy carries the selected count, so a text matcher breaks
+    // every time the wording around the number changes.
+    await clickWhenEnabled(page, '[data-testid="import-list-all"]', /./)
     await waitForText(page, 'Listing your items')
     const queued = await page.$eval('[data-testid="modal"]', el => (el as HTMLElement).innerText)
     expect(queued).toMatch(/Galaxy Hat/)

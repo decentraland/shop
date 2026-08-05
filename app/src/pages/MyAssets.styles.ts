@@ -280,14 +280,14 @@ export const GateTitle = styled.h1`
   font-family: ${theme.font.sans};
   font-weight: 700;
   font-size: 24px;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
 `
 
 export const GateText = styled.p`
   margin: 0;
   font-family: ${theme.font.sans};
   font-size: 15px;
-  color: ${theme.colors.muted};
+  color: ${theme.colors.gray4};
 `
 
 // Import banner (surfaces classic listings the seller can bring into the Shop).

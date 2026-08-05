@@ -69,7 +69,10 @@ export const Body = styled.div`
   }
 `
 
-// Groups the breadcrumb + the two-column body; no background of its own (the gray comes from body).
+// Groups the breadcrumb + the two-column body, and paints the cart's light band: a full-bleed gray
+// rect over the page's purple field, which is how Figma draws it (1551:315391, 1922x798). Reaching the
+// viewport edges needs the 100vw/50% dance; the negative top eats .page's own padding so the gray
+// starts flush under the sticky sub-nav instead of leaving a purple seam.
 export const Top = styled.div`
   position: relative;
   /* The gray band is 733px in Figma (1553-317103) — taller than the panels inside it, deliberately. Without
@@ -77,11 +80,38 @@ export const Top = styled.div`
      the page out BELOW the cross-sell, so a strip of gray showed under "You might also like" instead of the
      footer. Giving the band its designed height puts the leftover space where the design wants it. */
   min-height: 733px;
+  /* Gray below the panels so the band never hugs the last card: Figma's band runs y152–950 with the
+     content ending at 854. The min-height above only covers a SHORT cart — once the list outgrows it
+     the band tracks the content, and without this padding it would butt straight into the purple. */
+  padding-bottom: 96px;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: -28px;
+    bottom: 0;
+    left: 50%;
+    width: 100vw;
+    transform: translateX(-50%);
+    background: ${colors.media};
+    z-index: 0;
+  }
+  & > * {
+    position: relative;
+    z-index: 1;
+  }
 
   ${mobile} {
     /* The single-column layout is already taller than the desktop band, and the fixed summary bar sits over
        the bottom of it — a floor here would only add empty gray. */
     min-height: 0;
+
+    /* The fixed summary bar already reserves room at the bottom on mobile (see Checkout). */
+    padding-bottom: 32px;
+
+    &::before {
+      top: -16px; /* .page's mobile padding */
+    }
   }
 `
 
@@ -719,22 +749,22 @@ export const Cta = styled.button`
   height: 56px;
   border: 0;
   border-radius: ${radius.btn};
-  background: ${gradients.amethyst};
+  background: ${gradients.buyBtn};
   color: ${colors.softWhite};
   font-size: 15px;
   font-weight: 600;
   letter-spacing: 0.046em;
   text-transform: uppercase;
   cursor: pointer;
-  transition:
-    background 0.15s ease,
-    filter 0.15s ease;
+  transition: background-image 0.15s ease;
 
-  &:hover:not(:disabled) {
-    background: ${colors.accent};
-  }
+  /* Primary hover/pressed is the solid Primary red (Figma 738:53252 / 738:53262) — the gradient is
+     the RESTING fill only. Painted as a flat GRADIENT, not a background-color: the shorthand can't
+     interpolate background-image, so gradient -> colour dropped the image midway while the colour was
+     still half transparent and the button visibly blinked. Same property both ends = a clean swap. */
+  &:hover:not(:disabled),
   &:active:not(:disabled) {
-    filter: brightness(0.95);
+    background-image: linear-gradient(${colors.dclRed}, ${colors.dclRed});
   }
   &:disabled {
     opacity: 0.6;
@@ -761,28 +791,13 @@ export const MsgNotice = styled(ErrorNotice)`
 // with no gray strip. The top margin sits ABOVE that band, so it shows the gray page background.
 export const Upsell = styled.div`
   position: relative;
-  /* Takes the leftover height so its white ::before covers it — see .page[data-route="/cart"]. */
   flex: 1 0 auto;
   margin-top: 48px;
-  /* The whole gap from the top of the cross-sell to the "You might also like" heading — the shared
-     carousel's own top margin is zeroed below so this padding isn't stacked on top of it. */
+  /* Below the gray band the cross-sell sits straight on the purple field (Figma) — hence no band of its
+     own. The padding is the whole gap from the top of the section to the heading; the shared carousel's
+     own top margin is zeroed below so the two don't stack. */
   padding: 47px 0 24px;
 
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    bottom: -80px; /* eat .page's bottom padding so the white reaches the footer */
-    left: 50%;
-    width: 100vw;
-    transform: translateX(-50%);
-    background: ${colors.bg};
-    z-index: 0;
-  }
-  & > * {
-    position: relative;
-    z-index: 1;
-  }
   & section {
     margin-top: 0;
   }

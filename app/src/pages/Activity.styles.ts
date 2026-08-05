@@ -41,10 +41,11 @@ export const Head = styled.div`
 export const Title = styled.h1`
   font-family: ${theme.font.sans};
   margin: 0;
+  color: ${theme.colors.softWhite};
 `
 
 export const Count = styled.span`
-  color: ${theme.colors.muted};
+  color: ${theme.colors.gray4};
   font-size: 14px;
 `
 
@@ -57,14 +58,16 @@ export const Tabs = styled.div`
   flex-wrap: wrap;
 `
 
+// The SELECTED tab is the white pill and the unselected ones are the purple fill — the row reads as
+// "the white one is where you are" against the purple page, which is the way round the design has it.
 export const Tab = styled.button`
   appearance: none;
   /* Figma draws the row as a 0.5px Gray 4 hairline, a shade darker and half the weight of the card
      border this used, and sets the label a point smaller with the tracking the shop's other 13px
      pills carry. */
-  border: 0.5px solid ${theme.colors.gray4};
-  background: ${theme.colors.white};
-  color: ${theme.colors.text};
+  border: 0.5px solid ${theme.colors.accent};
+  background: ${theme.colors.accent};
+  color: ${theme.colors.white};
   font-family: ${theme.font.sans};
   font-size: 13px;
   font-weight: 600;
@@ -85,16 +88,21 @@ export const Tab = styled.button`
     color 0.15s;
 
   &:hover {
-    background: ${theme.colors.media};
+    background: ${theme.colors.accentHover};
+    border-color: ${theme.colors.accentHover};
   }
   &:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
+    outline: 2px solid ${theme.colors.white};
     outline-offset: 2px;
   }
   &[data-active='true'] {
-    background: ${theme.colors.accent};
-    border-color: ${theme.colors.accent};
-    color: ${theme.colors.white};
+    background: ${theme.colors.white};
+    border-color: ${theme.colors.gray4};
+    color: ${theme.colors.text};
+  }
+  &[data-active='true']:hover {
+    background: ${theme.colors.media};
+    border-color: ${theme.colors.gray4};
   }
 `
 
@@ -103,19 +111,11 @@ export const Tab = styled.button`
 // out — so the only thing this adds to the pill is the corner the count hangs off.
 export const MigrateTab = styled(Tab)`
   position: relative;
-
-  /* Violet-on-violet once the chip fills, so the badge inverts. Reached by test id rather than by
-     interpolating the styled def, which throws under vitest (see CLAUDE.md). */
-  &[data-active='true'] [data-testid='activity-migrate-count'] {
-    background: ${theme.colors.white};
-    color: ${theme.colors.accent};
-    /* See MigrateBadge: a white ring would vanish into the page here, since the disc itself is white. */
-    box-shadow: 0 0 0 2px ${theme.colors.accent};
-  }
 `
 
-// How many listings are still to move. Same 20px violet disc the tool uses over its own list, so the
-// chip and the panel it opens agree on what a count looks like.
+// How many listings are still to move. Same 20px red disc the tool uses over its own list, so the chip
+// and the panel it opens agree on what a count looks like — one colour in both states of the chip, since
+// the count is about the listings and not about which tab you are on.
 //
 // Figma hangs the disc OVER the chip's top-right corner rather than seating it inside the pill, so it
 // is out of flow: the chip is sized by its label alone, and the disc overhangs 2.5px to the right and
@@ -136,20 +136,9 @@ export const MigrateBadge = styled.span`
   height: 20px;
   padding: 0 6px;
   border-radius: ${theme.radius.pill};
-  background: ${theme.colors.brandViolet};
-  /**
-   * A ring, whose colour has to FOLLOW THE DISC rather than the page.
-   *
-   * The disc hangs off the corner: part of it sits on the chip, part on the page. Unselected it is violet
-   * on white, so it already reads and the white ring only separates it from the chip's grey hairline.
-   * Selected, the chip inverts it to white on violet — and a white disc against the white page has no edge
-   * at all along the half that overhangs, which is the state where the circle looked unfinished. That case
-   * needs the ring in the chip's accent instead (below), so the disc keeps a hard edge on both surfaces.
-   *
-   * box-shadow rather than a border: a border would grow the 20px disc the design fixes, while a spread
-   * shadow draws outside the box.
-   */
-  box-shadow: 0 0 0 2px ${theme.colors.white};
+  background: ${theme.colors.dclRed};
+  /* No ring: the red separates itself from both surfaces the disc straddles (the chip and the page), and
+     the design draws the circle bare. */
   font-weight: 600;
   font-size: 12px;
   line-height: 1.6;
@@ -480,12 +469,20 @@ export const Empty = styled.div`
   text-align: center;
   padding: 90px 20px;
   min-height: 50vh;
+  color: ${theme.colors.softWhite};
 `
 
 export const EmptyTitle = styled.p`
   font-size: 22px;
   font-weight: 700;
   margin: 6px 0 0;
+`
+
+// The line under the title. Not the global `.muted` utility: that is the light theme's grey and it
+// vanishes on the purple field — this stays in the block's own white.
+export const EmptyBody = styled.p`
+  margin: 0;
+  color: ${theme.colors.softWhite};
 `
 
 export const EmptyCta = styled(Button)`

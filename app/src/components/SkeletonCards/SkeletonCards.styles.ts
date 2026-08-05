@@ -16,14 +16,18 @@ const shimmerFill = `
 `
 
 // A card-shaped shimmer placeholder, sized to the real AssetCard so a loading grid/rail holds its
-// eventual height. 300px is AssetCard's own fixed height (AssetCard.styles Card) at EVERY breakpoint —
-// measured against the real card in the browser at 218.8x300 (desktop) and 156.5x300 (375px), which is
-// this box exactly.
+// eventual height. Both numbers are AssetCard's own fixed heights (AssetCard.styles Card) — 300px, and
+// 250px for the compact card below sm. They have to be restated rather than imported because a card
+// height is that component's geometry, not a token; keep them in step by measuring the real card.
 export const SkeletonCard = styled.div`
   min-height: 300px;
   border: 1px solid ${colors.line};
   border-radius: ${radius.card};
   ${shimmerFill};
+
+  ${media.maxWidth('sm')} {
+    min-height: 250px;
+  }
 
   @media (prefers-reduced-motion: reduce) {
     animation: none;

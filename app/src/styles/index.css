@@ -26,6 +26,7 @@
   --err: #d33;
   --amethyst: linear-gradient(180deg, #c640cd 0%, #691fa9 100%);
   --cerise: linear-gradient(135deg, #ff2d55 0%, #c640cd 100%); /* DCL/Gradients/Cerise — card hover border */
+  --buy-btn: linear-gradient(180.93deg, #ff7439 2.82%, #ff2d55 97.47%); /* Figma "BUY Button" */
   --radius-card: 12px;
   --radius-chip: 4px;
   --radius-btn: 8px;
@@ -52,7 +53,18 @@ html {
 body {
   margin: 0;
   padding-top: 92px;
-  background: var(--bg);
+  /* Figma "New Shop 2026" page field, taken verbatim from the design's radial fill: ellipse
+     1183.5x1279.9px centred at (960, 636.45) on the 1920x1168 artboard — i.e. 61.64% x 109.58% at
+     50% / 54.49% — with the design's exact five stops. */
+  background: radial-gradient(
+      61.64% 109.58% at 50% 54.49%,
+      #952dc6 0%,
+      #7c27a8 25%,
+      #642089 50%,
+      #4b1a6b 75%,
+      #32134c 100%
+    )
+    fixed;
   color: var(--text);
   font-family: var(--sans);
   -webkit-font-smoothing: antialiased;
@@ -62,13 +74,11 @@ body {
     padding-top: 64px;
   }
 }
-/* Cart route background: the whole page is gray so the white cards (header, items, summary) get the
-   focus. Toggled on <body> while Cart is mounted (see pages/Cart.tsx) so the gray reaches the viewport
-   edges AND fills up to the sticky sub-nav with no white gap — a page-level element can't do either.
-   The cross-sell section below the panels is lifted back to white by a band on Cart's Upsell. */
-body.shop-cart-bg {
-  background: var(--media);
-}
+/* The cart is DELIBERATELY the one light surface on the dark theme (Figma "Cart" 1551:315390): white
+   panels on a gray field, because a checkout reads as safer light than dark. The gray is a full-bleed
+   BAND behind the panels (Figma draws it as a rect over the artboard, not as a page background), which
+   is why the body keeps the purple field and the cross-sell below the band needs no undoing — see
+   pages/Cart.styles.ts (Checkout). The .shop-cart-bg class pages/Cart.tsx toggles is unused. */
 /* Sticky footer: fill the viewport (minus the fixed top navbar) as a flex column so short pages push
    the footer to the bottom instead of leaving it floating mid-screen. */
 #root {

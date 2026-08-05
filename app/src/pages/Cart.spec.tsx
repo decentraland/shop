@@ -52,8 +52,11 @@ const { balance } = vi.hoisted(() => ({ balance: { cents: 100_000 } }))
 vi.mock('~/hooks/useBalance', () => ({
   useBalance: () => ({ data: { balanceCents: balance.cents, credits: Math.floor(balance.cents / 10) }, isError: false })
 }))
-// No MANA, so `computePaymentOptions` (real) offers the credits rail only and one click charges.
-vi.mock('~/hooks/useManaBalance', () => ({ useManaBalance: () => ({ data: 0n }) }))
+// No MANA by default, so `computePaymentOptions` (real) offers the credits rail only and one click charges.
+// Mutable because the shortfall case needs the opposite: MANA that is held but cannot pay, which is what
+// used to swallow the checkout button.
+const { mana } = vi.hoisted(() => ({ mana: { wei: 0n } }))
+vi.mock('~/hooks/useManaBalance', () => ({ useManaBalance: () => ({ data: mana.wei }) }))
 vi.mock('~/hooks/useManaRate', () => ({ useManaRate: () => ({ data: { rate: 50_000_000n, decimals: 8 } }) }))
 // Every line buyable: availability is a different concern with its own specs.
 vi.mock('~/hooks/useCartAvailability', () => ({ useCartAvailability: () => ({}) }))
@@ -227,6 +230,7 @@ beforeEach(() => {
   cancelUsdIntents.mockResolvedValue(0)
   useCart.setState({ items: [], open: false })
   balance.cents = 100_000
+  mana.wei = 0n
   stubAuthorize()
 })
 
@@ -450,6 +454,30 @@ describe('when the cart summary offers the credits rail', () => {
     const cta = await screen.findByTestId('pay-with-credits')
     // No digits at all: the button names the action, the summary names the amount.
     expect(cta.textContent ?? '').not.toMatch(/\d/)
+  })
+})
+
+/**
+ * The route to buying more credits must not depend on the wallet's contents. The summary used to pick its
+ * CTAs off whichever rails were payable, so a short credits balance removed the credits button entirely.
+ *
+ * Only the no-MANA case lives here: this file mocks `usdCentsToManaWei` to 0n, so a MANA rail can never
+ * exist in it. The MANA combinations — including the reported bug, where held-but-insufficient MANA left
+ * ONLY a disabled button — are covered in PaymentCtas.spec.tsx, where they can be set up directly.
+ */
+describe('when the credits balance cannot cover the cart', () => {
+  it('should still offer the credits CTA, so a top-up is reachable', async () => {
+    balance.cents = 100 // 10 credits against a 20-credit cart
+    renderCart([item('a')])
+
+    expect(await screen.findByTestId('pay-with-credits-topup')).toBeInTheDocument()
+  })
+
+  it('should not duplicate it once the balance does cover the cart', async () => {
+    renderCart([item('a')])
+
+    expect(await screen.findByTestId('pay-with-credits')).toBeInTheDocument()
+    expect(screen.queryByTestId('pay-with-credits-topup')).not.toBeInTheDocument()
   })
 })
 

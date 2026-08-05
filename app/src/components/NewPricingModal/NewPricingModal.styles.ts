@@ -121,7 +121,7 @@ export const Ctas = styled.div`
   gap: 12px;
 `
 
-// Solid purple fill and a 2px purple outline at a 12px radius — the shared Button primitive's `purple`
+// Solid purple fill and a hairline dark outline at a 12px radius — the shared Button primitive's `purple`
 // and `outline` variants are the amethyst gradient and a magenta border, so they can't dress these.
 const cta = `
   flex: 1 1 0;
@@ -130,7 +130,7 @@ const cta = `
   align-items: center;
   justify-content: center;
   gap: 8px;
-  height: 40px;
+  height: 46px;
   padding: 0 12px;
   border-radius: ${radius.card};
   font-family: ${font.sans};
@@ -150,14 +150,16 @@ const cta = `
   }
 `
 
+// The dismissal is drawn as a plain outlined button — a 0.5px dark hairline and dark label, not a second
+// purple one. Only UPDATE PRICES wears the accent, which is what makes it the obvious of the two.
 export const Secondary = styled.button`
   ${cta};
-  border: 2px solid ${colors.accent};
+  border: 0.5px solid ${colors.text};
   background: ${colors.white};
-  color: ${colors.accent};
+  color: ${colors.text2};
 
   &:hover {
-    background: ${colors.rarityBg};
+    background: ${colors.panel};
   }
 `
 

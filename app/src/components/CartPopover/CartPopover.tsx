@@ -8,6 +8,7 @@ import { t } from '~/intl/i18n'
 import { formatCredits, formatCreditsFull } from '~/lib/currency'
 import { useCartAvailability } from '~/hooks/useCartAvailability'
 import { isLineBuyable, type CartLineAvailability } from '~/lib/cart-availability'
+import type { CartNavState } from '~/pages/Cart'
 import * as S from './CartPopover.styles'
 
 // A single cart line: thumbnail (+ in-cart check), name, creator, quantity stepper, price, delete.
@@ -191,12 +192,17 @@ export function CartPopover() {
             </S.TotalVal>
           </S.TotalRow>
           <S.Ctas>
-            <S.Cta data-variant="primary" to="/cart" onClick={() => setOpen(false)}>
+            <S.Cta data-variant="secondary" to="/cart" onClick={() => setOpen(false)}>
               {t('cartPopover.goToCart')}
             </S.Cta>
-            <S.CtaButton data-variant="secondary" onClick={() => setOpen(false)}>
-              {t('cartPopover.continueShopping')}
-            </S.CtaButton>
+            <S.Cta
+              data-variant="primary"
+              to="/cart"
+              state={{ startCheckout: true } satisfies CartNavState}
+              onClick={() => setOpen(false)}
+            >
+              {t('cartPopover.checkout')}
+            </S.Cta>
           </S.Ctas>
         </S.Foot>
       </S.Panel>

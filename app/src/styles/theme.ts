@@ -40,7 +40,8 @@ const colors = {
   accentActive: '#57178c', // accent purple — pressed shade (reusable on any purple CTA)
   navViolet: '#e3c9fb', // global (decentraland-ui2) navbar bar background — violet design
   infoGreen: '#e0f7e7', // good-news callout fill (the pricing-migration explainer block)
-  promptLilac: '#f4e9ff', // nudge-banner fill (classic listings still to move)
+  promptLilac: '#f4e9ff', // in-page nudge fill (the migration tool's "update pricing" strip)
+  promptAmber: '#ffe1b7', // standing-nudge banner fill (classic listings still to move)
   navOverlayHover: 'rgba(255, 255, 255, 0.35)', // violet-navbar tab/button hover fill
   navOverlayActive: 'rgba(255, 255, 255, 0.45)', // violet-navbar active/pressed fill
   magenta: '#c640cd', // brand magenta — gradient stop, outline-button border, card hover borders
@@ -63,13 +64,13 @@ const colors = {
 
 // Per-rarity swatch colors for the filter chips (Figma "Rarities/*" variables — a distinct palette
 // from @dcl/schemas' Rarity.getColor, so they're pinned here as design tokens).
-const rarities = {
+export const rarities = {
   common: '#73d3d3',
   uncommon: '#ff8362',
   rare: '#34ce76',
   epic: '#289cff',
   legendary: '#a24bf3',
-  exotic: '#bdfd4e',
+  exotic: '#9cd71e',
   mythic: '#ff4bed',
   unique: '#fea217'
 } as const
@@ -80,7 +81,10 @@ const gradients = {
   // Figma "DCL/Gradients/Flare" — the amber→red→magenta diagonal on the credit-pack hairline and the
   // "Recommended" pill. `ember` is its warm half, used for the thicker hover ring (no magenta stop).
   flare: 'linear-gradient(157.44deg, #ffbc5b 0%, #ff2d55 50.52%, #c640cd 100%)',
-  ember: 'linear-gradient(69deg, #ffbc5b 0%, #ff2d55 100%)'
+  ember: 'linear-gradient(69deg, #ffbc5b 0%, #ff2d55 100%)',
+  // Figma style "BUY Button" (738:53266) — the near-vertical orange→red on GET CREDITS and the promo
+  // CTAs. One token because those two must stay identical; they drifted apart once already.
+  buyBtn: 'linear-gradient(180.93deg, #ff7439 2.82%, #ff2d55 97.47%)'
 } as const
 
 const radius = {

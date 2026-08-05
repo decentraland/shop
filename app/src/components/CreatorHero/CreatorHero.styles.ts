@@ -5,16 +5,15 @@ import { theme } from '~/styles/theme'
 
 const { colors, radius, media } = theme
 
-// White outlined pill shared by the "View profile" link and the (context-overridden) FollowButton.
+// Dark translucent pill shared by the "View profile" link and the (context-overridden) FollowButton.
 const pill = css`
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 44px;
+  height: 40px;
   padding: 0 28px;
-  border: 2px solid ${colors.white};
   border-radius: ${radius.btn};
-  background: transparent;
+  background: rgba(0, 0, 0, 0.5);
   color: ${colors.white};
   font-weight: 600;
   font-size: 13px;
@@ -24,7 +23,7 @@ const pill = css`
 `
 
 // Cover banner with a centered avatar/name/description/actions block. The FollowButton (rendered with
-// className "creator-hero__follow") is restyled to the white pill via `&&` so it beats Button's variant.
+// className "creator-hero__follow") is restyled to the dark pill via `&&` so it beats Button's variant.
 export const Root = styled.section`
   position: relative;
   border-radius: ${radius.card};
@@ -39,7 +38,7 @@ export const Root = styled.section`
     ${pill};
   }
   && .creator-hero__follow:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.14);
+    background: ${colors.blackBtn};
   }
 
   ${media.maxWidth('mobile')} {
@@ -63,7 +62,7 @@ export const CoverImg = styled.img`
 export const Scrim = styled.div`
   position: absolute;
   inset: 0;
-  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.35) 0%, rgba(0, 0, 0, 0.55) 100%);
+  background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0.5) 100%);
 `
 
 export const Links = styled.div`
@@ -144,7 +143,7 @@ export const Body = styled.div`
   align-items: center;
   text-align: center;
   gap: 24px;
-  padding: 32px 20px;
+  padding: 40px 20px;
 
   ${media.maxWidth('mobile')} {
     padding: 56px 16px 24px;
@@ -205,6 +204,6 @@ export const View = styled.a`
   transition: background 0.15s ease;
 
   &:hover {
-    background: rgba(255, 255, 255, 0.14);
+    background: ${colors.blackBtn};
   }
 `

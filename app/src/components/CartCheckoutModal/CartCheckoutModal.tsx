@@ -9,6 +9,7 @@ import { WarningTriangleIcon } from '~/components/Icons/WarningTriangleIcon'
 import * as M from '~/components/BuyModal/modal.styles'
 import * as S from './CartCheckoutModal.styles'
 import loaderLogo from '~/assets/credits/loader-logo.svg'
+import packCoin from '~/assets/credits/pack-coin.webp'
 import buyErrorAvatar from '~/assets/error/buy-error.png'
 
 // The processing stages (mirrors Cart.tsx): reserve credits per unit → wait for the wallet signature →
@@ -298,7 +299,7 @@ function NoFunds({
           const on = p.id === selectedPack
           return (
             <M.Pack key={p.id} data-testid="credit-pack" data-on={on || undefined} onClick={() => onSelectPack(p.id)}>
-              <M.PackIco />
+              <M.PackIco src={packCoin} alt="" />
               <M.PackAmount>{formatCredits(p.credits)}</M.PackAmount>
               <M.PackUsd>(${p.usd.toFixed(2)})</M.PackUsd>
             </M.Pack>

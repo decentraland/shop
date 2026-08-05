@@ -21,7 +21,7 @@ const vec4 outerColor = vec4(0.3176, 0.0235, 0.5176, 1.0);
 const float vignetteRadius = 0.167;
 const float vignetteSmoothness = 0.5;
 const vec4 overlayColor = vec4(1.0, 1.0, 1.0, 1.0);
-const float overlayTiling = 1.66;
+uniform float u_overlayTiling;
 const vec2 overlayDirection = vec2(1.0, -1.25);
 const float overlaySpeed = 0.06;
 const float overlayAlpha = 0.573;
@@ -57,8 +57,8 @@ void main() {
 
   float aspect = u_resolution.x / u_resolution.y;
   vec2 overlayUV = uv;
-  overlayUV.x *= overlayTiling * aspect;
-  overlayUV.y *= overlayTiling;
+  overlayUV.x *= u_overlayTiling * aspect;
+  overlayUV.y *= u_overlayTiling;
   overlayUV += u_time * overlayDirection * overlaySpeed;
   vec4 overlay = texture2D(u_overlayTex, overlayUV) * overlayColor;
   overlay.a *= overlayAlpha * mask;

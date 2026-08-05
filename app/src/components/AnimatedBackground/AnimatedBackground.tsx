@@ -8,9 +8,12 @@ import * as S from './AnimatedBackground.styles'
 // Ported from decentraland/auth (src/components/AnimatedBackground): a WebGL purple vignette with the
 // DCL logo pattern drifting across it. The static image is the fallback while WebGL boots — or the only
 // thing shown when WebGL is unavailable or the user prefers reduced motion.
-export default function AnimatedBackground() {
+export default function AnimatedBackground({ patternTiling = 1.66 }: { patternTiling?: number }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const animFrameRef = useRef<number>(0)
+  // Read by the render loop each frame, so tiling changes apply live without rebuilding the GL state.
+  const tilingRef = useRef(patternTiling)
+  tilingRef.current = patternTiling
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -41,6 +44,7 @@ export default function AnimatedBackground() {
     const timeLoc = gl.getUniformLocation(program, 'u_time')
     const resolutionLoc = gl.getUniformLocation(program, 'u_resolution')
     const overlayTexLoc = gl.getUniformLocation(program, 'u_overlayTex')
+    const overlayTilingLoc = gl.getUniformLocation(program, 'u_overlayTiling')
 
     const buffer = gl.createBuffer()
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
@@ -69,6 +73,7 @@ export default function AnimatedBackground() {
 
       gl.uniform1f(timeLoc, performance.now() / 1000 - startTime)
       gl.uniform2f(resolutionLoc, canvas.width, canvas.height)
+      gl.uniform1f(overlayTilingLoc, tilingRef.current)
 
       gl.activeTexture(gl.TEXTURE0)
       gl.bindTexture(gl.TEXTURE_2D, overlayTexture)

@@ -17,10 +17,9 @@ import * as S from './TopCreators.styles'
 // the same row becomes a one-card-per-page carousel with dots.
 //
 // The ranking decides WHO appears; the card itself is neutral about it — it introduces the creator
-// (avatar, name, their own blurb) and never voices sales figures or anything else about why they made
-// the row. When they wrote no blurb it stands in their published totals instead, so a visitor still
-// learns something about them. The blurb's two lines are reserved either way, so nothing moves when it
-// lands.
+// (avatar, name, what they have published) and never voices sales figures or anything else about why
+// they made the row. Their own store description stands in when the totals can't be read. The blurb's
+// two lines are reserved either way, so nothing moves when it lands.
 //
 // States: four skeleton cards while loading; on error OR an empty ranking the section renders nothing.
 
@@ -41,19 +40,15 @@ function CreatorCard({ address }: { address: string }) {
   const description = store?.description ?? ''
 
   /**
-   * The creator's PUBLISHED totals, for the fallback blurb.
+   * The creator's PUBLISHED totals — the card's blurb, with their own store description standing in
+   * only when these never arrive.
    *
    * Deliberately not the ranking's own numbers: the ranking's `collections` counts the collections that
    * had a sale in the window, and `sales` is why the creator is on this row at all. The card introduces
    * a creator rather than justifying their rank, so it says what they have published, full stop.
-   *
-   * Two page-1 requests, only for a creator who wrote no blurb, and only once the store has answered
-   * (otherwise they fire for every card while that is still in flight). Until they land, or if they
-   * fail, the card simply has no second line.
    */
-  const { data: totals } = useQuery({
+  const { data: totals, isPending } = useQuery({
     queryKey: ['creator-totals', address],
-    enabled: store !== undefined && !description,
     staleTime: 5 * 60_000,
     queryFn: async () => {
       const [collections, items] = await Promise.all([
@@ -75,7 +70,9 @@ function CreatorCard({ address }: { address: string }) {
       ethAddress: profile?.ethAddress ?? address
     })
   )
-  const blurb = totals ? t('topCreators.stats', totals) : description
+  // Empty while the totals are still in flight, so a creator's description never flashes in and
+  // then swaps out from under the reader.
+  const blurb = totals ? t('topCreators.stats', totals) : isPending ? '' : description
 
   return (
     <S.Card
