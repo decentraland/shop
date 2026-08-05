@@ -229,6 +229,16 @@
     "smart": "Smart",
     "smartHint": "Los wearables Smart añaden utilidad interactiva en el mundo."
   },
+  "rarity": {
+    "common": "Común",
+    "uncommon": "Poco común",
+    "epic": "Épico",
+    "rare": "Raro",
+    "legendary": "Legendario",
+    "exotic": "Exótico",
+    "mythic": "Mítico",
+    "unique": "Único"
+  },
   "assetCard": {
     "sale": "OFERTA",
     "saleWithDiscount": "OFERTA -{pct}%",

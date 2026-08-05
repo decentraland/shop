@@ -474,3 +474,31 @@ describe('AssetCard manage-link mode (owned My Assets card)', () => {
     expect(container.querySelector('[data-testid="card-fav"]')).toBeNull()
   })
 })
+
+describe('AssetCard thumbnail that 404s', () => {
+  // Some items exist on chain with no content deployed, so their thumbnail URL is correct and answers 404.
+  // The card used to render the browser's broken-image box with the alt text inside it, which reads as our
+  // bug rather than as a missing image.
+  it('should drop the image instead of showing a broken one', () => {
+    renderCard(makeItem({ thumbnail: 'https://peer.decentraland.org/never-deployed/thumbnail' }))
+
+    const img = screen.getByAltText('Dragon Hat')
+    fireEvent.error(img)
+
+    expect(screen.queryByAltText('Dragon Hat')).not.toBeInTheDocument()
+  })
+
+  it('should keep showing one that loads', () => {
+    renderCard(makeItem({ thumbnail: 'https://peer.decentraland.org/fine/thumbnail' }))
+
+    expect(screen.getByAltText('Dragon Hat')).toBeInTheDocument()
+  })
+})
+
+describe('AssetCard rarity label', () => {
+  it('should translate the rarity rather than printing the API word', () => {
+    renderCard(makeItem({ rarity: 'uncommon' }))
+
+    expect(screen.getByText('Uncommon')).toBeInTheDocument()
+  })
+})

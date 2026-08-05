@@ -18,6 +18,7 @@ import { capitalizeFirst } from '~/lib/text'
 import { useImportable } from '~/hooks/useImportable'
 import * as F from '~/styles/field.styles'
 import { t } from '~/intl/i18n'
+import { rarityLabel } from '~/lib/rarity'
 import { MY_CREATIONS } from '~/lib/routes'
 import doneRing from '~/assets/done-ring.svg'
 import * as S from './ImportListings.styles'
@@ -205,7 +206,7 @@ export function ImportListings() {
                             data-variant="rarity"
                             style={{ background: rarityTint(item.rarity), color: rarityInk(item.rarity) }}
                           >
-                            {item.rarity}
+                            {rarityLabel(item.rarity)}
                           </S.Chip>
                           {catIco ? (
                             <S.Chip data-variant="icon">
