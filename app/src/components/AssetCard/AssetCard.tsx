@@ -572,7 +572,7 @@ export function AssetCard(props: AssetCardProps) {
                 }}
                 disabled={!own && cartFull}
               >
-                <Icon name={own ? 'pen' : 'cart-solid'} />
+                <Icon name={own ? 'pen' : 'cart'} />
                 {own ? t('assetCard.manage') : cartFull ? t('assetCard.inCart') : t('assetCard.addToCart')}
               </S.Cart>
             )}

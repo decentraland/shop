@@ -2,7 +2,7 @@ import styled from '@emotion/styled'
 import { Link } from 'react-router-dom'
 import { Button } from '~/components/Button'
 import { Icon } from '~/components/Icon'
-import { ringGradient, ringHairline, ringLit } from '~/styles/card.styles'
+import { ringHover, ringHairline, ringLit } from '~/styles/card.styles'
 import { Chip } from '~/styles/chip.styles'
 import { theme } from '~/styles/theme'
 
@@ -185,7 +185,7 @@ export const ItemCard = styled.li`
     z-index: 5;
     pointer-events: none;
     border-radius: inherit;
-    ${ringGradient};
+    ${ringHover};
     opacity: 0;
     transition: opacity 0.3s ease;
   }

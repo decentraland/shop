@@ -2,7 +2,7 @@ import styled from '@emotion/styled'
 import { css, type SerializedStyles } from '@emotion/react'
 import { Link } from 'react-router-dom'
 import { theme } from '~/styles/theme'
-import { ringHairline, ringLit, ringGradient } from '~/styles/card.styles'
+import { ringHairline, ringLit, ringHover } from '~/styles/card.styles'
 import { Chip } from '~/styles/chip.styles'
 import { CreatorBadge } from '~/components/CreatorBadge'
 import { CreatorName } from '~/components/CreatorName'
@@ -49,7 +49,7 @@ export const Card = styled.article`
     }
     &:hover::after,
     &:focus-within::after {
-      ${ringGradient};
+      ${ringHover};
     }
   }
 
@@ -661,27 +661,28 @@ const cartCss = css`
   align-items: center;
   justify-content: center;
   gap: 8px;
-  /* Dark-theme test: white pill with dark label on the dark card shell (Figma). */
-  background: ${colors.softWhite};
-  color: ${colors.text};
+  /* Dark-theme test: translucent white pill, white label (Figma 738:53265). */
+  background: rgba(255, 255, 255, 0.2);
+  color: ${colors.softWhite};
   border: 0;
-  border-radius: ${radius.btn};
+  border-radius: ${radius.card};
   height: 40px;
   font-weight: 600;
   font-size: 13px;
   text-transform: uppercase;
-  letter-spacing: 0.046em;
+  letter-spacing: 0.46px;
   transition: background 0.15s ease;
 
   @media (hover: none) and (min-width: 721px) {
     display: flex;
   }
   &:hover:not(:disabled) {
-    background: ${colors.media};
+    background: rgba(255, 255, 255, 0.3);
   }
   &[data-in],
   &:disabled {
-    background: rgba(252, 252, 252, 0.6);
+    background: rgba(255, 255, 255, 0.12);
+    color: rgba(252, 252, 252, 0.7);
     opacity: 1;
     cursor: default;
   }
