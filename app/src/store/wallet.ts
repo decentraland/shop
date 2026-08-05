@@ -4,6 +4,7 @@ import { track, identify, signInMethod, markAddressSeen, reset as resetAnalytics
 import { captureError } from '~/lib/monitoring'
 import { useFavorites } from '~/store/favorites'
 import { useFollows } from '~/store/follows'
+import { useCart } from '~/store/cart'
 
 // Set right before the auth redirect so on return we can tell a fresh sign-in from a silent restore.
 const SIGNING_IN_FLAG = 'shop:signing_in'
@@ -61,6 +62,7 @@ export const useWallet = create<WalletState>(set => ({
     resetAnalytics()
     useFavorites.getState().reloadFor(null)
     useFollows.getState().reloadFor(null)
+    useCart.getState().reloadFor(null)
     set({ session: null })
   },
   // Silent restore on load (reads connection + stored identity, no popup).
@@ -87,9 +89,11 @@ export const useWallet = create<WalletState>(set => ({
         return
       }
       set({ session, restored: true })
-      // Swap favorites to this account's server-backed list and follows to its local bucket.
+      // Swap favorites to this account's server-backed list and follows to its local bucket, and hand the
+      // persisted cart over to this buyer — it is emptied if it belonged to a different one.
       useFavorites.getState().reloadFor(session.address, session.identity)
       useFollows.getState().reloadFor(session.address)
+      useCart.getState().reloadFor(session.address)
       identify(session.address, { sign_in_method: signInMethod(session.providerType) })
       // Only emit the funnel event for an actual sign-in, not every silent restore.
       let fresh = false
