@@ -86,7 +86,19 @@
     "poses": "Poses",
     "reactions": "Reactions",
     "horror": "Horror",
-    "miscellaneous": "Miscellaneous"
+    "miscellaneous": "Miscellaneous",
+    "facialHair": "Facial Hair",
+    "hair": "Hair",
+    "eyes": "Eyes",
+    "eyebrows": "Eyebrows",
+    "mouth": "Mouth",
+    "earring": "Earring",
+    "eyewear": "Eyewear",
+    "hat": "Hat",
+    "helmet": "Helmet",
+    "mask": "Mask",
+    "tiara": "Tiara",
+    "topHead": "Top Head"
   },
   "creator": {
     "breadcrumb": "Items",
