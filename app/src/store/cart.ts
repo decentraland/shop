@@ -21,6 +21,8 @@ const stockCap = (item: { available?: number }): number =>
 
 type CartState = {
   items: CartItem[]
+  /** Lowercased address of the buyer this cart belongs to, or null while nobody has claimed it. */
+  owner: string | null
   /** Whether the cart popover is showing (auto-opens on add for feedback). */
   open: boolean
   /** How many items were added in the burst that opened the drawer — drives the "N Item(s) added"
@@ -37,6 +39,8 @@ type CartState = {
   /** -1 unit on a PRIMARY line, floored at 1 (removal is the trash button, not the stepper). */
   decrement: (id: string) => void
   clear: () => void
+  /** Point the cart at a session (address, or null when signed out) — see the action for the policy. */
+  reloadFor: (address: string | null) => void
   /** Restore a cart snapshot (used to resume checkout after a Stripe top-up redirect wiped the store). */
   restore: (items: Array<CatalogItem & { quantity?: number }>) => void
   setOpen: (open: boolean) => void
@@ -56,7 +60,7 @@ const withQuantity = (item: CatalogItem & { quantity?: number }): CartItem => {
 }
 
 // Persisted to localStorage so the cart survives a full page reload or a return from an external
-// redirect (e.g. a Stripe credits top-up). We persist ONLY `items` (see partialize): the transient
+// redirect (e.g. a Stripe credits top-up). We persist only `items` + `owner` (see partialize): the transient
 // UI fields — open, justAddedCount, fittingOpen — are excluded so a reload never reopens the drawer
 // or re-shows the "N added" banner; they always rehydrate at their defaults. `restore()` becomes a
 // near no-op now that the cart rehydrates itself, but its guard keeps it safe (left intentionally).
@@ -64,6 +68,7 @@ export const useCart = create<CartState>()(
   persist(
     (set, get) => ({
       items: [],
+      owner: null,
       open: false,
       justAddedCount: 0,
       fittingOpen: false,
@@ -149,6 +154,24 @@ export const useCart = create<CartState>()(
           )
         })),
       clear: () => set({ items: [], fittingOpen: false }),
+      // The cart is persisted under one global key, so without this a second account on the same device
+      // rehydrates the first one's cart (the account-switch handler reloads the page rather than purging
+      // stores). Three cases, and only one of them empties the cart:
+      //  - nobody has claimed the cart yet → the signer adopts it, so items added while browsing signed
+      //    out survive the sign-in that checkout asks for;
+      //  - signing out → keep both the items and the owner tag, so the same buyer coming back finds their
+      //    cart, and a DIFFERENT buyer signing in still trips the case below;
+      //  - a different address → this cart is not theirs. Empty it.
+      reloadFor: address => {
+        const next = address ? address.toLowerCase() : null
+        const owner = get().owner
+        if (!next || next === owner) return
+        if (!owner) {
+          set({ owner: next })
+          return
+        }
+        set({ items: [], owner: next, fittingOpen: false })
+      },
       // Silent restore (no analytics, no popover) — the buyer already added these before topping up.
       // Coerce each line's quantity so an older snapshot (pre-quantity) rehydrates safely.
       restore: items => set(s => (s.items.length ? {} : { items: items.map(withQuantity) })),
@@ -162,8 +185,8 @@ export const useCart = create<CartState>()(
       name: 'dcl_shop_cart',
       version: 2,
       storage: createJSONStorage(() => localStorage),
-      // Persist only the cart contents; the transient UI fields must reset on every reload.
-      partialize: s => ({ items: s.items }),
+      // Persist the cart contents and who they belong to; the transient UI fields must reset on every reload.
+      partialize: s => ({ items: s.items, owner: s.owner }),
       // Migrate carts persisted before quantity existed (v1): default every line to quantity 1 so a
       // stored cart never rehydrates with an undefined quantity (which would break totals/steppers).
       migrate: persisted => {

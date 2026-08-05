@@ -36,7 +36,7 @@ beforeEach(() => {
   // The cart persists to localStorage; wipe it and reset every field (including the transient UI
   // ones) so a persisted snapshot never leaks into the next test.
   localStorage.clear()
-  useCart.setState({ items: [], open: false, justAddedCount: 0, fittingOpen: false })
+  useCart.setState({ items: [], owner: null, open: false, justAddedCount: 0, fittingOpen: false })
   trackMock.mockClear()
 })
 
@@ -277,9 +277,9 @@ describe('when the cart is persisted to localStorage', () => {
     expect(raw).toBeTruthy()
     const persisted = JSON.parse(raw as string)
 
-    // zustand-persist envelope: { state, version }. partialize keeps only `items`.
+    // zustand-persist envelope: { state, version }. partialize keeps only `items` + `owner`.
     expect(persisted.version).toBe(2)
-    expect(Object.keys(persisted.state)).toEqual(['items'])
+    expect(Object.keys(persisted.state)).toEqual(['items', 'owner'])
     expect(persisted.state.items).toHaveLength(1)
     expect(persisted.state.items[0].id).toBe('t1')
     expect(persisted.state.items[0].quantity).toBe(1)
@@ -318,6 +318,110 @@ describe('when the cart is persisted to localStorage', () => {
 
     expect(useCart.getState().items).toEqual([])
     expect(JSON.parse(localStorage.getItem('dcl_shop_cart') as string).state.items).toEqual([])
+  })
+})
+
+/**
+ * WHOSE cart this is.
+ *
+ * The cart persists under one global localStorage key, and the account-switch handler reloads the page rather
+ * than purging stores — so account B used to rehydrate account A's cart and could check it out. `reloadFor`
+ * is the session boundary: the wallet store calls it on every restore and sign-out.
+ */
+describe('when a session claims the cart', () => {
+  const A = '0xAAAA000000000000000000000000000000000001'
+  const B = '0xbbbb000000000000000000000000000000000002'
+
+  it('should empty the cart when a DIFFERENT account signs in', () => {
+    useCart.getState().reloadFor(A)
+    useCart.getState().add(item())
+    expect(useCart.getState().items).toHaveLength(1)
+
+    useCart.getState().reloadFor(B)
+
+    expect(useCart.getState().items).toEqual([])
+    expect(useCart.getState().owner).toBe(B.toLowerCase())
+    // The wipe must reach storage too, or the next reload brings the old cart straight back.
+    expect(JSON.parse(localStorage.getItem('dcl_shop_cart') as string).state.items).toEqual([])
+  })
+
+  it('should keep the cart when the SAME account is restored, whatever the casing', () => {
+    useCart.getState().reloadFor(A.toLowerCase())
+    useCart.getState().add(item())
+
+    useCart.getState().reloadFor(A)
+
+    expect(useCart.getState().items).toHaveLength(1)
+  })
+
+  it('should adopt an unclaimed cart, so items added before signing in survive the sign-in', () => {
+    // The real flow: browse signed out, add to cart, and checkout asks for a sign-in.
+    useCart.getState().add(item())
+    expect(useCart.getState().owner).toBeNull()
+
+    useCart.getState().reloadFor(A)
+
+    expect(useCart.getState().items).toHaveLength(1)
+    expect(useCart.getState().owner).toBe(A.toLowerCase())
+  })
+
+  it('should still empty an ADOPTED cart when the account then switches', () => {
+    // Reported: add signed out, sign in (adopted — correct), then switch accounts and the items were
+    // still there. Adoption has to leave a real owner behind, not a cart that any account can claim.
+    useCart.getState().add(item())
+    useCart.getState().reloadFor(A)
+
+    useCart.getState().reloadFor(B)
+
+    expect(useCart.getState().items).toEqual([])
+    expect(useCart.getState().owner).toBe(B.toLowerCase())
+  })
+
+  it('should keep the items AND the owner tag on sign-out', () => {
+    useCart.getState().reloadFor(A)
+    useCart.getState().add(item())
+
+    useCart.getState().reloadFor(null)
+
+    // Signing out is not switching accounts — the same buyer coming back finds their cart. Keeping the tag
+    // is what makes the NEXT buyer's sign-in a switch rather than an adoption.
+    expect(useCart.getState().items).toHaveLength(1)
+    expect(useCart.getState().owner).toBe(A.toLowerCase())
+  })
+
+  it('should empty the cart for a different account that signs in after a sign-out', () => {
+    useCart.getState().reloadFor(A)
+    useCart.getState().add(item())
+    useCart.getState().reloadFor(null)
+
+    useCart.getState().reloadFor(B)
+
+    expect(useCart.getState().items).toEqual([])
+  })
+
+  it('should close the fitting room when the cart changes hands', () => {
+    useCart.getState().reloadFor(A)
+    useCart.setState({ items: [item()], fittingOpen: true })
+
+    useCart.getState().reloadFor(B)
+
+    expect(useCart.getState().fittingOpen).toBe(false)
+  })
+
+  it('should hand a cart persisted before owners existed to the first account that signs in', () => {
+    localStorage.setItem('dcl_shop_cart', JSON.stringify({ state: { items: [item({ id: 'seed' })] }, version: 2 }))
+
+    vi.resetModules()
+    return import('./cart').then(async ({ useCart: freshCart }) => {
+      await freshCart.persist.rehydrate()
+      expect(freshCart.getState().owner).toBeNull()
+
+      freshCart.getState().reloadFor(A)
+
+      // Nobody's cart is not somebody else's cart: the buyer keeps what they had before the upgrade.
+      expect(freshCart.getState().items).toHaveLength(1)
+      expect(freshCart.getState().owner).toBe(A.toLowerCase())
+    })
   })
 })
 

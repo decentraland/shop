@@ -131,12 +131,15 @@ export function Filters({
     onPriceMax(n >= PRICE_SLIDER_MAX ? '' : String(n))
   }
 
+  const categoryLabelKey = CATEGORIES.find(c => c.key === category)?.labelKey
   const categorySummary = collections
     ? t('categories.collections')
     : subCategory
       ? subCategoryLabel(subCategory)
-      : category !== 'wearable'
-        ? t(`categories.${category === 'emote' ? 'emotes' : category === 'all' ? 'shopAll' : category}`)
+      : // 'all' (Shop All) is the default everywhere, so it is not worth summarising — anything else is a
+        // filter the visitor chose and has to be readable with the section collapsed.
+        categoryLabelKey && category !== 'all'
+        ? t(categoryLabelKey)
         : ''
   const priceSummary = min != null || max != null ? `${priceMin || '0'}-${priceMax || '∞'}` : ''
   const raritySummary = RARITIES.filter(r => rarities.includes(r))

@@ -43,9 +43,19 @@ const PAGE_SIZE = 24
 
 const FILTERS: ActivityFilter[] = ['all', 'purchases', 'sales']
 
-// The migration tool lives in the URL rather than in local state so the (redirected) /import link, a
-// bookmark and a reload all land on it — the feed is the default for everything else.
-const MIGRATE_VIEW = 'migrate'
+/**
+ * The migration tool lives in the URL rather than in local state so the (redirected) /import link, a
+ * bookmark and a reload all land on it — the feed is the default for everything else.
+ *
+ * `?section=listings` is the spelling to hand out: it says what the link opens, which matters because the
+ * point of it is pasting it to creators. `?view=migrate` was the original and is still read, so the links
+ * already in circulation (and the /import redirect) keep working — reading both costs one comparison,
+ * while renaming outright would quietly 'work' by dropping people on the feed instead.
+ */
+const SECTION_PARAM = 'section'
+const LISTINGS_SECTION = 'listings'
+const LEGACY_VIEW_PARAM = 'view'
+const LEGACY_MIGRATE_VIEW = 'migrate'
 
 function formatDate(ms: number): string {
   try {
@@ -428,7 +438,8 @@ export function Activity() {
   const { session } = useWallet()
   const [filter, setFilter] = useState<ActivityFilter>('all')
   const [params, setParams] = useSearchParams()
-  const migrating = params.get('view') === MIGRATE_VIEW
+  const migrating =
+    params.get(SECTION_PARAM) === LISTINGS_SECTION || params.get(LEGACY_VIEW_PARAM) === LEGACY_MIGRATE_VIEW
 
   useSeo({ title: migrating ? t('seo.import.title') : t('nav.activity'), noindex: true })
 
@@ -550,12 +561,15 @@ export function Activity() {
     setFilter(next)
     if (!migrating) return
     const q = new URLSearchParams(params)
-    q.delete('view')
+    // Clear both spellings, or leaving via a legacy link would keep re-opening the section.
+    q.delete(SECTION_PARAM)
+    q.delete(LEGACY_VIEW_PARAM)
     setParams(q, { replace: true })
   }
   function openMigrate() {
     const q = new URLSearchParams(params)
-    q.set('view', MIGRATE_VIEW)
+    q.set(SECTION_PARAM, LISTINGS_SECTION)
+    q.delete(LEGACY_VIEW_PARAM)
     setParams(q, { replace: true })
   }
 

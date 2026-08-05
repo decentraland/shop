@@ -96,6 +96,24 @@ export const Sub = styled.button`
   }
 `
 
+/**
+ * Third level: the sub-categories of Head and Accessories (Figma 2212:99919). Indented 48px against
+ * the 24px of level two, which is the whole visual cue for the nesting — the row is otherwise identical,
+ * so the padding is the only thing that says "this belongs to the row above".
+ */
+export const SubSub = styled.button`
+  ${rowCss};
+  padding-left: 48px;
+
+  &[data-active] {
+    background: ${colors.rarityBg};
+  }
+  &[data-active] [data-sub-label] {
+    color: ${colors.rarity};
+    font-weight: 600;
+  }
+`
+
 export const CatLabel = styled.span`
   font-family: ${font.sans};
   font-weight: 600;

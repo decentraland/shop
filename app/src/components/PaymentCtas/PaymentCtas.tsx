@@ -34,7 +34,8 @@ export function PaymentCtas({
   rateNote,
   creditsLabel,
   shortfall,
-  showCreditsAmount = true
+  showCreditsAmount = true,
+  creditsFallback = null
 }: {
   /** The offerable options, already filtered + ordered by lib/payment-options. */
   options: PaymentOption[]
@@ -57,9 +58,33 @@ export function PaymentCtas({
    * a MANA amount, or how the charge splits — so theirs is information the summary does not carry.
    */
   showCreditsAmount?: boolean
+  /**
+   * Keeps the credits CTA on screen even when the balance cannot cover the purchase — clicking it opens the
+   * flow that offers a top-up instead of charging.
+   *
+   * Without this the button simply vanished whenever credits fell short, and the buyer was left with
+   * whatever else happened to qualify: a disabled MANA button and nothing else, or a MANA-only rail with no
+   * hint that topping up was possible. Held-but-insufficient MANA was the worst version — it left the buyer
+   * strictly worse off than holding none at all, whose absent shortfall fell through to a plain checkout
+   * button. The way to buy more credits should not depend on how much MANA is in the wallet.
+   */
+  creditsFallback?: { label: string; onClick: () => void } | null
 }) {
+  const hasCreditsRail = options.some(o => o.method === 'credits')
   return (
     <S.Root>
+      {/* Rendered before the options so the credits path stays the primary control, matching where the
+          payable credits button sits when the balance does cover it. */}
+      {!hasCreditsRail && creditsFallback ? (
+        <S.CreditsBtn
+          type="button"
+          data-testid="pay-with-credits-topup"
+          onClick={creditsFallback.onClick}
+          disabled={busy}
+        >
+          <span>{creditsFallback.label}</span>
+        </S.CreditsBtn>
+      ) : null}
       {options.map(option => {
         if (option.method === 'credits') {
           return (

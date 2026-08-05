@@ -13,7 +13,12 @@ import { theme } from '~/styles/theme'
 
 // `key` drives filter state + SUBCAT_MAP lookups (Assets/Creator) and must NOT change; `labelKey`
 // is the i18n key resolved with t() at render (never at module load — that would freeze the locale).
-type Sub = { key: string; labelKey: string; icon: IconName }
+// Head and Accessories nest one level deeper (Figma 2212:99919): they are selectable rows in their own
+// right AND expand into the on-chain categories beneath them. A third level needs no new filter state —
+// sub keys are globally unique, so a level-three key resolves through the same SUBCAT_MAP lookup and the
+// same `subCategory` value as a level-two one.
+type SubSub = { key: string; labelKey: string; icon: IconName }
+type Sub = { key: string; labelKey: string; icon: IconName; expandable?: boolean; subs?: SubSub[] }
 type Top = { key: string; labelKey: string; expandable?: boolean; subs?: Sub[] }
 
 export const CATEGORIES: Top[] = [
@@ -23,12 +28,38 @@ export const CATEGORIES: Top[] = [
     labelKey: 'categories.wearables',
     expandable: true,
     subs: [
-      { key: 'Head', labelKey: 'categories.head', icon: 'cat-head' },
+      {
+        key: 'Head',
+        labelKey: 'categories.head',
+        icon: 'cat-head',
+        expandable: true,
+        subs: [
+          { key: 'Facial Hair', labelKey: 'categories.facialHair', icon: 'cat-facial-hair' },
+          { key: 'Hair', labelKey: 'categories.hair', icon: 'cat-hair' },
+          { key: 'Eyes', labelKey: 'categories.eyes', icon: 'cat-eyes' },
+          { key: 'Eyebrows', labelKey: 'categories.eyebrows', icon: 'cat-eyebrows' },
+          { key: 'Mouth', labelKey: 'categories.mouth', icon: 'cat-mouth' }
+        ]
+      },
       { key: 'Upper Body', labelKey: 'categories.upperBody', icon: 'cat-upper' },
       { key: 'Handwear', labelKey: 'categories.handwear', icon: 'cat-handwear' },
       { key: 'Lower Body', labelKey: 'categories.lowerBody', icon: 'cat-lower' },
       { key: 'Feet', labelKey: 'categories.feet', icon: 'cat-feet' },
-      { key: 'Accessories', labelKey: 'categories.accessories', icon: 'cat-accessories' },
+      {
+        key: 'Accessories',
+        labelKey: 'categories.accessories',
+        icon: 'cat-accessories',
+        expandable: true,
+        subs: [
+          { key: 'Earring', labelKey: 'categories.earring', icon: 'cat-earring' },
+          { key: 'Eyewear', labelKey: 'categories.eyewear', icon: 'cat-eyewear' },
+          { key: 'Hat', labelKey: 'categories.hat', icon: 'cat-hat' },
+          { key: 'Helmet', labelKey: 'categories.helmet', icon: 'cat-helmet' },
+          { key: 'Mask', labelKey: 'categories.mask', icon: 'cat-mask' },
+          { key: 'Tiara', labelKey: 'categories.tiara', icon: 'cat-tiara' },
+          { key: 'Top Head', labelKey: 'categories.topHead', icon: 'cat-top-head' }
+        ]
+      },
       { key: 'Skins', labelKey: 'categories.skins', icon: 'cat-skins' }
     ]
   },
@@ -88,6 +119,17 @@ export function CategoryFilter({
   // Accordion state is separate from the active category so clicking an open header collapses it
   // (the old derive-from-category approach couldn't close). Wearables starts open when it's active.
   const [expandedKey, setExpandedKey] = useState<string | null>(() => (category === 'wearable' ? 'wearable' : null))
+  // Second accordion, for the level-two rows that nest (Head, Accessories). Kept separate from
+  // `expandedKey` rather than folded into one value: the two levels are open at the same time, since a
+  // level-three row can only be reached through its already-open parent.
+  const [expandedSubKey, setExpandedSubKey] = useState<string | null>(null)
+
+  // Clicking a nesting row both selects it and toggles its children — same bargain `clickTop` strikes,
+  // so Head stays a usable filter on its own instead of becoming a folder you cannot pick.
+  function clickSub(sub: Sub) {
+    onSub(subCategory === sub.key ? null : sub.key)
+    if (sub.subs) setExpandedSubKey(prev => (prev === sub.key ? null : sub.key))
+  }
 
   function clickTop(top: Top) {
     if (top.subs) {
@@ -125,20 +167,46 @@ export function CategoryFilter({
             {top.subs ? (
               <S.Subs data-open={open || undefined}>
                 <S.SubsInner>
-                  {top.subs.map(sub => (
-                    <S.Sub
-                      key={sub.key}
-                      type="button"
-                      data-sub
-                      data-active={subCategory === sub.key || undefined}
-                      onClick={() => onSub(subCategory === sub.key ? null : sub.key)}
-                    >
-                      <S.SubLeft>
-                        <S.SubIcon name={sub.icon} aria-hidden />
-                        <S.SubLabel data-sub-label>{t(sub.labelKey)}</S.SubLabel>
-                      </S.SubLeft>
-                    </S.Sub>
-                  ))}
+                  {top.subs.map(sub => {
+                    const subOpen = expandedSubKey === sub.key && !!sub.subs
+                    return (
+                      <div key={sub.key}>
+                        <S.Sub
+                          type="button"
+                          data-sub
+                          data-active={subCategory === sub.key || undefined}
+                          onClick={() => clickSub(sub)}
+                        >
+                          <S.SubLeft>
+                            <S.SubIcon name={sub.icon} aria-hidden />
+                            <S.SubLabel data-sub-label>{t(sub.labelKey)}</S.SubLabel>
+                          </S.SubLeft>
+                          {sub.expandable ? <Chevron up={subOpen} size={24} color={theme.colors.text} /> : null}
+                        </S.Sub>
+
+                        {sub.subs ? (
+                          <S.Subs data-open={subOpen || undefined}>
+                            <S.SubsInner>
+                              {sub.subs.map(leaf => (
+                                <S.SubSub
+                                  key={leaf.key}
+                                  type="button"
+                                  data-sub
+                                  data-active={subCategory === leaf.key || undefined}
+                                  onClick={() => onSub(subCategory === leaf.key ? null : leaf.key)}
+                                >
+                                  <S.SubLeft>
+                                    <S.SubIcon name={leaf.icon} aria-hidden />
+                                    <S.SubLabel data-sub-label>{t(leaf.labelKey)}</S.SubLabel>
+                                  </S.SubLeft>
+                                </S.SubSub>
+                              ))}
+                            </S.SubsInner>
+                          </S.Subs>
+                        ) : null}
+                      </div>
+                    )
+                  })}
                 </S.SubsInner>
               </S.Subs>
             ) : null}

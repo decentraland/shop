@@ -86,7 +86,19 @@
     "poses": "Poses",
     "reactions": "Reacciones",
     "horror": "Horror",
-    "miscellaneous": "Misceláneos"
+    "miscellaneous": "Misceláneos",
+    "facialHair": "Vello facial",
+    "hair": "Pelo",
+    "eyes": "Ojos",
+    "eyebrows": "Cejas",
+    "mouth": "Boca",
+    "earring": "Aros",
+    "eyewear": "Lentes",
+    "hat": "Sombrero",
+    "helmet": "Casco",
+    "mask": "Máscara",
+    "tiara": "Tiara",
+    "topHead": "Parte superior de la cabeza"
   },
   "creator": {
     "breadcrumb": "Artículos",

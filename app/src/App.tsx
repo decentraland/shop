@@ -201,7 +201,7 @@ export function App() {
               {/* The migration tool moved INTO Activity, behind a chip. /import stays as a redirect:
                   it has been the target of the My Items nudge for months, so it is in histories and
                   bookmarks — and the query is what lands on the tool rather than on the feed. */}
-              <Route path="/import" element={<Navigate to="/activity?view=migrate" replace />} />
+              <Route path="/import" element={<Navigate to="/activity?section=listings" replace />} />
               <Route path="/cart" element={<Cart />} />
               <Route path="/authorizations" element={<Authorizations />} />
               <Route path="/credits" element={<GetCredits />} />

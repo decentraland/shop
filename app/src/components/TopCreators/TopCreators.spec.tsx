@@ -80,20 +80,30 @@ describe('TopCreators cards', () => {
     expect(screen.queryByRole('button')).toBeNull()
   })
 
-  it('shows the store blurb when the creator wrote one', async () => {
+  it('blurbs the PUBLISHED totals on every card, even for a creator who wrote a store blurb', async () => {
+    renderSection()
+    // 1 and 1 — the published totals — not the ranking's 5 collections, and never its sales count.
+    await vi.waitFor(() => expect(screen.getAllByText('1 collection | 1 item')).toHaveLength(2))
+    expect(screen.queryByText('Cyberpunk wearables | 3D Artist')).toBeNull()
+    // Bounded to a single row per creator: both counts are page totals.
+    expect(fetchCreatorCollections).toHaveBeenCalledWith(SOUL, { first: 1 })
+    expect(fetchCreatorCollections).toHaveBeenCalledWith(FURY, { first: 1 })
+    expect(fetchCreatorItems).toHaveBeenCalledWith(SOUL, { first: 1 })
+    expect(fetchCreatorItems).toHaveBeenCalledWith(FURY, { first: 1 })
+  })
+
+  it('stands in the store blurb when the totals are unavailable', async () => {
+    fetchCreatorItems.mockRejectedValue(new Error('boom'))
     renderSection()
     expect(await screen.findByText('Cyberpunk wearables | 3D Artist')).toBeTruthy()
   })
 
-  it('falls back to the PUBLISHED totals when the creator has no store blurb', async () => {
+  it('holds the blurb empty while the totals load, so a store blurb never flashes in and back out', async () => {
+    fetchCreatorCollections.mockReturnValue(new Promise(() => {}))
+    fetchCreatorItems.mockReturnValue(new Promise(() => {}))
     renderSection()
-    // 1 and 1 — the published totals — not the ranking's 5 collections, and never its sales count.
-    expect(await screen.findByText('1 collection | 1 item')).toBeTruthy()
-    // Only for the creator who needs it, and bounded to a single row: both counts are page totals.
-    expect(fetchCreatorCollections).toHaveBeenCalledTimes(1)
-    expect(fetchCreatorCollections).toHaveBeenCalledWith(FURY, { first: 1 })
-    expect(fetchCreatorItems).toHaveBeenCalledTimes(1)
-    expect(fetchCreatorItems).toHaveBeenCalledWith(FURY, { first: 1 })
+    const card = await screen.findByRole('link', { name: 'View creations by Soul Magic' })
+    expect(card.textContent).not.toContain('Cyberpunk')
   })
 
   it('never voices the ranking numbers that put the creator on the row', async () => {
@@ -106,7 +116,7 @@ describe('TopCreators cards', () => {
     expect(card.textContent).not.toContain('5 collections')
   })
 
-  it('leaves the blurb empty rather than guessing when the totals are unavailable', async () => {
+  it('leaves the blurb empty when the totals fail and the creator wrote no store blurb', async () => {
     fetchCreatorItems.mockRejectedValue(new Error('boom'))
     renderSection()
     const card = await screen.findByRole('link', { name: 'View creations by Elemental Fury' })
