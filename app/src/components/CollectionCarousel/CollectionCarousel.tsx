@@ -67,7 +67,7 @@ export function CollectionCarousel({
   }
 
   return (
-    <S.Root>
+    <S.Root data-testid="carousel">
       <S.Head>
         <S.Title>{title}</S.Title>
         {onViewAll ? (

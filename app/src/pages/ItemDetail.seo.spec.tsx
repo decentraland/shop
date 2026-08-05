@@ -32,6 +32,7 @@ vi.mock('decentraland-ui2', () => ({
 const { fetchCollectionItems } = vi.hoisted(() => ({ fetchCollectionItems: vi.fn() }))
 vi.mock('~/lib/collections', () => ({
   fetchCollectionItems,
+  fetchCatalogItems: vi.fn().mockResolvedValue({ items: [], total: 0 }),
   fetchCollection: vi
     .fn()
     .mockResolvedValue({ contractAddress: '0xanchor', name: 'Solo Collection', creator: '0xcreator' })
