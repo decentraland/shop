@@ -5,6 +5,15 @@ import { theme } from '~/styles/theme'
 // success 1368-354667). A single dialog that walks confirm → completing → success/error, mirroring
 // the shop's existing checkout modal but with the NAME-specific "re-enter to confirm" gate.
 
+/**
+ * The success tile's own palette (Figma 1368-354667). Deliberately outside the theme: this is a one-off
+ * flourish for the moment the NAME becomes the buyer's, not a token any other surface should reach for.
+ * Named rather than inlined so a palette change is one grep, not three loose hex values mid-file.
+ */
+const TILE_GRADIENT_FROM = '#c640cd'
+const TILE_GRADIENT_TO = '#691fa9'
+const TILE_NAME_COLOR = '#34fee6'
+
 export const Scrim = styled.div`
   position: fixed;
   inset: 0;
@@ -121,7 +130,7 @@ export const NameTile = styled.div`
   padding: 20px 0;
   border-radius: 12px;
   overflow: hidden;
-  background: linear-gradient(180deg, #c640cd 0%, #691fa9 100%);
+  background: linear-gradient(180deg, ${TILE_GRADIENT_FROM} 0%, ${TILE_GRADIENT_TO} 100%);
 `
 
 export const NameTileGlyph = styled.img`
@@ -140,7 +149,7 @@ export const NameTileLabel = styled.span`
   font-size: 18px;
   font-weight: 600;
   /* The design's cyan — it has to read against the purple, which the body text colour would not. */
-  color: #34fee6;
+  color: ${TILE_NAME_COLOR};
   white-space: nowrap;
   overflow: hidden;
 
