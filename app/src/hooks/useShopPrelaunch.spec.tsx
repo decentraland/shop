@@ -28,10 +28,7 @@ const OTHER = '0x1111111111111111111111111111111111111111'
  * before it. Both are visible failures, so both are pinned here.
  */
 function mockFlagService(body: unknown, ok = true) {
-  vi.stubGlobal(
-    'fetch',
-    vi.fn().mockResolvedValue({ ok, json: () => Promise.resolve(body) })
-  )
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok, json: () => Promise.resolve(body) }))
 }
 
 const armed = (addresses: string) => ({

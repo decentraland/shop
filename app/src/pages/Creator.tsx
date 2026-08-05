@@ -26,6 +26,9 @@ import * as CP from '~/styles/collectionPage.styles'
 import * as A from './Assets.styles'
 import { Grid } from '~/styles/grid.styles'
 
+// The URL is user-editable, so a status read out of it is validated against this.
+const STATUSES: FilterStatus[] = ['all', 'on_sale', 'not_for_sale']
+
 const PAGE_SIZE = 48
 
 // A creator's storefront: EVERY item they published, browsable with the same sidebar filters as the main
@@ -62,8 +65,6 @@ export function Creator() {
   //
   // 'all' (Shop All), not 'wearable': a creator who only makes emotes must not open on an empty grid. And
   // unlike browse (which opens on 'on_sale'), a storefront opens on everything the creator has made.
-  // The URL is user-editable, so a status read out of it is validated against this.
-  const STATUSES: FilterStatus[] = ['all', 'on_sale', 'not_for_sale']
   const filterDefaults = useMemo(
     () => ({
       category: 'all',
@@ -153,9 +154,11 @@ export function Creator() {
     { enabled: !!address && collectionsMode }
   )
 
+  // ONE write. Calling clearCollections() after setFilters() read the pre-patch snapshot and navigated
+  // over the category that had just been set — so picking a category while in collections mode reverted to
+  // the default. Dropping the flag in the same write is what makes the two atomic.
   function pickCategory(key: string) {
-    setFilters({ category: key, subCategory: null })
-    if (collectionsMode) clearCollections()
+    setFilters({ category: key, subCategory: null }, { drop: collectionsMode ? ['collections'] : undefined })
   }
   // "Collections" is a URL-driven mode (adds a valueless `&collections`), mutually exclusive with the
   // category filter. Toggle it on/off while preserving any other query params. Built by hand (not via

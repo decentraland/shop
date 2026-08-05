@@ -9,7 +9,8 @@ vi.mock('~/config', () => ({ config: { chainId: 80002 } }))
 const captureError = vi.fn()
 vi.mock('~/lib/monitoring', () => ({ captureError: (...args: unknown[]) => captureError(...args) }))
 
-import { useWalletChain, supportedChains, chainLabel } from './useWalletChain'
+import { useWalletChain, supportedChains } from './useWalletChain'
+import { chainLabel } from '~/lib/network'
 
 type Listener = (...args: unknown[]) => void
 type SendImpl = (method: string, params?: unknown[]) => Promise<unknown>

@@ -1,3 +1,4 @@
+import { hexChain } from '~/test/chain'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { ChainId, ProviderType } from '@dcl/schemas'
 
@@ -137,9 +138,6 @@ const minterAuth: ShopAuthorization = {
   spenderAddress: MARKET,
   chainId: ChainId.MATIC_AMOY
 }
-
-/** What a wallet actually returns from eth_chainId: a hex quantity. */
-const hexChain = (id: number) => `0x${id.toString(16)}`
 
 function makeSigner(overrides: Record<string, unknown> = {}) {
   // Answers `eth_chainId`, which is the read requireChain makes. These mocks only had `getNetwork`, and

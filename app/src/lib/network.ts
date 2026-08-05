@@ -27,7 +27,9 @@ import { ChainId, getChainName } from '@dcl/schemas'
 
 /** Human name for a chain — "Polygon", "Ethereum Mainnet", "Amoy". Falls back to the id for unknown chains. */
 export function chainLabel(chainId: number): string {
-  return getChainName(chainId) ?? `chain ${chainId}`
+  // Capitalised because this is also a standalone label in the navbar's pill, where a lowercase
+  // "chain 999" reads as a sentence fragment rather than a name.
+  return getChainName(chainId) ?? `Chain ${chainId}`
 }
 
 /**

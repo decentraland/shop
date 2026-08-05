@@ -152,6 +152,6 @@ describe('naming a chain', () => {
   })
 
   it('still says something for a chain we do not know', () => {
-    expect(chainLabel(1234)).toBe('chain 1234')
+    expect(chainLabel(1234)).toBe('Chain 1234')
   })
 })

@@ -28,7 +28,15 @@ function decode(raw: string | null, fallback: FilterValue): FilterValue {
   return raw
 }
 
-export function useUrlFilters<T extends Record<string, FilterValue>>(defaults: T): [T, (patch: Partial<T>) => void] {
+/**
+ * `drop` removes keys this hook does not own, in the SAME write as the patch. A page that has to clear its
+ * own flag alongside a filter cannot do it in a second call: that call reads the pre-patch snapshot and
+ * silently undoes the first. (The creator page's valueless `?collections` is exactly this — it is written
+ * by hand because URLSearchParams.set would spell it `collections=`.)
+ */
+export function useUrlFilters<T extends Record<string, FilterValue>>(
+  defaults: T
+): [T, (patch: Partial<T>, opts?: { drop?: string[] }) => void] {
   const [searchParams, setSearchParams] = useSearchParams()
 
   // Recomputed from the URL rather than mirrored into state: the URL is the single source, so the back
@@ -42,10 +50,11 @@ export function useUrlFilters<T extends Record<string, FilterValue>>(defaults: T
   }, [searchParams, defaults])
 
   const setFilters = useCallback(
-    (patch: Partial<T>) => {
+    (patch: Partial<T>, opts?: { drop?: string[] }) => {
       setSearchParams(
         current => {
           const next = new URLSearchParams(current)
+          for (const key of opts?.drop ?? []) next.delete(key)
           for (const [key, value] of Object.entries(patch) as [string, FilterValue][]) {
             const encoded = encode(value)
             // A value equal to its default is absent, not spelled out — including when the patch is what

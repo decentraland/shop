@@ -2,11 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 // Deep imports: @dcl/schemas' root barrel re-exports `getChainName` but NOT `getNetwork` /
 // `getNetworkMapping`, so the chain helpers have to come from the module itself (same convention the
 // preview helpers already use). Vite bundles all of @dcl/schemas into one chunk either way.
-import { ChainId, getChainName, getNetwork, getNetworkMapping } from '@dcl/schemas/dist/dapps/chain-id'
+import { ChainId, getNetwork, getNetworkMapping } from '@dcl/schemas/dist/dapps/chain-id'
 import { Network } from '@dcl/schemas/dist/dapps/network'
 import { ethers } from 'ethers'
-// One home for both: lib/network owns the live chain read and the Amoy add-params, so the navbar and the
-// gas-paying legs cannot disagree about what chain the wallet is on or how Amoy is added.
+// lib/network owns the chain vocabulary — the live read, the Amoy add-params and the labels — so the
+// navbar and the gas-paying legs cannot disagree about what chain the wallet is on or how Amoy is added.
 import { activeChainId as readChainId, AMOY_ADD_PARAMS } from '~/lib/network'
 import { config } from '~/config'
 import type { Session } from '~/lib/auth'
@@ -17,7 +17,7 @@ import { captureError } from '~/lib/monitoring'
  *
  * The shop never showed this. A wallet parked on Ethereum while the shop runs on Polygon produced a
  * wallet error that named a contract rather than the network, so the only way to find out was to open the
- * marketplace, read its selector, come back, and guess. This hook is the read half of that gap; the
+ * marketplace, read its selector, come back, and guess. This hook is the read half of that gap.
  * The navbar passes what this returns to ui2's own chain pill, which lives in the profile panel.
  *
  * ⚠️ `switchTo` MUST be called from inside a user gesture (the click on an option). Wallets only honour
@@ -53,11 +53,6 @@ const UNKNOWN_CHAIN = 4902
  */
 const AMOY_CHAIN_ID: number = ChainId.MATIC_AMOY
 const KNOWN_CHAINS = Object.values(ChainId).filter((id): id is ChainId => typeof id === 'number')
-
-/** Human name for a chain — "Polygon", "Ethereum Mainnet", "Amoy". Falls back to the id. */
-export function chainLabel(chainId: number): string {
-  return getChainName(chainId) ?? `Chain ${chainId}`
-}
 
 /**
  * The networks this deployment can actually transact on, newest-first: the shop's own chain, then its

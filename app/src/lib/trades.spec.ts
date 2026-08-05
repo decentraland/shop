@@ -1,3 +1,4 @@
+import { hexChain } from '~/test/chain'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { ChainId, Network, TradeAssetType, TradeType, type Trade, type TradeCreation } from '@dcl/schemas'
 
@@ -126,9 +127,6 @@ const NFT = '0x00000000000000000000000000000000000000BB'
 const COLLECTION = '0x00000000000000000000000000000000000000CC'
 
 // A signer whose on-chain send/network responses we can steer per test.
-/** What a wallet actually returns from eth_chainId: a hex quantity. */
-const hexChain = (id: number) => `0x${id.toString(16)}`
-
 function makeSigner(overrides: Record<string, unknown> = {}) {
   // Answers `eth_chainId`, which is the read requireChain makes. These mocks only had `getNetwork`, and
   // passed only because activeChainId used to fall back to it — the stale cache it exists to avoid.
