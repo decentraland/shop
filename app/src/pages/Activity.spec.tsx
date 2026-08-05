@@ -442,6 +442,39 @@ describe('the migration chip', () => {
     expect(await screen.findByTestId('activity-filter-migrate')).toHaveAttribute('aria-selected', 'true')
   })
 
+  /**
+   * `?section=listings` is the link handed to creators, and `?view=migrate` is what shipped first. Both
+   * have to open the tool: renaming without keeping the old one would send every link already pasted in a
+   * chat to the feed instead, which looks like the page simply ignoring the link.
+   */
+  describe('and the section is addressed by its shareable name', () => {
+    it('should open the tool from ?section=listings', async () => {
+      fetchImportable.mockResolvedValue({ creations: [importable()], owned: [] })
+      renderPage('/activity?section=listings')
+
+      expect(await screen.findByTestId('import-panel')).toBeInTheDocument()
+      expect(await screen.findByTestId('activity-filter-migrate')).toHaveAttribute('aria-selected', 'true')
+    })
+
+    it('should still open the tool from the original ?view=migrate', async () => {
+      fetchImportable.mockResolvedValue({ creations: [importable()], owned: [] })
+      renderPage('/activity?view=migrate')
+
+      expect(await screen.findByTestId('import-panel')).toBeInTheDocument()
+    })
+
+    it('should leave the section when a filter chip is picked, even arriving by the legacy link', async () => {
+      // Both spellings are cleared on exit, or a legacy arrival would keep re-opening the tool.
+      fetchImportable.mockResolvedValue({ creations: [importable()], owned: [] })
+      renderPage('/activity?view=migrate')
+      await screen.findByTestId('import-panel')
+
+      fireEvent.click(screen.getByTestId('activity-filter-purchases'))
+
+      await waitFor(() => expect(screen.queryByTestId('import-panel')).not.toBeInTheDocument())
+    })
+  })
+
   it('should keep the chip while its own panel is open even with nothing left to move', async () => {
     // Both counts have to ANSWER — zero, but answered. The chip waits for them even in its own view, so
     // an unanswered count is not "nothing left to move", it is "not yet".
