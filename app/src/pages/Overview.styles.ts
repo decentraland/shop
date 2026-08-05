@@ -37,8 +37,51 @@ export const HeroCta = styled(Button)`
   height: 52px;
   padding: 0 16px;
   border-radius: ${theme.radius.btn};
-  font-size: 15px;
-  letter-spacing: 0.46px;
+
+  /* Both entry points into buying credits look and behave alike, so this carries the nav's GET CREDITS
+     treatment: the orange BUY Button gradient, and a hover that keeps the gradient and adds the ring
+     rather than filling flat (the design system's Credits type). Doubled ampersands because the purple
+     variant's own rules are an attribute selector and outweigh this class on their own. */
+  && {
+    background: ${theme.gradients.buyBtn};
+    font-size: 15px;
+    letter-spacing: 0.46px;
+    transition: filter 0.15s ease;
+  }
+  /* The variant fades a solid accent overlay in on hover; the credits button has no flat state. */
+  &&::before {
+    content: none;
+  }
+  /* Hover ring: a gradient stroke OUTSIDE the button with a gap the page shows through — masked, since
+     a plain outline can't take a gradient. */
+  &&::after {
+    content: '';
+    position: absolute;
+    inset: -6px;
+    border-radius: calc(${theme.radius.btn} + 6px);
+    padding: 2px;
+    background: ${theme.gradients.buyBtn};
+    -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    mask-composite: exclude;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    pointer-events: none;
+  }
+  &&:hover:not(:disabled) {
+    filter: brightness(1.08);
+  }
+  &&:hover:not(:disabled)::after {
+    opacity: 1;
+  }
+  &&:active:not(:disabled) {
+    filter: brightness(0.95);
+  }
 `
 
 // The page scopes an override of the shared rail (RecentlyViewed / FollowedCreators render Row.Track,
