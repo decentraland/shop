@@ -17,6 +17,7 @@ import { capitalizeFirst } from '~/lib/text'
 import { useImportable } from '~/hooks/useImportable'
 import * as F from '~/styles/field.styles'
 import { t } from '~/intl/i18n'
+import { MY_CREATIONS } from '~/lib/routes'
 import doneRing from '~/assets/done-ring.svg'
 import * as S from './ImportListings.styles'
 
@@ -106,7 +107,7 @@ export function ImportListings() {
             <S.EmptyBody>{t('importListings.emptyBody')}</S.EmptyBody>
           </S.EmptyText>
           <S.EmptyActions>
-            <S.EmptyCta as={Link} to="/my-items" variant="purple">
+            <S.EmptyCta as={Link} to={MY_CREATIONS} variant="purple">
               {t('importListings.goToMyAssets')}
             </S.EmptyCta>
           </S.EmptyActions>

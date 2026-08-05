@@ -902,14 +902,10 @@
     "proceedsCredits": "You'll receive {count, plural, one {# credit} other {# credits}} per sale."
   },
   "migrate": {
-    "successTitle": "You're in the Shop! 🎉",
-    "nothingTitle": "Nothing listed",
     "listedSummary": "{count, plural, one {# item is} other {# items are}} now for sale with {currency}.",
-    "noneListed": "No items were listed.",
     "skippedSummary": "{count, plural, one {# skipped} other {# skipped}} — you can try those again anytime.",
     "unlistedSummary": "{count, plural, one {# item was taken off the old marketplace but couldn't be re-listed — re-list it from My Items.} other {# items were taken off the old marketplace but couldn't be re-listed — re-list them from My Items.}}",
     "goToMyAssets": "Go to My Items",
-    "viewInShop": "View in Shop",
     "listingTitle": "Listing your items",
     "subConfirm": "We take down each old listing and re-list it for credits — confirm each step.",
     "subManaged": "Moving your items to the Shop.",
@@ -935,7 +931,8 @@
     "phaseIndexing": "Waiting for the old listing to clear ({attempt}/{of})…",
     "hintCount": "About {total} confirmations will pop up — take down and re-list, per item. Keep this open.",
     "hintCountApproval": "About {total} confirmations will pop up: take down and re-list per item, plus a one-time approval for each collection. Keep this open.",
-    "phaseConfirmingCancelManaged": "Almost there…"
+    "phaseConfirmingCancelManaged": "Almost there…",
+    "unlistedTitle": "Some items need another try"
   },
   "fittingRoom": {
     "title": "Fitting room",

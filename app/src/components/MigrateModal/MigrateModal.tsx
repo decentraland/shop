@@ -5,6 +5,7 @@ import { Button } from '~/components/Button'
 import type { Session } from '~/lib/auth'
 import { importListing, RelistFailedError, type ImportItem } from '~/lib/import'
 import { CURRENCY, creditsToUsd } from '~/lib/currency'
+import { MY_CREATIONS } from '~/lib/routes'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import { track } from '~/lib/analytics'
@@ -155,50 +156,52 @@ export function MigrateModal({
     onClose()
   }
 
+  const skipped = statuses.filter(s => s === 'skipped' || s === 'failed').length
+  const unlisted = statuses.filter(s => s === 'unlisted').length
+
+  /**
+   * A clean finish closes itself. There is nothing to announce that the list behind this modal does not
+   * say better: closing refetches it, so the seller lands on the rows they still have to move, or on the
+   * all-set state if none are left. A congratulations card in front of that is a click between them and
+   * the answer.
+   *
+   * An item left UNLISTED is the exception and does NOT auto-close. Its old listing is gone and the
+   * re-list failed, so it is for sale nowhere — the one outcome the seller has to be told about and act
+   * on, which a self-closing modal would swallow.
+   */
+  const closed = useRef(false)
+  useEffect(() => {
+    if (phase !== 'finished' || unlisted > 0 || closed.current) return
+    closed.current = true
+    finish()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, unlisted])
+
   if (phase === 'finished') {
-    const skipped = statuses.filter(s => s === 'skipped' || s === 'failed').length
-    const unlisted = statuses.filter(s => s === 'unlisted').length
+    if (unlisted === 0) return null
     return (
       <M.Backdrop role="presentation">
-        <M.Modal data-success role="dialog" aria-modal="true">
-          <M.SuccessCheck aria-hidden>
-            <CheckmarkIcon size={30} />
-          </M.SuccessCheck>
-          <M.Title>{listedCount > 0 ? t('migrate.successTitle') : t('migrate.nothingTitle')}</M.Title>
+        <M.Modal data-success role="dialog" aria-modal="true" data-testid="migrate-unlisted">
+          <M.Title>{t('migrate.unlistedTitle')}</M.Title>
           <p className="muted" style={{ margin: 0 }}>
-            {listedCount > 0
-              ? t('migrate.listedSummary', { count: listedCount, currency: CURRENCY.name })
-              : t('migrate.noneListed')}
+            {t('migrate.unlistedSummary', { count: unlisted })}
+            {listedCount > 0 ? ' ' + t('migrate.listedSummary', { count: listedCount, currency: CURRENCY.name }) : ''}
             {skipped > 0 ? ' ' + t('migrate.skippedSummary', { count: skipped }) : ''}
-            {unlisted > 0 ? ' ' + t('migrate.unlistedSummary', { count: unlisted }) : ''}
           </p>
           <M.Actions data-actions>
             <Button variant="ghost" onClick={finish}>
               {t('getCredits.done')}
             </Button>
-            {unlisted > 0 ? (
-              <Button
-                variant="purple"
-                onClick={() => {
-                  onDone()
-                  onClose()
-                  navigate('/my-items')
-                }}
-              >
-                {t('migrate.goToMyAssets')}
-              </Button>
-            ) : listedCount > 0 ? (
-              <Button
-                variant="purple"
-                onClick={() => {
-                  onDone()
-                  onClose()
-                  navigate('/items')
-                }}
-              >
-                {t('migrate.viewInShop')}
-              </Button>
-            ) : null}
+            <Button
+              variant="purple"
+              onClick={() => {
+                onDone()
+                onClose()
+                navigate(MY_CREATIONS)
+              }}
+            >
+              {t('migrate.goToMyAssets')}
+            </Button>
           </M.Actions>
         </M.Modal>
       </M.Backdrop>

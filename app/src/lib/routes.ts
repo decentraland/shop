@@ -38,3 +38,9 @@ export function detailRouteFor(item: {
 export function canManageToken(opts: { isTokenRoute: boolean; ownsThisToken: boolean }): boolean {
   return opts.isTokenRoute && opts.ownsThisToken
 }
+
+/**
+ * My Items, on the CREATIONS tab. Without the section the page defaults to Wearables, which is the wrong
+ * shelf for anything the migration flow sends a seller to look at.
+ */
+export const MY_CREATIONS = '/my-items?section=creations'

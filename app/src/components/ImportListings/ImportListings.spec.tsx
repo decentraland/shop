@@ -165,10 +165,12 @@ describe('when the seller has nothing left to move', () => {
     expect(screen.queryByTestId('import-select-all')).not.toBeInTheDocument()
   })
 
-  it('should point the way out at My Items', () => {
+  // The CREATIONS tab, not the page default: My Items opens on Wearables, which is the wrong shelf for a
+  // seller who came here to look at the listings they just moved.
+  it('should point the way out at My Items, on the creations tab', () => {
     useImportable.mockReturnValue({ items: [], count: 0, isLoading: false })
     renderTool()
 
-    expect(screen.getByRole('link', { name: 'My Items' }).getAttribute('href')).toBe('/my-items')
+    expect(screen.getByRole('link', { name: 'My Items' }).getAttribute('href')).toBe('/my-items?section=creations')
   })
 })
