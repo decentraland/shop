@@ -244,6 +244,11 @@ export const EmptyTitle = styled.p`
   margin: 6px 0 0;
 `
 
+export const EmptyBody = styled.p`
+  margin: 0;
+  color: ${theme.colors.gray4};
+`
+
 export const EmptyCta = styled(Button)`
   margin-top: 12px;
 `

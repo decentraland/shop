@@ -132,8 +132,8 @@ export function StoreSettings() {
     return (
       <S.Root data-signin aria-label={t('storeSettings.title')}>
         <S.Title>{t('storeSettings.title')}</S.Title>
-        <p className="muted">{t('storeSettings.signInPrompt')}</p>
-        <S.SignInBtn variant="purple" onClick={signIn}>
+        <S.Prompt>{t('storeSettings.signInPrompt')}</S.Prompt>
+        <S.SignInBtn variant="white" onClick={signIn}>
           {t('storeSettings.signIn')}
         </S.SignInBtn>
       </S.Root>
@@ -332,7 +332,7 @@ export function StoreSettings() {
 
           <S.Actions>
             <S.SaveBtn
-              variant="purple"
+              variant="white"
               data-testid="store-settings-save"
               onClick={() => void save()}
               disabled={!canSave}

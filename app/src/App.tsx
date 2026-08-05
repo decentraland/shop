@@ -75,8 +75,8 @@ function CrashFallback() {
   return (
     <OV.Empty>
       <OV.EmptyTitle>{t('app.crash.title')}</OV.EmptyTitle>
-      <p className="muted">{t('app.crash.body')}</p>
-      <ReloadCta variant="purple" onClick={() => window.location.reload()}>
+      <OV.EmptyBody>{t('app.crash.body')}</OV.EmptyBody>
+      <ReloadCta variant="white" onClick={() => window.location.reload()}>
         {t('app.crash.reload')}
       </ReloadCta>
     </OV.Empty>

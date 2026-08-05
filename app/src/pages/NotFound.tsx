@@ -12,8 +12,8 @@ export function NotFound() {
     <S.Root data-testid="notfound">
       <S.Ico name="cart" size={44} />
       <S.Title>{t('notFound.title')}</S.Title>
-      <p className="muted">{t('notFound.body')}</p>
-      <Button as={Link} to="/items" variant="purple">
+      <S.Body>{t('notFound.body')}</S.Body>
+      <Button as={Link} to="/items" variant="white">
         {t('notFound.cta')}
       </Button>
     </S.Root>

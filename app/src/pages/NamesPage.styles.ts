@@ -21,7 +21,7 @@ export const Breadcrumb = styled.nav`
   font-family: ${theme.font.sans};
   font-size: 12px;
   line-height: 1;
-  color: ${theme.colors.muted};
+  color: ${theme.colors.gray4};
 `
 
 export const CrumbLink = styled.button`
@@ -30,20 +30,21 @@ export const CrumbLink = styled.button`
   padding: 0;
   cursor: pointer;
   font: inherit;
-  color: ${theme.colors.muted};
+  color: ${theme.colors.gray4};
 
   &:hover {
+    color: ${theme.colors.white};
     text-decoration: underline;
   }
   &:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
+    outline: 2px solid ${theme.colors.white};
     outline-offset: 2px;
   }
 `
 
 export const CrumbCurrent = styled.span`
   font-weight: 700;
-  color: ${theme.colors.muted};
+  color: ${theme.colors.softWhite};
 `
 
 // The lilac card wrapping the hero + info cards.

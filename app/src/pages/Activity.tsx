@@ -431,7 +431,7 @@ function EmptyState({ filter }: { filter: ActivityFilter }) {
       <S.EmptyTitle>{copy.title}</S.EmptyTitle>
       <S.EmptyBody>{copy.body}</S.EmptyBody>
       {filter !== 'sales' ? (
-        <S.EmptyCta as={Link} to="/items" variant="purple">
+        <S.EmptyCta as={Link} to="/items" variant="white">
           {t('notFound.cta')}
         </S.EmptyCta>
       ) : null}

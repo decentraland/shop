@@ -267,8 +267,8 @@ export function Overview() {
       ) : (
         <S.Empty>
           <S.EmptyTitle>{t('overview.emptyTitle')}</S.EmptyTitle>
-          <p className="muted">{t('overview.emptyBody')}</p>
-          <S.EmptyCta as={Link} to="/items" variant="purple">
+          <S.EmptyBody>{t('overview.emptyBody')}</S.EmptyBody>
+          <S.EmptyCta as={Link} to="/items" variant="white">
             {t('notFound.cta')}
           </S.EmptyCta>
         </S.Empty>
