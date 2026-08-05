@@ -21,17 +21,14 @@ export const Section = styled.section`
   min-width: 0;
   min-height: 60vh;
   /* Centre the whole column — heading, tabs and cards as ONE block — so the feed isn't parked against
-     the left edge of a wide page. Centring only the list would leave the heading orphaned from it. */
-  max-width: 760px;
-  margin-inline: auto;
+     the left edge of a wide page. Centring only the list would leave the heading orphaned from it.
 
-  /* The migration tool's row (thumbnail + name + a 144px price field) does not survive the feed's
-     column: squeezed to 760px the price field lands on its own line on a desktop. Widening the whole
-     column keeps heading, chips and panel as one block, which is the point of the constraint above.
-     1003px is the tool's own width in the design, which puts its rows at the 979px they are drawn at. */
-  &[data-view='migrate'] {
-    max-width: 1003px;
-  }
+     ONE width for every view. The migration tool needs 1003px (its row is a thumbnail, a name and a
+     144px price field; narrower, the price field drops to its own line on a desktop), and the feed used
+     to sit at 760px — so switching chips resized the heading and the whole column under it, which reads
+     as the page reloading rather than as a filter changing. */
+  max-width: 1003px;
+  margin-inline: auto;
 `
 
 export const Head = styled.div`

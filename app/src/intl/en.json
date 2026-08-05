@@ -185,9 +185,9 @@
     }
   },
   "getCredits": {
-    "title": "Get {currency}!",
-    "subtitle": "Pick your {currency} pack and get ready to shop!",
-    "learnMore": "Learn more",
+    "title": "Stock up on Credits",
+    "subtitle": "Choose a Credit pack, then shop creator-made Wearables and Emotes to build a look that’s uniquely yours.",
+    "learnMore": "Learn More",
     "canceledNote": "Payment canceled — no charge was made. Pick a pack whenever you’re ready.",
     "packBadge": "Recommended",
     "packUnit": "{currency}",
@@ -810,9 +810,9 @@
   },
   "importListings": {
     "toastUpdated": "Your Shop is updated.",
-    "emptyTitle": "You're all caught up",
-    "emptyBody": "Everything you sell is already in the Shop — nothing to import.",
-    "goToMyAssets": "Go to My Items",
+    "emptyTitle": "You are all set!",
+    "emptyBody": "You can manage your listings from “My Items” section.",
+    "goToMyAssets": "My Items",
     "title": "Bring your listings into the new shop!",
     "lede": "Your items can now be priced in {currency}. We've suggested equivalent prices based on today's MANA exchange rate, but you can adjust them before publishing. Once you're ready, list your items in the new Shop.",
     "learnMore": "Learn More",
@@ -825,6 +825,37 @@
     "wasMana": "({amount} MANA)",
     "selectedSummary": "{count, plural, one {# item} other {# items}} selected · ${usd}",
     "listAll": "List all ({count})"
+  },
+  "faq": {
+    "title": "Learn More About Credits",
+    "sellers": {
+      "whatAreQ": "What are Credits?",
+      "whatAreA": "Credits are the new way to purchase items in the Decentraland Shop. Buy a Credits pack and use it to purchase any eligible product. Credits have a stable value: 1 Credit = $0.10 USD.",
+      "whyCreditsQ": "Why should I price my items in Credits instead of MANA?",
+      "whyCreditsA": "Credits provide stable pricing. Your items keep the same USD value regardless of MANA price fluctuations, making pricing more predictable for both you and your buyers.",
+      "receiveCreditsQ": "If I sell an item priced in Credits, do I receive Credits?",
+      "receiveCreditsA": "No. Creator earnings are still paid in MANA. When your item sells, you’ll receive the MANA equivalent of your item’s USD value based on the exchange rate at the time of the purchase.",
+      "changePriceQ": "Can I change my Credits price later?",
+      "changePriceA": "Yes. You can update your item’s Credits price at any time from the “My Items” page.",
+      "mustSwitchQ": "Do I have to switch my existing listings to Credits?",
+      "mustSwitchA": "No. Existing MANA listings will continue to work. However, we recommend updating your listings to Credits to keep their prices stable and aligned with the new shopping experience.",
+      "suggestedPriceQ": "How is the suggested Credits price calculated?",
+      "suggestedPriceA": "An equivalent Credits price is calculated based on your current MANA price and the exchange rate at the time of migration. Review and adjust it before publishing."
+    },
+    "buyers": {
+      "whatAreQ": "What are Credits?",
+      "whatAreA": "Credits are Decentraland’s in-app currency for purchasing new Wearables and Emotes in the Shop.\nBuy a Credit pack, then use your balance to collect creator-made items and build a look that’s uniquely yours.",
+      "whatCanIBuyQ": "What can I buy with Credits?",
+      "whatCanIBuyA": "Credits can be used to purchase new Wearables and Emotes in the Decentraland Shop.\nLAND, NAMEs, and secondary-market items remain available through the Marketplace.",
+      "whereBuyQ": "Where can I buy Credits?",
+      "whereBuyA": "You can buy Credit packs right here on this page, up above. Credits are also available to purchase in-world and on mobile.\nFor the best pricing, we recommend purchasing through desktop or web. Mobile pricing may differ due to mobile platform fees.",
+      "whereUseQ": "Where can I use my Credits?",
+      "whereUseA": "Credits are tied to your Decentraland account, not the device where you purchased them.\nBuy Credits on desktop or web and use them everywhere, including mobile.",
+      "expireQ": "Do Credits expire?",
+      "expireA": "No. Credits do not expire and will remain in your account until you use them.",
+      "transferQ": "Can Credits be transferred or exchanged for cash?",
+      "transferA": "No. Credits are tied to your account and cannot be transferred to another account, withdrawn, or exchanged for cash."
+    }
   },
   "creditRate": {
     "equals": "=",
@@ -909,14 +940,10 @@
     "proceedsCredits": "You'll receive {count, plural, one {# credit} other {# credits}} per sale."
   },
   "migrate": {
-    "successTitle": "You're in the Shop! 🎉",
-    "nothingTitle": "Nothing listed",
     "listedSummary": "{count, plural, one {# item is} other {# items are}} now for sale with {currency}.",
-    "noneListed": "No items were listed.",
     "skippedSummary": "{count, plural, one {# skipped} other {# skipped}} — you can try those again anytime.",
     "unlistedSummary": "{count, plural, one {# item was taken off the old marketplace but couldn't be re-listed — re-list it from My Items.} other {# items were taken off the old marketplace but couldn't be re-listed — re-list them from My Items.}}",
     "goToMyAssets": "Go to My Items",
-    "viewInShop": "View in Shop",
     "listingTitle": "Listing your items",
     "subConfirm": "We take down each old listing and re-list it for credits — confirm each step.",
     "subManaged": "Moving your items to the Shop.",
@@ -942,7 +969,8 @@
     "phaseIndexing": "Waiting for the old listing to clear ({attempt}/{of})…",
     "hintCount": "About {total} confirmations will pop up — take down and re-list, per item. Keep this open.",
     "hintCountApproval": "About {total} confirmations will pop up: take down and re-list per item, plus a one-time approval for each collection. Keep this open.",
-    "phaseConfirmingCancelManaged": "Almost there…"
+    "phaseConfirmingCancelManaged": "Almost there…",
+    "unlistedTitle": "Some items need another try"
   },
   "fittingRoom": {
     "title": "Fitting room",

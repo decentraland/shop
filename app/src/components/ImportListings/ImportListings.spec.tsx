@@ -154,11 +154,23 @@ describe('Select all', () => {
 })
 
 describe('when the seller has nothing left to move', () => {
-  it('should show the caught-up state instead of an empty list', () => {
+  // Reachable now that Activity's chip is gated on HAVING listings rather than on having migratable ones:
+  // before, the seller this state is written for could not open the section at all.
+  it('should show the all-set state instead of an empty list', () => {
     useImportable.mockReturnValue({ items: [], count: 0, isLoading: false })
     renderTool()
 
-    expect(screen.getByText("You're all caught up")).toBeInTheDocument()
+    expect(screen.getByText('You are all set!')).toBeInTheDocument()
+    expect(screen.getByText('You can manage your listings from “My Items” section.')).toBeInTheDocument()
     expect(screen.queryByTestId('import-select-all')).not.toBeInTheDocument()
+  })
+
+  // The CREATIONS tab, not the page default: My Items opens on Wearables, which is the wrong shelf for a
+  // seller who came here to look at the listings they just moved.
+  it('should point the way out at My Items, on the creations tab', () => {
+    useImportable.mockReturnValue({ items: [], count: 0, isLoading: false })
+    renderTool()
+
+    expect(screen.getByRole('link', { name: 'My Items' }).getAttribute('href')).toBe('/my-items?section=creations')
   })
 })
