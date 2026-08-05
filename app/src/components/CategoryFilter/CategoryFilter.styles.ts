@@ -77,8 +77,13 @@ const rowCss = css`
 export const Cat = styled.button`
   ${rowCss};
 
-  &[data-selected],
-  &[data-expanded] {
+  /**
+   * Selected only — being EXPANDED no longer paints the row. Opening a category always selected it too,
+   * so the two flags moved together and the distinction never showed; the one case they came apart is
+   * after picking a sub-category, and there this tint was the parent staying lit under its own child.
+   * The rotated chevron is what says "open".
+   */
+  &[data-selected] {
     background: rgba(255, 255, 255, 0.14);
   }
 `

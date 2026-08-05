@@ -263,9 +263,7 @@ export const PanelTitle = styled.h1`
   }
 `
 
-// Purple label + Amethyst GRADIENT border: a flat border-color can't hold a gradient, so it's a 2px
-// transparent ring with the white fill clipped to padding-box and the gradient showing through the
-// border-box (same technique as the asset card's hover border).
+// Soft-black outline button (Figma 1551-315427).
 export const Fitting = styled.button`
   display: inline-flex;
   align-items: center;
@@ -291,9 +289,10 @@ export const Fitting = styled.button`
     filter 0.15s ease;
 
   /* The design gives no hover for this node. A neutral wash keeps the outline's own colour rather than
-     the purple glow the gradient border used to justify. */
+     the purple glow the gradient border used to justify — mixed from currentColor, which IS the border
+     colour, so it cannot drift from the token the way a second hardcoded rgba would. */
   &:hover:not(:disabled) {
-    background: rgba(36, 33, 41, 0.06);
+    background: color-mix(in srgb, currentColor 6%, transparent);
   }
   &:active:not(:disabled) {
     filter: brightness(0.97);

@@ -39,6 +39,25 @@ describe('the wearables category filter', () => {
    * to come from the stylesheet. That mechanism is what this pins; the two colours themselves are CSS, and
    * jsdom resolves no cascade to assert them against.
    */
+  /**
+   * Exactly one row is the selection. `category` stays on wearables while a sub-category is picked, so
+   * without the guard the parent kept its highlight and sat lit underneath its own lit child.
+   */
+  describe('where the highlight sits', () => {
+    it('should hand it to the sub-category instead of lighting the parent too', () => {
+      renderFilter({ category: 'wearable', subCategory: 'Head' })
+
+      expect(row('Wearables')).not.toHaveAttribute('data-selected')
+      expect(row('Head')).toHaveAttribute('data-active')
+    })
+
+    it('should keep it on the parent while the parent IS the selection', () => {
+      renderFilter({ category: 'wearable', subCategory: null })
+
+      expect(row('Wearables')).toHaveAttribute('data-selected')
+    })
+  })
+
   it('should leave the expand chevron for the stylesheet to tint rather than an inline colour', () => {
     renderFilter()
 

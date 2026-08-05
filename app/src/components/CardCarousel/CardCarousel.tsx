@@ -23,24 +23,43 @@ type Props = {
 // the dot count from the scroll extent, so it stays correct at every breakpoint without duplicating the
 // per-card width math.
 /**
- * Which page the rail is actually showing.
+ * The rail's geometry, measured off the cards themselves.
  *
- * The last page is a PARTIAL one: `pageCount` counts it, but its nominal offset (`page * view`) is past
- * `scrollWidth - clientWidth`, so the browser clamps the scroll short of it. Plain
- * `round(scrollLeft / view)` then rounds that clamped position back DOWN to the page before it, and the
- * last page can never be the current one — which left the right arrow enabled at the end with nowhere to
- * go, the last dot never lit, and a step back from the end jumping more than one page.
+ * Paging used to step by one `clientWidth`, which is NOT what a page of cards spans. The track is a grid
+ * of `calc((100% - 64px) / 5)` columns inside 14px of side padding, so five cards plus their gaps come to
+ * twelve pixels LESS than the viewport. Stepping by the viewport therefore aimed between two cards — and
+ * the track is `scroll-snap-type: x mandatory`, so the browser overrode the target and snapped to whichever
+ * card start was nearest. From the far end that is the position it was already at, which is why the left
+ * arrow looked dead there while the dots (which scroll to an absolute offset) kept working.
  *
- * So the end is anchored explicitly. `ceil(maxScroll / view)` is exactly `pageCount - 1` by the same
- * arithmetic that produced it, which is what keeps the two in agreement.
+ * Reading the stride off two adjacent cards keeps this correct at every breakpoint without restating the
+ * CSS column maths in JS, and every target it produces IS a snap point, so the browser agrees with it.
  */
-function pageFromScroll(el: HTMLElement): number {
-  const view = Math.max(1, el.clientWidth)
+type RailGeometry = { cards: HTMLElement[]; stride: number; perView: number; pageCount: number; base: number }
+
+function railGeometry(el: HTMLElement): RailGeometry | null {
+  const cards = Array.from(el.children) as HTMLElement[]
+  if (cards.length === 0 || el.clientWidth <= 0) return null
+  const stride = cards.length > 1 ? cards[1].offsetLeft - cards[0].offsetLeft : el.clientWidth
+  if (stride <= 0) return null
+  const perView = Math.max(1, Math.round(el.clientWidth / stride))
+  return {
+    cards,
+    stride,
+    perView,
+    pageCount: Math.max(1, Math.ceil(cards.length / perView)),
+    base: cards[0].offsetLeft
+  }
+}
+
+/** Which page the rail is actually showing. */
+function pageFromScroll(el: HTMLElement, g: RailGeometry): number {
   const maxScroll = el.scrollWidth - el.clientWidth
   if (maxScroll <= 0) return 0
-  // Sub-pixel layout means the resting position can land a hair short of maxScroll.
-  if (el.scrollLeft >= maxScroll - 1) return Math.max(0, Math.ceil(maxScroll / view))
-  return Math.round(el.scrollLeft / view)
+  // The last page holds fewer cards than a full one, so its start sits short of `maxScroll` and the rail
+  // rests past it. Anchor the end explicitly or the final page can never read as current.
+  if (el.scrollLeft >= maxScroll - 1) return g.pageCount - 1
+  return Math.min(g.pageCount - 1, Math.round(el.scrollLeft / (g.perView * g.stride)))
 }
 
 export function CardCarousel({ title, count, loading = false, viewAllTo, children }: Props) {
@@ -52,11 +71,10 @@ export function CardCarousel({ title, count, loading = false, viewAllTo, childre
   const measure = useCallback(() => {
     const el = trackRef.current
     if (!el) return
-    const view = el.clientWidth
-    if (view <= 0) return
-    const pages = Math.max(1, Math.ceil((el.scrollWidth - view) / view) + 1)
-    setPageCount(pages)
-    setPage(Math.min(pages - 1, pageFromScroll(el)))
+    const g = railGeometry(el)
+    if (!g) return
+    setPageCount(g.pageCount)
+    setPage(pageFromScroll(el, g))
     const media = el.querySelector<HTMLElement>('[data-testid="card-media"]')
     const viewport = el.parentElement
     // 12px = the track's top padding; center on the media so the chevrons sit over the artwork.
@@ -67,7 +85,10 @@ export function CardCarousel({ title, count, loading = false, viewAllTo, childre
     measure()
     const el = trackRef.current
     if (!el) return
-    const onScroll = () => setPage(pageFromScroll(el))
+    const onScroll = () => {
+      const g = railGeometry(el)
+      if (g) setPage(pageFromScroll(el, g))
+    }
     el.addEventListener('scroll', onScroll, { passive: true })
     window.addEventListener('resize', measure)
     return () => {
@@ -76,21 +97,18 @@ export function CardCarousel({ title, count, loading = false, viewAllTo, childre
     }
   }, [measure, count])
 
-  // Page by exactly one viewport width — because a whole number of cards fills the viewport, this
-  // always lands on a card boundary (a snap point), never on a partial card.
-  const scrollToPage = useCallback(
-    (p: number) => {
-      const el = trackRef.current
-      if (!el) return
-      const target = Math.max(0, Math.min(pageCount - 1, p))
-      // Clamp to the real scroll extent rather than letting the browser do it silently: the last page's
-      // nominal offset overshoots, and an overshoot is what put the resting position out of step with
-      // `pageFromScroll` in the first place.
-      const maxScroll = Math.max(0, el.scrollWidth - el.clientWidth)
-      el.scrollTo({ left: Math.min(target * el.clientWidth, maxScroll), behavior: 'smooth' })
-    },
-    [pageCount]
-  )
+  // Scroll to the START OF A CARD rather than to a multiple of the viewport width. Under mandatory snap
+  // only a card start is a position the browser will honour; anything else it overrides, which is what
+  // made the arrows unreliable at the end of the rail.
+  const scrollToPage = useCallback((p: number) => {
+    const el = trackRef.current
+    if (!el) return
+    const g = railGeometry(el)
+    if (!g) return
+    const target = Math.max(0, Math.min(g.pageCount - 1, p))
+    const card = g.cards[Math.min(target * g.perView, g.cards.length - 1)]
+    el.scrollTo({ left: card.offsetLeft - g.base, behavior: 'smooth' })
+  }, [])
 
   const showControls = !loading && pageCount > 1
 

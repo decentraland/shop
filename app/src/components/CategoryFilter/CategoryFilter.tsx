@@ -150,7 +150,11 @@ export function CategoryFilter({
       {CATEGORIES.filter(top => !(hideAll && top.key === 'all') && !(hideNames && top.key === 'names')).map(top => {
         const open = expandedKey === top.key && !!top.subs
         // In collections mode nothing in the normal category list is highlighted.
-        const selected = !collections && top.key === category
+        //
+        // A sub-category takes the highlight FROM its parent. Picking "Head" leaves `category` on
+        // wearables, so without this the parent stayed lit alongside the child and two rows read as
+        // selected at once. Only ever one row is the selection.
+        const selected = !collections && top.key === category && !subCategory
         return (
           <S.Group key={top.key}>
             <S.Cat
