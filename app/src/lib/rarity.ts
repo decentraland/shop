@@ -1,3 +1,4 @@
+import { t } from '~/intl/i18n'
 import { Rarity } from '@dcl/schemas'
 import { capitalizeFirst } from '~/lib/text'
 
@@ -56,8 +57,21 @@ export function rarityInk(rarity?: string | null, target = 120): string {
 // Short tooltip explaining a rarity by its scarcity — every DCL rarity is defined by how many can ever
 // be minted (unique = 1 … common = 100,000). Used as the `title` on rarity chips (matches the
 // marketplace, which surfaces the same max-supply meaning). Falls back to just the name if unknown.
+/**
+ * A rarity's display name, translated. The API answers in English ('uncommon'), and every surface used to
+ * render that string raw — so a Spanish reader saw the filter, the card chip and the tooltip in English
+ * while the marketplace showed them "Poco común".
+ */
+const RARITY_KEYS = ['common', 'uncommon', 'epic', 'rare', 'legendary', 'exotic', 'mythic', 'unique']
+
+export function rarityLabel(rarity?: string | null): string {
+  const key = (rarity ?? '').toLowerCase()
+  // Unknown rarities keep the API's own word rather than becoming a missing-key warning.
+  return RARITY_KEYS.includes(key) ? t(`rarity.${key}`) : capitalizeFirst(rarity ?? '')
+}
+
 export function rarityDescription(rarity?: string | null): string {
-  const name = capitalizeFirst(rarity ?? 'Common')
+  const name = rarityLabel(rarity ?? 'common')
   try {
     const max = Rarity.getMaxSupply((rarity ?? 'common').toLowerCase() as Rarity)
     if (max > 0) return `${name} rarity — only ${max.toLocaleString()} can ever be minted`

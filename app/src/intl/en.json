@@ -229,6 +229,16 @@
     "smart": "Smart",
     "smartHint": "Smart wearables add interactive, in-world utility."
   },
+  "rarity": {
+    "common": "Common",
+    "uncommon": "Uncommon",
+    "epic": "Epic",
+    "rare": "Rare",
+    "legendary": "Legendary",
+    "exotic": "Exotic",
+    "mythic": "Mythic",
+    "unique": "Unique"
+  },
   "assetCard": {
     "sale": "SALE",
     "saleWithDiscount": "SALE -{pct}%",

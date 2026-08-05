@@ -15,7 +15,7 @@ import { LoadMore } from '~/components/LoadMore'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
 import { useSeo } from '~/hooks/useSeo'
 import { SUBCAT_MAP } from '~/lib/categories'
-import { capitalizeFirst } from '~/lib/text'
+import { rarityLabel } from '~/lib/rarity'
 import { track } from '~/lib/analytics'
 import { t } from '~/intl/i18n'
 import { ErrorNotice } from '~/components/ErrorNotice'
@@ -239,8 +239,7 @@ export function Assets() {
       }
     })
   for (const r of RARITIES)
-    if (rarities.includes(r))
-      chips.push({ key: `rarity-${r}`, label: capitalizeFirst(r), onRemove: () => toggleRarity(r) })
+    if (rarities.includes(r)) chips.push({ key: `rarity-${r}`, label: rarityLabel(r), onRemove: () => toggleRarity(r) })
   if (smart) chips.push({ key: 'smart', label: t('filter.smart'), onRemove: () => setFilters({ smart: false }) })
   if (status !== 'on_sale')
     chips.push({

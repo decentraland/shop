@@ -16,7 +16,7 @@ import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
 import { useSeo } from '~/hooks/useSeo'
 import { useProfile } from '~/hooks/useProfile'
 import { SUBCAT_MAP } from '~/lib/categories'
-import { capitalizeFirst } from '~/lib/text'
+import { rarityLabel } from '~/lib/rarity'
 import { shortAddress } from '~/lib/address'
 import { displayCredits } from '~/lib/mana-convert'
 import { useManaRate } from '~/hooks/useManaRate'
@@ -203,8 +203,7 @@ export function Creator() {
       }
     })
   for (const r of RARITIES)
-    if (rarities.includes(r))
-      chips.push({ key: `rarity-${r}`, label: capitalizeFirst(r), onRemove: () => toggleRarity(r) })
+    if (rarities.includes(r)) chips.push({ key: `rarity-${r}`, label: rarityLabel(r), onRemove: () => toggleRarity(r) })
   if (smart) chips.push({ key: 'smart', label: t('filter.smart'), onRemove: () => setFilters({ smart: false }) })
   if (status !== 'all')
     chips.push({
