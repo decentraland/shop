@@ -80,6 +80,10 @@ export const Top = styled.div`
      the page out BELOW the cross-sell, so a strip of gray showed under "You might also like" instead of the
      footer. Giving the band its designed height puts the leftover space where the design wants it. */
   min-height: 733px;
+  /* Gray below the panels so the band never hugs the last card: Figma's band runs y152–950 with the
+     content ending at 854. The min-height above only covers a SHORT cart — once the list outgrows it
+     the band tracks the content, and without this padding it would butt straight into the purple. */
+  padding-bottom: 96px;
 
   &::before {
     content: '';
@@ -101,6 +105,9 @@ export const Top = styled.div`
     /* The single-column layout is already taller than the desktop band, and the fixed summary bar sits over
        the bottom of it — a floor here would only add empty gray. */
     min-height: 0;
+
+    /* The fixed summary bar already reserves room at the bottom on mobile (see Checkout). */
+    padding-bottom: 32px;
 
     &::before {
       top: -16px; /* .page's mobile padding */
