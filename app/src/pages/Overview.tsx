@@ -13,6 +13,7 @@ import { useSeo } from '~/hooks/useSeo'
 import heroBanner from '~/assets/overview/hero-fashion-week.png'
 import promoEmotes from '~/assets/overview/promo-best-rated-emotes.png'
 import promoOutfits from '~/assets/overview/promo-week-selected-outfits.png'
+import { LivePromo } from '~/components/LivePromo'
 import * as S from './Overview.styles'
 
 const SKELETON_COUNT = 6
@@ -56,14 +57,36 @@ export function Overview() {
             )}
           </CardCarousel>
 
-          {/* Promo tiles (Figma node 913:135589). Placeholder art — see report for production source. */}
+          {/* Live promo tiles: real avatars over the fitting room's animated backdrop — the monkey
+              playing HOT SAX for emotes, the week's featured skin in a fashion pose for outfits. */}
           <S.Promos>
-            <S.Promo to="/assets" aria-label={t('overview.promoEmotesAria')}>
-              <img src={promoEmotes} alt={t('overview.promoEmotesAlt')} />
-            </S.Promo>
-            <S.Promo to="/assets" aria-label={t('overview.promoOutfitsAria')}>
-              <img src={promoOutfits} alt={t('overview.promoOutfitsAlt')} />
-            </S.Promo>
+            <LivePromo
+              id="shop-promo-emotes"
+              to="/assets?category=emote"
+              urns={[
+                'urn:decentraland:matic:collections-v2:0xe9f388ae27c726c4772c85a194e9791b1a0a913c:0',
+                'urn:decentraland:matic:collections-v2:0x0c956c74518ed34afb7b137d9ddfdaea7ca13751:0'
+              ]}
+              title={t('overview.bestRatedEmotes')}
+              cta={t('overview.exploreEmotes')}
+              ariaLabel={t('overview.promoEmotesAria')}
+              fallback={promoEmotes}
+              fallbackAlt={t('overview.promoEmotesAlt')}
+            />
+            <LivePromo
+              id="shop-promo-outfits"
+              to="/assets"
+              urns={[
+                'urn:decentraland:matic:collections-v2:0x6c3ca91dbac390d60d4267fdcf48576f6c051dbe:0',
+                'urn:decentraland:matic:collections-v2:0x9620151fe5e1c8fd0638a4840cf5e63d19b09765:0'
+              ]}
+              zoom={80}
+              title={t('overview.weekSelectedOutfits')}
+              cta={t('overview.exploreCollection')}
+              ariaLabel={t('overview.promoOutfitsAria')}
+              fallback={promoOutfits}
+              fallbackAlt={t('overview.promoOutfitsAlt')}
+            />
           </S.Promos>
 
           {/* Curated "ready to use" avatar looks, shown as a horizontal rail after the promo tiles. */}

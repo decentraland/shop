@@ -1,0 +1,1 @@
+export { LivePromo } from './LivePromo'

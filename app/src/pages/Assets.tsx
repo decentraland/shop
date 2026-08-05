@@ -40,7 +40,11 @@ export function Assets() {
     description: t('seo.collectibles.description')
   })
 
-  const [category, setCategory] = useState('wearable')
+  // ?category=wearable|emote|names deep-links a tab (e.g. the home's emote promo); state after mount.
+  const [category, setCategory] = useState(() => {
+    const c = new URLSearchParams(window.location.search).get('category')
+    return c === 'emote' || c === 'names' ? c : 'wearable'
+  })
   const [subCategory, setSubCategory] = useState<string | null>(null)
   const [rarities, setRarities] = useState<string[]>([])
   const [priceMin, setPriceMin] = useState('')
