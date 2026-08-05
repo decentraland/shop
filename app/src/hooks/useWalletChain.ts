@@ -32,12 +32,6 @@ type Eip1193 = {
   removeListener?: (event: string, cb: (...args: unknown[]) => void) => void
 }
 
-// Amoy ships in almost no wallet by default, so switching to it can need an add (EIP-3085) first.
-// These params are DUPLICATED from lib/authorizations.ts on purpose: importing that module here would
-// pull the whole ERC20/ERC721/meta-tx authorization layer (and its config + ethers contract graph) into
-// the navbar's chunk, which is on every page. Four literals are the cheaper dependency. If they ever
-// need to change, change them in both places.
-
 /** The wallet declined the request. Not an error to recover from — the user answered. */
 const USER_REJECTED = 4001
 /** The wallet does not know this chain yet and wants an `wallet_addEthereumChain` first. */
