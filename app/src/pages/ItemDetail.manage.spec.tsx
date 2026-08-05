@@ -98,6 +98,7 @@ vi.mock('~/lib/buy', () => ({
 
 vi.mock('~/lib/collections', () => ({
   fetchCollectionItems: vi.fn().mockResolvedValue({ items: [], total: 0 }),
+  fetchCatalogItems: vi.fn().mockResolvedValue({ items: [], total: 0 }),
   fetchCollection: vi.fn().mockResolvedValue({
     contractAddress: '0xanchor',
     name: 'Solo Collection',

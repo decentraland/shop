@@ -42,11 +42,11 @@ import { friendlyError, isRejection } from '~/lib/errors'
 import { isManagedWallet } from '~/lib/wallet'
 import { canPayGasItself } from '~/lib/wallet-kind'
 import { useManaRate } from '~/hooks/useManaRate'
-import { useRelatedItems } from '~/hooks/useRelatedItems'
+import { useSuggestedItems } from '~/hooks/useSuggestedItems'
 import { useSeo } from '~/hooks/useSeo'
 import { shortAddress } from '~/lib/address'
 import { t } from '~/intl/i18n'
-import { fetchCollectionItems, fetchCollection } from '~/lib/collections'
+import { fetchCollection } from '~/lib/collections'
 import { ItemPreview } from '~/components/ItemPreview'
 import { CollectionCarousel } from '~/components/CollectionCarousel'
 import { ResellersModal } from '~/components/ResellersModal'
@@ -206,11 +206,19 @@ export function ItemDetail() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session])
 
-  // Sibling items of the same collection (the "more from this collection" carousel).
-  const { data: siblings = [], isFetched: siblingsFetched } = useQuery({
-    queryKey: ['collection-items', current.contractAddress],
-    enabled: !!current.contractAddress,
-    queryFn: () => fetchCollectionItems(current.contractAddress, { first: 20 }).then(r => r.items)
+  // The rail below the fold: this collection's other items, padded with the creator's and then with
+  // similar ones so it never shows up as two or three lonely cards. `siblings` also backfills the item.
+  const {
+    items: carouselItems,
+    isCollectionOnly,
+    siblings,
+    siblingsFetched
+  } = useSuggestedItems({
+    id: current.id,
+    contractAddress: current.contractAddress,
+    itemId: current.itemId ?? pageItemId,
+    tokenId: current.tokenId,
+    creator: current.creator
   })
 
   // Hydrate the generic item (name, price, tradeId, stock) from the shop feed by its ITEM id. Resolved
@@ -294,28 +302,6 @@ export function ItemDetail() {
     if (match) setCurrent(prev => ({ ...match, tradeId: prev.tradeId ?? match.tradeId }))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [siblings, deepLinkItem])
-
-  // Carousel = OTHER items from the collection: drop the currently-viewed item + dedupe.
-  const carouselItems = useMemo(() => {
-    const seen = new Set<string>()
-    const out: CatalogItem[] = []
-    for (const s of siblings) {
-      if (s.id === current.id) continue
-      if (current.itemId && s.itemId === current.itemId) continue
-      if (current.tokenId && s.tokenId === current.tokenId) continue
-      const key = `${s.contractAddress}-${s.itemId ?? s.tokenId ?? s.id}`
-      if (seen.has(key)) continue
-      seen.add(key)
-      out.push(s)
-    }
-    return out
-  }, [siblings, current.id, current.itemId, current.tokenId])
-
-  // Fallback rail: a single-item collection leaves the carousel with nothing to render, and the page below
-  // the fold goes blank. So once the collection has come back empty-handed, ask for SIMILAR items instead.
-  // Gated on siblingsFetched so a slow collection read doesn't fire both requests and swap rails mid-view.
-  const noSiblings = siblingsFetched && carouselItems.length === 0
-  const { items: relatedItems } = useRelatedItems(current.contractAddress, pageItemId, { enabled: noSiblings })
 
   // Resolve a buyable trade for the current item (needed for BUY NOW + a valid cart entry). Secondary
   // listings carry their tradeId directly; catalog items resolve the cheapest open listing by itemId.
@@ -583,8 +569,9 @@ export function ItemDetail() {
   const catIco = categoryIcon(current)
   const genderIco = genderIcon(current.gender)
   const onSale = forSale && saleActive
-  const collectionTitle = t('itemDetail.moreFromCollection')
-  const relatedTitle = t('itemDetail.relatedItems')
+  // Only a rail made up ENTIRELY of the collection's items can be titled after the collection and offer a
+  // "View all" into it; the moment it is padded, both would be describing items that aren't there.
+  const carouselTitle = isCollectionOnly ? t('itemDetail.moreFromCollection') : t('itemDetail.youMightAlsoLike')
 
   // Your own (primary) listing — you can't buy it (see lib/ownership.ts). Secondary self-listings are
   // caught authoritatively at buy time by isOwnTrade.
@@ -1639,18 +1626,16 @@ export function ItemDetail() {
         </S.Info>
       </S.Main>
 
-      {/* One rail, two data sources. The related fallback gets no "View all": there is no page that lists
-          "similar items", and a link to the collection would lead somewhere with nothing in it. Either way
-          CollectionCarousel renders nothing when its items are empty, so no bare heading can appear. */}
-      {noSiblings ? (
-        <CollectionCarousel title={relatedTitle} items={relatedItems} />
-      ) : (
-        <CollectionCarousel
-          title={collectionTitle}
-          items={carouselItems}
-          onViewAll={current.contractAddress ? () => navigate(`/collection/${current.contractAddress}`) : undefined}
-        />
-      )}
+      {/* CollectionCarousel renders nothing when its items are empty, so no bare heading can appear. */}
+      <CollectionCarousel
+        title={carouselTitle}
+        items={carouselItems}
+        onViewAll={
+          isCollectionOnly && current.contractAddress
+            ? () => navigate(`/collection/${current.contractAddress}`)
+            : undefined
+        }
+      />
 
       {showBuy && isMarket && marketListing && manaRate ? (
         <MarketCheckout
