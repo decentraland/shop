@@ -9,7 +9,7 @@ import {
 } from 'decentraland-transactions'
 import { metaTxProviderShim, readProvider } from '~/lib/authorizations'
 import { gaslessConfig } from '~/lib/gasless-config'
-import { ensureChain } from '~/lib/trades'
+import { requireChain } from '~/lib/network'
 import { amoyGasOverrides } from '~/lib/trade-encoding'
 import { confirmMetaTx, MetaTxPendingError } from '~/lib/tx-confirm'
 
@@ -157,9 +157,10 @@ export async function issueTokens(opts: {
     }
   }
 
-  // Direct (gas-paying) fallback. issueTokens is a REAL transaction, so it must run on the collection's
-  // chain — a restored session can leave the wallet on whatever network it last used; switch just-in-time.
-  await ensureChain(signer.provider as ethers.providers.Web3Provider, chainId)
+  // Direct (gas-paying) fallback: the WALLET broadcasts this one, so it must already be on the collection's
+  // chain. We only CHECK — moving the wallet is the user's own decision (the navbar's network control),
+  // never a side effect of clicking this. See lib/network.
+  await requireChain(signer.provider as ethers.providers.Web3Provider, chainId)
   const contract = new ethers.Contract(contractAddress, ISSUE_ABI, signer) as ethers.Contract & {
     issueTokens(
       beneficiaries: string[],

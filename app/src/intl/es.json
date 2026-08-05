@@ -3,7 +3,9 @@
     "rejected": "Cancelaste la solicitud.",
     "insufficient": "No tienes suficientes {currency}. Consigue más primero.",
     "soldOrRemoved": "Este artículo acaba de venderse o eliminarse.",
-    "cantBuyOwn": "No puedes comprar tu propia publicación."
+    "cantBuyOwn": "No puedes comprar tu propia publicación.",
+    "wrongNetwork": "Tu wallet está en {current}. Cambiala a {required} para continuar — podés cambiar de red desde la barra superior.",
+    "walletUnauthorized": "Tu wallet bloqueó este pedido. Verificá que siga conectada al shop y en la red correcta, y probá de nuevo."
   },
   "nav": {
     "overview": "Inicio",

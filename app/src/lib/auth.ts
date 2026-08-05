@@ -32,9 +32,9 @@ async function toSession(res: {
   if (!res.account) throw new Error('No account returned by the wallet')
   const address = res.account.toLowerCase()
   // `'any'` lets ethers follow wallet network changes instead of locking to the first-seen network.
-  // Without it, an on-chain step that switches the wallet just-in-time (ensureChain in cancel/buy/
-  // approval) makes the cached provider throw "underlying network changed" on the next call — which
-  // broke "Remove from sale" when the wallet started on a different chain than the trade's.
+  // Without it, a session that outlives a network change — the user switching from the navbar, or from
+  // their wallet directly — makes this cached provider throw "underlying network changed" on the next
+  // call, which is what used to break "Remove from sale" for anyone not already on the trade's chain.
   const web3Provider = new ethers.providers.Web3Provider(res.provider as ethers.providers.ExternalProvider, 'any')
   const signer = web3Provider.getSigner()
 

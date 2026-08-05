@@ -14,7 +14,7 @@ const h = vi.hoisted(() => {
   return {
     cancelCalls: [] as unknown[][], // direct (gas-paying) cancelSignature calls
     metaTxCalls: [] as unknown[][], // gasless relayer submissions
-    ensureChainCalls: [] as Array<{ provider: unknown; chainId: number }>,
+    requireChainCalls: [] as Array<{ provider: unknown; chainId: number }>,
     gaslessConfig: { enabled: false, relayerUrl: 'http://relayer.test' },
     MetaTransactionError,
     ErrorCode: { USER_DENIED: 'USER_DENIED' }
@@ -45,10 +45,13 @@ vi.mock('~/lib/authorizations', () => ({
   metaTxProviderShim: () => ({ __shim: true })
 }))
 
-// cancelListing switches the wallet to the trade's chain before the DIRECT cancel tx.
-vi.mock('~/lib/trades', () => ({
-  ensureChain: (provider: unknown, chainId: number) => {
-    h.ensureChainCalls.push({ provider, chainId })
+// cancelListing requires the wallet to already be on the trade's chain before the DIRECT cancel tx.
+// Keep the real ~/lib/network (errors.ts reads its predicates) and spy only on the chain CHECK. Recording
+// the calls is how the tests below assert which legs verify the network and which never touch it.
+vi.mock('~/lib/network', async importOriginal => ({
+  ...(await importOriginal<typeof import('~/lib/network')>()),
+  requireChain: (provider: unknown, chainId: number) => {
+    h.requireChainCalls.push({ provider, chainId })
     return Promise.resolve()
   }
 }))
@@ -103,7 +106,7 @@ const trade = { contract: '0xmarket', chainId: 80002 } as unknown as Trade
 beforeEach(() => {
   h.cancelCalls.length = 0
   h.metaTxCalls.length = 0
-  h.ensureChainCalls.length = 0
+  h.requireChainCalls.length = 0
   h.gaslessConfig.enabled = false
   relay.mockReset()
   relay.mockImplementation(() => {
@@ -128,7 +131,7 @@ describe('cancelListing — direct (gas-paying) fallback, gasless disabled', () 
   it('switches the wallet to the trade chain before sending the cancel tx', async () => {
     await cancelListing({ trade, signer })
 
-    expect(h.ensureChainCalls).toEqual([{ provider: { __web3: true }, chainId: 80002 }])
+    expect(h.requireChainCalls).toEqual([{ provider: { __web3: true }, chainId: 80002 }])
     expect(h.metaTxCalls).toHaveLength(0) // relayer never used when gasless is off
   })
 })
@@ -145,7 +148,7 @@ describe('cancelListing — gasless (relayer) path, gasless enabled', () => {
     expect(h.metaTxCalls).toHaveLength(1)
     // No direct cancelSignature tx and no just-in-time chain switch (the relayer handles the chain).
     expect(h.cancelCalls).toHaveLength(0)
-    expect(h.ensureChainCalls).toHaveLength(0)
+    expect(h.requireChainCalls).toHaveLength(0)
   })
 
   it('propagates a user rejection instead of silently falling back to a gas-paying tx', async () => {
@@ -162,17 +165,17 @@ describe('cancelListing — gasless (relayer) path, gasless enabled', () => {
 
     expect(hash).toBe('0xcancelhash')
     expect(h.cancelCalls).toHaveLength(1)
-    expect(h.ensureChainCalls).toEqual([{ provider: { __web3: true }, chainId: 80002 }])
+    expect(h.requireChainCalls).toEqual([{ provider: { __web3: true }, chainId: 80002 }])
   })
 })
 
 /**
  * ASKING BEFORE SPENDING THE SELLER'S GAS.
  *
- * The silent fallback is what stranded a creator: it fires `ensureChain` — a wallet network request —
- * minutes after the click, and MetaMask refuses unsolicited wallet requests (-32006), so the only route
- * left was unreachable exactly when the relay had failed. 'gasless-only' reports back so the UI can offer
- * the gas-paying route as the seller's own click, where the wallet accepts it.
+ * The silent fallback is what stranded a creator: it made a wallet network request minutes after the click,
+ * and MetaMask refuses unsolicited wallet requests (-32006), so the only route left was unreachable exactly
+ * when the relay had failed. 'gasless-only' reports back so the UI can offer the gas-paying route as the
+ * seller's own click, where the wallet accepts it.
  */
 describe('cancelListing — choosing the rail', () => {
   beforeEach(() => {
@@ -187,7 +190,7 @@ describe('cancelListing — choosing the rail', () => {
     )
     // The point: nothing was sent and the wallet was never asked to switch networks.
     expect(h.cancelCalls).toHaveLength(0)
-    expect(h.ensureChainCalls).toHaveLength(0)
+    expect(h.requireChainCalls).toHaveLength(0)
   })
 
   it('carries the underlying failure as the cause, so a pending relay stays distinguishable', async () => {
@@ -205,7 +208,7 @@ describe('cancelListing — choosing the rail', () => {
     expect(hash).toBe('0xcancelhash')
     expect(h.metaTxCalls).toHaveLength(0)
     expect(h.cancelCalls).toHaveLength(1)
-    expect(h.ensureChainCalls).toEqual([{ provider: { __web3: true }, chainId: 80002 }])
+    expect(h.requireChainCalls).toEqual([{ provider: { __web3: true }, chainId: 80002 }])
   })
 
   it('still relays on gasless-only when the relay works', async () => {

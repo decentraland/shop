@@ -12,7 +12,7 @@ import {
 import { config } from '~/config'
 import { metaTxProviderShim, readProvider } from '~/lib/authorizations'
 import { gaslessConfig } from '~/lib/gasless-config'
-import { ensureChain } from '~/lib/trades'
+import { requireChain } from '~/lib/network'
 import { confirmMetaTx, MetaTxPendingError, confirmMetaTxByEffect } from '~/lib/tx-confirm'
 import {
   amoyGasOverrides,
@@ -163,18 +163,15 @@ export async function sendUseCredits(
   // user who was last on another network) can leave the wallet on a different chain — without pinning
   // it first the wallet submits useCredits on its active network (e.g. Sepolia), where the
   // CreditsManager address has NO code: the call succeeds as a no-op, so a "successful" receipt comes
-  // back but NO credits are consumed and NO item is bought. Switch just-in-time (mirrors cancelListing
-  // and ensureApproval — the only other on-chain steps in the buy flow).
+  // back but NO credits are consumed and NO item is bought.
+  //
+  // So this REFUSES rather than switching. The shop moving the wallet by itself is what put a buyer who had
+  // just chosen Ethereum back on Polygon without being told, and the error they got named a revert instead of
+  // a network. Changing networks is theirs to do, from the navbar's control; WrongNetworkError says which two
+  // networks are involved so the message can too. Note this is the DIRECT rail only — the gasless one signs
+  // off-chain and reads through our own RPC, so it works from any network and is never gated here.
   const web3 = signer.provider as ethers.providers.Web3Provider
-  await ensureChain(web3, chainId)
-  // Belt-and-suspenders: never submit on the wrong chain even if the wallet ignored/failed the switch
-  // silently. Re-read the active network and abort instead of sending useCredits into the void.
-  const active = await web3.getNetwork()
-  if (active.chainId !== chainId) {
-    throw new Error(
-      `Wrong network: wallet is on chain ${active.chainId}, expected ${chainId}. Switch networks and try again.`
-    )
-  }
+  await requireChain(web3, chainId)
   const cm = getContract(ContractName.CreditsManager, chainId)
   const contract = new ethers.Contract(cm.address, cm.abi, signer) as CreditsManagerContract
   const tx = await contract.useCredits(args, amoyGasOverrides(chainId))
@@ -302,9 +299,10 @@ export async function transferItem(opts: {
     }
   }
 
-  // Direct (gas-paying) fallback. transferFrom is a REAL transaction, so it must run on the collection's
-  // chain — a restored session can leave the wallet on whatever network it last used; switch just-in-time.
-  await ensureChain(signer.provider as ethers.providers.Web3Provider, chainId)
+  // Direct (gas-paying) fallback: the WALLET broadcasts this one, so it must already be on the collection's
+  // chain. We only CHECK — moving the wallet is the user's own decision (the navbar's network control),
+  // never a side effect of clicking this. See lib/network.
+  await requireChain(signer.provider as ethers.providers.Web3Provider, chainId)
   const contract = new ethers.Contract(contractAddress, ERC721_TRANSFER_ABI, signer) as ethers.Contract & {
     transferFrom(
       from: string,
@@ -345,10 +343,10 @@ export async function cancelListing(opts: {
   signer: ethers.Signer
   /**
    * 'auto' (default) keeps the historical behaviour: try the relayer, then silently pay gas. That silent
-   * step is what stranded a creator — the fallback's `ensureChain` fires a `wallet_switchEthereumChain`
-   * minutes after the click and MetaMask refuses unsolicited wallet requests (-32006 Unauthorized), so the
-   * fallback was unreachable exactly when it was needed. 'gasless-only' + 'direct' let the UI ask first and
-   * then call again from inside the user's click, where the wallet request is allowed.
+   * step is what stranded a creator — the fallback made a wallet request minutes after the click, and
+   * MetaMask refuses unsolicited wallet requests (-32006 Unauthorized), so the fallback was unreachable
+   * exactly when it was needed. 'gasless-only' + 'direct' let the UI ask first and then call again from
+   * inside the user's click, where the wallet request is allowed.
    */
   mode?: CancelMode
   watch?: CancelWatch
@@ -369,9 +367,10 @@ export async function cancelListing(opts: {
     }
   }
 
-  // Direct (gas-paying) fallback. cancelSignature is a REAL transaction, so it must run on the trade's
-  // chain — a restored session can leave the wallet on whatever network it last used; switch just-in-time.
-  await ensureChain(signer.provider as ethers.providers.Web3Provider, trade.chainId)
+  // Direct (gas-paying) fallback: the WALLET broadcasts this one, so it must already be on the trade's
+  // chain. We only CHECK — moving the wallet is the user's own decision (the navbar's network control),
+  // never a side effect of clicking this. See lib/network.
+  await requireChain(signer.provider as ethers.providers.Web3Provider, trade.chainId)
   const marketplace = getContract(getContractName(trade.contract), trade.chainId)
   const onChainTrade = getOnChainTrade(trade, seller)
   const contract = new ethers.Contract(marketplace.address, marketplace.abi, signer) as MarketplaceContract

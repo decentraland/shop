@@ -49,7 +49,7 @@ vi.mock('decentraland-transactions', () => ({
 // These buy.spec tests cover the DIRECT (gas-paying) paths — sendUseCredits and cancelListing's
 // fallback. Disable gasless so cancelListing skips the relayer branch (its gasless path is covered in
 // cancel-listing.spec.ts). The real ~/lib/authorizations stays (buy.ts's metaTxProviderShim/readProvider
-// are only reached on the gasless branch, which is off here; ensureChain resolves through it as before).
+// are only reached on the gasless branch, which is off here).
 vi.mock('~/lib/gasless-config', () => ({ gaslessConfig: { enabled: false, relayerUrl: '' } }))
 
 vi.mock('~/config', () => ({ config: { rpcUrl: 'http://localhost', chainId: 80002 } }))
@@ -176,9 +176,9 @@ function fakeTrade(contract: string, receivedAssetType: number = TradeAssetType.
   } as unknown as Trade
 }
 
-// Mock wallet: `walletChainId` is what the wallet is currently on; a wallet_switchEthereumChain
-// request moves it to the requested chain UNLESS `switchHonored` is false (simulates a wallet that
-// silently ignores the switch). ensureChain + the post-switch guard in sendUseCredits read this.
+// Mock wallet. `walletChainId` is the network it is currently on, answered through `eth_chainId` the way
+// a real wallet does. Every request is recorded so a test can assert the shop never asked it to MOVE:
+// changing networks is the user's decision now, made from the navbar, never a side effect of a purchase.
 let walletChainId = 80002
 let switchHonored = true
 const switchCalls: Array<{ method: string; params: unknown }> = []
@@ -187,9 +187,11 @@ const signer = {
     getNetwork: async () => ({ chainId: walletChainId }),
     send: async (method: string, params: unknown[]) => {
       switchCalls.push({ method, params })
+      if (method === 'eth_chainId') return `0x${walletChainId.toString(16)}`
       if (method === 'wallet_switchEthereumChain' && switchHonored) {
         walletChainId = parseInt((params[0] as { chainId: string }).chainId, 16)
       }
+      return undefined
     }
   }
 } as unknown as Ethers.Signer
@@ -703,38 +705,49 @@ describe('when buying a single listing with credits', () => {
     aggAnswer = '50000000'
   })
 
-  it('switches the wallet to the trade chain before submitting when it is on another network', async () => {
-    walletChainId = 11155111 // wallet stuck on Sepolia (e.g. a restored session)
+  /**
+   * A buyer on the wrong network is TOLD, not moved.
+   *
+   * This is the exact sequence that broke in production: someone set MetaMask to Ethereum on purpose, came
+   * back to the shop, clicked buy — and the shop switched them to Polygon without asking. What they saw was a
+   * wallet error that named a revert, and what they found afterwards was a wallet on a network they had not
+   * chosen. Refusing keeps both facts straight: nothing is submitted, and the error names the two networks so
+   * the message can tell them which control to use.
+   */
+  it('refuses to submit on the wrong chain, and never asks the wallet to switch', async () => {
+    walletChainId = 1 // the buyer deliberately put their wallet on Ethereum
+
+    await expect(
+      buyWithCredits({
+        trade: fakeTrade('0xmarket'), // chainId 80002 (Amoy)
+        buyer: BUYER,
+        signer,
+        credits: [credit(B32('1'), '100')],
+        maxCreditedValue: '100'
+      })
+    ).rejects.toMatchObject({ name: 'WrongNetworkError', current: 1, required: 80002 })
+
+    expect(switchCalls.filter(c => c.method.startsWith('wallet_'))).toEqual([])
+    // Never sent useCredits into the void on a chain where the CreditsManager holds no code — a no-op that
+    // returns a SUCCESSFUL receipt while consuming no credits and buying no item.
+    expect(useCreditsCalls).toHaveLength(0)
+    // And the wallet is still where the buyer left it.
+    expect(walletChainId).toBe(1)
+  })
+
+  it('submits without any wallet network request when the wallet is already on the trade chain', async () => {
+    walletChainId = 80002
 
     await buyWithCredits({
-      trade: fakeTrade('0xmarket'), // chainId 80002 (Amoy)
+      trade: fakeTrade('0xmarket'),
       buyer: BUYER,
       signer,
       credits: [credit(B32('1'), '100')],
       maxCreditedValue: '100'
     })
 
-    // Asked the wallet to move to Amoy (0x13882), then submitted useCredits.
-    expect(switchCalls).toContainEqual({ method: 'wallet_switchEthereumChain', params: [{ chainId: '0x13882' }] })
     expect(useCreditsCalls).toHaveLength(1)
-  })
-
-  it('aborts without submitting when the wallet stays on the wrong chain', async () => {
-    walletChainId = 11155111 // Sepolia
-    switchHonored = false // wallet ignores the switch request
-
-    await expect(
-      buyWithCredits({
-        trade: fakeTrade('0xmarket'),
-        buyer: BUYER,
-        signer,
-        credits: [credit(B32('1'), '100')],
-        maxCreditedValue: '100'
-      })
-    ).rejects.toThrow(/Wrong network/)
-
-    // Never sent useCredits into the void on Sepolia (the bug that let a no-op "succeed").
-    expect(useCreditsCalls).toHaveLength(0)
+    expect(switchCalls.filter(c => c.method.startsWith('wallet_'))).toEqual([])
   })
 
   it('and there are no credits it throws before touching the chain', async () => {
@@ -811,9 +824,12 @@ describe('when buying a single listing with credits', () => {
 
 describe('when cancelling a listing', () => {
   const getAddress = vi.fn(async () => SELLER.toUpperCase())
-  // cancelListing calls ensureChain(signer.provider, trade.chainId) before the tx; a provider already
-  // on the trade's chain makes it a no-op (the switch path is covered in cancel-listing.spec).
-  const provider = { getNetwork: async () => ({ chainId: 80002 }) }
+  // cancelListing requires the wallet to be on the trade's chain before the direct tx; this provider already
+  // is, so the check passes (the wrong-network case is covered above and in network.spec).
+  const provider = {
+    getNetwork: async () => ({ chainId: 80002 }),
+    send: async (method: string) => (method === 'eth_chainId' ? '0x13882' : undefined)
+  }
   const cancelSigner = { getAddress, provider } as unknown as Ethers.Signer
 
   beforeEach(() => {

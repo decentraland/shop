@@ -38,7 +38,7 @@ import { VideoShowcaseModal } from '~/components/VideoShowcaseModal'
 import { MarketCheckout } from '~/components/MarketCheckout'
 import { toast } from '~/store/toast'
 import { captureError } from '~/lib/monitoring'
-import { isRejection } from '~/lib/errors'
+import { friendlyError, isRejection } from '~/lib/errors'
 import { isManagedWallet } from '~/lib/wallet'
 import { useManaRate } from '~/hooks/useManaRate'
 import { useRelatedItems } from '~/hooks/useRelatedItems'
@@ -885,7 +885,9 @@ export function ItemDetail() {
         setGaslessCancelFailed(true)
         return false
       }
-      setManageError(rejected ? t('getCredits.errorCanceled') : t('myAssets.removeListingError'))
+      // Through friendlyError so a wrong network or a wallet that refused the request says which of those
+      // it was — "couldn't remove the listing" is true but useless when the fix is a network switch.
+      setManageError(rejected ? t('getCredits.errorCanceled') : friendlyError(e, t('myAssets.removeListingError')))
       return false
     } finally {
       if (own) setManaging(null)
