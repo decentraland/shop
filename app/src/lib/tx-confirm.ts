@@ -75,3 +75,71 @@ export async function confirmMetaTx(txHash: string, what: string, opts?: { timeo
   if (receipt.status === 0) throw new MetaTxRevertedError(what, txHash)
   return txHash
 }
+
+/**
+ * Wait for a relayed transaction's EFFECT, not for the hash the relayer handed back.
+ *
+ * That hash is not a promise. The relayer resubmits with a higher fee when the network is busy — its own
+ * logs count the attempts ("hash recovery … total_hashes=3") — so the first hash frequently never appears
+ * on chain at all. Measured on production: a listing cancellation was relayed at 09:46, the returned hash
+ * never existed, `waitForTransaction` on it gave up at 120s, the shop told the creator it had failed, and
+ * the real transaction (a different hash) confirmed successfully at ~09:56. The creator re-signed six times
+ * for something that had already worked.
+ *
+ * So this races two observations and takes whichever lands first:
+ *
+ *  - the receipt for `txHash`, which is a bonus when the first attempt happens to be the one that mines; and
+ *  - `isDone()`, the caller's own question about the world ("is this listing still offered?"), which is true
+ *    whatever hash won, and stays true if the effect had already happened before we started watching.
+ *
+ * A REVERTED receipt is still final and still throws — that one is not a race. A timeout throws
+ * MetaTxPendingError, which means exactly what it says: it may yet land, so a caller must not describe it
+ * as a failure.
+ */
+export async function confirmMetaTxByEffect(opts: {
+  txHash: string
+  what: string
+  /** True once the world reflects the transaction. Must be cheap, idempotent and safe to call repeatedly. */
+  isDone: () => Promise<boolean>
+  /** How long to keep watching. Ten minutes: a fee-bumped relay on a congested Polygon takes that long. */
+  timeoutMs?: number
+  pollMs?: number
+  /** Called after each unsuccessful round, so a caller can tell the user this is still in progress. */
+  onWaiting?: (elapsedMs: number) => void
+}): Promise<string> {
+  const { txHash, what, isDone, timeoutMs = 10 * 60_000, pollMs = 5_000, onWaiting } = opts
+  const provider = readProvider()
+  const startedAt = Date.now()
+
+  while (Date.now() - startedAt < timeoutMs) {
+    // The effect first: it is the thing the caller actually promised the user, and it is hash-agnostic.
+    try {
+      if (await isDone()) return txHash
+    } catch {
+      // A failed read is not an answer — keep waiting rather than reporting either outcome.
+    }
+
+    // Then the receipt for the hash we were given. A revert here is final; anything else just means
+    // "not this hash, not yet".
+    try {
+      const receipt = await provider.getTransactionReceipt(txHash)
+      if (receipt) {
+        if (receipt.status === 0) throw new MetaTxRevertedError(what, txHash)
+        return txHash
+      }
+    } catch (err) {
+      if (err instanceof MetaTxRevertedError) throw err
+    }
+
+    onWaiting?.(Date.now() - startedAt)
+    await new Promise(resolve => setTimeout(resolve, pollMs))
+  }
+
+  // One last look before giving up, so a confirmation that landed during the final sleep is not lost.
+  try {
+    if (await isDone()) return txHash
+  } catch {
+    // fall through to pending
+  }
+  throw new MetaTxPendingError(what, txHash)
+}

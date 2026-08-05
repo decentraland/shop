@@ -13,7 +13,7 @@ import { config } from '~/config'
 import { metaTxProviderShim, readProvider } from '~/lib/authorizations'
 import { gaslessConfig } from '~/lib/gasless-config'
 import { ensureChain } from '~/lib/trades'
-import { confirmMetaTx, MetaTxPendingError } from '~/lib/tx-confirm'
+import { confirmMetaTx, MetaTxPendingError, confirmMetaTxByEffect } from '~/lib/tx-confirm'
 import {
   amoyGasOverrides,
   buildStoreUseCreditsArgs,
@@ -200,7 +200,8 @@ export async function sendUseCredits(
 async function cancelViaMetaTransaction(
   trade: Trade,
   signer: ethers.providers.JsonRpcSigner,
-  seller: string
+  seller: string,
+  watch?: CancelWatch
 ): Promise<string> {
   const marketplace = getContract(getContractName(trade.contract), trade.chainId)
   // beneficiary is irrelevant to the cancel hash (sent assets are signed without one); pass the seller.
@@ -213,7 +214,18 @@ async function cancelViaMetaTransaction(
   const txHash = await sendMetaTransaction(provider, rpc, functionData, marketplace, {
     serverURL: gaslessConfig.relayerUrl
   })
-  await confirmMetaTx(txHash, 'the listing cancellation')
+  // Wait for the LISTING to be gone rather than for this hash to mine — the relayer bumps the fee and
+  // resubmits, so the hash it returned is often not the one that lands (see confirmMetaTxByEffect).
+  if (watch?.isCancelled) {
+    await confirmMetaTxByEffect({
+      txHash,
+      what: 'the listing cancellation',
+      isDone: watch.isCancelled,
+      onWaiting: watch.onWaiting
+    })
+  } else {
+    await confirmMetaTx(txHash, 'the listing cancellation')
+  }
   return txHash
 }
 
@@ -306,23 +318,54 @@ export async function transferItem(opts: {
   return receipt.transactionHash
 }
 
-export async function cancelListing(opts: { trade: Trade; signer: ethers.Signer }): Promise<string> {
-  const { trade, signer } = opts
+/** How the caller wants the cancellation submitted. See cancelListing. */
+export type CancelMode = 'auto' | 'gasless-only' | 'direct'
+
+export type CancelWatch = {
+  /** True once the listing is really gone. Lets the gasless leg watch the EFFECT, not the relayer's hash. */
+  isCancelled?: () => Promise<boolean>
+  onWaiting?: (elapsedMs: number) => void
+}
+
+/**
+ * The gasless leg did not get the cancellation confirmed. NOT the same as "the listing is still for sale":
+ * a relayed transaction can still land afterwards (that is MetaTxPendingError, carried as the cause).
+ * Surfaced so a caller can offer the gas-paying path as the user's own decision instead of firing a second
+ * wallet prompt behind their back.
+ */
+export class GaslessCancelFailedError extends Error {
+  constructor(public readonly cause: unknown) {
+    super('The gasless cancellation was not confirmed')
+    this.name = 'GaslessCancelFailedError'
+  }
+}
+
+export async function cancelListing(opts: {
+  trade: Trade
+  signer: ethers.Signer
+  /**
+   * 'auto' (default) keeps the historical behaviour: try the relayer, then silently pay gas. That silent
+   * step is what stranded a creator — the fallback's `ensureChain` fires a `wallet_switchEthereumChain`
+   * minutes after the click and MetaMask refuses unsolicited wallet requests (-32006 Unauthorized), so the
+   * fallback was unreachable exactly when it was needed. 'gasless-only' + 'direct' let the UI ask first and
+   * then call again from inside the user's click, where the wallet request is allowed.
+   */
+  mode?: CancelMode
+  watch?: CancelWatch
+}): Promise<string> {
+  const { trade, signer, mode = 'auto', watch } = opts
   const seller = (await signer.getAddress()).toLowerCase()
 
-  // GASLESS FOR ALL (mirrors setAuthorization): relayer submits + pays gas, and it sidesteps the
-  // wallet's chain RPC. Fall back to a direct tx if the relayer is off/unreachable — but let a user
-  // rejection propagate instead of silently retrying with a gas-paying tx.
-  if (gaslessConfig.enabled) {
+  if (gaslessConfig.enabled && mode !== 'direct') {
     try {
-      return await cancelViaMetaTransaction(trade, signer as ethers.providers.JsonRpcSigner, seller)
+      return await cancelViaMetaTransaction(trade, signer as ethers.providers.JsonRpcSigner, seller, watch)
     } catch (e) {
       if (e instanceof MetaTransactionError && e.code === ErrorCode.USER_DENIED) throw e
-      // No MetaTxPendingError guard here, unlike the purchase/transfer/mint paths: cancelSignature is
-      // idempotent, so a pending relay plus a direct re-submission at worst cancels an already-cancelled
-      // listing. The caller still learns nothing happened if BOTH fail, which is what matters — the
-      // migration flow may only record the listing as removed on a confirmed cancel.
-      console.warn('[cancelListing] gasless meta-tx failed, falling back to a direct tx:', e)
+      console.warn('[cancelListing] gasless meta-tx failed:', e)
+      // The caller asked to be told rather than have gas spent on their behalf.
+      if (mode === 'gasless-only') throw new GaslessCancelFailedError(e)
+      // 'auto': fall through to the gas-paying path. cancelSignature is idempotent, so a pending relay plus
+      // a direct re-submission at worst cancels an already-cancelled listing.
     }
   }
 

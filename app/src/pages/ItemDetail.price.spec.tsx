@@ -83,7 +83,11 @@ vi.mock('~/lib/api', () => ({
 }))
 
 const { cancelListing } = vi.hoisted(() => ({ cancelListing: vi.fn() }))
-vi.mock('~/lib/buy', () => ({ cancelListing }))
+vi.mock('~/lib/buy', () => ({
+  cancelListing,
+  // The page narrows on this class to tell "the relay did not confirm" apart from a real failure.
+  GaslessCancelFailedError: class GaslessCancelFailedError extends Error {}
+}))
 
 vi.mock('~/lib/collections', () => ({
   fetchCollectionItems: vi.fn().mockResolvedValue({ items: [], total: 0 }),

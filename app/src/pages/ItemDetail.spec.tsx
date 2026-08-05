@@ -56,7 +56,10 @@ vi.mock('~/lib/api', () => ({
   usdWeiToCents: () => 0
 }))
 vi.mock('~/lib/builder', () => ({ fetchPublishableItems: vi.fn().mockResolvedValue([]) }))
-vi.mock('~/lib/buy', () => ({ cancelListing: vi.fn() }))
+vi.mock('~/lib/buy', () => ({
+  cancelListing: vi.fn(),
+  GaslessCancelFailedError: class GaslessCancelFailedError extends Error {}
+}))
 vi.mock('~/lib/analytics', () => ({
   track: vi.fn(),
   itemProps: () => ({}),

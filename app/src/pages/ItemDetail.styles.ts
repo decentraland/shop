@@ -1280,3 +1280,28 @@ export const SkName = styled.span`
   height: 16px;
   border-radius: 6px;
 `
+
+// The "the gasless send did not confirm" notice and its two ways out. Neutral, not an error colour: the
+// transaction may still land, and painting it red is what had a creator re-signing six times.
+export const GaslessNotice = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid ${colors.line};
+  border-radius: 12px;
+  background: ${colors.media};
+
+  p {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.5;
+    color: ${colors.text2};
+  }
+`
+
+export const GaslessActions = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 16px;
+`

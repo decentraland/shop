@@ -89,7 +89,7 @@ vi.mock('ethers', async importOriginal => {
   }
 })
 
-import { cancelListing } from '~/lib/buy'
+import { cancelListing, GaslessCancelFailedError } from '~/lib/buy'
 import { sendMetaTransaction } from 'decentraland-transactions'
 
 const relay = vi.mocked(sendMetaTransaction)
@@ -163,5 +163,63 @@ describe('cancelListing — gasless (relayer) path, gasless enabled', () => {
     expect(hash).toBe('0xcancelhash')
     expect(h.cancelCalls).toHaveLength(1)
     expect(h.ensureChainCalls).toEqual([{ provider: { __web3: true }, chainId: 80002 }])
+  })
+})
+
+/**
+ * ASKING BEFORE SPENDING THE SELLER'S GAS.
+ *
+ * The silent fallback is what stranded a creator: it fires `ensureChain` — a wallet network request —
+ * minutes after the click, and MetaMask refuses unsolicited wallet requests (-32006), so the only route
+ * left was unreachable exactly when the relay had failed. 'gasless-only' reports back so the UI can offer
+ * the gas-paying route as the seller's own click, where the wallet accepts it.
+ */
+describe('cancelListing — choosing the rail', () => {
+  beforeEach(() => {
+    h.gaslessConfig.enabled = true
+  })
+
+  it('reports back instead of paying gas when the caller asked not to', async () => {
+    relay.mockRejectedValueOnce(new Error('relayer 503'))
+
+    await expect(cancelListing({ trade, signer, mode: 'gasless-only' })).rejects.toBeInstanceOf(
+      GaslessCancelFailedError
+    )
+    // The point: nothing was sent and the wallet was never asked to switch networks.
+    expect(h.cancelCalls).toHaveLength(0)
+    expect(h.ensureChainCalls).toHaveLength(0)
+  })
+
+  it('carries the underlying failure as the cause, so a pending relay stays distinguishable', async () => {
+    const underlying = new Error('relayer 503')
+    relay.mockRejectedValueOnce(underlying)
+
+    await expect(cancelListing({ trade, signer, mode: 'gasless-only' })).rejects.toMatchObject({
+      cause: underlying
+    })
+  })
+
+  it('goes straight to the gas-paying tx on direct mode, without trying the relayer', async () => {
+    const hash = await cancelListing({ trade, signer, mode: 'direct' })
+
+    expect(hash).toBe('0xcancelhash')
+    expect(h.metaTxCalls).toHaveLength(0)
+    expect(h.cancelCalls).toHaveLength(1)
+    expect(h.ensureChainCalls).toEqual([{ provider: { __web3: true }, chainId: 80002 }])
+  })
+
+  it('still relays on gasless-only when the relay works', async () => {
+    const hash = await cancelListing({ trade, signer, mode: 'gasless-only' })
+
+    expect(hash).toBe('0xrelayhash')
+    expect(h.cancelCalls).toHaveLength(0)
+  })
+
+  // 'auto' is what every other caller uses; its behaviour must not move.
+  it('keeps the historical silent fallback on auto', async () => {
+    relay.mockRejectedValueOnce(new Error('relayer 503'))
+
+    await expect(cancelListing({ trade, signer })).resolves.toBe('0xcancelhash')
+    expect(h.cancelCalls).toHaveLength(1)
   })
 })
