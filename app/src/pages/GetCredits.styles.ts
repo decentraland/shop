@@ -427,6 +427,24 @@ export const PackArt = styled.span`
     width: 100%;
     height: 100%;
     object-fit: contain;
+    /* Scaling the IMG, not this box: the box holds the card's layout, so growing it would push the
+       price button down and make the hovered card taller than its neighbours. */
+    transform-origin: center;
+    transition: transform 0.2s ease;
+  }
+
+  [data-testid='pack']:hover & img,
+  [data-testid='pack']:focus-visible & img {
+    transform: scale(1.08);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    img,
+    [data-testid='pack']:hover & img,
+    [data-testid='pack']:focus-visible & img {
+      transition: none;
+      transform: none;
+    }
   }
 `
 
