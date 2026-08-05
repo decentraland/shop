@@ -71,9 +71,10 @@ export const Preview = styled.div`
   aspect-ratio: 1045 / 752;
   border-radius: ${radius.banner};
   overflow: hidden;
-  /* Dark-theme test: translucent black over the purple field — reads as a deeper violet (Figma
-     "PDP Image" 1052:151284). The preview iframe is transparent, so this is the scene's backdrop. */
-  background: rgba(0, 0, 0, 0.4);
+  /* Light surface, deliberately AGAINST the Figma's translucent black (1052:151284): the dark violet
+     backdrop muted every item, so the preview keeps the light stage. The iframe is transparent — this
+     is the scene's backdrop. */
+  background: ${colors.media};
 
   ${media.maxWidth('lg')} {
     aspect-ratio: 1 / 1;

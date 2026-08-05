@@ -115,8 +115,8 @@ export function ItemPreview({ item }: { item: CatalogItem }) {
           bodyShape={itemAlone || compatibleAvatar ? undefined : mannequinShape}
           type={isEmote ? undefined : itemAlone ? PreviewType.WEARABLE : PreviewType.AVATAR}
           emote={isEmote || itemAlone ? undefined : PreviewEmote.FASHION}
-          // Transparent so the container's dark-violet backdrop shows through (see ItemDetail's
-          // Preview panel) — a full-saturation rarity scene background is too loud either way.
+          // Transparent so the container's light stage shows through (see ItemDetail's Preview
+          // panel) — a full-saturation rarity scene background is too loud either way.
           disableBackground
           wheelZoom={isEmote ? 1.5 : undefined}
           wheelStart={isEmote ? 100 : undefined}
