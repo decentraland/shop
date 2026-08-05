@@ -180,6 +180,44 @@ describe('Assets — NAMEs category', () => {
   })
 })
 
+/**
+ * Picking a category two screens down the grid left the reader mid-way through a set they had never seen —
+ * and past the end of a shorter one, which just looks like an empty page.
+ */
+describe('Assets — the viewport on a category change', () => {
+  const scrollTo = vi.fn()
+  beforeEach(() => {
+    scrollTo.mockClear()
+    vi.stubGlobal('scrollTo', scrollTo)
+  })
+
+  it('should put the grid back at the top when the category changes', async () => {
+    renderAssets()
+    await userEvent.click(screen.getByRole('button', { name: 'Emotes' }))
+
+    expect(scrollTo).toHaveBeenCalledWith({ top: 0, left: 0, behavior: 'instant' })
+  })
+
+  it('should put the grid back at the top when a sub-category changes', async () => {
+    renderAssets()
+    await userEvent.click(screen.getByRole('button', { name: 'Wearables' }))
+    scrollTo.mockClear()
+    await userEvent.click(screen.getByRole('button', { name: 'Head' }))
+
+    expect(scrollTo).toHaveBeenCalledWith({ top: 0, left: 0, behavior: 'instant' })
+  })
+
+  it('should leave the viewport alone for a filter that only narrows the same set', async () => {
+    // Status/rarity/price keep the reader in the same shelf; only a category swaps it.
+    renderAssets()
+    await waitFor(() => expect(fetchShopItems).toHaveBeenCalled())
+    scrollTo.mockClear()
+    await userEvent.click(screen.getByRole('radio', { name: 'Not for Sale' }))
+
+    expect(scrollTo).not.toHaveBeenCalled()
+  })
+})
+
 // What a refresh replays: the address is the state, so every filter in it has to reach the query. These
 // used to live in useState, so a reload sent the default query and the grid silently ignored the sidebar.
 describe('Assets — the item counter while it loads', () => {

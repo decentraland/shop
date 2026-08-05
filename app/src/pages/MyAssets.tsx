@@ -23,6 +23,7 @@ import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
 import { SUBCAT_MAP } from '~/lib/categories'
 import { capitalizeFirst } from '~/lib/text'
 import { useSeo } from '~/hooks/useSeo'
+import { useScrollTopOnChange } from '~/hooks/useScrollTopOnChange'
 import { useImportable } from '~/hooks/useImportable'
 import { t } from '~/intl/i18n'
 import { theme } from '~/styles/theme'
@@ -142,6 +143,8 @@ export function MyAssets() {
   const [status, setStatus] = useState<FilterStatus>('all')
   const [rarities, setRarities] = useState<string[]>([])
   const [subCategory, setSubCategory] = useState<string | null>(null)
+  // A section is a different set of items, not more of the same one — read it from the top.
+  useScrollTopOnChange(`${section}:${subCategory ?? ''}`)
   const [sort, setSort] = useState('newest')
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('') // debounced

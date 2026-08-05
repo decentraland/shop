@@ -14,6 +14,7 @@ import { SkeletonCards } from '~/components/SkeletonCards'
 import { LoadMore } from '~/components/LoadMore'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
 import { useSeo } from '~/hooks/useSeo'
+import { useScrollTopOnChange } from '~/hooks/useScrollTopOnChange'
 import { SUBCAT_MAP } from '~/lib/categories'
 import { CURRENCY } from '~/lib/currency'
 import * as CP from '~/styles/collectionPage.styles'
@@ -42,6 +43,8 @@ export function Collection() {
   const [priceMin, setPriceMin] = useState('')
   const [priceMax, setPriceMax] = useState('')
   const [sort, setSort] = useState('newest')
+  // A category is a different set of items, not more of the same one — read it from the top.
+  useScrollTopOnChange(`${category}:${subCategory ?? ''}`)
 
   const min = priceMin && !Number.isNaN(Number(priceMin)) ? Number(priceMin) : undefined
   const max = priceMax && !Number.isNaN(Number(priceMax)) ? Number(priceMax) : undefined

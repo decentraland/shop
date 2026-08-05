@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useUrlFilters } from '~/hooks/useUrlFilters'
+import { useScrollTopOnChange } from '~/hooks/useScrollTopOnChange'
 import { fetchShopItems, type CatalogItem, type UnifiedListing } from '~/lib/api'
 import { useSecondarySales } from '~/hooks/useSecondarySales'
 import { fetchCatalogItems } from '~/lib/collections'
@@ -65,6 +66,8 @@ export function Assets() {
   const status: FilterStatus = STATUSES.includes(filterState.status as FilterStatus)
     ? (filterState.status as FilterStatus)
     : 'on_sale'
+  // A category is a different set of items, not more of the same one — read it from the top.
+  useScrollTopOnChange(`${category}:${subCategory ?? ''}`)
 
   const [filtersOpen, setFiltersOpen] = useState(false) // mobile filters drawer
 

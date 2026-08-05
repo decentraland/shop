@@ -1,5 +1,6 @@
 import { useMemo, useEffect, useState } from 'react'
 import { useUrlFilters } from '~/hooks/useUrlFilters'
+import { useScrollTopOnChange } from '~/hooks/useScrollTopOnChange'
 import { resolveGridView } from './Creator.view'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
@@ -85,6 +86,9 @@ export function Creator() {
     ? (filterState.status as FilterStatus)
     : 'all'
   const setStatus = (next: FilterStatus) => setFilters({ status: next })
+  // A category — or the Collections mode, which swaps the grid outright — is a different set of items, not
+  // more of the same one, so read it from the top.
+  useScrollTopOnChange(`${collectionsMode}:${category}:${subCategory ?? ''}`)
   const [filtersOpen, setFiltersOpen] = useState(false) // mobile filters drawer
 
   // Close the mobile filters drawer on Escape and lock body scroll while it's open (mirrors Assets).
