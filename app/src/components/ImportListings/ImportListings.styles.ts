@@ -356,13 +356,21 @@ export const Chip = styled(BaseChip)`
 
 export const Price = styled.div`
   flex: none;
-  /* Right-aligns the block on the desktop row AND on the line it wraps to on narrow screens. */
+  /* Right-aligns the block on the desktop row. */
   margin-left: auto;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   justify-content: center;
   gap: 4px;
+
+  /* The phone card gives the price a line of its own, running the full width of the row — but indented by
+     the checkbox slot, so it starts under the thumbnail rather than under the tick. */
+  ${media.maxWidth('mobile')} {
+    flex: 1 1 100%;
+    margin-left: 40px;
+    align-items: stretch;
+  }
 `
 
 export const PriceField = styled.div`
@@ -394,6 +402,10 @@ export const PriceField = styled.div`
     border-color: ${colors.accent};
     box-shadow: 0 0 0 3px ${colors.rarityBg};
   }
+
+  ${media.maxWidth('mobile')} {
+    width: 100%;
+  }
 `
 
 export const PriceInput = styled.input`
@@ -417,6 +429,11 @@ export const PriceSub = styled.div`
   font-weight: 500;
   font-size: 12px;
   color: ${colors.gray0};
+
+  /* Centred under the full-width field it converts, not parked at its right edge. */
+  ${media.maxWidth('mobile')} {
+    justify-content: center;
+  }
 `
 
 export const PriceWas = styled.span`

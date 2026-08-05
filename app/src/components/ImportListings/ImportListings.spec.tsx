@@ -171,7 +171,7 @@ describe('Select all', () => {
 describe('when the run comes back', () => {
   function finish(label: string) {
     renderTool()
-    fireEvent.click(screen.getByRole('button', { name: /list all/i }))
+    fireEvent.click(screen.getByTestId('import-list-all'))
     fireEvent.click(screen.getByRole('button', { name: label }))
     return useToast.getState().toasts
   }

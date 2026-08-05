@@ -111,20 +111,11 @@ export const Tab = styled.button`
 // out — so the only thing this adds to the pill is the corner the count hangs off.
 export const MigrateTab = styled(Tab)`
   position: relative;
-
-  /* Violet-on-violet while the chip is UNSELECTED (that is the purple state now), so the badge inverts
-     there. Reached by test id rather than by interpolating the styled def, which throws under vitest
-     (see CLAUDE.md). */
-  &:not([data-active='true']) [data-testid='activity-migrate-count'] {
-    background: ${theme.colors.white};
-    color: ${theme.colors.accent};
-    /* See MigrateBadge: a white ring would vanish into the page here, since the disc itself is white. */
-    box-shadow: 0 0 0 2px ${theme.colors.accent};
-  }
 `
 
-// How many listings are still to move. Same 20px violet disc the tool uses over its own list, so the
-// chip and the panel it opens agree on what a count looks like.
+// How many listings are still to move. Same 20px red disc the tool uses over its own list, so the chip
+// and the panel it opens agree on what a count looks like — one colour in both states of the chip, since
+// the count is about the listings and not about which tab you are on.
 //
 // Figma hangs the disc OVER the chip's top-right corner rather than seating it inside the pill, so it
 // is out of flow: the chip is sized by its label alone, and the disc overhangs 2.5px to the right and
@@ -145,20 +136,9 @@ export const MigrateBadge = styled.span`
   height: 20px;
   padding: 0 6px;
   border-radius: ${theme.radius.pill};
-  background: ${theme.colors.brandViolet};
-  /**
-   * A ring, whose colour has to FOLLOW THE DISC rather than the page.
-   *
-   * The disc hangs off the corner: part of it sits on the chip, part on the page. Unselected it is violet
-   * on white, so it already reads and the white ring only separates it from the chip's grey hairline.
-   * Selected, the chip inverts it to white on violet — and a white disc against the white page has no edge
-   * at all along the half that overhangs, which is the state where the circle looked unfinished. That case
-   * needs the ring in the chip's accent instead (below), so the disc keeps a hard edge on both surfaces.
-   *
-   * box-shadow rather than a border: a border would grow the 20px disc the design fixes, while a spread
-   * shadow draws outside the box.
-   */
-  box-shadow: 0 0 0 2px ${theme.colors.white};
+  background: ${theme.colors.dclRed};
+  /* No ring: the red separates itself from both surfaces the disc straddles (the chip and the page), and
+     the design draws the circle bare. */
   font-weight: 600;
   font-size: 12px;
   line-height: 1.6;

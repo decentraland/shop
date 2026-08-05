@@ -270,6 +270,7 @@ export function ImportListings() {
           <S.DockSpacer />
           <S.DockCta
             variant="red"
+            data-testid="import-list-all"
             disabled={selectedItems.length === 0}
             onClick={() => setQueue(buildQueue(selectedItems))}
           >
