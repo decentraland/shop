@@ -74,8 +74,11 @@ body {
     padding-top: 64px;
   }
 }
-/* Dark-theme test: the cart used to swap the body to gray (white panels on gray); the purple field now
-   runs through every route, so the .shop-cart-bg toggle (still set by pages/Cart.tsx) is a no-op. */
+/* The cart is DELIBERATELY the one light surface on the dark theme (Figma "Cart" 1551:315390): white
+   panels on a gray field, because a checkout reads as safer light than dark. The gray is a full-bleed
+   BAND behind the panels (Figma draws it as a rect over the artboard, not as a page background), which
+   is why the body keeps the purple field and the cross-sell below the band needs no undoing — see
+   pages/Cart.styles.ts (Checkout). The .shop-cart-bg class pages/Cart.tsx toggles is unused. */
 /* Sticky footer: fill the viewport (minus the fixed top navbar) as a flex column so short pages push
    the footer to the bottom instead of leaving it floating mid-screen. */
 #root {

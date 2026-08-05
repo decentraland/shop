@@ -335,8 +335,10 @@ export const Btn = styled.button`
   &[data-full] {
     width: 100%;
   }
+  /* The design system's primary fill (Figma 738:53266 "BUY Button") — the same gradient the cart's
+     CHECKOUT carries, so the two ends of the buy flow match. */
   &[data-variant='gradient'] {
-    background: ${gradients.amethyst};
+    background: ${gradients.buyBtn};
     color: ${colors.softWhite};
   }
   &[data-variant='outline'] {
