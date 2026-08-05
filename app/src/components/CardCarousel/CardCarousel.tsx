@@ -38,7 +38,8 @@ type Props = {
 type RailGeometry = { cards: HTMLElement[]; stride: number; perView: number; pageCount: number; base: number }
 
 function railGeometry(el: HTMLElement): RailGeometry | null {
-  const cards = Array.from(el.children) as HTMLElement[]
+  // Narrowed rather than cast: `children` is typed as Element, and offsetLeft belongs to HTMLElement.
+  const cards = Array.from(el.children).filter((c): c is HTMLElement => c instanceof HTMLElement)
   if (cards.length === 0 || el.clientWidth <= 0) return null
   const stride = cards.length > 1 ? cards[1].offsetLeft - cards[0].offsetLeft : el.clientWidth
   if (stride <= 0) return null
@@ -58,7 +59,11 @@ function pageFromScroll(el: HTMLElement, g: RailGeometry): number {
   if (maxScroll <= 0) return 0
   // The last page holds fewer cards than a full one, so its start sits short of `maxScroll` and the rail
   // rests past it. Anchor the end explicitly or the final page can never read as current.
-  if (el.scrollLeft >= maxScroll - 1) return g.pageCount - 1
+  //
+  // 2px of slack, not 1: scrollLeft is fractional, and under browser zoom the device-pixel rounding can
+  // leave the resting position more than a pixel shy of the end. Overshooting the window costs nothing —
+  // the page before the last has its own start far more than 2px away.
+  if (el.scrollLeft >= maxScroll - 2) return g.pageCount - 1
   return Math.min(g.pageCount - 1, Math.round(el.scrollLeft / (g.perView * g.stride)))
 }
 
@@ -85,13 +90,22 @@ export function CardCarousel({ title, count, loading = false, viewAllTo, childre
     measure()
     const el = trackRef.current
     if (!el) return
+    // Coalesced to one read per frame. `railGeometry` reads `offsetLeft`, which forces the browser to
+    // flush layout — doing that on every scroll event means a synchronous reflow per event, for a whole
+    // burst of them during a single smooth scroll or trackpad flick.
+    let frame = 0
     const onScroll = () => {
-      const g = railGeometry(el)
-      if (g) setPage(pageFromScroll(el, g))
+      if (frame) return
+      frame = requestAnimationFrame(() => {
+        frame = 0
+        const g = railGeometry(el)
+        if (g) setPage(pageFromScroll(el, g))
+      })
     }
     el.addEventListener('scroll', onScroll, { passive: true })
     window.addEventListener('resize', measure)
     return () => {
+      if (frame) cancelAnimationFrame(frame)
       el.removeEventListener('scroll', onScroll)
       window.removeEventListener('resize', measure)
     }
