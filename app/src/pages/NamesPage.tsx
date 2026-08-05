@@ -177,8 +177,7 @@ export function NamesPage({ onBack }: { onBack: () => void }) {
                 </S.TakenBanner>
               ) : null}
 
-              {/* Floated for the same reason as the banner above: in the flow, these appeared and vanished on
-                  almost every keystroke and resized the hero each time. */}
+              {/* Floated like the banner above, so the hero keeps its height as these come and go. */}
               {status === 'checking' ? (
                 <S.StatusFloating tone="muted" role="status" data-testid="names-checking">
                   {t('names.checking')}

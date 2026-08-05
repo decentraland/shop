@@ -5,11 +5,8 @@ import { theme } from '~/styles/theme'
 // success 1368-354667). A single dialog that walks confirm → completing → success/error, mirroring
 // the shop's existing checkout modal but with the NAME-specific "re-enter to confirm" gate.
 
-/**
- * The success tile's own palette (Figma 1368-354667). Deliberately outside the theme: this is a one-off
- * flourish for the moment the NAME becomes the buyer's, not a token any other surface should reach for.
- * Named rather than inlined so a palette change is one grep, not three loose hex values mid-file.
- */
+// The success tile's own palette: a one-off flourish, deliberately not a theme token any other surface
+// should reach for.
 const TILE_GRADIENT_FROM = '#c640cd'
 const TILE_GRADIENT_TO = '#691fa9'
 const TILE_NAME_COLOR = '#34fee6'
@@ -111,12 +108,8 @@ export const NameRow = styled.div`
 `
 
 /**
- * The NAME as a card, for the SUCCESS screen only (Figma 1368-354667): the glyph over a cerise→purple
- * gradient with the claimed NAME across it in cyan and a verified tick.
- *
- * Deliberately NOT a variant of `Thumb`. That 56px square is what the confirm and processing screens use,
- * and the design only draws this larger card once the NAME is actually the buyer's — turning Thumb into
- * this would put a "you own it" flourish on the two screens where they do not own it yet.
+ * The NAME as a card, on the success screen only. Not a variant of Thumb: that square is what the confirm
+ * and processing screens use, where the NAME is not the buyer's yet.
  */
 export const NameTile = styled.div`
   flex: none;
@@ -153,13 +146,8 @@ export const NameTileLabel = styled.span`
   white-space: nowrap;
   overflow: hidden;
 
-  /**
-   * A long NAME truncates rather than escaping the tile or wrapping into the glyph — but the truncation
-   * has to live on the name itself, not on this box. text-overflow applies to block containers, so on an
-   * inline-flex parent it is inert: the name would clip at the edge with no ellipsis to show it was cut.
-   * The zero min-width is what allows the flex item to shrink below its content width at all; without it
-   * a long NAME pushes the tick out of the tile instead of giving way to the ellipsis.
-   */
+  /* Truncation belongs on the flex item, not this box: text-overflow is inert on a flex container, and
+     the zero min-width is what lets the name shrink instead of pushing the tick out. */
   > span {
     min-width: 0;
     overflow: hidden;

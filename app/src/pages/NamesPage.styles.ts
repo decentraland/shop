@@ -265,8 +265,7 @@ export const NameInput = styled.input`
 export const Suffix = styled.span`
   flex: none;
   margin-left: 2px;
-  /* Not selectable: it is the fixed part of the address, not something the reader typed. Dragging across
-     the field used to highlight ".dcl.eth" along with the NAME, which invites copying it into the input. */
+  /* Not selectable: it is the fixed part of the address, not something the reader typed. */
   user-select: none;
   -webkit-user-select: none;
   font-family: ${theme.font.sans};
@@ -379,14 +378,8 @@ export const Status = styled.div<{ tone: 'error' | 'ok' | 'muted' }>`
 `
 
 /**
- * The same status text, floated under the input instead of sitting in the flow.
- *
- * In the flow it pushed the hero taller the moment a reader typed the third character — the whole panel
- * jumped as "Checking availability…" appeared and again as it went away, on every keystroke that changed
- * the answer. Absolute keeps the hero a fixed height and puts the message where the other things that drop
- * out of this input already appear (see TakenBanner, which never had the problem).
- *
- * Renders inside InputWrap, which owns the positioning context.
+ * The status text floated under the input rather than sitting in the flow, where it resized the hero
+ * on almost every keystroke. Renders inside InputWrap, which owns the positioning context.
  */
 export const StatusFloating = styled(Status)`
   position: absolute;
@@ -395,10 +388,8 @@ export const StatusFloating = styled(Status)`
   right: 0;
   z-index: 2;
 
-  /* Back into the flow on mobile, exactly as TakenBanner does and for the same reason: the claim button
-     moves out of the input and below InputWrap there, so anything floating out of the input lands on top
-     of it. The hero growing is the lesser problem of the two, and only the desktop panel was the
-     complaint. */
+  /* Static on mobile, as TakenBanner is: the claim button sits below InputWrap there, so anything
+     floating out of the input lands on top of it. */
   ${theme.media.maxWidth('mobile')} {
     position: static;
     margin-top: 8px;
@@ -470,14 +461,8 @@ export const Cards = styled.div`
 `
 
 /**
- * The outline is a box-shadow spread rather than a `border`, and that is what lets the artwork reach the
- * card's real edge. A border takes up space inside the element, so the image — which fills the content box
- * — stopped 0.25px short of the rounded corner and the border showed through as a hairline arc against the
- * illustration. Compensating with a negative margin worked on the straight edges and could not work on the
- * curves, because the clip radius shrinks with the border while the image stays square.
- *
- * A box-shadow occupies no layout, so the content box IS the border box: the image covers the corner
- * completely and `overflow: hidden` clips it to the same radius the outline draws.
+ * The outline is a box-shadow spread, not a border: a box-shadow occupies no layout, so the content box
+ * is the border box and the artwork reaches the rounded corner instead of stopping a hairline short.
  */
 export const Card = styled.article`
   min-width: 0;
@@ -489,14 +474,7 @@ export const Card = styled.article`
   overflow: hidden;
 `
 
-/**
- * The gradient background is baked into the illustration asset (a 388×235 render), so the image both fills
- * and colors the media panel — the container just keeps its aspect ratio as the card flexes.
- *
- * A plain `width: 100%` reaches the card's edge on every side now that the outline is a box-shadow rather
- * than a border (see Card): there is no border box to sit inside, so no bleed to compensate for, and the
- * card's `overflow: hidden` clips the top corners to its radius.
- */
+// Reaches the card's edge on every side: the box-shadow outline leaves no border box to sit inside.
 export const CardMedia = styled.img`
   display: block;
   width: 100%;

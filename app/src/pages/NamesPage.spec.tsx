@@ -92,13 +92,9 @@ describe('NamesPage', () => {
   })
 
   /**
-   * These messages used to sit in the hero's flow, so the panel grew and shrank as they came and went —
-   * on almost every keystroke, since the answer changes with the name. They now drop out of the input, the
-   * way the "taken" banner always has.
-   *
-   * jsdom does not lay anything out, so this asserts the structural precondition instead of the pixels:
-   * the message renders INSIDE the wrapper that owns the positioning context. Outside it — where it used
-   * to live — `position: absolute` would resolve against a different ancestor and the fix would be void.
+   * jsdom lays nothing out, so these assert the structural precondition instead of the pixels: the message
+   * renders inside the wrapper that owns the positioning context, without which absolute resolves against
+   * the wrong ancestor.
    */
   it('should float the status message out of the input rather than growing the hero', async () => {
     checkNameAvailability.mockReturnValue(new Promise(() => {})) // stays checking

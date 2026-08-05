@@ -311,9 +311,7 @@ export function NameBuyModal({
             </S.SuccessBanner>
 
             <S.NameRow style={{ marginTop: 20 }}>
-              {/* The NAME as a card, only on this screen: by now it is theirs (Figma 1368-354667). The name
-                  sits inside the tile as well as beside it, which is what makes it read as the thing owned
-                  rather than as decoration next to a label. */}
+              {/* The NAME as a card, only on this screen: by now it is theirs. */}
               <S.NameTile data-testid="name-success-tile">
                 <S.NameTileGlyph src={nameGlyph} alt="" aria-hidden width={47} height={47} />
                 <S.NameTileLabel>

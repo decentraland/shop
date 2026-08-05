@@ -111,10 +111,7 @@ describe('NameBuyModal', () => {
       expect(screen.getByText(/successful/i)).toBeTruthy()
     })
 
-    /**
-     * The NAME is shown as a card here, not as the small `@` square the earlier screens use (Figma
-     * 1368-354667) — by this point it is the buyer's, and the tile is the thing they now own.
-     */
+    /** By this point the NAME is the buyer's, so it is shown as a card rather than the small @ square. */
     it('should present the NAME as a tile carrying its own name', async () => {
       registerNameWithUsdCredits.mockResolvedValue({
         status: 'registered',
