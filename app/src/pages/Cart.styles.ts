@@ -273,12 +273,12 @@ export const Fitting = styled.button`
   gap: 8px;
   height: 40px;
   padding: 0 12px;
-  border: 2px solid transparent;
+  /* Figma 1551-315427: a plain 2px soft-black outline on no fill, replacing the amethyst gradient border
+     (which needed the two-background padding-box/border-box trick to exist at all). */
+  border: 2px solid ${colors.text2};
   border-radius: ${radius.btn};
-  background:
-    linear-gradient(${colors.white}, ${colors.white}) padding-box,
-    ${gradients.amethyst} border-box;
-  color: ${colors.accent};
+  background: none;
+  color: ${colors.text2};
   font-size: 13px;
   font-weight: 600;
   line-height: 24px;
@@ -287,11 +287,13 @@ export const Fitting = styled.button`
   white-space: nowrap;
   cursor: pointer;
   transition:
-    box-shadow 0.15s ease,
+    background 0.15s ease,
     filter 0.15s ease;
 
+  /* The design gives no hover for this node. A neutral wash keeps the outline's own colour rather than
+     the purple glow the gradient border used to justify. */
   &:hover:not(:disabled) {
-    box-shadow: 0 0 8px 0 rgba(165, 36, 179, 0.35);
+    background: rgba(36, 33, 41, 0.06);
   }
   &:active:not(:disabled) {
     filter: brightness(0.97);

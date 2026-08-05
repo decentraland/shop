@@ -94,6 +94,20 @@ export const Sub = styled.button`
     color: ${colors.white};
     font-weight: 600;
   }
+
+  /**
+   * The expand chevron tracks the row's label rather than carrying a colour of its own: gray4 at rest,
+   * white once the row is hovered or selected — the same two states the label moves between. It reads as
+   * part of the row, so a chevron that stayed grey under a white label would look like the bug this
+   * replaced (it used to inherit the near-black text colour, invisible against the dark panel).
+   */
+  [data-chevron] {
+    color: ${colors.gray4};
+  }
+  &:hover [data-chevron],
+  &[data-active] [data-chevron] {
+    color: ${colors.white};
+  }
 `
 
 /**

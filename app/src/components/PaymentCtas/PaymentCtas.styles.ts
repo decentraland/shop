@@ -48,9 +48,17 @@ const buttonBase = `
   }
 `
 
+/**
+ * The primary purchase rail (Figma 1551-315504). Carries the shared `buyBtn` gradient — the Figma style
+ * literally named "BUY Button" — rather than the amethyst it used to have, so the button that takes the
+ * money looks the same here as it does on GET CREDITS and the promo CTAs.
+ *
+ * Everything else the node specifies (radius 12, padding, 15px/24 semibold, 0.46px uppercase) already
+ * comes from `buttonBase`; the background is the whole delta.
+ */
 export const CreditsBtn = styled.button`
   ${buttonBase}
-  background: ${theme.gradients.amethyst};
+  background: ${theme.gradients.buyBtn};
 
   &:hover:not(:disabled) {
     filter: brightness(1.08);

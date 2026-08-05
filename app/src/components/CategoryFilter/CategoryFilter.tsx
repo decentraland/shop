@@ -181,7 +181,9 @@ export function CategoryFilter({
                             <S.SubIcon name={sub.icon} aria-hidden />
                             <S.SubLabel data-sub-label>{t(sub.labelKey)}</S.SubLabel>
                           </S.SubLeft>
-                          {sub.expandable ? <Chevron up={subOpen} size={24} color={theme.colors.text} /> : null}
+                          {/* Tinted from the stylesheet rather than the `color` prop, which lands as an
+                              inline style that a :hover rule cannot override. See S.Sub. */}
+                          {sub.expandable ? <Chevron up={subOpen} size={24} data-chevron /> : null}
                         </S.Sub>
 
                         {sub.subs ? (

@@ -33,6 +33,23 @@ describe('the wearables category filter', () => {
   })
 
   /**
+   * The expand chevron used to be tinted with the near-black `text` colour, which disappeared against the
+   * dark panel. The fix is not simply a different value: a `color` prop lands as an INLINE style, and an
+   * inline style cannot be overridden by the :hover rule that takes the chevron to white — so the tint has
+   * to come from the stylesheet. That mechanism is what this pins; the two colours themselves are CSS, and
+   * jsdom resolves no cascade to assert them against.
+   */
+  it('should leave the expand chevron for the stylesheet to tint rather than an inline colour', () => {
+    renderFilter()
+
+    const chevron = row('Head').querySelector('[data-chevron]')
+
+    expect(chevron).toBeTruthy()
+    // `size` still sets width/height inline — it is specifically a colour that must not be pinned here.
+    expect(chevron?.getAttribute('style') ?? '').not.toMatch(/color/)
+  })
+
+  /**
    * Head and Accessories are the only two that nest (Figma 2212:99919). They stay selectable as well as
    * expandable — collapsing them into non-clickable folders would remove the "everything on the head"
    * filter that exists today.
