@@ -254,10 +254,12 @@ export const Pack = styled.button`
   }
 `
 
-export const PackIco = styled(CurrencyIcon)`
+// The pack tiles carry the design's ILLUSTRATED coin (Figma "Credits Packs Item"), not the flat
+// currency mark the prices use — it is artwork, so it ships as an image rather than a mask icon.
+export const PackIco = styled.img`
   width: 24px;
-  height: 24px;
-  background: ${colors.text};
+  height: 26px;
+  flex: none;
 `
 
 export const PackAmount = styled.span`
