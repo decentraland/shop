@@ -288,18 +288,24 @@ export const RarityChips = styled.div`
   }
 `
 
+// Figma "Rarity Label" (1304:302245/302246): at rest a hairline translucent-white outline over the
+// page field; selected it fills with translucent black and the outline goes solid soft-white.
 export const RarityChip = styled('button', noForward('selected'))<{ selected?: boolean }>`
   display: inline-flex;
   align-items: center;
   gap: 4px;
   padding: 4px 8px;
   border-radius: 6px;
-  background: ${theme.colors.softWhite};
-  border: ${({ selected }) => (selected ? `1px solid ${theme.colors.text}` : `0.5px solid ${theme.colors.gray4}`)};
+  background: ${({ selected }) => (selected ? 'rgba(0, 0, 0, 0.3)' : 'transparent')};
+  border: ${({ selected }) =>
+    selected ? `1px solid ${theme.colors.softWhite}` : '0.5px solid rgba(255, 255, 255, 0.3)'};
   cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
 
   &:hover {
-    border-color: ${theme.colors.text};
+    border-color: ${theme.colors.softWhite};
   }
   &:focus-visible {
     outline: 2px solid ${theme.colors.accent};
@@ -329,7 +335,8 @@ export const RarityName = styled('span', noForward('selected'))<{ selected?: boo
   font-weight: ${({ selected }) => (selected ? 600 : 400)};
   font-size: 12px;
   line-height: 1.43;
-  color: ${({ selected }) => (selected ? theme.colors.text2 : theme.colors.gray0)};
+  /* Gray 5 at rest, soft-white when selected (Figma) — both read on the purple field. */
+  color: ${({ selected }) => (selected ? theme.colors.softWhite : theme.colors.media)};
   text-transform: capitalize;
 
   ${theme.media.maxWidth('lg')} {
