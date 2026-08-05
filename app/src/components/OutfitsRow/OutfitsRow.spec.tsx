@@ -31,8 +31,8 @@ vi.mock('~/components/OutfitCard', () => ({
 
 import { OutfitsRow } from './OutfitsRow'
 
-// The count the row reserves with — five, one per card the widest tier shows.
-const SKELETONS = 5
+// The count the row reserves with — one per card the widest tier shows.
+const SKELETONS = 6
 
 function look(id: string, name: string): Outfit {
   return {

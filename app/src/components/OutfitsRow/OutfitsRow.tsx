@@ -12,9 +12,9 @@ import * as S from './OutfitsRow.styles'
 
 const MAX_DOTS = 6
 
-// Placeholders while the published outfits load — one per card the widest tier shows (5), so the rail is
-// full at every breakpoint (the narrower tiers just scroll the extras out of view).
-const SKELETON_COUNT = 5
+// Placeholders while the published outfits load — one per card the widest tier shows (6, see Track), so the
+// rail is full at every breakpoint (the narrower tiers just scroll the extras out of view).
+const SKELETON_COUNT = 6
 
 // "Shop the look" — curated outfits on the overview. Self-fetching discovery row: renders nothing
 // until published outfits exist (and nothing at all when no shop-server is configured). One merged

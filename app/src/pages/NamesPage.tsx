@@ -135,7 +135,8 @@ export function NamesPage({ onBack }: { onBack: () => void }) {
           </S.HeroCopy>
 
           <S.SearchBlock>
-            <S.InputWrap>
+            {/* Owns the positioning context for everything that drops out of the input. */}
+            <S.InputWrap data-testid="names-input-wrap">
               <S.InputRow invalid={status === 'taken'}>
                 <S.InputField>
                   <S.At aria-hidden>@</S.At>
@@ -175,25 +176,26 @@ export function NamesPage({ onBack }: { onBack: () => void }) {
                   </S.TakenOfferLink>
                 </S.TakenBanner>
               ) : null}
+
+              {/* Floated like the banner above, so the hero keeps its height as these come and go. */}
+              {status === 'checking' ? (
+                <S.StatusFloating tone="muted" role="status" data-testid="names-checking">
+                  {t('names.checking')}
+                </S.StatusFloating>
+              ) : status === 'error' ? (
+                <S.StatusFloating tone="muted" role="status">
+                  {t('names.checkError')}
+                </S.StatusFloating>
+              ) : status === 'invalid' && !validation.ok && validation.reason === 'too-short' ? (
+                <S.StatusFloating tone="muted" role="status">
+                  {t('names.tooShort', { min: NAME_MIN_LENGTH })}
+                </S.StatusFloating>
+              ) : null}
             </S.InputWrap>
 
             <S.ClaimButtonMobile onClick={claim} disabled={!canClaim}>
               {claimBtnContent}
             </S.ClaimButtonMobile>
-
-            {status === 'checking' ? (
-              <S.Status tone="muted" role="status" data-testid="names-checking">
-                {t('names.checking')}
-              </S.Status>
-            ) : status === 'error' ? (
-              <S.Status tone="muted" role="status">
-                {t('names.checkError')}
-              </S.Status>
-            ) : status === 'invalid' && !validation.ok && validation.reason === 'too-short' ? (
-              <S.Status tone="muted" role="status">
-                {t('names.tooShort', { min: NAME_MIN_LENGTH })}
-              </S.Status>
-            ) : null}
 
             {/* Announce availability to assistive tech (Figma signals it only by enabling the button). */}
             <S.SrOnly role="status" aria-live="polite">
