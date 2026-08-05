@@ -211,6 +211,8 @@ export const MarketBanner = styled.p`
 
 // Zero-results state for the grid (search/filters returned nothing) — a white rounded card centering
 // an illustration, the "Oops!" copy and an Explore Shop CTA.
+// Figma "EMpty states" (2103:412914): a translucent-black panel over the purple field, not a white
+// card — the page has no light surfaces, so a white block here read as a hole in the layout.
 export const EmptyState = styled.div`
   display: flex;
   flex-direction: column;
@@ -219,7 +221,7 @@ export const EmptyState = styled.div`
   gap: 24px;
   padding: 48px 16px;
   border-radius: 16px;
-  background: ${theme.colors.white};
+  background: rgba(0, 0, 0, 0.2);
   text-align: center;
 `
 
@@ -234,7 +236,7 @@ export const EmptyText = styled.div`
   align-items: center;
   gap: 12px;
   padding-bottom: 16px;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
 `
 
 export const EmptyTitle = styled.p`
@@ -272,11 +274,12 @@ export const EmptyBtn = styled.button`
   justify-content: center;
   gap: 8px;
   width: 100%;
-  height: 56px;
+  height: 52px;
   padding: 0 12px;
   border: 0;
   border-radius: 12px;
-  background: ${theme.colors.accent};
+  /* The design's own CTA here is a deeper translucent black on the panel, not a solid purple. */
+  background: rgba(0, 0, 0, 0.4);
   color: ${theme.colors.softWhite};
   font-family: ${theme.font.sans};
   font-weight: 600;
@@ -287,13 +290,13 @@ export const EmptyBtn = styled.button`
   cursor: pointer;
 
   &:hover {
-    background: ${theme.colors.accentHover};
+    background: rgba(0, 0, 0, 0.55);
   }
   &:active {
-    background: ${theme.colors.accentActive};
+    background: rgba(0, 0, 0, 0.65);
   }
   &:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
+    outline: 2px solid ${theme.colors.softWhite};
     outline-offset: 2px;
   }
 `
