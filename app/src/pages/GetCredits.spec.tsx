@@ -13,6 +13,10 @@ const session = {
   providerType: 'injected' as never
 }
 
+// The confetti lazy-loads lottie-web, which drives real timers over a canvas — irrelevant here and noisy
+// in jsdom. What matters is the <Confetti/> wrapper: whether it mounts, and on which phase.
+vi.mock('lottie-react', () => ({ default: () => <span data-testid="lottie" /> }))
+
 const signIn = vi.fn()
 // Mutable so a test can render the logged-out state (session = null).
 let currentSession: typeof session | null = session
@@ -87,6 +91,56 @@ describe('when a signed-in user opens the get-credits page', () => {
     expect(await screen.findByText(/purchase was successful/i, {}, { timeout: 4000 })).toBeInTheDocument()
     expect(screen.getByText(/260/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /start shopping/i })).toBeInTheDocument()
+  })
+})
+
+/**
+ * Buying credits is a purchase, so it gets the same burst an item purchase does. It must fire only once
+ * the credits are actually in the balance — raining confetti over a charge that is still processing would
+ * celebrate something that has not happened yet.
+ */
+describe('the credits-purchase confetti', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('should fire on the success screen', async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(screen.getByRole('button', { name: /260 credits for \$29\.99/i }))
+    await screen.findByText(/purchase was successful/i, {}, { timeout: 4000 })
+
+    const confetti = screen.getByTestId('confetti')
+    // Decorative and non-blocking: out of the a11y tree, and it can never eat a click on the CTAs it
+    // rains over (the layer is pointer-events: none).
+    expect(confetti).toHaveAttribute('aria-hidden')
+  })
+
+  it('should not fire before the purchase completes', () => {
+    renderPage()
+
+    // Still on the pack picker — nothing has been bought yet.
+    expect(screen.queryByTestId('confetti')).not.toBeInTheDocument()
+  })
+
+  describe('and the visitor asked for reduced motion', () => {
+    // Restored explicitly: clearAllMocks resets calls but leaves a spy's implementation in place, so a
+    // leaked matchMedia stub would answer `matches: true` to every later test in this file. Typed by the
+    // one method used, rather than spyOn's full generic signature.
+    let matchMedia: { mockRestore: () => void } | undefined
+    afterEach(() => matchMedia?.mockRestore())
+
+    it('should not play, and should not fetch the animation either', async () => {
+      const user = userEvent.setup()
+      // Read once at mount by Confetti, before anything is imported.
+      matchMedia = vi.spyOn(window, 'matchMedia').mockReturnValue({ matches: true } as MediaQueryList)
+      renderPage()
+
+      await user.click(screen.getByRole('button', { name: /260 credits for \$29\.99/i }))
+      await screen.findByText(/purchase was successful/i, {}, { timeout: 4000 })
+
+      expect(screen.queryByTestId('confetti')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('lottie')).not.toBeInTheDocument()
+    })
   })
 })
 

@@ -1,24 +1,45 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { TradeAssetType, type Trade } from '@dcl/schemas'
 
 // Mocked marketplace/oracle resolution — mirrors buy.spec.ts. balanceOf drives readManaBalanceWei;
 // manaUsdAggregator/decimals/latestRoundData drive the USD_PEGGED_MANA price read.
 let aggDecimals = 8
 let aggAnswer = '50000000' // $0.50/MANA at 8 decimals
-let balanceOfWei = '0'
+
+// MANA lives at a DIFFERENT address on each chain, and each chain has its own RPC. Both are modelled
+// here because that pairing is the thing under test: the balance read must send a chain's MANA address
+// to that same chain's RPC.
+const MANA_ADDRESS: Record<number, string> = { 1: '0xmana-ethereum', 80002: '0xmana-polygon' }
+const ETHEREUM_RPC = 'http://ethereum-rpc'
+const POLYGON_RPC = 'http://localhost'
+// Which (address, rpc) pair is actually MANA. Any other combination is an address that holds no such
+// contract on that network — which is what the real bug did, and it answers 0 rather than throwing.
+const MANA_BALANCE_BY_CHAIN: Record<string, string> = {
+  [`0xmana-ethereum|${ETHEREUM_RPC}`]: '3000000000000000000', // 3 MANA on L1
+  [`0xmana-polygon|${POLYGON_RPC}`]: '2500000000000000000000' // 2500 MANA on Polygon
+}
 
 vi.mock('decentraland-transactions', () => ({
   ContractName: { MANAToken: 'MANAToken' },
   getContractName: () => 'DecentralandMarketplacePolygon',
-  getContract: (name: string) => ({
-    address: name === 'MANAToken' ? '0xmana' : '0xmarket',
+  getContract: (name: string, chainId: number) => ({
+    address: name === 'MANAToken' ? (MANA_ADDRESS[chainId] ?? '0xmana-unknown') : '0xmarket',
     name,
     version: '1',
     abi: ['function accept(uint256[] x)']
   })
 }))
 
-vi.mock('~/config', () => ({ config: { rpcUrl: 'http://localhost', chainId: 80002 } }))
+vi.mock('~/config', () => ({
+  config: { rpcUrl: 'http://localhost', chainId: 80002, ethereumChainId: 1, ethereumRpcUrl: 'http://ethereum-rpc' }
+}))
+
+// A per-chain read failure is reported, not swallowed — a dead RPC and an empty wallet must be tellable
+// apart by whoever debugs it. Mocked so the real one does not print to the test output.
+vi.mock('~/lib/monitoring', () => ({ captureError: vi.fn() }))
+
+// When set, constructing a provider for this URL throws, standing in for that chain's RPC being down.
+let failingRpcUrl: string | null = null
 
 vi.mock('ethers', async importOriginal => {
   const actual = await importOriginal<typeof import('ethers')>()
@@ -29,7 +50,9 @@ vi.mock('ethers', async importOriginal => {
       public signerOrProvider: unknown
     ) {}
     async balanceOf() {
-      return actual.ethers.BigNumber.from(balanceOfWei)
+      // Answers only when this contract address really is MANA on the network this provider points at.
+      const rpcUrl = (this.signerOrProvider as { url?: string })?.url ?? ''
+      return actual.ethers.BigNumber.from(MANA_BALANCE_BY_CHAIN[`${this.address}|${rpcUrl}`] ?? '0')
     }
     async manaUsdAggregator() {
       return '0xaggregator'
@@ -42,7 +65,10 @@ vi.mock('ethers', async importOriginal => {
     }
   }
   class MockJsonRpcProvider {
-    constructor(public url: string) {}
+    constructor(public url: string) {
+      // Lets a test knock ONE chain's RPC out, to prove the other still answers.
+      if (failingRpcUrl && url === failingRpcUrl) throw new Error(`rpc unreachable: ${url}`)
+    }
   }
   return {
     ethers: {
@@ -53,7 +79,8 @@ vi.mock('ethers', async importOriginal => {
   }
 })
 
-import { readManaBalanceWei, readTradeManaPriceWei, hasEnoughMana, formatMana } from '~/lib/mana'
+import { captureError } from '~/lib/monitoring'
+import { readManaBalanceWei, readManaBalancesWei, readTradeManaPriceWei, hasEnoughMana, formatMana } from '~/lib/mana'
 
 function fakeTrade(receivedAssetType: number, amount = '1000000000000000000'): Trade {
   return {
@@ -81,9 +108,55 @@ function fakeTrade(receivedAssetType: number, amount = '1000000000000000000'): T
 
 describe('readManaBalanceWei', () => {
   it('returns the ERC20 balanceOf as a bigint', async () => {
-    balanceOfWei = '2500000000000000000000'
     const bal = await readManaBalanceWei('0xbuyer', 80002)
     expect(bal).toBe(2_500_000000000000000000n)
+  })
+
+  describe('when no chain is given', () => {
+    it('should read the shop settlement chain, so the MANA rail is gated on spendable balance', async () => {
+      // Not the wallet's chain: only Polygon MANA can settle a trade here.
+      const bal = await readManaBalanceWei('0xbuyer')
+      expect(bal).toBe(2_500_000000000000000000n)
+    })
+  })
+
+  describe('when the chain is Ethereum', () => {
+    it('should query the Ethereum RPC, not the Polygon one', async () => {
+      // The regression guard. Pairing the L1 MANA address with the Polygon RPC reads an address that is
+      // not MANA there and quietly answers 0 — which is exactly how the navbar lost the balance.
+      const bal = await readManaBalanceWei('0xbuyer', 1)
+      expect(bal).toBe(3_000000000000000000n)
+    })
+  })
+})
+
+describe('readManaBalancesWei', () => {
+  it('should return the balance held on both chains', async () => {
+    const balances = await readManaBalancesWei('0xbuyer')
+    expect(balances).toEqual({ ethereum: 3_000000000000000000n, matic: 2_500_000000000000000000n })
+  })
+
+  describe('and one chain cannot be reached', () => {
+    afterEach(() => {
+      failingRpcUrl = null
+    })
+
+    it('should still report the other chain instead of blanking both', async () => {
+      failingRpcUrl = ETHEREUM_RPC
+
+      const balances = await readManaBalancesWei('0xbuyer')
+
+      expect(balances.ethereum).toBe(0n)
+      expect(balances.matic).toBe(2_500_000000000000000000n)
+    })
+
+    it('should report the failure, so a dead RPC is not mistaken for an empty wallet', async () => {
+      failingRpcUrl = ETHEREUM_RPC
+
+      await readManaBalancesWei('0xbuyer')
+
+      expect(captureError).toHaveBeenCalledWith(expect.any(Error), expect.objectContaining({ network: 'ethereum' }))
+    })
   })
 })
 

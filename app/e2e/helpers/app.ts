@@ -1,6 +1,6 @@
 import puppeteer, { type Browser, type HTTPRequest, type Page } from 'puppeteer'
 import { buildTestSession, sessionInitScript, type TestSession } from './session'
-import { handleRpc, setManaBalanceWei, setManaAllowanceWei, ORACLE_RATE } from './rpc'
+import { handleRpc, setManaBalanceWei, setEthereumManaBalanceWei, setManaAllowanceWei, ORACLE_RATE } from './rpc'
 import * as fx from '../fixtures'
 
 export const BASE = process.env.E2E_BASE_URL ?? 'http://localhost:5273'
@@ -280,7 +280,7 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
     return req.respond({
       status: 200,
       headers: { 'content-type': 'application/json', ...CORS },
-      body: handleRpc(req.postData() || '{}')
+      body: handleRpc(req.postData() || '{}', u.pathname)
     })
   }
   // Meta-transaction relayer (transactions-server): gasless checkout POSTs the signed useCredits
@@ -716,8 +716,16 @@ export async function launchApp(
     fixtures?: Partial<Fixtures>
     signedOut?: boolean
     errors?: ErrorMap
-    /** MANA (wei, as a decimal string) the mocked ERC20 reports — drives the MANA payment rails. */
+    /**
+     * MANA (wei, as a decimal string) the mocked ERC20 reports ON POLYGON — the chain the shop settles
+     * on, so this is what drives the MANA payment rails as well as the navbar's Polygon chip.
+     */
     manaBalanceWei?: string
+    /**
+     * MANA the mocked ERC20 reports ON ETHEREUM L1. Display only: L1 MANA cannot settle a Polygon trade,
+     * so it adds a second navbar chip and never a payment rail. Defaults to '0'.
+     */
+    ethereumManaBalanceWei?: string
     /** MANA allowance the mocked ERC20 reports; omit for "already approved". */
     manaAllowanceWei?: string
     /**
@@ -764,6 +772,7 @@ export async function launchApp(
   mintedCents = 0 // reset the per-run top-up accumulator so balances don't leak between tests
   favoritePicks = [] // reset the per-run picks so favorites don't leak between tests
   setManaBalanceWei(opts.manaBalanceWei ?? '0') // no MANA unless a test asks for it
+  setEthereumManaBalanceWei(opts.ethereumManaBalanceWei ?? '0') // MANA lives on Polygon unless a test says otherwise
   setManaAllowanceWei(opts.manaAllowanceWei ?? null) // already approved unless a test asks otherwise
   const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] })
   const page = await browser.newPage()

@@ -540,6 +540,25 @@ describe('when importing from an avatar-preview link', () => {
     expect(parsed?.items).toHaveLength(6)
   })
 
+  it('should import a listed emote from the emote param', () => {
+    const parsed = parseOutfitImport(
+      'urn=urn:decentraland:matic:collections-v2:0x' +
+        'a'.repeat(40) +
+        ':0' +
+        '&emote=urn:decentraland:matic:collections-v2:0x' +
+        'b'.repeat(40) +
+        ':3'
+    )!
+    expect(parsed.items).toEqual([
+      { contractAddress: '0x' + 'a'.repeat(40), itemId: '0' },
+      { contractAddress: '0x' + 'b'.repeat(40), itemId: '3' }
+    ])
+  })
+
+  it('should ignore a builder-local emote path', () => {
+    expect(parseOutfitImport(SAMPLE)!.items).toHaveLength(6)
+  })
+
   it('should dedupe repeated pairs and skip non-item urns', () => {
     const parsed = parseOutfitImport(
       'urn=urn:decentraland:off-chain:base-avatars:eyebrows_00' +
