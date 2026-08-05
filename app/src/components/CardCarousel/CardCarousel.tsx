@@ -22,6 +22,38 @@ type Props = {
 // with a 16px gap — no partial card is ever cut off. The JS just pages by one viewport width and derives
 // the dot count from the scroll extent, so it stays correct at every breakpoint without duplicating the
 // per-card width math.
+/**
+ * The rail's geometry, measured off the cards. A page of cards spans slightly less than the viewport, and
+ * under mandatory snap only a card start is a scroll target the browser honours.
+ */
+type RailGeometry = { cards: HTMLElement[]; stride: number; perView: number; pageCount: number; base: number }
+
+function railGeometry(el: HTMLElement): RailGeometry | null {
+  // Narrowed rather than cast: `children` is typed as Element, and offsetLeft belongs to HTMLElement.
+  const cards = Array.from(el.children).filter((c): c is HTMLElement => c instanceof HTMLElement)
+  if (cards.length === 0 || el.clientWidth <= 0) return null
+  const stride = cards.length > 1 ? cards[1].offsetLeft - cards[0].offsetLeft : el.clientWidth
+  if (stride <= 0) return null
+  const perView = Math.max(1, Math.round(el.clientWidth / stride))
+  return {
+    cards,
+    stride,
+    perView,
+    pageCount: Math.max(1, Math.ceil(cards.length / perView)),
+    base: cards[0].offsetLeft
+  }
+}
+
+/** Which page the rail is actually showing. */
+function pageFromScroll(el: HTMLElement, g: RailGeometry): number {
+  const maxScroll = el.scrollWidth - el.clientWidth
+  if (maxScroll <= 0) return 0
+  // The last page is partial, so the rail rests past its start; anchor the end or it never reads as
+  // current. 2px of slack because scrollLeft is fractional and rounds off under zoom.
+  if (el.scrollLeft >= maxScroll - 2) return g.pageCount - 1
+  return Math.min(g.pageCount - 1, Math.round(el.scrollLeft / (g.perView * g.stride)))
+}
+
 export function CardCarousel({ title, count, loading = false, viewAllTo, children }: Props) {
   const trackRef = useRef<HTMLDivElement>(null)
   const [pageCount, setPageCount] = useState(1)
@@ -31,11 +63,10 @@ export function CardCarousel({ title, count, loading = false, viewAllTo, childre
   const measure = useCallback(() => {
     const el = trackRef.current
     if (!el) return
-    const view = el.clientWidth
-    if (view <= 0) return
-    const pages = Math.max(1, Math.ceil((el.scrollWidth - view) / view) + 1)
-    setPageCount(pages)
-    setPage(Math.min(pages - 1, Math.round(el.scrollLeft / view)))
+    const g = railGeometry(el)
+    if (!g) return
+    setPageCount(g.pageCount)
+    setPage(pageFromScroll(el, g))
     const media = el.querySelector<HTMLElement>('[data-testid="card-media"]')
     const viewport = el.parentElement
     // 12px = the track's top padding; center on the media so the chevrons sit over the artwork.
@@ -46,26 +77,37 @@ export function CardCarousel({ title, count, loading = false, viewAllTo, childre
     measure()
     const el = trackRef.current
     if (!el) return
-    const onScroll = () => setPage(Math.round(el.scrollLeft / Math.max(1, el.clientWidth)))
+    // One read per frame: railGeometry reads offsetLeft, so an unthrottled handler forces a synchronous
+    // reflow on every scroll event.
+    let frame = 0
+    const onScroll = () => {
+      if (frame) return
+      frame = requestAnimationFrame(() => {
+        frame = 0
+        const g = railGeometry(el)
+        if (g) setPage(pageFromScroll(el, g))
+      })
+    }
     el.addEventListener('scroll', onScroll, { passive: true })
     window.addEventListener('resize', measure)
     return () => {
+      if (frame) cancelAnimationFrame(frame)
       el.removeEventListener('scroll', onScroll)
       window.removeEventListener('resize', measure)
     }
   }, [measure, count])
 
-  // Page by exactly one viewport width — because a whole number of cards fills the viewport, this
-  // always lands on a card boundary (a snap point), never on a partial card.
-  const scrollToPage = useCallback(
-    (p: number) => {
-      const el = trackRef.current
-      if (!el) return
-      const target = Math.max(0, Math.min(pageCount - 1, p))
-      el.scrollTo({ left: target * el.clientWidth, behavior: 'smooth' })
-    },
-    [pageCount]
-  )
+  // Scroll to the start of a card, never to a multiple of the viewport width: under mandatory snap the
+  // browser overrides any other target.
+  const scrollToPage = useCallback((p: number) => {
+    const el = trackRef.current
+    if (!el) return
+    const g = railGeometry(el)
+    if (!g) return
+    const target = Math.max(0, Math.min(g.pageCount - 1, p))
+    const card = g.cards[Math.min(target * g.perView, g.cards.length - 1)]
+    el.scrollTo({ left: card.offsetLeft - g.base, behavior: 'smooth' })
+  }, [])
 
   const showControls = !loading && pageCount > 1
 

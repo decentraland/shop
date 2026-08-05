@@ -77,8 +77,8 @@ const rowCss = css`
 export const Cat = styled.button`
   ${rowCss};
 
-  &[data-selected],
-  &[data-expanded] {
+  /* Selected only: being open is signalled by the rotated chevron, not by tinting the row. */
+  &[data-selected] {
     background: rgba(255, 255, 255, 0.14);
   }
 `
@@ -93,6 +93,15 @@ export const Sub = styled.button`
   &[data-active] [data-sub-label] {
     color: ${colors.white};
     font-weight: 600;
+  }
+
+  /* The chevron tracks the row's label: gray4 at rest, white on hover and while selected. */
+  [data-chevron] {
+    color: ${colors.gray4};
+  }
+  &:hover [data-chevron],
+  &[data-active] [data-chevron] {
+    color: ${colors.white};
   }
 `
 
