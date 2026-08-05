@@ -40,6 +40,7 @@ import { toast } from '~/store/toast'
 import { captureError } from '~/lib/monitoring'
 import { friendlyError, isRejection } from '~/lib/errors'
 import { isManagedWallet } from '~/lib/wallet'
+import { canPayGasItself } from '~/lib/wallet-kind'
 import { useManaRate } from '~/hooks/useManaRate'
 import { useRelatedItems } from '~/hooks/useRelatedItems'
 import { useSeo } from '~/hooks/useSeo'
@@ -612,6 +613,10 @@ export function ItemDetail() {
   // null when nothing failed. 'pending' means the relay may still land, 'reverted' that it provably did
   // not — the two need different words, and only one of them may say "it may still go through".
   const [gaslessCancelFailed, setGaslessCancelFailed] = useState<null | 'pending' | 'reverted'>(null)
+  // Whether the gas-paying route is a route AT ALL for this seller. A managed wallet holds no POL, so
+  // offering it a "pay the fee" button leads to an INSUFFICIENT_FUNDS revert — and the fee/network wording
+  // around it is what these users must never be shown. Same question the checkout surfaces ask.
+  const canPayGas = canPayGasItself(session?.providerType)
   // Shown once the wait passes the point where "a moment" stops being true, so the spinner explains itself.
   const [cancelSlow, setCancelSlow] = useState(false)
 
@@ -1426,7 +1431,12 @@ export function ItemDetail() {
                         {/* The relay could not confirm it. Deliberately NOT an error: the transaction may
                             still land, so the seller gets the two honest options instead of a "try again"
                             that has them re-signing something already in flight. */}
-                        {gaslessCancelFailed ? (
+                        {gaslessCancelFailed && !canPayGas ? (
+                          <S.GaslessNotice data-testid="cancel-gasless-failed">
+                            <p>{t('itemDetail.cancelRelayRetry')}</p>
+                          </S.GaslessNotice>
+                        ) : null}
+                        {gaslessCancelFailed && canPayGas ? (
                           <S.GaslessNotice data-testid="cancel-gasless-failed">
                             <p>
                               {gaslessCancelFailed === 'reverted'
@@ -1457,7 +1467,7 @@ export function ItemDetail() {
                             spinner that reads as "nothing is happening". */}
                         {managing === 'remove' && cancelSlow ? (
                           <S.GaslessNotice data-testid="cancel-slow">
-                            <p>{t('itemDetail.cancelSlow')}</p>
+                            <p>{t(canPayGas ? 'itemDetail.cancelSlow' : 'itemDetail.cancelSlowManaged')}</p>
                           </S.GaslessNotice>
                         ) : null}
                         {manageListed ? (

@@ -4,8 +4,8 @@
     "insufficient": "No tienes suficientes {currency}. Consigue más primero.",
     "soldOrRemoved": "Este artículo acaba de venderse o eliminarse.",
     "cantBuyOwn": "No puedes comprar tu propia publicación.",
-    "wrongNetwork": "Tu wallet está en {current}. Cambiala a {required} para continuar — podés cambiar de red desde la barra superior.",
-    "walletUnauthorized": "Tu wallet bloqueó este pedido. Verificá que siga conectada al shop y en la red correcta, y probá de nuevo."
+    "wrongNetwork": "Tu wallet está en {current}. Cámbiala a {required} para continuar.",
+    "walletUnauthorized": "Tu wallet bloqueó este pedido. Verifica que siga conectada al shop y en la red correcta, y prueba de nuevo."
   },
   "nav": {
     "overview": "Inicio",
@@ -376,10 +376,10 @@
     "manageIssue": "Emitir copias",
     "manageUpdatePrice": "Editar precio",
     "manageRemove": "Quitar de la venta",
-    "cancelRelayFailed": "No pudimos confirmar la baja sin gas. Puede que se complete igual, o podés pagar la comisión de red y hacerlo ahora.",
+    "cancelRelayFailed": "No pudimos confirmar la baja sin gas. Puede que se complete igual, o puedes pagar la comisión de red y hacerlo ahora.",
     "cancelPayGas": "Pagar la comisión y darlo de baja",
     "cancelLater": "Dejarlo por ahora",
-    "cancelSlow": "Seguimos esperando la confirmación de la red. Puede tardar unos minutos cuando Polygon está congestionada — podés dejar esto abierto.",
+    "cancelSlow": "Seguimos esperando la confirmación de la red. Puede tardar unos minutos cuando Polygon está congestionada — puedes dejar esto abierto.",
     "manageWorking": "Procesando…",
     "updateConfirmCancel": "Confirma la cancelación",
     "updateCanceling": "Cancelando la publicación actual…",
@@ -395,7 +395,9 @@
     "playOnce": "Una vez",
     "emoteSound": "Sonido",
     "emoteProps": "Accesorios",
-    "cancelRelayReverted": "No se completó — tu listing sigue publicado. Podés darlo de baja ahora pagando la comisión de red, o dejarlo y probar más tarde."
+    "cancelRelayReverted": "No se completó — tu publicación sigue activa. Puedes darla de baja ahora pagando la comisión de red, o dejarla y probar más tarde.",
+    "cancelRelayRetry": "No pudimos darla de baja ahora. Prueba de nuevo en un momento.",
+    "cancelSlowManaged": "Seguimos terminando. Puede tardar unos minutos — puedes dejar esto abierto."
   },
   "transfer": {
     "title": "Transferir artículo",

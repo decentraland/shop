@@ -214,6 +214,45 @@ describe('ItemDetail — taking your own listing down from the item page', () =>
 describe('ItemDetail — when the relayed cancel is not confirmed', () => {
   const gaslessFails = () => cancelListing.mockRejectedValueOnce(new GaslessCancelFailedError('relay'))
 
+  /** Runs the body with the seller on a MANAGED (web2) wallet, then puts the fixture back. */
+  async function asManagedWallet(body: () => Promise<void>) {
+    const previous = session.providerType
+    Object.assign(session, { providerType: 'magic' })
+    try {
+      await body()
+    } finally {
+      Object.assign(session, { providerType: previous })
+    }
+  }
+
+  // The three checkout surfaces gate the gas-paying rail on the wallet being able to pay; this flow did not.
+  // A managed wallet holds no POL, so the button led to an INSUFFICIENT_FUNDS revert, wrapped in fee and
+  // network wording these users must never be shown.
+  it('should not offer to pay the fee on a wallet that cannot pay it', async () => {
+    await asManagedWallet(async () => {
+      gaslessFails()
+      renderPdp(newClient())
+
+      expect(await screen.findByTestId('item-price')).toHaveTextContent('10')
+      await userEvent.click(removeCta())
+
+      const notice = await screen.findByTestId('cancel-gasless-failed')
+      expect(notice).toBeInTheDocument()
+      expect(screen.queryByTestId('cancel-pay-gas')).not.toBeInTheDocument()
+      // …and it says nothing about fees, networks or gas.
+      expect(notice.textContent ?? '').not.toMatch(/fee|gas|network|polygon/i)
+    })
+  })
+
+  it('should still offer it to a wallet that can', async () => {
+    gaslessFails()
+    renderPdp(newClient())
+
+    await userEvent.click(removeCta())
+
+    expect(await screen.findByTestId('cancel-pay-gas')).toBeInTheDocument()
+  })
+
   it('should offer both ways out instead of a failure message', async () => {
     gaslessFails()
     renderPdp(newClient())

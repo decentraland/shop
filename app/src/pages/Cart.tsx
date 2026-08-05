@@ -6,7 +6,7 @@ import { useFavorites, favoriteKey } from '~/store/favorites'
 import { useWallet } from '~/store/wallet'
 import { stashResumeIntent, takeResumeIntent } from '~/lib/auth-return'
 import { detailRouteFor } from '~/lib/routes'
-import { showsWalletConfirmations } from '~/lib/wallet-kind'
+import { canPayGasItself, showsWalletConfirmations } from '~/lib/wallet-kind'
 import { useBalance } from '~/hooks/useBalance'
 import { authorizeUsdCredit, cancelUsdIntents } from '~/lib/credits'
 import { config } from '~/config'
@@ -480,7 +480,7 @@ export function Cart() {
           // POL, so submitting there reverts with INSUFFICIENT_FUNDS after a prompt the buyer cannot act on —
           // and gas/network wording is exactly what these users must never be shown (CONVENTIONS.md). Better
           // to surface the relayer being down as what it is: something to try again shortly.
-          if (!showsWalletConfirmations(session.providerType)) throw gaslessErr
+          if (!canPayGasItself(session.providerType)) throw gaslessErr
           hashes = await buyManyWithCredits({
             purchases,
             buyer: session.address,

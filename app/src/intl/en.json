@@ -4,7 +4,7 @@
     "insufficient": "You don't have enough {currency} — get more first.",
     "soldOrRemoved": "This item was just sold or removed.",
     "cantBuyOwn": "You can't buy your own listing.",
-    "wrongNetwork": "Your wallet is on {current}. Switch it to {required} to continue — you can change networks from the top bar.",
+    "wrongNetwork": "Your wallet is on {current}. Switch it to {required} to continue.",
     "walletUnauthorized": "Your wallet blocked this request. Check that it's still connected to the shop and on the right network, then try again."
   },
   "nav": {
@@ -395,7 +395,9 @@
     "playOnce": "Play once",
     "emoteSound": "Sound",
     "emoteProps": "Props",
-    "cancelRelayReverted": "That didn't go through — your listing is still up. You can remove it now by paying the network fee yourself, or leave it and try again later."
+    "cancelRelayReverted": "That didn't go through — your listing is still up. You can remove it now by paying the network fee yourself, or leave it and try again later.",
+    "cancelRelayRetry": "We couldn't remove it just now. Please try again in a moment.",
+    "cancelSlowManaged": "Still finishing up. This can take a few minutes — you can keep this open."
   },
   "transfer": {
     "title": "Transfer item",

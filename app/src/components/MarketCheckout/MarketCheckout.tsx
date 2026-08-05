@@ -12,7 +12,7 @@ import { track, errorCode, isUserRejection } from '~/lib/analytics'
 import { authorizeUsdCredit, cancelUsdIntents } from '~/lib/credits'
 import { buyWithCredits } from '~/lib/buy'
 import { buyGasless, waitForSettlement, GaslessUnavailableError, SettlementPendingError } from '~/lib/buy-gasless'
-import { showsWalletConfirmations } from '~/lib/wallet-kind'
+import { canPayGasItself } from '~/lib/wallet-kind'
 import { gaslessEnabled } from '~/lib/gasless-config'
 import { isOwnTrade } from '~/lib/ownership'
 import { t } from '~/intl/i18n'
@@ -241,7 +241,7 @@ export function MarketCheckout({
              * POL, so it would revert with INSUFFICIENT_FUNDS after a prompt the buyer cannot act on — and gas
              * or network wording is exactly what these users must never see (CONVENTIONS.md).
              */
-            if (!showsWalletConfirmations(session.providerType)) throw gaslessErr
+            if (!canPayGasItself(session.providerType)) throw gaslessErr
             txHash = await buyWithCredits(buyArgs) // fallback: buyer submits + pays gas
           } else {
             /**

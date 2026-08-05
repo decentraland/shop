@@ -32,7 +32,7 @@ import { authorizeUsdCredit, cancelUsdIntents } from '~/lib/credits'
 import { buyWithCredits } from '~/lib/buy'
 import { buyWithMana, buyWithCreditsAndMana } from '~/lib/buy-mana'
 import { buyGasless, waitForSettlement, GaslessUnavailableError, SettlementPendingError } from '~/lib/buy-gasless'
-import { showsWalletConfirmations } from '~/lib/wallet-kind'
+import { canPayGasItself } from '~/lib/wallet-kind'
 import { gaslessEnabled } from '~/lib/gasless-config'
 import { isOwnTrade } from '~/lib/ownership'
 import { createPackCheckout, MAX_OFFER_PACKS } from '~/lib/payments'
@@ -317,7 +317,7 @@ export function BuyModal({
              * POL, so it would revert with INSUFFICIENT_FUNDS after a prompt the buyer cannot act on — and gas
              * or network wording is exactly what these users must never see (CONVENTIONS.md).
              */
-            if (!showsWalletConfirmations(session.providerType)) throw gaslessErr
+            if (!canPayGasItself(session.providerType)) throw gaslessErr
             txHash = await buyWithCredits(buyArgs)
           } else {
             /**
