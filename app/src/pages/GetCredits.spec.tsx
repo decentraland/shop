@@ -157,6 +157,64 @@ describe('when a signed-out user opens the get-credits page', () => {
   })
 })
 
+describe('the head copy and its Learn More', () => {
+  // jsdom implements neither, and the jump uses both.
+  const scrollIntoView = vi.fn()
+  beforeEach(() => {
+    vi.clearAllMocks()
+    Element.prototype.scrollIntoView = scrollIntoView
+    window.matchMedia = ((query: string) => ({
+      matches: false,
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn()
+    })) as unknown as typeof window.matchMedia
+  })
+
+  it('should head the page with the designed copy', () => {
+    renderPage()
+
+    expect(screen.getByRole('heading', { name: 'Stock up on Credits' })).toBeTruthy()
+    expect(
+      screen.getByText(
+        'Choose a Credit pack, then shop creator-made Wearables and Emotes to build a look that’s uniquely yours.'
+      )
+    ).toBeTruthy()
+  })
+
+  // The whole point of the change: it used to be an <a target="_blank"> to the docs. A reader who wants to
+  // know what credits are should not lose the page they were about to buy on.
+  it('should send Learn More down to the FAQ on this page rather than off-site', async () => {
+    const user = userEvent.setup()
+    renderPage()
+    const learn = screen.getByTestId('credits-learn-more')
+
+    expect(learn.tagName).toBe('BUTTON')
+    expect(learn.getAttribute('href')).toBeNull()
+
+    await user.click(learn)
+
+    expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'center' })
+    // …and the section it scrolled to is the one holding the answers.
+    expect(screen.getByTestId('credits-faq').contains(screen.getByText('Do Credits expire?'))).toBe(true)
+  })
+
+  it('should jump without animating for a visitor who asked for less motion', async () => {
+    window.matchMedia = ((query: string) => ({
+      matches: true,
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn()
+    })) as unknown as typeof window.matchMedia
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(screen.getByTestId('credits-learn-more'))
+
+    expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'auto', block: 'center' })
+  })
+})
+
 describe('the pack artwork fallback', () => {
   it('falls back to the bundled asset exactly once when the remote image fails', async () => {
     // The regression this guards: the handler used to compare `img.src` (which reads back an ABSOLUTE url)

@@ -69,9 +69,6 @@ const BUYER_FAQ: readonly FaqEntry[] = [
   { question: 'faq.buyers.transferQ', answer: 'faq.buyers.transferA' }
 ]
 
-// Where "Get credits and start shopping" points. No credits-specific doc yet — link to the shop docs.
-const LEARN_MORE_URL = 'https://docs.decentraland.org'
-
 type Phase = 'select' | 'redirecting' | 'processing' | 'success' | 'error' | 'pending'
 
 function friendlyError(e: unknown): string {
@@ -259,6 +256,8 @@ export function GetCredits() {
   // Return handling: Stripe's hosted Checkout redirects back to this page with `?order=<id>` on
   // success or `?canceled=1` on cancel. Handle it once, then clear the params so a refresh is a no-op.
   const returnHandled = useRef(false)
+  // The jump target for "Learn More" — see scrollToFaq.
+  const faqRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (returnHandled.current) return
     const orderId = searchParams.get('order')
@@ -301,6 +300,16 @@ export function GetCredits() {
     setCanceledNote(false)
   }
 
+  function scrollToFaq() {
+    const el = faqRef.current
+    if (!el) return
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    el.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'center' })
+    // Focus follows the scroll, or a keyboard user is left behind: their next Tab would resume from the
+    // control they just activated, back at the top of the page, and they would never reach the answers.
+    el.focus({ preventScroll: true })
+  }
+
   return (
     <S.Root>
       {/* Kept mounted through 'redirecting' too. That phase hides this content with `visibility: hidden`
@@ -313,12 +322,11 @@ export function GetCredits() {
           <S.HeroPanel>
             <S.HeroInner $hidden={phase === 'redirecting'}>
               <S.Head>
-                <S.Title>{t('getCredits.title', { currency: CURRENCY.name })}</S.Title>
+                <S.Title>{t('getCredits.title')}</S.Title>
                 <S.SubRow>
-                  <S.Sub>{t('getCredits.subtitle', { currency: CURRENCY.nameSingular })}</S.Sub>
-                  <S.Learn href={LEARN_MORE_URL} target="_blank" rel="noreferrer">
+                  <S.Sub>{t('getCredits.subtitle')}</S.Sub>
+                  <S.Learn type="button" onClick={scrollToFaq} data-testid="credits-learn-more">
                     {t('getCredits.learnMore')}
-                    <Icon name="link-out" />
                   </S.Learn>
                 </S.SubRow>
               </S.Head>
@@ -339,7 +347,7 @@ export function GetCredits() {
 
           {/* Inside the Hero, so it reads on the same backdrop the design puts it on — the outlined skin
               is white-on-dark and would be invisible on the page below. */}
-          <S.FaqBlock>
+          <S.FaqBlock ref={faqRef} tabIndex={-1} data-testid="credits-faq">
             <Faq title="faq.title" entries={BUYER_FAQ} tone="on-dark" />
           </S.FaqBlock>
         </S.Hero>

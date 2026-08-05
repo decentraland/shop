@@ -183,9 +183,9 @@
     }
   },
   "getCredits": {
-    "title": "Get {currency}!",
-    "subtitle": "Pick your {currency} pack and get ready to shop!",
-    "learnMore": "Learn more",
+    "title": "Stock up on Credits",
+    "subtitle": "Choose a Credit pack, then shop creator-made Wearables and Emotes to build a look that’s uniquely yours.",
+    "learnMore": "Learn More",
     "canceledNote": "Payment canceled — no charge was made. Pick a pack whenever you’re ready.",
     "packBadge": "Recommended",
     "packUnit": "{currency}",

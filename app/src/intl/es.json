@@ -183,8 +183,8 @@
     }
   },
   "getCredits": {
-    "title": "¡Consigue {currency}!",
-    "subtitle": "¡Elige tu paquete de {currency} y prepárate para comprar!",
+    "title": "Carga tus créditos",
+    "subtitle": "Elige un paquete de créditos y consigue wearables y emotes hechos por creadores para armar un look que sea solo tuyo.",
     "learnMore": "Más información",
     "canceledNote": "Pago cancelado: no se realizó ningún cargo. Elige un paquete cuando quieras.",
     "packBadge": "Recomendado",

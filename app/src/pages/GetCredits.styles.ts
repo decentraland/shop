@@ -64,6 +64,10 @@ export const FaqBlock = styled.div`
   max-width: 1478px;
   margin-top: 82px;
 
+  &:focus {
+    outline: none;
+  }
+
   ${theme.media.maxWidth('lg')} {
     margin-top: 48px;
   }
@@ -93,7 +97,7 @@ export const Head = styled.header`
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
   width: 100%;
   text-align: center;
 `
@@ -105,7 +109,6 @@ export const Title = styled.h1`
   font-weight: 700;
   line-height: 1.167;
   color: ${theme.colors.white};
-  text-transform: capitalize;
 
   ${theme.media.maxWidth('mobile')} {
     font-size: 28px;
@@ -133,10 +136,14 @@ export const Sub = styled.p`
   }
 `
 
-export const Learn = styled.a`
+export const Learn = styled.button`
+  appearance: none;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
   display: inline-flex;
   align-items: center;
-  gap: 2px;
   font-family: ${theme.font.sans};
   font-size: 20px;
   font-weight: 500;
@@ -145,10 +152,6 @@ export const Learn = styled.a`
   text-decoration: underline;
   text-underline-offset: 2px;
 
-  .ico {
-    width: 26px;
-    height: 26px;
-  }
   &:hover {
     opacity: 0.85;
   }
