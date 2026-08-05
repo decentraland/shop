@@ -24,25 +24,29 @@ import {
 import { itemIdFromTokenId } from '~/lib/token-id'
 import { liveTradeId, markListingCancelled } from '~/lib/dead-listings'
 import { patchManageCaches } from '~/lib/manage-cache'
+import { manaWeiToCredits } from '~/lib/mana-convert'
 import { isSaleSectionLoading } from '~/lib/pdp-loading'
-import { cancelListing } from '~/lib/buy'
-import { fetchPublishableItems, type PublishableItem } from '~/lib/builder'
+import { cancelListing, GaslessCancelFailedError } from '~/lib/buy'
+import { fetchPublishableItems, fetchItemVideoUrl, type PublishableItem } from '~/lib/builder'
+import { fetchVrmExportBlocked } from '~/lib/wearable-rules'
 import { BuyModal } from '~/components/BuyModal'
 import { SellModal } from '~/components/SellModal'
 import { TransferModal } from '~/components/TransferModal'
 import { PrimaryListModal } from '~/components/PrimaryListModal'
 import { IssueModal } from '~/components/IssueModal'
+import { VideoShowcaseModal } from '~/components/VideoShowcaseModal'
 import { MarketCheckout } from '~/components/MarketCheckout'
 import { toast } from '~/store/toast'
 import { captureError } from '~/lib/monitoring'
-import { isRejection } from '~/lib/errors'
+import { friendlyError, isRejection } from '~/lib/errors'
 import { isManagedWallet } from '~/lib/wallet'
+import { canPayGasItself } from '~/lib/wallet-kind'
 import { useManaRate } from '~/hooks/useManaRate'
-import { useRelatedItems } from '~/hooks/useRelatedItems'
+import { useSuggestedItems } from '~/hooks/useSuggestedItems'
 import { useSeo } from '~/hooks/useSeo'
 import { shortAddress } from '~/lib/address'
 import { t } from '~/intl/i18n'
-import { fetchCollectionItems, fetchCollection } from '~/lib/collections'
+import { fetchCollection } from '~/lib/collections'
 import { ItemPreview } from '~/components/ItemPreview'
 import { CollectionCarousel } from '~/components/CollectionCarousel'
 import { ResellersModal } from '~/components/ResellersModal'
@@ -201,11 +205,19 @@ export function ItemDetail() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session])
 
-  // Sibling items of the same collection (the "more from this collection" carousel).
-  const { data: siblings = [], isFetched: siblingsFetched } = useQuery({
-    queryKey: ['collection-items', current.contractAddress],
-    enabled: !!current.contractAddress,
-    queryFn: () => fetchCollectionItems(current.contractAddress, { first: 20 }).then(r => r.items)
+  // The rail below the fold: this collection's other items, padded with the creator's and then with
+  // similar ones so it never shows up as two or three lonely cards. `siblings` also backfills the item.
+  const {
+    items: carouselItems,
+    isCollectionOnly,
+    siblings,
+    siblingsFetched
+  } = useSuggestedItems({
+    id: current.id,
+    contractAddress: current.contractAddress,
+    itemId: current.itemId ?? pageItemId,
+    tokenId: current.tokenId,
+    creator: current.creator
   })
 
   // Hydrate the generic item (name, price, tradeId, stock) from the shop feed by its ITEM id. Resolved
@@ -281,36 +293,19 @@ export function ItemDetail() {
   // be clobbered if both resolve in the same React batch (the guard below reads a stale `current`).
   // ITEM ROUTE ONLY: the token route hydrates from the specific token (ownedAsset / publicToken), so a
   // generic catalog sibling (which has no tokenId) must never replace it.
-  useEffect(() => {
-    if (isTokenRoute || current.name || deepLinkItem || siblings.length === 0) return
-    const match =
-      (pageItemId && siblings.find(s => s.itemId === pageItemId)) ||
+  // Derived rather than computed inside the effect so `hydrationPending` below can see it: "a sibling is
+  // about to hydrate this page" has to be readable during the render BEFORE the effect applies it.
+  const siblingMatch = useMemo(() => {
+    if (isTokenRoute || current.name || deepLinkItem || siblings.length === 0) return undefined
+    return (
+      (pageItemId ? siblings.find(s => s.itemId === pageItemId) : undefined) ??
       siblings.find(s => s.contractAddress === current.contractAddress)
-    if (match) setCurrent(prev => ({ ...match, tradeId: prev.tradeId ?? match.tradeId }))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [siblings, deepLinkItem])
-
-  // Carousel = OTHER items from the collection: drop the currently-viewed item + dedupe.
-  const carouselItems = useMemo(() => {
-    const seen = new Set<string>()
-    const out: CatalogItem[] = []
-    for (const s of siblings) {
-      if (s.id === current.id) continue
-      if (current.itemId && s.itemId === current.itemId) continue
-      if (current.tokenId && s.tokenId === current.tokenId) continue
-      const key = `${s.contractAddress}-${s.itemId ?? s.tokenId ?? s.id}`
-      if (seen.has(key)) continue
-      seen.add(key)
-      out.push(s)
-    }
-    return out
-  }, [siblings, current.id, current.itemId, current.tokenId])
-
-  // Fallback rail: a single-item collection leaves the carousel with nothing to render, and the page below
-  // the fold goes blank. So once the collection has come back empty-handed, ask for SIMILAR items instead.
-  // Gated on siblingsFetched so a slow collection read doesn't fire both requests and swap rails mid-view.
-  const noSiblings = siblingsFetched && carouselItems.length === 0
-  const { items: relatedItems } = useRelatedItems(current.contractAddress, pageItemId, { enabled: noSiblings })
+    )
+  }, [isTokenRoute, current.name, current.contractAddress, deepLinkItem, siblings, pageItemId])
+  useEffect(() => {
+    if (!siblingMatch) return
+    setCurrent(prev => ({ ...siblingMatch, tradeId: prev.tradeId ?? siblingMatch.tradeId }))
+  }, [siblingMatch])
 
   // Resolve a buyable trade for the current item (needed for BUY NOW + a valid cart entry). Secondary
   // listings carry their tradeId directly; catalog items resolve the cheapest open listing by itemId.
@@ -356,6 +351,40 @@ export function ItemDetail() {
   const isSmart = itemTraits?.isSmart ?? current.isSmart
   const utility = itemTraits?.utility ?? null
 
+  /**
+   * VRM export, when the creator blocked it. `blockVrmExport` lives on the wearable's Catalyst entity and on no
+   * marketplace endpoint, so it costs its own lookup — worth it because it is a restriction the buyer inherits:
+   * they will not be able to take this item out to a VRM avatar. Stated exactly as the marketplace states it,
+   * badge and tooltip both. Wearables only, and only once the urn is known.
+   */
+  const itemUrnFromMeta = itemTraits?.urn ?? null
+  const { data: vrmBlocked } = useQuery({
+    queryKey: ['item-vrm', itemUrnFromMeta],
+    enabled: !!itemUrnFromMeta && current.category === 'wearable',
+    staleTime: 30 * 60_000,
+    retry: false,
+    queryFn: () => fetchVrmExportBlocked(itemUrnFromMeta as string)
+  })
+
+  /**
+   * The creator's showcase clip, for smart wearables that ship one. A smart wearable's point is what it DOES
+   * in world, and neither the 3D preview (the garment, standing still) nor the thumbnail can show that — the
+   * marketplace surfaces the same clip from the same place (its getSmartWearableVideoShowcase).
+   *
+   * Gated on the resolved `isSmart` above — not on the seeded `current.isSmart`, which is false on a deep
+   * link until the feed answers — so an ordinary wearable never pays for the lookup: a plain wearable has no
+   * clip, and this is a builder round-trip per page view. Failure and "no clip uploaded" are the same outcome
+   * (no button), so it doesn't retry and never surfaces an error.
+   */
+  const [showVideo, setShowVideo] = useState(false)
+  const { data: showcaseVideo } = useQuery({
+    queryKey: ['item-video', current.contractAddress, pageItemId],
+    enabled: isSmart && !!current.contractAddress && !!pageItemId,
+    staleTime: 30 * 60_000,
+    retry: false,
+    queryFn: () => fetchItemVideoUrl(current.contractAddress, pageItemId as string)
+  })
+
   // Both sources are filtered through the session's cancelled listings (see lib/dead-listings): the feed's
   // materialized view lags behind a take-down, so `current.tradeId` (seeded from a grid row that predates it)
   // and the resolved trade can both still name a listing we know is dead. Without that filter the page keeps
@@ -378,7 +407,18 @@ export function ItemDetail() {
   }, [current, siblings, pageItemId])
 
   const buyableTradeId = liveTradeId(qc, current.tradeId) ?? liveTradeId(qc, resolvedTradeId)
-  const forSale = !!buyableTradeId
+  /**
+   * A COLLECTION-STORE MINT is for sale and has no trade — it is minted straight from the store contract,
+   * so no tradeId will ever exist for it. Defining "for sale" as "has a trade" is what made this page say
+   * NOT FOR SALE about an item the browse grid was selling from the same feed, at a price the grid showed
+   * and this page did not (measured on production: `acquisition: 'store'`, 48 in stock, 20 MANA).
+   *
+   * The cart already buys these end-to-end (lib/cart-availability, lib/cart-checkout route the store rail),
+   * which is why the CTA below offers Add to cart for them and keeps Buy now for trades — BuyModal resolves
+   * a live trade and has no store rail of its own.
+   */
+  const isStoreMint = current.acquisition === 'store' && (current.available ?? 0) > 0
+  const forSale = !!buyableTradeId || isStoreMint
 
   // Cheapest open resale for this item — powers the "Lowest Price" line + resellers link (Figma
   // 1524-297513). Shares react-query's cache with <ResellersModal> (identical key), so no extra fetch.
@@ -427,7 +467,22 @@ export function ItemDetail() {
   // Market (legacy) checkout: the live MANA→USD rate (read only in market mode) + the LegacyListing
   // projection MarketCheckout expects, built from the UnifiedListing the grid passed in router state.
   // The price is only indicative until MarketCheckout locks it at authorize (see MarketCheckout).
-  const { data: manaRate } = useManaRate(isMarket)
+  /**
+   * A LEGACY (MANA-priced) listing is priced at the LIVE oracle rate, never at the server's snapshot.
+   *
+   * The unified feed reports a `priceCredits` for legacy rows too, and it is not the price the buyer pays:
+   * measured on production, a 25-MANA emote came back as 5 credits while the live rate makes it 17 — and 17
+   * is what checkout authorizes. The browse grid has always converted client-side for exactly this reason
+   * (see Assets.tsx), so a card showed 17 and this page showed 5 for the same item, depending on whether you
+   * arrived from the grid (which passes its live-rate item in router state) or opened the URL cold.
+   */
+  const listedManaWei = (current as Partial<UnifiedListing>).manaWei ?? null
+  const { data: manaRate } = useManaRate(isMarket || !!listedManaWei)
+  const liveLegacyCredits = listedManaWei && manaRate ? manaWeiToCredits(listedManaWei, manaRate) : null
+  useEffect(() => {
+    if (liveLegacyCredits == null) return
+    setCurrent(prev => (prev.priceCredits === liveLegacyCredits ? prev : { ...prev, priceCredits: liveLegacyCredits }))
+  }, [liveLegacyCredits])
   const marketListing: LegacyListing | null = useMemo(() => {
     if (!isMarket || !state?.item) return null
     const it = state.item as UnifiedListing
@@ -518,8 +573,9 @@ export function ItemDetail() {
   const catIco = categoryIcon(current)
   const genderIco = genderIcon(current.gender)
   const onSale = forSale && saleActive
-  const collectionTitle = t('itemDetail.moreFromCollection')
-  const relatedTitle = t('itemDetail.relatedItems')
+  // Only a rail made up ENTIRELY of the collection's items can be titled after the collection and offer a
+  // "View all" into it; the moment it is padded, both would be describing items that aren't there.
+  const carouselTitle = isCollectionOnly ? t('itemDetail.moreFromCollection') : t('itemDetail.youMightAlsoLike')
 
   // Your own (primary) listing — you can't buy it (see lib/ownership.ts). Secondary self-listings are
   // caught authoritatively at buy time by isOwnTrade.
@@ -543,6 +599,17 @@ export function ItemDetail() {
   // read "Working…" while a Remove is running, and vice-versa). null = idle.
   const [managing, setManaging] = useState<'update' | 'remove' | null>(null)
   const [manageError, setManageError] = useState<string | null>(null)
+  // The relay did not get the cancellation confirmed. Holds the choice open — pay the gas now, or leave it —
+  // instead of spending the seller's gas behind their back (see cancelListing's `mode`).
+  // null when nothing failed. 'pending' means the relay may still land, 'reverted' that it provably did
+  // not — the two need different words, and only one of them may say "it may still go through".
+  const [gaslessCancelFailed, setGaslessCancelFailed] = useState<null | 'pending' | 'reverted'>(null)
+  // Whether the gas-paying route is a route AT ALL for this seller. A managed wallet holds no POL, so
+  // offering it a "pay the fee" button leads to an INSUFFICIENT_FUNDS revert — and the fee/network wording
+  // around it is what these users must never be shown. Same question the checkout surfaces ask.
+  const canPayGas = canPayGasItself(session?.providerType)
+  // Shown once the wait passes the point where "a moment" stops being true, so the spinner explains itself.
+  const [cancelSlow, setCancelSlow] = useState(false)
 
   const { data: ownedAsset, isLoading: ownedAssetLoading } = useQuery({
     queryKey: ['owned-token', current.contractAddress, current.tokenId, session?.address],
@@ -703,10 +770,17 @@ export function ItemDetail() {
   const manageTradeId = manageAsSecondary ? ownedAsset?.tradeId : buyableTradeId
   // Can we open the list/relist modal? Need the backing record the modal reads its inputs from.
   const canOpenListModal = manageAsSecondary ? !!ownedAsset : !!publishableItem
-  // May this viewer put the asset up for sale? A creator's mint listing is PRIMARY and always allowed; an
-  // owned token is a SECONDARY sale and so is gone while the flag is off. Taking an existing listing DOWN
-  // stays available either way (the listed branch) — hiding the entrance must not trap the people already
-  // inside. With no listing and no permission the owner simply keeps Transfer.
+  /**
+   * May this viewer put the asset up for sale? A creator's mint listing is PRIMARY and always allowed; an
+   * owned token is a SECONDARY sale and so is gone while the flag is off.
+   *
+   * Taking an existing listing DOWN stays available either way — hiding the entrance must not trap the
+   * people already inside. But CHANGING THE PRICE is not an exit: `updatePrice` cancels and re-lists, so it
+   * creates a brand-new secondary listing. Gating only the first listing let the flag be walked around by
+   * anyone who already had one, which is why this now guards both entrances and leaves only Remove.
+   *
+   * With no listing and no permission the owner simply keeps Transfer.
+   */
   const canPutOnSale = manageAsPrimary || (manageAsSecondary && secondarySales)
   // The owner's own listed price, from the (freshly-refreshed) manage state. Used so the price shows
   // right after listing: the public `forSale`/feed the price block falls back to lags behind the MV
@@ -759,14 +833,33 @@ export function ItemDetail() {
   // (cancel-then-relist — see updatePrice).
   // `own` (default true): this call owns the 'remove' working state. Update price calls it with
   // own:false — that flow owns the 'update' state so takeDown must not stomp it.
-  async function takeDown(opts: { silent?: boolean; own?: boolean } = {}): Promise<boolean> {
+  async function takeDown(opts: { silent?: boolean; own?: boolean; payGas?: boolean } = {}): Promise<boolean> {
     const own = opts.own !== false
     if (!session || !manageTradeId) return false
     setManageError(null)
+    setGaslessCancelFailed(null)
+    setCancelSlow(false)
     if (own) setManaging('remove')
     try {
       const trade = await fetchTrade(manageTradeId)
-      await cancelListing({ trade, signer: session.signer })
+      await cancelListing({
+        trade,
+        signer: session.signer,
+        // Ask before spending their gas: 'gasless-only' reports back instead of opening a second wallet
+        // prompt on its own. `payGas` is the seller answering yes, from inside their own click — which is
+        // also what makes the wallet accept the network request the direct path needs.
+        mode: opts.payGas ? 'direct' : 'gasless-only',
+        watch: {
+          // The listing being gone is the promise we made; the relayer's hash is not (it re-sends with a new
+          // one). Asking the feed keeps "confirmed" and "what the seller will see" the same thing.
+          isCancelled: async () => {
+            if (!current.itemId) return false
+            const live = await fetchTradeForItem(current.contractAddress, current.itemId).catch(() => undefined)
+            return live !== undefined && live?.id !== manageTradeId
+          },
+          onWaiting: elapsed => setCancelSlow(elapsed > 20_000)
+        }
+      })
       if (!opts.silent) toast.success(t('myAssets.removedFromSale', { name: current.name }))
       // Optimistically flip this token to NOT-for-sale everywhere it's rendered (PDP owned-token, the My
       // Assets grid, the shop-feed price map) the instant the cancel confirms — the feed's MV lags, so an
@@ -791,10 +884,20 @@ export function ItemDetail() {
     } catch (e) {
       const rejected = isRejection(e)
       if (!rejected) captureError(e, { flow: 'remove-listing', tradeId: manageTradeId })
-      setManageError(rejected ? t('getCredits.errorCanceled') : t('myAssets.removeListingError'))
+      if (e instanceof GaslessCancelFailedError) {
+        // Offer the gas-paying route either way, but say which situation it is: a reverted relay is dead and
+        // paying gas is the real next step, while an unconfirmed one may still land on its own — and telling
+        // someone that about a revert is simply false.
+        setGaslessCancelFailed(e.definitive ? 'reverted' : 'pending')
+        return false
+      }
+      // Through friendlyError so a wrong network or a wallet that refused the request says which of those
+      // it was — "couldn't remove the listing" is true but useless when the fix is a network switch.
+      setManageError(rejected ? t('getCredits.errorCanceled') : friendlyError(e, t('myAssets.removeListingError')))
       return false
     } finally {
       if (own) setManaging(null)
+      setCancelSlow(false)
     }
   }
 
@@ -866,7 +969,9 @@ export function ItemDetail() {
   // applies its result in an effect, so there is always one render where the query reports "fetched" and
   // the name is still blank — long enough to paint Not Found over a perfectly good item. Loading flags
   // alone cannot close that window; the presence of unapplied data can.
-  const hydrationPending = !current.name && (!!deepLinkItem || !!ownedAsset || !!publicToken)
+  // `siblingMatch` is one of those sources: the collection read reports "fetched" a render before its
+  // backfill effect lands, which is exactly the window a cold deep link was painting Not Found in.
+  const hydrationPending = !current.name && (!!deepLinkItem || !!ownedAsset || !!publicToken || !!siblingMatch)
   const stillResolving =
     deepLinkLoading ||
     (!!current.contractAddress && !siblingsFetched) ||
@@ -886,10 +991,13 @@ export function ItemDetail() {
     isSaleSectionLoading({
       isMarket,
       forSale,
-      priceKnown: current.priceCredits > 0 || manage,
+      priceKnown: (current.priceCredits > 0 && (!listedManaWei || liveLegacyCredits != null)) || manage,
+      // A legacy row whose live price has not landed yet is STILL RESOLVING, not settled: without this the
+      // "everything has settled" branch below concludes the section and paints the server's snapshot for a
+      // moment — the 5 that this whole fix is about, flashed before the 17.
+      stillResolving: stillResolving || (!!listedManaWei && liveLegacyCredits == null),
       manage,
       soldOutWithResale,
-      stillResolving,
       resolvingTrade,
       isTokenRoute,
       ownedAssetLoading,
@@ -975,6 +1083,14 @@ export function ItemDetail() {
               <Icon name={faved ? 'heart-solid' : 'heart'} size={18} />
             </S.Fav>
           ) : null}
+          {/* Over the preview, where the marketplace puts it: the clip is about this render, not about the
+              purchase, so it belongs to the viewer rather than to the info column. */}
+          {showcaseVideo ? (
+            <S.PlayShowcase data-play-showcase onClick={() => setShowVideo(true)} data-testid="play-showcase">
+              <Icon name="play" size={18} />
+              {t('itemDetail.playShowcase')}
+            </S.PlayShowcase>
+          ) : null}
         </S.Preview>
 
         <S.Info data-testid="item-info">
@@ -1055,6 +1171,21 @@ export function ItemDetail() {
                     <Icon name="props" size={18} />
                     {t('itemDetail.emoteProps')}
                   </S.DetailChip>
+                ) : null}
+                {/* Blocked VRM export, with the marketplace's own wording in the tooltip. Warning-coloured,
+                    unlike the neutral chips around it: this one is a restriction, not a feature. */}
+                {vrmBlocked ? (
+                  <Tooltip content={t('itemDetail.exportBlockedTooltip')}>
+                    <S.DetailChip
+                      data-variant="blocked"
+                      data-testid="detail-export-blocked"
+                      tabIndex={0}
+                      aria-label={t('itemDetail.exportBlockedTooltip')}
+                    >
+                      <Icon name="ban" size={16} />
+                      {t('itemDetail.exportBlocked')}
+                    </S.DetailChip>
+                  </Tooltip>
                 ) : null}
                 {utility ? (
                   <S.DetailChip data-testid="detail-utility-chip">
@@ -1293,22 +1424,68 @@ export function ItemDetail() {
                     ) : manage ? (
                       <S.ManageActions data-testid="manage-actions">
                         <ErrorNotice message={manageError} />
+                        {/* The relay could not confirm it. Deliberately NOT an error: the transaction may
+                            still land, so the seller gets the two honest options instead of a "try again"
+                            that has them re-signing something already in flight. */}
+                        {gaslessCancelFailed && !canPayGas ? (
+                          <S.GaslessNotice data-testid="cancel-gasless-failed">
+                            <p>{t('itemDetail.cancelRelayRetry')}</p>
+                          </S.GaslessNotice>
+                        ) : null}
+                        {gaslessCancelFailed && canPayGas ? (
+                          <S.GaslessNotice data-testid="cancel-gasless-failed">
+                            <p>
+                              {gaslessCancelFailed === 'reverted'
+                                ? t('itemDetail.cancelRelayReverted')
+                                : t('itemDetail.cancelRelayFailed')}
+                            </p>
+                            <S.GaslessActions>
+                              <S.LinkCta
+                                type="button"
+                                data-testid="cancel-pay-gas"
+                                onClick={() => void takeDown({ payGas: true })}
+                                disabled={managing !== null}
+                              >
+                                {t('itemDetail.cancelPayGas')}
+                              </S.LinkCta>
+                              <S.LinkCta
+                                type="button"
+                                data-testid="cancel-later"
+                                onClick={() => setGaslessCancelFailed(null)}
+                                disabled={managing !== null}
+                              >
+                                {t('itemDetail.cancelLater')}
+                              </S.LinkCta>
+                            </S.GaslessActions>
+                          </S.GaslessNotice>
+                        ) : null}
+                        {/* A relayed cancel on a congested network takes minutes. Say so, instead of a mute
+                            spinner that reads as "nothing is happening". */}
+                        {managing === 'remove' && cancelSlow ? (
+                          <S.GaslessNotice data-testid="cancel-slow">
+                            <p>{t(canPayGas ? 'itemDetail.cancelSlow' : 'itemDetail.cancelSlowManaged')}</p>
+                          </S.GaslessNotice>
+                        ) : null}
                         {manageListed ? (
                           <>
-                            {/* Edit price (Figma 1527-302048): dark-solid CTA with the pen glyph. */}
-                            <S.DarkCta
-                              onClick={() => void updatePrice()}
-                              disabled={managing !== null || !canOpenListModal}
-                            >
-                              {managing !== 'update' ? <Icon name="pen" className="ico" /> : null}
-                              <span>
-                                {managing === 'update'
-                                  ? isManaged
-                                    ? t('itemDetail.updateCanceling')
-                                    : t('itemDetail.updateConfirmCancel')
-                                  : t('itemDetail.manageUpdatePrice')}
-                              </span>
-                            </S.DarkCta>
+                            {/* Edit price (Figma 1527-302048): dark-solid CTA with the pen glyph. Absent when
+                            the viewer may not sell — re-pricing is a cancel plus a NEW listing, so it is an
+                            entrance, not an exit. Remove stays below either way. */}
+                            {canPutOnSale ? (
+                              <S.DarkCta
+                                onClick={() => void updatePrice()}
+                                disabled={managing !== null || !canOpenListModal}
+                              >
+                                {managing !== 'update' ? <Icon name="pen" className="ico" /> : null}
+                                <span>
+                                  {managing === 'update'
+                                    ? isManaged
+                                      ? t('itemDetail.updateCanceling')
+                                      : t('itemDetail.updateConfirmCancel')
+                                    : t('itemDetail.manageUpdatePrice')}
+                                </span>
+                              </S.DarkCta>
+                            ) : null}
                             <S.OutlineCta onClick={() => void takeDown()} disabled={managing !== null}>
                               <span>
                                 {managing === 'remove' ? t('myAssets.removing') : t('itemDetail.manageRemove')}
@@ -1369,13 +1546,19 @@ export function ItemDetail() {
                       </S.ManageActions>
                     ) : forSale ? (
                       <>
-                        <S.DetailCta variant="purple" onClick={handleBuyNow} disabled={resolvingTrade}>
-                          <span>{t('assetCard.buyNow')}</span>
-                          <S.CtaPrice aria-hidden>
-                            <S.CtaDiamond />
-                            {current.priceCredits}
-                          </S.CtaPrice>
-                        </S.DetailCta>
+                        {/* Buy now only where there IS a trade to resolve: BuyModal buys through
+                            resolveLiveTrade and has no collection-store rail, so a store mint would open a
+                            modal that cannot complete. The cart does route that rail, so the mint's path is
+                            Add to cart — which is why this button is conditional and the next one is not. */}
+                        {buyableTradeId ? (
+                          <S.DetailCta variant="purple" onClick={handleBuyNow} disabled={resolvingTrade}>
+                            <span>{t('assetCard.buyNow')}</span>
+                            <S.CtaPrice aria-hidden>
+                              <S.CtaDiamond />
+                              {current.priceCredits}
+                            </S.CtaPrice>
+                          </S.DetailCta>
+                        ) : null}
                         <S.AddCart
                           onClick={handleAddToCart}
                           disabled={resolvingTrade || (isPrimary ? atStockCap : inCart)}
@@ -1456,18 +1639,16 @@ export function ItemDetail() {
         </S.Info>
       </S.Main>
 
-      {/* One rail, two data sources. The related fallback gets no "View all": there is no page that lists
-          "similar items", and a link to the collection would lead somewhere with nothing in it. Either way
-          CollectionCarousel renders nothing when its items are empty, so no bare heading can appear. */}
-      {noSiblings ? (
-        <CollectionCarousel title={relatedTitle} items={relatedItems} />
-      ) : (
-        <CollectionCarousel
-          title={collectionTitle}
-          items={carouselItems}
-          onViewAll={current.contractAddress ? () => navigate(`/collection/${current.contractAddress}`) : undefined}
-        />
-      )}
+      {/* CollectionCarousel renders nothing when its items are empty, so no bare heading can appear. */}
+      <CollectionCarousel
+        title={carouselTitle}
+        items={carouselItems}
+        onViewAll={
+          isCollectionOnly && current.contractAddress
+            ? () => navigate(`/collection/${current.contractAddress}`)
+            : undefined
+        }
+      />
 
       {showBuy && isMarket && marketListing && manaRate ? (
         <MarketCheckout
@@ -1577,6 +1758,9 @@ export function ItemDetail() {
             void refreshManage()
           }}
         />
+      ) : null}
+      {showVideo && showcaseVideo ? (
+        <VideoShowcaseModal src={showcaseVideo} itemName={current.name} onClose={() => setShowVideo(false)} />
       ) : null}
     </S.Detail>
   )

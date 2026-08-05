@@ -4,6 +4,8 @@
   "MARKETPLACE_SERVER_URL": "https://marketplace-api.decentraland.zone",
   "AUTH_URL": "/auth",
   "RPC_URL": "https://rpc.decentraland.org/amoy",
+  "ETHEREUM_CHAIN_ID": "11155111",
+  "ETHEREUM_RPC_URL": "https://rpc.decentraland.org/sepolia",
   "RELAYER_URL": "https://transactions-api.decentraland.zone/v1",
   "CREDITS_SERVER_URL": "https://credits.decentraland.zone",
   "NOTIFICATIONS_SERVER_URL": "https://notifications.decentraland.zone",

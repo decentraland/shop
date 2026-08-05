@@ -13,6 +13,7 @@ import {
   fetchCreatorCollections,
   fetchCollectionItems,
   fetchPublishableItems,
+  fetchItemVideoUrl,
   isPublishable,
   type CreatorCollection,
   type PublishableItem
@@ -525,5 +526,48 @@ describe("when fetching every publishable item across a creator's collections", 
     expect(items).toEqual([])
     // Only the collections call fired; no per-collection item fetches.
     expect(signedFetchMock).toHaveBeenCalledTimes(1)
+  })
+})
+
+/**
+ * The showcase clip. It is an ordinary content entry whose FILE NAME is the only thing marking it, and the
+ * page treats "no clip" and "lookup failed" identically — so what these pin is that neither ever throws.
+ */
+describe('when looking up the showcase video of an item', () => {
+  it('should resolve the video content to a storage URL', async () => {
+    const fetchMock = vi.mocked(fetch)
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: { 'thumbnail.png': 'hash-thumb', 'video.mp4': 'hash-video' } })
+    } as Response)
+
+    expect(await fetchItemVideoUrl('0xc', '3')).toBe('https://builder.test/v1/storage/contents/hash-video')
+    expect(fetchMock.mock.calls[0][0]).toBe('https://builder.test/v1/items/0xc/3/contents')
+  })
+
+  it('should find the clip when it sits inside a body-shape folder', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: { 'male/game.glb': 'hash-glb', 'male/video.mp4': 'hash-video' } })
+    } as Response)
+
+    expect(await fetchItemVideoUrl('0xc', '3')).toBe('https://builder.test/v1/storage/contents/hash-video')
+  })
+
+  it('should be null when the creator uploaded no clip', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: { 'thumbnail.png': 'hash-thumb', 'male/hat.glb': 'hash-glb' } })
+    } as Response)
+
+    expect(await fetchItemVideoUrl('0xc', '3')).toBeNull()
+  })
+
+  it('should be null — never a throw — when the builder is unreachable', async () => {
+    vi.mocked(fetch).mockRejectedValue(new Error('offline'))
+    expect(await fetchItemVideoUrl('0xc', '3')).toBeNull()
+
+    vi.mocked(fetch).mockResolvedValue({ ok: false, status: 500, json: async () => ({}) } as Response)
+    expect(await fetchItemVideoUrl('0xc', '3')).toBeNull()
   })
 })

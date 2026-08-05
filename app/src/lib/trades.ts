@@ -4,7 +4,6 @@ import { ContractName, getContract } from 'decentraland-transactions'
 import {
   AuthorizationKind,
   ensureAuthorization,
-  ensureChain,
   getAuthorizationStatus,
   getCollectionSellingAuthorization,
   readProvider,
@@ -12,10 +11,6 @@ import {
 } from '~/lib/authorizations'
 import { config } from '~/config'
 import { getIsProceedsToTreasuryEnabled, getIsSecondarySalesEnabled } from '~/lib/featureFlags'
-
-// The on-chain approval plumbing now lives in ~/lib/authorizations (the first-class module). Re-export
-// ensureChain so existing importers (e.g. ~/lib/buy) keep working without churn.
-export { ensureChain }
 
 const toSeconds = (ms: number) => Math.floor(ms / 1000)
 

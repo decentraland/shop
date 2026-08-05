@@ -448,3 +448,20 @@ export const CartBadge = styled.span`
   place-items: center;
   padding: 0 5px;
 `
+
+// The cluster the shop hands to ui2's Navbar as its `notificationSlot` — the only place a consumer can
+// render into that row. It carries the network selector as well as the bell, so it needs to lay two items
+// out rather than pass one through: ui2 wraps the slot in a plain block div, which would leave them
+// touching.
+//
+// `flex`, NOT `inline-flex`. An inline-level box hands its vertical position to baseline arithmetic
+// instead of the flex row, which drifts with the font metrics at each zoom level — the bell has been
+// knocked off the row's centre line that exact way before (see the alignment sweep in
+// e2e/notifications.e2e.ts). Block-level, this box is the slot div's only child, centres its own children,
+// and is itself centred by the navbar row, so the bell's glyph stays on the shared centre line whether or
+// not the selector is rendered.
+export const NavSlot = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+`

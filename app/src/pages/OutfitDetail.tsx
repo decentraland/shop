@@ -8,6 +8,7 @@ import { ErrorNotice } from '~/components/ErrorNotice'
 import { EmoteControls } from '~/components/LazyEmoteControls'
 import { OutfitPreview } from '~/components/OutfitPreview'
 import { useProfile } from '~/hooks/useProfile'
+import { useTryOnAvatar } from '~/hooks/useTryOnAvatar'
 import { Icon } from '~/components/Icon'
 import { useOutfitCreatorAccess, useOutfitCart, useOutfitItems } from '~/hooks/useOutfits'
 import { useSeo } from '~/hooks/useSeo'
@@ -27,7 +28,7 @@ import {
   type Outfit,
   type OutfitItemState
 } from '~/lib/outfits'
-import { outfitPreviewUrns, playingEmote } from '~/lib/outfit'
+import { outfitPreviewUrns, playingEmote, slotOf } from '~/lib/outfit'
 import { t } from '~/intl/i18n'
 import { useCart } from '~/store/cart'
 import { useWallet } from '~/store/wallet'
@@ -60,7 +61,16 @@ export function OutfitDetail() {
   // creator refreshing a draft link would flash the 404 before the signed refetch. Hold the verdict
   // (the skeleton below covers it) rather than delay the fetch, which is public and hot.
   const notFound = !isOutfitsAvailable() || !id || (outfit === null && access !== 'pending')
-  useSeo(notFound ? { title: t('seo.outfit.notFoundTitle'), noindex: true } : outfit ? { title: outfit.name } : {})
+  // Per-page SEO. An outfit that has a stored thumbnail shares THAT image rather than the generic shop
+  // card; a draft (no hash) falls back to the default. thumbnailUrl() returns null for an unusable hash,
+  // and the hook treats undefined as "use the default", so the ?? bridges the two.
+  useSeo(
+    notFound
+      ? { title: t('seo.outfit.notFoundTitle'), noindex: true }
+      : outfit
+        ? { title: outfit.name, image: thumbnailUrl(outfit.thumbnailHash) ?? undefined }
+        : {}
+  )
 
   if (notFound) {
     return (
@@ -182,7 +192,6 @@ function OutfitContent({ outfit }: { outfit: Outfit }) {
   const { data: avatar, isFetched: profileFetched } = useProfile(address)
   const profileResolved = !address || profileFetched
   const hasAvatar = !!address && !!avatar
-  const profile = hasAvatar ? address : 'default'
   const mannequinShape: BodyShapeUrn | undefined =
     outfit.bodyShape === 'female' ? BASE_FEMALE : outfit.bodyShape === 'male' ? BASE_MALE : undefined
 
@@ -191,6 +200,10 @@ function OutfitContent({ outfit }: { outfit: Outfit }) {
   // The preview plays the outfit's own emote, so it gets the same play/pause/mute controls an emote
   // item page has.
   const hasEmote = useMemo(() => !!playingEmote(resolvedItems), [resolvedItems])
+  // The same hide problem the fitting room had: worn on the viewer's own avatar, an equipped skin covers the
+  // outfit's body wearables and the preview shows the avatar unchanged. Composed here for the same reason.
+  const tryOnCategories = useMemo(() => resolvedItems.map(item => slotOf(item) ?? '').filter(Boolean), [resolvedItems])
+  const tryOn = useTryOnAvatar({ address, tryOnUrns: urns, tryOnCategories })
 
   const total = outfit.items.length
   const settled = !resolution.isLoading && !resolution.isError
@@ -218,10 +231,13 @@ function OutfitContent({ outfit }: { outfit: Outfit }) {
           ) : (
             <OutfitPreview
               id={PREVIEW_ID}
-              profile={profile}
-              bodyShape={hasAvatar ? undefined : mannequinShape}
-              urns={urns}
-              enabled={profileResolved && !resolution.isLoading}
+              profile={tryOn.profile}
+              bodyShape={tryOn.bodyShape ?? (hasAvatar ? undefined : mannequinShape)}
+              urns={tryOn.urns}
+              skin={tryOn.skin}
+              hair={tryOn.hair}
+              eyes={tryOn.eyes}
+              enabled={profileResolved && !tryOn.isLoading && !resolution.isLoading}
               controls={
                 hasEmote ? (
                   <S.EmoteControls data-testid="outfit-emote-controls">

@@ -30,6 +30,21 @@ export function setManaBalanceWei(wei: string) {
   manaBalanceWei = wei
 }
 
+// MANA on Ethereum L1, tracked separately because it is a DIFFERENT token on a different chain. The
+// navbar reads both chains, so one shared value would report the same MANA twice and show a wallet
+// holding double what it has. Defaults to '0': the shop settles on Polygon, so that is where a test
+// wallet's MANA lives unless a test is specifically about the L1 balance.
+let ethereumManaBalanceWei = '0'
+export function setEthereumManaBalanceWei(wei: string) {
+  ethereumManaBalanceWei = wei
+}
+
+// Which chain a JSON-RPC request was addressed to, from the provider URL's path (`/amoy`, `/sepolia`).
+// The app uses one read provider per chain, so the path is what separates a Polygon read from an L1 one.
+function isEthereumRpc(rpcPath: string): boolean {
+  return /sepolia|mainnet/.test(rpcPath)
+}
+
 // The MANA allowance the mocked ERC20 reports — set per test via launchApp({ manaAllowanceWei }). Max
 // uint256 (the default) means already approved, so the MANA rails go straight to the purchase; '0' makes
 // a self-custody wallet see the approval step first.
@@ -38,7 +53,7 @@ export function setManaAllowanceWei(wei: string | null) {
   manaAllowanceWei = wei
 }
 
-function ethCall(params: any[]): string {
+function ethCall(params: any[], rpcPath = ''): string {
   const data: string = params?.[0]?.data ?? '0x'
   const s = data.slice(0, 10)
   const now = Math.floor(Date.now() / 1000)
@@ -48,7 +63,8 @@ function ethCall(params: any[]): string {
     case SELECTORS.getNonce:
       return abi.encode(['uint256'], [0])
     case SELECTORS.balanceOf:
-      return abi.encode(['uint256'], [manaBalanceWei])
+      // Per chain, so the navbar's two MANA reads are answered independently.
+      return abi.encode(['uint256'], [isEthereumRpc(rpcPath) ? ethereumManaBalanceWei : manaBalanceWei])
     case SELECTORS.allowance:
       // Already approved (max uint256) by default → the MANA rails never need an approve in the happy
       // path, and any screen that READS an approval state sees it as granted. Leaving this unmocked
@@ -69,7 +85,7 @@ function ethCall(params: any[]): string {
   }
 }
 
-function one(req: { id: unknown; method: string; params?: any[] }): unknown {
+function one(req: { id: unknown; method: string; params?: any[] }, rpcPath = ''): unknown {
   const { id, method, params = [] } = req
   const result = (() => {
     switch (method) {
@@ -94,7 +110,16 @@ function one(req: { id: unknown; method: string; params?: any[] }): unknown {
           transactions: []
         }
       case 'eth_call':
-        return ethCall(params)
+        return ethCall(params, rpcPath)
+      /**
+       * An EOA, i.e. no contract code. decentraland-transactions' sendMetaTransaction asks this first
+       * (`isContract(provider, account)`) and then calls `.toLowerCase()` on the answer, so leaving it
+       * unmocked returned null and threw a TypeError — which every gasless path built on that library
+       * (cancel a listing, grant an approval, transfer an item) surfaced as "the relayer failed". That is
+       * why the cancel specs could only ever exercise the direct, gas-paying fallback.
+       */
+      case 'eth_getCode':
+        return '0x'
       case 'eth_getTransactionReceipt':
         return {
           status: '0x1',
@@ -117,9 +142,10 @@ function one(req: { id: unknown; method: string; params?: any[] }): unknown {
   return { jsonrpc: '2.0', id, result }
 }
 
-// Handle a JSON-RPC POST body (single or batch). Returns the response JSON string.
-export function handleRpc(body: string): string {
+// Handle a JSON-RPC POST body (single or batch). Returns the response JSON string. `rpcPath` is the
+// provider URL's path, which is what tells a Polygon read apart from an Ethereum L1 one.
+export function handleRpc(body: string, rpcPath = ''): string {
   const parsed = JSON.parse(body)
-  if (Array.isArray(parsed)) return JSON.stringify(parsed.map(one))
-  return JSON.stringify(one(parsed))
+  if (Array.isArray(parsed)) return JSON.stringify(parsed.map(req => one(req, rpcPath)))
+  return JSON.stringify(one(parsed, rpcPath))
 }

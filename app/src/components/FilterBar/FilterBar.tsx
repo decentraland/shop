@@ -140,9 +140,17 @@ export function FilterBar({
     <>
       {open ? <S.Scrim onClick={panel.close} aria-hidden /> : null}
       <S.Toolbar data-testid="browse-toolbar">
-        <S.Count data-testid="browse-count">
-          {loading ? '…' : t('filterBar.count', { count: total })}
-          {query ? ` ${t('filterBar.forQuery', { query })}` : ''}
+        <S.Count data-testid="browse-count" aria-busy={loading || undefined}>
+          {loading ? (
+            /* Not read aloud: a shimmer is not information, and the count announces itself once it is
+               real. The '…' this replaces was announced as an ellipsis. */
+            <S.CountSkeleton className="skeleton" data-testid="browse-count-skeleton" aria-hidden />
+          ) : (
+            <>
+              {t('filterBar.count', { count: total })}
+              {query ? ` ${t('filterBar.forQuery', { query })}` : ''}
+            </>
+          )}
         </S.Count>
 
         {chips && chips.length ? (

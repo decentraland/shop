@@ -118,6 +118,8 @@ export default defineConfig({
   server: {
     port: 5173,
     // Proxy the auth app so sign-in works on localhost (same-origin → shared identity storage).
+    // Vercel previews need the same thing and get it from the rewrite in vercel.json — keep the two
+    // in step, and note that neither applies to a real deploy, where /auth is genuinely same-origin.
     //
     // The key is a REGEXP, not a plain prefix, and that matters: a plain '/auth' also matches
     // /authorizations, so the Approvals page got proxied to decentraland.zone and a hard load (or a

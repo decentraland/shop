@@ -107,12 +107,12 @@ function fakeTrade(): Trade {
   } as unknown as Trade
 }
 
-// Wallet already on the trade's chain so ensureChain no-ops.
+// Wallet already on the trade's chain, so the direct leg's network check passes.
 const signer = {
   getAddress: async () => BUYER,
   provider: {
     getNetwork: async () => ({ chainId: 80002 }),
-    send: async () => undefined
+    send: async (method: string) => (method === 'eth_chainId' ? '0x13882' : undefined)
   }
 } as unknown as Ethers.providers.JsonRpcSigner
 

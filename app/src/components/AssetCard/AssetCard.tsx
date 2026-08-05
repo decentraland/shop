@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCart } from '~/store/cart'
 import { useFavorite } from '~/store/favorites'
@@ -6,7 +6,7 @@ import { useHoverPreview } from '~/store/hoverPreview'
 import { useWallet } from '~/store/wallet'
 import { isOwnListing } from '~/lib/ownership'
 import { detailRouteFor } from '~/lib/routes'
-import { rarityColor, rarityDescription } from '~/lib/rarity'
+import { rarityColor, rarityDescription, rarityLabel } from '~/lib/rarity'
 import { categoryIcon, genderIcon } from '~/lib/itemIcons'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { Icon } from '~/components/Icon'
@@ -82,6 +82,8 @@ export function AssetCard(props: AssetCardProps) {
   const hidePreview = useHoverPreview(s => s.hide)
   const isPreviewing = useHoverPreview(s => s.item?.id === item.id)
   const previewReady = useHoverPreview(s => (s.item?.id === item.id ? s.ready : false))
+  // Set once the thumbnail fails. There is no second URL to try, so this only stops rendering it.
+  const [thumbBroken, setThumbBroken] = useState(false)
 
   // NAMEs are read-only in the Shop: no whole-card link (the detail page loads a wearable preview,
   // wrong for a NAME), no favourite, no 3D hover preview. Only the standard visual hover (red border).
@@ -186,7 +188,7 @@ export function AssetCard(props: AssetCardProps) {
         style={{ background: rarityColor(item.rarity) }}
         title={rarityDescription(item.rarity)}
       >
-        {item.rarity}
+        {rarityLabel(item.rarity)}
       </S.CardChip>
       {catIco ? (
         <S.CardChip data-variant="icon">
@@ -225,7 +227,7 @@ export function AssetCard(props: AssetCardProps) {
         style={{ background: rarityColor(item.rarity) }}
         title={rarityDescription(item.rarity)}
       >
-        {item.rarity}
+        {rarityLabel(item.rarity)}
       </S.CardChip>
       {item.isSmart ? (
         <S.CardChip data-variant="smart" data-testid="chip-smart">
@@ -318,12 +320,18 @@ export function AssetCard(props: AssetCardProps) {
             <S.NameAt>@</S.NameAt>
             <S.NameValue>{item.name}</S.NameValue>
           </S.NameMedia>
-        ) : item.thumbnail ? (
+        ) : item.thumbnail && !thumbBroken ? (
           <S.Img
             data-hidden={(isPreviewing && previewReady) || undefined}
             src={item.thumbnail}
             alt={item.name}
             loading="lazy"
+            /* An item whose content was never deployed (or was taken down) answers 404 for its thumbnail:
+               the URL is right, there is simply nothing behind it. Without this the card rendered the
+               browser's broken-image box with the alt text spelled out inside it, which reads as a
+               rendering bug rather than as a missing image. Dropping the img leaves the media area's own
+               neutral fill, the same thing an item with no thumbnail at all shows. */
+            onError={() => setThumbBroken(true)}
           />
         ) : null}
       </S.Media>
@@ -482,6 +490,14 @@ export function AssetCard(props: AssetCardProps) {
               <S.Name title={item.name}>
                 <span>{item.name}</span>
               </S.Name>
+              {/* The author line the for-sale card has always shown. Leaving it out of THIS branch is why a
+                  creator page mixed cards with and without "by {creator}": the not-for-sale ones simply had
+                  no line, so the grid looked like the data was missing for some items. */}
+              {item.creator ? (
+                <S.Author address={item.creator} data-testid="card-author" />
+              ) : (
+                <S.CreatorEmpty>&nbsp;</S.CreatorEmpty>
+              )}
             </S.Desc>
             {priceOrNfs(true)}
           </S.Top>

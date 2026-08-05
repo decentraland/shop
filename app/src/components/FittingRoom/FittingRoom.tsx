@@ -5,6 +5,7 @@ import { WearablePreview } from '~/components/LazyWearablePreview'
 import { useCart } from '~/store/cart'
 import { useWallet } from '~/store/wallet'
 import { useProfile } from '~/hooks/useProfile'
+import { useTryOnAvatar } from '~/hooks/useTryOnAvatar'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { track } from '~/lib/analytics'
 import { isWearable, slotOf, slotRegion, defaultWorn, toggleWorn, conflictingIds, wornUrns } from '~/lib/outfit'
@@ -49,7 +50,7 @@ export function FittingRoom() {
   // (mirrors ItemPreview; a real address with no avatar renders empty). Wait for the profile lookup to
   // settle before mounting so the preview loads ONCE with the final profile (no default→address reload).
   const { data: avatar, isFetched: profileFetched } = useProfile(address)
-  const profileResolved = !address || profileFetched
+  const profileFetchedOrNone = !address || profileFetched
   const hasAvatar = !!address && !!avatar
   const profile = hasAvatar ? address : 'default'
 
@@ -78,11 +79,23 @@ export function FittingRoom() {
 
   const conflicts = useMemo(() => conflictingIds(items), [items])
   const urns = useMemo(() => wornUrns(items, worn, target), [items, worn, target])
+  // The categories we are putting ON the avatar, which is what decides whether one of its own wearables has
+  // to come off (a skin hides the whole body, a hat replaces a hat).
+  const tryOnCategories = useMemo(
+    () => items.filter(i => worn.has(i.id) && isWearable(i)).map(i => slotOf(i) ?? ''),
+    [items, worn]
+  )
+  // Dresses the shopper's real avatar, dropping anything of theirs that would hide what they are trying on.
+  // Falls back to the plain `profile` form whenever nothing is in the way — see the hook.
+  const tryOn = useTryOnAvatar({ address, tryOnUrns: urns, tryOnCategories, enabled: open })
+  // Mount the preview once, with its final inputs: the profile AND the hide rules have to have settled, or
+  // the avatar loads twice (plain first, composed a moment later).
+  const profileResolved = profileFetchedOrNone && !tryOn.isLoading
   const total = items.reduce((sum, i) => sum + i.priceCredits * i.quantity, 0)
 
   // The WearablePreview iframe rebuilds its src (and reloads) whenever the equipped urns change, so
   // mask each reload with the loading overlay instead of letting the avatar flash to empty and back.
-  const outfitSig = urns.join(',')
+  const outfitSig = tryOn.urns.join(',')
   useEffect(() => {
     setPreviewReady(false)
   }, [outfitSig, profile])
@@ -139,11 +152,16 @@ export function FittingRoom() {
                   the overlay) instead of remounting it — which was the multi-flash on every change. */}
               <WearablePreview
                 key={profile}
-                profile={profile}
+                profile={tryOn.profile}
                 // No connected avatar → dress a default mannequin of the target shape so gendered items
-                // still render. With a real avatar, its own shape is the target, so no override needed.
-                bodyShape={hasAvatar ? undefined : target}
-                urns={urns}
+                // still render. With a real avatar, its own shape is the target, so no override needed —
+                // unless we are composing the avatar ourselves, where the shape is ours to pass.
+                bodyShape={tryOn.bodyShape ?? (hasAvatar ? undefined : target)}
+                urns={tryOn.urns}
+                // Only set when composing: the avatar's own colours, which come with the profile otherwise.
+                skin={tryOn.skin}
+                hair={tryOn.hair}
+                eyes={tryOn.eyes}
                 // Babylon on purpose (no `unity`): the Unity/aang renderer runs this in `mode=marketplace`,
                 // which previews a SINGLE urn and opens on the item-alone view — it never reads `type`, it
                 // remembers the last view in its own storage, and it draws its own wearable/avatar switch

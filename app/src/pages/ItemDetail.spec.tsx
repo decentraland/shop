@@ -5,12 +5,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { CatalogItem } from '~/lib/api'
 
 /**
- * THE PDP'S CAROUSEL FALLBACK.
+ * THE PDP'S CAROUSEL.
  *
- * A single-item collection used to leave the rail with nothing to draw and a tall blank band below the fold.
- * The fix is a second data source behind the same carousel, and what has to be asserted is the SWAP: which
- * rail renders, under which heading, and that neither one leaves a heading standing on its own. A unit test
- * of the hook cannot see any of that, which is why this mounts the page.
+ * A small collection used to leave the rail with two or three cards (and a single-item one with a tall blank
+ * band) below the fold. It now fills from three data sources behind the same carousel, and what has to be
+ * asserted is what the PAGE makes of that: which heading renders, whether "View all" is still honest, and
+ * that no heading is ever left standing on its own. A unit test of the hook cannot see any of that, which is
+ * why this mounts the page.
  */
 
 // ItemDetail pulls checkout, the builder client and the wallet transitively, and those reach
@@ -31,24 +32,29 @@ vi.mock('decentraland-ui2', () => ({
   CircularProgress: ({ size }: { size?: number }) => <span role="progressbar" data-size={size} />
 }))
 
-const { fetchCollectionItems } = vi.hoisted(() => ({ fetchCollectionItems: vi.fn() }))
+const { fetchCollectionItems, fetchCatalogItems } = vi.hoisted(() => ({
+  fetchCollectionItems: vi.fn(),
+  fetchCatalogItems: vi.fn()
+}))
 vi.mock('~/lib/collections', () => ({
   fetchCollectionItems,
+  fetchCatalogItems,
   fetchCollection: vi
     .fn()
     .mockResolvedValue({ contractAddress: '0xanchor', name: 'Solo Collection', creator: '0xcreator' })
 }))
 
-// The related rail's own fetching/caching is covered by useRelatedItems.spec — here the hook is a dial so a
-// test can say "there are similar items" or "there are none" and assert what the page does with each.
+// The similar-items tier's own fetching/caching is covered by useRelatedItems.spec — here the hook is a dial
+// so a test can say "there are similar items" or "there are none" and assert what the page does with each.
 const { useRelatedItems } = vi.hoisted(() => ({ useRelatedItems: vi.fn() }))
 vi.mock('~/hooks/useRelatedItems', () => ({ useRelatedItems }))
 
 vi.mock('~/lib/api', () => ({
-  fetchShopListingForItem: vi.fn().mockResolvedValue(null),
+  fetchUnifiedListingForItem: vi.fn().mockResolvedValue(null),
   fetchTradeForItem: vi.fn().mockResolvedValue(null),
   fetchItemResales: vi.fn().mockResolvedValue([]),
   fetchItemDescription: vi.fn().mockResolvedValue(''),
+  fetchItemMeta: vi.fn().mockResolvedValue(null),
   fetchOwnedToken: vi.fn().mockResolvedValue(null),
   fetchOwnedItemCount: vi.fn().mockResolvedValue(0),
   fetchTokenById: vi.fn().mockResolvedValue(null),
@@ -56,7 +62,10 @@ vi.mock('~/lib/api', () => ({
   usdWeiToCents: () => 0
 }))
 vi.mock('~/lib/builder', () => ({ fetchPublishableItems: vi.fn().mockResolvedValue([]) }))
-vi.mock('~/lib/buy', () => ({ cancelListing: vi.fn() }))
+vi.mock('~/lib/buy', () => ({
+  cancelListing: vi.fn(),
+  GaslessCancelFailedError: class GaslessCancelFailedError extends Error {}
+}))
 vi.mock('~/lib/analytics', () => ({
   track: vi.fn(),
   itemProps: () => ({}),
@@ -121,6 +130,7 @@ const lastEnabled = () => useRelatedItems.mock.calls.at(-1)?.[2]?.enabled
 beforeEach(() => {
   vi.clearAllMocks()
   useRelatedItems.mockReturnValue({ items: [], isFetched: true })
+  fetchCatalogItems.mockResolvedValue({ items: [], total: 0 })
 })
 
 /**
@@ -144,25 +154,112 @@ describe('ItemDetail — the not-for-sale CTA slot', () => {
   })
 })
 
+/**
+ * THE NOT-FOUND WINDOW.
+ *
+ * A cold deep link is hydrated from the collection read, and that read reports "fetched" one render before
+ * its backfill effect applies the matching sibling. For that render the item has no name and nothing is
+ * flagged as loading — so the page tore itself down and painted "This item isn't available" over an item it
+ * was about to show. The end state was right, which is why every assertion that waits for the item still
+ * passed; what it cost was a full unmount/remount of the page mid-load, and under a loaded CI runner the
+ * remount was slow enough to time those waits out.
+ *
+ * A `queryByTestId` after the fact cannot see a state that lasted one commit, so this watches the DOM as it
+ * is written and asserts the not-found block was never among the frames.
+ */
+describe('ItemDetail — the not-found window', () => {
+  it('should never paint not-found while a sibling is about to hydrate the item', async () => {
+    fetchCollectionItems.mockResolvedValue({ items: [item({ id: 'a', name: 'Anchor Hat', itemId: '1' })], total: 1 })
+
+    let painted = false
+    const observer = new MutationObserver(() => {
+      painted = painted || !!document.querySelector('[data-notfound]')
+    })
+    observer.observe(document.body, { childList: true, subtree: true })
+
+    renderPdp()
+    await screen.findByRole('heading', { name: 'Anchor Hat' })
+    observer.disconnect()
+
+    expect(painted).toBe(false)
+  })
+})
+
+/**
+ * THE RAIL BELOW THE FOLD.
+ *
+ * A typical collection holds two or three items, so titling the rail after the collection and stopping there
+ * left it almost empty. It now fills to a target from three tiers — collection, then the creator's other
+ * items, then similar ones — and only a rail made up ENTIRELY of the collection may still say so and link
+ * into it. The merge itself is covered by lib/suggestions.spec; this pins what the PAGE does with it.
+ */
 describe('ItemDetail — the carousel below the fold', () => {
-  describe('when the collection has other items', () => {
+  const sibling = (n: number) => item({ id: `s${n}`, name: `Sibling ${n}`, itemId: String(n + 1) })
+
+  describe('when the collection fills the rail on its own', () => {
     beforeEach(() => {
       fetchCollectionItems.mockResolvedValue({
         items: [
           item({ id: 'a', name: 'Anchor Hat', itemId: '1' }),
-          item({ id: 'b', name: 'Sibling Hat', itemId: '2' })
+          ...Array.from({ length: 15 }, (_, i) => sibling(i + 1))
         ],
+        total: 16
+      })
+    })
+
+    it('should title the rail after the collection and never ask for padding', async () => {
+      renderPdp()
+
+      expect(await screen.findByText('More from this collection')).toBeInTheDocument()
+      expect(screen.getByText('View all')).toBeInTheDocument()
+      expect(screen.queryByText('You might also like')).not.toBeInTheDocument()
+      // A padding request must not be spent when the collection can fill the rail.
+      expect(fetchCatalogItems).not.toHaveBeenCalled()
+      expect(useRelatedItems.mock.calls.every(call => call[2]?.enabled === false)).toBe(true)
+    })
+  })
+
+  describe('when the collection has only a couple of items', () => {
+    beforeEach(() => {
+      fetchCollectionItems.mockResolvedValue({
+        items: [item({ id: 'a', name: 'Anchor Hat', itemId: '1' }), sibling(1)],
         total: 2
       })
     })
 
-    it('should show the collection rail and never ask for similar items', async () => {
+    it('should append the creator’s other items behind the collection’s', async () => {
+      fetchCatalogItems.mockResolvedValue({
+        items: [item({ id: 'k1', name: 'Creator Hat', contractAddress: '0xother', itemId: '9' })],
+        total: 1
+      })
+
       renderPdp()
 
+      expect(await screen.findByText('Creator Hat')).toBeInTheDocument()
+      expect(screen.getByText('Sibling 1')).toBeInTheDocument()
+      await waitFor(() => expect(fetchCatalogItems).toHaveBeenCalledWith(expect.objectContaining({ isOnSale: true })))
+    })
+
+    it('should drop the collection title and its "View all" once the rail is padded', async () => {
+      fetchCatalogItems.mockResolvedValue({
+        items: [item({ id: 'k1', name: 'Creator Hat', contractAddress: '0xother', itemId: '9' })],
+        total: 1
+      })
+
+      renderPdp()
+
+      expect(await screen.findByText('You might also like')).toBeInTheDocument()
+      expect(screen.queryByText('More from this collection')).not.toBeInTheDocument()
+      // "View all" would lead to a collection holding a fraction of what the rail shows.
+      expect(screen.queryByText('View all')).not.toBeInTheDocument()
+    })
+
+    it('should keep the collection title when the padding tiers had nothing to add', async () => {
+      renderPdp()
+
+      await waitFor(() => expect(lastEnabled()).toBe(true))
       expect(await screen.findByText('More from this collection')).toBeInTheDocument()
-      expect(screen.queryByText('Similar items')).not.toBeInTheDocument()
-      // The rail is the point of the request, so it must not be spent when the collection can fill it.
-      expect(useRelatedItems.mock.calls.every(call => call[2]?.enabled === false)).toBe(true)
+      expect(screen.getByText('View all')).toBeInTheDocument()
     })
   })
 
@@ -171,7 +268,7 @@ describe('ItemDetail — the carousel below the fold', () => {
       fetchCollectionItems.mockResolvedValue({ items: [item({ id: 'a', name: 'Anchor Hat', itemId: '1' })], total: 1 })
     })
 
-    it('should fall back to the similar-items rail once similar items resolve', async () => {
+    it('should fall back to similar items once they resolve', async () => {
       useRelatedItems.mockReturnValue({
         items: [item({ id: 'r1', name: 'Similar Hat', contractAddress: '0xother' })],
         isFetched: true
@@ -179,25 +276,27 @@ describe('ItemDetail — the carousel below the fold', () => {
 
       renderPdp()
 
-      expect(await screen.findByText('Similar items')).toBeInTheDocument()
+      expect(await screen.findByText('You might also like')).toBeInTheDocument()
       expect(screen.getByText('Similar Hat')).toBeInTheDocument()
       expect(screen.queryByText('More from this collection')).not.toBeInTheDocument()
     })
 
-    it('should enable the similar-items request only after the collection has come back empty-handed', async () => {
+    it('should enable the similar-items request only after the earlier tiers have come up short', async () => {
       renderPdp()
 
       // Disabled on the first render — at that point an empty carousel is indistinguishable from a
       // collection that simply hasn't loaded, and firing here would swap rails mid-view.
       expect(lastEnabled()).toBe(false)
       await waitFor(() => expect(lastEnabled()).toBe(true))
+      // …and the creator tier is asked too: a one-item collection has both padding tiers to fall through.
+      await waitFor(() => expect(fetchCatalogItems).toHaveBeenCalled())
     })
 
-    it('should render no rail at all — not a bare heading — when there are no similar items either', async () => {
+    it('should render no rail at all — not a bare heading — when no tier has anything', async () => {
       renderPdp()
 
       await waitFor(() => expect(lastEnabled()).toBe(true))
-      expect(screen.queryByText('Similar items')).not.toBeInTheDocument()
+      expect(screen.queryByText('You might also like')).not.toBeInTheDocument()
       expect(screen.queryByText('More from this collection')).not.toBeInTheDocument()
     })
   })

@@ -26,6 +26,11 @@ export const Hero = styled.section`
   border-radius: ${theme.radius.banner};
   overflow: hidden;
   padding: 82px clamp(16px, 7.06%, 122px) 129px;
+  /* The panel's own purple, under HeroBackdrop's artwork and sampled from it (its edges are #6c17a3, its
+     centre #9b28d3). The artwork is a separate image request, and until it arrived the panel was the page's
+     white: the white heading was invisible on it and the whole hero snapped from white to purple when the
+     file landed. With the base here the image only adds its silhouettes, so there is nothing to snap. */
+  background: radial-gradient(120% 100% at 50% 50%, #9b28d3 0%, #6c17a3 62%);
 
   ${theme.media.maxWidth('lg')} {
     padding: 48px 24px 56px;
@@ -45,6 +50,35 @@ export const HeroBackdrop = styled.div`
   background-size: cover;
   background-position: 50% 96%;
   background-repeat: no-repeat;
+`
+
+/* Holds the pack panel and the redirect overlay together, so the overlay's `inset: 0` measures THIS box
+   rather than the whole hero — the FAQ below must not pull the centred spinner down with it. No z-index or
+   isolation here on purpose: the backdrop's `z-index: -1` and the overlay's `1` both still resolve against
+   the hero's stacking context. */
+export const HeroPanel = styled.div`
+  position: relative;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+`
+
+/* The buyer FAQ, 82px under the packs — the hero's own bottom padding already spaces it from the edge. */
+export const FaqBlock = styled.div`
+  width: 100%;
+  max-width: 1478px;
+  margin-top: 82px;
+
+  &:focus {
+    outline: none;
+  }
+
+  ${theme.media.maxWidth('lg')} {
+    margin-top: 48px;
+  }
+  ${theme.media.maxWidth('mobile')} {
+    margin-top: 32px;
+  }
 `
 
 /* `$hidden` uses visibility, NOT display/unmount, while the Stripe redirect status shows over it: the panel
@@ -68,7 +102,7 @@ export const Head = styled.header`
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
   width: 100%;
   text-align: center;
 `
@@ -80,7 +114,6 @@ export const Title = styled.h1`
   font-weight: 700;
   line-height: 1.167;
   color: ${theme.colors.white};
-  text-transform: capitalize;
 
   ${theme.media.maxWidth('mobile')} {
     font-size: 28px;
@@ -108,10 +141,14 @@ export const Sub = styled.p`
   }
 `
 
-export const Learn = styled.a`
+export const Learn = styled.button`
+  appearance: none;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
   display: inline-flex;
   align-items: center;
-  gap: 2px;
   font-family: ${theme.font.sans};
   font-size: 20px;
   font-weight: 500;
@@ -120,10 +157,6 @@ export const Learn = styled.a`
   text-decoration: underline;
   text-underline-offset: 2px;
 
-  .ico {
-    width: 26px;
-    height: 26px;
-  }
   &:hover {
     opacity: 0.85;
   }
@@ -463,15 +496,37 @@ const Shimmer = styled.span`
   }
 `
 
+/*
+ * The three bars below stand in for PackAmountRow, PackUnit and PackArt, and each one is the size of what
+ * REPLACES it — otherwise the grid resizes when the catalogue lands. Measured before this: the skeleton card
+ * was 446px tall against the real card's 402px, and its art bar 236px wide against the real 165px, so the
+ * whole row visibly collapsed and the artwork jumped inward. Heights track the line boxes of the real type
+ * (30px amount, 15px unit), which is why they are stated in px here and shrunk on mobile like the type is.
+ */
 export const SkAmount = styled(Shimmer)`
   width: 60%;
   height: 30px;
   border-radius: ${theme.radius.chip};
+
+  ${theme.media.maxWidth('mobile')} {
+    height: 24px;
+  }
 `
 
+// PackUnit ("CREDITS"). Without it the heading was 27px short and everything under it started too high.
+export const SkUnit = styled(Shimmer)`
+  width: 36%;
+  height: 15px;
+  border-radius: ${theme.radius.chip};
+
+  ${theme.media.maxWidth('mobile')} {
+    height: 12px;
+  }
+`
+
+// Same 70%-of-the-card share PackArt uses, so the artwork lands exactly where its placeholder was.
 export const SkArt = styled(Shimmer)`
-  width: 253.5px;
-  max-width: 100%;
+  width: 70%;
   aspect-ratio: 1;
   border-radius: 16px;
 `
@@ -619,6 +674,11 @@ export const ProgressCount = styled.span`
 `
 
 export const Success = styled.div`
+  /* Its own stacking context, so the confetti layer (z-index: -1) lands BEHIND this content instead of
+     escaping past it and hiding behind the page background. z-index is inert without a position, so both
+     are required — same arrangement Success.styles' Root uses for the item-purchase burst. */
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   gap: 12px;

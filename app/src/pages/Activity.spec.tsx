@@ -46,10 +46,12 @@ vi.mock('~/lib/credits', () => ({
 const fetchTradeDisplay = vi.fn()
 const fetchAssetDisplay = vi.fn()
 const fetchUserSales = vi.fn()
+const fetchUnified = vi.fn()
 vi.mock('~/lib/api', () => ({
   fetchTradeDisplay: (...args: unknown[]) => fetchTradeDisplay(...args),
   fetchAssetDisplay: (...args: unknown[]) => fetchAssetDisplay(...args),
-  fetchUserSales: (...args: unknown[]) => fetchUserSales(...args)
+  fetchUserSales: (...args: unknown[]) => fetchUserSales(...args),
+  fetchUnified: (...args: unknown[]) => fetchUnified(...args)
 }))
 
 // 1 MANA = $0.50 → 10 MANA = 50 credits.
@@ -338,7 +340,14 @@ describe('when purchases and a sale are interleaved', () => {
 })
 
 describe('the migration chip', () => {
-  it('should not render at all when the seller has no classic listings', async () => {
+  // A default per test, because clearAllMocks resets calls but keeps implementations: without this, the
+  // never-resolving promise one test installs to hold a count open leaks into the next one.
+  beforeEach(() => {
+    fetchUnified.mockReset().mockResolvedValue({ items: [], total: 0 })
+    fetchImportable.mockReset()
+  })
+
+  it('should not render at all when the seller has no listings of any kind', async () => {
     renderPage()
     await screen.findByText('No activity yet')
 
@@ -354,6 +363,17 @@ describe('the migration chip', () => {
 
     expect(screen.queryByTestId('activity-filter-migrate')).not.toBeInTheDocument()
     expect(screen.queryByTestId('activity-migrate-count')).not.toBeInTheDocument()
+  })
+
+  // Both answers, not either: with one still in flight the chip would otherwise pop in the moment the
+  // second landed, which is the flash the whole "undefined until known" dance exists to prevent.
+  it('should render nothing while EITHER count is still in flight', async () => {
+    fetchImportable.mockResolvedValue({ creations: [importable()], owned: [] })
+    fetchUnified.mockReturnValue(new Promise(() => {}))
+    renderPage()
+    await screen.findByText('No activity yet')
+
+    expect(screen.queryByTestId('activity-filter-migrate')).not.toBeInTheDocument()
   })
 
   it('should render at the end of the chip row, badged with how many are left', async () => {
@@ -378,6 +398,29 @@ describe('the migration chip', () => {
     expect(fetchImportable).toHaveBeenCalledTimes(1)
   })
 
+  // The point of the change: the section is about HAVING listings, so a seller who already moved every
+  // one of them can still open it — and reach the "all set" state written for exactly them. Gated on the
+  // migratable count alone, that state was unreachable.
+  it('should render for a seller whose listings are all migrated already', async () => {
+    fetchImportable.mockResolvedValue({ creations: [], owned: [] })
+    fetchUnified.mockResolvedValue({ items: [], total: 4 })
+    renderPage()
+
+    const chip = await screen.findByTestId('activity-filter-migrate')
+    expect(chip).toHaveTextContent('Listings')
+    // No badge: nothing is outstanding, and a "0" would read as work to do.
+    expect(screen.queryByTestId('activity-migrate-count')).not.toBeInTheDocument()
+  })
+
+  it('should keep the badge counting only what is left to move, not every listing', async () => {
+    fetchImportable.mockResolvedValue({ creations: [importable()], owned: [] })
+    fetchUnified.mockResolvedValue({ items: [], total: 9 })
+    renderPage()
+
+    await screen.findByTestId('activity-filter-migrate')
+    expect(screen.getByTestId('activity-migrate-count')).toHaveTextContent('1')
+  })
+
   it('should swap the feed for the migration tool when clicked', async () => {
     fetchImportable.mockResolvedValue({ creations: [importable()], owned: [] })
     renderPage()
@@ -400,6 +443,9 @@ describe('the migration chip', () => {
   })
 
   it('should keep the chip while its own panel is open even with nothing left to move', async () => {
+    // Both counts have to ANSWER — zero, but answered. The chip waits for them even in its own view, so
+    // an unanswered count is not "nothing left to move", it is "not yet".
+    fetchImportable.mockResolvedValue({ creations: [], owned: [] })
     renderPage('/activity?view=migrate')
 
     const chip = await screen.findByTestId('activity-filter-migrate')

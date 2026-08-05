@@ -515,8 +515,34 @@ export async function fetchUnifiedListingForItem(
   itemId: string
 ): Promise<UnifiedListing | null> {
   const { items } = await fetchUnified({ contractAddress, itemId, first: 5 })
-  // A secondary row is the one scoped to a single token; a mint has no tokenId.
-  return items.find(i => !i.tokenId) ?? items[0] ?? null
+  return pickItemListing(items)
+}
+
+/**
+ * Which of an item's listings this page is about, when it has more than one.
+ *
+ * An item really can carry two open PRIMARY listings at different prices: a creator who re-lists in USD
+ * without taking the old MANA order down leaves both live. Seen on production — one item with a 6-credit
+ * USD-pegged listing and a 5-MANA legacy one open at the same time, the second of which prices at 4.
+ *
+ * The order is explicit rather than "whatever the feed returned first", because the feed does not promise
+ * one and the grid does not depend on it: `groupBy=item` collapses server-side and picks the USD-pegged row,
+ * so this page has to reach the same answer or the two disagree again on the same item.
+ *
+ *  1. The MINT over a resale — while the creator is still selling, the page is about THEIR listing; a resale
+ *     answering here prices it off someone else's. A secondary row is the one scoped to a single token.
+ *  2. Then USD-PEGGED over legacy — the creator's current intent, and its price is exact rather than
+ *     oracle-derived, so it is also the number the grid collapses to.
+ */
+export function pickItemListing(items: UnifiedListing[]): UnifiedListing | null {
+  // Lower sorts first. Written as two named tiers rather than packed arithmetic so a third one can be added
+  // without decoding the encoding: the resale penalty has to outweigh the legacy penalty, hence 2 vs 1.
+  const rank = (l: UnifiedListing) => {
+    const isResale = l.tokenId ? 2 : 0
+    const isLegacy = l.source === 'native' ? 0 : 1
+    return isResale + isLegacy
+  }
+  return [...items].sort((a, b) => rank(a) - rank(b))[0] ?? null
 }
 
 // Credit-buyable listings for the browse grid (primary + secondary, USD-pegged). All filtering
@@ -1146,7 +1172,14 @@ export async function resolveLiveTrade(item: {
  *    on every path into it (a direct URL starts from a stub), so reading it here makes the badge
  *    independent of how the visitor arrived.
  */
-export type ItemMeta = { name?: string; thumbnail?: string; isSmart: boolean; utility: string | null }
+export type ItemMeta = {
+  name?: string
+  thumbnail?: string
+  isSmart: boolean
+  utility: string | null
+  /** The canonical asset urn, straight from the server — no need to rebuild one from contract + itemId. */
+  urn: string | null
+}
 
 export async function fetchItemMeta(contractAddress: string, itemId: string): Promise<ItemMeta | null> {
   const qs = new URLSearchParams({ contractAddress, itemId, first: '1' })
@@ -1157,6 +1190,7 @@ export async function fetchItemMeta(contractAddress: string, itemId: string): Pr
       name?: string
       thumbnail?: string
       utility?: string | null
+      urn?: string
       data?: { wearable?: { isSmart?: boolean } }
     }>
   }
@@ -1167,7 +1201,8 @@ export async function fetchItemMeta(contractAddress: string, itemId: string): Pr
     thumbnail: row.thumbnail,
     isSmart: !!row.data?.wearable?.isSmart,
     // Blank-but-present is the same as absent for rendering; normalise here so no caller has to trim.
-    utility: row.utility?.trim() || null
+    utility: row.utility?.trim() || null,
+    urn: row.urn ?? null
   }
 }
 

@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useMemo, useEffect, useState } from 'react'
+import { useUrlFilters } from '~/hooks/useUrlFilters'
 import { resolveGridView } from './Creator.view'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
@@ -15,13 +16,18 @@ import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
 import { useSeo } from '~/hooks/useSeo'
 import { useProfile } from '~/hooks/useProfile'
 import { SUBCAT_MAP } from '~/lib/categories'
-import { capitalizeFirst } from '~/lib/text'
+import { rarityLabel } from '~/lib/rarity'
 import { shortAddress } from '~/lib/address'
+import { displayCredits } from '~/lib/mana-convert'
+import { useManaRate } from '~/hooks/useManaRate'
 import { t } from '~/intl/i18n'
 import { ErrorNotice } from '~/components/ErrorNotice'
 import * as CP from '~/styles/collectionPage.styles'
 import * as A from './Assets.styles'
 import { Grid } from '~/styles/grid.styles'
+
+// The URL is user-editable, so a status read out of it is validated against this.
+const STATUSES: FilterStatus[] = ['all', 'on_sale', 'not_for_sale']
 
 const PAGE_SIZE = 48
 
@@ -42,18 +48,43 @@ export function Creator() {
 
   // Per-page SEO — the creator's display name (or shortened address until the profile loads) as the
   // title, with a creator-scoped description. Indexable.
-  useSeo({ title: name, description: t('seo.creator.description', { name }) })
+  //
+  // The share image is the creator's own face snapshot (the same one the hero renders), which the profile
+  // service serves as a 256x256 square — the shape the hook's square-thumb card is built for. Absent for
+  // an address with no profile, in which case the default shop card applies. The store COVER is
+  // deliberately not used: it is a user upload of unknown aspect ratio, so it could not be described
+  // honestly on either card type.
+  useSeo({
+    title: name,
+    description: t('seo.creator.description', { name }),
+    image: profile?.avatar?.snapshots?.face256
+  })
 
-  // 'all' (Shop All), not 'wearable': a creator who only makes emotes must not open on an empty grid.
-  const [category, setCategory] = useState('all')
-  const [subCategory, setSubCategory] = useState<string | null>(null)
-  const [rarities, setRarities] = useState<string[]>([])
-  const [priceMin, setPriceMin] = useState('')
-  const [priceMax, setPriceMax] = useState('')
-  // Unlike browse (which opens on 'on_sale'), a storefront opens on everything the creator has made.
-  const [status, setStatus] = useState<FilterStatus>('all')
-  const [smart, setSmart] = useState(false)
-  const [sort, setSort] = useState('newest')
+  // In the URL, so a refresh or a shared link keeps the filters. This page had NONE of them persisted —
+  // every one was local state, so a reload dropped the whole set.
+  //
+  // 'all' (Shop All), not 'wearable': a creator who only makes emotes must not open on an empty grid. And
+  // unlike browse (which opens on 'on_sale'), a storefront opens on everything the creator has made.
+  const filterDefaults = useMemo(
+    () => ({
+      category: 'all',
+      status: 'all',
+      subCategory: null as string | null,
+      rarities: [] as string[],
+      priceMin: '',
+      priceMax: '',
+      smart: false,
+      sort: 'newest'
+    }),
+    []
+  )
+  const [filterState, setFilters] = useUrlFilters(filterDefaults)
+  const { category, subCategory, rarities, priceMin, priceMax, smart, sort } = filterState
+  // Validated on read — the URL is user-editable and an unknown status must not reach the query.
+  const status: FilterStatus = STATUSES.includes(filterState.status as FilterStatus)
+    ? (filterState.status as FilterStatus)
+    : 'all'
+  const setStatus = (next: FilterStatus) => setFilters({ status: next })
   const [filtersOpen, setFiltersOpen] = useState(false) // mobile filters drawer
 
   // Close the mobile filters drawer on Escape and lock body scroll while it's open (mirrors Assets).
@@ -123,10 +154,11 @@ export function Creator() {
     { enabled: !!address && collectionsMode }
   )
 
+  // ONE write. Calling clearCollections() after setFilters() read the pre-patch snapshot and navigated
+  // over the category that had just been set — so picking a category while in collections mode reverted to
+  // the default. Dropping the flag in the same write is what makes the two atomic.
   function pickCategory(key: string) {
-    setCategory(key)
-    setSubCategory(null)
-    if (collectionsMode) clearCollections()
+    setFilters({ category: key, subCategory: null }, { drop: collectionsMode ? ['collections'] : undefined })
   }
   // "Collections" is a URL-driven mode (adds a valueless `&collections`), mutually exclusive with the
   // category filter. Toggle it on/off while preserving any other query params. Built by hand (not via
@@ -148,16 +180,10 @@ export function Creator() {
     navigate({ search: s ? `?${s}&collections` : '?collections' }, { replace: true })
   }
   function toggleRarity(r: string) {
-    setRarities(rs => (rs.includes(r) ? rs.filter(x => x !== r) : [...rs, r]))
+    setFilters({ rarities: rarities.includes(r) ? rarities.filter(x => x !== r) : [...rarities, r] })
   }
   function clearFilters() {
-    setCategory('all')
-    setSubCategory(null)
-    setRarities([])
-    setPriceMin('')
-    setPriceMax('')
-    setStatus('all')
-    setSmart(false)
+    setFilters(filterDefaults)
   }
 
   // Applied-filter chips above the grid; each removes just its own filter (same treatment as browse).
@@ -173,14 +199,12 @@ export function Creator() {
       key: 'price',
       label: t('filter.price'),
       onRemove: () => {
-        setPriceMin('')
-        setPriceMax('')
+        setFilters({ priceMin: '', priceMax: '' })
       }
     })
   for (const r of RARITIES)
-    if (rarities.includes(r))
-      chips.push({ key: `rarity-${r}`, label: capitalizeFirst(r), onRemove: () => toggleRarity(r) })
-  if (smart) chips.push({ key: 'smart', label: t('filter.smart'), onRemove: () => setSmart(false) })
+    if (rarities.includes(r)) chips.push({ key: `rarity-${r}`, label: rarityLabel(r), onRemove: () => toggleRarity(r) })
+  if (smart) chips.push({ key: 'smart', label: t('filter.smart'), onRemove: () => setFilters({ smart: false }) })
   if (status !== 'all')
     chips.push({
       key: 'status',
@@ -198,7 +222,25 @@ export function Creator() {
     baselineCount: baseline.data
   })
   const showGridSkeletons = view === 'skeletons'
-  const buyable = items.filter(i => i.priceCredits > 0)
+
+  /**
+   * Price every row through the app's ONE display rule before it reaches a card.
+   *
+   * These rows come from /v3/catalog/items, whose `priceCredits` is converted with the SERVER's MANA rate —
+   * not the rate checkout charges. Measured on production: a 20-MANA store mint arrived as 4 credits while
+   * the live rate makes it 14, which is what the browse grid (and now the item page) shows. Reading the
+   * server number here is what made this page disagree with both.
+   */
+  const { data: manaRate } = useManaRate()
+  const priced = useMemo(
+    () => items.map(item => ({ ...item, priceCredits: displayCredits(item, manaRate) })),
+    [items, manaRate]
+  )
+  // "For sale" stays exactly what it was for this feed — a price the server reports — with one addition: a
+  // MANA row whose live rate has not resolved yet is still for sale, it just has no number to show. Without
+  // that, every store-mint card would flash as NOT FOR SALE for the first frames.
+  const isForSale = (item: (typeof priced)[number]) => item.priceCredits > 0 || !!item.manaWei
+  const buyable = priced.filter(isForSale)
 
   // Which of the three empty states applies, if any. They are genuinely different facts and each got
   // reported as "this creator has no items": a failed request, a filter set that excludes everything,
@@ -234,17 +276,17 @@ export function Creator() {
               category={category}
               subCategory={subCategory}
               onCategory={pickCategory}
-              onSub={setSubCategory}
+              onSub={v => setFilters({ subCategory: v })}
               priceMin={priceMin}
               priceMax={priceMax}
-              onPriceMin={setPriceMin}
-              onPriceMax={setPriceMax}
+              onPriceMin={v => setFilters({ priceMin: v })}
+              onPriceMax={v => setFilters({ priceMax: v })}
               rarities={rarities}
               onToggleRarity={toggleRarity}
               status={status}
               onStatus={setStatus}
               smart={smart}
-              onSmart={setSmart}
+              onSmart={v => setFilters({ smart: v })}
               hideNames
               collections={collectionsMode}
               onCollections={toggleCollections}
@@ -297,7 +339,7 @@ export function Creator() {
             <>
               <FilterBar
                 sort={sort}
-                onSort={setSort}
+                onSort={v => setFilters({ sort: v })}
                 total={total}
                 loading={showGridSkeletons}
                 onOpenFilters={() => setFiltersOpen(true)}
@@ -312,10 +354,10 @@ export function Creator() {
                   <SkeletonCards count={15} />
                 ) : (
                   <>
-                    {items.map(item =>
+                    {priced.map(item =>
                       // A creation that isn't for sale has no price and nothing to add to a cart, so it
                       // renders as a VIEW card (same treatment browse gives its not-for-sale grids).
-                      item.priceCredits > 0 ? (
+                      isForSale(item) ? (
                         <AssetCard key={item.id} item={item} />
                       ) : (
                         <AssetCard key={item.id} item={item} mode="view" />

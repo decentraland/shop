@@ -15,7 +15,7 @@ const h = vi.hoisted(() => {
     metaTxCalls: [] as unknown[][], // gasless relayer submissions
     // Controllable so a relayed transaction can be driven to confirmed / reverted / never-confirmed.
     waitForTransaction: vi.fn(async () => ({ status: 1 })),
-    ensureChainCalls: [] as Array<{ provider: unknown; chainId: number }>,
+    requireChainCalls: [] as Array<{ provider: unknown; chainId: number }>,
     gaslessConfig: { enabled: false, relayerUrl: 'http://relayer.test' },
     MetaTransactionError,
     ErrorCode: { USER_DENIED: 'USER_DENIED' }
@@ -47,9 +47,12 @@ vi.mock('~/lib/authorizations', () => ({
 }))
 
 // transferItem switches the wallet to the collection's chain before the DIRECT transfer tx.
-vi.mock('~/lib/trades', () => ({
-  ensureChain: (provider: unknown, chainId: number) => {
-    h.ensureChainCalls.push({ provider, chainId })
+// Keep the real ~/lib/network (errors.ts reads its predicates) and spy only on the chain CHECK. Recording
+// the calls is how the tests below assert which legs verify the network and which never touch it.
+vi.mock('~/lib/network', async importOriginal => ({
+  ...(await importOriginal<typeof import('~/lib/network')>()),
+  requireChain: (provider: unknown, chainId: number) => {
+    h.requireChainCalls.push({ provider, chainId })
     return Promise.resolve()
   }
 }))
@@ -109,7 +112,7 @@ const opts = {
 beforeEach(() => {
   h.transferCalls.length = 0
   h.metaTxCalls.length = 0
-  h.ensureChainCalls.length = 0
+  h.requireChainCalls.length = 0
   h.gaslessConfig.enabled = false
   relay.mockReset()
   relay.mockImplementation(() => {
@@ -123,7 +126,7 @@ describe('transferItem — direct (gas-paying) fallback, gasless disabled', () =
     const hash = await transferItem(opts)
 
     expect(hash).toBe('0xtransferhash')
-    expect(h.ensureChainCalls).toEqual([{ provider: { __web3: true }, chainId: 80002 }])
+    expect(h.requireChainCalls).toEqual([{ provider: { __web3: true }, chainId: 80002 }])
     expect(h.transferCalls).toHaveLength(1)
     const [from, to, tokenId] = h.transferCalls[0] as string[]
     expect(from).toBe('0xowner00000000000000000000000000000000000') // lowercased sender
@@ -145,7 +148,7 @@ describe('transferItem — gasless (relayer) path, gasless enabled', () => {
     expect(h.metaTxCalls).toHaveLength(1)
     // No direct transferFrom tx and no just-in-time chain switch (the relayer handles the chain).
     expect(h.transferCalls).toHaveLength(0)
-    expect(h.ensureChainCalls).toHaveLength(0)
+    expect(h.requireChainCalls).toHaveLength(0)
   })
 
   it('propagates a user rejection instead of silently falling back to a gas-paying tx', async () => {
@@ -162,7 +165,7 @@ describe('transferItem — gasless (relayer) path, gasless enabled', () => {
 
     expect(hash).toBe('0xtransferhash')
     expect(h.transferCalls).toHaveLength(1)
-    expect(h.ensureChainCalls).toEqual([{ provider: { __web3: true }, chainId: 80002 }])
+    expect(h.requireChainCalls).toEqual([{ provider: { __web3: true }, chainId: 80002 }])
   })
 })
 

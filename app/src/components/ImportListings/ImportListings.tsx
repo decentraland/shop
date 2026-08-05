@@ -9,6 +9,7 @@ import { CURRENCY, creditsToUsd } from '~/lib/currency'
 import { CreditRate } from '~/components/CreditRate'
 import { CreditMarkIcon } from '~/components/Icons/CreditMarkIcon'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
+import { Faq, type FaqEntry } from '~/components/Faq'
 import { Icon } from '~/components/Icon'
 import { categoryIcon } from '~/lib/itemIcons'
 import { rarityInk, rarityTint } from '~/lib/rarity'
@@ -17,7 +18,22 @@ import { capitalizeFirst } from '~/lib/text'
 import { useImportable } from '~/hooks/useImportable'
 import * as F from '~/styles/field.styles'
 import { t } from '~/intl/i18n'
+import { rarityLabel } from '~/lib/rarity'
+import { MY_CREATIONS } from '~/lib/routes'
+import doneRing from '~/assets/done-ring.svg'
 import * as S from './ImportListings.styles'
+
+// Keys, not copy — the strings live in the locale files. MANA is named here on purpose:
+// this is the creator-facing migration tool, whose surrounding copy already prices in MANA, and the
+// web2-first ban in CONVENTIONS.md is about the shopper-facing Shop. The buyers' FAQ never mentions it.
+const SELLER_FAQ: readonly FaqEntry[] = [
+  { question: 'faq.sellers.whatAreQ', answer: 'faq.sellers.whatAreA' },
+  { question: 'faq.sellers.whyCreditsQ', answer: 'faq.sellers.whyCreditsA' },
+  { question: 'faq.sellers.receiveCreditsQ', answer: 'faq.sellers.receiveCreditsA' },
+  { question: 'faq.sellers.changePriceQ', answer: 'faq.sellers.changePriceA' },
+  { question: 'faq.sellers.mustSwitchQ', answer: 'faq.sellers.mustSwitchA' },
+  { question: 'faq.sellers.suggestedPriceQ', answer: 'faq.sellers.suggestedPriceA' }
+]
 
 const LEARN_MORE_URL = 'https://docs.decentraland.org'
 
@@ -95,13 +111,21 @@ export function ImportListings() {
 
   if (!isLoading && all.length === 0) {
     return (
-      <S.Empty>
-        <S.EmptyIco aria-hidden>✨</S.EmptyIco>
-        <S.EmptyTitle>{t('importListings.emptyTitle')}</S.EmptyTitle>
-        <p className="muted">{t('importListings.emptyBody')}</p>
-        <S.EmptyCta as={Link} to="/my-items" variant="purple">
-          {t('importListings.goToMyAssets')}
-        </S.EmptyCta>
+      <S.Empty data-testid="import-empty">
+        <S.EmptyCard>
+          <S.EmptyIco aria-hidden>
+            <img src={doneRing} alt="" width={85} height={85} />
+          </S.EmptyIco>
+          <S.EmptyText>
+            <S.EmptyTitle>{t('importListings.emptyTitle')}</S.EmptyTitle>
+            <S.EmptyBody>{t('importListings.emptyBody')}</S.EmptyBody>
+          </S.EmptyText>
+          <S.EmptyActions>
+            <S.EmptyCta as={Link} to={MY_CREATIONS} variant="purple">
+              {t('importListings.goToMyAssets')}
+            </S.EmptyCta>
+          </S.EmptyActions>
+        </S.EmptyCard>
       </S.Empty>
     )
   }
@@ -182,7 +206,7 @@ export function ImportListings() {
                             data-variant="rarity"
                             style={{ background: rarityTint(item.rarity), color: rarityInk(item.rarity) }}
                           >
-                            {item.rarity}
+                            {rarityLabel(item.rarity)}
                           </S.Chip>
                           {catIco ? (
                             <S.Chip data-variant="icon">
@@ -215,6 +239,10 @@ export function ImportListings() {
           </S.List>
         </S.ListBlock>
       </S.Body>
+
+      <S.FaqBlock>
+        <Faq title="faq.title" entries={SELLER_FAQ} />
+      </S.FaqBlock>
 
       <S.Dock>
         <S.DockInner>

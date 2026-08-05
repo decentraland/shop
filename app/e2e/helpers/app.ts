@@ -1,6 +1,6 @@
 import puppeteer, { type Browser, type HTTPRequest, type Page } from 'puppeteer'
 import { buildTestSession, sessionInitScript, type TestSession } from './session'
-import { handleRpc, setManaBalanceWei, setManaAllowanceWei, ORACLE_RATE } from './rpc'
+import { handleRpc, setManaBalanceWei, setEthereumManaBalanceWei, setManaAllowanceWei, ORACLE_RATE } from './rpc'
 import * as fx from '../fixtures'
 
 export const BASE = process.env.E2E_BASE_URL ?? 'http://localhost:5273'
@@ -58,6 +58,8 @@ export type Fixtures = {
   publicNfts: unknown
   builderCollections: unknown
   builderItems: unknown
+  /** The builder's per-item contents map (file name → hash). A `video.mp4` entry is a showcase clip. */
+  builderItemContents: Record<string, string>
   profile: unknown
   authorize: unknown
   trade: unknown
@@ -85,6 +87,7 @@ function defaults(): Fixtures {
     publicNfts: fx.ownedNfts,
     builderCollections: fx.builderCollections,
     builderItems: fx.builderItems,
+    builderItemContents: { 'thumbnail.png': 'bafyfake' },
     profile: fx.profile,
     userStore: null,
     authorize: {
@@ -213,7 +216,12 @@ function toCatalogRow(l: any) {
     price: isResale ? null : priceWei,
     minPrice: priceWei,
     available: l.available ?? 0,
-    priceCredits
+    priceCredits,
+    // The item page reads `isSmart` and `utility` from the v1 items shape, where isSmart lives NESTED under
+    // data.wearable (the catalog rows carry it flat). Kept faithful here so the smart-wearable badges and the
+    // showcase-clip lookup exercise the same field they read in production.
+    utility: l.utility ?? null,
+    data: { wearable: { category: l.wearableCategory, isSmart: !!l.isSmart } }
   }
 }
 
@@ -272,7 +280,7 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
     return req.respond({
       status: 200,
       headers: { 'content-type': 'application/json', ...CORS },
-      body: handleRpc(req.postData() || '{}')
+      body: handleRpc(req.postData() || '{}', u.pathname)
     })
   }
   // Meta-transaction relayer (transactions-server): gasless checkout POSTs the signed useCredits
@@ -463,6 +471,11 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
       const listingType = u.searchParams.get('listingType')
       if (listingType === 'primary') items = items.filter(i => !i.tokenId)
       if (listingType === 'secondary') items = items.filter(i => !!i.tokenId)
+      // The real handler scopes this feed by creator, and Activity's listing count leans on it to decide
+      // whether the migration chip appears at all. Unfiltered, the mock answered "you have listings" for
+      // every wallet and the chip could not be tested.
+      const unifiedCreator = u.searchParams.get('creator')
+      if (unifiedCreator) items = items.filter(i => String(i.creator).toLowerCase() === unifiedCreator.toLowerCase())
       if (u.searchParams.get('sortBy') === 'cheapest') {
         items.sort((a, b) => (a.priceCredits ?? 0) - (b.priceCredits ?? 0))
       }
@@ -502,8 +515,12 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
     if (path === '/v3/catalog/items' || path === '/v1/items') {
       const ca = u.searchParams.get('contractAddress')
       const creator = u.searchParams.get('creator')
+      // itemId matters on the item route: fetchItemMeta asks for ONE item, and answering with the whole
+      // collection handed it the first row's traits — a different item's isSmart / utility.
+      const itemsItemId = u.searchParams.get('itemId')
       let rows = ((F.shopListings as { data: any[] }).data ?? []).map(toCatalogRow)
       if (ca) rows = rows.filter(r => String(r.contractAddress).toLowerCase() === ca.toLowerCase())
+      if (itemsItemId) rows = rows.filter(r => String(r.itemId) === itemsItemId)
       if (creator) rows = rows.filter(r => String(r.creator).toLowerCase() === creator.toLowerCase())
       // The browse filters, honored exactly as the other feeds honor them. `search` matches a substring
       // of the NAME — the same rule /v3/catalog/unified applies, so the "All"/"Not for Sale" grid and
@@ -596,7 +613,7 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
   if (u.hostname.includes('builder-api')) {
     if (/\/v1\/collections\/.+\/items/.test(path)) return json(req, F.builderItems)
     if (/\/v1\/.+\/collections/.test(path)) return json(req, F.builderCollections)
-    if (/\/v1\/items\/.+\/contents$/.test(path)) return json(req, { data: { 'thumbnail.png': 'bafyfake' } })
+    if (/\/v1\/items\/.+\/contents$/.test(path)) return json(req, { data: F.builderItemContents })
     return json(req, { data: [] })
   }
 
@@ -699,8 +716,16 @@ export async function launchApp(
     fixtures?: Partial<Fixtures>
     signedOut?: boolean
     errors?: ErrorMap
-    /** MANA (wei, as a decimal string) the mocked ERC20 reports — drives the MANA payment rails. */
+    /**
+     * MANA (wei, as a decimal string) the mocked ERC20 reports ON POLYGON — the chain the shop settles
+     * on, so this is what drives the MANA payment rails as well as the navbar's Polygon chip.
+     */
     manaBalanceWei?: string
+    /**
+     * MANA the mocked ERC20 reports ON ETHEREUM L1. Display only: L1 MANA cannot settle a Polygon trade,
+     * so it adds a second navbar chip and never a payment rail. Defaults to '0'.
+     */
+    ethereumManaBalanceWei?: string
     /** MANA allowance the mocked ERC20 reports; omit for "already approved". */
     manaAllowanceWei?: string
     /**
@@ -747,6 +772,7 @@ export async function launchApp(
   mintedCents = 0 // reset the per-run top-up accumulator so balances don't leak between tests
   favoritePicks = [] // reset the per-run picks so favorites don't leak between tests
   setManaBalanceWei(opts.manaBalanceWei ?? '0') // no MANA unless a test asks for it
+  setEthereumManaBalanceWei(opts.ethereumManaBalanceWei ?? '0') // MANA lives on Polygon unless a test says otherwise
   setManaAllowanceWei(opts.manaAllowanceWei ?? null) // already approved unless a test asks otherwise
   const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] })
   const page = await browser.newPage()

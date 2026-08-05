@@ -12,6 +12,8 @@ interface ImportMetaEnv {
   readonly VITE_CHAIN_ID?: string
   readonly VITE_CREDITS_SERVER_URL?: string
   readonly VITE_DCL_DEFAULT_ENV?: string
+  readonly VITE_ETHEREUM_CHAIN_ID?: string
+  readonly VITE_ETHEREUM_RPC_URL?: string
   readonly VITE_GASLESS_CHECKOUT?: string
   readonly VITE_MARKETPLACE_SERVER_URL?: string
   readonly VITE_NOTIFICATIONS_SERVER_URL?: string

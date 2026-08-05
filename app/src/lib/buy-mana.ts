@@ -8,15 +8,10 @@ import {
   getContractName,
   sendMetaTransaction
 } from 'decentraland-transactions'
-import {
-  AuthorizationKind,
-  ensureAuthorization,
-  ensureChain,
-  metaTxProviderShim,
-  readProvider
-} from '~/lib/authorizations'
+import { AuthorizationKind, ensureAuthorization, metaTxProviderShim, readProvider } from '~/lib/authorizations'
 import { buyWithCredits, type SpendableCredit } from '~/lib/buy'
 import { gaslessConfig } from '~/lib/gasless-config'
+import { requireChain } from '~/lib/network'
 import { amoyGasOverrides, getOnChainTrade } from '~/lib/trade-encoding'
 import { confirmMetaTx, MetaTxPendingError } from '~/lib/tx-confirm'
 
@@ -139,9 +134,10 @@ async function acceptPayingMana(opts: {
     }
   }
 
-  // Direct (gas-paying) fallback. accept is a REAL transaction, so it must run on the trade's chain —
-  // a restored session can leave the wallet on another network; switch just-in-time (mirrors buy.ts).
-  await ensureChain(signer.provider as ethers.providers.Web3Provider, trade.chainId)
+  // Direct (gas-paying) fallback: the WALLET broadcasts this one, so it must already be on the trade's
+  // chain. We only CHECK — moving the wallet is the user's own decision (the navbar's network control),
+  // never a side effect of clicking this. See lib/network.
+  await requireChain(signer.provider as ethers.providers.Web3Provider, trade.chainId)
   const contract = new ethers.Contract(marketplace.address, marketplace.abi, signer) as MarketplaceAcceptContract
   const tx = await contract.accept(onChainTrades, amoyGasOverrides(trade.chainId))
   onSigned?.()

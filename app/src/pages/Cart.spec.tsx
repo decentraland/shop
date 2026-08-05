@@ -170,10 +170,20 @@ const line = (i: CatalogItem) => ({
   quantity: 1
 })
 
-function renderCart(items: CatalogItem[]) {
+// A resolved MINT line: no trade, minted from the CollectionStore, priced in MANA.
+const storeLine = (i: CatalogItem) => ({
+  item: { ...i, quantity: 1, tradeId: undefined },
+  acquisition: 'store' as const,
+  manaWei: '1000000000000000000',
+  priceCredits: 20,
+  usdCents: 200,
+  quantity: 1
+})
+
+function renderCart(items: CatalogItem[], toLine: (i: CatalogItem) => unknown = line) {
   useCart.setState({ items: items.map(i => ({ ...i, quantity: 1 })), open: false })
   const review = {
-    buyable: items.map(line),
+    buyable: items.map(toLine),
     unavailable: [],
     own: [],
     liveTotalCredits: 20 * items.length,
@@ -455,5 +465,66 @@ describe('when a cart line is a primary (mint) listing', () => {
     secondarySales.on = true
     renderCart([item('a')])
     expect(await screen.findByTestId('cart-creator-tag')).toBeTruthy()
+  })
+})
+
+/**
+ * EVERY line goes out gaslessly, mint included.
+ *
+ * A basket holding a CollectionStore mint used to be pushed onto the buyer's own gas-paying transaction,
+ * because the relayed rail only knew how to build `accept([...])`. For this shop that is the wrong default:
+ * a web2 buyer holds no POL and has never heard of Polygon, so "submit it yourself" is not a route they have.
+ * Measured in production — a mint at 0xf906…6213 failed for a buyer whose wallet was on Ethereum while a
+ * trade at 0x5862…a212 went through for the same person, in the same session.
+ */
+describe('when the basket contains a store mint', () => {
+  it('should relay it instead of asking the buyer to submit a transaction', async () => {
+    gaslessEnabled.mockReturnValue(true)
+    buyManyGasless.mockResolvedValue(['0xmint'])
+
+    renderCart([item('a', { tradeId: undefined })], storeLine)
+    await pay()
+
+    await waitFor(() => expect(buyManyGasless).toHaveBeenCalled())
+    // The gas-paying rail is not touched: nothing is submitted from the buyer's own wallet.
+    expect(buyManyWithCredits).not.toHaveBeenCalled()
+    const relayed = buyManyGasless.mock.calls[0][0] as { purchases: { kind?: string }[] }
+    expect(relayed.purchases.map(p => p.kind)).toEqual(['store'])
+  })
+
+  /**
+   * And when the relayer itself is down, a MANAGED wallet must not be handed the gas-paying rail as a
+   * consolation: it holds no POL, so that path reverts with INSUFFICIENT_FUNDS after a prompt the buyer
+   * cannot act on — and network/gas wording is exactly what these users must never see.
+   */
+  it('should not fall back to the gas-paying rail for a managed wallet', async () => {
+    const { GaslessUnavailableError } = await import('~/lib/buy-gasless')
+    gaslessEnabled.mockReturnValue(true)
+    buyManyGasless.mockRejectedValue(new GaslessUnavailableError('relayer 503', 'relayer-rejected'))
+    const previous = session.providerType
+    session.providerType = 'magic' as never
+
+    try {
+      renderCart([item('a', { tradeId: undefined })], storeLine)
+      await pay()
+
+      await waitFor(() => expect(buyManyGasless).toHaveBeenCalled())
+      expect(buyManyWithCredits).not.toHaveBeenCalled()
+    } finally {
+      session.providerType = previous
+    }
+  })
+
+  it('should still offer the gas-paying rail to a self-custody wallet', async () => {
+    const { GaslessUnavailableError } = await import('~/lib/buy-gasless')
+    gaslessEnabled.mockReturnValue(true)
+    buyManyGasless.mockRejectedValue(new GaslessUnavailableError('relayer 503', 'relayer-rejected'))
+    buyManyWithCredits.mockResolvedValue(['0xdirect'])
+
+    renderCart([item('a', { tradeId: undefined })], storeLine)
+    await pay()
+
+    // This buyer CAN pay the fee, so the fallback is a real route for them.
+    await waitFor(() => expect(buyManyWithCredits).toHaveBeenCalled())
   })
 })

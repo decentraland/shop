@@ -250,3 +250,19 @@ export const Scrim = styled.div`
   inset: 0;
   z-index: 34;
 `
+
+/**
+ * The count's placeholder while the total is unknown — the shared `.skeleton` shimmer, sized to the text
+ * it stands in for instead of the bare '…' that used to sit there.
+ *
+ * `height: 1em` and inline-block on purpose: the line box is driven by Count's own line-height, so the
+ * toolbar keeps the exact height it has with the number in it and the row below cannot shift when the
+ * count lands. Width covers a four-digit total ("1,234 items").
+ */
+export const CountSkeleton = styled.span`
+  display: inline-block;
+  width: 72px;
+  height: 1em;
+  vertical-align: -0.1em;
+  border-radius: 4px;
+`

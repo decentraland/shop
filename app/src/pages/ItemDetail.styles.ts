@@ -167,6 +167,17 @@ export const Preview = styled.div`
     display: none;
   }
 
+  /* Bottom-LEFT: the emote controls and the preview note both own the bottom centre, and the mobile
+     wearable/avatar toggle owns the bottom right, so this is the one free corner on every route. */
+  & > [data-play-showcase] {
+    position: absolute;
+    bottom: 16px;
+    left: 16px;
+    z-index: 2;
+    width: auto;
+    height: auto;
+  }
+
   ${media.maxWidth('lg')} {
     & > [data-preview-toggle] {
       top: auto;
@@ -269,6 +280,34 @@ export const Fav = styled.button`
   }
 `
 
+// "Play showcase" over the preview, in the same translucent-pill language as the preview's own controls
+// (see [data-preview-toggle] / [data-preview-controls] above) rather than as a page CTA — it belongs to the
+// viewer, not to the purchase. Positioned by the Preview block, which owns every overlay's placement.
+export const PlayShowcase = styled.button`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1px solid ${colors.line};
+  border-radius: ${radius.pill};
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(6px);
+  box-shadow: 0 2px 10px rgba(22, 21, 24, 0.12);
+  color: ${colors.text};
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s ease;
+
+  &:hover {
+    background: ${colors.white};
+  }
+  &:focus-visible {
+    outline: 2px solid ${colors.accent};
+    outline-offset: 2px;
+  }
+`
+
 export const Label = styled.div`
   display: inline-flex;
   align-items: center;
@@ -312,6 +351,19 @@ export const DetailChip = styled(Chip)`
   &[data-variant='cat'] {
     background: rgba(255, 255, 255, 0.14);
     color: ${colors.softWhite};
+  }
+
+  /* The blocked-VRM-export badge. Warning orange, tinted at 20% for the fill — the marketplace's own
+     #ff7439 on #ff743933, kept identical so the same restriction reads the same in both places. It is the
+     one chip in this row that reports a limitation rather than a feature, and it should not blend in. */
+  &[data-variant='blocked'] {
+    background: rgba(255, 116, 57, 0.2);
+    color: #ff7439;
+    cursor: help;
+  }
+  &[data-variant='blocked']:focus-visible {
+    outline: 2px solid #ff7439;
+    outline-offset: 2px;
   }
 `
 
@@ -1247,4 +1299,29 @@ export const SkName = styled.span`
   width: 96px;
   height: 16px;
   border-radius: 6px;
+`
+
+// The "the gasless send did not confirm" notice and its two ways out. Neutral, not an error colour: the
+// transaction may still land, and painting it red is what had a creator re-signing six times.
+export const GaslessNotice = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid ${colors.line};
+  border-radius: 12px;
+  background: ${colors.media};
+
+  p {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.5;
+    color: ${colors.text2};
+  }
+`
+
+export const GaslessActions = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 16px;
 `

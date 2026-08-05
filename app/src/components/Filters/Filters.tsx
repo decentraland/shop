@@ -4,7 +4,7 @@ import { Chevron } from '~/components/Chevron'
 import { Tooltip } from '~/components/Tooltip'
 import { RARITIES } from '~/components/FilterBar'
 import { CURRENCY } from '~/lib/currency'
-import { capitalizeFirst } from '~/lib/text'
+import { rarityLabel } from '~/lib/rarity'
 import { t } from '~/intl/i18n'
 import { theme } from '~/styles/theme'
 import * as S from './Filters.styles'
@@ -140,7 +140,7 @@ export function Filters({
         : ''
   const priceSummary = min != null || max != null ? `${priceMin || '0'}-${priceMax || '∞'}` : ''
   const raritySummary = RARITIES.filter(r => rarities.includes(r))
-    .map(capitalizeFirst)
+    .map(rarityLabel)
     .join(', ')
   const statusSummary =
     status === 'on_sale' ? t('filter.onSale') : status === 'not_for_sale' ? t('filter.notForSale') : ''
@@ -261,7 +261,7 @@ export function Filters({
                 <S.RaritySwatch color={theme.rarities[r as keyof typeof theme.rarities]}>
                   {selected ? <S.RaritySwatchCheck name="check" aria-hidden /> : null}
                 </S.RaritySwatch>
-                <S.RarityName selected={selected}>{r}</S.RarityName>
+                <S.RarityName selected={selected}>{rarityLabel(r)}</S.RarityName>
               </S.RarityChip>
             )
           })}

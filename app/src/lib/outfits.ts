@@ -396,9 +396,12 @@ const IMPORT_ITEM_URN = /^urn:decentraland:(?:matic|amoy):collections-v2:(0x[0-9
  * Parse an avatar-preview link (or its bare query string) into outfit-import data: the
  * collections-v2 `urn` params become item refs — wearables or emotes alike, both are outfit items
  * (deduped, capped at {@link MAX_OUTFIT_ITEMS}) — the `bodyShape` base-avatar urn picks male/female,
- * and skin/hair/eye colors ride along for the studio preview. Anything else (off-chain wearables, the
- * builder-relative `emote` path, which names a builder-local file rather than a listed item) is
- * ignored. Null when no usable item urns are found.
+ * and skin/hair/eye colors ride along for the studio preview.
+ *
+ * `emote` is read the same way, because it carries either kind of value: a listed emote's
+ * collections-v2 urn (an outfit item) or a builder-local file the preview plays (`wave`,
+ * `../OutfitStudio/Poses/Pose_13`), which names no listing and is ignored. Off-chain wearable urns are
+ * ignored too. Null when no usable item urns are found.
  */
 export function parseOutfitImport(raw: string): OutfitImport | null {
   const query = raw.includes('?') ? raw.slice(raw.indexOf('?') + 1) : raw
@@ -406,7 +409,7 @@ export function parseOutfitImport(raw: string): OutfitImport | null {
 
   const seen = new Set<string>()
   const items: OutfitItemRef[] = []
-  for (const urn of params.getAll('urn')) {
+  for (const urn of [...params.getAll('urn'), ...params.getAll('emote')]) {
     const match = IMPORT_ITEM_URN.exec(urn.trim())
     if (!match) continue
     const ref = { contractAddress: match[1].toLowerCase(), itemId: match[2] }

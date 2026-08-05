@@ -2,7 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { useWallet } from '~/store/wallet'
+import { Confetti } from '~/components/Confetti'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
+import { Faq, type FaqEntry } from '~/components/Faq'
 import { Icon } from '~/components/Icon'
 import { CURRENCY, formatAmount } from '~/lib/currency'
 import { detailRouteFor } from '~/lib/routes'
@@ -57,8 +59,16 @@ function artFor(pack: CreditPack, index: number): string {
   return pack.artUrl ?? bundledArtFor(pack, index)
 }
 
-// Where "Get credits and start shopping" points. No credits-specific doc yet — link to the shop docs.
-const LEARN_MORE_URL = 'https://docs.decentraland.org'
+// No MANA, no wallet, nothing about chains — this is the shopper-facing list, so it stays inside the
+// web2-first rule (CONVENTIONS.md). "Marketplace" is the other product's name, not jargon.
+const BUYER_FAQ: readonly FaqEntry[] = [
+  { question: 'faq.buyers.whatAreQ', answer: 'faq.buyers.whatAreA' },
+  { question: 'faq.buyers.whatCanIBuyQ', answer: 'faq.buyers.whatCanIBuyA' },
+  { question: 'faq.buyers.whereBuyQ', answer: 'faq.buyers.whereBuyA' },
+  { question: 'faq.buyers.whereUseQ', answer: 'faq.buyers.whereUseA' },
+  { question: 'faq.buyers.expireQ', answer: 'faq.buyers.expireA' },
+  { question: 'faq.buyers.transferQ', answer: 'faq.buyers.transferA' }
+]
 
 type Phase = 'select' | 'redirecting' | 'processing' | 'success' | 'error' | 'pending'
 
@@ -247,6 +257,8 @@ export function GetCredits() {
   // Return handling: Stripe's hosted Checkout redirects back to this page with `?order=<id>` on
   // success or `?canceled=1` on cancel. Handle it once, then clear the params so a refresh is a no-op.
   const returnHandled = useRef(false)
+  // The jump target for "Learn More" — see scrollToFaq.
+  const faqRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (returnHandled.current) return
     const orderId = searchParams.get('order')
@@ -289,6 +301,16 @@ export function GetCredits() {
     setCanceledNote(false)
   }
 
+  function scrollToFaq() {
+    const el = faqRef.current
+    if (!el) return
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    el.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block: 'center' })
+    // Focus follows the scroll, or a keyboard user is left behind: their next Tab would resume from the
+    // control they just activated, back at the top of the page, and they would never reach the answers.
+    el.focus({ preventScroll: true })
+  }
+
   return (
     <S.Root>
       {/* Kept mounted through 'redirecting' too. That phase hides this content with `visibility: hidden`
@@ -298,30 +320,37 @@ export function GetCredits() {
       {(phase === 'select' || phase === 'redirecting') && (
         <S.Hero data-testid="credits-hero">
           <S.HeroBackdrop aria-hidden />
-          <S.HeroInner $hidden={phase === 'redirecting'}>
-            <S.Head>
-              <S.Title>{t('getCredits.title', { currency: CURRENCY.name })}</S.Title>
-              <S.SubRow>
-                <S.Sub>{t('getCredits.subtitle', { currency: CURRENCY.nameSingular })}</S.Sub>
-                <S.Learn href={LEARN_MORE_URL} target="_blank" rel="noreferrer">
-                  {t('getCredits.learnMore')}
-                  <Icon name="link-out" />
-                </S.Learn>
-              </S.SubRow>
-            </S.Head>
+          <S.HeroPanel>
+            <S.HeroInner $hidden={phase === 'redirecting'}>
+              <S.Head>
+                <S.Title>{t('getCredits.title')}</S.Title>
+                <S.SubRow>
+                  <S.Sub>{t('getCredits.subtitle')}</S.Sub>
+                  <S.Learn type="button" onClick={scrollToFaq} data-testid="credits-learn-more">
+                    {t('getCredits.learnMore')}
+                  </S.Learn>
+                </S.SubRow>
+              </S.Head>
 
-            {canceledNote && <S.Note role="status">{t('getCredits.canceledNote')}</S.Note>}
+              {canceledNote && <S.Note role="status">{t('getCredits.canceledNote')}</S.Note>}
 
-            <PackGrid packs={packs} loading={packsLoading} onSelect={pack => void startCheckout(pack)} />
-          </S.HeroInner>
+              <PackGrid packs={packs} loading={packsLoading} onSelect={pack => void startCheckout(pack)} />
+            </S.HeroInner>
 
-          {/* Centred in the panel the grid just filled, over the same backdrop. */}
-          {phase === 'redirecting' && (
-            <S.RedirectStatus role="status" aria-live="polite">
-              <S.RedirectLogo src={loaderLogo} alt="" width={72} height={72} />
-              <S.RedirectNote>{t('getCredits.redirecting')}</S.RedirectNote>
-            </S.RedirectStatus>
-          )}
+            {/* Centred in the panel the grid just filled, over the same backdrop. */}
+            {phase === 'redirecting' && (
+              <S.RedirectStatus role="status" aria-live="polite">
+                <S.RedirectLogo src={loaderLogo} alt="" width={72} height={72} />
+                <S.RedirectNote>{t('getCredits.redirecting')}</S.RedirectNote>
+              </S.RedirectStatus>
+            )}
+          </S.HeroPanel>
+
+          {/* Inside the Hero, so it reads on the same backdrop the design puts it on — the outlined skin
+              is white-on-dark and would be invisible on the page below. */}
+          <S.FaqBlock ref={faqRef} tabIndex={-1} data-testid="credits-faq">
+            <Faq title="faq.title" entries={BUYER_FAQ} tone="on-dark" />
+          </S.FaqBlock>
         </S.Hero>
       )}
 
@@ -344,6 +373,10 @@ export function GetCredits() {
 
       {phase === 'success' && (
         <S.Success role="status" aria-live="polite">
+          {/* Only here, never on the processing screen: the credits are really in the balance by this
+              point. Same burst the item purchase fires, so buying credits and buying an item celebrate
+              alike instead of one feeling like the lesser event. */}
+          <Confetti />
           <S.Banner>
             <S.BannerIcon src={checkCircle} alt="" width={60} height={60} />
             <S.BannerText>
@@ -412,8 +445,9 @@ function PackGrid({
   loading: boolean
   onSelect: (pack: CreditPack) => void
 }) {
-  // Content-shaped skeletons (same card shell as a real pack) while the catalogue loads, so the grid
-  // keeps its shape instead of flashing a bare spinner. Four matches the usual pack count.
+  // Content-shaped skeletons (same card shell as a real pack) while the catalogue loads, so the grid keeps
+  // its shape instead of flashing a bare spinner. Four matches the usual pack count. Every bar is sized like
+  // the element that replaces it (see SkAmount/SkUnit/SkArt), so the hand-off moves nothing.
   if (loading) {
     return (
       <S.Grid aria-busy="true" aria-label={t('getCredits.packsLoading', { currency: CURRENCY.name })}>
@@ -422,6 +456,7 @@ function PackGrid({
             <S.PackTop>
               <S.PackHeading>
                 <S.SkAmount />
+                <S.SkUnit />
               </S.PackHeading>
               <S.SkArt />
             </S.PackTop>
