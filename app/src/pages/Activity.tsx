@@ -557,7 +557,7 @@ export function Activity() {
   }
 
   return (
-    <S.Section data-view={migrating ? MIGRATE_VIEW : 'feed'}>
+    <S.Section>
       <S.Head>
         <S.Title>{t('nav.activity')}</S.Title>
       </S.Head>
