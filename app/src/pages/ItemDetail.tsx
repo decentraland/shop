@@ -1386,7 +1386,7 @@ export function ItemDetail() {
                           disabled={resolvingTrade || (isPrimary ? atStockCap : inCart)}
                           aria-label={addLabel}
                         >
-                          <Icon name="cart-solid" />
+                          <Icon name="cart" />
                           <S.AddCartLabel>{addLabel}</S.AddCartLabel>
                         </S.AddCart>
                       </>
@@ -1410,7 +1410,7 @@ export function ItemDetail() {
                           disabled={resaleInCart}
                           aria-label={resaleInCart ? t('assetCard.inCart') : t('assetCard.addToCart')}
                         >
-                          <Icon name="cart-solid" />
+                          <Icon name="cart" />
                           <S.AddCartLabel>
                             {resaleInCart ? t('assetCard.inCart') : t('assetCard.addToCart')}
                           </S.AddCartLabel>

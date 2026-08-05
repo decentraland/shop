@@ -665,9 +665,9 @@ const ctaBox = css`
 // data-dual parent), where it flexes to share the row.
 export const DetailCta = styled(Button)`
   ${ctaBox};
-  /* Dark-theme test: BUY NOW rides the Flare gradient (Figma), not the amethyst purple. */
+  /* Dark-theme test: solid orange BUY NOW (Figma 867:61063). */
   && {
-    background: linear-gradient(180deg, #ff7439 0%, #ff2d55 100%);
+    background: #fb5c19;
   }
   &&::before {
     content: none;
@@ -765,8 +765,10 @@ export const AddCart = styled.button`
   align-items: center;
   justify-content: center;
   gap: 8px;
-  background: ${colors.softWhite};
-  color: ${colors.text};
+  /* Dark-theme test: translucent white pill, white label (Figma 867:61064) — same secondary
+     treatment as the card's ADD TO CART. */
+  background: rgba(255, 255, 255, 0.2);
+  color: ${colors.softWhite};
   border: 0;
   border-radius: 16px;
   font-weight: 600;
@@ -777,10 +779,11 @@ export const AddCart = styled.button`
   transition: background 0.15s ease;
 
   &:hover:not(:disabled) {
-    background: ${colors.media};
+    background: rgba(255, 255, 255, 0.3);
   }
   &:disabled {
-    opacity: 0.55;
+    background: rgba(255, 255, 255, 0.12);
+    color: rgba(252, 252, 252, 0.7);
     cursor: default;
   }
 
