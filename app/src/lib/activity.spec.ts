@@ -28,6 +28,7 @@ function purchase(overrides: Partial<PurchaseRecord> = {}): PurchaseRecord {
     createdAt: 1_000,
     manaSettledWei: null,
     txHash: null,
+    submittedTxHash: null,
     ...overrides
   }
 }
@@ -77,12 +78,55 @@ describe('toActivitySale', () => {
 })
 
 describe('buildActivityFeed', () => {
-  it('should drop EXPIRED purchase intents (released, never bought)', () => {
+  /**
+   * EXPIRED covers two different things, and which one it is decides whether the buyer should ever see it.
+   *
+   * Nobody submitted it → noise. Every opened buy modal calls /credits/authorize, so showing these would
+   * fill a buyer's history with purchases they never made.
+   *
+   * Submitted and it failed → a purchase they attempted, watched, and got nothing from. Hiding that is how
+   * a failed purchase came to vanish with no explanation.
+   *
+   * `submittedTxHash` is the only field that can tell them apart: the settlement hash is derived from
+   * on-chain consumption, and a revert consumes nothing, so a failed purchase has no settlement hash either.
+   */
+  it('should drop an EXPIRED intent that was never submitted (a reservation, not a purchase)', () => {
+    const feed = buildActivityFeed({
+      purchases: [purchase({ status: 'EXPIRED', submittedTxHash: null })],
+      sales: []
+    })
+    expect(feed).toHaveLength(0)
+  })
+
+  it('should keep an EXPIRED intent that WAS submitted, as a failed purchase', () => {
+    const feed = buildActivityFeed({
+      purchases: [purchase({ status: 'EXPIRED', submittedTxHash: '0xattempt' })],
+      sales: []
+    })
+    expect(feed).toHaveLength(1)
+    expect(feed[0].kind).toBe('purchase')
+    expect(feed[0].kind === 'purchase' && feed[0].order.status).toBe('EXPIRED')
+  })
+
+  // An old server does not serialize the field at all, so it normalises to null. Degrading to "hide it" is
+  // the old behaviour; degrading the other way would invent failures for every abandoned modal.
+  it('should drop an EXPIRED intent when the server does not report a submission hash', () => {
     const feed = buildActivityFeed({
       purchases: [purchase({ status: 'EXPIRED' })],
       sales: []
     })
     expect(feed).toHaveLength(0)
+  })
+
+  it('should keep PENDING and SETTLED intents regardless of submission hash', () => {
+    const feed = buildActivityFeed({
+      purchases: [
+        purchase({ id: 'p', status: 'PENDING', txHash: null, createdAt: 1_000 }),
+        purchase({ id: 's', status: 'SETTLED', txHash: '0xsettled', createdAt: 2_000 })
+      ],
+      sales: []
+    })
+    expect(feed).toHaveLength(2)
   })
 
   it('should group a multi-line cart checkout into ONE purchase entry (preserving order grouping)', () => {
@@ -230,7 +274,8 @@ describe('MANA-paid purchases', () => {
       status: 'SETTLED' as const,
       createdAt: 1_700_000_000_000,
       manaSettledWei: null,
-      txHash: '0xtx' // deliberately different case from the sale's 0xTX
+      txHash: '0xtx', // deliberately different case from the sale's 0xTX
+      submittedTxHash: null
     }
     const feed = buildActivityFeed({ purchases: [purchase], sales: [], manaPurchases: [buyerSale()] })
     expect(feed.filter(e => e.kind === 'mana-purchase')).toEqual([])
@@ -248,7 +293,8 @@ describe('MANA-paid purchases', () => {
       status: 'SETTLED' as const,
       createdAt: 1_700_000_000_000,
       manaSettledWei: null,
-      txHash: '0xother'
+      txHash: '0xother',
+      submittedTxHash: null
     }
     const feed = buildActivityFeed({ purchases: [purchase], sales: [], manaPurchases: [buyerSale()] })
     expect(feed.filter(e => e.kind === 'mana-purchase').length).toBe(1)

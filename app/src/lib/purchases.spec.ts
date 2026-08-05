@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { groupPurchases, foldOrderLines } from '~/lib/purchases'
+import { groupPurchases, foldOrderLines, purchaseOrderPill } from '~/lib/purchases'
 import type { PurchaseRecord } from '~/lib/credits'
 
 function record(overrides: Partial<PurchaseRecord> = {}): PurchaseRecord {
@@ -14,6 +14,7 @@ function record(overrides: Partial<PurchaseRecord> = {}): PurchaseRecord {
     createdAt: 1_000_000,
     manaSettledWei: null,
     txHash: null,
+    submittedTxHash: null,
     ...overrides
   }
 }
@@ -83,6 +84,58 @@ describe('when grouping purchase records into orders', () => {
       record({ txHash: '0xc', status: 'PENDING', createdAt: 5001 })
     ])
     expect(orders[0].status).toBe('PENDING')
+  })
+
+  /**
+   * EXPIRED used to be unrepresentable here — the status was typed `'PENDING' | 'SETTLED'`, narrowed from
+   * the three a PurchaseRecord has, and derived with a two-branch ternary. So an expired line fell into the
+   * SETTLED branch and the order rendered as a completed purchase. These pin the three-way precedence that
+   * replaced it: PENDING > SETTLED > EXPIRED.
+   */
+  describe('and a line expired without being bought', () => {
+    it('should mark an order EXPIRED when every line expired', () => {
+      const orders = groupPurchases([
+        record({ txHash: '0xc', status: 'EXPIRED', createdAt: 5000 }),
+        record({ txHash: '0xc', status: 'EXPIRED', createdAt: 5001 })
+      ])
+      expect(orders[0].status).toBe('EXPIRED')
+    })
+
+    // THE regression this exists for: one expired line, alone, must never read as bought.
+    it('should never report a single expired line as SETTLED', () => {
+      const orders = groupPurchases([record({ txHash: '0xc', status: 'EXPIRED' })])
+      expect(orders[0].status).toBe('EXPIRED')
+    })
+
+    // Something WAS bought, so "failed" would be a lie. Only reachable transiently — the TTL sweep and the
+    // reconciler act per row — but it still needs a deterministic answer.
+    it('should prefer SETTLED over EXPIRED when part of the order went through', () => {
+      const orders = groupPurchases([
+        record({ txHash: '0xc', status: 'EXPIRED', createdAt: 5000 }),
+        record({ txHash: '0xc', status: 'SETTLED', createdAt: 5001 })
+      ])
+      expect(orders[0].status).toBe('SETTLED')
+    })
+
+    // In flight beats terminal in either direction: nothing is decided yet.
+    it('should prefer PENDING over EXPIRED when part of the order is still in flight', () => {
+      const orders = groupPurchases([
+        record({ txHash: '0xc', status: 'EXPIRED', createdAt: 5000 }),
+        record({ txHash: '0xc', status: 'PENDING', createdAt: 5001 })
+      ])
+      expect(orders[0].status).toBe('PENDING')
+    })
+  })
+})
+
+describe('when mapping an order status to its pill', () => {
+  it.each([
+    ['SETTLED', 'SETTLED'],
+    ['PENDING', 'PENDING'],
+    // Reuses the pill a failed credit-pack top-up already had, rather than introducing another style.
+    ['EXPIRED', 'FAILED']
+  ] as const)('should render %s as %s', (status, pill) => {
+    expect(purchaseOrderPill(status)).toBe(pill)
   })
 })
 

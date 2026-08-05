@@ -337,6 +337,17 @@ export const ManaTipBubble = styled.span`
   z-index: 9999;
 `
 
+// Explains a FAILED purchase, between the header and the items. Muted rather than another red note: the
+// pill already carries the alarm, and what this adds is reassurance — the credits are back.
+export const FailedNote = styled.p`
+  margin: 0;
+  /* 18px sides to sit on the same rail as CardHead and Line; no bottom, since Line brings its own 12px. */
+  padding: 12px 18px 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: ${theme.colors.muted};
+`
+
 export const Lines = styled.div`
   display: flex;
   flex-direction: column;
