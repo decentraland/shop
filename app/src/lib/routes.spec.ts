@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { itemRoute, tokenRoute, detailRouteFor, canManageToken } from '~/lib/routes'
+import { itemRoute, tokenRoute, detailRouteFor, canManageToken, myItemsRouteFor } from '~/lib/routes'
 
 describe('detailRouteFor', () => {
   it('routes a row with a tokenId to the specific /token page', () => {
@@ -41,5 +41,38 @@ describe('canManageToken', () => {
 
   it('never allows manage for a token the viewer does not own', () => {
     expect(canManageToken({ isTokenRoute: true, ownsThisToken: false })).toBe(false)
+  })
+})
+
+/**
+ * The post-purchase CTA promises the buyer their item is in My Items, so it has to land on the shelf it is
+ * actually on: bare `/my-items` opens on Wearables, which is not where an emote went.
+ */
+describe('myItemsRouteFor', () => {
+  it('sends a wearable purchase to the Wearables shelf', () => {
+    expect(myItemsRouteFor(['wearable'])).toBe('/my-items?section=wearables')
+  })
+
+  it('sends an emote purchase to the Emotes shelf', () => {
+    expect(myItemsRouteFor(['emote'])).toBe('/my-items?section=emotes')
+  })
+
+  it('sends a NAME to the Names shelf', () => {
+    expect(myItemsRouteFor(['ens'])).toBe('/my-items?section=names')
+  })
+
+  it('keeps one shelf for a basket of the same kind, however many lines', () => {
+    expect(myItemsRouteFor(['emote', 'emote', 'emote'])).toBe('/my-items?section=emotes')
+  })
+
+  it('falls back to the default shelf for a mixed basket, which has no single home', () => {
+    expect(myItemsRouteFor(['wearable', 'emote'])).toBe('/my-items')
+  })
+
+  it('falls back to the default shelf for a missing or unknown category', () => {
+    expect(myItemsRouteFor([undefined])).toBe('/my-items')
+    expect(myItemsRouteFor([null])).toBe('/my-items')
+    expect(myItemsRouteFor(['land'])).toBe('/my-items')
+    expect(myItemsRouteFor([])).toBe('/my-items')
   })
 })
