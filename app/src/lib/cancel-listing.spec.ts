@@ -202,6 +202,34 @@ describe('cancelListing — choosing the rail', () => {
     })
   })
 
+  /**
+   * A revert and a timeout are not the same news, and the seller has to be told which one they got.
+   *
+   * A reverted receipt is final: that transaction changed nothing, and no amount of waiting will make it land
+   * — so telling someone "it may still go through" is simply false. A timeout genuinely may still land, since
+   * the relayer bumps fees and resubmits. `definitive` is what lets the page pick the true sentence, while the
+   * gas-paying route stays on offer either way (for a revert it is the RIGHT next step, because the
+   * cancellation provably did not happen).
+   */
+  it('marks a REVERTED relay as definitive', async () => {
+    const { MetaTxRevertedError } = await import('~/lib/tx-confirm')
+    relay.mockRejectedValueOnce(new MetaTxRevertedError('the listing cancellation', '0xdead'))
+
+    const err = await cancelListing({ trade, signer, mode: 'gasless-only' }).catch(e => e)
+
+    expect(err).toBeInstanceOf(GaslessCancelFailedError)
+    expect(err.definitive).toBe(true)
+  })
+
+  it('does NOT mark an unconfirmed relay as definitive', async () => {
+    const { MetaTxPendingError } = await import('~/lib/tx-confirm')
+    relay.mockRejectedValueOnce(new MetaTxPendingError('the listing cancellation', '0xpending'))
+
+    const err = await cancelListing({ trade, signer, mode: 'gasless-only' }).catch(e => e)
+
+    expect(err.definitive).toBe(false)
+  })
+
   it('goes straight to the gas-paying tx on direct mode, without trying the relayer', async () => {
     const hash = await cancelListing({ trade, signer, mode: 'direct' })
 

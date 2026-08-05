@@ -95,6 +95,15 @@ function one(req: { id: unknown; method: string; params?: any[] }): unknown {
         }
       case 'eth_call':
         return ethCall(params)
+      /**
+       * An EOA, i.e. no contract code. decentraland-transactions' sendMetaTransaction asks this first
+       * (`isContract(provider, account)`) and then calls `.toLowerCase()` on the answer, so leaving it
+       * unmocked returned null and threw a TypeError — which every gasless path built on that library
+       * (cancel a listing, grant an approval, transfer an item) surfaced as "the relayer failed". That is
+       * why the cancel specs could only ever exercise the direct, gas-paying fallback.
+       */
+      case 'eth_getCode':
+        return '0x'
       case 'eth_getTransactionReceipt':
         return {
           status: '0x1',

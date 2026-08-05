@@ -107,7 +107,10 @@ export async function confirmMetaTxByEffect(opts: {
   /** Called after each unsuccessful round, so a caller can tell the user this is still in progress. */
   onWaiting?: (elapsedMs: number) => void
 }): Promise<string> {
-  const { txHash, what, isDone, timeoutMs = 10 * 60_000, pollMs = 5_000, onWaiting } = opts
+  const { txHash, what, isDone, timeoutMs = 10 * 60_000, onWaiting } = opts
+  // Floored so a caller passing 0 (or a negative) cannot turn this into a tight loop hammering the RPC and
+  // the caller's isDone read. 50ms keeps the unit tests fast while making a busy-loop impossible.
+  const pollMs = Math.max(opts.pollMs ?? 5_000, 50)
   const provider = readProvider()
   const startedAt = Date.now()
 

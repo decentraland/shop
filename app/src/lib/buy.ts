@@ -13,7 +13,7 @@ import { config } from '~/config'
 import { metaTxProviderShim, readProvider } from '~/lib/authorizations'
 import { gaslessConfig } from '~/lib/gasless-config'
 import { requireChain } from '~/lib/network'
-import { confirmMetaTx, MetaTxPendingError, confirmMetaTxByEffect } from '~/lib/tx-confirm'
+import { confirmMetaTx, MetaTxPendingError, MetaTxRevertedError, confirmMetaTxByEffect } from '~/lib/tx-confirm'
 import {
   amoyGasOverrides,
   buildStoreUseCreditsArgs,
@@ -97,6 +97,51 @@ function groupMaxCreditedValue(purchases: { maxCreditedValue: string }[]): strin
   return purchases
     .reduce((acc, p) => acc.add(ethers.BigNumber.from(p.maxCreditedValue)), ethers.BigNumber.from(0))
     .toString()
+}
+
+/**
+ * The `useCredits(args)` call for ONE group, plus the credit ids it spends — whichever rail the group is.
+ *
+ * Shared by both rails on purpose. The direct rail (the buyer submits) and the relayed one (the buyer signs,
+ * the relayer submits) differ ONLY in who transmits: the calldata that moves the money is identical, and it is
+ * built here so the two cannot drift. `lib/trade-encoding` makes the same argument one level down about the
+ * trade and store paths sharing one `useCredits` envelope.
+ */
+export function buildGroupUseCreditsArgs(
+  group: PurchaseGroup,
+  buyer: string
+): { args: unknown; salts: string[]; chainId: number } {
+  const credits = group.purchases.flatMap(p => p.credits)
+  const maxCreditedValue = groupMaxCreditedValue(group.purchases)
+  const salts = credits.map(c => c.id)
+  if (group.kind === 'store') {
+    const store = getContract(ContractName.CollectionStore, group.chainId)
+    return {
+      args: buildStoreUseCreditsArgs(
+        store.address,
+        store.abi,
+        group.purchases.map(p => p.item),
+        buyer,
+        credits,
+        maxCreditedValue
+      ),
+      salts,
+      chainId: group.chainId
+    }
+  }
+  const marketplace = getContract(getContractName(group.marketplace), group.chainId)
+  return {
+    args: buildUseCreditsArgs(
+      marketplace.address,
+      marketplace.abi,
+      group.purchases.map(p => p.trade),
+      buyer,
+      credits,
+      maxCreditedValue
+    ),
+    salts,
+    chainId: group.chainId
+  }
 }
 
 // ethers v5 `Contract` exposes dynamically-named ABI methods through an `any` index signature, so
@@ -336,6 +381,24 @@ export class GaslessCancelFailedError extends Error {
     super('The gasless cancellation was not confirmed')
     this.name = 'GaslessCancelFailedError'
   }
+
+  /**
+   * Whether the relayed attempt is known to be DEAD, as opposed to merely unconfirmed.
+   *
+   * A reverted receipt is a final answer: that transaction changed nothing and no amount of waiting will make
+   * it land. A timeout is not — the relayer bumps fees and resubmits, so it may still confirm minutes later.
+   * The seller has to be told which one they are looking at: "it may still go through" is reassuring and true
+   * for the second, and simply false for the first.
+   *
+   * Either way the gas-paying route stays on offer, and for a revert it is the RIGHT next step — the
+   * cancellation did not happen, so re-submitting it directly can still succeed.
+   */
+  get definitive(): boolean {
+    return (
+      this.cause instanceof MetaTxRevertedError ||
+      (this.cause as { name?: string } | null)?.name === 'MetaTxRevertedError'
+    )
+  }
 }
 
 export async function cancelListing(opts: {
@@ -523,27 +586,7 @@ export async function buyManyWithCredits(opts: {
   const groups = groupPurchases(purchases)
   const hashes: string[] = []
   for (const group of groups) {
-    const credits = group.purchases.flatMap(p => p.credits)
-    const maxCreditedValue = groupMaxCreditedValue(group.purchases)
-    const args =
-      group.kind === 'store'
-        ? buildStoreUseCreditsArgs(
-            getContract(ContractName.CollectionStore, group.chainId).address,
-            getContract(ContractName.CollectionStore, group.chainId).abi,
-            group.purchases.map(p => p.item),
-            buyer,
-            credits,
-            maxCreditedValue
-          )
-        : buildUseCreditsArgs(
-            getContract(getContractName(group.marketplace), group.chainId).address,
-            getContract(getContractName(group.marketplace), group.chainId).abi,
-            group.purchases.map(p => p.trade),
-            buyer,
-            credits,
-            maxCreditedValue
-          )
-    const salts = credits.map(c => c.id)
+    const { args, salts } = buildGroupUseCreditsArgs(group, buyer)
     let hash: string
     try {
       hash = await sendUseCredits(group.chainId, args, signer, txHash => {

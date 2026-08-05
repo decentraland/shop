@@ -394,7 +394,8 @@
     "playLoop": "Play loop",
     "playOnce": "Play once",
     "emoteSound": "Sound",
-    "emoteProps": "Props"
+    "emoteProps": "Props",
+    "cancelRelayReverted": "That didn't go through — your listing is still up. You can remove it now by paying the network fee yourself, or leave it and try again later."
   },
   "transfer": {
     "title": "Transfer item",

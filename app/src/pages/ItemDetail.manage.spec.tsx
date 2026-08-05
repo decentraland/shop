@@ -84,8 +84,16 @@ vi.mock('~/lib/api', () => ({
 const { cancelListing } = vi.hoisted(() => ({ cancelListing: vi.fn() }))
 vi.mock('~/lib/buy', () => ({
   cancelListing,
-  // The page narrows on this class to tell "the relay did not confirm" apart from a real failure.
-  GaslessCancelFailedError: class GaslessCancelFailedError extends Error {}
+  // The page narrows on this class to tell "the relay did not confirm" apart from a real failure, and reads
+  // `definitive` to tell a DEAD relay (reverted) from one that may still land.
+  GaslessCancelFailedError: class GaslessCancelFailedError extends Error {
+    constructor(public readonly cause: unknown) {
+      super('The gasless cancellation was not confirmed')
+    }
+    get definitive() {
+      return (this.cause as { name?: string } | null)?.name === 'MetaTxRevertedError'
+    }
+  }
 }))
 
 vi.mock('~/lib/collections', () => ({
@@ -237,6 +245,39 @@ describe('ItemDetail — when the relayed cancel is not confirmed', () => {
     await waitFor(() => expect(cancelListing).toHaveBeenCalledTimes(2))
     expect(cancelListing.mock.calls[1][0]).toMatchObject({ mode: 'direct' })
     await waitFor(() => expect(listCta()).toBeInTheDocument())
+  })
+
+  /**
+   * A reverted relay is DEAD, and must not be described as something that might still resolve itself. The
+   * choice stays — paying the fee is in fact the right next step, since the cancellation provably did not
+   * happen — but the sentence above it has to be true.
+   */
+  it('should not promise a reverted relay may still go through', async () => {
+    const reverted = new Error('the listing cancellation reverted on-chain')
+    reverted.name = 'MetaTxRevertedError'
+    cancelListing.mockRejectedValueOnce(new GaslessCancelFailedError(reverted))
+    renderPdp(newClient())
+
+    expect(await screen.findByTestId('item-price')).toHaveTextContent('10')
+    await userEvent.click(removeCta())
+
+    const notice = await screen.findByTestId('cancel-gasless-failed')
+    expect(notice.textContent ?? '').not.toMatch(/may still/i)
+    expect(notice.textContent ?? '').toMatch(/didn't go through/i)
+    // Both ways out are still offered.
+    expect(screen.getByTestId('cancel-pay-gas')).toBeInTheDocument()
+    expect(screen.getByTestId('cancel-later')).toBeInTheDocument()
+  })
+
+  it('should still say an unconfirmed relay may land, when that is true', async () => {
+    gaslessFails()
+    renderPdp(newClient())
+
+    expect(await screen.findByTestId('item-price')).toHaveTextContent('10')
+    await userEvent.click(removeCta())
+
+    const notice = await screen.findByTestId('cancel-gasless-failed')
+    expect(notice.textContent ?? '').toMatch(/may still/i)
   })
 
   it('should let the seller leave it, without touching the listing', async () => {

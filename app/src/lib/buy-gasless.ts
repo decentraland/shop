@@ -1,9 +1,10 @@
 // Gasless checkout — the buyer signs ONLY an off-chain EIP-712 message; a relayer submits
 // CreditsManager.executeMetaTransaction(...) and pays the gas.
 //
-// NEW file. Does NOT modify lib/buy.ts. Reuses its exported types (SpendableCredit,
-// CreditPurchase) and rebuilds the exact same useCredits(UseCreditsArgs) calldata, then wraps
-// it in the Decentraland/Polygon native meta-transaction and POSTs it to the relayer.
+// The useCredits calldata is built by lib/buy's buildGroupUseCreditsArgs — the SAME function the direct
+// rail uses — and then wrapped in the Decentraland/Polygon native meta-transaction and POSTed to the
+// relayer. Sharing the builder is deliberate: the two rails differ only in who transmits, so the bytes
+// that move the money must come from one place.
 //
 // META-TX VERDICT: the deployed CreditsManagerPolygon (Amoy 0x8052…fb3) exposes
 // executeMetaTransaction(address,bytes,bytes) + getNonce(address) — see shop/design/GASLESS_SPEC.md.
@@ -18,7 +19,10 @@ import { type Trade } from '@dcl/schemas'
 import { ContractName, ErrorCode, MetaTransactionError, getContract, getContractName } from 'decentraland-transactions'
 import { config } from '~/config'
 import { gaslessConfig } from '~/lib/gasless-config'
-import { buildUseCreditsArgs, type CreditPurchase, type SpendableCredit } from '~/lib/trade-encoding'
+import { buildUseCreditsArgs, type SpendableCredit } from '~/lib/trade-encoding'
+// The grouping and the per-group calldata live in ~/lib/buy so BOTH rails build the money call the same
+// way. buy.ts does not import this module, so the dependency runs one way only.
+import { buildGroupUseCreditsArgs, groupPurchases, type MixedPurchases } from '~/lib/buy'
 
 const { Interface, hexZeroPad } = ethers.utils
 
@@ -247,12 +251,20 @@ export async function buyGasless(opts: {
 }
 
 /**
- * Gasless batch buy: mirrors lib/buy.ts's buyManyWithCredits. All trades on the same
- * (chain, marketplace) are fulfilled by ONE useCredits(accept([...])), wrapped in ONE meta-tx →
- * one off-chain signature per group. Returns the txHash(es).
+ * Gasless batch buy: mirrors lib/buy.ts's buyManyWithCredits, group for group, and covers BOTH rails —
+ * offchain trades (`accept([...])`) and CollectionStore mints (`buy([...])`). One off-chain signature per
+ * group; the relayer submits and pays. Returns the txHash(es), in group order.
+ *
+ * The mint used to be excluded here, which meant every basket containing one fell through to the buyer's own
+ * gas-paying transaction. That is the wrong default for this shop: a web2 buyer holds no POL and has never
+ * heard of Polygon, so "pay the network fee yourself" is not a route they have. And the exclusion was never
+ * about the contracts — `useCredits` takes exactly one external call whichever rail it is, and the store call
+ * names the buyer explicitly as the beneficiary (see buildStoreBuyCalldata), so relaying it changes only who
+ * transmits and who pays. `buildGroupUseCreditsArgs` builds the calldata for both rails in one place, so the
+ * direct and relayed paths cannot disagree about what moves the money.
  */
 export async function buyManyGasless(opts: {
-  purchases: CreditPurchase[]
+  purchases: MixedPurchases
   buyer: string
   signer: ethers.Signer
   /** Fired once the buyer has signed the meta-tx (wallet prompt dismissed), before on-chain settlement. */
@@ -271,28 +283,13 @@ export async function buyManyGasless(opts: {
   const { purchases, buyer, signer, onSigned, onBroadcast } = opts
   if (purchases.length === 0) throw new Error('No items to buy')
 
-  const groups = new Map<string, CreditPurchase[]>()
-  for (const p of purchases) {
-    const key = `${p.trade.chainId}:${p.trade.contract.toLowerCase()}`
-    const g = groups.get(key)
-    if (g) g.push(p)
-    else groups.set(key, [p])
-  }
-
   const hashes: string[] = []
-  for (const group of groups.values()) {
-    const { chainId, contract } = group[0].trade
-    const marketplace = getContract(getContractName(contract), chainId)
-    const trades = group.map(p => p.trade)
-    const credits = group.flatMap(p => p.credits)
-    const maxCreditedValue = group
-      .reduce((acc, p) => acc.add(ethers.BigNumber.from(p.maxCreditedValue)), ethers.BigNumber.from(0))
-      .toString()
-    const args = buildUseCreditsArgs(marketplace.address, marketplace.abi, trades, buyer, credits, maxCreditedValue)
+  for (const group of groupPurchases(purchases)) {
+    const { args, salts, chainId } = buildGroupUseCreditsArgs(group, buyer)
     const cm = getContract(ContractName.CreditsManager, chainId)
     const functionData = new Interface(cm.abi).encodeFunctionData('useCredits', [args])
     const txHash = await relay(chainId, buyer, functionData, signer, onSigned)
-    onBroadcast?.({ txHash, salts: credits.map(c => c.id) })
+    onBroadcast?.({ txHash, salts })
     hashes.push(txHash)
   }
   return hashes

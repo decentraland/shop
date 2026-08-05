@@ -532,7 +532,13 @@ export async function fetchUnifiedListingForItem(
  *     oracle-derived, so it is also the number the grid collapses to.
  */
 export function pickItemListing(items: UnifiedListing[]): UnifiedListing | null {
-  const rank = (l: UnifiedListing) => (l.tokenId ? 1 : 0) * 2 + (l.source === 'native' ? 0 : 1)
+  // Lower sorts first. Written as two named tiers rather than packed arithmetic so a third one can be added
+  // without decoding the encoding: the resale penalty has to outweigh the legacy penalty, hence 2 vs 1.
+  const rank = (l: UnifiedListing) => {
+    const isResale = l.tokenId ? 2 : 0
+    const isLegacy = l.source === 'native' ? 0 : 1
+    return isResale + isLegacy
+  }
   return [...items].sort((a, b) => rank(a) - rank(b))[0] ?? null
 }
 

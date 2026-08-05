@@ -432,13 +432,10 @@ export function Cart() {
 
       processing('awaiting-signature', 1)
       let hashes: string[] = []
-      // The gasless rail is trade-only: buyManyGasless builds accept([...]) against a marketplace, so a mint
-      // has no meta-transaction path yet. Its `CreditPurchase[]` parameter makes that a COMPILE error rather
-      // than a runtime one, and this is the explicit gate — a basket with a mint takes the direct path, where
-      // a managed wallet still signs transparently (it just pays gas).
-      const storeLines = purchases.some(p => p.kind === 'store')
-      const tradeOnlyPurchases = purchases.flatMap(p => (p.kind === 'trade' ? [p] : []))
-      if (gaslessEnabled() && !storeLines) {
+      // Gasless is the rail for EVERY line — offchain trades and CollectionStore mints alike. A basket with a
+      // mint used to be forced onto the buyer's own gas-paying transaction, which is not a route a web2 buyer
+      // has: they hold no POL and have never heard of Polygon. buyManyGasless now groups both kinds.
+      if (gaslessEnabled()) {
         try {
           // Relayed, so there are no per-group prompts to count: report every group as already confirmed so
           // the modal goes straight to settling. Passing 0 here would instead re-arm "awaiting confirmation"
@@ -448,7 +445,7 @@ export function Cart() {
           // exact defect this whole change exists to fix, left live on the busiest path.
           const saltsByHash = new Map<string, string[]>()
           hashes = await buyManyGasless({
-            purchases: tradeOnlyPurchases,
+            purchases,
             buyer: session.address,
             signer: session.signer,
             onSigned: () => onSigned(sigTotal),
@@ -479,6 +476,11 @@ export function Cart() {
           usedGasless = true
         } catch (gaslessErr) {
           if (!(gaslessErr instanceof GaslessUnavailableError)) throw gaslessErr
+          // The gas-paying rail is only a route for a SELF-CUSTODY wallet. A managed (web2) wallet holds no
+          // POL, so submitting there reverts with INSUFFICIENT_FUNDS after a prompt the buyer cannot act on —
+          // and gas/network wording is exactly what these users must never be shown (CONVENTIONS.md). Better
+          // to surface the relayer being down as what it is: something to try again shortly.
+          if (!showsWalletConfirmations(session.providerType)) throw gaslessErr
           hashes = await buyManyWithCredits({
             purchases,
             buyer: session.address,

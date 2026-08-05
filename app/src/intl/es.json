@@ -394,7 +394,8 @@
     "playLoop": "Bucle",
     "playOnce": "Una vez",
     "emoteSound": "Sonido",
-    "emoteProps": "Accesorios"
+    "emoteProps": "Accesorios",
+    "cancelRelayReverted": "No se completó — tu listing sigue publicado. Podés darlo de baja ahora pagando la comisión de red, o dejarlo y probar más tarde."
   },
   "transfer": {
     "title": "Transferir artículo",

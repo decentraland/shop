@@ -609,7 +609,9 @@ export function ItemDetail() {
   const [manageError, setManageError] = useState<string | null>(null)
   // The relay did not get the cancellation confirmed. Holds the choice open — pay the gas now, or leave it —
   // instead of spending the seller's gas behind their back (see cancelListing's `mode`).
-  const [gaslessCancelFailed, setGaslessCancelFailed] = useState(false)
+  // null when nothing failed. 'pending' means the relay may still land, 'reverted' that it provably did
+  // not — the two need different words, and only one of them may say "it may still go through".
+  const [gaslessCancelFailed, setGaslessCancelFailed] = useState<null | 'pending' | 'reverted'>(null)
   // Shown once the wait passes the point where "a moment" stops being true, so the spinner explains itself.
   const [cancelSlow, setCancelSlow] = useState(false)
 
@@ -832,7 +834,7 @@ export function ItemDetail() {
     const own = opts.own !== false
     if (!session || !manageTradeId) return false
     setManageError(null)
-    setGaslessCancelFailed(false)
+    setGaslessCancelFailed(null)
     setCancelSlow(false)
     if (own) setManaging('remove')
     try {
@@ -880,9 +882,10 @@ export function ItemDetail() {
       const rejected = isRejection(e)
       if (!rejected) captureError(e, { flow: 'remove-listing', tradeId: manageTradeId })
       if (e instanceof GaslessCancelFailedError) {
-        // Not "it failed": the relayed transaction may still land. Offer the gas-paying route and say so,
-        // rather than a bare "try again" that has the seller re-signing something already in flight.
-        setGaslessCancelFailed(true)
+        // Offer the gas-paying route either way, but say which situation it is: a reverted relay is dead and
+        // paying gas is the real next step, while an unconfirmed one may still land on its own — and telling
+        // someone that about a revert is simply false.
+        setGaslessCancelFailed(e.definitive ? 'reverted' : 'pending')
         return false
       }
       // Through friendlyError so a wrong network or a wallet that refused the request says which of those
@@ -1425,7 +1428,11 @@ export function ItemDetail() {
                             that has them re-signing something already in flight. */}
                         {gaslessCancelFailed ? (
                           <S.GaslessNotice data-testid="cancel-gasless-failed">
-                            <p>{t('itemDetail.cancelRelayFailed')}</p>
+                            <p>
+                              {gaslessCancelFailed === 'reverted'
+                                ? t('itemDetail.cancelRelayReverted')
+                                : t('itemDetail.cancelRelayFailed')}
+                            </p>
                             <S.GaslessActions>
                               <S.LinkCta
                                 type="button"
@@ -1438,7 +1445,7 @@ export function ItemDetail() {
                               <S.LinkCta
                                 type="button"
                                 data-testid="cancel-later"
-                                onClick={() => setGaslessCancelFailed(false)}
+                                onClick={() => setGaslessCancelFailed(null)}
                                 disabled={managing !== null}
                               >
                                 {t('itemDetail.cancelLater')}
