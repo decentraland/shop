@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { useWallet } from '~/store/wallet'
+import { Confetti } from '~/components/Confetti'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { Faq, type FaqEntry } from '~/components/Faq'
 import { Icon } from '~/components/Icon'
@@ -372,6 +373,10 @@ export function GetCredits() {
 
       {phase === 'success' && (
         <S.Success role="status" aria-live="polite">
+          {/* Only here, never on the processing screen: the credits are really in the balance by this
+              point. Same burst the item purchase fires, so buying credits and buying an item celebrate
+              alike instead of one feeling like the lesser event. */}
+          <Confetti />
           <S.Banner>
             <S.BannerIcon src={checkCircle} alt="" width={60} height={60} />
             <S.BannerText>

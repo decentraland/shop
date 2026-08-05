@@ -674,6 +674,11 @@ export const ProgressCount = styled.span`
 `
 
 export const Success = styled.div`
+  /* Its own stacking context, so the confetti layer (z-index: -1) lands BEHIND this content instead of
+     escaping past it and hiding behind the page background. z-index is inert without a position, so both
+     are required — same arrangement Success.styles' Root uses for the item-purchase burst. */
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   gap: 12px;

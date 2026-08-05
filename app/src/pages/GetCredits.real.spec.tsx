@@ -11,6 +11,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 // control isMockPayments/createPackCheckout/pollCreditGrant per test. (The mock-path integration
 // happy paths live in GetCredits.spec.tsx, which uses the real payments module.)
 
+// The success screen fires the confetti, which lazy-loads lottie-web — and lottie-web drives a real
+// canvas, which jsdom does not provide (it throws on `fillStyle` of a null context). These specs are
+// about the redirect wiring, so stub the player out; GetCredits.spec.tsx covers the burst itself.
+vi.mock('lottie-react', () => ({ default: () => <span data-testid="lottie" /> }))
+
 const session = {
   address: '0xabc0000000000000000000000000000000000abc',
   chainId: 80002,
