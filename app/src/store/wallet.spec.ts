@@ -31,8 +31,10 @@ vi.mock('~/lib/analytics', () => ({
 // session boundary. Mock both so we can assert the reloadFor wiring without touching localStorage.
 const favReloadFor = vi.fn()
 const followReloadFor = vi.fn()
+const cartReloadFor = vi.fn()
 vi.mock('~/store/favorites', () => ({ useFavorites: { getState: () => ({ reloadFor: favReloadFor }) } }))
 vi.mock('~/store/follows', () => ({ useFollows: { getState: () => ({ reloadFor: followReloadFor }) } }))
+vi.mock('~/store/cart', () => ({ useCart: { getState: () => ({ reloadFor: cartReloadFor }) } }))
 
 import { useWallet } from '~/store/wallet'
 
@@ -97,6 +99,7 @@ describe('wallet store', () => {
       expect(reset).toHaveBeenCalledTimes(1)
       expect(favReloadFor).toHaveBeenCalledWith(null)
       expect(followReloadFor).toHaveBeenCalledWith(null)
+      expect(cartReloadFor).toHaveBeenCalledWith(null)
     })
   })
 
@@ -111,6 +114,7 @@ describe('wallet store', () => {
       expect(track).not.toHaveBeenCalled()
       expect(favReloadFor).not.toHaveBeenCalled()
       expect(followReloadFor).not.toHaveBeenCalled()
+      expect(cartReloadFor).not.toHaveBeenCalled()
     })
 
     it('stores the session and identifies on a silent restore, without emitting the sign-in event', async () => {
@@ -126,6 +130,8 @@ describe('wallet store', () => {
       // follows load this account's local bucket
       expect(favReloadFor).toHaveBeenCalledWith('0xABC', s.identity)
       expect(followReloadFor).toHaveBeenCalledWith('0xABC')
+      // and the persisted cart is handed to this buyer — emptied if the previous one left theirs behind
+      expect(cartReloadFor).toHaveBeenCalledWith('0xABC')
       // no flag set → this is a restore, not a fresh sign-in
       expect(track).not.toHaveBeenCalled()
     })

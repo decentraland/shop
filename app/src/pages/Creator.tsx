@@ -1,5 +1,6 @@
 import { useMemo, useEffect, useState } from 'react'
 import { useUrlFilters } from '~/hooks/useUrlFilters'
+import { useScrollTopOnChange } from '~/hooks/useScrollTopOnChange'
 import { resolveGridView } from './Creator.view'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
@@ -25,6 +26,7 @@ import { ErrorNotice } from '~/components/ErrorNotice'
 import * as CP from '~/styles/collectionPage.styles'
 import * as A from './Assets.styles'
 import { Grid } from '~/styles/grid.styles'
+import { TextSkeleton } from '~/styles/skeleton.styles'
 
 // The URL is user-editable, so a status read out of it is validated against this.
 const STATUSES: FilterStatus[] = ['all', 'on_sale', 'not_for_sale']
@@ -85,6 +87,9 @@ export function Creator() {
     ? (filterState.status as FilterStatus)
     : 'all'
   const setStatus = (next: FilterStatus) => setFilters({ status: next })
+  // A category — or the Collections mode, which swaps the grid outright — is a different set of items, not
+  // more of the same one, so read it from the top.
+  useScrollTopOnChange(`${collectionsMode}:${category}:${subCategory ?? ''}`)
   const [filtersOpen, setFiltersOpen] = useState(false) // mobile filters drawer
 
   // Close the mobile filters drawer on Escape and lock body scroll while it's open (mirrors Assets).
@@ -304,8 +309,17 @@ export function Creator() {
           {collectionsMode ? (
             <>
               <CP.CollectionsBar>
-                <CP.Count>
-                  {collections.isLoading ? '…' : t('creator.collectionsCount', { count: collections.total })}
+                <CP.Count data-testid="creator-collections-count" aria-busy={collections.isLoading || undefined}>
+                  {collections.isLoading ? (
+                    <TextSkeleton
+                      className="skeleton"
+                      width={72}
+                      data-testid="creator-collections-count-skeleton"
+                      aria-hidden
+                    />
+                  ) : (
+                    t('creator.collectionsCount', { count: collections.total })
+                  )}
                 </CP.Count>
               </CP.CollectionsBar>
 

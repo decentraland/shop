@@ -48,11 +48,11 @@ function item(overrides: Partial<CatalogItem> = {}): CatalogItem {
   }
 }
 
-function renderCreator() {
+function renderCreator(search = '') {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={[`/items/creator/${CREATOR}`]}>
+      <MemoryRouter initialEntries={[`/items/creator/${CREATOR}${search}`]}>
         <Routes>
           <Route path="/items/creator/:address" element={<Creator />} />
         </Routes>
@@ -213,6 +213,36 @@ describe('Creator storefront', () => {
 
       await screen.findByTestId('creator-sidebar')
       expect(screen.queryByText('NAMEs')).not.toBeInTheDocument()
+    })
+  })
+
+  /**
+   * The count used to render a bare '…' while it loaded — announced as an ellipsis by a screen reader, and
+   * a different width from the text replacing it, so the bar resized under the reader.
+   */
+  describe('when the collections count has not landed', () => {
+    it('should shimmer instead of showing an ellipsis', async () => {
+      fetchCatalogItems.mockResolvedValue({ items: [], total: 0 })
+      fetchCreatorCollections.mockReturnValue(new Promise(() => {}))
+
+      renderCreator('?collections')
+
+      const count = await screen.findByTestId('creator-collections-count')
+      expect(screen.getByTestId('creator-collections-count-skeleton')).toBeInTheDocument()
+      expect(count.textContent).not.toContain('…')
+      expect(count).toHaveAttribute('aria-busy', 'true')
+    })
+
+    it('should drop the shimmer for the real count', async () => {
+      fetchCatalogItems.mockResolvedValue({ items: [], total: 0 })
+      fetchCreatorCollections.mockResolvedValue({ collections: [], total: 3 })
+
+      renderCreator('?collections')
+
+      const count = await screen.findByTestId('creator-collections-count')
+      await waitFor(() => expect(count.textContent).toContain('3'))
+      expect(screen.queryByTestId('creator-collections-count-skeleton')).not.toBeInTheDocument()
+      expect(count).not.toHaveAttribute('aria-busy')
     })
   })
 })

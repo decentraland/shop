@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
-import { MemoryRouter, Routes, Route } from 'react-router-dom'
+import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 const session = { address: '0xabc0000000000000000000000000000000000abc', providerType: 'injected' as never }
@@ -23,6 +23,11 @@ vi.mock('~/lib/api', async orig => ({ ...(await orig<Record<string, unknown>>())
 vi.mock('lottie-react', () => ({ default: () => <span data-testid="lottie" /> }))
 
 import { Success } from '~/pages/Success'
+
+// Stands in for the My Items page, reporting the search string the CTA landed on.
+function MyItemsProbe() {
+  return <span data-testid="my-items-page">{useLocation().search}</span>
+}
 
 const item = {
   id: 'i1',
@@ -102,23 +107,38 @@ describe('Success settlement gating', () => {
     expect(screen.getByText(/×\s*3/)).toBeTruthy()
   })
 
-  it('routes the MY ITEMS CTA to /my-items', async () => {
+  // The CTA has to land on the shelf the purchase is actually on — My Items opens on Wearables, so an
+  // emote buyer following "you can find your item in the My Items tab" arrived where it could not be.
+  async function clickMyItems(items: unknown[]) {
     waitForSettlement.mockResolvedValue(undefined)
     fetchOwnsItem.mockResolvedValue(true)
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     render(
       <QueryClientProvider client={qc}>
-        <MemoryRouter initialEntries={[{ pathname: '/success', state: { items: [item], txHash: '0xabc' } }]}>
+        <MemoryRouter initialEntries={[{ pathname: '/success', state: { items, txHash: '0xabc' } }]}>
           <Routes>
             <Route path="/success" element={<Success />} />
-            <Route path="/my-items" element={<div>My Items Page</div>} />
+            <Route path="/my-items" element={<MyItemsProbe />} />
           </Routes>
         </MemoryRouter>
       </QueryClientProvider>
     )
     const btn = await screen.findByRole('button', { name: /my items/i })
     btn.click()
-    await waitFor(() => expect(screen.getByText('My Items Page')).toBeTruthy())
+    await waitFor(() => expect(screen.getByTestId('my-items-page')).toBeTruthy())
+    return screen.getByTestId('my-items-page').textContent
+  }
+
+  it('routes the MY ITEMS CTA to the Wearables shelf for a wearable', async () => {
+    expect(await clickMyItems([item])).toBe('?section=wearables')
+  })
+
+  it('routes the MY ITEMS CTA to the Emotes shelf for an emote', async () => {
+    expect(await clickMyItems([{ ...item, category: 'emote' }])).toBe('?section=emotes')
+  })
+
+  it('routes a mixed basket to My Items with no section, since it has no single shelf', async () => {
+    expect(await clickMyItems([item, { ...item, id: 'i2', category: 'emote' }])).toBe('')
   })
 
   it('shows a finalizing state (never "It\'s yours!") while the tx is mined but not yet indexed', async () => {

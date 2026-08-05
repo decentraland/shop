@@ -40,6 +40,26 @@ describe('CollectionCard', () => {
     expect(screen.getByText('1 Item')).toBeTruthy()
   })
 
+  /**
+   * The count used to render a bare '…' while it resolved, which a screen reader announced as an ellipsis
+   * and which sat at a different width from the number replacing it.
+   */
+  it('shimmers instead of showing an ellipsis while the count is unknown', () => {
+    renderCard({ itemCount: undefined })
+
+    const count = screen.getByTestId('coll-card-count')
+    expect(screen.getByTestId('coll-card-count-skeleton')).toBeInTheDocument()
+    expect(count.textContent).not.toContain('…')
+    expect(count).toHaveAttribute('aria-busy', 'true')
+  })
+
+  it('drops the shimmer once the count lands', () => {
+    renderCard({ itemCount: 250 })
+
+    expect(screen.queryByTestId('coll-card-count-skeleton')).not.toBeInTheDocument()
+    expect(screen.getByTestId('coll-card-count')).not.toHaveAttribute('aria-busy')
+  })
+
   it('renders the supplied cover image', () => {
     const { container } = renderCard({ cover: 'https://example.com/hero.png' })
     const img = container.querySelector('[data-testid="coll-card-img"]')

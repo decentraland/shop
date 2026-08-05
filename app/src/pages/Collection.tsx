@@ -14,6 +14,7 @@ import { SkeletonCards } from '~/components/SkeletonCards'
 import { LoadMore } from '~/components/LoadMore'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
 import { useSeo } from '~/hooks/useSeo'
+import { useScrollTopOnChange } from '~/hooks/useScrollTopOnChange'
 import { SUBCAT_MAP } from '~/lib/categories'
 import { CURRENCY } from '~/lib/currency'
 import * as CP from '~/styles/collectionPage.styles'
@@ -34,12 +35,16 @@ export function Collection() {
   const { contractAddress } = useParams<{ contractAddress: string }>()
   const navigate = useNavigate()
 
-  const [category, setCategory] = useState('wearable')
+  // 'all' (Shop All): a collection is whatever the creator put in it, so opening on Wearables hid the
+  // emotes — and showed an empty grid for an emote-only collection.
+  const [category, setCategory] = useState('all')
   const [subCategory, setSubCategory] = useState<string | null>(null)
   const [rarities, setRarities] = useState<string[]>([])
   const [priceMin, setPriceMin] = useState('')
   const [priceMax, setPriceMax] = useState('')
   const [sort, setSort] = useState('newest')
+  // A category is a different set of items, not more of the same one — read it from the top.
+  useScrollTopOnChange(`${category}:${subCategory ?? ''}`)
 
   const min = priceMin && !Number.isNaN(Number(priceMin)) ? Number(priceMin) : undefined
   const max = priceMax && !Number.isNaN(Number(priceMax)) ? Number(priceMax) : undefined
@@ -88,7 +93,7 @@ export function Collection() {
     setRarities(rs => (rs.includes(r) ? rs.filter(x => x !== r) : [...rs, r]))
   }
   function reset() {
-    setCategory('wearable')
+    setCategory('all')
     setSubCategory(null)
     setRarities([])
     setPriceMin('')
@@ -97,7 +102,7 @@ export function Collection() {
 
   const priceActive = !!(min || max)
   const priceLabel = priceActive ? `${priceMin || '0'}–${priceMax || '∞'}` : t('filter.price')
-  const anyActive = category !== 'wearable' || !!subCategory || rarities.length > 0 || priceActive
+  const anyActive = category !== 'all' || !!subCategory || rarities.length > 0 || priceActive
 
   return (
     <CP.Page data-testid="collection-page">

@@ -9,6 +9,7 @@ import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import { waitForSettlement, SettlementPendingError } from '~/lib/buy-gasless'
 import { fetchOwnsItem } from '~/lib/api'
 import { formatCredits, CURRENCY } from '~/lib/currency'
+import { myItemsRouteFor } from '~/lib/routes'
 import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
 import type { CatalogItem } from '~/lib/api'
@@ -386,7 +387,7 @@ export function Success() {
         {receiptLink ? <S.Links data-receipt>{receiptLink}</S.Links> : null}
 
         <S.Ctas>
-          <S.Cta data-variant="ghost" onClick={() => navigate('/my-items')}>
+          <S.Cta data-variant="ghost" onClick={() => navigate(myItemsRouteFor(items.map(i => i.category)))}>
             {t('success.myAssets')}
           </S.Cta>
           <S.CtaLink data-variant="ruby" href={JUMP_URL} target="_blank" rel="noreferrer">

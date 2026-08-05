@@ -10,6 +10,7 @@ import { resolveLiveTrade, type CatalogItem } from '~/lib/api'
 import { formatCredits, usdCentsToCredits } from '~/lib/currency'
 import { readTradeManaPriceWei } from '~/lib/mana'
 import { lineUsdCents } from '~/lib/cart-checkout'
+import { myItemsRouteFor } from '~/lib/routes'
 import { readManaUsdRate, type ManaRate } from '~/lib/mana-rate'
 import { config } from '~/config'
 import { PaymentMethodStep } from '~/components/PaymentMethodStep'
@@ -796,7 +797,7 @@ export function BuyModal({
                   </M.SuccessText>
                 </M.Success>
                 <M.Ctas>
-                  <M.Btn data-variant="outline" onClick={() => navigate('/items?tab=mine')}>
+                  <M.Btn data-variant="outline" onClick={() => navigate(myItemsRouteFor([item.category]))}>
                     {t('buyModal.myAssets')}
                   </M.Btn>
                   <M.Btn data-variant="ruby" onClick={onClose}>

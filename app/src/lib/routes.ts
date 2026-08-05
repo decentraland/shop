@@ -44,3 +44,20 @@ export function canManageToken(opts: { isTokenRoute: boolean; ownsThisToken: boo
  * shelf for anything the migration flow sends a seller to look at.
  */
 export const MY_CREATIONS = '/my-items?section=creations'
+
+// The My Items section that holds each catalog category. NAMEs are `ens` on the NFT feed.
+// Keep in sync with `SECTIONS` in MyAssets.tsx — a new category added here without a matching section
+// there (or vice-versa) silently falls back to bare `/my-items`, which is safe but misleading.
+const OWNED_SECTIONS: Record<string, string | undefined> = { wearable: 'wearables', emote: 'emotes', ens: 'names' }
+
+/**
+ * My Items, on the shelf holding what was just bought. A post-purchase CTA that promises the buyer their
+ * item is in My Items has to land on the section it is actually in — bare `/my-items` opens on Wearables,
+ * so buying an emote sent them somewhere it could not be. A mixed basket has no single shelf, so it keeps
+ * the default one.
+ */
+export function myItemsRouteFor(categories: Array<string | null | undefined>): string {
+  const sections = new Set(categories.map(c => OWNED_SECTIONS[c ?? '']))
+  const [only] = [...sections]
+  return sections.size === 1 && only ? `/my-items?section=${only}` : '/my-items'
+}
