@@ -341,6 +341,11 @@ export const Btn = styled.button`
   &[data-variant='gradient'] {
     background: ${gradients.buyBtn};
     color: ${colors.softWhite};
+    transition: background 0.15s ease;
+  }
+  &[data-variant='gradient']:hover:not(:disabled),
+  &[data-variant='gradient']:active:not(:disabled) {
+    background: ${colors.dclRed};
   }
   &[data-variant='outline'] {
     background: transparent;

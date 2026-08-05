@@ -405,8 +405,9 @@ const ctaCss = css`
     background: ${gradients.buyBtn};
     color: ${colors.white};
   }
-  &[data-variant='primary']:hover {
-    filter: brightness(1.08);
+  &[data-variant='primary']:hover,
+  &[data-variant='primary']:active {
+    background: ${colors.dclRed};
   }
   &[data-variant='secondary'] {
     border: 0.5px solid ${colors.text};

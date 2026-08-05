@@ -756,15 +756,13 @@ export const Cta = styled.button`
   letter-spacing: 0.046em;
   text-transform: uppercase;
   cursor: pointer;
-  transition:
-    background 0.15s ease,
-    filter 0.15s ease;
+  transition: background 0.15s ease;
 
-  &:hover:not(:disabled) {
-    background: ${colors.accent};
-  }
+  /* Primary hover/pressed is the solid Primary red (Figma 738:53252 / 738:53262) — the gradient is
+     the RESTING fill only. */
+  &:hover:not(:disabled),
   &:active:not(:disabled) {
-    filter: brightness(0.95);
+    background: ${colors.dclRed};
   }
   &:disabled {
     opacity: 0.6;
