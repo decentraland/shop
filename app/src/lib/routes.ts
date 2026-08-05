@@ -46,7 +46,9 @@ export function canManageToken(opts: { isTokenRoute: boolean; ownsThisToken: boo
 export const MY_CREATIONS = '/my-items?section=creations'
 
 // The My Items section that holds each catalog category. NAMEs are `ens` on the NFT feed.
-const OWNED_SECTIONS: Record<string, string> = { wearable: 'wearables', emote: 'emotes', ens: 'names' }
+// Keep in sync with `SECTIONS` in MyAssets.tsx — a new category added here without a matching section
+// there (or vice-versa) silently falls back to bare `/my-items`, which is safe but misleading.
+const OWNED_SECTIONS: Record<string, string | undefined> = { wearable: 'wearables', emote: 'emotes', ens: 'names' }
 
 /**
  * My Items, on the shelf holding what was just bought. A post-purchase CTA that promises the buyer their
