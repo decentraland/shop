@@ -18,14 +18,7 @@ vi.mock('~/components/LazyWearablePreview', () => ({
   WearablePreview: (props: Record<string, unknown>) => {
     previewProps(props)
     const onRenderer = props.onRenderer as ((r: PreviewRenderer) => void) | undefined
-    return (
-      <div
-        data-testid="wearable-preview"
-        ref={() => onRenderer?.(PreviewRenderer.BABYLON)}
-        data-type={String(props.type)}
-        data-profile={String(props.profile)}
-      />
-    )
+    return <div data-testid="wearable-preview" ref={() => onRenderer?.(PreviewRenderer.BABYLON)} />
   }
 }))
 
@@ -57,7 +50,10 @@ function item(overrides: Partial<CatalogItem> = {}): CatalogItem {
   } as CatalogItem
 }
 
-const lastType = () => String(previewProps.mock.calls.at(-1)![0].type)
+function lastPreview(): Record<string, unknown> {
+  expect(previewProps).toHaveBeenCalled()
+  return previewProps.mock.calls.at(-1)![0]
+}
 
 describe('the item preview switch', () => {
   beforeEach(() => previewProps.mockClear())
@@ -72,7 +68,7 @@ describe('the item preview switch', () => {
   it('opens worn, because that is the decision a shopper is making', () => {
     render(<ItemPreview item={item()} />)
 
-    expect(lastType()).toBe(String(PreviewType.AVATAR))
+    expect(lastPreview().type).toBe(PreviewType.AVATAR)
     expect(screen.getByRole('button', { name: 'On avatar' }).getAttribute('aria-pressed')).toBe('true')
   })
 
@@ -81,12 +77,12 @@ describe('the item preview switch', () => {
     render(<ItemPreview item={item()} />)
 
     await user.click(screen.getByRole('button', { name: 'Item' }))
-    expect(lastType()).toBe(String(PreviewType.WEARABLE))
+    expect(lastPreview().type).toBe(PreviewType.WEARABLE)
     // No avatar to dress in the item-alone view, so none is requested.
-    expect(String(previewProps.mock.calls.at(-1)![0].profile)).toBe('undefined')
+    expect(lastPreview().profile).toBeUndefined()
 
     await user.click(screen.getByRole('button', { name: 'On avatar' }))
-    expect(lastType()).toBe(String(PreviewType.AVATAR))
+    expect(lastPreview().type).toBe(PreviewType.AVATAR)
   })
 
   // There is no item-alone view of a dance, so the switch would offer a state that does not exist.
