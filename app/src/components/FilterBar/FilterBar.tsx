@@ -3,6 +3,7 @@ import type { ShopSort } from '~/lib/api'
 import { Chevron } from '~/components/Chevron'
 import { Dropdown } from '~/components/Dropdown'
 import { Pop, Check } from '~/styles/filterPop.styles'
+import { TextSkeleton } from '~/styles/skeleton.styles'
 import { t } from '~/intl/i18n'
 import * as S from './FilterBar.styles'
 import { theme } from '~/styles/theme'
@@ -143,8 +144,8 @@ export function FilterBar({
         <S.Count data-testid="browse-count" aria-busy={loading || undefined}>
           {loading ? (
             /* Not read aloud: a shimmer is not information, and the count announces itself once it is
-               real. The '…' this replaces was announced as an ellipsis. */
-            <S.CountSkeleton className="skeleton" data-testid="browse-count-skeleton" aria-hidden />
+               real. The '…' this replaces was announced as an ellipsis. Width covers "1,234 items". */
+            <TextSkeleton className="skeleton" width={72} data-testid="browse-count-skeleton" aria-hidden />
           ) : (
             <>
               {t('filterBar.count', { count: total })}

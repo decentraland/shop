@@ -41,6 +41,7 @@ import { isWearable, outfitPreviewUrns, playingEmote } from '~/lib/outfit'
 import { t } from '~/intl/i18n'
 import { toast } from '~/store/toast'
 import { useWallet } from '~/store/wallet'
+import { TextSkeleton } from '~/styles/skeleton.styles'
 import * as S from './OutfitStudio.styles'
 
 // The outfit studio: a management list plus a one-page editor, for the addresses in the
@@ -739,7 +740,14 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
                         <S.SelThumbEmpty className={resolution.isLoading ? 'skeleton' : undefined} aria-hidden />
                       )}
                       <S.SelName className={item ? undefined : 'muted'}>
-                        {item ? item.name : resolution.isLoading ? '…' : t('outfits.card.unavailable')}
+                        {item ? (
+                          item.name
+                        ) : resolution.isLoading ? (
+                          // The thumbnail beside this already shimmers, so the name has to as well.
+                          <TextSkeleton className="skeleton" width={96} aria-hidden />
+                        ) : (
+                          t('outfits.card.unavailable')
+                        )}
                       </S.SelName>
                       {key === playingKey ? (
                         <S.SelHint data-testid="outfit-studio-plays-in-preview">

@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { type CollectionMeta } from '~/lib/collections'
 import { useCollectionPreview } from '~/components/CollectionThumb'
 import { t } from '~/intl/i18n'
+import { TextSkeleton } from '~/styles/skeleton.styles'
 import * as S from './CollectionCard.styles'
 
 export type CollectionCardProps = {
@@ -61,7 +62,13 @@ export function CollectionCard({ collection, cover, itemCount }: CollectionCardP
         <S.Slot>
           <S.Meta data-meta data-testid="coll-card-meta">
             {creator ? <S.Creator address={creator} linkToProfile /> : <S.CreatorEmpty>&nbsp;</S.CreatorEmpty>}
-            <S.Count>{count == null ? '…' : t('collectionCard.itemCount', { count })}</S.Count>
+            <S.Count data-testid="coll-card-count" aria-busy={count == null || undefined}>
+              {count == null ? (
+                <TextSkeleton className="skeleton" width={54} data-testid="coll-card-count-skeleton" aria-hidden />
+              ) : (
+                t('collectionCard.itemCount', { count })
+              )}
+            </S.Count>
           </S.Meta>
           <S.View
             data-view

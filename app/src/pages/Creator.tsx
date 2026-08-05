@@ -26,6 +26,7 @@ import { ErrorNotice } from '~/components/ErrorNotice'
 import * as CP from '~/styles/collectionPage.styles'
 import * as A from './Assets.styles'
 import { Grid } from '~/styles/grid.styles'
+import { TextSkeleton } from '~/styles/skeleton.styles'
 
 // The URL is user-editable, so a status read out of it is validated against this.
 const STATUSES: FilterStatus[] = ['all', 'on_sale', 'not_for_sale']
@@ -308,8 +309,17 @@ export function Creator() {
           {collectionsMode ? (
             <>
               <CP.CollectionsBar>
-                <CP.Count>
-                  {collections.isLoading ? '…' : t('creator.collectionsCount', { count: collections.total })}
+                <CP.Count data-testid="creator-collections-count" aria-busy={collections.isLoading || undefined}>
+                  {collections.isLoading ? (
+                    <TextSkeleton
+                      className="skeleton"
+                      width={72}
+                      data-testid="creator-collections-count-skeleton"
+                      aria-hidden
+                    />
+                  ) : (
+                    t('creator.collectionsCount', { count: collections.total })
+                  )}
                 </CP.Count>
               </CP.CollectionsBar>
 
