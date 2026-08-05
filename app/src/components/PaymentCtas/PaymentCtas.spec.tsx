@@ -73,6 +73,18 @@ describe('when the credits balance falls short', () => {
     })
   })
 
+  describe('and MANA covers only the remainder', () => {
+    it('should offer the credits CTA alongside the combined rail', () => {
+      // 2 MANA against a 4-MANA price, with 10 of the 20 credits held: neither pays alone, but together
+      // they do — the `combined` rail. Listed in the PR's scenario table and previously unasserted.
+      const { rails } = renderCtas(100, MANA(2))
+      expect(rails.options.some(o => o.method === 'combined')).toBe(true)
+
+      expect(screen.getByTestId('pay-with-combined')).toBeInTheDocument()
+      expect(screen.getByTestId('pay-with-credits-topup')).toBeInTheDocument()
+    })
+  })
+
   describe('and MANA alone could pay the whole purchase', () => {
     it('should still offer the credits CTA, for a buyer who would rather keep their MANA', () => {
       const { rails } = renderCtas(100, MANA(50))
