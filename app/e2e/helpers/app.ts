@@ -67,6 +67,8 @@ export type Fixtures = {
   notifications: unknown
   /** Outfit records served (and mutated) by the mock shop-server (port 5004). */
   outfits: unknown
+  /** Week creator ranking (/v1/rankings/creators/week) — what fills the "Top Creators" section. */
+  rankings: unknown
 }
 
 function defaults(): Fixtures {
@@ -100,6 +102,9 @@ function defaults(): Fixtures {
     },
     trade: null,
     outfits: { outfits: [] },
+    // No ranking by default: the shipped marketplace-server answers this only on the chains it has
+    // sales on, and "empty ranking → no section" is the behaviour most specs run in.
+    rankings: { data: [] },
     purchases: { purchases: [] },
     sales: { data: [], total: 0 },
     // Two notifications, one unread — enough to prove the badge, the panel list and the mark-read flip.
@@ -412,6 +417,23 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
         items.sort((a, b) => Number(BigInt(a.manaWei) - BigInt(b.manaWei)))
       return json(req, { data: items, total: items.length })
     }
+    // The home page's TRENDING rail. Served from the same `unifiedListings` fixture as the browse feed, and
+    // honouring the two filters the row depends on, because both are what the real endpoint applies in SQL:
+    // a mock that ignored `listingType` would put a resale in a rail production never shows one in, and one
+    // that ignored `includeSocialEmotes` would hide the fact that the client sends it at all. The RANKING is
+    // not reproduced — the fixture has no sales history to rank, and ordering is covered by the server's own
+    // tests against a database; what the e2e can observe is which endpoint fills the rail and with what.
+    if (path === '/v3/catalog/trending') {
+      let items = [...((F.unifiedListings as { data: any[] }).data ?? [])]
+      const trendingListingType = u.searchParams.get('listingType')
+      if (trendingListingType === 'primary') items = items.filter(i => !i.tokenId)
+      if (trendingListingType === 'secondary') items = items.filter(i => !!i.tokenId)
+      if (u.searchParams.get('includeSocialEmotes') === 'false') items = items.filter(i => !i.emoteOutcomeType)
+      const trendingFirst = Number(u.searchParams.get('first') ?? 0)
+      if (Number.isFinite(trendingFirst) && trendingFirst > 0) items = items.slice(0, trendingFirst)
+      // Unpaginated: `{ data }` only, no total — same as the real handler.
+      return json(req, { data: items })
+    }
     if (path === '/v3/catalog/unified') {
       // The ONE browse grid: native + legacy in one feed. `groupBy=item` (the browse grid, fetchShopItems)
       // asks for one row per item carrying listingCount; the default (per-listing, fetchUnified) is served
@@ -527,6 +549,10 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
     // Secondary sales feed (Activity page → fetchUserSales, ?seller=/?buyer=). Return the fixture data
     // as-is (the address filter is applied server-side in prod; the fixture is already scoped per run).
     if (path === '/v1/sales') return json(req, F.sales)
+    // Creator rankings (lib/rankings.ts → fetchTopCreators). Served from a fixture so a spec can put
+    // creators on the row: without one this fell through to the empty `{ data: [] }` below, i.e. the
+    // section rendered its skeletons and then removed itself.
+    if (path.startsWith('/v1/rankings/')) return json(req, F.rankings)
     if (path === '/v1/orders') return json(req, { data: [], total: 0 })
     // Favorites service (marketplace picks): POST toggles membership in the run's accumulator; the
     // default-list GET returns the picked ids in the {ok, data} envelope lib/favorites.ts parses.
@@ -645,6 +671,23 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
 export type App = { browser: Browser; page: Page; close: () => Promise<void> }
 
 /**
+ * Per-response delays, keyed by a URL pathname SUBSTRING (e.g. `{ '/v1/outfits': 800 }`).
+ *
+ * Exists for the layout-stability specs: every mock here answers in under a millisecond, so all of a
+ * page's sections land in the same frame and the page never passes through the half-loaded state a real
+ * visitor sees. Staggering the feeds is what makes "does this section reserve its height" observable.
+ */
+export type Delays = Record<string, number>
+
+function delayFor(path: string, delays: Delays): number {
+  let ms = 0
+  for (const [match, value] of Object.entries(delays)) {
+    if (path.includes(match)) ms = Math.max(ms, value)
+  }
+  return ms
+}
+
+/**
  * Launch a headless page with the mock wallet + all network mocked, navigated to `path`.
  * Options (all default-off so existing specs are unaffected):
  * - signedOut: skip the session init script so the app renders signed-out (no wallet, no identity).
@@ -680,6 +723,18 @@ export async function launchApp(
      * state, where the feature is hidden; the follows spec passes true to exercise the prototype.
      */
     follows?: boolean
+    /** Per-pathname response delays (see {@link Delays}) — for the layout-stability specs. */
+    delays?: Delays
+    /**
+     * Script evaluated on every new document BEFORE anything renders — the only place a spec can
+     * install a first-paint recorder (a PerformanceObserver, an rAF sampler) early enough to see it.
+     */
+    initScript?: string
+    /**
+     * What `page.goto` waits for. Defaults to `networkidle2` (every spec asserting settled content);
+     * a layout spec passes `domcontentloaded` so it can observe the page while it is still filling in.
+     */
+    waitUntil?: 'load' | 'domcontentloaded' | 'networkidle0' | 'networkidle2'
   } = {}
 ): Promise<App> {
   const F = { ...defaults(), ...opts.fixtures }
@@ -703,14 +758,21 @@ export async function launchApp(
     const sess = await session()
     await page.evaluateOnNewDocument(sessionInitScript(sess))
   }
+  if (opts.initScript) await page.evaluateOnNewDocument(opts.initScript)
   await page.setRequestInterception(true)
+  const delays = opts.delays ?? {}
   page.on('request', req => {
-    try {
-      route(req, F, errors, appBase)
-    } catch (e) {
-      if (!req.response()) req.respond({ status: 500, headers: CORS, body: String(e) }).catch(() => {})
+    const respond = () => {
+      try {
+        route(req, F, errors, appBase)
+      } catch (e) {
+        if (!req.response()) req.respond({ status: 500, headers: CORS, body: String(e) }).catch(() => {})
+      }
     }
+    const ms = delayFor(new URL(req.url()).pathname, delays)
+    if (ms > 0) setTimeout(respond, ms)
+    else respond()
   })
-  await page.goto(`${appBase}${opts.path ?? '/'}`, { waitUntil: 'networkidle2', timeout: 45000 })
+  await page.goto(`${appBase}${opts.path ?? '/'}`, { waitUntil: opts.waitUntil ?? 'networkidle2', timeout: 45000 })
   return { browser, page, close: () => browser.close() }
 }

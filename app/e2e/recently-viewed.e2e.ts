@@ -43,7 +43,7 @@ describe('view history', () => {
     await waitForText(page, 'Nebula Jacket')
     // Navigate in-app (client-side) the way a shopper would, not with a hard reload.
     expect(await clickByText(page, 'a', /overview/i)).toBe(true)
-    await waitForText(page, 'Featured Products')
+    await waitForText(page, 'Trending Products')
 
     expect((await history(page)).map(i => i.name)).toContain('Nebula Jacket')
   })
@@ -65,7 +65,7 @@ describe('view history', () => {
 
     await waitForText(page, 'Nebula Jacket')
     expect(await clickByText(page, 'a', /overview/i)).toBe(true)
-    await waitForText(page, 'Featured Products')
+    await waitForText(page, 'Trending Products')
 
     // Recorded (asserted above) but not rendered: no heading, and no leftover empty section either.
     expect(await history(page)).not.toHaveLength(0)
