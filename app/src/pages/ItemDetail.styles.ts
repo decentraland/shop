@@ -786,15 +786,27 @@ export const LinkCta = styled.button`
   }
 `
 
+// The secondary manage action (Transfer / Remove from sale) — the design system's Primary+Outlined
+// button (Figma 718:40730): a hairline white outline on the purple field that FILLS with soft-white and
+// flips its label dark on hover/press. It used to carry a soft-black outline and label, which is a
+// light-theme pairing and read as a disabled control here.
 export const OutlineCta = styled(Button)`
   ${ctaBox};
   && {
     background: transparent;
-    border: 2px solid ${colors.blackBtn};
+    border: 0.5px solid ${colors.white};
+    color: ${colors.softWhite};
+    transition:
+      background 0.15s ease,
+      color 0.15s ease;
+  }
+  &&:hover:not(:disabled),
+  &&:active:not(:disabled) {
+    background: ${colors.softWhite};
     color: ${colors.text};
   }
-  &&:hover:not(:disabled) {
-    background: rgba(36, 33, 41, 0.06);
+  &&:disabled {
+    opacity: 0.3;
   }
 `
 
