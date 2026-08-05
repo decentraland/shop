@@ -472,6 +472,12 @@ export const Card = styled.article`
   box-shadow: 0 0 0 0.25px ${theme.colors.muted2};
   border-radius: ${theme.radius.card};
   overflow: hidden;
+
+  /* Forced colours drop decorative shadows. Outline rather than border: it survives there and, like the
+     shadow, takes no layout, so the artwork still reaches the corner. */
+  @media (forced-colors: active) {
+    outline: 1px solid CanvasText;
+  }
 `
 
 // Reaches the card's edge on every side: the box-shadow outline leaves no border box to sit inside.

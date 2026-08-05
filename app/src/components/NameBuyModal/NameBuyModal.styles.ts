@@ -5,10 +5,8 @@ import { theme } from '~/styles/theme'
 // success 1368-354667). A single dialog that walks confirm → completing → success/error, mirroring
 // the shop's existing checkout modal but with the NAME-specific "re-enter to confirm" gate.
 
-// The success tile's own palette: a one-off flourish, deliberately not a theme token any other surface
-// should reach for.
-const TILE_GRADIENT_FROM = '#c640cd'
-const TILE_GRADIENT_TO = '#691fa9'
+// The cyan the NAME reads in on the success tile. Only this one is local — the tile's gradient is the
+// theme's amethyst.
 const TILE_NAME_COLOR = '#34fee6'
 
 export const Scrim = styled.div`
@@ -123,7 +121,7 @@ export const NameTile = styled.div`
   padding: 20px 0;
   border-radius: 12px;
   overflow: hidden;
-  background: linear-gradient(180deg, ${TILE_GRADIENT_FROM} 0%, ${TILE_GRADIENT_TO} 100%);
+  background: ${theme.gradients.amethyst};
 `
 
 export const NameTileGlyph = styled.img`

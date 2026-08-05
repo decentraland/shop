@@ -315,7 +315,9 @@ export function NameBuyModal({
               <S.NameTile data-testid="name-success-tile">
                 <S.NameTileGlyph src={nameGlyph} alt="" aria-hidden width={47} height={47} />
                 <S.NameTileLabel>
-                  <span>{name}</span>
+                  {/* The canonical name for assistive tech is the one in NameMeta below; this repeat is
+                      visual. */}
+                  <span aria-hidden>{name}</span>
                   <S.NameTileTick src={nameVerified} alt="" aria-hidden width={14} height={14} />
                 </S.NameTileLabel>
               </S.NameTile>
