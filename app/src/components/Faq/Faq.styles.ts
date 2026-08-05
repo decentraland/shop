@@ -196,10 +196,15 @@ export const Answer = styled.div`
   font-weight: 400;
   line-height: 1.5;
   color: ${theme.colors.text2};
-  /* The answers are authored as one string with a newline where the design breaks the line. Two <p>s with
-     no margin between them render as two lines, which is what this is — keeping it one translatable string
-     rather than splitting every answer into numbered halves. */
-  white-space: pre-line;
+  /* The answers are authored as one string with a newline where the design breaks the line; Faq.tsx turns
+     each line into its own <p> so consecutive sentences are spaced apart rather than stacked. */
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  & p {
+    margin: 0;
+  }
 
   [data-tone='on-dark'] & {
     color: ${theme.colors.white};

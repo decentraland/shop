@@ -18,7 +18,7 @@ import * as S from './Faq.styles'
 export type FaqEntry = {
   /** i18n key for the question — the visible label of the toggle. */
   question: string
-  /** i18n key for the answer. A newline in the string renders as a line break (see S.Answer). */
+  /** i18n key for the answer. Each newline in the string starts a new PARAGRAPH (see S.Answer). */
   answer: string
 }
 
@@ -83,7 +83,17 @@ export function Faq({
                 /* The question names the region: a role="region" with no accessible name is skipped as a
                    landmark, so the answer would not be reachable by landmark navigation. */
                 <S.Answer id={panelId} role="region" aria-labelledby={headerId} data-testid="faq-answer">
-                  {t(entry.answer)}
+                  {/* One paragraph per authored line, so consecutive sentences get real space between
+                      them instead of sitting on stacked lines. Splitting on the newline rather than on
+                      "." keeps the copy one translatable string and can't mis-split an abbreviation or
+                      a price. */}
+                  {t(entry.answer)
+                    .split('\n')
+                    .map(line => line.trim())
+                    .filter(Boolean)
+                    .map(line => (
+                      <p key={line}>{line}</p>
+                    ))}
                 </S.Answer>
               )}
             </S.Item>
