@@ -13,6 +13,10 @@ import {
 type RawItem = {
   id: string
   name: string
+  price?: string | null
+  tradeId?: string | null
+  isOnSale?: boolean
+  available?: string | number | null
   creator?: string
   contractAddress: string
   itemId?: string | null
@@ -477,5 +481,49 @@ describe('when fetching the full catalog (browse "All" / "Not for Sale")', () =>
 
     const url = new URL(fetchMock.mock.calls[0][0] as string)
     expect(url.searchParams.has('isOnSale')).toBe(false)
+  })
+})
+
+/**
+ * A COLLECTION-STORE MINT, as /v3/catalog/items reports it: on sale, priced, and with NO trade — because it
+ * is minted from the store contract and no trade will ever exist. Its `price` is MANA, and the row has to
+ * carry that plus its acquisition, or every surface downstream has to guess: the creator page priced it off
+ * the server's converted number (4 credits) while the browse grid converted the MANA live (14), and the item
+ * page called it not for sale.
+ */
+describe('when the catalog reports a store mint', () => {
+  it('should carry the MANA price and the stock, so the price can be converted live', async () => {
+    mockFetchOk([
+      rawItem({ priceCredits: 4, price: '20000000000000000000', tradeId: null, isOnSale: true, available: '48' })
+    ])
+
+    const { items } = await fetchCatalogItems({})
+
+    expect(items[0].manaWei).toBe('20000000000000000000')
+    expect(items[0].available).toBe(48)
+    // NOT labelled as a store mint: this feed cannot tell a mint from a classic order, and guessing would
+    // route the purchase down the wrong rail. Only the unified feed carries that discriminator.
+    expect(items[0].acquisition).toBeUndefined()
+    // The server's own conversion is still carried, but it is not what a surface should render — see
+    // displayCredits in lib/mana-convert, which prefers manaWei at the live rate.
+    expect(items[0].priceCredits).toBe(4)
+  })
+
+  it('should not invent a store acquisition for an item that is not on sale', async () => {
+    mockFetchOk([rawItem({ priceCredits: 0, price: '20000000000000000000', tradeId: null, isOnSale: false })])
+
+    const { items } = await fetchCatalogItems({})
+
+    expect(items[0].manaWei).toBeUndefined()
+  })
+
+  // A row with a trade is priced by whichever rail owns it; this mapper must not convert its price.
+  it('should leave a traded row alone', async () => {
+    mockFetchOk([rawItem({ priceCredits: 11, price: '1100000000000000000', tradeId: 'tr-9', isOnSale: true })])
+
+    const { items } = await fetchCatalogItems({})
+
+    expect(items[0].manaWei).toBeUndefined()
+    expect(items[0].priceCredits).toBe(11)
   })
 })

@@ -23,6 +23,7 @@ vi.mock('~/lib/collections', () => ({
   fetchCatalogItems: (...args: unknown[]) => fetchCatalogItems(...args),
   fetchCreatorCollections: (...args: unknown[]) => fetchCreatorCollections(...args)
 }))
+vi.mock('~/hooks/useManaRate', () => ({ useManaRate: () => ({ data: undefined, isError: false, isPending: false }) }))
 vi.mock('~/lib/analytics', () => ({ track: vi.fn(), errorCode: () => 'x', isUserRejection: () => false }))
 vi.mock('~/components/CreatorHero', () => ({ CreatorHero: () => <div data-testid="creator-hero" /> }))
 vi.mock('~/components/AssetCard', () => ({ AssetCard: () => <div data-testid="asset-card" /> }))

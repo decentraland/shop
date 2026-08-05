@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useMemo, useEffect, useState } from 'react'
 import { resolveGridView } from './Creator.view'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
@@ -17,6 +17,8 @@ import { useProfile } from '~/hooks/useProfile'
 import { SUBCAT_MAP } from '~/lib/categories'
 import { capitalizeFirst } from '~/lib/text'
 import { shortAddress } from '~/lib/address'
+import { displayCredits } from '~/lib/mana-convert'
+import { useManaRate } from '~/hooks/useManaRate'
 import { t } from '~/intl/i18n'
 import { ErrorNotice } from '~/components/ErrorNotice'
 import * as CP from '~/styles/collectionPage.styles'
@@ -208,7 +210,25 @@ export function Creator() {
     baselineCount: baseline.data
   })
   const showGridSkeletons = view === 'skeletons'
-  const buyable = items.filter(i => i.priceCredits > 0)
+
+  /**
+   * Price every row through the app's ONE display rule before it reaches a card.
+   *
+   * These rows come from /v3/catalog/items, whose `priceCredits` is converted with the SERVER's MANA rate —
+   * not the rate checkout charges. Measured on production: a 20-MANA store mint arrived as 4 credits while
+   * the live rate makes it 14, which is what the browse grid (and now the item page) shows. Reading the
+   * server number here is what made this page disagree with both.
+   */
+  const { data: manaRate } = useManaRate()
+  const priced = useMemo(
+    () => items.map(item => ({ ...item, priceCredits: displayCredits(item, manaRate) })),
+    [items, manaRate]
+  )
+  // "For sale" stays exactly what it was for this feed — a price the server reports — with one addition: a
+  // MANA row whose live rate has not resolved yet is still for sale, it just has no number to show. Without
+  // that, every store-mint card would flash as NOT FOR SALE for the first frames.
+  const isForSale = (item: (typeof priced)[number]) => item.priceCredits > 0 || !!item.manaWei
+  const buyable = priced.filter(isForSale)
 
   // Which of the three empty states applies, if any. They are genuinely different facts and each got
   // reported as "this creator has no items": a failed request, a filter set that excludes everything,
@@ -322,10 +342,10 @@ export function Creator() {
                   <SkeletonCards count={15} />
                 ) : (
                   <>
-                    {items.map(item =>
+                    {priced.map(item =>
                       // A creation that isn't for sale has no price and nothing to add to a cart, so it
                       // renders as a VIEW card (same treatment browse gives its not-for-sale grids).
-                      item.priceCredits > 0 ? (
+                      isForSale(item) ? (
                         <AssetCard key={item.id} item={item} />
                       ) : (
                         <AssetCard key={item.id} item={item} mode="view" />

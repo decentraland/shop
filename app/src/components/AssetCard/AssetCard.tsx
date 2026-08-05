@@ -482,6 +482,14 @@ export function AssetCard(props: AssetCardProps) {
               <S.Name title={item.name}>
                 <span>{item.name}</span>
               </S.Name>
+              {/* The author line the for-sale card has always shown. Leaving it out of THIS branch is why a
+                  creator page mixed cards with and without "by {creator}": the not-for-sale ones simply had
+                  no line, so the grid looked like the data was missing for some items. */}
+              {item.creator ? (
+                <S.Author address={item.creator} data-testid="card-author" />
+              ) : (
+                <S.CreatorEmpty>&nbsp;</S.CreatorEmpty>
+              )}
             </S.Desc>
             {priceOrNfs(true)}
           </S.Top>
