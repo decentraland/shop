@@ -18,6 +18,12 @@
     "getCredits": "Get {currency}",
     "cart": "Cart"
   },
+  "network": {
+    "title": "Select a network",
+    "current": "Network: {network}",
+    "connected": "Connected",
+    "confirmInWallet": "Confirm in wallet"
+  },
   "notifications": {
     "title": "Notifications",
     "titleUnread": "Notifications, {count} unread",

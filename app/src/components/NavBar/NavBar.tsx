@@ -13,6 +13,7 @@ import { useManaBalance } from '~/hooks/useManaBalance'
 import { manaWeiToNumber } from '~/lib/mana-format'
 import { useCart } from '~/store/cart'
 import { CartPopover } from '~/components/CartPopover'
+import { NetworkSelector } from '~/components/NetworkSelector'
 import { SearchDropdown } from '~/components/SearchDropdown'
 import { CURRENCY } from '~/lib/currency'
 import { detailRouteFor } from '~/lib/routes'
@@ -204,18 +205,26 @@ export function NavBar() {
         onClickShopCredits={() => navigate('/credits')}
         manaBalances={manaBalances}
         showManaBalancesInNavbar
+        // ui2's Navbar calls this its notification slot, but it is the ONE place a consumer can render
+        // into that row, so the network selector shares it with the bell. The selector goes first, next
+        // to the balance chips it belongs with; it renders nothing for managed wallets, in which case the
+        // slot is just the bell as before. ui2's own chain pill is deliberately left off — the
+        // `selectedChain`/`chains` props are not passed, see NetworkSelector for why.
         notificationSlot={
           session ? (
-            // A ui2 notification row can throw while rendering (e.g. one with an unparseable date →
-            // formatDistanceToNow "Invalid time value"). Isolate it so a bad item renders nothing
-            // instead of white-screening the whole navbar/app.
-            <Sentry.ErrorBoundary fallback={<></>}>
-              <CssVarsProvider theme={ui2Light} defaultMode="light">
-                <Suspense fallback={null}>
-                  <NotificationsBell />
-                </Suspense>
-              </CssVarsProvider>
-            </Sentry.ErrorBoundary>
+            <S.NavSlot>
+              <NetworkSelector />
+              {/* A ui2 notification row can throw while rendering (e.g. one with an unparseable date →
+                  formatDistanceToNow "Invalid time value"). Isolate it so a bad item renders nothing
+                  instead of white-screening the whole navbar/app. */}
+              <Sentry.ErrorBoundary fallback={<></>}>
+                <CssVarsProvider theme={ui2Light} defaultMode="light">
+                  <Suspense fallback={null}>
+                    <NotificationsBell />
+                  </Suspense>
+                </CssVarsProvider>
+              </Sentry.ErrorBoundary>
+            </S.NavSlot>
           ) : undefined
         }
       />
