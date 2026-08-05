@@ -2,11 +2,11 @@ import styled from '@emotion/styled'
 import { Link } from 'react-router-dom'
 import { Button } from '~/components/Button'
 import { Icon } from '~/components/Icon'
-import { ringHover, ringHairline, ringLit } from '~/styles/card.styles'
+import { ringHover, ringLit } from '~/styles/card.styles'
 import { Chip } from '~/styles/chip.styles'
 import { theme } from '~/styles/theme'
 
-const { colors, radius, media } = theme
+const { colors, radius, media, gradients } = theme
 
 export const Root = styled.div`
   max-width: 1721px;
@@ -18,20 +18,20 @@ export const Crumbs = styled.nav`
   align-items: center;
   gap: 8px;
   font-size: 13px;
-  color: ${colors.muted};
+  color: ${colors.gray4};
   margin-bottom: 18px;
 `
 
 export const Crumb = styled(Link)`
-  color: ${colors.muted};
+  color: ${colors.gray4};
 
   &:hover {
-    color: ${colors.text};
+    color: ${colors.white};
   }
 `
 
 export const CrumbCurrent = styled.span`
-  color: ${colors.text};
+  color: ${colors.softWhite};
   font-weight: 600;
   overflow: hidden;
   white-space: nowrap;
@@ -64,8 +64,12 @@ export const Preview = styled.div`
   overflow: hidden;
   background: ${colors.media};
 
+  /* Full-bleed square on phones (Figma): the artwork runs edge to edge, so the panel gives up both its
+     radius and the page's 16px gutter. */
   ${media.maxWidth('mobile')} {
     aspect-ratio: 1 / 1;
+    margin: 0 -16px;
+    border-radius: 0;
   }
 
   & iframe {
@@ -115,7 +119,13 @@ export const Info = styled.div`
 export const Title = styled.h1`
   font-size: 28px;
   font-weight: 600;
+  color: ${colors.softWhite};
   overflow-wrap: anywhere;
+
+  ${media.maxWidth('mobile')} {
+    font-size: 20px;
+    line-height: 24px;
+  }
 `
 
 export const Meta = styled.p`
@@ -123,7 +133,7 @@ export const Meta = styled.p`
   font-weight: 500;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: ${colors.muted1};
+  color: ${colors.gray4};
 `
 
 // The only scroll container on the desktop page. Shrinkable but NOT growing (flex 0 1 auto): a
@@ -138,6 +148,8 @@ export const ListScroll = styled.div`
      the hover zoom + ring + glow would otherwise be cropped by the overflow clip. */
   padding: 8px 10px;
   margin: -8px -10px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.35) transparent;
 
   ${media.maxWidth('mobile')} {
     overflow: visible;
@@ -155,28 +167,25 @@ export const Items = styled.ul`
   gap: 10px;
 `
 
-// A white card per item: square thumb on a soft panel, name + author + price beside it. The whole
-// card is one link to the item (the absolutely-positioned overlay), with the author link layered
-// above it — nesting <a> inside <a> is invalid, so the card link is a sibling, not a wrapper.
-// The border is the AssetCard ring, but eased: the hairline (::after) stays put while the cerise
-// gradient lives on its own layer (::before) that FADES in over the slight zoom, so the stroke and
-// glow feel like they grow out of the card instead of snapping on.
+// One row per item: light square thumb, name + author + price beside it, on a dark translucent shell
+// (Figma: 40% black over the page's violet field, so each row deepens whatever part of the radial
+// gradient it sits over — no border). The whole card is one link to the item (the absolutely-
+// positioned overlay), with the author link layered above it — nesting <a> inside <a> is invalid, so
+// the card link is a sibling, not a wrapper. Hover adds the AssetCard cerise ring on its own layer
+// (::before), FADING in over the slight zoom so the stroke and glow grow out of the card.
 export const ItemCard = styled.li`
   position: relative;
   display: flex;
   align-items: stretch;
   gap: 14px;
-  border-radius: 16px;
-  background: ${colors.bg};
+  border-radius: ${radius.card};
+  background: rgba(0, 0, 0, 0.4);
+  color: ${colors.softWhite};
   overflow: hidden;
   isolation: isolate;
   transition:
     box-shadow 0.35s ease,
     transform 0.25s ease;
-
-  &::after {
-    ${ringHairline};
-  }
 
   &::before {
     content: '';
@@ -228,11 +237,14 @@ export const ItemOverlayLink = styled(Link)`
   z-index: 1;
 `
 
+// Rounded on all four corners (Figma): the outer two are cut again by the card's own radius, the inner
+// two show the dark shell behind them.
 export const ItemThumb = styled.img`
   width: 96px;
   height: 96px;
   object-fit: cover;
-  background: ${colors.panel};
+  border-radius: ${radius.card};
+  background: ${colors.media};
   flex-shrink: 0;
 
   ${media.maxWidth('mobile')} {
@@ -244,7 +256,8 @@ export const ItemThumb = styled.img`
 export const ItemThumbEmpty = styled.span`
   width: 96px;
   height: 96px;
-  background: ${colors.panel};
+  border-radius: ${radius.card};
+  background: ${colors.media};
   flex-shrink: 0;
 
   ${media.maxWidth('mobile')} {
@@ -277,10 +290,10 @@ export const ItemAuthor = styled(Link)`
   z-index: 2;
   align-self: flex-start;
   font-size: 13px;
-  color: ${colors.muted};
+  color: ${colors.gray4};
 
   &:hover {
-    color: ${colors.text};
+    color: ${colors.softWhite};
     text-decoration: underline;
   }
 `
@@ -306,8 +319,8 @@ export const ItemBadge = styled.span`
   font-weight: 400;
   padding: 2px 8px;
   border-radius: ${radius.chip};
-  background: ${colors.chip};
-  color: ${colors.text2};
+  background: rgba(255, 255, 255, 0.14);
+  color: ${colors.softWhite};
   white-space: nowrap;
 `
 
@@ -324,18 +337,30 @@ export const AttrChips = styled.span`
   }
 `
 
+// Rarity keeps its solid per-rarity fill (painted inline); the rest are near-black translucent panels
+// with white glyphs, which is how they read on the row's dark shell (Figma).
 export const AttrChip = styled(Chip)`
+  border-radius: 6px;
+
+  &[data-variant='smart'],
+  &[data-variant='icon'] {
+    background: rgba(22, 21, 24, 0.55);
+    color: ${colors.softWhite};
+  }
   &[data-variant='smart'] {
     gap: 2px;
-    background: ${colors.chip};
-    color: ${colors.text2};
     text-transform: uppercase;
     letter-spacing: 0.02em;
+  }
+  &[data-variant='icon'] .ico {
+    color: ${colors.softWhite};
   }
 `
 
 export const Hint = styled.p`
   margin-top: 8px;
+  font-size: 13px;
+  color: ${colors.gray4};
 `
 
 export const ResolveError = styled.div`
@@ -351,7 +376,7 @@ export const CtaBar = styled.div`
   flex-direction: column;
   gap: 12px;
   padding-top: 12px;
-  border-top: 1px solid ${colors.line};
+  border-top: 1px solid rgba(255, 255, 255, 0.3);
 
   ${media.maxWidth('mobile')} {
     /* Sticky, not fixed: it rides the viewport bottom while the list is longer than the screen,
@@ -364,8 +389,8 @@ export const CtaBar = styled.div`
     margin: 40px -16px 0;
     padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
     border-top: 0;
-    background: ${colors.softWhite};
-    box-shadow: 0 -4px 16px rgba(22, 21, 24, 0.12);
+    background: ${colors.accent};
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.35);
   }
 `
 
@@ -385,7 +410,7 @@ export const TotalLabel = styled.span`
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: ${colors.muted1};
+  color: ${colors.gray4};
 `
 
 export const TotalValue = styled.span`
@@ -394,8 +419,11 @@ export const TotalValue = styled.span`
   gap: 6px;
   font-size: 26px;
   font-weight: 800;
+  color: ${colors.softWhite};
 `
 
+// The page's one CTA, on the same "BUY Button" gradient as the PDP's Buy now and the cart's checkout —
+// the purple variant's amethyst fill would disappear into the violet field. A pill in the phone bar.
 export const Cta = styled(Button)`
   width: 100%;
   min-height: 52px;
@@ -404,6 +432,20 @@ export const Cta = styled(Button)`
   align-items: center;
   justify-content: center;
   gap: 10px;
+
+  && {
+    background: ${gradients.buyBtn};
+  }
+  &&::before {
+    content: none;
+  }
+  &&:hover:not(:disabled) {
+    background-image: linear-gradient(${colors.dclRed}, ${colors.dclRed});
+  }
+
+  ${media.maxWidth('mobile')} {
+    border-radius: ${radius.pill};
+  }
 `
 
 export const CtaPrice = styled.span`
@@ -425,6 +467,7 @@ export const Empty = styled.div`
   justify-content: center;
   text-align: center;
   gap: 14px;
+  color: ${colors.softWhite};
 `
 
 export const EmptyIco = styled(Icon)`
@@ -433,4 +476,9 @@ export const EmptyIco = styled(Icon)`
 
 export const EmptyTitle = styled.h1`
   font-size: 24px;
+`
+
+export const EmptyBody = styled.p`
+  margin: 0;
+  color: ${colors.gray4};
 `
