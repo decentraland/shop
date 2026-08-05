@@ -197,15 +197,15 @@ export const AssetPrice = styled.div`
   gap: 4px;
 
   & span {
-    font-size: 24px;
+    font-size: 20.5px;
     font-weight: 600;
     color: ${colors.text2};
   }
 `
 
 export const AssetPriceIco = styled(CurrencyIcon)`
-  width: 24px;
-  height: 24px;
+  width: 21.5px;
+  height: 21.5px;
   background: ${colors.text2};
 `
 
@@ -225,7 +225,6 @@ export const WarningText = styled.p`
   font-size: 14px;
   line-height: 1.334;
   color: ${colors.text2};
-  text-align: center;
 
   & b {
     font-weight: 700;
