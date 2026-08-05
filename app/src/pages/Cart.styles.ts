@@ -756,13 +756,15 @@ export const Cta = styled.button`
   letter-spacing: 0.046em;
   text-transform: uppercase;
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: background-image 0.15s ease;
 
   /* Primary hover/pressed is the solid Primary red (Figma 738:53252 / 738:53262) — the gradient is
-     the RESTING fill only. */
+     the RESTING fill only. Painted as a flat GRADIENT, not a background-color: the shorthand can't
+     interpolate background-image, so gradient -> colour dropped the image midway while the colour was
+     still half transparent and the button visibly blinked. Same property both ends = a clean swap. */
   &:hover:not(:disabled),
   &:active:not(:disabled) {
-    background: ${colors.dclRed};
+    background-image: linear-gradient(${colors.dclRed}, ${colors.dclRed});
   }
   &:disabled {
     opacity: 0.6;

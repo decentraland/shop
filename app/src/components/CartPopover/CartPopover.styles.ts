@@ -407,7 +407,7 @@ const ctaCss = css`
   }
   &[data-variant='primary']:hover,
   &[data-variant='primary']:active {
-    background: ${colors.dclRed};
+    background-image: linear-gradient(${colors.dclRed}, ${colors.dclRed});
   }
   &[data-variant='secondary'] {
     border: 0.5px solid ${colors.text};
