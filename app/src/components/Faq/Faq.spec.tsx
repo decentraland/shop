@@ -67,14 +67,21 @@ describe('the FAQ accordion', () => {
     expect(screen.getByRole('button', { name: 'Do Credits expire?' }).getAttribute('aria-expanded')).toBe('true')
   })
 
-  it('points each toggle at the panel it controls', async () => {
+  it('points each toggle at the panel it controls, and only while that panel exists', async () => {
     const user = userEvent.setup()
     renderFaq()
     const question = screen.getByRole('button', { name: 'Do Credits expire?' })
 
+    // Closed the answer is unmounted, so an aria-controls here would be a dangling reference.
+    expect(question.getAttribute('aria-controls')).toBeNull()
+
     await user.click(question)
 
-    expect(question.getAttribute('aria-controls')).toBe(screen.getByTestId('faq-answer').id)
+    const answer = screen.getByTestId('faq-answer')
+    expect(question.getAttribute('aria-controls')).toBe(answer.id)
+    // …and the region is named by the question, or screen readers skip it as an unnamed landmark.
+    expect(answer.getAttribute('aria-labelledby')).toBe(question.id)
+    expect(question.id).toBeTruthy()
   })
 
   it('carries the skin on the section so both pages share one component', () => {

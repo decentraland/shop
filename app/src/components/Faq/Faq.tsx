@@ -54,14 +54,18 @@ export function Faq({
       <S.List>
         {entries.map(entry => {
           const isOpen = open.has(entry.question)
-          const panelId = `${baseId}-${entry.question}`
+          const panelId = `${baseId}-panel-${entry.question}`
+          const headerId = `${baseId}-header-${entry.question}`
           return (
             <S.Item key={entry.question} data-open={isOpen} data-testid="faq-item">
               <S.Header
                 type="button"
                 onClick={() => toggle(entry.question)}
+                id={headerId}
                 aria-expanded={isOpen}
-                aria-controls={panelId}
+                /* Only while the panel exists: the answer is unmounted when closed, and aria-controls
+                   pointing at an absent id is a dangling reference. aria-expanded alone carries the state. */
+                aria-controls={isOpen ? panelId : undefined}
                 data-open={isOpen}
                 data-testid="faq-question"
               >
@@ -76,7 +80,9 @@ export function Faq({
                   by in-page search and read by a screen reader walking the page, which makes a collapsed
                   FAQ a wall of text to anyone not using the toggles. */}
               {isOpen && (
-                <S.Answer id={panelId} role="region" data-testid="faq-answer">
+                /* The question names the region: a role="region" with no accessible name is skipped as a
+                   landmark, so the answer would not be reachable by landmark navigation. */
+                <S.Answer id={panelId} role="region" aria-labelledby={headerId} data-testid="faq-answer">
                   {t(entry.answer)}
                 </S.Answer>
               )}
