@@ -75,6 +75,9 @@ export type CartNavState = {
   resumeCheckout?: boolean
   // Credits that just landed, forwarded to the /success page for the combined credits+items view.
   creditsAdded?: number
+  // The cart drawer's CHECKOUT: land on /cart with the flow already running, so the drawer doesn't
+  // have to host a second copy of it (sign-in gate, trade review, payment modal all live here).
+  startCheckout?: boolean
 }
 
 // Cart-specific mapping: the "listing changed" message is plural (a multi-item cart), so it maps
@@ -1103,6 +1106,23 @@ export function Cart() {
     return () => clearTimeout(id)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navState?.resumeCheckout])
+
+  // Arrived from the drawer's CHECKOUT — run the same flow its own button would. Fires once; the
+  // sign-in gate and everything downstream is checkout()'s own business.
+  // The once-guard lives INSIDE the timeout, not around the scheduling: StrictMode's dev double-mount
+  // would otherwise set the flag on the first pass, have the cleanup cancel the only scheduled call,
+  // and then short-circuit the second — so the checkout never ran at all.
+  const startedRef = useRef(false)
+  useEffect(() => {
+    if (!navState?.startCheckout) return
+    const id = setTimeout(() => {
+      if (startedRef.current) return
+      startedRef.current = true
+      void checkout()
+    }, 0)
+    return () => clearTimeout(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navState?.startCheckout])
 
   const working = busy || modal?.phase === 'processing'
 

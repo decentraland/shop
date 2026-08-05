@@ -627,7 +627,7 @@
     "bannerAdded": "successfully added to cart!",
     "total": "Total: {count, plural, one {# item} other {# items}}",
     "goToCart": "Go to cart",
-    "continueShopping": "Continue shopping"
+    "checkout": "Checkout"
   },
   "filterBar": {
     "sortNewest": "Newest",
