@@ -18,7 +18,7 @@ import { captureError } from '~/lib/monitoring'
  * The shop never showed this. A wallet parked on Ethereum while the shop runs on Polygon produced a
  * wallet error that named a contract rather than the network, so the only way to find out was to open the
  * marketplace, read its selector, come back, and guess. This hook is the read half of that gap; the
- * NetworkSelector is the visible half.
+ * The navbar passes what this returns to ui2's own chain pill, which lives in the profile panel.
  *
  * ⚠️ `switchTo` MUST be called from inside a user gesture (the click on an option). Wallets only honour
  * `wallet_*` requests they can attribute to a user action — fired from an effect or a retry, the same
