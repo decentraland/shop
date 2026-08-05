@@ -4,7 +4,10 @@ import { theme } from '~/styles/theme'
 
 const { colors, font, media, radius } = theme
 
-/** The lilac nudge strip. Exported because the migration tool reuses the shell for its list header. */
+/**
+ * The nudge strip. Exported because the migration tool reuses the shell for its list header — which is
+ * where the lilac fill belongs; the banner itself is amber (see Root).
+ */
 export const Shell = styled.div`
   display: flex;
   align-items: center;
@@ -15,8 +18,11 @@ export const Shell = styled.div`
   font-family: ${font.sans};
 `
 
+// Amber, not lilac: this one sits at the top of a page as a standing "your prices need attention" notice,
+// and the design gives that job the warm fill. The lilac strip inside the tool is a neutral section head.
 export const Root = styled(Shell)`
   justify-content: space-between;
+  background: ${colors.promptAmber};
 
   /* Side by side the sentence and the cta can't both fit a phone, so the cta drops to its own line. */
   ${media.maxWidth('mobile')} {
@@ -29,6 +35,11 @@ export const Body = styled.div`
   display: flex;
   align-items: center;
   gap: 8px;
+
+  & .ico {
+    flex: none;
+    color: ${colors.text};
+  }
 `
 
 export const Text = styled.p`
@@ -57,13 +68,15 @@ export const Cta = styled(Link)`
   letter-spacing: 0.46px;
   text-transform: uppercase;
   text-decoration: underline;
-  color: ${colors.accent};
+  /* The banner's own ink, not the accent purple: on the amber fill the link is the only thing to the
+     right of the sentence, so it reads as the action without a colour of its own. */
+  color: ${colors.text};
 
   &:hover {
-    color: ${colors.accentHover};
+    color: ${colors.gray0};
   }
   &:focus-visible {
-    outline: 2px solid ${colors.accent};
+    outline: 2px solid ${colors.text};
     outline-offset: 2px;
   }
 `

@@ -40,7 +40,8 @@ const colors = {
   accentActive: '#57178c', // accent purple — pressed shade (reusable on any purple CTA)
   navViolet: '#e3c9fb', // global (decentraland-ui2) navbar bar background — violet design
   infoGreen: '#e0f7e7', // good-news callout fill (the pricing-migration explainer block)
-  promptLilac: '#f4e9ff', // nudge-banner fill (classic listings still to move)
+  promptLilac: '#f4e9ff', // in-page nudge fill (the migration tool's "update pricing" strip)
+  promptAmber: '#ffe1b7', // standing-nudge banner fill (classic listings still to move)
   navOverlayHover: 'rgba(255, 255, 255, 0.35)', // violet-navbar tab/button hover fill
   navOverlayActive: 'rgba(255, 255, 255, 0.45)', // violet-navbar active/pressed fill
   magenta: '#c640cd', // brand magenta — gradient stop, outline-button border, card hover borders

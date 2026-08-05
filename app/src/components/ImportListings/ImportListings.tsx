@@ -4,10 +4,9 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useWallet } from '~/store/wallet'
 import { type ImportItem } from '~/lib/import'
 import { toast } from '~/store/toast'
-import { MigrateModal, type MigrateEntry } from '~/components/MigrateModal'
+import { MigrateModal, type MigrateEntry, type MigrateResult } from '~/components/MigrateModal'
 import { CURRENCY, creditsToUsd } from '~/lib/currency'
 import { CreditRate } from '~/components/CreditRate'
-import { CreditMarkIcon } from '~/components/Icons/CreditMarkIcon'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { Faq, type FaqEntry } from '~/components/Faq'
 import { Icon } from '~/components/Icon'
@@ -94,7 +93,7 @@ export function ImportListings() {
     return items.map(i => ({ item: i, priceCredits: Math.max(1, priceOf(i)) }))
   }
 
-  function afterMigrate() {
+  function afterMigrate(result: MigrateResult) {
     // Fire-and-forget cache invalidations — the refetch happens in the background, nothing here awaits it.
     void qc.invalidateQueries({ queryKey: ['importable'] })
     // The browse grids are keyed on 'shop-items'/'catalog-items' (see Assets.tsx) and the homepage on
@@ -106,7 +105,14 @@ export function ImportListings() {
     void qc.invalidateQueries({ queryKey: ['upsell-listings'] })
     void qc.invalidateQueries({ queryKey: ['my-assets'] })
     void qc.invalidateQueries({ queryKey: ['collection-sale-state'] })
-    toast.success(t('importListings.toastUpdated'))
+
+    // Only a clean run is announced as one. A run with failures in it gets the error toast whether or
+    // not some items made it, and a run the seller simply declined says nothing at all.
+    if (result.failed > 0) {
+      toast.error(t(result.listed > 0 ? 'importListings.toastPartial' : 'importListings.toastFailed'))
+    } else if (result.listed > 0) {
+      toast.success(t('importListings.toastUpdated'))
+    }
   }
 
   if (!isLoading && all.length === 0) {
@@ -144,7 +150,7 @@ export function ImportListings() {
             </S.LearnMore>
           </div>
         </S.Intro>
-        <CreditRate />
+        <CreditRate tone="on-dark" />
       </S.Head>
 
       <S.Divider />
@@ -157,7 +163,7 @@ export function ImportListings() {
 
         <S.ListBlock>
           <S.SelectAll>
-            <S.CheckSlot>
+            <S.CheckSlot data-tone="on-dark">
               <F.Checkbox
                 type="checkbox"
                 checked={allSelected}
@@ -240,15 +246,19 @@ export function ImportListings() {
         </S.ListBlock>
       </S.Body>
 
+      <S.Divider />
+
       <S.FaqBlock>
-        <Faq title="faq.title" entries={SELLER_FAQ} />
+        <Faq title="faq.title" entries={SELLER_FAQ} tone="on-dark" />
       </S.FaqBlock>
 
       <S.Dock>
         <S.DockInner>
-          <div>
+          <S.DockInfo>
             <S.DockTotal>
-              <CreditMarkIcon /> {total.toLocaleString()}
+              {/* The outlined mark, in the bar's own ink — the filled gradient one belongs to the peg
+                  line up top, where the currency is being explained rather than counted. */}
+              <CurrencyIcon /> {total.toLocaleString()}
             </S.DockTotal>
             <S.DockSub>
               {t('importListings.selectedSummary', {
@@ -256,10 +266,10 @@ export function ImportListings() {
                 usd: creditsToUsd(total).toFixed(2)
               })}
             </S.DockSub>
-          </div>
+          </S.DockInfo>
           <S.DockSpacer />
           <S.DockCta
-            variant="purple"
+            variant="red"
             disabled={selectedItems.length === 0}
             onClick={() => setQueue(buildQueue(selectedItems))}
           >

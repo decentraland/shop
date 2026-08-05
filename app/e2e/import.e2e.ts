@@ -62,7 +62,7 @@ describe('move old listings', () => {
     expect(await rowChecks()).toEqual([true, true])
 
     // List all → the migrate modal opens with both items queued at those prices.
-    await clickWhenEnabled(page, 'button', /list all/i)
+    await clickWhenEnabled(page, 'button', /list items/i)
     await waitForText(page, 'Listing your items')
     const queued = await page.$eval('[data-testid="modal"]', el => (el as HTMLElement).innerText)
     expect(queued).toMatch(/Galaxy Hat/)

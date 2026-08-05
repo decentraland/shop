@@ -850,7 +850,9 @@
     "priceAria": "Precio en {currency} para {name}",
     "wasMana": "({amount} MANA)",
     "selectedSummary": "{count, plural, one {# artículo seleccionado} other {# artículos seleccionados}} · ${usd}",
-    "listAll": "Publicar todo ({count})"
+    "listAll": "Publicar {count, plural, one {# artículo} other {# artículos}} ({count})",
+    "toastFailed": "No pudimos actualizar tus publicaciones. Inténtalo de nuevo.",
+    "toastPartial": "Algunas publicaciones no se pudieron actualizar."
   },
   "faq": {
     "title": "Más información sobre los créditos",
@@ -996,7 +998,9 @@
     "hintCount": "Van a aparecer unas {total} confirmaciones — dar de baja y volver a publicar, por artículo. Deja esto abierto.",
     "hintCountApproval": "Van a aparecer unas {total} confirmaciones: dar de baja y volver a publicar por artículo, más una autorización por única vez por colección. Deja esto abierto.",
     "phaseConfirmingCancelManaged": "Casi listo…",
-    "unlistedTitle": "Algunos artículos necesitan otro intento"
+    "unlistedTitle": "Algunos artículos necesitan otro intento",
+    "failedTitle": "Algunos artículos no se pudieron publicar",
+    "failedSummary": "{count, plural, one {# artículo no se pudo publicar — puedes volver a intentarlo cuando quieras.} other {# artículos no se pudieron publicar — puedes volver a intentarlo cuando quieras.}}"
   },
   "fittingRoom": {
     "title": "Probador",

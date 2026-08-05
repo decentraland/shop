@@ -2,7 +2,7 @@ import { forwardRef } from 'react'
 import type { ComponentPropsWithoutRef, ElementType, ForwardedRef, MouseEventHandler, ReactElement } from 'react'
 import * as S from './Button.styles'
 
-export type ButtonVariant = 'default' | 'purple' | 'outline' | 'ghost' | 'white'
+export type ButtonVariant = 'default' | 'purple' | 'red' | 'outline' | 'ghost' | 'white'
 export type ButtonSize = 'md' | 'sm'
 
 type ButtonOwnProps = {

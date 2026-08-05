@@ -141,6 +141,33 @@ describe('when the run finishes', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
+  it('reports what the run actually did, so the caller can tell a success from a failure', async () => {
+    importListing.mockResolvedValue(undefined as never)
+    const { onDone } = renderModal()
+
+    await vi.waitFor(() => expect(onDone).toHaveBeenCalled())
+    expect(onDone).toHaveBeenCalledWith({ listed: 1, failed: 0, cancelled: 0 })
+  })
+
+  // A failure is never announced as a finished update: the modal holds, says so, and reports it.
+  it('stays open on a failed item, with failure wording and no success claim', async () => {
+    importListing.mockRejectedValue(new Error('boom'))
+    const onClose = vi.fn()
+    const onDone = vi.fn()
+    renderModal(onClose, onDone)
+
+    await vi.waitFor(() => expect(screen.getByTestId('migrate-failed')).toBeTruthy())
+    expect(onClose).not.toHaveBeenCalled()
+    const card = screen.getByTestId('migrate-failed')
+    expect(card.textContent).toMatch(/couldn't be listed/i)
+    expect(card.textContent).not.toMatch(/now for sale/i)
+    // Nothing to re-list from My Items here: the old listing is still standing.
+    expect(screen.queryByRole('button', { name: 'Go to My Items' })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }))
+    expect(onDone).toHaveBeenCalledWith({ listed: 0, failed: 1, cancelled: 0 })
+  })
+
   // The one outcome that must NOT close itself: the old listing is gone and the re-list failed, so the
   // item is for sale nowhere and the seller has to go re-list it.
   it('stays open on an item left unlisted, and sends the seller to the creations tab', async () => {

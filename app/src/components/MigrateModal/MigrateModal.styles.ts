@@ -117,6 +117,21 @@ export const Skip = styled.span`
   font-weight: 600;
 `
 
+// A row that FAILED, as against one the seller declined: the same slot, in the error red, so the two
+// don't read as the same outcome.
+export const Fail = styled.span`
+  color: ${colors.errStrong};
+  font-weight: 600;
+`
+
+// The outcome glyph over the failure report.
+export const Outcome = styled.span`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4px;
+`
+
 // Applied alongside the global `spinner` class: shrinks it to the inline status size.
 export const Spin = styled.span`
   width: 14px;

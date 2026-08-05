@@ -850,7 +850,9 @@
     "priceAria": "Price in {currency} for {name}",
     "wasMana": "({amount} MANA)",
     "selectedSummary": "{count, plural, one {# item} other {# items}} selected · ${usd}",
-    "listAll": "List all ({count})"
+    "listAll": "List {count, plural, one {# item} other {# items}} ({count})",
+    "toastFailed": "We couldn't update your listings. Please try again.",
+    "toastPartial": "Some listings couldn't be updated."
   },
   "faq": {
     "title": "Learn More About Credits",
@@ -996,7 +998,9 @@
     "hintCount": "About {total} confirmations will pop up — take down and re-list, per item. Keep this open.",
     "hintCountApproval": "About {total} confirmations will pop up: take down and re-list per item, plus a one-time approval for each collection. Keep this open.",
     "phaseConfirmingCancelManaged": "Almost there…",
-    "unlistedTitle": "Some items need another try"
+    "unlistedTitle": "Some items need another try",
+    "failedTitle": "Some items couldn't be listed",
+    "failedSummary": "{count, plural, one {# item couldn't be listed — you can try again anytime.} other {# items couldn't be listed — you can try again anytime.}}"
   },
   "fittingRoom": {
     "title": "Fitting room",

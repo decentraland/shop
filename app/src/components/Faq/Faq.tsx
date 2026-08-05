@@ -50,7 +50,7 @@ export function Faq({
 
   return (
     <S.Root className={className} data-tone={tone} data-testid="faq">
-      <S.Title>{t(title)}</S.Title>
+      <S.Title data-testid="faq-title">{t(title)}</S.Title>
       <S.List>
         {entries.map(entry => {
           const isOpen = open.has(entry.question)

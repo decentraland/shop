@@ -157,7 +157,7 @@ export const Header = styled.button`
   }
 
   ${theme.media.maxWidth('mobile')} {
-    padding: 16px;
+    padding: 16px 24px;
     font-size: 16px;
   }
 `
