@@ -141,10 +141,21 @@ export const NameTileLabel = styled.span`
   font-weight: 600;
   /* The design's cyan — it has to read against the purple, which the body text colour would not. */
   color: #34fee6;
-  /* A long NAME truncates rather than escaping the tile or wrapping into the glyph. */
-  overflow: hidden;
   white-space: nowrap;
-  text-overflow: ellipsis;
+  overflow: hidden;
+
+  /**
+   * A long NAME truncates rather than escaping the tile or wrapping into the glyph — but the truncation
+   * has to live on the name itself, not on this box. text-overflow applies to block containers, so on an
+   * inline-flex parent it is inert: the name would clip at the edge with no ellipsis to show it was cut.
+   * The zero min-width is what allows the flex item to shrink below its content width at all; without it
+   * a long NAME pushes the tick out of the tile instead of giving way to the ellipsis.
+   */
+  > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 `
 
 export const NameTileTick = styled.img`
