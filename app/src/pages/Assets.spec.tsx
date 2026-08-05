@@ -228,24 +228,26 @@ describe('Assets — filters survive a reload', () => {
     renderAssets('/items')
 
     const call = (await lastShopItemsCall())!
-    expect(call).toMatchObject({ category: 'wearable' })
+    expect(call).toMatchObject({ category: 'all' })
     expect(call.rarities).toBeUndefined()
     expect(call.isSmart).toBeUndefined()
   })
 })
 
-describe('Assets — search scope', () => {
+describe('Assets — category scope', () => {
   it('should search every category so emote matches are not silently dropped', async () => {
     renderAssets('/items?q=chapeau')
     expect(await lastShopItemsCall()).toMatchObject({ category: 'all', search: 'chapeau', onSale: true })
   })
 
-  it('should still open on wearables when browsing without a query', async () => {
+  // Shop All, not Wearables: the grid used to open on a category the visitor never picked, hiding every
+  // emote behind a filter they had to discover to undo.
+  it('should open on Shop All when browsing without a query', async () => {
     renderAssets('/items')
-    expect(await lastShopItemsCall()).toMatchObject({ category: 'wearable', search: undefined })
+    expect(await lastShopItemsCall()).toMatchObject({ category: 'all', search: undefined })
   })
 
-  it('should honour an explicit category over the search default', async () => {
+  it('should honour an explicit category from the URL', async () => {
     renderAssets('/items?q=chapeau&category=emote')
     expect(await lastShopItemsCall()).toMatchObject({ category: 'emote', search: 'chapeau' })
   })

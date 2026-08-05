@@ -45,13 +45,9 @@ export function Assets() {
 
   // EVERY filter lives in the URL, through one owner. A refresh, a shared link and the back button used
   // to keep only Category and Status; the rest was local state and vanished.
-  //
-  // Category's default is conditional: a SEARCH defaults to every category, because the typeahead matches
-  // wearables and emotes alike and pinning the grid to wearables would silently drop half the matches.
-  // Plain browsing still opens on Wearables.
   const filterDefaults = useMemo(
     () => ({
-      category: q ? 'all' : 'wearable',
+      category: 'all',
       status: 'on_sale',
       subCategory: null as string | null,
       rarities: [] as string[],
@@ -60,7 +56,7 @@ export function Assets() {
       smart: false,
       sort: 'newest'
     }),
-    [q]
+    []
   )
   const [filterState, setFilters] = useUrlFilters(filterDefaults)
   const { subCategory, rarities, priceMin, priceMax, smart, sort } = filterState
@@ -296,7 +292,7 @@ export function Assets() {
       <S.Main>
         {category === 'names' ? (
           // NAMEs is not a grid: full-width purchase page (no sidebar), back via the breadcrumb.
-          <NamesPage onBack={() => pickCategory('wearable')} />
+          <NamesPage onBack={() => pickCategory('all')} />
         ) : (
           <>
             <FilterBar

@@ -34,7 +34,9 @@ export function Collection() {
   const { contractAddress } = useParams<{ contractAddress: string }>()
   const navigate = useNavigate()
 
-  const [category, setCategory] = useState('wearable')
+  // 'all' (Shop All): a collection is whatever the creator put in it, so opening on Wearables hid the
+  // emotes — and showed an empty grid for an emote-only collection.
+  const [category, setCategory] = useState('all')
   const [subCategory, setSubCategory] = useState<string | null>(null)
   const [rarities, setRarities] = useState<string[]>([])
   const [priceMin, setPriceMin] = useState('')
@@ -88,7 +90,7 @@ export function Collection() {
     setRarities(rs => (rs.includes(r) ? rs.filter(x => x !== r) : [...rs, r]))
   }
   function reset() {
-    setCategory('wearable')
+    setCategory('all')
     setSubCategory(null)
     setRarities([])
     setPriceMin('')
@@ -97,7 +99,7 @@ export function Collection() {
 
   const priceActive = !!(min || max)
   const priceLabel = priceActive ? `${priceMin || '0'}–${priceMax || '∞'}` : t('filter.price')
-  const anyActive = category !== 'wearable' || !!subCategory || rarities.length > 0 || priceActive
+  const anyActive = category !== 'all' || !!subCategory || rarities.length > 0 || priceActive
 
   return (
     <CP.Page data-testid="collection-page">
