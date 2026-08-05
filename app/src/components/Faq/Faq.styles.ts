@@ -192,7 +192,6 @@ export const Chevron = styled.span`
 
 export const Answer = styled.div`
   padding: 32px 24px;
-  border-radius: 0 0 12px 12px;
   font-size: 20px;
   font-weight: 400;
   line-height: 1.5;
