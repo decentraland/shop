@@ -59,9 +59,11 @@ export function isWrongNetworkError(e: unknown): e is WrongNetworkError {
 export async function activeChainId(provider: ethers.providers.Web3Provider): Promise<number> {
   const raw = (await provider.send('eth_chainId', [])) as string | number
   const parsed = typeof raw === 'string' ? parseInt(raw, 16) : Number(raw)
-  if (Number.isFinite(parsed)) return parsed
-  // A wallet that answered something unusable: fall back to ethers' own detection rather than guessing.
-  return (await provider.getNetwork()).chainId
+  // An unusable answer THROWS. It used to fall back to `provider.getNetwork()`, which reaches for the very
+  // cache this function exists to avoid and answers with a number that is plausible and possibly wrong —
+  // worse than not answering, since a wrong chain here means submitting to a contract that holds no code.
+  if (!Number.isFinite(parsed)) throw new Error(`Wallet answered eth_chainId with an unusable value: ${String(raw)}`)
+  return parsed
 }
 
 /**
@@ -78,7 +80,7 @@ export async function requireChain(provider: ethers.providers.Web3Provider, chai
 
 // Amoy is not in most wallets by default, so switching to it can need an add first (EIP-3085).
 const AMOY_CHAIN_ID: number = ChainId.MATIC_AMOY
-const AMOY_ADD_PARAMS = {
+export const AMOY_ADD_PARAMS = {
   chainId: '0x13882',
   chainName: 'Polygon Amoy',
   nativeCurrency: { name: 'POL', symbol: 'POL', decimals: 18 },

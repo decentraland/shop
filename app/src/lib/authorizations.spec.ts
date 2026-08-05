@@ -138,8 +138,13 @@ const minterAuth: ShopAuthorization = {
   chainId: ChainId.MATIC_AMOY
 }
 
+/** What a wallet actually returns from eth_chainId: a hex quantity. */
+const hexChain = (id: number) => `0x${id.toString(16)}`
+
 function makeSigner(overrides: Record<string, unknown> = {}) {
-  const send = vi.fn().mockResolvedValue(undefined)
+  // Answers `eth_chainId`, which is the read requireChain makes. These mocks only had `getNetwork`, and
+  // passed only because activeChainId used to fall back to it — the stale cache it exists to avoid.
+  const send = vi.fn(async (method: string) => (method === 'eth_chainId' ? hexChain(ChainId.MATIC_AMOY) : undefined))
   const getNetwork = vi.fn().mockResolvedValue({ chainId: ChainId.MATIC_AMOY })
   return {
     getAddress: vi.fn().mockResolvedValue(OWNER),
@@ -271,8 +276,10 @@ describe('when the gasless relayer is unavailable (fallback to a direct tx)', ()
   it('should refuse the fallback instead of switching the wallet network, and send nothing', async () => {
     sendMetaTransactionMock.mockRejectedValue(new Error('relayer down'))
     approveMock.mockResolvedValue({ wait: vi.fn().mockResolvedValue(undefined) })
-    const send = vi.fn().mockResolvedValue(undefined)
     const getNetwork = vi.fn().mockResolvedValue({ chainId: ChainId.ETHEREUM_MAINNET })
+    const send = vi.fn(async (method: string) =>
+      method === 'eth_chainId' ? hexChain(ChainId.ETHEREUM_MAINNET) : undefined
+    )
 
     await expect(
       setAuthorization({

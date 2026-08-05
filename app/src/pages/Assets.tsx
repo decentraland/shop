@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useUrlFilters } from '~/hooks/useUrlFilters'
 import { fetchShopItems, type CatalogItem, type UnifiedListing } from '~/lib/api'
 import { useSecondarySales } from '~/hooks/useSecondarySales'
 import { fetchCatalogItems } from '~/lib/collections'
@@ -29,7 +30,7 @@ const PAGE_SIZE = 48
 const STATUSES: FilterStatus[] = ['all', 'on_sale', 'not_for_sale']
 
 export function Assets() {
-  const [searchParams, setSearchParams] = useSearchParams()
+  const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const q = (searchParams.get('q') ?? '').trim().toLowerCase()
 
@@ -42,32 +43,33 @@ export function Assets() {
     description: t('seo.collectibles.description')
   })
 
-  // Category and Status live in the URL so a filtered search is shareable and survives a refresh, and
-  // so the dropdown's "See all" lands on a state it can name. A SEARCH defaults to every category —
-  // the typeahead matches wearables and emotes alike, so pinning the grid to wearables would silently
-  // drop half the matches. Plain browsing still opens on Wearables.
-  const category = searchParams.get('category') ?? (q ? 'all' : 'wearable')
-  const statusParam = searchParams.get('status') as FilterStatus | null
-  const status: FilterStatus = statusParam && STATUSES.includes(statusParam) ? statusParam : 'on_sale'
-  // Write a filter to the URL, dropping it when it's back at its default so the address stays clean.
-  // `replace` keeps filter tweaks out of the history stack, as they were when this was local state.
-  const setParam = (key: string, value: string | null) =>
-    setSearchParams(
-      prev => {
-        const next = new URLSearchParams(prev)
-        if (value == null) next.delete(key)
-        else next.set(key, value)
-        return next
-      },
-      { replace: true }
-    )
+  // EVERY filter lives in the URL, through one owner. A refresh, a shared link and the back button used
+  // to keep only Category and Status; the rest was local state and vanished.
+  //
+  // Category's default is conditional: a SEARCH defaults to every category, because the typeahead matches
+  // wearables and emotes alike and pinning the grid to wearables would silently drop half the matches.
+  // Plain browsing still opens on Wearables.
+  const filterDefaults = useMemo(
+    () => ({
+      category: q ? 'all' : 'wearable',
+      status: 'on_sale',
+      subCategory: null as string | null,
+      rarities: [] as string[],
+      priceMin: '',
+      priceMax: '',
+      smart: false,
+      sort: 'newest'
+    }),
+    [q]
+  )
+  const [filterState, setFilters] = useUrlFilters(filterDefaults)
+  const { subCategory, rarities, priceMin, priceMax, smart, sort } = filterState
+  const category = filterState.category
+  // Validated on read: the URL is user-editable, and an unknown status must not reach the query.
+  const status: FilterStatus = STATUSES.includes(filterState.status as FilterStatus)
+    ? (filterState.status as FilterStatus)
+    : 'on_sale'
 
-  const [subCategory, setSubCategory] = useState<string | null>(null)
-  const [rarities, setRarities] = useState<string[]>([])
-  const [priceMin, setPriceMin] = useState('')
-  const [priceMax, setPriceMax] = useState('')
-  const [smart, setSmart] = useState(false)
-  const [sort, setSort] = useState('newest')
   const [filtersOpen, setFiltersOpen] = useState(false) // mobile filters drawer
 
   // Close the mobile filters drawer on Escape (it already closes on scrim tap / ✕) and lock body
@@ -209,32 +211,20 @@ export function Assets() {
     })
   }, [category, subCategory, rarities, min, max, sort, status, smart, isLoading, isPlaceholderData, resultCount])
 
+  // Category and the sub-category it invalidates move in ONE write: two separate ones each read the same
+  // URL snapshot, and the second silently dropped the first.
   function pickCategory(key: string) {
-    setParam('category', key)
-    setSubCategory(null)
+    setFilters({ category: key, subCategory: null })
   }
   function setStatus(next: FilterStatus) {
-    setParam('status', next === 'on_sale' ? null : next)
+    setFilters({ status: next })
   }
   function toggleRarity(r: string) {
-    setRarities(rs => (rs.includes(r) ? rs.filter(x => x !== r) : [...rs, r]))
+    setFilters({ rarities: rarities.includes(r) ? rarities.filter(x => x !== r) : [...rarities, r] })
   }
   // Reset every filter to its default. Filters apply live, so this takes effect immediately.
   function clearFilters() {
-    setSearchParams(
-      prev => {
-        const next = new URLSearchParams(prev)
-        next.delete('category')
-        next.delete('status')
-        return next
-      },
-      { replace: true }
-    )
-    setSubCategory(null)
-    setRarities([])
-    setPriceMin('')
-    setPriceMax('')
-    setSmart(false)
+    setFilters(filterDefaults)
   }
 
   // Applied-filter chips (Figma top-bar 1304-310186 / desktop 1256-293193): price, each selected
@@ -245,14 +235,13 @@ export function Assets() {
       key: 'price',
       label: t('filter.price'),
       onRemove: () => {
-        setPriceMin('')
-        setPriceMax('')
+        setFilters({ priceMin: '', priceMax: '' })
       }
     })
   for (const r of RARITIES)
     if (rarities.includes(r))
       chips.push({ key: `rarity-${r}`, label: capitalizeFirst(r), onRemove: () => toggleRarity(r) })
-  if (smart) chips.push({ key: 'smart', label: t('filter.smart'), onRemove: () => setSmart(false) })
+  if (smart) chips.push({ key: 'smart', label: t('filter.smart'), onRemove: () => setFilters({ smart: false }) })
   if (status !== 'on_sale')
     chips.push({
       key: 'status',
@@ -280,17 +269,17 @@ export function Assets() {
                 category={category}
                 subCategory={subCategory}
                 onCategory={pickCategory}
-                onSub={setSubCategory}
+                onSub={v => setFilters({ subCategory: v })}
                 priceMin={priceMin}
                 priceMax={priceMax}
-                onPriceMin={setPriceMin}
-                onPriceMax={setPriceMax}
+                onPriceMin={v => setFilters({ priceMin: v })}
+                onPriceMax={v => setFilters({ priceMax: v })}
                 rarities={rarities}
                 onToggleRarity={toggleRarity}
                 status={status}
                 onStatus={setStatus}
                 smart={smart}
-                onSmart={setSmart}
+                onSmart={v => setFilters({ smart: v })}
               />
             </S.SidebarScroll>
 
@@ -313,7 +302,7 @@ export function Assets() {
           <>
             <FilterBar
               sort={sort}
-              onSort={setSort}
+              onSort={v => setFilters({ sort: v })}
               total={total}
               loading={isLoading || isPlaceholderData}
               query={q}

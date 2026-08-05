@@ -1,4 +1,5 @@
 import { useMemo, useEffect, useState } from 'react'
+import { useUrlFilters } from '~/hooks/useUrlFilters'
 import { resolveGridView } from './Creator.view'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
@@ -56,16 +57,33 @@ export function Creator() {
     image: profile?.avatar?.snapshots?.face256
   })
 
-  // 'all' (Shop All), not 'wearable': a creator who only makes emotes must not open on an empty grid.
-  const [category, setCategory] = useState('all')
-  const [subCategory, setSubCategory] = useState<string | null>(null)
-  const [rarities, setRarities] = useState<string[]>([])
-  const [priceMin, setPriceMin] = useState('')
-  const [priceMax, setPriceMax] = useState('')
-  // Unlike browse (which opens on 'on_sale'), a storefront opens on everything the creator has made.
-  const [status, setStatus] = useState<FilterStatus>('all')
-  const [smart, setSmart] = useState(false)
-  const [sort, setSort] = useState('newest')
+  // In the URL, so a refresh or a shared link keeps the filters. This page had NONE of them persisted —
+  // every one was local state, so a reload dropped the whole set.
+  //
+  // 'all' (Shop All), not 'wearable': a creator who only makes emotes must not open on an empty grid. And
+  // unlike browse (which opens on 'on_sale'), a storefront opens on everything the creator has made.
+  // The URL is user-editable, so a status read out of it is validated against this.
+  const STATUSES: FilterStatus[] = ['all', 'on_sale', 'not_for_sale']
+  const filterDefaults = useMemo(
+    () => ({
+      category: 'all',
+      status: 'all',
+      subCategory: null as string | null,
+      rarities: [] as string[],
+      priceMin: '',
+      priceMax: '',
+      smart: false,
+      sort: 'newest'
+    }),
+    []
+  )
+  const [filterState, setFilters] = useUrlFilters(filterDefaults)
+  const { category, subCategory, rarities, priceMin, priceMax, smart, sort } = filterState
+  // Validated on read — the URL is user-editable and an unknown status must not reach the query.
+  const status: FilterStatus = STATUSES.includes(filterState.status as FilterStatus)
+    ? (filterState.status as FilterStatus)
+    : 'all'
+  const setStatus = (next: FilterStatus) => setFilters({ status: next })
   const [filtersOpen, setFiltersOpen] = useState(false) // mobile filters drawer
 
   // Close the mobile filters drawer on Escape and lock body scroll while it's open (mirrors Assets).
@@ -136,8 +154,7 @@ export function Creator() {
   )
 
   function pickCategory(key: string) {
-    setCategory(key)
-    setSubCategory(null)
+    setFilters({ category: key, subCategory: null })
     if (collectionsMode) clearCollections()
   }
   // "Collections" is a URL-driven mode (adds a valueless `&collections`), mutually exclusive with the
@@ -160,16 +177,10 @@ export function Creator() {
     navigate({ search: s ? `?${s}&collections` : '?collections' }, { replace: true })
   }
   function toggleRarity(r: string) {
-    setRarities(rs => (rs.includes(r) ? rs.filter(x => x !== r) : [...rs, r]))
+    setFilters({ rarities: rarities.includes(r) ? rarities.filter(x => x !== r) : [...rarities, r] })
   }
   function clearFilters() {
-    setCategory('all')
-    setSubCategory(null)
-    setRarities([])
-    setPriceMin('')
-    setPriceMax('')
-    setStatus('all')
-    setSmart(false)
+    setFilters(filterDefaults)
   }
 
   // Applied-filter chips above the grid; each removes just its own filter (same treatment as browse).
@@ -185,14 +196,13 @@ export function Creator() {
       key: 'price',
       label: t('filter.price'),
       onRemove: () => {
-        setPriceMin('')
-        setPriceMax('')
+        setFilters({ priceMin: '', priceMax: '' })
       }
     })
   for (const r of RARITIES)
     if (rarities.includes(r))
       chips.push({ key: `rarity-${r}`, label: capitalizeFirst(r), onRemove: () => toggleRarity(r) })
-  if (smart) chips.push({ key: 'smart', label: t('filter.smart'), onRemove: () => setSmart(false) })
+  if (smart) chips.push({ key: 'smart', label: t('filter.smart'), onRemove: () => setFilters({ smart: false }) })
   if (status !== 'all')
     chips.push({
       key: 'status',
@@ -264,17 +274,17 @@ export function Creator() {
               category={category}
               subCategory={subCategory}
               onCategory={pickCategory}
-              onSub={setSubCategory}
+              onSub={v => setFilters({ subCategory: v })}
               priceMin={priceMin}
               priceMax={priceMax}
-              onPriceMin={setPriceMin}
-              onPriceMax={setPriceMax}
+              onPriceMin={v => setFilters({ priceMin: v })}
+              onPriceMax={v => setFilters({ priceMax: v })}
               rarities={rarities}
               onToggleRarity={toggleRarity}
               status={status}
               onStatus={setStatus}
               smart={smart}
-              onSmart={setSmart}
+              onSmart={v => setFilters({ smart: v })}
               hideNames
               collections={collectionsMode}
               onCollections={toggleCollections}
@@ -327,7 +337,7 @@ export function Creator() {
             <>
               <FilterBar
                 sort={sort}
-                onSort={setSort}
+                onSort={v => setFilters({ sort: v })}
                 total={total}
                 loading={showGridSkeletons}
                 onOpenFilters={() => setFiltersOpen(true)}
