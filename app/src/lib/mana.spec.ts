@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { TradeAssetType, type Trade } from '@dcl/schemas'
 
 // Mocked marketplace/oracle resolution — mirrors buy.spec.ts. balanceOf drives readManaBalanceWei;
@@ -34,6 +34,13 @@ vi.mock('~/config', () => ({
   config: { rpcUrl: 'http://localhost', chainId: 80002, ethereumChainId: 1, ethereumRpcUrl: 'http://ethereum-rpc' }
 }))
 
+// A per-chain read failure is reported, not swallowed — a dead RPC and an empty wallet must be tellable
+// apart by whoever debugs it. Mocked so the real one does not print to the test output.
+vi.mock('~/lib/monitoring', () => ({ captureError: vi.fn() }))
+
+// When set, constructing a provider for this URL throws, standing in for that chain's RPC being down.
+let failingRpcUrl: string | null = null
+
 vi.mock('ethers', async importOriginal => {
   const actual = await importOriginal<typeof import('ethers')>()
   class MockContract {
@@ -58,7 +65,10 @@ vi.mock('ethers', async importOriginal => {
     }
   }
   class MockJsonRpcProvider {
-    constructor(public url: string) {}
+    constructor(public url: string) {
+      // Lets a test knock ONE chain's RPC out, to prove the other still answers.
+      if (failingRpcUrl && url === failingRpcUrl) throw new Error(`rpc unreachable: ${url}`)
+    }
   }
   return {
     ethers: {
@@ -69,6 +79,7 @@ vi.mock('ethers', async importOriginal => {
   }
 })
 
+import { captureError } from '~/lib/monitoring'
 import { readManaBalanceWei, readManaBalancesWei, readTradeManaPriceWei, hasEnoughMana, formatMana } from '~/lib/mana'
 
 function fakeTrade(receivedAssetType: number, amount = '1000000000000000000'): Trade {
@@ -123,6 +134,29 @@ describe('readManaBalancesWei', () => {
   it('should return the balance held on both chains', async () => {
     const balances = await readManaBalancesWei('0xbuyer')
     expect(balances).toEqual({ ethereum: 3_000000000000000000n, matic: 2_500_000000000000000000n })
+  })
+
+  describe('and one chain cannot be reached', () => {
+    afterEach(() => {
+      failingRpcUrl = null
+    })
+
+    it('should still report the other chain instead of blanking both', async () => {
+      failingRpcUrl = ETHEREUM_RPC
+
+      const balances = await readManaBalancesWei('0xbuyer')
+
+      expect(balances.ethereum).toBe(0n)
+      expect(balances.matic).toBe(2_500_000000000000000000n)
+    })
+
+    it('should report the failure, so a dead RPC is not mistaken for an empty wallet', async () => {
+      failingRpcUrl = ETHEREUM_RPC
+
+      await readManaBalancesWei('0xbuyer')
+
+      expect(captureError).toHaveBeenCalledWith(expect.any(Error), expect.objectContaining({ network: 'ethereum' }))
+    })
   })
 })
 

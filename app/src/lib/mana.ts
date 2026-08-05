@@ -2,6 +2,7 @@ import { ethers } from 'ethers'
 import { TradeAssetType, type Trade } from '@dcl/schemas'
 import { ContractName, getContract, getContractName } from 'decentraland-transactions'
 import { config } from '~/config'
+import { captureError } from '~/lib/monitoring'
 
 // MANA reads for the "pay with MANA" Buy Now option: the buyer's on-chain MANA balance (to decide
 // whether to OFFER MANA at all) and a trade's MANA price (to display it + gate on sufficiency).
@@ -56,10 +57,20 @@ export async function readManaBalanceWei(address: string, chainId: number = conf
 // Per-chain failures are isolated: one RPC being down must not blank out the other chain's balance, so
 // a rejected read reports 0n for that chain instead of failing the pair. Same trade-off dapps' own
 // fetchManaBalance makes.
+//
+// But it is REPORTED, never merely swallowed. A silent 0 is exactly what made the bug this function
+// replaces so hard to see — the chip simply wasn't there, with nothing anywhere saying why. A dead RPC
+// and an empty wallet must not look identical to whoever is debugging it.
 export async function readManaBalancesWei(address: string): Promise<{ ethereum: bigint; matic: bigint }> {
+  const readOrZero = (chainId: number, network: string) =>
+    readManaBalanceWei(address, chainId).catch(error => {
+      captureError(error, { flow: 'read mana balance', network, chainId })
+      return 0n
+    })
+
   const [ethereum, matic] = await Promise.all([
-    readManaBalanceWei(address, config.ethereumChainId).catch(() => 0n),
-    readManaBalanceWei(address, config.chainId).catch(() => 0n)
+    readOrZero(config.ethereumChainId, 'ethereum'),
+    readOrZero(config.chainId, 'matic')
   ])
   return { ethereum, matic }
 }
