@@ -26,7 +26,7 @@ import { liveTradeId, markListingCancelled } from '~/lib/dead-listings'
 import { patchManageCaches } from '~/lib/manage-cache'
 import { manaWeiToCredits } from '~/lib/mana-convert'
 import { isSaleSectionLoading } from '~/lib/pdp-loading'
-import { cancelListing } from '~/lib/buy'
+import { cancelListing, GaslessCancelFailedError } from '~/lib/buy'
 import { fetchPublishableItems, fetchItemVideoUrl, type PublishableItem } from '~/lib/builder'
 import { fetchVrmExportBlocked } from '~/lib/wearable-rules'
 import { BuyModal } from '~/components/BuyModal'
@@ -38,8 +38,9 @@ import { VideoShowcaseModal } from '~/components/VideoShowcaseModal'
 import { MarketCheckout } from '~/components/MarketCheckout'
 import { toast } from '~/store/toast'
 import { captureError } from '~/lib/monitoring'
-import { isRejection } from '~/lib/errors'
+import { friendlyError, isRejection } from '~/lib/errors'
 import { isManagedWallet } from '~/lib/wallet'
+import { canPayGasItself } from '~/lib/wallet-kind'
 import { useManaRate } from '~/hooks/useManaRate'
 import { useRelatedItems } from '~/hooks/useRelatedItems'
 import { useSeo } from '~/hooks/useSeo'
@@ -607,6 +608,17 @@ export function ItemDetail() {
   // read "Working…" while a Remove is running, and vice-versa). null = idle.
   const [managing, setManaging] = useState<'update' | 'remove' | null>(null)
   const [manageError, setManageError] = useState<string | null>(null)
+  // The relay did not get the cancellation confirmed. Holds the choice open — pay the gas now, or leave it —
+  // instead of spending the seller's gas behind their back (see cancelListing's `mode`).
+  // null when nothing failed. 'pending' means the relay may still land, 'reverted' that it provably did
+  // not — the two need different words, and only one of them may say "it may still go through".
+  const [gaslessCancelFailed, setGaslessCancelFailed] = useState<null | 'pending' | 'reverted'>(null)
+  // Whether the gas-paying route is a route AT ALL for this seller. A managed wallet holds no POL, so
+  // offering it a "pay the fee" button leads to an INSUFFICIENT_FUNDS revert — and the fee/network wording
+  // around it is what these users must never be shown. Same question the checkout surfaces ask.
+  const canPayGas = canPayGasItself(session?.providerType)
+  // Shown once the wait passes the point where "a moment" stops being true, so the spinner explains itself.
+  const [cancelSlow, setCancelSlow] = useState(false)
 
   const { data: ownedAsset, isLoading: ownedAssetLoading } = useQuery({
     queryKey: ['owned-token', current.contractAddress, current.tokenId, session?.address],
@@ -823,14 +835,33 @@ export function ItemDetail() {
   // (cancel-then-relist — see updatePrice).
   // `own` (default true): this call owns the 'remove' working state. Update price calls it with
   // own:false — that flow owns the 'update' state so takeDown must not stomp it.
-  async function takeDown(opts: { silent?: boolean; own?: boolean } = {}): Promise<boolean> {
+  async function takeDown(opts: { silent?: boolean; own?: boolean; payGas?: boolean } = {}): Promise<boolean> {
     const own = opts.own !== false
     if (!session || !manageTradeId) return false
     setManageError(null)
+    setGaslessCancelFailed(null)
+    setCancelSlow(false)
     if (own) setManaging('remove')
     try {
       const trade = await fetchTrade(manageTradeId)
-      await cancelListing({ trade, signer: session.signer })
+      await cancelListing({
+        trade,
+        signer: session.signer,
+        // Ask before spending their gas: 'gasless-only' reports back instead of opening a second wallet
+        // prompt on its own. `payGas` is the seller answering yes, from inside their own click — which is
+        // also what makes the wallet accept the network request the direct path needs.
+        mode: opts.payGas ? 'direct' : 'gasless-only',
+        watch: {
+          // The listing being gone is the promise we made; the relayer's hash is not (it re-sends with a new
+          // one). Asking the feed keeps "confirmed" and "what the seller will see" the same thing.
+          isCancelled: async () => {
+            if (!current.itemId) return false
+            const live = await fetchTradeForItem(current.contractAddress, current.itemId).catch(() => undefined)
+            return live !== undefined && live?.id !== manageTradeId
+          },
+          onWaiting: elapsed => setCancelSlow(elapsed > 20_000)
+        }
+      })
       if (!opts.silent) toast.success(t('myAssets.removedFromSale', { name: current.name }))
       // Optimistically flip this token to NOT-for-sale everywhere it's rendered (PDP owned-token, the My
       // Assets grid, the shop-feed price map) the instant the cancel confirms — the feed's MV lags, so an
@@ -855,10 +886,20 @@ export function ItemDetail() {
     } catch (e) {
       const rejected = isRejection(e)
       if (!rejected) captureError(e, { flow: 'remove-listing', tradeId: manageTradeId })
-      setManageError(rejected ? t('getCredits.errorCanceled') : t('myAssets.removeListingError'))
+      if (e instanceof GaslessCancelFailedError) {
+        // Offer the gas-paying route either way, but say which situation it is: a reverted relay is dead and
+        // paying gas is the real next step, while an unconfirmed one may still land on its own — and telling
+        // someone that about a revert is simply false.
+        setGaslessCancelFailed(e.definitive ? 'reverted' : 'pending')
+        return false
+      }
+      // Through friendlyError so a wrong network or a wallet that refused the request says which of those
+      // it was — "couldn't remove the listing" is true but useless when the fix is a network switch.
+      setManageError(rejected ? t('getCredits.errorCanceled') : friendlyError(e, t('myAssets.removeListingError')))
       return false
     } finally {
       if (own) setManaging(null)
+      setCancelSlow(false)
     }
   }
 
@@ -1387,6 +1428,48 @@ export function ItemDetail() {
                     ) : manage ? (
                       <S.ManageActions data-testid="manage-actions">
                         <ErrorNotice message={manageError} />
+                        {/* The relay could not confirm it. Deliberately NOT an error: the transaction may
+                            still land, so the seller gets the two honest options instead of a "try again"
+                            that has them re-signing something already in flight. */}
+                        {gaslessCancelFailed && !canPayGas ? (
+                          <S.GaslessNotice data-testid="cancel-gasless-failed">
+                            <p>{t('itemDetail.cancelRelayRetry')}</p>
+                          </S.GaslessNotice>
+                        ) : null}
+                        {gaslessCancelFailed && canPayGas ? (
+                          <S.GaslessNotice data-testid="cancel-gasless-failed">
+                            <p>
+                              {gaslessCancelFailed === 'reverted'
+                                ? t('itemDetail.cancelRelayReverted')
+                                : t('itemDetail.cancelRelayFailed')}
+                            </p>
+                            <S.GaslessActions>
+                              <S.LinkCta
+                                type="button"
+                                data-testid="cancel-pay-gas"
+                                onClick={() => void takeDown({ payGas: true })}
+                                disabled={managing !== null}
+                              >
+                                {t('itemDetail.cancelPayGas')}
+                              </S.LinkCta>
+                              <S.LinkCta
+                                type="button"
+                                data-testid="cancel-later"
+                                onClick={() => setGaslessCancelFailed(null)}
+                                disabled={managing !== null}
+                              >
+                                {t('itemDetail.cancelLater')}
+                              </S.LinkCta>
+                            </S.GaslessActions>
+                          </S.GaslessNotice>
+                        ) : null}
+                        {/* A relayed cancel on a congested network takes minutes. Say so, instead of a mute
+                            spinner that reads as "nothing is happening". */}
+                        {managing === 'remove' && cancelSlow ? (
+                          <S.GaslessNotice data-testid="cancel-slow">
+                            <p>{t(canPayGas ? 'itemDetail.cancelSlow' : 'itemDetail.cancelSlowManaged')}</p>
+                          </S.GaslessNotice>
+                        ) : null}
                         {manageListed ? (
                           <>
                             {/* Edit price (Figma 1527-302048): dark-solid CTA with the pen glyph. */}

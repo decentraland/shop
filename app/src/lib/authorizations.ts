@@ -13,6 +13,7 @@ import { config } from '~/config'
 import { gaslessConfig } from '~/lib/gasless-config'
 import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import { confirmMetaTx } from '~/lib/tx-confirm'
+import { requireChain } from '~/lib/network'
 
 // The shop's on-chain approvals ("authorizations"). Mirrors the marketplace's decentraland-dapps
 // authorization model, trimmed to what the shop's flows actually touch:
@@ -60,30 +61,6 @@ type CollectionMinterContract = ethers.Contract & {
 // Read-only provider for the target chain — contract reads must not depend on the wallet's network.
 export function readProvider() {
   return new ethers.providers.JsonRpcProvider(config.rpcUrl)
-}
-
-const AMOY_ADD_PARAMS = {
-  chainId: '0x13882',
-  chainName: 'Polygon Amoy',
-  nativeCurrency: { name: 'POL', symbol: 'POL', decimals: 18 },
-  rpcUrls: ['https://rpc-amoy.polygon.technology'],
-  blockExplorerUrls: ['https://amoy.polygonscan.com']
-}
-
-// Silently move the wallet to the target chain — only needed just before an actual on-chain tx.
-export async function ensureChain(provider: ethers.providers.Web3Provider, chainId: number): Promise<void> {
-  const net = await provider.getNetwork()
-  if (net.chainId === chainId) return
-  const hexChain = ethers.utils.hexValue(chainId)
-  try {
-    await provider.send('wallet_switchEthereumChain', [{ chainId: hexChain }])
-  } catch (e) {
-    if ((e as { code?: number }).code === 4902 && chainId === 80002) {
-      await provider.send('wallet_addEthereumChain', [AMOY_ADD_PARAMS])
-    } else {
-      throw e
-    }
-  }
 }
 
 // A single on-chain authorization: a (kind, token/collection, operator/spender) triple on a chain.
@@ -240,7 +217,9 @@ export async function setAuthorization(opts: {
     }
   }
 
-  await ensureChain(signer.provider as ethers.providers.Web3Provider, auth.chainId)
+  // Direct (gas-paying) fallback: the WALLET broadcasts this one, so it must already be on the right chain.
+  // We only check — moving it is the user's decision, made from the "switch network" control in the navbar.
+  await requireChain(signer.provider as ethers.providers.Web3Provider, auth.chainId)
   switch (auth.kind) {
     case AuthorizationKind.Allowance: {
       const erc20 = new ethers.Contract(auth.contractAddress, ERC20_ABI, signer) as Erc20Contract

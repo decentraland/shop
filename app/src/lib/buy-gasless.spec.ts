@@ -4,38 +4,44 @@ import type { ethers as Ethers } from 'ethers'
 
 // Mutable flag/relayer, ABIs and programmable on-chain read stubs. vi.hoisted lets the vi.mock
 // factories (hoisted to the top of the file) safely reference these shared handles.
-const { gasless, nonceMock, waitForTransactionMock, CM_ABI, MARKET_ABI, MetaTxError, ErrCode } = vi.hoisted(() => {
-  // Minimal stand-ins for decentraland-transactions' MetaTransactionError / ErrorCode so buy-gasless's
-  // `new MetaTransactionError(msg, ErrorCode.USER_DENIED)` resolves against the mock.
-  class MetaTxError extends Error {
-    code: string
-    constructor(message: string, code: string) {
-      super(message)
-      this.name = 'MetaTransactionError'
-      this.code = code
+const { gasless, nonceMock, waitForTransactionMock, CM_ABI, MARKET_ABI, STORE_ABI, MetaTxError, ErrCode } = vi.hoisted(
+  () => {
+    // Minimal stand-ins for decentraland-transactions' MetaTransactionError / ErrorCode so buy-gasless's
+    // `new MetaTransactionError(msg, ErrorCode.USER_DENIED)` resolves against the mock.
+    class MetaTxError extends Error {
+      code: string
+      constructor(message: string, code: string) {
+        super(message)
+        this.name = 'MetaTransactionError'
+        this.code = code
+      }
+    }
+    return {
+      gasless: { enabled: true, relayerUrl: 'https://relayer.test/v1' },
+      MetaTxError,
+      ErrCode: { USER_DENIED: 'USER_DENIED' },
+      // getNonce(buyer) → a BigNumber-like value (only .toString() is read by the target).
+      nonceMock: vi.fn(async (_user: string): Promise<{ toString(): string }> => ({ toString: () => '7' })),
+      // waitForTransaction(hash, confirmations, timeout) → a receipt-like value (only .status is read).
+      waitForTransactionMock: vi.fn(async (..._args: unknown[]): Promise<{ status: number } | null> => ({ status: 1 })),
+      // A realistic CreditsManager ABI: enough for Interface.encodeFunctionData('useCredits') and
+      // ('executeMetaTransaction') to resolve real selectors + encode real bytes (real ethers utils).
+      CM_ABI: [
+        'function executeMetaTransaction(address userAddress, bytes functionData, bytes signature) returns (bytes)',
+        'function getNonce(address user) view returns (uint256)',
+        'function useCredits(tuple(tuple(uint256 value,uint256 expiresAt,bytes32 salt)[] credits, bytes[] creditsSignatures, tuple(address target, bytes4 selector, bytes data, uint256 expiresAt, bytes32 salt) externalCall, bytes customExternalCallSignature, uint256 maxUncreditedValue, uint256 maxCreditedValue) args)'
+      ],
+      // A minimal marketplace ABI with an `accept` fragment so buildAcceptCalldata resolves its selector.
+      MARKET_ABI: [
+        'function accept(tuple(address signer,bytes signature,tuple(uint256 uses,uint256 expiration,uint256 effective,bytes32 salt,uint256 contractSignatureIndex,uint256 signerSignatureIndex,bytes32 allowedRoot,bytes32[] allowedProof,tuple(address contractAddress,bytes4 selector,bytes value,bool required)[] externalChecks) checks,tuple(uint256 assetType,address contractAddress,uint256 value,address beneficiary,bytes extra)[] sent,tuple(uint256 assetType,address contractAddress,uint256 value,address beneficiary,bytes extra)[] received)[] trades)'
+      ],
+      // The CollectionStore's `buy` fragment, so a MINT's calldata encodes for real too.
+      STORE_ABI: [
+        'function buy(tuple(address collection,uint256[] ids,uint256[] prices,address[] beneficiaries)[] itemsToBuy)'
+      ]
     }
   }
-  return {
-    gasless: { enabled: true, relayerUrl: 'https://relayer.test/v1' },
-    MetaTxError,
-    ErrCode: { USER_DENIED: 'USER_DENIED' },
-    // getNonce(buyer) → a BigNumber-like value (only .toString() is read by the target).
-    nonceMock: vi.fn(async (_user: string): Promise<{ toString(): string }> => ({ toString: () => '7' })),
-    // waitForTransaction(hash, confirmations, timeout) → a receipt-like value (only .status is read).
-    waitForTransactionMock: vi.fn(async (..._args: unknown[]): Promise<{ status: number } | null> => ({ status: 1 })),
-    // A realistic CreditsManager ABI: enough for Interface.encodeFunctionData('useCredits') and
-    // ('executeMetaTransaction') to resolve real selectors + encode real bytes (real ethers utils).
-    CM_ABI: [
-      'function executeMetaTransaction(address userAddress, bytes functionData, bytes signature) returns (bytes)',
-      'function getNonce(address user) view returns (uint256)',
-      'function useCredits(tuple(tuple(uint256 value,uint256 expiresAt,bytes32 salt)[] credits, bytes[] creditsSignatures, tuple(address target, bytes4 selector, bytes data, uint256 expiresAt, bytes32 salt) externalCall, bytes customExternalCallSignature, uint256 maxUncreditedValue, uint256 maxCreditedValue) args)'
-    ],
-    // A minimal marketplace ABI with an `accept` fragment so buildAcceptCalldata resolves its selector.
-    MARKET_ABI: [
-      'function accept(tuple(address signer,bytes signature,tuple(uint256 uses,uint256 expiration,uint256 effective,bytes32 salt,uint256 contractSignatureIndex,uint256 signerSignatureIndex,bytes32 allowedRoot,bytes32[] allowedProof,tuple(address contractAddress,bytes4 selector,bytes value,bool required)[] externalChecks) checks,tuple(uint256 assetType,address contractAddress,uint256 value,address beneficiary,bytes extra)[] sent,tuple(uint256 assetType,address contractAddress,uint256 value,address beneficiary,bytes extra)[] received)[] trades)'
-    ]
-  }
-})
+)
 
 vi.mock('~/lib/gasless-config', () => ({
   gaslessConfig: gasless,
@@ -45,12 +51,14 @@ vi.mock('~/lib/gasless-config', () => ({
 vi.mock('~/config', () => ({ config: { rpcUrl: 'http://localhost', chainId: 80002 } }))
 
 vi.mock('decentraland-transactions', () => ({
-  ContractName: { CreditsManager: 'CreditsManager' },
+  ContractName: { CreditsManager: 'CreditsManager', CollectionStore: 'CollectionStore' },
   getContractName: () => 'DecentralandMarketplacePolygon',
   getContract: (name: string) =>
     name === 'CreditsManager'
       ? { address: '0x' + 'cc'.repeat(20), name: 'CreditsManager', version: '1', abi: CM_ABI }
-      : { address: '0x' + 'ee'.repeat(20), name: 'DecentralandMarketplacePolygon', version: '1', abi: MARKET_ABI },
+      : name === 'CollectionStore'
+        ? { address: '0x' + 'ff'.repeat(20), name: 'CollectionStore', version: '1', abi: STORE_ABI }
+        : { address: '0x' + 'ee'.repeat(20), name: 'DecentralandMarketplacePolygon', version: '1', abi: MARKET_ABI },
   MetaTransactionError: MetaTxError,
   ErrorCode: ErrCode
 }))
@@ -102,6 +110,17 @@ const BUYER = ADDR('44')
 function credit(id: string, amount: string): SpendableCredit {
   // signature must be valid hex bytes (ethers ABI-encodes it as `bytes`).
   return { id, amount, availableAmount: amount, expiresAt: 9_999_999_999, signature: '0xabcd' }
+}
+
+// A CollectionStore mint line: an item to mint, its price, and the credit paying for it.
+function storePurchase(saltNum: string) {
+  return {
+    kind: 'store' as const,
+    chainId: 80002,
+    item: { collection: '0x' + 'ab'.repeat(20), itemId: '0', priceWei: '100' },
+    credits: [credit(B32(saltNum), '100')],
+    maxCreditedValue: '100'
+  }
 }
 
 function fakeTrade(contract: string): Trade {
@@ -419,6 +438,77 @@ describe('when batch buying gaslessly', () => {
   it('throws when there are no items to buy', async () => {
     const signer = makeSigner(async () => '0xdead')
     await expect(buyManyGasless({ purchases: [], buyer: BUYER, signer })).rejects.toThrow('No items to buy')
+  })
+
+  /**
+   * A CollectionStore MINT is relayed like anything else.
+   *
+   * It used to be excluded, which meant a basket containing one fell through to the buyer's own gas-paying
+   * transaction — and that is not a route a web2 buyer has: no POL, no idea what Polygon is. The exclusion was
+   * never a contract limitation. `useCredits` carries exactly one external call whichever rail it is, and the
+   * store call names the buyer explicitly as the beneficiary, so relaying changes only who transmits and pays.
+   */
+  it('relays a store mint, so a buyer with no POL can still buy one', async () => {
+    const fetchMock = stubFetch({ txHash: '0xmint' })
+    const signer = makeSigner(async () => '0xdead')
+
+    const hashes = await buyManyGasless({ purchases: [storePurchase('1')], buyer: BUYER, signer })
+
+    expect(hashes).toEqual(['0xmint'])
+    expect(signer._signTypedData).toHaveBeenCalledTimes(1) // an off-chain signature, not a transaction
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('collapses several mints into ONE meta-tx, matching the direct rail’s grouping', async () => {
+    const fetchMock = stubFetch({ txHash: '0xmint' })
+    const signer = makeSigner(async () => '0xdead')
+
+    const hashes = await buyManyGasless({
+      purchases: [storePurchase('1'), storePurchase('2')],
+      buyer: BUYER,
+      signer
+    })
+
+    // CollectionStore.buy takes an array across collections, so one call covers both.
+    expect(hashes).toEqual(['0xmint'])
+    expect(signer._signTypedData).toHaveBeenCalledTimes(1)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('relays a MIXED basket as one meta-tx per rail', async () => {
+    const fetchMock = stubFetch({ txHash: '0xrelayed' })
+    const signer = makeSigner(async () => '0xdead')
+
+    const hashes = await buyManyGasless({
+      purchases: [
+        {
+          kind: 'trade' as const,
+          trade: fakeTrade('0xmarket'),
+          credits: [credit(B32('1'), '100')],
+          maxCreditedValue: '100'
+        },
+        storePurchase('2')
+      ],
+      buyer: BUYER,
+      signer
+    })
+
+    // Two rails cannot share one external call, so two signatures — the same split the direct rail makes.
+    expect(hashes).toEqual(['0xrelayed', '0xrelayed'])
+    expect(signer._signTypedData).toHaveBeenCalledTimes(2)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('reports each group’s credits with the hash that spent them', async () => {
+    stubFetch({ txHash: '0xrelayed' })
+    const signer = makeSigner(async () => '0xdead')
+    const onBroadcast = vi.fn()
+
+    await buyManyGasless({ purchases: [storePurchase('9')], buyer: BUYER, signer, onBroadcast })
+
+    // Pairing hash -> salts is what lets the caller tell WHICH group is unresolved instead of releasing
+    // reservations for credits that are already spent on-chain.
+    expect(onBroadcast).toHaveBeenCalledWith({ txHash: '0xrelayed', salts: [B32('9')] })
   })
 })
 

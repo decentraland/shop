@@ -310,49 +310,29 @@ describe('when ensuring the marketplace is approved as operator', () => {
     expect(wait).toHaveBeenCalledOnce()
   })
 
-  it('should switch the wallet chain before approving when on the wrong network', async () => {
+  /**
+   * A creator on the wrong network is told, not moved. The approval used to switch their wallet with no
+   * prompt of ours — undoing a network they may have picked seconds earlier, and doing it from a fallback
+   * path the wallet is entitled to refuse (-32006), which took out the only remaining route.
+   *
+   * `switchChain` covers the request itself (including Amoy's 4902 add) in network.spec; what matters here
+   * is that this leg never makes it.
+   */
+  it('should refuse to approve on the wrong network, without asking the wallet to switch', async () => {
     isApprovedForAllMock.mockResolvedValue(false)
     setApprovalForAllMock.mockResolvedValue({ wait: vi.fn().mockResolvedValue(undefined) })
     const send = vi.fn().mockResolvedValue(undefined)
     const getNetwork = vi.fn().mockResolvedValue({ chainId: ChainId.ETHEREUM_MAINNET })
     const signer = makeSigner({ provider: { getNetwork, send } })
 
-    await ensureApproval({
-      signer,
-      contractAddress: NFT,
-      chainId: ChainId.MATIC_AMOY
-    })
-
-    expect(send).toHaveBeenCalledWith('wallet_switchEthereumChain', [{ chainId: '0x13882' }])
-  })
-
-  it('should add the Amoy chain when switching fails with 4902', async () => {
-    isApprovedForAllMock.mockResolvedValue(false)
-    setApprovalForAllMock.mockResolvedValue({ wait: vi.fn().mockResolvedValue(undefined) })
-    const send = vi.fn().mockRejectedValueOnce({ code: 4902 }).mockResolvedValueOnce(undefined)
-    const getNetwork = vi.fn().mockResolvedValue({ chainId: ChainId.ETHEREUM_MAINNET })
-    const signer = makeSigner({ provider: { getNetwork, send } })
-
-    await ensureApproval({
-      signer,
-      contractAddress: NFT,
-      chainId: ChainId.MATIC_AMOY
-    })
-
-    expect(send).toHaveBeenNthCalledWith(2, 'wallet_addEthereumChain', expect.any(Array))
-    const addCall = send.mock.calls[1][1][0]
-    expect(addCall.chainId).toBe('0x13882')
-  })
-
-  it('should rethrow a non-4902 chain switch error', async () => {
-    isApprovedForAllMock.mockResolvedValue(false)
-    const send = vi.fn().mockRejectedValue({ code: 4001, message: 'user rejected' })
-    const getNetwork = vi.fn().mockResolvedValue({ chainId: ChainId.ETHEREUM_MAINNET })
-    const signer = makeSigner({ provider: { getNetwork, send } })
-
     await expect(ensureApproval({ signer, contractAddress: NFT, chainId: ChainId.MATIC_AMOY })).rejects.toMatchObject({
-      code: 4001
+      name: 'WrongNetworkError',
+      current: ChainId.ETHEREUM_MAINNET,
+      required: ChainId.MATIC_AMOY
     })
+
+    expect(send).not.toHaveBeenCalledWith('wallet_switchEthereumChain', expect.anything())
+    expect(send).not.toHaveBeenCalledWith('wallet_addEthereumChain', expect.anything())
     expect(setApprovalForAllMock).not.toHaveBeenCalled()
   })
 
@@ -525,20 +505,19 @@ describe('when ensuring the marketplace is a minter', () => {
     expect(setMintersMock).toHaveBeenCalledOnce()
   })
 
-  it('should switch the wallet to the collection chain before granting when on the wrong network', async () => {
+  it('should refuse to grant minting rights on the wrong network, without switching the wallet', async () => {
     globalMintersMock.mockResolvedValue(false)
     setMintersMock.mockResolvedValue({ wait: vi.fn().mockResolvedValue(undefined) })
     const send = vi.fn().mockResolvedValue(undefined)
     const getNetwork = vi.fn().mockResolvedValue({ chainId: ChainId.ETHEREUM_MAINNET })
     const signer = makeSigner({ provider: { getNetwork, send } })
 
-    await ensureMinter({
-      signer,
-      contractAddress: COLLECTION,
-      chainId: ChainId.MATIC_AMOY
-    })
+    await expect(
+      ensureMinter({ signer, contractAddress: COLLECTION, chainId: ChainId.MATIC_AMOY })
+    ).rejects.toMatchObject({ name: 'WrongNetworkError' })
 
-    expect(send).toHaveBeenCalledWith('wallet_switchEthereumChain', [{ chainId: '0x13882' }])
+    expect(send).not.toHaveBeenCalledWith('wallet_switchEthereumChain', expect.anything())
+    expect(setMintersMock).not.toHaveBeenCalled()
   })
 })
 

@@ -103,7 +103,6 @@ import { MetaTransactionError, ErrorCode } from 'decentraland-transactions'
 import {
   AuthorizationKind,
   ensureAuthorization,
-  ensureChain,
   getAuthorizationStatus,
   getCollectionMintingAuthorization,
   getCollectionSellingAuthorization,
@@ -263,17 +262,28 @@ describe('when the gasless relayer is unavailable (fallback to a direct tx)', ()
     expect(setMintersMock).toHaveBeenCalledWith([MARKET], [true])
   })
 
-  it('should switch the wallet chain before the fallback tx when on the wrong network', async () => {
+  /**
+   * The fallback must NOT move the wallet. It used to: the direct leg switched networks with no prompt of
+   * its own, so granting an approval could silently undo a network the user had just chosen — and because the
+   * request arrives from a fallback rather than from their click, the wallet is entitled to refuse it
+   * (-32006), which left the only remaining route dead exactly when the relayer was down.
+   */
+  it('should refuse the fallback instead of switching the wallet network, and send nothing', async () => {
     sendMetaTransactionMock.mockRejectedValue(new Error('relayer down'))
     approveMock.mockResolvedValue({ wait: vi.fn().mockResolvedValue(undefined) })
     const send = vi.fn().mockResolvedValue(undefined)
     const getNetwork = vi.fn().mockResolvedValue({ chainId: ChainId.ETHEREUM_MAINNET })
-    await setAuthorization({
-      auth: allowanceAuth,
-      signer: makeSigner({ provider: { getNetwork, send } }),
-      active: true
-    })
-    expect(send).toHaveBeenCalledWith('wallet_switchEthereumChain', [{ chainId: '0x13882' }])
+
+    await expect(
+      setAuthorization({
+        auth: allowanceAuth,
+        signer: makeSigner({ provider: { getNetwork, send } }),
+        active: true
+      })
+    ).rejects.toMatchObject({ name: 'WrongNetworkError', current: ChainId.ETHEREUM_MAINNET })
+
+    expect(send).not.toHaveBeenCalledWith('wallet_switchEthereumChain', expect.anything())
+    expect(approveMock).not.toHaveBeenCalled()
   })
 
   it('should NOT fall back and should rethrow when the user rejects the signature', async () => {
@@ -357,28 +367,6 @@ describe('when building the shop authorization descriptors', () => {
     expect(auth.spenderAddress).toBe(MARKET)
     expect(auth.group).toBe('minting')
     expect(auth.id).toBe(`minting:${COLLECTION.toLowerCase()}`)
-  })
-})
-
-describe('when ensuring the wallet is on the right chain', () => {
-  it('should no-op when already on the target chain', async () => {
-    const getNetwork = vi.fn().mockResolvedValue({ chainId: ChainId.MATIC_AMOY })
-    const send = vi.fn()
-    await ensureChain({ getNetwork, send } as never, ChainId.MATIC_AMOY)
-    expect(send).not.toHaveBeenCalled()
-  })
-
-  it('should add the Amoy chain when switching fails with 4902', async () => {
-    const getNetwork = vi.fn().mockResolvedValue({ chainId: ChainId.ETHEREUM_MAINNET })
-    const send = vi.fn().mockRejectedValueOnce({ code: 4902 }).mockResolvedValueOnce(undefined)
-    await ensureChain({ getNetwork, send } as never, ChainId.MATIC_AMOY)
-    expect(send).toHaveBeenNthCalledWith(2, 'wallet_addEthereumChain', expect.any(Array))
-  })
-
-  it('should rethrow a non-4902 switch error', async () => {
-    const getNetwork = vi.fn().mockResolvedValue({ chainId: ChainId.ETHEREUM_MAINNET })
-    const send = vi.fn().mockRejectedValue({ code: 4001 })
-    await expect(ensureChain({ getNetwork, send } as never, ChainId.MATIC_AMOY)).rejects.toMatchObject({ code: 4001 })
   })
 })
 

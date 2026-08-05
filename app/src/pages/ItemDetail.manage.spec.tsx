@@ -82,7 +82,19 @@ vi.mock('~/lib/api', () => ({
 }))
 
 const { cancelListing } = vi.hoisted(() => ({ cancelListing: vi.fn() }))
-vi.mock('~/lib/buy', () => ({ cancelListing }))
+vi.mock('~/lib/buy', () => ({
+  cancelListing,
+  // The page narrows on this class to tell "the relay did not confirm" apart from a real failure, and reads
+  // `definitive` to tell a DEAD relay (reverted) from one that may still land.
+  GaslessCancelFailedError: class GaslessCancelFailedError extends Error {
+    constructor(public readonly cause: unknown) {
+      super('The gasless cancellation was not confirmed')
+    }
+    get definitive() {
+      return (this.cause as { name?: string } | null)?.name === 'MetaTxRevertedError'
+    }
+  }
+}))
 
 vi.mock('~/lib/collections', () => ({
   fetchCollectionItems: vi.fn().mockResolvedValue({ items: [], total: 0 }),
@@ -98,6 +110,7 @@ vi.mock('~/hooks/useManaRate', () => ({ useManaRate: () => ({ data: undefined, i
 vi.mock('~/hooks/useSecondarySales', () => ({ useSecondarySales: () => false }))
 
 import { ItemDetail } from '~/pages/ItemDetail'
+import { GaslessCancelFailedError } from '~/lib/buy'
 
 // The creator's own primary (mint) listing, in the shape a grid row hands over in router state.
 function listedItem(overrides: Partial<CatalogItem> = {}): CatalogItem {
@@ -185,6 +198,137 @@ describe('ItemDetail — taking your own listing down from the item page', () =>
 
     await waitFor(() => expect(screen.getByRole('button', { name: /remove from sale/i })).toBeEnabled())
     expect(listCta()).not.toBeInTheDocument()
+    expect(screen.getByTestId('item-price')).toHaveTextContent('10')
+  })
+})
+
+/**
+ * WHEN THE GASLESS SEND CANNOT BE CONFIRMED.
+ *
+ * Measured on production: the relay was accepted, the hash it returned never mined, the wait gave up, and the
+ * page told the creator it had failed — while the real transaction confirmed eight minutes later. They
+ * re-signed six times. So this state is NOT an error: the page says it may still land and offers the
+ * gas-paying route as the seller's own click (which is also the only way the wallet will accept the network
+ * request that route needs).
+ */
+describe('ItemDetail — when the relayed cancel is not confirmed', () => {
+  const gaslessFails = () => cancelListing.mockRejectedValueOnce(new GaslessCancelFailedError('relay'))
+
+  /** Runs the body with the seller on a MANAGED (web2) wallet, then puts the fixture back. */
+  async function asManagedWallet(body: () => Promise<void>) {
+    const previous = session.providerType
+    Object.assign(session, { providerType: 'magic' })
+    try {
+      await body()
+    } finally {
+      Object.assign(session, { providerType: previous })
+    }
+  }
+
+  // The three checkout surfaces gate the gas-paying rail on the wallet being able to pay; this flow did not.
+  // A managed wallet holds no POL, so the button led to an INSUFFICIENT_FUNDS revert, wrapped in fee and
+  // network wording these users must never be shown.
+  it('should not offer to pay the fee on a wallet that cannot pay it', async () => {
+    await asManagedWallet(async () => {
+      gaslessFails()
+      renderPdp(newClient())
+
+      expect(await screen.findByTestId('item-price')).toHaveTextContent('10')
+      await userEvent.click(removeCta())
+
+      const notice = await screen.findByTestId('cancel-gasless-failed')
+      expect(notice).toBeInTheDocument()
+      expect(screen.queryByTestId('cancel-pay-gas')).not.toBeInTheDocument()
+      // …and it says nothing about fees, networks or gas.
+      expect(notice.textContent ?? '').not.toMatch(/fee|gas|network|polygon/i)
+    })
+  })
+
+  it('should still offer it to a wallet that can', async () => {
+    gaslessFails()
+    renderPdp(newClient())
+
+    await userEvent.click(removeCta())
+
+    expect(await screen.findByTestId('cancel-pay-gas')).toBeInTheDocument()
+  })
+
+  it('should offer both ways out instead of a failure message', async () => {
+    gaslessFails()
+    renderPdp(newClient())
+
+    expect(await screen.findByTestId('item-price')).toHaveTextContent('10')
+    await userEvent.click(removeCta())
+
+    const notice = await screen.findByTestId('cancel-gasless-failed')
+    expect(notice).toBeInTheDocument()
+    expect(screen.getByTestId('cancel-pay-gas')).toBeInTheDocument()
+    expect(screen.getByTestId('cancel-later')).toBeInTheDocument()
+    // And it never claims the listing is gone: the price and the Remove CTA are still there.
+    expect(screen.getByTestId('item-price')).toHaveTextContent('10')
+    expect(listCta()).not.toBeInTheDocument()
+  })
+
+  it('should pay the fee only when the seller asks, and from their own click', async () => {
+    gaslessFails()
+    renderPdp(newClient())
+
+    expect(await screen.findByTestId('item-price')).toHaveTextContent('10')
+    await userEvent.click(removeCta())
+    // The relay attempt asked NOT to spend gas.
+    expect(cancelListing.mock.calls[0][0]).toMatchObject({ mode: 'gasless-only' })
+
+    cancelListing.mockResolvedValueOnce('0xdirect')
+    await userEvent.click(await screen.findByTestId('cancel-pay-gas'))
+
+    await waitFor(() => expect(cancelListing).toHaveBeenCalledTimes(2))
+    expect(cancelListing.mock.calls[1][0]).toMatchObject({ mode: 'direct' })
+    await waitFor(() => expect(listCta()).toBeInTheDocument())
+  })
+
+  /**
+   * A reverted relay is DEAD, and must not be described as something that might still resolve itself. The
+   * choice stays — paying the fee is in fact the right next step, since the cancellation provably did not
+   * happen — but the sentence above it has to be true.
+   */
+  it('should not promise a reverted relay may still go through', async () => {
+    const reverted = new Error('the listing cancellation reverted on-chain')
+    reverted.name = 'MetaTxRevertedError'
+    cancelListing.mockRejectedValueOnce(new GaslessCancelFailedError(reverted))
+    renderPdp(newClient())
+
+    expect(await screen.findByTestId('item-price')).toHaveTextContent('10')
+    await userEvent.click(removeCta())
+
+    const notice = await screen.findByTestId('cancel-gasless-failed')
+    expect(notice.textContent ?? '').not.toMatch(/may still/i)
+    expect(notice.textContent ?? '').toMatch(/didn't go through/i)
+    // Both ways out are still offered.
+    expect(screen.getByTestId('cancel-pay-gas')).toBeInTheDocument()
+    expect(screen.getByTestId('cancel-later')).toBeInTheDocument()
+  })
+
+  it('should still say an unconfirmed relay may land, when that is true', async () => {
+    gaslessFails()
+    renderPdp(newClient())
+
+    expect(await screen.findByTestId('item-price')).toHaveTextContent('10')
+    await userEvent.click(removeCta())
+
+    const notice = await screen.findByTestId('cancel-gasless-failed')
+    expect(notice.textContent ?? '').toMatch(/may still/i)
+  })
+
+  it('should let the seller leave it, without touching the listing', async () => {
+    gaslessFails()
+    renderPdp(newClient())
+
+    expect(await screen.findByTestId('item-price')).toHaveTextContent('10')
+    await userEvent.click(removeCta())
+    await userEvent.click(await screen.findByTestId('cancel-later'))
+
+    await waitFor(() => expect(screen.queryByTestId('cancel-gasless-failed')).not.toBeInTheDocument())
+    expect(cancelListing).toHaveBeenCalledTimes(1)
     expect(screen.getByTestId('item-price')).toHaveTextContent('10')
   })
 })

@@ -28,3 +28,19 @@ const SELF_CUSTODY_PROVIDERS: ReadonlySet<ProviderType> = new Set([
 export function showsWalletConfirmations(providerType?: ProviderType | null): boolean {
   return !!providerType && SELF_CUSTODY_PROVIDERS.has(providerType)
 }
+
+/**
+ * May this wallet be offered a rail where the WALLET itself pays the gas?
+ *
+ * Only a self-custody one can: a managed (web2) wallet holds no POL, so that rail reverts with
+ * INSUFFICIENT_FUNDS after a prompt its owner cannot act on — and gas/network wording is exactly what these
+ * users must never be shown (CONVENTIONS.md).
+ *
+ * Same allowlist as `showsWalletConfirmations`, deliberately named for the DECISION rather than the
+ * mechanism. Three checkout surfaces asked this question by spelling out the confirmations check, and a
+ * fourth (the cancel flow) forgot to ask it at all — a name for the question is what makes the omission
+ * visible at the call site.
+ */
+export function canPayGasItself(providerType?: ProviderType | null): boolean {
+  return showsWalletConfirmations(providerType)
+}
