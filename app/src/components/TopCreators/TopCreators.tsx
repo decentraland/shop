@@ -75,7 +75,7 @@ function CreatorCard({ address }: { address: string }) {
       ethAddress: profile?.ethAddress ?? address
     })
   )
-  const blurb = description || (totals ? t('topCreators.stats', totals) : '')
+  const blurb = totals ? t('topCreators.stats', totals) : description
 
   return (
     <S.Card
