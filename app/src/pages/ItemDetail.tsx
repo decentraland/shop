@@ -779,10 +779,17 @@ export function ItemDetail() {
   const manageTradeId = manageAsSecondary ? ownedAsset?.tradeId : buyableTradeId
   // Can we open the list/relist modal? Need the backing record the modal reads its inputs from.
   const canOpenListModal = manageAsSecondary ? !!ownedAsset : !!publishableItem
-  // May this viewer put the asset up for sale? A creator's mint listing is PRIMARY and always allowed; an
-  // owned token is a SECONDARY sale and so is gone while the flag is off. Taking an existing listing DOWN
-  // stays available either way (the listed branch) — hiding the entrance must not trap the people already
-  // inside. With no listing and no permission the owner simply keeps Transfer.
+  /**
+   * May this viewer put the asset up for sale? A creator's mint listing is PRIMARY and always allowed; an
+   * owned token is a SECONDARY sale and so is gone while the flag is off.
+   *
+   * Taking an existing listing DOWN stays available either way — hiding the entrance must not trap the
+   * people already inside. But CHANGING THE PRICE is not an exit: `updatePrice` cancels and re-lists, so it
+   * creates a brand-new secondary listing. Gating only the first listing let the flag be walked around by
+   * anyone who already had one, which is why this now guards both entrances and leaves only Remove.
+   *
+   * With no listing and no permission the owner simply keeps Transfer.
+   */
   const canPutOnSale = manageAsPrimary || (manageAsSecondary && secondarySales)
   // The owner's own listed price, from the (freshly-refreshed) manage state. Used so the price shows
   // right after listing: the public `forSale`/feed the price block falls back to lags behind the MV
@@ -1472,20 +1479,24 @@ export function ItemDetail() {
                         ) : null}
                         {manageListed ? (
                           <>
-                            {/* Edit price (Figma 1527-302048): dark-solid CTA with the pen glyph. */}
-                            <S.DarkCta
-                              onClick={() => void updatePrice()}
-                              disabled={managing !== null || !canOpenListModal}
-                            >
-                              {managing !== 'update' ? <Icon name="pen" className="ico" /> : null}
-                              <span>
-                                {managing === 'update'
-                                  ? isManaged
-                                    ? t('itemDetail.updateCanceling')
-                                    : t('itemDetail.updateConfirmCancel')
-                                  : t('itemDetail.manageUpdatePrice')}
-                              </span>
-                            </S.DarkCta>
+                            {/* Edit price (Figma 1527-302048): dark-solid CTA with the pen glyph. Absent when
+                            the viewer may not sell — re-pricing is a cancel plus a NEW listing, so it is an
+                            entrance, not an exit. Remove stays below either way. */}
+                            {canPutOnSale ? (
+                              <S.DarkCta
+                                onClick={() => void updatePrice()}
+                                disabled={managing !== null || !canOpenListModal}
+                              >
+                                {managing !== 'update' ? <Icon name="pen" className="ico" /> : null}
+                                <span>
+                                  {managing === 'update'
+                                    ? isManaged
+                                      ? t('itemDetail.updateCanceling')
+                                      : t('itemDetail.updateConfirmCancel')
+                                    : t('itemDetail.manageUpdatePrice')}
+                                </span>
+                              </S.DarkCta>
+                            ) : null}
                             <S.OutlineCta onClick={() => void takeDown()} disabled={managing !== null}>
                               <span>
                                 {managing === 'remove' ? t('myAssets.removing') : t('itemDetail.manageRemove')}
