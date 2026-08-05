@@ -42,7 +42,6 @@ import { useRelatedItems } from '~/hooks/useRelatedItems'
 import { useSeo } from '~/hooks/useSeo'
 import { shortAddress } from '~/lib/address'
 import { t } from '~/intl/i18n'
-import { theme } from '~/styles/theme'
 import { fetchCollectionItems, fetchCollection } from '~/lib/collections'
 import { ItemPreview } from '~/components/ItemPreview'
 import { CollectionCarousel } from '~/components/CollectionCarousel'
@@ -55,7 +54,7 @@ import { Tooltip } from '~/components/Tooltip'
 import { ErrorNotice } from '~/components/ErrorNotice'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { Icon } from '~/components/Icon'
-import { rarityColor, readableText, rarityDescription } from '~/lib/rarity'
+import { rarityColor, rarityDescription } from '~/lib/rarity'
 import { categoryIcon, genderIcon } from '~/lib/itemIcons'
 import { saleDiscountPct } from '~/lib/sale'
 import { useSaleActive } from '~/hooks/useSaleActive'
@@ -1007,7 +1006,7 @@ export function ItemDetail() {
               <S.Chips>
                 <S.DetailChip
                   data-variant="rarity"
-                  style={{ background: rarityColor(rarity), color: readableText(rarityColor(rarity)) }}
+                  style={{ background: rarityColor(rarity) }}
                   title={rarityDescription(current.rarity)}
                 >
                   {current.rarity}
@@ -1032,7 +1031,7 @@ export function ItemDetail() {
                     shows, from the same two fields (`data.wearable.isSmart` and `utility`). */}
                 {isSmart ? (
                   <S.DetailChip data-testid="detail-smart">
-                    <Icon name="smart" size={18} color={theme.colors.text2} />
+                    <Icon name="smart" size={18} />
                     {t('itemDetail.smart')}
                   </S.DetailChip>
                 ) : null}
@@ -1041,29 +1040,25 @@ export function ItemDetail() {
                     which is a fact worth stating, so only undefined — i.e. a wearable — hides the chip. */}
                 {emoteTraits.emoteLoop !== undefined ? (
                   <S.DetailChip data-testid="detail-play-mode">
-                    <Icon
-                      name={emoteTraits.emoteLoop ? 'play-loop' : 'play-once'}
-                      size={18}
-                      color={theme.colors.text2}
-                    />
+                    <Icon name={emoteTraits.emoteLoop ? 'play-loop' : 'play-once'} size={18} />
                     {emoteTraits.emoteLoop ? t('itemDetail.playLoop') : t('itemDetail.playOnce')}
                   </S.DetailChip>
                 ) : null}
                 {emoteTraits.emoteHasSound ? (
                   <S.DetailChip data-testid="detail-sound">
-                    <Icon name="sound" size={18} color={theme.colors.text2} />
+                    <Icon name="sound" size={18} />
                     {t('itemDetail.emoteSound')}
                   </S.DetailChip>
                 ) : null}
                 {emoteTraits.emoteHasProps ? (
                   <S.DetailChip data-testid="detail-props">
-                    <Icon name="props" size={18} color={theme.colors.text2} />
+                    <Icon name="props" size={18} />
                     {t('itemDetail.emoteProps')}
                   </S.DetailChip>
                 ) : null}
                 {utility ? (
                   <S.DetailChip data-testid="detail-utility-chip">
-                    <Icon name="utility" size={18} color={theme.colors.text2} />
+                    <Icon name="utility" size={18} />
                     {t('itemDetail.utility')}
                   </S.DetailChip>
                 ) : null}

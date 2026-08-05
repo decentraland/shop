@@ -421,16 +421,16 @@ export const SmartInfo = styled(Icon)`
   color: ${theme.colors.muted2};
 `
 
-// Track + knob switch (Figma "Toggle"). Off = gray-5 track / gray-4 border, knob left; on = accent
-// track, knob right.
+// Track + knob switch (Figma "Switch" 2094:409127). Off = translucent white track, knob left; on =
+// Brand/Ruby track, knob right. No border — the design's track is a plain filled pill.
 export const Toggle = styled('button', noForward('on'))<{ on?: boolean }>`
   position: relative;
   width: 24px;
   height: 14px;
   padding: 0;
   border-radius: 100px;
-  border: 1px solid ${({ on }) => (on ? theme.colors.accent : theme.colors.gray4)};
-  background: ${({ on }) => (on ? theme.colors.accent : theme.colors.media)};
+  border: 0;
+  background: ${({ on }) => (on ? theme.colors.dclRed : 'rgba(255, 255, 255, 0.1)')};
   cursor: pointer;
   flex: none;
   transition:

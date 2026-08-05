@@ -63,7 +63,7 @@ const colors = {
 
 // Per-rarity swatch colors for the filter chips (Figma "Rarities/*" variables — a distinct palette
 // from @dcl/schemas' Rarity.getColor, so they're pinned here as design tokens).
-const rarities = {
+export const rarities = {
   common: '#73d3d3',
   uncommon: '#ff8362',
   rare: '#34ce76',

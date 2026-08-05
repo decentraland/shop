@@ -436,7 +436,8 @@ export const CartBadge = styled.span`
   position: absolute;
   top: -4px;
   right: -4px;
-  background: ${colors.brandViolet};
+  /* Brand/Ruby, per the Figma sub-nav (2090:385780) — was the brand violet. */
+  background: ${colors.dclRed};
   color: ${colors.white};
   font-size: 12px;
   font-weight: 600;

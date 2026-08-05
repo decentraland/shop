@@ -6,7 +6,7 @@ import { useHoverPreview } from '~/store/hoverPreview'
 import { useWallet } from '~/store/wallet'
 import { isOwnListing } from '~/lib/ownership'
 import { detailRouteFor } from '~/lib/routes'
-import { rarityColor, readableText, rarityDescription } from '~/lib/rarity'
+import { rarityColor, rarityDescription } from '~/lib/rarity'
 import { categoryIcon, genderIcon } from '~/lib/itemIcons'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { Icon } from '~/components/Icon'
@@ -183,7 +183,7 @@ export function AssetCard(props: AssetCardProps) {
     <S.Chips data-chips>
       <S.CardChip
         data-variant="rarity"
-        style={{ background: rarityColor(item.rarity), color: readableText(rarityColor(item.rarity)) }}
+        style={{ background: rarityColor(item.rarity) }}
         title={rarityDescription(item.rarity)}
       >
         {item.rarity}
@@ -222,7 +222,7 @@ export function AssetCard(props: AssetCardProps) {
     <S.Chips data-chips>
       <S.CardChip
         data-variant="rarity"
-        style={{ background: rarityColor(item.rarity), color: readableText(rarityColor(item.rarity)) }}
+        style={{ background: rarityColor(item.rarity) }}
         title={rarityDescription(item.rarity)}
       >
         {item.rarity}
