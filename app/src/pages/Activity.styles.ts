@@ -58,14 +58,16 @@ export const Tabs = styled.div`
   flex-wrap: wrap;
 `
 
+// The SELECTED tab is the white pill and the unselected ones are the purple fill — the row reads as
+// "the white one is where you are" against the purple page, which is the way round the design has it.
 export const Tab = styled.button`
   appearance: none;
   /* Figma draws the row as a 0.5px Gray 4 hairline, a shade darker and half the weight of the card
      border this used, and sets the label a point smaller with the tracking the shop's other 13px
      pills carry. */
-  border: 0.5px solid ${theme.colors.gray4};
-  background: ${theme.colors.white};
-  color: ${theme.colors.text};
+  border: 0.5px solid ${theme.colors.accent};
+  background: ${theme.colors.accent};
+  color: ${theme.colors.white};
   font-family: ${theme.font.sans};
   font-size: 13px;
   font-weight: 600;
@@ -86,16 +88,21 @@ export const Tab = styled.button`
     color 0.15s;
 
   &:hover {
-    background: ${theme.colors.media};
+    background: ${theme.colors.accentHover};
+    border-color: ${theme.colors.accentHover};
   }
   &:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
+    outline: 2px solid ${theme.colors.white};
     outline-offset: 2px;
   }
   &[data-active='true'] {
-    background: ${theme.colors.accent};
-    border-color: ${theme.colors.accent};
-    color: ${theme.colors.white};
+    background: ${theme.colors.white};
+    border-color: ${theme.colors.gray4};
+    color: ${theme.colors.text};
+  }
+  &[data-active='true']:hover {
+    background: ${theme.colors.media};
+    border-color: ${theme.colors.gray4};
   }
 `
 
@@ -105,9 +112,10 @@ export const Tab = styled.button`
 export const MigrateTab = styled(Tab)`
   position: relative;
 
-  /* Violet-on-violet once the chip fills, so the badge inverts. Reached by test id rather than by
-     interpolating the styled def, which throws under vitest (see CLAUDE.md). */
-  &[data-active='true'] [data-testid='activity-migrate-count'] {
+  /* Violet-on-violet while the chip is UNSELECTED (that is the purple state now), so the badge inverts
+     there. Reached by test id rather than by interpolating the styled def, which throws under vitest
+     (see CLAUDE.md). */
+  &:not([data-active='true']) [data-testid='activity-migrate-count'] {
     background: ${theme.colors.white};
     color: ${theme.colors.accent};
     /* See MigrateBadge: a white ring would vanish into the page here, since the disc itself is white. */
