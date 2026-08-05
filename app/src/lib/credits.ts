@@ -108,6 +108,19 @@ export type PurchaseRecord = {
   // strongest signal for grouping them back into a single order (see lib/purchases.ts). Optional
   // because older servers don't serialize it; grouping falls back to createdAt proximity then.
   txHash: string | null
+  /**
+   * The transaction this credit was SUBMITTED in, reported by the client at submit time. Distinct from
+   * `txHash` above, which the server derives from on-chain consumption and therefore only has once the
+   * credit was actually spent.
+   *
+   * This is the only thing that separates a purchase that was attempted and REVERTED from a reservation
+   * nobody ever tried to spend: a revert consumes nothing, so it leaves no settlement hash, and both end
+   * up EXPIRED. The Activity feed uses it to show the former and keep hiding the latter.
+   *
+   * Null on rows written before this existed, on any that was never submitted, and against a server that
+   * does not serialize it — all of which correctly read as "no attempt to show".
+   */
+  submittedTxHash: string | null
 }
 
 // The buyer's purchase history (paginated). Defaults to confirmed purchases; `all` also returns
@@ -136,7 +149,11 @@ export async function fetchUserPurchases(
     // An older server omits these entirely — normalise `undefined` to null so every consumer has one
     // absent-value to check instead of two.
     contractAddress: p.contractAddress ?? null,
-    itemId: p.itemId ?? null
+    itemId: p.itemId ?? null,
+    // Absent against a server that predates the submission column. Null means "no attempt to show", which
+    // is exactly how the feed treated every EXPIRED row before this existed — so an old server degrades to
+    // the old behaviour instead of to a wrong one.
+    submittedTxHash: p.submittedTxHash ?? null
   }))
   const skip = opts?.skip ?? 0
   const first = opts?.first ?? items.length
@@ -292,6 +309,31 @@ export async function cancelUsdIntents(identity: AuthIdentity, salts: string[]):
   if (!res.ok) throw new Error(`cancelUsdIntents ${res.status}: ${await res.text()}`)
   const json = (await res.json()) as { released?: number }
   return json.released ?? 0
+}
+
+/**
+ * Tells the server which transaction carried a set of reserved credits. Records a FACT about a
+ * transaction, never an outcome — the outcome is still read from the intent's status.
+ *
+ * One call covers every salt of one transaction: a marketplace group settles in a single `useCredits()`,
+ * so all of its credits share the hash.
+ *
+ * Returns how many rows the server stamped. A zero is not an error — it means none of those salts belong
+ * to the authenticated wallet.
+ */
+export async function reportIntentSubmission(identity: AuthIdentity, salts: string[], txHash: string): Promise<number> {
+  if (salts.length === 0) return 0
+  const url = `${config.creditsServerUrl}/credits/authorize/submitted`
+  const res = await signedFetch(url, {
+    method: 'POST',
+    identity,
+    metadata: {},
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ salts, txHash })
+  })
+  if (!res.ok) throw new Error(`reportIntentSubmission ${res.status}: ${await res.text()}`)
+  const json = (await res.json()) as { recorded?: number }
+  return json.recorded ?? 0
 }
 
 export type DevMintUsdResult = { id: string; usdCents: number; balanceCents: number; credits: number }

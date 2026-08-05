@@ -580,6 +580,7 @@
     "processing": "Processing",
     "completed": "Completed",
     "failed": "Failed",
+    "purchaseFailedNote": "This purchase didn't go through, so you weren't charged. Your credits are back in your balance.",
     "sold": "Sold",
     "polygonMana": "Polygon MANA",
     "purchaseLabel": "Purchase",
@@ -669,7 +670,7 @@
     "bannerAdded": "successfully added to cart!",
     "total": "Total: {count, plural, one {# item} other {# items}}",
     "goToCart": "Go to cart",
-    "checkout": "Checkout"
+    "continueShopping": "Continue shopping"
   },
   "filterBar": {
     "sortNewest": "Newest",

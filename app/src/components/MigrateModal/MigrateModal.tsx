@@ -86,72 +86,84 @@ export function MigrateModal({
   const [statuses, setStatuses] = useState<Status[]>(() => queue.map(() => 'pending'))
   const [phase, setPhase] = useState<'running' | 'finished'>('running')
   const started = useRef(false)
+  const aborted = useRef(false)
 
+  /**
+   * The run. Starts once per mounted modal and drives every row's status from its outcome.
+   *
+   * `aborted` is a REF that this effect re-arms on every invocation, not a variable captured per
+   * invocation. In dev, StrictMode mounts, tears down and re-mounts: a captured flag was set by that
+   * teardown and never cleared (the second invocation returns early on `started`), which orphaned the
+   * run that was already in flight — the listing went through, wallet prompts and all, while every
+   * status update was discarded and the modal span forever. Re-arming here hands the same run back to
+   * the UI it is driving.
+   *
+   * State writes are unguarded on purpose: setting state on an unmounted component is a no-op in React
+   * 18, so the flag is only about whether to START the NEXT item.
+   */
   useEffect(() => {
-    if (started.current) return
-    started.current = true
+    aborted.current = false
+    if (!started.current) {
+      started.current = true
 
-    let cancelled = false
-
-    if (showsConfirmations) {
-      // `void` + catch: this is a hint, so a failed read must leave the vague wording standing rather than
-      // surface an error or reject unhandled. countConfirmations already returns null on failure; the catch
-      // covers anything it cannot (an import-time throw), so the modal can never break on a hint.
-      void countConfirmations(
-        queue.map(e => e.item),
-        session.address
-      )
-        .then(c => {
-          if (!cancelled && c) setPrompts({ approvals: c.approvals, total: c.total })
-        })
-        .catch(() => {
-          /* keep the vague hint */
-        })
-    }
-
-    const migrateItems = async () => {
-      for (let i = 0; i < queue.length; i++) {
-        if (cancelled) return
-        setStatuses(s => s.map((v, idx) => (idx === i ? 'active' : v)))
-        try {
-          await importListing(queue[i].item, queue[i].priceCredits, session, {
-            onPhase: phase => {
-              if (!cancelled) setPhases(p => p.map((v, idx) => (idx === i ? phase : v)))
-            }
+      if (showsConfirmations) {
+        // `void` + catch: this is a hint, so a failed read must leave the vague wording standing rather than
+        // surface an error or reject unhandled. countConfirmations already returns null on failure; the catch
+        // covers anything it cannot (an import-time throw), so the modal can never break on a hint.
+        void countConfirmations(
+          queue.map(e => e.item),
+          session.address
+        )
+          .then(c => {
+            if (c) setPrompts({ approvals: c.approvals, total: c.total })
           })
-          track('Shop Migrated Listing', {
-            item_id: queue[i].item.itemId ?? queue[i].item.oldTradeId ?? null,
-            contract_address: queue[i].item.contractAddress,
-            new_price_credits: queue[i].priceCredits,
-            new_price_usd: creditsToUsd(queue[i].priceCredits)
+          .catch(() => {
+            /* keep the vague hint */
           })
-          if (!cancelled) setStatuses(s => s.map((v, idx) => (idx === i ? 'done' : v)))
-        } catch (e) {
-          if (e instanceof RelistFailedError) {
-            // Old listing already removed but re-listing failed → the item is now unlisted (not a plain
-            // skip). Always capture it; the summary points the seller to re-list from My Assets.
-            captureError(e, {
-              flow: 'import_listing',
-              step: 'relist',
-              itemId: queue[i].item.itemId ?? queue[i].item.oldTradeId
+      }
+
+      const migrateItems = async () => {
+        for (let i = 0; i < queue.length; i++) {
+          if (aborted.current) return
+          setStatuses(s => s.map((v, idx) => (idx === i ? 'active' : v)))
+          try {
+            await importListing(queue[i].item, queue[i].priceCredits, session, {
+              onPhase: phase => setPhases(p => p.map((v, idx) => (idx === i ? phase : v)))
             })
-            if (!cancelled) setStatuses(s => s.map((v, idx) => (idx === i ? 'unlisted' : v)))
-          } else {
-            const err = e as { code?: number; message?: string }
-            const rejected = err.code === 4001 || /reject|denied|cancel/i.test(err.message ?? '')
-            if (!rejected)
-              captureError(e, { flow: 'import_listing', itemId: queue[i].item.itemId ?? queue[i].item.oldTradeId })
-            if (!cancelled) setStatuses(s => s.map((v, idx) => (idx === i ? (rejected ? 'skipped' : 'failed') : v)))
+            track('Shop Migrated Listing', {
+              item_id: queue[i].item.itemId ?? queue[i].item.oldTradeId ?? null,
+              contract_address: queue[i].item.contractAddress,
+              new_price_credits: queue[i].priceCredits,
+              new_price_usd: creditsToUsd(queue[i].priceCredits)
+            })
+            setStatuses(s => s.map((v, idx) => (idx === i ? 'done' : v)))
+          } catch (e) {
+            if (e instanceof RelistFailedError) {
+              // Old listing already removed but re-listing failed → the item is now unlisted (not a plain
+              // skip). Always capture it; the summary points the seller to re-list from My Assets.
+              captureError(e, {
+                flow: 'import_listing',
+                step: 'relist',
+                itemId: queue[i].item.itemId ?? queue[i].item.oldTradeId
+              })
+              setStatuses(s => s.map((v, idx) => (idx === i ? 'unlisted' : v)))
+            } else {
+              const err = e as { code?: number; message?: string }
+              const rejected = err.code === 4001 || /reject|denied|cancel/i.test(err.message ?? '')
+              if (!rejected)
+                captureError(e, { flow: 'import_listing', itemId: queue[i].item.itemId ?? queue[i].item.oldTradeId })
+              setStatuses(s => s.map((v, idx) => (idx === i ? (rejected ? 'skipped' : 'failed') : v)))
+            }
           }
         }
+        setPhase('finished')
       }
-      if (!cancelled) setPhase('finished')
+
+      void migrateItems()
     }
 
-    void migrateItems()
-
     return () => {
-      cancelled = true
+      aborted.current = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -184,8 +196,10 @@ export function MigrateModal({
    */
   const closed = useRef(false)
   useEffect(() => {
-    if (phase !== 'finished' || failures > 0 || closed.current) return
+    if (phase !== 'finished' || closed.current) return
     closed.current = true
+    // A failure stays on screen and waits for the seller; only a clean run closes itself.
+    if (failures > 0) return
     finish()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase, failures])

@@ -12,7 +12,7 @@ import {
 } from '~/lib/credits'
 import { detailRouteFor } from '~/lib/routes'
 import { fetchTradeDisplay, fetchAssetDisplay, fetchUserSales, type SaleRecord } from '~/lib/api'
-import { foldOrderLines, type PurchaseOrder, type OrderLineItem } from '~/lib/purchases'
+import { foldOrderLines, purchaseOrderPill, type PurchaseOrder, type OrderLineItem } from '~/lib/purchases'
 import { buildActivityFeed, filterActivity, type ActivityFilter, type ActivitySale } from '~/lib/activity'
 import { indexPayouts, payoutForSale, type SalePayout } from '~/lib/payouts'
 import { useManaRate } from '~/hooks/useManaRate'
@@ -166,6 +166,9 @@ function OrderLine({ item }: { item: OrderLineItem }) {
 function OrderCard({ order }: { order: PurchaseOrder }) {
   const lineItems = foldOrderLines(order.lines)
   const itemCount = lineItems.reduce((n, l) => n + l.quantity, 0)
+  const pill = purchaseOrderPill(order.status)
+  const pillLabel =
+    pill === 'SETTLED' ? t('activity.completed') : pill === 'FAILED' ? t('activity.failed') : t('activity.processing')
 
   return (
     <S.Card data-testid="purchase-order">
@@ -177,14 +180,16 @@ function OrderCard({ order }: { order: PurchaseOrder }) {
           </S.SubCount>
         </S.HeadLeft>
         <S.HeadRight>
-          <S.Pill data-status={order.status}>
-            {order.status === 'PENDING' ? t('activity.processing') : t('activity.completed')}
-          </S.Pill>
+          <S.Pill data-status={pill}>{pillLabel}</S.Pill>
           <S.Total>
             <CurrencyIcon className="ccy-mark" /> {order.totalCredits}
           </S.Total>
         </S.HeadRight>
       </S.CardHead>
+      {/* The pill alone says "Failed" and leaves the obvious question unanswered: where did the credits go.
+          Answering it here is the point of showing the row at all — the balance did come back, and a buyer
+          who cannot see that said so has no reason to believe it. */}
+      {pill === 'FAILED' ? <S.FailedNote>{t('activity.purchaseFailedNote')}</S.FailedNote> : null}
       <S.Lines>
         {lineItems.map(item => (
           <OrderLine key={item.key} item={item} />

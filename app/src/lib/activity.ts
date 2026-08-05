@@ -50,9 +50,29 @@ export function toActivitySale(sale: SaleRecord, rate?: ManaRate): ActivitySale 
   }
 }
 
+/**
+ * Which purchase intents belong in the feed.
+ *
+ * PENDING and SETTLED always do. EXPIRED is the interesting one, and it covers two very different things
+ * that used to be dropped together:
+ *
+ *  - Nobody ever tried to spend the credit. Every opened buy modal calls /credits/authorize, so these are
+ *    background noise and showing them would fill the buyer's history with purchases they never made.
+ *  - A transaction carrying it DID reach the chain and failed. That is a purchase the buyer attempted,
+ *    watched, and got nothing from. Dropping it is how it came to vanish without explanation.
+ *
+ * `submittedTxHash` is what separates them, and it is the only thing that can: the settlement hash is
+ * derived from on-chain consumption, and a revert consumes nothing, so a failed purchase has no settlement
+ * hash either. Absent (old row, old server, never submitted) reads as "nothing to show" — the previous
+ * behaviour, which is the safe direction to degrade in.
+ */
+function isWorthShowing(purchase: PurchaseRecord): boolean {
+  return purchase.status !== 'EXPIRED' || !!purchase.submittedTxHash
+}
+
 // Merge the buyer's credit purchases and their secondary sales into one chronological feed (newest
 // first). Purchases reuse the existing grouping (groupPurchases) so the per-checkout order cards are
-// unchanged; EXPIRED intents (released, never bought) are dropped, same as the old purchases page.
+// unchanged; EXPIRED intents are kept only when they were actually submitted (see isWorthShowing).
 // Pure + deterministic — no network, no oracle — so it's unit-testable in isolation.
 export function buildActivityFeed(input: {
   purchases: PurchaseRecord[]
@@ -62,7 +82,7 @@ export function buildActivityFeed(input: {
   manaPurchases?: SaleRecord[]
   rate?: ManaRate
 }): ActivityEntry[] {
-  const orders = groupPurchases(input.purchases.filter(p => p.status !== 'EXPIRED'))
+  const orders = groupPurchases(input.purchases.filter(isWorthShowing))
   const purchaseEntries: ActivityEntry[] = orders.map(order => ({
     kind: 'purchase',
     id: `purchase:${order.id}`,

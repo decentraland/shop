@@ -87,6 +87,7 @@ function record(overrides: Partial<PurchaseRecord> = {}): PurchaseRecord {
     createdAt: 1_700_000_000_000,
     manaSettledWei: null,
     txHash: null,
+    submittedTxHash: null,
     ...overrides
   }
 }
@@ -237,6 +238,64 @@ describe('when three items were bought in one cart checkout', () => {
     expect(screen.getByText('Completed')).toBeInTheDocument()
     // 10 + 27 + 3 = 40 credits total for the order header.
     expect(screen.getByText('40')).toBeInTheDocument()
+  })
+})
+
+/**
+ * A purchase that was submitted and reverted. Before this it was dropped from the feed entirely, alongside
+ * the reservations nobody ever spent — so the buyer's failed purchase simply vanished, their credits came
+ * back minutes later, and nothing connected the two.
+ */
+describe('when a purchase was submitted and failed', () => {
+  it('should render it as FAILED, not completed', async () => {
+    fetchUserPurchases.mockResolvedValue({
+      items: [record({ id: 'f', tradeId: 't1', status: 'EXPIRED', submittedTxHash: '0xattempt', credits: 12 })],
+      total: 1
+    })
+    fetchTradeDisplay.mockResolvedValue(display({ name: 'Crimson Heels', itemId: '1' }))
+    renderPage()
+
+    await screen.findByTestId('purchase-order')
+    expect(screen.getByText('Failed')).toBeInTheDocument()
+    // The regression: an expired order used to fall through the status ternary's else branch.
+    expect(screen.queryByText('Completed')).not.toBeInTheDocument()
+  })
+
+  it('should say the buyer was not charged and their credits came back', async () => {
+    fetchUserPurchases.mockResolvedValue({
+      items: [record({ id: 'f', tradeId: 't1', status: 'EXPIRED', submittedTxHash: '0xattempt' })],
+      total: 1
+    })
+    fetchTradeDisplay.mockResolvedValue(display({ name: 'Crimson Heels', itemId: '1' }))
+    renderPage()
+
+    await screen.findByTestId('purchase-order')
+    // "Failed" on its own leaves the buyer wondering where the money went; this is the half that answers it.
+    expect(screen.getByText(/credits are back in your balance/i)).toBeInTheDocument()
+  })
+
+  it('should still hide an expired reservation nobody ever submitted', async () => {
+    fetchUserPurchases.mockResolvedValue({
+      items: [record({ id: 'n', tradeId: 't1', status: 'EXPIRED', submittedTxHash: null })],
+      total: 1
+    })
+    renderPage()
+
+    // Every opened buy modal leaves one of these. Showing them would invent a history of failures.
+    await waitFor(() => expect(screen.queryByTestId('purchase-order')).not.toBeInTheDocument())
+  })
+
+  it('should not show the note on a completed purchase', async () => {
+    fetchUserPurchases.mockResolvedValue({
+      items: [record({ id: 's', tradeId: 't1', status: 'SETTLED', txHash: '0xok' })],
+      total: 1
+    })
+    fetchTradeDisplay.mockResolvedValue(display({ name: 'Crimson Heels', itemId: '1' }))
+    renderPage()
+
+    await screen.findByTestId('purchase-order')
+    expect(screen.getByText('Completed')).toBeInTheDocument()
+    expect(screen.queryByText(/credits are back in your balance/i)).not.toBeInTheDocument()
   })
 })
 
