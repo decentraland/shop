@@ -714,34 +714,6 @@ export const TotalIco = styled(CurrencyIcon)`
   mask-position: left center;
 `
 
-export const Cta = styled.button`
-  width: 100%;
-  height: 56px;
-  border: 0;
-  border-radius: ${radius.btn};
-  background: ${gradients.amethyst};
-  color: ${colors.softWhite};
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: 0.046em;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition:
-    background 0.15s ease,
-    filter 0.15s ease;
-
-  &:hover:not(:disabled) {
-    background: ${colors.accent};
-  }
-  &:active:not(:disabled) {
-    filter: brightness(0.95);
-  }
-  &:disabled {
-    opacity: 0.6;
-    cursor: default;
-  }
-`
-
 const msg = css`
   margin: 0;
   font-size: 13px;
