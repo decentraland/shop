@@ -340,8 +340,14 @@ describe('when purchases and a sale are interleaved', () => {
 })
 
 describe('the migration chip', () => {
+  // A default per test, because clearAllMocks resets calls but keeps implementations: without this, the
+  // never-resolving promise one test installs to hold a count open leaks into the next one.
+  beforeEach(() => {
+    fetchUnified.mockReset().mockResolvedValue({ items: [], total: 0 })
+    fetchImportable.mockReset()
+  })
+
   it('should not render at all when the seller has no listings of any kind', async () => {
-    fetchUnified.mockResolvedValue({ items: [], total: 0 })
     renderPage()
     await screen.findByText('No activity yet')
 
@@ -357,6 +363,17 @@ describe('the migration chip', () => {
 
     expect(screen.queryByTestId('activity-filter-migrate')).not.toBeInTheDocument()
     expect(screen.queryByTestId('activity-migrate-count')).not.toBeInTheDocument()
+  })
+
+  // Both answers, not either: with one still in flight the chip would otherwise pop in the moment the
+  // second landed, which is the flash the whole "undefined until known" dance exists to prevent.
+  it('should render nothing while EITHER count is still in flight', async () => {
+    fetchImportable.mockResolvedValue({ creations: [importable()], owned: [] })
+    fetchUnified.mockReturnValue(new Promise(() => {}))
+    renderPage()
+    await screen.findByText('No activity yet')
+
+    expect(screen.queryByTestId('activity-filter-migrate')).not.toBeInTheDocument()
   })
 
   it('should render at the end of the chip row, badged with how many are left', async () => {
@@ -426,6 +443,9 @@ describe('the migration chip', () => {
   })
 
   it('should keep the chip while its own panel is open even with nothing left to move', async () => {
+    // Both counts have to ANSWER — zero, but answered. The chip waits for them even in its own view, so
+    // an unanswered count is not "nothing left to move", it is "not yet".
+    fetchImportable.mockResolvedValue({ creations: [], owned: [] })
     renderPage('/activity?view=migrate')
 
     const chip = await screen.findByTestId('activity-filter-migrate')

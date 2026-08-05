@@ -450,8 +450,11 @@ export function Activity() {
    * The chip also stays put while its own panel is open even once both counts reach zero, so finishing a
    * migration cannot leave the row with no selected chip and the panel orphaned above its own state.
    */
-  const counts = [importCount, listingCount]
-  const showMigrate = counts.some(c => c !== undefined) && (counts.some(c => (c ?? 0) > 0) || migrating)
+  // BOTH counts, not either: with "at least one known" the chip popped in when the second answer landed,
+  // which is the flash the single-count version was written to avoid. They resolve together anyway — both
+  // queries gate on the same address.
+  const countsKnown = importCount !== undefined && listingCount !== undefined
+  const showMigrate = countsKnown && (importCount > 0 || listingCount > 0 || migrating)
 
   // The feed's four reads are pointless behind the tool, and their skeletons would otherwise decide
   // what the migrate panel is allowed to render.
