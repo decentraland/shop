@@ -464,12 +464,10 @@ export const ToggleKnob = styled('span', noForward('on'))<{ on?: boolean }>`
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  /* Figma toggle: gray-1 (#716b7c) knob at rest, white once on. */
-  background: ${({ on }) => (on ? theme.colors.white : theme.colors.muted)};
+  /* White knob in both states (Figma switch knob is soft-white) — only its position animates. */
+  background: ${theme.colors.softWhite};
   box-shadow: 0 1px 2px rgba(22, 21, 24, 0.3);
-  transition:
-    left 0.15s ease,
-    background 0.15s ease;
+  transition: left 0.15s ease;
 
   ${theme.media.maxWidth('lg')} {
     width: 18px;

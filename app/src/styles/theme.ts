@@ -69,7 +69,7 @@ export const rarities = {
   rare: '#34ce76',
   epic: '#289cff',
   legendary: '#a24bf3',
-  exotic: '#bdfd4e',
+  exotic: '#9cd71e',
   mythic: '#ff4bed',
   unique: '#fea217'
 } as const
