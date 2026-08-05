@@ -155,6 +155,37 @@ describe('ItemDetail — the not-for-sale CTA slot', () => {
 })
 
 /**
+ * THE NOT-FOUND WINDOW.
+ *
+ * A cold deep link is hydrated from the collection read, and that read reports "fetched" one render before
+ * its backfill effect applies the matching sibling. For that render the item has no name and nothing is
+ * flagged as loading — so the page tore itself down and painted "This item isn't available" over an item it
+ * was about to show. The end state was right, which is why every assertion that waits for the item still
+ * passed; what it cost was a full unmount/remount of the page mid-load, and under a loaded CI runner the
+ * remount was slow enough to time those waits out.
+ *
+ * A `queryByTestId` after the fact cannot see a state that lasted one commit, so this watches the DOM as it
+ * is written and asserts the not-found block was never among the frames.
+ */
+describe('ItemDetail — the not-found window', () => {
+  it('should never paint not-found while a sibling is about to hydrate the item', async () => {
+    fetchCollectionItems.mockResolvedValue({ items: [item({ id: 'a', name: 'Anchor Hat', itemId: '1' })], total: 1 })
+
+    let painted = false
+    const observer = new MutationObserver(() => {
+      painted = painted || !!document.querySelector('[data-notfound]')
+    })
+    observer.observe(document.body, { childList: true, subtree: true })
+
+    renderPdp()
+    await screen.findByRole('heading', { name: 'Anchor Hat' })
+    observer.disconnect()
+
+    expect(painted).toBe(false)
+  })
+})
+
+/**
  * THE RAIL BELOW THE FOLD.
  *
  * A typical collection holds two or three items, so titling the rail after the collection and stopping there

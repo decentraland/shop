@@ -294,14 +294,19 @@ export function ItemDetail() {
   // be clobbered if both resolve in the same React batch (the guard below reads a stale `current`).
   // ITEM ROUTE ONLY: the token route hydrates from the specific token (ownedAsset / publicToken), so a
   // generic catalog sibling (which has no tokenId) must never replace it.
-  useEffect(() => {
-    if (isTokenRoute || current.name || deepLinkItem || siblings.length === 0) return
-    const match =
-      (pageItemId && siblings.find(s => s.itemId === pageItemId)) ||
+  // Derived rather than computed inside the effect so `hydrationPending` below can see it: "a sibling is
+  // about to hydrate this page" has to be readable during the render BEFORE the effect applies it.
+  const siblingMatch = useMemo(() => {
+    if (isTokenRoute || current.name || deepLinkItem || siblings.length === 0) return undefined
+    return (
+      (pageItemId ? siblings.find(s => s.itemId === pageItemId) : undefined) ??
       siblings.find(s => s.contractAddress === current.contractAddress)
-    if (match) setCurrent(prev => ({ ...match, tradeId: prev.tradeId ?? match.tradeId }))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [siblings, deepLinkItem])
+    )
+  }, [isTokenRoute, current.name, current.contractAddress, deepLinkItem, siblings, pageItemId])
+  useEffect(() => {
+    if (!siblingMatch) return
+    setCurrent(prev => ({ ...siblingMatch, tradeId: prev.tradeId ?? siblingMatch.tradeId }))
+  }, [siblingMatch])
 
   // Resolve a buyable trade for the current item (needed for BUY NOW + a valid cart entry). Secondary
   // listings carry their tradeId directly; catalog items resolve the cheapest open listing by itemId.
@@ -958,7 +963,9 @@ export function ItemDetail() {
   // applies its result in an effect, so there is always one render where the query reports "fetched" and
   // the name is still blank — long enough to paint Not Found over a perfectly good item. Loading flags
   // alone cannot close that window; the presence of unapplied data can.
-  const hydrationPending = !current.name && (!!deepLinkItem || !!ownedAsset || !!publicToken)
+  // `siblingMatch` is one of those sources: the collection read reports "fetched" a render before its
+  // backfill effect lands, which is exactly the window a cold deep link was painting Not Found in.
+  const hydrationPending = !current.name && (!!deepLinkItem || !!ownedAsset || !!publicToken || !!siblingMatch)
   const stillResolving =
     deepLinkLoading ||
     (!!current.contractAddress && !siblingsFetched) ||
