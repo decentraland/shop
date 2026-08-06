@@ -221,6 +221,9 @@ export function Filters({
             value={priceToSliderPos(sliderMin)}
             aria-label={t('assets.minPriceSliderAria')}
             aria-valuetext={sliderMin.toLocaleString()}
+            // Past the middle it is Min that ends up pinned against the ceiling, so it takes the top of
+            // the stack there — see SliderInput for what the pair does when the thumbs meet.
+            data-on-top={minPct >= 50 ? '' : undefined}
             onChange={e => onSlideMin(Number(e.target.value))}
           />
           <S.SliderInput
