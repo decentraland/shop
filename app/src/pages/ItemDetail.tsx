@@ -225,17 +225,23 @@ export function ItemDetail() {
   // the bug fix: the old code fed the raw route segment (a tokenId on a secondary URL) to
   // fetchShopListingForItem, which treats its 2nd arg as an itemId → the server matched nothing and
   // returned the collection's first listing (a WRONG item) on a cold load. Never pass a tokenId here.
-  // Also runs when a seeded item (grid nav / sibling) is missing its stock (`available`) so the
-  // authoritative listing can backfill it. Resolved through the UNIFIED feed so a LEGACY (MANA) listing
-  // counts as much as a native one — reading the shop-only feed here is what made a MANA-listed item show
-  // "Not for sale" on its own page while its card in the grid showed a price.
+  // Also runs when a seeded item (grid nav / sibling) cannot answer the sale question by itself: it lacks
+  // its stock (`available`), or its `acquisition` — without which a collection-store mint reads as unlisted,
+  // since it has no trade and 'store' is the only thing that makes it for sale (see `isStoreMint` below).
+  // The /v3/catalog/items feeds (collection page, creator storefront, suggestion rails, Recently viewed)
+  // cannot tell a mint from a classic order so they omit it (see lib/collections), but they DO carry stock —
+  // which used to be enough to skip this fetch. Measured on production: those grids led to "Not for sale"
+  // beside "61/100" in stock on an item the same grid was selling at 24 credits, while the URL opened cold
+  // showed the price. Resolved through the UNIFIED feed so a LEGACY (MANA) listing counts as much as a
+  // native one — reading the shop-only feed here is what made a MANA-listed item show "Not for sale" on its
+  // own page while its card in the grid showed a price.
   // ITEM ROUTE ONLY: the token route hydrates from the specific token (ownedAsset / publicToken) and
   // must not be overwritten by the generic item listing (which carries no tokenId).
-  const needsPrimaryStock = current.available == null && !current.tokenId
+  const needsPrimaryFacts = !current.tokenId && (current.available == null || current.acquisition == null)
   const { data: deepLinkItem, isLoading: deepLinkLoading } = useQuery({
     queryKey: ['shop-item', current.contractAddress, pageItemId],
     enabled:
-      !isMarket && !isTokenRoute && !!current.contractAddress && !!pageItemId && (!state?.item || needsPrimaryStock),
+      !isMarket && !isTokenRoute && !!current.contractAddress && !!pageItemId && (!state?.item || needsPrimaryFacts),
     // Money-sensitive: a 3rd party's listing/price/stock can change under us. Never serve the 30s-stale
     // default — revalidate on every (re)mount and tab refocus so a soft revisit re-checks availability.
     staleTime: 0,
@@ -246,8 +252,10 @@ export function ItemDetail() {
   useEffect(() => {
     if (!deepLinkItem) return
     setCurrent(prev => {
-      // Bare deep-link stub (no tradeId yet) → full hydrate from the authoritative listing.
-      if (!prev.tradeId) return { ...deepLinkItem }
+      // Bare deep-link stub (no tradeId yet) → hydrate from the authoritative listing, which wins on every
+      // field it reports. The seed's own keep the fields the unified feed has no opinion on at all (urn,
+      // the emote flags) rather than being blanked on the way through.
+      if (!prev.tradeId) return { ...prev, ...deepLinkItem }
       // Seeded item (grid/sibling): keep its identity/price/name/tradeId, only backfill the
       // authoritative fields it lacked (stock + wearableCategory) — never clobber the rest.
       if (prev.available != null && prev.wearableCategory) return prev
@@ -479,10 +487,13 @@ export function ItemDetail() {
   const listedManaWei = (current as Partial<UnifiedListing>).manaWei ?? null
   const { data: manaRate } = useManaRate(isMarket || !!listedManaWei)
   const liveLegacyCredits = listedManaWei && manaRate ? manaWeiToCredits(listedManaWei, manaRate) : null
+  // Also re-asserted when the price itself moves, not only when the rate does: hydration lands AFTER this
+  // effect has already agreed with the seeded card, and it brings the server's snapshot back with it. The
+  // setter is a no-op once they match, so re-running cannot loop.
   useEffect(() => {
     if (liveLegacyCredits == null) return
     setCurrent(prev => (prev.priceCredits === liveLegacyCredits ? prev : { ...prev, priceCredits: liveLegacyCredits }))
-  }, [liveLegacyCredits])
+  }, [liveLegacyCredits, current.priceCredits])
   const marketListing: LegacyListing | null = useMemo(() => {
     if (!isMarket || !state?.item) return null
     const it = state.item as UnifiedListing
