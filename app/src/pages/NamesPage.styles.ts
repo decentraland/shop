@@ -416,6 +416,24 @@ export const StatusFloating = styled(Status)`
   }
 `
 
+// Sits inside a muted StatusFloating, so it inherits that tone rather than the red TakenOfferLink uses:
+// registration being closed is not the user's mistake, and this link is the way forward, not a warning.
+export const NoticeLink = styled.a`
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  color: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-transform: uppercase;
+  white-space: nowrap;
+
+  ${theme.media.maxWidth('mobile')} {
+    margin-left: 0;
+  }
+`
+
 // "Why buy a NAME?" section: a centered title + intro, then a row of four info cards (a 3D
 // illustration over a rarity-gradient media panel, with a bold title + description below).
 export const Why = styled.section`

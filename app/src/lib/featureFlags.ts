@@ -74,7 +74,21 @@ export enum FeatureFlag {
    * promise the product cannot keep. The store and its specs are kept intact behind this so finishing the
    * feature is a server + a flag, not a rewrite.
    */
-  SHOP_FOLLOWS = 'shop-follows'
+  SHOP_FOLLOWS = 'shop-follows',
+
+  /**
+   * Whether a NAME can be REGISTERED with credits. Gates the purchase, not the page: searching a NAME is a
+   * free public read against the registrar on Ethereum and keeps working either way, so a closed feature
+   * still answers "is this name taken?" and points at the classic marketplace, which can sell one today.
+   *
+   * Cosmetic here, like the pre-launch gate: this bundle is static and the endpoint behind it is public, so
+   * what actually refuses a registration is the same flag read server-side by credits-server on
+   * /credits-name-route. Read under the SAME key so one flip drives both and they cannot drift apart.
+   *
+   * Registering leaves Polygon — the credit is spent there and the mint happens on Ethereum behind a bridge
+   * — so it carries failure modes no other purchase has and needs a switch of its own.
+   */
+  SHOP_NAMES = 'shop-names'
 }
 
 /** The application whose flag file carries the flags above. */
