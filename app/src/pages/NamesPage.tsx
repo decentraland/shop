@@ -138,11 +138,12 @@ export function NamesPage({ onBack }: { onBack: () => void }) {
   // registrar that does not touch credits or the bridge, so a closed feature can still answer the question
   // and hand the user somewhere that can sell them the name today.
   const validation = validateName(value)
-  const canClaim = namesEnabled && validation.ok && (status === 'available' || status === 'error')
-
-  // Exactly the cases where the button WOULD have been clickable had the flag been on, so the notice
-  // appears only once the name is otherwise good to go rather than nagging while someone is still typing.
-  const registrationClosed = !namesEnabled && validation.ok && (status === 'available' || status === 'error')
+  // Named once because the two below must stay each other's exact complement: the notice has to appear in
+  // precisely the cases where the button would otherwise have been clickable. Spelled out twice, editing
+  // one and not the other silently produces a name that can neither be claimed nor explained.
+  const claimEligible = validation.ok && (status === 'available' || status === 'error')
+  const canClaim = namesEnabled && claimEligible
+  const registrationClosed = !namesEnabled && claimEligible
 
   function claim() {
     if (!canClaim) return
