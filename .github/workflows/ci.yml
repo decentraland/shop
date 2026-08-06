@@ -11,8 +11,9 @@ permissions: {}
 
 jobs:
   app:
-    name: app — build + test + e2e
+    name: app — build + unit tests
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
     defaults:
@@ -32,5 +33,59 @@ jobs:
         run: npm run build
       - name: Unit tests
         run: npm test
+
+  # The e2e suite is ~72% of this workflow's wall clock (629s of 870s, measured on run 31081258283), and it
+  # used to run at the tail of the job above. Split out and SHARDED, so four slices run on four runners at
+  # once, and alongside the build.
+  #
+  # Sharded across MACHINES rather than parallelised within one: each test drives a whole Chrome, so these
+  # are CPU-bound, and `fileParallelism` inside a single runner buys contention rather than speed (measured
+  # locally: six concurrent files gave no wall-clock gain and made every test several times slower).
+  # Separate runners have no such contention. `fileParallelism: false` stays set in vitest.e2e.config.ts and
+  # still applies WITHIN a shard, so the ports the suite binds — the shared vite server, plus the second one
+  # outfits.e2e.ts starts — are still bound only once per runner.
+  #
+  # No Build step here on purpose: the harness serves the app from a vite DEV server (see
+  # e2e/global-setup.ts), so it never reads `dist` and the build would be a minute of pure waiting.
+  e2e:
+    name: e2e (shard ${{ matrix.shard }}/4)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: app
+    strategy:
+      # Let every shard report. With a suite this size the first question asked of a red run is "did only
+      # this slice fail?", and cancelling the siblings is what makes that unanswerable.
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Install
+        run: npm ci
       - name: E2E tests
-        run: npm run test:e2e
+        run: npm run test:e2e -- --shard=${{ matrix.shard }}/4
+
+  # One check that is green only when everything above is, so branch protection has a single stable name to
+  # point at and the shard count can change without touching repo settings. `if: always()` matters: without
+  # it this job would be SKIPPED when a dependency fails, and a skipped check reports no failure at all.
+  ci:
+    name: app — build + test + e2e
+    runs-on: ubuntu-latest
+    needs: [app, e2e]
+    if: always()
+    steps:
+      - name: Verify every job passed
+        run: |
+          echo "app: ${{ needs.app.result }}"
+          echo "e2e: ${{ needs.e2e.result }}"
+          [ "${{ needs.app.result }}" = "success" ] || exit 1
+          [ "${{ needs.e2e.result }}" = "success" ] || exit 1
