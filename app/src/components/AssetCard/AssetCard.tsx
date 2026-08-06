@@ -146,9 +146,14 @@ export function AssetCard(props: AssetCardProps) {
   const discountPct = onSale ? saleDiscountPct(item.compareAtCredits!, item.priceCredits) : 0
 
   // A browse card can hold an item with nothing to buy (a favourite whose listing ended, a collection
-  // sibling that was never listed): the price becomes the NOT FOR SALE tag and the action becomes VIEW.
-  // Your own item keeps MANAGE.
-  const notForSale = !own && item.priceCredits <= 0
+  // sibling that was never listed, a mint that has run out): the price becomes the NOT FOR SALE tag and
+  // the action becomes VIEW. Your own item keeps MANAGE.
+  //
+  // `available === 0` counts, `undefined` does not: absent supply means the feed did not say, and a
+  // secondary row has no stock concept at all — reading either as sold out would take the buy action off
+  // items that can still be bought. An exhausted mint used to keep its ADD TO CART, and since a feed can
+  // still report a price for it the card offered a purchase that add() could not honour.
+  const notForSale = !own && (item.priceCredits <= 0 || item.available === 0)
 
   // Whether the card has run out of copies to offer — the only case where the CTA may stop saying "Add to
   // cart". Quantity is a PRIMARY (mint) concept: a primary row can hold several copies up to the remaining
