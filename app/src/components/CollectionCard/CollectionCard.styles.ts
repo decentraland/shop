@@ -11,7 +11,9 @@ const { colors, radius, media } = theme
 // row's place inside their shared slot, so nothing about the card's layout moves.
 export const Card = styled.article`
   height: 300px;
-  background: ${colors.bg};
+  /* No fill of its own (Figma 922:183803): the mosaic covers the top and the footer paints its own
+     translucent black, so the page field is what shows through the corners. */
+  background: transparent;
   border-radius: ${radius.card};
   overflow: hidden;
   position: relative;
@@ -77,22 +79,23 @@ export const Cover = styled(CollectionMosaic)`
 `
 
 // Fixed 102px footer — enough for the swap slot to hold the View button at its natural height. The media
-// takes the rest.
+// takes the rest. The translucent black is the footer's own fill (Figma 922:183642).
 export const Body = styled.div`
   flex: 0 0 102px;
   height: 102px;
-  padding: 12px 14px;
+  padding: 12px 12px 16px 16px;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  background: rgba(0, 0, 0, 0.4);
 `
 
 export const Name = styled.h3`
   margin: 0;
   font-weight: 700;
-  font-size: 18px;
-  line-height: 1.3;
-  color: ${colors.text};
+  font-size: 16px;
+  line-height: 1.6;
+  color: ${colors.white};
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -123,10 +126,10 @@ export const Meta = styled.div`
   gap: 10px;
 `
 
-// Unlike AssetCard, show the avatar and paint the name cerise (the "By" stays muted).
+// Unlike AssetCard, show the avatar: "By" in Gray 4, the name in white (Figma 922:183668).
 export const Creator = styled(CreatorBadge)`
   min-width: 0;
-  color: ${colors.muted};
+  color: ${colors.gray4};
 
   & [data-avatar] {
     width: 24px;
@@ -136,8 +139,8 @@ export const Creator = styled(CreatorBadge)`
     font-size: 14px;
   }
   & [data-testid='creator-display'] {
-    color: ${colors.dclRed};
-    font-weight: 700;
+    color: ${colors.white};
+    font-weight: 600;
   }
 `
 
@@ -148,36 +151,36 @@ export const CreatorEmpty = styled.span`
 
 export const Count = styled.span`
   flex: none;
-  color: ${colors.text};
+  color: ${colors.gray4};
   font-weight: 600;
   font-size: 14px;
   white-space: nowrap;
 `
 
-// Filled amethyst button, hidden at rest and revealed over the creator/count row on card hover or focus
-// (see Card + Slot). Touch devices have no hover and the whole card already navigates, so there the row
-// keeps its place and this stays hidden. tabIndex -1 keeps it out of the tab order (the card is the link).
+// The hover state's VIEW COLLECTION (Figma 2202:456747): the outlined-secondary pill, hidden at rest and
+// revealed over the creator/count row on card hover or focus (see Card + Slot). Touch devices have no
+// hover and the whole card already navigates, so there the row keeps its place and this stays hidden.
+// tabIndex -1 keeps it out of the tab order (the card is the link).
 export const View = styled.button`
   visibility: hidden;
   width: 100%;
-  height: 44px;
+  height: 46px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: ${colors.accent};
+  background: rgba(0, 0, 0, 0.4);
   color: ${colors.softWhite};
   border: 0;
-  border-radius: ${radius.btn};
-  font-weight: 700;
+  border-radius: ${radius.card};
+  font-weight: 600;
   font-size: 13px;
+  line-height: 24px;
   text-transform: uppercase;
-  letter-spacing: 0.046em;
+  letter-spacing: 0.46px;
   transition: background 0.15s ease;
 
-  &:hover {
-    background: ${colors.accentHover};
-  }
+  &:hover,
   &:active {
-    background: ${colors.accentActive};
+    background: ${colors.text2};
   }
 `
