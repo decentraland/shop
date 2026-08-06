@@ -29,10 +29,11 @@ export const Card = styled(Link)`
   aspect-ratio: 27 / 40;
   color: inherit;
 
+  // No headroom on phones: cresting above the card is a desktop effect, and here it only put a strip of
+  // empty page between the heading and the card. 5/6 is the 3/4 item with those 10% taken off, so the item
+  // IS the card.
   ${theme.media.maxWidth('mobile')} {
-    // Nearer to square on phones: the visible card loses 10% height at the same width
-    // ((3/4 item × 0.9) / (40/27 item × 0.9) — the headroom stays 10%), cropping the look's feet.
-    aspect-ratio: 3 / 4;
+    aspect-ratio: 5 / 6;
   }
 
   [data-card-reveal],
@@ -116,6 +117,10 @@ export const Frame = styled.div`
   bottom: 0;
   border-radius: ${CARD_RADIUS};
   background: ${colors.media};
+
+  ${theme.media.maxWidth('mobile')} {
+    top: 0;
+  }
   // The hover stroke, a 2px breath outside the card's edge (outline, not border, so it costs no
   // layout). It paints with the Frame, i.e. BEHIND the thumbnail — the cresting head occludes it
   // exactly like the Figma.
@@ -131,6 +136,12 @@ export const Mask = styled.div`
   inset: 0;
   clip-path: inset(-1000px 0 0 0 round 0 0 ${CARD_RADIUS} ${CARD_RADIUS});
   pointer-events: none;
+
+  // Nothing to crest into once the card fills the item, so close the top rather than let the head spill
+  // over the heading above.
+  ${theme.media.maxWidth('mobile')} {
+    clip-path: inset(0 round ${CARD_RADIUS});
+  }
 `
 
 export const Thumb = styled.img`

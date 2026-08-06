@@ -135,7 +135,7 @@ export const HeadCard = styled.div`
 
   ${mobile} {
     gap: 8px;
-    padding: 12px;
+    padding: 8px 16px;
   }
 `
 
@@ -298,10 +298,12 @@ export const Fitting = styled.button`
     cursor: default;
   }
 
+  /* Mobile keeps the full 40px button and thins the outline to 1px (1182:236892) rather than shrinking
+     the type, which had it reading smaller than the row title beside it. */
   ${mobile} {
-    height: 36px;
-    padding: 0 10px;
-    font-size: 12px;
+    border-width: 1px;
+    border-color: ${colors.text};
+    color: ${colors.text};
   }
 `
 
@@ -666,8 +668,10 @@ export const Summary = styled.aside`
     bottom: 0;
     z-index: 30;
     border: 0;
-    border-radius: 16px 16px 0 0;
-    box-shadow: 0 -4px 20px rgba(22, 21, 24, 0.12);
+    /* Square and hard-edged against the page (1182:236910): it is a bar docked to the bottom, not a sheet
+       lifted off it. */
+    border-radius: 0;
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.25);
   }
 `
 
@@ -681,7 +685,9 @@ export const SummaryTitle = styled.h2`
 
   ${mobile} {
     margin-bottom: 12px;
-    padding-bottom: 12px;
+    padding-bottom: 8px;
+    font-size: 16px;
+    line-height: 1.6;
   }
 `
 

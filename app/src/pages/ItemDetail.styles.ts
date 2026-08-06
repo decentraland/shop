@@ -76,8 +76,14 @@ export const Preview = styled.div`
      is the scene's backdrop. */
   background: ${colors.media};
 
+  /* Edge to edge once the page is a single column: the stage is the whole width there, so it cancels the
+     shell's gutter instead of sitting inside it. No transform, which would make this the containing block
+     for the absolutely-positioned controls below. */
   ${media.maxWidth('lg')} {
     aspect-ratio: 1 / 1;
+    width: 100vw;
+    margin-left: calc(-50vw + 50%);
+    border-radius: 0;
   }
 
   & iframe,
@@ -112,6 +118,21 @@ export const Preview = styled.div`
     border: 1px solid ${colors.line};
     border-radius: 999px;
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+
+    /* Bottom-right on mobile, and the two buttons meet directly: the design draws one clipped group, so the
+       container carries no fill, gap or padding of its own there. */
+    ${media.maxWidth('lg')} {
+      top: auto;
+      left: auto;
+      right: 16px;
+      bottom: 16px;
+      gap: 0;
+      padding: 0;
+      background: none;
+      border: 0;
+      box-shadow: none;
+      overflow: hidden;
+    }
   }
 
   & > [data-preview-controls] {
@@ -502,9 +523,11 @@ export const Divider = styled.hr`
   margin: 24px 0 0;
   width: 100%;
 
+  /* Below the price, not above it: the design hangs this off the bottom of the buy section (2090:399782),
+     so it closes the price rather than separating it from the description. */
   ${media.maxWidth('lg')} {
-    order: 4;
-    margin-top: 20px;
+    order: 5;
+    margin-top: 16px;
   }
 `
 
@@ -512,7 +535,7 @@ export const PriceBlock = styled.div`
   margin-top: 16px;
 
   ${media.maxWidth('lg')} {
-    order: 5;
+    order: 4;
     margin-top: 16px;
   }
 `

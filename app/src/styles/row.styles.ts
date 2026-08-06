@@ -16,7 +16,7 @@ export const Head = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 20px;
+  margin-bottom: 10px;
 `
 
 // THE section heading for every titled row on the site. Straight off Figma's shared "Categories Dropdown"

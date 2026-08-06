@@ -58,7 +58,7 @@ export const ToggleButton = styled.button`
   }
 
   ${media.maxWidth('lg')} {
-    padding: 9px 13px;
+    padding: 6px 12px;
     border-radius: 0;
     background: ${colors.white};
     color: ${colors.text2};

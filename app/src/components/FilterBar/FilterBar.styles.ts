@@ -23,12 +23,13 @@ export const Count = styled.span`
   line-height: 1.43;
   white-space: nowrap;
 
+  /* Left end of the controls row, not a line of its own (2328:340761). */
   ${media.maxWidth('lg')} {
-    /* Below the controls on its own line: the search field and the two pills share the first row. */
-    order: 3;
-    flex-basis: 100%;
+    order: 1;
+    flex: 0 0 auto;
     font-size: 12px;
     line-height: 1;
+    color: ${colors.gray4};
   }
 `
 
@@ -144,10 +145,12 @@ export const Right = styled.div`
     /* Owns the whole first row — search field then the two pills — with the count and chips below.
        min-width: 0 defeats the flex item's automatic minimum, which would otherwise hold the row at its
        min-content width (the pills never shrink) and push Filters off the right edge. */
-    order: 1;
-    flex: 1 1 100%;
+    order: 2;
+    flex: 1 1 auto;
     min-width: 0;
-    margin-left: 0;
+    margin-left: auto;
+    justify-content: flex-end;
+    flex-wrap: wrap;
 
     /* On mobile the Sort By dropdown is a pill matching the Filters pill (Figma 1304-310201): fully
        rounded, 0.5px gray-3 hairline, title-case (not the desktop uppercase), same 28px height. */
