@@ -1048,6 +1048,8 @@
     "takenMakeOffer": "Make offer",
     "tooShort": "Names must be at least {min} characters.",
     "checkError": "We couldn’t check that NAME right now — you can still try to claim it.",
+    "registrationDisabled": "Claiming NAMEs with credits isn’t available yet.",
+    "registrationDisabledLink": "Buy in Marketplace",
     "whyTitle": "Why buy a NAME?",
     "whyIntro": "Your NAME is your unique identity in Decentraland. It appears above your avatar, in chat, and in photos, helping people recognize and remember you wherever you go.",
     "why1Title": "Own your identity",

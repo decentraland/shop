@@ -1048,6 +1048,8 @@
     "takenMakeOffer": "Hacer oferta",
     "tooShort": "Los NAMEs deben tener al menos {min} caracteres.",
     "checkError": "No pudimos comprobar ese NAME ahora mismo; aún puedes intentar reclamarlo.",
+    "registrationDisabled": "Todavía no se pueden reclamar NAMEs con créditos.",
+    "registrationDisabledLink": "Comprar en Marketplace",
     "whyTitle": "¿Por qué comprar un NAME?",
     "whyIntro": "Tu NAME es tu identidad única en Decentraland. Aparece sobre tu avatar, en el chat y en las fotos, ayudando a que la gente te reconozca y te recuerde vayas donde vayas.",
     "why1Title": "Haz tuya tu identidad",

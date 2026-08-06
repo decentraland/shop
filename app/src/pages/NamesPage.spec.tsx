@@ -45,6 +45,11 @@ vi.mock('~/store/wallet', () => ({
   }
 }))
 
+// Defaults ON so the cases below keep exercising the purchase path. The flag's own fail-closed behaviour
+// is covered in useNamesEnabled.spec.tsx; what matters here is what the page does with the answer.
+let namesEnabled = true
+vi.mock('~/hooks/useNamesEnabled', () => ({ useNamesEnabled: () => namesEnabled }))
+
 import { NamesPage } from '~/pages/NamesPage'
 
 function renderPage(onBack = vi.fn()) {
@@ -60,6 +65,7 @@ function renderPage(onBack = vi.fn()) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  namesEnabled = true
   session = {
     address: '0xabc0000000000000000000000000000000000abc',
     identity: {},
@@ -130,6 +136,82 @@ describe('NamesPage', () => {
     await userEvent.type(screen.getByLabelText('Search for a NAME'), 'TakenName')
     expect(await screen.findByTestId('names-taken')).toHaveTextContent(/taken/i)
     expect(screen.getByTestId('names-claim')).toBeDisabled()
+  })
+
+  /**
+   * With registration closed, the page still has a job: availability is a free public read that does not
+   * touch credits or the bridge, so the search keeps working and the user is handed the classic marketplace,
+   * which can sell them a NAME today. Disabling the whole page would throw that away.
+   */
+  describe('when NAME registration is disabled', () => {
+    beforeEach(() => {
+      namesEnabled = false
+    })
+
+    it('should keep claim disabled for an otherwise available name', async () => {
+      checkNameAvailability.mockResolvedValue('available')
+      renderPage()
+
+      await userEvent.type(screen.getByLabelText('Search for a NAME'), 'AvailableOne')
+
+      expect(await screen.findByTestId('names-disabled')).toBeInTheDocument()
+      expect(screen.getByTestId('names-claim')).toBeDisabled()
+    })
+
+    it('should still run the availability probe', async () => {
+      checkNameAvailability.mockResolvedValue('available')
+      renderPage()
+
+      await userEvent.type(screen.getByLabelText('Search for a NAME'), 'AvailableOne')
+
+      await waitFor(() => expect(checkNameAvailability).toHaveBeenCalledWith('AvailableOne', expect.anything()))
+    })
+
+    it('should point at the classic marketplace for the searched name', async () => {
+      checkNameAvailability.mockResolvedValue('available')
+      renderPage()
+
+      await userEvent.type(screen.getByLabelText('Search for a NAME'), 'AvailableOne')
+
+      const link = await screen.findByRole('link', { name: /buy in marketplace/i })
+      expect(link).toHaveAttribute('href', expect.stringContaining('search=AvailableOne'))
+      expect(link).toHaveAttribute('href', expect.stringContaining('/marketplace/names/browse'))
+    })
+
+    // The two share one absolutely-positioned slot, so rendering both stacks them on top of each other.
+    it('should show the notice instead of the probe error when the probe fails', async () => {
+      checkNameAvailability.mockRejectedValue(new Error('rpc down'))
+      renderPage()
+
+      await userEvent.type(screen.getByLabelText('Search for a NAME'), 'AvailableOne')
+
+      expect(await screen.findByTestId('names-disabled')).toBeInTheDocument()
+      expect(screen.queryByText(/couldn’t check that NAME/i)).not.toBeInTheDocument()
+    })
+
+    // A taken name is still taken, and that banner carries its own offer link — the notice must not
+    // displace the more specific message.
+    it('should keep showing the taken banner for a taken name', async () => {
+      checkNameAvailability.mockResolvedValue('taken')
+      renderPage()
+
+      await userEvent.type(screen.getByLabelText('Search for a NAME'), 'TakenName')
+
+      expect(await screen.findByTestId('names-taken')).toBeInTheDocument()
+      expect(screen.queryByTestId('names-disabled')).not.toBeInTheDocument()
+    })
+
+    it('should not open the buy modal when the claim button is activated', async () => {
+      checkNameAvailability.mockResolvedValue('available')
+      renderPage()
+
+      await userEvent.type(screen.getByLabelText('Search for a NAME'), 'AvailableOne')
+      await screen.findByTestId('names-disabled')
+      await userEvent.click(screen.getByTestId('names-claim'))
+
+      expect(screen.queryByTestId('name-buy-modal')).not.toBeInTheDocument()
+      expect(signIn).not.toHaveBeenCalled()
+    })
   })
 
   it('should prompt sign-in (not open the modal) when claiming while signed out', async () => {

@@ -10,6 +10,7 @@ import {
   sanitizeNameInput,
   validateName
 } from '~/lib/names'
+import { useNamesEnabled } from '~/hooks/useNamesEnabled'
 import { useSeo } from '~/hooks/useSeo'
 import { useTypedPlaceholder } from '~/hooks/useTypedPlaceholder'
 import { Icon } from '~/components/Icon'
@@ -52,6 +53,7 @@ export function NamesPage({ onBack }: { onBack: () => void }) {
   useSeo({ title: t('seo.names.title'), description: t('seo.names.description') })
 
   const { session, signIn } = useWallet()
+  const namesEnabled = useNamesEnabled()
   const { data: rate } = useManaRate()
   const priceCredits = rate ? manaWeiToCredits(NAME_PRICE_IN_WEI, rate) : null
 
@@ -131,8 +133,17 @@ export function NamesPage({ onBack }: { onBack: () => void }) {
 
   // Claimable when the format is valid and the probe didn't say "taken". A probe error still lets the
   // user proceed (the server re-validates) rather than blocking on a flaky network read.
+  //
+  // The flag gates only this. Search stays live because availability is a free public read against the
+  // registrar that does not touch credits or the bridge, so a closed feature can still answer the question
+  // and hand the user somewhere that can sell them the name today.
   const validation = validateName(value)
-  const canClaim = validation.ok && (status === 'available' || status === 'error')
+  // Named once because the two below must stay each other's exact complement: the notice has to appear in
+  // precisely the cases where the button would otherwise have been clickable. Spelled out twice, editing
+  // one and not the other silently produces a name that can neither be claimed nor explained.
+  const claimEligible = validation.ok && (status === 'available' || status === 'error')
+  const canClaim = namesEnabled && claimEligible
+  const registrationClosed = !namesEnabled && claimEligible
 
   function claim() {
     if (!canClaim) return
@@ -217,10 +228,23 @@ export function NamesPage({ onBack }: { onBack: () => void }) {
                 </S.TakenBanner>
               ) : null}
 
-              {/* Floated like the banner above, so the hero keeps its height as these come and go. */}
+              {/* Floated like the banner above, so the hero keeps its height as these come and go. All one
+                  chain because they share the slot — two of these at once would stack on top of each other. */}
               {status === 'checking' ? (
                 <S.StatusFloating tone="muted" role="status" data-testid="names-checking">
                   {t('names.checking')}
+                </S.StatusFloating>
+              ) : registrationClosed ? (
+                /* Placed ahead of the error branch so it wins the slot: once registration is closed, a
+                   failed availability probe is beside the point — the user cannot buy either way, and this
+                   is the message that gives them somewhere to go. */
+                <S.StatusFloating tone="muted" role="status" data-testid="names-disabled">
+                  <Icon name="info" size={16} aria-hidden />
+                  <span>{t('names.registrationDisabled')}</span>
+                  <S.NoticeLink href={legacyNamesUrl(value)} target="_blank" rel="noopener noreferrer">
+                    {t('names.registrationDisabledLink')}
+                    <Icon name="external-link" size={13} aria-hidden />
+                  </S.NoticeLink>
                 </S.StatusFloating>
               ) : status === 'error' ? (
                 <S.StatusFloating tone="muted" role="status">
