@@ -33,7 +33,7 @@ export const Root = styled.div`
 
 export const Label = styled.label`
   font-size: 14px;
-  color: ${colors.text};
+  color: ${colors.softWhite};
 `
 
 // Email field + the NOTIFY ME button share one 42px row.
