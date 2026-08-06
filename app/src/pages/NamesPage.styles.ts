@@ -265,6 +265,9 @@ export const NameInput = styled.input`
 export const Suffix = styled.span`
   flex: none;
   margin-left: 2px;
+  /* Not selectable: it is the fixed part of the address, not something the reader typed. */
+  user-select: none;
+  -webkit-user-select: none;
   font-family: ${theme.font.sans};
   font-size: 20px;
   font-weight: 400;
@@ -374,6 +377,25 @@ export const Status = styled.div<{ tone: 'error' | 'ok' | 'muted' }>`
   }
 `
 
+/**
+ * The status text floated under the input rather than sitting in the flow, where it resized the hero
+ * on almost every keystroke. Renders inside InputWrap, which owns the positioning context.
+ */
+export const StatusFloating = styled(Status)`
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  z-index: 2;
+
+  /* Static on mobile, as TakenBanner is: the claim button sits below InputWrap there, so anything
+     floating out of the input lands on top of it. */
+  ${theme.media.maxWidth('mobile')} {
+    position: static;
+    margin-top: 8px;
+  }
+`
+
 // "Why buy a NAME?" section: a centered title + intro, then a row of four info cards (a 3D
 // illustration over a rarity-gradient media panel, with a bold title + description below).
 export const Why = styled.section`
@@ -438,30 +460,30 @@ export const Cards = styled.div`
   }
 `
 
+/**
+ * The outline is a box-shadow spread, not a border: a box-shadow occupies no layout, so the content box
+ * is the border box and the artwork reaches the rounded corner instead of stopping a hairline short.
+ */
 export const Card = styled.article`
   min-width: 0;
   display: flex;
   flex-direction: column;
   background: ${theme.colors.white};
-  border: 0.25px solid ${theme.colors.muted2};
+  box-shadow: 0 0 0 0.25px ${theme.colors.muted2};
   border-radius: ${theme.radius.card};
   overflow: hidden;
+
+  /* Forced colours drop decorative shadows. Outline rather than border: it survives there and, like the
+     shadow, takes no layout, so the artwork still reaches the corner. */
+  @media (forced-colors: active) {
+    outline: 1px solid CanvasText;
+  }
 `
 
-/**
- * The gradient background is baked into the illustration asset (a 388×235 render), so the image both fills
- * and colors the media panel — the container just keeps its aspect ratio as the card flexes.
- *
- * It BLEEDS over the card's border on the three sides it touches. `width: 100%` fills the content box,
- * which the border insets, so the border drew a hairline between the artwork and the card's outer edge on
- * the top and both sides — measured at 1px each, an image of 289×175 inside a 291-wide card. Reaching past
- * it is what makes the artwork read as the top of the card rather than as a picture placed inside one.
- * `overflow: hidden` on the card keeps the top corners following its radius.
- */
+// Reaches the card's edge on every side: the box-shadow outline leaves no border box to sit inside.
 export const CardMedia = styled.img`
   display: block;
-  width: calc(100% + 0.5px);
-  margin: -0.25px -0.25px 0;
+  width: 100%;
   aspect-ratio: 388 / 235;
   object-fit: cover;
 `
