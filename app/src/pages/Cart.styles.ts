@@ -263,9 +263,7 @@ export const PanelTitle = styled.h1`
   }
 `
 
-// Purple label + Amethyst GRADIENT border: a flat border-color can't hold a gradient, so it's a 2px
-// transparent ring with the white fill clipped to padding-box and the gradient showing through the
-// border-box (same technique as the asset card's hover border).
+// Soft-black outline button.
 export const Fitting = styled.button`
   display: inline-flex;
   align-items: center;
@@ -273,12 +271,10 @@ export const Fitting = styled.button`
   gap: 8px;
   height: 40px;
   padding: 0 12px;
-  border: 2px solid transparent;
+  border: 2px solid ${colors.text2};
   border-radius: ${radius.btn};
-  background:
-    linear-gradient(${colors.white}, ${colors.white}) padding-box,
-    ${gradients.amethyst} border-box;
-  color: ${colors.accent};
+  background: none;
+  color: ${colors.text2};
   font-size: 13px;
   font-weight: 600;
   line-height: 24px;
@@ -287,11 +283,12 @@ export const Fitting = styled.button`
   white-space: nowrap;
   cursor: pointer;
   transition:
-    box-shadow 0.15s ease,
+    background 0.15s ease,
     filter 0.15s ease;
 
+  /* Mixed from currentColor so the wash cannot drift from the border colour. */
   &:hover:not(:disabled) {
-    box-shadow: 0 0 8px 0 rgba(165, 36, 179, 0.35);
+    background: color-mix(in srgb, currentColor 6%, transparent);
   }
   &:active:not(:disabled) {
     filter: brightness(0.97);
