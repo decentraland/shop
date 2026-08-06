@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NameBuyModal } from './NameBuyModal'
 // Resolves to the MOCKED module below, which is what makes the modal's `instanceof` check meaningful here:
 // both sides get the same class object.
-import { NameRouteCostTooHighError } from '~/lib/names'
+import { NameNotRegisteredError, NameRouteCostTooHighError } from '~/lib/names'
 
 /**
  * The NAME purchase modal — the last step of a CROSS-CHAIN money path, and the layer that decides what the
@@ -35,8 +35,16 @@ vi.mock('~/lib/names', () => {
       this.name = 'NameRouteCostTooHighError'
     }
   }
+  class NameNotRegisteredError extends Error {
+    constructor() {
+      // Raw wording again, so the assertions below cannot pass by echoing the error's own message.
+      super('RAW_NOT_REGISTERED_INTERNAL')
+      this.name = 'NameNotRegisteredError'
+    }
+  }
   return {
     NameRouteCostTooHighError,
+    NameNotRegisteredError,
     registerNameWithUsdCredits: (...a: unknown[]) => registerNameWithUsdCredits(...a)
   }
 })
@@ -219,6 +227,41 @@ describe('NameBuyModal', () => {
       expect((buyButton() as HTMLButtonElement).disabled).toBe(true)
       reenter('hodor')
       expect((buyButton() as HTMLButtonElement).disabled).toBe(false)
+    })
+  })
+
+  /**
+   * The credit is already spent and the NAME was not minted. This is the one failure where the retry button
+   * is actively harmful: pressing it buys a second credit for something the buyer cannot fix, and the
+   * generic copy ("please try again") is exactly that instruction.
+   */
+  describe('and the credit was consumed without the name being registered', () => {
+    beforeEach(() => {
+      registerNameWithUsdCredits.mockRejectedValue(new NameNotRegisteredError())
+    })
+
+    it('should say the funds were returned rather than show the generic failure', async () => {
+      renderModal(67)
+      reenter()
+
+      fireEvent.click(buyButton())
+
+      await waitFor(() => expect(screen.getByText(/funds were returned/i)).toBeTruthy())
+      expect(screen.queryByText(/RAW_NOT_REGISTERED_INTERNAL/)).toBeNull()
+      expect(screen.queryByText(/couldn’t complete your purchase|couldn't complete your purchase/i)).toBeNull()
+    })
+
+    it('should not offer a retry button', async () => {
+      renderModal(67)
+      reenter()
+
+      fireEvent.click(buyButton())
+
+      await waitFor(() => expect(screen.getByText(/funds were returned/i)).toBeTruthy())
+      expect(screen.queryByRole('button', { name: /try again/i })).toBeNull()
+      // Its own label rather than a second "Close": the header X already carries that name, and two
+      // identically-named buttons are indistinguishable to anyone navigating by role.
+      expect(screen.getByRole('button', { name: /got it/i })).toBeTruthy()
     })
   })
 

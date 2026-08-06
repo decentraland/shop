@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { useWallet } from '~/store/wallet'
 import { useBalance, balanceLabel } from '~/hooks/useBalance'
-import { NameRouteCostTooHighError, registerNameWithUsdCredits } from '~/lib/names'
+import { NameNotRegisteredError, NameRouteCostTooHighError, registerNameWithUsdCredits } from '~/lib/names'
 import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import { Icon } from '~/components/Icon'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
@@ -50,6 +50,8 @@ export function NameBuyModal({
   const [phase, setPhase] = useState<Phase>('confirm')
   const [reentry, setReentry] = useState('')
   const [error, setError] = useState<string | null>(null)
+  // Whether the failure already cost the buyer their credit, which decides if a retry is offered at all.
+  const [creditSpent, setCreditSpent] = useState(false)
   const startedRef = useRef(false)
 
   const matches = reentry.trim().toLowerCase() === name.toLowerCase()
@@ -126,11 +128,17 @@ export function NameBuyModal({
       // the route (503 ROUTE_COST_TOO_HIGH) when Across' bridge overhead exceeds what the executor can
       // front; the lib types it separately and rethrows it unwrapped for exactly this. It is temporary and
       // nothing is wrong with the buyer's account, so "try again" is the wrong advice — "try again later" is.
+      // The credit was consumed and the NAME was not minted, so retrying spends a second one on a failure
+      // the buyer cannot fix. Its own copy, and no retry button below.
+      const spent = e instanceof NameNotRegisteredError
       setError(
         e instanceof NameRouteCostTooHighError
           ? t('names.errorRouteCost')
-          : (e as { message?: string })?.message || t('names.errorGeneric')
+          : spent
+            ? t('names.errorNotRegistered')
+            : (e as { message?: string })?.message || t('names.errorGeneric')
       )
+      setCreditSpent(spent)
       setPhase('error')
     } finally {
       startedRef.current = false
@@ -181,7 +189,11 @@ export function NameBuyModal({
                   <Icon name="info" aria-hidden />
                   <span>{error}</span>
                 </S.ErrorBox>
-                <S.PrimaryBtn onClick={() => setPhase('confirm')}>{t('names.tryAgain')}</S.PrimaryBtn>
+                {creditSpent ? (
+                  <S.PrimaryBtn onClick={onClose}>{t('names.errorSpentDismiss')}</S.PrimaryBtn>
+                ) : (
+                  <S.PrimaryBtn onClick={() => setPhase('confirm')}>{t('names.tryAgain')}</S.PrimaryBtn>
+                )}
               </>
             ) : (
               <>

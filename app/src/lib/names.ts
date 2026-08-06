@@ -164,6 +164,21 @@ export class NameRouteCostTooHighError extends Error {
   }
 }
 
+/**
+ * The credit was consumed on-chain but the NAME was NOT minted: the deposit was refunded or expired, or it
+ * filled and the destination actions reverted, sending the bridged MANA to the recovery wallet.
+ *
+ * Typed so it can be rethrown UNWRAPPED, like NameRouteCostTooHighError. Routed through the generic
+ * friendlyError fallback it would reach the buyer as "please try again" — advice that costs them a second
+ * credit for a failure that is not theirs to retry, and that never mentions where their money went.
+ */
+export class NameNotRegisteredError extends Error {
+  constructor() {
+    super('The name could not be registered on Ethereum; your funds were recovered.')
+    this.name = 'NameNotRegisteredError'
+  }
+}
+
 // USD cents to reserve for a NAME: the value of 100 MANA at the oracle rate, rounded UP. The
 // credits-server rounds this up to a whole credit and adds its own MANA-cap buffer when it signs.
 export function sizeNameUsdCents(rate: ManaRate): number {
@@ -231,7 +246,10 @@ export function buildNameUseCreditsArgs(credit: AuthorizedCredit, route: NameCre
 export type AcrossNameStatus = {
   status: 'pending' | 'filled' | 'refunded' | 'expired'
   destinationTxHash: string | null
-  actionsSucceeded: boolean
+  // `null` = Across did not report it. Kept distinct from `false` because the two mean opposite things to a
+  // buyer: `false` says the MANA is in the recovery wallet, `null` says we do not know yet. Collapsing them
+  // into a boolean forces a guess, and both guesses tell someone a story about their money that may be wrong.
+  actionsSucceeded: boolean | null
 }
 
 // Poll Across /deposit/status until the deposit reaches a terminal state (filled/refunded/expired) or
@@ -244,7 +262,7 @@ export async function pollAcrossNameStatus(
   const apiUrl = ACROSS_API_URL
   const intervalMs = opts.intervalMs ?? 10_000
   const maxAttempts = opts.maxAttempts ?? 60 // ~10 min at the default interval
-  let last: AcrossNameStatus = { status: 'pending', destinationTxHash: null, actionsSucceeded: false }
+  let last: AcrossNameStatus = { status: 'pending', destinationTxHash: null, actionsSucceeded: null }
 
   for (let i = 0; i < maxAttempts; i++) {
     try {
@@ -258,8 +276,10 @@ export async function pollAcrossNameStatus(
         }
         const status = (data.status ?? 'pending').toLowerCase()
         const destinationTxHash = data.fillTx ?? data.fillTxnRef ?? null
-        // Default true only for the `filled` field's absence; explicitly false blocks success below.
-        const actionsSucceeded = data.actionsSucceeded !== false
+        // Carried through as-is. Coercing a missing field to `true` (what `!== false` does) is what turns an
+        // unreported outcome into a claimed success downstream — the reading that tells a buyer their NAME
+        // was minted when nothing says it was.
+        const actionsSucceeded = typeof data.actionsSucceeded === 'boolean' ? data.actionsSucceeded : null
         if (status === 'filled') return { status: 'filled', destinationTxHash, actionsSucceeded }
         if (status === 'refunded' || status === 'expired') {
           return { status: status, destinationTxHash: null, actionsSucceeded: false }
@@ -315,6 +335,10 @@ export async function registerNameWithUsdCredits(opts: {
 
   let creditSalt: string | null = null
   let originConfirmed = false
+  // Set when the credit MAY have been consumed without us ever seeing a tx hash, which `originConfirmed`
+  // cannot express: that one means "we watched it confirm". Releasing on this path would hand back credits
+  // for a registration that then lands.
+  let originUnobservable = false
 
   console.info('[names] register start', { name, buyer, chainId, provider })
   try {
@@ -354,6 +378,19 @@ export async function registerNameWithUsdCredits(opts: {
       originTxHash = await sendUseCreditsGasless({ chainId, buyer, signer, args })
     } catch (e) {
       if (!(e instanceof GaslessUnavailableError)) throw e
+      /**
+       * Only a REJECTION proves nothing was relayed. `relayer-unreachable` means there is no usable
+       * response — a proxy 502, a reset connection — and the relayer may have submitted before it died.
+       * Re-submitting the same credit then estimates gas against a consumed credit, which reverts with no
+       * receipt and looks exactly like a pre-broadcast failure. So the fallback is not attempted, and the
+       * reservation is marked unobservable so the catch below cannot release a credit that may be spent.
+       *
+       * Same call the BuyModal and MarketCheckout rails make; this one was falling back unconditionally.
+       */
+      if (e.reason === 'relayer-unreachable') {
+        originUnobservable = true
+        throw e
+      }
       // Gasless unavailable (flag off / contract account / relayer down) → buyer submits + pays gas.
       originTxHash = await sendUseCredits(chainId, args, signer)
     }
@@ -375,10 +412,21 @@ export async function registerNameWithUsdCredits(opts: {
         // consumed and the reconciler will settle. Report pending; DON'T release.
         return { status: 'pending', originTxHash }
       }
-      if (across.status !== 'filled' || !across.actionsSucceeded) {
+      // A fill whose actions Across did not report on is an UNKNOWN outcome, not a success. Reported as
+      // pending so the reconciler settles it and the buyer is told to check back — the honest answer, and
+      // the only one that is recoverable whichever way it turns out. Claiming success here would send
+      // someone looking for a NAME that may not exist; claiming failure would tell them their money was
+      // recovered when it may have bought exactly what they asked for.
+      if (across.status === 'filled' && across.actionsSucceeded === null) {
+        console.warn('[names] across filled without reporting actionsSucceeded — reporting pending', {
+          originTxHash
+        })
+        return { status: 'pending', originTxHash }
+      }
+      if (across.status !== 'filled' || across.actionsSucceeded !== true) {
         // Filled-but-actions-failed or refunded/expired: the NAME was NOT minted and the MANA went to
         // recovery. The credit was consumed on-chain, so we must NOT release the reservation.
-        throw new Error('The name could not be registered on Ethereum; your funds were recovered.')
+        throw new NameNotRegisteredError()
       }
       return { status: 'registered', originTxHash, destinationTxHash: across.destinationTxHash }
     }
@@ -394,10 +442,13 @@ export async function registerNameWithUsdCredits(opts: {
     }
     // Release the reservation ONLY when the credit was not (yet) consumed on-chain. Once the origin
     // useCredits confirms, releasing would let the buyer keep the credits after paying — never do it.
-    if (creditSalt && !originConfirmed) {
+    if (creditSalt && !originConfirmed && !originUnobservable) {
       await cancelUsdIntents(identity, [creditSalt]).catch(() => {})
     }
     if (e instanceof NameRouteCostTooHighError) throw e
+    // Already specific and already user-safe, and the generic fallback below would replace it with "please
+    // try again" — a second credit spent on a failure that is not the buyer's to retry.
+    if (e instanceof NameNotRegisteredError) throw e
     // Keep the original as `cause` so Sentry still gets the real failure behind the friendly copy.
     // Assigned rather than passed to the constructor: the TS lib target is ES2020, which predates
     // ErrorOptions (same approach as lib/store.ts).
