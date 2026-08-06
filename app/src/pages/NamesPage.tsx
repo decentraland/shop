@@ -16,10 +16,10 @@ import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { formatCredits } from '~/lib/currency'
 import { NameBuyModal } from '~/components/NameBuyModal'
 import { t } from '~/intl/i18n'
-import identityMedia from '~/assets/names/identity.webp'
-import worldMedia from '~/assets/names/world.webp'
-import inviteMedia from '~/assets/names/invite.webp'
-import governanceMedia from '~/assets/names/governance.webp'
+import identityIcon from '~/assets/names/identity-icon.svg'
+import worldIcon from '~/assets/names/world-icon.svg'
+import inviteIcon from '~/assets/names/invite-icon.svg'
+import governanceIcon from '~/assets/names/governance-icon.svg'
 import * as S from './NamesPage.styles'
 
 // "Learn More" destinations for the info cards. Public marketing URLs — no secrets.
@@ -211,14 +211,14 @@ export function NamesPage({ onBack }: { onBack: () => void }) {
           </S.WhyHead>
           <S.Cards>
             <S.Card>
-              <S.CardMedia src={identityMedia} alt="" />
+              <S.CardIcon src={identityIcon} alt="" />
               <S.CardInfo>
                 <S.CardTitle>{t('names.why1Title')}</S.CardTitle>
                 <S.CardText>{t('names.why1')}</S.CardText>
               </S.CardInfo>
             </S.Card>
             <S.Card>
-              <S.CardMedia src={worldMedia} alt="" />
+              <S.CardIcon src={worldIcon} alt="" />
               <S.CardInfo>
                 <S.CardTitle>{t('names.why2Title')}</S.CardTitle>
                 <S.CardText>
@@ -231,14 +231,14 @@ export function NamesPage({ onBack }: { onBack: () => void }) {
               </S.CardInfo>
             </S.Card>
             <S.Card>
-              <S.CardMedia src={inviteMedia} alt="" />
+              <S.CardIcon src={inviteIcon} alt="" />
               <S.CardInfo>
                 <S.CardTitle>{t('names.why3Title')}</S.CardTitle>
                 <S.CardText>{t('names.why3')}</S.CardText>
               </S.CardInfo>
             </S.Card>
             <S.Card>
-              <S.CardMedia src={governanceMedia} alt="" />
+              <S.CardIcon src={governanceIcon} alt="" />
               <S.CardInfo>
                 <S.CardTitle>{t('names.why4Title')}</S.CardTitle>
                 <S.CardText>{t('names.why4')}</S.CardText>
