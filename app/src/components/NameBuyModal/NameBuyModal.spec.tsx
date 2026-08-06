@@ -60,7 +60,8 @@ const track = vi.fn()
 vi.mock('~/lib/analytics', () => ({
   track: (...a: unknown[]) => track(...a),
   errorCode: () => 'x',
-  isUserRejection: () => false
+  isUserRejection: () => false,
+  creditsToUsd: (credits: number) => Math.round(credits * 10) / 100
 }))
 
 // Mirrors the REAL shape: useBalance resolves a `UsdBalance` object, not a number. Mocking it as a bare
@@ -181,6 +182,25 @@ describe('NameBuyModal', () => {
       ]
       expect(event).toBe('Shop Completed Purchase')
       expect(props).toMatchObject({ purchase_type: 'name', settlement: 'pending' })
+    })
+
+    it('should report a NAME with the same shape as any other purchase, so revenue cards see it', async () => {
+      // A NAME used to omit value_usd, items[] and transaction_hash, so every USD-summing card counted it
+      // as zero and every item-level card dropped it entirely.
+      registerNameWithUsdCredits.mockResolvedValue({ status: 'pending', originTxHash: '0xorigin' })
+      renderModal()
+      reenter()
+
+      fireEvent.click(buyButton())
+
+      await waitFor(() => expect(track).toHaveBeenCalled())
+      const [, props] = track.mock.calls.find(c => c[0] === 'Shop Completed Purchase') as [
+        string,
+        Record<string, unknown>
+      ]
+      expect(props.value_usd).toBeGreaterThan(0)
+      expect(props.transaction_hash).toBeTruthy()
+      expect(props.items).toMatchObject([{ category: 'name' }])
     })
   })
 
