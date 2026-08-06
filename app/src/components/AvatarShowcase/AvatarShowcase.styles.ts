@@ -128,7 +128,8 @@ export const AddButton = styled.button`
     background 0.15s ease;
 
   &:hover:not(:disabled) {
-    background: ${colors.gray0};
+    color: ${colors.text2};
+    background: ${colors.softWhite};
   }
   &[data-state='done'] {
     background: ${colors.okStrong};

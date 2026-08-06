@@ -848,7 +848,8 @@ export const AddCart = styled.button`
   transition: background 0.15s ease;
 
   &:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.3);
+    background: ${colors.softWhite};
+    color: ${colors.text2};
   }
   &:disabled {
     background: rgba(255, 255, 255, 0.12);

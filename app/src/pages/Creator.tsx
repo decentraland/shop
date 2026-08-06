@@ -340,7 +340,9 @@ export function Creator() {
               />
 
               {!collections.isLoading && !collections.error && collections.items.length === 0 ? (
-                <p className="muted">{t('creator.collectionsEmpty')}</p>
+                <A.EmptyText>
+                  <A.EmptyBody>{t('creator.collectionsEmpty')}</A.EmptyBody>
+                </A.EmptyText>
               ) : null}
             </>
           ) : (
@@ -386,9 +388,9 @@ export function Creator() {
               {emptyKind === 'error' ? (
                 <ErrorNotice message={t('creator.error')} testId="creator-empty-error" />
               ) : emptyKind === 'no-creations' ? (
-                <p className="muted" data-testid="creator-empty-none">
-                  {t('creator.emptyNoCreations')}
-                </p>
+                <A.EmptyText>
+                  <A.EmptyBody data-testid="creator-empty-none">{t('creator.emptyNoCreations')}</A.EmptyBody>
+                </A.EmptyText>
               ) : emptyKind === 'filters' ? (
                 <A.EmptyState data-testid="creator-empty-filters">
                   <A.EmptyText>
