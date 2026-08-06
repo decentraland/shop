@@ -17,6 +17,7 @@ import { useCart } from '~/store/cart'
 import { CartPopover } from '~/components/CartPopover'
 import { SearchDropdown } from '~/components/SearchDropdown'
 import { CURRENCY } from '~/lib/currency'
+import { isIapMode } from '~/lib/iap'
 import { detailRouteFor } from '~/lib/routes'
 import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import { getRecentSearches, recordSearch, removeRecentSearch, clearRecentSearches } from '~/lib/recent-searches'
@@ -233,7 +234,9 @@ export function NavBar() {
         onClickSignIn={() => signIn()}
         onClickSignOut={() => void disconnect()}
         shopCreditsBalance={shopCredits}
-        onClickShopCredits={() => navigate('/credits')}
+        // The balance chip in the global row is itself a doorway to the pack picker. Undefined inside the iOS
+        // web view, so the number still shows (it is the buyer's own balance) without being a way to buy more.
+        onClickShopCredits={isIapMode() ? undefined : () => navigate('/credits')}
         manaBalances={manaBalances}
         showManaBalancesInNavbar
         // The chain pill goes INSIDE the profile panel, which is where the marketplace has it and where
@@ -325,10 +328,15 @@ export function NavBar() {
             ) : null}
           </S.Search>
         )}
-        <S.Credits to="/credits">
-          <S.CreditsIco />
-          {t('nav.getCredits', { currency: CURRENCY.name })}
-        </S.Credits>
+        {/* Inside the iOS app's web view the app sells credits through In-App Purchase, so the Shop must
+            not offer to sell them. This is the main entrance; the others are gated the same way (the
+            checkout modals, and the /credits route itself for a direct hit). */}
+        {isIapMode() ? null : (
+          <S.Credits to="/credits">
+            <S.CreditsIco />
+            {t('nav.getCredits', { currency: CURRENCY.name })}
+          </S.Credits>
+        )}
         <S.Fav to="/my-favorites" aria-label={t('nav.myFavorites')}>
           <S.FavIcons>
             <S.FavOutline name="heart" size={28} aria-hidden />

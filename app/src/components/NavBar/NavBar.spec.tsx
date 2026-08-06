@@ -46,6 +46,10 @@ vi.mock('~/components/SearchDropdown', () => ({ SearchDropdown: () => null }))
 vi.mock('~/components/NotificationsBell', () => ({ NotificationsBell: () => null }))
 vi.mock('~/lib/analytics', () => ({ track: vi.fn() }))
 
+// Mutable so both sides of the iOS web-view gate are reachable — the difference between them is the point.
+const iap = { on: false }
+vi.mock('~/lib/iap', () => ({ isIapMode: () => iap.on }))
+
 import { NavBar } from './NavBar'
 
 const CHAINS = [ChainId.ETHEREUM_MAINNET, ChainId.MATIC_MAINNET]
@@ -104,5 +108,42 @@ describe('the navbar chain pill', () => {
     renderNav()
 
     expect(walletChain).toHaveBeenCalledWith(null)
+  })
+})
+
+/**
+ * Selling credits is the one thing the Shop cannot offer inside the iOS app's web view: Apple requires
+ * digital currency to be sold through In-App Purchase, and the app does that itself. This is the main
+ * entrance to the pack picker, so it is the one that has to disappear.
+ */
+describe('the buy-credits entrance', () => {
+  beforeEach(() => {
+    iap.on = false
+    walletChain.mockReturnValue({ chainId: ChainId.MATIC_MAINNET, chains: CHAINS, switchTo: vi.fn() })
+  })
+
+  it('is there on the web', () => {
+    const { container } = renderNav()
+
+    expect(container.querySelector('a[href="/credits"]')).not.toBeNull()
+  })
+
+  it('is gone inside the iOS web view', () => {
+    iap.on = true
+
+    const { container } = renderNav()
+
+    expect(container.querySelector('a[href="/credits"]')).toBeNull()
+  })
+
+  // The rest of the navbar is fine for IAP — only the credit sale goes. A gate that took the cart or the
+  // favourites with it would be a worse bug than the one it fixes, and a silent one.
+  it('leaves the rest of the navbar alone inside the web view', () => {
+    iap.on = true
+
+    const { container } = renderNav()
+
+    expect(container.querySelector('a[href="/my-favorites"]')).not.toBeNull()
+    expect(container.querySelector('[data-testid="top-nav"]')).not.toBeNull()
   })
 })

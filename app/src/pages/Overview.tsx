@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { fetchShopItems, fetchTrendingItems, type CatalogItem } from '~/lib/api'
+import { isIapMode } from '~/lib/iap'
 import { AssetCard } from '~/components/AssetCard'
 import { SkeletonCards, SkeletonSettle } from '~/components/SkeletonCards'
 import { FollowedCreatorsRow } from '~/components/FollowedCreatorsRow'
@@ -197,11 +198,16 @@ export function Overview() {
         <S.HeroInner>
           <S.HeroTitle>{t('overview.heroTitle')}</S.HeroTitle>
           {/* Figma 2004:322550. The CTA now goes to /credits, not to the grid: the banner sells credits, so
-              sending the click to browse would leave the buyer one step short of what it advertises. */}
-          <S.HeroCta as={Link} to="/credits" variant="purple">
-            <CurrencyIcon size={18} />
-            {t('overview.heroCta')}
-          </S.HeroCta>
+              sending the click to browse would leave the buyer one step short of what it advertises.
+              Hidden inside the iOS web view, where the Shop may not sell credits at all — this is the most
+              prominent offer in the app, so it is the one that most has to go. The banner's own title is
+              generic ("A New Way to Shop"), so it still reads as a banner without it. */}
+          {isIapMode() ? null : (
+            <S.HeroCta as={Link} to="/credits" variant="purple">
+              <CurrencyIcon size={18} />
+              {t('overview.heroCta')}
+            </S.HeroCta>
+          )}
         </S.HeroInner>
       </S.Hero>
 
