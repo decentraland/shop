@@ -70,7 +70,9 @@ describe('move old listings', () => {
     const queued = await page.$eval('[data-testid="modal"]', el => (el as HTMLElement).innerText)
     expect(queued).toMatch(/Galaxy Hat/)
     expect(queued).toMatch(/Nebula Jacket/)
-    expect(queued).toMatch(/1 of 2/)
+    // The QUEUE SIZE, not which item is active: the run really advances now (it used to freeze on the
+    // first row under StrictMode's remount), so the index here is a race with the mocked cancel failing.
+    expect(queued).toMatch(/\d of 2/)
 
     // The modal is centred in a fixed backdrop, so on a screen shorter than the card it overflowed in BOTH
     // directions at once, with nothing to scroll: its own top ended up above the scroll origin, out of

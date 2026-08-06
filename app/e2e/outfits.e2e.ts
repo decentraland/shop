@@ -327,10 +327,11 @@ describe('outfits row on the overview', () => {
   })
 
   // The side arrows exist only when the rail actually pages, and the three-outfit fixture fits one
-  // desktop view — so this seeds enough looks for a second page.
+  // desktop view — so this seeds enough looks for a second page. Eight, not six: the widest tier fits
+  // six looks per view, so six of them is exactly one page and pages nothing.
   it('pages the rail with the side arrows when the looks overflow one view', async () => {
     const [full] = outfitFixtures().outfits.outfits
-    const many = Array.from({ length: 6 }, (_, i) => ({
+    const many = Array.from({ length: 8 }, (_, i) => ({
       ...full,
       id: `aaaaaaaa-0000-4000-8000-00000000001${i}`,
       name: `Look ${i + 1}`
