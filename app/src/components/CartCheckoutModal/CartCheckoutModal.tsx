@@ -1,6 +1,7 @@
 import type { CatalogItem } from '~/lib/api'
 import type { CreditPack } from '~/lib/payments'
 import { formatCredits } from '~/lib/currency'
+import { hrefFor } from '~/lib/routes'
 import { PaymentCtas } from '~/components/PaymentCtas'
 import { manaPerCredit, type PaymentMethod, type PaymentOption } from '~/lib/payment-options'
 import { t } from '~/intl/i18n'
@@ -267,6 +268,10 @@ function NoFunds({
           <b>{t('buyModal.insufficientFunds')}</b> {t('buyModal.warningNeedToBuy')}{' '}
           <b>{t('buyModal.warningCreditsAmount', { count: Math.max(0, shortfallCredits) })}</b>{' '}
           {t('buyModal.warningToPurchase', { count: unitCount })}
+          <br />
+          <M.WarningLink href={hrefFor('/credits')} target="_blank" rel="noopener noreferrer">
+            {t('buyModal.warningLearnMore')}
+          </M.WarningLink>
         </M.WarningText>
       </M.Warning>
 

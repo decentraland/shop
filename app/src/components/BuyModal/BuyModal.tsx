@@ -10,7 +10,7 @@ import { resolveLiveTrade, type CatalogItem } from '~/lib/api'
 import { formatCredits, usdCentsToCredits } from '~/lib/currency'
 import { readTradeManaPriceWei } from '~/lib/mana'
 import { lineUsdCents } from '~/lib/cart-checkout'
-import { myItemsRouteFor } from '~/lib/routes'
+import { hrefFor, myItemsRouteFor } from '~/lib/routes'
 import { readManaUsdRate, type ManaRate } from '~/lib/mana-rate'
 import { config } from '~/config'
 import { PaymentMethodStep } from '~/components/PaymentMethodStep'
@@ -20,6 +20,7 @@ import { AuthorizeStep } from '~/components/AuthorizeStep'
 import { ContractName, getContract, getContractName } from 'decentraland-transactions'
 import manaLight from '~/assets/mana-matic-light.svg'
 import packCoin from '~/assets/credits/pack-coin.webp'
+import buyErrorAvatar from '~/assets/error/buy-error.png'
 import {
   getAuthorizationStatus,
   getManaSpendingAuthorization,
@@ -42,11 +43,11 @@ import { useCreditPacks } from '~/hooks/useCreditPacks'
 import { RESUME_BUY_KEY } from '~/lib/resume-buy'
 import { t } from '~/intl/i18n'
 import { friendlyError, isInsufficient } from '~/lib/errors'
-import { ErrorNotice } from '~/components/ErrorNotice'
+import { Confetti } from '~/components/Confetti'
 import { CloseIcon } from '~/components/Icons/CloseIcon'
 import { WarningTriangleIcon } from '~/components/Icons/WarningTriangleIcon'
 import { SuccessCheckIcon } from '~/components/Icons/SuccessCheckIcon'
-import { ArrowRightIcon } from '~/components/Icons/ArrowRightIcon'
+import { JumpInIcon } from '~/components/Icons/JumpInIcon'
 import * as M from './modal.styles'
 import loaderLogo from '~/assets/credits/loader-logo.svg'
 
@@ -110,6 +111,8 @@ export function BuyModal({
 
   const [phase, setPhase] = useState<Phase>('loading')
   const [error, setError] = useState<string | null>(null)
+  // Bumped by the error state's TRY AGAIN to re-run the open sequence from scratch.
+  const [attempt, setAttempt] = useState(0)
   const [selectedPack, setSelectedPack] = useState<string>('')
   const [itemCredits, setItemCredits] = useState(item.priceCredits)
   // The MANA (wei) this trade costs, read from the oracle once the price locks — null until read (or
@@ -143,7 +146,9 @@ export function BuyModal({
   const balanceCredits = balance?.credits ?? 0
 
   // Step 1+2 on open: resolve the live trade, authorize, reserve the dollars → LOCK the price, then
-  // branch on whether the balance covers it.
+  // branch on whether the balance covers it. Re-runs on `attempt`, which is what the error state's
+  // TRY AGAIN bumps: whether the failure came from the price lock or from the submit, the honest retry
+  // is a fresh resolve + a fresh reservation, never a replay of the stale one.
   useEffect(() => {
     let cancelled = false
     if (!session) {
@@ -233,7 +238,7 @@ export function BuyModal({
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [attempt])
 
   // Once the price is locked AND the buyer holds MANA, read the trade's MANA price so we can offer the
   // "pay with MANA" step. Runs off the loading path so it never blocks/gates the default credits flow;
@@ -618,13 +623,21 @@ export function BuyModal({
   const methodMode =
     (phase === 'ready' && (hasManaRail || paymentOptions.manaShortfall != null)) || (phase === 'nofunds' && hasManaRail)
 
+  function retry() {
+    setError(null)
+    setPhase('loading')
+    setAttempt(a => a + 1)
+  }
+
   const busy = phase === 'processing'
   const title =
     phase === 'complete'
       ? t('buyModal.titleComplete')
-      : phase === 'nofunds'
-        ? t('buyModal.titleNoFunds')
-        : t('buyModal.titleBuy')
+      : phase === 'error'
+        ? t('cartCheckout.errorTitle')
+        : phase === 'nofunds'
+          ? t('buyModal.titleNoFunds')
+          : t('buyModal.titleBuy')
 
   if (authStep && session) {
     return (
@@ -700,13 +713,21 @@ export function BuyModal({
               </M.Body>
             )}
 
-            {/* Error */}
+            {/* Error — the same panel the cart's checkout shows, so both ends of the buy flow fail alike. */}
             {phase === 'error' && (
               <M.Body>
-                <ErrorNotice message={error} />
+                <M.BuyError data-testid="buy-error">
+                  <M.BuyErrorArt src={buyErrorAvatar} alt="" width={64} height={80} />
+                  <M.BuyErrorText>
+                    <b>{t('cartCheckout.errorHeadline')}</b> {error ?? t('cartCheckout.errorBody')}
+                  </M.BuyErrorText>
+                </M.BuyError>
                 <M.Ctas>
-                  <M.Btn data-variant="gradient" onClick={onClose}>
-                    {t('buyModal.close')}
+                  <M.Btn data-variant="outline" onClick={onClose}>
+                    {t('buyModal.cancel')}
+                  </M.Btn>
+                  <M.Btn data-variant="purple" onClick={retry}>
+                    {t('cartCheckout.tryAgain')}
                   </M.Btn>
                 </M.Ctas>
               </M.Body>
@@ -721,6 +742,10 @@ export function BuyModal({
                     <b>{t('buyModal.insufficientFunds')}</b> {t('buyModal.warningNeedToBuy')}{' '}
                     <b>{t('buyModal.warningCreditsAmount', { count: Math.max(0, priceCredits - balanceCredits) })}</b>{' '}
                     {t('buyModal.warningToPurchase', { count: 1 })}
+                    <br />
+                    <M.WarningLink href={hrefFor('/credits')} target="_blank" rel="noopener noreferrer">
+                      {t('buyModal.warningLearnMore')}
+                    </M.WarningLink>
                   </M.WarningText>
                 </M.Warning>
                 <AssetRow item={item} priceCredits={priceCredits} />
@@ -791,6 +816,8 @@ export function BuyModal({
             {/* Complete */}
             {phase === 'complete' && (
               <M.Body>
+                {/* Same celebration as the /success page — the item is really the buyer's by here. */}
+                <Confetti />
                 <M.Success>
                   <SuccessCheckIcon />
                   <M.SuccessText>
@@ -803,7 +830,7 @@ export function BuyModal({
                   </M.Btn>
                   <M.Btn data-variant="ruby" onClick={onClose}>
                     {t('buyModal.tryInWorld')}
-                    <ArrowRightIcon />
+                    <JumpInIcon />
                   </M.Btn>
                 </M.Ctas>
               </M.Body>

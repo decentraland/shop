@@ -425,7 +425,3 @@ const ctaCss = css`
 export const Cta = styled(Link)`
   ${ctaCss};
 `
-
-export const CtaButton = styled.button`
-  ${ctaCss};
-`

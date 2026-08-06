@@ -75,6 +75,8 @@ export type CartNavState = {
   resumeCheckout?: boolean
   // Credits that just landed, forwarded to the /success page for the combined credits+items view.
   creditsAdded?: number
+  // The cart drawer's CHECKOUT button: land on /cart and run the charge straight away.
+  startCheckout?: boolean
 }
 
 // Cart-specific mapping: the "listing changed" message is plural (a multi-item cart), so it maps
@@ -1105,6 +1107,18 @@ export function Cart() {
     return () => clearTimeout(id)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navState?.resumeCheckout])
+
+  // Arrived from the cart drawer's CHECKOUT button: run the same charge the page's own CTA runs. The
+  // state is cleared once consumed so a reload (which replays the history entry) doesn't re-charge.
+  const autoStartedRef = useRef(false)
+  useEffect(() => {
+    if (!navState?.startCheckout || autoStartedRef.current) return
+    autoStartedRef.current = true
+    navigate('.', { replace: true, state: null })
+    const id = setTimeout(() => void checkout(), 0)
+    return () => clearTimeout(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [navState?.startCheckout])
 
   const working = busy || modal?.phase === 'processing'
 

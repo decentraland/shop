@@ -3,7 +3,7 @@ import { OutfitCard } from '~/components/OutfitCard'
 import { SkeletonOutfitCards, SkeletonSettle } from '~/components/SkeletonCards'
 import { useOutfitItems, useOutfits } from '~/hooks/useOutfits'
 import { isBuyableFromCreator, isOutfitsAvailable, outfitItemKey, type Outfit } from '~/lib/outfits'
-import { railPageCount, railPageFromScroll } from '~/lib/pagedRail'
+import { railGeometry, railPageFromGeometry, scrollRailToPage } from '~/lib/pagedRail'
 import { shuffle } from '~/lib/shuffle'
 import { t } from '~/intl/i18n'
 import carouselArrow from '~/assets/icons/carousel-arrow.svg'
@@ -52,39 +52,49 @@ export function OutfitsRow() {
     )
   }, [outfits, resolution])
 
-  // Same paging model as the Overview carousels: a page is one viewport-width of scroll, so the
-  // arrows and dots stay honest across the responsive N-per-view tiers.
+  // Paged off the CARDS, not off viewport widths (see lib/pagedRail): this row fits six looks per view
+  // and publishes an arbitrary number of them, so a page of cards spans less than a viewport and the two
+  // measures drift apart — the row reported itself a page ahead of where it sat, which disabled the next
+  // arrow early and left the previous arrow scrolling to the card it was already on.
   const measure = useCallback(() => {
     const el = trackRef.current
     if (!el) return
-    if (el.clientWidth <= 0) return
-    const pages = railPageCount(el.scrollWidth, el.clientWidth)
-    setPageCount(pages)
-    setPage(current => Math.min(pages - 1, current))
+    const g = railGeometry(el)
+    if (!g) return
+    setPageCount(g.pageCount)
+    setPage(railPageFromGeometry(el, g))
   }, [])
 
   useEffect(() => {
     measure()
     const el = trackRef.current
     if (!el) return
-    const onScroll = () => setPage(railPageFromScroll(el.scrollLeft, el.scrollWidth, el.clientWidth))
+    // One read per frame: railGeometry reads offsetLeft, so an unthrottled handler forces a synchronous
+    // reflow on every scroll event.
+    let frame = 0
+    const onScroll = () => {
+      if (frame) return
+      frame = requestAnimationFrame(() => {
+        frame = 0
+        const g = railGeometry(el)
+        if (g) setPage(railPageFromGeometry(el, g))
+      })
+    }
     el.addEventListener('scroll', onScroll, { passive: true })
     window.addEventListener('resize', measure)
     return () => {
+      if (frame) cancelAnimationFrame(frame)
       el.removeEventListener('scroll', onScroll)
       window.removeEventListener('resize', measure)
     }
   }, [measure, visible.length])
 
-  const scrollToPage = useCallback(
-    (target: number) => {
-      const el = trackRef.current
-      if (!el) return
-      const clamped = Math.max(0, Math.min(pageCount - 1, target))
-      el.scrollTo({ left: clamped * el.clientWidth, behavior: 'smooth' })
-    },
-    [pageCount]
-  )
+  const scrollToPage = useCallback((target: number) => {
+    const el = trackRef.current
+    if (!el) return
+    const g = railGeometry(el)
+    if (g) scrollRailToPage(el, g, target)
+  }, [])
 
   // Nothing to hold space for when the feature is dark (no shop-server) or when the row has settled on
   // no showable look — the section does not exist in either case. But it DOES exist while the outfits are

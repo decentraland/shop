@@ -195,7 +195,6 @@ export const Row = styled.div`
 
 export const Toggle = styled.label`
   flex: none;
-  cursor: pointer;
   display: grid;
   place-items: center;
 
@@ -206,15 +205,16 @@ export const Toggle = styled.label`
     height: 0;
   }
   & input:checked + [data-box] {
+    cursor: pointer;
     background: ${colors.accent};
     border-color: ${colors.accent};
   }
   & input:checked + [data-box]::after {
+    cursor: pointer;
     opacity: 1;
   }
   & input:disabled + [data-box] {
-    opacity: 0.4;
-    cursor: not-allowed;
+    visibility: hidden;
   }
 `
 
@@ -318,7 +318,7 @@ export const Remove = styled.button`
   flex: none;
   border: 0;
   background: none;
-  color: ${colors.muted2};
+  color: ${colors.text};
   cursor: pointer;
   padding: 6px;
   border-radius: 8px;

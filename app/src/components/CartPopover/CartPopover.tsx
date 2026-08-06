@@ -4,6 +4,7 @@ import { Icon } from '~/components/Icon'
 import { CheckCircleIcon } from '~/components/Icons/CheckCircleIcon'
 import { useCart, type CartItem } from '~/store/cart'
 import { detailRouteFor } from '~/lib/routes'
+import type { CartNavState } from '~/pages/Cart'
 import { t } from '~/intl/i18n'
 import { formatCredits, formatCreditsFull } from '~/lib/currency'
 import { useCartAvailability } from '~/hooks/useCartAvailability'
@@ -190,14 +191,19 @@ export function CartPopover() {
               {formatCredits(total)}
             </S.TotalVal>
           </S.TotalRow>
-          {/* Dismiss on the left, advance on the right. Going to the cart stops there — no checkout starts
-              until the buyer has read it. */}
+          {/* Review on the left, buy on the right: Checkout lands on /cart and starts the same charge the
+              cart's own CHECKOUT button runs. */}
           <S.Ctas>
-            <S.CtaButton data-variant="secondary" type="button" onClick={() => setOpen(false)}>
-              {t('cartPopover.continueShopping')}
-            </S.CtaButton>
-            <S.Cta data-variant="primary" to="/cart" onClick={() => setOpen(false)}>
+            <S.Cta data-variant="secondary" to="/cart" onClick={() => setOpen(false)}>
               {t('cartPopover.goToCart')}
+            </S.Cta>
+            <S.Cta
+              data-variant="primary"
+              to="/cart"
+              state={{ startCheckout: true } satisfies CartNavState}
+              onClick={() => setOpen(false)}
+            >
+              {t('cartPopover.checkout')}
             </S.Cta>
           </S.Ctas>
         </S.Foot>

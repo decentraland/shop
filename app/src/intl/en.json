@@ -311,6 +311,7 @@
     "warningNeedToBuy": "You will need to buy",
     "warningCreditsAmount": "{count} Credits",
     "warningToPurchase": "to purchase {count, plural, one {this item.} other {these items.}}",
+    "warningLearnMore": "Learn More",
     "cancel": "Cancel",
     "buy": "Buy",
     "choosePayment": "Choose your payment method",
@@ -670,7 +671,7 @@
     "bannerAdded": "successfully added to cart!",
     "total": "Total: {count, plural, one {# item} other {# items}}",
     "goToCart": "Go to cart",
-    "continueShopping": "Continue shopping"
+    "checkout": "Checkout"
   },
   "filterBar": {
     "sortNewest": "Newest",
@@ -695,7 +696,7 @@
     },
     "detail": {
       "addCount": "{count, plural, one {Add # item to cart} other {Add # items to cart}}",
-      "nothingToAdd": "Everything here is already in your cart or sold by you",
+      "nothingToAdd": "Added to cart",
       "yourListing": "Your listing",
       "yourListingHint": "You're selling some of these items, so they don't count toward the total.",
       "inCart": "In your cart",

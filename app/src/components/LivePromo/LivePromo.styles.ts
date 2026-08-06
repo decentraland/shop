@@ -33,8 +33,8 @@ export const CardBg = styled.div`
   box-shadow: 0 2.5px 6.875px rgba(0, 0, 0, 0.25);
 `
 
-// The static promo art — the placeholder while the live preview boots, and the permanent art on
-// mobile / when the preview fails. Fades out once the avatar is ready.
+// The static promo art — the placeholder while the live preview boots, and the permanent art when it
+// fails. Fades out once the avatar is ready.
 export const Fallback = styled.img`
   position: absolute;
   inset: 0;

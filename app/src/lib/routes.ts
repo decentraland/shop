@@ -4,6 +4,16 @@
 // Every internal link that opens a detail page MUST go through detailRouteFor so a token never lands on
 // the item route (which would re-introduce the itemId/tokenId confusion bug).
 
+/**
+ * A router path turned into an `href` a plain anchor can use — re-applies the `/shop` basename that
+ * main.tsx detects, which router-less links would otherwise drop.
+ */
+export function hrefFor(path: string): string {
+  const { pathname } = window.location
+  const base = pathname === '/shop' || pathname.startsWith('/shop/') ? '/shop' : ''
+  return `${base}${path}`
+}
+
 /** The generic item page. `itemId` is a collection item id (NOT a tokenId). */
 export function itemRoute(contractAddress: string, itemId: string): string {
   return `/item/${contractAddress}/${itemId}`

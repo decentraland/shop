@@ -11,6 +11,9 @@ const { colors, radius, media, gradients } = theme
 export const Root = styled.div`
   max-width: 1721px;
   margin: 0 auto;
+  /* The page's bottom padding is 56px, but the phone CTA bar is sticky and has its own bottom padding for the safe area. 
+   * The bar's shadow would otherwise float over the footer, so the page's padding is reduced to match the bar's height. */
+  margin-bottom: -56px;
 `
 
 export const Crumbs = styled.nav`
@@ -358,7 +361,7 @@ export const AttrChip = styled(Chip)`
 `
 
 export const Hint = styled.p`
-  margin-top: 8px;
+  margin: 0;
   font-size: 13px;
   color: ${colors.gray4};
 `

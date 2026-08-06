@@ -16,12 +16,6 @@ const AnimatedBackground = lazy(() => import('~/components/AnimatedBackground/An
 // and a zoom applied from outside gets eaten by that — the config survives every re-frame.
 const BAKED_ZOOM = 100
 
-// The 3D engine is worth paying for only on hover-capable desktops — touch devices keep the static art.
-const canAnimate = () =>
-  typeof window !== 'undefined' &&
-  window.matchMedia &&
-  window.matchMedia('(hover: hover) and (min-width: 769px)').matches
-
 type Props = {
   /** Stable wearable-preview iframe id (one per tile). */
   id: string
@@ -34,7 +28,7 @@ type Props = {
   title: string
   cta: string
   ariaLabel: string
-  /** Static art: boot placeholder, mobile art and error fallback. */
+  /** Static art: the placeholder while the preview boots, and the fallback when it fails. */
   fallback: string
   fallbackAlt: string
 }
@@ -202,15 +196,15 @@ function PreviewTuning({ id }: { id: string }) {
 
 // A live promo tile: a real avatar performing a look/emote over the fitting room's animated backdrop.
 export function LivePromo({ id, to, urns, title, cta, ariaLabel, fallback, fallbackAlt }: Props) {
-  const [animate] = useState(canAnimate)
   const [ready, setReady] = useState(false)
   const [failed, setFailed] = useState(false)
   const [tweak] = useState(tweakMode)
   const [layout, setLayout] = useState<TweakLayout | null>(null)
-  // Mount the iframe + WebGL backdrop only while the tile is on screen and the tab visible.
+  // Mount the iframe + WebGL backdrop only while the tile is on screen (see usePreviewActive — a
+  // backgrounded tab keeps its loaded scene, an off-screen one does not).
   const { ref, active } = usePreviewActive<HTMLAnchorElement>()
 
-  const live = animate && !failed
+  const live = !failed
   const show = live && ready
 
   return (
