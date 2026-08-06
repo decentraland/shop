@@ -94,8 +94,9 @@ export const CardLinkExternal = styled.a`
 
 export const Fav = styled.button`
   position: absolute;
-  top: 10px;
-  right: 10px;
+  /* Figma 1480:256699 tucks the 24px disc 4.75px into the corner. */
+  top: 4.75px;
+  right: 4.75px;
   z-index: 4;
   width: 24px;
   height: 24px;
@@ -177,6 +178,16 @@ export const Media = styled.div`
   min-height: 0;
   background: ${colors.media};
   overflow: hidden;
+  /* Centres the artwork, which no longer fills this box — see Img. The row is pinned to the band's own
+     height: left to size itself it grows to the image's natural size, and Img's percentage height then
+     resolves against THAT rather than against the band. */
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  place-items: center;
+  /* Figma 1480:256712: a hairline on the three outer edges only, never on the seam with the footer. */
+  border-top: 0.25px solid ${colors.gray4};
+  border-left: 0.25px solid ${colors.gray4};
+  border-right: 0.25px solid ${colors.gray4};
 `
 
 // Corner ribbon on the media (fav sits top-right, so this anchors top-left).
@@ -260,11 +271,21 @@ export const NameValue = styled.span`
 `
 
 // The flat thumbnail crossfades out once the shared 3D preview (HoverPreviewLayer) has this item ready.
+/**
+ * The artwork is 136.3px square inside a 188px media band (Figma 1480:256689) — 72.5% of the band, not
+ * the whole box. Filling the box drew every wearable about a third larger than the design, and next to
+ * it the 24px favourite badge read as undersized: the badge was right all along, the artwork was not.
+ * Stated as a share of the HEIGHT because that is what the design holds constant — the card is a grid
+ * cell, so its width varies (276px here, 306 in the frame) while the band stays 188.
+ */
 export const Img = styled.img`
-  width: 100%;
-  height: 100%;
+  height: 72.5%;
+  aspect-ratio: 1;
+  width: auto;
+  max-width: 100%;
   object-fit: contain;
   display: block;
+  filter: drop-shadow(1.049px 4.194px 5.243px rgba(0, 0, 0, 0.1));
   transition: opacity 0.25s ease;
 
   &[data-hidden] {
