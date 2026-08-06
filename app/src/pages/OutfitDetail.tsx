@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { PreviewRenderer } from '@dcl/schemas'
 import { Button } from '~/components/Button'
 import { CreatorName } from '~/components/CreatorName'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
@@ -29,6 +30,7 @@ import {
   type OutfitItemState
 } from '~/lib/outfits'
 import { outfitPreviewUrns, playingEmote, slotOf } from '~/lib/outfit'
+import { itemUrn } from '~/lib/urn'
 import { t } from '~/intl/i18n'
 import { useCart } from '~/store/cart'
 import { useWallet } from '~/store/wallet'
@@ -197,9 +199,18 @@ function OutfitContent({ outfit }: { outfit: Outfit }) {
 
   const resolvedItems = useMemo(() => rows.map(row => row.item).filter((item): item is CatalogItem => !!item), [rows])
   const urns = useMemo(() => outfitPreviewUrns(resolvedItems), [resolvedItems])
-  // The preview plays the outfit's own emote, so it gets the same play/pause/mute controls an emote
-  // item page has.
-  const hasEmote = useMemo(() => !!playingEmote(resolvedItems), [resolvedItems])
+  // The outfit's own emote plays through the `emote` prop, not the worn list: Unity ignores an emote
+  // it finds among the urns. Without one the avatar strikes the default fashion pose.
+  const playingUrn = useMemo(() => {
+    const playing = playingEmote(resolvedItems)
+    return playing ? itemUrn(playing) : null
+  }, [resolvedItems])
+  // const _emote = playingUrn ?? PreviewEmote.FASHION
+  const hasEmote = !!playingUrn
+  // Unity's scene ships its own playback controls, so ours would double up. Assume Unity until the
+  // preview reports back, or the overlay flashes in before the Unity one takes over.
+  const [renderer, setRenderer] = useState<PreviewRenderer>(PreviewRenderer.UNITY)
+  const showControls = hasEmote && renderer === PreviewRenderer.BABYLON
   // The same hide problem the fitting room had: worn on the viewer's own avatar, an equipped skin covers the
   // outfit's body wearables and the preview shows the avatar unchanged. Composed here for the same reason.
   const tryOnCategories = useMemo(() => resolvedItems.map(item => slotOf(item) ?? '').filter(Boolean), [resolvedItems])
@@ -234,12 +245,14 @@ function OutfitContent({ outfit }: { outfit: Outfit }) {
               profile={tryOn.profile}
               bodyShape={tryOn.bodyShape ?? (hasAvatar ? undefined : mannequinShape)}
               urns={tryOn.urns}
+              // emote={emote}
               skin={tryOn.skin}
               hair={tryOn.hair}
               eyes={tryOn.eyes}
               enabled={profileResolved && !tryOn.isLoading && !resolution.isLoading}
+              onRenderer={setRenderer}
               controls={
-                hasEmote ? (
+                showControls ? (
                   <S.EmoteControls data-testid="outfit-emote-controls">
                     <EmoteControls wearablePreviewId={PREVIEW_ID} hideFrameInput />
                   </S.EmoteControls>

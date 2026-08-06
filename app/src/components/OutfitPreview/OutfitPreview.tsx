@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { PreviewEmote, PreviewType } from '@dcl/schemas'
+import { PreviewEmote, PreviewRenderer, PreviewType, PreviewUnityMode } from '@dcl/schemas'
 import { WearablePreview } from '~/components/LazyWearablePreview'
 import { usePreviewActive } from '~/hooks/usePreviewActive'
 import { disposePreview } from '~/lib/disposePreview'
@@ -14,19 +14,20 @@ import * as S from './OutfitPreview.styles'
 // the positioned container and decides what to show when there are no urns to wear (this renders
 // nothing then). An outfit is only ever shown WORN, so no surface offers an item-alone view.
 //
-// Babylon only, deliberately: no Unity mode renders a multi-item avatar today — `marketplace` reads
-// only the first urn and `profile` reads none — so requesting Unity would drop most of the outfit
-// the moment the `unity-wearable-preview` flag turns on. Restore `unity` once the renderer supports it.
+// Unity runs in BUILDER mode: `marketplace` reads only the first urn and takes none of the avatar's
+// own look from `profile`, so it renders an outfit as a stranger wearing one item.
 export function OutfitPreview({
   id,
   profile,
   bodyShape,
   urns,
+  emote = PreviewEmote.FASHION,
   enabled = true,
   skin,
   hair,
   eyes,
-  controls
+  controls,
+  onRenderer
 }: {
   /** DOM id for the preview iframe — unique per surface so dispose targets the right one. */
   id: string
@@ -35,6 +36,11 @@ export function OutfitPreview({
   /** Mannequin shape override; only meaningful with the 'default' profile. */
   bodyShape?: BodyShapeUrn
   urns: string[]
+  /**
+   * The animation the avatar plays: a base emote, or the URN of the outfit's own emote. It travels
+   * here rather than in `urns` because Unity ignores an emote it finds in the worn list.
+   */
+  emote?: PreviewEmote | string
   /** Caller gate — false while its inputs (profile lookup, catalog resolution) are settling. */
   enabled?: boolean
   /** Avatar colors (hex, no '#') — the studio's session-only import extras. */
@@ -49,6 +55,8 @@ export function OutfitPreview({
    * Fitting Room and the caller's own gate).
    */
   controls?: ReactNode
+  /** The renderer the preview actually used, so the caller can drop controls Unity provides itself. */
+  onRenderer?: (renderer: PreviewRenderer) => void
 }) {
   const fittingOpen = useCart(s => s.fittingOpen)
   const { ref: viewportRef, active } = usePreviewActive<HTMLDivElement>()
@@ -63,7 +71,7 @@ export function OutfitPreview({
   const urnsSig = urns.join(',')
   useEffect(() => {
     setReady(false)
-  }, [urnsSig, profile, skin, hair, eyes])
+  }, [urnsSig, profile, emote, skin, hair, eyes])
   useEffect(() => {
     if (mounted) setReady(false)
   }, [mounted])
@@ -112,10 +120,14 @@ export function OutfitPreview({
           hair={hair}
           eyes={eyes}
           type={PreviewType.AVATAR}
-          emote={PreviewEmote.FASHION}
+          // An outfit's own emote is a URN, which the prop's PreviewEmote union doesn't cover — the
+          // preview takes either.
+          // emote={emote as PreviewEmote}
+          unityMode={PreviewUnityMode.BUILDER}
           disableBackground
           disableFadeEffect
           dev={dev}
+          onRenderer={onRenderer}
           onLoad={() => {
             setReady(true)
             previewWindowRef.current = (document.getElementById(id) as HTMLIFrameElement | null)?.contentWindow ?? null
