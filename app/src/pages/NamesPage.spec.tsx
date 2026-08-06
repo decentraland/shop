@@ -91,6 +91,30 @@ describe('NamesPage', () => {
     expect(checkNameAvailability).not.toHaveBeenCalled()
   })
 
+  /**
+   * jsdom lays nothing out, so these assert the structural precondition instead of the pixels: the message
+   * renders inside the wrapper that owns the positioning context, without which absolute resolves against
+   * the wrong ancestor.
+   */
+  it('should float the status message out of the input rather than growing the hero', async () => {
+    checkNameAvailability.mockReturnValue(new Promise(() => {})) // stays checking
+    renderPage()
+
+    await userEvent.type(screen.getByLabelText('Search for a NAME'), 'Checking')
+
+    const status = await screen.findByTestId('names-checking')
+    expect(screen.getByTestId('names-input-wrap')).toContainElement(status)
+  })
+
+  it('should float the too-short hint from the same wrapper', async () => {
+    renderPage()
+
+    await userEvent.type(screen.getByLabelText('Search for a NAME'), 'a')
+
+    const hint = await screen.findByText(/at least 2 characters/i)
+    expect(screen.getByTestId('names-input-wrap')).toContainElement(hint)
+  })
+
   it('should enable claim when the name is available', async () => {
     checkNameAvailability.mockResolvedValue('available')
     renderPage()

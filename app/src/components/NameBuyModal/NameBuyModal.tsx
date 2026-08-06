@@ -12,6 +12,8 @@ import { track, errorCode, isUserRejection } from '~/lib/analytics'
 import { config } from '~/config'
 import { t } from '~/intl/i18n'
 import loaderLogo from '~/assets/credits/loader-logo.svg'
+import nameGlyph from '~/assets/names/name-glyph.svg'
+import nameVerified from '~/assets/names/name-verified.svg'
 import * as S from './NameBuyModal.styles'
 
 /**
@@ -309,7 +311,16 @@ export function NameBuyModal({
             </S.SuccessBanner>
 
             <S.NameRow style={{ marginTop: 20 }}>
-              <S.Thumb aria-hidden>@</S.Thumb>
+              {/* The NAME as a card, only on this screen: by now it is theirs. */}
+              <S.NameTile data-testid="name-success-tile">
+                <S.NameTileGlyph src={nameGlyph} alt="" aria-hidden width={47} height={47} />
+                <S.NameTileLabel>
+                  {/* The canonical name for assistive tech is the one in NameMeta below; this repeat is
+                      visual. */}
+                  <span aria-hidden>{name}</span>
+                  <S.NameTileTick src={nameVerified} alt="" aria-hidden width={14} height={14} />
+                </S.NameTileLabel>
+              </S.NameTile>
               <S.NameMeta>
                 <S.NameText>
                   {name}
@@ -317,6 +328,8 @@ export function NameBuyModal({
                 </S.NameText>
                 <S.NameSub>{t('names.subtitle')}</S.NameSub>
               </S.NameMeta>
+              {/* Credits, not MANA: it is what was charged, and the header states the credits balance two
+                  lines above. (The Figma draws a Polygon mark here — confirmed stale.) */}
               <S.RowPrice>
                 <CurrencyIcon />
                 {priceLabel}

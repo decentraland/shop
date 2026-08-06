@@ -5,6 +5,10 @@ import { theme } from '~/styles/theme'
 // success 1368-354667). A single dialog that walks confirm → completing → success/error, mirroring
 // the shop's existing checkout modal but with the NAME-specific "re-enter to confirm" gate.
 
+// The cyan the NAME reads in on the success tile. Only this one is local — the tile's gradient is the
+// theme's amethyst.
+const TILE_NAME_COLOR = '#34fee6'
+
 export const Scrim = styled.div`
   position: fixed;
   inset: 0;
@@ -99,6 +103,61 @@ export const NameRow = styled.div`
   display: flex;
   align-items: center;
   gap: 16px;
+`
+
+/**
+ * The NAME as a card, on the success screen only. Not a variant of Thumb: that square is what the confirm
+ * and processing screens use, where the NAME is not the buyer's yet.
+ */
+export const NameTile = styled.div`
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 137px;
+  height: 137px;
+  padding: 20px 0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: ${theme.gradients.amethyst};
+`
+
+export const NameTileGlyph = styled.img`
+  display: block;
+  width: 47px;
+  height: 47px;
+`
+
+export const NameTileLabel = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 100%;
+  padding: 0 8px;
+  font-family: ${theme.font.sans};
+  font-size: 18px;
+  font-weight: 600;
+  /* The design's cyan — it has to read against the purple, which the body text colour would not. */
+  color: ${TILE_NAME_COLOR};
+  white-space: nowrap;
+  overflow: hidden;
+
+  /* Truncation belongs on the flex item, not this box: text-overflow is inert on a flex container, and
+     the zero min-width is what lets the name shrink instead of pushing the tick out. */
+  > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+`
+
+export const NameTileTick = styled.img`
+  flex: none;
+  display: block;
+  width: 14px;
+  height: 14px;
 `
 
 export const Thumb = styled.div`

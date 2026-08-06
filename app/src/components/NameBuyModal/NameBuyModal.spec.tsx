@@ -110,6 +110,23 @@ describe('NameBuyModal', () => {
       await waitFor(() => expect(screen.getByText(/purchase complete/i)).toBeTruthy())
       expect(screen.getByText(/successful/i)).toBeTruthy()
     })
+
+    /** By this point the NAME is the buyer's, so it is shown as a card rather than the small @ square. */
+    it('should present the NAME as a tile carrying its own name', async () => {
+      registerNameWithUsdCredits.mockResolvedValue({
+        status: 'registered',
+        originTxHash: '0xorigin',
+        destinationTxHash: '0xdest'
+      })
+      renderModal()
+      reenter()
+
+      fireEvent.click(buyButton())
+
+      const tile = await waitFor(() => screen.getByTestId('name-success-tile'))
+      // The name reads inside the tile as well as beside it.
+      expect(tile.textContent ?? '').toContain('hodor')
+    })
   })
 
   describe('and the bridge has not landed yet', () => {

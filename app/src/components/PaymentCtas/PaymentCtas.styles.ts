@@ -48,9 +48,11 @@ const buttonBase = `
   }
 `
 
+// The primary purchase rail. Shares the buyBtn gradient with GET CREDITS and the promo CTAs so the button
+// that takes the money looks the same everywhere.
 export const CreditsBtn = styled.button`
   ${buttonBase}
-  background: ${theme.gradients.amethyst};
+  background: ${theme.gradients.buyBtn};
 
   &:hover:not(:disabled) {
     filter: brightness(1.08);

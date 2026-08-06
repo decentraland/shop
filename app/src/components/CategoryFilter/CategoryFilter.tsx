@@ -150,7 +150,8 @@ export function CategoryFilter({
       {CATEGORIES.filter(top => !(hideAll && top.key === 'all') && !(hideNames && top.key === 'names')).map(top => {
         const open = expandedKey === top.key && !!top.subs
         // In collections mode nothing in the normal category list is highlighted.
-        const selected = !collections && top.key === category
+        // A sub-category takes the highlight from its parent, so only one row is ever selected.
+        const selected = !collections && top.key === category && !subCategory
         return (
           <S.Group key={top.key}>
             <S.Cat
@@ -181,7 +182,9 @@ export function CategoryFilter({
                             <S.SubIcon name={sub.icon} aria-hidden />
                             <S.SubLabel data-sub-label>{t(sub.labelKey)}</S.SubLabel>
                           </S.SubLeft>
-                          {sub.expandable ? <Chevron up={subOpen} size={24} color={theme.colors.text} /> : null}
+                          {/* Tinted in S.Sub: a color prop would be an inline style, which :hover cannot
+                              override. */}
+                          {sub.expandable ? <Chevron up={subOpen} size={24} data-chevron /> : null}
                         </S.Sub>
 
                         {sub.subs ? (
