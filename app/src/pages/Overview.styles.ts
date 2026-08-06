@@ -12,12 +12,18 @@ export const Empty = styled.div`
   gap: 10px;
   text-align: center;
   padding: 80px 20px;
+  color: ${colors.softWhite};
 `
 
 export const EmptyTitle = styled.p`
   font-size: 22px;
   font-weight: 700;
   margin: 0;
+`
+
+export const EmptyBody = styled.p`
+  margin: 0;
+  color: ${colors.gray4};
 `
 
 export const EmptyCta = styled(Button)`

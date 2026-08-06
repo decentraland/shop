@@ -15,7 +15,7 @@ import { useSeo } from '~/hooks/useSeo'
 import { track } from '~/lib/analytics'
 import type { CatalogItem } from '~/lib/api'
 import { categoryIcon, genderIcon } from '~/lib/itemIcons'
-import { rarityDescription, rarityInk, rarityTint } from '~/lib/rarity'
+import { rarityColor, rarityDescription, rarityLabel } from '~/lib/rarity'
 import { BASE_FEMALE, BASE_MALE, type BodyShapeUrn } from '~/lib/bodyShape'
 import {
   classifyOutfitItem,
@@ -77,7 +77,7 @@ export function OutfitDetail() {
       <S.Empty data-testid="outfit-notfound">
         <S.EmptyIco name="cart" size={44} />
         <S.EmptyTitle>{t('outfits.detail.notFoundTitle')}</S.EmptyTitle>
-        <p className="muted">{t('outfits.detail.notFoundBody')}</p>
+        <S.EmptyBody>{t('outfits.detail.notFoundBody')}</S.EmptyBody>
         <Button as={Link} to="/items" variant="purple">
           {t('notFound.cta')}
         </Button>
@@ -127,10 +127,10 @@ function ItemChips({ item }: { item: CatalogItem }) {
       {item.rarity ? (
         <S.AttrChip
           data-variant="rarity"
-          style={{ background: rarityTint(item.rarity), color: rarityInk(item.rarity) }}
+          style={{ background: rarityColor(item.rarity) }}
           title={rarityDescription(item.rarity)}
         >
-          {item.rarity}
+          {rarityLabel(item.rarity)}
         </S.AttrChip>
       ) : null}
       {item.isSmart ? (
@@ -309,7 +309,7 @@ function OutfitContent({ outfit }: { outfit: Outfit }) {
                               </S.ItemName>
                             ) : (
                               <>
-                                <S.ItemName className="muted">{t('outfits.card.unavailable')}</S.ItemName>
+                                <S.ItemName>{t('outfits.card.unavailable')}</S.ItemName>
                                 <S.ItemPriceRow>
                                   <S.ItemBadge>{t('outfits.card.unavailable')}</S.ItemBadge>
                                 </S.ItemPriceRow>
@@ -321,9 +321,7 @@ function OutfitContent({ outfit }: { outfit: Outfit }) {
                     </S.ItemCard>
                   ))}
                 </S.Items>
-                {settled && split.ownListing.length > 0 ? (
-                  <S.Hint className="muted small">{t('outfits.detail.yourListingHint')}</S.Hint>
-                ) : null}
+                {settled && split.ownListing.length > 0 ? <S.Hint>{t('outfits.detail.yourListingHint')}</S.Hint> : null}
               </S.ListScroll>
 
               <S.CtaBar data-testid="outfit-detail-ctabar">
