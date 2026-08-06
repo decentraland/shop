@@ -416,9 +416,22 @@ export const purchasesResponse = {
       status: 'EXPIRED',
       createdAt: 1_700_000_200_000,
       manaSettledWei: null
+    },
+    // EXPIRED but SUBMITTED: a purchase that reached the chain and reverted. Unlike purchase-3 — an
+    // authorize nobody ever spent — this one is shown, as a "Failed" card. The pair is the point: the two
+    // share a status and only `submittedTxHash` tells them apart.
+    {
+      id: 'purchase-4',
+      tradeId: null,
+      usdCents: 8000,
+      credits: 80,
+      status: 'EXPIRED',
+      createdAt: 1_700_000_300_000,
+      manaSettledWei: null,
+      submittedTxHash: '0xattempt'
     }
   ],
-  total: 3
+  total: 4
 }
 
 // --- Secondary sales (marketplace-server GET /v1/sales?seller=) ---

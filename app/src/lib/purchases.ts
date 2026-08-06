@@ -8,8 +8,21 @@ export type PurchaseOrder = {
   id: string
   // Newest line's timestamp — what the card header shows and what orders are sorted by.
   createdAt: number
-  // COMPLETED unless any line is still settling, in which case the whole order reads as PROCESSING.
-  status: 'PENDING' | 'SETTLED'
+  /**
+   * The order's state, by precedence over its lines: PENDING > SETTLED > EXPIRED.
+   *
+   * All three, deliberately. This used to be `'PENDING' | 'SETTLED'`, narrowed from the three a
+   * PurchaseRecord actually has, and the missing one is the failure case — so every EXPIRED line was
+   * folded into SETTLED here and rendered downstream as a completed purchase. The two-branch ternary that
+   * did the rendering was correct code over a type that could not say otherwise.
+   *
+   * The precedence, and why that order: never say "failed" while any part is still in flight, and never
+   * say "failed" when some part actually succeeded. A cart settles all-or-nothing in one transaction, so a
+   * genuinely mixed order is close to impossible — but the TTL sweep and the reconciler act per row and
+   * independently, so a transient mix is reachable and needs a deterministic answer rather than whichever
+   * line happens to be first.
+   */
+  status: 'PENDING' | 'SETTLED' | 'EXPIRED'
   totalCredits: number
   lines: PurchaseRecord[]
 }
@@ -49,10 +62,31 @@ export function groupPurchases(records: PurchaseRecord[]): PurchaseOrder[] {
   return groups.map(lines => ({
     id: lines.find(l => l.txHash)?.txHash ?? lines[lines.length - 1].id,
     createdAt: Math.max(...lines.map(l => l.createdAt)),
-    status: lines.some(l => l.status === 'PENDING') ? 'PENDING' : 'SETTLED',
+    status: orderStatus(lines),
     totalCredits: lines.reduce((sum, l) => sum + l.credits, 0),
     lines
   }))
+}
+
+/** The order's state by precedence over its lines — see PurchaseOrder.status for why this order. */
+function orderStatus(lines: PurchaseRecord[]): PurchaseOrder['status'] {
+  if (lines.some(l => l.status === 'PENDING')) return 'PENDING'
+  if (lines.some(l => l.status === 'SETTLED')) return 'SETTLED'
+  return 'EXPIRED'
+}
+
+/**
+ * An order's state as the Activity pill's own vocabulary, so the components never compare against a status
+ * the server speaks. Mirrors `creditOrderPill` for credit-pack top-ups, and maps onto the same four pill
+ * styles — a failed purchase gets the FAILED treatment a failed top-up already had, rather than a new one.
+ */
+export function purchaseOrderPill(status: PurchaseOrder['status']): 'SETTLED' | 'PENDING' | 'FAILED' {
+  if (status === 'SETTLED') return 'SETTLED'
+  // EXPIRED here always means a purchase that was submitted and did not go through — an intent nobody
+  // submitted never reaches the feed (see lib/activity isWorthShowing). "Failed" is the honest word: it is
+  // terminal, and the buyer got nothing.
+  if (status === 'EXPIRED') return 'FAILED'
+  return 'PENDING'
 }
 
 // One rendered row of an order: the same item bought N times in one cart is ONE line with a quantity

@@ -379,6 +379,10 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
     if (/\/users\/.+\/purchases$/.test(path)) return json(req, F.purchases)
     if (path === '/credits/authorize') return json(req, F.authorize)
     if (path === '/credits/authorize/cancel') return json(req, { released: 0 })
+    // Fire-and-forget submission report. The buy flows post here right after broadcasting, so it needs a
+    // response even though nothing asserts on it — an unmocked POST in the middle of a checkout is noise
+    // that looks like a checkout bug.
+    if (path === '/credits/authorize/submitted') return json(req, { recorded: 0 })
     if (path === '/dev/mint-usd') {
       // Fold the minted USD into the running balance so the post-purchase refetch shows the increase.
       const body = JSON.parse(req.postData() || '{}') as { usdCents?: number }

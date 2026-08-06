@@ -24,22 +24,29 @@ describe('activity', () => {
 
     await waitForText(page, 'Activity')
 
-    // Two purchase order cards (the EXPIRED one is filtered out) + one sale card.
+    // Three purchase order cards + one sale card. Of the two EXPIRED intents only the SUBMITTED one shows:
+    // the other was never spent, and showing those would fill the feed with purchases nobody made.
     await page.waitForSelector('[data-testid="purchase-order"]', { timeout: 20000 })
     await page.waitForSelector('[data-testid="activity-sale"]', { timeout: 20000 })
-    await page.waitForFunction(() => document.querySelectorAll('[data-testid="purchase-order"]').length === 2, {
+    await page.waitForFunction(() => document.querySelectorAll('[data-testid="purchase-order"]').length === 3, {
       timeout: 20000
     })
 
-    // Status badges: SETTLED → "Completed", PENDING → "Processing", the sale → "Sold".
+    // Status badges: SETTLED → "Completed", PENDING → "Processing", submitted-and-EXPIRED → "Failed",
+    // the sale → "Sold".
     await waitForText(page, 'Completed')
     await waitForText(page, 'Processing')
+    await waitForText(page, 'Failed')
     await waitForText(page, 'Sold')
 
-    // Per-row credit amounts render (135 settled, 270 pending).
+    // A failed card explains itself, so the buyer is not left wondering where the credits went.
+    await waitForText(page, 'credits are back in your balance')
+
+    // Per-row credit amounts render (135 settled, 270 pending, 80 failed).
     const body = await page.evaluate(() => document.body.innerText)
     expect(body).toContain('135')
     expect(body).toContain('270')
+    expect(body).toContain('80')
 
     // Filter to Sales → purchases hidden, the sale card stays.
     await page.click('[data-testid="activity-filter-sales"]')
@@ -50,12 +57,12 @@ describe('activity', () => {
       { timeout: 20000 }
     )
 
-    // Filter to Purchases → the sale is hidden, both order cards return.
+    // Filter to Purchases → the sale is hidden, all three order cards return.
     await page.click('[data-testid="activity-filter-purchases"]')
     await page.waitForFunction(
       () =>
         document.querySelectorAll('[data-testid="activity-sale"]').length === 0 &&
-        document.querySelectorAll('[data-testid="purchase-order"]').length === 2,
+        document.querySelectorAll('[data-testid="purchase-order"]').length === 3,
       { timeout: 20000 }
     )
   })
