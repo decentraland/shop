@@ -236,8 +236,8 @@ export function Authorizations() {
       <S.Empty>
         <Icon name="info" size={40} color={theme.colors.muted2} />
         <S.EmptyTitle>{t('authorizations.signInTitle')}</S.EmptyTitle>
-        <p className="muted">{t('authorizations.signInBody')}</p>
-        <S.EmptyCta variant="purple" onClick={() => signIn()}>
+        <S.EmptyBody>{t('authorizations.signInBody')}</S.EmptyBody>
+        <S.EmptyCta variant="white" onClick={() => signIn()}>
           {t('storeSettings.signIn')}
         </S.EmptyCta>
       </S.Empty>
@@ -251,8 +251,8 @@ export function Authorizations() {
       <S.Empty>
         <Icon name="check" size={40} color={theme.colors.ok} />
         <S.EmptyTitle>{t('authorizations.managedTitle')}</S.EmptyTitle>
-        <p className="muted">{t('authorizations.managedBody')}</p>
-        <S.EmptyCta as={Link} to="/items" variant="purple">
+        <S.EmptyBody>{t('authorizations.managedBody')}</S.EmptyBody>
+        <S.EmptyCta as={Link} to="/items" variant="white">
           {t('authorizations.managedCta')}
         </S.EmptyCta>
       </S.Empty>
