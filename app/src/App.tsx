@@ -12,6 +12,7 @@ import { useAccountWatcher } from '~/hooks/useAccountWatcher'
 import { useShopPrelaunch } from '~/hooks/useShopPrelaunch'
 import { useWallet } from '~/store/wallet'
 import { initAnalytics, trackPage } from '~/lib/analytics'
+import { isIapMode } from '~/lib/iap'
 import { Overview } from '~/pages/Overview'
 import * as OV from '~/pages/Overview.styles'
 import { Button } from '~/components/Button'
@@ -204,7 +205,12 @@ export function App() {
               <Route path="/import" element={<Navigate to="/activity?section=listings" replace />} />
               <Route path="/cart" element={<Cart />} />
               <Route path="/authorizations" element={<Authorizations />} />
-              <Route path="/credits" element={<GetCredits />} />
+              {/* Selling credits is the one thing the Shop cannot do inside the iOS app's web view — the
+                  app sells them through In-App Purchase. Hiding the entrances is not enough on its own:
+                  the route stays addressable, and a stale link or a back-navigation would land straight on
+                  the pack picker. Redirected rather than 404'd so it reads as "not a thing here", and the
+                  buyer keeps browsing instead of hitting a dead end. */}
+              <Route path="/credits" element={isIapMode() ? <Navigate to="/overview" replace /> : <GetCredits />} />
               <Route path="/success" element={<Success />} />
               <Route path="*" element={<NotFound />} />
             </Routes>

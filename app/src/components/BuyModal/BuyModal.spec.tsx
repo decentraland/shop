@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -44,11 +44,20 @@ vi.mock('decentraland-transactions', () => ({
 }))
 
 // Plenty of credits and no MANA: the credits rail is the only one on the table, so `resume` confirms it.
-vi.mock('~/hooks/useBalance', () => ({
-  useBalance: () => ({ data: { balanceCents: 100_000, credits: 10_000 } })
-}))
+// Mutable, defaulting to the plentiful balance every existing test here assumes — only the shortfall
+// (`nofunds`) cases lower it.
+const balance = { data: { balanceCents: 100_000, credits: 10_000 } }
+vi.mock('~/hooks/useBalance', () => ({ useBalance: () => balance }))
+
+// Mutable so both sides of the iOS web-view gate are reachable.
+const iap = { on: false }
+vi.mock('~/lib/iap', () => ({ isIapMode: () => iap.on }))
 vi.mock('~/hooks/useManaBalance', () => ({ useManaBalance: () => ({ data: 0n }) }))
-vi.mock('~/hooks/useCreditPacks', () => ({ useCreditPacks: () => ({ packs: [] }) }))
+// Mutable and empty by default, as every test here had it. The shortfall cases need real packs: `goNoFunds`
+// picks a covering pack and reads `cover.id`, so an empty catalogue throws there and the modal lands in
+// `error` instead of the pack picker.
+const creditPacks: { packs: { id: string; credits: number; usd: number }[] } = { packs: [] }
+vi.mock('~/hooks/useCreditPacks', () => ({ useCreditPacks: () => creditPacks }))
 
 const { authorizeUsdCredit, cancelUsdIntents } = vi.hoisted(() => ({
   authorizeUsdCredit: vi.fn(),
@@ -368,5 +377,60 @@ describe('when buying through the relayer', () => {
     await waitFor(() => expect(track).toHaveBeenCalledWith('Shop Purchase Failed', expect.anything()))
     expect(buyWithCredits).not.toHaveBeenCalled()
     expect(cancelUsdIntents).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * The shortfall state is where the Shop sells credits: a pack picker, a running total and a Buy button,
+ * right inside the buy modal. Inside the iOS app's web view that whole sale has to go — Apple requires
+ * digital currency to be sold through In-App Purchase, and the app does it.
+ *
+ * What must NOT go is the explanation. The buyer still needs to be told what they are short by and be able
+ * to close; they top up in the app and come back.
+ */
+describe('when the buyer is short on credits', () => {
+  const LOW = { data: { balanceCents: 50, credits: 5 } }
+  const PLENTY = { data: { balanceCents: 100_000, credits: 10_000 } }
+
+  beforeEach(() => {
+    balance.data = LOW.data
+    creditPacks.packs = [
+      { id: 'p1', credits: 100, usd: 10 },
+      { id: 'p2', credits: 500, usd: 50 }
+    ]
+  })
+
+  afterEach(() => {
+    balance.data = PLENTY.data
+    creditPacks.packs = []
+    iap.on = false
+  })
+
+  it('should offer the credit packs on the web', async () => {
+    renderIdle()
+
+    expect(await screen.findByTestId('credit-packs')).toBeInTheDocument()
+  })
+
+  describe('and the shop is running in the iOS web view', () => {
+    beforeEach(() => {
+      iap.on = true
+    })
+
+    it('should not offer the credit packs', async () => {
+      renderIdle()
+
+      // The warning is what marks the phase as reached — asserting on its absence alone would pass even if
+      // the modal never got here.
+      await screen.findByText(/insufficient/i)
+      expect(screen.queryByTestId('credit-packs')).not.toBeInTheDocument()
+    })
+
+    it('should still say what the buyer is short by, and let them close', async () => {
+      renderIdle()
+
+      await screen.findByText(/insufficient/i)
+      expect(screen.getByRole('button', { name: /cancel/i })).toBeInTheDocument()
+    })
   })
 })

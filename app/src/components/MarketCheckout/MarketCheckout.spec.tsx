@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
@@ -82,6 +82,10 @@ const { track, errorCode, isUserRejection } = vi.hoisted(() => ({
 }))
 vi.mock('~/lib/analytics', () => ({ track, errorCode, isUserRejection }))
 
+// Mutable so both sides of the iOS web-view gate are reachable.
+const iap = { on: false }
+vi.mock('~/lib/iap', () => ({ isIapMode: () => iap.on }))
+
 const navigate = vi.fn()
 vi.mock('react-router-dom', async orig => ({ ...(await orig<Record<string, unknown>>()), useNavigate: () => navigate }))
 
@@ -145,6 +149,45 @@ describe('when the buyer has enough credits for the locked price', () => {
 })
 
 describe('when the buyer does not have enough credits for the locked price', () => {
+  /**
+   * Inside the iOS app's web view the bridge cannot exist: it routes to the pack picker, and Apple requires
+   * digital currency to be sold through In-App Purchase. So the CTA stops offering a way out it cannot
+   * deliver — the shortfall note still says what is missing, which makes it an explained dead end rather
+   * than a silent one.
+   */
+  describe('and the shop is running in the iOS web view', () => {
+    beforeEach(() => {
+      iap.on = true
+      useBalance.mockReturnValue({ data: { balanceCents: 50, credits: 5 }, isError: false })
+    })
+
+    afterEach(() => {
+      iap.on = false
+    })
+
+    it('should not offer the Get Credits bridge', async () => {
+      renderModal()
+
+      await screen.findByRole('button', { name: /confirm purchase/i })
+      expect(screen.queryByRole('button', { name: /buy credits/i })).not.toBeInTheDocument()
+    })
+
+    it('should disable the action rather than route to the pack picker', async () => {
+      renderModal()
+
+      const cta = await screen.findByRole('button', { name: /confirm purchase/i })
+      expect(cta).toBeDisabled()
+      expect(navigate).not.toHaveBeenCalledWith('/credits')
+    })
+
+    it('should still tell the buyer they are short', async () => {
+      renderModal()
+
+      await screen.findByRole('button', { name: /confirm purchase/i })
+      expect(screen.getByText(/need a few more/i)).toBeInTheDocument()
+    })
+  })
+
   it('should bridge to Get Credits: release the reservation, fire the prompt event, and navigate to /credits', async () => {
     const user = userEvent.setup()
     useBalance.mockReturnValue({ data: { balanceCents: 50, credits: 5 }, isError: false })

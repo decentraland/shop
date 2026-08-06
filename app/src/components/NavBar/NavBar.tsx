@@ -17,6 +17,7 @@ import { useCart } from '~/store/cart'
 import { CartPopover } from '~/components/CartPopover'
 import { SearchDropdown } from '~/components/SearchDropdown'
 import { CURRENCY } from '~/lib/currency'
+import { isIapMode } from '~/lib/iap'
 import { detailRouteFor } from '~/lib/routes'
 import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import { getRecentSearches, recordSearch, removeRecentSearch, clearRecentSearches } from '~/lib/recent-searches'
@@ -325,10 +326,15 @@ export function NavBar() {
             ) : null}
           </S.Search>
         )}
-        <S.Credits to="/credits">
-          <S.CreditsIco />
-          {t('nav.getCredits', { currency: CURRENCY.name })}
-        </S.Credits>
+        {/* Inside the iOS app's web view the app sells credits through In-App Purchase, so the Shop must
+            not offer to sell them. This is the main entrance; the others are gated the same way (the
+            checkout modals, and the /credits route itself for a direct hit). */}
+        {isIapMode() ? null : (
+          <S.Credits to="/credits">
+            <S.CreditsIco />
+            {t('nav.getCredits', { currency: CURRENCY.name })}
+          </S.Credits>
+        )}
         <S.Fav to="/my-favorites" aria-label={t('nav.myFavorites')}>
           <S.FavIcons>
             <S.FavOutline name="heart" size={28} aria-hidden />

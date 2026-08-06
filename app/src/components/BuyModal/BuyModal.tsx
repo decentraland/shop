@@ -8,6 +8,7 @@ import { useBalance } from '~/hooks/useBalance'
 import { useManaBalance } from '~/hooks/useManaBalance'
 import { resolveLiveTrade, type CatalogItem } from '~/lib/api'
 import { formatCredits, usdCentsToCredits } from '~/lib/currency'
+import { isIapMode } from '~/lib/iap'
 import { readTradeManaPriceWei } from '~/lib/mana'
 import { lineUsdCents } from '~/lib/cart-checkout'
 import { hrefFor, myItemsRouteFor } from '~/lib/routes'
@@ -742,10 +743,16 @@ export function BuyModal({
                     <b>{t('buyModal.insufficientFunds')}</b> {t('buyModal.warningNeedToBuy')}{' '}
                     <b>{t('buyModal.warningCreditsAmount', { count: Math.max(0, priceCredits - balanceCredits) })}</b>{' '}
                     {t('buyModal.warningToPurchase', { count: 1 })}
-                    <br />
-                    <M.WarningLink href={hrefFor('/credits')} target="_blank" rel="noopener noreferrer">
-                      {t('buyModal.warningLearnMore')}
-                    </M.WarningLink>
+                    {/* The link opens the pack picker, so it is an offer to sell credits like any other and
+                        goes with them in the iOS web view. The sentence above still states the shortfall. */}
+                    {isIapMode() ? null : (
+                      <>
+                        <br />
+                        <M.WarningLink href={hrefFor('/credits')} target="_blank" rel="noopener noreferrer">
+                          {t('buyModal.warningLearnMore')}
+                        </M.WarningLink>
+                      </>
+                    )}
                   </M.WarningText>
                 </M.Warning>
                 <AssetRow item={item} priceCredits={priceCredits} />
@@ -757,33 +764,43 @@ export function BuyModal({
                     shortfall={paymentOptions.manaShortfall}
                   />
                 ) : null}
-                <M.Packs data-testid="credit-packs">
-                  {OFFER_PACKS.map(p => {
-                    const packCredits = p.credits
-                    const on = p.id === selectedPack
-                    return (
-                      <M.Pack key={p.id} data-on={on || undefined} onClick={() => setSelectedPack(p.id)}>
-                        <M.PackIco src={packCoin} alt="" />
-                        <M.PackAmount>{formatCredits(packCredits)}</M.PackAmount>
-                        <M.PackUsd>(${p.usd.toFixed(2)})</M.PackUsd>
-                      </M.Pack>
-                    )
-                  })}
-                </M.Packs>
-                <M.Total>
-                  <M.TotalCredits>
-                    <M.TotalIco />
-                    <span>{formatCredits(OFFER_PACKS.find(p => p.id === selectedPack)?.credits ?? 0)}</span>
-                  </M.TotalCredits>
-                  <M.TotalUsd>${(OFFER_PACKS.find(p => p.id === selectedPack)?.usd ?? 0).toFixed(2)}</M.TotalUsd>
-                </M.Total>
+                {/* The pack picker, its running total and the Buy button are the actual sale of credits, so
+                    inside the iOS web view none of them render — the app sells credits through In-App
+                    Purchase. The warning and the item row stay, so the buyer is told what they are short by
+                    and can close; they top up in the app and come back. */}
+                {isIapMode() ? null : (
+                  <>
+                    <M.Packs data-testid="credit-packs">
+                      {OFFER_PACKS.map(p => {
+                        const packCredits = p.credits
+                        const on = p.id === selectedPack
+                        return (
+                          <M.Pack key={p.id} data-on={on || undefined} onClick={() => setSelectedPack(p.id)}>
+                            <M.PackIco src={packCoin} alt="" />
+                            <M.PackAmount>{formatCredits(packCredits)}</M.PackAmount>
+                            <M.PackUsd>(${p.usd.toFixed(2)})</M.PackUsd>
+                          </M.Pack>
+                        )
+                      })}
+                    </M.Packs>
+                    <M.Total>
+                      <M.TotalCredits>
+                        <M.TotalIco />
+                        <span>{formatCredits(OFFER_PACKS.find(p => p.id === selectedPack)?.credits ?? 0)}</span>
+                      </M.TotalCredits>
+                      <M.TotalUsd>${(OFFER_PACKS.find(p => p.id === selectedPack)?.usd ?? 0).toFixed(2)}</M.TotalUsd>
+                    </M.Total>
+                  </>
+                )}
                 <M.Ctas>
                   <M.Btn data-variant="outline" onClick={onClose}>
                     {t('buyModal.cancel')}
                   </M.Btn>
-                  <M.Btn data-variant="gradient" onClick={() => void buyCreditsAndItem()}>
-                    {t('buyModal.buy')}
-                  </M.Btn>
+                  {isIapMode() ? null : (
+                    <M.Btn data-variant="gradient" onClick={() => void buyCreditsAndItem()}>
+                      {t('buyModal.buy')}
+                    </M.Btn>
+                  )}
                 </M.Ctas>
               </M.Body>
             )}

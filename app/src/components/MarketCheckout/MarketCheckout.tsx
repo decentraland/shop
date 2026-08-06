@@ -8,6 +8,7 @@ import { fetchTrade, type CatalogItem, type LegacyListing } from '~/lib/api'
 import { manaWeiToUsdCents, type ManaRate } from '~/lib/mana-rate'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { CURRENCY, formatAmount, usdCentsToCredits } from '~/lib/currency'
+import { isIapMode } from '~/lib/iap'
 import { track, errorCode, isUserRejection } from '~/lib/analytics'
 import { authorizeUsdCredit, cancelUsdIntents } from '~/lib/credits'
 import { buyWithCredits } from '~/lib/buy'
@@ -409,10 +410,19 @@ export function MarketCheckout({
           <S.ActionBtn variant="ghost" onClick={cancel} disabled={busy}>
             {t('buyModal.cancel')}
           </S.ActionBtn>
-          <S.ActionBtn variant="purple" onClick={() => void confirm()} disabled={busy || !locked}>
+          {/* In the iOS web view the shortfall CTA is removed rather than relabelled: it routed to
+              /credits, which is the one thing the Shop must not offer there (the app sells credits through
+              In-App Purchase). The `needMore` note above still says what is missing, so this is an
+              explained dead end rather than a silent one — and the button stops promising a way out it
+              cannot deliver. */}
+          <S.ActionBtn
+            variant="purple"
+            onClick={() => void confirm()}
+            disabled={busy || !locked || (needsMoreCredits && isIapMode())}
+          >
             {busy
               ? t('marketCheckout.buying')
-              : needsMoreCredits
+              : needsMoreCredits && !isIapMode()
                 ? t('nav.getCredits', { currency: CURRENCY.name })
                 : t('marketCheckout.confirmPurchase')}
           </S.ActionBtn>
