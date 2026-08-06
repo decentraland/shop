@@ -4,7 +4,7 @@ import { clickByText, waitForText } from './helpers/dom'
 import { COLLECTION, buyTrade, ownTrade } from './fixtures'
 
 // The BuyModal (PDP "Buy now") error phase: both the own-listing guard and a hard authorize failure
-// render <ErrorNotice> (.error-notice) in place and never move money / navigate away.
+// render the shared error panel in place and never move money / navigate away.
 
 let app: App | undefined
 afterEach(async () => {
@@ -23,8 +23,8 @@ describe('buy modal error paths', () => {
     await waitForText(page, 'Buy now')
     expect(await clickByText(page, 'button', /buy now/i)).toBe(true)
 
-    // The modal reaches its error phase: <ErrorNotice> with the curated own-listing message.
-    await page.waitForSelector('.error-notice', { timeout: 20000 })
+    // The modal reaches its error phase: the shared panel with the curated own-listing message.
+    await page.waitForSelector('[data-testid="buy-error"]', { timeout: 20000 })
     await waitForText(page, "You can't buy your own listing")
 
     // No purchase happened — we stay on the item page.
@@ -45,8 +45,8 @@ describe('buy modal error paths', () => {
     await waitForText(page, 'Buy now')
     expect(await clickByText(page, 'button', /buy now/i)).toBe(true)
 
-    // Error phase: <ErrorNotice> with the generic purchase-failed copy (never the raw 500 / server text).
-    await page.waitForSelector('.error-notice', { timeout: 20000 })
+    // Error phase: the shared panel with the generic purchase-failed copy (never the raw 500 / server text).
+    await page.waitForSelector('[data-testid="buy-error"]', { timeout: 20000 })
     await waitForText(page, "Couldn't complete the purchase")
     const body = await page.evaluate(() => document.body.innerText)
     expect(body).not.toContain('authorizeUsdCredit')

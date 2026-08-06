@@ -122,6 +122,8 @@ export const SubPill = styled('button', noForward('selected'))<{ selected?: bool
 // Lives in the FilterBar toolbar now (see MyAssets' `search` slot), so it carries no bottom margin of its
 // own — the toolbar's own margin is what separates the row from the grid — and it fills the width the slot
 // gives it instead of the whole main column.
+// Sits on the purple field beside the Sort By / Filters pills, so it takes their treatment: a
+// translucent white fill behind a hairline, near-white glyph and text.
 export const SearchBar = styled.div`
   display: flex;
   align-items: center;
@@ -129,12 +131,12 @@ export const SearchBar = styled.div`
   width: 100%;
   height: 40px;
   padding: 0 12px;
-  border: 1px solid ${theme.colors.lineStrong};
-  border-radius: ${theme.radius.btn};
-  background: ${theme.colors.white};
+  border: 1px solid rgba(252, 252, 252, 0.6);
+  border-radius: ${theme.radius.card};
+  background: rgba(255, 255, 255, 0.1);
 
   &:focus-within {
-    border-color: ${theme.colors.accent};
+    border-color: ${theme.colors.softWhite};
   }
 `
 
@@ -142,7 +144,7 @@ export const SearchIcon = styled(Icon)`
   width: 18px;
   height: 18px;
   flex: none;
-  color: ${theme.colors.muted};
+  color: ${theme.colors.softWhite};
 `
 
 export const SearchInput = styled.input`
@@ -153,10 +155,10 @@ export const SearchInput = styled.input`
   padding: 0;
   font-family: ${theme.font.sans};
   font-size: 14px;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
 
   &::placeholder {
-    color: ${theme.colors.muted2};
+    color: rgba(252, 252, 252, 0.7);
   }
   &:focus {
     outline: 0;
@@ -170,13 +172,16 @@ export const SearchClear = styled.button`
   height: 24px;
   border: 0;
   border-radius: 50%;
-  background: ${theme.colors.chip};
-  color: ${theme.colors.text};
+  background: rgba(255, 255, 255, 0.2);
+  color: ${theme.colors.softWhite};
   cursor: pointer;
   flex: none;
 
+  &:hover {
+    background: rgba(255, 255, 255, 0.3);
+  }
   &:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
+    outline: 2px solid ${theme.colors.softWhite};
     outline-offset: 2px;
   }
 `

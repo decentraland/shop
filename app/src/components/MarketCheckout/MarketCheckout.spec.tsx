@@ -140,7 +140,7 @@ describe('when the buyer has enough credits for the locked price', () => {
     expect(screen.getByText(/\$27\.00/)).toBeInTheDocument()
     // Enough balance → the primary action is Confirm, not the Get-credits bridge.
     expect(screen.getByRole('button', { name: /confirm purchase/i })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /^get credits$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^buy credits$/i })).not.toBeInTheDocument()
   })
 })
 
@@ -151,8 +151,8 @@ describe('when the buyer does not have enough credits for the locked price', () 
 
     renderModal()
 
-    // The CTA flips to "Get credits" once the low balance is known against the locked 270.
-    const cta = await screen.findByRole('button', { name: /get credits/i })
+    // The CTA flips to the top-up action once the low balance is known against the locked 270.
+    const cta = await screen.findByRole('button', { name: /buy credits/i })
     await user.click(cta)
 
     await waitFor(() => expect(navigate).toHaveBeenCalledWith('/credits'))

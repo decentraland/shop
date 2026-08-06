@@ -109,11 +109,13 @@ export const Fav = styled.button`
   color: ${colors.text};
 
   // The circle is 24px by design, which is under the comfortable tap size — an invisible ring around it
-  // brings the hit area back to ~44px on touch without changing the visual.
+  // grows the hit area on touch without changing the visual. It stops FLUSH with the card on the two
+  // sides the disc is tucked into: the card clips (overflow: hidden), so anything past those edges was
+  // never tappable anyway, and it only showed up as phantom scrollable overflow on the card.
   &::after {
     content: '';
     position: absolute;
-    inset: -10px;
+    inset: -4.75px -4.75px -10px -10px;
     border-radius: 50%;
   }
 `

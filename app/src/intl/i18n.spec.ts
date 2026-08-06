@@ -19,9 +19,9 @@ describe('i18n', () => {
   })
 
   it('interpolates values', () => {
-    expect(t('nav.getCredits', { currency: 'credits' })).toBe('Get credits')
+    expect(t('nav.getCredits', { currency: 'credits' })).toBe('Buy credits')
     setActiveLocale('es')
-    expect(t('nav.getCredits', { currency: 'créditos' })).toBe('Conseguir créditos')
+    expect(t('nav.getCredits', { currency: 'créditos' })).toBe('Comprar créditos')
   })
 
   it('falls back to the key id for a missing message', () => {

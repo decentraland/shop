@@ -17,7 +17,7 @@
     "outfits": "Estudio de outfits",
     "searchPlaceholder": "Busca artículo, creador, colección, nombre...",
     "searchAria": "Buscar en la tienda",
-    "getCredits": "Conseguir {currency}",
+    "getCredits": "Comprar {currency}",
     "cart": "Carrito"
   },
   "network": {
@@ -160,7 +160,7 @@
   "cart": {
     "empty": {
       "title": "¡Aquí no hay nada... todavía!",
-      "body": "Explora el Marketplace y descubre tu próximo artículo favorito.",
+      "body": "Explora el Shop y descubre tu próximo artículo favorito.",
       "cta": "Empieza a comprar"
     },
     "panelTitle": "Carrito: {count, plural, one {# artículo} other {# artículos}}",

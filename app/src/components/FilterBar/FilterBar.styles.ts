@@ -24,6 +24,9 @@ export const Count = styled.span`
   white-space: nowrap;
 
   ${media.maxWidth('lg')} {
+    /* Below the controls on its own line: the search field and the two pills share the first row. */
+    order: 3;
+    flex-basis: 100%;
     font-size: 12px;
     line-height: 1;
   }
@@ -39,7 +42,7 @@ export const Chips = styled.div`
   gap: 8px;
 
   ${media.maxWidth('lg')} {
-    order: 3;
+    order: 4;
     flex-basis: 100%;
     gap: 4px;
   }
@@ -50,10 +53,10 @@ export const Chip = styled.button`
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 4px 2px 8px;
+  padding: 6px 8px 6px 12px;
   border: 0;
   border-radius: ${radius.pill};
-  background: ${colors.gray0};
+  background: rgba(0, 0, 0, 0.3);
   color: ${colors.white};
   font-weight: 400;
   font-size: 12px;
@@ -93,6 +96,10 @@ export const ClearAll = styled.button`
   white-space: nowrap;
   cursor: pointer;
 
+  &:hover {
+    color: ${colors.white};
+  }
+
   &:focus-visible {
     outline: 2px solid ${colors.accent};
     outline-offset: 2px;
@@ -108,10 +115,10 @@ export const Search = styled.div`
   min-width: 200px;
 
   ${media.maxWidth('lg')} {
-    /* Its own full-width line above Sort/Filters. Sharing a row at this width collapses the field to
-       roughly its icon, which is worse than the extra line. */
-    order: -1;
-    flex: 1 0 100%;
+    /* Shares the first row with Sort By + Filters, taking whatever they leave; the count drops below. */
+    order: 1;
+    flex: 1 1 auto;
+    min-width: 130px;
   }
 `
 
@@ -132,19 +139,20 @@ export const Right = styled.div`
   }
 
   ${media.maxWidth('lg')} {
-    /* Keep the count + Sort/Filters pills on the first row; chips (order 3) wrap below. */
+    /* First row, beside the search field; the count and chips wrap below. */
     order: 2;
-    /* Lets the search slot above take a line of its own. No effect without it: with just the two pills
-       there is no 100%-basis child to wrap. */
-    flex-wrap: wrap;
+    flex: none;
 
     /* On mobile the Sort By dropdown is a pill matching the Filters pill (Figma 1304-310201): fully
        rounded, 0.5px gray-3 hairline, title-case (not the desktop uppercase), same 28px height. */
     & [data-dropdown-trigger] {
-      height: 28px;
-      padding: 4px 4px 4px 12px;
+      height: 36px;
+      padding: 8px 8px 8px 12px;
       border-radius: 32px;
-      border-width: 0.5px;
+      border: 1px solid ${colors.softWhite};
+      color: ${colors.softWhite};
+      background: rgba(255, 255, 255, 0.1);
+      font-size: 12px;
       font-weight: 500;
       text-transform: none;
     }
@@ -158,12 +166,12 @@ export const FiltersPill = styled.button`
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  height: 28px;
-  padding: 4px 8px 4px 12px;
-  background: rgba(0, 0, 0, 0.12);
-  border: 0.5px solid ${colors.muted2};
+  height: 36px;
+  padding: 8px 8px 8px 12px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid ${colors.softWhite};
   border-radius: 32px;
-  color: #ecebed;
+  color: ${colors.softWhite};
   font-weight: 500;
   font-size: 12px;
   line-height: 1.43;

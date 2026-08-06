@@ -260,7 +260,7 @@ export const Fav = styled.button`
   background: rgba(255, 255, 255, 0.16);
   display: grid;
   place-items: center;
-  color: ${colors.softWhite};
+  color: ${colors.text};
   cursor: pointer;
   transition:
     color 0.12s ease,

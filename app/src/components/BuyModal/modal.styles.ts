@@ -352,7 +352,7 @@ export const TotalCredits = styled.div`
 export const TotalIco = styled(CurrencyIcon)`
   width: 30px;
   height: 30px;
-  background: ${colors.accent};
+  background: ${colors.text};
 `
 
 export const TotalUsd = styled.span`

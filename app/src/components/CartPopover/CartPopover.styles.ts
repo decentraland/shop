@@ -96,6 +96,62 @@ export const Body = styled.div`
   padding: 16px 16px 24px;
 `
 
+// Empty cart: the same message the /cart page shows, sized for the drawer — opening the cart icon on an
+// empty basket lands here instead of navigating away from whatever the shopper was browsing.
+export const Empty = styled.div`
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  padding: 24px 8px;
+  text-align: center;
+  color: ${colors.text};
+`
+
+export const EmptyText = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+`
+
+export const EmptyTitle = styled.p`
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.4;
+`
+
+export const EmptyBody = styled.p`
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.5;
+`
+
+export const EmptyCta = styled(Link)`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 280px;
+  max-width: 100%;
+  height: 52px;
+  padding: 0 12px;
+  border-radius: ${radius.card};
+  background: ${colors.accent};
+  color: ${colors.softWhite};
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.46px;
+  text-transform: uppercase;
+  transition: background 0.15s ease;
+
+  &:hover {
+    background: ${colors.accentHover};
+  }
+`
+
 export const Banner = styled.div`
   display: flex;
   align-items: flex-start;

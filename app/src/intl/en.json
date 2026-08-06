@@ -17,7 +17,7 @@
     "outfits": "Outfit Studio",
     "searchPlaceholder": "Search item, creator, collection, name...",
     "searchAria": "Search the shop",
-    "getCredits": "Get {currency}",
+    "getCredits": "Buy {currency}",
     "cart": "Cart"
   },
   "network": {
@@ -160,7 +160,7 @@
   "cart": {
     "empty": {
       "title": "Nothing here... yet!",
-      "body": "Explore the Marketplace and discover your next favorite item.",
+      "body": "Explore the Shop and discover your next favorite item.",
       "cta": "Start shopping"
     },
     "panelTitle": "Cart: {count, plural, one {# Item} other {# Items}}",

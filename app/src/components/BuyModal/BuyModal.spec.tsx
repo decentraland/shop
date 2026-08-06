@@ -27,6 +27,10 @@ const session = {
 }
 vi.mock('~/store/wallet', () => ({ useWallet: () => ({ session }) }))
 
+// The completed state fires the confetti, which lazy-loads lottie-web — a canvas/rAF runtime that throws on
+// import under jsdom, taking the Suspense subtree (and the CTAs asserted below) with it.
+vi.mock('lottie-react', () => ({ default: () => <span data-testid="lottie" /> }))
+
 // decentraland-ui2 pulls @dcl/hooks, another ESM directory import (same workaround as GetCredits.spec.tsx).
 vi.mock('decentraland-ui2', () => ({
   CircularProgress: ({ size }: { size?: number }) => <span role="progressbar" data-size={size} />
