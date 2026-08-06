@@ -526,4 +526,44 @@ describe('when the seeded stock is out of date', () => {
     // asserting after that only proves the fetch had not landed yet. Without the fix this times out.
     await waitFor(() => expect(screen.queryByTestId('out-of-stock')).not.toBeInTheDocument())
   })
+
+  /**
+   * Which rail sells the item is the same question as whether it sells at all.
+   *
+   * A store mint carries no tradeId, so `forSale` reduces to `isStoreMint`, which reads `acquisition` —
+   * optional on a grid seed, always set on a fetched listing. Keeping the seed's copy left an item with
+   * stock on the shelf reading "Not for Sale". The item this was reported against is exactly that shape:
+   * `acquisition: 'store'`, no tradeId, stock ticking down as it sells.
+   */
+  it('should offer a store mint the seed said nothing about', async () => {
+    const fromGrid = item({ id: 'c', name: 'CT', itemId: '1', priceCredits: 165, tradeId: 't-1' })
+    delete (fromGrid as { acquisition?: string }).acquisition
+    const api = await import('~/lib/api')
+    // A price the seed does not have, so waiting for it proves the hydrate actually landed. Asserting
+    // "not 'Not for Sale'" against the seeded price would pass on the very first render, before the
+    // fetch resolves — which is how the first version of this test passed with the bug still in place.
+    vi.mocked(api.fetchUnifiedListingForItem).mockResolvedValue({
+      // No tradeId at all — a store mint is bought through the store rail, which is the whole point here.
+      ...item({ id: 'c', name: 'CT', itemId: '1', priceCredits: 99, available: 46 }),
+      source: 'legacy',
+      acquisition: 'store',
+      manaWei: null
+    })
+
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={qc}>
+        <MemoryRouter initialEntries={[{ pathname: `/item/${ANCHOR}/1`, state: { item: fromGrid } }]}>
+          <Routes>
+            <Route path="/item/:contractAddress/:itemId" element={<ItemDetail />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    // The server's price only renders at all if the page holds the item sellable, so this single wait
+    // covers both: the hydrate landed, AND the store mint is still on sale. Without the fix the page
+    // settles on "Not for Sale" and this times out.
+    await waitFor(() => expect(screen.getByTestId('item-price').textContent).toMatch(/99/))
+  })
 })

@@ -246,8 +246,10 @@ export function ItemDetail() {
   useEffect(() => {
     if (!deepLinkItem) return
     setCurrent(prev => {
-      // Bare deep-link stub (no tradeId yet) → full hydrate from the authoritative listing.
-      if (!prev.tradeId) return { ...deepLinkItem }
+      // Bare deep-link stub (no tradeId yet) → hydrate from the authoritative listing, which wins on every
+      // field it reports — money included. The seed keeps only what the unified feed has no opinion on at
+      // all (urn, the emote flags) rather than being blanked on the way through.
+      if (!prev.tradeId) return { ...prev, ...deepLinkItem }
       // A seeded item keeps its identity and presentation, but NOT its money. The price and tradeId it
       // arrived with are a snapshot of the grid that linked here, and the trade they name may already be
       // cancelled — the listing just fetched is the only authority on what this costs now.
@@ -257,6 +259,11 @@ export function ItemDetail() {
         priceCredits: deepLinkItem.priceCredits,
         manaWei: deepLinkItem.manaWei,
         available: deepLinkItem.available ?? prev.available,
+        // Which rail sells this, and so whether the page offers it at all: with no tradeId, `forSale` is
+        // `isStoreMint` alone, and that reads this field. It is optional on a seed and always set on a
+        // fetched listing, so the server's answer simply wins — a seed that lacks it would otherwise
+        // leave a store mint with stock reading "Not for Sale".
+        acquisition: deepLinkItem.acquisition,
         wearableCategory: prev.wearableCategory ?? deepLinkItem.wearableCategory
       }
     })
