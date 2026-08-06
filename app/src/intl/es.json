@@ -185,8 +185,7 @@
     "allUnavailable": "Ninguno de estos artículos está disponible. Elimínalos para seguir comprando.",
     "availability": {
       "soldOut": "Agotado",
-      "unavailable": "Ya no está disponible",
-      "viewResales": "Ver reventas"
+      "unavailable": "Ya no está disponible"
     },
     "youMightAlsoLike": "También te puede gustar",
     "error": {

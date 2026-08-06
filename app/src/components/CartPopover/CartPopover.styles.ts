@@ -348,24 +348,6 @@ export const Warn = styled(Icon)`
   color: #f48221;
 `
 
-export const Resales = styled(Link)`
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 24px;
-  letter-spacing: 0.46px;
-  text-transform: uppercase;
-  text-decoration: underline;
-  color: ${colors.accent};
-
-  &:hover {
-    color: ${colors.accentHover};
-  }
-  &:focus-visible {
-    outline: 2px solid ${colors.accent};
-    outline-offset: 2px;
-  }
-`
-
 export const Del = styled.button`
   position: absolute;
   top: 9px;
