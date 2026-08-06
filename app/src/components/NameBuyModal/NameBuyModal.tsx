@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useWallet } from '~/store/wallet'
 import { useBalance, balanceLabel } from '~/hooks/useBalance'
 import {
+  type NameRegistrationStage,
   NameNotRegisteredError,
   NameRouteCostTooHighError,
   NameSettlementUnknownError,
@@ -58,6 +59,9 @@ export function NameBuyModal({
   // Whether the credit is spent or may be, which decides if a retry is offered at all. Retrying on either
   // buys a second one — for the unknown case while the first may still be in flight.
   const [retryUnsafe, setRetryUnsafe] = useState(false)
+  // What the purchase is currently doing, so the processing screen can stop asking for a confirmation the
+  // buyer already gave. Reset on every attempt, not just on mount.
+  const [stage, setStage] = useState<NameRegistrationStage>('preparing')
   const startedRef = useRef(false)
 
   const matches = reentry.trim().toLowerCase() === name.toLowerCase()
@@ -108,8 +112,14 @@ export function NameBuyModal({
     startedRef.current = true
     setPhase('completing')
     setError(null)
+    setStage('preparing')
     try {
-      const result = await registerNameWithUsdCredits({ name, identity: session.identity, signer: session.signer })
+      const result = await registerNameWithUsdCredits({
+        name,
+        identity: session.identity,
+        signer: session.signer,
+        onProgress: setStage
+      })
       // The money left the balance in both outcomes, so both refresh it and both count as a completed
       // purchase for analytics — what differs is only whether the NAME exists yet.
       track('Shop Completed Purchase', {
@@ -156,6 +166,25 @@ export function NameBuyModal({
 
   const showHead = phase !== 'success' && phase !== 'pending'
   const selfCustody = showsWalletConfirmations(session?.providerType)
+
+  /**
+   * Only `awaiting-confirmation` asks the buyer for anything, and only for a self-custody wallet — a managed
+   * one signs without a prompt, so telling its owner to "confirm" points at a dialog that never appears.
+   *
+   * Everything after it is waiting, and `registering` is the cross-chain leg: the bridge and the Ethereum
+   * mint, minutes rather than seconds. That is the stretch this exists for — it used to sit on "Confirm to
+   * continue" the whole way through, which reads as a purchase that hung.
+   */
+  const processingText =
+    stage === 'awaiting-confirmation'
+      ? selfCustody
+        ? t('names.confirming')
+        : t('names.completing')
+      : stage === 'confirming'
+        ? t('names.processingConfirming')
+        : stage === 'registering'
+          ? t('names.processingRegistering')
+          : t('names.processingPreparing')
 
   return (
     <S.Scrim onClick={busy ? undefined : onClose} role="presentation">
@@ -247,7 +276,7 @@ export function NameBuyModal({
         {phase === 'completing' && (
           <S.Processing>
             <S.Logo src={loaderLogo} alt="" width={56} height={56} />
-            <S.ProcessingText>{selfCustody ? t('names.confirming') : t('names.completing')}</S.ProcessingText>
+            <S.ProcessingText>{processingText}</S.ProcessingText>
             <S.ProgressRow>
               <S.Progress aria-hidden>
                 <span />

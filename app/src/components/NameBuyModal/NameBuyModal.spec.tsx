@@ -1,4 +1,4 @@
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent, act } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
@@ -108,6 +108,9 @@ describe('NameBuyModal', () => {
     registerNameWithUsdCredits.mockReset()
     track.mockReset()
     balance = { balanceCents: 5000, credits: 500 }
+    // Restored per test: the progress cases below switch it to cover both wallet kinds, and leaking that
+    // would silently change which copy every later case is asserting.
+    session.providerType = 'magic'
   })
 
   describe('and the registration settles on Ethereum', () => {
@@ -141,6 +144,71 @@ describe('NameBuyModal', () => {
       const tile = await waitFor(() => screen.getByTestId('name-success-tile'))
       // The name reads inside the tile as well as beside it.
       expect(tile.textContent ?? '').toContain('hodor')
+    })
+  })
+
+  /**
+   * The purchase is cross-chain and the bridge leg runs for MINUTES. A single processing message for all of
+   * it left "Confirm to continue…" on screen long after the buyer had confirmed, which reads as hung — the
+   * one thing a screen holding someone's money must never look like.
+   */
+  describe('and the purchase is in progress', () => {
+    // Drives the modal through the stages by hand and never resolves, so each message can be read while the
+    // purchase is genuinely sitting in that stage.
+    function renderAtStage(stage: string) {
+      let report: ((s: string) => void) | undefined
+      registerNameWithUsdCredits.mockImplementation((opts: { onProgress?: (s: string) => void }) => {
+        report = opts.onProgress
+        return new Promise(() => {})
+      })
+      renderModal(67)
+      reenter()
+      fireEvent.click(buyButton())
+      return () => report?.(stage)
+    }
+
+    it('should ask a self-custody buyer to confirm while their wallet is waiting', async () => {
+      session.providerType = 'injected'
+      const advance = renderAtStage('awaiting-confirmation')
+
+      await waitFor(() => expect(registerNameWithUsdCredits).toHaveBeenCalled())
+      act(() => advance())
+
+      expect(screen.getByText(/confirm to continue/i)).toBeTruthy()
+    })
+
+    // A managed wallet signs without a prompt, so "confirm" would point at a dialog that never opens.
+    it('should not ask a managed-wallet buyer to confirm anything', async () => {
+      session.providerType = 'magic'
+      const advance = renderAtStage('awaiting-confirmation')
+
+      await waitFor(() => expect(registerNameWithUsdCredits).toHaveBeenCalled())
+      act(() => advance())
+
+      expect(screen.queryByText(/confirm to continue/i)).toBeNull()
+      expect(screen.getByText(/completing your purchase/i)).toBeTruthy()
+    })
+
+    it('should stop asking for confirmation once the transaction is submitted', async () => {
+      const advance = renderAtStage('confirming')
+
+      await waitFor(() => expect(registerNameWithUsdCredits).toHaveBeenCalled())
+      act(() => advance())
+
+      expect(screen.getByText(/confirming your purchase/i)).toBeTruthy()
+      expect(screen.queryByText(/confirm to continue/i)).toBeNull()
+    })
+
+    // The long stretch. It has to say the wait is expected, or a buyer concludes it broke and tries again.
+    it('should say the NAME is being registered, and that it takes minutes, during the bridge', async () => {
+      const advance = renderAtStage('registering')
+
+      await waitFor(() => expect(registerNameWithUsdCredits).toHaveBeenCalled())
+      act(() => advance())
+
+      expect(screen.getByText(/registering your NAME/i)).toBeTruthy()
+      expect(screen.getByText(/few minutes/i)).toBeTruthy()
+      expect(screen.queryByText(/confirm to continue/i)).toBeNull()
     })
   })
 
