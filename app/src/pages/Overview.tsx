@@ -10,7 +10,6 @@ import { TopCreators } from '~/components/TopCreators'
 import { t } from '~/intl/i18n'
 import { useSeo } from '~/hooks/useSeo'
 import { LivePromo } from '~/components/LivePromo'
-import { TypeTweak } from '~/components/TypeTweak'
 import promoEmotes from '~/assets/overview/promo-best-rated-emotes.png'
 import promoOutfits from '~/assets/overview/promo-week-selected-outfits.png'
 import { useSecondarySales } from '~/hooks/useSecondarySales'
@@ -185,7 +184,6 @@ export function Overview() {
 
   return (
     <S.Overview className="overview">
-      <TypeTweak />
       <S.Hero>
         {/* Phones get the design's own square collage (Figma 2004:322520) rather than a crop of the
             wide banner — the mobile frame is a different composition, not a resize. */}
