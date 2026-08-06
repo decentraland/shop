@@ -313,11 +313,15 @@ export async function resumeCreditOrder(orderId: string, identity: AuthIdentity)
       return { kind: 'unavailable' }
     }
     const json = (await res.json().catch(() => null)) as { status?: string } | null
-    if (json?.status === 'abandoned') return { kind: 'expired' }
     // 'processing' here means Stripe reported the session complete — the money arrived.
     if (json?.status === 'processing' || json?.status === 'crediting' || json?.status === 'credited') {
       return { kind: 'paid' }
     }
+    // Everything else the server answers a 409 with — `abandoned` (retired), `failed` (a decline it
+    // will not reopen) — is a considered, PERMANENT refusal. Reporting those as `unavailable` was
+    // wrong twice over: it told the buyer to try again at something that can never succeed, and that
+    // branch deliberately skips the refetch, so the row kept its Continue button forever.
+    if (json?.status) return { kind: 'expired' }
     return { kind: 'unavailable' }
   } catch {
     return { kind: 'unavailable' }

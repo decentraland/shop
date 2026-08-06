@@ -27,11 +27,16 @@ const session = {
 
 const signIn = vi.fn()
 let currentSession: typeof session | null = session
+let currentRestored = true
 vi.mock('~/store/wallet', () => ({
   useWallet: () => ({
     session: currentSession,
     connecting: false,
     error: null,
+    // The return handlers wait on this before committing, and it is what separates "the restore is
+    // still running" from "the restore finished and there is no wallet" — two states with different
+    // correct answers on the success URL. Mutable so a test can pick.
+    restored: currentRestored,
     signIn,
     restore: vi.fn(),
     disconnect: vi.fn()
@@ -112,6 +117,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   isMockPayments.mockReturnValue(false)
   currentSession = session
+  currentRestored = true
   Object.defineProperty(window, 'location', { configurable: true, writable: true, value: { href: '' } })
 })
 afterAll(() => {
@@ -259,11 +265,25 @@ describe('when returning from Stripe hosted Checkout on the real path', () => {
     // NOT poll. With always-show-packs there's no sign-in gate — the buyer (who WAS charged) sees the
     // "completing purchase" crediting state while the wallet silently restores, then the poll runs.
     currentSession = null
+    currentRestored = false
     pollCreditGrant.mockResolvedValue({ status: 'credited', creditsGranted: 250 })
 
     renderPage('/?order=ord_x')
 
     expect(await screen.findByText(/completing purchase/i)).toBeInTheDocument()
+    expect(pollCreditGrant).not.toHaveBeenCalled()
+  })
+
+  it('should tell a charged buyer whose identity is gone to sign in, not spin forever', async () => {
+    // The restore FINISHED and found no wallet — the identity expired while they were on Stripe, or
+    // storage was cleared. The crediting screen has no buttons and no timeout, so waiting on a wallet
+    // that is not coming strands a buyer who was already charged.
+    currentSession = null
+    currentRestored = true
+
+    renderPage('/?order=ord_y')
+
+    expect(await screen.findByText(/sign in with the same wallet/i)).toBeInTheDocument()
     expect(pollCreditGrant).not.toHaveBeenCalled()
   })
 })

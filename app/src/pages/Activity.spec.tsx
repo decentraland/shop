@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -38,9 +38,28 @@ vi.mock('~/store/wallet', () => ({
 
 const fetchUserPurchases = vi.fn()
 const fetchUserCreditOrders = vi.fn()
-vi.mock('~/lib/credits', () => ({
-  fetchUserPurchases: (...args: unknown[]) => fetchUserPurchases(...args),
-  fetchUserCreditOrders: (...args: unknown[]) => fetchUserCreditOrders(...args)
+const resumeCreditOrder = vi.fn()
+// `creditOrderPill` is real: it is the mapping that decides what a row LOOKS like, and stubbing it
+// would let the resume tests below agree with a fiction about which rows offer to be continued.
+vi.mock('~/lib/credits', async importActual => {
+  const actual = await importActual<typeof import('~/lib/credits')>()
+  return {
+    creditOrderPill: actual.creditOrderPill,
+    fetchUserPurchases: (...args: unknown[]) => fetchUserPurchases(...args),
+    fetchUserCreditOrders: (...args: unknown[]) => fetchUserCreditOrders(...args),
+    resumeCreditOrder: (...args: unknown[]) => resumeCreditOrder(...args)
+  }
+})
+
+const toastError = vi.fn()
+const toastInfo = vi.fn()
+const toastSuccess = vi.fn()
+vi.mock('~/store/toast', () => ({
+  toast: {
+    error: (m: string) => toastError(m),
+    info: (m: string) => toastInfo(m),
+    success: (m: string) => toastSuccess(m)
+  }
 }))
 
 const fetchTradeDisplay = vi.fn()
@@ -566,5 +585,112 @@ describe('the migration chip', () => {
 
     expect(fetchUserPurchases).not.toHaveBeenCalled()
     expect(fetchUserSales).not.toHaveBeenCalled()
+  })
+})
+
+// The Continue button on an unfinished checkout. It is a button on the money path whose every branch
+// either sends the buyer to a payment page or tells them something about a charge, so each answer the
+// server can give gets its own case.
+describe('when a checkout was left unfinished', () => {
+  const unfinished = {
+    id: 'ord_1',
+    credits: 50,
+    usdCents: 500,
+    status: 'initiated' as const,
+    createdAt: 1_700_000_000_000
+  }
+  const realLocation = window.location
+
+  beforeEach(() => {
+    fetchUserCreditOrders.mockResolvedValue({ items: [unfinished], total: 1 })
+    Object.defineProperty(window, 'location', { configurable: true, writable: true, value: { href: '' } })
+  })
+  afterAll(() => {
+    Object.defineProperty(window, 'location', { configurable: true, writable: true, value: realLocation })
+  })
+
+  async function clickResume() {
+    const button = await screen.findByTestId('resume-order')
+    fireEvent.click(button)
+    return button
+  }
+
+  it('should offer to continue it, and send the buyer back to the Stripe page', async () => {
+    resumeCreditOrder.mockResolvedValue({ kind: 'url', url: 'https://checkout.stripe.com/c/pay/cs_test' })
+    renderPage()
+
+    await clickResume()
+
+    await waitFor(() => expect(window.location.href).toBe('https://checkout.stripe.com/c/pay/cs_test'))
+  })
+
+  // `location.href` will happily run a `javascript:` URL, and this string comes off the wire. A
+  // response that is compromised or simply wrong must not turn a button in the buyer's own history
+  // into script execution.
+  it('should refuse a url that is not a Stripe page and go nowhere', async () => {
+    resumeCreditOrder.mockResolvedValue({ kind: 'url', url: 'https://stripe.com.evil.example/pay' })
+    renderPage()
+
+    await clickResume()
+
+    await waitFor(() => expect(toastError).toHaveBeenCalled())
+    expect(window.location.href).toBe('')
+  })
+
+  // The server retired it. Refreshing the feed is what tells the buyer — an error about something
+  // they cannot act on would not.
+  it('should refresh the feed when the checkout turned out to be dead', async () => {
+    resumeCreditOrder.mockResolvedValue({ kind: 'expired' })
+    fetchUserCreditOrders.mockResolvedValueOnce({ items: [unfinished], total: 1 })
+    renderPage()
+
+    await clickResume()
+
+    await waitFor(() =>
+      expect(toastInfo).toHaveBeenCalledWith('That checkout has expired — pick a pack to start again.')
+    )
+    await waitFor(() => expect(fetchUserCreditOrders.mock.calls.length).toBeGreaterThan(1))
+  })
+
+  // The one that matters most: telling a buyer who already paid to "start again" invites a second
+  // charge for something they own.
+  it('should never suggest starting over to someone who already paid', async () => {
+    resumeCreditOrder.mockResolvedValue({ kind: 'paid' })
+    renderPage()
+
+    await clickResume()
+
+    await waitFor(() =>
+      expect(toastSuccess).toHaveBeenCalledWith('You already paid for this — your credits are on the way.')
+    )
+    expect(window.location.href).toBe('')
+  })
+
+  it('should ask the server once even if the button is pressed twice', async () => {
+    let release: (v: unknown) => void = () => {}
+    resumeCreditOrder.mockReturnValue(new Promise(resolve => (release = resolve)))
+    renderPage()
+
+    const button = await clickResume()
+    fireEvent.click(button)
+
+    expect(resumeCreditOrder).toHaveBeenCalledTimes(1)
+    expect(button).toBeDisabled()
+    release({ kind: 'unavailable' })
+  })
+
+  // Leaving for Stripe deliberately keeps the button disabled on the way out. Pressing Back brings
+  // this component back from bfcache with that state intact, and without the reset the buyer returns
+  // to a Continue button stuck on "Opening…" until a hard reload.
+  it('should become pressable again when the buyer comes back from Stripe', async () => {
+    resumeCreditOrder.mockResolvedValue({ kind: 'url', url: 'https://checkout.stripe.com/c/pay/cs_test' })
+    renderPage()
+
+    const button = await clickResume()
+    await waitFor(() => expect(button).toBeDisabled())
+
+    window.dispatchEvent(new Event('pageshow'))
+
+    await waitFor(() => expect(button).not.toBeDisabled())
   })
 })

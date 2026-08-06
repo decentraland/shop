@@ -56,13 +56,18 @@ import { CREDIT_PACKS } from '~/lib/payments'
 function renderPage(initialEntry: string) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   qc.setQueryData(['credit-packs'], CREDIT_PACKS)
-  return render(
+  const tree = () => (
     <QueryClientProvider client={qc}>
       <MemoryRouter initialEntries={[initialEntry]}>
         <GetCredits />
       </MemoryRouter>
     </QueryClientProvider>
   )
+  // A FACTORY, not a stored element: re-rendering the identical element object makes React bail out
+  // and skip the subtree entirely, so the update under test never happens. Reusing `qc` matters too —
+  // a fresh QueryClient would throw away the seeded packs and fire a real fetch.
+  const view = render(tree())
+  return { ...view, rerenderSame: () => view.rerender(tree()) }
 }
 
 beforeEach(() => {
@@ -78,7 +83,7 @@ afterEach(() => {
 describe('when returning from a cancelled Stripe checkout', () => {
   describe('and the wallet session has not been restored yet', () => {
     it('should retire the order once the identity arrives, not give up on the first render', async () => {
-      const { rerender } = renderPage('/?order=ord_1&canceled=1')
+      const { rerenderSame } = renderPage('/?order=ord_1&canceled=1')
 
       // First render: the restore has not finished. Nothing can be signed yet, so nothing is sent —
       // and, critically, the handler must NOT consider itself done.
@@ -86,13 +91,10 @@ describe('when returning from a cancelled Stripe checkout', () => {
 
       currentSession = session
       currentRestored = true
-      rerender(
-        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-          <MemoryRouter initialEntries={['/?order=ord_1&canceled=1']}>
-            <GetCredits />
-          </MemoryRouter>
-        </QueryClientProvider>
-      )
+      // The same mounted tree, so GetCredits is UPDATED rather than remounted and `returnHandled`
+      // survives. That is the whole point: the bug was a ref latched on the first render, and a
+      // remount here would hide it by handing the component a clean one.
+      rerenderSame()
 
       await waitFor(() => expect(cancelCreditOrder).toHaveBeenCalledWith('ord_1', session.identity))
     })

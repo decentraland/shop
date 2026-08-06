@@ -191,6 +191,12 @@ export function GetCredits() {
           // link, or a cancel that raced this poll). No charge was made, so this is NOT the "couldn't
           // add your credits" error screen below: send them back to the packs with the same gentle
           // note a cancel gets.
+          //
+          // The balance is refetched anyway. A LATE payment can still credit a retired order, and if
+          // that is what happened the buyer is reading "payment canceled" while the credits land —
+          // at least let the header show the truth.
+          track('Shop Buy Credits Cancelled', { order_id: orderId, provider: CREDITS_PROVIDER, step: 'grant' })
+          void qc.invalidateQueries({ queryKey: ['usd-balance'] })
           setCanceledNote(true)
           setPhase('select')
         } else if (result.status === 'pending') {
@@ -304,7 +310,19 @@ export function GetCredits() {
     // We're on Stripe's success_url. Show the crediting state right away so the pack grid doesn't
     // flash, but the poll is a signed-fetch that needs the restored wallet identity — wait for it.
     setPhase('processing')
-    if (!session) return
+    // Restore finished and there is still no wallet — the identity expired while the buyer was on
+    // Stripe, or storage was cleared. This buyer WAS charged, and the 'processing' render is a
+    // spinner with no buttons and no timeout, so returning here would leave them on "adding your
+    // credits…" forever with no way out. Say what happened instead: the money is fine, the credits
+    // are on the order, and signing back in with the same wallet shows them.
+    if (!session) {
+      if (restored) {
+        track('Shop Buy Credits Failed', { step: 'grant', error_code: 'no_identity', pack_usd: selected?.usd ?? null })
+        setError(t('getCredits.errorSignInAfterPay', { currency: CURRENCY.name }))
+        setPhase('error')
+      }
+      return
+    }
 
     returnHandled.current = true
     clearReturnParams()

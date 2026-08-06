@@ -1,4 +1,4 @@
-import { lazy, Suspense, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -365,6 +365,17 @@ function CreditPurchaseCard({ order }: { order: CreditOrder }) {
   // is what settles it, and a session that turns out to be dead retires the order there and then.
   const canResume = order.status === 'initiated' && !!session
 
+  // Leaving for Stripe deliberately keeps `resuming` set so the button cannot be pressed twice on the
+  // way out. But pressing Back from Stripe is an ordinary thing to do, and bfcache restores this
+  // component with its state intact — the button would come back permanently disabled reading
+  // "Opening…" until a hard reload. `pageshow` fires on both a normal load and a bfcache restore, so
+  // clearing it there covers the return without weakening the guard on the way out.
+  useEffect(() => {
+    const clear = () => setResuming(false)
+    window.addEventListener('pageshow', clear)
+    return () => window.removeEventListener('pageshow', clear)
+  }, [])
+
   async function onResume() {
     if (!session || resuming) return
     setResuming(true)
@@ -375,9 +386,9 @@ function CreditPurchaseCard({ order }: { order: CreditOrder }) {
         // Only ever a Stripe-hosted page. `location.href` will happily run a `javascript:` URL, and
         // this string comes off the wire — the check costs nothing and means a compromised or
         // misbehaving response cannot turn a button in the buyer's history into script execution.
-        if (/^https:\/\/([a-z0-9-]+\.)*stripe\.com\//.test(result.url)) {
+        if (/^https:\/\/([a-z0-9-]+\.)*stripe\.com\//i.test(result.url)) {
           window.location.href = result.url
-          return // leave `resuming` set: the page is navigating away.
+          return // leave `resuming` set: the page is navigating away — see the pageshow reset below.
         }
         toast.error(t('activity.resumeUnavailable'))
       } else if (result.kind === 'expired') {
