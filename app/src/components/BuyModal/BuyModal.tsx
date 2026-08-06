@@ -798,7 +798,7 @@ export function BuyModal({
                         goes with them in the iOS web view. The sentence above still states the shortfall. */}
                     {isIapMode() ? null : (
                       <>
-                        <br />
+                        {' '}
                         <M.WarningLink href={hrefFor('/credits')} target="_blank" rel="noopener noreferrer">
                           {t('buyModal.warningLearnMore')}
                         </M.WarningLink>

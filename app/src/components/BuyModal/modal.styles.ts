@@ -169,8 +169,9 @@ export const AssetThumb = styled.div`
   }
 
   ${theme.media.maxWidth('mobile')} {
-    width: 80px;
-    height: 80px;
+    width: 78px;
+    height: 78px;
+    border-radius: 7px;
   }
 `
 
@@ -201,6 +202,10 @@ export const AssetCreator = styled(CreatorName)`
   font-size: 12px;
   line-height: 1.43;
   color: ${colors.muted};
+
+  ${theme.media.maxWidth('mobile')} {
+    font-size: 10px;
+  }
 `
 
 export const AssetPrice = styled.div`
@@ -213,6 +218,12 @@ export const AssetPrice = styled.div`
     font-size: 18px;
     font-weight: 700;
     color: ${colors.text2};
+  }
+
+  ${theme.media.maxWidth('mobile')} {
+    & span {
+      font-size: 20px;
+    }
   }
 `
 
@@ -233,6 +244,12 @@ export const Warning = styled.div`
 
   & > svg {
     flex-shrink: 0;
+  }
+
+  ${theme.media.maxWidth('mobile')} {
+    align-items: center;
+    gap: 8px;
+    padding: 12px 8px;
   }
 `
 
@@ -272,6 +289,17 @@ export const Packs = styled.div`
   gap: 12px;
   margin: -6px 0;
   padding: 6px;
+
+  /* Phones get a fixed 2x2 (Figma mobile frame). Wrapping decided the row break from each tile's own
+     content width, so a pack whose amount and price were wide enough — "260 ($29.99)" — stopped
+     sharing a line and claimed a full row: the four landed 2/1/1, three rows tall. That extra row is
+     also what pushed the total under the sticky CTAs. The tracks are minmax(0, 1fr), not 1fr, so a
+     long price shrinks the text inside the tile instead of widening the column past the card. */
+  ${theme.media.maxWidth('mobile')} {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px 12px;
+  }
 `
 
 export const Pack = styled.button`
@@ -310,6 +338,20 @@ export const Pack = styled.button`
   /* Selected also lifts; hover alone is just the ring. */
   &[data-on] {
     transform: scale(1.03);
+  }
+
+  ${theme.media.maxWidth('mobile')} {
+    height: 83px;
+    gap: 6px;
+    /* A grid item defaults to min-width:auto, which would let the widest price push the tile out of
+       its track and back past the card edge — the shrinking the 1fr tracks above are there to allow. */
+    min-width: 0;
+
+    /* The grid gives every tile an identical box, so the lift only makes the selected one overlap its
+       gap and read as a size the design never gives it. The ring already says which is picked. */
+    &[data-on] {
+      transform: none;
+    }
   }
 `
 
