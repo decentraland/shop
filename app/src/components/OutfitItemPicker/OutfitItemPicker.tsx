@@ -103,7 +103,7 @@ export function OutfitItemPicker({
         />
       </S.Search>
       {isError ? (
-        <p className="muted small">{t('outfits.errors.generic')}</p>
+        <S.Hint>{t('outfits.errors.generic')}</S.Hint>
       ) : isLoading || isPlaceholderData ? (
         <S.Grid aria-busy="true">
           {Array.from({ length: 8 }, (_, i) => (
@@ -111,7 +111,7 @@ export function OutfitItemPicker({
           ))}
         </S.Grid>
       ) : items.length === 0 ? (
-        <p className="muted small">{t('outfits.studio.noResults')}</p>
+        <S.Hint>{t('outfits.studio.noResults')}</S.Hint>
       ) : (
         <S.Grid>
           {items.map(item => {

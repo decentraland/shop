@@ -71,8 +71,8 @@ export function OutfitStudio() {
     return (
       <S.Gate data-testid="outfit-studio-signin">
         <S.GateTitle>{t('outfits.studio.title')}</S.GateTitle>
-        <p className="muted">{t('outfits.studio.signInPrompt')}</p>
-        <Button variant="purple" onClick={() => signIn()}>
+        <S.Hint>{t('outfits.studio.signInPrompt')}</S.Hint>
+        <Button variant="white" onClick={() => signIn()}>
           {t('outfits.studio.signIn')}
         </Button>
       </S.Gate>
@@ -83,8 +83,8 @@ export function OutfitStudio() {
     return (
       <S.Gate data-testid="outfit-studio-unavailable">
         <S.GateTitle>{t('outfits.studio.title')}</S.GateTitle>
-        <p className="muted">{t('outfits.studio.notAvailable')}</p>
-        <Button as={Link} to="/overview" variant="purple">
+        <S.Hint>{t('outfits.studio.notAvailable')}</S.Hint>
+        <Button as={Link} to="/overview" variant="white">
           {t('outfits.studio.backToShop')}
         </Button>
       </S.Gate>
@@ -150,7 +150,7 @@ function StudioList() {
     <S.Root data-testid="outfit-studio-list">
       <S.Head>
         <S.Title>{t('outfits.studio.myOutfits')}</S.Title>
-        <Button as={Link} to="/outfits/new" variant="purple" data-testid="outfit-studio-new">
+        <Button as={Link} to="/outfits/new" variant="white" data-testid="outfit-studio-new">
           {t('outfits.studio.new')}
         </Button>
       </S.Head>
@@ -164,12 +164,12 @@ function StudioList() {
       ) : isError ? (
         <S.Gate>
           <ErrorNotice message={t('outfits.errors.generic')} />
-          <Button variant="purple" onClick={() => void refetch()}>
+          <Button variant="white" onClick={() => void refetch()}>
             {t('outfits.detail.retry')}
           </Button>
         </S.Gate>
       ) : outfits.length === 0 ? (
-        <p className="muted">{t('outfits.studio.empty')}</p>
+        <S.Hint>{t('outfits.studio.empty')}</S.Hint>
       ) : (
         <S.List>
           {outfits.map(outfit => (
@@ -518,7 +518,7 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
       return (
         <S.Gate>
           <ErrorNotice message={t('outfits.errors.generic')} />
-          <Button variant="purple" onClick={() => void refetch()}>
+          <Button variant="white" onClick={() => void refetch()}>
             {t('outfits.detail.retry')}
           </Button>
         </S.Gate>
@@ -527,8 +527,8 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
     if (!recordLoading && record === null) {
       return (
         <S.Gate data-testid="outfit-studio-missing">
-          <p className="muted">{t('outfits.errors.notFound')}</p>
-          <Button as={Link} to="/outfits/manage" variant="purple">
+          <S.Hint>{t('outfits.errors.notFound')}</S.Hint>
+          <Button as={Link} to="/outfits/manage" variant="white">
             {t('outfits.studio.myOutfits')}
           </Button>
         </S.Gate>
@@ -578,7 +578,7 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
               enabled={!resolution.isLoading}
             />
             {urns.length === 0 && !resolution.isLoading ? (
-              <S.PreviewEmpty className="muted">{t('outfits.studio.previewEmpty')}</S.PreviewEmpty>
+              <S.PreviewEmpty>{t('outfits.studio.previewEmpty')}</S.PreviewEmpty>
             ) : null}
           </S.PreviewBox>
 
@@ -636,7 +636,7 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
                 </S.ColorField>
               ))}
             </S.Gradient>
-            <p className="muted small">{t('outfits.studio.gradientHint')}</p>
+            <S.Hint>{t('outfits.studio.gradientHint')}</S.Hint>
           </S.Field>
 
           <S.Field>
@@ -657,7 +657,7 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
                 data-testid="outfit-studio-thumb-input"
               />
             </S.UploadBtn>
-            <p className="muted small">{t('outfits.studio.thumbnailHint')}</p>
+            <S.Hint>{t('outfits.studio.thumbnailHint')}</S.Hint>
             <ErrorNotice message={thumbError} testId="outfit-studio-thumb-error" />
           </S.Field>
 
@@ -705,7 +705,7 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
                 {t('outfits.studio.importApply')}
               </Button>
             </S.ImportRow>
-            <p className="muted small">{t('outfits.studio.importHint')}</p>
+            <S.Hint>{t('outfits.studio.importHint')}</S.Hint>
             <ErrorNotice message={importError} testId="outfit-studio-import-error" />
           </S.Field>
 
@@ -726,7 +726,7 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
               {t('outfits.studio.items')} ({draft.items.length}/{MAX_OUTFIT_ITEMS})
             </S.Label>
             {draft.items.length === 0 ? (
-              <p className="muted small">{t('outfits.studio.noItems')}</p>
+              <S.Hint>{t('outfits.studio.noItems')}</S.Hint>
             ) : (
               <S.Selected>
                 {draft.items.map(ref => {
@@ -782,9 +782,7 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
                 </S.SelTotalValue>
               </S.SelTotal>
             ) : null}
-            {draft.items.length >= MAX_OUTFIT_ITEMS ? (
-              <p className="muted small">{t('outfits.studio.maxItems')}</p>
-            ) : null}
+            {draft.items.length >= MAX_OUTFIT_ITEMS ? <S.Hint>{t('outfits.studio.maxItems')}</S.Hint> : null}
           </S.Field>
 
           <OutfitItemPicker selectedKeys={selectedKeys} onPick={pick} canPick={canPick} />
@@ -794,14 +792,14 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
       <S.SaveBar data-testid="outfit-studio-savebar">
         <ErrorNotice message={saveError} testId="outfit-studio-save-error" />
         {!nameValid ? (
-          <p className="muted small">{t('outfits.studio.needName')}</p>
+          <S.Hint>{t('outfits.studio.needName')}</S.Hint>
         ) : !canPublish && !draft.published ? (
-          <p className="muted small" data-testid="outfit-studio-publish-hint">
+          <S.Hint data-testid="outfit-studio-publish-hint">
             {/* The wearable rule is ours alone, so name it — "not publishable" would read as a bug. */}
             {!hasWearable && draft.items.length > 0
               ? t('outfits.studio.needsWearable')
               : t('outfits.errors.notPublishable')}
-          </p>
+          </S.Hint>
         ) : null}
         <S.SaveActions>
           <Button
@@ -814,7 +812,7 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
           </Button>
           {draft.published ? (
             <Button
-              variant="purple"
+              variant="white"
               data-testid="outfit-studio-unpublish"
               disabled={saving}
               onClick={() => void save(false)}
@@ -823,7 +821,7 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
             </Button>
           ) : (
             <Button
-              variant="purple"
+              variant="white"
               data-testid="outfit-studio-publish"
               disabled={saving || !canPublish}
               onClick={() => void save(true)}

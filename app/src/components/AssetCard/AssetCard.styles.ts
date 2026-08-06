@@ -379,7 +379,7 @@ export const Verified = styled.svg`
 export const Creator = styled(CreatorBadge)`
   position: relative;
   z-index: 4;
-  color: ${colors.muted};
+  color: ${colors.muted2};
   font-size: 10px;
   margin-bottom: 2px;
 
@@ -395,7 +395,7 @@ export const CreatorEmpty = styled.div`
   margin-bottom: 2px;
 
   &[data-issued] {
-    color: ${colors.muted};
+    color: ${colors.muted2};
     font-variant-numeric: tabular-nums;
     letter-spacing: 0.2px;
   }
@@ -449,7 +449,7 @@ export const Nfs = styled.span`
   font-weight: 600;
   font-size: 8px;
   line-height: 20px;
-  color: ${colors.muted};
+  color: ${colors.gray4};
   text-transform: uppercase;
   letter-spacing: 0.02em;
   white-space: nowrap;
@@ -467,7 +467,7 @@ export const PriceWas = styled.span`
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  color: ${colors.muted};
+  color: ${colors.muted2};
   text-decoration: line-through;
   font-weight: 600;
   font-size: 14px;
@@ -475,7 +475,7 @@ export const PriceWas = styled.span`
 
 export const Approx = styled.span`
   font-weight: 700;
-  color: ${colors.muted};
+  color: ${colors.muted2};
 `
 
 export const Countdown = styled(SaleCountdown)`

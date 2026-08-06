@@ -1038,14 +1038,14 @@ export function ItemDetail() {
 
   if (notFound) {
     return (
-      <S.Detail data-notfound>
+      <S.NotFound data-notfound>
         <S.NotFoundIco name="cart" />
         <S.NotFoundTitle>{t('itemDetail.notAvailableTitle')}</S.NotFoundTitle>
-        <p className="muted">{t('itemDetail.notAvailableBody')}</p>
-        <S.NotFoundCta variant="purple" onClick={() => navigate('/items')}>
+        <S.NotFoundBody>{t('itemDetail.notAvailableBody')}</S.NotFoundBody>
+        <S.NotFoundCta variant="white" onClick={() => navigate('/items')}>
           {t('notFound.cta')}
         </S.NotFoundCta>
-      </S.Detail>
+      </S.NotFound>
     )
   }
 
@@ -1340,7 +1340,7 @@ export function ItemDetail() {
                                   </>
                                 )}
                               </S.Price>
-                              <S.MarketNote className="muted">{t('assetCard.marketPrice')}</S.MarketNote>
+                              <S.MarketNote>{t('assetCard.marketPrice')}</S.MarketNote>
                             </>
                           ) : forSale ? (
                             onSale ? (
