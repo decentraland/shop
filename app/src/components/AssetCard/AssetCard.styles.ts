@@ -23,8 +23,9 @@ export const TOP_GAP = 10
 // doubles as the action/chips reveal.
 export const Card = styled.article`
   height: 300px;
-  /* Dark-theme test: deep-purple card shell under the light media (Figma). */
-  background: #240c32;
+  /* No fill of its own (Figma 619:5691): the media covers the top and the footer paints its own
+     translucent black, so what shows through the footer is the page field, not a solid shell. */
+  background: transparent;
 
   /* The compact card is its own set of metrics, not a scaled-down desktop one (Figma 1040:149086):
      250px tall over 300, split 136 media / 114 info. */
@@ -281,6 +282,9 @@ export const Body = styled.div`
   flex-direction: column;
   justify-content: space-between;
   gap: 4px;
+  /* The footer's own fill (Figma 619:5703), not the card's — the translucent black is what the
+     secondary controls on it are drawn to sit against. */
+  background: rgba(0, 0, 0, 0.4);
 
   // Keyboard-focus reveal mirrors the hover reveal — desktop only (below sm the round + is the action).
   @media (hover: hover) and (min-width: 721px) {
@@ -398,12 +402,12 @@ export const CreatorEmpty = styled.div`
   }
 `
 
-// "by {creator}" subtitle under the title on the browse card. Single line, ellipsised so a long name
-// never pushes the fixed 96px body out of shape.
+// "by {creator}" subtitle under the title on the browse card (Figma 619:5722 — Gray 3 at 10px, quieter
+// than the name above it). Single line, ellipsised so a long name never pushes the body out of shape.
 export const Author = styled(CreatorName)`
-  color: ${colors.softWhite};
-  font-size: 11px;
-  line-height: 1.3;
+  color: ${colors.muted2};
+  font-size: 10px;
+  line-height: 1.43;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
