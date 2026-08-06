@@ -16,9 +16,9 @@ export const Empty = styled.div`
 `
 
 export const EmptyCard = styled.div`
-  /* 615px in the design; capped rather than fixed so it still fits a phone. */
+  /* Full width, so it lines up with the FAQ block below it rather than sitting narrower than everything
+     else on the page. */
   width: 100%;
-  max-width: 615px;
   display: flex;
   flex-direction: column;
   align-items: center;

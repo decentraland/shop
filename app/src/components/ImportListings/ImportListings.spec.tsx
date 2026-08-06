@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
@@ -229,5 +229,162 @@ describe('when the seller has nothing left to move', () => {
     expect(screen.getByTestId('import-empty')).toBeInTheDocument()
     expect(screen.getByText('Learn More About Credits')).toBeInTheDocument()
     expect(screen.getByText('What are Credits?')).toBeInTheDocument()
+  })
+})
+
+/**
+ * The server builds this feed from a materialized view on a 30s debounce, so asking it again the instant a
+ * migration is signed gets the state from before the signature. That refetch is what kept re-adding the
+ * rows the seller had just moved, so "all set" never arrived — and the 5-minute staleTime then pinned the
+ * wrong answer in place. These cover the cache surgery that replaced it.
+ */
+describe('when a migration lands ahead of the server view', () => {
+  const KEY = ['importable', session.address]
+  const IMPORTABLE = { queryKey: ['importable'] }
+
+  /**
+   * `stale: true` makes every refetch answer the way the materialized view does inside its window — with
+   * the migrated rows still on the list. That is the condition the ladder exists for, so it has to be
+   * simulated rather than assumed: the real client would otherwise just return the pruned cache.
+   */
+  function renderWithCache({ stale = false } = {}) {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    client.setQueryData(KEY, { creations: ITEMS, owned: [] })
+    const invalidate = vi.spyOn(client, 'invalidateQueries')
+    // Counted by key, not by call: invalidateQueries goes through refetchQueries internally, so the six
+    // grid refreshes at the end of the run would otherwise read as the tool interrogating the server.
+    let asked = 0
+    vi.spyOn(client, 'refetchQueries').mockImplementation(async (filters?: { queryKey?: readonly unknown[] }) => {
+      if (filters?.queryKey?.[0] !== 'importable') return
+      asked++
+      if (stale) client.setQueryData(KEY, { creations: ITEMS, owned: [] })
+    })
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <ImportListings />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+    return { client, invalidate, asked: () => asked }
+  }
+
+  function rowsLeft(client: QueryClient) {
+    return (client.getQueryData(KEY) as { creations: ImportItem[] }).creations.map(r => r.oldTradeId)
+  }
+
+  function run(label: string) {
+    fireEvent.click(screen.getByTestId('import-list-all'))
+    fireEvent.click(screen.getByRole('button', { name: label }))
+  }
+
+  it('should drop the listed rows from the cache instead of asking the server again', () => {
+    const { client, invalidate, asked } = renderWithCache()
+    run('finish clean')
+
+    expect(rowsLeft(client)).toEqual([])
+    // Asking on the way out is the bug: the answer is still pre-signature, so it undoes the prune above.
+    expect(invalidate).not.toHaveBeenCalledWith(IMPORTABLE)
+    expect(asked()).toBe(0)
+  })
+
+  // A decline is the seller saying no, not a migration. Those listings are still live, and pruning them
+  // put the tool on a false "all set" until the reconcile brought them back.
+  it('should keep every row the seller declined', () => {
+    const { client } = renderWithCache()
+    run('finish cancelled')
+
+    expect(rowsLeft(client)).toEqual(['old-1', 'old-2', 'old-3'])
+  })
+
+  // Same for a partly failed run: the result carries counts, not which row was which, so there is no
+  // honest way to pick the survivors — leave them all and let the server answer.
+  it('should keep every row when only part of the run went through', () => {
+    const { client } = renderWithCache()
+    run('finish partial')
+
+    expect(rowsLeft(client)).toEqual(['old-1', 'old-2', 'old-3'])
+  })
+
+  describe('and the reconcile ladder runs', () => {
+    beforeEach(() => vi.useFakeTimers())
+    afterEach(() => vi.useRealTimers())
+
+    it('should ask the server again once the view has had time to settle', async () => {
+      const { asked } = renderWithCache()
+      run('finish clean')
+
+      await vi.advanceTimersByTimeAsync(5_000)
+      expect(asked()).toBe(1)
+    })
+
+    // The ladder is a ceiling, not a schedule: one agreeing answer ends it.
+    it('should stop asking as soon as the server agrees', async () => {
+      const { asked } = renderWithCache()
+      run('finish clean')
+
+      await vi.advanceTimersByTimeAsync(5_000)
+      expect(asked()).toBe(1)
+
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(asked()).toBe(1)
+    })
+
+    /**
+     * The regression the re-prune exists for. A refetch inside the view's window writes the migrated rows
+     * straight back, so without pruning again the tool would flash the whole list back at 5s — exactly the
+     * bug being fixed, just later than before.
+     */
+    it('should keep the migrated rows out of the tool while the server is still catching up', async () => {
+      const { client, asked } = renderWithCache({ stale: true })
+      run('finish clean')
+
+      await vi.advanceTimersByTimeAsync(5_000)
+      expect(rowsLeft(client)).toEqual([])
+      expect(asked()).toBe(1)
+
+      // …and it books the next rung rather than settling for its own guess.
+      await vi.advanceTimersByTimeAsync(10_000)
+      expect(rowsLeft(client)).toEqual([])
+      expect(asked()).toBe(2)
+    })
+
+    // If the server is still calling them importable after the last rung, it is no longer our place to
+    // argue: the rows come back rather than the tool insisting on a state nothing else agrees with.
+    it("should take the server's word for it once the rungs run out", async () => {
+      const { client, asked } = renderWithCache({ stale: true })
+      run('finish clean')
+
+      await vi.advanceTimersByTimeAsync(35_000)
+      expect(asked()).toBe(3)
+      expect(rowsLeft(client)).toEqual(['old-1', 'old-2', 'old-3'])
+
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(asked()).toBe(3)
+    })
+
+    /**
+     * A seller who leaves rows unticked can come straight back for them, and that second run restarts the
+     * ladder. The first run's ids have to survive the restart, or the next refetch writes those rows back
+     * with nothing left that knows to prune them out again.
+     */
+    it('should keep rows from an earlier run out when a second run restarts the ladder', async () => {
+      const { client, asked } = renderWithCache({ stale: true })
+
+      // Move Galaxy Hat on its own…
+      fireEvent.click(row('Nebula Jacket'))
+      fireEvent.click(row('Comet Boots'))
+      run('finish clean')
+      expect(rowsLeft(client)).toEqual(['old-2', 'old-3'])
+
+      // …then Nebula Jacket on its own, before the server has caught up with either.
+      fireEvent.click(row('Galaxy Hat'))
+      fireEvent.click(row('Nebula Jacket'))
+      run('finish clean')
+
+      await vi.advanceTimersByTimeAsync(5_000)
+      expect(rowsLeft(client)).toEqual(['old-3'])
+      expect(asked()).toBe(1)
+    })
   })
 })

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { useWallet } from '~/store/wallet'
@@ -21,6 +21,14 @@ import { rarityLabel } from '~/lib/rarity'
 import { MY_CREATIONS } from '~/lib/routes'
 import doneRing from '~/assets/done-ring.svg'
 import * as S from './ImportListings.styles'
+
+// The server builds this feed from a materialized view on a ~30s debounce, so the answer straight after a
+// signature is the one from before it. Rather than hard-code that interval — it lives in another repo, and
+// nothing here would notice it moving — re-ask on a widening ladder and stop as soon as the server agrees.
+// The last rung is a ceiling, not the plan: if the server still calls the rows importable by then, it wins.
+const RECONCILE_MS = [5_000, 15_000, 35_000]
+
+type ImportableFeed = { creations: ImportItem[]; owned: ImportItem[] }
 
 // Keys, not copy — the strings live in the locale files. MANA is named here on purpose:
 // this is the creator-facing migration tool, whose surrounding copy already prices in MANA, and the
@@ -55,6 +63,29 @@ export function ImportListings() {
   const [prices, setPrices] = useState<Record<string, number>>({})
   const [excluded, setExcluded] = useState<Set<string>>(new Set())
   const [queue, setQueue] = useState<MigrateEntry[] | null>(null)
+  // The reconcile ladder outlives a render but must not outlive the component: `alive` stops a refetch
+  // that resolves after unmount from booking another rung the cleanup can no longer reach.
+  //
+  // `migrated` ACCUMULATES across runs. A seller who leaves some rows unticked can migrate the rest
+  // moments later, and that second run restarts the ladder — so if it only carried its own ids, its first
+  // refetch would write the earlier run's rows back with nothing left to prune them out again.
+  const reconcileRef = useRef<{
+    timer: ReturnType<typeof setTimeout> | null
+    alive: boolean
+    migrated: Set<string>
+  }>({
+    timer: null,
+    alive: true,
+    migrated: new Set()
+  })
+  useEffect(() => {
+    const state = reconcileRef.current
+    state.alive = true
+    return () => {
+      state.alive = false
+      if (state.timer) clearTimeout(state.timer)
+    }
+  }, [])
 
   // Seed each price with the auto-converted suggestion (keep any edits the user already made).
   useEffect(() => {
@@ -93,9 +124,72 @@ export function ImportListings() {
     return items.map(i => ({ item: i, priceCredits: Math.max(1, priceOf(i)) }))
   }
 
+  /** Take the given rows out of every cached copy of the importable feed. */
+  function pruneImportable(migrated: Set<string>) {
+    const keep = (rows: ImportItem[] = []) => rows.filter(r => !migrated.has(r.oldTradeId))
+    qc.setQueriesData<ImportableFeed>({ queryKey: ['importable'] }, prev =>
+      prev ? { creations: keep(prev.creations), owned: keep(prev.owned) } : prev
+    )
+  }
+
+  function stillImportable(migrated: Set<string>) {
+    return qc
+      .getQueriesData<ImportableFeed>({ queryKey: ['importable'] })
+      .flatMap(([, feed]) => [...(feed?.creations ?? []), ...(feed?.owned ?? [])])
+      .some(r => migrated.has(r.oldTradeId))
+  }
+
+  /**
+   * Ask the server again, one rung at a time, until it stops listing the rows we just migrated.
+   *
+   * Re-pruning after each refetch is the load-bearing part: a refetch that lands while the view is still
+   * stale writes the migrated rows straight back into the cache, so without this the first rung would
+   * flash them into the tool — the very bug being fixed — until the next one cleared them again.
+   */
+  function reconcile(step: number) {
+    const state = reconcileRef.current
+    if (state.timer) clearTimeout(state.timer)
+    state.timer = setTimeout(
+      () => {
+        void qc.refetchQueries({ queryKey: ['importable'] }).then(() => {
+          if (!state.alive) return
+          // Either the server has caught up or we are out of rungs; either way its answer now stands, and
+          // holding on to the ids would prune a row the seller legitimately re-lists on the old pricing.
+          if (!stillImportable(state.migrated) || step + 1 >= RECONCILE_MS.length) {
+            state.migrated.clear()
+            return
+          }
+          pruneImportable(state.migrated)
+          reconcile(step + 1)
+        })
+      },
+      RECONCILE_MS[step] - (RECONCILE_MS[step - 1] ?? 0)
+    )
+  }
+
   function afterMigrate(result: MigrateResult) {
-    // Fire-and-forget cache invalidations — the refetch happens in the background, nothing here awaits it.
-    void qc.invalidateQueries({ queryKey: ['importable'] })
+    /**
+     * Drop the migrated rows from the cache HERE, rather than refetching for them.
+     *
+     * The listings feed is served from a materialized view the server refreshes on a 30s debounce, so for
+     * up to half a minute after signing it still reports the old listing as importable. Invalidating right
+     * away therefore repopulated the very rows that had just been migrated, and the tool stayed on the
+     * list instead of moving to "all set" — then held that wrong answer for the query's 5-minute staleTime.
+     *
+     * Only a run in which EVERY queued item listed may prune. A failure leaves the item importable, and
+     * so does a decline — `cancelled` is the seller saying no, not an error — and the run reports counts,
+     * not which row was which, so a partial run gives us no way to tell the pruned from the survivors.
+     * Those fall through to the plain invalidate below, which is the honest answer: still importable.
+     */
+    if (result.failed === 0 && result.cancelled === 0 && result.listed > 0 && queue?.length) {
+      const { migrated } = reconcileRef.current
+      for (const entry of queue) migrated.add(entry.item.oldTradeId)
+      pruneImportable(migrated)
+      // …then reconcile, so the cache is not left holding a guess indefinitely.
+      reconcile(0)
+    } else {
+      void qc.invalidateQueries({ queryKey: ['importable'] })
+    }
     // The browse grids are keyed on 'shop-items'/'catalog-items' (see Assets.tsx) and the homepage on
     // 'overview-listings' (cart cross-sell on 'upsell-listings'); refresh them so freshly imported
     // listings show up without waiting for their staleTime to lapse or a hard reload.
