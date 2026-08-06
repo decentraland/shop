@@ -207,6 +207,79 @@ describe('buildNameUseCreditsArgs', () => {
 })
 
 describe('registerNameWithUsdCredits', () => {
+  /**
+   * The screen shows one message per stage, and the stages last wildly different amounts of time — the
+   * bridge leg runs for minutes. Order is the whole contract here: reporting `registering` before the buyer
+   * has signed, or leaving it on `awaiting-confirmation` after they did, is exactly the stuck-looking
+   * purchase this reports progress to avoid.
+   */
+  it('should report each stage in order as the purchase advances', async () => {
+    readManaUsdRate.mockResolvedValueOnce(RATE_40C)
+    signedFetch.mockResolvedValueOnce(ok(ROUTE))
+    authorizeUsdCredit.mockResolvedValueOnce(authorized())
+    sendUseCreditsGasless.mockResolvedValueOnce('0xorigin')
+    waitForSettlement.mockResolvedValueOnce(undefined)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ok({ status: 'filled', fillTx: '0xdest', actionsSucceeded: true }))
+    )
+    const stages: string[] = []
+
+    await registerNameWithUsdCredits({
+      name: 'my-name',
+      identity: IDENTITY,
+      signer: SIGNER,
+      acrossPoll: { intervalMs: 0, maxAttempts: 1 },
+      onProgress: s => stages.push(s)
+    })
+
+    expect(stages).toEqual(['preparing', 'awaiting-confirmation', 'confirming', 'registering'])
+  })
+
+  it('should not report a stage past the point a purchase failed', async () => {
+    readManaUsdRate.mockResolvedValueOnce(RATE_40C)
+    signedFetch.mockResolvedValueOnce(ok(ROUTE))
+    authorizeUsdCredit.mockResolvedValueOnce(authorized())
+    sendUseCreditsGasless.mockRejectedValueOnce(new GaslessUnavailableError('off', 'disabled'))
+    sendUseCredits.mockRejectedValueOnce(new Error('boom'))
+    const stages: string[] = []
+
+    await registerNameWithUsdCredits({
+      name: 'my-name',
+      identity: IDENTITY,
+      signer: SIGNER,
+      onProgress: s => stages.push(s)
+    }).catch(() => undefined)
+
+    // Submission never succeeded, so the screen must not claim the chain is confirming anything.
+    expect(stages).toEqual(['preparing', 'awaiting-confirmation'])
+  })
+
+  // Progress is presentation. A caller whose render throws must not take a purchase down with it.
+  it('should complete the purchase when the progress callback throws', async () => {
+    readManaUsdRate.mockResolvedValueOnce(RATE_40C)
+    signedFetch.mockResolvedValueOnce(ok(ROUTE))
+    authorizeUsdCredit.mockResolvedValueOnce(authorized())
+    sendUseCreditsGasless.mockResolvedValueOnce('0xorigin')
+    waitForSettlement.mockResolvedValueOnce(undefined)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ok({ status: 'filled', fillTx: '0xdest', actionsSucceeded: true }))
+    )
+
+    const result = await registerNameWithUsdCredits({
+      name: 'my-name',
+      identity: IDENTITY,
+      signer: SIGNER,
+      acrossPoll: { intervalMs: 0, maxAttempts: 1 },
+      onProgress: () => {
+        throw new Error('render blew up')
+      }
+    })
+
+    expect(result).toEqual({ status: 'registered', originTxHash: '0xorigin', destinationTxHash: '0xdest' })
+  })
+
   it('should size USD from the name price, reserve, submit gasless, and return registered on a filled Across deposit', async () => {
     readManaUsdRate.mockResolvedValueOnce(RATE_40C)
     signedFetch.mockResolvedValueOnce(ok(ROUTE))
