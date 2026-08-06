@@ -11,7 +11,7 @@ export const Toolbar = styled.div`
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px 12px;
+  gap: 12px;
   margin-bottom: 20px;
 `
 
@@ -115,10 +115,12 @@ export const Search = styled.div`
   min-width: 200px;
 
   ${media.maxWidth('lg')} {
-    /* Shares the first row with Sort By + Filters, taking whatever they leave; the count drops below. */
-    order: 1;
+    /* Shares the first row with Sort By + Filters, taking whatever they leave; the count drops below.
+       Deliberately no order property: it is the first child of Right already, and any positive order
+       would sort it BEHIND its unordered siblings. */
     flex: 1 1 auto;
     min-width: 130px;
+    margin-right: 16px;
   }
 `
 
@@ -139,9 +141,13 @@ export const Right = styled.div`
   }
 
   ${media.maxWidth('lg')} {
-    /* First row, beside the search field; the count and chips wrap below. */
-    order: 2;
-    flex: none;
+    /* Owns the whole first row — search field then the two pills — with the count and chips below.
+       min-width: 0 defeats the flex item's automatic minimum, which would otherwise hold the row at its
+       min-content width (the pills never shrink) and push Filters off the right edge. */
+    order: 1;
+    flex: 1 1 100%;
+    min-width: 0;
+    margin-left: 0;
 
     /* On mobile the Sort By dropdown is a pill matching the Filters pill (Figma 1304-310201): fully
        rounded, 0.5px gray-3 hairline, title-case (not the desktop uppercase), same 28px height. */
@@ -155,6 +161,7 @@ export const Right = styled.div`
       font-size: 12px;
       font-weight: 500;
       text-transform: none;
+      gap: 4px;
     }
   }
 `
