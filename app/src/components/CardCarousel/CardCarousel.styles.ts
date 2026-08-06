@@ -121,6 +121,6 @@ export const Dot = styled.button`
   transition: background 0.15s ease;
 
   &[data-active] {
-    background: #ff7439;
+    background: ${theme.colors.media};
   }
 `
