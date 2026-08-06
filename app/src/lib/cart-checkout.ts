@@ -3,6 +3,9 @@ import { usdWeiToCents, type CatalogItem } from '~/lib/api'
 import { usdCentsToCredits } from '~/lib/currency'
 import { manaWeiToUsdCents, type ManaRate } from '~/lib/mana-convert'
 import { isOwnTrade } from '~/lib/ownership'
+// Type only, so this module stays free of the on-chain layer: it describes what a line settles as, and
+// lib/buy-mana owns the vocabulary for that.
+import type { PurchaseTarget } from '~/lib/buy-mana'
 
 // Cart checkout review: resolve every cart item's LIVE listing before charging, so the buyer is never
 // silently charged a stale snapshot price and one bad item never aborts the whole basket.
@@ -105,6 +108,97 @@ export function lineUsdCents(trade: Trade, rate?: ManaRate): number {
 }
 
 /**
+ * A resolved line as the purchase rails want it: a live trade to accept, or an item to mint.
+ *
+ * The one place a catalogue row's `acquisition` becomes "which contract settles it", shared by every checkout
+ * surface. Both the cart and the item page's Buy now read it, so neither can pick a different contract for the
+ * same row — and every rail (credits, MANA, credits + MANA) branches on the result rather than assuming a trade.
+ */
+export function purchaseTargetFor(line: ResolvedLine): PurchaseTarget {
+  if (line.acquisition === 'trade') return { kind: 'trade', trade: line.trade }
+  return {
+    kind: 'store',
+    mint: {
+      item: {
+        collection: line.item.contractAddress,
+        itemId: String(line.item.itemId),
+        // The LIVE price the resolve re-read, which is what CollectionStore.buy verifies on-chain.
+        priceWei: line.priceWei
+      },
+      chainId: line.item.chainId
+    }
+  }
+}
+
+/**
+ * Why a row cannot be charged, when `resolveLine` says it can't.
+ *
+ * Three answers rather than one because the two callers need different amounts of detail: the cart only sorts
+ * rows into unavailable/own, while a single-item checkout has to SAY what happened — "no longer available" is
+ * the wrong thing to tell a buyer whose price simply could not be read.
+ */
+export type LineUnbuyable = 'gone' | 'own' | 'no-price'
+
+export type LineOutcome = { status: 'buyable'; line: ResolvedLine } | { status: LineUnbuyable }
+
+/**
+ * Resolve ONE row against its live listing (or live mint) and price it.
+ *
+ * The per-row half of `reviewCart`, extracted so a single-item checkout resolves a purchase by exactly the same
+ * rules a cart does. Splitting them is what keeps a mint buyable in one place and not the other: this is the
+ * only description of what makes a row chargeable, and both surfaces read it.
+ *
+ * Reads only — nothing is reserved here.
+ */
+export async function resolveLine(
+  item: CatalogItem & { quantity?: number },
+  buyerAddress: string,
+  resolve: TradeResolver,
+  rate?: ManaRate,
+  resolveStore?: StoreResolver
+): Promise<LineOutcome> {
+  // Quantity applies only to primary (mint) lines; a secondary token is always a single unit.
+  const quantity = !item.tokenId ? Math.max(1, Math.floor(item.quantity ?? 1)) : 1
+
+  // A CollectionStore mint has no trade to resolve, so it takes its own branch. `?? 'trade'` because a
+  // cart persisted before mints existed carries no value, and every one of those rows is a trade.
+  if ((item.acquisition ?? 'trade') === 'store') {
+    // No resolver wired (or no rate) → unbuyable, never charged off the caller's snapshot.
+    const live = resolveStore ? await resolveStore(item) : null
+    if (!live || !rate) return { status: 'gone' }
+    // Supply is finite and shrinks as others mint, so a sold-out item has to drop out here rather than
+    // revert on-chain after the buyer has paid gas. `quantity` matters: buying 3 of 2 remaining reverts
+    // for the whole batch, so the line is unbuyable rather than silently reduced.
+    if (live.available < quantity) return { status: 'gone' }
+    const usdCents = manaWeiToUsdCents(live.priceWei, rate)
+    if (!Number.isFinite(usdCents) || usdCents <= 0) return { status: 'no-price' }
+    return {
+      status: 'buyable',
+      line: {
+        item,
+        acquisition: 'store',
+        priceWei: live.priceWei,
+        usdCents,
+        priceCredits: centsToCredits(usdCents),
+        quantity
+      }
+    }
+  }
+
+  const trade = await resolve(item)
+  if (!trade) return { status: 'gone' }
+  if (isOwnTrade(trade, buyerAddress)) return { status: 'own' }
+  const usdCents = lineUsdCents(trade, rate)
+  // A zero/NaN price (empty received, missing/bad amount) is not a real live listing — never let it
+  // be charged at 0, which would authorize a $0 credit and revert on-chain.
+  if (!Number.isFinite(usdCents) || usdCents <= 0) return { status: 'no-price' }
+  return {
+    status: 'buyable',
+    line: { item, acquisition: 'trade', trade, usdCents, priceCredits: centsToCredits(usdCents), quantity }
+  }
+}
+
+/**
  * Resolve + classify every cart item against its live listing. Never throws for a single bad row: a
  * failed/absent resolution becomes `unavailable`, the buyer's own listing becomes `own`, and the rest
  * are `buyable` with their live price. Resolved SEQUENTIALLY to keep behaviour deterministic and avoid
@@ -132,62 +226,15 @@ export async function reviewCart(
   const own: CatalogItem[] = []
 
   for (const item of items) {
-    // The whole per-item body is guarded: ANY failure (resolve error, a malformed trade with an empty
-    // `received`, a bad amount) classifies the row as unavailable rather than throwing out of
-    // reviewCart — one bad row must never abort the basket.
+    // Guarded per row: ANY failure (a resolve error, a malformed trade with an empty `received`, a bad
+    // amount) classifies the row as unavailable rather than throwing out of reviewCart — one bad row must
+    // never abort the basket. A basket cares only whether a row is chargeable, so 'gone' and 'no-price'
+    // land in the same bucket; the single-item checkout is where they read differently.
     try {
-      // Quantity applies only to primary (mint) lines; a secondary token is always a single unit.
-      const quantity = !item.tokenId ? Math.max(1, Math.floor(item.quantity ?? 1)) : 1
-
-      // A CollectionStore mint has no trade to resolve, so it takes its own branch. `?? 'trade'` because a
-      // cart persisted before mints existed carries no value, and every one of those rows is a trade.
-      if ((item.acquisition ?? 'trade') === 'store') {
-        // No resolver wired (or no rate) → unavailable, never charged off the cart's snapshot.
-        const live = resolveStore ? await resolveStore(item) : null
-        if (!live || !rate) {
-          unavailable.push(item)
-          continue
-        }
-        // Supply is finite and shrinks as others mint, so a sold-out item has to drop out here rather than
-        // revert on-chain after the buyer has paid gas. `quantity` matters: buying 3 of 2 remaining reverts
-        // for the whole batch, so the line is unbuyable rather than silently reduced.
-        if (live.available < quantity) {
-          unavailable.push(item)
-          continue
-        }
-        const usdCents = manaWeiToUsdCents(live.priceWei, rate)
-        if (!Number.isFinite(usdCents) || usdCents <= 0) {
-          unavailable.push(item)
-          continue
-        }
-        buyable.push({
-          item,
-          acquisition: 'store',
-          priceWei: live.priceWei,
-          usdCents,
-          priceCredits: centsToCredits(usdCents),
-          quantity
-        })
-        continue
-      }
-
-      const trade = await resolve(item)
-      if (!trade) {
-        unavailable.push(item)
-        continue
-      }
-      if (isOwnTrade(trade, buyerAddress)) {
-        own.push(item)
-        continue
-      }
-      const usdCents = lineUsdCents(trade, rate)
-      // A zero/NaN price (empty received, missing/bad amount) is not a real live listing — never let it
-      // enter the basket priced at 0, which would authorize a $0 credit and revert on-chain.
-      if (!Number.isFinite(usdCents) || usdCents <= 0) {
-        unavailable.push(item)
-        continue
-      }
-      buyable.push({ item, acquisition: 'trade', trade, usdCents, priceCredits: centsToCredits(usdCents), quantity })
+      const outcome = await resolveLine(item, buyerAddress, resolve, rate, resolveStore)
+      if (outcome.status === 'buyable') buyable.push(outcome.line)
+      else if (outcome.status === 'own') own.push(item)
+      else unavailable.push(item)
     } catch {
       unavailable.push(item)
     }

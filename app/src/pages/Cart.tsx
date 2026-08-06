@@ -15,7 +15,7 @@ import { useManaBalance } from '~/hooks/useManaBalance'
 import { useManaRate } from '~/hooks/useManaRate'
 import type { ManaRate } from '~/lib/mana-convert'
 import { readManaUsdRate, usdCentsToManaWei } from '~/lib/mana-rate'
-import { buyManyWithMana } from '~/lib/buy-mana'
+import { buyManyWithMana, manaSpenderFor, purchaseFor, targetChainId } from '~/lib/buy-mana'
 import {
   computePaymentOptions,
   distributeCreditsAcrossUnits,
@@ -35,11 +35,12 @@ import {
 import type { ChainId } from '@dcl/schemas'
 import { AuthorizeStep } from '~/components/AuthorizeStep'
 import manaLight from '~/assets/mana-matic-light.svg'
-import { ContractName, getContract, getContractName } from 'decentraland-transactions'
+import { ContractName, getContract } from 'decentraland-transactions'
 import { resolveLiveTrade, fetchListings, fetchStoreMintState } from '~/lib/api'
-import { buyManyWithCredits, groupPurchases, type AnyPurchase } from '~/lib/buy'
+import { buyManyWithCredits, groupPurchases, purchaseGroupKey, type AnyPurchase } from '~/lib/buy'
 import { buyManyGasless, waitForSettlement, GaslessUnavailableError, SettlementPendingError } from '~/lib/buy-gasless'
 import {
+  purchaseTargetFor,
   reviewCart,
   RESUME_CART_KEY,
   type CartReview,
@@ -228,19 +229,20 @@ export function Cart() {
     manaBalanceWei: manaBalanceWei ?? 0n
   })
   /**
-   * Whether the basket contains a CollectionStore mint.
+   * The mints in a basket, as the MANA rails need them.
    *
-   * Gates the MANA rails off. Both of them settle through `accept([...trades])` — `buyManyWithMana` takes
-   * trades, and the combined rail spends MANA through the CreditsManager against the same call — so a mint
-   * has no MANA path here at all. Offering a rail that cannot fulfil the basket would fail at signing time,
-   * after the buyer picked it. Paying for a mint in MANA is a real flow (the legacy marketplace does it via
-   * CollectionStore.buy) and is simply not wired in the Shop yet.
+   * Every rail now takes both kinds — a mint settles through `CollectionStore.buy([...])` where a listing
+   * settles through `accept([...trades])`, and lib/buy-mana submits either. Which is why nothing here gates a
+   * basket on what it holds any more: a buyer with MANA gets the same three ways to pay whether they are buying
+   * a creator's mint or somebody's resale.
    */
-  const hasStoreLine = (lines: ResolvedLine[]) => lines.some(l => l.acquisition === 'store')
+  const mintsIn = (lines: ResolvedLine[]) =>
+    lines.flatMap(l => {
+      const target = purchaseTargetFor(l)
+      return target.kind === 'store' ? [target.mint] : []
+    })
 
-  // The MANA rails only ever see trade lines (hasStoreLine keeps mints away), and this is what tells the
-  // compiler so instead of a cast at each use.
-  const tradeLinesOnly = (lines: ResolvedLine[]) => lines.flatMap(l => (l.acquisition === 'trade' ? [l] : []))
+  const tradesIn = (lines: ResolvedLine[]) => lines.flatMap(l => (l.acquisition === 'trade' ? [l.trade] : []))
 
   // Re-resolve each line's LIVE trade at review time: a stored tradeId can be stale (the trade gets
   // re-signed as availability/expiration rolls), so resolveLiveTrade re-resolves by item on a 404
@@ -690,10 +692,7 @@ export function Cart() {
   // lines. An unreachable/stale oracle resolves to undefined: no MANA rail, and legacy lines report as
   // unavailable rather than being priced off a rate we do not have.
   //
-  // BuyModal has a same-named function with a DIFFERENT signature: it takes the trade and skips the oracle
-  // read entirely for a native (USD-pegged) one, because it prices a single line and already knows which.
-  // This one is parameterless because the cart holds a mixed basket and needs the rate before it can tell
-  // whether any line needs it. Don't copy one into the other's place — they answer different questions.
+  // BuyModal has a same-named function that does the same job for a single purchase.
   async function ensureManaRate(): Promise<ManaRate | undefined> {
     if (manaRate) return manaRate
     try {
@@ -720,17 +719,14 @@ export function Cart() {
   async function chargeOrTopUp(lines: ResolvedLine[], picked?: PaymentMethod) {
     const totalCredits = sumLineCredits(lines)
     const { totalCents, manaWei } = await basketTotals(lines)
-    const all = computePaymentOptions({
+    // Every rail fulfils every kind of line (see mintsIn), so what the basket holds no longer narrows what the
+    // buyer may pay with.
+    const options = computePaymentOptions({
       priceCents: totalCents,
       priceManaWei: manaWei,
       balanceCents: balance?.balanceCents ?? 0,
       manaBalanceWei: manaBalanceWei ?? 0n
     })
-    // Drop both MANA rails when the basket holds a CollectionStore mint (see hasStoreLine): they settle
-    // through accept([...trades]) and a mint has no trade, so offering one would fail at signing time —
-    // after the buyer chose it and after any MANA approval. Credits stay available, which is the rail that
-    // does support mints, so this narrows the buyer's options rather than blocking the purchase.
-    const options = hasStoreLine(lines) ? { ...all, options: all.options.filter(o => o.method === 'credits') } : all
     // The buyer already picked a rail in the summary panel, and it still covers the re-resolved total →
     // charge it, no second confirmation. (`picked` is dropped when the re-resolve invalidated it, which
     // falls through to the chooser / top-up below — never a silent switch to a different rail.)
@@ -739,8 +735,7 @@ export function Cart() {
         void charge(lines)
         return
       }
-      const { spender, chainId } = manaSpenderFor(picked, lines)
-      await withManaApproval(spender, chainId, () =>
+      await withManaApprovals(manaSpendersFor(picked, lines), () =>
         picked === 'mana' ? void chargeWithMana(lines) : void chargeCombined(lines, totalCents, manaWei)
       )
       return
@@ -785,15 +780,37 @@ export function Cart() {
    * the allowance is missing. A failed status read assumes approved and lets lib/buy-mana's
    * ensureAuthorization handle it — the pre-existing behaviour, so a flaky RPC never blocks a purchase.
    */
-  /** Which contract pulls the MANA: the marketplace for a MANA-only basket, the CreditsManager for mixed. */
-  function manaSpenderFor(rail: 'mana' | 'combined', lines: ResolvedLine[]): { spender: string; chainId: ChainId } {
-    // Unreachable with a mint in the basket: hasStoreLine drops both MANA rails before this is called.
-    const trade = tradeLinesOnly(lines)[0].trade
-    const spender =
-      rail === 'mana'
-        ? getContract(getContractName(trade.contract), trade.chainId).address
-        : getContract(ContractName.CreditsManager, trade.chainId).address
-    return { spender, chainId: trade.chainId }
+  /**
+   * Every contract that has to be allowed to pull the buyer's MANA for this basket, de-duplicated.
+   *
+   * A LIST, not one spender: the mixed rail always settles through the CreditsManager, but a MANA-only basket
+   * settles against whoever is selling — the marketplace for a listing, the CollectionStore for a mint — so a
+   * basket holding both needs two allowances. lib/buy-mana answers which is which, per line, so this cannot
+   * disagree with what the rail itself asks for.
+   */
+  function manaSpendersFor(rail: 'mana' | 'combined', lines: ResolvedLine[]): { spender: string; chainId: ChainId }[] {
+    const seen = new Map<string, { spender: string; chainId: ChainId }>()
+    for (const line of lines) {
+      const entry = manaSpenderFor(rail, purchaseTargetFor(line))
+      seen.set(`${entry.chainId}:${entry.spender.toLowerCase()}`, entry)
+    }
+    return [...seen.values()]
+  }
+
+  /**
+   * Announce every missing approval before charging, one step at a time.
+   *
+   * Chained rather than shown at once because AuthorizeStep is one approval's worth of screen, and a buyer
+   * facing two prompts has to be told about each one as it happens — an unannounced second wallet prompt beside
+   * the purchase is exactly what this step exists to prevent.
+   */
+  async function withManaApprovals(spenders: { spender: string; chainId: ChainId }[], proceed: () => void) {
+    const [next, ...rest] = spenders
+    if (!next) {
+      proceed()
+      return
+    }
+    await withManaApproval(next.spender, next.chainId, () => void withManaApprovals(rest, proceed))
   }
 
   async function withManaApproval(spender: string, chainId: ChainId, proceed: () => void) {
@@ -815,14 +832,13 @@ export function Cart() {
       void charge(lines)
       return
     }
-    const { spender, chainId } = manaSpenderFor(method, lines)
-    void withManaApproval(spender, chainId, () =>
+    void withManaApprovals(manaSpendersFor(method, lines), () =>
       method === 'mana' ? void chargeWithMana(lines) : void chargeCombined(lines, totalCents, manaWei)
     )
   }
 
   // MANA-only basket: no credits, so nothing is authorized or reserved — every trade settles in ONE
-  // accept([...]) paid from the buyer's MANA (buyManyWithMana).
+  // accept([...]) and every mint in ONE buy([...]), paid from the buyer's MANA (buyManyWithMana).
   async function chargeWithMana(lines: ResolvedLine[]) {
     if (!session || lines.length === 0) return
     const units = toUnits(lines)
@@ -832,9 +848,10 @@ export function Cart() {
     setModal({ phase: 'processing', stage: 'awaiting-signature', step: units.length, total: units.length })
     try {
       const hashes = await buyManyWithMana({
-        // Trade lines only — the MANA rail settles through accept([...]) and a mint has no trade. The basket
-        // cannot contain one here (see hasStoreLine), so this narrows rather than filters.
-        trades: tradeLinesOnly(units).map(u => u.trade),
+        // Both kinds, each batched into its own call by lib/buy-mana. A basket mixing them costs one signature
+        // per kind, the same as it does on the credits rail (see groupPurchases).
+        trades: tradesIn(units),
+        mints: mintsIn(units),
         buyer: session.address,
         signer: session.signer,
         onSigned
@@ -854,9 +871,9 @@ export function Cart() {
   }
 
   // Credits + MANA: the credit balance is spread across the units (each takes what it can, the unit that
-  // exhausts it takes a PARTIAL credit, later units take none) and MANA covers the gap. Everything still
-  // settles in ONE useCredits accept([...]) — the gap rides along as the contract's uncredited leg, which
-  // it pulls from the buyer's MANA and refunds any unused part of.
+  // exhausts it takes a PARTIAL credit, later units take none) and MANA covers the gap. Each useCredits call
+  // carries its own gap as the contract's uncredited leg, which it pulls from the buyer's MANA and refunds any
+  // unused part of.
   async function chargeCombined(lines: ResolvedLine[], totalCents: number, manaWei: bigint) {
     if (!session || lines.length === 0) return
     const units = toUnits(lines)
@@ -866,8 +883,6 @@ export function Cart() {
       units.map(u => u.usdCents),
       balance?.balanceCents ?? 0
     )
-    const creditedCents = allocation.reduce((n, c) => n + c, 0)
-    const gapWei = manaForRemainder(Math.max(0, totalCents - creditedCents), totalCents, manaWei)
     const reservations: Reservation[] = []
     // Same hazard as the credits-only rail, one rung lower: this batch is a single accept([...]), so there is
     // no partial basket — but a broadcast whose wait() then fails (RPC timeout, dropped socket) still spent
@@ -877,39 +892,58 @@ export function Cart() {
     const revertedSalts = new Set<string>()
     setModal({ phase: 'processing', stage: 'reserving', step: 1, total: units.length })
     try {
-      // The combined rail is trade-only: its MANA leg is paid through the same accept([...]) call, which a
-      // mint has no place in. hasStoreLine keeps this rail off the table for such a basket, so narrowing
-      // here is the compiler's proof of that rather than a filter that could silently drop a paid line.
-      const tradeUnits = tradeLinesOnly(units)
+      const targets = units.map(purchaseTargetFor)
       const purchases: AnyPurchase[] = []
-      for (let i = 0; i < tradeUnits.length; i++) {
+      /**
+       * The MANA gap OWED BY EACH TRANSACTION, keyed the way the transactions are grouped.
+       *
+       * useCredits takes one external call, so a basket mixing a listing and a mint settles as two transactions
+       * — and each one's uncredited leg has to cover its own lines. Putting the whole basket's gap on the first
+       * purchase (correct while every basket was one accept([...])) would leave the second transaction with no
+       * MANA at all and revert it. Summed per group from each unit's own shortfall.
+       */
+      const gapByGroup = new Map<string, bigint>()
+      const gapAnchor = new Map<string, number>()
+      for (let i = 0; i < units.length; i++) {
+        const unit = units[i]
+        const target = targets[i]
         const cents = allocation[i]
-        if (cents <= 0) continue // fully covered by MANA — no credit, nothing to reserve
-        setModal({ phase: 'processing', stage: 'reserving', step: i + 1, total: tradeUnits.length })
-        const unitItem = tradeUnits[i].item
-        const { credit, maxCreditedValue } = await authorizeUsdCredit(
-          session.identity,
-          cents,
-          tradeUnits[i].trade.id,
-          unitItem.contractAddress && unitItem.itemId != null
-            ? { contractAddress: unitItem.contractAddress, itemId: String(unitItem.itemId) }
-            : undefined
-        )
-        reservations.push({ salt: credit.id, itemId: unitItem.id })
-        purchases.push({ kind: 'trade', trade: tradeUnits[i].trade, credits: [credit], maxCreditedValue })
+        const unitGapWei = manaForRemainder(Math.max(0, unit.usdCents - cents), totalCents, manaWei)
+        let purchase: AnyPurchase
+        if (cents <= 0) {
+          // Fully covered by MANA — no credit and nothing to reserve, but the unit still has to be IN the call
+          // so the MANA leg pays for it.
+          purchase = purchaseFor(target, [], '0')
+        } else {
+          setModal({ phase: 'processing', stage: 'reserving', step: i + 1, total: units.length })
+          const unitItem = unit.item
+          const { credit, maxCreditedValue } = await authorizeUsdCredit(
+            session.identity,
+            cents,
+            target.kind === 'trade' ? target.trade.id : undefined,
+            unitItem.contractAddress && unitItem.itemId != null
+              ? { contractAddress: unitItem.contractAddress, itemId: String(unitItem.itemId) }
+              : undefined
+          )
+          reservations.push({ salt: credit.id, itemId: unitItem.id })
+          purchase = purchaseFor(target, [credit], maxCreditedValue)
+        }
+        const key = purchaseGroupKey(purchase)
+        gapByGroup.set(key, (gapByGroup.get(key) ?? 0n) + unitGapWei)
+        if (!gapAnchor.has(key)) gapAnchor.set(key, purchases.length)
+        purchases.push(purchase)
       }
-      // Units with no credit still have to be in the accept([...]) batch — carry them with no credits so
-      // the MANA leg pays for them.
-      tradeUnits.forEach((u, i) => {
-        if (allocation[i] <= 0) purchases.push({ kind: 'trade', trade: u.trade, credits: [], maxCreditedValue: '0' })
-      })
-      // The group sums maxCreditedValue, so adding the gap to the first purchase makes the batch's
-      // uncredited leg exactly the MANA gap (see buildUseCreditsArgs).
-      purchases[0] = {
-        ...purchases[0],
-        maxCreditedValue: (BigInt(purchases[0].maxCreditedValue) + gapWei).toString()
+      // A group sums maxCreditedValue across its purchases, so adding its gap to any ONE of them makes that
+      // transaction's uncredited leg the gap (see buildUseCreditsArgs).
+      for (const [key, gap] of gapByGroup) {
+        const at = gapAnchor.get(key)
+        if (at == null || gap <= 0n) continue
+        purchases[at] = {
+          ...purchases[at],
+          maxCreditedValue: (BigInt(purchases[at].maxCreditedValue) + gap).toString()
+        }
       }
-      await ensureCreditsManagerManaAllowance(session.signer, tradeUnits[0].trade.chainId)
+      await ensureCreditsManagerManaAllowance(session.signer, targetChainId(targets[0]))
 
       const onSigned = () =>
         setModal({ phase: 'processing', stage: 'settling', step: units.length, total: units.length })

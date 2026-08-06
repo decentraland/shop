@@ -110,19 +110,31 @@ vi.mock('~/lib/api', async orig => ({
   fetchListings: vi.fn().mockResolvedValue({ data: [] }),
   fetchStoreMintState: vi.fn()
 }))
+// What the basket costs in MANA. A dial rather than a constant 0n: at zero no MANA rail can exist, which is
+// right for most of this file but is exactly what the mint cases below have to be able to turn on.
+const { manaQuote } = vi.hoisted(() => ({ manaQuote: { wei: 0n } }))
 vi.mock('~/lib/mana-rate', () => ({
   readManaUsdRate: vi.fn(async () => ({ rate: 50_000_000n, decimals: 8 })),
-  usdCentsToManaWei: () => 0n,
+  usdCentsToManaWei: () => manaQuote.wei,
   manaWeiToUsdCents: () => 0,
   manaWeiToCredits: () => 0,
   manaWeiToUsdWei: () => 0n
 }))
-vi.mock('~/lib/buy-mana', () => ({ buyManyWithMana: vi.fn() }))
+// Only the submit is stubbed; the helpers that say which contract a purchase settles against are the real ones.
+const { buyManyWithMana } = vi.hoisted(() => ({ buyManyWithMana: vi.fn() }))
+vi.mock('~/lib/buy-mana', async orig => ({ ...(await orig<Record<string, unknown>>()), buyManyWithMana }))
 vi.mock('~/lib/authorizations', () => ({
   AuthorizationKind: { ManaSpending: 'mana' },
   ensureAuthorization: vi.fn(),
-  getAuthorizationStatus: vi.fn(),
-  getManaSpendingAuthorization: vi.fn(),
+  // Already approved, so the MANA rails run straight through: the approval STEP has its own specs, and a
+  // never-resolving stub here reads as "the rail is broken" instead.
+  getAuthorizationStatus: vi.fn(async () => true),
+  getManaSpendingAuthorization: vi.fn(() => ({
+    kind: 'mana',
+    contractAddress: '0xmana',
+    spenderAddress: '0xspender',
+    chainId: 80002
+  })),
   needsApprovalStep: () => false
 }))
 vi.mock('~/lib/after-purchase', () => ({ invalidateAfterPurchase: vi.fn() }))
@@ -173,11 +185,12 @@ const line = (i: CatalogItem) => ({
   quantity: 1
 })
 
-// A resolved MINT line: no trade, minted from the CollectionStore, priced in MANA.
+// A resolved MINT line: no trade, minted from the CollectionStore at the live MANA price the store verifies.
+const ONE_MANA = (10n ** 18n).toString()
 const storeLine = (i: CatalogItem) => ({
   item: { ...i, quantity: 1, tradeId: undefined },
   acquisition: 'store' as const,
-  manaWei: '1000000000000000000',
+  priceWei: ONE_MANA,
   priceCredits: 20,
   usdCents: 200,
   quantity: 1
@@ -231,6 +244,7 @@ beforeEach(() => {
   useCart.setState({ items: [], open: false })
   balance.cents = 100_000
   mana.wei = 0n
+  manaQuote.wei = 0n
   stubAuthorize()
 })
 
@@ -554,5 +568,43 @@ describe('when the basket contains a store mint', () => {
 
     // This buyer CAN pay the fee, so the fallback is a real route for them.
     await waitFor(() => expect(buyManyWithCredits).toHaveBeenCalled())
+  })
+})
+
+/**
+ * A MINT is paid for the same three ways a listing is.
+ *
+ * Both MANA rails used to be dropped from any basket holding a mint, because they could only build
+ * `accept([...trades])`. The buyer has no way to know which kind of listing a row is, so what that looked like
+ * was the shop taking their MANA away depending on what they had added to the cart.
+ */
+describe('when the basket holds a mint and the buyer has MANA', () => {
+  const mint = () => item('a', { acquisition: 'store', tradeId: undefined })
+
+  beforeEach(() => {
+    manaQuote.wei = 10n ** 18n // the basket costs 1 MANA
+    mana.wei = 5n * 10n ** 18n // and the buyer holds 5
+  })
+
+  it('should offer paying in MANA, exactly as it would for a listing', async () => {
+    renderCart([mint()], storeLine)
+
+    expect(await screen.findByTestId('pay-with-mana')).toBeInTheDocument()
+  })
+
+  it('should settle it through the store, at the price the contract verifies', async () => {
+    const user = userEvent.setup()
+    renderCart([mint()], storeLine)
+
+    await user.click(await screen.findByTestId('pay-with-mana'))
+
+    await waitFor(() => expect(buyManyWithMana).toHaveBeenCalled())
+    const args = buyManyWithMana.mock.calls[0][0]
+    // No trade to accept — the mint travels as a mint, and an empty `trades` is what proves it was not
+    // silently dropped from a call it could never have been part of.
+    expect(args.trades).toEqual([])
+    expect(args.mints).toEqual([
+      { item: { collection: '0xcontract', itemId: 'a', priceWei: ONE_MANA }, chainId: 80002 }
+    ])
   })
 })

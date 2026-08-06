@@ -3,6 +3,8 @@ import { TradeAssetType, type Trade } from '@dcl/schemas'
 import type { CatalogItem } from '~/lib/api'
 import {
   reviewCart,
+  resolveLine,
+  purchaseTargetFor,
   centsToCredits,
   partitionReservations,
   type StoreResolver,
@@ -461,6 +463,89 @@ describe('reviewCart with CollectionStore mints', () => {
     // One bad row must never abort the basket.
     expect(rev.buyable.map(l => l.item.id)).toEqual(['t'])
     expect(rev.unavailable.map(i => i.id)).toEqual(['s'])
+  })
+})
+
+/**
+ * Resolving ONE row — what a single-item checkout (the item page's Buy now) charges by.
+ *
+ * The cart only needs "chargeable or not", but a single purchase has to SAY why it cannot be charged, so the
+ * outcomes are distinct here. They exist so both surfaces read the same rules: a mint that is buyable from the
+ * cart is buyable from the item page at the same price, or neither is.
+ */
+describe('resolveLine', () => {
+  const mint = (id: string, priceCredits: number, over: Partial<CatalogItem> = {}) =>
+    item(id, priceCredits, { acquisition: 'store', tradeId: undefined, ...over })
+  const TEN_MANA = (10n * 10n ** 18n).toString()
+  const liveMint = async () => ({ priceWei: TEN_MANA, available: 3 })
+
+  it('should resolve a mint at its live price, with the wei the contract will verify', async () => {
+    const outcome = await resolveLine(mint('a', 999), BUYER, resolverFrom({}), RATE, liveMint)
+
+    expect(outcome.status).toBe('buyable')
+    if (outcome.status !== 'buyable') return
+    expect(outcome.line.priceCredits).toBe(50)
+    expect(outcome.line.acquisition).toBe('store')
+    if (outcome.line.acquisition === 'store') expect(outcome.line.priceWei).toBe(TEN_MANA)
+  })
+
+  it('should report a sold-out mint as gone rather than letting it revert on-chain', async () => {
+    const outcome = await resolveLine(mint('a', 50), BUYER, resolverFrom({}), RATE, async () => ({
+      priceWei: TEN_MANA,
+      available: 0
+    }))
+
+    expect(outcome.status).toBe('gone')
+  })
+
+  it('should report a mint as gone without a rate, never priced off a guess', async () => {
+    const outcome = await resolveLine(mint('a', 50), BUYER, resolverFrom({}), undefined, liveMint)
+
+    expect(outcome.status).toBe('gone')
+  })
+
+  it('should tell the buyer their OWN listing apart from one that is gone', async () => {
+    const outcome = await resolveLine(item('a', 20), BUYER, resolverFrom({ a: trade(2, BUYER) }), RATE)
+
+    expect(outcome.status).toBe('own')
+  })
+
+  it('should report an unpriceable row as no-price, not as no longer for sale', async () => {
+    // A live listing whose amount cannot be read is a different thing to tell a buyer than a sale that ended.
+    const outcome = await resolveLine(item('a', 20), BUYER, resolverFrom({ a: trade(0) }), RATE)
+
+    expect(outcome.status).toBe('no-price')
+  })
+})
+
+describe('purchaseTargetFor', () => {
+  it('should send a mint to the store with the buyer-facing price the resolve read', async () => {
+    const outcome = await resolveLine(
+      item('a', 50, { acquisition: 'store', tradeId: undefined, contractAddress: '0xcollection', itemId: '7' }),
+      BUYER,
+      resolverFrom({}),
+      RATE,
+      async () => ({ priceWei: (10n * 10n ** 18n).toString(), available: 1 })
+    )
+    if (outcome.status !== 'buyable') throw new Error('expected a buyable line')
+
+    const target = purchaseTargetFor(outcome.line)
+
+    expect(target.kind).toBe('store')
+    if (target.kind !== 'store') return
+    expect(target.mint.item).toEqual({
+      collection: '0xcollection',
+      itemId: '7',
+      priceWei: (10n * 10n ** 18n).toString()
+    })
+    expect(target.mint.chainId).toBe(80002)
+  })
+
+  it('should send a listing to its trade', async () => {
+    const outcome = await resolveLine(item('a', 20), BUYER, resolverFrom({ a: trade(2) }), RATE)
+    if (outcome.status !== 'buyable') throw new Error('expected a buyable line')
+
+    expect(purchaseTargetFor(outcome.line).kind).toBe('trade')
   })
 })
 
