@@ -342,6 +342,7 @@ export const Desc = styled.div`
   min-width: 0;
   display: flex;
   flex-direction: column;
+  gap: 4px;
 
   ${media.maxWidth('sm')} {
     grid-area: desc;
@@ -363,10 +364,6 @@ export const Name = styled.div`
     display: flex;
     align-items: center;
     gap: 6px;
-  }
-
-  ${media.maxWidth('sm')} {
-    font-size: 12px;
   }
 `
 
@@ -420,7 +417,7 @@ export const Price = styled.div`
   align-items: center;
   gap: 6px;
   font-weight: 600;
-  font-size: 16px;
+  font-size: 18px;
   color: ${colors.softWhite};
   white-space: nowrap;
 
@@ -586,9 +583,10 @@ const compactRoundCss = (fill: SerializedStyles) => css`
   }
 `
 
+// Figma 1284:295470 "Mobile CTA": a translucent white disc, not the solid accent.
 const addRoundFill = css`
-  background: ${colors.accent};
-  color: #fff;
+  background: rgba(255, 255, 255, 0.2);
+  color: ${colors.softWhite};
 
   &:disabled {
     opacity: 0.5;
