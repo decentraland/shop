@@ -1084,7 +1084,10 @@
     "pendingBannerRest": "Your NAME is still being finalised and will appear in My Items shortly — you don't need to do anything.",
     "priceUnavailable": "We can't price NAMEs right now. Please try again in a moment.",
     "insufficientCredits": "You need {credits} more credits to buy this NAME.",
-    "errorRouteCost": "NAME registration is temporarily unavailable. Please try again later."
+    "errorRouteCost": "NAME registration is temporarily unavailable. Please try again later.",
+    "errorNotRegistered": "Your credits were used but the NAME couldn’t be registered, so the funds were returned to Decentraland for recovery. Contact support with this NAME and we’ll sort it out — don’t buy again.",
+    "errorSettlementUnknown": "We couldn’t confirm whether your purchase went through. Don’t buy again — check My Items in a few minutes, and contact support with this NAME if it doesn’t appear.",
+    "errorSpentDismiss": "Got it"
   },
   "authorizations": {
     "title": "Approvals",

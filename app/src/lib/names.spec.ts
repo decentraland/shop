@@ -321,10 +321,136 @@ describe('registerNameWithUsdCredits', () => {
         signer: SIGNER,
         acrossPoll: { intervalMs: 0, maxAttempts: 1 }
       })
-    ).rejects.toThrow("Couldn't register the name")
+      // Says where the money went, instead of the generic "please try again" the fallback used to
+      // substitute — advice that costs a second credit for a failure the buyer cannot retry away.
+    ).rejects.toThrow(/funds were recovered/)
 
     // Credit was consumed on-chain — releasing would be a double-spend, so we must not.
     expect(cancelUsdIntents).not.toHaveBeenCalled()
+  })
+
+  /**
+   * Across omits `actionsSucceeded` on some filled deposits. The outcome is then UNKNOWN, and the two ways
+   * of guessing are both wrong to a buyer: "registered" sends them looking for a NAME that may not exist,
+   * "failed" tells them their money was recovered when it may have bought what they asked for.
+   */
+  it('should report pending when a filled deposit does not report actionsSucceeded', async () => {
+    readManaUsdRate.mockResolvedValueOnce(RATE_40C)
+    signedFetch.mockResolvedValueOnce(ok(ROUTE))
+    authorizeUsdCredit.mockResolvedValueOnce(authorized())
+    sendUseCreditsGasless.mockResolvedValueOnce('0xorigin')
+    waitForSettlement.mockResolvedValueOnce(undefined)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ok({ status: 'filled', fillTx: '0xdest' }))
+    )
+
+    const result = await registerNameWithUsdCredits({
+      name: 'my-name',
+      identity: IDENTITY,
+      signer: SIGNER,
+      acrossPoll: { intervalMs: 0, maxAttempts: 1 }
+    })
+
+    expect(result).toEqual({ status: 'pending', originTxHash: '0xorigin' })
+    // The credit was consumed, so the reservation stays and the reconciler settles it.
+    expect(cancelUsdIntents).not.toHaveBeenCalled()
+  })
+
+  it('should report pending when a filled deposit reports actionsSucceeded as null', async () => {
+    readManaUsdRate.mockResolvedValueOnce(RATE_40C)
+    signedFetch.mockResolvedValueOnce(ok(ROUTE))
+    authorizeUsdCredit.mockResolvedValueOnce(authorized())
+    sendUseCreditsGasless.mockResolvedValueOnce('0xorigin')
+    waitForSettlement.mockResolvedValueOnce(undefined)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ok({ status: 'filled', fillTx: '0xdest', actionsSucceeded: null }))
+    )
+
+    const result = await registerNameWithUsdCredits({
+      name: 'my-name',
+      identity: IDENTITY,
+      signer: SIGNER,
+      acrossPoll: { intervalMs: 0, maxAttempts: 1 }
+    })
+
+    expect(result).toEqual({ status: 'pending', originTxHash: '0xorigin' })
+  })
+
+  /**
+   * The money distinction the relayer's two failure reasons carry. `relayer-unreachable` means no usable
+   * response came back and the meta-tx may already be broadcast, so re-submitting the same credit on the
+   * direct rail spends it twice from the buyer's side — and releasing the reservation would hand back
+   * credits for a registration that then lands.
+   */
+  it('should not fall back or release the reservation when the relayer is unreachable', async () => {
+    readManaUsdRate.mockResolvedValueOnce(RATE_40C)
+    signedFetch.mockResolvedValueOnce(ok(ROUTE))
+    authorizeUsdCredit.mockResolvedValueOnce(authorized())
+    sendUseCreditsGasless.mockRejectedValueOnce(new GaslessUnavailableError('ECONNRESET', 'relayer-unreachable'))
+
+    await expect(
+      registerNameWithUsdCredits({
+        name: 'my-name',
+        identity: IDENTITY,
+        signer: SIGNER,
+        acrossPoll: { intervalMs: 0, maxAttempts: 1 }
+      })
+    ).rejects.toThrow()
+
+    expect(sendUseCredits).not.toHaveBeenCalled()
+    expect(cancelUsdIntents).not.toHaveBeenCalled()
+  })
+
+  /**
+   * Typed, not raw. Left as a GaslessUnavailableError it reaches the modal through the generic fallback as
+   * "please try again" with an active retry — and a retry is the one action that can genuinely double-spend
+   * here, because the first meta-tx may still be in flight, so the name still reads as free and a second
+   * credit is authorized against a registration that then lands.
+   */
+  it('should surface an unreachable relayer as an unknown settlement, not a generic failure', async () => {
+    readManaUsdRate.mockResolvedValueOnce(RATE_40C)
+    signedFetch.mockResolvedValueOnce(ok(ROUTE))
+    authorizeUsdCredit.mockResolvedValueOnce(authorized())
+    const cause = new GaslessUnavailableError('ECONNRESET', 'relayer-unreachable')
+    sendUseCreditsGasless.mockRejectedValueOnce(cause)
+
+    const thrown = await registerNameWithUsdCredits({
+      name: 'my-name',
+      identity: IDENTITY,
+      signer: SIGNER,
+      acrossPoll: { intervalMs: 0, maxAttempts: 1 }
+    }).catch((e: unknown) => e)
+
+    expect((thrown as Error).name).toBe('NameSettlementUnknownError')
+    expect((thrown as Error).message).not.toMatch(/try again/i)
+    // The real failure stays reachable for Sentry behind the buyer-safe copy.
+    expect((thrown as Error & { cause?: unknown }).cause).toBe(cause)
+  })
+
+  // The counterpart: a REJECTION proves nothing was relayed, so the direct rail is safe and must still run.
+  it('should still fall back when the relayer rejected the meta-transaction', async () => {
+    readManaUsdRate.mockResolvedValueOnce(RATE_40C)
+    signedFetch.mockResolvedValueOnce(ok(ROUTE))
+    authorizeUsdCredit.mockResolvedValueOnce(authorized())
+    sendUseCreditsGasless.mockRejectedValueOnce(new GaslessUnavailableError('no hash', 'relayer-rejected'))
+    sendUseCredits.mockResolvedValueOnce('0xorigin-fallback')
+    waitForSettlement.mockResolvedValueOnce(undefined)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ok({ status: 'filled', fillTx: '0xdest', actionsSucceeded: true }))
+    )
+
+    const result = await registerNameWithUsdCredits({
+      name: 'my-name',
+      identity: IDENTITY,
+      signer: SIGNER,
+      acrossPoll: { intervalMs: 0, maxAttempts: 1 }
+    })
+
+    expect(result).toEqual({ status: 'registered', originTxHash: '0xorigin-fallback', destinationTxHash: '0xdest' })
+    expect(sendUseCredits).toHaveBeenCalledTimes(1)
   })
 
   it('should report pending (not failure) when the Across deposit stays unfilled within the window', async () => {

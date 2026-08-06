@@ -3,7 +3,12 @@ import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { useWallet } from '~/store/wallet'
 import { useBalance, balanceLabel } from '~/hooks/useBalance'
-import { NameRouteCostTooHighError, registerNameWithUsdCredits } from '~/lib/names'
+import {
+  NameNotRegisteredError,
+  NameRouteCostTooHighError,
+  NameSettlementUnknownError,
+  registerNameWithUsdCredits
+} from '~/lib/names'
 import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import { Icon } from '~/components/Icon'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
@@ -50,6 +55,9 @@ export function NameBuyModal({
   const [phase, setPhase] = useState<Phase>('confirm')
   const [reentry, setReentry] = useState('')
   const [error, setError] = useState<string | null>(null)
+  // Whether the credit is spent or may be, which decides if a retry is offered at all. Retrying on either
+  // buys a second one — for the unknown case while the first may still be in flight.
+  const [retryUnsafe, setRetryUnsafe] = useState(false)
   const startedRef = useRef(false)
 
   const matches = reentry.trim().toLowerCase() === name.toLowerCase()
@@ -126,11 +134,20 @@ export function NameBuyModal({
       // the route (503 ROUTE_COST_TOO_HIGH) when Across' bridge overhead exceeds what the executor can
       // front; the lib types it separately and rethrows it unwrapped for exactly this. It is temporary and
       // nothing is wrong with the buyer's account, so "try again" is the wrong advice — "try again later" is.
+      // Two failures where the credit is gone or may be, so retrying spends a second one on something the
+      // buyer cannot fix. Each gets its own copy, and neither gets a retry button below.
+      const notRegistered = e instanceof NameNotRegisteredError
+      const unknown = e instanceof NameSettlementUnknownError
       setError(
         e instanceof NameRouteCostTooHighError
           ? t('names.errorRouteCost')
-          : (e as { message?: string })?.message || t('names.errorGeneric')
+          : notRegistered
+            ? t('names.errorNotRegistered')
+            : unknown
+              ? t('names.errorSettlementUnknown')
+              : (e as { message?: string })?.message || t('names.errorGeneric')
       )
+      setRetryUnsafe(notRegistered || unknown)
       setPhase('error')
     } finally {
       startedRef.current = false
@@ -181,7 +198,11 @@ export function NameBuyModal({
                   <Icon name="info" aria-hidden />
                   <span>{error}</span>
                 </S.ErrorBox>
-                <S.PrimaryBtn onClick={() => setPhase('confirm')}>{t('names.tryAgain')}</S.PrimaryBtn>
+                {retryUnsafe ? (
+                  <S.PrimaryBtn onClick={onClose}>{t('names.errorSpentDismiss')}</S.PrimaryBtn>
+                ) : (
+                  <S.PrimaryBtn onClick={() => setPhase('confirm')}>{t('names.tryAgain')}</S.PrimaryBtn>
+                )}
               </>
             ) : (
               <>
