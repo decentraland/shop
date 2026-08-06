@@ -121,8 +121,8 @@ export const Banner = styled.div`
   justify-content: center;
   gap: 16px;
   padding: 24px 16px;
-  background: #dcf3e4;
-  border: 1px solid #34ce77;
+  background: ${colors.successBg};
+  border: 1px solid ${colors.successBorder};
   border-radius: 16px;
 
   ${narrow} {
@@ -209,7 +209,7 @@ export const Credits = styled.div`
   margin-bottom: 12px;
   padding: 8px 24px;
   border-radius: ${radius.btn};
-  background: #f4e9ff;
+  background: ${colors.promptLilac};
   color: ${colors.text};
 
   ${narrow} {

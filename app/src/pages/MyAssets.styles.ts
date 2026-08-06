@@ -133,7 +133,7 @@ export const SearchBar = styled.div`
   padding: 0 12px;
   border: 1px solid rgba(252, 252, 252, 0.6);
   border-radius: ${theme.radius.card};
-  background: rgba(255, 255, 255, 0.1);
+  background: ${theme.colors.glassFaint};
 
   &:focus-within {
     border-color: ${theme.colors.softWhite};
@@ -172,13 +172,13 @@ export const SearchClear = styled.button`
   height: 24px;
   border: 0;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.2);
+  background: ${theme.colors.glass};
   color: ${theme.colors.softWhite};
   cursor: pointer;
   flex: none;
 
   &:hover {
-    background: rgba(255, 255, 255, 0.3);
+    background: ${theme.colors.glassHover};
   }
   &:focus-visible {
     outline: 2px solid ${theme.colors.softWhite};
@@ -225,7 +225,7 @@ export const EmptyState = styled.div`
   gap: 24px;
   padding: 48px 16px;
   border-radius: 16px;
-  background: rgba(0, 0, 0, 0.2);
+  background: ${theme.colors.overlayLight};
   text-align: center;
   color: ${theme.colors.softWhite};
 `
@@ -270,7 +270,7 @@ export const EmptyCta = styled(Link)`
   height: 52px;
   padding: 0 12px;
   border-radius: 12px;
-  background: rgba(0, 0, 0, 0.4);
+  background: ${theme.colors.overlay};
   color: ${theme.colors.softWhite};
   font-family: ${theme.font.sans};
   font-size: 15px;
@@ -283,7 +283,7 @@ export const EmptyCta = styled(Link)`
   transition: background 0.15s ease;
 
   &:hover {
-    background: rgba(0, 0, 0, 0.55);
+    background: ${theme.colors.overlayHover};
   }
 `
 

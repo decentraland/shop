@@ -307,7 +307,7 @@ export const Body = styled.div`
   gap: 4px;
   /* The footer's own fill (Figma 619:5703), not the card's — the translucent black is what the
      secondary controls on it are drawn to sit against. */
-  background: rgba(0, 0, 0, 0.4);
+  background: ${colors.overlay};
 
   // Keyboard-focus reveal mirrors the hover reveal — desktop only (below sm the round + is the action).
   @media (hover: hover) and (min-width: 721px) {
@@ -612,7 +612,7 @@ const compactRoundCss = (fill: SerializedStyles) => css`
 
 // Figma 1284:295470 "Mobile CTA": a translucent white disc, not the solid accent.
 const addRoundFill = css`
-  background: rgba(255, 255, 255, 0.2);
+  background: ${colors.glass};
   color: ${colors.softWhite};
 
   &:disabled {

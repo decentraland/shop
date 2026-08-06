@@ -87,7 +87,7 @@ export const Body = styled.div`
   display: flex;
   flex-direction: column;
   gap: 8px;
-  background: rgba(0, 0, 0, 0.4);
+  background: ${colors.overlay};
 `
 
 export const Name = styled.h3`
@@ -168,7 +168,7 @@ export const View = styled.button`
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.4);
+  background: ${colors.overlay};
   color: ${colors.softWhite};
   border: 0;
   border-radius: ${radius.card};

@@ -9,6 +9,7 @@
  * main.tsx detects, which router-less links would otherwise drop.
  */
 export function hrefFor(path: string): string {
+  if (!path.startsWith('/') || path.startsWith('//')) throw new Error('hrefFor: path must start with a single "/"')
   const { pathname } = window.location
   const base = pathname === '/shop' || pathname.startsWith('/shop/') ? '/shop' : ''
   return `${base}${path}`

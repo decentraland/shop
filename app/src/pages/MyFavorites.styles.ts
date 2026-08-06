@@ -77,7 +77,7 @@ export const Empty = styled.div`
   min-height: 50vh;
   padding: 48px 16px;
   border-radius: 16px;
-  background: rgba(0, 0, 0, 0.2);
+  background: ${colors.overlayLight};
   text-align: center;
   color: ${colors.softWhite};
 `
@@ -120,7 +120,7 @@ export const EmptyCta = styled(Link)`
   padding: 0 12px;
   border-radius: ${radius.card};
   /* The panel's own CTA is a deeper translucent black, not a solid purple (Figma 2103:414709). */
-  background: rgba(0, 0, 0, 0.4);
+  background: ${colors.overlay};
   color: ${colors.softWhite};
   font-size: 15px;
   font-weight: 600;
@@ -131,7 +131,7 @@ export const EmptyCta = styled(Link)`
   transition: background 0.15s ease;
 
   &:hover {
-    background: rgba(0, 0, 0, 0.55);
+    background: ${colors.overlayHover};
   }
   &:focus-visible {
     outline: 2px solid ${colors.softWhite};

@@ -193,7 +193,7 @@ export const Search = styled.div`
   ${mobile} {
     height: 40px;
     border-radius: 12px;
-    padding 0 12px;
+    padding: 0 12px;
     
     & input {
       font-size: 14px;

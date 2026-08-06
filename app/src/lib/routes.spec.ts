@@ -1,5 +1,37 @@
-import { describe, it, expect } from 'vitest'
-import { itemRoute, tokenRoute, detailRouteFor, canManageToken, myItemsRouteFor } from '~/lib/routes'
+import { describe, it, expect, beforeEach } from 'vitest'
+import { hrefFor, itemRoute, tokenRoute, detailRouteFor, canManageToken, myItemsRouteFor } from './routes'
+
+describe('hrefFor', () => {
+  beforeEach(() => {
+    Object.defineProperty(window, 'location', {
+      value: { pathname: '/' },
+      writable: true,
+    })
+  })
+
+  it('returns the path as-is when not under /shop', () => {
+    window.location.pathname = '/'
+    expect(hrefFor('/items')).toBe('/items')
+  })
+
+  it('prepends /shop when pathname is exactly /shop', () => {
+    window.location.pathname = '/shop'
+    expect(hrefFor('/items')).toBe('/shop/items')
+  })
+
+  it('prepends /shop when pathname starts with /shop/', () => {
+    window.location.pathname = '/shop/collectibles'
+    expect(hrefFor('/items')).toBe('/shop/items')
+  })
+
+  it('throws on paths that do not start with /', () => {
+    expect(() => hrefFor('items')).toThrow()
+  })
+
+  it('throws on protocol-relative paths (//)', () => {
+    expect(() => hrefFor('//evil.com')).toThrow()
+  })
+})
 
 describe('detailRouteFor', () => {
   it('routes a row with a tokenId to the specific /token page', () => {

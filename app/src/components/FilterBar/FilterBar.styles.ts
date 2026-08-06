@@ -56,7 +56,7 @@ export const Chip = styled.button`
   padding: 6px 8px 6px 12px;
   border: 0;
   border-radius: ${radius.pill};
-  background: rgba(0, 0, 0, 0.3);
+  background: ${colors.chipDark};
   color: ${colors.white};
   font-weight: 400;
   font-size: 12px;
@@ -157,7 +157,7 @@ export const Right = styled.div`
       border-radius: 32px;
       border: 1px solid ${colors.softWhite};
       color: ${colors.softWhite};
-      background: rgba(255, 255, 255, 0.1);
+      background: ${colors.glassFaint};
       font-size: 12px;
       font-weight: 500;
       text-transform: none;
@@ -175,7 +175,7 @@ export const FiltersPill = styled.button`
   gap: 4px;
   height: 36px;
   padding: 8px 8px 8px 12px;
-  background: rgba(255, 255, 255, 0.1);
+  background: ${colors.glassFaint};
   border: 1px solid ${colors.softWhite};
   border-radius: 32px;
   color: ${colors.softWhite};

@@ -225,7 +225,7 @@ export const Confirm = styled.div`
   margin-top: 16px;
   padding: 16px;
   border-radius: 12px;
-  background: #f4e9ff;
+  background: ${theme.colors.promptLilac};
 `
 
 export const ConfirmTitle = styled.div`
@@ -246,7 +246,7 @@ export const ConfirmBody = styled.p`
      violet — background-clip is the only way to paint a text run with one. */
   b {
     font-weight: 700;
-    background: linear-gradient(180deg, ${theme.colors.dclRed}, #c640cd);
+    background: linear-gradient(180deg, ${theme.colors.dclRed}, ${theme.colors.magenta});
     background-clip: text;
     -webkit-background-clip: text;
     color: transparent;

@@ -64,7 +64,7 @@ export const Panel = styled.div`
 // Figma 1368:353666: a translucent black panel edged in Flare's last stop, not a purple glow.
 export const Hero = styled.div`
   position: relative;
-  border: 1px solid #c640cd;
+  border: 1px solid ${theme.colors.magenta};
   border-radius: 24px;
   overflow: hidden;
   padding: 88px 48px;
@@ -73,7 +73,7 @@ export const Hero = styled.div`
   align-items: center;
   gap: 48px;
   text-align: center;
-  background: rgba(0, 0, 0, 0.4);
+  background: ${theme.colors.overlay};
 
   ${theme.media.maxWidth('mobile')} {
     padding: 40px 20px;
@@ -137,7 +137,7 @@ export const InputRow = styled('div', noForward('invalid'))<{ invalid?: boolean 
   background: ${theme.colors.softWhite};
   /* Figma 1368:349148 gives the field a 3px Orange edge — it is the page's one input, and the design
      leans on that weight to carry it. Red only when what has been typed cannot be claimed. */
-  border: 3px solid ${({ invalid }) => (invalid ? theme.colors.dclRed : '#ff7439')};
+  border: 3px solid ${({ invalid }) => (invalid ? theme.colors.dclRed : theme.colors.orange)};
   border-radius: 20px;
 
   &:focus-within {
@@ -488,7 +488,7 @@ export const Card = styled.article`
   flex-direction: column;
   gap: 32px;
   padding: 24px;
-  background: rgba(0, 0, 0, 0.4);
+  background: ${theme.colors.overlay};
   border-radius: 24px;
 
   @media (forced-colors: active) {

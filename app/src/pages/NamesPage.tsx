@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useWallet } from '~/store/wallet'
 import { useManaRate } from '~/hooks/useManaRate'
 import { manaWeiToCredits } from '~/lib/mana-rate'
@@ -65,15 +65,24 @@ export function NamesPage({ onBack }: { onBack: () => void }) {
    * behind someone who has clicked in and then clicked away, and it never restarts on a cleared field.
    */
   const [touched, setTouched] = useState(false)
-  const reducedMotion =
-    typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+  const [reducedMotion, setReducedMotion] = useState(
+    () => typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+  )
+  useEffect(() => {
+    const mq = window.matchMedia?.('(prefers-reduced-motion: reduce)')
+    if (!mq) return
+    const onChange = (e: MediaQueryListEvent) => setReducedMotion(e.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+  const examplesCsv = t('names.placeholderExamples')
   const examples = useMemo(
     () =>
-      t('names.placeholderExamples')
+      examplesCsv
         .split(',')
         .map(s => s.trim())
         .filter(Boolean),
-    []
+    [examplesCsv]
   )
   const typed = useTypedPlaceholder(examples, !touched && !value && !reducedMotion)
   // The real placeholder stays put for anyone the animation is not for — a screen reader, or a reader

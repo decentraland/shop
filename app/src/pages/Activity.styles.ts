@@ -66,7 +66,7 @@ export const Tab = styled.button`
      are on, with no border in either state — the outline this used to carry made the selected chip read
      as a control with a stuck focus ring on it. */
   border: 0;
-  background: rgba(255, 255, 255, 0.2);
+  background: ${theme.colors.glass};
   color: ${theme.colors.white};
   font-family: ${theme.font.sans};
   font-size: 13px;
@@ -87,7 +87,7 @@ export const Tab = styled.button`
     color 0.15s;
 
   &:hover {
-    background: rgba(255, 255, 255, 0.3);
+    background: ${theme.colors.glassHover};
   }
   /* Inset, so a keyboard ring never reads as part of the pill's own shape the way an offset one did. */
   &:focus-visible {

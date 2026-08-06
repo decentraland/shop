@@ -59,7 +59,19 @@ const colors = {
   // Saturated solid-fill variants of ok/err (badges, success checks, toast accents)
   okStrong: '#1f8a4c',
   errStrong: '#d64545',
-  white: '#ffffff'
+  successBg: '#dcf3e4', // success-banner light-green fill
+  successBorder: '#34ce77', // success-banner border
+  orange: '#ff7439', // the warm stop of `gradients.buyBtn` — input borders, accent details
+  white: '#ffffff',
+  // Translucent overlays for dark surfaces (dark-theme panels, card footers, empty-state shells).
+  overlay: 'rgba(0, 0, 0, 0.4)',
+  overlayLight: 'rgba(0, 0, 0, 0.2)',
+  overlayHover: 'rgba(0, 0, 0, 0.55)',
+  chipDark: 'rgba(0, 0, 0, 0.3)',
+  // Translucent white fills for controls on dark surfaces (filter pills, search bars, buttons).
+  glass: 'rgba(255, 255, 255, 0.2)',
+  glassFaint: 'rgba(255, 255, 255, 0.1)',
+  glassHover: 'rgba(255, 255, 255, 0.3)'
 } as const
 
 // Per-rarity swatch colors for the filter chips (Figma "Rarities/*" variables — a distinct palette
