@@ -1043,6 +1043,7 @@
     "heroTitle": "¡Consigue tu NAME único!",
     "heroSubtitle": "Cuando reclamas un NAME no estás eligiendo solo un alias: estás haciendo oficial tu presencia.",
     "inputPlaceholder": "tunombre",
+    "placeholderExamples": "nayeli,kenji,rowan,mira",
     "inputAria": "Busca un NAME",
     "suffix": ".dcl.eth",
     "claim": "Reclamar NAME",

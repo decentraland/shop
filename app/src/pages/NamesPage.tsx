@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useWallet } from '~/store/wallet'
 import { useManaRate } from '~/hooks/useManaRate'
 import { manaWeiToCredits } from '~/lib/mana-rate'
@@ -11,6 +11,7 @@ import {
   validateName
 } from '~/lib/names'
 import { useSeo } from '~/hooks/useSeo'
+import { useTypedPlaceholder } from '~/hooks/useTypedPlaceholder'
 import { Icon } from '~/components/Icon'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { formatCredits } from '~/lib/currency'
@@ -58,13 +59,37 @@ export function NamesPage({ onBack }: { onBack: () => void }) {
   const [status, setStatus] = useState<Status>('idle')
   const [modalOpen, setModalOpen] = useState(false)
 
+  /**
+   * The placeholder types example names out until the reader touches the field, so an empty input reads
+   * as "put yours here" rather than as a label. `touched` is one-way: the animation must not resume
+   * behind someone who has clicked in and then clicked away, and it never restarts on a cleared field.
+   */
+  const [touched, setTouched] = useState(false)
+  const reducedMotion =
+    typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+  const examples = useMemo(
+    () =>
+      t('names.placeholderExamples')
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean),
+    []
+  )
+  const typed = useTypedPlaceholder(examples, !touched && !value && !reducedMotion)
+  // The real placeholder stays put for anyone the animation is not for — a screen reader, or a reader
+  // who asked for less motion — and is what the field settles on the moment it is touched.
+  const placeholder = typed || t('names.inputPlaceholder')
+
   // Size the input to EXACTLY its text so the NAME sits flush against ".dcl.eth" (a `ch`-based width
   // over-shoots on a proportional font, leaving a big gap). A hidden sizer mirrors the input's glyphs.
   const sizerRef = useRef<HTMLSpanElement>(null)
   const [nameWidth, setNameWidth] = useState<number | undefined>(undefined)
+  // Re-measures on the PLACEHOLDER too, not just the value: the animated example grows a character at a
+  // time and the field has to grow with it, or ".dcl.eth" sits at a fixed distance and the example types
+  // itself into the gap.
   useLayoutEffect(() => {
     if (sizerRef.current) setNameWidth(sizerRef.current.offsetWidth)
-  }, [value])
+  }, [value, placeholder])
 
   // Validate + (debounced) availability probe on every change. The probe is advisory — the credits
   // server + the on-chain register are the authoritative gates at purchase time.
@@ -143,15 +168,18 @@ export function NamesPage({ onBack }: { onBack: () => void }) {
                   <S.NameInput
                     value={value}
                     onChange={e => setValue(sanitizeNameInput(e.target.value))}
-                    placeholder={t('names.inputPlaceholder')}
+                    placeholder={placeholder}
                     aria-label={t('names.inputAria')}
                     autoComplete="off"
                     spellCheck={false}
                     maxLength={NAME_MAX_LENGTH}
+                    onFocus={() => setTouched(true)}
                     style={{ width: nameWidth != null ? `${nameWidth}px` : undefined }}
                   />
+                  {/* Mirrors whatever the field is showing, animated placeholder included, so ".dcl.eth"
+                      stays glued to it as the example is typed out. */}
                   <S.Sizer ref={sizerRef} aria-hidden>
-                    {value || t('names.inputPlaceholder')}
+                    {value || placeholder}
                   </S.Sizer>
                   <S.Suffix>{t('names.suffix')}</S.Suffix>
                 </S.InputField>
