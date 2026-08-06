@@ -220,16 +220,22 @@ export function ItemDetail() {
     creator: current.creator
   })
 
-  // Hydrate from the UNIFIED feed by ITEM id (`pageItemId`). Re-fetches when the seed lacks `available`
-  // or `acquisition` — without either, a collection-store mint reads as unlisted (no trade, and 'store'
-  // is the only discriminator; see `isStoreMint`). The /v3/catalog/items feeds omit `acquisition`
-  // (see lib/collections), so grid-nav cards always trigger this. Token route is excluded — it hydrates
-  // from the specific token instead.
-  const needsPrimaryFacts = !current.tokenId && (current.available == null || current.acquisition == null)
+  // Hydrate the generic item (name, price, tradeId, stock) from the shop feed by its ITEM id. Resolved
+  // by `pageItemId` — the route itemId, or the itemId DECODED from the token on the token route. This is
+  // the bug fix: the old code fed the raw route segment (a tokenId on a secondary URL) to
+  // fetchShopListingForItem, which treats its 2nd arg as an itemId → the server matched nothing and
+  // returned the collection's first listing (a WRONG item) on a cold load. Never pass a tokenId here.
+  // Also runs when a seeded item (grid nav / sibling) is missing its stock (`available`) so the
+  // authoritative listing can backfill it. Resolved through the UNIFIED feed so a LEGACY (MANA) listing
+  // counts as much as a native one — reading the shop-only feed here is what made a MANA-listed item show
+  // "Not for sale" on its own page while its card in the grid showed a price.
+  // ITEM ROUTE ONLY: the token route hydrates from the specific token (ownedAsset / publicToken) and
+  // must not be overwritten by the generic item listing (which carries no tokenId).
   const { data: deepLinkItem, isLoading: deepLinkLoading } = useQuery({
     queryKey: ['shop-item', current.contractAddress, pageItemId],
-    enabled:
-      !isMarket && !isTokenRoute && !!current.contractAddress && !!pageItemId && (!state?.item || needsPrimaryFacts),
+    // Runs even when the page was seeded from a card. Skipping it there was what let a stale grid price
+    // stand as this page's price, with a Buy button under it.
+    enabled: !isMarket && !isTokenRoute && !!current.contractAddress && !!pageItemId,
     // Money-sensitive: a 3rd party's listing/price/stock can change under us. Never serve the 30s-stale
     // default — revalidate on every (re)mount and tab refocus so a soft revisit re-checks availability.
     staleTime: 0,
@@ -240,16 +246,17 @@ export function ItemDetail() {
   useEffect(() => {
     if (!deepLinkItem) return
     setCurrent(prev => {
-      // Bare deep-link stub (no tradeId yet) → hydrate from the authoritative listing, which wins on every
-      // field it reports. The seed's own keep the fields the unified feed has no opinion on at all (urn,
-      // the emote flags) rather than being blanked on the way through.
-      if (!prev.tradeId) return { ...prev, ...deepLinkItem }
-      // Seeded item (grid/sibling): keep its identity/price/name/tradeId, only backfill the
-      // authoritative fields it lacked (stock + wearableCategory) — never clobber the rest.
-      if (prev.available != null && prev.wearableCategory) return prev
+      // Bare deep-link stub (no tradeId yet) → full hydrate from the authoritative listing.
+      if (!prev.tradeId) return { ...deepLinkItem }
+      // A seeded item keeps its identity and presentation, but NOT its money. The price and tradeId it
+      // arrived with are a snapshot of the grid that linked here, and the trade they name may already be
+      // cancelled — the listing just fetched is the only authority on what this costs now.
       return {
         ...prev,
-        available: prev.available ?? deepLinkItem.available,
+        tradeId: deepLinkItem.tradeId,
+        priceCredits: deepLinkItem.priceCredits,
+        manaWei: deepLinkItem.manaWei,
+        available: deepLinkItem.available ?? prev.available,
         wearableCategory: prev.wearableCategory ?? deepLinkItem.wearableCategory
       }
     })
