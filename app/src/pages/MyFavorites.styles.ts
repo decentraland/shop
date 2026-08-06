@@ -66,6 +66,8 @@ export const Retry = styled.button`
 `
 
 // No card: the empty state sits directly on the page's purple field, white text on it.
+// The shared empty-state shell (Figma 2103:411677): a translucent black panel, not a bare centred
+// column. min-height keeps a page with nothing on it from collapsing to the panel's own height.
 export const Empty = styled.div`
   display: flex;
   flex-direction: column;
@@ -74,6 +76,8 @@ export const Empty = styled.div`
   gap: 24px;
   min-height: 50vh;
   padding: 48px 16px;
+  border-radius: 16px;
+  background: ${colors.overlayLight};
   text-align: center;
   color: ${colors.softWhite};
 `
@@ -112,10 +116,11 @@ export const EmptyCta = styled(Link)`
   justify-content: center;
   width: 310px;
   max-width: 100%;
-  height: 56px;
+  height: 52px;
   padding: 0 12px;
   border-radius: ${radius.card};
-  background: ${colors.accent};
+  /* The panel's own CTA is a deeper translucent black, not a solid purple (Figma 2103:414709). */
+  background: ${colors.overlay};
   color: ${colors.softWhite};
   font-size: 15px;
   font-weight: 600;
@@ -126,10 +131,10 @@ export const EmptyCta = styled(Link)`
   transition: background 0.15s ease;
 
   &:hover {
-    background: ${colors.accentHover};
+    background: ${colors.overlayHover};
   }
   &:focus-visible {
-    outline: 2px solid ${colors.accent};
+    outline: 2px solid ${colors.softWhite};
     outline-offset: 2px;
   }
 `

@@ -143,17 +143,20 @@ export const Body = styled.div`
 
 export const Asset = styled.div`
   display: flex;
-  gap: 12px;
+  gap: 24px;
   align-items: center;
+
+  ${theme.media.maxWidth('mobile')} {
+    gap: 12px;
+  }
 `
 
 export const AssetThumb = styled.div`
   flex-shrink: 0;
-  width: 180px;
-  height: 180px;
+  width: 110px;
+  height: 110px;
   background: ${colors.media};
-  border: 1px solid ${colors.muted2};
-  border-radius: 16px;
+  border-radius: 8px;
   display: grid;
   place-items: center;
   overflow: hidden;
@@ -164,6 +167,11 @@ export const AssetThumb = styled.div`
     object-fit: contain;
     filter: drop-shadow(0.7px 2.9px 3.7px rgba(0, 0, 0, 0.1));
   }
+
+  ${theme.media.maxWidth('mobile')} {
+    width: 80px;
+    height: 80px;
+  }
 `
 
 export const AssetInfo = styled.div`
@@ -171,22 +179,26 @@ export const AssetInfo = styled.div`
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 32px;
-  padding: 8px;
+  justify-content: center;
+  gap: 4px;
 `
 
 export const AssetName = styled.div`
-  font-size: 20px;
-  font-weight: 600;
-  line-height: 1.57;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.3;
   color: ${colors.text};
   overflow: hidden;
   text-overflow: ellipsis;
+
+  ${theme.media.maxWidth('mobile')} {
+    font-size: 16px;
+  }
 `
 
 // Resolves the creator address → profile display name; takes an `address` prop.
 export const AssetCreator = styled(CreatorName)`
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.43;
   color: ${colors.muted};
 `
@@ -194,30 +206,34 @@ export const AssetCreator = styled(CreatorName)`
 export const AssetPrice = styled.div`
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
+  margin-top: 4px;
 
   & span {
-    font-size: 20.5px;
-    font-weight: 600;
+    font-size: 18px;
+    font-weight: 700;
     color: ${colors.text2};
   }
 `
 
 export const AssetPriceIco = styled(CurrencyIcon)`
-  width: 21.5px;
-  height: 21.5px;
+  width: 18px;
+  height: 18px;
   background: ${colors.text2};
 `
 
 // Insufficient-funds banner: warm peach fill with a Brand/Purple warning glyph and soft-black-2 text.
 export const Warning = styled.div`
   display: flex;
-  align-items: center;
-  gap: 8px;
-  justify-content: center;
+  align-items: flex-start;
+  gap: 12px;
   background: rgba(255, 162, 90, 0.3);
   border-radius: ${radius.btn};
-  padding: 12px 8px;
+  padding: 16px;
+
+  & > svg {
+    flex-shrink: 0;
+  }
 `
 
 export const WarningText = styled.p`
@@ -231,13 +247,37 @@ export const WarningText = styled.p`
   }
 `
 
+// "Learn More" under the insufficient-funds copy — opens the credits page (with its FAQ) in a new tab
+// so the pending purchase in this modal survives the detour.
+export const WarningLink = styled.a`
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.334;
+  color: ${colors.text2};
+  text-decoration: underline;
+
+  &:hover {
+    color: ${colors.accent};
+  }
+`
+
+// The 6px inset is what the selected tile's zoom grows into: both the card and the body clip, so
+// without it the ring on the first and last tile would be shaved off at the modal's edge. The negative
+// vertical margin gives the padding back, keeping the row's place in the 24px body stack.
 export const Packs = styled.div`
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
+  margin: -6px 0;
+  padding: 6px;
 `
 
 export const Pack = styled.button`
-  flex: 1;
+  /* Wide enough to stay readable, so a narrow card wraps the tiles onto a second row instead of
+     squeezing four of them into one. */
+  flex: 1 1 140px;
   height: 109px;
   border: 1px solid ${colors.muted2};
   background: ${colors.media};
@@ -247,10 +287,29 @@ export const Pack = styled.button`
   justify-content: center;
   gap: 8px;
   cursor: pointer;
-  transition: border-color 0.12s ease;
+  padding: 3px;
+  transition:
+    transform 0.12s ease,
+    border-color 0.12s ease,
+    border-width 0.12s ease,
+    padding 0.12s ease;
 
+  /* The buy gradient AS the border: the flat fill is clipped to the padding box and the gradient to the
+     border box, which paints a gradient ring on the tile's own radius with no wrapper element (a
+     gradient is not a valid border-color). */
+  &:hover:not(:disabled),
   &[data-on] {
-    border: 4px solid #ff7439;
+    padding: 0;
+    border-color: transparent;
+    border-width: 4px;
+    background-image: linear-gradient(${colors.media}, ${colors.media}), ${gradients.buyBtn};
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+  }
+
+  /* Selected also lifts; hover alone is just the ring. */
+  &[data-on] {
+    transform: scale(1.03);
   }
 `
 
@@ -370,6 +429,10 @@ export const Btn = styled.button`
     background: ${colors.accent};
     color: ${colors.softWhite};
     font-size: 13px;
+  }
+  &:hover:not(:disabled),
+  &[data-variant='purple']:hover:not(:disabled) {
+    background: ${colors.accentHover};
   }
   &:disabled {
     opacity: 0.6;

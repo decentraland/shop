@@ -47,6 +47,6 @@ export const CollectionsBar = styled.div`
 `
 
 export const Count = styled.span`
-  color: ${colors.muted};
+  color: ${colors.softWhite};
   font-weight: 600;
 `

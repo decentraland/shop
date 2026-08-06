@@ -139,11 +139,11 @@ export const Tabs = styled.nav`
     gap: 16px;
 
     & a {
-      height: auto;
+      height: 44px;
       font-size: 12px;
       letter-spacing: 0.038em;
       border-bottom-width: 4px;
-      padding: 8px 0 6px;
+      padding: 8px 0 12px;
     }
   }
 `
@@ -180,7 +180,7 @@ export const Search = styled.div`
     color: ${colors.white};
   }
   & input::placeholder {
-    color: ${colors.muted2};
+    color: ${colors.gray4};
   }
 
   ${stacked} {
@@ -191,11 +191,29 @@ export const Search = styled.div`
   }
 
   ${mobile} {
-    height: 34px;
-
+    height: 40px;
+    border-radius: 12px;
+    padding: 0 12px;
+    
     & input {
       font-size: 14px;
     }
+  }
+`
+
+export const MobileDivider = styled.hr`
+  display: none;
+  ${stacked} {
+    order: 5;
+  }
+
+  ${mobile} {
+    display: block;
+    flex: 1 0 100%;
+    height: 0;
+    margin: 0;
+    border-color: transparent;
+    border-top: 1px solid rgba(255, 255, 255, 0.3);
   }
 `
 

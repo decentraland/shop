@@ -285,6 +285,9 @@ export function NavBar() {
             </NavLink>
           ) : null}
         </S.Tabs>
+
+        <S.MobileDivider />
+
         {/* Rendered as nothing rather than hidden with CSS: a visually-hidden input is still focusable and
             still in the tab order, so on My Items the keyboard would land in a search box nobody can see. */}
         {hidesGlobalSearch ? null : (
@@ -333,14 +336,9 @@ export function NavBar() {
           </S.FavIcons>
         </S.Fav>
         <S.CartWrap>
-          {/* Cart icon opens the cart drawer (open-on-icon). With an empty cart there's nothing to show,
-              so it falls back to navigating to the cart page. */}
-          <S.Cart
-            type="button"
-            data-testid="subnav-cart"
-            aria-label={t('nav.cart')}
-            onClick={() => (cartCount > 0 ? openCart(true) : navigate('/cart'))}
-          >
+          {/* Cart icon opens the cart drawer (open-on-icon) — including on an empty cart, which shows the
+              drawer's own empty state rather than navigating the shopper off the page they're browsing. */}
+          <S.Cart type="button" data-testid="subnav-cart" aria-label={t('nav.cart')} onClick={() => openCart(true)}>
             <S.CartIcons data-filled={cartCount > 0 || undefined}>
               <S.CartOutline name="cart" size={28} aria-hidden />
               <S.CartFill name="cart-solid" size={28} aria-hidden />

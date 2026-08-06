@@ -122,6 +122,8 @@ export const SubPill = styled('button', noForward('selected'))<{ selected?: bool
 // Lives in the FilterBar toolbar now (see MyAssets' `search` slot), so it carries no bottom margin of its
 // own — the toolbar's own margin is what separates the row from the grid — and it fills the width the slot
 // gives it instead of the whole main column.
+// Sits on the purple field beside the Sort By / Filters pills, so it takes their treatment: a
+// translucent white fill behind a hairline, near-white glyph and text.
 export const SearchBar = styled.div`
   display: flex;
   align-items: center;
@@ -129,12 +131,12 @@ export const SearchBar = styled.div`
   width: 100%;
   height: 40px;
   padding: 0 12px;
-  border: 1px solid ${theme.colors.lineStrong};
-  border-radius: ${theme.radius.btn};
-  background: ${theme.colors.white};
+  border: 1px solid rgba(252, 252, 252, 0.6);
+  border-radius: ${theme.radius.card};
+  background: ${theme.colors.glassFaint};
 
   &:focus-within {
-    border-color: ${theme.colors.accent};
+    border-color: ${theme.colors.softWhite};
   }
 `
 
@@ -142,7 +144,7 @@ export const SearchIcon = styled(Icon)`
   width: 18px;
   height: 18px;
   flex: none;
-  color: ${theme.colors.muted};
+  color: ${theme.colors.softWhite};
 `
 
 export const SearchInput = styled.input`
@@ -153,10 +155,10 @@ export const SearchInput = styled.input`
   padding: 0;
   font-family: ${theme.font.sans};
   font-size: 14px;
-  color: ${theme.colors.text};
+  color: ${theme.colors.softWhite};
 
   &::placeholder {
-    color: ${theme.colors.muted2};
+    color: rgba(252, 252, 252, 0.7);
   }
   &:focus {
     outline: 0;
@@ -170,13 +172,16 @@ export const SearchClear = styled.button`
   height: 24px;
   border: 0;
   border-radius: 50%;
-  background: ${theme.colors.chip};
-  color: ${theme.colors.text};
+  background: ${theme.colors.glass};
+  color: ${theme.colors.softWhite};
   cursor: pointer;
   flex: none;
 
+  &:hover {
+    background: ${theme.colors.glassHover};
+  }
   &:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
+    outline: 2px solid ${theme.colors.softWhite};
     outline-offset: 2px;
   }
 `
@@ -209,58 +214,76 @@ export const Empty = styled.p`
 `
 
 // Friendly empty state (centered card) shown when a section has no items.
+// The shared empty-state panel (Figma 2103:411675). This was the last one still on the light theme —
+// a near-black title and a light grey body on the purple field, in a violet-circle-plus-glyph shell
+// the design does not have.
 export const EmptyState = styled.div`
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 72px 24px;
+  gap: 24px;
+  padding: 48px 16px;
+  border-radius: 16px;
+  background: ${theme.colors.overlayLight};
   text-align: center;
+  color: ${theme.colors.softWhite};
 `
 export const EmptyIcon = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 72px;
-  height: 72px;
-  margin-bottom: 10px;
-  border-radius: 50%;
-  background: ${theme.colors.navViolet};
-  color: ${theme.colors.accent};
+  width: 138px;
+  height: 138px;
+  color: ${theme.colors.dclRed};
 `
+// Title and body are one block: 12px apart from each other, 24px from the icon and the CTA.
+export const EmptyCopy = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 16px;
+`
+
 export const EmptyTitle = styled.p`
   margin: 0;
   font-family: ${theme.font.sans};
-  font-size: 18px;
-  font-weight: 600;
-  color: ${theme.colors.text};
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.6;
 `
 export const EmptyText = styled.p`
   margin: 0;
-  max-width: 360px;
+  max-width: 520px;
   font-family: ${theme.font.sans};
-  font-size: 14px;
-  line-height: 1.5;
-  color: ${theme.colors.muted};
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.6;
 `
 export const EmptyCta = styled(Link)`
-  margin-top: 12px;
   display: inline-flex;
   align-items: center;
-  height: 40px;
-  padding: 0 20px;
-  border-radius: 8px;
-  background: ${theme.colors.accent};
-  color: ${theme.colors.white};
+  justify-content: center;
+  width: 310px;
+  max-width: 100%;
+  height: 52px;
+  padding: 0 12px;
+  border-radius: 12px;
+  background: ${theme.colors.overlay};
+  color: ${theme.colors.softWhite};
   font-family: ${theme.font.sans};
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 600;
+  line-height: 24px;
+  letter-spacing: 0.46px;
+  text-transform: uppercase;
   text-decoration: none;
   cursor: pointer;
+  transition: background 0.15s ease;
 
   &:hover {
-    background: ${theme.colors.accentHover};
+    background: ${theme.colors.overlayHover};
   }
 `
 

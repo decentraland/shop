@@ -185,7 +185,8 @@ h2 {
    surplus lands after that band and shows as a strip of gray between the cross-sell and the footer. Making
    the route a flex column lets the band grow into the surplus instead, so the white reaches the footer.
    See pages/Cart.styles.ts (Checkout / Upsell), which opt into growing. */
-.page[data-route="/cart"] {
+.page[data-route="/cart"],
+.page[data-route="/success"] {
   display: flex;
   flex-direction: column;
 }

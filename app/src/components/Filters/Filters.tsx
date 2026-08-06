@@ -4,6 +4,13 @@ import { Chevron } from '~/components/Chevron'
 import { Tooltip } from '~/components/Tooltip'
 import { RARITIES } from '~/components/FilterBar'
 import { CURRENCY } from '~/lib/currency'
+import {
+  PRICE_SLIDER_MAX,
+  PRICE_SLIDER_STEPS,
+  priceToSliderPct,
+  priceToSliderPos,
+  sliderPosToPrice
+} from '~/lib/price-slider'
 import { rarityLabel } from '~/lib/rarity'
 import { t } from '~/intl/i18n'
 import { theme } from '~/styles/theme'
@@ -12,10 +19,6 @@ import * as S from './Filters.styles'
 // Status of a listing: everything, only-listed (on sale), or only not-listed. Wired to a query param;
 // 'all' is the default and adds no filter.
 export type FilterStatus = 'all' | 'on_sale' | 'not_for_sale'
-
-// Upper bound for the sidebar price range slider (in credits). The Min/Max text inputs stay free-form
-// (an exact price above this is still typable); the slider is the coarse control.
-const PRICE_SLIDER_MAX = 100_000
 
 // Human label for a sub-category key (keys double as labels — "Upper Body" — but fall back to the
 // category-map labelKey when one exists).
@@ -120,14 +123,15 @@ export function Filters({
   const max = priceMax && !Number.isNaN(Number(priceMax)) ? Number(priceMax) : undefined
   const sliderMin = min != null ? Math.min(min, PRICE_SLIDER_MAX) : 0
   const sliderMax = max != null ? Math.min(max, PRICE_SLIDER_MAX) : PRICE_SLIDER_MAX
-  const minPct = (sliderMin / PRICE_SLIDER_MAX) * 100
-  const maxPct = (sliderMax / PRICE_SLIDER_MAX) * 100
-  function onSlideMin(v: number) {
-    const n = Math.min(v, sliderMax)
+  // The thumbs run on the track's own scale, which is not the price scale — see lib/price-slider.
+  const minPct = priceToSliderPct(sliderMin)
+  const maxPct = priceToSliderPct(sliderMax)
+  function onSlideMin(pos: number) {
+    const n = Math.min(sliderPosToPrice(pos), sliderMax)
     onPriceMin(n <= 0 ? '' : String(n))
   }
-  function onSlideMax(v: number) {
-    const n = Math.max(v, sliderMin)
+  function onSlideMax(pos: number) {
+    const n = Math.max(sliderPosToPrice(pos), sliderMin)
     onPriceMax(n >= PRICE_SLIDER_MAX ? '' : String(n))
   }
 
@@ -213,17 +217,22 @@ export function Filters({
           <S.SliderInput
             type="range"
             min={0}
-            max={PRICE_SLIDER_MAX}
-            value={sliderMin}
+            max={PRICE_SLIDER_STEPS}
+            value={priceToSliderPos(sliderMin)}
             aria-label={t('assets.minPriceSliderAria')}
+            aria-valuetext={sliderMin.toLocaleString()}
+            // Past the middle it is Min that ends up pinned against the ceiling, so it takes the top of
+            // the stack there — see SliderInput for what the pair does when the thumbs meet.
+            data-on-top={minPct >= 50 ? '' : undefined}
             onChange={e => onSlideMin(Number(e.target.value))}
           />
           <S.SliderInput
             type="range"
             min={0}
-            max={PRICE_SLIDER_MAX}
-            value={sliderMax}
+            max={PRICE_SLIDER_STEPS}
+            value={priceToSliderPos(sliderMax)}
             aria-label={t('assets.maxPriceSliderAria')}
+            aria-valuetext={sliderMax.toLocaleString()}
             onChange={e => onSlideMax(Number(e.target.value))}
           />
         </S.Slider>

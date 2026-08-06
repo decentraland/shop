@@ -4,6 +4,7 @@ import { useWallet } from '~/store/wallet'
 import { config } from '~/config'
 import { Button } from '~/components/Button'
 import { Confetti } from '~/components/Confetti'
+import { JumpInIcon } from '~/components/Icons/JumpInIcon'
 import styled from '@emotion/styled'
 import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import { waitForSettlement, SettlementPendingError } from '~/lib/buy-gasless'
@@ -112,6 +113,20 @@ function demoState(search: string): SuccessNavState | null {
 }
 
 const delay = (ms: number) => new Promise<void>(r => setTimeout(r, ms))
+
+// The white tick inside the ruby "purchased" badge (rows + the topped-up credits pill).
+const CheckMark = () => (
+  <svg viewBox="0 0 18 18" width="12" height="12">
+    <path
+      d="M4 9l3.5 3.5L14 5"
+      fill="none"
+      stroke="#fff"
+      strokeWidth="2.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+)
 
 function useSettlement(txHash: string | undefined, ownership: OwnershipCheck | null): Settlement {
   // No hash to verify (the cart already settled, or a managed credit buy) → don't block the page.
@@ -335,6 +350,9 @@ export function Success() {
               above the item list as the bundle added to the account. */}
           {creditsAdded ? (
             <S.Credits data-testid="success-credits">
+              <S.RowCheck aria-hidden>
+                <CheckMark />
+              </S.RowCheck>
               <S.CreditsIco />
               <S.CreditsText>
                 <S.CreditsAmount>
@@ -352,29 +370,20 @@ export function Success() {
               <S.ListRow key={item.id}>
                 {i > 0 ? <S.Divider aria-hidden /> : null}
                 <S.Row>
-                  <S.RowThumb>
+                  <S.RowThumb data-thumb>
                     {item.thumbnail ? <img src={item.thumbnail} alt="" /> : null}
                     <S.RowCheck aria-hidden>
-                      <svg viewBox="0 0 18 18" width="12" height="12">
-                        <path
-                          d="M4 9l3.5 3.5L14 5"
-                          fill="none"
-                          stroke="#fff"
-                          strokeWidth="2.4"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
+                      <CheckMark />
                     </S.RowCheck>
                   </S.RowThumb>
-                  <S.RowInfo>
+                  <S.RowInfo data-info>
                     <S.RowName title={item.name}>
                       {item.name || t('buyModal.itemFallback')}
                       {qty > 1 ? <S.RowQty>{t('cartCheckout.qty', { count: qty })}</S.RowQty> : null}
                     </S.RowName>
                     {item.creator ? <S.RowCreator address={item.creator} linkToProfile /> : null}
                   </S.RowInfo>
-                  <S.RowPrice>
+                  <S.RowPrice data-price>
                     <S.RowPriceIco />
                     <span>{formatCredits(item.priceCredits * qty)}</span>
                   </S.RowPrice>
@@ -393,16 +402,7 @@ export function Success() {
           <S.CtaLink data-variant="ruby" href={JUMP_URL} target="_blank" rel="noreferrer">
             {t('success.tryInWorld')}
             <S.CtaJump aria-hidden>
-              <svg viewBox="0 0 24 24" width="20" height="20">
-                <path
-                  d="M5 12h12M13 7l5 5-5 5"
-                  fill="none"
-                  stroke="#fcfcfc"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
+              <JumpInIcon />
             </S.CtaJump>
           </S.CtaLink>
         </S.Ctas>

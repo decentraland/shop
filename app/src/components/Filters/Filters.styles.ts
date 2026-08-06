@@ -229,6 +229,14 @@ export const SliderInput = styled.input`
   background: none;
   pointer-events: none;
 
+  /* The two inputs are stacked, so where the thumbs overlap only the one on top can be grabbed — and by
+     DOM order that is always Max. Once they meet, dragging left does nothing (Max is clamped against
+     Min) and the pair can only ever be separated rightwards; meeting at the ceiling wedges them for
+     good. Min claims the top half of the track, which is the half where it is the one against a wall. */
+  &[data-on-top] {
+    z-index: 2;
+  }
+
   &::-webkit-slider-thumb {
     -webkit-appearance: none;
     appearance: none;

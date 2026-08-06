@@ -506,6 +506,13 @@ export const PackPrice = styled.span`
     font-size: 16px;
     font-weight: 800;
   }
+
+  ${theme.media.maxWidth('mobile')} {
+    background: ${theme.colors.white};
+    color: ${theme.colors.text2};
+    font-size: 16px;
+    font-weight: 800;
+  }
 `
 
 const shimmer = keyframes`

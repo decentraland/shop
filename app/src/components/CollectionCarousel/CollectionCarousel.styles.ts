@@ -165,7 +165,7 @@ export const Dot = styled.button`
     opacity: 0.8;
   }
   &[data-active] {
-    background: #ff7439;
+    background: ${colors.media};
     opacity: 1;
     transform: scale(1.1);
   }

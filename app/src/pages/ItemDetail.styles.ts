@@ -260,7 +260,7 @@ export const Fav = styled.button`
   background: rgba(255, 255, 255, 0.16);
   display: grid;
   place-items: center;
-  color: ${colors.softWhite};
+  color: ${colors.text};
   cursor: pointer;
   transition:
     color 0.12s ease,
@@ -848,7 +848,8 @@ export const AddCart = styled.button`
   transition: background 0.15s ease;
 
   &:hover:not(:disabled) {
-    background: rgba(255, 255, 255, 0.3);
+    background: ${colors.softWhite};
+    color: ${colors.text2};
   }
   &:disabled {
     background: rgba(255, 255, 255, 0.12);

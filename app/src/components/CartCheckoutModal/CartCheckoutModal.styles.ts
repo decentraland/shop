@@ -25,7 +25,7 @@ export const Step = styled.span`
 export const Scroll = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
   /* The list is the modal's elastic region: inside a viewport-capped card it gives up height first, so
      the pack picker, total and Cancel/Buy below it stay on screen without scrolling. The floor is an
      explicit ~one row because a scroll container's automatic minimum size is zero — it would otherwise

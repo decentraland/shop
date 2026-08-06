@@ -62,11 +62,11 @@ export const Tabs = styled.div`
 // "the white one is where you are" against the purple page, which is the way round the design has it.
 export const Tab = styled.button`
   appearance: none;
-  /* Figma draws the row as a 0.5px Gray 4 hairline, a shade darker and half the weight of the card
-     border this used, and sets the label a point smaller with the tracking the shop's other 13px
-     pills carry. */
-  border: 0.5px solid ${theme.colors.accent};
-  background: ${theme.colors.accent};
+  /* Figma 2275:294685 / 294707: a translucent white pill that fills SOFT-WHITE when it is the one you
+     are on, with no border in either state — the outline this used to carry made the selected chip read
+     as a control with a stuck focus ring on it. */
+  border: 0;
+  background: ${theme.colors.glass};
   color: ${theme.colors.white};
   font-family: ${theme.font.sans};
   font-size: 13px;
@@ -84,25 +84,25 @@ export const Tab = styled.button`
   cursor: pointer;
   transition:
     background 0.15s,
-    border-color 0.15s,
     color 0.15s;
 
   &:hover {
-    background: ${theme.colors.accentHover};
-    border-color: ${theme.colors.accentHover};
+    background: ${theme.colors.glassHover};
   }
+  /* Inset, so a keyboard ring never reads as part of the pill's own shape the way an offset one did. */
   &:focus-visible {
     outline: 2px solid ${theme.colors.white};
-    outline-offset: 2px;
+    outline-offset: -2px;
   }
   &[data-active='true'] {
-    background: ${theme.colors.white};
-    border-color: ${theme.colors.gray4};
+    background: ${theme.colors.softWhite};
     color: ${theme.colors.text};
   }
   &[data-active='true']:hover {
-    background: ${theme.colors.media};
-    border-color: ${theme.colors.gray4};
+    background: ${theme.colors.white};
+  }
+  &[data-active='true']:focus-visible {
+    outline-color: ${theme.colors.text};
   }
 `
 
@@ -122,10 +122,10 @@ export const MigrateTab = styled(Tab)`
 // 5.5px above. Nothing between here and the page scroller clips, so the overhang is safe.
 export const MigrateBadge = styled.span`
   position: absolute;
-  /* Offsets run from the chip's PADDING box, so they carry the 1px its hairline occupies in layout on
-     top of the 5.5 / 2.5 the design measures from the pill's outer edge. */
-  top: -6.5px;
-  right: -3.5px;
+  /* The 5.5 / 2.5 the design measures from the pill's outer edge. The chip has no border now, so its
+     padding box IS that edge and the offsets no longer carry a hairline's worth on top. */
+  top: -5.5px;
+  right: -2.5px;
   display: grid;
   place-items: center;
   /* The chip's tracking would otherwise widen the disc off its 20px. */

@@ -17,7 +17,7 @@
     "outfits": "Outfit Studio",
     "searchPlaceholder": "Search item, creator, collection, name...",
     "searchAria": "Search the shop",
-    "getCredits": "Get {currency}",
+    "getCredits": "Buy {currency}",
     "cart": "Cart"
   },
   "network": {
@@ -160,7 +160,7 @@
   "cart": {
     "empty": {
       "title": "Nothing here... yet!",
-      "body": "Explore the Marketplace and discover your next favorite item.",
+      "body": "Explore the Shop and discover your next favorite item.",
       "cta": "Start shopping"
     },
     "panelTitle": "Cart: {count, plural, one {# Item} other {# Items}}",
@@ -311,6 +311,7 @@
     "warningNeedToBuy": "You will need to buy",
     "warningCreditsAmount": "{count} Credits",
     "warningToPurchase": "to purchase {count, plural, one {this item.} other {these items.}}",
+    "warningLearnMore": "Learn More",
     "cancel": "Cancel",
     "buy": "Buy",
     "choosePayment": "Choose your payment method",
@@ -541,7 +542,7 @@
     }
   },
   "myAssets": {
-    "signInPrompt": "Sign in to sell your items.",
+    "signInPrompt": "Sign in to view your items.",
     "removedFromSale": "“{name}” is no longer for sale.",
     "removeListingError": "Couldn’t remove the listing — please try again.",
     "ownedTitle": "Items you own",
@@ -670,7 +671,7 @@
     "bannerAdded": "successfully added to cart!",
     "total": "Total: {count, plural, one {# item} other {# items}}",
     "goToCart": "Go to cart",
-    "continueShopping": "Continue shopping"
+    "checkout": "Checkout"
   },
   "filterBar": {
     "sortNewest": "Newest",
@@ -685,12 +686,6 @@
     "sortBy": "Sort by",
     "removeFilter": "Remove {filter} filter"
   },
-  "addAll": {
-    "added": "Added {count, plural, one {# item} other {# items}} to your cart.",
-    "forSale": "{count} for sale",
-    "allInCart": "All in cart",
-    "addAll": "Add all ({count}) to cart"
-  },
   "outfits": {
     "rowTitle": "Buy the Look",
     "card": {
@@ -701,7 +696,7 @@
     },
     "detail": {
       "addCount": "{count, plural, one {Add # item to cart} other {Add # items to cart}}",
-      "nothingToAdd": "Everything here is already in your cart or sold by you",
+      "nothingToAdd": "Added to cart",
       "yourListing": "Your listing",
       "yourListingHint": "You're selling some of these items, so they don't count toward the total.",
       "inCart": "In your cart",
@@ -1041,8 +1036,9 @@
     "breadcrumbCollectibles": "Collectibles",
     "breadcrumbCurrent": "NAMEs",
     "heroTitle": "Get your unique NAME!",
-    "heroSubtitle": "Activate the full potential of Decentraland citizenship with a unique NAME & your own World!",
+    "heroSubtitle": "When you claim a NAME, you are not just choosing an alias. You are making your presence official.",
     "inputPlaceholder": "yourname",
+    "placeholderExamples": "nayeli,kenji,rowan,mira",
     "inputAria": "Search for a NAME",
     "suffix": ".dcl.eth",
     "claim": "Claim name",

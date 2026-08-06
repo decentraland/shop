@@ -17,9 +17,35 @@ export const Root = styled.div`
   position: relative;
   z-index: 1;
   max-width: 895px;
+  width: 100%;
   margin: 0 auto;
-  padding: 32px 12px;
+  /* Grows into the page shell's leftover height so the light band below reaches the footer. Needs
+     .page[data-route="/success"] to be a flex column. */
+  flex: 1 0 auto;
+  padding: 32px 12px 64px;
   min-height: 72vh;
+
+  /* The confirmation is a LIGHT surface on the shop's purple field — the same full-bleed band the cart
+     paints (see pages/Cart.styles.ts Top). The negative top eats .page's own padding so the band starts
+     flush under the sub-nav. Its z-index sits alongside the confetti layer's, and ::before paints first,
+     so the burst still rains over it. */
+  &::before {
+    content: '';
+    position: absolute;
+    top: -28px;
+    bottom: 0;
+    left: 50%;
+    width: 100vw;
+    transform: translateX(-50%);
+    background: ${colors.media};
+    z-index: -1;
+  }
+
+  ${narrow} {
+    &::before {
+      top: -16px;
+    }
+  }
 `
 
 export const Status = styled.div`
@@ -87,16 +113,22 @@ export const Done = styled.div`
   width: 100%;
 `
 
-// Green success banner: rounded card, mint fill + green border, 60px check + copy.
+// Green success banner: rounded mint card with the 60px check beside the copy — stacked above it, and
+// borderless, once the row no longer fits.
 export const Banner = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 16px;
   padding: 24px 16px;
-  background: #e0f7e7;
-  border: 1px solid #34ce77;
+  background: ${colors.successBg};
+  border: 1px solid ${colors.successBorder};
   border-radius: 16px;
+
+  ${narrow} {
+    flex-direction: column;
+    border: 0;
+  }
 `
 
 export const BannerCheck = styled.span`
@@ -107,8 +139,8 @@ export const BannerCheck = styled.span`
 `
 
 export const BannerText = styled.p`
-  flex: 1;
   margin: 0;
+  max-width: 640px;
   text-align: center;
   font-size: 20px;
   line-height: 1.334;
@@ -117,9 +149,14 @@ export const BannerText = styled.p`
   & b {
     font-weight: 700;
   }
+
+  ${narrow} {
+    font-size: 17px;
+  }
 `
 
-// Bordered card wrapping the purchased-item rows.
+// One bordered card holding every row; on a narrow screen the card chrome moves to the rows themselves,
+// which read better as separate tiles than as a long divided list.
 export const List = styled.div`
   display: flex;
   flex-direction: column;
@@ -127,24 +164,43 @@ export const List = styled.div`
   background: ${colors.white};
   border: 1px solid ${colors.gray4};
   border-radius: 16px;
+
+  ${narrow} {
+    gap: 12px;
+    padding: 0;
+    background: none;
+    border: 0;
+  }
 `
 
 export const ListRow = styled.div`
   display: flex;
   flex-direction: column;
+
+  ${narrow} {
+    padding: 16px;
+    background: ${colors.white};
+    border: 1px solid ${colors.gray4};
+    border-radius: 16px;
+  }
 `
 
-// Hairline between rows — only between items, never above the first.
+// Hairline between rows — only between items, never above the first, and never on the tiled layout.
 export const Divider = styled.span`
   display: block;
   height: 1px;
   margin: 12px 0;
   background: ${colors.gray4};
+
+  ${narrow} {
+    display: none;
+  }
 `
 
 // The topped-up credit bundle that landed with the purchase (buy credits + item together), shown as a
 // light-purple pill above the item list.
 export const Credits = styled.div`
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -153,8 +209,12 @@ export const Credits = styled.div`
   margin-bottom: 12px;
   padding: 8px 24px;
   border-radius: ${radius.btn};
-  background: #f4e9ff;
+  background: ${colors.promptLilac};
   color: ${colors.text};
+
+  ${narrow} {
+    margin-bottom: 0;
+  }
 `
 
 export const CreditsIco = styled(CurrencyIcon)`
@@ -181,10 +241,33 @@ export const CreditsAdded = styled.span`
   font-weight: 400;
 `
 
+// Thumbnail · name+creator · price. Narrow drops the price out of the right edge and stacks it under
+// the creator, beside a thumbnail that spans both rows — hence a grid rather than a flex row.
 export const Row = styled.div`
-  display: flex;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
   align-items: center;
-  gap: 12px;
+  gap: 24px;
+
+  ${narrow} {
+    grid-template-columns: auto 1fr;
+    gap: 16px;
+
+    & [data-thumb] {
+      grid-row: 1 / span 2;
+    }
+    & [data-info] {
+      grid-column: 2;
+      grid-row: 1;
+      align-self: end;
+    }
+    & [data-price] {
+      grid-column: 2;
+      grid-row: 2;
+      align-self: start;
+      margin-top: 4px;
+    }
+  }
 `
 
 export const RowThumb = styled.div`
@@ -233,14 +316,14 @@ export const RowInfo = styled.div`
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 8px;
+  justify-content: center;
+  gap: 4px;
 `
 
 export const RowName = styled.div`
-  font-weight: 600;
+  font-weight: 700;
   font-size: 20px;
-  line-height: 1.57;
+  line-height: 1.3;
   color: ${colors.text};
   overflow: hidden;
   text-overflow: ellipsis;
@@ -264,7 +347,7 @@ export const RowCreator = styled(CreatorBadge)`
   position: relative;
   z-index: 1;
   color: ${colors.muted};
-  font-size: 10px;
+  font-size: 13px;
 
   & [data-avatar] {
     display: none;
@@ -272,12 +355,11 @@ export const RowCreator = styled(CreatorBadge)`
 `
 
 export const RowPrice = styled.div`
-  flex-shrink: 0;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   padding: 8px;
-  font-weight: 600;
+  font-weight: 700;
   font-size: 21px;
   color: ${colors.text2};
   white-space: nowrap;
@@ -290,18 +372,16 @@ export const RowPrice = styled.div`
 export const RowPriceIco = styled(CurrencyIcon)`
   width: 22px;
   height: 22px;
+  background: ${colors.text2};
 `
 
-// CTA row: ghost MY ASSETS + ruby TRY IN WORLD, right-aligned, each flexing to fill.
+// CTA row: ghost MY ASSETS + ruby TRY IN WORLD, each flexing to fill. Stays side-by-side on mobile.
 export const Ctas = styled.div`
   display: flex;
   gap: 12px;
   align-items: center;
   justify-content: flex-end;
-
-  ${narrow} {
-    flex-direction: column-reverse;
-  }
+  margin-top: 4px;
 `
 
 // data-variant='ghost' (accent outline) | 'ruby' (filled DCL red). Cta is the in-app button; CtaLink is
@@ -327,12 +407,13 @@ const ctaCss = css`
     background 0.15s ease;
 
   &[data-variant='ghost'] {
-    background: transparent;
-    border: 2px solid ${colors.accent};
-    color: ${colors.accent};
+    background: ${colors.white};
+    border: 1px solid ${colors.text};
+    color: ${colors.text};
   }
   &[data-variant='ghost']:hover {
-    background: rgba(105, 31, 169, 0.06);
+    background: ${colors.text2};
+    color: ${colors.softWhite};
   }
   &[data-variant='ruby'] {
     background: ${colors.dclRed};
@@ -344,8 +425,9 @@ const ctaCss = css`
   }
 
   ${narrow} {
-    width: 100%;
-    flex: none;
+    gap: 8px;
+    padding: 0 12px;
+    font-size: 13px;
   }
 `
 
@@ -357,13 +439,9 @@ export const CtaLink = styled.a`
   ${ctaCss};
 `
 
+// The glyph carries its own rounded-square plate (fill + hairline), so this only reserves the box.
 export const CtaJump = styled.span`
   display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border: 2.5px solid rgba(252, 252, 252, 0.5);
-  border-radius: ${radius.btn};
+  flex-shrink: 0;
   line-height: 0;
 `

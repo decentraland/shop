@@ -321,21 +321,24 @@ function OutfitContent({ outfit }: { outfit: Outfit }) {
                     </S.ItemCard>
                   ))}
                 </S.Items>
-                {settled && split.ownListing.length > 0 ? <S.Hint>{t('outfits.detail.yourListingHint')}</S.Hint> : null}
               </S.ListScroll>
 
               <S.CtaBar data-testid="outfit-detail-ctabar">
-                <S.TotalRow>
-                  <S.TotalLabel>{t('outfits.detail.totalPrice')}</S.TotalLabel>
-                  {resolution.isLoading ? (
-                    <span className="skeleton" style={{ width: 64, height: 26 }} aria-hidden />
-                  ) : (
-                    <S.TotalValue>
-                      <CurrencyIcon size={22} />
-                      {totalCredits.toLocaleString()}
-                    </S.TotalValue>
-                  )}
-                </S.TotalRow>
+                {settled && split.ownListing.length > 0 ? <S.Hint>{t('outfits.detail.yourListingHint')}</S.Hint> : null}
+                {purchasable > 0 && (
+                  <S.TotalRow>
+                    <S.TotalLabel>{t('outfits.detail.totalPrice')}</S.TotalLabel>
+                    {resolution.isLoading ? (
+                      <span className="skeleton" style={{ width: 64, height: 26 }} aria-hidden />
+                    ) : (
+                      <S.TotalValue>
+                        <CurrencyIcon size={22} />
+                        {totalCredits.toLocaleString()}
+                      </S.TotalValue>
+                    )}
+                  </S.TotalRow>
+                )}
+
                 {resolution.isLoading ? (
                   <span className="skeleton" style={{ width: '100%', height: 52, borderRadius: 26 }} aria-hidden />
                 ) : (

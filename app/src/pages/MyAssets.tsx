@@ -540,10 +540,12 @@ export function MyAssets() {
             {!publishableLoading && creations.length === 0 ? (
               <S.EmptyState>
                 <S.EmptyIcon>
-                  <Icon name="pen" size={30} aria-hidden />
+                  <Icon name="pen" size={96} aria-hidden />
                 </S.EmptyIcon>
-                <S.EmptyTitle>{t('myAssets.emptyCreationsTitle')}</S.EmptyTitle>
-                <S.EmptyText>{t('myAssets.nothingToPublish')}</S.EmptyText>
+                <S.EmptyCopy>
+                  <S.EmptyTitle>{t('myAssets.emptyCreationsTitle')}</S.EmptyTitle>
+                  <S.EmptyText>{t('myAssets.nothingToPublish')}</S.EmptyText>
+                </S.EmptyCopy>
               </S.EmptyState>
             ) : null}
           </>
@@ -592,14 +594,16 @@ export function MyAssets() {
                 <S.EmptyIcon>
                   <Icon
                     name={section === 'names' ? 'website' : section === 'emotes' ? 'emote-dance' : 'cat-upper'}
-                    size={30}
+                    size={96}
                     aria-hidden
                   />
                 </S.EmptyIcon>
-                <S.EmptyTitle>
-                  {section === 'names' ? t('myAssets.emptyNamesTitle') : t('myAssets.emptyOwnedTitle')}
-                </S.EmptyTitle>
-                <S.EmptyText>{section === 'names' ? t('myAssets.namesEmpty') : t('myAssets.ownedEmpty')}</S.EmptyText>
+                <S.EmptyCopy>
+                  <S.EmptyTitle>
+                    {section === 'names' ? t('myAssets.emptyNamesTitle') : t('myAssets.emptyOwnedTitle')}
+                  </S.EmptyTitle>
+                  <S.EmptyText>{section === 'names' ? t('myAssets.namesEmpty') : t('myAssets.ownedEmpty')}</S.EmptyText>
+                </S.EmptyCopy>
                 {section !== 'names' ? <S.EmptyCta to="/items">{t('myAssets.emptyBrowse')}</S.EmptyCta> : null}
               </S.EmptyState>
             ) : null}

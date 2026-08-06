@@ -4,6 +4,7 @@ import { Icon } from '~/components/Icon'
 import { CheckCircleIcon } from '~/components/Icons/CheckCircleIcon'
 import { useCart, type CartItem } from '~/store/cart'
 import { detailRouteFor } from '~/lib/routes'
+import type { CartNavState } from '~/pages/Cart'
 import { t } from '~/intl/i18n'
 import { formatCredits, formatCreditsFull } from '~/lib/currency'
 import { useCartAvailability } from '~/hooks/useCartAvailability'
@@ -137,9 +138,11 @@ export function CartPopover() {
     return () => document.removeEventListener('keydown', onKey)
   }, [open, setOpen])
 
-  // Guard on the raw cart contents (not the buyable count) so an all-unavailable cart still shows the
-  // drawer with each line's reason, rather than silently vanishing.
-  if (!open || items.length === 0) return null
+  if (!open) return null
+
+  // An all-unavailable cart still lists its lines (with each reason) rather than reading as empty — the
+  // guard is on the raw contents, not the buyable count.
+  const isEmpty = items.length === 0
 
   // Portal to <body> so the drawer escapes the nav's stacking context and overlays the whole viewport
   // (including the fixed global top nav), instead of being trapped under it.
@@ -155,6 +158,19 @@ export function CartPopover() {
         </S.Head>
 
         <S.Body>
+          {isEmpty ? (
+            <S.Empty data-testid="cart-drawer-empty">
+              <Icon name="cart-plus" size={92} />
+              <S.EmptyText>
+                <S.EmptyTitle>{t('cart.empty.title')}</S.EmptyTitle>
+                <S.EmptyBody>{t('cart.empty.body')}</S.EmptyBody>
+              </S.EmptyText>
+              <S.EmptyCta to="/items" onClick={() => setOpen(false)}>
+                {t('cart.empty.cta')}
+              </S.EmptyCta>
+            </S.Empty>
+          ) : null}
+
           {justAddedCount > 0 ? (
             <S.Banner>
               <S.BannerCheck>
@@ -182,25 +198,33 @@ export function CartPopover() {
           </S.List>
         </S.Body>
 
-        <S.Foot>
-          <S.TotalRow>
-            <S.TotalLabel>{t('cartPopover.total', { count })}</S.TotalLabel>
-            <S.TotalVal title={formatCreditsFull(total)}>
-              <S.TotalDiamond />
-              {formatCredits(total)}
-            </S.TotalVal>
-          </S.TotalRow>
-          {/* Dismiss on the left, advance on the right. Going to the cart stops there — no checkout starts
-              until the buyer has read it. */}
-          <S.Ctas>
-            <S.CtaButton data-variant="secondary" type="button" onClick={() => setOpen(false)}>
-              {t('cartPopover.continueShopping')}
-            </S.CtaButton>
-            <S.Cta data-variant="primary" to="/cart" onClick={() => setOpen(false)}>
-              {t('cartPopover.goToCart')}
-            </S.Cta>
-          </S.Ctas>
-        </S.Foot>
+        {/* No total and nothing to check out on an empty cart — the empty state carries its own CTA. */}
+        {isEmpty ? null : (
+          <S.Foot>
+            <S.TotalRow>
+              <S.TotalLabel>{t('cartPopover.total', { count })}</S.TotalLabel>
+              <S.TotalVal title={formatCreditsFull(total)}>
+                <S.TotalDiamond />
+                {formatCredits(total)}
+              </S.TotalVal>
+            </S.TotalRow>
+            {/* Review on the left, buy on the right: Checkout lands on /cart and starts the same charge the
+              cart's own CHECKOUT button runs. */}
+            <S.Ctas>
+              <S.Cta data-variant="secondary" to="/cart" onClick={() => setOpen(false)}>
+                {t('cartPopover.goToCart')}
+              </S.Cta>
+              <S.Cta
+                data-variant="primary"
+                to="/cart"
+                state={{ startCheckout: true } satisfies CartNavState}
+                onClick={() => setOpen(false)}
+              >
+                {t('cartPopover.checkout')}
+              </S.Cta>
+            </S.Ctas>
+          </S.Foot>
+        )}
       </S.Panel>
     </S.Root>,
     document.body

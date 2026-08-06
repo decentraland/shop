@@ -9,7 +9,6 @@ import { CollectionHero } from '~/components/CollectionHero'
 import { CollectionCreatorCard } from '~/components/CollectionCreatorCard'
 import { CategoryFilter } from '~/components/CategoryFilter'
 import { FilterBar, FilterPanel, SORTS } from '~/components/FilterBar'
-import { AddAllToCart } from '~/components/AddAllToCart'
 import { SkeletonCards } from '~/components/SkeletonCards'
 import { LoadMore } from '~/components/LoadMore'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
@@ -128,8 +127,6 @@ export function Collection() {
         </BL.Sidebar>
 
         <BL.Main>
-          {!isLoading && items.length > 0 ? <AddAllToCart items={items} source="collection" /> : null}
-
           <FilterBar
             rarities={rarities}
             onToggleRarity={toggleRarity}

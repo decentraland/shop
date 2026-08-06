@@ -17,7 +17,7 @@
     "outfits": "Estudio de outfits",
     "searchPlaceholder": "Busca artículo, creador, colección, nombre...",
     "searchAria": "Buscar en la tienda",
-    "getCredits": "Conseguir {currency}",
+    "getCredits": "Comprar {currency}",
     "cart": "Carrito"
   },
   "network": {
@@ -160,7 +160,7 @@
   "cart": {
     "empty": {
       "title": "¡Aquí no hay nada... todavía!",
-      "body": "Explora el Marketplace y descubre tu próximo artículo favorito.",
+      "body": "Explora el Shop y descubre tu próximo artículo favorito.",
       "cta": "Empieza a comprar"
     },
     "panelTitle": "Carrito: {count, plural, one {# artículo} other {# artículos}}",
@@ -311,6 +311,7 @@
     "warningNeedToBuy": "Necesitarás comprar",
     "warningCreditsAmount": "{count} créditos",
     "warningToPurchase": "para comprar {count, plural, one {este artículo.} other {estos artículos.}}",
+    "warningLearnMore": "Más información",
     "cancel": "Cancelar",
     "buy": "Comprar",
     "choosePayment": "Elige tu método de pago",
@@ -541,7 +542,7 @@
     }
   },
   "myAssets": {
-    "signInPrompt": "Inicia sesión para vender tus artículos.",
+    "signInPrompt": "Inicia sesión para ver tus artículos.",
     "removedFromSale": "«{name}» ya no está a la venta.",
     "removeListingError": "No pudimos quitar la publicación. Inténtalo de nuevo.",
     "ownedTitle": "Artículos que tienes",
@@ -670,7 +671,7 @@
     "bannerAdded": "añadido al carrito correctamente.",
     "total": "Total: {count, plural, one {# artículo} other {# artículos}}",
     "goToCart": "Ir al carrito",
-    "continueShopping": "Seguir comprando"
+    "checkout": "Finalizar compra"
   },
   "filterBar": {
     "sortNewest": "Más recientes",
@@ -685,12 +686,6 @@
     "sortBy": "Ordenar por",
     "removeFilter": "Quitar el filtro {filter}"
   },
-  "addAll": {
-    "added": "{count, plural, one {Se añadió # artículo a tu carrito.} other {Se añadieron # artículos a tu carrito.}}",
-    "forSale": "{count} en venta",
-    "allInCart": "Todo en el carrito",
-    "addAll": "Añadir todo ({count}) al carrito"
-  },
   "outfits": {
     "rowTitle": "Compra el look",
     "card": {
@@ -701,7 +696,7 @@
     },
     "detail": {
       "addCount": "{count, plural, one {Añadir # artículo al carrito} other {Añadir # artículos al carrito}}",
-      "nothingToAdd": "Todo esto ya está en tu carrito o lo vendes tú",
+      "nothingToAdd": "Añadido al carrito",
       "yourListing": "Lo vendes tú",
       "yourListingHint": "Algunos de estos artículos los vendes tú, así que no cuentan para el total.",
       "inCart": "En tu carrito",
@@ -1041,8 +1036,9 @@
     "breadcrumbCollectibles": "Coleccionables",
     "breadcrumbCurrent": "NAMEs",
     "heroTitle": "¡Consigue tu NAME único!",
-    "heroSubtitle": "Activa todo el potencial de la ciudadanía de Decentraland con un NAME único y tu propio World.",
+    "heroSubtitle": "Cuando reclamas un NAME no estás eligiendo solo un alias: estás haciendo oficial tu presencia.",
     "inputPlaceholder": "tunombre",
+    "placeholderExamples": "nayeli,kenji,rowan,mira",
     "inputAria": "Busca un NAME",
     "suffix": ".dcl.eth",
     "claim": "Reclamar NAME",

@@ -2,9 +2,9 @@ import styled from '@emotion/styled'
 import { noForward } from '~/styles/emotion'
 import { theme } from '~/styles/theme'
 
-// NAMEs purchase page (Figma desktop 1368-353269, mobile 1368-356251). A full-width purple banner
-// (hero + search) sitting on a light-lilac card, followed by the "Why buy a NAME?" info cards.
-// Rendered inside the Assets main column when the NAMEs category is selected.
+// NAMEs purchase page (Figma desktop 1368-353632, mobile 1368-356251). A translucent claim panel over
+// the page field, followed by the "Why buy a NAME?" cards. Rendered inside the Assets main column when
+// the NAMEs category is selected.
 
 export const Root = styled.div`
   width: 100%;
@@ -47,15 +47,13 @@ export const CrumbCurrent = styled.span`
   color: ${theme.colors.softWhite};
 `
 
-// The lilac card wrapping the hero + info cards.
+// Holds the hero and the info section. No fill of its own: the design puts both straight on the page
+// field, so the lilac card this used to paint has gone with the light theme.
 export const Panel = styled.div`
   display: flex;
   flex-direction: column;
   gap: 48px;
   padding-bottom: 48px;
-  background: #ecdbfd;
-  border-radius: ${theme.radius.banner};
-  overflow: hidden;
 
   ${theme.media.maxWidth('mobile')} {
     gap: 32px;
@@ -63,11 +61,11 @@ export const Panel = styled.div`
   }
 `
 
-// Purple hero. Figma uses a decorated image fill; we approximate with the brand purple glow so no
-// multi-MB marketing render ships in the bundle.
+// Figma 1368:353666: a translucent black panel edged in Flare's last stop, not a purple glow.
 export const Hero = styled.div`
   position: relative;
-  border-radius: ${theme.radius.banner};
+  border: 1px solid ${theme.colors.magenta};
+  border-radius: 24px;
   overflow: hidden;
   padding: 88px 48px;
   display: flex;
@@ -75,7 +73,7 @@ export const Hero = styled.div`
   align-items: center;
   gap: 48px;
   text-align: center;
-  background: radial-gradient(120% 95% at 50% 118%, #d13bd6 0%, #a026b0 28%, #6a1b9c 58%, #4a1173 100%);
+  background: ${theme.colors.overlay};
 
   ${theme.media.maxWidth('mobile')} {
     padding: 40px 20px;
@@ -137,7 +135,9 @@ export const InputRow = styled('div', noForward('invalid'))<{ invalid?: boolean 
   gap: 8px;
   padding: 8px 8px 8px 16px;
   background: ${theme.colors.softWhite};
-  border: 1.5px solid ${({ invalid }) => (invalid ? theme.colors.dclRed : theme.colors.line)};
+  /* Figma 1368:349148 gives the field a 3px Orange edge — it is the page's one input, and the design
+     leans on that weight to carry it. Red only when what has been typed cannot be claimed. */
+  border: 3px solid ${({ invalid }) => (invalid ? theme.colors.dclRed : theme.colors.orange)};
   border-radius: 20px;
 
   &:focus-within {
@@ -162,6 +162,13 @@ export const Sizer = styled.span`
   font-size: 20px;
   font-weight: 600;
   line-height: 1.6;
+
+  /* An empty field paints the PLACEHOLDER, which is lighter than a typed value — so the mirror has to
+     be lighter too. Measuring the placeholder at the value's weight made the box a few pixels wider
+     than the text in it, and ".dcl.eth" sat that far off the end of the word. */
+  &[data-placeholder] {
+    font-weight: 400;
+  }
 
   ${theme.media.maxWidth('mobile')} {
     font-size: 16px;
@@ -265,7 +272,9 @@ export const NameInput = styled.input`
 
 export const Suffix = styled.span`
   flex: none;
-  margin-left: 2px;
+  /* Flush against the name: "yourname.dcl.eth" has to read as one address, and at 20px even a couple of
+     pixels here look like a space someone typed by mistake. */
+  margin-left: 0;
   /* Not selectable: it is the fixed part of the address, not something the reader typed. */
   user-select: none;
   -webkit-user-select: none;
@@ -283,12 +292,16 @@ export const Suffix = styled.span`
 export const Counter = styled.span`
   flex: none;
   font-family: ${theme.font.sans};
-  font-size: 13px;
+  font-size: 14px;
+  line-height: 1.43;
   color: ${theme.colors.muted2};
   white-space: nowrap;
 `
 
-// Gradient claim button. Inline on the right on desktop; full-width below on mobile.
+// The design system's primary button (Figma 738:53260 rest / 53252 hover / 53257 disabled): the "BUY
+// Button" gradient, flat primary red under the pointer, and the SAME gradient at half opacity when
+// there is nothing to claim. It used to carry Cerise with a brightness filter and a pale pink disabled
+// state, none of which is in the system. Inline on the right on desktop; full-width below on mobile.
 export const ClaimButton = styled.button`
   flex: none;
   display: inline-flex;
@@ -300,7 +313,7 @@ export const ClaimButton = styled.button`
   border: 0;
   border-radius: 12px;
   cursor: pointer;
-  background: ${theme.gradients.cerise};
+  background: ${theme.gradients.buyBtn};
   color: ${theme.colors.softWhite};
   font-family: ${theme.font.sans};
   font-weight: 600;
@@ -308,9 +321,13 @@ export const ClaimButton = styled.button`
   letter-spacing: 0.46px;
   line-height: 24px;
   text-transform: uppercase;
+  transition: background-image 0.15s ease;
 
-  &:hover:not(:disabled) {
-    filter: brightness(1.05);
+  /* Both ends stay on background-IMAGE: a gradient cannot interpolate to a plain colour, so swapping
+     the background shorthand instead blanks the button for the length of the transition. */
+  &:hover:not(:disabled),
+  &:active:not(:disabled) {
+    background-image: linear-gradient(${theme.colors.dclRed}, ${theme.colors.dclRed});
   }
   &:focus-visible {
     outline: 2px solid ${theme.colors.white};
@@ -318,8 +335,7 @@ export const ClaimButton = styled.button`
   }
   &:disabled {
     cursor: not-allowed;
-    background: #e7c8e9;
-    color: #fbe9fb;
+    opacity: 0.5;
   }
 
   ${theme.media.maxWidth('mobile')} {
@@ -339,15 +355,18 @@ export const ClaimButtonMobile = styled(ClaimButton)`
   }
 `
 
+// The price rides a size larger than the label beside it (Figma 2302:307649), with the currency mark
+// at the 13.26x14 the design draws rather than a round 16.
 export const Price = styled.span`
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  font-size: 18px;
   font-weight: 600;
 
   .ico {
-    width: 16px;
-    height: 16px;
+    width: 13.26px;
+    height: 14px;
   }
 `
 
@@ -425,7 +444,7 @@ export const WhyTitle = styled.h2`
   font-weight: 600;
   font-size: 32px;
   line-height: 1.167;
-  color: ${theme.colors.text2};
+  color: ${theme.colors.white};
 
   ${theme.media.maxWidth('mobile')} {
     font-size: 22px;
@@ -440,7 +459,7 @@ export const WhyIntro = styled.p`
   font-weight: 400;
   font-size: 20px;
   line-height: 1.57;
-  color: ${theme.colors.text};
+  color: ${theme.colors.gray4};
 
   ${theme.media.maxWidth('mobile')} {
     font-size: 16px;
@@ -461,40 +480,43 @@ export const Cards = styled.div`
   }
 `
 
-/**
- * The outline is a box-shadow spread, not a border: a box-shadow occupies no layout, so the content box
- * is the border box and the artwork reaches the rounded corner instead of stopping a hairline short.
- */
+// Figma 2302:307817: a translucent black panel holding an icon over the copy. It replaced a white card
+// with a photographic banner across the top — the illustrations were the light theme's.
 export const Card = styled.article`
   min-width: 0;
   display: flex;
   flex-direction: column;
-  background: ${theme.colors.white};
-  box-shadow: 0 0 0 0.25px ${theme.colors.muted2};
-  border-radius: ${theme.radius.card};
-  overflow: hidden;
+  gap: 32px;
+  padding: 24px;
+  background: ${theme.colors.overlay};
+  border-radius: 24px;
 
-  /* Forced colours drop decorative shadows. Outline rather than border: it survives there and, like the
-     shadow, takes no layout, so the artwork still reaches the corner. */
   @media (forced-colors: active) {
     outline: 1px solid CanvasText;
   }
+
+  ${theme.media.maxWidth('mobile')} {
+    gap: 20px;
+    padding: 20px;
+  }
 `
 
-// Reaches the card's edge on every side: the box-shadow outline leaves no border box to sit inside.
-export const CardMedia = styled.img`
+// The icons are drawn at their own sizes (58x55 through 56x64), so height is what holds them level.
+// `align-self` is load-bearing: the card is a column flex box, so a stretched item takes the card's
+// width and `width: auto` resolves against THAT rather than against the icon's own ratio — measured
+// 239px wide for a 58px icon.
+export const CardIcon = styled.img`
   display: block;
-  width: 100%;
-  aspect-ratio: 388 / 235;
-  object-fit: cover;
+  align-self: flex-start;
+  height: 55px;
+  width: auto;
 `
 
 export const CardInfo = styled.div`
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 12px 16px;
+  gap: 12px;
 `
 
 export const CardTitle = styled.h3`
@@ -504,7 +526,7 @@ export const CardTitle = styled.h3`
   font-size: 20px;
   line-height: 1.57;
   text-transform: uppercase;
-  color: ${theme.colors.text};
+  color: ${theme.colors.white};
 `
 
 export const CardText = styled.p`
@@ -513,14 +535,18 @@ export const CardText = styled.p`
   font-weight: 400;
   font-size: 14px;
   line-height: 1.57;
-  color: ${theme.colors.text};
+  color: ${theme.colors.media};
 `
 
+// The one highlighted run in the copy — the example address, which the design sets bold white rather
+// than tinting it.
 export const CardHighlight = styled.span`
-  font-weight: 600;
-  color: ${theme.colors.accent};
+  font-weight: 700;
+  color: ${theme.colors.white};
 `
 
+// Not in the design's card, but ours points at the Worlds docs and the link has to survive the dark
+// panel — the accent purple it used to carry is unreadable on it.
 export const CardLink = styled.a`
   display: inline-flex;
   align-items: center;
@@ -530,11 +556,11 @@ export const CardLink = styled.a`
   font-weight: 500;
   font-size: 14px;
   line-height: 30px;
-  color: ${theme.colors.accent};
+  color: ${theme.colors.softWhite};
   text-decoration: underline;
 
   &:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
+    outline: 2px solid ${theme.colors.softWhite};
     outline-offset: 2px;
   }
 

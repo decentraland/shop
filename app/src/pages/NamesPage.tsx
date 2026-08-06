@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useWallet } from '~/store/wallet'
 import { useManaRate } from '~/hooks/useManaRate'
 import { manaWeiToCredits } from '~/lib/mana-rate'
@@ -11,15 +11,16 @@ import {
   validateName
 } from '~/lib/names'
 import { useSeo } from '~/hooks/useSeo'
+import { useTypedPlaceholder } from '~/hooks/useTypedPlaceholder'
 import { Icon } from '~/components/Icon'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { formatCredits } from '~/lib/currency'
 import { NameBuyModal } from '~/components/NameBuyModal'
 import { t } from '~/intl/i18n'
-import identityMedia from '~/assets/names/identity.webp'
-import worldMedia from '~/assets/names/world.webp'
-import inviteMedia from '~/assets/names/invite.webp'
-import governanceMedia from '~/assets/names/governance.webp'
+import identityIcon from '~/assets/names/identity-icon.svg'
+import worldIcon from '~/assets/names/world-icon.svg'
+import inviteIcon from '~/assets/names/invite-icon.svg'
+import governanceIcon from '~/assets/names/governance-icon.svg'
 import * as S from './NamesPage.styles'
 
 // "Learn More" destinations for the info cards. Public marketing URLs — no secrets.
@@ -58,13 +59,48 @@ export function NamesPage({ onBack }: { onBack: () => void }) {
   const [status, setStatus] = useState<Status>('idle')
   const [modalOpen, setModalOpen] = useState(false)
 
+  /**
+   * The placeholder types example names out until the reader touches the field, so an empty input reads
+   * as "put yours here" rather than as a label. `touched` is one-way: the animation must not resume
+   * behind someone who has clicked in and then clicked away, and it never restarts on a cleared field.
+   */
+  const [touched, setTouched] = useState(false)
+  const [reducedMotion, setReducedMotion] = useState(
+    () => typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+  )
+  useEffect(() => {
+    const mq = window.matchMedia?.('(prefers-reduced-motion: reduce)')
+    if (!mq) return
+    const onChange = (e: MediaQueryListEvent) => setReducedMotion(e.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+  const examplesCsv = t('names.placeholderExamples')
+  const examples = useMemo(
+    () =>
+      examplesCsv
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean),
+    [examplesCsv]
+  )
+  const typed = useTypedPlaceholder(examples, !touched && !value && !reducedMotion)
+  // The real placeholder stays put for anyone the animation is not for — a screen reader, or a reader
+  // who asked for less motion — and is what the field settles on the moment it is touched.
+  const placeholder = typed || t('names.inputPlaceholder')
+
   // Size the input to EXACTLY its text so the NAME sits flush against ".dcl.eth" (a `ch`-based width
   // over-shoots on a proportional font, leaving a big gap). A hidden sizer mirrors the input's glyphs.
   const sizerRef = useRef<HTMLSpanElement>(null)
   const [nameWidth, setNameWidth] = useState<number | undefined>(undefined)
+  // Re-measures on the PLACEHOLDER too, not just the value: the animated example grows a character at a
+  // time and the field has to grow with it, or ".dcl.eth" sits at a fixed distance and the example types
+  // itself into the gap.
   useLayoutEffect(() => {
-    if (sizerRef.current) setNameWidth(sizerRef.current.offsetWidth)
-  }, [value])
+    // getBoundingClientRect, not offsetWidth: the latter rounds UP to whole pixels, and that fraction is
+    // dead space between the last glyph and the suffix.
+    if (sizerRef.current) setNameWidth(sizerRef.current.getBoundingClientRect().width)
+  }, [value, placeholder])
 
   // Validate + (debounced) availability probe on every change. The probe is advisory — the credits
   // server + the on-chain register are the authoritative gates at purchase time.
@@ -143,15 +179,19 @@ export function NamesPage({ onBack }: { onBack: () => void }) {
                   <S.NameInput
                     value={value}
                     onChange={e => setValue(sanitizeNameInput(e.target.value))}
-                    placeholder={t('names.inputPlaceholder')}
+                    placeholder={placeholder}
                     aria-label={t('names.inputAria')}
                     autoComplete="off"
                     spellCheck={false}
                     maxLength={NAME_MAX_LENGTH}
+                    onFocus={() => setTouched(true)}
                     style={{ width: nameWidth != null ? `${nameWidth}px` : undefined }}
                   />
-                  <S.Sizer ref={sizerRef} aria-hidden>
-                    {value || t('names.inputPlaceholder')}
+                  {/* Mirrors whatever the field is showing, animated placeholder included, so ".dcl.eth"
+                      stays glued to it as the example is typed out — down to which weight it is painted
+                      in, since the placeholder is lighter than a typed value. */}
+                  <S.Sizer ref={sizerRef} aria-hidden data-placeholder={!value || undefined}>
+                    {value || placeholder}
                   </S.Sizer>
                   <S.Suffix>{t('names.suffix')}</S.Suffix>
                 </S.InputField>
@@ -211,14 +251,14 @@ export function NamesPage({ onBack }: { onBack: () => void }) {
           </S.WhyHead>
           <S.Cards>
             <S.Card>
-              <S.CardMedia src={identityMedia} alt="" />
+              <S.CardIcon src={identityIcon} alt="" />
               <S.CardInfo>
                 <S.CardTitle>{t('names.why1Title')}</S.CardTitle>
                 <S.CardText>{t('names.why1')}</S.CardText>
               </S.CardInfo>
             </S.Card>
             <S.Card>
-              <S.CardMedia src={worldMedia} alt="" />
+              <S.CardIcon src={worldIcon} alt="" />
               <S.CardInfo>
                 <S.CardTitle>{t('names.why2Title')}</S.CardTitle>
                 <S.CardText>
@@ -231,14 +271,14 @@ export function NamesPage({ onBack }: { onBack: () => void }) {
               </S.CardInfo>
             </S.Card>
             <S.Card>
-              <S.CardMedia src={inviteMedia} alt="" />
+              <S.CardIcon src={inviteIcon} alt="" />
               <S.CardInfo>
                 <S.CardTitle>{t('names.why3Title')}</S.CardTitle>
                 <S.CardText>{t('names.why3')}</S.CardText>
               </S.CardInfo>
             </S.Card>
             <S.Card>
-              <S.CardMedia src={governanceMedia} alt="" />
+              <S.CardIcon src={governanceIcon} alt="" />
               <S.CardInfo>
                 <S.CardTitle>{t('names.why4Title')}</S.CardTitle>
                 <S.CardText>{t('names.why4')}</S.CardText>

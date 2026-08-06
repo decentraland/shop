@@ -23,8 +23,9 @@ export const TOP_GAP = 10
 // doubles as the action/chips reveal.
 export const Card = styled.article`
   height: 300px;
-  /* Dark-theme test: deep-purple card shell under the light media (Figma). */
-  background: #240c32;
+  /* No fill of its own (Figma 619:5691): the media covers the top and the footer paints its own
+     translucent black, so what shows through the footer is the page field, not a solid shell. */
+  background: transparent;
 
   /* The compact card is its own set of metrics, not a scaled-down desktop one (Figma 1040:149086):
      250px tall over 300, split 136 media / 114 info. */
@@ -93,8 +94,9 @@ export const CardLinkExternal = styled.a`
 
 export const Fav = styled.button`
   position: absolute;
-  top: 10px;
-  right: 10px;
+  /* Figma 1480:256699 tucks the 24px disc 4.75px into the corner. */
+  top: 4.75px;
+  right: 4.75px;
   z-index: 4;
   width: 24px;
   height: 24px;
@@ -107,11 +109,13 @@ export const Fav = styled.button`
   color: ${colors.text};
 
   // The circle is 24px by design, which is under the comfortable tap size — an invisible ring around it
-  // brings the hit area back to ~44px on touch without changing the visual.
+  // grows the hit area on touch without changing the visual. It stops FLUSH with the card on the two
+  // sides the disc is tucked into: the card clips (overflow: hidden), so anything past those edges was
+  // never tappable anyway, and it only showed up as phantom scrollable overflow on the card.
   &::after {
     content: '';
     position: absolute;
-    inset: -10px;
+    inset: -4.75px -4.75px -10px -10px;
     border-radius: 50%;
   }
 `
@@ -176,6 +180,16 @@ export const Media = styled.div`
   min-height: 0;
   background: ${colors.media};
   overflow: hidden;
+  /* Centres the artwork, which no longer fills this box — see Img. The row is pinned to the band's own
+     height: left to size itself it grows to the image's natural size, and Img's percentage height then
+     resolves against THAT rather than against the band. */
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  place-items: center;
+  /* Figma 1480:256712: a hairline on the three outer edges only, never on the seam with the footer. */
+  border-top: 0.25px solid ${colors.gray4};
+  border-left: 0.25px solid ${colors.gray4};
+  border-right: 0.25px solid ${colors.gray4};
 `
 
 // Corner ribbon on the media (fav sits top-right, so this anchors top-left).
@@ -259,11 +273,21 @@ export const NameValue = styled.span`
 `
 
 // The flat thumbnail crossfades out once the shared 3D preview (HoverPreviewLayer) has this item ready.
+/**
+ * The artwork is 136.3px square inside a 188px media band (Figma 1480:256689) — 72.5% of the band, not
+ * the whole box. Filling the box drew every wearable about a third larger than the design, and next to
+ * it the 24px favourite badge read as undersized: the badge was right all along, the artwork was not.
+ * Stated as a share of the HEIGHT because that is what the design holds constant — the card is a grid
+ * cell, so its width varies (276px here, 306 in the frame) while the band stays 188.
+ */
 export const Img = styled.img`
-  width: 100%;
-  height: 100%;
+  height: 72.5%;
+  aspect-ratio: 1;
+  width: auto;
+  max-width: 100%;
   object-fit: contain;
   display: block;
+  filter: drop-shadow(1.049px 4.194px 5.243px rgba(0, 0, 0, 0.1));
   transition: opacity 0.25s ease;
 
   &[data-hidden] {
@@ -281,6 +305,9 @@ export const Body = styled.div`
   flex-direction: column;
   justify-content: space-between;
   gap: 4px;
+  /* The footer's own fill (Figma 619:5703), not the card's — the translucent black is what the
+     secondary controls on it are drawn to sit against. */
+  background: ${colors.overlay};
 
   // Keyboard-focus reveal mirrors the hover reveal — desktop only (below sm the round + is the action).
   @media (hover: hover) and (min-width: 721px) {
@@ -342,6 +369,7 @@ export const Desc = styled.div`
   min-width: 0;
   display: flex;
   flex-direction: column;
+  gap: 4px;
 
   ${media.maxWidth('sm')} {
     grid-area: desc;
@@ -363,10 +391,6 @@ export const Name = styled.div`
     display: flex;
     align-items: center;
     gap: 6px;
-  }
-
-  ${media.maxWidth('sm')} {
-    font-size: 12px;
   }
 `
 
@@ -401,12 +425,12 @@ export const CreatorEmpty = styled.div`
   }
 `
 
-// "by {creator}" subtitle under the title on the browse card. Single line, ellipsised so a long name
-// never pushes the fixed 96px body out of shape.
+// "by {creator}" subtitle under the title on the browse card (Figma 619:5722 — Gray 3 at 10px, quieter
+// than the name above it). Single line, ellipsised so a long name never pushes the body out of shape.
 export const Author = styled(CreatorName)`
-  color: ${colors.softWhite};
-  font-size: 11px;
-  line-height: 1.3;
+  color: ${colors.muted2};
+  font-size: 10px;
+  line-height: 1.43;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -420,7 +444,7 @@ export const Price = styled.div`
   align-items: center;
   gap: 6px;
   font-weight: 600;
-  font-size: 16px;
+  font-size: 18px;
   color: ${colors.softWhite};
   white-space: nowrap;
 
@@ -586,9 +610,10 @@ const compactRoundCss = (fill: SerializedStyles) => css`
   }
 `
 
+// Figma 1284:295470 "Mobile CTA": a translucent white disc, not the solid accent.
 const addRoundFill = css`
-  background: ${colors.accent};
-  color: #fff;
+  background: ${colors.glass};
+  color: ${colors.softWhite};
 
   &:disabled {
     opacity: 0.5;
