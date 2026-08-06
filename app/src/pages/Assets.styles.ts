@@ -226,8 +226,8 @@ export const EmptyState = styled.div`
 `
 
 export const EmptyIcon = styled.img`
-  width: 101px;
-  height: 101px;
+  width: 138px;
+  height: 138px;
 `
 
 export const EmptyText = styled.div`
