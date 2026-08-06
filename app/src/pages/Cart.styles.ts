@@ -135,7 +135,7 @@ export const HeadCard = styled.div`
 
   ${mobile} {
     gap: 8px;
-    padding: 12px;
+    padding: 8px 16px;
   }
 `
 
@@ -298,10 +298,12 @@ export const Fitting = styled.button`
     cursor: default;
   }
 
+  /* Mobile keeps the full 40px button and thins the outline to 1px (1182:236892) rather than shrinking
+     the type, which had it reading smaller than the row title beside it. */
   ${mobile} {
-    height: 36px;
-    padding: 0 10px;
-    font-size: 12px;
+    border-width: 1px;
+    border-color: ${colors.text};
+    color: ${colors.text};
   }
 `
 

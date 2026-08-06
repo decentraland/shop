@@ -107,6 +107,10 @@ export const Head = styled.header`
   gap: 16px;
   width: 100%;
   text-align: center;
+
+  ${theme.media.maxWidth('mobile')} {
+    gap: 12px;
+  }
 `
 
 export const Title = styled.h1`
@@ -118,7 +122,7 @@ export const Title = styled.h1`
   color: ${theme.colors.white};
 
   ${theme.media.maxWidth('mobile')} {
-    font-size: 28px;
+    font-size: 32px;
   }
 `
 
