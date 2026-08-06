@@ -177,8 +177,9 @@ export function NamesPage({ onBack }: { onBack: () => void }) {
                     style={{ width: nameWidth != null ? `${nameWidth}px` : undefined }}
                   />
                   {/* Mirrors whatever the field is showing, animated placeholder included, so ".dcl.eth"
-                      stays glued to it as the example is typed out. */}
-                  <S.Sizer ref={sizerRef} aria-hidden>
+                      stays glued to it as the example is typed out — down to which weight it is painted
+                      in, since the placeholder is lighter than a typed value. */}
+                  <S.Sizer ref={sizerRef} aria-hidden data-placeholder={!value || undefined}>
                     {value || placeholder}
                   </S.Sizer>
                   <S.Suffix>{t('names.suffix')}</S.Suffix>

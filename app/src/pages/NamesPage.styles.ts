@@ -163,6 +163,13 @@ export const Sizer = styled.span`
   font-weight: 600;
   line-height: 1.6;
 
+  /* An empty field paints the PLACEHOLDER, which is lighter than a typed value — so the mirror has to
+     be lighter too. Measuring the placeholder at the value's weight made the box a few pixels wider
+     than the text in it, and ".dcl.eth" sat that far off the end of the word. */
+  &[data-placeholder] {
+    font-weight: 400;
+  }
+
   ${theme.media.maxWidth('mobile')} {
     font-size: 16px;
   }
