@@ -10,7 +10,6 @@ import { CollectionCard } from '~/components/CollectionCard'
 import { CreatorHero } from '~/components/CreatorHero'
 import { Filters, type FilterStatus } from '~/components/Filters'
 import { FilterBar, type FilterChip, RARITIES, SORTS } from '~/components/FilterBar'
-import { AddAllToCart } from '~/components/AddAllToCart'
 import { SkeletonCards } from '~/components/SkeletonCards'
 import { LoadMore } from '~/components/LoadMore'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
@@ -245,7 +244,6 @@ export function Creator() {
   // MANA row whose live rate has not resolved yet is still for sale, it just has no number to show. Without
   // that, every store-mint card would flash as NOT FOR SALE for the first frames.
   const isForSale = (item: (typeof priced)[number]) => item.priceCredits > 0 || !!item.manaWei
-  const buyable = priced.filter(isForSale)
 
   // Which of the three empty states applies, if any. They are genuinely different facts and each got
   // reported as "this creator has no items": a failed request, a filter set that excludes everything,
@@ -261,10 +259,6 @@ export function Creator() {
       </CP.Crumbs>
 
       {address ? <CreatorHero address={address} /> : null}
-
-      {!collectionsMode && !showGridSkeletons && buyable.length > 0 ? (
-        <AddAllToCart items={buyable} source="creator" />
-      ) : null}
 
       <A.Root>
         {filtersOpen ? <A.Scrim onClick={() => setFiltersOpen(false)} aria-hidden /> : null}

@@ -685,12 +685,6 @@
     "sortBy": "Sort by",
     "removeFilter": "Remove {filter} filter"
   },
-  "addAll": {
-    "added": "Added {count, plural, one {# item} other {# items}} to your cart.",
-    "forSale": "{count} for sale",
-    "allInCart": "All in cart",
-    "addAll": "Add all ({count}) to cart"
-  },
   "outfits": {
     "rowTitle": "Buy the Look",
     "card": {

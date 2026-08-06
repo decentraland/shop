@@ -685,12 +685,6 @@
     "sortBy": "Ordenar por",
     "removeFilter": "Quitar el filtro {filter}"
   },
-  "addAll": {
-    "added": "{count, plural, one {Se añadió # artículo a tu carrito.} other {Se añadieron # artículos a tu carrito.}}",
-    "forSale": "{count} en venta",
-    "allInCart": "Todo en el carrito",
-    "addAll": "Añadir todo ({count}) al carrito"
-  },
   "outfits": {
     "rowTitle": "Compra el look",
     "card": {
