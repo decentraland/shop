@@ -63,6 +63,8 @@ const colors = {
   successBorder: '#34ce77', // success-banner border
   orange: '#ff7439', // the warm stop of `gradients.buyBtn` — input borders, accent details
   white: '#ffffff',
+  // Hairline on a translucent field over the purple — the search box and the notify-me email input.
+  fieldBorder: '#c6bcd7',
   // Translucent overlays for dark surfaces (dark-theme panels, card footers, empty-state shells).
   overlay: 'rgba(0, 0, 0, 0.4)',
   overlayLight: 'rgba(0, 0, 0, 0.2)',
