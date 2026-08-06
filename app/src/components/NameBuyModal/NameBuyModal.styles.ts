@@ -46,8 +46,8 @@ export const Title = styled.h2`
   margin: 0;
   font-family: ${theme.font.sans};
   font-weight: 700;
-  font-size: 22px;
-  line-height: 1.2;
+  font-size: 20px;
+  line-height: 1.6;
   color: ${theme.colors.text};
 `
 
@@ -220,12 +220,12 @@ export const RowPrice = styled.div`
   }
 `
 
-// Lavender confirm panel.
+// Figma 1356:335201 — the lilac confirmation panel.
 export const Confirm = styled.div`
   margin-top: 16px;
   padding: 16px;
   border-radius: 12px;
-  background: #f2e7fc;
+  background: #f4e9ff;
 `
 
 export const ConfirmTitle = styled.div`
@@ -242,9 +242,14 @@ export const ConfirmBody = styled.p`
   line-height: 1.5;
   color: ${theme.colors.text2};
 
+  /* The chosen NAME is filled with the gradient the design runs through it (1356:335140), not a flat
+     violet — background-clip is the only way to paint a text run with one. */
   b {
     font-weight: 700;
-    color: ${theme.colors.brandViolet};
+    background: linear-gradient(180deg, ${theme.colors.dclRed}, #c640cd);
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
   }
 `
 
@@ -253,9 +258,11 @@ export const ReenterRow = styled.label`
   align-items: center;
   gap: 8px;
   padding: 12px 14px;
-  background: ${theme.colors.white};
-  border: 1px solid ${theme.colors.text};
-  border-radius: 10px;
+  background: ${theme.colors.softWhite};
+  /* A hairline in Gray 2, not a full pixel of soft-black: this field sits INSIDE the lilac panel and
+     the heavier edge made it read as the modal's primary control (Figma 1356:335172). */
+  border: 0.5px solid ${theme.colors.muted};
+  border-radius: 8px;
   cursor: text;
 
   &:focus-within {
@@ -294,24 +301,30 @@ export const ReenterSuffix = styled.span`
   color: ${theme.colors.muted2};
 `
 
-// Full-width primary action.
+// Full-width primary action — the design system's primary button (Figma 1356:335120), the same one
+// BUY NOW, CHECKOUT and CLAIM NAME carry. It was Amethyst with a brightness filter and a pale purple
+// disabled state, which is this modal's own invention rather than the system's.
 export const PrimaryBtn = styled.button`
   margin-top: 16px;
   width: 100%;
-  height: 52px;
+  height: 46px;
   border: 0;
   border-radius: 12px;
   cursor: pointer;
-  background: ${theme.gradients.amethyst};
+  background: ${theme.gradients.buyBtn};
   color: ${theme.colors.softWhite};
   font-family: ${theme.font.sans};
   font-weight: 600;
   font-size: 15px;
   letter-spacing: 0.46px;
   text-transform: uppercase;
+  transition: background-image 0.15s ease;
 
-  &:hover:not(:disabled) {
-    filter: brightness(1.06);
+  /* Both ends stay on background-IMAGE: a gradient cannot interpolate to a plain colour, so swapping
+     the shorthand instead blanks the button for the length of the transition. */
+  &:hover:not(:disabled),
+  &:active:not(:disabled) {
+    background-image: linear-gradient(${theme.colors.dclRed}, ${theme.colors.dclRed});
   }
   &:focus-visible {
     outline: 2px solid ${theme.colors.accent};
@@ -319,8 +332,7 @@ export const PrimaryBtn = styled.button`
   }
   &:disabled {
     cursor: not-allowed;
-    background: #ddc7ec;
-    color: #f4ecfa;
+    opacity: 0.5;
   }
 `
 
