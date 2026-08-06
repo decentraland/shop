@@ -15,12 +15,13 @@ import { useManaBalance } from '~/hooks/useManaBalance'
 import { useManaRate } from '~/hooks/useManaRate'
 import type { ManaRate } from '~/lib/mana-convert'
 import { readManaUsdRate, usdCentsToManaWei } from '~/lib/mana-rate'
-import { buyManyWithMana } from '~/lib/buy-mana'
+import { buyManyWithMana, buyMintsWithMana } from '~/lib/buy-mana'
 import {
   computePaymentOptions,
   distributeCreditsAcrossUnits,
   manaForRemainder,
-  type PaymentMethod
+  type PaymentMethod,
+  type PaymentOptions as BasketRails
 } from '~/lib/payment-options'
 import { PaymentCtas } from '~/components/PaymentCtas'
 import { invalidateAfterPurchase } from '~/lib/after-purchase'
@@ -102,6 +103,25 @@ function dropNotice(review: CartReview): string {
 }
 
 // Sum of a set of reviewed lines in whole credits — per-unit price × quantity for each line.
+/**
+ * Which rails a basket can actually settle, given what it is made of. THE rule, in one place, because
+ * getting it wrong in either direction is a bad bug: offer a rail the charge path refuses and the buyer
+ * picks something that silently drops them into the top-up modal (which is what a MANA holder hit for
+ * every primary item); hide one it supports and they are told to pay by card for no reason.
+ *
+ *  - credits  — always. It is the only rail that settles trades and mints through one call.
+ *  - mana     — a basket of ONLY listings (accept([...])) or ONLY mints (CollectionStore.buy([...])).
+ *               A mixed one would need both calls, so two approvals and two signatures; that is a
+ *               different flow, not a filter, and it stays on credits until it is built.
+ *  - combined — listings only. It spends MANA through CreditsManager.useCredits(), whose external call
+ *               is accept(...), and a mint has no trade to accept.
+ */
+function railsForBasket(rails: BasketRails, basket: { hasStore: boolean; allStore: boolean }): BasketRails {
+  if (!basket.hasStore) return rails
+  const options = rails.options.filter(o => o.method === 'credits' || (o.method === 'mana' && basket.allStore))
+  return { ...rails, options, preferred: options.some(o => o.method === rails.preferred) ? rails.preferred : null }
+}
+
 const sumLineCredits = (lines: ResolvedLine[]): number => lines.reduce((n, l) => n + l.priceCredits * l.quantity, 0)
 
 // Expand each reviewed line into one entry per unit (quantity 1) — the money flow authorizes and
@@ -221,26 +241,38 @@ export function Cart() {
   // matching what the charge path quotes. No rate (oracle unread/unreachable) → 0n → credits only.
   const summaryTotalCents = total * 10
   const summaryManaWei = manaRate ? usdCentsToManaWei(summaryTotalCents, manaRate) : 0n
-  const summaryRails = computePaymentOptions({
-    priceCents: summaryTotalCents,
-    priceManaWei: summaryManaWei,
-    balanceCents: balance?.balanceCents ?? 0,
-    manaBalanceWei: manaBalanceWei ?? 0n
-  })
-  /**
-   * Whether the basket contains a CollectionStore mint.
-   *
-   * Gates the MANA rails off. Both of them settle through `accept([...trades])` — `buyManyWithMana` takes
-   * trades, and the combined rail spends MANA through the CreditsManager against the same call — so a mint
-   * has no MANA path here at all. Offering a rail that cannot fulfil the basket would fail at signing time,
-   * after the buyer picked it. Paying for a mint in MANA is a real flow (the legacy marketplace does it via
-   * CollectionStore.buy) and is simply not wired in the Shop yet.
-   */
+  // What the basket is made of, from the cart itself (CatalogItem carries `acquisition`) so the summary can
+  // offer the right rails on first paint, before anything is resolved.
+  //
+  // Classified CONSERVATIVELY: `acquisition` is optional, and a line whose kind we cannot read is treated as
+  // not-a-listing. Offering MANA for a basket we cannot vouch for is the bug this fixes — the buyer picks a
+  // rail the charge path then refuses. Hiding it on an unclassifiable line costs them the option; showing it
+  // wrongly costs them a signature and drops them in the top-up modal.
+  const summaryAllTrade = items.length > 0 && items.every(i => i.acquisition === 'trade')
+  const summaryAllStore = items.length > 0 && items.every(i => i.acquisition === 'store')
+  const summaryHasStore = !summaryAllTrade
+  const summaryRails = railsForBasket(
+    computePaymentOptions({
+      priceCents: summaryTotalCents,
+      priceManaWei: summaryManaWei,
+      balanceCents: balance?.balanceCents ?? 0,
+      manaBalanceWei: manaBalanceWei ?? 0n
+    }),
+    { hasStore: summaryHasStore, allStore: summaryAllStore }
+  )
+  /** Whether the basket contains a CollectionStore mint. */
   const hasStoreLine = (lines: ResolvedLine[]) => lines.some(l => l.acquisition === 'store')
 
-  // The MANA rails only ever see trade lines (hasStoreLine keeps mints away), and this is what tells the
-  // compiler so instead of a cast at each use.
+  /** Whether EVERY line is a mint — the shape `buyMintsWithMana` settles in one CollectionStore.buy. */
+  const allStoreLines = (lines: ResolvedLine[]) => lines.length > 0 && lines.every(l => l.acquisition === 'store')
+
+  // The MANA rails only ever see trade lines when the basket has any, and this is what tells the compiler
+  // so instead of a cast at each use.
   const tradeLinesOnly = (lines: ResolvedLine[]) => lines.flatMap(l => (l.acquisition === 'trade' ? [l] : []))
+
+  // Same narrowing for the mint rail: a store line carries `priceWei` (the price the CollectionStore
+  // re-verifies on-chain), which the union only exposes once the branch is narrowed.
+  const storeLinesOnly = (lines: ResolvedLine[]) => lines.flatMap(l => (l.acquisition === 'store' ? [l] : []))
 
   // Re-resolve each line's LIVE trade at review time: a stored tradeId can be stale (the trade gets
   // re-signed as availability/expiration rolls), so resolveLiveTrade re-resolves by item on a 404
@@ -726,11 +758,10 @@ export function Cart() {
       balanceCents: balance?.balanceCents ?? 0,
       manaBalanceWei: manaBalanceWei ?? 0n
     })
-    // Drop both MANA rails when the basket holds a CollectionStore mint (see hasStoreLine): they settle
-    // through accept([...trades]) and a mint has no trade, so offering one would fail at signing time —
-    // after the buyer chose it and after any MANA approval. Credits stay available, which is the rail that
-    // does support mints, so this narrows the buyer's options rather than blocking the purchase.
-    const options = hasStoreLine(lines) ? { ...all, options: all.options.filter(o => o.method === 'credits') } : all
+    // The SAME rule the summary panel offered from (railsForBasket). It has to be, or the buyer picks a
+    // rail here that the charge path then refuses — which is exactly how a MANA holder ended up in the
+    // buy-credits modal after clicking "Buy with MANA".
+    const options = railsForBasket(all, { hasStore: hasStoreLine(lines), allStore: allStoreLines(lines) })
     // The buyer already picked a rail in the summary panel, and it still covers the re-resolved total →
     // charge it, no second confirmation. (`picked` is dropped when the re-resolve invalidated it, which
     // falls through to the chooser / top-up below — never a silent switch to a different rail.)
@@ -787,7 +818,14 @@ export function Cart() {
    */
   /** Which contract pulls the MANA: the marketplace for a MANA-only basket, the CreditsManager for mixed. */
   function manaSpenderFor(rail: 'mana' | 'combined', lines: ResolvedLine[]): { spender: string; chainId: ChainId } {
-    // Unreachable with a mint in the basket: hasStoreLine drops both MANA rails before this is called.
+    // An all-mint basket pays the STORE, which pulls the MANA itself. Approving a marketplace instead
+    // would authorize the wrong contract and the mint would revert for lack of allowance.
+    if (rail === 'mana' && allStoreLines(lines)) {
+      const chainId = lines[0].item.chainId
+      return { spender: getContract(ContractName.CollectionStore, chainId).address, chainId }
+    }
+    // Every other rail settles a TRADE: `combined` never reaches here with a mint (railsForBasket drops
+    // it), and a `mana` basket that is not all-mint is all-trade for the same reason.
     const trade = tradeLinesOnly(lines)[0].trade
     const spender =
       rail === 'mana'
@@ -831,14 +869,30 @@ export function Cart() {
     const onSigned = () => setModal({ phase: 'processing', stage: 'settling', step: units.length, total: units.length })
     setModal({ phase: 'processing', stage: 'awaiting-signature', step: units.length, total: units.length })
     try {
-      const hashes = await buyManyWithMana({
-        // Trade lines only — the MANA rail settles through accept([...]) and a mint has no trade. The basket
-        // cannot contain one here (see hasStoreLine), so this narrows rather than filters.
-        trades: tradeLinesOnly(units).map(u => u.trade),
-        buyer: session.address,
-        signer: session.signer,
-        onSigned
-      })
+      // Two settlements, one rail. A mint has no trade to accept, so an all-mint basket goes to the store
+      // directly; anything else here is all listings (railsForBasket keeps mixed baskets off MANA).
+      const hashes = allStoreLines(units)
+        ? [
+            await buyMintsWithMana({
+              items: storeLinesOnly(units).map(u => ({
+                collection: u.item.contractAddress,
+                itemId: String(u.item.itemId),
+                // The price the STORE re-reads on-chain and reverts on if it moved, so it must be the live
+                // mint price the review resolved — never the cart's cached one.
+                priceWei: u.priceWei
+              })),
+              chainId: units[0].item.chainId,
+              buyer: session.address,
+              signer: session.signer,
+              onSigned
+            })
+          ]
+        : await buyManyWithMana({
+            trades: tradeLinesOnly(units).map(u => u.trade),
+            buyer: session.address,
+            signer: session.signer,
+            onSigned
+          })
       lines.forEach(l => remove(l.item.id))
       setReview(null)
       track('Shop Completed Purchase', {

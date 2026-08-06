@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
@@ -110,18 +110,25 @@ vi.mock('~/lib/api', async orig => ({
   fetchListings: vi.fn().mockResolvedValue({ data: [] }),
   fetchStoreMintState: vi.fn()
 }))
+// Overridable: at a flat 0n the summary can never price the basket in MANA, so no MANA rail could ever
+// render and the whole rail went untested. Defaults to 0n so every existing spec behaves as before.
+const { usdCentsToManaWei } = vi.hoisted(() => ({ usdCentsToManaWei: vi.fn((_cents: number) => 0n) }))
 vi.mock('~/lib/mana-rate', () => ({
   readManaUsdRate: vi.fn(async () => ({ rate: 50_000_000n, decimals: 8 })),
-  usdCentsToManaWei: () => 0n,
+  usdCentsToManaWei,
   manaWeiToUsdCents: () => 0,
   manaWeiToCredits: () => 0,
   manaWeiToUsdWei: () => 0n
 }))
-vi.mock('~/lib/buy-mana', () => ({ buyManyWithMana: vi.fn() }))
+const { buyManyWithMana, buyMintsWithMana } = vi.hoisted(() => ({
+  buyManyWithMana: vi.fn(),
+  buyMintsWithMana: vi.fn()
+}))
+vi.mock('~/lib/buy-mana', () => ({ buyManyWithMana, buyMintsWithMana }))
 vi.mock('~/lib/authorizations', () => ({
   AuthorizationKind: { ManaSpending: 'mana' },
   ensureAuthorization: vi.fn(),
-  getAuthorizationStatus: vi.fn(),
+  getAuthorizationStatus: vi.fn(async () => true),
   getManaSpendingAuthorization: vi.fn(),
   needsApprovalStep: () => false
 }))
@@ -174,10 +181,12 @@ const line = (i: CatalogItem) => ({
 })
 
 // A resolved MINT line: no trade, minted from the CollectionStore, priced in MANA.
+// `priceWei` is the field the store settlement actually carries (see LineSettlement) — the fixture said
+// `manaWei`, which no type checked because these are cast to unknown, so the mint rail read undefined.
 const storeLine = (i: CatalogItem) => ({
   item: { ...i, quantity: 1, tradeId: undefined },
   acquisition: 'store' as const,
-  manaWei: '1000000000000000000',
+  priceWei: '1000000000000000000',
   priceCredits: 20,
   usdCents: 200,
   quantity: 1
@@ -554,5 +563,92 @@ describe('when the basket contains a store mint', () => {
 
     // This buyer CAN pay the fee, so the fallback is a real route for them.
     await waitFor(() => expect(buyManyWithCredits).toHaveBeenCalled())
+  })
+})
+
+/**
+ * PAYING FOR A MINT WITH MANA.
+ *
+ * A primary item is minted through `CollectionStore.buy([...])`, which has no trade — so the MANA rails
+ * that settle through `accept([...])` cannot fulfil it. The Shop used to offer the MANA button anyway and
+ * then refuse it at charge time, which dropped the buyer into the buy-credits modal: a wallet holding 907
+ * MANA was told to pay by card for most of the catalogue, since primaries are what creators publish.
+ *
+ * What these pin is that the panel and the charge path agree — the mismatch, not just the outcome.
+ */
+describe('when the basket is all mints and the buyer holds MANA', () => {
+  beforeEach(() => {
+    mana.wei = 10n ** 21n // 1000 MANA — comfortably over the basket
+    usdCentsToManaWei.mockImplementation((cents: number) => BigInt(cents) * 10n ** 16n)
+  })
+
+  afterEach(() => {
+    usdCentsToManaWei.mockImplementation(() => 0n)
+    mana.wei = 0n
+  })
+
+  it('should offer the MANA rail', async () => {
+    renderCart([item('a', { tradeId: undefined, acquisition: 'store' })], storeLine)
+
+    expect(await screen.findByTestId('pay-with-mana')).toBeInTheDocument()
+  })
+
+  it('should mint through the store, not through a marketplace accept', async () => {
+    buyMintsWithMana.mockResolvedValue('0xmint')
+    renderCart([item('a', { tradeId: undefined, acquisition: 'store' })], storeLine)
+
+    await userEvent.setup().click(await screen.findByTestId('pay-with-mana'))
+
+    await waitFor(() => expect(buyMintsWithMana).toHaveBeenCalled())
+    // `accept([...])` cannot mint: reaching it would revert after the buyer signed.
+    expect(buyManyWithMana).not.toHaveBeenCalled()
+  })
+
+  it('should mint the live price the review resolved, not the cart’s cached one', async () => {
+    buyMintsWithMana.mockResolvedValue('0xmint')
+    renderCart([item('a', { tradeId: undefined, acquisition: 'store' })], storeLine)
+
+    await userEvent.setup().click(await screen.findByTestId('pay-with-mana'))
+
+    await waitFor(() => expect(buyMintsWithMana).toHaveBeenCalled())
+    // The CollectionStore re-reads the price on-chain and reverts if it moved, so a stale figure here is
+    // a failed purchase after the signature.
+    const args = buyMintsWithMana.mock.calls[0][0] as { items: { priceWei: string }[] }
+    expect(args.items[0].priceWei).toBe('1000000000000000000')
+  })
+})
+
+describe('when the basket mixes a mint and a listing', () => {
+  beforeEach(() => {
+    mana.wei = 10n ** 21n
+    usdCentsToManaWei.mockImplementation((cents: number) => BigInt(cents) * 10n ** 16n)
+  })
+
+  afterEach(() => {
+    usdCentsToManaWei.mockImplementation(() => 0n)
+    mana.wei = 0n
+  })
+
+  // One transaction cannot both accept a trade and mint from the store, so MANA stays off until that flow
+  // exists. Offering it would put the buyer back where this bug started: a rail the charge path refuses.
+  it('should not offer the MANA rail', async () => {
+    useCart.setState({
+      items: [
+        item('a', { tradeId: 't-a', acquisition: 'trade' }),
+        item('b', { tradeId: undefined, acquisition: 'store' })
+      ].map(i => ({ ...i, quantity: 1 })),
+      open: false
+    })
+
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter>
+          <Cart />
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    await screen.findByTestId('pay-with-credits')
+    expect(screen.queryByTestId('pay-with-mana')).not.toBeInTheDocument()
   })
 })

@@ -155,24 +155,29 @@ export function buildUseCreditsArgs(
 }
 
 /**
- * Encode CollectionStore.buy([...items]) — one external call mints every item in the batch.
+ * CollectionStore.buy's `ItemToBuy[]` argument.
  *
- * `beneficiaries` is the buyer for every item: the CreditsManager is the msg.sender, so without this the
- * freshly minted NFTs would land in the CreditsManager rather than in the buyer's wallet.
+ * `beneficiaries` is the buyer for every item, and it is the reason this cannot be defaulted: whoever
+ * sends the transaction receives the mint unless told otherwise. On the credits rail the sender is the
+ * CreditsManager, so without this the NFTs would land there instead of with the buyer. On the MANA rail
+ * the sender IS the buyer, but naming them explicitly keeps one shape for both.
+ *
+ * Shared by both rails so the argument they mint with cannot drift — the same reason `wrapInUseCredits`
+ * is shared below.
  */
+export function buildStoreItemsToBuy(items: StoreItemToBuy[], buyer: string) {
+  return items.map(i => ({
+    collection: i.collection,
+    ids: [i.itemId],
+    prices: [i.priceWei],
+    beneficiaries: [buyer]
+  }))
+}
+
+/** Encode CollectionStore.buy([...items]) — one external call mints every item in the batch. */
 export function buildStoreBuyCalldata(items: StoreItemToBuy[], buyer: string, collectionStoreAbi: unknown[]) {
   const selector = new Interface(collectionStoreAbi as string[]).getSighash('buy')
-  const data = defaultAbiCoder.encode(
-    [ITEM_TO_BUY_TUPLE_ARRAY],
-    [
-      items.map(i => ({
-        collection: i.collection,
-        ids: [i.itemId],
-        prices: [i.priceWei],
-        beneficiaries: [buyer]
-      }))
-    ]
-  )
+  const data = defaultAbiCoder.encode([ITEM_TO_BUY_TUPLE_ARRAY], [buildStoreItemsToBuy(items, buyer)])
   return { selector, data }
 }
 

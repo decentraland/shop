@@ -5,13 +5,23 @@ import type { ethers as Ethers } from 'ethers'
 // Records the on-chain calls buyWithMana makes so we can assert the allowance-then-accept sequence.
 const approveCalls: Array<{ spender: string; amount: string }> = []
 const acceptCalls: Array<{ trades: unknown[] }> = []
+const buyCalls: Array<{ itemsToBuy: ItemToBuy[] }> = []
 let allowanceWei = '0' // current MANA→marketplace allowance the mocked ERC20 reports
 
+// CollectionStore.buy's argument, as the mocked contract receives it.
+type ItemToBuy = { collection: string; ids: string[]; prices: string[]; beneficiaries: string[] }
+
+const CONTRACT_ADDRESSES: Record<string, string> = {
+  MANAToken: '0xmana',
+  CreditsManager: '0xcreditsmanager',
+  CollectionStore: '0xstore'
+}
+
 vi.mock('decentraland-transactions', () => ({
-  ContractName: { MANAToken: 'MANAToken', CreditsManager: 'CreditsManager' },
+  ContractName: { MANAToken: 'MANAToken', CreditsManager: 'CreditsManager', CollectionStore: 'CollectionStore' },
   getContractName: () => 'DecentralandMarketplacePolygon',
   getContract: (name: string) => ({
-    address: name === 'MANAToken' ? '0xmana' : name === 'CreditsManager' ? '0xcreditsmanager' : '0xmarket',
+    address: CONTRACT_ADDRESSES[name] ?? '0xmarket',
     name,
     version: '1',
     abi: ['function accept(uint256[] x)']
@@ -45,6 +55,10 @@ vi.mock('ethers', async importOriginal => {
       acceptCalls.push({ trades })
       return { wait: async () => ({ transactionHash: '0xmanahash' }) }
     }
+    async buy(itemsToBuy: ItemToBuy[]) {
+      buyCalls.push({ itemsToBuy })
+      return { wait: async () => ({ transactionHash: '0xminthash' }) }
+    }
   }
   class MockJsonRpcProvider {
     constructor(public url: string) {}
@@ -68,7 +82,7 @@ vi.mock('~/lib/buy', () => ({
   })
 }))
 
-import { buyWithMana, buyWithCreditsAndMana } from '~/lib/buy-mana'
+import { buyWithMana, buyWithCreditsAndMana, buyMintsWithMana } from '~/lib/buy-mana'
 
 const ADDR = (n: string) => '0x' + n.repeat(20)
 const BUYER = ADDR('44')
@@ -140,6 +154,68 @@ describe('buyWithMana (direct settlement)', () => {
     expect(approveCalls).toHaveLength(0)
     expect(acceptCalls).toHaveLength(1)
     expect(hash).toBe('0xmanahash')
+  })
+})
+
+describe('buyMintsWithMana (primary items, direct settlement)', () => {
+  const mint = (itemId: string, priceWei: string) => ({ collection: ADDR('55'), itemId, priceWei })
+
+  beforeEach(() => {
+    approveCalls.length = 0
+    acceptCalls.length = 0
+    buyCalls.length = 0
+    allowanceWei = '0'
+  })
+
+  it('approves the STORE (not a marketplace) and mints through buy(), returning the tx hash', async () => {
+    const hash = await buyMintsWithMana({
+      items: [mint('7', '1000000000000000000')],
+      chainId: 80002,
+      buyer: BUYER,
+      signer
+    })
+
+    // The store is what pulls the MANA here; approving a marketplace instead would revert the mint.
+    expect(approveCalls).toHaveLength(1)
+    expect(approveCalls[0].spender).toBe('0xstore')
+    expect(buyCalls).toHaveLength(1)
+    // A mint has no trade, so accept() must never be reached — it would revert after the buyer signed.
+    expect(acceptCalls).toHaveLength(0)
+    expect(hash).toBe('0xminthash')
+  })
+
+  it('names the BUYER as the beneficiary so the NFT lands with them', async () => {
+    await buyMintsWithMana({ items: [mint('7', '1000000000000000000')], chainId: 80002, buyer: BUYER, signer })
+
+    expect(buyCalls[0].itemsToBuy[0].beneficiaries).toEqual([BUYER])
+  })
+
+  it('passes each item its own price — what the store re-verifies on-chain', async () => {
+    await buyMintsWithMana({
+      items: [mint('7', '1000000000000000000'), mint('9', '2500000000000000000')],
+      chainId: 80002,
+      buyer: BUYER,
+      signer
+    })
+
+    // One call mints the whole batch, so a cart of primaries costs the buyer a single signature.
+    expect(buyCalls).toHaveLength(1)
+    expect(buyCalls[0].itemsToBuy.map(i => i.ids[0])).toEqual(['7', '9'])
+    expect(buyCalls[0].itemsToBuy.map(i => i.prices[0])).toEqual(['1000000000000000000', '2500000000000000000'])
+  })
+
+  it('skips the approval when the store allowance is already set', async () => {
+    allowanceWei = '1000000000000000000000000'
+    await buyMintsWithMana({ items: [mint('7', '1000000000000000000')], chainId: 80002, buyer: BUYER, signer })
+
+    expect(approveCalls).toHaveLength(0)
+    expect(buyCalls).toHaveLength(1)
+  })
+
+  it('refuses an empty basket instead of sending a no-op transaction', async () => {
+    await expect(buyMintsWithMana({ items: [], chainId: 80002, buyer: BUYER, signer })).rejects.toThrow(/No items/)
+    expect(approveCalls).toHaveLength(0)
+    expect(buyCalls).toHaveLength(0)
   })
 })
 

@@ -12,11 +12,15 @@ import { AuthorizationKind, ensureAuthorization, metaTxProviderShim, readProvide
 import { buyWithCredits, type SpendableCredit } from '~/lib/buy'
 import { gaslessConfig } from '~/lib/gasless-config'
 import { requireChain } from '~/lib/network'
-import { amoyGasOverrides, getOnChainTrade } from '~/lib/trade-encoding'
+import { amoyGasOverrides, buildStoreItemsToBuy, getOnChainTrade, type StoreItemToBuy } from '~/lib/trade-encoding'
 import { confirmMetaTx, MetaTxPendingError } from '~/lib/tx-confirm'
 
 type MarketplaceAcceptContract = ethers.Contract & {
   accept(trades: unknown[], overrides?: ethers.Overrides): Promise<ethers.ContractTransaction>
+}
+
+type CollectionStoreBuyContract = ethers.Contract & {
+  buy(itemsToBuy: unknown[], overrides?: ethers.Overrides): Promise<ethers.ContractTransaction>
 }
 
 /**
@@ -140,6 +144,89 @@ async function acceptPayingMana(opts: {
   await requireChain(signer.provider as ethers.providers.Web3Provider, trade.chainId)
   const contract = new ethers.Contract(marketplace.address, marketplace.abi, signer) as MarketplaceAcceptContract
   const tx = await contract.accept(onChainTrades, amoyGasOverrides(trade.chainId))
+  onSigned?.()
+  const receipt = await tx.wait()
+  return receipt.transactionHash
+}
+
+/**
+ * Mint items from a collection's store paying MANA DIRECTLY — the MANA rail for PRIMARY items.
+ *
+ * A mint is not a listing: it has no trade, so `accept([...])` cannot fulfil it and every MANA path above
+ * is unusable. The Shop's answer until now was to offer no MANA rail at all for a basket containing a
+ * mint, which meant a buyer holding MANA was sent to buy credits with a card instead — for most of the
+ * catalogue, since primaries are what creators publish.
+ *
+ * `CollectionStore.buy([...])` is the same call the credits rail already makes; the only difference is
+ * who sends it. Through the CreditsManager the manager is `msg.sender` and the credits pay. Called
+ * directly, the BUYER is `msg.sender` and the store pulls their MANA — which is exactly the legacy
+ * marketplace's flow, and why the allowance below targets the store rather than a marketplace.
+ *
+ * GASLESS FIRST, like every other rail here: the CollectionStore is a native meta-transaction contract
+ * (verified on-chain — it answers `getNonce`), so a managed wallet holding no POL can mint with MANA too.
+ * `decentraland-transactions` does not list `executeMetaTransaction` in the store's ABI, which only
+ * selects which of the two signing shapes it uses; the nonce is read from the chain either way.
+ *
+ * The fallback is the same contract with the wallet paying gas, and it is deliberately gated on
+ * `requireChain`: that CHECKS the wallet's network and throws WrongNetworkError rather than switching it,
+ * so moving networks stays the buyer's own decision (see lib/network).
+ *
+ * One call mints the whole batch, so a cart of primaries is one signature.
+ */
+export async function buyMintsWithMana(opts: {
+  items: StoreItemToBuy[]
+  chainId: number
+  buyer: string
+  signer: ethers.providers.JsonRpcSigner
+  /** Fired once the buyer confirms in their wallet, before on-chain settlement (UI: "completing…"). */
+  onSigned?: () => void
+}): Promise<string> {
+  const { items, chainId, buyer, signer, onSigned } = opts
+  if (items.length === 0) throw new Error('No items to buy')
+
+  const store = getContract(ContractName.CollectionStore, chainId)
+  const mana = getContract(ContractName.MANAToken, chainId)
+
+  // 1. Let the STORE pull the buyer's MANA. Same helper the other rails use; only the spender differs.
+  await ensureAuthorization({
+    auth: {
+      kind: AuthorizationKind.Allowance,
+      contractAddress: mana.address,
+      spenderAddress: store.address,
+      chainId
+    },
+    signer
+  })
+
+  const itemsToBuy = buildStoreItemsToBuy(items, buyer)
+
+  // 2. Mint, paying MANA: CollectionStore.buy([...items]).
+  if (gaslessConfig.enabled) {
+    try {
+      const functionData = new ethers.utils.Interface(store.abi).encodeFunctionData('buy', [itemsToBuy])
+      const rpc = readProvider()
+      const provider = metaTxProviderShim(signer.provider as ethers.providers.Web3Provider, rpc)
+      const txHash = await sendMetaTransaction(provider, rpc, functionData, store, {
+        serverURL: gaslessConfig.relayerUrl
+      })
+      onSigned?.()
+      await confirmMetaTx(txHash, 'the MANA mint')
+      return txHash
+    } catch (e) {
+      if (e instanceof MetaTransactionError && e.code === ErrorCode.USER_DENIED) throw e
+      // Same rule as the trade rail: a PENDING meta-tx must never fall through. Pending means no receipt
+      // yet, so the relayed mint may still land — minting again directly would buy the item TWICE and
+      // charge the buyer twice. A revert consumed nothing, so retrying that one is safe.
+      if (e instanceof MetaTxPendingError) throw e
+      console.warn('[buyMintsWithMana] gasless meta-tx failed, falling back to a direct tx:', e)
+    }
+  }
+
+  // Direct (gas-paying) fallback. The WALLET broadcasts, so it must already be on the mint's chain — we
+  // only CHECK; moving it is the buyer's decision, surfaced by the caller from WrongNetworkError.
+  await requireChain(signer.provider as ethers.providers.Web3Provider, chainId)
+  const contract = new ethers.Contract(store.address, store.abi, signer) as CollectionStoreBuyContract
+  const tx = await contract.buy(itemsToBuy, amoyGasOverrides(chainId))
   onSigned?.()
   const receipt = await tx.wait()
   return receipt.transactionHash
