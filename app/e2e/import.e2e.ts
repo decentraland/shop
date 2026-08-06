@@ -65,18 +65,34 @@ describe('move old listings', () => {
     // List all → the migrate modal opens with both items queued at those prices.
     // By test id, not by label: the cta's copy carries the selected count, so a text matcher breaks
     // every time the wording around the number changes.
+    /**
+     * Record the modal as it runs instead of reading it once the run is over.
+     *
+     * A clean run ends by taking the modal down outright — MigrateModal renders null once it finishes
+     * with no failures — so "wait for the in-progress heading, then query the modal" is a race the
+     * runner loses whenever the mocked run beats the query: the element is simply gone by then, and the
+     * whole spec fails on a missing selector. The observer holds the last content seen while it WAS
+     * mounted, which is the state being asserted either way.
+     */
+    await page.evaluate(() => {
+      const w = window as unknown as { __migrateText?: string }
+      const grab = () => {
+        const el = document.querySelector('[data-testid="modal"]') as HTMLElement | null
+        if (el?.innerText) w.__migrateText = el.innerText
+      }
+      new MutationObserver(grab).observe(document.body, { childList: true, subtree: true, characterData: true })
+      grab()
+    })
+
     await clickWhenEnabled(page, '[data-testid="import-list-all"]', /./)
-    // Atomic: wait for the modal AND capture its text in the same browser frame to avoid the race
-    // between the modal rendering and the import flow auto-closing it on completion.
-    const queued = await page.waitForFunction(
+    await page.waitForFunction(
       () => {
-        const modal = document.querySelector('[data-testid="modal"]')
-        if (!modal) return null
-        const text = (modal as HTMLElement).innerText
-        return text.includes('Listing your items') ? text : null
+        const seen = (window as unknown as { __migrateText?: string }).__migrateText || ''
+        return /Listing your items/.test(seen) && /\d of 2/.test(seen)
       },
-      { timeout: 15000 }
-    ).then(h => h.jsonValue() as Promise<string>)
+      { timeout: 20000 }
+    )
+    const queued = await page.evaluate(() => (window as unknown as { __migrateText?: string }).__migrateText as string)
     expect(queued).toMatch(/Galaxy Hat/)
     expect(queued).toMatch(/Nebula Jacket/)
     // The QUEUE SIZE, not which item is active: the run really advances now (it used to freeze on the
