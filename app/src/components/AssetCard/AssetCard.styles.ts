@@ -392,6 +392,10 @@ export const Name = styled.div`
     align-items: center;
     gap: 6px;
   }
+
+  ${media.maxWidth('sm')} {
+    line-height: 1.57;
+  }
 `
 
 // The DCL verified seal is a Cerise-gradient SVG, so it can't be the currentColor Icon mask.
@@ -409,6 +413,10 @@ export const Creator = styled(CreatorBadge)`
 
   & [data-avatar] {
     display: none;
+  }
+
+  ${media.maxWidth('sm')} {
+    line-height: 1.43;
   }
 `
 
@@ -463,6 +471,7 @@ export const Price = styled.div`
     grid-area: price;
     align-self: center;
     justify-self: start;
+    gap: 2px;
   }
 `
 

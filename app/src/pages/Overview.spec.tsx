@@ -282,3 +282,18 @@ describe('the overview once its feeds land', () => {
     expect(fetchShopItems.mock.calls.at(-1)![0]).toMatchObject({ first: 12, sortBy: 'newest', listingType: 'primary' })
   })
 })
+
+describe('the promo tiles', () => {
+  // Each promo advertises one kind of collectible, so its CTA has to land on that kind. "Find your look"
+  // used to drop the visitor on the unfiltered grid, where the wearables it had just shown were mixed in
+  // with everything else.
+  it('should send the wearables promo to the wearables category, like the emotes one', async () => {
+    renderOverview()
+
+    const wearables = await screen.findByRole('link', { name: /explore wearables/i })
+    const emotes = await screen.findByRole('link', { name: /explore emotes/i })
+
+    expect(wearables).toHaveAttribute('href', '/items?category=wearable')
+    expect(emotes).toHaveAttribute('href', '/items?category=emote')
+  })
+})

@@ -251,7 +251,7 @@ export function Overview() {
             />
             <LivePromo
               id="shop-promo-outfits"
-              to="/items"
+              to="/items?category=wearable"
               urns={[
                 'urn:decentraland:matic:collections-v2:0x9620151fe5e1c8fd0638a4840cf5e63d19b09765:0',
                 'urn:decentraland:matic:collections-v2:0x6c3ca91dbac390d60d4267fdcf48576f6c051dbe:0'
