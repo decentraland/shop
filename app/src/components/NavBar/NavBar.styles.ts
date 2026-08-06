@@ -16,7 +16,9 @@ const stacked = media.maxWidth('lg')
 
 export const Subnav = styled.div`
   position: sticky;
-  top: 92px;
+  /* Pinned under the ui2 navbar — see --nav-h in styles/index.css for why this is a var and not
+     a pair of numbers on our own breakpoint. */
+  top: var(--nav-h);
   z-index: 40;
   display: flex;
   align-items: center;
@@ -48,7 +50,6 @@ export const Subnav = styled.div`
   }
 
   ${mobile} {
-    top: 64px;
     padding: 12px 16px 0;
   }
 `

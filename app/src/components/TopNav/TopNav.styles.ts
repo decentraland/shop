@@ -8,14 +8,10 @@ export const Skeleton = styled.div`
   top: 0;
   left: 0;
   right: 0;
-  height: 92px;
+  height: var(--nav-h);
   /* Dark-theme test: solid stand-in for the bar's #161518 at 40% over the purple field. */
   background: #36184a;
   z-index: 50;
-
-  ${theme.media.maxWidth('mobile')} {
-    height: 64px;
-  }
 `
 
 // Restyles the shared decentraland-ui2 Navbar to the violet Figma design (nodes 1368-354066 desktop /

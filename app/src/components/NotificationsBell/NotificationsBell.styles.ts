@@ -111,12 +111,12 @@ export const Panel = styled.div`
      shows a strip of the page between itself and the bar. */
   ${media.maxWidth('mobile')} {
     position: fixed;
-    top: 64px;
+    top: var(--nav-h);
     left: 0;
     right: 0;
     width: auto;
     margin-top: 0;
-    max-height: calc(100vh - 64px);
+    max-height: calc(100vh - var(--nav-h));
     border-radius: 0;
     border-left: 0;
     border-right: 0;
