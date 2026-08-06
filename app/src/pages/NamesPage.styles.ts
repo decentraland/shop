@@ -289,7 +289,10 @@ export const Counter = styled.span`
   white-space: nowrap;
 `
 
-// Gradient claim button. Inline on the right on desktop; full-width below on mobile.
+// The design system's primary button (Figma 738:53260 rest / 53252 hover / 53257 disabled): the "BUY
+// Button" gradient, flat primary red under the pointer, and the SAME gradient at half opacity when
+// there is nothing to claim. It used to carry Cerise with a brightness filter and a pale pink disabled
+// state, none of which is in the system. Inline on the right on desktop; full-width below on mobile.
 export const ClaimButton = styled.button`
   flex: none;
   display: inline-flex;
@@ -301,7 +304,7 @@ export const ClaimButton = styled.button`
   border: 0;
   border-radius: 12px;
   cursor: pointer;
-  background: ${theme.gradients.cerise};
+  background: ${theme.gradients.buyBtn};
   color: ${theme.colors.softWhite};
   font-family: ${theme.font.sans};
   font-weight: 600;
@@ -309,9 +312,13 @@ export const ClaimButton = styled.button`
   letter-spacing: 0.46px;
   line-height: 24px;
   text-transform: uppercase;
+  transition: background-image 0.15s ease;
 
-  &:hover:not(:disabled) {
-    filter: brightness(1.05);
+  /* Both ends stay on background-IMAGE: a gradient cannot interpolate to a plain colour, so swapping
+     the background shorthand instead blanks the button for the length of the transition. */
+  &:hover:not(:disabled),
+  &:active:not(:disabled) {
+    background-image: linear-gradient(${theme.colors.dclRed}, ${theme.colors.dclRed});
   }
   &:focus-visible {
     outline: 2px solid ${theme.colors.white};
@@ -319,8 +326,7 @@ export const ClaimButton = styled.button`
   }
   &:disabled {
     cursor: not-allowed;
-    background: #e7c8e9;
-    color: #fbe9fb;
+    opacity: 0.5;
   }
 
   ${theme.media.maxWidth('mobile')} {
@@ -340,15 +346,18 @@ export const ClaimButtonMobile = styled(ClaimButton)`
   }
 `
 
+// The price rides a size larger than the label beside it (Figma 2302:307649), with the currency mark
+// at the 13.26x14 the design draws rather than a round 16.
 export const Price = styled.span`
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  font-size: 18px;
   font-weight: 600;
 
   .ico {
-    width: 16px;
-    height: 16px;
+    width: 13.26px;
+    height: 14px;
   }
 `
 
