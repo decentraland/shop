@@ -1,5 +1,6 @@
 import type { CatalogItem } from '~/lib/api'
 import type { CreditPack } from '~/lib/payments'
+import { isIapMode } from '~/lib/iap'
 import { formatCredits } from '~/lib/currency'
 import { hrefFor } from '~/lib/routes'
 import { PaymentCtas } from '~/components/PaymentCtas'
@@ -268,10 +269,16 @@ function NoFunds({
           <b>{t('buyModal.insufficientFunds')}</b> {t('buyModal.warningNeedToBuy')}{' '}
           <b>{t('buyModal.warningCreditsAmount', { count: Math.max(0, shortfallCredits) })}</b>{' '}
           {t('buyModal.warningToPurchase', { count: unitCount })}
-          <br />
-          <M.WarningLink href={hrefFor('/credits')} target="_blank" rel="noopener noreferrer">
-            {t('buyModal.warningLearnMore')}
-          </M.WarningLink>
+          {/* Opens the pack picker, so it is an offer to sell credits and goes with them inside the iOS web
+              view. The sentence above still states the shortfall. */}
+          {isIapMode() ? null : (
+            <>
+              <br />
+              <M.WarningLink href={hrefFor('/credits')} target="_blank" rel="noopener noreferrer">
+                {t('buyModal.warningLearnMore')}
+              </M.WarningLink>
+            </>
+          )}
         </M.WarningText>
       </M.Warning>
 
@@ -299,34 +306,48 @@ function NoFunds({
         })}
       </S.Scroll>
 
-      <M.Packs>
-        {packs.map(p => {
-          const on = p.id === selectedPack
-          return (
-            <M.Pack key={p.id} data-testid="credit-pack" data-on={on || undefined} onClick={() => onSelectPack(p.id)}>
-              <M.PackIco src={packCoin} alt="" />
-              <M.PackAmount>{formatCredits(p.credits)}</M.PackAmount>
-              <M.PackUsd>(${p.usd.toFixed(2)})</M.PackUsd>
-            </M.Pack>
-          )
-        })}
-      </M.Packs>
+      {/* The cart's own pack picker — the same sale BuyModal offers, so it is gated the same way. The
+          shortfall warning and the line list stay, so the buyer knows what is missing and can close; they
+          top up in the app and come back. */}
+      {isIapMode() ? null : (
+        <>
+          <M.Packs>
+            {packs.map(p => {
+              const on = p.id === selectedPack
+              return (
+                <M.Pack
+                  key={p.id}
+                  data-testid="credit-pack"
+                  data-on={on || undefined}
+                  onClick={() => onSelectPack(p.id)}
+                >
+                  <M.PackIco src={packCoin} alt="" />
+                  <M.PackAmount>{formatCredits(p.credits)}</M.PackAmount>
+                  <M.PackUsd>(${p.usd.toFixed(2)})</M.PackUsd>
+                </M.Pack>
+              )
+            })}
+          </M.Packs>
 
-      <M.Total>
-        <M.TotalCredits>
-          <M.TotalIco />
-          <span>{formatCredits(pack?.credits ?? 0)}</span>
-        </M.TotalCredits>
-        <M.TotalUsd>${(pack?.usd ?? 0).toFixed(2)}</M.TotalUsd>
-      </M.Total>
+          <M.Total>
+            <M.TotalCredits>
+              <M.TotalIco />
+              <span>{formatCredits(pack?.credits ?? 0)}</span>
+            </M.TotalCredits>
+            <M.TotalUsd>${(pack?.usd ?? 0).toFixed(2)}</M.TotalUsd>
+          </M.Total>
+        </>
+      )}
 
       <M.Ctas>
         <M.Btn data-variant="outline" onClick={onCancel}>
           {t('buyModal.cancel')}
         </M.Btn>
-        <M.Btn data-variant="gradient" onClick={onBuyPacks}>
-          {t('buyModal.buy')}
-        </M.Btn>
+        {isIapMode() ? null : (
+          <M.Btn data-variant="gradient" onClick={onBuyPacks}>
+            {t('buyModal.buy')}
+          </M.Btn>
+        )}
       </M.Ctas>
     </M.Body>
   )

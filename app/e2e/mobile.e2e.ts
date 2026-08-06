@@ -154,4 +154,33 @@ describe('at phone width', () => {
     const page = await phone('/activity', 'Activity')
     expect(await overflowPx(page)).toBeLessThanOrEqual(1)
   })
+
+  /**
+   * The stacked navbar keeps the heart and the cart against the right edge WITHOUT the credits CTA.
+   *
+   * Only a real viewport can see this. The stacked row's single auto margin used to sit on the CTA, so
+   * hiding the CTA inside the iOS web view took the right alignment with it and both icons collapsed against
+   * the left edge. jsdom has no layout, so no unit test can catch it — this is the assertion that can.
+   *
+   * Measured against the SEARCH field's right edge rather than the viewport: both live in the same padded
+   * container, so they share a right edge by construction, and comparing to the viewport would just re-derive
+   * the padding here.
+   */
+  it('keeps the cart pinned right in the iOS web view, where the credits CTA is hidden', async () => {
+    const page = await phone('/overview?view=mobile-iap', 'Trending Products')
+
+    // The CTA is the thing being removed — if it is still here the alignment proves nothing.
+    expect(await page.$$eval('a[href="/credits"]', els => els.length)).toBe(0)
+
+    const drift = await page.evaluate(() => {
+      const cart = document.querySelector('[data-testid="subnav-cart"]')
+      const field = document.querySelector('input[type="search"], input[placeholder]')
+      if (!cart || !field) return null
+      return Math.abs(cart.getBoundingClientRect().right - field.getBoundingClientRect().right)
+    })
+
+    expect(drift).not.toBeNull()
+    // A few px of slack for the icon button's own padding; the bug parked it hundreds of px away.
+    expect(drift!).toBeLessThanOrEqual(24)
+  })
 })

@@ -234,7 +234,9 @@ export function NavBar() {
         onClickSignIn={() => signIn()}
         onClickSignOut={() => void disconnect()}
         shopCreditsBalance={shopCredits}
-        onClickShopCredits={() => navigate('/credits')}
+        // The balance chip in the global row is itself a doorway to the pack picker. Undefined inside the iOS
+        // web view, so the number still shows (it is the buyer's own balance) without being a way to buy more.
+        onClickShopCredits={isIapMode() ? undefined : () => navigate('/credits')}
         manaBalances={manaBalances}
         showManaBalancesInNavbar
         // The chain pill goes INSIDE the profile panel, which is where the marketplace has it and where

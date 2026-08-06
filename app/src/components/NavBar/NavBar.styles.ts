@@ -194,7 +194,7 @@ export const Search = styled.div`
     height: 40px;
     border-radius: 12px;
     padding: 0 12px;
-    
+
     & input {
       font-size: 14px;
     }
@@ -295,7 +295,6 @@ export const Credits = styled(NavLink)`
 
   ${stacked} {
     order: 1;
-    margin-right: auto;
   }
 `
 
@@ -322,6 +321,14 @@ export const Fav = styled(NavLink)`
 
   ${stacked} {
     order: 3;
+    /* The stacked row's ONE auto margin, and it is here rather than on the CTA to its left for the same
+       reason Tabs carries the wide row's: the CTA is not always rendered (it is gone inside the iOS web
+       view, which may not sell credits), and an auto margin on it took the heart and the cart's right
+       alignment with it — they collapsed against the left edge. On the first member of the right-hand
+       group instead, the group travels to the right edge whether or not the CTA is there. Still exactly one
+       auto margin in both cases: with the CTA present the slack all lands here, pinning it left and this
+       group right, which is what it already looked like. */
+    margin-left: auto;
   }
 `
 
