@@ -1,7 +1,7 @@
 import styled from '@emotion/styled'
 import { theme } from '~/styles/theme'
 
-const { colors, radius, media } = theme
+const { radius, media } = theme
 
 // How long a skeleton takes to dissolve into the content that replaced it. Exported because the
 // component unmounts the fading layer on the same timing (see SkeletonCards.tsx).
@@ -10,7 +10,12 @@ export const SETTLE_MS = 250
 // The placeholder fill, shared by every skeleton shape here so a rail of cards and a rail of outfits
 // shimmer as one surface.
 const shimmerFill = `
-  background: linear-gradient(100deg, #efeef2 30%, #e2e0e7 50%, #efeef2 70%);
+  background: linear-gradient(
+    100deg,
+    rgba(255, 255, 255, 0.07) 30%,
+    rgba(255, 255, 255, 0.16) 50%,
+    rgba(255, 255, 255, 0.07) 70%
+  );
   background-size: 200% 100%;
   animation: shimmer 1.4s infinite linear;
 `
@@ -21,7 +26,7 @@ const shimmerFill = `
 // height is that component's geometry, not a token; keep them in step by measuring the real card.
 export const SkeletonCard = styled.div`
   min-height: 300px;
-  border: 1px solid ${colors.line};
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: ${radius.card};
   ${shimmerFill};
 
@@ -34,17 +39,16 @@ export const SkeletonCard = styled.div`
   }
 `
 
-// An OUTFIT-shaped placeholder ("Shop the look"). The real OutfitCard is a transparent 27:40 box whose
-// VISIBLE card is its bottom 90% — the top 10% is headroom the look's head crests into — rounded 15px
-// (OutfitCard.styles). Those three numbers are restated rather than imported because they are that
-// card's geometry rather than tokens; what keeps the two in step is the e2e measuring one against the
-// other (218.8x324.14 desktop, 343x457.33 at 375px — matched by the aspect ratios below).
+// An OUTFIT-shaped placeholder ("Shop the look"), sized to the real OutfitCard: a 27:40 box whose visible
+// card is its bottom 90% on desktop, and below mobile a 5:6 box that IS the card (no headroom there).
+// Restated rather than imported because that is the card's geometry, not tokens; the e2e measuring one
+// against the other is what keeps them in step.
 export const SkeletonOutfitCard = styled.div`
   position: relative;
   aspect-ratio: 27 / 40;
 
   ${media.maxWidth('mobile')} {
-    aspect-ratio: 3 / 4;
+    aspect-ratio: 5 / 6;
   }
 
   &::after {
@@ -56,6 +60,13 @@ export const SkeletonOutfitCard = styled.div`
     bottom: 0;
     border-radius: 15px;
     ${shimmerFill};
+  }
+
+  /* No headroom below mobile, so the fill covers the whole box (OutfitCard.styles). */
+  ${media.maxWidth('mobile')} {
+    &::after {
+      top: 0;
+    }
   }
 
   @media (prefers-reduced-motion: reduce) {

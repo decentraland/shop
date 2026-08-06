@@ -29,7 +29,7 @@ export const Skeleton = styled.div`
 //
 // ⚠️ These structural selectors (`nav > div:first-of-type > …`) depend on decentraland-ui2's internal
 // DOM nesting, and the hamburger selectors on its English `aria-label`s ("Open menu" / "Close menu").
-// Validated against decentraland-ui2@3.13.1 — re-check on upgrade (a wrapper div added/removed, or a
+// Validated against decentraland-ui2@3.18.0 — re-check on upgrade (a wrapper div added/removed, or a
 // localized aria-label, would silently drop these overrides).
 export const NavbarViolet = styled.div`
   display: contents;
@@ -122,5 +122,48 @@ export const NavbarViolet = styled.div`
   & nav button[aria-label='Open menu']:active,
   & nav button[aria-label='Close menu']:active {
     background-color: ${theme.colors.accentActive};
+  }
+
+  /* Mobile bar (2116:430067). ui2 already gives it 64px at 12/16 padding, so only the fill, the spacing
+     of the right cluster and the menu chip differ. */
+  ${theme.media.maxWidth('mobile')} {
+    & nav::before {
+      background: rgba(22, 21, 24, 0.75);
+    }
+
+    /* 24px between bell, avatar and menu. ui2 splits that cluster in two nested flex rows (16 outer,
+       12 inner at this width), so both have to carry it or the three end up unevenly spaced. */
+    & nav > div:last-of-type,
+    & nav > div:last-of-type > div {
+      gap: 24px;
+    }
+
+    /* A translucent white chip, NOT the purple fill above: the mobile design draws it as glass on the
+       bar (2116:429677). */
+    & nav button[aria-label='Open menu'],
+    & nav button[aria-label='Close menu'] {
+      width: 40px;
+      height: 40px;
+      border-radius: 8px;
+      background-color: rgba(255, 255, 255, 0.1);
+      color: ${theme.colors.white};
+    }
+    & nav button[aria-label='Open menu']:hover,
+    & nav button[aria-label='Close menu']:hover,
+    & nav button[aria-label='Open menu']:active,
+    & nav button[aria-label='Close menu']:active {
+      background-color: rgba(255, 255, 255, 0.18);
+    }
+    & nav button[aria-label='Open menu'] svg,
+    & nav button[aria-label='Close menu'] svg {
+      width: 32px;
+      height: 32px;
+    }
+
+    /* The avatar carries a half-white ring at this size (2116:429610). */
+    & nav button[aria-label='User menu'] img {
+      border: 2px solid rgba(255, 255, 255, 0.5);
+      border-radius: 100px;
+    }
   }
 `
