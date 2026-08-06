@@ -922,7 +922,7 @@ export const StatusPanel = styled.div`
 `
 
 /**
- * The "your credits are on the way" card (Figma 2479:347182), for when Stripe's webhook has not landed
+ * The "your credits are on the way" card, for when Stripe's webhook has not landed
  * yet. A white card on the purple field, rather than bare text on it: the payment SUCCEEDED, and text
  * floating on the page background read like an error next to the framed success state it follows.
  */

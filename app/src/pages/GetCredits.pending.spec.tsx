@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 /**
- * THE WEBHOOK-STILL-IN-FLIGHT SCREEN (Figma 2479:347182).
+ * THE WEBHOOK-STILL-IN-FLIGHT SCREEN.
  *
  * Stripe has taken the money but its webhook has not reached us, so the balance is not up yet. The buyer
  * must be told the payment WORKED — the one thing they will otherwise assume is that it did not, and pay
