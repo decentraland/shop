@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useWallet } from '~/store/wallet'
 import { useManaRate } from '~/hooks/useManaRate'
 import { manaWeiToCredits } from '~/lib/mana-rate'
