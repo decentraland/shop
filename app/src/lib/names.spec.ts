@@ -403,6 +403,32 @@ describe('registerNameWithUsdCredits', () => {
     expect(cancelUsdIntents).not.toHaveBeenCalled()
   })
 
+  /**
+   * Typed, not raw. Left as a GaslessUnavailableError it reaches the modal through the generic fallback as
+   * "please try again" with an active retry — and a retry is the one action that can genuinely double-spend
+   * here, because the first meta-tx may still be in flight, so the name still reads as free and a second
+   * credit is authorized against a registration that then lands.
+   */
+  it('should surface an unreachable relayer as an unknown settlement, not a generic failure', async () => {
+    readManaUsdRate.mockResolvedValueOnce(RATE_40C)
+    signedFetch.mockResolvedValueOnce(ok(ROUTE))
+    authorizeUsdCredit.mockResolvedValueOnce(authorized())
+    const cause = new GaslessUnavailableError('ECONNRESET', 'relayer-unreachable')
+    sendUseCreditsGasless.mockRejectedValueOnce(cause)
+
+    const thrown = await registerNameWithUsdCredits({
+      name: 'my-name',
+      identity: IDENTITY,
+      signer: SIGNER,
+      acrossPoll: { intervalMs: 0, maxAttempts: 1 }
+    }).catch((e: unknown) => e)
+
+    expect((thrown as Error).name).toBe('NameSettlementUnknownError')
+    expect((thrown as Error).message).not.toMatch(/try again/i)
+    // The real failure stays reachable for Sentry behind the buyer-safe copy.
+    expect((thrown as Error & { cause?: unknown }).cause).toBe(cause)
+  })
+
   // The counterpart: a REJECTION proves nothing was relayed, so the direct rail is safe and must still run.
   it('should still fall back when the relayer rejected the meta-transaction', async () => {
     readManaUsdRate.mockResolvedValueOnce(RATE_40C)

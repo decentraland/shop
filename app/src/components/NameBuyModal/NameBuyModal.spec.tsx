@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NameBuyModal } from './NameBuyModal'
 // Resolves to the MOCKED module below, which is what makes the modal's `instanceof` check meaningful here:
 // both sides get the same class object.
-import { NameNotRegisteredError, NameRouteCostTooHighError } from '~/lib/names'
+import { NameNotRegisteredError, NameRouteCostTooHighError, NameSettlementUnknownError } from '~/lib/names'
 
 /**
  * The NAME purchase modal — the last step of a CROSS-CHAIN money path, and the layer that decides what the
@@ -35,6 +35,12 @@ vi.mock('~/lib/names', () => {
       this.name = 'NameRouteCostTooHighError'
     }
   }
+  class NameSettlementUnknownError extends Error {
+    constructor() {
+      super('RAW_UNKNOWN_INTERNAL')
+      this.name = 'NameSettlementUnknownError'
+    }
+  }
   class NameNotRegisteredError extends Error {
     constructor() {
       // Raw wording again, so the assertions below cannot pass by echoing the error's own message.
@@ -45,6 +51,7 @@ vi.mock('~/lib/names', () => {
   return {
     NameRouteCostTooHighError,
     NameNotRegisteredError,
+    NameSettlementUnknownError,
     registerNameWithUsdCredits: (...a: unknown[]) => registerNameWithUsdCredits(...a)
   }
 })
@@ -261,6 +268,39 @@ describe('NameBuyModal', () => {
       expect(screen.queryByRole('button', { name: /try again/i })).toBeNull()
       // Its own label rather than a second "Close": the header X already carries that name, and two
       // identically-named buttons are indistinguishable to anyone navigating by role.
+      expect(screen.getByRole('button', { name: /got it/i })).toBeTruthy()
+    })
+  })
+
+  /**
+   * The relayer gave no usable response, so whether the credit was spent is unknown. Retrying is the one
+   * action that can genuinely double-spend: the first attempt may still be in flight, so the name reads as
+   * free, the route re-fetch succeeds, and a second credit is authorized against a registration that lands.
+   */
+  describe('and the settlement could not be confirmed', () => {
+    beforeEach(() => {
+      registerNameWithUsdCredits.mockRejectedValue(new NameSettlementUnknownError())
+    })
+
+    it('should say it could not be confirmed rather than show the generic failure', async () => {
+      renderModal(67)
+      reenter()
+
+      fireEvent.click(buyButton())
+
+      await waitFor(() => expect(screen.getByText(/couldn’t confirm|couldn't confirm/i)).toBeTruthy())
+      expect(screen.queryByText(/RAW_UNKNOWN_INTERNAL/)).toBeNull()
+      expect(screen.queryByText(/couldn’t complete your purchase|couldn't complete your purchase/i)).toBeNull()
+    })
+
+    it('should not offer a retry button', async () => {
+      renderModal(67)
+      reenter()
+
+      fireEvent.click(buyButton())
+
+      await waitFor(() => expect(screen.getByText(/couldn’t confirm|couldn't confirm/i)).toBeTruthy())
+      expect(screen.queryByRole('button', { name: /try again/i })).toBeNull()
       expect(screen.getByRole('button', { name: /got it/i })).toBeTruthy()
     })
   })

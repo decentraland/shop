@@ -179,6 +179,21 @@ export class NameNotRegisteredError extends Error {
   }
 }
 
+/**
+ * The relayer gave no usable response, so whether the credit was spent is UNKNOWN — the meta-transaction
+ * may already be in flight.
+ *
+ * Distinct from NameNotRegisteredError, which knows the answer. Here retrying is the one action that can
+ * genuinely double-spend: the first attempt may not have mined, so the name still reads as free, the route
+ * re-fetch succeeds, and a second credit is authorized against a registration that then lands.
+ */
+export class NameSettlementUnknownError extends Error {
+  constructor() {
+    super("We couldn't confirm whether the purchase went through.")
+    this.name = 'NameSettlementUnknownError'
+  }
+}
+
 // USD cents to reserve for a NAME: the value of 100 MANA at the oracle rate, rounded UP. The
 // credits-server rounds this up to a whole credit and adds its own MANA-cap buffer when it signs.
 export function sizeNameUsdCents(rate: ManaRate): number {
@@ -334,11 +349,15 @@ export async function registerNameWithUsdCredits(opts: {
   const buyer = (opts.beneficiary ?? (await signer.getAddress())).toLowerCase()
 
   let creditSalt: string | null = null
-  let originConfirmed = false
-  // Set when the credit MAY have been consumed without us ever seeing a tx hash, which `originConfirmed`
-  // cannot express: that one means "we watched it confirm". Releasing on this path would hand back credits
-  // for a registration that then lands.
-  let originUnobservable = false
+  /**
+   * How much we know about the origin transaction, and therefore whether releasing the reservation is safe.
+   *
+   * `unobservable` is the case two booleans could not express cleanly: the credit MAY have been consumed
+   * without us ever seeing a tx hash. Only `unconfirmed` may be released — the other two would hand back
+   * credits for a registration that lands anyway. One variable rather than a pair so "confirmed AND
+   * unobservable" cannot be written at all.
+   */
+  let originState: 'unconfirmed' | 'confirmed' | 'unobservable' = 'unconfirmed'
 
   console.info('[names] register start', { name, buyer, chainId, provider })
   try {
@@ -386,10 +405,17 @@ export async function registerNameWithUsdCredits(opts: {
        * reservation is marked unobservable so the catch below cannot release a credit that may be spent.
        *
        * Same call the BuyModal and MarketCheckout rails make; this one was falling back unconditionally.
+       *
+       * Typed rather than rethrown raw so the modal can suppress its retry button. Left as a
+       * GaslessUnavailableError it reaches the generic fallback copy as "please try again", and a retry
+       * here is the one action that can actually double-spend: the first meta-tx may still be in flight,
+       * so the name is still free, the route re-fetch succeeds, and a second credit is authorized.
        */
       if (e.reason === 'relayer-unreachable') {
-        originUnobservable = true
-        throw e
+        originState = 'unobservable'
+        const unknown: Error & { cause?: unknown } = new NameSettlementUnknownError()
+        unknown.cause = e
+        throw unknown
       }
       // Gasless unavailable (flag off / contract account / relayer down) → buyer submits + pays gas.
       originTxHash = await sendUseCredits(chainId, args, signer)
@@ -400,7 +426,7 @@ export async function registerNameWithUsdCredits(opts: {
     // 5) Wait for the origin (Polygon) useCredits tx. Throws SettlementPendingError on timeout (keep
     // the reservation) or Error on revert (safe to release — no credit consumed).
     await waitForSettlement(originTxHash)
-    originConfirmed = true
+    originState = 'confirmed'
     console.info('[names] step 5/6 origin tx confirmed', { originTxHash })
 
     // 6) Poll Across for the destination fill + register.
@@ -435,20 +461,20 @@ export async function registerNameWithUsdCredits(opts: {
     return { status: 'pending', originTxHash }
   } catch (e) {
     // Surface the RAW error for debugging (the UI only shows the friendly message below).
-    console.error('[names] register failed — raw error:', e, { name, buyer, originConfirmed })
+    console.error('[names] register failed — raw error:', e, { name, buyer, originState })
     // Origin tx still in flight → keep the reservation and surface it as pending, not a failure.
     if (e instanceof SettlementPendingError) {
       return { status: 'pending', originTxHash: e.txHash }
     }
     // Release the reservation ONLY when the credit was not (yet) consumed on-chain. Once the origin
     // useCredits confirms, releasing would let the buyer keep the credits after paying — never do it.
-    if (creditSalt && !originConfirmed && !originUnobservable) {
+    if (creditSalt && originState === 'unconfirmed') {
       await cancelUsdIntents(identity, [creditSalt]).catch(() => {})
     }
     if (e instanceof NameRouteCostTooHighError) throw e
     // Already specific and already user-safe, and the generic fallback below would replace it with "please
     // try again" — a second credit spent on a failure that is not the buyer's to retry.
-    if (e instanceof NameNotRegisteredError) throw e
+    if (e instanceof NameNotRegisteredError || e instanceof NameSettlementUnknownError) throw e
     // Keep the original as `cause` so Sentry still gets the real failure behind the friendly copy.
     // Assigned rather than passed to the constructor: the TS lib target is ES2020, which predates
     // ErrorOptions (same approach as lib/store.ts).
