@@ -541,7 +541,7 @@
     }
   },
   "myAssets": {
-    "signInPrompt": "Sign in to sell your items.",
+    "signInPrompt": "Sign in to view your items.",
     "removedFromSale": "“{name}” is no longer for sale.",
     "removeListingError": "Couldn’t remove the listing — please try again.",
     "ownedTitle": "Items you own",

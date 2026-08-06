@@ -541,7 +541,7 @@
     }
   },
   "myAssets": {
-    "signInPrompt": "Inicia sesión para vender tus artículos.",
+    "signInPrompt": "Inicia sesión para ver tus artículos.",
     "removedFromSale": "«{name}» ya no está a la venta.",
     "removeListingError": "No pudimos quitar la publicación. Inténtalo de nuevo.",
     "ownedTitle": "Artículos que tienes",
