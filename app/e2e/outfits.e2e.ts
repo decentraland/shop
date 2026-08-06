@@ -449,7 +449,13 @@ describe('outfit studio', () => {
     await waitForText(page, 'Outfit saved')
 
     // The list now includes the draft, marked as one.
-    await page.goto(`${OUTFITS_BASE}/outfits/manage`, { waitUntil: 'networkidle2' })
+    //
+    // `domcontentloaded`, not `networkidle2`: what this step actually waits for is the row count on the very
+    // next line, and network quiet is neither necessary nor sufficient for it. This navigation lands on the
+    // studio, whose avatar previews and outfit thumbnails keep requests going — so `networkidle2` was waiting
+    // on something that may never happen, on the puppeteer default 30s budget, and timing out there while the
+    // page was in fact ready. The assertion below is the one that decides, with a budget of its own.
+    await page.goto(`${OUTFITS_BASE}/outfits/manage`, { waitUntil: 'domcontentloaded' })
     await page.waitForFunction(() => document.querySelectorAll('[data-testid="outfit-studio-row"]').length === 4, {
       timeout: 20000
     })
@@ -493,7 +499,9 @@ describe('outfit studio', () => {
 
     // The dirty draft arms the tab-close beforeunload guard; accept its dialog so reload proceeds.
     page.on('dialog', dialog => void dialog.accept())
-    await page.reload({ waitUntil: 'networkidle2' })
+    // Same reason as the navigation above: the editor selector below is the real wait, and this page's
+    // previews keep the network busy past any idle window.
+    await page.reload({ waitUntil: 'domcontentloaded' })
     await page.waitForSelector('[data-testid="outfit-studio-editor"]', { timeout: 20000 })
     const afterReload = await page.$eval('[data-testid="outfit-studio-name"]', el => (el as HTMLInputElement).value)
     expect(afterReload).toBe('Half Finished')
