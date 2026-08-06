@@ -272,7 +272,9 @@ export const NameInput = styled.input`
 
 export const Suffix = styled.span`
   flex: none;
-  margin-left: 2px;
+  /* Flush against the name: "yourname.dcl.eth" has to read as one address, and at 20px even a couple of
+     pixels here look like a space someone typed by mistake. */
+  margin-left: 0;
   /* Not selectable: it is the fixed part of the address, not something the reader typed. */
   user-select: none;
   -webkit-user-select: none;

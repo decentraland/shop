@@ -88,7 +88,9 @@ export function NamesPage({ onBack }: { onBack: () => void }) {
   // time and the field has to grow with it, or ".dcl.eth" sits at a fixed distance and the example types
   // itself into the gap.
   useLayoutEffect(() => {
-    if (sizerRef.current) setNameWidth(sizerRef.current.offsetWidth)
+    // getBoundingClientRect, not offsetWidth: the latter rounds UP to whole pixels, and that fraction is
+    // dead space between the last glyph and the suffix.
+    if (sizerRef.current) setNameWidth(sizerRef.current.getBoundingClientRect().width)
   }, [value, placeholder])
 
   // Validate + (debounced) availability probe on every change. The probe is advisory — the credits
