@@ -21,7 +21,6 @@ export const Breadcrumb = styled.nav`
   font-family: ${theme.font.sans};
   font-size: 12px;
   line-height: 1;
-  /* Gray 4, not the light theme's grey — that one all but vanishes on the purple field. */
   color: ${theme.colors.gray4};
 `
 
@@ -34,10 +33,11 @@ export const CrumbLink = styled.button`
   color: ${theme.colors.gray4};
 
   &:hover {
+    color: ${theme.colors.white};
     text-decoration: underline;
   }
   &:focus-visible {
-    outline: 2px solid ${theme.colors.accent};
+    outline: 2px solid ${theme.colors.white};
     outline-offset: 2px;
   }
 `

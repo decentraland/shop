@@ -626,6 +626,7 @@ export const Approx = styled.span`
 export const MarketNote = styled.div`
   font-size: 13px;
   margin-top: 6px;
+  color: ${colors.gray4};
 `
 
 export const PriceWas = styled.span`
@@ -910,6 +911,12 @@ export const NotFound = styled.div`
   justify-content: center;
   text-align: center;
   gap: 14px;
+  color: ${colors.softWhite};
+`
+
+export const NotFoundBody = styled.p`
+  margin: 0;
+  color: ${colors.gray4};
 `
 
 export const NotFoundCta = styled(Button)`
@@ -1110,12 +1117,12 @@ export const Lowest = styled.span`
   gap: 2px;
   font-size: 14px;
   font-weight: 600;
-  color: ${colors.muted};
+  color: ${colors.gray4};
 
   & .ico {
     width: 20px;
     height: 20px;
-    color: ${colors.muted};
+    color: ${colors.gray4};
   }
 `
 
@@ -1136,13 +1143,13 @@ export const ResellersLink = styled.button`
   letter-spacing: 0.46px;
   text-transform: uppercase;
   text-decoration: underline;
-  color: ${colors.accent};
+  color: ${colors.softWhite};
 
   &:hover {
-    color: ${colors.accentHover};
+    color: ${colors.gray4};
   }
   &:focus-visible {
-    outline: 2px solid ${colors.accent};
+    outline: 2px solid ${colors.white};
     outline-offset: 2px;
     border-radius: ${radius.chip};
   }

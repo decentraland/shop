@@ -345,7 +345,7 @@ export function MyAssets() {
       <S.Gate>
         <S.GateTitle>{t('nav.myAssets')}</S.GateTitle>
         <S.GateText>{t('myAssets.signInPrompt')}</S.GateText>
-        <Button variant="purple" onClick={() => signIn()}>
+        <Button variant="white" onClick={() => signIn()}>
           {t('storeSettings.signIn')}
         </Button>
         <ErrorNotice message={error} />

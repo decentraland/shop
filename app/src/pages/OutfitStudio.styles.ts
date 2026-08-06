@@ -12,6 +12,7 @@ export const Root = styled.div`
   display: flex;
   flex-direction: column;
   gap: 20px;
+  color: ${colors.softWhite};
 `
 
 export const Gate = styled.div`
@@ -22,10 +23,18 @@ export const Gate = styled.div`
   justify-content: center;
   text-align: center;
   gap: 14px;
+  color: ${colors.softWhite};
 `
 
 export const GateTitle = styled.h1`
   font-size: 24px;
+`
+
+// Secondary copy anywhere on the page: hints under a field, empty-state bodies, row meta.
+export const Hint = styled.p`
+  margin: 0;
+  font-size: 13px;
+  color: ${colors.gray4};
 `
 
 export const Head = styled.div`
@@ -47,10 +56,10 @@ export const Back = styled(Link)`
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  color: ${colors.text};
+  color: ${colors.softWhite};
 
   &:hover {
-    background: ${colors.panel};
+    background: rgba(255, 255, 255, 0.14);
   }
 `
 
@@ -61,12 +70,12 @@ export const StateChip = styled.span`
   letter-spacing: 0.03em;
   padding: 3px 10px;
   border-radius: ${radius.pill};
-  background: ${colors.chip};
-  color: ${colors.muted1};
+  background: rgba(255, 255, 255, 0.16);
+  color: ${colors.softWhite};
 
   &[data-state='published'] {
-    background: rgba(30, 166, 114, 0.14);
-    color: ${colors.okStrong};
+    background: rgba(30, 166, 114, 0.35);
+    color: ${colors.white};
   }
 `
 
@@ -86,7 +95,7 @@ export const Row = styled.div`
   align-items: center;
   gap: 14px;
   padding: 12px;
-  border: 1px solid ${colors.line};
+  background: rgba(0, 0, 0, 0.4);
   border-radius: ${radius.card};
 
   ${media.maxWidth('mobile')} {
@@ -140,7 +149,7 @@ export const RowMeta = styled.span`
   align-items: center;
   gap: 8px;
   font-size: 13px;
-  color: ${colors.muted};
+  color: ${colors.gray4};
 `
 
 export const RowActions = styled.div`
@@ -163,12 +172,12 @@ export const RowDelete = styled.button`
   border: 0;
   background: none;
   border-radius: 50%;
-  color: ${colors.muted};
+  color: ${colors.gray4};
   cursor: pointer;
 
   &:hover {
-    color: ${colors.errStrong};
-    background: ${colors.panel};
+    color: ${colors.dclRed};
+    background: rgba(255, 255, 255, 0.14);
   }
 
   &:disabled {
@@ -265,6 +274,8 @@ export const PreviewBox = styled.div`
   }
 `
 
+// Sits over the creator's own gradient, so it can't take a grey — white with a soft shadow reads on any
+// pair of stops they pick.
 export const PreviewEmpty = styled.p`
   position: absolute;
   inset: 0;
@@ -272,6 +283,8 @@ export const PreviewEmpty = styled.p`
   place-items: center;
   padding: 24px;
   text-align: center;
+  color: ${colors.softWhite};
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.45);
 `
 
 export const Field = styled.div`
@@ -285,7 +298,7 @@ export const Label = styled.label`
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: ${colors.muted1};
+  color: ${colors.gray4};
 `
 
 export const Shapes = styled.div`
@@ -297,17 +310,17 @@ export const ShapeBtn = styled.button`
   min-height: 44px;
   padding: 0 16px;
   border-radius: ${radius.pill};
-  border: 1px solid ${colors.lineStrong};
+  border: 1px solid rgba(255, 255, 255, 0.45);
   background: none;
   font: inherit;
   font-weight: 600;
-  color: ${colors.text};
+  color: ${colors.softWhite};
   cursor: pointer;
 
   &[data-selected] {
-    border-color: ${colors.accent};
-    background: ${colors.accent};
-    color: ${colors.white};
+    border-color: ${colors.softWhite};
+    background: ${colors.softWhite};
+    color: ${colors.text};
   }
 `
 
@@ -368,15 +381,16 @@ export const ColorMeta = styled.div`
   flex-direction: column;
   gap: 2px;
   font-size: 12px;
-  color: ${colors.muted};
+  color: ${colors.gray4};
 `
 
 export const HexInput = styled.input`
   width: 88px;
   height: 26px;
   padding: 0 6px;
-  border: 1px solid ${colors.line};
+  border: 1px solid ${colors.lineStrong};
   border-radius: ${radius.chip};
+  background: ${colors.white};
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12px;
   color: ${colors.text};
@@ -413,6 +427,7 @@ export const NameInput = styled.input`
   padding: 0 14px;
   border: 1px solid ${colors.lineStrong};
   border-radius: ${radius.btn};
+  background: ${colors.white};
   font: inherit;
   color: ${colors.text};
 
@@ -436,7 +451,7 @@ export const SelectedRow = styled.li`
   align-items: center;
   gap: 10px;
   padding: 6px 8px;
-  border: 1px solid ${colors.line};
+  background: rgba(0, 0, 0, 0.4);
   border-radius: ${radius.card};
 
   ${media.maxWidth('mobile')} {
@@ -482,10 +497,10 @@ export const SelHint = styled.span`
   flex: none;
   padding: 2px 8px;
   border-radius: ${radius.pill};
-  border: 1px solid ${colors.lineStrong};
+  border: 1px solid rgba(255, 255, 255, 0.45);
   font-size: 11px;
   font-weight: 600;
-  color: ${colors.muted};
+  color: ${colors.softWhite};
   white-space: nowrap;
 
   ${media.maxWidth('mobile')} {
@@ -499,7 +514,7 @@ export const SelPrice = styled.span`
   align-items: center;
   gap: 4px;
   font-size: 13px;
-  color: ${colors.muted};
+  color: ${colors.gray4};
   white-space: nowrap;
 `
 
@@ -508,7 +523,7 @@ export const SelTotal = styled.div`
   align-items: center;
   justify-content: space-between;
   padding-top: 10px;
-  border-top: 1px solid ${colors.line};
+  border-top: 1px solid rgba(255, 255, 255, 0.3);
   font-size: 13px;
   font-weight: 700;
 `
@@ -530,12 +545,12 @@ export const SelRemove = styled.button`
   border: 0;
   background: none;
   border-radius: 50%;
-  color: ${colors.muted};
+  color: ${colors.gray4};
   cursor: pointer;
 
   &:hover {
-    color: ${colors.errStrong};
-    background: ${colors.panel};
+    color: ${colors.dclRed};
+    background: rgba(255, 255, 255, 0.14);
   }
 `
 
@@ -544,7 +559,7 @@ export const SaveBar = styled.div`
   flex-direction: column;
   gap: 8px;
   padding-top: 16px;
-  border-top: 1px solid ${colors.line};
+  border-top: 1px solid rgba(255, 255, 255, 0.3);
 `
 
 export const SaveActions = styled.div`

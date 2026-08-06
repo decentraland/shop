@@ -19,6 +19,11 @@ export const SignInBtn = styled(Button)`
   margin-top: 8px;
 `
 
+export const Prompt = styled.p`
+  margin: 0;
+  color: ${colors.gray4};
+`
+
 // The store editor page. `data-signin` = the compact fully-centered signed-out prompt. Uses the shared
 // Field primitive (~/styles/field.styles); the label/textarea tweaks below target its descendants.
 export const Root = styled.section`
@@ -28,6 +33,7 @@ export const Root = styled.section`
   display: flex;
   flex-direction: column;
   gap: 20px;
+  color: ${colors.softWhite};
 
   &[data-signin] {
     min-height: 60vh;
@@ -39,7 +45,7 @@ export const Root = styled.section`
 
   & .field__label {
     font-weight: 700;
-    color: ${colors.text};
+    color: ${colors.softWhite};
   }
   & textarea {
     background: ${colors.white};
@@ -71,11 +77,11 @@ export const Back = styled(Link)`
   display: flex;
   align-items: center;
   justify-content: center;
-  color: ${colors.text};
+  color: ${colors.softWhite};
   transition: color 0.15s linear;
 
   &:hover {
-    color: ${colors.accent};
+    color: ${colors.gray4};
   }
   & .ico {
     width: 22px;
@@ -92,13 +98,13 @@ export const Guest = styled.a`
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: ${colors.accent};
+  color: ${colors.softWhite};
   font-weight: 700;
   font-size: 14px;
-  text-decoration: none;
+  text-decoration: underline;
 
   &:hover {
-    text-decoration: underline;
+    color: ${colors.gray4};
   }
   & .ico {
     width: 15px;
