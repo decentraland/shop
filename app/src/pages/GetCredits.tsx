@@ -373,55 +373,67 @@ export function GetCredits() {
       )}
 
       {phase === 'success' && (
-        <S.Success role="status" aria-live="polite">
-          {/* Only here, never on the processing screen: the credits are really in the balance by this
+        <S.Outcome>
+          <S.Success role="status" aria-live="polite">
+            {/* Only here, never on the processing screen: the credits are really in the balance by this
               point. Same burst the item purchase fires, so buying credits and buying an item celebrate
               alike instead of one feeling like the lesser event. */}
-          <Confetti />
-          <S.Banner>
-            <S.BannerIcon src={checkCircle} alt="" width={60} height={60} />
-            <S.BannerText>
-              <strong>{t('getCredits.successTitle')}</strong> {t('getCredits.successBody', { currency: CURRENCY.name })}
-            </S.BannerText>
-          </S.Banner>
+            <Confetti />
+            <S.Banner>
+              <S.BannerIcon src={checkCircle} alt="" width={60} height={60} />
+              <S.BannerText>
+                <strong>{t('getCredits.successTitle')}</strong>{' '}
+                {t('getCredits.successBody', { currency: CURRENCY.name })}
+              </S.BannerText>
+            </S.Banner>
 
-          {granted != null && (
-            <S.CreditsPanel>
-              <S.CreditsRow>
-                <S.CreditsCoin src={grantedArt} alt="" width={93} height={93} />
-                <S.CreditsText>
-                  <CurrencyIcon />
-                  <span>
-                    <S.CreditsAmount>
-                      {t('getCredits.creditsAmount', { credits: granted, currency: CURRENCY.name })}
-                    </S.CreditsAmount>{' '}
-                    <S.CreditsAdded>{t('getCredits.creditsAdded')}</S.CreditsAdded>
-                  </span>
-                </S.CreditsText>
-              </S.CreditsRow>
-            </S.CreditsPanel>
-          )}
+            {granted != null && (
+              <S.CreditsPanel>
+                <S.CreditsRow>
+                  <S.CreditsCoin src={grantedArt} alt="" width={93} height={93} />
+                  <S.CreditsText>
+                    <CurrencyIcon />
+                    <span>
+                      <S.CreditsAmount>
+                        {t('getCredits.creditsAmount', { credits: granted, currency: CURRENCY.name })}
+                      </S.CreditsAmount>{' '}
+                      <S.CreditsAdded>{t('getCredits.creditsAdded')}</S.CreditsAdded>
+                    </span>
+                  </S.CreditsText>
+                </S.CreditsRow>
+              </S.CreditsPanel>
+            )}
 
-          <S.Actions>
-            <S.ActionButton data-variant="outline" onClick={reset}>
-              {t('getCredits.buyMore', { currency: CURRENCY.name })}
-            </S.ActionButton>
-            <S.ActionButton onClick={() => navigate('/items')}>{t('getCredits.startShopping')}</S.ActionButton>
-          </S.Actions>
-        </S.Success>
+            <S.Actions>
+              <S.ActionButton data-variant="outline" onClick={reset}>
+                {t('getCredits.buyMore', { currency: CURRENCY.name })}
+              </S.ActionButton>
+              <S.ActionButton onClick={() => navigate('/items')}>{t('getCredits.startShopping')}</S.ActionButton>
+            </S.Actions>
+          </S.Success>
+        </S.Outcome>
       )}
 
+      {/* The webhook has not landed yet. The money IS taken, so this reads as a success that is still
+          settling — same check mark as the credited state, never an error tone. */}
       {phase === 'pending' && (
-        <S.StatusPanel role="status" aria-live="polite">
-          <S.StatusTitle>{t('getCredits.pendingTitle', { currency: CURRENCY.name })}</S.StatusTitle>
-          <S.Muted>{t('getCredits.pendingBody')}</S.Muted>
-          <S.StatusActions>
-            <S.ActionButton onClick={() => navigate('/items')}>{t('getCredits.startShopping')}</S.ActionButton>
-            <S.ActionButton data-variant="outline" onClick={reset}>
-              {t('getCredits.done')}
-            </S.ActionButton>
-          </S.StatusActions>
-        </S.StatusPanel>
+        <S.Outcome>
+          <S.PendingCard role="status" aria-live="polite" data-testid="credits-pending">
+            <S.PendingHead>
+              <S.PendingIcon src={checkCircle} alt="" width={32} height={32} />
+              <S.PendingTitle>{t('getCredits.pendingTitle', { currency: CURRENCY.name })}</S.PendingTitle>
+            </S.PendingHead>
+            <S.PendingBody>{t('getCredits.pendingBody')}</S.PendingBody>
+            <S.PendingActions>
+              <S.ActionButton data-variant="outline" onClick={() => navigate('/items')}>
+                {t('getCredits.goShopping')}
+              </S.ActionButton>
+              <S.ActionButton data-variant="ruby" onClick={reset}>
+                {t('getCredits.gotIt')}
+              </S.ActionButton>
+            </S.PendingActions>
+          </S.PendingCard>
+        </S.Outcome>
       )}
 
       {phase === 'error' && (

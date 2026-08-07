@@ -6,7 +6,7 @@ import { useWallet } from '~/store/wallet'
 import { useBalance } from '~/hooks/useBalance'
 import { useManaBalance } from '~/hooks/useManaBalance'
 import { fetchStoreMintState, resolveLiveTrade, type CatalogItem } from '~/lib/api'
-import { formatCredits, usdCentsToCredits } from '~/lib/currency'
+import { CURRENCY, formatCredits, usdCentsToCredits } from '~/lib/currency'
 import { isIapMode } from '~/lib/iap'
 import { readTradeManaPriceWei } from '~/lib/mana'
 import { purchaseTargetFor, resolveLine, type StoreResolver } from '~/lib/cart-checkout'
@@ -681,6 +681,19 @@ export function BuyModal({
     setAttempt(a => a + 1)
   }
 
+  /**
+   * Whether this failure left the buyer's credits reserved.
+   *
+   * Only then is "they weren't used and will come back" a true statement: a run that failed before the
+   * authorize — a rejected signature, a wrong network — never took anything, and promising a refund for
+   * money we never held would be its own kind of wrong. The reservation is released on unmount, so while
+   * this modal is open the credits genuinely are still held.
+   *
+   * Read from the ref rather than mirrored into state: entering the error phase is itself a re-render,
+   * and the ref is only ever written in the same synchronous flows that set the phase.
+   */
+  const heldCredits = phase === 'error' && !!reservedCreditIdRef.current
+
   const busy = phase === 'processing'
   const title =
     phase === 'complete'
@@ -771,17 +784,36 @@ export function BuyModal({
                 <M.BuyError data-testid="buy-error">
                   <M.BuyErrorArt src={buyErrorAvatar} alt="" width={64} height={80} />
                   <M.BuyErrorText>
-                    <b>{t('cartCheckout.errorHeadline')}</b> {error ?? t('cartCheckout.errorBody')}
+                    <b>{t('cartCheckout.errorHeadline')}</b>{' '}
+                    {heldCredits ? (
+                      <>
+                        {t('cartCheckout.heldLead', { currency: CURRENCY.name })}
+                        <b>{t('cartCheckout.heldBold')}</b>
+                        {t('cartCheckout.heldTail', { currency: CURRENCY.name })}
+                      </>
+                    ) : (
+                      (error ?? t('cartCheckout.errorBody'))
+                    )}
                   </M.BuyErrorText>
                 </M.BuyError>
-                <M.Ctas>
-                  <M.Btn data-variant="outline" onClick={onClose}>
-                    {t('buyModal.cancel')}
-                  </M.Btn>
-                  <M.Btn data-variant="purple" onClick={retry}>
-                    {t('cartCheckout.tryAgain')}
-                  </M.Btn>
-                </M.Ctas>
+                {/* Nothing to retry WITH while the reservation is still unwinding — the copy above says to
+                    come back once the balance is whole, so offering it here would only fail again. */}
+                {heldCredits ? (
+                  <M.Ctas>
+                    <M.Btn data-variant="purple" data-full onClick={onClose}>
+                      {t('cartCheckout.gotIt')}
+                    </M.Btn>
+                  </M.Ctas>
+                ) : (
+                  <M.Ctas>
+                    <M.Btn data-variant="outline" onClick={onClose}>
+                      {t('buyModal.cancel')}
+                    </M.Btn>
+                    <M.Btn data-variant="purple" onClick={retry}>
+                      {t('cartCheckout.tryAgain')}
+                    </M.Btn>
+                  </M.Ctas>
+                )}
               </M.Body>
             )}
 
