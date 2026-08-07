@@ -168,23 +168,30 @@ export function NameBuyModal({
   const selfCustody = showsWalletConfirmations(session?.providerType)
 
   /**
-   * Only `awaiting-confirmation` asks the buyer for anything, and only for a self-custody wallet — a managed
-   * one signs without a prompt, so telling its owner to "confirm" points at a dialog that never appears.
+   * How many steps this buyer's purchase has, and which one is on screen.
    *
-   * Everything after it is waiting, and `registering` is the cross-chain leg: the bridge and the Ethereum
-   * mint, minutes rather than seconds. That is the stretch this exists for — it used to sit on "Confirm to
-   * continue" the whole way through, which reads as a purchase that hung.
+   * Registering a NAME is ONE step — the design draws it as `1/1`, and that is the whole of it for a
+   * managed (web2) wallet, which signs without ever prompting its owner. A self-custody wallet has one
+   * thing more to do before that step can start, and it is a thing the BUYER does: approve in their
+   * wallet. Counting it makes the number honest for them without inventing a step for everyone else.
+   *
+   * Deliberately not one step per internal phase. `preparing` and `confirming` are ours, not theirs, and a
+   * counter that ticks through work the buyer cannot act on is just noise.
    */
-  const processingText =
-    stage === 'awaiting-confirmation'
-      ? selfCustody
-        ? t('names.confirming')
-        : t('names.completing')
-      : stage === 'confirming'
-        ? t('names.processingConfirming')
-        : stage === 'registering'
-          ? t('names.processingRegistering')
-          : t('names.processingPreparing')
+  const totalSteps = selfCustody ? 2 : 1
+  const awaitingBuyer = selfCustody && (stage === 'preparing' || stage === 'awaiting-confirmation')
+  const currentStep = awaitingBuyer ? 1 : totalSteps
+
+  // The step's own name. The wallet prompt is the buyer's to act on; everything past it is the purchase
+  // completing, which is what the design says and all it needs to say.
+  const processingText = awaitingBuyer ? t('names.confirming') : t('names.completing')
+
+  /**
+   * The one thing the step name cannot carry: `registering` is the bridge and the Ethereum mint, and it
+   * runs for MINUTES. Left unsaid, a wait going exactly to plan reads as a purchase that hung — which is
+   * the bug this screen was opened to fix, and collapsing the phases into one label would bring it back.
+   */
+  const processingNote = stage === 'registering' ? t('names.processingRegistering') : null
 
   return (
     <S.Scrim onClick={busy ? undefined : onClose} role="presentation">
@@ -275,14 +282,17 @@ export function NameBuyModal({
 
         {phase === 'completing' && (
           <S.Processing>
-            <S.Logo src={loaderLogo} alt="" width={56} height={56} />
-            <S.ProcessingText>{processingText}</S.ProcessingText>
-            <S.ProgressRow>
-              <S.Progress aria-hidden>
-                <span />
-              </S.Progress>
-              <S.ProgressCount>1/1</S.ProgressCount>
-            </S.ProgressRow>
+            <S.Logo src={loaderLogo} alt="" width={61} height={61} />
+            <S.StatusBlock>
+              <S.ProcessingText>{processingText}</S.ProcessingText>
+              <S.ProgressRow>
+                <S.Progress aria-hidden>
+                  <span />
+                </S.Progress>
+                <S.ProgressCount data-testid="name-progress-count">{`${currentStep}/${totalSteps}`}</S.ProgressCount>
+              </S.ProgressRow>
+              {processingNote ? <S.ProcessingNote>{processingNote}</S.ProcessingNote> : null}
+            </S.StatusBlock>
           </S.Processing>
         )}
 
