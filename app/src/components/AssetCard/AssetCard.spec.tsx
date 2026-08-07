@@ -392,6 +392,21 @@ describe('AssetCard view-only mode', () => {
     expect(container.querySelector('[data-testid="card-add-round"]')).toBeNull()
   })
 
+  // Both VIEW affordances cover the whole-card overlay link (z-index 4 over 3), so without a target of
+  // their own the click landed on nothing and the button that looks pressable did nothing at all.
+  it('points both VIEW affordances at the detail page', () => {
+    const item = makeItem({ priceCredits: 123, available: 0 })
+    const { container } = render(
+      <MemoryRouter>
+        <AssetCard item={item} />
+      </MemoryRouter>
+    )
+    const href = container.querySelector('[data-testid="card-link"]')?.getAttribute('href')
+    expect(href).toBeTruthy()
+    expect(container.querySelector('[data-testid="card-view"]')?.getAttribute('href')).toBe(href)
+    expect(container.querySelector('[data-testid="card-view-round"]')?.getAttribute('href')).toBe(href)
+  })
+
   it('keeps a priced item buyable when the feed reports no supply figure at all', () => {
     const { container } = render(
       <MemoryRouter>

@@ -176,6 +176,33 @@ export function AssetCard(props: AssetCardProps) {
 
   const nfs = <S.Nfs data-testid="card-nfs">{t('assetCard.notForSale')}</S.Nfs>
 
+  // The card's action when there is nothing to buy: the round arrow on the compact card, the full-width
+  // pill everywhere else. Both point at the detail page themselves rather than relying on the whole-card
+  // overlay link, which they cover (see ViewRoundLink in the styles). A NAME has no detail page, so there
+  // it stays the inert span it has always been.
+  const viewTo = canOpen && !isNameItem ? detailPath : undefined
+  const viewState = { item, tradeId: item.tradeId }
+  const viewRound = viewTo ? (
+    <S.ViewRoundLink data-testid="card-view-round" aria-hidden tabIndex={-1} to={viewTo} state={viewState}>
+      <Icon name="arrow-right" size={18} />
+    </S.ViewRoundLink>
+  ) : (
+    <S.ViewRound data-testid="card-view-round" aria-hidden>
+      <Icon name="arrow-right" size={18} />
+    </S.ViewRound>
+  )
+  const viewCta = viewTo ? (
+    <S.ViewCtaLink data-reveal data-testid="card-view" aria-hidden tabIndex={-1} to={viewTo} state={viewState}>
+      <Icon name="eye" size={20} />
+      {t('assetCard.view')}
+    </S.ViewCtaLink>
+  ) : (
+    <S.ViewCta data-reveal data-testid="card-view" aria-hidden>
+      <Icon name="eye" size={20} />
+      {t('assetCard.view')}
+    </S.ViewCta>
+  )
+
   const priceOrNfs = (listed: boolean) =>
     listed && item.priceCredits > 0 ? (
       <S.Price data-testid="card-price" title={formatCreditsFull(item.priceCredits)}>
@@ -515,13 +542,8 @@ export function AssetCard(props: AssetCardProps) {
               keyboard-reachable navigation. */}
           <S.Action>
             {chips}
-            <S.ViewRound data-testid="card-view-round" aria-hidden>
-              <Icon name="arrow-right" size={18} />
-            </S.ViewRound>
-            <S.ViewCta data-reveal data-testid="card-view" aria-hidden>
-              <Icon name="eye" size={20} />
-              {t('assetCard.view')}
-            </S.ViewCta>
+            {viewRound}
+            {viewCta}
           </S.Action>
         </S.Body>
       ) : (
@@ -558,9 +580,7 @@ export function AssetCard(props: AssetCardProps) {
                 full-width Cart below; only one is visible per breakpoint / layout. Nothing to buy → the
                 round arrow that stands in for VIEW. */}
             {notForSale ? (
-              <S.ViewRound data-testid="card-view-round" aria-hidden>
-                <Icon name="arrow-right" size={18} />
-              </S.ViewRound>
+              viewRound
             ) : (
               <S.AddRound
                 data-testid="card-add-round"
@@ -578,10 +598,7 @@ export function AssetCard(props: AssetCardProps) {
             )}
 
             {notForSale ? (
-              <S.ViewCta data-reveal data-testid="card-view" aria-hidden>
-                <Icon name="eye" size={20} />
-                {t('assetCard.view')}
-              </S.ViewCta>
+              viewCta
             ) : (
               <S.Cart
                 data-in={(!own && cartFull) || undefined}
