@@ -19,11 +19,11 @@ const HOVER_ROOM = 12
 const EASE = 'cubic-bezier(0.22, 0.61, 0.36, 1)'
 const DURATION = '0.28s'
 
-export { Root, Head, Title, Dots, Dot } from '~/styles/row.styles'
+export { Root, Head, Title, Dots, Dot, Viewport, Arrow } from '~/styles/row.styles'
 
-// Four cards fill the row exactly at desktop widths, so there is nothing to scroll and no dots. Below
-// the mobile breakpoint it becomes a one-card-per-page carousel with the next card peeking, which is
-// what tells a thumb the row scrolls. `align-items: start` keeps every card measuring its own height.
+// Four cards per view at desktop widths, so eight cards are two pages of arrows and dots. Below the
+// mobile breakpoint it becomes a one-card-per-page carousel with the next card peeking, which is what
+// tells a thumb the row scrolls. `align-items: start` keeps every card measuring its own height.
 //
 // An overflow-x scroller clips overflow-y too, so the room for the hover ring is PADDING on all sides
 // (the same dance styles/row.styles makes for the cards' outward glow); the matching negative margin
