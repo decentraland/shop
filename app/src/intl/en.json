@@ -185,8 +185,7 @@
     "allUnavailable": "None of these items are available anymore. Remove them to keep shopping.",
     "availability": {
       "soldOut": "Out of stock",
-      "unavailable": "No longer available",
-      "viewResales": "View Resales"
+      "unavailable": "No longer available"
     },
     "youMightAlsoLike": "You might also like",
     "error": {
