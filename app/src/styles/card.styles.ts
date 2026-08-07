@@ -1,7 +1,7 @@
 import { css } from '@emotion/react'
 import { theme } from '~/styles/theme'
 
-const { colors, gradients } = theme
+const { colors, gradients, radius } = theme
 
 // 1px of a TRANSLUCENT grey, which is what Figma's "0.25px Gray 3" actually means once rendered — the two
 // are not the same thing and confusing them puts the outline 4x too dark.
@@ -38,11 +38,31 @@ export const ringLit = css`
  */
 export const RING_WIDTH = 3
 
-// Hover stroke (Figma "Marketplace Cards" hover, 635:789): 3px of the Cerise gradient
-// (#ff2d55 → #c640cd). A gradient fill masked down to the ring, since a border can't carry one.
+// How far the ring's own box is pushed OUTSIDE the card, so its own corner arc is nowhere near the card's
+// clip. Any smaller and the two arcs still overlap along the corner, which is the whole point below.
+const BLEED = 4
+
+/**
+ * Hover stroke (Figma "Marketplace Cards" hover, 635:789): 3px of the Cerise gradient (#ff2d55 → #c640cd).
+ * A gradient fill masked down to the ring, since a border can't carry one.
+ *
+ * The box is deliberately BIGGER than the card and let the card's own `overflow: hidden` cut it back, so
+ * the visible outer edge is drawn by the clip and nothing else.
+ *
+ * Sitting flush at inset 0 left a pale line along the outside of the stroke, over the media and never over
+ * the footer. The ring was antialiased TWICE there — by its own border-radius and again by the card's clip,
+ * both on the same 12px arc — so its coverage in the boundary pixel was the product of the two, while the
+ * light media beneath passed through the clip only once. The ring could not fill what the clip let through,
+ * and the difference read as a bright edge; over the dark footer the same gap has nothing bright to show.
+ *
+ * With the arc pushed clear, the ring's edge and the media's edge are the same rasterisation and cannot
+ * disagree. The padding carries the bleed so the visible band is still RING_WIDTH.
+ */
 export const ringHover = css`
+  inset: -${BLEED}px;
   border: 0;
-  padding: ${RING_WIDTH}px;
+  padding: ${BLEED + RING_WIDTH}px;
+  border-radius: calc(${radius.card} + ${BLEED}px);
   background: ${gradients.cerise};
   -webkit-mask:
     linear-gradient(#000 0 0) content-box,
