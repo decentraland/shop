@@ -453,3 +453,117 @@ describe('emote chips when the page arrives from the flat shop feed', () => {
     expect(screen.getByTestId('detail-props')).toBeInTheDocument()
   })
 })
+
+/**
+ * The price on this page is money, so it can only come from the listing the server just returned.
+ *
+ * Arriving from a card seeds `current` with the grid's snapshot. That snapshot can name a trade that has
+ * since been cancelled and re-listed at another price — which is exactly what shipped: the page rendered
+ * the seeded price, with a Buy button under it, while the response on the wire said something else.
+ */
+describe('when the seeded price is out of date', () => {
+  it('should show the price the listing returns, not the one the grid passed in', async () => {
+    // What a stale grid hands over: 14 credits, naming a trade that no longer exists.
+    const fromGrid = item({ id: 'a', name: 'AT', itemId: '1', priceCredits: 14, tradeId: 'cancelled-trade' })
+    // What the server says right now. The api mock is declared inline above, so reach it through the module.
+    const api = await import('~/lib/api')
+    vi.mocked(api.fetchUnifiedListingForItem).mockResolvedValue({
+      ...item({ id: 'a', name: 'AT', itemId: '1', priceCredits: 1, tradeId: 'open-trade', available: 999 }),
+      source: 'native',
+      acquisition: 'trade',
+      manaWei: null
+    })
+
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={qc}>
+        <MemoryRouter initialEntries={[{ pathname: `/item/${ANCHOR}/1`, state: { item: fromGrid } }]}>
+          <Routes>
+            <Route path="/item/:contractAddress/:itemId" element={<ItemDetail />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    // Exact text, not toHaveTextContent: that matches substrings, and "14" contains "1".
+    await waitFor(() => expect(screen.getByTestId('item-price').textContent?.trim()).toBe('1'))
+  })
+})
+
+/**
+ * Stock is the same problem as price, and it bit harder: a seeded ZERO said "Out of stock" about an item
+ * the server was still selling.
+ *
+ * Worse than a stale number, the old `enabled` skipped the authoritative fetch entirely whenever the page
+ * was seeded, and `available: 0` is not null, so nothing ever asked the server. Reported on production
+ * against an item with 47 in stock — the page was out of stock arriving from a card, and available on a
+ * reload of the same URL, because only the reload had no seed to trust.
+ */
+describe('when the seeded stock is out of date', () => {
+  it('should not claim out of stock for an item the listing still has', async () => {
+    // The grid's snapshot, taken while the item was briefly sold out.
+    const fromGrid = item({ id: 'b', name: 'BT', itemId: '1', priceCredits: 165, tradeId: 't-1', available: 0 })
+    const api = await import('~/lib/api')
+    vi.mocked(api.fetchUnifiedListingForItem).mockResolvedValue({
+      ...item({ id: 'b', name: 'BT', itemId: '1', priceCredits: 165, tradeId: 't-1', available: 47 }),
+      source: 'native',
+      acquisition: 'trade',
+      manaWei: null
+    })
+
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={qc}>
+        <MemoryRouter initialEntries={[{ pathname: `/item/${ANCHOR}/1`, state: { item: fromGrid } }]}>
+          <Routes>
+            <Route path="/item/:contractAddress/:itemId" element={<ItemDetail />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    // Wait for the badge to GO, not for the page to render: the seeded price paints immediately, so
+    // asserting after that only proves the fetch had not landed yet. Without the fix this times out.
+    await waitFor(() => expect(screen.queryByTestId('out-of-stock')).not.toBeInTheDocument())
+  })
+
+  /**
+   * Which rail sells the item is the same question as whether it sells at all.
+   *
+   * A store mint carries no tradeId, so `forSale` reduces to `isStoreMint`, which reads `acquisition` —
+   * optional on a grid seed, always set on a fetched listing. Keeping the seed's copy left an item with
+   * stock on the shelf reading "Not for Sale". The item this was reported against is exactly that shape:
+   * `acquisition: 'store'`, no tradeId, stock ticking down as it sells.
+   */
+  it('should offer a store mint the seed said nothing about', async () => {
+    const fromGrid = item({ id: 'c', name: 'CT', itemId: '1', priceCredits: 165, tradeId: 't-1' })
+    delete (fromGrid as { acquisition?: string }).acquisition
+    const api = await import('~/lib/api')
+    // A price the seed does not have, so waiting for it proves the hydrate actually landed. Asserting
+    // "not 'Not for Sale'" against the seeded price would pass on the very first render, before the
+    // fetch resolves — which is how the first version of this test passed with the bug still in place.
+    vi.mocked(api.fetchUnifiedListingForItem).mockResolvedValue({
+      // No tradeId at all — a store mint is bought through the store rail, which is the whole point here.
+      ...item({ id: 'c', name: 'CT', itemId: '1', priceCredits: 99, available: 46 }),
+      source: 'legacy',
+      acquisition: 'store',
+      manaWei: null
+    })
+
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={qc}>
+        <MemoryRouter initialEntries={[{ pathname: `/item/${ANCHOR}/1`, state: { item: fromGrid } }]}>
+          <Routes>
+            <Route path="/item/:contractAddress/:itemId" element={<ItemDetail />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    // The server's price only renders at all if the page holds the item sellable, so this single wait
+    // covers both: the hydrate landed, AND the store mint is still on sale. Without the fix the page
+    // settles on "Not for Sale" and this times out.
+    await waitFor(() => expect(screen.getByTestId('item-price').textContent).toMatch(/99/))
+  })
+})
