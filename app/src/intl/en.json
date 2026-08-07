@@ -307,7 +307,8 @@
     "manaReason": "Let the Shop use your MANA to pay for this purchase. This is a one-time approval — you won’t be asked again.",
     "note": "No gas fees, and you stay in control — you can turn this off anytime from Approvals.",
     "errorRejected": "You dismissed the approval. Click Authorize to try again.",
-    "errorGeneric": "Couldn’t complete the approval — please try again."
+    "errorGeneric": "Couldn’t complete the approval — please try again.",
+    "stepOf": "Approval {index} of {total}"
   },
   "buyModal": {
     "titleBuy": "Buy Item",

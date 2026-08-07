@@ -789,6 +789,9 @@ export function Cart() {
   const [authStep, setAuthStep] = useState<{
     auth: ShopAuthorization
     run: () => void
+    /** Which approval this is, and how many there are — see withManaApprovals. */
+    index: number
+    total: number
   } | null>(null)
 
   /**
@@ -814,42 +817,47 @@ export function Cart() {
   }
 
   /**
-   * Announce every missing approval before charging, one step at a time.
+   * Announce every missing approval before charging, counted from the first screen.
    *
-   * Chained rather than shown at once because AuthorizeStep is one approval's worth of screen, and a buyer
-   * facing two prompts has to be told about each one as it happens — an unannounced second wallet prompt beside
-   * the purchase is exactly what this step exists to prevent.
+   * A basket that mixes a resale with a mint needs TWO allowances — the marketplace and the CollectionStore
+   * — and two spenders cannot be approved in one signature. What CAN be fixed is the surprise: the statuses
+   * are all read BEFORE anything is shown, so the buyer is told "1 of 2" on the first screen instead of
+   * meeting a second prompt they had no reason to expect.
+   *
+   * Counting only the ones that still need granting matters as much as counting at all: a basket whose
+   * second spender is already approved must say "1 of 1", not promise a step that will never come.
    */
   async function withManaApprovals(
     spenders: { spender: string; chainId: ChainId }[],
     requiredWei: bigint,
     proceed: () => void
   ) {
-    const [next, ...rest] = spenders
-    if (!next) {
+    const pending: ShopAuthorization[] = []
+    for (const { spender, chainId } of spenders) {
+      const auth = getManaSpendingAuthorization(chainId, spender)
+      // A failed status read assumes approved and lets lib/buy-mana's ensureAuthorization handle it — the
+      // pre-existing behaviour, so a flaky RPC never blocks a purchase.
+      // Sized to THIS purchase: an allowance left over from a cheaper one is not an allowance for this one.
+      const authorized = session
+        ? await getAuthorizationStatus(auth, session.address, requiredWei).catch(() => true)
+        : true
+      if (needsApprovalStep(session?.providerType, authorized)) pending.push(auth)
+    }
+    if (pending.length === 0) {
       proceed()
       return
     }
-    await withManaApproval(
-      next.spender,
-      next.chainId,
-      requiredWei,
-      () => void withManaApprovals(rest, requiredWei, proceed)
-    )
+    setBusy(false)
+    showApproval(pending, 0, proceed)
   }
 
-  async function withManaApproval(spender: string, chainId: ChainId, requiredWei: bigint, proceed: () => void) {
-    const auth = getManaSpendingAuthorization(chainId, spender)
-    // Sized to THIS purchase: an allowance left over from a cheaper one is not an allowance for this one.
-    const authorized = session
-      ? await getAuthorizationStatus(auth, session.address, requiredWei).catch(() => true)
-      : true
-    if (needsApprovalStep(session?.providerType, authorized)) {
-      setBusy(false)
-      setAuthStep({ auth, run: proceed })
-      return
-    }
-    proceed()
+  function showApproval(pending: ShopAuthorization[], i: number, proceed: () => void) {
+    setAuthStep({
+      auth: pending[i],
+      index: i + 1,
+      total: pending.length,
+      run: () => (i + 1 < pending.length ? showApproval(pending, i + 1, proceed) : proceed())
+    })
   }
 
   // What the chosen rail will actually pull in MANA — the amount an allowance has to cover. The mixed rail
@@ -1486,6 +1494,7 @@ export function Cart() {
         <AuthorizeStep
           auth={authStep.auth}
           signer={session.signer}
+          step={{ index: authStep.index, total: authStep.total }}
           title={t('authorizeStep.manaTitle')}
           name={t('authorizeStep.manaName')}
           reason={t('authorizeStep.manaReason')}
