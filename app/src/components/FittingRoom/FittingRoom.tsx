@@ -256,7 +256,7 @@ export function FittingRoom() {
 
           <S.Foot>
             <S.Total>
-              {t('fittingRoom.itemCount', { count: items.length })} ·{' '}
+              <span>{t('fittingRoom.itemCount', { count: items.length })}</span>
               <strong>
                 {/* The credit mark, as every other total in the app draws it. This read `CURRENCY.symbol`,
                     which was the string '◈' — MANA's rhombus. It was the only consumer of that field, so
