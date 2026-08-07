@@ -183,6 +183,7 @@ describe('ItemDetail — a store mint reached from a card that cannot say it is 
 
     await waitFor(() => expect(screen.getByTestId('item-price')).toHaveTextContent('24'))
     // The stock is the listing's, not the card's stale copy.
+    // 61/100: 61 available from mintListing, 100 = Rarity.getMaxSupply('legendary') from @dcl/schemas.
     expect(screen.getByText('61/100')).toBeInTheDocument()
   })
 

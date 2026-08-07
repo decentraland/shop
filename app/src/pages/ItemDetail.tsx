@@ -220,23 +220,11 @@ export function ItemDetail() {
     creator: current.creator
   })
 
-  // Hydrate the generic item (name, price, tradeId, stock) from the shop feed by its ITEM id. Resolved
-  // by `pageItemId` — the route itemId, or the itemId DECODED from the token on the token route. This is
-  // the bug fix: the old code fed the raw route segment (a tokenId on a secondary URL) to
-  // fetchShopListingForItem, which treats its 2nd arg as an itemId → the server matched nothing and
-  // returned the collection's first listing (a WRONG item) on a cold load. Never pass a tokenId here.
-  // Also runs when a seeded item (grid nav / sibling) cannot answer the sale question by itself: it lacks
-  // its stock (`available`), or its `acquisition` — without which a collection-store mint reads as unlisted,
-  // since it has no trade and 'store' is the only thing that makes it for sale (see `isStoreMint` below).
-  // The /v3/catalog/items feeds (collection page, creator storefront, suggestion rails, Recently viewed)
-  // cannot tell a mint from a classic order so they omit it (see lib/collections), but they DO carry stock —
-  // which used to be enough to skip this fetch. Measured on production: those grids led to "Not for sale"
-  // beside "61/100" in stock on an item the same grid was selling at 24 credits, while the URL opened cold
-  // showed the price. Resolved through the UNIFIED feed so a LEGACY (MANA) listing counts as much as a
-  // native one — reading the shop-only feed here is what made a MANA-listed item show "Not for sale" on its
-  // own page while its card in the grid showed a price.
-  // ITEM ROUTE ONLY: the token route hydrates from the specific token (ownedAsset / publicToken) and
-  // must not be overwritten by the generic item listing (which carries no tokenId).
+  // Hydrate from the UNIFIED feed by ITEM id (`pageItemId`). Re-fetches when the seed lacks `available`
+  // or `acquisition` — without either, a collection-store mint reads as unlisted (no trade, and 'store'
+  // is the only discriminator; see `isStoreMint`). The /v3/catalog/items feeds omit `acquisition`
+  // (see lib/collections), so grid-nav cards always trigger this. Token route is excluded — it hydrates
+  // from the specific token instead.
   const needsPrimaryFacts = !current.tokenId && (current.available == null || current.acquisition == null)
   const { data: deepLinkItem, isLoading: deepLinkLoading } = useQuery({
     queryKey: ['shop-item', current.contractAddress, pageItemId],
