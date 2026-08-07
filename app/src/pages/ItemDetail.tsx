@@ -409,9 +409,9 @@ export function ItemDetail() {
    * NOT FOR SALE about an item the browse grid was selling from the same feed, at a price the grid showed
    * and this page did not (measured on production: `acquisition: 'store'`, 48 in stock, 20 MANA).
    *
-   * The cart already buys these end-to-end (lib/cart-availability, lib/cart-checkout route the store rail),
-   * which is why the CTA below offers Add to cart for them and keeps Buy now for trades — BuyModal resolves
-   * a live trade and has no store rail of its own.
+   * Both CTAs below serve it: the cart routes the store rail (lib/cart-availability, lib/cart-checkout) and so
+   * does Buy now (BuyModal resolves either kind through lib/cart-checkout's resolveLine and settles it through
+   * the store's own rails), so a mint and a listing offer the buyer exactly the same purchase.
    */
   const isStoreMint = current.acquisition === 'store' && (current.available ?? 0) > 0
   const forSale = !!buyableTradeId || isStoreMint
@@ -1545,19 +1545,13 @@ export function ItemDetail() {
                       </S.ManageActions>
                     ) : forSale ? (
                       <>
-                        {/* Buy now only where there IS a trade to resolve: BuyModal buys through
-                            resolveLiveTrade and has no collection-store rail, so a store mint would open a
-                            modal that cannot complete. The cart does route that rail, so the mint's path is
-                            Add to cart — which is why this button is conditional and the next one is not. */}
-                        {buyableTradeId ? (
-                          <S.DetailCta variant="purple" onClick={handleBuyNow} disabled={resolvingTrade}>
-                            <span>{t('assetCard.buyNow')}</span>
-                            <S.CtaPrice aria-hidden>
-                              <S.CtaDiamond />
-                              {current.priceCredits}
-                            </S.CtaPrice>
-                          </S.DetailCta>
-                        ) : null}
+                        <S.DetailCta variant="purple" onClick={handleBuyNow} disabled={resolvingTrade}>
+                          <span>{t('assetCard.buyNow')}</span>
+                          <S.CtaPrice aria-hidden>
+                            <S.CtaDiamond />
+                            {current.priceCredits}
+                          </S.CtaPrice>
+                        </S.DetailCta>
                         <S.AddCart
                           onClick={handleAddToCart}
                           disabled={resolvingTrade || (isPrimary ? atStockCap : inCart)}

@@ -310,6 +310,43 @@ export const unifiedListings = {
  * Opt-in rather than folded into the base fixture: `unifiedListings` also feeds the browse grid,
  * where an extra row changes what other specs count.
  */
+/**
+ * `unifiedListings` plus a CollectionStore MINT — an item the creator is still selling, which has NO trade
+ * (`tradeId: null`) and is priced on-chain in MANA.
+ *
+ * This is the shape the whole store rail hangs off: the item page reads `acquisition: 'store'` and offers the
+ * same Buy now a listing gets, the buy modal re-reads this row for the live price + remaining supply, and
+ * settlement goes to CollectionStore.buy instead of the marketplace's accept. Opt-in, because an extra row
+ * changes what the browse specs count.
+ */
+export const unifiedWithMint = {
+  data: [
+    ...unifiedListings.data,
+    {
+      tradeId: null,
+      listingType: 'primary',
+      contractAddress: COLLECTION,
+      itemId: '3',
+      tokenId: null,
+      name: 'Comet Boots',
+      thumbnail: '',
+      rarity: 'rare',
+      category: 'wearable',
+      wearableCategory: 'feet',
+      creator: CREATOR_ADDRESS,
+      priceCredits: 270,
+      available: 48,
+      network: 'MATIC',
+      chainId: 80002,
+      source: 'native',
+      acquisition: 'store',
+      // The live on-chain price the store re-validates at settlement — 100 MANA → ~$27 → 270 credits.
+      manaWei: MANA_WEI_PER
+    }
+  ],
+  total: 4
+}
+
 export const unifiedWithItem0Resale = {
   data: [
     ...unifiedListings.data,

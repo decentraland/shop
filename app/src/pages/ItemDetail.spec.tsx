@@ -155,6 +155,38 @@ describe('ItemDetail — the not-for-sale CTA slot', () => {
 })
 
 /**
+ * A CollectionStore MINT — an item the creator is still selling, which has no trade and never will.
+ *
+ * Buy now used to be hidden for these because the modal could only resolve a trade, leaving Add to cart as the
+ * only way to buy a creator's own primary sale while a resale of the same item got both buttons. The buyer has
+ * no way to know which kind of listing they are looking at, so the difference read as a missing button.
+ */
+describe('ItemDetail — the CTAs for a mint', () => {
+  beforeEach(() => {
+    fetchCollectionItems.mockResolvedValue({
+      items: [
+        item({ id: 'a', name: 'Anchor Hat', itemId: '1', acquisition: 'store', available: 5, tradeId: undefined })
+      ],
+      total: 1
+    })
+  })
+
+  it('should offer Buy now alongside Add to cart, exactly as a listing does', async () => {
+    renderPdp()
+
+    const buyNow = await screen.findByRole('button', { name: /buy now/i })
+    await waitFor(() => expect(buyNow).not.toBeDisabled())
+    expect(screen.getByRole('button', { name: /add to cart/i })).toBeInTheDocument()
+  })
+
+  it('should price it rather than calling it not for sale', async () => {
+    renderPdp()
+
+    expect(await screen.findByTestId('item-price')).not.toHaveTextContent(/not for sale/i)
+  })
+})
+
+/**
  * THE NOT-FOUND WINDOW.
  *
  * A cold deep link is hydrated from the collection read, and that read reports "fetched" one render before

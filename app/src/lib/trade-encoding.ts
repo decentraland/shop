@@ -155,25 +155,35 @@ export function buildUseCreditsArgs(
 }
 
 /**
- * Encode CollectionStore.buy([...items]) — one external call mints every item in the batch.
+ * CollectionStore.buy's `ItemToBuy[]` argument.
  *
- * `beneficiaries` is the buyer for every item: the CreditsManager is the msg.sender, so without this the
- * freshly minted NFTs would land in the CreditsManager rather than in the buyer's wallet.
+ * `beneficiaries` is the buyer for every item. Whoever sends the transaction — the CreditsManager on the
+ * credits rail, the relayer on a MANA meta-transaction — is the msg.sender, so without naming the buyer the
+ * freshly minted NFTs would land there instead of in their hands.
  */
+export function itemsToBuyArg(items: StoreItemToBuy[], buyer: string) {
+  return items.map(i => ({
+    collection: i.collection,
+    ids: [i.itemId],
+    prices: [i.priceWei],
+    beneficiaries: [buyer]
+  }))
+}
+
+/** Encode CollectionStore.buy([...items]) as a useCredits external call — one call mints the whole batch. */
 export function buildStoreBuyCalldata(items: StoreItemToBuy[], buyer: string, collectionStoreAbi: unknown[]) {
   const selector = new Interface(collectionStoreAbi as string[]).getSighash('buy')
-  const data = defaultAbiCoder.encode(
-    [ITEM_TO_BUY_TUPLE_ARRAY],
-    [
-      items.map(i => ({
-        collection: i.collection,
-        ids: [i.itemId],
-        prices: [i.priceWei],
-        beneficiaries: [buyer]
-      }))
-    ]
-  )
+  const data = defaultAbiCoder.encode([ITEM_TO_BUY_TUPLE_ARRAY], [itemsToBuyArg(items, buyer)])
   return { selector, data }
+}
+
+/**
+ * The same `buy([...items])` call as complete calldata, for the rails that call the store DIRECTLY rather
+ * than through `useCredits` — paying in MANA, whether relayed as a meta-transaction or submitted by the buyer.
+ * Shares `itemsToBuyArg` with the credits rail so the two cannot disagree about what is being minted.
+ */
+export function encodeStoreBuy(items: StoreItemToBuy[], buyer: string, collectionStoreAbi: unknown[]): string {
+  return new Interface(collectionStoreAbi as string[]).encodeFunctionData('buy', [itemsToBuyArg(items, buyer)])
 }
 
 // Build the CreditsManager.useCredits() args for a batch of CollectionStore mints.
