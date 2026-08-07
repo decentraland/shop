@@ -42,6 +42,16 @@ export type TopCreator = {
  * Everything the card needs comes from here, so a card cannot go and read something else about the
  * creator that contradicts the row it is on.
  */
+/**
+ * The smallest catalogue we will introduce someone on the strength of.
+ *
+ * Chosen off the production distribution, not invented: of the 25 presentable candidates the median has 36
+ * published items and every one of them clears 10 — except three, who have 4, 4 and ONE. There is no
+ * borderline case near this line, so it removes exactly the creators whose own card undercuts them and
+ * nobody else.
+ */
+const MIN_ITEMS = 10
+
 export function selectTopCreators(
   ranked: ShopCreatorRank[],
   profiles: Map<string, ProfileAvatar>,
@@ -56,6 +66,16 @@ export function selectTopCreators(
     const profile = profiles.get(id.toLowerCase())
     const name = profile?.name?.trim()
     if (!profile?.hasClaimedName || !name) continue
+
+    /**
+     * A month can be won on one lucky item. `sebga` reached third on the production row with 33 sales
+     * of TWO items — no wash trading, 27 real buyers, simply a hit — and the card then introduced them
+     * with "4 Collections | 4 Items | Total sales: 62" beside a neighbour showing 45 and 1,168. The row
+     * asks a shopper to go and browse someone; four items is not something to browse.
+     *
+     * Only applied when the count is KNOWN: a catalogue we cannot see is not a catalogue we can call small.
+     */
+    if (items != null && items < MIN_ITEMS) continue
 
     const key = name.toLowerCase()
     if (taken.has(key)) continue

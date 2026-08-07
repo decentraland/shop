@@ -37,7 +37,7 @@ function renderSection(basename?: string) {
 beforeEach(() => {
   fetchShopTopCreators.mockReset().mockResolvedValue([
     { id: SOUL, sales: 62, totalSales: 3514, collections: 30, items: 166 },
-    { id: FURY, sales: 1, totalSales: 1, collections: 1, items: 1 }
+    { id: FURY, sales: 1, totalSales: 1, collections: 4, items: 12 }
   ])
   fetchProfiles.mockReset().mockResolvedValue(
     new Map([
@@ -130,12 +130,26 @@ describe('TopCreators cards', () => {
   // Zero is a figure the server SENT, and a creator really can have sold nothing — it must not be mistaken
   // for a field that never arrived.
   it('should say zero when the count is genuinely zero', async () => {
-    fetchShopTopCreators.mockResolvedValue([{ id: SOUL, sales: 1, totalSales: 0, collections: 0, items: 0 }])
+    fetchShopTopCreators.mockResolvedValue([{ id: SOUL, sales: 1, totalSales: 0, collections: 2, items: 12 }])
     renderSection()
     const card = await screen.findByRole('link', { name: 'View creations by Soul Magic' })
 
     expect(card.textContent).toContain('Total sales: 0')
-    expect(card.textContent).toContain('0 Collections | 0 Items')
+  })
+
+  /**
+   * A month can be won on one lucky item, and the card then undercuts the creator it is introducing.
+   * Production had `sebga` third on 33 sales of two items, next to a neighbour showing 45 collections.
+   */
+  it('should leave out a creator with almost nothing to browse, however well the month went', async () => {
+    fetchShopTopCreators.mockResolvedValue([
+      { id: SOUL, sales: 99, totalSales: 62, collections: 4, items: 4 },
+      { id: FURY, sales: 1, totalSales: 1168, collections: 45, items: 135 }
+    ])
+    renderSection()
+
+    await screen.findByRole('link', { name: 'View creations by Elemental Fury' })
+    expect(screen.getAllByTestId('top-creator-card')).toHaveLength(1)
   })
 
   it('should link each card to the creator storefront listings, with no collections flag', async () => {

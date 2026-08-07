@@ -7,8 +7,14 @@ const { colors, radius, media } = theme
 
 const AVATAR = 154
 const AVATAR_MOBILE = 155
-// The CTA's height plus the gap above it — the slot the panel reserves for it permanently (see Panel).
-const CTA_SLOT = 62
+/**
+ * What the panel leaves UNPAINTED for the hover CTA — the button's own height, and not the 16px gap above
+ * it, which the fill covers.
+ *
+ * The slot itself is permanent either way (see Panel): it is what stops the page below the row moving 62px
+ * every time a pointer crosses a card. Painting the gap is the part of it that can be reclaimed for free.
+ */
+const CTA_SLOT = 46
 // The panel's own inline padding: what the CTA is inset by, which is NOT what the text is inset by.
 // Figma draws a 366px card with a 340px button and text 270px wide, so the two take different insets and
 // the difference lives on the text block (see TextBlock).

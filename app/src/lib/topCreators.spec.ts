@@ -4,8 +4,12 @@ import { selectTopCreators } from './topCreators'
 
 // A ranking row. The tuple is [address, window sales]; the figures the card shows are derived from it so
 // a test can tell which number reached the card without spelling out four every time.
-const ranked = (...rows: [string, number][]) =>
-  rows.map(([id, sales]) => ({ id, sales, totalSales: sales * 100, collections: 3, items: 30 }))
+// A ranking row. The tuple is [address, window sales]; the figures the card shows are derived from it so
+// a test can tell which number reached the card without spelling out four every time. `items` can be
+// overridden per address to drive the catalogue floor.
+const ranked = (...rows: [string, number][]) => rowsWith({}, ...rows)
+const rowsWith = (items: Record<string, number>, ...rows: [string, number][]) =>
+  rows.map(([id, sales]) => ({ id, sales, totalSales: sales * 100, collections: 3, items: items[id] ?? 30 }))
 
 function profiles(entries: Record<string, Partial<ProfileAvatar>>): Map<string, ProfileAvatar> {
   return new Map(Object.entries(entries).map(([address, profile]) => [address.toLowerCase(), profile as ProfileAvatar]))
@@ -80,6 +84,35 @@ describe('selectTopCreators', () => {
       ['0xmain', 6200],
       ['0xother', 500]
     ])
+  })
+
+  /**
+   * The catalogue floor. Ranking is 30-day sales, so a creator with two items can win a month outright —
+   * and then the card introduces them with figures that argue against browsing them at all.
+   */
+  it('should drop a creator with almost nothing published, however well they sold', () => {
+    const selected = selectTopCreators(
+      rowsWith({ '0xhit': 4, '0xdeep': 135 }, ['0xhit', 99], ['0xdeep', 1]),
+      profiles({
+        '0xhit': { name: 'sebga', hasClaimedName: true },
+        '0xdeep': { name: 'metaskins', hasClaimedName: true }
+      }),
+      8
+    )
+
+    expect(selected.map(creator => creator.name)).toEqual(['metaskins'])
+  })
+
+  // A catalogue we cannot see is not a catalogue we can call small: with the count absent the floor has
+  // nothing to judge, and dropping the creator would empty the row against a server that omits the field.
+  it('should keep a creator whose catalogue size was not reported', () => {
+    const selected = selectTopCreators(
+      [{ id: '0xa', sales: 5 }],
+      profiles({ '0xa': { name: 'Saus', hasClaimedName: true } }),
+      8
+    )
+
+    expect(selected.map(creator => creator.name)).toEqual(['Saus'])
   })
 
   // The rail asks for far more candidates than it can show, precisely so the filters have something to
