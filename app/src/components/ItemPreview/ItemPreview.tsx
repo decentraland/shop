@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { WearablePreview } from '~/components/LazyWearablePreview'
-import { EmoteControls } from '~/components/LazyEmoteControls'
+import { EmotePlaybackBar } from '~/components/EmotePlaybackBar'
 import { PreviewEmote, PreviewRenderer, PreviewType } from '@dcl/schemas'
 import { useCart } from '~/store/cart'
 import { useWallet } from '~/store/wallet'
@@ -136,11 +136,7 @@ export function ItemPreview({ item }: { item: CatalogItem }) {
       {incompatible && !itemAlone ? (
         <S.Note data-preview-note>{t('itemPreview.shownOnBody', { shape: shapeLabel(mannequinShape) })}</S.Note>
       ) : null}
-      {!showControls || !isEmote ? null : (
-        <S.EmoteControls data-preview-controls data-testid="emote-controls">
-          <EmoteControls wearablePreviewId="shop-item-preview" hideFrameInput />
-        </S.EmoteControls>
-      )}
+      {!showControls || !isEmote ? null : <EmotePlaybackBar previewId="shop-item-preview" />}
       {/* Hidden for an emote (there is no item-alone view of a dance) and for Unity, whose scene ships its
           own controls. Desktop: a text pill top-left; mobile: an icon-only pair at the bottom-right. */}
       {!showControls || isEmote ? null : (

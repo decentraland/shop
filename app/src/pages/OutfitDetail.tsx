@@ -6,7 +6,7 @@ import { Button } from '~/components/Button'
 import { CreatorName } from '~/components/CreatorName'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { ErrorNotice } from '~/components/ErrorNotice'
-import { EmoteControls } from '~/components/LazyEmoteControls'
+import { EmotePlaybackBar } from '~/components/EmotePlaybackBar'
 import { OutfitPreview } from '~/components/OutfitPreview'
 import { useProfile } from '~/hooks/useProfile'
 import { useTryOnAvatar } from '~/hooks/useTryOnAvatar'
@@ -252,11 +252,7 @@ function OutfitContent({ outfit }: { outfit: Outfit }) {
               enabled={profileResolved && !tryOn.isLoading && !resolution.isLoading}
               onRenderer={setRenderer}
               controls={
-                showControls ? (
-                  <S.EmoteControls data-testid="outfit-emote-controls">
-                    <EmoteControls wearablePreviewId={PREVIEW_ID} hideFrameInput />
-                  </S.EmoteControls>
-                ) : null
+                showControls ? <EmotePlaybackBar previewId={PREVIEW_ID} testId="outfit-emote-controls" /> : null
               }
             />
           )}
