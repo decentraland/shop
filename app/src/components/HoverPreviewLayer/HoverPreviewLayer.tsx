@@ -13,6 +13,9 @@ import { theme } from '~/styles/theme'
 
 // The corner left once the hover stroke has taken its bite out of the card's own radius.
 const INNER_RADIUS = Number.parseFloat(theme.radius.card) - RING_WIDTH
+if (process.env.NODE_ENV !== 'production' && Number.isNaN(INNER_RADIUS)) {
+  throw new Error(`INNER_RADIUS is NaN — theme.radius.card ("${theme.radius.card}") is not a numeric string`)
+}
 
 const Wrap = styled.div`
   & iframe {

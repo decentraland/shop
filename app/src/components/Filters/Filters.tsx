@@ -144,10 +144,16 @@ export function Filters({
   const maxText = (n: number) => (n >= PRICE_SLIDER_MAX ? '' : String(n))
 
   function onSlideMin(pos: number) {
-    setDrag(d => ({ ...d, min: Math.min(sliderPosToPrice(pos), sliderMax) }))
+    setDrag(d => {
+      const max = d.max ?? committedMax
+      return { ...d, min: Math.min(sliderPosToPrice(pos), max) }
+    })
   }
   function onSlideMax(pos: number) {
-    setDrag(d => ({ ...d, max: Math.max(sliderPosToPrice(pos), sliderMin) }))
+    setDrag(d => {
+      const min = d.min ?? committedMin
+      return { ...d, max: Math.max(sliderPosToPrice(pos), min) }
+    })
   }
   // Release — pointer, key or focus leaving mid-gesture — is what reaches the URL and so the grid.
   function commitSlide() {

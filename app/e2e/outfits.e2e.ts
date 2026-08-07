@@ -79,8 +79,8 @@ const THUMB_HASH = 'e2e' + '0'.repeat(61)
 // The creator-chosen backdrop the transparent thumbnail is composited over.
 const GRADIENT_FROM = '#a855f7'
 const GRADIENT_TO = '#e0219a'
-// Chrome drops the explicit `180deg` when computing the style — top-to-bottom is the CSS default.
-const GRADIENT_CSS = 'linear-gradient(rgb(168, 85, 247) 0%, rgb(224, 33, 154) 100%)'
+// Chrome drops `at 50% 50%` (the default position) when computing the style.
+const GRADIENT_CSS = 'radial-gradient(65.83% 65.83%, rgb(224, 33, 154) 0%, rgb(168, 85, 247) 100%)'
 // The detail preview is the same two stops as a radial glow — BOTTOM color at the centre.
 const RADIAL_CSS = 'radial-gradient(circle, rgb(224, 33, 154) 0%, rgb(168, 85, 247) 100%)'
 
@@ -307,14 +307,14 @@ describe('outfits row on the overview', () => {
 
     await settleTo('1')
 
-    // The accent stroke has its own `transition: outline-color 0.2s`, so it must be waited on rather
-    // than sampled. Reading it once only worked where the opacity wait above happened to cover the
-    // same 200ms: on a hover-less runner the panel is ALREADY at opacity 1, so that wait returns
-    // immediately and this read landed at the very start of the stroke's fade — transparent.
+    // The accent stroke is a ::after pseudo-element with `opacity: 0 → 1` on hover/focus, so it must
+    // be waited on rather than sampled. Reading it once only worked where the opacity wait above
+    // happened to cover the same 200ms: on a hover-less runner the panel is ALREADY at opacity 1, so
+    // that wait returns immediately and this read landed at the very start of the fade.
     await page.waitForFunction(
       () => {
         const frame = document.querySelector('[data-testid="outfit-card-thumb"]')
-        return !!frame && getComputedStyle(frame).outlineColor === 'rgb(122, 43, 191)'
+        return !!frame && getComputedStyle(frame, '::after').opacity === '1'
       },
       { timeout: 10000 }
     )
