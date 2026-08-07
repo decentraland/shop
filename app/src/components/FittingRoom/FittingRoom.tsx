@@ -265,7 +265,9 @@ export function FittingRoom() {
               </strong>
             </S.Total>
             <S.CheckoutBtn
-              variant="purple"
+              type="button"
+              data-variant="primary"
+              data-testid="fitting-checkout"
               onClick={() => {
                 setOpen(false)
                 navigate('/cart')

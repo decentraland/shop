@@ -1,12 +1,13 @@
 import styled from '@emotion/styled'
-import { css, keyframes } from '@emotion/react'
+import { keyframes } from '@emotion/react'
 import { Link } from 'react-router-dom'
 import { theme } from '~/styles/theme'
+import { checkoutCtaCss } from '~/styles/cta.styles'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { CreatorBadge } from '~/components/CreatorBadge'
 import { Icon } from '~/components/Icon'
 
-const { colors, radius, gradients, font } = theme
+const { colors, radius, font } = theme
 
 const fade = keyframes`
   from { opacity: 0; }
@@ -420,46 +421,6 @@ export const Ctas = styled.div`
   }
 `
 
-// data-variant='primary' (filled accent Link) | 'secondary' (magenta-outline button).
-const ctaCss = css`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 46px;
-  border-radius: ${radius.card};
-  font-family: ${font.sans};
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 24px;
-  letter-spacing: 0.46px;
-  text-transform: uppercase;
-  text-decoration: none;
-  cursor: pointer;
-
-  /* The design system's pair (Figma 2187:453378/453391): the advancing action takes the primary
-     gradient on the right, the dismissing one a hairline soft-black outline on the left. */
-  &[data-variant='primary'] {
-    border: 0;
-    background: ${gradients.buyBtn};
-    color: ${colors.white};
-  }
-  &[data-variant='primary']:hover,
-  &[data-variant='primary']:active {
-    background-image: linear-gradient(${colors.dclRed}, ${colors.dclRed});
-  }
-  &[data-variant='secondary'] {
-    border: 0.5px solid ${colors.text};
-    background: ${colors.white};
-    color: ${colors.text};
-  }
-  /* Figma's outlined hover (738:53251): the fill inverts to soft-black-2 with a soft-white label. The
-     white-fill hover the dark-field buttons take would be invisible on this light drawer. */
-  &[data-variant='secondary']:hover {
-    background: ${colors.text2};
-    color: ${colors.softWhite};
-  }
-`
-
 export const Cta = styled(Link)`
-  ${ctaCss};
+  ${checkoutCtaCss};
 `

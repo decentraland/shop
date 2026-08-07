@@ -1,7 +1,7 @@
 import styled from '@emotion/styled'
 import { keyframes } from '@emotion/react'
 import { theme } from '~/styles/theme'
-import { Button } from '~/components/Button'
+import { checkoutCtaCss } from '~/styles/cta.styles'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 
 const { colors, radius, media, z } = theme
@@ -356,6 +356,10 @@ export const Total = styled.div`
   }
 `
 
-export const CheckoutBtn = styled(Button)`
+// The same button the cart drawer ends on — checking out looks like checking out wherever it is offered.
+// It used to be the purple Button variant, which read as a different, lesser action than the real one.
+export const CheckoutBtn = styled.button`
+  ${checkoutCtaCss};
   flex: none;
+  padding: 0 12px;
 `
