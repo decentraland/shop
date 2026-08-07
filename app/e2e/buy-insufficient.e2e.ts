@@ -79,4 +79,77 @@ describe('buy with insufficient funds', () => {
       expect(cta.bottom, `${cta.label} bottom`).toBeLessThanOrEqual(fit.viewport)
     }
   })
+
+  /**
+   * On a phone the four packs are a 2x2 (Figma mobile frame).
+   *
+   * They used to be flex tiles that wrapped, which let each tile's own content decide the row break: a
+   * pack wide enough to render "260 ($29.99)" stopped sharing a line and took a full row, so the four
+   * came out 2/1/1 and three rows tall. That third row is also what pushed the running total under the
+   * sticky CTAs, which cover it rather than scroll past it.
+   */
+  it('lays the packs out two by two on a phone, with the total clear of the CTAs', async () => {
+    app = await launchApp({
+      path: `/item/${COLLECTION}/1`,
+      fixtures: { trade: buyTrade },
+      errors: { '/credits/authorize': { status: 402, body: { error: 'insufficient funds' } } }
+    })
+    const { page } = app
+    await page.setViewport({ width: 390, height: 844 })
+
+    await waitForText(page, 'Nebula Jacket')
+    await waitForText(page, 'Buy now')
+    expect(await clickByText(page, 'button', /buy now/i)).toBe(true)
+    await waitForText(page, 'Insufficient Funds')
+
+    const shape = await page.evaluate(() => {
+      const tiles = [...document.querySelectorAll('[data-testid="credit-packs"] > button')]
+      const box = (el: Element) => el.getBoundingClientRect()
+      const totalRow = [...document.querySelectorAll('div')].find(d =>
+        /^\$/.test((d.lastElementChild?.textContent || '').trim())
+      )
+      const buy = [...document.querySelectorAll('button')].find(b => /^buy$/i.test((b.textContent || '').trim()))!
+      return {
+        tiles: tiles.map(t => {
+          const r = box(t)
+          return { top: Math.round(r.top), left: Math.round(r.left), w: Math.round(r.width), h: Math.round(r.height) }
+        }),
+        totalBottom: totalRow ? Math.round(box(totalRow).bottom) : null,
+        ctaTop: Math.round(box(buy).top)
+      }
+    })
+
+    expect(shape.tiles).toHaveLength(4)
+    // Two distinct rows, two tiles on each.
+    const rows = [...new Set(shape.tiles.map(t => t.top))].sort((a, b) => a - b)
+    expect(rows).toHaveLength(2)
+    for (const top of rows) expect(shape.tiles.filter(t => t.top === top)).toHaveLength(2)
+    // Columns line up and the tiles are the same box — no tile is wider for having a longer price.
+    const widths = new Set(shape.tiles.map(t => t.w))
+    expect(widths.size, `tile widths: ${[...widths]}`).toBe(1)
+    for (const t of shape.tiles) expect(t.h, 'tile height').toBe(83)
+    // The running total is readable, not sitting under the sticky CTA bar.
+    expect(shape.totalBottom).not.toBeNull()
+    expect(shape.totalBottom!).toBeLessThanOrEqual(shape.ctaTop)
+
+    /**
+     * And the 2x2 must be the CONTAINER's decision, not the content's.
+     *
+     * This is the actual regression: the tiles used to wrap, so the row break was whatever each tile's
+     * own text happened to measure — the layout held only while the amounts stayed short. Widening one
+     * price is what the real catalogue does to us, and it must not move anything.
+     */
+    const afterWidening = await page.evaluate(() => {
+      const tiles = [...document.querySelectorAll('[data-testid="credit-packs"] > button')]
+      tiles[0].lastElementChild!.textContent = '($1,234,567.89)'
+      void document.body.offsetHeight
+      return tiles.map(t => {
+        const r = t.getBoundingClientRect()
+        return { top: Math.round(r.top), w: Math.round(r.width) }
+      })
+    })
+
+    expect([...new Set(afterWidening.map(t => t.top))], 'rows after widening a price').toHaveLength(2)
+    expect([...new Set(afterWidening.map(t => t.w))], 'tile widths after widening a price').toHaveLength(1)
+  })
 })
