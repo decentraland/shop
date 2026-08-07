@@ -9,6 +9,7 @@ vi.mock('~/lib/authorizations', () => ({
 vi.mock('~/lib/monitoring', () => ({ captureError: vi.fn() }))
 
 import { AuthorizeStep } from '~/components/AuthorizeStep'
+import { theme } from '~/styles/theme'
 
 const auth = { kind: 'approval', contractAddress: '0xc', spenderAddress: '0xm', chainId: 80002 } as never
 const signer = { tag: 'signer' } as never
@@ -75,5 +76,22 @@ describe('AuthorizeStep', () => {
       await waitFor(() => expect(screen.getByText(/complete the approval/i)).toBeInTheDocument())
       expect(onAuthorized).not.toHaveBeenCalled()
     })
+  })
+})
+
+/**
+ * This step opens ON TOP of the checkout modal that asked for the approval, and it is mounted BEFORE that
+ * modal in both callers (Cart, BuyModal). Same-z ties break by DOM order, so while its scrim sat at the
+ * shared `overlay` tier it lost every tie and rendered BEHIND the modal it was blocking — a buyer looking
+ * at a checkout that had stopped responding, with the reason hidden underneath it.
+ */
+describe('where the approval step sits in the stack', () => {
+  it('should sit above the modal that asked for it, not level with it', () => {
+    renderStep()
+
+    const z = Number(getComputedStyle(screen.getByTestId('authorize-step-scrim')).zIndex)
+
+    expect(z).toBeGreaterThan(theme.z.overlay)
+    expect(z).toBeLessThan(theme.z.tooltip)
   })
 })

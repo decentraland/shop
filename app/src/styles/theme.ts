@@ -120,6 +120,15 @@ const font = {
 // stacking context and must clear whatever overlay the trigger sits in.
 const z = {
   overlay: 10000,
+  /**
+   * A prompt that INTERRUPTS an overlay — the wallet-approval step, which opens over the checkout modal
+   * that asked for it.
+   *
+   * It needs its own tier because same-z ties are broken by DOM order, and the interrupting prompt is
+   * mounted BEFORE the modal it interrupts (see Cart / BuyModal), so it loses every tie and renders
+   * behind the thing it is blocking.
+   */
+  prompt: 10005,
   tooltip: 10010
 } as const
 
