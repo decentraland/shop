@@ -34,7 +34,7 @@ export const Root = styled.div`
 // Gray 5 (Figma 1182:190110): this sits on the purple field, where the body colour is unreadable.
 export const Label = styled.label`
   font-size: 14px;
-  color: ${colors.media};
+  color: ${colors.softWhite};
 `
 
 // Email field + the NOTIFY ME button share one 42px row.

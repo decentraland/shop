@@ -237,7 +237,9 @@ export async function fetchCatalogByIds(
 // The item's long description for the detail page. It isn't in the shop feed (ShopListingRaw), so read
 // it from the v2 catalog by contract + itemId. Returns '' when the item has none / on any error.
 export async function fetchItemDescription(contractAddress: string, itemId: string): Promise<string> {
-  const qs = new URLSearchParams({ contractAddresses: contractAddress, itemId, first: '1' })
+  // Must filter by the composite `id` (`contract-itemId`): the catalog endpoint accepts `contractAddress`
+  // (singular) and ignores `itemId` entirely, so any other spelling silently returns an unrelated item.
+  const qs = new URLSearchParams({ id: `${contractAddress.toLowerCase()}-${itemId}`, first: '1' })
   try {
     const res = await fetch(`${config.marketplaceServerUrl}/v2/catalog?${qs.toString()}`)
     if (!res.ok) return ''
