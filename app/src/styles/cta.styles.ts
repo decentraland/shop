@@ -19,7 +19,9 @@ export const checkoutCtaCss = css`
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 8px;
   height: 46px;
+  padding: 0 12px;
   border-radius: ${radius.card};
   font-family: ${font.sans};
   font-size: 13px;

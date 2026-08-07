@@ -361,5 +361,4 @@ export const Total = styled.div`
 export const CheckoutBtn = styled.button`
   ${checkoutCtaCss};
   flex: none;
-  padding: 0 12px;
 `
