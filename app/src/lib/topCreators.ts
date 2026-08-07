@@ -13,7 +13,16 @@ export type TopCreator = {
    * the same person reads as the card getting it wrong.
    */
   name: string
-  sales: number
+  /**
+   * What the card says about them, straight off the ranking row. Deliberately not re-derived here: the
+   * ranking already counted it, and a second source would let the card disagree with the row it is on.
+   *
+   * Absent when the ranking service has not shipped them yet — the card drops the line rather than the
+   * creator (see CreatorCard).
+   */
+  totalSales?: number
+  collections?: number
+  items?: number
   face?: string
 }
 
@@ -41,7 +50,7 @@ export function selectTopCreators(
   const taken = new Set<string>()
   const selected: TopCreator[] = []
 
-  for (const { id, sales } of ranked) {
+  for (const { id, totalSales, collections, items } of ranked) {
     if (selected.length >= limit) break
 
     const profile = profiles.get(id.toLowerCase())
@@ -52,7 +61,7 @@ export function selectTopCreators(
     if (taken.has(key)) continue
     taken.add(key)
 
-    selected.push({ address: id, name, sales, face: profile.avatar?.snapshots?.face256 })
+    selected.push({ address: id, name, totalSales, collections, items, face: profile.avatar?.snapshots?.face256 })
   }
 
   return selected

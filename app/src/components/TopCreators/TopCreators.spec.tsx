@@ -36,8 +36,8 @@ function renderSection(basename?: string) {
 
 beforeEach(() => {
   fetchShopTopCreators.mockReset().mockResolvedValue([
-    { id: SOUL, sales: 62 },
-    { id: FURY, sales: 1 }
+    { id: SOUL, sales: 62, totalSales: 3514, collections: 30, items: 166 },
+    { id: FURY, sales: 1, totalSales: 1, collections: 1, items: 1 }
   ])
   fetchProfiles.mockReset().mockResolvedValue(
     new Map([
@@ -77,13 +77,65 @@ describe('TopCreators cards', () => {
     expect(fetchProfiles).toHaveBeenCalledWith([SOUL, FURY])
   })
 
-  // What the card is FOR: the number that put the creator on the row. It used to print their published
-  // collection and item totals, which say how big a back catalogue is, not that anyone is buying from it.
-  it('should say how much the creator recently sold, per card', async () => {
+  // What the card says about a creator: what they have published, and what they have sold over ALL time.
+  // The 30-day figure decides who is on the row; it is not what the row shows.
+  it('should introduce the creator with their catalogue and their lifetime sales', async () => {
     renderSection()
+    const card = await screen.findByRole('link', { name: 'View creations by Soul Magic' })
 
-    expect(await screen.findByText('62 sales in the last 30 days')).toBeTruthy()
-    expect(screen.getByText('1 sale in the last 30 days')).toBeTruthy()
+    expect(card.textContent).toContain('30 Collections | 166 Items')
+    expect(card.textContent).toContain('Total sales: 3,514')
+  })
+
+  // Four digits and up is where an ungrouped run stops being readable, and creator totals reach five.
+  it('should group a large total the way the reader locale does', async () => {
+    fetchShopTopCreators.mockResolvedValue([{ id: SOUL, sales: 62, totalSales: 12467, collections: 94, items: 372 }])
+    renderSection()
+    const card = await screen.findByRole('link', { name: 'View creations by Soul Magic' })
+
+    expect(card.textContent).toContain('Total sales: 12,467')
+    expect(card.textContent).not.toContain('12467')
+  })
+
+  // The window count decides the ORDER. Printing it would say a creator with 3,514 lifetime sales has 62.
+  it('should never show the window count the ranking was ordered by', async () => {
+    renderSection()
+    const card = await screen.findByRole('link', { name: 'View creations by Soul Magic' })
+
+    expect(card.textContent).not.toContain('62')
+  })
+
+  /**
+   * The shop and the ranking service deploy on their own schedules, so a production shop WILL at some
+   * point read rows from a server that does not send these yet. Formatting an absent figure threw inside
+   * render, which takes down the whole row — a section of the home page lost to a field that had not
+   * shipped.
+   */
+  describe('when the ranking service has not shipped the card figures yet', () => {
+    beforeEach(() => {
+      fetchShopTopCreators.mockResolvedValue([{ id: SOUL, sales: 62 }])
+    })
+
+    it('should still introduce the creator, minus the figures it was not given', async () => {
+      renderSection()
+      const card = await screen.findByRole('link', { name: 'View creations by Soul Magic' })
+
+      expect(card.textContent).toContain('Soul Magic')
+      expect(card.textContent).toContain('View creations')
+      expect(card.textContent).not.toContain('Total sales')
+      expect(card.textContent).not.toContain('Collections')
+    })
+  })
+
+  // Zero is a figure the server SENT, and a creator really can have sold nothing — it must not be mistaken
+  // for a field that never arrived.
+  it('should say zero when the count is genuinely zero', async () => {
+    fetchShopTopCreators.mockResolvedValue([{ id: SOUL, sales: 1, totalSales: 0, collections: 0, items: 0 }])
+    renderSection()
+    const card = await screen.findByRole('link', { name: 'View creations by Soul Magic' })
+
+    expect(card.textContent).toContain('Total sales: 0')
+    expect(card.textContent).toContain('0 Collections | 0 Items')
   })
 
   it('should link each card to the creator storefront listings, with no collections flag', async () => {

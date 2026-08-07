@@ -9,6 +9,14 @@ const AVATAR = 154
 const AVATAR_MOBILE = 155
 // The CTA's height plus the gap above it — the slot the panel reserves for it permanently (see Panel).
 const CTA_SLOT = 62
+// The panel's own inline padding: what the CTA is inset by, which is NOT what the text is inset by.
+// Figma draws a 366px card with a 340px button and text 270px wide, so the two take different insets and
+// the difference lives on the text block (see TextBlock).
+const PANEL_INSET = 13
+const TEXT_INSET = 35
+// The panel starts just BELOW the avatar's midpoint, not exactly at it — the 4px gap Figma puts between
+// the card's top strip and the info panel.
+const PANEL_DROP = 4
 // The hover ring: its thickness and the clear space it leaves around the panel.
 const RING = 3
 const RING_GAP = 3
@@ -153,12 +161,12 @@ export const Panel = styled.span`
   flex-direction: column;
   align-items: center;
   width: 100%;
-  margin-top: -${AVATAR / 2}px;
-  padding: ${AVATAR / 2 + 7}px 24px 16px;
+  margin-top: -${AVATAR / 2 - PANEL_DROP}px;
+  padding: ${AVATAR / 2 + 7}px ${PANEL_INSET}px 16px;
 
   /* The offset is half the avatar, so it has to follow the mobile avatar up as well. */
   ${media.maxWidth('mobile')} {
-    margin-top: -${AVATAR_MOBILE / 2}px;
+    margin-top: -${AVATAR_MOBILE / 2 - PANEL_DROP}px;
     padding-top: ${AVATAR_MOBILE / 2 + 7}px;
   }
 
@@ -223,6 +231,16 @@ export const Panel = styled.span`
   }
 `
 
+// Name and blurb read as one block, gapless — the design sets no space between them, and the 1.6 line
+// heights already carry the rhythm.
+export const TextBlock = styled.span`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  padding: 0 ${TEXT_INSET}px;
+`
+
 export const Name = styled.span`
   max-width: 100%;
   overflow: hidden;
@@ -236,16 +254,14 @@ export const Name = styled.span`
 
 // Two lines, always: clamped so a long blurb can't make one card taller than its neighbours, and
 // floored at the same two lines so a short one doesn't make it shorter.
+// Two lines, always: the design gives the card two, and floored at that height so a creator missing one
+// of them cannot make their card shorter than its neighbours.
 export const Desc = styled.span`
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
   min-height: 3.2em;
-  margin-top: 4px;
-  overflow: hidden;
   color: ${colors.gray4};
   font-size: 16px;
   line-height: 1.6;
+  text-align: center;
 `
 
 // Keeps its box whether it is showing or not (see Panel) and only fades — revealed by the CARD rather
@@ -258,7 +274,7 @@ export const Cta = styled.span`
   width: 100%;
   height: 46px;
   margin-top: 16px;
-  border-radius: ${radius.card};
+  border-radius: 12px;
   background: rgba(0, 0, 0, 0.4);
   color: ${colors.softWhite};
   font-size: 13px;
@@ -285,7 +301,12 @@ export const Cta = styled.span`
   @media (hover: none) {
     opacity: 1;
   }
+  /* On mobile the button is the card's one affordance rather than a hover reveal, so it inverts to the
+     light fill the design gives that variant. */
   ${media.maxWidth('mobile')} {
+    height: 40px;
+    background: ${colors.media};
+    color: ${colors.text};
     opacity: 1;
   }
 `

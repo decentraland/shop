@@ -831,7 +831,8 @@
     "title": "Conoce a nuestros mejores creadores",
     "viewCreations": "Ver creaciones",
     "viewCreationsBy": "Ver las creaciones de {name}",
-    "sales": "{sales, plural, one {# venta} other {# ventas}} en los últimos {days} días"
+    "catalogue": "{collections} Colecciones | {items} Artículos",
+    "totalSales": "Ventas totales: {sales}"
   },
   "loadMore": {
     "loading": "Cargando…",

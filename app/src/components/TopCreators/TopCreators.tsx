@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { t } from '~/intl/i18n'
 import { getAvatarBackgroundColor, getDisplayName } from '~/lib/avatarColor'
+import { formatCount } from '~/lib/text'
 import { railGeometry, railPageFromGeometry, scrollRailToPage } from '~/lib/pagedRail'
 import { fetchProfiles } from '~/lib/profile'
 import { fetchShopTopCreators } from '~/lib/rankings'
@@ -14,9 +15,9 @@ import * as S from './TopCreators.styles'
 // two-page carousel with arrows and dots, like every other rail on the home page; below the mobile
 // breakpoint it steps down to one card per page.
 //
-// The card says what put the creator on the row — their recent sales — and nothing else. It used to
-// blurb their published collection and item totals instead, which read as a catalogue size and left a
-// creator with one busy collection looking smaller than a dormant one with twenty.
+// The card introduces the creator with what they have published and what they have sold over all time.
+// The RANKING is still the last 30 days — recent activity is what earns a place on the row — but the
+// figures on the card are their standing, which is what a shopper is being asked to judge them on.
 //
 // States: eight skeleton cards while loading; on error OR an empty row the section renders nothing.
 
@@ -38,7 +39,15 @@ function creationsPath(address: string): string {
 }
 
 function CreatorCard({ creator }: { creator: TopCreator }) {
-  const { address, name, sales, face } = creator
+  const { address, name, totalSales, collections, items, face } = creator
+
+  // `undefined` is "not sent", which is not the same as zero: a creator really can have sold nothing, and
+  // that is worth saying. Only a missing figure drops its line.
+  const catalogue =
+    collections != null && items != null
+      ? t('topCreators.catalogue', { collections: formatCount(collections), items: formatCount(items) })
+      : null
+  const lifetime = totalSales != null ? t('topCreators.totalSales', { sales: formatCount(totalSales) }) : null
 
   // Deterministic per-user avatar backdrop — identical to CreatorHero / the in-world client
   // (ADR-292, see lib/avatarColor). Shows behind a transparent face snapshot and as the placeholder.
@@ -54,8 +63,20 @@ function CreatorCard({ creator }: { creator: TopCreator }) {
         {face ? <img src={face} alt="" loading="lazy" /> : null}
       </S.Avatar>
       <S.Panel>
-        <S.Name title={name}>{name}</S.Name>
-        <S.Desc>{t('topCreators.sales', { sales, days: DAYS })}</S.Desc>
+        <S.TextBlock>
+          <S.Name title={name}>{name}</S.Name>
+          {/* Each line renders only if the ranking gave us its figures. The blurb keeps its two-line floor
+              either way, so a card missing one is the same height as its neighbours. */}
+          <S.Desc>
+            {catalogue ? (
+              <>
+                {catalogue}
+                <br />
+              </>
+            ) : null}
+            {lifetime}
+          </S.Desc>
+        </S.TextBlock>
         {/* Visual only: the card's link is already named "view creations by …", so a second copy of
             that text in the accessibility tree would just be noise. */}
         <S.Cta aria-hidden>{t('topCreators.viewCreations')}</S.Cta>
@@ -111,11 +132,6 @@ export function TopCreators() {
     if (!geometry) return
     setPageCount(geometry.pageCount)
     setPage(railPageFromGeometry(el, geometry))
-    // Centre the arrows on the avatar rather than on the whole card: the card is tall and mostly panel,
-    // so its midpoint lands in the middle of the blurb.
-    const avatar = el.querySelector<HTMLElement>('[data-testid="top-creator-card"] > *')
-    if (avatar)
-      el.parentElement?.style.setProperty('--rail-arrow-top', `${avatar.offsetTop + avatar.offsetHeight / 2}px`)
   }, [])
 
   useEffect(() => {

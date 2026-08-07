@@ -831,7 +831,8 @@
     "title": "Meet Our Top Creators",
     "viewCreations": "View creations",
     "viewCreationsBy": "View creations by {name}",
-    "sales": "{sales, plural, one {# sale} other {# sales}} in the last {days} days"
+    "catalogue": "{collections} Collections | {items} Items",
+    "totalSales": "Total sales: {sales}"
   },
   "loadMore": {
     "loading": "Loading…",
