@@ -202,7 +202,12 @@ export function TopCreators() {
             />
           ))}
         </S.Dots>
-      ) : null}
+      ) : (
+        // The strip keeps its box while the row loads (see OutfitsRow, and Dots' own min-height): eight
+        // cards is always more than one page, so the dots WILL arrive — and arriving with the content is
+        // 24px of footer moving down the moment the ranking lands.
+        <S.Dots aria-hidden data-testid="rail-dots-reserved" />
+      )}
     </S.Root>
   )
 }
