@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { Button } from '~/components/Button'
 import { theme } from '~/styles/theme'
 
-const { colors } = theme
+const { colors, gradients } = theme
 
 // The rail item matches the 1080×1600 thumbnail export (27:40). The visible card is the item's bottom
 // 3:4 (the Figma card proportion): 1 − (3/4)/(40/27) leaves exactly 10% of transparent headroom on
@@ -48,8 +48,8 @@ export const Card = styled(Link)`
   }
 
   @media (hover: hover) {
-    &:hover [data-card-frame] {
-      outline-color: ${colors.dclRed};
+    &:hover [data-card-frame]::after {
+      opacity: 1;
     }
     &:hover [data-card-media] {
       transform: scale(1.035);
@@ -66,10 +66,10 @@ export const Card = styled(Link)`
     }
   }
 
-  // Same stroke the pointer gets — a keyboard user is being shown the same state, so it cannot be a
-  // different colour.
-  &:focus-within [data-card-frame] {
-    outline-color: ${colors.dclRed};
+  // Same stroke the pointer gets — a keyboard user is being shown the same state, so it cannot look
+  // different.
+  &:focus-within [data-card-frame]::after {
+    opacity: 1;
   }
   &:focus-within [data-card-media] {
     transform: scale(1.035);
@@ -123,12 +123,39 @@ export const Frame = styled.div`
   ${theme.media.maxWidth('mobile')} {
     top: 0;
   }
-  // The hover stroke (Figma 2090:402143): 2px, a 2px breath outside the card's edge. An outline rather
-  // than a border so it costs no layout, and it paints with the Frame — i.e. BEHIND the thumbnail, so the
-  // cresting head occludes it exactly like the design.
-  outline: 2px solid transparent;
-  outline-offset: 2px;
-  transition: outline-color 0.2s ease;
+
+  /**
+   * The hover stroke (Figma 2090:402143): 2px of the warm ember ramp, held 2px off the card's edge.
+   *
+   * A GRADIENT, not the flat red the node's base rectangle reports. Sampling the design's own render around
+   * the perimeter gives #ffa059 on the left edge and #ff5c57 on the right, and both sit on the
+   * #ffbc5b → #ff2d55 interpolation — which is the ember token the theme already reserves for a hover
+   * ring. A border/outline cannot carry a gradient, so this is the masked-ring trick styles/card.styles
+   * uses for the item cards.
+   *
+   * It is a child of the Frame, so it paints BEHIND the thumbnail and the cresting head occludes it exactly
+   * like the design (visible in the node render: the ring's top edge disappears behind the avatar's hair).
+   */
+  &::after {
+    content: '';
+    position: absolute;
+    // 2px of gap + 2px of stroke.
+    inset: -4px;
+    border-radius: 20px;
+    padding: 2px;
+    background: ${gradients.ember};
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    pointer-events: none;
+  }
 `
 
 // Clips the look left, right and bottom (matching the card's rounded corners) but leaves the TOP OPEN so
