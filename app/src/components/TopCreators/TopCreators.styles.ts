@@ -7,14 +7,19 @@ const { colors, radius, media } = theme
 
 const AVATAR = 154
 const AVATAR_MOBILE = 155
+// The CTA's height. Mobile shows it permanently at the shorter size the design gives that variant.
+// SHARED with the skeleton, which has to match the loaded card to the pixel — see SkeletonCta.
+const CTA_HEIGHT = 46
+const CTA_HEIGHT_MOBILE = 40
+
 /**
  * What the panel leaves UNPAINTED for the hover CTA — the button's own height, and not the 16px gap above
  * it, which the fill covers.
  *
- * The slot itself is permanent either way (see Panel): it is what stops the page below the row moving 62px
+ * The slot itself is permanent either way (see Panel): it is what stops the page below the row moving
  * every time a pointer crosses a card. Painting the gap is the part of it that can be reclaimed for free.
  */
-const CTA_SLOT = 46
+const CTA_SLOT = CTA_HEIGHT
 // The panel's own inline padding: what the CTA is inset by, which is NOT what the text is inset by.
 // Figma draws a 366px card with a 340px button and text 270px wide, so the two take different insets and
 // the difference lives on the text block (see TextBlock).
@@ -278,7 +283,7 @@ export const Cta = styled.span`
   align-items: center;
   justify-content: center;
   width: 100%;
-  height: 46px;
+  height: ${CTA_HEIGHT}px;
   margin-top: 16px;
   border-radius: 12px;
   background: rgba(0, 0, 0, 0.4);
@@ -310,7 +315,7 @@ export const Cta = styled.span`
   /* On mobile the button is the card's one affordance rather than a hover reveal, so it inverts to the
      light fill the design gives that variant. */
   ${media.maxWidth('mobile')} {
-    height: 40px;
+    height: ${CTA_HEIGHT_MOBILE}px;
     background: ${colors.media};
     color: ${colors.text};
     opacity: 1;
@@ -334,7 +339,6 @@ export const SkeletonDescBlock = styled.span`
   align-items: center;
   width: 100%;
   min-height: 3.2em;
-  margin-top: 4px;
   font-size: 16px;
 `
 
@@ -351,11 +355,16 @@ export const SkeletonDesc = styled.span`
   }
 `
 
-// The CTA's slot, which a loaded card always carries (see Panel) — without it the row would grow by
-// 56px the moment the ranking landed.
+// The CTA's slot, which a loaded card always carries (see Panel) — and at the SAME height, including the
+// shorter mobile one. A skeleton that is even a few pixels off its loaded card is a page that resizes the
+// moment the ranking lands, which is the whole thing these styles exist to prevent.
 export const SkeletonCta = styled.span`
   width: 100%;
-  height: 46px;
+  height: ${CTA_HEIGHT}px;
   margin-top: 16px;
-  border-radius: ${radius.card};
+  border-radius: 12px;
+
+  ${media.maxWidth('mobile')} {
+    height: ${CTA_HEIGHT_MOBILE}px;
+  }
 `
