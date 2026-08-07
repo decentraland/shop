@@ -148,9 +148,10 @@ describe('NameBuyModal', () => {
   })
 
   /**
-   * The purchase is cross-chain and the bridge leg runs for MINUTES. A single processing message for all of
-   * it left "Confirm to continue…" on screen long after the buyer had confirmed, which reads as hung — the
-   * one thing a screen holding someone's money must never look like.
+   * Registering a NAME is ONE step, and the screen says so — except for a self-custody buyer, who has a
+   * wallet prompt to answer before that step can start. The purchase is also cross-chain, and the bridge
+   * leg runs for MINUTES: a screen that cannot say so reads as hung, which is the one thing a screen
+   * holding someone's money must never look like.
    */
   describe('and the purchase is in progress', () => {
     // Drives the modal through the stages by hand and never resolves, so each message can be read while the
@@ -186,21 +187,23 @@ describe('NameBuyModal', () => {
       act(() => advance())
 
       expect(screen.queryByText(/confirm to continue/i)).toBeNull()
-      expect(screen.getByText(/completing your purchase/i)).toBeTruthy()
+      expect(screen.getByText(/completing transaction/i)).toBeTruthy()
     })
 
     it('should stop asking for confirmation once the transaction is submitted', async () => {
+      session.providerType = 'injected'
       const advance = renderAtStage('confirming')
 
       await waitFor(() => expect(registerNameWithUsdCredits).toHaveBeenCalled())
       act(() => advance())
 
-      expect(screen.getByText(/confirming your purchase/i)).toBeTruthy()
+      expect(screen.getByText(/completing transaction/i)).toBeTruthy()
       expect(screen.queryByText(/confirm to continue/i)).toBeNull()
     })
 
     // The long stretch. It has to say the wait is expected, or a buyer concludes it broke and tries again.
-    it('should say the NAME is being registered, and that it takes minutes, during the bridge', async () => {
+    // Carried BESIDE the step name rather than replacing it: the step is still "completing transaction".
+    it('should say the bridge takes minutes, without renaming the step it is part of', async () => {
       const advance = renderAtStage('registering')
 
       await waitFor(() => expect(registerNameWithUsdCredits).toHaveBeenCalled())
@@ -208,8 +211,51 @@ describe('NameBuyModal', () => {
 
       expect(screen.getByText(/registering your NAME/i)).toBeTruthy()
       expect(screen.getByText(/few minutes/i)).toBeTruthy()
+      expect(screen.getByText(/completing transaction/i)).toBeTruthy()
       expect(screen.queryByText(/confirm to continue/i)).toBeNull()
     })
+
+    /**
+     * The counter, which is what makes the wait legible as progress rather than as a hang.
+     *
+     * A managed wallet has nothing to answer, so registering the NAME is the whole purchase: one step, as
+     * the design draws it. Promoting our own internal phases (`preparing`, `confirming`) into steps would
+     * inflate that number with work the buyer cannot act on.
+     */
+    it('should count a managed-wallet purchase as the single step it is', async () => {
+      session.providerType = 'magic'
+      const advance = renderAtStage('preparing')
+
+      await waitFor(() => expect(registerNameWithUsdCredits).toHaveBeenCalled())
+      act(() => advance())
+      expect(screen.getByTestId('name-progress-count').textContent).toBe('1/1')
+
+      act(() => advance())
+      expect(screen.getByTestId('name-progress-count').textContent).toBe('1/1')
+    })
+
+    it('should count the wallet prompt as a self-custody buyer own first step', async () => {
+      session.providerType = 'injected'
+      const advance = renderAtStage('awaiting-confirmation')
+
+      await waitFor(() => expect(registerNameWithUsdCredits).toHaveBeenCalled())
+      act(() => advance())
+
+      expect(screen.getByTestId('name-progress-count').textContent).toBe('1/2')
+    })
+
+    it.each(['confirming', 'registering'])(
+      'should move a self-custody buyer onto the last step at %s, once there is nothing left for them to do',
+      async stage => {
+        session.providerType = 'injected'
+        const advance = renderAtStage(stage)
+
+        await waitFor(() => expect(registerNameWithUsdCredits).toHaveBeenCalled())
+        act(() => advance())
+
+        expect(screen.getByTestId('name-progress-count').textContent).toBe('2/2')
+      }
+    )
   })
 
   describe('and the bridge has not landed yet', () => {
