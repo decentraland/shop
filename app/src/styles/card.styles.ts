@@ -1,7 +1,7 @@
 import { css } from '@emotion/react'
 import { theme } from '~/styles/theme'
 
-const { colors, gradients } = theme
+const { colors, gradients, radius } = theme
 
 // 1px of a TRANSLUCENT grey, which is what Figma's "0.25px Gray 3" actually means once rendered — the two
 // are not the same thing and confusing them puts the outline 4x too dark.
@@ -33,9 +33,20 @@ export const ringLit = css`
 
 // Hover stroke (Figma "Marketplace Cards" hover, 635:789): 3px of the Cerise gradient
 // (#ff2d55 → #c640cd). A gradient fill masked down to the ring, since a border can't carry one.
+//
+// It deliberately overhangs the card by 1px and lets the card's own `overflow: hidden` cut it back.
+// Sitting flush at inset 0 left a pale hairline along the OUTSIDE of the stroke: the card's rounded clip
+// and this element's own rounded background are two separate rasterisations of the same 12px arc, and
+// Chrome does not give them identical coverage — wherever the clip won by a fraction of a pixel, the light
+// media underneath showed past the stroke. Overhanging makes the CLIP the thing that draws the outer edge,
+// so the stroke and the media it covers are bounded by one and the same arc and cannot disagree. The
+// padding carries the extra pixel so the visible band stays 3px.
 export const ringHover = css`
+  inset: -1px;
   border: 0;
-  padding: 3px;
+  padding: 4px;
+  // Concentric with the card's own corner, so the overhang is an even 1px the whole way round.
+  border-radius: calc(${radius.card} + 1px);
   background: ${gradients.cerise};
   -webkit-mask:
     linear-gradient(#000 0 0) content-box,
