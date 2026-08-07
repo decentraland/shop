@@ -32,6 +32,8 @@ import { NewPricingModal } from '~/components/NewPricingModal'
 import { dismissPrompt, isPromptDismissed, MANA_PRICING_PROMPT } from '~/lib/dismissed-prompts'
 import * as A from './Assets.styles'
 import * as F from '~/components/Filters/Filters.styles'
+import myItemsEmptyArt from '~/assets/error/my-items-empty.svg'
+import creationsEmptyArt from '~/assets/error/creations-empty.svg'
 import * as S from './MyAssets.styles'
 
 const PAGE_SIZE = 48
@@ -538,14 +540,15 @@ export function MyAssets() {
               )}
             </S.Grid>
             {!publishableLoading && creations.length === 0 ? (
-              <S.EmptyState>
+              <S.EmptyState data-testid="creations-empty">
                 <S.EmptyIcon>
-                  <Icon name="pen" size={96} aria-hidden />
+                  <S.EmptyArt src={creationsEmptyArt} alt="" />
                 </S.EmptyIcon>
                 <S.EmptyCopy>
                   <S.EmptyTitle>{t('myAssets.emptyCreationsTitle')}</S.EmptyTitle>
                   <S.EmptyText>{t('myAssets.nothingToPublish')}</S.EmptyText>
                 </S.EmptyCopy>
+                <S.EmptyCta to="/items">{t('myAssets.emptyBrowse')}</S.EmptyCta>
               </S.EmptyState>
             ) : null}
           </>
@@ -590,13 +593,13 @@ export function MyAssets() {
               />
             ) : null}
             {!ownedLoading && !isPlaceholderData && ownedAssets.length === 0 ? (
-              <S.EmptyState>
+              <S.EmptyState data-testid="owned-empty">
                 <S.EmptyIcon>
-                  <Icon
-                    name={section === 'names' ? 'website' : section === 'emotes' ? 'emote-dance' : 'cat-upper'}
-                    size={96}
-                    aria-hidden
-                  />
+                  {section === 'names' ? (
+                    <Icon name="website" size={96} aria-hidden />
+                  ) : (
+                    <S.EmptyArt data-inset src={myItemsEmptyArt} alt="" />
+                  )}
                 </S.EmptyIcon>
                 <S.EmptyCopy>
                   <S.EmptyTitle>

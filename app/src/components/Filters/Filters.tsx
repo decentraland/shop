@@ -121,18 +121,40 @@ export function Filters({
 
   const min = priceMin && !Number.isNaN(Number(priceMin)) ? Number(priceMin) : undefined
   const max = priceMax && !Number.isNaN(Number(priceMax)) ? Number(priceMax) : undefined
-  const sliderMin = min != null ? Math.min(min, PRICE_SLIDER_MAX) : 0
-  const sliderMax = max != null ? Math.min(max, PRICE_SLIDER_MAX) : PRICE_SLIDER_MAX
+
+  /**
+   * While a thumb is held its value lives here instead of in the URL.
+   *
+   * Every tick used to write the URL, so a single drag refetched the grid dozens of times, and each refetch
+   * swapped the loaded cards for placeholders — the page collapsed and sprang back under the reader's
+   * cursor. Everything the control draws (thumb, fill, the two figures under the track, the Min/Max boxes)
+   * reads the dragged value, so the slider still follows the finger; only the RESULTS wait for the release.
+   */
+  const [drag, setDrag] = useState<{ min?: number; max?: number }>({})
+
+  const committedMin = min != null ? Math.min(min, PRICE_SLIDER_MAX) : 0
+  const committedMax = max != null ? Math.min(max, PRICE_SLIDER_MAX) : PRICE_SLIDER_MAX
+  const sliderMin = drag.min ?? committedMin
+  const sliderMax = drag.max ?? committedMax
   // The thumbs run on the track's own scale, which is not the price scale — see lib/price-slider.
   const minPct = priceToSliderPct(sliderMin)
   const maxPct = priceToSliderPct(sliderMax)
+  // An endpoint of the range is "no filter", which the URL spells as absent rather than as a number.
+  const minText = (n: number) => (n <= 0 ? '' : String(n))
+  const maxText = (n: number) => (n >= PRICE_SLIDER_MAX ? '' : String(n))
+
   function onSlideMin(pos: number) {
-    const n = Math.min(sliderPosToPrice(pos), sliderMax)
-    onPriceMin(n <= 0 ? '' : String(n))
+    setDrag(d => ({ ...d, min: Math.min(sliderPosToPrice(pos), sliderMax) }))
   }
   function onSlideMax(pos: number) {
-    const n = Math.max(sliderPosToPrice(pos), sliderMin)
-    onPriceMax(n >= PRICE_SLIDER_MAX ? '' : String(n))
+    setDrag(d => ({ ...d, max: Math.max(sliderPosToPrice(pos), sliderMin) }))
+  }
+  // Release — pointer, key or focus leaving mid-gesture — is what reaches the URL and so the grid.
+  function commitSlide() {
+    if (drag.min === undefined && drag.max === undefined) return
+    if (drag.min !== undefined) onPriceMin(minText(drag.min))
+    if (drag.max !== undefined) onPriceMax(maxText(drag.max))
+    setDrag({})
   }
 
   const categoryLabelKey = CATEGORIES.find(c => c.key === category)?.labelKey
@@ -190,7 +212,7 @@ export function Filters({
                 min="0"
                 aria-label={t('assets.minPriceAria')}
                 placeholder="0"
-                value={priceMin}
+                value={drag.min !== undefined ? minText(drag.min) : priceMin}
                 onChange={e => onPriceMin(e.target.value)}
               />
             </S.PriceBox>
@@ -204,7 +226,7 @@ export function Filters({
                 min="0"
                 aria-label={t('assets.maxPriceAria')}
                 placeholder="0"
-                value={priceMax}
+                value={drag.max !== undefined ? maxText(drag.max) : priceMax}
                 onChange={e => onPriceMax(e.target.value)}
               />
             </S.PriceBox>
@@ -225,6 +247,9 @@ export function Filters({
             // the stack there — see SliderInput for what the pair does when the thumbs meet.
             data-on-top={minPct >= 50 ? '' : undefined}
             onChange={e => onSlideMin(Number(e.target.value))}
+            onPointerUp={commitSlide}
+            onKeyUp={commitSlide}
+            onBlur={commitSlide}
           />
           <S.SliderInput
             type="range"
@@ -234,6 +259,9 @@ export function Filters({
             aria-label={t('assets.maxPriceSliderAria')}
             aria-valuetext={sliderMax.toLocaleString()}
             onChange={e => onSlideMax(Number(e.target.value))}
+            onPointerUp={commitSlide}
+            onKeyUp={commitSlide}
+            onBlur={commitSlide}
           />
         </S.Slider>
 

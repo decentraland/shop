@@ -414,12 +414,12 @@ export function AssetCard(props: AssetCardProps) {
           </S.Action>
         </S.Body>
       ) : isNameItem ? (
-        // Owned NAME (read-only): @name + verified badge, and the NOT FOR SALE tag (never listable here).
+        // Owned NAME (read-only): the name + verified badge, and the NOT FOR SALE tag (never listable here).
         <S.Body data-name>
           <S.Top>
             <S.Desc>
               <S.Name data-verified title={item.name}>
-                <span>@{item.name}</span>
+                <span>{item.name}</span>
                 {/* DCL verified badge: scalloped Cerise-gradient seal + white check. Inlined (not the
                     Icon mask) so the gradient renders. */}
                 <S.Verified width="18" height="18" viewBox="0 0 14.6921 14.6931" fill="none" aria-hidden>

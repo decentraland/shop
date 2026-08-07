@@ -320,7 +320,7 @@ export const Body = styled.div`
     }
   }
 
-  // data-name = a NAME card's footer: it hugs its single row (@name + NOT FOR SALE), and the @name tile
+  // data-name = a NAME card's footer: it hugs its single row (name + NOT FOR SALE), and the name tile
   // above keeps the height it gives back. The 16px inset already supplies the breathing room this used
   // to add on top of the old 8px base.
   &[data-name] {
