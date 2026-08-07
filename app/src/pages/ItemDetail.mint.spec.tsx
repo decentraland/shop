@@ -187,10 +187,18 @@ describe('ItemDetail — a store mint reached from a card that cannot say it is 
     expect(screen.getByText('61/100')).toBeInTheDocument()
   })
 
-  it('should not re-read a card that already carries both facts', async () => {
+  /**
+   * This asserted the OPPOSITE until #316: a card carrying both facts used to skip the read, to save a
+   * request the page seemed not to need.
+   *
+   * It needs it. Price and `tradeId` on a seeded card are a snapshot of the grid that linked here, and the
+   * trade they name may already be cancelled or repriced — leaving a stale figure on screen with a Buy
+   * button under it. Saving one request is not worth quoting someone a price that is no longer real, so
+   * the read is now unconditional on the item route and this pins that.
+   */
+  it('should re-read the listing even when the card already carries both facts', async () => {
     renderFromGrid({ ...gridCard, tradeId: 'trade-1', acquisition: 'trade' })
 
-    await waitFor(() => expect(screen.getByTestId('item-price')).toBeInTheDocument())
-    expect(fetchUnifiedListingForItem).not.toHaveBeenCalled()
+    await waitFor(() => expect(fetchUnifiedListingForItem).toHaveBeenCalled())
   })
 })
