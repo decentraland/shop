@@ -174,8 +174,14 @@ export function Assets() {
   // so without this the grid would keep the now-stale cards on screen until the new data lands. On the
   // filter-change case keep the skeleton count equal to the number of cards currently shown so the grid
   // height doesn't jump; on the very first load fall back to a sensible full-ish grid.
+  //
+  // The count is deliberately NOT capped at PAGE_SIZE. It used to be, which held the height only until the
+  // reader paged past the first 48: with 96 cards loaded, one nudge of the price slider swapped them for 48
+  // skeletons, the document fell from 10995px to 5939px, and the browser clamped the scroll position 4461px
+  // down before the results landed and put it back. The lurch is the bug — a placeholder that stands in for
+  // N cards has to be N cards tall.
   const showGridSkeletons = isLoading || isPlaceholderData || ratePendingForLegacy
-  const gridSkeletonCount = isLoading ? 15 : Math.min(Math.max(items.length, 1), PAGE_SIZE)
+  const gridSkeletonCount = isLoading ? 15 : Math.max(items.length, 1)
 
   // Funnel: fire 'Shop Searched'/'Shop Applied Filter' once per change, AFTER results resolve so
   // result_count is accurate (see design/SHOP_TRACKING_SPEC.md §5.2). Refs dedupe + skip the initial load.

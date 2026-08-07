@@ -16,13 +16,13 @@
 
 import { ethers } from 'ethers'
 import { type Trade } from '@dcl/schemas'
-import { ContractName, ErrorCode, MetaTransactionError, getContract, getContractName } from 'decentraland-transactions'
+import { ContractName, ErrorCode, MetaTransactionError, getContract } from 'decentraland-transactions'
 import { config } from '~/config'
 import { gaslessConfig } from '~/lib/gasless-config'
-import { buildUseCreditsArgs, type SpendableCredit } from '~/lib/trade-encoding'
+import { type SpendableCredit } from '~/lib/trade-encoding'
 // The grouping and the per-group calldata live in ~/lib/buy so BOTH rails build the money call the same
 // way. buy.ts does not import this module, so the dependency runs one way only.
-import { buildGroupUseCreditsArgs, groupPurchases, type MixedPurchases } from '~/lib/buy'
+import { buildGroupUseCreditsArgs, groupPurchases, type AnyPurchase, type MixedPurchases } from '~/lib/buy'
 import { reportSubmittedTx } from '~/lib/purchase-report'
 
 const { Interface, hexZeroPad } = ethers.utils
@@ -240,15 +240,29 @@ export async function buyGasless(opts: {
   credits: SpendableCredit[]
   maxCreditedValue: string
 }): Promise<string> {
-  if (!gaslessConfig.enabled) throw new GaslessUnavailableError('gasless checkout disabled', 'disabled')
   const { trade, buyer, signer, credits, maxCreditedValue } = opts
-  if (credits.length === 0) throw new Error('No credits to spend')
+  return buyOneGasless({ purchase: { kind: 'trade', trade, credits, maxCreditedValue }, buyer, signer })
+}
 
-  const marketplace = getContract(getContractName(trade.contract), trade.chainId)
-  const args = buildUseCreditsArgs(marketplace.address, marketplace.abi, [trade], buyer, credits, maxCreditedValue)
-  const cm = getContract(ContractName.CreditsManager, trade.chainId)
+/**
+ * Gasless single-purchase buy for EITHER rail — an offchain trade or a CollectionStore mint. The relayed
+ * counterpart to lib/buy's `buyOneWithCredits`, and the reason a mint can be bought from the item page
+ * without the buyer holding POL: `buildGroupUseCreditsArgs` builds both kinds of call, so the item page's
+ * Buy now reaches the relayer for a mint exactly as a cart containing one does.
+ */
+export async function buyOneGasless(opts: {
+  purchase: AnyPurchase
+  buyer: string
+  signer: ethers.Signer
+}): Promise<string> {
+  if (!gaslessConfig.enabled) throw new GaslessUnavailableError('gasless checkout disabled', 'disabled')
+  const { purchase, buyer, signer } = opts
+  if (purchase.credits.length === 0) throw new Error('No credits to spend')
+
+  const { args, chainId } = buildGroupUseCreditsArgs(groupPurchases([purchase])[0], buyer)
+  const cm = getContract(ContractName.CreditsManager, chainId)
   const functionData = new Interface(cm.abi).encodeFunctionData('useCredits', [args])
-  return relay(trade.chainId, buyer, functionData, signer)
+  return relay(chainId, buyer, functionData, signer)
 }
 
 /**

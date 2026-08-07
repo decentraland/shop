@@ -66,12 +66,20 @@ const { authorizeUsdCredit, cancelUsdIntents } = vi.hoisted(() => ({
 vi.mock('~/lib/credits', () => ({ authorizeUsdCredit, cancelUsdIntents, getUsdBalance: vi.fn() }))
 
 // The seam under test: a driver that reports outcomes through the real callbacks.
-const { buyWithCredits } = vi.hoisted(() => ({ buyWithCredits: vi.fn() }))
-vi.mock('~/lib/buy', () => ({ buyWithCredits }))
-vi.mock('~/lib/buy-mana', () => ({ buyWithMana: vi.fn(), buyWithCreditsAndMana: vi.fn() }))
+const { buyOneWithCredits } = vi.hoisted(() => ({ buyOneWithCredits: vi.fn() }))
+vi.mock('~/lib/buy', () => ({ buyOneWithCredits }))
+// Only the SUBMIT functions are stubbed: the pure helpers that decide what a purchase settles as are the real
+// ones, so a test asserting on what reaches the buy rail is asserting on what production would build.
+vi.mock('~/lib/buy-mana', async orig => ({
+  ...(await orig<Record<string, unknown>>()),
+  buyWithMana: vi.fn(),
+  buyMintWithMana: vi.fn(),
+  buyWithCreditsAndMana: vi.fn(),
+  buyMintWithCreditsAndMana: vi.fn()
+}))
 // The gasless rail is the production default, so it has to be drivable rather than hard-mocked off.
-const { buyGasless, waitForSettlement, gaslessOn, GaslessUnavailable, SettlementPending } = vi.hoisted(() => ({
-  buyGasless: vi.fn(),
+const { buyOneGasless, waitForSettlement, gaslessOn, GaslessUnavailable, SettlementPending } = vi.hoisted(() => ({
+  buyOneGasless: vi.fn(),
   waitForSettlement: vi.fn(),
   gaslessOn: { value: false },
   GaslessUnavailable: class GaslessUnavailableError extends Error {
@@ -85,14 +93,22 @@ const { buyGasless, waitForSettlement, gaslessOn, GaslessUnavailable, Settlement
 }))
 vi.mock('~/lib/gasless-config', () => ({ gaslessEnabled: () => gaslessOn.value }))
 vi.mock('~/lib/buy-gasless', () => ({
-  buyGasless,
+  buyOneGasless,
   waitForSettlement,
   GaslessUnavailableError: GaslessUnavailable,
   SettlementPendingError: SettlementPending
 }))
 
-const { resolveLiveTrade } = vi.hoisted(() => ({ resolveLiveTrade: vi.fn() }))
-vi.mock('~/lib/api', async orig => ({ ...(await orig<Record<string, unknown>>()), resolveLiveTrade }))
+const { resolveLiveTrade, fetchStoreMintState } = vi.hoisted(() => ({
+  resolveLiveTrade: vi.fn(),
+  // The live mint read a store item resolves through, the counterpart to resolving a trade.
+  fetchStoreMintState: vi.fn()
+}))
+vi.mock('~/lib/api', async orig => ({
+  ...(await orig<Record<string, unknown>>()),
+  resolveLiveTrade,
+  fetchStoreMintState
+}))
 vi.mock('~/lib/mana', () => ({ readTradeManaPriceWei: vi.fn(async () => 0n) }))
 vi.mock('~/lib/mana-rate', () => ({
   readManaUsdRate: vi.fn(async () => ({ rate: 50_000_000n, decimals: 8 })),
@@ -168,7 +184,7 @@ beforeEach(() => {
     maxCreditedValue: '1000000000000000000',
     usdCents: 2700
   })
-  buyWithCredits.mockResolvedValue('0xhash')
+  buyOneWithCredits.mockResolvedValue('0xhash')
   gaslessOn.value = false
   waitForSettlement.mockResolvedValue(undefined)
 })
@@ -177,7 +193,7 @@ describe('when the buy fails after the transaction was broadcast', () => {
   it('should NOT release the reservation', async () => {
     // No receipt to read (a replaced or dropped transaction), so the outcome is unknown and the credit may
     // well be consumed. The pessimistic side is the only safe one.
-    buyWithCredits.mockImplementation(async (opts: Record<string, any>) => {
+    buyOneWithCredits.mockImplementation(async (opts: Record<string, any>) => {
       opts.onBroadcast?.({ txHash: '0xbroadcast' })
       throw new Error('transaction was replaced')
     })
@@ -189,7 +205,7 @@ describe('when the buy fails after the transaction was broadcast', () => {
   })
 
   it('should release when the transaction reverted, because nothing was consumed', async () => {
-    buyWithCredits.mockImplementation(async (opts: Record<string, any>) => {
+    buyOneWithCredits.mockImplementation(async (opts: Record<string, any>) => {
       opts.onBroadcast?.({ txHash: '0xbroadcast' })
       // The revert carries ITS hash: one credit can back more than one transaction, so "a revert happened" is
       // not the same statement as "this credit is untouched".
@@ -206,7 +222,7 @@ describe('when the buy fails after the transaction was broadcast', () => {
 
   it('should still release when nothing was broadcast', async () => {
     // The pre-existing behaviour, which must not regress: a rejected signature spends nothing.
-    buyWithCredits.mockRejectedValue(new Error('user rejected transaction'))
+    buyOneWithCredits.mockRejectedValue(new Error('user rejected transaction'))
 
     renderResuming()
 
@@ -221,7 +237,7 @@ describe('when the buy fails after the transaction was broadcast', () => {
  */
 describe('when post-purchase bookkeeping throws', () => {
   it('should keep the purchase complete and release nothing', async () => {
-    buyWithCredits.mockImplementation(async (opts: Record<string, any>) => {
+    buyOneWithCredits.mockImplementation(async (opts: Record<string, any>) => {
       opts.onBroadcast?.({ txHash: '0xbroadcast' })
       return '0xhash'
     })
@@ -269,7 +285,7 @@ describe('the post-purchase My Items CTA', () => {
  */
 describe('when the modal unmounts with a transaction in flight', () => {
   it('should not release a reservation whose transaction was broadcast', async () => {
-    buyWithCredits.mockImplementation(
+    buyOneWithCredits.mockImplementation(
       (opts: Record<string, any>) =>
         new Promise(() => {
           opts.onBroadcast?.({ txHash: '0xbroadcast' })
@@ -277,7 +293,7 @@ describe('when the modal unmounts with a transaction in flight', () => {
     )
 
     const { unmount } = renderResuming()
-    await waitFor(() => expect(buyWithCredits).toHaveBeenCalled())
+    await waitFor(() => expect(buyOneWithCredits).toHaveBeenCalled())
     unmount()
 
     expect(cancelUsdIntents).not.toHaveBeenCalled()
@@ -289,10 +305,10 @@ describe('when the modal unmounts with a transaction in flight', () => {
    * the same corruption, arrived at from the other side.
    */
   it('should not release while the submit is still in flight, before any broadcast', async () => {
-    buyWithCredits.mockImplementation(() => new Promise(() => {}))
+    buyOneWithCredits.mockImplementation(() => new Promise(() => {}))
 
     const { unmount } = renderResuming()
-    await waitFor(() => expect(buyWithCredits).toHaveBeenCalled())
+    await waitFor(() => expect(buyOneWithCredits).toHaveBeenCalled())
     unmount()
 
     expect(cancelUsdIntents).not.toHaveBeenCalled()
@@ -306,7 +322,7 @@ describe('when the modal unmounts with a transaction in flight', () => {
     // submit was in flight, i.e. it codified the unsafe half of the very bug being fixed.
     const { unmount } = renderIdle()
     await waitFor(() => expect(authorizeUsdCredit).toHaveBeenCalled())
-    expect(buyWithCredits).not.toHaveBeenCalled()
+    expect(buyOneWithCredits).not.toHaveBeenCalled()
     unmount()
 
     await waitFor(() => expect(cancelUsdIntents).toHaveBeenCalledWith(session.identity, ['credit-1']))
@@ -331,7 +347,7 @@ describe('when the modal unmounts with a transaction in flight', () => {
 describe('when buying through the relayer', () => {
   it('should NOT release while a relayed transaction may still land', async () => {
     gaslessOn.value = true
-    buyGasless.mockResolvedValue('0xrelayed')
+    buyOneGasless.mockResolvedValue('0xrelayed')
     waitForSettlement.mockRejectedValue(new SettlementPending('still pending'))
 
     renderResuming()
@@ -343,7 +359,7 @@ describe('when buying through the relayer', () => {
 
   it('should release when the relayed transaction reverted', async () => {
     gaslessOn.value = true
-    buyGasless.mockResolvedValue('0xrelayed')
+    buyOneGasless.mockResolvedValue('0xrelayed')
     // waitForSettlement throws a plain Error only for a status-0 receipt: nothing was consumed.
     waitForSettlement.mockRejectedValue(new Error('transaction reverted'))
 
@@ -355,11 +371,11 @@ describe('when buying through the relayer', () => {
   it('should fall back to the direct rail when the relayer REFUSED', async () => {
     gaslessOn.value = true
     // A parsed rejection proves nothing was relayed, so re-using the credit is safe.
-    buyGasless.mockRejectedValue(new GaslessUnavailable('relayer 400', 'relayer-rejected'))
+    buyOneGasless.mockRejectedValue(new GaslessUnavailable('relayer 400', 'relayer-rejected'))
 
     renderResuming()
 
-    await waitFor(() => expect(buyWithCredits).toHaveBeenCalled())
+    await waitFor(() => expect(buyOneWithCredits).toHaveBeenCalled())
     expect(await screen.findByText(/purchase complete/i)).toBeInTheDocument()
   })
 
@@ -370,12 +386,12 @@ describe('when buying through the relayer', () => {
    */
   it('should neither re-submit nor release when the relayer was unreachable', async () => {
     gaslessOn.value = true
-    buyGasless.mockRejectedValue(new GaslessUnavailable('ECONNRESET', 'relayer-unreachable'))
+    buyOneGasless.mockRejectedValue(new GaslessUnavailable('ECONNRESET', 'relayer-unreachable'))
 
     renderResuming()
 
     await waitFor(() => expect(track).toHaveBeenCalledWith('Shop Purchase Failed', expect.anything()))
-    expect(buyWithCredits).not.toHaveBeenCalled()
+    expect(buyOneWithCredits).not.toHaveBeenCalled()
     expect(cancelUsdIntents).not.toHaveBeenCalled()
   })
 })
@@ -432,5 +448,66 @@ describe('when the buyer is short on credits', () => {
       await screen.findByText(/insufficient/i)
       expect(screen.getByRole('button', { name: /cancel/i })).toBeInTheDocument()
     })
+  })
+})
+
+/**
+ * Buying a CollectionStore MINT through this modal.
+ *
+ * A mint has no trade and never gets one, so every step that used to assume `accept([trade])` had to learn the
+ * other rail. These pin that the modal reaches the STORE with the price the chain will verify, and that the
+ * purchase intent still records what was bought — a mint's only identity, since it has no tradeId to name.
+ */
+describe('when the item is a CollectionStore mint', () => {
+  const TEN_MANA = (10n * 10n ** 18n).toString()
+  const mintItem: Partial<CatalogItem> = {
+    acquisition: 'store',
+    tradeId: undefined,
+    contractAddress: '0xcollection',
+    itemId: '7',
+    available: 4
+  }
+
+  beforeEach(() => {
+    // 1 MANA = $0.50 at 8 decimals, so 10 MANA = $5.00 = 50 credits.
+    fetchStoreMintState.mockResolvedValue({ priceWei: TEN_MANA, available: 4 })
+    // The trade resolver must never be consulted for a mint — there is nothing to resolve.
+    resolveLiveTrade.mockRejectedValue(new Error('no trade for a mint'))
+  })
+
+  it('should settle through the store, at the live price the contract will verify', async () => {
+    renderResuming(mintItem)
+
+    await waitFor(() => expect(buyOneWithCredits).toHaveBeenCalled())
+    const { purchase } = buyOneWithCredits.mock.calls[0][0]
+    expect(purchase.kind).toBe('store')
+    expect(purchase.item).toEqual({ collection: '0xcollection', itemId: '7', priceWei: TEN_MANA })
+    expect(purchase.credits).toEqual([{ id: 'credit-1' }])
+  })
+
+  it('should authorize with no tradeId but WITH what is being bought', async () => {
+    renderResuming(mintItem)
+
+    await waitFor(() => expect(authorizeUsdCredit).toHaveBeenCalled())
+    // Priced off the live mint read (500 cents), not the catalogue row the page was showing.
+    expect(authorizeUsdCredit).toHaveBeenCalledWith(session.identity, 500, undefined, {
+      contractAddress: '0xcollection',
+      itemId: '7'
+    })
+  })
+
+  it('should complete the purchase like any other', async () => {
+    renderResuming(mintItem)
+
+    expect(await screen.findByText(/purchase complete/i)).toBeInTheDocument()
+  })
+
+  it('should report a sold-out mint as no longer available, not as a broken purchase', async () => {
+    fetchStoreMintState.mockResolvedValue({ priceWei: TEN_MANA, available: 0 })
+
+    renderResuming(mintItem)
+
+    expect(await screen.findByTestId('buy-error')).toBeInTheDocument()
+    expect(buyOneWithCredits).not.toHaveBeenCalled()
   })
 })

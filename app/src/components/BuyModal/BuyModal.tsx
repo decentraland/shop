@@ -2,15 +2,14 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CircularProgress } from 'decentraland-ui2'
 import { useQueryClient } from '@tanstack/react-query'
-import { TradeAssetType, type Trade } from '@dcl/schemas'
 import { useWallet } from '~/store/wallet'
 import { useBalance } from '~/hooks/useBalance'
 import { useManaBalance } from '~/hooks/useManaBalance'
-import { resolveLiveTrade, type CatalogItem } from '~/lib/api'
+import { fetchStoreMintState, resolveLiveTrade, type CatalogItem } from '~/lib/api'
 import { formatCredits, usdCentsToCredits } from '~/lib/currency'
 import { isIapMode } from '~/lib/iap'
 import { readTradeManaPriceWei } from '~/lib/mana'
-import { lineUsdCents } from '~/lib/cart-checkout'
+import { purchaseTargetFor, resolveLine, type StoreResolver } from '~/lib/cart-checkout'
 import { hrefFor, myItemsRouteFor } from '~/lib/routes'
 import { readManaUsdRate, type ManaRate } from '~/lib/mana-rate'
 import { config } from '~/config'
@@ -18,7 +17,6 @@ import { PaymentMethodStep } from '~/components/PaymentMethodStep'
 import { PaymentCtas } from '~/components/PaymentCtas'
 import { invalidateAfterPurchase } from '~/lib/after-purchase'
 import { AuthorizeStep } from '~/components/AuthorizeStep'
-import { ContractName, getContract, getContractName } from 'decentraland-transactions'
 import manaLight from '~/assets/mana-matic-light.svg'
 import packCoin from '~/assets/credits/pack-coin.webp'
 import buyErrorAvatar from '~/assets/error/buy-error.png'
@@ -33,12 +31,19 @@ import { track, errorCode, isUserRejection, purchaseItemsProps } from '~/lib/ana
 import { captureError } from '~/lib/monitoring'
 import { createSpendGuard } from '~/lib/spend-guard'
 import { authorizeUsdCredit, cancelUsdIntents } from '~/lib/credits'
-import { buyWithCredits } from '~/lib/buy'
-import { buyWithMana, buyWithCreditsAndMana } from '~/lib/buy-mana'
-import { buyGasless, waitForSettlement, GaslessUnavailableError, SettlementPendingError } from '~/lib/buy-gasless'
+import { buyOneWithCredits } from '~/lib/buy'
+import {
+  buyMintWithCreditsAndMana,
+  buyMintWithMana,
+  buyWithCreditsAndMana,
+  buyWithMana,
+  manaSpenderFor,
+  purchaseFor,
+  type PurchaseTarget
+} from '~/lib/buy-mana'
+import { buyOneGasless, waitForSettlement, GaslessUnavailableError, SettlementPendingError } from '~/lib/buy-gasless'
 import { canPayGasItself } from '~/lib/wallet-kind'
 import { gaslessEnabled } from '~/lib/gasless-config'
-import { isOwnTrade } from '~/lib/ownership'
 import { createPackCheckout, MAX_OFFER_PACKS } from '~/lib/payments'
 import { useCreditPacks } from '~/hooks/useCreditPacks'
 import { RESUME_BUY_KEY } from '~/lib/resume-buy'
@@ -54,10 +59,31 @@ import loaderLogo from '~/assets/credits/loader-logo.svg'
 
 type Phase = 'loading' | 'ready' | 'nofunds' | 'processing' | 'complete' | 'error'
 
+/** A mint's live price + remaining supply, re-read at checkout exactly as the cart re-reads it. */
+const resolveStore: StoreResolver = item => fetchStoreMintState(item.contractAddress, String(item.itemId))
+
+/** The trade a purchase is against, for the fields that only a trade-backed one has. */
+function tradeIdOf(sale: PurchaseTarget): string | undefined {
+  return sale.kind === 'trade' ? sale.trade.id : undefined
+}
+
+/**
+ * What the purchase intent RECORDS as bought, as opposed to how it settles.
+ *
+ * A mint has no tradeId, so this is the only identity its purchase carries — without it the buyer's Activity
+ * feed can only render the line as a nameless "Item". Sent for every purchase, mint or trade (the cart does
+ * the same): it is the item's identity, not the settlement's.
+ */
+function purchasedItem(item: CatalogItem): { contractAddress: string; itemId: string } | undefined {
+  return item.contractAddress && item.itemId != null
+    ? { contractAddress: item.contractAddress, itemId: String(item.itemId) }
+    : undefined
+}
+
 /**
  * Buy Now modal for the item detail page — the pixel-perfect purchase flow (Figma "Buy Asset directly
  * from PDP"). Owns the whole flow so the PDP just opens it:
- *   1. resolve the item's live trade + authorize the credit (LOCK the price)
+ *   1. resolve the item's live listing (or live mint) + authorize the credit (LOCK the price)
  *   2. enough credits → "Buy Asset" · not enough → "Buy Credits and Item" (pack picker)
  *   3. confirm → "Completing transaction…" (gasless signs for OTP, prompts for MetaMask)
  *   4. settled/indexed → "Purchase complete!"
@@ -82,18 +108,17 @@ export function BuyModal({
   const navigate = useNavigate()
 
   /**
-   * The MANA/USD rate, but only for a LEGACY trade — a native (USD-pegged) one prices from its own amount
-   * and needs no oracle at all. Awaited through the react-query cache, so it is the same read the grid
-   * already made rather than a second oracle round-trip. An unreachable/stale oracle resolves to undefined,
-   * which makes lineUsdCents return 0 and surfaces as "price unavailable" instead of a guessed price.
+   * The live MANA/USD rate, read through the react-query cache (the same read the grid already made, not a
+   * second oracle round-trip).
    *
-   * Cart.tsx has a same-named function with a DIFFERENT signature: parameterless, because a mixed basket
-   * needs the rate resolved before it can tell whether any line requires it. This one takes the trade and
-   * can skip the read outright. Don't copy one into the other's place — they answer different questions.
+   * Read BEFORE the purchase is resolved, and therefore for every kind of purchase: a legacy trade is priced in
+   * MANA, and a mint's price lives on-chain in MANA too, so neither can be quoted in credits without it. Only a
+   * native (USD-pegged) trade could skip it, and that is not known until the resolve has happened.
+   *
+   * An unreachable/stale oracle resolves to undefined, which prices a native trade exactly as before and makes
+   * the other two resolve as unavailable rather than off a guessed rate.
    */
-  async function ensureManaRate(trade: Trade): Promise<ManaRate | undefined> {
-    const priceAsset = trade.received?.[0] as { assetType?: number } | undefined
-    if (priceAsset?.assetType === Number(TradeAssetType.USD_PEGGED_MANA)) return undefined
+  async function ensureManaRate(): Promise<ManaRate | undefined> {
     try {
       return await qc.fetchQuery({
         queryKey: ['mana-rate', config.chainId],
@@ -116,16 +141,17 @@ export function BuyModal({
   const [attempt, setAttempt] = useState(0)
   const [selectedPack, setSelectedPack] = useState<string>('')
   const [itemCredits, setItemCredits] = useState(item.priceCredits)
-  // The MANA (wei) this trade costs, read from the oracle once the price locks — null until read (or
-  // if the read fails, in which case MANA simply isn't offered and the credits path is unaffected).
+  // The MANA (wei) this purchase costs — from the oracle for a trade, from the store's own on-chain price
+  // for a mint. Null until read (or if the read fails, in which case MANA simply isn't offered and the
+  // credits path is unaffected).
   const [manaPriceWei, setManaPriceWei] = useState<bigint | null>(null)
-  // The live trade + its USD price, kept even when the credits balance falls short. The MANA rails need
+  // The resolved purchase + its USD price, kept even when the credits balance falls short. The MANA rails need
   // them in the 'nofunds' phase too — that's exactly where paying with MANA (alone or mixed) rescues a
-  // purchase the credits alone can't cover, so we must not throw the trade away like the old flow did.
-  const [resolvedTrade, setResolvedTrade] = useState<Trade | null>(null)
+  // purchase the credits alone can't cover, so we must not throw it away like the old flow did.
+  const [resolvedSale, setResolvedSale] = useState<PurchaseTarget | null>(null)
   const [priceCents, setPriceCents] = useState(0)
   const [locked, setLocked] = useState<{
-    trade: Trade
+    sale: PurchaseTarget
     credit: Awaited<ReturnType<typeof authorizeUsdCredit>>['credit']
     maxCreditedValue: string
     credits: number
@@ -146,7 +172,7 @@ export function BuyModal({
   const priceCredits = locked?.credits ?? itemCredits
   const balanceCredits = balance?.credits ?? 0
 
-  // Step 1+2 on open: resolve the live trade, authorize, reserve the dollars → LOCK the price, then
+  // Step 1+2 on open: resolve the live purchase, authorize, reserve the dollars → LOCK the price, then
   // branch on whether the balance covers it. Re-runs on `attempt`, which is what the error state's
   // TRY AGAIN bumps: whether the failure came from the price lock or from the submit, the honest retry
   // is a fresh resolve + a fresh reservation, never a replay of the stale one.
@@ -172,21 +198,28 @@ export function BuyModal({
     }
     void (async () => {
       try {
-        const trade = await resolveLiveTrade(item)
-        if (!trade) throw new Error('not for sale')
-        if (isOwnTrade(trade, session.address)) throw new Error("You can't buy your own listing.")
-        // A native trade prices from its own USD amount; a LEGACY (plain-ERC20) one is denominated in
-        // MANA and needs the oracle. The rate is AWAITED rather than read from a possibly-unresolved
-        // query — mirrors Cart.basketTotals, and deciding off a missing rate would report
-        // "price unavailable" for a perfectly buyable item on a slow oracle read. Resolves through the
-        // react-query cache, so it is the same read the grid already made.
-        const usdCents = lineUsdCents(trade, await ensureManaRate(trade))
-        if (!Number.isFinite(usdCents) || usdCents <= 0) throw new Error('price unavailable')
+        /**
+         * Resolved through lib/cart-checkout's resolveLine — the SAME rules the cart charges by, deliberately.
+         * A listing is re-resolved to its live trade and a mint has its on-chain price and remaining supply
+         * re-read; either way the buyer is charged what is live now, not what the page was showing. Reusing it
+         * is what keeps a mint buyable from here on the same terms it is buyable from the cart.
+         *
+         * The rate is AWAITED rather than read from a possibly-unresolved query — deciding off a missing rate
+         * would report a perfectly buyable item as unavailable on a slow oracle read.
+         */
+        const outcome = await resolveLine(item, session.address, resolveLiveTrade, await ensureManaRate(), resolveStore)
+        // The three outcomes read differently to a buyer, so they are not collapsed: gone means the sale ended,
+        // own means they are the seller, and no-price means we could not quote it — see lib/errors.
+        if (outcome.status === 'own') throw new Error("You can't buy your own listing.")
+        if (outcome.status === 'no-price') throw new Error('price unavailable')
+        if (outcome.status !== 'buyable') throw new Error('not for sale')
+        const sale = purchaseTargetFor(outcome.line)
+        const usdCents = outcome.line.usdCents
         const credits = usdCentsToCredits(usdCents)
         if (cancelled) return
         setItemCredits(credits)
-        // Keep the trade + exact price around for the MANA rails, whichever branch we take next.
-        setResolvedTrade(trade)
+        // Keep the purchase + exact price around for the MANA rails, whichever branch we take next.
+        setResolvedSale(sale)
         setPriceCents(usdCents)
         // Known-and-short → straight to the pack picker; don't reserve dollars we can't spend.
         if (balance != null && balance.credits < credits) {
@@ -199,7 +232,7 @@ export function BuyModal({
             credit,
             maxCreditedValue,
             usdCents: lockedCents
-          } = await authorizeUsdCredit(session.identity, usdCents, trade.id)
+          } = await authorizeUsdCredit(session.identity, usdCents, tradeIdOf(sale), purchasedItem(item))
           if (cancelled) {
             releaseReservation([credit.id])
             return
@@ -207,7 +240,7 @@ export function BuyModal({
           reservedCreditIdRef.current = credit.id
           const lockedCredits = usdCentsToCredits(lockedCents)
           setItemCredits(lockedCredits)
-          const lockedObj = { trade, credit, maxCreditedValue, usdCents: lockedCents, credits: lockedCredits }
+          const lockedObj = { sale, credit, maxCreditedValue, usdCents: lockedCents, credits: lockedCredits }
           setLocked(lockedObj)
           // Resuming after a Stripe top-up: the buyer already committed, so finish automatically.
           if (resume) void confirm(lockedObj)
@@ -241,17 +274,23 @@ export function BuyModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attempt])
 
-  // Once the price is locked AND the buyer holds MANA, read the trade's MANA price so we can offer the
-  // "pay with MANA" step. Runs off the loading path so it never blocks/gates the default credits flow;
-  // a failed oracle read just leaves manaPriceWei null (MANA not offered).
+  // Once the price is locked AND the buyer holds MANA, establish what this purchase costs in MANA so we can
+  // offer the "pay with MANA" step. Runs off the loading path so it never blocks/gates the default credits
+  // flow; a failed oracle read just leaves manaPriceWei null (MANA not offered).
   useEffect(() => {
-    const trade = locked?.trade ?? resolvedTrade
-    if (!trade) return
+    const sale = locked?.sale ?? resolvedSale
+    if (!sale) return
     if (phase !== 'ready' && phase !== 'nofunds') return
     if (manaBalanceWei == null || manaBalanceWei <= 0n) return
     if (manaPriceWei !== null) return
+    // A mint is PRICED in MANA on-chain and the resolve already read it — that exact figure is what the store
+    // will verify, so there is nothing to ask the oracle and no failure mode to degrade through.
+    if (sale.kind === 'store') {
+      setManaPriceWei(BigInt(sale.mint.item.priceWei))
+      return
+    }
     let cancelled = false
-    void readTradeManaPriceWei(trade)
+    void readTradeManaPriceWei(sale.trade)
       .then(wei => {
         if (!cancelled) setManaPriceWei(wei)
       })
@@ -261,7 +300,7 @@ export function BuyModal({
     return () => {
       cancelled = true
     }
-  }, [phase, locked, resolvedTrade, manaBalanceWei, manaPriceWei])
+  }, [phase, locked, resolvedSale, manaBalanceWei, manaPriceWei])
 
   // Which rails the buyer's balances actually support (pure — see lib/payment-options). MANA rails
   // appear only once both the MANA balance and the MANA price are known; until then this is just the
@@ -283,11 +322,11 @@ export function BuyModal({
     let txHash: string | undefined
     try {
       const buyArgs = {
-        trade: lk.trade,
+        // Either rail, built by the same code the cart's batches go through: accept([trade]) for a listing,
+        // buy([item]) for a mint, both inside one useCredits().
+        purchase: purchaseFor(lk.sale, [lk.credit], lk.maxCreditedValue),
         buyer: session.address,
         signer: session.signer,
-        credits: [lk.credit],
-        maxCreditedValue: lk.maxCreditedValue,
         // The transaction is on its way: from here on the credit may be consumed on-chain, so no failure may
         // release it. A revert clears the ATTEMPT it names — not the credit, which an earlier attempt may
         // already have spent.
@@ -300,7 +339,7 @@ export function BuyModal({
       guardRef.current.submitStarted(lk.credit.id)
       if (gaslessEnabled()) {
         try {
-          txHash = await buyGasless(buyArgs)
+          txHash = await buyOneGasless(buyArgs)
           // Relayed, so it is broadcast the moment buyGasless resolves.
           guardRef.current.broadcast(lk.credit.id, txHash)
           await waitForSettlement(txHash)
@@ -326,7 +365,7 @@ export function BuyModal({
              * or network wording is exactly what these users must never see (CONVENTIONS.md).
              */
             if (!canPayGasItself(session.providerType)) throw gaslessErr
-            txHash = await buyWithCredits(buyArgs)
+            txHash = await buyOneWithCredits(buyArgs)
           } else {
             /**
              * Everything else the inner try can throw lands here, and the hash tells them apart. With a hash,
@@ -339,7 +378,7 @@ export function BuyModal({
           }
         }
       } else {
-        txHash = await buyWithCredits(buyArgs)
+        txHash = await buyOneWithCredits(buyArgs)
       }
     } catch (e) {
       // The submit is over: the decision now rests on what was actually reported.
@@ -436,9 +475,9 @@ export function BuyModal({
   // marketplace (buyWithMana). Same post-purchase cache refresh + analytics as the credits path.
   async function confirmMana() {
     // Works from BOTH phases: 'ready' (price locked, buyer chose MANA anyway) and 'nofunds' (credits
-    // don't cover it, so MANA is the only way) — hence the fallback to the plain resolved trade.
-    const trade = locked?.trade ?? resolvedTrade
-    if (!session || !trade) return
+    // don't cover it, so MANA is the only way) — hence the fallback to the plain resolved purchase.
+    const sale = locked?.sale ?? resolvedSale
+    if (!session || !sale) return
     if (reservedCreditIdRef.current) {
       releaseReservation([reservedCreditIdRef.current])
       reservedCreditIdRef.current = null
@@ -446,11 +485,13 @@ export function BuyModal({
     setPhase('processing')
     setError(null)
     try {
-      const txHash = await buyWithMana({
-        trade,
-        buyer: session.address,
-        signer: session.signer
-      })
+      // A listing settles against the marketplace, a mint against the CollectionStore. Same rail from the
+      // buyer's side: no credits are spent either way, and lib/buy-mana relays both so a managed wallet
+      // (which holds no POL) can take it.
+      const txHash =
+        sale.kind === 'trade'
+          ? await buyWithMana({ trade: sale.trade, buyer: session.address, signer: session.signer })
+          : await buyMintWithMana({ mint: sale.mint, buyer: session.address, signer: session.signer })
       track('Shop Completed Purchase', {
         ...purchaseItemsProps([item]),
         payment_type: 'mana',
@@ -475,9 +516,9 @@ export function BuyModal({
   // 'nofunds' or sized to the full price in 'ready'): the credits-server signs a credit worth the
   // balance, and the contract's uncredited leg is the MANA gap.
   async function confirmCombined() {
-    const trade = locked?.trade ?? resolvedTrade
+    const sale = locked?.sale ?? resolvedSale
     const combined = findOption(paymentOptions, 'combined')
-    if (!session || !trade || !combined) return
+    if (!session || !sale || !combined) return
     setPhase('processing')
     setError(null)
     // Release the full-price reservation (if the 'ready' path made one) before reserving the partial.
@@ -488,11 +529,15 @@ export function BuyModal({
     let partialCreditId: string | null = null
     let txHash: string | undefined
     try {
-      const { credit } = await authorizeUsdCredit(session.identity, combined.creditsCents, trade.id)
+      const { credit } = await authorizeUsdCredit(
+        session.identity,
+        combined.creditsCents,
+        tradeIdOf(sale),
+        purchasedItem(item)
+      )
       partialCreditId = credit.id
       guardRef.current.submitStarted(credit.id)
-      txHash = await buyWithCreditsAndMana({
-        trade,
+      const gapArgs = {
         buyer: session.address,
         signer: session.signer,
         credits: [credit],
@@ -503,7 +548,12 @@ export function BuyModal({
         onReverted: ({ txHash: h }: { txHash: string | null }) => {
           if (h) guardRef.current.reverted(h)
         }
-      })
+      }
+      // Both kinds ride the CreditsManager's own mixed-payment rail — only the external call inside it differs.
+      txHash =
+        sale.kind === 'trade'
+          ? await buyWithCreditsAndMana({ trade: sale.trade, ...gapArgs })
+          : await buyMintWithCreditsAndMana({ mint: sale.mint, ...gapArgs })
     } catch (e) {
       if (partialCreditId) guardRef.current.submitFinished(partialCreditId)
       // The partial reservation never settled → release the dollars instead of stranding them. Guarded, so a
@@ -584,13 +634,14 @@ export function BuyModal({
   // see approval wording — lib/buy-mana grants it silently for them (CONVENTIONS.md).
   const [authStep, setAuthStep] = useState<{ auth: ShopAuthorization; rail: 'mana' | 'combined' } | null>(null)
 
-  /** The MANA allowance a rail needs: the marketplace moves it for MANA-only, the CreditsManager for mixed. */
-  function manaAuthFor(rail: 'mana' | 'combined', trade: Trade): ShopAuthorization {
-    const spender =
-      rail === 'mana'
-        ? getContract(getContractName(trade.contract), trade.chainId).address
-        : getContract(ContractName.CreditsManager, trade.chainId).address
-    return getManaSpendingAuthorization(trade.chainId, spender)
+  /**
+   * The MANA allowance a rail needs. Which contract that is depends on the rail AND on what is being bought
+   * (the store, not the marketplace, sells a mint), so the answer comes from lib/buy-mana — the same module the
+   * rail's own ensureAuthorization asks, so this step can never announce an approval the purchase won't use.
+   */
+  function manaAuthFor(rail: 'mana' | 'combined', sale: PurchaseTarget): ShopAuthorization {
+    const { spender, chainId } = manaSpenderFor(rail, sale)
+    return getManaSpendingAuthorization(chainId, spender)
   }
 
   function runRail(rail: PaymentMethod) {
@@ -600,12 +651,12 @@ export function BuyModal({
   }
 
   async function startPurchase(rail: PaymentMethod) {
-    const trade = locked?.trade ?? resolvedTrade
-    if (rail === 'credits' || !trade || !session) {
+    const sale = locked?.sale ?? resolvedSale
+    if (rail === 'credits' || !sale || !session) {
       runRail(rail)
       return
     }
-    const auth = manaAuthFor(rail, trade)
+    const auth = manaAuthFor(rail, sale)
     // On a failed status read, assume approved and let the lib's ensureAuthorization handle it: that is
     // the pre-existing behaviour, so a flaky RPC degrades to "unannounced prompt", never to a blocked buy.
     const authorized = await getAuthorizationStatus(auth, session.address).catch(() => true)

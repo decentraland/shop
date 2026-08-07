@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCart } from '~/store/cart'
 import { useFavorite } from '~/store/favorites'
@@ -181,7 +181,7 @@ export function AssetCard(props: AssetCardProps) {
   // overlay link, which they cover (see ViewRoundLink in the styles). A NAME has no detail page, so there
   // it stays the inert span it has always been.
   const viewTo = canOpen && !isNameItem ? detailPath : undefined
-  const viewState = { item, tradeId: item.tradeId }
+  const viewState = useMemo(() => ({ item, tradeId: item.tradeId }), [item])
   const viewRound = viewTo ? (
     <S.ViewRoundLink data-testid="card-view-round" aria-hidden tabIndex={-1} to={viewTo} state={viewState}>
       <Icon name="arrow-right" size={18} />
@@ -414,12 +414,12 @@ export function AssetCard(props: AssetCardProps) {
           </S.Action>
         </S.Body>
       ) : isNameItem ? (
-        // Owned NAME (read-only): @name + verified badge, and the NOT FOR SALE tag (never listable here).
+        // Owned NAME (read-only): the name + verified badge, and the NOT FOR SALE tag (never listable here).
         <S.Body data-name>
           <S.Top>
             <S.Desc>
               <S.Name data-verified title={item.name}>
-                <span>@{item.name}</span>
+                <span>{item.name}</span>
                 {/* DCL verified badge: scalloped Cerise-gradient seal + white check. Inlined (not the
                     Icon mask) so the gradient renders. */}
                 <S.Verified width="18" height="18" viewBox="0 0 14.6921 14.6931" fill="none" aria-hidden>

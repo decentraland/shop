@@ -220,22 +220,16 @@ export function ItemDetail() {
     creator: current.creator
   })
 
-  // Hydrate the generic item (name, price, tradeId, stock) from the shop feed by its ITEM id. Resolved
-  // by `pageItemId` — the route itemId, or the itemId DECODED from the token on the token route. This is
-  // the bug fix: the old code fed the raw route segment (a tokenId on a secondary URL) to
-  // fetchShopListingForItem, which treats its 2nd arg as an itemId → the server matched nothing and
-  // returned the collection's first listing (a WRONG item) on a cold load. Never pass a tokenId here.
-  // Also runs when a seeded item (grid nav / sibling) is missing its stock (`available`) so the
-  // authoritative listing can backfill it. Resolved through the UNIFIED feed so a LEGACY (MANA) listing
-  // counts as much as a native one — reading the shop-only feed here is what made a MANA-listed item show
-  // "Not for sale" on its own page while its card in the grid showed a price.
-  // ITEM ROUTE ONLY: the token route hydrates from the specific token (ownedAsset / publicToken) and
-  // must not be overwritten by the generic item listing (which carries no tokenId).
-  const needsPrimaryStock = current.available == null && !current.tokenId
+  // Hydrate from the UNIFIED feed by ITEM id (`pageItemId`). Re-fetches when the seed lacks `available`
+  // or `acquisition` — without either, a collection-store mint reads as unlisted (no trade, and 'store'
+  // is the only discriminator; see `isStoreMint`). The /v3/catalog/items feeds omit `acquisition`
+  // (see lib/collections), so grid-nav cards always trigger this. Token route is excluded — it hydrates
+  // from the specific token instead.
+  const needsPrimaryFacts = !current.tokenId && (current.available == null || current.acquisition == null)
   const { data: deepLinkItem, isLoading: deepLinkLoading } = useQuery({
     queryKey: ['shop-item', current.contractAddress, pageItemId],
     enabled:
-      !isMarket && !isTokenRoute && !!current.contractAddress && !!pageItemId && (!state?.item || needsPrimaryStock),
+      !isMarket && !isTokenRoute && !!current.contractAddress && !!pageItemId && (!state?.item || needsPrimaryFacts),
     // Money-sensitive: a 3rd party's listing/price/stock can change under us. Never serve the 30s-stale
     // default — revalidate on every (re)mount and tab refocus so a soft revisit re-checks availability.
     staleTime: 0,
@@ -246,8 +240,10 @@ export function ItemDetail() {
   useEffect(() => {
     if (!deepLinkItem) return
     setCurrent(prev => {
-      // Bare deep-link stub (no tradeId yet) → full hydrate from the authoritative listing.
-      if (!prev.tradeId) return { ...deepLinkItem }
+      // Bare deep-link stub (no tradeId yet) → hydrate from the authoritative listing, which wins on every
+      // field it reports. The seed's own keep the fields the unified feed has no opinion on at all (urn,
+      // the emote flags) rather than being blanked on the way through.
+      if (!prev.tradeId) return { ...prev, ...deepLinkItem }
       // Seeded item (grid/sibling): keep its identity/price/name/tradeId, only backfill the
       // authoritative fields it lacked (stock + wearableCategory) — never clobber the rest.
       if (prev.available != null && prev.wearableCategory) return prev
@@ -413,9 +409,9 @@ export function ItemDetail() {
    * NOT FOR SALE about an item the browse grid was selling from the same feed, at a price the grid showed
    * and this page did not (measured on production: `acquisition: 'store'`, 48 in stock, 20 MANA).
    *
-   * The cart already buys these end-to-end (lib/cart-availability, lib/cart-checkout route the store rail),
-   * which is why the CTA below offers Add to cart for them and keeps Buy now for trades — BuyModal resolves
-   * a live trade and has no store rail of its own.
+   * Both CTAs below serve it: the cart routes the store rail (lib/cart-availability, lib/cart-checkout) and so
+   * does Buy now (BuyModal resolves either kind through lib/cart-checkout's resolveLine and settles it through
+   * the store's own rails), so a mint and a listing offer the buyer exactly the same purchase.
    */
   const isStoreMint = current.acquisition === 'store' && (current.available ?? 0) > 0
   const forSale = !!buyableTradeId || isStoreMint
@@ -479,10 +475,13 @@ export function ItemDetail() {
   const listedManaWei = (current as Partial<UnifiedListing>).manaWei ?? null
   const { data: manaRate } = useManaRate(isMarket || !!listedManaWei)
   const liveLegacyCredits = listedManaWei && manaRate ? manaWeiToCredits(listedManaWei, manaRate) : null
+  // Also re-asserted when the price itself moves, not only when the rate does: hydration lands AFTER this
+  // effect has already agreed with the seeded card, and it brings the server's snapshot back with it. The
+  // setter is a no-op once they match, so re-running cannot loop.
   useEffect(() => {
     if (liveLegacyCredits == null) return
     setCurrent(prev => (prev.priceCredits === liveLegacyCredits ? prev : { ...prev, priceCredits: liveLegacyCredits }))
-  }, [liveLegacyCredits])
+  }, [liveLegacyCredits, current.priceCredits])
   const marketListing: LegacyListing | null = useMemo(() => {
     if (!isMarket || !state?.item) return null
     const it = state.item as UnifiedListing
@@ -1546,19 +1545,13 @@ export function ItemDetail() {
                       </S.ManageActions>
                     ) : forSale ? (
                       <>
-                        {/* Buy now only where there IS a trade to resolve: BuyModal buys through
-                            resolveLiveTrade and has no collection-store rail, so a store mint would open a
-                            modal that cannot complete. The cart does route that rail, so the mint's path is
-                            Add to cart — which is why this button is conditional and the next one is not. */}
-                        {buyableTradeId ? (
-                          <S.DetailCta variant="purple" onClick={handleBuyNow} disabled={resolvingTrade}>
-                            <span>{t('assetCard.buyNow')}</span>
-                            <S.CtaPrice aria-hidden>
-                              <S.CtaDiamond />
-                              {current.priceCredits}
-                            </S.CtaPrice>
-                          </S.DetailCta>
-                        ) : null}
+                        <S.DetailCta variant="purple" onClick={handleBuyNow} disabled={resolvingTrade}>
+                          <span>{t('assetCard.buyNow')}</span>
+                          <S.CtaPrice aria-hidden>
+                            <S.CtaDiamond />
+                            {current.priceCredits}
+                          </S.CtaPrice>
+                        </S.DetailCta>
                         <S.AddCart
                           onClick={handleAddToCart}
                           disabled={resolvingTrade || (isPrimary ? atStockCap : inCart)}

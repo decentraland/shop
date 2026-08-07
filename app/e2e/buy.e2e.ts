@@ -1,7 +1,7 @@
 import { describe, it, afterEach } from 'vitest'
 import { launchApp, type App } from './helpers/app'
 import { clickWhenEnabled, waitForText } from './helpers/dom'
-import { COLLECTION, buyTrade } from './fixtures'
+import { COLLECTION, buyTrade, unifiedWithMint } from './fixtures'
 
 let app: App | undefined
 afterEach(async () => {
@@ -30,6 +30,32 @@ describe('buy an item with credits', () => {
     await clickWhenEnabled(page, 'button', /^buy$/i)
 
     // The modal runs authorize → gasless buy → settlement, then shows the success state in place.
+    await waitForText(page, 'Purchase complete!', 30000)
+    await waitForText(page, 'was successful')
+  })
+})
+
+/**
+ * Buying a CREATOR'S OWN primary sale — a CollectionStore mint, which has no trade and never will.
+ *
+ * The item page used to hide Buy now for these (the modal could only resolve a trade), so a mint could be
+ * bought from the cart and not from its own page, while a resale of the same item offered both. The buyer
+ * cannot tell the two kinds apart, so what that looked like was a button that came and went.
+ */
+describe('buy a CollectionStore mint with credits', () => {
+  it('goes item detail → Buy now → Buy Item modal → purchase complete, with no trade involved', async () => {
+    app = await launchApp({ path: `/item/${COLLECTION}/3`, fixtures: { unifiedListings: unifiedWithMint } })
+    const { page } = app
+
+    await waitForText(page, 'Comet Boots')
+
+    await clickWhenEnabled(page, 'button', /buy now/i)
+    await waitForText(page, 'Buy Item')
+
+    // The modal resolves the LIVE mint (price + remaining supply) instead of a trade, then authorizes and
+    // settles through CollectionStore.buy inside the same useCredits call a listing uses.
+    await clickWhenEnabled(page, 'button', /^buy$/i)
+
     await waitForText(page, 'Purchase complete!', 30000)
     await waitForText(page, 'was successful')
   })

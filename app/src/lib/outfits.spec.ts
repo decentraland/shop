@@ -477,9 +477,12 @@ describe('when toggling items in the studio selection', () => {
 })
 
 describe('when building the backdrop gradient', () => {
-  it('should blend the creator colors from top to bottom', () => {
+  // Figma 2090:402143 fills the card with a centred radial flare, not a vertical band: the geometry comes
+  // off its gradientTransform (radii 224.16 x 156.52 on a 340.5 x 237.75 box = 65.83% a side) and the
+  // BOTTOM stop is the core.
+  it('should blend the creator colors as a centred radial flare', () => {
     expect(outfitGradient({ gradientFrom: '#a855f7', gradientTo: '#e0219a' })).toBe(
-      'linear-gradient(180deg, #a855f7 0%, #e0219a 100%)'
+      'radial-gradient(65.83% 65.83% at 50% 50%, #e0219a 0%, #a855f7 100%)'
     )
   })
 
@@ -503,7 +506,7 @@ describe('when building the backdrop gradient', () => {
 
   it('should keep a valid stop when only the other one is missing', () => {
     expect(outfitGradient({ gradientFrom: '#a855f7', gradientTo: '' })).toBe(
-      `linear-gradient(180deg, #a855f7 0%, ${DEFAULT_OUTFIT_GRADIENT.to} 100%)`
+      `radial-gradient(65.83% 65.83% at 50% 50%, ${DEFAULT_OUTFIT_GRADIENT.to} 0%, #a855f7 100%)`
     )
   })
 

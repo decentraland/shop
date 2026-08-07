@@ -320,7 +320,7 @@ export const Body = styled.div`
     }
   }
 
-  // data-name = a NAME card's footer: it hugs its single row (@name + NOT FOR SALE), and the @name tile
+  // data-name = a NAME card's footer: it hugs its single row (name + NOT FOR SALE), and the name tile
   // above keeps the height it gives back. The 16px inset already supplies the breathing room this used
   // to add on top of the old 8px base.
   &[data-name] {
@@ -631,11 +631,21 @@ const addRoundFill = css`
 `
 
 // Dark round stand-in for the VIEW button, on a card with nothing to buy.
+const viewRoundCss = compactRoundCss(css`
+  background: ${colors.blackBtn};
+  color: ${colors.softWhite};
+`)
+
 export const ViewRound = styled.span`
-  ${compactRoundCss(css`
-    background: ${colors.blackBtn};
-    color: ${colors.softWhite};
-  `)};
+  ${viewRoundCss};
+`
+
+// Both VIEW affordances sit at z-index 4, ABOVE the whole-card overlay link, so a click on them never
+// reached it and the thing that looks pressable did nothing. Where the card has a detail page they carry
+// the target themselves; `aria-hidden` + `tabIndex={-1}` in the component keeps them out of the a11y tree
+// and the tab order, since the overlay link is still the real, announced navigation.
+export const ViewRoundLink = styled(Link)`
+  ${viewRoundCss};
 `
 
 // Both VIEW affordances sit at z-index 4, ABOVE the whole-card overlay link, so a click on them never
@@ -761,7 +771,7 @@ export const Cart = styled.button`
 // view-only ('All' / 'Not for Sale') card both put it where Add-to-cart would go, so it takes Add-to-cart's
 // treatment — hidden at rest, revealed on hover/focus via `data-reveal`. See ViewRoundLink for why it needs
 // a target of its own; the span stands in on the cards that have no detail page (NAMEs).
-export const ViewCta = styled.span`
+const viewCtaCss = css`
   ${cartCss};
 
   & .ico {
@@ -770,7 +780,13 @@ export const ViewCta = styled.span`
   }
 `
 
-export const ViewCtaLink = ViewCta.withComponent(Link)
+export const ViewCta = styled.span`
+  ${viewCtaCss};
+`
+
+export const ViewCtaLink = styled(Link)`
+  ${viewCtaCss};
+`
 
 // Anchor variants: an owned NAME's MANAGE controls point off-app (the Builder), so they need real
 // links rather than buttons, with the identical treatment.

@@ -95,6 +95,7 @@ import {
   GaslessUnavailableError,
   SettlementPendingError,
   buyGasless,
+  buyOneGasless,
   buyManyGasless,
   waitForSettlement
 } from '~/lib/buy-gasless'
@@ -221,6 +222,55 @@ describe('when the gasless feature flag is off', () => {
         maxCreditedValue: '100'
       })
     ).rejects.toBeInstanceOf(GaslessUnavailableError)
+    expect(signer._signTypedData).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * Relaying ONE purchase of either kind — what the item page's Buy now submits.
+ *
+ * Gasless is the default rail, so a mint that could not be relayed could not be bought from the item page at
+ * all by the buyers this shop is for: a managed wallet holds no POL, and the gas-paying fallback is refused for
+ * it on purpose.
+ */
+describe('when relaying a single purchase of either kind', () => {
+  it('relays a MINT, targeting the CollectionStore', async () => {
+    const fetchMock = stubFetch({ ok: true, txHash: '0xmint' })
+    const signer = makeSigner(async () => '0xdead')
+
+    const hash = await buyOneGasless({ purchase: storePurchase('1'), buyer: BUYER, signer })
+
+    expect(hash).toBe('0xmint')
+    expect(signer._signTypedData).toHaveBeenCalledTimes(1) // an off-chain signature, not a transaction
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('relays a LISTING the same way', async () => {
+    stubFetch({ ok: true, txHash: '0xrelayed' })
+    const signer = makeSigner(async () => '0xdead')
+
+    const hash = await buyOneGasless({
+      purchase: {
+        kind: 'trade',
+        trade: fakeTrade('0xmarket'),
+        credits: [credit(B32('1'), '100')],
+        maxCreditedValue: '100'
+      },
+      buyer: BUYER,
+      signer
+    })
+
+    expect(hash).toBe('0xrelayed')
+  })
+
+  it('refuses a purchase with no credits, before signing anything', async () => {
+    const fetchMock = stubFetch({ txHash: '0xmint' })
+    const signer = makeSigner(async () => '0xdead')
+
+    await expect(
+      buyOneGasless({ purchase: { ...storePurchase('1'), credits: [] }, buyer: BUYER, signer })
+    ).rejects.toThrow('No credits to spend')
     expect(signer._signTypedData).not.toHaveBeenCalled()
     expect(fetchMock).not.toHaveBeenCalled()
   })
