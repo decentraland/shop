@@ -69,7 +69,7 @@ export type Fixtures = {
   notifications: unknown
   /** Outfit records served (and mutated) by the mock shop-server (port 5004). */
   outfits: unknown
-  /** Week creator ranking (/v1/rankings/creators/week) — what fills the "Top Creators" section. */
+  /** Creator ranking (/v3/catalog/creators) — what fills the "Top Creators" section. */
   rankings: unknown
 }
 
@@ -570,10 +570,10 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
     // Secondary sales feed (Activity page → fetchUserSales, ?seller=/?buyer=). Return the fixture data
     // as-is (the address filter is applied server-side in prod; the fixture is already scoped per run).
     if (path === '/v1/sales') return json(req, F.sales)
-    // Creator rankings (lib/rankings.ts → fetchTopCreators). Served from a fixture so a spec can put
-    // creators on the row: without one this fell through to the empty `{ data: [] }` below, i.e. the
-    // section rendered its skeletons and then removed itself.
-    if (path.startsWith('/v1/rankings/')) return json(req, F.rankings)
+    // The shop's creator ranking (lib/rankings.ts → fetchShopTopCreators). Served from a fixture so a
+    // spec can put creators on the row: without one this fell through to the empty `{ data: [] }` below,
+    // i.e. the section rendered its skeletons and then removed itself.
+    if (path === '/v3/catalog/creators') return json(req, F.rankings)
     if (path === '/v1/orders') return json(req, { data: [], total: 0 })
     // Favorites service (marketplace picks): POST toggles membership in the run's accumulator; the
     // default-list GET returns the picked ids in the {ok, data} envelope lib/favorites.ts parses.
@@ -661,14 +661,38 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
       return json(req, { creationTimestamp: 1 })
     }
     if (path.includes('/lambdas/profiles')) {
+      // A BATCH read (POST {ids}) names its addresses in the BODY, so the address sniff below — which
+      // reads the path — cannot answer it. Each requested address gets its own profile with a DISTINCT
+      // CLAIMED name: the Top Creators row drops unclaimed names and de-duplicates by name, so one
+      // shared fixture name would collapse the whole row to a single card.
+      if (method === 'POST') {
+        const ids = (JSON.parse(req.postData() ?? '{}') as { ids?: string[] }).ids ?? []
+        return json(
+          req,
+          ids.map(id => ({
+            avatars: [
+              {
+                name:
+                  id.toLowerCase() === fx.CREATOR_ADDRESS.toLowerCase() ? 'Galaxy Studio' : `Creator ${id.slice(2, 6)}`,
+                hasClaimedName: true,
+                userId: id,
+                ethAddress: id,
+                avatar: { snapshots: { face256: '' } }
+              }
+            ]
+          }))
+        )
+      }
       // The fixture creator (author of the shop listings + the matched DCL name) resolves to a
-      // "Galaxy Studio" profile — used for the "By {creator}" sublines and the Creators row name.
-      // Every other address (incl. the signed-in user) gets the default F.profile.
+      // "Galaxy Studio" profile — used for the "By {creator}" sublines. Every other address (incl. the
+      // signed-in user) gets the default F.profile.
       const isCreator = path.toLowerCase().includes(fx.CREATOR_ADDRESS.toLowerCase())
-      const body = isCreator
-        ? { avatars: [{ name: 'Galaxy Studio', userId: fx.CREATOR_ADDRESS, avatar: { snapshots: { face256: '' } } }] }
-        : F.profile
-      return json(req, method === 'POST' ? [body] : body)
+      return json(
+        req,
+        isCreator
+          ? { avatars: [{ name: 'Galaxy Studio', userId: fx.CREATOR_ADDRESS, avatar: { snapshots: { face256: '' } } }] }
+          : F.profile
+      )
     }
     return req.respond({ status: 200, headers: { 'content-type': 'image/png', ...CORS }, body: PNG })
   }
