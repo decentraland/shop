@@ -375,6 +375,48 @@ describe('AssetCard view-only mode', () => {
     )
   }
 
+  /**
+   * A mint that has run out still arrives with a price on it, so the card used to offer an ADD TO CART
+   * for something `add()` could not honour. Only an explicit 0 counts as sold out — see the sibling
+   * below, which pins that an absent supply stays buyable.
+   */
+  it('shows NOT FOR SALE and VIEW, not add-to-cart, when a priced item has no supply left', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <AssetCard item={makeItem({ priceCredits: 123, available: 0 })} />
+      </MemoryRouter>
+    )
+    expect(container.querySelector('[data-testid="card-nfs"]')?.textContent).toMatch(/not for sale/i)
+    expect(container.querySelector('[data-testid="card-view"]')?.textContent).toMatch(/view/i)
+    expect(container.querySelector('[data-testid="card-cart"]')).toBeNull()
+    expect(container.querySelector('[data-testid="card-add-round"]')).toBeNull()
+  })
+
+  // Both VIEW affordances cover the whole-card overlay link (z-index 4 over 3), so without a target of
+  // their own the click landed on nothing and the button that looks pressable did nothing at all.
+  it('points both VIEW affordances at the detail page', () => {
+    const item = makeItem({ priceCredits: 123, available: 0 })
+    const { container } = render(
+      <MemoryRouter>
+        <AssetCard item={item} />
+      </MemoryRouter>
+    )
+    const href = container.querySelector('[data-testid="card-link"]')?.getAttribute('href')
+    expect(href).toBeTruthy()
+    expect(container.querySelector('[data-testid="card-view"]')?.getAttribute('href')).toBe(href)
+    expect(container.querySelector('[data-testid="card-view-round"]')?.getAttribute('href')).toBe(href)
+  })
+
+  it('keeps a priced item buyable when the feed reports no supply figure at all', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <AssetCard item={makeItem({ priceCredits: 123, available: undefined })} />
+      </MemoryRouter>
+    )
+    expect(container.querySelector('[data-testid="card-nfs"]')).toBeNull()
+    expect(container.querySelector('[data-testid="card-cart"]')?.textContent).toMatch(/add to cart/i)
+  })
+
   it('shows a NOT FOR SALE tag + VIEW button and no add-to-cart when the item is not for sale', () => {
     const { container } = renderView(makeItem({ priceCredits: 0 }))
     expect(container.querySelector('[data-testid="card-nfs"]')?.textContent).toMatch(/not for sale/i)

@@ -2,6 +2,18 @@
    tokens) and MUST stay in sync one-for-one. Both are live: index.css rules below + component styled
    defs read theme.ts, and some components emit raw `var(--…)` strings. Change one → change the other. */
 :root {
+  /**
+   * The height of the ui2 navbar we sit under. EVERYTHING that offsets against it — the body's top
+   * padding, the sub-nav's sticky top, the viewport-filling min-heights, the skeleton that holds its
+   * place — reads this, so there is one number and one breakpoint to keep in step with ui2.
+   *
+   * 991px is UI2'S OWN breakpoint (Navbar.styled.js), not one of ours: theme.breakpoints tops out at
+   * 900 and the app's mobile rule is 768. Offsetting on 768 left the navbar 64px tall from 769 to 991
+   * while we still reserved 92, and the 28px difference showed as a band of page field between the two
+   * headers.
+   */
+  --nav-h: 92px;
+
   /* Brand / accent (from Figma) */
   --bg: #ffffff;
   --text: #161518;
@@ -39,6 +51,11 @@
   /* Tooltip tier — portalled to <body>, so it must clear whatever overlay its trigger sits in. */
   --z-tooltip: 10010;
 }
+@media (max-width: 991px) {
+  :root {
+    --nav-h: 64px;
+  }
+}
 * {
   box-sizing: border-box;
 }
@@ -52,7 +69,7 @@ html {
 }
 body {
   margin: 0;
-  padding-top: 92px;
+  padding-top: var(--nav-h);
   /* Figma "New Shop 2026" page field, taken verbatim from the design's radial fill: ellipse
      1183.5x1279.9px centred at (960, 636.45) on the 1920x1168 artboard — i.e. 61.64% x 109.58% at
      50% / 54.49% — with the design's exact five stops. */
@@ -69,11 +86,6 @@ body {
   font-family: var(--sans);
   -webkit-font-smoothing: antialiased;
 }
-@media (max-width: 768px) {
-  body {
-    padding-top: 64px;
-  }
-}
 /* The cart is DELIBERATELY the one light surface on the dark theme (Figma "Cart" 1551:315390): white
    panels on a gray field, because a checkout reads as safer light than dark. The gray is a full-bleed
    BAND behind the panels (Figma draws it as a rect over the artboard, not as a page background), which
@@ -84,12 +96,7 @@ body {
 #root {
   display: flex;
   flex-direction: column;
-  min-height: calc(100vh - 92px);
-}
-@media (max-width: 768px) {
-  #root {
-    min-height: calc(100vh - 64px);
-  }
+  min-height: calc(100vh - var(--nav-h));
 }
 a {
   color: inherit;
@@ -165,7 +172,7 @@ h2 {
   flex: 1 0 auto;
   /* The CONTENT (not the shell) fills the first viewport below the fixed navbar, so a short page keeps
      the heavy branded footer just BELOW the fold instead of pulling it a third of the way up. */
-  min-height: calc(100vh - 92px);
+  min-height: calc(100vh - var(--nav-h));
 }
 /* Opt-out: the credits page is one short card, so filling the viewport just parks a screenful of empty
    purple under it. Letting the footer sit right after the card is the better read there. */
@@ -193,8 +200,6 @@ h2 {
 @media (max-width: 768px) {
   .page {
     padding: 16px 16px 56px;
-    /* Navbar is 64px on mobile (see body padding-top). */
-    min-height: calc(100vh - 64px);
   }
   .page[data-route="/credits"] {
     min-height: 0;
