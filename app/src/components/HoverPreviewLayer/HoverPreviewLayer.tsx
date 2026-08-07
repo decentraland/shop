@@ -8,7 +8,11 @@ import { useHoverPreview } from '~/store/hoverPreview'
 import { useWallet } from '~/store/wallet'
 import { useProfile } from '~/hooks/useProfile'
 import { avatarShape, isCompatible } from '~/lib/bodyShape'
+import { RING_WIDTH } from '~/styles/card.styles'
 import { theme } from '~/styles/theme'
+
+// The corner left once the hover stroke has taken its bite out of the card's own radius.
+const INNER_RADIUS = Number.parseFloat(theme.radius.card) - RING_WIDTH
 
 const Wrap = styled.div`
   & iframe {
@@ -154,24 +158,29 @@ export function HoverPreviewLayer() {
     ? {
         position: 'fixed',
         /**
-         * Snapped to whole pixels. `getBoundingClientRect` reports fractions (the grid divides the row by
-         * three), and a fixed box holding an iframe at a fractional offset gets its own composited layer
-         * whose edges Chrome then antialiases — a bright half-pixel seam laid over the card's hover stroke.
-         */
-        left: Math.round(rect.left),
-        top: Math.round(rect.top),
-        width: Math.round(rect.width),
-        height: Math.round(rect.height),
-        /**
-         * The card's own top corners, clipped here too.
+         * Held INSIDE the card's hover stroke, and clipped to the shape that leaves.
          *
-         * The anchor is the card's media band, which is a SQUARE box — its corners are rounded only by the
-         * card's `overflow: hidden`. This layer is `position: fixed` in the root stacking context, so that
-         * clip does not reach it: it laid a square box over a rounded card and painted across the corners,
-         * and being above the card it covered the hover stroke there. Both of these show up only over the
-         * media and never over the footer, because this is the only thing that sits over the media.
+         * The anchor is the card's media band, which runs to the card's edge — exactly the strip the stroke
+         * covers on hover. This layer is position:fixed in the root stacking context, so the card's
+         * `overflow: hidden` never reaches it and it paints above everything: at the card's edge it laid its
+         * own antialiased boundary straight over the stroke. That is the pale sliver, and it is why the
+         * sliver appeared over the media and never over the footer — this is the only thing sitting over the
+         * media.
+         *
+         * Rounding it to the card's radius was not enough: that arc is concentric with the stroke's OUTER
+         * edge, so around the corner the layer still crossed the band. It has to stop at the stroke's inner
+         * edge — inset by the stroke's width on the three sides the stroke covers (the bottom meets the
+         * footer), with the matching inner radius.
+         *
+         * The offsets are whole pixels because `getBoundingClientRect` reports fractions (the grid divides
+         * the row by three), and a fixed box holding an iframe at a fractional offset gets its own
+         * composited layer whose edges Chrome antialiases — the same bright half-pixel, by another route.
          */
-        borderRadius: `${theme.radius.card} ${theme.radius.card} 0 0`,
+        left: Math.round(rect.left) + RING_WIDTH,
+        top: Math.round(rect.top) + RING_WIDTH,
+        width: Math.round(rect.width) - RING_WIDTH * 2,
+        height: Math.round(rect.height) - RING_WIDTH,
+        borderRadius: `${INNER_RADIUS}px ${INNER_RADIUS}px 0 0`,
         overflow: 'hidden',
         zIndex: 5,
         pointerEvents: 'none',

@@ -31,11 +31,18 @@ export const ringLit = css`
   outline: none;
 `
 
+/**
+ * How thick the hover stroke is. Exported because anything drawn OVER a hovered card has to keep clear of
+ * it: the shared 3D hover preview is position:fixed in the root stacking context, so it is not bound by
+ * the card's own clip and would otherwise paint across the stroke (components/HoverPreviewLayer).
+ */
+export const RING_WIDTH = 3
+
 // Hover stroke (Figma "Marketplace Cards" hover, 635:789): 3px of the Cerise gradient
 // (#ff2d55 → #c640cd). A gradient fill masked down to the ring, since a border can't carry one.
 export const ringHover = css`
   border: 0;
-  padding: 3px;
+  padding: ${RING_WIDTH}px;
   background: ${gradients.cerise};
   -webkit-mask:
     linear-gradient(#000 0 0) content-box,
