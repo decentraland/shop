@@ -1,7 +1,7 @@
 import styled from '@emotion/styled'
 import { keyframes } from '@emotion/react'
 import { theme } from '~/styles/theme'
-import { Button } from '~/components/Button'
+import { checkoutCtaCss } from '~/styles/cta.styles'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 
 const { colors, radius, media, z } = theme
@@ -334,16 +334,21 @@ export const Remove = styled.button`
   }
 `
 
+// Figma's CTA block (2187:451726): the total on its own row with the button full-width under it, not the
+// two side by side. A checkout button that hugs its label reads as a secondary action next to the figure.
 export const Foot = styled.div`
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
   gap: 12px;
   padding: 14px 20px;
   border-top: 1px solid ${colors.line};
 `
 
 export const Total = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   font-size: 14px;
   color: ${colors.text2};
 
@@ -356,6 +361,9 @@ export const Total = styled.div`
   }
 `
 
-export const CheckoutBtn = styled(Button)`
-  flex: none;
+// The same button the cart drawer ends on — checking out looks like checking out wherever it is offered.
+// It used to be the purple Button variant, which read as a different, lesser action than the real one.
+export const CheckoutBtn = styled.button`
+  ${checkoutCtaCss};
+  width: 100%;
 `

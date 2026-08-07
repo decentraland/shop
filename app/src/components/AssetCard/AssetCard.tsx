@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCart } from '~/store/cart'
 import { useFavorite } from '~/store/favorites'
@@ -146,9 +146,14 @@ export function AssetCard(props: AssetCardProps) {
   const discountPct = onSale ? saleDiscountPct(item.compareAtCredits!, item.priceCredits) : 0
 
   // A browse card can hold an item with nothing to buy (a favourite whose listing ended, a collection
-  // sibling that was never listed): the price becomes the NOT FOR SALE tag and the action becomes VIEW.
-  // Your own item keeps MANAGE.
-  const notForSale = !own && item.priceCredits <= 0
+  // sibling that was never listed, a mint that has run out): the price becomes the NOT FOR SALE tag and
+  // the action becomes VIEW. Your own item keeps MANAGE.
+  //
+  // `available === 0` counts, `undefined` does not: absent supply means the feed did not say, and a
+  // secondary row has no stock concept at all — reading either as sold out would take the buy action off
+  // items that can still be bought. An exhausted mint used to keep its ADD TO CART, and since a feed can
+  // still report a price for it the card offered a purchase that add() could not honour.
+  const notForSale = !own && (item.priceCredits <= 0 || item.available === 0)
 
   // Whether the card has run out of copies to offer — the only case where the CTA may stop saying "Add to
   // cart". Quantity is a PRIMARY (mint) concept: a primary row can hold several copies up to the remaining
@@ -170,6 +175,33 @@ export function AssetCard(props: AssetCardProps) {
   )
 
   const nfs = <S.Nfs data-testid="card-nfs">{t('assetCard.notForSale')}</S.Nfs>
+
+  // The card's action when there is nothing to buy: the round arrow on the compact card, the full-width
+  // pill everywhere else. Both point at the detail page themselves rather than relying on the whole-card
+  // overlay link, which they cover (see ViewRoundLink in the styles). A NAME has no detail page, so there
+  // it stays the inert span it has always been.
+  const viewTo = canOpen && !isNameItem ? detailPath : undefined
+  const viewState = useMemo(() => ({ item, tradeId: item.tradeId }), [item])
+  const viewRound = viewTo ? (
+    <S.ViewRoundLink data-testid="card-view-round" aria-hidden tabIndex={-1} to={viewTo} state={viewState}>
+      <Icon name="arrow-right" size={18} />
+    </S.ViewRoundLink>
+  ) : (
+    <S.ViewRound data-testid="card-view-round" aria-hidden>
+      <Icon name="arrow-right" size={18} />
+    </S.ViewRound>
+  )
+  const viewCta = viewTo ? (
+    <S.ViewCtaLink data-reveal data-testid="card-view" aria-hidden tabIndex={-1} to={viewTo} state={viewState}>
+      <Icon name="eye" size={20} />
+      {t('assetCard.view')}
+    </S.ViewCtaLink>
+  ) : (
+    <S.ViewCta data-reveal data-testid="card-view" aria-hidden>
+      <Icon name="eye" size={20} />
+      {t('assetCard.view')}
+    </S.ViewCta>
+  )
 
   const priceOrNfs = (listed: boolean) =>
     listed && item.priceCredits > 0 ? (
@@ -382,12 +414,12 @@ export function AssetCard(props: AssetCardProps) {
           </S.Action>
         </S.Body>
       ) : isNameItem ? (
-        // Owned NAME (read-only): @name + verified badge, and the NOT FOR SALE tag (never listable here).
+        // Owned NAME (read-only): the name + verified badge, and the NOT FOR SALE tag (never listable here).
         <S.Body data-name>
           <S.Top>
             <S.Desc>
               <S.Name data-verified title={item.name}>
-                <span>@{item.name}</span>
+                <span>{item.name}</span>
                 {/* DCL verified badge: scalloped Cerise-gradient seal + white check. Inlined (not the
                     Icon mask) so the gradient renders. */}
                 <S.Verified width="18" height="18" viewBox="0 0 14.6921 14.6931" fill="none" aria-hidden>
@@ -510,13 +542,8 @@ export function AssetCard(props: AssetCardProps) {
               keyboard-reachable navigation. */}
           <S.Action>
             {chips}
-            <S.ViewRound data-testid="card-view-round" aria-hidden>
-              <Icon name="arrow-right" size={18} />
-            </S.ViewRound>
-            <S.ViewCta data-reveal data-testid="card-view" aria-hidden>
-              <Icon name="eye" size={20} />
-              {t('assetCard.view')}
-            </S.ViewCta>
+            {viewRound}
+            {viewCta}
           </S.Action>
         </S.Body>
       ) : (
@@ -553,9 +580,7 @@ export function AssetCard(props: AssetCardProps) {
                 full-width Cart below; only one is visible per breakpoint / layout. Nothing to buy → the
                 round arrow that stands in for VIEW. */}
             {notForSale ? (
-              <S.ViewRound data-testid="card-view-round" aria-hidden>
-                <Icon name="arrow-right" size={18} />
-              </S.ViewRound>
+              viewRound
             ) : (
               <S.AddRound
                 data-testid="card-add-round"
@@ -573,10 +598,7 @@ export function AssetCard(props: AssetCardProps) {
             )}
 
             {notForSale ? (
-              <S.ViewCta data-reveal data-testid="card-view" aria-hidden>
-                <Icon name="eye" size={20} />
-                {t('assetCard.view')}
-              </S.ViewCta>
+              viewCta
             ) : (
               <S.Cart
                 data-in={(!own && cartFull) || undefined}

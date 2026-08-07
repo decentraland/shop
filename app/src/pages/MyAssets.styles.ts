@@ -237,6 +237,20 @@ export const EmptyIcon = styled.div`
   height: 138px;
   color: ${theme.colors.dclRed};
 `
+
+// The illustrations carry the DCL red→amber gradient, so they are images rather than currentColor Icon
+// masks, which would flatten them to one colour.
+export const EmptyArt = styled.img`
+  display: block;
+  width: 138px;
+  height: 138px;
+
+  // Figma insets the backpack inside the same 138px frame the collections art fills edge to edge.
+  &[data-inset] {
+    width: 89.17px;
+    height: 89.17px;
+  }
+`
 // Title and body are one block: 12px apart from each other, 24px from the icon and the CTA.
 export const EmptyCopy = styled.div`
   display: flex;

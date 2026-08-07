@@ -48,6 +48,30 @@ describe('Filters', () => {
     })
   })
 
+  describe('when a price thumb is dragged', () => {
+    // Every tick used to reach the URL, so one drag refetched the grid dozens of times and the page
+    // collapsed and sprang back under the cursor on each one.
+    it('should not touch the price until the thumb is released', () => {
+      const onPriceMax = vi.fn()
+      render(<Filters {...base} onPriceMax={onPriceMax} />)
+      const max = screen.getByRole('slider', { name: /max/i })
+
+      for (const value of ['170', '150', '130']) fireEvent.change(max, { target: { value } })
+      expect(onPriceMax).not.toHaveBeenCalled()
+
+      fireEvent.pointerUp(max)
+      expect(onPriceMax).toHaveBeenCalledTimes(1)
+    })
+
+    it('should still move the thumb and the Max box while the drag is in flight', () => {
+      render(<Filters {...base} />)
+      const max = screen.getByRole<HTMLInputElement>('slider', { name: /max/i })
+      fireEvent.change(max, { target: { value: '120' } })
+      expect(max.value).toBe('120')
+      expect(screen.getByRole<HTMLInputElement>('spinbutton', { name: /max/i }).value).not.toBe('')
+    })
+  })
+
   describe('when the Rarity chips are rendered', () => {
     it('should render one chip per rarity and toggle the clicked rarity', () => {
       const onToggleRarity = vi.fn()

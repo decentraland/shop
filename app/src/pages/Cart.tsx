@@ -1241,19 +1241,12 @@ export function Cart() {
                         </S.Desc>
                         <S.Foot>
                           {unavailable ? (
-                            /* No price/stepper: a warning + the reason, plus a link to the item's resales.
-                               The trash button in checkout__actions is the one-tap remove. */
-                            <>
-                              <S.Unavailable>
-                                <S.Warn name="warning-fill" size={24} />
-                                {unavailableLabel}
-                              </S.Unavailable>
-                              {detailPath ? (
-                                <S.Resales to={detailPath} state={{ item, tradeId: item.tradeId }}>
-                                  {t('cart.availability.viewResales')}
-                                </S.Resales>
-                              ) : null}
-                            </>
+                            /* No price/stepper: just a warning and the reason. The trash button in
+                               checkout__actions is the one-tap remove. */
+                            <S.Unavailable>
+                              <S.Warn name="warning-fill" size={24} />
+                              {unavailableLabel}
+                            </S.Unavailable>
                           ) : (
                             <>
                               {/* Quantity stepper. PRIMARY (mint) lines can buy multiple copies: minus decrements
