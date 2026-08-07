@@ -9,7 +9,19 @@ import { config } from '~/config'
 
 export type ShopCreatorRank = {
   id: string // wallet address
+  /** Sales in the requested window. What the ranking is ORDERED by. */
   sales: number
+  /**
+   * Sales over all time, and what they have published. What the card SHOWS — a creator's standing, not
+   * their last month.
+   *
+   * OPTIONAL because this service and the shop deploy on their own schedules: a shop that reaches
+   * production first would otherwise read `undefined` off every row. The card leaves out what it was not
+   * given (see lib/topCreators); it must never be the reason a section fails to render.
+   */
+  totalSales?: number
+  collections?: number
+  items?: number
 }
 
 // Ranking only: the server has no way to tell a presentable creator from a test account, so it hands

@@ -2,7 +2,13 @@ import { describe, it, expect } from 'vitest'
 import type { ProfileAvatar } from '~/lib/profile'
 import { selectTopCreators } from './topCreators'
 
-const ranked = (...rows: [string, number][]) => rows.map(([id, sales]) => ({ id, sales }))
+// A ranking row. The tuple is [address, window sales]; the figures the card shows are derived from it so
+// a test can tell which number reached the card without spelling out four every time.
+// A ranking row. The tuple is [address, window sales]; the figures the card shows are derived from it so
+// a test can tell which number reached the card without spelling out four every time. `items` can be
+// overridden per address to drive the catalogue floor.
+const ranked = (...rows: [string, number][]) =>
+  rows.map(([id, sales]) => ({ id, sales, totalSales: sales * 100, collections: 3, items: 30 }))
 
 function profiles(entries: Record<string, Partial<ProfileAvatar>>): Map<string, ProfileAvatar> {
   return new Map(Object.entries(entries).map(([address, profile]) => [address.toLowerCase(), profile as ProfileAvatar]))
@@ -19,9 +25,9 @@ describe('selectTopCreators', () => {
       8
     )
 
-    expect(selected.map(creator => [creator.name, creator.sales])).toEqual([
-      ['byPolygonalMind', 62],
-      ['METATIGER', 34]
+    expect(selected.map(creator => [creator.name, creator.totalSales, creator.collections, creator.items])).toEqual([
+      ['byPolygonalMind', 6200, 3, 30],
+      ['METATIGER', 3400, 3, 30]
     ])
   })
 
@@ -73,9 +79,9 @@ describe('selectTopCreators', () => {
       8
     )
 
-    expect(selected.map(creator => [creator.address, creator.sales])).toEqual([
-      ['0xmain', 62],
-      ['0xother', 5]
+    expect(selected.map(creator => [creator.address, creator.totalSales])).toEqual([
+      ['0xmain', 6200],
+      ['0xother', 500]
     ])
   })
 
