@@ -25,6 +25,9 @@ vi.mock('~/store/wallet', () => ({
     session: currentSession,
     connecting: false,
     error: null,
+    // The return handlers wait on this before committing. Without it these mocks report `undefined`
+    // and the next `?order=…` case added here would hang for no visible reason.
+    restored: true,
     signIn,
     restore: vi.fn(),
     disconnect: vi.fn()

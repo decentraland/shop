@@ -229,6 +229,7 @@
     "tryAgain": "Try again",
     "errorCanceled": "You cancelled the request.",
     "errorSignIn": "Sign in to get {currency}.",
+    "errorSignInAfterPay": "Your payment went through. Sign in with the same wallet to see your {currency}.",
     "errorTimeout": "This is taking longer than usual — your {currency} will appear shortly.",
     "errorGeneric": "Couldn’t complete your purchase — please try again.",
     "errorGrant": "Couldn’t add your {currency} — please try again."
@@ -618,7 +619,9 @@
     "unfinished": "Unfinished",
     "resume": "Continue",
     "resuming": "Opening…",
-    "resumeExpired": "That checkout has expired — pick a pack to start again."
+    "resumeExpired": "That checkout has expired — pick a pack to start again.",
+    "resumePaid": "You already paid for this — your credits are on the way.",
+    "resumeUnavailable": "Couldn't open the payment page. Please try again."
   },
   "myFavorites": {
     "emptyTitle": "Nothing here... yet!",

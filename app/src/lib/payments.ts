@@ -191,7 +191,14 @@ export type OrderStatus = {
   // 'pending' = the poll timed out but the payment isn't failed — the verified webhook can still
   // grant the credits later (up to Stripe's retry window), so the UI shows an "on the way" state
   // rather than a hard error (see U7).
-  status: 'processing' | 'credited' | 'failed' | 'pending'
+  //
+  // 'abandoned' = the checkout was retired without ever being paid (the buyer walked away, or the
+  // Stripe session expired). The server sends it so a poll STOPS waiting on something that can never
+  // complete. Listed here because the type is the contract: `payments-stripe` casts the response, so
+  // a status missing from this union is not a compile error — it is a value that silently falls
+  // through every branch. The sibling comment in lib/credits.ts about exactly this mistake ("the type
+  // IS the lie") was written about the other status union in this same flow.
+  status: 'processing' | 'credited' | 'failed' | 'pending' | 'abandoned'
   creditsGranted?: number
   newBalance?: number
   error?: string

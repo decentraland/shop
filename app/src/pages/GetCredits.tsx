@@ -84,7 +84,7 @@ function friendlyError(e: unknown): string {
 export function GetCredits() {
   useSeo({ title: t('nav.getCredits', { currency: CURRENCY.name }), noindex: true })
   const navigate = useNavigate()
-  const { session, signIn } = useWallet()
+  const { session, signIn, restored } = useWallet()
   const qc = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
   // Catalogue from the credits-server (single source of truth); falls back to the bundled packs.
@@ -185,6 +185,20 @@ export function GetCredits() {
           } catch {
             /* ignore a malformed resume payload — the credits still landed */
           }
+        } else if (result.status === 'abandoned') {
+          // The checkout was retired without ever being paid — the buyer cancelled, or the session
+          // expired. Landing here means they came back to a success URL for a dead order (a stale
+          // link, or a cancel that raced this poll). No charge was made, so this is NOT the "couldn't
+          // add your credits" error screen below: send them back to the packs with the same gentle
+          // note a cancel gets.
+          //
+          // The balance is refetched anyway. A LATE payment can still credit a retired order, and if
+          // that is what happened the buyer is reading "payment canceled" while the credits land —
+          // at least let the header show the truth.
+          track('Shop Buy Credits Cancelled', { order_id: orderId, provider: CREDITS_PROVIDER, step: 'grant' })
+          void qc.invalidateQueries({ queryKey: ['usd-balance'] })
+          setCanceledNote(true)
+          setPhase('select')
         } else if (result.status === 'pending') {
           // Poll timed out but the payment isn't failed — the webhook can still grant the credits.
           // Show an "on the way" state (not an error) and refetch the balance so it updates when it lands.
@@ -265,6 +279,18 @@ export function GetCredits() {
     const wasCanceled = searchParams.get('canceled') != null
 
     if (wasCanceled) {
+      // Returning from Stripe is a COLD BOOT of the app — we navigated away to the hosted page — so
+      // the wallet session is restored asynchronously and is null on this first run. Latching
+      // `returnHandled` here (as this used to) meant the cancel below was skipped and the re-run,
+      // once the identity arrived, bailed at the guard above: the call never fired at all, and the
+      // order sat in Activity looking live until Stripe aged the session out a day later.
+      //
+      // So wait for the restore before committing, exactly as the success branch below does. `restored`
+      // rather than `session` is what ends the wait: it is set on every exit path INCLUDING the ones
+      // that find no wallet, so a signed-out visitor still gets their cancelled note instead of
+      // hanging here forever.
+      if (orderId && !restored) return
+
       returnHandled.current = true
       // Buyer abandoned Stripe's hosted checkout (came back via `?canceled=1`). The single biggest
       // drop in a payments funnel — tracked so we can measure hosted-page abandonment.
@@ -284,13 +310,27 @@ export function GetCredits() {
     // We're on Stripe's success_url. Show the crediting state right away so the pack grid doesn't
     // flash, but the poll is a signed-fetch that needs the restored wallet identity — wait for it.
     setPhase('processing')
-    if (!session) return
+    // Restore finished and there is still no wallet — the identity expired while the buyer was on
+    // Stripe, or storage was cleared. This buyer WAS charged, and the 'processing' render is a
+    // spinner with no buttons and no timeout, so returning here would leave them on "adding your
+    // credits…" forever with no way out. Say what happened instead: the money is fine, the credits
+    // are on the order, and signing back in with the same wallet shows them.
+    if (!session) {
+      if (restored) {
+        track('Shop Buy Credits Failed', { step: 'grant', error_code: 'no_identity', pack_usd: selected?.usd ?? null })
+        setError(t('getCredits.errorSignInAfterPay', { currency: CURRENCY.name }))
+        setPhase('error')
+      }
+      return
+    }
 
     returnHandled.current = true
     clearReturnParams()
     void pollForGrant(orderId)
+    // `restored` is a dependency, not decoration: the cancel branch waits on it, so without it here
+    // the effect never re-runs once the silent session restore finishes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, session])
+  }, [searchParams, session, restored])
 
   function reset() {
     abortRef.current?.abort()

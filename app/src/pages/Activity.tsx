@@ -1,4 +1,4 @@
-import { lazy, Suspense, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -365,20 +365,49 @@ function CreditPurchaseCard({ order }: { order: CreditOrder }) {
   // is what settles it, and a session that turns out to be dead retires the order there and then.
   const canResume = order.status === 'initiated' && !!session
 
+  // Leaving for Stripe deliberately keeps `resuming` set so the button cannot be pressed twice on the
+  // way out. But pressing Back from Stripe is an ordinary thing to do, and bfcache restores this
+  // component with its state intact — the button would come back permanently disabled reading
+  // "Opening…" until a hard reload. `pageshow` fires on both a normal load and a bfcache restore, so
+  // clearing it there covers the return without weakening the guard on the way out.
+  useEffect(() => {
+    const clear = () => setResuming(false)
+    window.addEventListener('pageshow', clear)
+    return () => window.removeEventListener('pageshow', clear)
+  }, [])
+
   async function onResume() {
     if (!session || resuming) return
     setResuming(true)
     try {
-      const url = await resumeCreditOrder(order.id, session.identity)
-      if (url) {
-        window.location.href = url
-        return
+      const result = await resumeCreditOrder(order.id, session.identity)
+
+      if (result.kind === 'url') {
+        // Only ever a Stripe-hosted page. `location.href` will happily run a `javascript:` URL, and
+        // this string comes off the wire — the check costs nothing and means a compromised or
+        // misbehaving response cannot turn a button in the buyer's history into script execution.
+        if (/^https:\/\/([a-z0-9-]+\.)*stripe\.com\//i.test(result.url)) {
+          window.location.href = result.url
+          return // leave `resuming` set: the page is navigating away — see the pageshow reset below.
+        }
+        toast.error(t('activity.resumeUnavailable'))
+      } else if (result.kind === 'expired') {
+        // The checkout died while it sat in the feed. The server has already retired it, so refreshing
+        // the list is what tells the buyer — rather than an error about something they cannot act on.
+        toast.info(t('activity.resumeExpired'))
+        void queryClient.invalidateQueries({ queryKey: ['credit-orders'] })
+      } else if (result.kind === 'paid') {
+        // They paid and the grant is in flight. Telling this buyer to "start again" would be inviting
+        // a second charge for something already bought.
+        toast.success(t('activity.resumePaid'))
+        void queryClient.invalidateQueries({ queryKey: ['credit-orders'] })
+      } else {
+        // We could not find out. Say that, and leave the row exactly as it is — the checkout is very
+        // possibly still fine and a retry costs the buyer nothing.
+        toast.error(t('activity.resumeUnavailable'))
       }
-      // The checkout died while it sat in the feed. The server has already retired it, so refreshing
-      // the list is what tells the buyer — rather than an error about something they cannot act on.
-      toast.info(t('activity.resumeExpired'))
-      void queryClient.invalidateQueries({ queryKey: ['credit-orders'] })
-    } finally {
+      setResuming(false)
+    } catch {
       setResuming(false)
     }
   }
@@ -409,8 +438,13 @@ function CreditPurchaseCard({ order }: { order: CreditOrder }) {
             </S.ResumeButton>
           ) : null}
           <S.Pill data-status={pill}>{pillLabel}</S.Pill>
-          <S.Total data-kind="income">
-            +<CurrencyIcon className="ccy-mark" /> {order.credits}
+          {/* An unfinished checkout has gained the buyer nothing, so it does not get the income
+              treatment — a bold green "+50" beside a quiet grey pill still reads as credits received,
+              which is the exact misreading this whole change exists to remove. It shows the amount at
+              stake, plainly, with no sign. */}
+          <S.Total data-kind={pill === 'UNFINISHED' ? undefined : 'income'}>
+            {pill === 'UNFINISHED' ? '' : '+'}
+            <CurrencyIcon className="ccy-mark" /> {order.credits}
           </S.Total>
         </S.HeadRight>
       </S.CardHead>
