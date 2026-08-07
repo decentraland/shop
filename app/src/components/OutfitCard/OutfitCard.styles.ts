@@ -49,7 +49,7 @@ export const Card = styled(Link)`
 
   @media (hover: hover) {
     &:hover [data-card-frame] {
-      outline-color: ${colors.accentHover};
+      outline-color: ${colors.dclRed};
     }
     &:hover [data-card-media] {
       transform: scale(1.035);
@@ -66,8 +66,10 @@ export const Card = styled(Link)`
     }
   }
 
+  // Same stroke the pointer gets — a keyboard user is being shown the same state, so it cannot be a
+  // different colour.
   &:focus-within [data-card-frame] {
-    outline-color: ${colors.accentHover};
+    outline-color: ${colors.dclRed};
   }
   &:focus-within [data-card-media] {
     transform: scale(1.035);
@@ -121,11 +123,11 @@ export const Frame = styled.div`
   ${theme.media.maxWidth('mobile')} {
     top: 0;
   }
-  // The hover stroke, a 2px breath outside the card's edge (outline, not border, so it costs no
-  // layout). It paints with the Frame, i.e. BEHIND the thumbnail — the cresting head occludes it
-  // exactly like the Figma.
-  outline: 3px solid transparent;
-  outline-offset: 3px;
+  // The hover stroke (Figma 2090:402143): 2px, a 2px breath outside the card's edge. An outline rather
+  // than a border so it costs no layout, and it paints with the Frame — i.e. BEHIND the thumbnail, so the
+  // cresting head occludes it exactly like the design.
+  outline: 2px solid transparent;
+  outline-offset: 2px;
   transition: outline-color 0.2s ease;
 `
 
