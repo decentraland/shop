@@ -803,7 +803,6 @@ export function BuyModal({
             onBuy={method => void startPurchase(method)}
             onClose={onClose}
             busy={busy}
-            shortfall={paymentOptions.manaShortfall}
           />
         ) : (
           <>
@@ -904,12 +903,7 @@ export function BuyModal({
                 </M.Warning>
                 <AssetRow item={item} priceCredits={priceCredits} />
                 {paymentOptions.manaShortfall ? (
-                  <PaymentCtas
-                    options={[]}
-                    totalCents={priceCents}
-                    onPay={() => undefined}
-                    shortfall={paymentOptions.manaShortfall}
-                  />
+                  <PaymentCtas options={[]} totalCents={priceCents} onPay={() => undefined} />
                 ) : null}
                 {/* The pack picker, its running total and the Buy button are the actual sale of credits, so
                     inside the iOS web view none of them render — the app sells credits through In-App

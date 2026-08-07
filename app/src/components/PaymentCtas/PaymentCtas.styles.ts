@@ -128,17 +128,6 @@ export const Plus = styled.span`
   opacity: 0.7;
 `
 
-// "1 credit = X MANA" (Figma 1653-368866): Inter Regular 12, gray-2, tight leading.
-export const RateNote = styled.p`
-  margin: 0;
-  font-family: ${theme.font.sans};
-  font-weight: 400;
-  font-size: 12px;
-  line-height: 1;
-  color: ${theme.colors.muted};
-  text-align: center;
-`
-
 // Why the disabled MANA button can't be used. Sits directly under it (not with the rate note) because it
 // explains that one button, and it needs two lines of room at narrow widths — hence the 1.4 leading.
 export const ShortfallNote = styled.p`

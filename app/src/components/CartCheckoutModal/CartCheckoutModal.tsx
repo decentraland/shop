@@ -4,7 +4,7 @@ import { isIapMode } from '~/lib/iap'
 import { formatCredits } from '~/lib/currency'
 import { hrefFor } from '~/lib/routes'
 import { PaymentCtas } from '~/components/PaymentCtas'
-import { manaPerCredit, type PaymentMethod, type PaymentOption } from '~/lib/payment-options'
+import { type PaymentMethod, type PaymentOption } from '~/lib/payment-options'
 import { t } from '~/intl/i18n'
 import { CloseIcon } from '~/components/Icons/CloseIcon'
 import { WarningTriangleIcon } from '~/components/Icons/WarningTriangleIcon'
@@ -114,12 +114,6 @@ export function CartCheckoutModal(props: Props) {
               options={props.options ?? []}
               totalCents={props.totalCents ?? 0}
               onPay={props.onPay ?? (() => {})}
-              rateNote={(() => {
-                const r = manaPerCredit(props.totalCents ?? 0, props.totalManaWei ?? 0n)
-                return r != null
-                  ? t('buyModal.manaRate', { mana: r.toLocaleString('en', { maximumFractionDigits: 2 }) })
-                  : null
-              })()}
             />
           </M.Body>
         )}
