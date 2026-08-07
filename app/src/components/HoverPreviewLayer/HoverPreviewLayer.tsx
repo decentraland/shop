@@ -8,6 +8,7 @@ import { useHoverPreview } from '~/store/hoverPreview'
 import { useWallet } from '~/store/wallet'
 import { useProfile } from '~/hooks/useProfile'
 import { avatarShape, isCompatible } from '~/lib/bodyShape'
+import { theme } from '~/styles/theme'
 
 const Wrap = styled.div`
   & iframe {
@@ -152,10 +153,26 @@ export function HoverPreviewLayer() {
   const wrapStyle: CSSProperties = active
     ? {
         position: 'fixed',
-        left: rect.left,
-        top: rect.top,
-        width: rect.width,
-        height: rect.height,
+        /**
+         * Snapped to whole pixels. `getBoundingClientRect` reports fractions (the grid divides the row by
+         * three), and a fixed box holding an iframe at a fractional offset gets its own composited layer
+         * whose edges Chrome then antialiases — a bright half-pixel seam laid over the card's hover stroke.
+         */
+        left: Math.round(rect.left),
+        top: Math.round(rect.top),
+        width: Math.round(rect.width),
+        height: Math.round(rect.height),
+        /**
+         * The card's own top corners, clipped here too.
+         *
+         * The anchor is the card's media band, which is a SQUARE box — its corners are rounded only by the
+         * card's `overflow: hidden`. This layer is `position: fixed` in the root stacking context, so that
+         * clip does not reach it: it laid a square box over a rounded card and painted across the corners,
+         * and being above the card it covered the hover stroke there. Both of these show up only over the
+         * media and never over the footer, because this is the only thing that sits over the media.
+         */
+        borderRadius: `${theme.radius.card} ${theme.radius.card} 0 0`,
+        overflow: 'hidden',
         zIndex: 5,
         pointerEvents: 'none',
         opacity: ready ? 1 : 0,
