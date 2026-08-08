@@ -101,11 +101,11 @@ function purchasedItem(item: CatalogItem): { contractAddress: string; itemId: st
 /**
  * Buy Now modal for the item detail page — the pixel-perfect purchase flow (Figma "Buy Asset directly
  * from PDP"). Owns the whole flow so the PDP just opens it:
- *   1. resolve the item's live listing (or live mint) + authorize the credit (LOCK the price)
+ *   1. resolve the item's live listing (or live mint) and price it — nothing is reserved
  *   2. enough credits → "Buy Asset" · not enough → "Buy Credits and Item" (pack picker)
- *   3. confirm → "Completing transaction…" (gasless signs for OTP, prompts for MetaMask)
+ *   3. confirm → authorize the credit (reserving the dollars), then "Completing transaction…"
  *   4. settled/indexed → "Purchase complete!"
- * On any exit before buying, the reserved dollars are released.
+ * On any exit after confirming without buying, the reserved dollars are released.
  */
 export function BuyModal({
   item,
@@ -178,7 +178,19 @@ export function BuyModal({
     credits: number
     usdCents: number
   } | null>(null)
+  /**
+   * The authorize came back with a different price than the screen was showing, so the buyer has not yet
+   * agreed to what they would be charged. Set only by `confirm`, cleared the moment they confirm again.
+   */
+  const [priceChanged, setPriceChanged] = useState(false)
   const reservedCreditIdRef = useRef<string | null>(null)
+  /**
+   * Whether this modal is gone. The authorize now happens on the click, so it can be in flight when the
+   * buyer navigates away — and until it resolves there is no credit id for the unmount cleanup to release.
+   * Without this the reservation would land on a dead component and hold those dollars until it expires,
+   * which is the leak this whole change exists to remove.
+   */
+  const goneRef = useRef(false)
   /**
    * Tracks, per credit and per transaction hash, whether a reservation may already be consumed on-chain.
    *
@@ -193,66 +205,83 @@ export function BuyModal({
   const priceCredits = locked?.credits ?? itemCredits
   const balanceCredits = balance?.credits ?? 0
 
-  // Step 1+2 on open: resolve the live purchase, authorize, reserve the dollars → LOCK the price, then
-  // branch on whether the balance covers it. Re-runs on `attempt`, which is what the error state's
-  // TRY AGAIN bumps: whether the failure came from the price lock or from the submit, the honest retry
-  // is a fresh resolve + a fresh reservation, never a replay of the stale one.
+  // Its own effect, with no deps: the open sequence re-runs on TRY AGAIN, and its cleanup must not be
+  // mistaken for the component going away.
+  useEffect(() => {
+    goneRef.current = false
+    return () => {
+      goneRef.current = true
+    }
+  }, [])
+
+  /**
+   * Route to the no-funds state — but only AFTER settling whether MANA could have paid.
+   *
+   * The MANA price used to be read by a later effect, gated on the phase already being `nofunds`. So a
+   * buyer holding MANA was shown "Insufficient funds — buy credits" first, by construction, and the
+   * screen only became a payment choice once the oracle answered. Nobody waits to see if a dead end
+   * turns into an offer: they have already read that they cannot afford it.
+   *
+   * Two things follow from resolving first. `Shop Buy Credits Prompted` no longer fires for buyers who
+   * could pay — it was inflating the "no funds" figure with people who had the money. And an oracle
+   * that fails is REPORTED rather than silently deleting the MANA rail: the old catch only warned in
+   * DEV, so in production the option vanished with nobody the wiser.
+   *
+   * Reached from BOTH the open sequence (the balance is known and short) and from `confirm` (the server
+   * refused the authorize), which is why it takes its own cancellation check instead of closing over the
+   * open effect's.
+   */
+  async function goNoFunds(credits: number, sale: PurchaseTarget, priceCents: number, cancelled?: () => boolean) {
+    // Only a buyer who HOLDS MANA can have a MANA rail, so only they are worth making wait. Everyone
+    // else reaches the pack picker with no oracle round-trip at all — the guard the old effect carried
+    // (`manaBalanceWei <= 0n → return`), which moving this read onto the blocking path would otherwise
+    // have dropped. A trade quote is three sequential RPC calls; charging them to the majority who
+    // cannot use the answer is a slower screen for nothing.
+    const holdsMana = (manaBalanceWei ?? 0n) > 0n
+    const manaWei = holdsMana ? await manaPriceFor(sale) : null
+    if (cancelled?.()) return
+    if (manaWei != null) setManaPriceWei(manaWei)
+    // "Unavailable" is only true of a read that was ATTEMPTED. Someone with no MANA is not owed a notice
+    // about a price we never asked for.
+    else if (holdsMana) setManaPriceUnavailable(true)
+
+    const rails = computePaymentOptions({
+      priceCents,
+      priceManaWei: manaWei ?? 0n,
+      balanceCents: balance?.balanceCents ?? 0,
+      manaBalanceWei: manaBalanceWei ?? 0n
+    })
+    const canPayWithMana = rails.options.some(o => o.method === 'mana' || o.method === 'combined')
+
+    const shortfall = credits - (balance?.credits ?? 0)
+    const cover = OFFER_PACKS.find(p => p.credits >= shortfall) ?? OFFER_PACKS[OFFER_PACKS.length - 1]
+    setSelectedPack(cover.id)
+    // Only a buyer with no way to pay is being prompted to top up. Tracking the rest is what made this
+    // number untrustworthy.
+    if (!canPayWithMana) {
+      track('Shop Buy Credits Prompted', {
+        from: 'item_checkout',
+        credits_needed: credits,
+        credits_balance: balance?.credits ?? 0,
+        shortfall: Math.max(0, shortfall)
+      })
+    }
+    setPhase('nofunds')
+  }
+
+  /**
+   * Step 1 on open: resolve the live purchase, price it, and branch on whether the balance covers it.
+   *
+   * NOTHING is reserved here. The resolve already yields the exact price — the authorize does not set it,
+   * it echoes it (see `confirm`) — so opening this modal costs the buyer nothing. Re-runs on `attempt`,
+   * which is what the error state's TRY AGAIN bumps: the honest retry is a fresh resolve, never a replay.
+   */
   useEffect(() => {
     let cancelled = false
     if (!session) {
       setPhase('error')
       setError(t('buyModal.signInToCheckout'))
       return
-    }
-    /**
-     * Route to the no-funds state — but only AFTER settling whether MANA could have paid.
-     *
-     * The MANA price used to be read by a later effect, gated on the phase already being `nofunds`. So a
-     * buyer holding MANA was shown "Insufficient funds — buy credits" first, by construction, and the
-     * screen only became a payment choice once the oracle answered. Nobody waits to see if a dead end
-     * turns into an offer: they have already read that they cannot afford it.
-     *
-     * Two things follow from resolving first. `Shop Buy Credits Prompted` no longer fires for buyers who
-     * could pay — it was inflating the "no funds" figure with people who had the money. And an oracle
-     * that fails is REPORTED rather than silently deleting the MANA rail: the old catch only warned in
-     * DEV, so in production the option vanished with nobody the wiser.
-     */
-    const goNoFunds = async (credits: number, sale: PurchaseTarget, priceCents: number) => {
-      // Only a buyer who HOLDS MANA can have a MANA rail, so only they are worth making wait. Everyone
-      // else reaches the pack picker with no oracle round-trip at all — the guard the old effect carried
-      // (`manaBalanceWei <= 0n → return`), which moving this read onto the blocking path would otherwise
-      // have dropped. A trade quote is three sequential RPC calls; charging them to the majority who
-      // cannot use the answer is a slower screen for nothing.
-      const holdsMana = (manaBalanceWei ?? 0n) > 0n
-      const manaWei = holdsMana ? await manaPriceFor(sale) : null
-      if (cancelled) return
-      if (manaWei != null) setManaPriceWei(manaWei)
-      // "Unavailable" is only true of a read that was ATTEMPTED. Someone with no MANA is not owed a notice
-      // about a price we never asked for.
-      else if (holdsMana) setManaPriceUnavailable(true)
-
-      const rails = computePaymentOptions({
-        priceCents,
-        priceManaWei: manaWei ?? 0n,
-        balanceCents: balance?.balanceCents ?? 0,
-        manaBalanceWei: manaBalanceWei ?? 0n
-      })
-      const canPayWithMana = rails.options.some(o => o.method === 'mana' || o.method === 'combined')
-
-      const shortfall = credits - (balance?.credits ?? 0)
-      const cover = OFFER_PACKS.find(p => p.credits >= shortfall) ?? OFFER_PACKS[OFFER_PACKS.length - 1]
-      setSelectedPack(cover.id)
-      // Only a buyer with no way to pay is being prompted to top up. Tracking the rest is what made this
-      // number untrustworthy.
-      if (!canPayWithMana) {
-        track('Shop Buy Credits Prompted', {
-          from: 'item_checkout',
-          credits_needed: credits,
-          credits_balance: balance?.credits ?? 0,
-          shortfall: Math.max(0, shortfall)
-        })
-      }
-      setPhase('nofunds')
     }
     void (async () => {
       try {
@@ -279,39 +308,15 @@ export function BuyModal({
         // Keep the purchase + exact price around for the MANA rails, whichever branch we take next.
         setResolvedSale(sale)
         setPriceCents(usdCents)
-        // Known-and-short → straight to the pack picker; don't reserve dollars we can't spend.
+        // Known-and-short → straight to the pack picker.
         if (balance != null && balance.credits < credits) {
-          await goNoFunds(credits, sale, usdCents)
+          await goNoFunds(credits, sale, usdCents, () => cancelled)
           return
         }
-        // Enough (or balance unknown) → LOCK the price by authorizing the credit.
-        try {
-          const {
-            credit,
-            maxCreditedValue,
-            usdCents: lockedCents
-          } = await authorizeUsdCredit(session.identity, usdCents, tradeIdOf(sale), purchasedItem(item))
-          if (cancelled) {
-            releaseReservation([credit.id])
-            return
-          }
-          reservedCreditIdRef.current = credit.id
-          const lockedCredits = usdCentsToCredits(lockedCents)
-          setItemCredits(lockedCredits)
-          const lockedObj = { sale, credit, maxCreditedValue, usdCents: lockedCents, credits: lockedCredits }
-          setLocked(lockedObj)
-          // Resuming after a Stripe top-up: the buyer already committed, so finish automatically.
-          if (resume) void confirm(lockedObj)
-          else setPhase('ready')
-        } catch (authErr) {
-          if (cancelled) return
-          // Server said not enough credits → show the pack picker, not a bare error.
-          if (isInsufficient(authErr)) {
-            await goNoFunds(credits, sale, usdCents)
-            return
-          }
-          throw authErr
-        }
+        // Resuming after a Stripe top-up: the buyer already committed, so finish automatically. The
+        // purchase is passed in rather than read back off state, which has not flushed yet.
+        if (resume) void confirm({ sale, usdCents })
+        else setPhase('ready')
       } catch (e) {
         if (cancelled) return
         track(isUserRejection(e) ? 'Shop Purchase Cancelled' : 'Shop Purchase Failed', {
@@ -325,7 +330,7 @@ export function BuyModal({
     return () => {
       cancelled = true
       if (reservedCreditIdRef.current && session) {
-        releaseIfNotInFlight([reservedCreditIdRef.current])
+        void releaseIfNotInFlight([reservedCreditIdRef.current])
         reservedCreditIdRef.current = null
       }
     }
@@ -367,10 +372,86 @@ export function BuyModal({
     manaBalanceWei: manaBalanceWei ?? 0n
   })
 
-  async function confirm(lk = locked) {
-    if (!session || !lk) return
+  /**
+   * Buy — and the ONLY place this modal mints a full-price credit.
+   *
+   * The authorize used to run when the modal OPENED. An ephemeral credit is signed, and a signed credit
+   * cannot be revoked: it stays spendable until its own expiry whatever the client does next, and the
+   * balance query keeps subtracting it for that whole time. So every window a buyer merely opened froze
+   * that item's price out of their balance for minutes, and cancelling on close could not give it back
+   * any sooner — one buyer held four at once across two items. Minting on the click is the only thing
+   * that prevents it, rather than trying to unwind it afterwards.
+   *
+   * Nothing on screen needed the reservation: the server does not PRICE the purchase, it echoes what we
+   * send (rounded up to a whole credit, which is the same rounding `usdCentsToCredits` already applies),
+   * so the resolve's own figure is the figure that gets charged. The one case where the two can disagree
+   * is handled below rather than assumed away.
+   *
+   * `at` carries the freshly resolved purchase for the `resume` path, whose state has not flushed yet.
+   */
+  async function confirm(at?: { sale: PurchaseTarget; usdCents: number }) {
+    const sale = locked?.sale ?? at?.sale ?? resolvedSale
+    const cents = locked?.usdCents ?? at?.usdCents ?? priceCents
+    if (!session || !sale || cents <= 0) return
     setPhase('processing')
     setError(null)
+    setPriceChanged(false)
+
+    let lk = locked
+    if (!lk) {
+      try {
+        const {
+          credit,
+          maxCreditedValue,
+          usdCents: lockedCents
+        } = await authorizeUsdCredit(session.identity, cents, tradeIdOf(sale), purchasedItem(item))
+        // The buyer left while this was in flight. The unmount cleanup ran before there was an id to
+        // release, so this is the only place that can hand it back — and it must, before the submit.
+        if (goneRef.current) {
+          void releaseReservation([credit.id])
+          return
+        }
+        reservedCreditIdRef.current = credit.id
+        const lockedCredits = usdCentsToCredits(lockedCents)
+        lk = { sale, credit, maxCreditedValue, usdCents: lockedCents, credits: lockedCredits }
+        setLocked(lk)
+        /**
+         * The reservation must never charge more (or less) than the screen said.
+         *
+         * Normally it cannot: the price is ours and the server only rounds it up to a whole credit. But
+         * the credits-server hands back an EXISTING live credit for the same item rather than minting a
+         * second one, and that one was priced at an earlier read — so its amount can differ from what
+         * this modal is showing. Fail closed: re-render at the price that is actually reserved and make
+         * the buyer confirm it. The credit is kept, so agreeing spends this one instead of minting again.
+         */
+        if (lockedCredits !== usdCentsToCredits(cents)) {
+          setItemCredits(lockedCredits)
+          setPriceCents(lockedCents)
+          setPriceChanged(true)
+          setPhase('ready')
+          return
+        }
+      } catch (authErr) {
+        // Server said not enough credits → show the pack picker, not a bare error.
+        if (isInsufficient(authErr)) {
+          // Reaching here means our own balance read said the buyer COULD afford it, so that read is the
+          // thing that is wrong. Refetch it, or the shortfall the pack picker states is computed from a
+          // number the server has just contradicted.
+          void qc.invalidateQueries({ queryKey: ['usd-balance'] })
+          await goNoFunds(usdCentsToCredits(cents), sale, cents)
+          return
+        }
+        if (!isUserRejection(authErr)) captureError(authErr, { flow: 'buy', step: 'authorize' })
+        track(isUserRejection(authErr) ? 'Shop Purchase Cancelled' : 'Shop Purchase Failed', {
+          step: 'authorize',
+          error_code: errorCode(authErr)
+        })
+        setError(friendlyError(authErr, t('buyModal.error.generic'), { sale: true }))
+        setPhase('error')
+        return
+      }
+    }
+    if (!lk) return
     // Declared out here, not inside the try: the catch reads them, and the post-success block below runs
     // AFTER the try so that a failure in analytics or a cache refresh can never reach the release path.
     let usedGasless = false
@@ -439,7 +520,7 @@ export function BuyModal({
       // The submit is over: the decision now rests on what was actually reported.
       guardRef.current.submitFinished(lk.credit.id)
       if (!isUserRejection(e)) captureError(e, { flow: 'buy', step: 'submit', gasless: usedGasless })
-      releaseReservation([lk.credit.id])
+      void releaseReservation([lk.credit.id])
       reservedCreditIdRef.current = null
       track(isUserRejection(e) ? 'Shop Purchase Cancelled' : 'Shop Purchase Failed', {
         step: 'submit',
@@ -486,11 +567,14 @@ export function BuyModal({
    * through one guarded helper is what makes "never release spent credits" a property of the component rather
    * than something each call site has to remember.
    */
-  function releaseReservation(ids: string[]) {
-    if (!session || ids.length === 0) return
+  function releaseReservation(ids: string[]): Promise<void> {
+    if (!session || ids.length === 0) return Promise.resolve()
     const safe = ids.filter(id => !guardRef.current.mayBeConsumed(id))
-    if (safe.length === 0) return
-    void cancelUsdIntents(session.identity, safe).catch(() => {})
+    if (safe.length === 0) return Promise.resolve()
+    return cancelUsdIntents(session.identity, safe).then(
+      () => undefined,
+      () => undefined
+    )
   }
 
   /**
@@ -501,8 +585,8 @@ export function BuyModal({
    * when nothing has been reported yet. Releasing on "nothing broadcast" there hands back a credit the buyer
    * is about to spend. A modal abandoned before any submit still releases, which is the case it exists for.
    */
-  function releaseIfNotInFlight(ids: string[]) {
-    releaseReservation(ids.filter(id => !guardRef.current.isInFlight(id)))
+  function releaseIfNotInFlight(ids: string[]): Promise<void> {
+    return releaseReservation(ids.filter(id => !guardRef.current.isInFlight(id)))
   }
 
   // Post-purchase cache refresh shared by the MANA rails (mirrors confirm()'s invalidations so the PDP,
@@ -534,7 +618,7 @@ export function BuyModal({
     const sale = locked?.sale ?? resolvedSale
     if (!session || !sale) return
     if (reservedCreditIdRef.current) {
-      releaseReservation([reservedCreditIdRef.current])
+      void releaseReservation([reservedCreditIdRef.current])
       reservedCreditIdRef.current = null
     }
     setPhase('processing')
@@ -579,9 +663,12 @@ export function BuyModal({
     if (!session || !sale || !combined) return
     setPhase('processing')
     setError(null)
-    // Release the full-price reservation (if the 'ready' path made one) before reserving the partial.
+    // Release the full-price reservation (if one was made) and WAIT for it, because the authorize below
+    // asks for a credit sized to the balance and the server answers with a live one for the same item
+    // rather than minting a second. A release still in flight can therefore come straight back as the
+    // full-price credit this just gave up — against a MANA gap computed for the partial one.
     if (reservedCreditIdRef.current) {
-      releaseReservation([reservedCreditIdRef.current])
+      await releaseReservation([reservedCreditIdRef.current])
       reservedCreditIdRef.current = null
     }
     let partialCreditId: string | null = null
@@ -616,7 +703,7 @@ export function BuyModal({
       if (partialCreditId) guardRef.current.submitFinished(partialCreditId)
       // The partial reservation never settled → release the dollars instead of stranding them. Guarded, so a
       // broadcast whose outcome is unknown is left alone.
-      if (partialCreditId) releaseReservation([partialCreditId])
+      if (partialCreditId) void releaseReservation([partialCreditId])
       if (!isUserRejection(e)) captureError(e, { flow: 'buy_credits_and_mana', step: 'submit' })
       track(isUserRejection(e) ? 'Shop Purchase Cancelled' : 'Shop Purchase Failed', {
         step: 'submit',
@@ -655,9 +742,13 @@ export function BuyModal({
     } catch {
       /* private mode: resume just won't auto-trigger; the credits still land */
     }
-    // Release the (unaffordable) item reservation; we re-authorize after topping up.
-    if (locked) releaseReservation([locked.credit.id])
-    reservedCreditIdRef.current = null
+    // Release the (unaffordable) item reservation; we re-authorize after topping up. Both are gated on the
+    // ref so it can never be dropped without the credit it names being handed back.
+    if (reservedCreditIdRef.current) {
+      void releaseReservation([reservedCreditIdRef.current])
+      reservedCreditIdRef.current = null
+    }
+    setLocked(null)
     setPhase('loading')
     try {
       const cs = await createPackCheckout(selectedPack, { address: session.address, identity: session.identity })
@@ -708,21 +799,44 @@ export function BuyModal({
     else void confirm()
   }
 
+  /**
+   * The MANA rails read an allowance BEFORE anything sets the processing phase, so the confirm button stays
+   * enabled across that await. Two clicks there used to start two purchases — and the mixed rail reserves,
+   * so that is two credits for one item. The rails themselves flip the phase synchronously, which disables
+   * the button; this only has to cover the read.
+   */
+  const startingRef = useRef(false)
+
   async function startPurchase(rail: PaymentMethod) {
-    const sale = locked?.sale ?? resolvedSale
-    if (rail === 'credits' || !sale || !session) {
+    if (startingRef.current) return
+    startingRef.current = true
+    try {
+      const sale = locked?.sale ?? resolvedSale
+      if (rail === 'credits' || !sale || !session) {
+        runRail(rail)
+        return
+      }
+      const auth = manaAuthFor(rail, sale)
+      /**
+       * Sized to THIS purchase, like the cart's own approval path.
+       *
+       * Without the amount the check is `allowance > 0` — "is there any?" rather than "is it enough?" — so
+       * a buyer carrying a smaller allowance from a cheaper purchase is told they are already approved, the
+       * approval step is skipped, and the transaction reverts on chain.
+       *
+       * On a failed status read, assume approved and let the lib's ensureAuthorization handle it: that is
+       * the pre-existing behaviour, so a flaky RPC degrades to "unannounced prompt", never to a blocked buy.
+       */
+      const requiredWei = paymentOptions.options.find(o => o.method === rail)?.manaWei ?? 0n
+      const authorized = await getAuthorizationStatus(auth, session.address, requiredWei).catch(() => true)
+      if (needsApprovalStep(session.providerType, authorized)) {
+        setAuthStep({ auth, rail })
+        return
+      }
       runRail(rail)
-      return
+    } finally {
+      startingRef.current = false
     }
-    const auth = manaAuthFor(rail, sale)
-    // On a failed status read, assume approved and let the lib's ensureAuthorization handle it: that is
-    // the pre-existing behaviour, so a flaky RPC degrades to "unannounced prompt", never to a blocked buy.
-    const authorized = await getAuthorizationStatus(auth, session.address).catch(() => true)
-    if (needsApprovalStep(session.providerType, authorized)) {
-      setAuthStep({ auth, rail })
-      return
-    }
-    runRail(rail)
   }
 
   const hasManaRail = paymentOptions.options.some(o => o.method === 'mana' || o.method === 'combined')
@@ -735,6 +849,11 @@ export function BuyModal({
 
   function retry() {
     setError(null)
+    // Drop the previous attempt's reservation along with its price. It was either released by the catch or
+    // is unsafe to touch, and either way spending it on the retry would charge a credit this run never
+    // made — the effect below re-resolves from scratch and `confirm` reserves again.
+    setLocked(null)
+    setPriceChanged(false)
     setPhase('loading')
     setAttempt(a => a + 1)
   }
@@ -806,6 +925,7 @@ export function BuyModal({
             onBuy={method => void startPurchase(method)}
             onClose={onClose}
             busy={busy}
+            notice={priceChanged ? t('buyModal.priceChanged') : null}
           />
         ) : (
           <>
@@ -890,7 +1010,7 @@ export function BuyModal({
                   <WarningTriangleIcon />
                   <M.WarningText>
                     <b>{t('buyModal.insufficientFunds')}</b> {t('buyModal.warningNeedToBuy')}{' '}
-                    <b>{t('buyModal.warningCreditsAmount', { count: Math.max(0, priceCredits - balanceCredits) })}</b>{' '}
+                    <b>{t('buyModal.warningCreditsAmount', { count: Math.max(1, priceCredits - balanceCredits) })}</b>{' '}
                     {t('buyModal.warningToPurchase', { count: 1 })}
                     {/* The link opens the pack picker, so it is an offer to sell credits like any other and
                         goes with them in the iOS web view. The sentence above still states the shortfall. */}
@@ -957,6 +1077,14 @@ export function BuyModal({
             {/* Enough credits — Buy Asset */}
             {phase === 'ready' && (
               <M.Body>
+                {/* The reserved price is not the one the buyer was looking at, so the row below has been
+                    re-rendered at the real one and needs agreeing to before anything is spent. */}
+                {priceChanged && (
+                  <M.Warning data-testid="price-changed" role="status">
+                    <WarningTriangleIcon />
+                    <M.WarningText>{t('buyModal.priceChanged')}</M.WarningText>
+                  </M.Warning>
+                )}
                 <AssetRow item={item} priceCredits={priceCredits} />
                 <M.Ctas>
                   <M.Btn data-variant="gradient" data-full onClick={() => void confirm()}>

@@ -7,7 +7,7 @@ import { useBalance, balanceLabel } from '~/hooks/useBalance'
 import { fetchTrade, type CatalogItem, type LegacyListing } from '~/lib/api'
 import { manaWeiToUsdCents, type ManaRate } from '~/lib/mana-rate'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
-import { CURRENCY, formatAmount, usdCentsToCredits } from '~/lib/currency'
+import { CURRENCY, creditsToUsd, formatAmount, usdCentsToCredits } from '~/lib/currency'
 import { isIapMode } from '~/lib/iap'
 import { track, errorCode, isUserRejection } from '~/lib/analytics'
 import { authorizeUsdCredit, cancelUsdIntents } from '~/lib/credits'
@@ -62,12 +62,13 @@ type Phase = 'confirm' | 'working' | 'error'
 /**
  * Buy Now checkout for a legacy (MANA-priced) listing — a small modal, NOT the cart.
  *
- * The rate is LOCKED at authorize (step 2): the credits-server sizes the MANA at its own oracle read
- * and signs an ephemeral credit with a fixed maxCreditedValue, so settlement can't fail from the rate
- * drifting between browse and buy. Flow:
- *   1) fetch the full signed trade (fetchTrade)
- *   2) authorize the USD amount → signed credit + locked price (usdCents / credits)
- *   3) show the final locked price + Confirm
+ * The price is ours: `manaWeiToUsdCents` converts the listing at the live rate and the credits-server
+ * charges what it is sent, rounded up to a whole credit — which is the same rounding the display already
+ * applies. So the amount can be shown before anything is reserved. Flow:
+ *   1) fetch the full signed trade (fetchTrade) and quote the listing
+ *   2) show the price + Confirm
+ *   3) confirm → authorize the USD amount, reserving the dollars against a signed ephemeral credit whose
+ *      maxCreditedValue is sized at the server's own oracle read
  *   4) buyWithCredits (or buyGasless when enabled) with the legacy trade + the authorized credit
  *   5) navigate to /success
  * On failure any reserved dollars are released so the balance isn't stuck until the TTL.
@@ -89,9 +90,13 @@ export function MarketCheckout({
   const navigate = useNavigate()
 
   const [phase, setPhase] = useState<Phase>('confirm')
-  const [status, setStatus] = useState<string>(t('marketCheckout.lockingPrice'))
+  const [status, setStatus] = useState<string>(t('marketCheckout.checkingListing'))
   const [error, setError] = useState<string | null>(null)
+  // The live listing and what it costs — everything needed to show the price and to authorize, with
+  // nothing reserved. Set once the trade is fetched; `null` means we can't offer the purchase yet.
+  const [quote, setQuote] = useState<{ trade: Trade; usdCents: number; credits: number } | null>(null)
   // The authorized (LOCKED) purchase: the signed trade, the one-time credit, the MANA cap + the price.
+  // Only ever set by `confirm` — see the note there on why this cannot happen when the modal opens.
   const [locked, setLocked] = useState<{
     trade: Trade
     credit: Awaited<ReturnType<typeof authorizeUsdCredit>>['credit']
@@ -99,10 +104,22 @@ export function MarketCheckout({
     credits: number
     usdCents: number
   } | null>(null)
+  /**
+   * The authorize came back with a different price than the screen was showing, so the buyer has not yet
+   * agreed to what they would be charged. Cleared the moment they confirm again.
+   */
+  const [priceChanged, setPriceChanged] = useState(false)
   // The reserved USD intent that still needs releasing if we leave without buying. Set on lock,
   // cleared when released (cancel/error/insufficient) or consumed (buy). The unmount cleanup releases
   // it so navigating away after the price locks doesn't orphan the reservation until the TTL.
   const reservedCreditIdRef = useRef<string | null>(null)
+  /**
+   * Whether this modal is gone. The authorize now happens on the click, so it can be in flight when the
+   * buyer navigates away — and until it resolves there is no credit id for the unmount cleanup to release.
+   * Without this the reservation would land on a dead component and hold those dollars until it expires,
+   * which is the leak this whole change exists to remove.
+   */
+  const goneRef = useRef(false)
   /**
    * Tracks, per credit and per transaction hash, whether the reservation may already be consumed on-chain.
    *
@@ -112,10 +129,18 @@ export function MarketCheckout({
    */
   const guardRef = useRef(createSpendGuard())
 
-  // Indicative (pre-authorize) price to show while we lock the real one.
+  useEffect(() => {
+    goneRef.current = false
+    return () => {
+      goneRef.current = true
+    }
+  }, [])
+
+  // The listing's price, before anything has been checked. Identical to what the quote below settles on
+  // (both are ceil(cents / 10)); it is shown as indicative only because the listing may turn out to be gone.
   const approxCredits = usdCentsToCredits(manaWeiToUsdCents(listing.manaWei, rate))
 
-  // Step 1 + 2 on open: resolve the trade, authorize, and reserve the dollars → LOCK the price.
+  // Step 1 on open: resolve the trade and price it. NOTHING is reserved here — see `confirm`.
   useEffect(() => {
     let cancelled = false
     if (!session) {
@@ -124,31 +149,21 @@ export function MarketCheckout({
       return
     }
 
-    const lockPrice = async () => {
+    const checkListing = async () => {
       try {
         const trade = await fetchTrade(listing.tradeId)
         if (!trade) throw new Error('not found')
         if (isOwnTrade(trade, session.address)) throw new Error("You can't buy your own listing.")
         const usdCents = manaWeiToUsdCents(listing.manaWei, rate)
         // Guard against a malformed manaWei / bad rate sizing a $0 authorize (manaWeiToUsdCents
-        // returns 0 on parse failure) — never lock a free purchase.
+        // returns 0 on parse failure) — never offer a free purchase.
         if (!Number.isFinite(usdCents) || usdCents <= 0) throw new Error('price unavailable')
-        const {
-          credit,
-          maxCreditedValue,
-          usdCents: lockedCents
-        } = await authorizeUsdCredit(session.identity, usdCents, listing.tradeId)
-        if (cancelled) {
-          // Component unmounted before we could show the price — release the reservation.
-          releaseReservation([credit.id])
-          return
-        }
-        reservedCreditIdRef.current = credit.id
-        setLocked({ trade, credit, maxCreditedValue, usdCents: lockedCents, credits: usdCentsToCredits(lockedCents) })
+        if (cancelled) return
+        setQuote({ trade, usdCents, credits: usdCentsToCredits(usdCents) })
         setStatus('')
       } catch (e) {
         if (cancelled) return
-        console.error('[market] authorize failed', e)
+        console.error('[market] listing check failed', e)
         track(isUserRejection(e) ? 'Shop Purchase Cancelled' : 'Shop Purchase Failed', {
           step: 'authorize',
           error_code: errorCode(e),
@@ -159,7 +174,7 @@ export function MarketCheckout({
       }
     }
 
-    void lockPrice()
+    void checkListing()
 
     return () => {
       cancelled = true
@@ -174,27 +189,95 @@ export function MarketCheckout({
 
   // Only assert "needs more credits" when the balance is actually KNOWN — a failed/loading fetch must
   // not falsely gate the buy (undefined would read as 0). If unknown, let them proceed; the on-chain buy guards.
-  const needsMoreCredits = !!locked && balance != null && balance.credits < locked.credits
+  const needsMoreCredits = !!quote && balance != null && balance.credits < quote.credits
 
+  /**
+   * Confirm — and the ONLY place this modal mints a credit.
+   *
+   * The authorize used to run when the modal OPENED. An ephemeral credit is signed, and a signed credit
+   * cannot be revoked: it stays spendable until its own expiry whatever the client does next, and the
+   * balance query keeps subtracting it for that whole time. So merely opening this modal froze the
+   * listing's price out of the buyer's balance for minutes, and cancelling on close could not give it
+   * back any sooner. Minting on the click is the only thing that prevents it.
+   *
+   * Nothing on screen needed the reservation: the server does not price the listing, it charges what it
+   * is sent (rounded up to a whole credit — the same rounding `usdCentsToCredits` already applies), so
+   * the quote's own figure is the figure that gets charged. Where the two CAN disagree is handled below.
+   */
   async function confirm() {
-    if (!session || !locked) return
-    // Not enough balance for the locked amount → send them to top up (Get credits).
+    if (!session || !quote) return
+    // Not enough balance for this price → send them to top up (Get credits).
     if (needsMoreCredits) {
       // Funnel bridge: a purchase blocked by low balance that routes to Get Credits. Lets us join the
       // purchase funnel to the buy-credits funnel and see how many low-balance buyers go on to top up.
       track('Shop Buy Credits Prompted', {
         from: 'item_checkout',
-        credits_needed: locked.credits,
+        credits_needed: quote.credits,
         credits_balance: balance?.credits ?? 0,
-        shortfall: Math.max(0, locked.credits - (balance?.credits ?? 0))
+        shortfall: Math.max(0, quote.credits - (balance?.credits ?? 0))
       })
-      releaseReservation([locked.credit.id])
-      reservedCreditIdRef.current = null
+      if (reservedCreditIdRef.current) {
+        if (releaseReservation([reservedCreditIdRef.current])) setLocked(null)
+        reservedCreditIdRef.current = null
+      }
       navigate('/credits')
       return
     }
     setPhase('working')
     setError(null)
+    setPriceChanged(false)
+
+    let lk = locked
+    if (!lk) {
+      setStatus(t('marketCheckout.lockingPrice'))
+      try {
+        const {
+          credit,
+          maxCreditedValue,
+          usdCents: lockedCents
+        } = await authorizeUsdCredit(session.identity, quote.usdCents, listing.tradeId)
+        // The buyer left while this was in flight. The unmount cleanup ran before there was an id to
+        // release, so this is the only place that can hand it back — and it must, before the submit.
+        if (goneRef.current) {
+          releaseReservation([credit.id])
+          return
+        }
+        reservedCreditIdRef.current = credit.id
+        const credits = usdCentsToCredits(lockedCents)
+        lk = { trade: quote.trade, credit, maxCreditedValue, usdCents: lockedCents, credits }
+        setLocked(lk)
+        /**
+         * The reservation must never charge more (or less) than the screen said. Normally it cannot, but
+         * the credits-server hands back an EXISTING live credit for the same purchase rather than minting
+         * a second one, and that one was priced at an earlier read. Fail closed: re-render at the price
+         * that is actually reserved and make the buyer agree to it. The credit is kept, so confirming
+         * again spends this one instead of minting another.
+         */
+        if (credits !== quote.credits) {
+          setQuote({ trade: quote.trade, usdCents: lockedCents, credits })
+          setPriceChanged(true)
+          setStatus('')
+          setPhase('confirm')
+          return
+        }
+      } catch (e) {
+        console.error('[market] authorize failed', e)
+        // Now the failure most likely to be user-visible in this component, since it happens on the click.
+        if (!isUserRejection(e)) captureError(e, { flow: 'market_buy_now', step: 'authorize' })
+        track(isUserRejection(e) ? 'Shop Purchase Cancelled' : 'Shop Purchase Failed', {
+          step: 'authorize',
+          error_code: errorCode(e),
+          value_usd: quote.usdCents / 100
+        })
+        setStatus('')
+        setError(friendlyError(e))
+        setPhase('error')
+        return
+      }
+    }
+    if (!lk) return
+    const reserved = lk
+
     // Declared out here: the catch reads `usedGasless`, and the post-success block runs AFTER the try so a
     // failure in analytics, a cache refresh or the navigation can never reach the release path.
     let usedGasless = false
@@ -202,23 +285,23 @@ export function MarketCheckout({
     try {
       setStatus(t('marketCheckout.confirming'))
       const buyArgs = {
-        trade: locked.trade,
+        trade: reserved.trade,
         buyer: session.address,
         signer: session.signer,
-        credits: [locked.credit],
-        maxCreditedValue: locked.maxCreditedValue,
-        onBroadcast: ({ txHash: h }: { txHash: string }) => guardRef.current.broadcast(locked.credit.id, h),
+        credits: [reserved.credit],
+        maxCreditedValue: reserved.maxCreditedValue,
+        onBroadcast: ({ txHash: h }: { txHash: string }) => guardRef.current.broadcast(reserved.credit.id, h),
         onReverted: ({ txHash: h }: { txHash: string | null }) => {
           // No hash means the attempt is unresolved, so it must keep the credit untouchable rather than clear
           // it — the pessimistic reading is the only safe one.
           if (h) guardRef.current.reverted(h)
         }
       }
-      guardRef.current.submitStarted(locked.credit.id)
+      guardRef.current.submitStarted(reserved.credit.id)
       if (gaslessEnabled()) {
         try {
           txHash = await buyGasless(buyArgs) // buyer confirms off-chain; relayer covers the fee
-          guardRef.current.broadcast(locked.credit.id, txHash) // relayed → out of our hands
+          guardRef.current.broadcast(reserved.credit.id, txHash) // relayed → out of our hands
           await waitForSettlement(txHash)
           usedGasless = true
         } catch (gaslessErr) {
@@ -234,7 +317,7 @@ export function MarketCheckout({
              * (the credit can never be released) and the fallback is not attempted.
              */
             if (gaslessErr.reason === 'relayer-unreachable') {
-              guardRef.current.unobservable(locked.credit.id)
+              guardRef.current.unobservable(reserved.credit.id)
               throw gaslessErr
             }
             /**
@@ -262,16 +345,21 @@ export function MarketCheckout({
       }
     } catch (e) {
       // The submit is over: from here on the decision rests on what was actually reported.
-      guardRef.current.submitFinished(locked.credit.id)
+      guardRef.current.submitFinished(reserved.credit.id)
       console.error('[market] buy now failed', e)
       // Release the reserved dollars so the balance isn't stuck until the TTL — unless the transaction went
       // out, in which case they may already be spent (releaseReservation is what enforces that).
-      releaseReservation([locked.credit.id])
+      //
+      // The Confirm CTA stays enabled on the error phase, and `confirm` reserves only when it holds nothing.
+      // So a credit that WAS handed back has to be forgotten here, or every retry re-submits a cancelled one
+      // and can never succeed. A credit that was NOT handed back is kept on purpose: it may be spent, and
+      // retrying with it is what lib/spend-guard exists to make safe.
+      if (releaseReservation([reserved.credit.id])) setLocked(null)
       reservedCreditIdRef.current = null
       track(isUserRejection(e) ? 'Shop Purchase Cancelled' : 'Shop Purchase Failed', {
         step: 'submit',
         error_code: errorCode(e),
-        value_usd: locked.usdCents / 100
+        value_usd: reserved.usdCents / 100
       })
       void qc.invalidateQueries({ queryKey: ['usd-balance'] })
       setError(friendlyError(e))
@@ -280,7 +368,7 @@ export function MarketCheckout({
       if (raw.includes('not found') || raw.includes('no active listing') || raw.includes('404')) onSold()
       return
     }
-    guardRef.current.submitFinished(locked.credit.id)
+    guardRef.current.submitFinished(reserved.credit.id)
     // BOUGHT. Bookkeeping and navigation only, deliberately outside the try above — and with its own catch,
     // so a Segment or query-cache fault can neither reach the release path nor cost the buyer the success
     // screen for a purchase that actually happened.
@@ -295,11 +383,11 @@ export function MarketCheckout({
             item_id: listing.itemId ?? null,
             contract_address: listing.contractAddress,
             token_id: null,
-            price_usd: locked.usdCents / 100
+            price_usd: reserved.usdCents / 100
           }
         ],
-        value_credits: locked.credits,
-        value_usd: locked.usdCents / 100,
+        value_credits: reserved.credits,
+        value_usd: reserved.usdCents / 100,
         purchase_type: 'item', // legacy Market = primary public_item_order liquidity
         is_primary: true,
         payment_type: 'credits',
@@ -328,11 +416,12 @@ export function MarketCheckout({
    * the transaction has gone out: the catch below, and the effect cleanup on unmount (the ref is cleared only
    * once the await resolves, so navigating away mid-flight reaches it).
    */
-  function releaseReservation(ids: string[]) {
-    if (!session || ids.length === 0) return
+  function releaseReservation(ids: string[]): boolean {
+    if (!session || ids.length === 0) return false
     const safe = ids.filter(id => !guardRef.current.mayBeConsumed(id))
-    if (safe.length === 0) return
+    if (safe.length === 0) return false
     void cancelUsdIntents(session.identity, safe).catch(() => {})
+    return true
   }
 
   /**
@@ -370,16 +459,17 @@ export function MarketCheckout({
         </S.Head>
 
         <S.Price>
-          {locked ? (
+          {quote ? (
             <>
               <S.PriceLabel>{t('marketCheckout.finalPrice')}</S.PriceLabel>
               <S.PriceValue>
                 <S.Diamond />
-                {formatAmount(locked.credits)}
+                {formatAmount(quote.credits)}
               </S.PriceValue>
-              <S.PriceSub className="muted">
-                {t('marketCheckout.lockedForPurchase')} · ${(locked.usdCents / 100).toFixed(2)}
-              </S.PriceSub>
+              {/* Derived from the CREDITS, not from `quote.usdCents`. The listing converts to cents at the
+                  oracle and is then charged rounded up to a whole credit, so the raw figure understates
+                  the debit by up to 9¢ on almost every listing — a live rate rarely lands on a 10¢ mark. */}
+              <S.PriceSub className="muted">${creditsToUsd(quote.credits).toFixed(2)}</S.PriceSub>
             </>
           ) : (
             <>
@@ -389,7 +479,7 @@ export function MarketCheckout({
                 <S.Diamond />
                 {formatAmount(approxCredits)}
               </S.PriceValue>
-              <S.PriceSub className="muted">{status || t('marketCheckout.lockingPrice')}</S.PriceSub>
+              <S.PriceSub className="muted">{status || t('marketCheckout.checkingListing')}</S.PriceSub>
             </>
           )}
         </S.Price>
@@ -402,6 +492,13 @@ export function MarketCheckout({
         ) : null}
         {needsMoreCredits ? (
           <S.Note className="muted">{t('marketCheckout.needMore', { currency: CURRENCY.name })}</S.Note>
+        ) : null}
+        {/* The reserved price is not the one the buyer was looking at, so the amount above has been
+            re-rendered at the real one and needs agreeing to before anything is spent. */}
+        {priceChanged ? (
+          <S.Note data-testid="price-changed" role="status">
+            {t('buyModal.priceChanged')}
+          </S.Note>
         ) : null}
         {status && phase === 'working' ? <S.Note className="muted">{status}</S.Note> : null}
         <S.NoteNotice message={error} />
@@ -418,7 +515,7 @@ export function MarketCheckout({
           <S.ActionBtn
             variant="purple"
             onClick={() => void confirm()}
-            disabled={busy || !locked || (needsMoreCredits && isIapMode())}
+            disabled={busy || !quote || (needsMoreCredits && isIapMode())}
           >
             {busy
               ? t('marketCheckout.buying')

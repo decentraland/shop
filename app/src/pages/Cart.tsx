@@ -180,7 +180,7 @@ export function Cart() {
   const [notice, setNotice] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   // A resolved order awaiting explicit confirmation because prices or availability changed since the
-  // items were added (mirrors MarketCheckout's lock-then-confirm). null = no pending confirmation.
+  // items were added (mirrors MarketCheckout's quote-then-confirm). null = no pending confirmation.
   const [review, setReview] = useState<CartReview | null>(null)
   // When the pending review was resolved, so Confirm can detect a stale one and re-resolve.
   const reviewedAtRef = useRef(0)

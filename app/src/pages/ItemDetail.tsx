@@ -476,7 +476,7 @@ export function ItemDetail() {
 
   // Market (legacy) checkout: the live MANA→USD rate (read only in market mode) + the LegacyListing
   // projection MarketCheckout expects, built from the UnifiedListing the grid passed in router state.
-  // The price is only indicative until MarketCheckout locks it at authorize (see MarketCheckout).
+  // MarketCheckout re-derives the same amount from this rate; it does not get a different one.
   /**
    * A LEGACY (MANA-priced) listing is priced at the LIVE oracle rate, never at the server's snapshot.
    *

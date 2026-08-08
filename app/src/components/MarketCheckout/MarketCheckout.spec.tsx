@@ -6,10 +6,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { LegacyListing } from '~/lib/api'
 import type { ManaRate } from '~/lib/mana-rate'
 
-// MarketCheckout is a Buy-Now modal for a legacy (MANA-priced) listing. These specs cover the two
-// branches with no e2e coverage: the low-balance bridge to Get Credits (the purchase→buy-credits
-// funnel join) and the locked-price math (credits === ceil(usdCents / 10)). Everything below the
-// authorize step (fetchTrade → authorizeUsdCredit) is stubbed so the modal renders offline.
+// MarketCheckout is a Buy-Now modal for a legacy (MANA-priced) listing. These specs cover the branches
+// with no e2e coverage: WHEN the dollars get reserved (on the confirm click, never on open), the price
+// math (credits === ceil(usdCents / 10), and the dollars shown must be the dollars charged), the
+// low-balance bridge to Get Credits, and the release decision after a failed submit. Everything the
+// modal talks to (fetchTrade → authorizeUsdCredit → the buy rails) is stubbed so it renders offline.
 
 const session = {
   address: '0xbuyer000000000000000000000000000000000001',
@@ -122,24 +123,27 @@ function renderModal() {
 beforeEach(() => {
   vi.clearAllMocks()
   fetchTrade.mockResolvedValue({ signer: '0xseller' })
-  authorizeUsdCredit.mockResolvedValue({
+  // ECHOES the requested price, rounded up to a whole credit — exactly what the credits-server does
+  // (`Math.ceil(rawPrice / 10) * 10`). A fixed number would silently disagree with the quote this modal
+  // showed, which is a real condition it now refuses to charge through.
+  authorizeUsdCredit.mockImplementation(async (_identity: unknown, usdPriceCents: number) => ({
     credit: { id: 'credit-1' },
     maxCreditedValue: '1000000000000000000',
-    usdCents: 2700
-  })
+    usdCents: Math.ceil(usdPriceCents / 10) * 10
+  }))
   cancelUsdIntents.mockResolvedValue(0)
   buyWithCredits.mockResolvedValue('0xhash')
   gaslessOn.value = false
   waitForSettlement.mockResolvedValue(undefined)
 })
 
-describe('when the buyer has enough credits for the locked price', () => {
-  it('should show the locked price as ceil(usdCents / 10) credits with the dollar amount', async () => {
+describe('when the buyer has enough credits for the price', () => {
+  it('should show the price as ceil(usdCents / 10) credits with the dollar amount', async () => {
     useBalance.mockReturnValue({ data: { balanceCents: 100000, credits: 1000 }, isError: false })
 
     renderModal()
 
-    // Locks $27.00 → ceil(2700 / 10) = 270 credits.
+    // $27.00 → ceil(2700 / 10) = 270 credits.
     expect(await screen.findByText('270 credits')).toBeInTheDocument()
     expect(screen.getByText(/\$27\.00/)).toBeInTheDocument()
     // Enough balance → the primary action is Confirm, not the Get-credits bridge.
@@ -148,7 +152,163 @@ describe('when the buyer has enough credits for the locked price', () => {
   })
 })
 
-describe('when the buyer does not have enough credits for the locked price', () => {
+/**
+ * WHEN THE DOLLARS ARE RESERVED.
+ *
+ * An ephemeral credit is SIGNED, and a signed credit cannot be revoked: it stays spendable until its own
+ * expiry whatever the client does afterwards, and the balance keeps subtracting it for that whole time.
+ * A reservation made when this modal OPENED therefore froze the listing's price out of the buyer's
+ * balance for minutes just for looking, and closing the modal could not give it back any sooner.
+ */
+describe('when the checkout is opened', () => {
+  const openIt = async () => {
+    manaWeiToUsdCents.mockReturnValue(2700)
+    useBalance.mockReturnValue({ data: { balanceCents: 100000, credits: 1000 }, isError: false })
+    const rendered = renderModal()
+    const cta = await screen.findByRole('button', { name: /confirm purchase/i })
+    await waitFor(() => expect(cta).not.toBeDisabled())
+    return { ...rendered, cta }
+  }
+
+  it('should reserve nothing, while still showing the price', async () => {
+    await openIt()
+
+    // The price is ours: the server charges what it is sent, rounded up to a whole credit — the same
+    // rounding this figure already carries. Nothing about showing it needs a credit to be minted.
+    expect(screen.getByText('270 credits')).toBeInTheDocument()
+    expect(authorizeUsdCredit).not.toHaveBeenCalled()
+  })
+
+  it('should reserve nothing however many times it is opened and closed', async () => {
+    for (let i = 0; i < 5; i++) {
+      const { unmount } = await openIt()
+      unmount()
+    }
+
+    expect(authorizeUsdCredit).not.toHaveBeenCalled()
+    expect(cancelUsdIntents).not.toHaveBeenCalled()
+  })
+
+  it('should reserve exactly once when the buyer confirms, and buy with it', async () => {
+    const user = userEvent.setup()
+    const { cta } = await openIt()
+
+    await user.click(cta)
+
+    await waitFor(() => expect(buyWithCredits).toHaveBeenCalled())
+    expect(authorizeUsdCredit).toHaveBeenCalledTimes(1)
+    expect(authorizeUsdCredit).toHaveBeenCalledWith(session.identity, 2700, 'trade-1')
+  })
+})
+
+/**
+ * The price the buyer agreed to is the price they get charged.
+ *
+ * The credits-server hands back an EXISTING live credit for the same purchase rather than minting a
+ * second one, and that one was priced at an earlier oracle read — so what comes back CAN differ from
+ * what this modal showed. Charging it anyway would take money for a number the buyer never saw.
+ */
+describe('when the reservation comes back at a different price', () => {
+  const AT_3300 = { credit: { id: 'credit-1' }, maxCreditedValue: '1000000000000000000', usdCents: 3300 }
+
+  const confirmOnce = async () => {
+    const user = userEvent.setup()
+    manaWeiToUsdCents.mockReturnValue(2700)
+    useBalance.mockReturnValue({ data: { balanceCents: 100000, credits: 1000 }, isError: false })
+    authorizeUsdCredit.mockResolvedValueOnce(AT_3300)
+    renderModal()
+    const cta = await screen.findByRole('button', { name: /confirm purchase/i })
+    await waitFor(() => expect(cta).not.toBeDisabled())
+    await user.click(cta)
+    return { user, cta }
+  }
+
+  it('should not buy anything, and should show the price it would actually charge', async () => {
+    await confirmOnce()
+
+    expect(await screen.findByTestId('price-changed')).toBeInTheDocument()
+    expect(screen.getByText('330 credits')).toBeInTheDocument()
+    expect(buyWithCredits).not.toHaveBeenCalled()
+  })
+
+  it('should spend the credit it already holds when the buyer agrees, not a second one', async () => {
+    const { user, cta } = await confirmOnce()
+    await screen.findByTestId('price-changed')
+
+    await waitFor(() => expect(cta).not.toBeDisabled())
+    await user.click(cta)
+
+    await waitFor(() => expect(buyWithCredits).toHaveBeenCalled())
+    expect(authorizeUsdCredit).toHaveBeenCalledTimes(1)
+  })
+})
+
+/**
+ * A live oracle rate almost never lands on a 10-cent mark, so this is nearly every legacy listing.
+ */
+describe('when the listing converts to a fraction of a credit', () => {
+  it('should show the dollar amount the buyer is actually charged, not the pre-rounding one', async () => {
+    // 2734 cents is 274 credits, and 274 whole credits is $27.40 — the server rounds UP, so rendering the
+    // raw $27.34 would understate the debit.
+    manaWeiToUsdCents.mockReturnValue(2734)
+    useBalance.mockReturnValue({ data: { balanceCents: 100000, credits: 1000 }, isError: false })
+
+    renderModal()
+
+    expect(await screen.findByText('274 credits')).toBeInTheDocument()
+    expect(screen.getByText(/\$27\.40/)).toBeInTheDocument()
+    expect(screen.queryByText(/\$27\.34/)).toBeNull()
+  })
+
+  it('should still charge exactly what it showed', async () => {
+    const user = userEvent.setup()
+    manaWeiToUsdCents.mockReturnValue(2734)
+    useBalance.mockReturnValue({ data: { balanceCents: 100000, credits: 1000 }, isError: false })
+
+    renderModal()
+    const cta = await screen.findByRole('button', { name: /confirm purchase/i })
+    await waitFor(() => expect(cta).not.toBeDisabled())
+    await user.click(cta)
+
+    // The raw cents go to the server, which rounds them up to the 274 credits already on screen — so the
+    // price-change guard stays quiet and the purchase goes through.
+    await waitFor(() => expect(buyWithCredits).toHaveBeenCalled())
+    expect(authorizeUsdCredit).toHaveBeenCalledWith(session.identity, 2734, 'trade-1')
+    expect(screen.queryByTestId('price-changed')).toBeNull()
+  })
+})
+
+/**
+ * The authorize is a signed round-trip and now runs on the click, so the buyer can leave while it is in
+ * flight — when there is no credit id yet for the unmount cleanup to release.
+ */
+describe('when the buyer leaves while the reservation is being made', () => {
+  it('should release it rather than buy on a modal that is gone', async () => {
+    const user = userEvent.setup()
+    manaWeiToUsdCents.mockReturnValue(2700)
+    useBalance.mockReturnValue({ data: { balanceCents: 100000, credits: 1000 }, isError: false })
+    let settle: (v: unknown) => void = () => undefined
+    authorizeUsdCredit.mockImplementationOnce(
+      () =>
+        new Promise(resolve => {
+          settle = resolve
+        })
+    )
+
+    const { unmount } = renderModal()
+    const cta = await screen.findByRole('button', { name: /confirm purchase/i })
+    await waitFor(() => expect(cta).not.toBeDisabled())
+    await user.click(cta)
+    await waitFor(() => expect(authorizeUsdCredit).toHaveBeenCalled())
+    unmount()
+    settle({ credit: { id: 'credit-1' }, maxCreditedValue: '1000000000000000000', usdCents: 2700 })
+
+    await waitFor(() => expect(cancelUsdIntents).toHaveBeenCalledWith(session.identity, ['credit-1']))
+    expect(buyWithCredits).not.toHaveBeenCalled()
+  })
+})
+
+describe('when the buyer does not have enough credits for the price', () => {
   /**
    * Inside the iOS app's web view the bridge cannot exist: it routes to the pack picker, and Apple requires
    * digital currency to be sold through In-App Purchase. So the CTA stops offering a way out it cannot
@@ -188,19 +348,21 @@ describe('when the buyer does not have enough credits for the locked price', () 
     })
   })
 
-  it('should bridge to Get Credits: release the reservation, fire the prompt event, and navigate to /credits', async () => {
+  it('should bridge to Get Credits: reserve nothing, fire the prompt event, and navigate to /credits', async () => {
     const user = userEvent.setup()
     useBalance.mockReturnValue({ data: { balanceCents: 50, credits: 5 }, isError: false })
 
     renderModal()
 
-    // The CTA flips to the top-up action once the low balance is known against the locked 270.
+    // The CTA flips to the top-up action once the low balance is known against the quoted 270.
     const cta = await screen.findByRole('button', { name: /buy credits/i })
     await user.click(cta)
 
     await waitFor(() => expect(navigate).toHaveBeenCalledWith('/credits'))
-    // The reserved dollars are released so the balance isn't stuck until the TTL.
-    expect(cancelUsdIntents).toHaveBeenCalledWith(session.identity, ['credit-1'])
+    // Nothing was ever reserved, so there is nothing to hand back — which is the point: this buyer's
+    // balance was never touched by a purchase they could not make.
+    expect(authorizeUsdCredit).not.toHaveBeenCalled()
+    expect(cancelUsdIntents).not.toHaveBeenCalled()
     // Funnel join: a purchase blocked by low balance that routes to top-up.
     const prompted = track.mock.calls.find(c => c[0] === 'Shop Buy Credits Prompted')
     expect(prompted?.[1]).toMatchObject({
@@ -346,6 +508,32 @@ describe('when the buyer retries after an unresolved attempt', () => {
 })
 
 /**
+ * The Confirm CTA stays enabled on the error phase, and `confirm` now reserves only when it is holding
+ * nothing. So a released credit left in hand would be re-submitted on every retry, against an intent the
+ * server has already retired — a retry that can never succeed.
+ */
+describe('when the buyer retries after a failure that released the reservation', () => {
+  it('should reserve again rather than re-submit the released credit', async () => {
+    const user = userEvent.setup()
+    manaWeiToUsdCents.mockReturnValue(2700)
+    useBalance.mockReturnValue({ data: { balanceCents: 100000, credits: 1000 }, isError: false })
+    // Nothing broadcast, so the release goes through.
+    buyWithCredits.mockRejectedValue(new Error('user rejected transaction'))
+
+    renderModal()
+    const cta = await screen.findByRole('button', { name: /confirm purchase/i })
+    await waitFor(() => expect(cta).not.toBeDisabled())
+    await user.click(cta)
+    await waitFor(() => expect(cancelUsdIntents).toHaveBeenCalledWith(session.identity, ['credit-1']))
+
+    await waitFor(() => expect(cta).not.toBeDisabled())
+    await user.click(cta)
+
+    await waitFor(() => expect(authorizeUsdCredit).toHaveBeenCalledTimes(2))
+  })
+})
+
+/**
  * THE GASLESS RAIL — enabled by default in production, and previously untested here.
  */
 describe('when buying through the relayer', () => {
@@ -432,12 +620,24 @@ describe('when the modal goes away mid-purchase', () => {
   })
 
   it('should release a reservation that was never submitted', async () => {
-    // The case the cleanup exists for: the price locked, the buyer walked away without confirming.
+    // A credit exists and nothing was ever sent with it. The only path that now holds one without
+    // submitting: the authorize came back at a price the buyer had not agreed to, so the modal went back
+    // and asked. They closed instead — and those dollars must come back.
+    const user = userEvent.setup()
     manaWeiToUsdCents.mockReturnValue(2700)
     useBalance.mockReturnValue({ data: { balanceCents: 100000, credits: 1000 }, isError: false })
+    authorizeUsdCredit.mockResolvedValueOnce({
+      credit: { id: 'credit-1' },
+      maxCreditedValue: '1000000000000000000',
+      usdCents: 3300
+    })
 
     const { unmount } = renderModal()
-    await waitFor(() => expect(authorizeUsdCredit).toHaveBeenCalled())
+    const cta = await screen.findByRole('button', { name: /confirm purchase/i })
+    await waitFor(() => expect(cta).not.toBeDisabled())
+    await user.click(cta)
+    await waitFor(() => expect(authorizeUsdCredit).toHaveBeenCalledTimes(1))
+    expect(buyWithCredits).not.toHaveBeenCalled()
     unmount()
 
     await waitFor(() => expect(cancelUsdIntents).toHaveBeenCalledWith(session.identity, ['credit-1']))

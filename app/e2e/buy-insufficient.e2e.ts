@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { launchApp, type App } from './helpers/app'
-import { clickByText, waitForText } from './helpers/dom'
+import { clickByText, clickWhenEnabled, waitForText } from './helpers/dom'
 import { COLLECTION, buyTrade } from './fixtures'
 
 let app: App | undefined
@@ -12,8 +12,9 @@ afterEach(async () => {
 describe('buy with insufficient funds', () => {
   it('opens the Buy Credits and Item state (pack picker) and never navigates to /success', async () => {
     // Deep-link the secondary item; force the credits-server authorize step to 402 (insufficient
-    // funds). The buy modal treats that as "not enough credits" and shows the top-up pack picker
-    // instead of a bare error — no dollars are reserved, no purchase happens.
+    // funds). The mocked balance covers the item, so the shortfall is only discovered when the buyer
+    // confirms and the server refuses — the modal treats that as "not enough credits" and shows the
+    // top-up pack picker instead of a bare error. No dollars are reserved, no purchase happens.
     app = await launchApp({
       path: `/item/${COLLECTION}/1`,
       fixtures: { trade: buyTrade },
@@ -25,6 +26,7 @@ describe('buy with insufficient funds', () => {
     await waitForText(page, 'Buy now')
 
     expect(await clickByText(page, 'button', /buy now/i)).toBe(true)
+    await clickWhenEnabled(page, 'button', /^buy$/i)
 
     // The modal reaches the no-funds state: header + insufficient-funds warning.
     await waitForText(page, 'Buy Credits and Item')
@@ -49,6 +51,7 @@ describe('buy with insufficient funds', () => {
     await waitForText(page, 'Nebula Jacket')
     await waitForText(page, 'Buy now')
     expect(await clickByText(page, 'button', /buy now/i)).toBe(true)
+    await clickWhenEnabled(page, 'button', /^buy$/i)
     await waitForText(page, 'Insufficient Funds')
 
     const fit = await page.evaluate(() => {
@@ -100,6 +103,7 @@ describe('buy with insufficient funds', () => {
     await waitForText(page, 'Nebula Jacket')
     await waitForText(page, 'Buy now')
     expect(await clickByText(page, 'button', /buy now/i)).toBe(true)
+    await clickWhenEnabled(page, 'button', /^buy$/i)
     await waitForText(page, 'Insufficient Funds')
 
     const shape = await page.evaluate(() => {

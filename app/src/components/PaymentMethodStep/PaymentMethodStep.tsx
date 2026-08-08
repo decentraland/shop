@@ -43,7 +43,8 @@ export function PaymentMethodStep({
   manaBalanceWei,
   onBuy,
   onClose,
-  busy = false
+  busy = false,
+  notice
 }: {
   item: CatalogItem
   priceCredits: number
@@ -61,7 +62,8 @@ export function PaymentMethodStep({
   onBuy: (method: PaymentMethod) => void
   onClose: () => void
   busy?: boolean
-  /** Held MANA that can't pay for this item — keeps the MANA row, with what it is worth. */
+  /** Something the buyer must read before confirming — rendered above the confirm button. */
+  notice?: string | null
 }) {
   const credits = options.find(o => o.method === 'credits') ?? null
   const mana = options.find(o => o.method === 'mana') ?? null
@@ -233,6 +235,12 @@ export function PaymentMethodStep({
           </S.Content>
         </S.OptionRow>
       </S.Options>
+
+      {notice ? (
+        <S.Notice data-testid="price-changed" role="status">
+          {notice}
+        </S.Notice>
+      ) : null}
 
       <S.BuyBtn
         type="button"
