@@ -140,7 +140,7 @@ describe('when a failed checkout left credits reserved', () => {
   it('should tell the buyer the credits return on their own, and by when', () => {
     renderHeld(true)
 
-    expect(screen.getByTestId('buy-error').textContent).toMatch(/return to your balance within 5.10 minutes/i)
+    expect(screen.getByTestId('buy-error').textContent).toMatch(/return to your balance within 5 to 15 minutes/i)
   })
 
   it('should offer only an acknowledgement, since retrying would fail on the short balance', () => {

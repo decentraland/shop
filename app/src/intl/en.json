@@ -352,7 +352,7 @@
     "errorHeadline": "We couldn't complete your purchase this time.",
     "errorBody": "Don't worry, your credits are safe. Please try again in a moment.",
     "heldLead": "Don't worry, your {currency} are safe. They weren't used and will automatically ",
-    "heldBold": "return to your balance within 5–10 minutes",
+    "heldBold": "return to your balance within 5 to 15 minutes",
     "heldTail": ". No action is needed. You can try again once your {currency} are back.",
     "gotIt": "Got it",
     "tryAgain": "Try again",
