@@ -596,3 +596,36 @@ describe('when credits fall short but the buyer holds MANA', () => {
     expect(screen.queryByTestId('mana-price-unavailable')).toBeNull()
   })
 })
+
+/**
+ * The warning is about a price we could not read. Once one HAS been read the sentence is simply false —
+ * and the MANA buttons are on screen beside it, so it contradicts what the buyer can see.
+ */
+describe('when the MANA price arrives after a failed read', () => {
+  const ONE_MANA = 10n ** 18n
+
+  beforeEach(() => {
+    balance.data = { balanceCents: 0, credits: 0 }
+    manaBalance.data = 100n * ONE_MANA
+    creditPacks.packs = [{ id: 'pack_5', credits: 40, usd: 5.99 }]
+    // Fails for goNoFunds, succeeds for the retry that follows it.
+    readTradeManaPriceWei.mockRejectedValueOnce(new Error('blip')).mockResolvedValue(ONE_MANA)
+  })
+
+  afterEach(() => {
+    balance.data = { balanceCents: 100_000, credits: 10_000 }
+    manaBalance.data = 0n
+    creditPacks.packs = []
+    readTradeManaPriceWei.mockReset().mockResolvedValue(0n)
+  })
+
+  // One outage is one report. The retry re-reads; it does not re-raise.
+  it('should not report the same outage twice', async () => {
+    readTradeManaPriceWei.mockReset().mockRejectedValue(new Error('down'))
+    renderIdle()
+
+    await waitFor(() => expect(readTradeManaPriceWei).toHaveBeenCalledTimes(2))
+    const reports = captureError.mock.calls.filter(c => (c[1] as { step?: string })?.step === 'mana_price')
+    expect(reports).toHaveLength(1)
+  })
+})

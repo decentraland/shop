@@ -62,7 +62,6 @@ type Phase = 'loading' | 'ready' | 'nofunds' | 'processing' | 'complete' | 'erro
 /** A mint's live price + remaining supply, re-read at checkout exactly as the cart re-reads it. */
 const resolveStore: StoreResolver = item => fetchStoreMintState(item.contractAddress, String(item.itemId))
 
-/** The trade a purchase is against, for the fields that only a trade-backed one has. */
 /**
  * What this purchase costs in MANA, or null when it cannot be established.
  *
@@ -70,16 +69,18 @@ const resolveStore: StoreResolver = item => fetchStoreMintState(item.contractAdd
  * will verify, so there is nothing to ask the oracle and no failure mode. A trade has to be quoted, and
  * that read can fail; null is "we do not know", never "no MANA rail".
  */
-async function manaPriceFor(sale: PurchaseTarget): Promise<bigint | null> {
+async function manaPriceFor(sale: PurchaseTarget, opts: { reportFailure?: boolean } = {}): Promise<bigint | null> {
   if (sale.kind === 'store') return BigInt(sale.mint.item.priceWei)
   try {
     return await readTradeManaPriceWei(sale.trade)
   } catch (err) {
-    captureError(err, { flow: 'buy', step: 'mana_price' })
+    // The retry passes false: one outage, one report.
+    if (opts.reportFailure !== false) captureError(err, { flow: 'buy', step: 'mana_price' })
     return null
   }
 }
 
+/** The trade a purchase is against, for the fields that only a trade-backed one has. */
 function tradeIdOf(sale: PurchaseTarget): string | undefined {
   return sale.kind === 'trade' ? sale.trade.id : undefined
 }
@@ -341,7 +342,12 @@ export function BuyModal({
     if (manaBalanceWei == null || manaBalanceWei <= 0n) return
     if (manaPriceWei !== null) return
     let cancelled = false
-    void manaPriceFor(sale).then(wei => {
+    /**
+     * Deliberately runs even after `goNoFunds` already tried and failed: a MANA/USD read is one RPC hop
+     * and a blip should not cost the buyer their MANA rail for the life of the modal. So this is the
+     * retry, not a duplicate — and `reportFailure: false` keeps a single outage from being reported twice.
+     */
+    void manaPriceFor(sale, { reportFailure: !manaPriceUnavailable }).then(wei => {
       if (cancelled) return
       if (wei != null) setManaPriceWei(wei)
       else setManaPriceUnavailable(true)
@@ -872,7 +878,7 @@ export function BuyModal({
                 {/* The MANA rail is missing because the oracle could not be read, not because the buyer
                     cannot afford it. Said out loud: without it they are told to buy credits for something
                     their MANA may well have covered, and the reason is invisible. */}
-                {manaPriceUnavailable && (manaBalanceWei ?? 0n) > 0n ? (
+                {manaPriceUnavailable && manaPriceWei === null && (manaBalanceWei ?? 0n) > 0n ? (
                   <M.Warning data-testid="mana-price-unavailable">
                     <WarningTriangleIcon />
                     <M.WarningText>{t('buyModal.manaPriceUnavailable')}</M.WarningText>
