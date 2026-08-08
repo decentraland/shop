@@ -190,7 +190,10 @@ describe('when the gasless feature flag is off', () => {
   })
 
   it('rejects a single buy with a disabled GaslessUnavailableError', async () => {
-    const signer = makeSigner(async () => '0xsig')
+    const signer = makeSigner(
+      async () =>
+        '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa11111111111111111111111111111111111111111111111111111111111111111b'
+    )
     await expect(
       buyGasless({
         trade: fakeTrade('0xmarket'),
@@ -203,7 +206,10 @@ describe('when the gasless feature flag is off', () => {
   })
 
   it('rejects a batch buy with a disabled GaslessUnavailableError', async () => {
-    const signer = makeSigner(async () => '0xsig')
+    const signer = makeSigner(
+      async () =>
+        '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa11111111111111111111111111111111111111111111111111111111111111111b'
+    )
     const purchases: CreditPurchase[] = [
       { trade: fakeTrade('0xmarket'), credits: [credit(B32('1'), '100')], maxCreditedValue: '100' }
     ]
@@ -212,7 +218,10 @@ describe('when the gasless feature flag is off', () => {
 
   it('does not sign or hit the relayer when disabled', async () => {
     const fetchMock = stubFetch({ txHash: '0xabc' })
-    const signer = makeSigner(async () => '0xsig')
+    const signer = makeSigner(
+      async () =>
+        '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa11111111111111111111111111111111111111111111111111111111111111111b'
+    )
     await expect(
       buyGasless({
         trade: fakeTrade('0xmarket'),
@@ -237,7 +246,10 @@ describe('when the gasless feature flag is off', () => {
 describe('when relaying a single purchase of either kind', () => {
   it('relays a MINT, targeting the CollectionStore', async () => {
     const fetchMock = stubFetch({ ok: true, txHash: '0xmint' })
-    const signer = makeSigner(async () => '0xdead')
+    const signer = makeSigner(
+      async () =>
+        '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa11111111111111111111111111111111111111111111111111111111111111111b'
+    )
 
     const hash = await buyOneGasless({ purchase: storePurchase('1'), buyer: BUYER, signer })
 
@@ -248,7 +260,10 @@ describe('when relaying a single purchase of either kind', () => {
 
   it('relays a LISTING the same way', async () => {
     stubFetch({ ok: true, txHash: '0xrelayed' })
-    const signer = makeSigner(async () => '0xdead')
+    const signer = makeSigner(
+      async () =>
+        '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa11111111111111111111111111111111111111111111111111111111111111111b'
+    )
 
     const hash = await buyOneGasless({
       purchase: {
@@ -266,7 +281,10 @@ describe('when relaying a single purchase of either kind', () => {
 
   it('refuses a purchase with no credits, before signing anything', async () => {
     const fetchMock = stubFetch({ txHash: '0xmint' })
-    const signer = makeSigner(async () => '0xdead')
+    const signer = makeSigner(
+      async () =>
+        '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa11111111111111111111111111111111111111111111111111111111111111111b'
+    )
 
     await expect(
       buyOneGasless({ purchase: { ...storePurchase('1'), credits: [] }, buyer: BUYER, signer })
@@ -277,9 +295,38 @@ describe('when relaying a single purchase of either kind', () => {
 })
 
 describe('when buying a single item gaslessly', () => {
+  it('normalizes a v=0 wallet signature to 27 before relaying', async () => {
+    // Some wallets return the recovery id as 0/1 instead of 27/28. The CreditsManager recovers with
+    // OpenZeppelin's ECDSA, which reverts with ECDSAInvalidSignature() on anything else — the relayer
+    // then fails gas estimation and the buyer, who has already signed, gets nothing. Reproduces a real
+    // failed purchase (revert data 0xf645eedf).
+    const r = 'a'.repeat(64)
+    const s = '1'.repeat(64)
+    const fetchMock = stubFetch({ txHash: '0xabc' })
+    const signer = makeSigner(async () => `0x${r}${s}00`)
+
+    await buyGasless({
+      trade: fakeTrade('0xmarket'),
+      buyer: BUYER,
+      signer,
+      credits: [credit(B32('1'), '100')],
+      maxCreditedValue: '100'
+    })
+
+    // Assert on the whole relayed payload rather than a specific field: the point is that the
+    // normalized signature reaches the wire, wherever the body happens to carry it.
+    const relayed = JSON.stringify(fetchMock.mock.calls[0])
+    // The wallet's `…00` must reach the contract as `…1b`, and the r/s halves must be untouched.
+    expect(relayed).toContain(`${r}${s}1b`)
+    expect(relayed).not.toContain(`${r}${s}00`)
+  })
+
   it('reads the buyer nonce, signs off-chain and returns the relayed txHash', async () => {
     const fetchMock = stubFetch({ ok: true, txHash: '0xrelayed' })
-    const signer = makeSigner(async () => '0xdead')
+    const signer = makeSigner(
+      async () =>
+        '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa11111111111111111111111111111111111111111111111111111111111111111b'
+    )
 
     const hash = await buyGasless({
       trade: fakeTrade('0xmarket'),
@@ -300,7 +347,7 @@ describe('when buying a single item gaslessly', () => {
     let seen: { domain: any; types: any; message: any } | undefined
     const signer = makeSigner(async (domain, types, message) => {
       seen = { domain, types, message: message as any }
-      return '0xdead'
+      return '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa11111111111111111111111111111111111111111111111111111111111111111b'
     })
 
     await buyGasless({
@@ -321,7 +368,10 @@ describe('when buying a single item gaslessly', () => {
 
   it('POSTs executeMetaTransaction calldata to the relayer /transactions endpoint', async () => {
     const fetchMock = stubFetch({ txHash: '0xrelayed' })
-    const signer = makeSigner(async () => '0xdead')
+    const signer = makeSigner(
+      async () =>
+        '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa11111111111111111111111111111111111111111111111111111111111111111b'
+    )
 
     await buyGasless({
       trade: fakeTrade('0xmarket'),
@@ -343,7 +393,10 @@ describe('when buying a single item gaslessly', () => {
   })
 
   it('throws when there are no credits to spend', async () => {
-    const signer = makeSigner(async () => '0xdead')
+    const signer = makeSigner(
+      async () =>
+        '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa11111111111111111111111111111111111111111111111111111111111111111b'
+    )
     await expect(
       buyGasless({ trade: fakeTrade('0xmarket'), buyer: BUYER, signer, credits: [], maxCreditedValue: '0' })
     ).rejects.toThrow('No credits to spend')
@@ -393,7 +446,10 @@ describe('when the buyer wallet cannot sign off-chain', () => {
 describe('when the relayer fails', () => {
   it('wraps a non-ok relayer response as a relayer GaslessUnavailableError', async () => {
     stubFetch({ message: 'over capacity' }, false, 503)
-    const signer = makeSigner(async () => '0xdead')
+    const signer = makeSigner(
+      async () =>
+        '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa11111111111111111111111111111111111111111111111111111111111111111b'
+    )
     await expect(
       buyGasless({
         trade: fakeTrade('0xmarket'),
@@ -407,7 +463,10 @@ describe('when the relayer fails', () => {
 
   it('rejects when the relayer returns ok but no txHash', async () => {
     stubFetch({ ok: true })
-    const signer = makeSigner(async () => '0xdead')
+    const signer = makeSigner(
+      async () =>
+        '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa11111111111111111111111111111111111111111111111111111111111111111b'
+    )
     await expect(
       buyGasless({
         trade: fakeTrade('0xmarket'),
@@ -421,7 +480,10 @@ describe('when the relayer fails', () => {
 
   it('rejects when the relayer body reports ok:false', async () => {
     stubFetch({ ok: false, message: 'nonce too low' })
-    const signer = makeSigner(async () => '0xdead')
+    const signer = makeSigner(
+      async () =>
+        '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa11111111111111111111111111111111111111111111111111111111111111111b'
+    )
     await expect(
       buyGasless({
         trade: fakeTrade('0xmarket'),
@@ -438,7 +500,10 @@ describe('when the relayer fails', () => {
       throw new Error('ECONNREFUSED')
     })
     vi.stubGlobal('fetch', fetchMock)
-    const signer = makeSigner(async () => '0xdead')
+    const signer = makeSigner(
+      async () =>
+        '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa11111111111111111111111111111111111111111111111111111111111111111b'
+    )
     await expect(
       buyGasless({
         trade: fakeTrade('0xmarket'),
@@ -456,7 +521,10 @@ describe('when the relayer fails', () => {
 describe('when batch buying gaslessly', () => {
   it('groups trades on the same marketplace into one meta-tx and one signature', async () => {
     const fetchMock = stubFetch({ txHash: '0xrelayed' })
-    const signer = makeSigner(async () => '0xdead')
+    const signer = makeSigner(
+      async () =>
+        '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa11111111111111111111111111111111111111111111111111111111111111111b'
+    )
     const purchases: CreditPurchase[] = [
       { trade: fakeTrade('0xMarket'), credits: [credit(B32('1'), '100')], maxCreditedValue: '100' },
       { trade: fakeTrade('0xmarket'), credits: [credit(B32('2'), '200')], maxCreditedValue: '200' }
@@ -472,7 +540,10 @@ describe('when batch buying gaslessly', () => {
 
   it('splits trades across different marketplaces into one meta-tx each', async () => {
     const fetchMock = stubFetch({ txHash: '0xrelayed' })
-    const signer = makeSigner(async () => '0xdead')
+    const signer = makeSigner(
+      async () =>
+        '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa11111111111111111111111111111111111111111111111111111111111111111b'
+    )
     const purchases: CreditPurchase[] = [
       { trade: fakeTrade('0xmarketa'), credits: [credit(B32('1'), '100')], maxCreditedValue: '100' },
       { trade: fakeTrade('0xmarketb'), credits: [credit(B32('2'), '200')], maxCreditedValue: '200' }
@@ -486,7 +557,10 @@ describe('when batch buying gaslessly', () => {
   })
 
   it('throws when there are no items to buy', async () => {
-    const signer = makeSigner(async () => '0xdead')
+    const signer = makeSigner(
+      async () =>
+        '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa11111111111111111111111111111111111111111111111111111111111111111b'
+    )
     await expect(buyManyGasless({ purchases: [], buyer: BUYER, signer })).rejects.toThrow('No items to buy')
   })
 
@@ -500,7 +574,10 @@ describe('when batch buying gaslessly', () => {
    */
   it('relays a store mint, so a buyer with no POL can still buy one', async () => {
     const fetchMock = stubFetch({ txHash: '0xmint' })
-    const signer = makeSigner(async () => '0xdead')
+    const signer = makeSigner(
+      async () =>
+        '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa11111111111111111111111111111111111111111111111111111111111111111b'
+    )
 
     const hashes = await buyManyGasless({ purchases: [storePurchase('1')], buyer: BUYER, signer })
 
@@ -511,7 +588,10 @@ describe('when batch buying gaslessly', () => {
 
   it('collapses several mints into ONE meta-tx, matching the direct rail’s grouping', async () => {
     const fetchMock = stubFetch({ txHash: '0xmint' })
-    const signer = makeSigner(async () => '0xdead')
+    const signer = makeSigner(
+      async () =>
+        '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa11111111111111111111111111111111111111111111111111111111111111111b'
+    )
 
     const hashes = await buyManyGasless({
       purchases: [storePurchase('1'), storePurchase('2')],
@@ -527,7 +607,10 @@ describe('when batch buying gaslessly', () => {
 
   it('relays a MIXED basket as one meta-tx per rail', async () => {
     const fetchMock = stubFetch({ txHash: '0xrelayed' })
-    const signer = makeSigner(async () => '0xdead')
+    const signer = makeSigner(
+      async () =>
+        '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa11111111111111111111111111111111111111111111111111111111111111111b'
+    )
 
     const hashes = await buyManyGasless({
       purchases: [
@@ -551,7 +634,10 @@ describe('when batch buying gaslessly', () => {
 
   it('reports each group’s credits with the hash that spent them', async () => {
     stubFetch({ txHash: '0xrelayed' })
-    const signer = makeSigner(async () => '0xdead')
+    const signer = makeSigner(
+      async () =>
+        '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa11111111111111111111111111111111111111111111111111111111111111111b'
+    )
     const onBroadcast = vi.fn()
 
     await buyManyGasless({ purchases: [storePurchase('9')], buyer: BUYER, signer, onBroadcast })
