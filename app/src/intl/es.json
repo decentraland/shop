@@ -339,7 +339,8 @@
     "error": {
       "generic": "No pudimos completar la compra. Inténtalo de nuevo.",
       "creditsCheckout": "No pudimos iniciar el pago de créditos. Inténtalo de nuevo."
-    }
+    },
+    "manaPriceUnavailable": "No pudimos consultar el precio de MANA en este momento, así que pagar con MANA no está disponible para esta compra. Probá de nuevo en un instante."
   },
   "cartCheckout": {
     "titleBuy": "Comprar artículos",
