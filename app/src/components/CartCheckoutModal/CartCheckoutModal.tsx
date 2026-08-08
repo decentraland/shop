@@ -4,7 +4,7 @@ import { isIapMode } from '~/lib/iap'
 import { formatCredits } from '~/lib/currency'
 import { hrefFor } from '~/lib/routes'
 import { PaymentCtas } from '~/components/PaymentCtas'
-import { type PaymentMethod, type PaymentOption } from '~/lib/payment-options'
+import { type ManaShortfall, type PaymentMethod, type PaymentOption } from '~/lib/payment-options'
 import { t } from '~/intl/i18n'
 import { CloseIcon } from '~/components/Icons/CloseIcon'
 import { WarningTriangleIcon } from '~/components/Icons/WarningTriangleIcon'
@@ -47,6 +47,8 @@ type Props = {
   // nofunds
   lines?: CheckoutLine[]
   shortfallCredits?: number
+  /** Held MANA that cannot pay for this basket — renders the disabled rail with its reason. */
+  shortfall?: ManaShortfall | null
   packs?: CreditPack[]
   selectedPack?: string
   onSelectPack?: (id: string) => void
@@ -113,6 +115,7 @@ export function CartCheckoutModal(props: Props) {
             <PaymentCtas
               options={props.options ?? []}
               totalCents={props.totalCents ?? 0}
+              shortfall={props.shortfall}
               onPay={props.onPay ?? (() => {})}
             />
           </M.Body>

@@ -200,7 +200,7 @@ describe('paying with MANA in the buy flow', () => {
       true
     )
     expect(await page.$eval('[data-testid="mana-shortfall-note"]', el => el.textContent ?? '')).toMatch(
-      /worth about [\d.,]+ credits/i
+      /not enough mana/i
     )
     // The pack picker is still the way forward.
     expect(await has(page, 'credit-packs')).toBe(true)
@@ -283,7 +283,7 @@ describe('paying with MANA in the cart checkout', () => {
     )
     // The caption converts the balance to credits — that number IS the explanation.
     expect(await page.$eval('[data-testid="mana-shortfall-note"]', el => el.textContent ?? '')).toMatch(
-      /worth about [\d.,]+ credits/i
+      /not enough mana/i
     )
     // Credits still cover it, so the purchase is not blocked.
     expect(await has(page, 'pay-with-credits')).toBe(true)

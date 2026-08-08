@@ -1407,6 +1407,7 @@ export function Cart() {
               <PaymentCtas
                 options={summaryRails.options}
                 totalCents={summaryTotalCents}
+                shortfall={summaryRails.manaShortfall}
                 /* The summary line right above states the total, so the button does not repeat it. */
                 showCreditsAmount={false}
                 /* "Pay with credits" only earns its words when there is another rail to tell it apart
@@ -1486,6 +1487,7 @@ export function Cart() {
           isSelfCustody={showsWalletConfirmations(session?.providerType)}
           signatures={modal.phase === 'processing' ? modal.signatures : undefined}
           options={modal.phase === 'choose' ? chooseOptions(modal).options : undefined}
+          shortfall={modal.phase === 'choose' ? chooseOptions(modal).manaShortfall : undefined}
           onPay={confirmMethod}
           totalCents={modal.phase === 'choose' ? modal.totalCents : undefined}
           totalManaWei={modal.phase === 'choose' ? modal.manaWei : undefined}
