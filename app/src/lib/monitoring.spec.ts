@@ -9,6 +9,7 @@ import {
   captureError,
   isLocalhost,
   redact,
+  rpcFactsFrom,
   scrubEvent,
   sentryForwarder,
   setErrorForwarder,
@@ -162,8 +163,63 @@ describe('toReportable', () => {
   })
 })
 
+/**
+ * The title fix only helps while the provider's message survives, and it does not always: Sentry's
+ * server-side scrubbing returned `[Filtered]` for the message AND stack of the cart checkout a wallet
+ * rejected with a 401. These fields are ours, so they arrive regardless.
+ */
+describe('rpcFactsFrom', () => {
+  it('lifts the rpc code and the http status out of a wallet error', () => {
+    // The exact shape of the cart checkout that produced an unreadable event in production.
+    expect(rpcFactsFrom({ code: -32006, data: { cause: null, httpStatus: 401 }, message: 'x' })).toEqual({
+      rpc_code: -32006,
+      http_status: 401
+    })
+  })
+
+  it('takes whichever of the two the error actually carries', () => {
+    expect(rpcFactsFrom({ code: -32603, message: 'Failed to fetch' })).toEqual({ rpc_code: -32603 })
+    expect(rpcFactsFrom({ data: { httpStatus: 429 } })).toEqual({ http_status: 429 })
+  })
+
+  it('reports nothing for a plain Error or a non-object', () => {
+    expect(rpcFactsFrom(new Error('boom'))).toEqual({})
+    expect(rpcFactsFrom('a string')).toEqual({})
+    expect(rpcFactsFrom(null)).toEqual({})
+    expect(rpcFactsFrom({ data: 'not-an-object' })).toEqual({})
+  })
+})
+
 describe('captureError', () => {
   beforeEach(() => setErrorForwarder(null))
+
+  it('attaches the rpc facts so the event says something even if the message is scrubbed', () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const forwarder = vi.fn()
+    setErrorForwarder(forwarder)
+
+    captureError({ code: -32006, data: { httpStatus: 401 }, message: 'Unauthorized' }, { flow: 'cart_checkout' })
+
+    const [, ctx] = forwarder.mock.calls[0] as [unknown, Record<string, unknown>]
+    expect(ctx).toEqual({ flow: 'cart_checkout', rpc_code: -32006, http_status: 401 })
+    // And they are searchable, not just readable.
+    expect(tagsFrom(ctx)).toEqual({ flow: 'cart_checkout', rpc_code: '-32006', http_status: '401' })
+    spy.mockRestore()
+    setErrorForwarder(null)
+  })
+
+  it('never lets the thrown value overwrite what the caller said', () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const forwarder = vi.fn()
+    setErrorForwarder(forwarder)
+
+    captureError({ code: -32006 }, { flow: 'buy', rpc_code: 'from-the-caller' })
+
+    const [, ctx] = forwarder.mock.calls[0] as [unknown, Record<string, unknown>]
+    expect(ctx.rpc_code).toBe('from-the-caller')
+    spy.mockRestore()
+    setErrorForwarder(null)
+  })
 
   it('forwards a nameable error while the console still sees the value as thrown', () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})

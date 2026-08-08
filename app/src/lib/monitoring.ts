@@ -51,15 +51,42 @@ export function toReportable(value: unknown): unknown {
   return error
 }
 
+/**
+ * The machine-readable facts inside a wallet/RPC failure, lifted into fields of OUR OWN naming.
+ *
+ * `toReportable` puts the provider's message in the title, which helps only while that message survives.
+ * It does not always: Sentry's server-side scrubbing returned `[Filtered]` for both the `message` and the
+ * `stack` of the cart checkout that a wallet rejected with a 401, leaving an event that said nothing at
+ * all. These two fields are numbers under names nothing scrubs, so they arrive whatever happens to the
+ * free text — which is the point, since the text is the part we do not control.
+ *
+ * They are also low-cardinality (a handful of RPC codes, a handful of HTTP statuses), so `tagsFrom`
+ * promotes them: "how many purchases died on a wallet 401 this week" becomes a question that can be
+ * asked. A message string could never answer it, scrubbed or not — free text does not aggregate.
+ */
+export function rpcFactsFrom(value: unknown): ErrorContext {
+  if (!value || typeof value !== 'object') return {}
+  const raw = value as { code?: unknown; data?: unknown }
+  const facts: ErrorContext = {}
+  if (typeof raw.code === 'number' || typeof raw.code === 'string') facts.rpc_code = raw.code
+  if (raw.data && typeof raw.data === 'object') {
+    const status = (raw.data as { httpStatus?: unknown }).httpStatus
+    if (typeof status === 'number' || typeof status === 'string') facts.http_status = status
+  }
+  return facts
+}
+
 /** Log an error to the console (always) and forward it to the reporter (if wired). Never throws. */
 export function captureError(error: unknown, context: ErrorContext = {}): void {
   const label = typeof context.flow === 'string' ? `error in ${context.flow}` : 'error'
+  // The caller's own context wins: these are a fallback read off the thrown value, never an override.
+  const enriched = { ...rpcFactsFrom(error), ...context }
 
   // The console gets the value as thrown; only the report needs the nameable shape.
-  console.error(`[shop] ${label}`, error, context)
+  console.error(`[shop] ${label}`, error, enriched)
   if (forward) {
     try {
-      forward(toReportable(error), context)
+      forward(toReportable(error), enriched)
     } catch {
       // reporting must never throw back into the caller's catch block
     }
@@ -124,9 +151,17 @@ export function scrubEvent(event: Sentry.Event): Sentry.Event {
  */
 export function tagsFrom(context: ErrorContext): Record<string, string> {
   const tags: Record<string, string> = {}
+  // Named by us and always strings.
   for (const key of ['flow', 'step'] as const) {
     const value = context[key]
     if (typeof value === 'string' && value !== '') tags[key] = value
+  }
+  // Read off the thrown value (see rpcFactsFrom), so a NUMBER is the normal case — `-32603`, `401`.
+  // Stringified because a Sentry tag value is a string; still a closed, tiny set either way.
+  for (const key of ['rpc_code', 'http_status'] as const) {
+    const value = context[key]
+    if (typeof value === 'number') tags[key] = String(value)
+    else if (typeof value === 'string' && value !== '') tags[key] = value
   }
   return tags
 }
