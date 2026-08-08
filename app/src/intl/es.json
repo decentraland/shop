@@ -298,7 +298,8 @@
     "manaReason": "Permite que el Shop use tu MANA para pagar esta compra. Es una aprobación única — no te lo volveremos a pedir.",
     "note": "Sin comisiones de gas, y tú mantienes el control — puedes desactivarla cuando quieras desde Autorizaciones.",
     "errorRejected": "Descartaste la aprobación. Haz clic en Autorizar para intentarlo de nuevo.",
-    "errorGeneric": "No se pudo completar la aprobación. Inténtalo de nuevo."
+    "errorGeneric": "No se pudo completar la aprobación. Inténtalo de nuevo.",
+    "stepOf": "Aprobación {index} de {total}"
   },
   "buyModal": {
     "titleBuy": "Comprar artículo",
