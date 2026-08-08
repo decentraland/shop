@@ -1407,7 +1407,6 @@ export function Cart() {
               <PaymentCtas
                 options={summaryRails.options}
                 totalCents={summaryTotalCents}
-                shortfall={summaryRails.manaShortfall}
                 /* The summary line right above states the total, so the button does not repeat it. */
                 showCreditsAmount={false}
                 /* "Pay with credits" only earns its words when there is another rail to tell it apart

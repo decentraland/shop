@@ -323,16 +323,6 @@ export const PriceCol = styled.div`
   gap: 2px;
 `
 
-/** "1 credit = X MANA" under the MANA amount (Figma 1646-367213). */
-export const RateNote = styled.span`
-  font-family: ${theme.font.sans};
-  font-weight: 400;
-  font-size: 12px;
-  line-height: 1;
-  color: ${theme.colors.muted};
-  white-space: nowrap;
-`
-
 export const BuyBtn = styled.button`
   width: 100%;
   height: 46px;
