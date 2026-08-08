@@ -531,6 +531,32 @@ describe('when the buyer retries after a failure that released the reservation',
 
     await waitFor(() => expect(authorizeUsdCredit).toHaveBeenCalledTimes(2))
   })
+
+  /**
+   * But only when the release actually LANDED. Firing the cancel is not the same as the server accepting
+   * it: on a 5xx the credit is still live and still counted against the balance, so minting a second one
+   * would tell a buyer who has the money that they cannot afford the item until the TTL runs out.
+   */
+  it('should keep the credit and not reserve again when the cancel failed', async () => {
+    const user = userEvent.setup()
+    manaWeiToUsdCents.mockReturnValue(2700)
+    useBalance.mockReturnValue({ data: { balanceCents: 100000, credits: 1000 }, isError: false })
+    buyWithCredits.mockRejectedValue(new Error('user rejected transaction'))
+    cancelUsdIntents.mockRejectedValue(new Error('cancelUsdIntents 503: Service Unavailable'))
+
+    renderModal()
+    const cta = await screen.findByRole('button', { name: /confirm purchase/i })
+    await waitFor(() => expect(cta).not.toBeDisabled())
+    await user.click(cta)
+    await waitFor(() => expect(cancelUsdIntents).toHaveBeenCalledWith(session.identity, ['credit-1']))
+
+    await waitFor(() => expect(cta).not.toBeDisabled())
+    await user.click(cta)
+    await waitFor(() => expect(buyWithCredits).toHaveBeenCalledTimes(2))
+
+    // The retry re-submits the credit it is still holding instead of minting a second one.
+    expect(authorizeUsdCredit).toHaveBeenCalledTimes(1)
+  })
 })
 
 /**

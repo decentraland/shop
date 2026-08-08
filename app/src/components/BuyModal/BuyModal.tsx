@@ -319,8 +319,12 @@ export function BuyModal({
         else setPhase('ready')
       } catch (e) {
         if (cancelled) return
+        // 'resolve', not 'authorize': nothing is authorized here any more. Sold-out, an own listing, an
+        // unavailable price and a missing trade all land in this catch, and reporting them as authorize
+        // failures would blend them into the one metric that says whether moving the mint to the click
+        // worked — making the authorize-failure rate appear to RISE the moment this ships.
         track(isUserRejection(e) ? 'Shop Purchase Cancelled' : 'Shop Purchase Failed', {
-          step: 'authorize',
+          step: 'resolve',
           error_code: errorCode(e)
         })
         setPhase('error')

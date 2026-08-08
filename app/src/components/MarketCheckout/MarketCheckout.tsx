@@ -164,8 +164,9 @@ export function MarketCheckout({
       } catch (e) {
         if (cancelled) return
         console.error('[market] listing check failed', e)
+        // 'resolve', not 'authorize' — this effect no longer authorizes. See the same note in BuyModal.
         track(isUserRejection(e) ? 'Shop Purchase Cancelled' : 'Shop Purchase Failed', {
-          step: 'authorize',
+          step: 'resolve',
           error_code: errorCode(e),
           value_usd: Math.round(manaWeiToUsdCents(listing.manaWei, rate)) / 100
         })
@@ -217,7 +218,7 @@ export function MarketCheckout({
         shortfall: Math.max(0, quote.credits - (balance?.credits ?? 0))
       })
       if (reservedCreditIdRef.current) {
-        if (releaseReservation([reservedCreditIdRef.current])) setLocked(null)
+        if (await releaseReservation([reservedCreditIdRef.current])) setLocked(null)
         reservedCreditIdRef.current = null
       }
       navigate('/credits')
@@ -239,7 +240,7 @@ export function MarketCheckout({
         // The buyer left while this was in flight. The unmount cleanup ran before there was an id to
         // release, so this is the only place that can hand it back — and it must, before the submit.
         if (goneRef.current) {
-          releaseReservation([credit.id])
+          void releaseReservation([credit.id])
           return
         }
         reservedCreditIdRef.current = credit.id
@@ -354,7 +355,7 @@ export function MarketCheckout({
       // So a credit that WAS handed back has to be forgotten here, or every retry re-submits a cancelled one
       // and can never succeed. A credit that was NOT handed back is kept on purpose: it may be spent, and
       // retrying with it is what lib/spend-guard exists to make safe.
-      if (releaseReservation([reserved.credit.id])) setLocked(null)
+      if (await releaseReservation([reserved.credit.id])) setLocked(null)
       reservedCreditIdRef.current = null
       track(isUserRejection(e) ? 'Shop Purchase Cancelled' : 'Shop Purchase Failed', {
         step: 'submit',
@@ -416,12 +417,21 @@ export function MarketCheckout({
    * the transaction has gone out: the catch below, and the effect cleanup on unmount (the ref is cleared only
    * once the await resolves, so navigating away mid-flight reaches it).
    */
-  function releaseReservation(ids: string[]): boolean {
+  async function releaseReservation(ids: string[]): Promise<boolean> {
     if (!session || ids.length === 0) return false
     const safe = ids.filter(id => !guardRef.current.mayBeConsumed(id))
     if (safe.length === 0) return false
-    void cancelUsdIntents(session.identity, safe).catch(() => {})
-    return true
+    try {
+      await cancelUsdIntents(session.identity, safe)
+      return true
+    } catch {
+      // Firing the cancel is not the same as it landing. On a 5xx or a dropped connection the credit is
+      // still live and still ours, so the caller must keep holding it: retrying then spends the dollars
+      // already committed, whereas forgetting it here mints a SECOND credit while the first still counts
+      // against the balance — and the buyer is told they cannot afford an item they have the money for
+      // until the TTL runs out.
+      return false
+    }
   }
 
   /**
@@ -434,12 +444,12 @@ export function MarketCheckout({
    * cleanup exists for.
    */
   function releaseIfNotInFlight(ids: string[]) {
-    releaseReservation(ids.filter(id => !guardRef.current.isInFlight(id)))
+    void releaseReservation(ids.filter(id => !guardRef.current.isInFlight(id)))
   }
 
   function cancel() {
     // Release any reservation we made before the user backed out.
-    if (session && locked) releaseReservation([locked.credit.id])
+    if (session && locked) void releaseReservation([locked.credit.id])
     reservedCreditIdRef.current = null
     onClose()
   }
