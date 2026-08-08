@@ -76,13 +76,26 @@ export type ShopAuthorization = {
 // Read the current on-chain state of an authorization. For ALLOWANCE, "active" means a non-zero
 // allowance; for APPROVAL/MINTER it's the boolean operator flag. Reads go through the target-chain
 // RPC, never the wallet's current network.
-export async function getAuthorizationStatus(auth: ShopAuthorization, owner: string): Promise<boolean> {
+/**
+ * Is this authorization already in place?
+ *
+ * `requiredWei` matters for an ALLOWANCE, which is an amount and not a flag. Asked without it the answer is
+ * only "some allowance exists", and a leftover approval from a cheaper purchase passes — so the caller skips
+ * its approval step, and then the purchase prompts for one anyway when it finds the allowance too small.
+ * That is a buyer signing twice with only the second signature explained.
+ */
+export async function getAuthorizationStatus(
+  auth: ShopAuthorization,
+  owner: string,
+  requiredWei?: bigint
+): Promise<boolean> {
   const provider = readProvider()
   switch (auth.kind) {
     case AuthorizationKind.Allowance: {
       const erc20 = new ethers.Contract(auth.contractAddress, ERC20_ABI, provider) as Erc20Contract
       const allowance = await erc20.allowance(owner, auth.spenderAddress)
-      return allowance.gt(0)
+      // No amount given → the old question ("is there any?"), for callers with nothing to spend yet.
+      return requiredWei == null ? allowance.gt(0) : allowance.gte(requiredWei.toString())
     }
     case AuthorizationKind.Approval: {
       const erc721 = new ethers.Contract(auth.contractAddress, ERC721_ABI, provider) as Erc721Contract

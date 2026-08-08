@@ -18,6 +18,7 @@ import { readManaUsdRate, usdCentsToManaWei } from '~/lib/mana-rate'
 import { buyManyWithMana, manaSpenderFor, purchaseFor, targetChainId } from '~/lib/buy-mana'
 import {
   computePaymentOptions,
+  type PaymentOptions,
   distributeCreditsAcrossUnits,
   manaForRemainder,
   type PaymentMethod
@@ -735,7 +736,7 @@ export function Cart() {
         void charge(lines)
         return
       }
-      await withManaApprovals(manaSpendersFor(picked, lines), () =>
+      await withManaApprovals(manaSpendersFor(picked, lines), railManaWei(options, picked), () =>
         picked === 'mana' ? void chargeWithMana(lines) : void chargeCombined(lines, totalCents, manaWei)
       )
       return
@@ -804,24 +805,42 @@ export function Cart() {
    * facing two prompts has to be told about each one as it happens — an unannounced second wallet prompt beside
    * the purchase is exactly what this step exists to prevent.
    */
-  async function withManaApprovals(spenders: { spender: string; chainId: ChainId }[], proceed: () => void) {
+  async function withManaApprovals(
+    spenders: { spender: string; chainId: ChainId }[],
+    requiredWei: bigint,
+    proceed: () => void
+  ) {
     const [next, ...rest] = spenders
     if (!next) {
       proceed()
       return
     }
-    await withManaApproval(next.spender, next.chainId, () => void withManaApprovals(rest, proceed))
+    await withManaApproval(
+      next.spender,
+      next.chainId,
+      requiredWei,
+      () => void withManaApprovals(rest, requiredWei, proceed)
+    )
   }
 
-  async function withManaApproval(spender: string, chainId: ChainId, proceed: () => void) {
+  async function withManaApproval(spender: string, chainId: ChainId, requiredWei: bigint, proceed: () => void) {
     const auth = getManaSpendingAuthorization(chainId, spender)
-    const authorized = session ? await getAuthorizationStatus(auth, session.address).catch(() => true) : true
+    // Sized to THIS purchase: an allowance left over from a cheaper one is not an allowance for this one.
+    const authorized = session
+      ? await getAuthorizationStatus(auth, session.address, requiredWei).catch(() => true)
+      : true
     if (needsApprovalStep(session?.providerType, authorized)) {
       setBusy(false)
       setAuthStep({ auth, run: proceed })
       return
     }
     proceed()
+  }
+
+  // What the chosen rail will actually pull in MANA — the amount an allowance has to cover. The mixed rail
+  // spends credits first, so its MANA leg is smaller than the basket's full MANA price.
+  function railManaWei(options: PaymentOptions, method: PaymentMethod): bigint {
+    return options.options.find(o => o.method === method)?.manaWei ?? 0n
   }
 
   // Route the chooser's confirmation to the picked rail.
@@ -832,7 +851,7 @@ export function Cart() {
       void charge(lines)
       return
     }
-    void withManaApprovals(manaSpendersFor(method, lines), () =>
+    void withManaApprovals(manaSpendersFor(method, lines), railManaWei(chooseOptions(modal), method), () =>
       method === 'mana' ? void chargeWithMana(lines) : void chargeCombined(lines, totalCents, manaWei)
     )
   }
