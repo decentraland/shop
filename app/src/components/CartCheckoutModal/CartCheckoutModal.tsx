@@ -163,6 +163,7 @@ export function CartCheckoutModal(props: Props) {
                 <b>{t('cartCheckout.errorHeadline')}</b>{' '}
                 {props.heldCredits ? (
                   <>
+                    {props.message ? <>{props.message} </> : null}
                     {t('cartCheckout.heldLead', { currency: CURRENCY.name })}
                     <b>{t('cartCheckout.heldBold')}</b>
                     {t('cartCheckout.heldTail', { currency: CURRENCY.name })}

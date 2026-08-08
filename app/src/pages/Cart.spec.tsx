@@ -147,6 +147,7 @@ vi.mock('~/lib/monitoring', () => ({ captureError }))
 // on the copy (rather than on a mocked sentinel) is what proves the message reaches the DOM at all — the modal
 // used to discard it.
 const GENERIC = /couldn't complete checkout/i
+const HELD = /return to your balance within 5 to 15 minutes/i
 const PARTIAL = /part of your purchase went through/i
 
 const navigate = vi.fn()
@@ -396,7 +397,10 @@ describe('when a broadcast transaction never confirms', () => {
     renderCart([item('a')])
     await pay()
 
-    await waitFor(() => expect(screen.getByText(GENERIC)).toBeInTheDocument())
+    // The credits are stranded until the reconciler resolves them, so the panel says so instead of
+    // showing the generic failure with a retry that would fail on the short balance.
+    await waitFor(() => expect(screen.getByText(HELD)).toBeInTheDocument())
+    expect(screen.queryByText(GENERIC)).not.toBeInTheDocument()
     expect(cancelUsdIntents).not.toHaveBeenCalled()
     expect(useCart.getState().items.map(i => i.id)).toEqual(['a'])
   })

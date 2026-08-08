@@ -156,5 +156,7 @@ describe('when a failed checkout left credits reserved', () => {
     renderHeld(false)
 
     expect(screen.getByRole('button', { name: /try again/i })).toBeTruthy()
+    // Mirrors the held case above: catches a double-render where both button sets appear.
+    expect(screen.queryByRole('button', { name: /got it/i })).toBeNull()
   })
 })

@@ -133,7 +133,7 @@ type ModalState =
   | { phase: 'nofunds'; lines: CheckoutLine[]; shortfall: number }
   // `heldCredits` marks the one failure the buyer cannot act on: a group that BROADCAST but has not
   // settled keeps its reservation, so that much of the balance is out until the reconciler resolves it.
-  | { phase: 'error'; message: string; heldCredits?: boolean }
+  | { phase: 'error'; message?: string; heldCredits?: boolean }
 
 export function Cart() {
   useSeo({ title: t('nav.cart'), noindex: true })
@@ -618,12 +618,14 @@ export function Cart() {
         // The existing error phase, with copy that tells the truth. A dedicated partial-success screen (the
         // bought items listed, a "retry the rest" action) is worth building, but the money defect is the
         // release above — this at least stops the buyer being told nothing happened when something did.
-        setModal({ phase: 'error', message: t('cart.error.partiallyBought') })
+        setModal({ phase: 'error', message: t('cart.error.partiallyBought'), heldCredits })
         setBusy(false)
         return
       }
 
-      setModal({ phase: 'error', message: friendlyError(e), heldCredits })
+      // No message when credits are held: the panel's own copy is the whole story, and a generic
+      // "couldn't complete checkout" in front of it just delays the part that matters.
+      setModal({ phase: 'error', message: heldCredits ? undefined : friendlyError(e), heldCredits })
     }
   }
 
