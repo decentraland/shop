@@ -19,11 +19,10 @@ import * as S from './PaymentCtas.styles'
  * There are never three enabled at once: `combined` only exists when the credits alone fall short, which
  * is exactly when the credits-only rail is unavailable — so at most two payable buttons ever render.
  *
- * A buyer holding MANA that can't cover the purchase gets the MANA button anyway, DISABLED, captioned
- * with what their balance is worth (`shortfall`). Hiding it instead reads as a bug — the navbar shows a
- * MANA balance, so its absence here needs a reason on screen, not silence.
- *
- * never a mystery number.
+ * A buyer holding MANA that can't cover the purchase gets the MANA button anyway, DISABLED, with the
+ * shortfall stated. Hiding it instead reads as a bug — the navbar shows a MANA balance, so its absence
+ * here needs a reason on screen, not silence. The reason is never a conversion: this app does not quote
+ * what MANA is worth in credits.
  */
 export function PaymentCtas({
   options,
