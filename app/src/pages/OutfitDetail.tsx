@@ -155,7 +155,10 @@ function ItemChips({ item }: { item: CatalogItem }) {
 
 function OutfitContent({ outfit }: { outfit: Outfit }) {
   const resolution = useOutfitItems(outfit)
-  const { split, availableCount, totalCredits, addOutfit, isAdding } = useOutfitCart(outfit, resolution)
+  // Two prices, deliberately: `outfitCredits` is what the LOOK costs and sits under "Total price";
+  // `totalCredits` is what the CTA would actually add, and rides the CTA. They differ whenever an item
+  // is excluded from the basket, and collapsing them is what made a 14 + 1 outfit read as 1.
+  const { split, availableCount, totalCredits, outfitCredits, addOutfit, isAdding } = useOutfitCart(outfit, resolution)
   const address = useWallet(s => s.session?.address)
   const cartItems = useCart(s => s.items)
   // Compared on the cross-feed identity, so an item added from the browse grid (keyed by trade id)
@@ -325,7 +328,7 @@ function OutfitContent({ outfit }: { outfit: Outfit }) {
 
               <S.CtaBar data-testid="outfit-detail-ctabar">
                 {settled && split.ownListing.length > 0 ? <S.Hint>{t('outfits.detail.yourListingHint')}</S.Hint> : null}
-                {purchasable > 0 && (
+                {resolvedItems.length > 0 && (
                   <S.TotalRow>
                     <S.TotalLabel>{t('outfits.detail.totalPrice')}</S.TotalLabel>
                     {resolution.isLoading ? (
@@ -333,7 +336,7 @@ function OutfitContent({ outfit }: { outfit: Outfit }) {
                     ) : (
                       <S.TotalValue>
                         <CurrencyIcon size={22} />
-                        {totalCredits.toLocaleString()}
+                        {outfitCredits.toLocaleString()}
                       </S.TotalValue>
                     )}
                   </S.TotalRow>
