@@ -167,6 +167,23 @@ describe('when reading an authorization status', () => {
     expect(await getAuthorizationStatus(allowanceAuth, OWNER)).toBe(false)
   })
 
+  /**
+   * An allowance is an AMOUNT. Asked as a flag, a leftover approval from a cheaper purchase answers "yes"
+   * — so the caller skips its approval step, and the purchase then prompts for one anyway when it finds
+   * the allowance too small. The buyer signs twice and only the second signature was explained.
+   */
+  it('and an amount is given it should be inactive when the allowance cannot cover it', async () => {
+    allowanceMock.mockResolvedValue(ethers.BigNumber.from('5'))
+
+    expect(await getAuthorizationStatus(allowanceAuth, OWNER, 10n)).toBe(false)
+  })
+
+  it('and an amount is given it should be active once the allowance covers it exactly', async () => {
+    allowanceMock.mockResolvedValue(ethers.BigNumber.from('10'))
+
+    expect(await getAuthorizationStatus(allowanceAuth, OWNER, 10n)).toBe(true)
+  })
+
   it('and it is an approval it should reflect isApprovedForAll', async () => {
     isApprovedForAllMock.mockResolvedValue(true)
     expect(await getAuthorizationStatus(approvalAuth, OWNER)).toBe(true)

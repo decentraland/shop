@@ -424,3 +424,9 @@ export const Ctas = styled.div`
 export const Cta = styled(Link)`
   ${checkoutCtaCss};
 `
+
+// The dismiss half of the pair. A BUTTON, not a link: it goes nowhere — it just closes the popover — and a
+// link that navigates to nothing is a link that reads as broken to a keyboard or screen-reader user.
+export const CtaButton = styled.button`
+  ${checkoutCtaCss};
+`

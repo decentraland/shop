@@ -680,7 +680,8 @@
     "bannerAdded": "añadido al carrito correctamente.",
     "total": "Total: {count, plural, one {# artículo} other {# artículos}}",
     "goToCart": "Ir al carrito",
-    "checkout": "Finalizar compra"
+    "checkout": "Finalizar compra",
+    "continueShopping": "Seguir comprando"
   },
   "filterBar": {
     "sortNewest": "Más recientes",

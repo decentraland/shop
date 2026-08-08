@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom'
 import { Icon } from '~/components/Icon'
 import { CheckCircleIcon } from '~/components/Icons/CheckCircleIcon'
 import { useCart, type CartItem } from '~/store/cart'
-import type { CartNavState } from '~/pages/Cart'
 import { t } from '~/intl/i18n'
 import { formatCredits, formatCreditsFull } from '~/lib/currency'
 import { useCartAvailability } from '~/hooks/useCartAvailability'
@@ -195,19 +194,21 @@ export function CartPopover() {
                 {formatCredits(total)}
               </S.TotalVal>
             </S.TotalRow>
-            {/* Review on the left, buy on the right: Checkout lands on /cart and starts the same charge the
-              cart's own CHECKOUT button runs. */}
+            {/*
+              Dismiss on the left, advance on the right — and advancing STOPS AT THE CART. Neither button
+              carries `startCheckout`, so nothing here can begin a charge: a popover that appears from a
+              hover is not a place to commit someone's money, and the cart has its own CHECKOUT for that,
+              where the buyer can see what they are buying first.
+
+              This was removed once (#300) and came back with a styling PR (#304) that overwrote the block.
+              The spec beside this file pins it now, so the next sweep cannot delete it in silence.
+            */}
             <S.Ctas>
-              <S.Cta data-variant="secondary" to="/cart" onClick={() => setOpen(false)}>
+              <S.CtaButton data-variant="secondary" type="button" onClick={() => setOpen(false)}>
+                {t('cartPopover.continueShopping')}
+              </S.CtaButton>
+              <S.Cta data-variant="primary" to="/cart" onClick={() => setOpen(false)}>
                 {t('cartPopover.goToCart')}
-              </S.Cta>
-              <S.Cta
-                data-variant="primary"
-                to="/cart"
-                state={{ startCheckout: true } satisfies CartNavState}
-                onClick={() => setOpen(false)}
-              >
-                {t('cartPopover.checkout')}
               </S.Cta>
             </S.Ctas>
           </S.Foot>
