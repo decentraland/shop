@@ -10,10 +10,11 @@ const spin = keyframes`
   to { transform: rotate(360deg); }
 `
 
+// Above the modal that asked for the approval, not level with it: this opens ON TOP of an open checkout.
 export const Scrim = styled.div`
   position: fixed;
   inset: 0;
-  z-index: 10000;
+  z-index: ${theme.z.prompt};
   display: flex;
   align-items: center;
   justify-content: center;

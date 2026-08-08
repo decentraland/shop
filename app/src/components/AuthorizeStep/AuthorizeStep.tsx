@@ -72,7 +72,7 @@ export function AuthorizeStep({
   }
 
   return (
-    <S.Scrim onClick={busy ? undefined : onClose} role="presentation">
+    <S.Scrim onClick={busy ? undefined : onClose} role="presentation" data-testid="authorize-step-scrim">
       <S.Card onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={title}>
         <S.Head>
           <S.Title>{title}</S.Title>
