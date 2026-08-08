@@ -100,6 +100,15 @@ export type OutfitCart = {
   availableCount: number
   /** Credits the CTA would add (purchasable items only — matches its label). */
   totalCredits: number
+  /**
+   * What the LOOK costs: every resolved item, including ones this viewer can't buy.
+   *
+   * Distinct from `totalCredits` on purpose. The two are equal for most outfits, which is why one
+   * value used to serve both — but the moment an item drops out of the basket (your own listing,
+   * already in the cart, delisted) a price labelled "total price" that silently shrinks is simply
+   * wrong: a two-item look priced 14 + 1 read as 1.
+   */
+  outfitCredits: number
   addOutfit: () => void
   /** True while the CTA is re-reading live listings; disarms it so a double-click can't double-add. */
   isAdding: boolean
@@ -144,6 +153,7 @@ export function useOutfitCart(outfit: Outfit, resolution: OutfitItemsResolution)
   const split = useMemo(() => splitOutfitItems(resolved, { address, cartKeys }), [resolved, address, cartKeys])
   const missingCount = outfit.items.length - resolved.length
   const totalCredits = split.purchasable.reduce((n, item) => n + item.priceCredits, 0)
+  const outfitCredits = resolved.reduce((n, item) => n + item.priceCredits, 0)
 
   const addOutfit = useCallback(() => {
     if (isAdding || split.purchasable.length === 0) return
@@ -206,6 +216,7 @@ export function useOutfitCart(outfit: Outfit, resolution: OutfitItemsResolution)
     missingCount,
     availableCount: split.purchasable.length + split.inCart.length,
     totalCredits,
+    outfitCredits,
     addOutfit,
     isAdding
   }
