@@ -18,6 +18,7 @@ import { ethers } from 'ethers'
 import { type Trade } from '@dcl/schemas'
 import { ContractName, ErrorCode, MetaTransactionError, getContract } from 'decentraland-transactions'
 import { config } from '~/config'
+import { captureError } from '~/lib/monitoring'
 import { gaslessConfig } from '~/lib/gasless-config'
 import { type SpendableCredit } from '~/lib/trade-encoding'
 // The grouping and the per-group calldata live in ~/lib/buy so BOTH rails build the money call the same
@@ -86,6 +87,39 @@ function chainIdSalt(chainId: number): string {
   return hexZeroPad(ethers.utils.hexlify(chainId), 32)
 }
 
+/**
+ * Report a relayer failure to Sentry.
+ *
+ * This flow's highest-signal failure produced nothing at all in Sentry: a refusal is an HTTP 400 the
+ * caller turns into a typed error, never an uncaught exception, and the surrounding `ignoreErrors`
+ * drops anything matching /denied|reject|cancel/i. A buyer on a Ledger hit the same refusal four
+ * times in three minutes and the only trace anywhere was a 400 in the transactions-server's log; we
+ * found out because she told someone.
+ *
+ * The relayer's message carries the decoded gas-estimation failure — for that buyer it held the
+ * revert that identified the bug — so it is the single most useful field here.
+ *
+ * Both failure modes are reported, tagged with `reason`. `relayer-unreachable` is noisier — a flaky
+ * network or an offline buyer looks the same as a relayer outage from here — but it is also the mode
+ * where the meta-tx MAY have been broadcast before the connection died, so losing it is worse than
+ * the noise. Separate the two when alerting on `reason`, not by dropping one at the source.
+ */
+function reportRelayerFailure(
+  reason: 'relayer-rejected' | 'relayer-unreachable',
+  message: string,
+  buyer: string,
+  target: string,
+  httpStatus?: number
+) {
+  captureError(new Error(`gasless relay ${reason}: ${message}`), {
+    reason,
+    relayerMessage: message,
+    buyer,
+    target,
+    httpStatus
+  })
+}
+
 // executeMetaTransaction(address _userAddress, bytes _functionData, bytes _signature) calldata.
 function encodeExecuteMetaTransaction(
   cmAbi: unknown[],
@@ -145,7 +179,21 @@ async function relay(
     if (err?.code === 4001 || err?.code === 'ACTION_REJECTED' || /denied|reject|cancel/i.test(msg)) {
       throw new MetaTransactionError(msg, ErrorCode.USER_DENIED)
     }
-    // A contract wallet that can't personal-sign → fall back to normal (gas-paying) checkout.
+    /**
+     * The wallet could not sign, and it was not a cancellation.
+     *
+     * Reported because this is the one failure in the flow that leaves NO trace anywhere: it never
+     * reaches the relayer, so the transactions-server logs nothing, and the credits-server only ever
+     * sees the reservation quietly expire. A buyer hit exactly this ("the signing method wasn't
+     * supported", a hardware wallet refusing eth_signTypedData_v4) and there was no way to see how,
+     * because the message existed only in her browser.
+     *
+     * `reason: 'contract-account'` is kept for the caller's fallback decision but is a misnomer here —
+     * a hardware wallet is not a contract account. The tag below records what actually happened so the
+     * two are distinguishable in Sentry; separating them in the type is a behaviour change and belongs
+     * in its own PR.
+     */
+    captureError(e, { reason: 'signing-failed', walletMessage: msg, buyer, target: cm.address })
     throw new GaslessUnavailableError(msg, 'contract-account')
   }
   // Wallets disagree on the recovery id. Most return v as 27/28; some — several hardware-wallet and
@@ -175,14 +223,18 @@ async function relay(
     body = (await res.json()) as RelayerResponse
     if (!res.ok && body?.ok !== true && !body?.txHash) {
       // A parsed body with no hash: an answer, and the answer is no.
+      reportRelayerFailure('relayer-rejected', body?.message ?? `relayer ${res.status}`, buyer, cm.address, res.status)
       throw new GaslessUnavailableError(body?.message ?? `relayer ${res.status}`, 'relayer-rejected')
     }
   } catch (e) {
     if (e instanceof GaslessUnavailableError) throw e
     // No usable response — the request may have been submitted before this failed. Not the same as a refusal.
-    throw new GaslessUnavailableError((e as Error)?.message ?? 'relayer unreachable', 'relayer-unreachable')
+    const msg = (e as Error)?.message ?? 'relayer unreachable'
+    reportRelayerFailure('relayer-unreachable', msg, buyer, cm.address)
+    throw new GaslessUnavailableError(msg, 'relayer-unreachable')
   }
   if (body?.ok === false || !body?.txHash) {
+    reportRelayerFailure('relayer-rejected', body?.message ?? 'relayer rejected the transaction', buyer, cm.address)
     throw new GaslessUnavailableError(body?.message ?? 'relayer rejected the transaction', 'relayer-rejected')
   }
   return body.txHash
