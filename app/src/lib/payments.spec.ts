@@ -34,8 +34,10 @@ import {
   packBonus,
   pollCreditGrant,
   usdForCredits,
-  type CreditPack
+  type CreditPack,
+  type OrderStatus
 } from '~/lib/payments'
+import type { CreditOrderStatus } from '~/lib/credits'
 
 const IDENTITY = {} as AuthIdentity
 
@@ -52,6 +54,32 @@ beforeEach(() => {
   config.stripePublishableKey = ''
   config.shopServerUrl = ''
   config.chainId = 80002 // Amoy testnet by default; mainnet cases set 137 explicitly
+})
+
+/**
+ * The order-status union is a CONTRACT, and payments-stripe casts the response onto it — so a status the
+ * server can send and this type omits is not a compile error anywhere, it is a value that falls through
+ * every branch on the page. That is how 'crediting' and 'initiated' reached production as an error screen
+ * shown to buyers who had been charged.
+ */
+describe('when typing the order status the server can return', () => {
+  it('should cover every status in the credits-server vocabulary', () => {
+    // Keyed by the SERVER's union: this object stops COMPILING the moment OrderStatus['status'] is narrower
+    // than CreditOrderStatus — i.e. the moment anyone restates the list instead of deriving it. The runtime
+    // assertion only keeps the map itself from going stale.
+    const covered: Record<CreditOrderStatus, OrderStatus['status']> = {
+      initiated: 'initiated',
+      processing: 'processing',
+      crediting: 'crediting',
+      credited: 'credited',
+      failed: 'failed',
+      abandoned: 'abandoned'
+    }
+
+    expect(Object.keys(covered).sort()).toEqual(
+      ['abandoned', 'credited', 'crediting', 'failed', 'initiated', 'processing'].sort()
+    )
+  })
 })
 
 describe('when computing credit pack math at the fixed USD peg', () => {

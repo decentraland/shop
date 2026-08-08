@@ -123,9 +123,11 @@ vi.mock('~/lib/mana-rate', () => ({
 // Only the submit is stubbed; the helpers that say which contract a purchase settles against are the real ones.
 const { buyManyWithMana } = vi.hoisted(() => ({ buyManyWithMana: vi.fn() }))
 vi.mock('~/lib/buy-mana', async orig => ({ ...(await orig<Record<string, unknown>>()), buyManyWithMana }))
+// Hoisted so a test can read what the page asked the GRANT path for — the amount is the whole point of it.
+const { ensureAuthorization } = vi.hoisted(() => ({ ensureAuthorization: vi.fn() }))
 vi.mock('~/lib/authorizations', () => ({
-  AuthorizationKind: { ManaSpending: 'mana' },
-  ensureAuthorization: vi.fn(),
+  AuthorizationKind: { ManaSpending: 'mana', Allowance: 'allowance' },
+  ensureAuthorization,
   // Already approved, so the MANA rails run straight through: the approval STEP has its own specs, and a
   // never-resolving stub here reads as "the rail is broken" instead.
   getAuthorizationStatus: vi.fn(async () => true),
@@ -606,5 +608,44 @@ describe('when the basket holds a mint and the buyer has MANA', () => {
     expect(args.mints).toEqual([
       { item: { collection: '0xcontract', itemId: 'a', priceWei: ONE_MANA }, chainId: 80002 }
     ])
+  })
+
+  // Handed on so the rail's own allowance check can ask whether the allowance covers THIS basket. Without
+  // it the rail only asks whether one exists, and a leftover from a cheaper basket reverts the settlement.
+  it('should tell the rail what the purchase will pull in MANA', async () => {
+    const user = userEvent.setup()
+    renderCart([mint()], storeLine)
+
+    await user.click(await screen.findByTestId('pay-with-mana'))
+
+    await waitFor(() => expect(buyManyWithMana).toHaveBeenCalled())
+    expect(buyManyWithMana.mock.calls[0][0].manaWei).toBe(10n ** 18n)
+  })
+})
+
+/**
+ * THE MIXED RAIL'S ALLOWANCE IS AN AMOUNT.
+ *
+ * The CreditsManager pulls the uncredited leg out of the buyer's MANA, so the grant guard has to be sized to
+ * that gap. Asked as a flag it passes on any leftover allowance, sends no approve, and `useCredits` reverts
+ * pulling the MANA — after the buyer has confirmed, and with nothing on screen that explains it.
+ */
+describe('when the basket is paid with credits plus MANA', () => {
+  beforeEach(() => {
+    balance.cents = 100 // half of the 200-cent basket
+    manaQuote.wei = 10n ** 18n // the whole basket is worth 1 MANA
+    mana.wei = 5n * 10n ** 18n
+    buyManyWithCredits.mockResolvedValue(['0xcombined'])
+  })
+
+  it('should size the MANA allowance to the gap the transaction actually pulls', async () => {
+    const user = userEvent.setup()
+    renderCart([item('a')])
+
+    await user.click(await screen.findByTestId('pay-with-combined'))
+
+    await waitFor(() => expect(ensureAuthorization).toHaveBeenCalled())
+    // Credits cover 100 of the 200 cents, so MANA covers the other half of a 1 MANA basket.
+    expect(ensureAuthorization.mock.calls[0][0]).toMatchObject({ requiredWei: 5n * 10n ** 17n })
   })
 })

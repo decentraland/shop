@@ -74,6 +74,8 @@ export async function buyWithMana(opts: {
   signer: ethers.providers.JsonRpcSigner
   /** Fired once the buyer confirms in their wallet, before on-chain settlement (UI: "completing…"). */
   onSigned?: () => void
+  /** The trade's MANA price — what the allowance must cover. See buyManyWithMana. */
+  manaWei?: bigint
 }): Promise<string> {
   const [hash] = await buyManyWithMana({ ...opts, trades: [opts.trade] })
   return hash
@@ -92,6 +94,8 @@ export async function buyMintWithMana(opts: {
   buyer: string
   signer: ethers.providers.JsonRpcSigner
   onSigned?: () => void
+  /** The mint's MANA price — what the allowance must cover. Derived from the item when omitted. */
+  manaWei?: bigint
 }): Promise<string> {
   const [hash] = await buyManyWithMana({ ...opts, trades: [], mints: [opts.mint] })
   return hash
@@ -114,8 +118,15 @@ export async function buyManyWithMana(opts: {
   buyer: string
   signer: ethers.providers.JsonRpcSigner
   onSigned?: () => void
+  /**
+   * What this purchase will pull in MANA — the amount the allowance has to cover, and the same figure the
+   * UI announced its approval step with, so the grant can never disagree with what the buyer was told.
+   * Omitted, the allowance is only checked for EXISTENCE and one left over from a cheaper purchase lets
+   * settlement revert on transferFrom.
+   */
+  manaWei?: bigint
 }): Promise<string[]> {
-  const { trades, mints = [], buyer, signer, onSigned } = opts
+  const { trades, mints = [], buyer, signer, onSigned, manaWei } = opts
   if (trades.length === 0 && mints.length === 0) throw new Error('No items to buy')
 
   // Group by (chain, marketplace) so each group is one accept([...]).
@@ -137,10 +148,13 @@ export async function buyManyWithMana(opts: {
 
   const hashes: string[] = []
   for (const group of groups.values()) {
-    hashes.push(await acceptPayingMana({ trades: group, buyer, signer, onSigned }))
+    hashes.push(await acceptPayingMana({ trades: group, buyer, signer, onSigned, requiredManaWei: manaWei }))
   }
   for (const [chainId, group] of mintGroups) {
-    hashes.push(await mintPayingMana({ mints: group, chainId, buyer, signer, onSigned }))
+    // A mint carries the price the contract will verify, so its allowance can be sized exactly even when
+    // the caller passes nothing — a trade's cannot (a USD-pegged one is priced by the oracle at settlement).
+    const requiredManaWei = manaWei ?? group.reduce((sum, m) => sum + BigInt(m.item.priceWei), 0n)
+    hashes.push(await mintPayingMana({ mints: group, chainId, buyer, signer, onSigned, requiredManaWei }))
   }
   return hashes
 }
@@ -152,13 +166,15 @@ async function acceptPayingMana(opts: {
   buyer: string
   signer: ethers.providers.JsonRpcSigner
   onSigned?: () => void
+  requiredManaWei?: bigint
 }): Promise<string> {
-  const { trades, buyer, signer, onSigned } = opts
+  const { trades, buyer, signer, onSigned, requiredManaWei } = opts
   const trade = trades[0] // same chain + marketplace across the group
   const marketplace = getContract(getContractName(trade.contract), trade.chainId)
   const mana = getContract(ContractName.MANAToken, trade.chainId)
 
-  // 1. Approve the marketplace to spend the buyer's MANA (gasless; no-op if already approved).
+  // 1. Approve the marketplace to spend the buyer's MANA (gasless; no-op when the allowance already covers
+  //    this purchase — sized to it, because a leftover allowance from a cheaper one reverts accept()).
   await ensureAuthorization({
     auth: {
       kind: AuthorizationKind.Allowance,
@@ -166,7 +182,8 @@ async function acceptPayingMana(opts: {
       spenderAddress: marketplace.address,
       chainId: trade.chainId
     },
-    signer
+    signer,
+    requiredWei: requiredManaWei
   })
 
   const onChainTrades = trades.map(t => getOnChainTrade(t, buyer))
@@ -215,13 +232,15 @@ async function mintPayingMana(opts: {
   buyer: string
   signer: ethers.providers.JsonRpcSigner
   onSigned?: () => void
+  requiredManaWei?: bigint
 }): Promise<string> {
-  const { mints, chainId, buyer, signer, onSigned } = opts
+  const { mints, chainId, buyer, signer, onSigned, requiredManaWei } = opts
   const store = getContract(ContractName.CollectionStore, chainId)
   const mana = getContract(ContractName.MANAToken, chainId)
   const items = mints.map(m => m.item)
 
-  // 1. Approve the store to spend the buyer's MANA (gasless; no-op if already approved).
+  // 1. Approve the store to spend the buyer's MANA (gasless; no-op when the allowance already covers this
+  //    mint — sized to it, because a leftover allowance from a cheaper one reverts buy()).
   await ensureAuthorization({
     auth: {
       kind: AuthorizationKind.Allowance,
@@ -229,7 +248,8 @@ async function mintPayingMana(opts: {
       spenderAddress: store.address,
       chainId
     },
-    signer
+    signer,
+    requiredWei: requiredManaWei
   })
 
   // 2. Mint, paying MANA directly: CollectionStore.buy([...items]) with the buyer as the beneficiary.
@@ -338,7 +358,7 @@ async function payGapWithMana(opts: {
   const mana = getContract(ContractName.MANAToken, chainId)
   const creditsManager = getContract(ContractName.CreditsManager, chainId)
 
-  // Let the CreditsManager pull the MANA leg (gasless; no-op when already approved).
+  // Let the CreditsManager pull the MANA leg (gasless; no-op when the allowance already covers the gap).
   await ensureAuthorization({
     auth: {
       kind: AuthorizationKind.Allowance,
@@ -346,7 +366,8 @@ async function payGapWithMana(opts: {
       spenderAddress: creditsManager.address,
       chainId
     },
-    signer
+    signer,
+    requiredWei: manaGapWei
   })
 
   // maxCreditedValue = the credits' value + the MANA gap, so the contract's uncredited leg is the gap.

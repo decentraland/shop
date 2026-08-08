@@ -184,6 +184,28 @@ describe('when reading an authorization status', () => {
     expect(await getAuthorizationStatus(allowanceAuth, OWNER, 10n)).toBe(true)
   })
 
+  /**
+   * A ZERO AMOUNT IS NOT A QUESTION ABOUT AN AMOUNT.
+   *
+   * `allowance.gte(0)` is true of every allowance there has ever been, including none — so a caller that
+   * could not size the purchase (a rail missing from the recomputed options answers 0n) turned this into a
+   * tautology and got a ZERO allowance reported as approved. That is weaker than asking nothing at all,
+   * which is what it must fall back to.
+   */
+  it('and the amount is zero it should fall back to asking whether there is any allowance at all', async () => {
+    allowanceMock.mockResolvedValue(ethers.BigNumber.from('0'))
+
+    expect(await getAuthorizationStatus(allowanceAuth, OWNER, 0n)).toBe(false)
+  })
+
+  it('and the amount is zero it should still pass an allowance that exists', async () => {
+    // The fallback is the amountless question, not a blanket "no": a caller with nothing to spend yet must
+    // keep the answer it used to get.
+    allowanceMock.mockResolvedValue(ethers.BigNumber.from('5'))
+
+    expect(await getAuthorizationStatus(allowanceAuth, OWNER, 0n)).toBe(true)
+  })
+
   it('and it is an approval it should reflect isApprovedForAll', async () => {
     isApprovedForAllMock.mockResolvedValue(true)
     expect(await getAuthorizationStatus(approvalAuth, OWNER)).toBe(true)
@@ -338,6 +360,30 @@ describe('when ensuring an authorization before an action', () => {
     await ensureAuthorization({ auth: approvalAuth, signer: makeSigner() })
     expect(sendMetaTransactionMock).toHaveBeenCalledOnce()
     expect(setApprovalForAllMock).not.toHaveBeenCalled()
+  })
+
+  /**
+   * THE GRANT PATH HAS TO ASK "IS IT ENOUGH", NOT "IS THERE ANY".
+   *
+   * This guard used to read the allowance as a flag, so a leftover approval from a cheaper purchase meant
+   * no approve was sent — and the marketplace `accept` / store `buy` then reverted on transferFrom. A
+   * managed wallet reaches that with no approval step in front of it, so there is nothing to explain it.
+   */
+  it('and the existing allowance cannot cover the amount it should grant rather than pass', async () => {
+    allowanceMock.mockResolvedValue(ethers.BigNumber.from('5'))
+
+    await ensureAuthorization({ auth: allowanceAuth, signer: makeSigner(), requiredWei: 10n })
+
+    expect(sendMetaTransactionMock).toHaveBeenCalledOnce()
+  })
+
+  it('and the existing allowance covers the amount it should send nothing', async () => {
+    allowanceMock.mockResolvedValue(ethers.BigNumber.from('50'))
+
+    await ensureAuthorization({ auth: allowanceAuth, signer: makeSigner(), requiredWei: 10n })
+
+    expect(sendMetaTransactionMock).not.toHaveBeenCalled()
+    expect(approveMock).not.toHaveBeenCalled()
   })
 })
 

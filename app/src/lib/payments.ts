@@ -23,7 +23,7 @@
 //           SERVER; the client only sends packId (never a price) to avoid tampering.
 //
 //   GET  /credits/orders/:orderId         (signed-fetch)
-//     res : { status: 'processing' | 'credited' | 'failed',
+//     res : { status: CreditOrderStatus,
 //             creditsGranted?: number, newBalance?: number, error?: string }
 //           The UI polls this after Stripe reports payment success. The order
 //           flips to 'credited' only once the Stripe webhook
@@ -38,7 +38,7 @@
 
 import type { AuthIdentity } from '@dcl/crypto'
 import { config } from '~/config'
-import { devMintUsd } from '~/lib/credits'
+import { devMintUsd, type CreditOrderStatus } from '~/lib/credits'
 import { createPackCheckoutReal, pollCreditGrantReal } from '~/lib/payments-stripe'
 
 // 1 credit = $0.10.
@@ -188,17 +188,19 @@ export type CheckoutSession = {
 }
 
 export type OrderStatus = {
-  // 'pending' = the poll timed out but the payment isn't failed — the verified webhook can still
-  // grant the credits later (up to Stripe's retry window), so the UI shows an "on the way" state
-  // rather than a hard error (see U7).
-  //
-  // 'abandoned' = the checkout was retired without ever being paid (the buyer walked away, or the
-  // Stripe session expired). The server sends it so a poll STOPS waiting on something that can never
-  // complete. Listed here because the type is the contract: `payments-stripe` casts the response, so
-  // a status missing from this union is not a compile error — it is a value that silently falls
-  // through every branch. The sibling comment in lib/credits.ts about exactly this mistake ("the type
-  // IS the lie") was written about the other status union in this same flow.
-  status: 'processing' | 'credited' | 'failed' | 'pending' | 'abandoned'
+  /**
+   * The server's own status vocabulary, plus the one value only this client produces.
+   *
+   * DERIVED from `CreditOrderStatus` rather than restated. `payments-stripe` CASTS the response, so a
+   * status the server sends and this union omits is not a compile error — it is a value that falls
+   * through every branch downstream and lands a buyer who WAS charged on the "couldn't add your credits"
+   * screen. Restating the list is exactly how 'crediting' and 'initiated' went missing; deriving it makes
+   * that impossible. (Same lesson as the "the type IS the lie" note in lib/credits.ts, one union over.)
+   *
+   * 'pending' is the only member the server never sends: the poll gave up with the money in and the grant
+   * not yet written, so the UI says "on the way" instead of failing (see U7).
+   */
+  status: CreditOrderStatus | 'pending'
   creditsGranted?: number
   newBalance?: number
   error?: string
