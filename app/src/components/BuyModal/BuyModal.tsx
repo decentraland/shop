@@ -355,7 +355,7 @@ export function BuyModal({
     return () => {
       cancelled = true
     }
-  }, [phase, locked, resolvedSale, manaBalanceWei, manaPriceWei])
+  }, [phase, locked, resolvedSale, manaBalanceWei, manaPriceWei, manaPriceUnavailable])
 
   // Which rails the buyer's balances actually support (pure — see lib/payment-options). MANA rails
   // appear only once both the MANA balance and the MANA price are known; until then this is just the
