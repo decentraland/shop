@@ -12,7 +12,8 @@ import {
   scrubEvent,
   sentryForwarder,
   setErrorForwarder,
-  tagsFrom
+  tagsFrom,
+  toReportable
 } from '~/lib/monitoring'
 
 describe('isLocalhost', () => {
@@ -116,8 +117,69 @@ describe('sentryForwarder', () => {
   })
 })
 
+/**
+ * Wallet/JSON-RPC failures are plain objects, and Sentry titles those with the minified frame that
+ * captured them — which is how four production issues came to be called `ds`, hiding eleven purchase
+ * failures.
+ */
+describe('toReportable', () => {
+  it('titles a wallet RPC object with its own message and code', () => {
+    const rpc = { code: -32603, message: 'Failed to fetch', data: { originalError: {} } }
+
+    const out = toReportable(rpc) as Error & { cause?: unknown }
+
+    expect(out).toBeInstanceOf(Error)
+    expect(out.message).toBe('Failed to fetch (code -32603)')
+    expect(out.cause).toBe(rpc) // nothing is lost
+  })
+
+  it('keeps the ORIGINAL stack so failures group by where they happened', () => {
+    // A fresh Error's stack points at monitoring.ts, which would collapse every wallet failure in the
+    // app into one issue — an unreadable grouping in exchange for a readable title.
+    const stack = 'TypeError: Failed to fetch\n    at makeEthereumJSONRPCRequest (requestRelay.js:2:220679)'
+    const out = toReportable({ code: -32603, message: 'Failed to fetch', stack }) as Error
+
+    expect(out.stack).toBe(stack)
+  })
+
+  it('passes a real Error straight through', () => {
+    const err = new Error('boom')
+    expect(toReportable(err)).toBe(err)
+  })
+
+  it('leaves anything without a usable message alone', () => {
+    // Nothing to title it with — wrapping would only add a frame and lose the shape.
+    const noMessage = { code: 4001 }
+    expect(toReportable(noMessage)).toBe(noMessage)
+    expect(toReportable({ message: '' })).toEqual({ message: '' })
+    expect(toReportable('a string')).toBe('a string')
+    expect(toReportable(null)).toBe(null)
+    expect(toReportable(undefined)).toBe(undefined)
+  })
+
+  it('omits the code suffix when the object has no code', () => {
+    expect((toReportable({ message: 'plain failure' }) as Error).message).toBe('plain failure')
+  })
+})
+
 describe('captureError', () => {
   beforeEach(() => setErrorForwarder(null))
+
+  it('forwards a nameable error while the console still sees the value as thrown', () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const forwarder = vi.fn()
+    setErrorForwarder(forwarder)
+    const rpc = { code: -32006, message: 'Unauthorized' }
+
+    captureError(rpc, { flow: 'cart_checkout', step: 'submit' })
+
+    expect(spy).toHaveBeenCalledWith(expect.any(String), rpc, expect.anything())
+    const [reported] = forwarder.mock.calls[0] as [Error]
+    expect(reported).toBeInstanceOf(Error)
+    expect(reported.message).toBe('Unauthorized (code -32006)')
+    spy.mockRestore()
+    setErrorForwarder(null)
+  })
 
   it('logs to the console and forwards to the wired sink', () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
