@@ -437,6 +437,11 @@ export function BuyModal({
           return
         }
         reservedCreditIdRef.current = credit.id
+        // The dollars are committed as of this line, and the cached balance still says otherwise —
+        // `useBalance` holds it for 30s, so nothing would refetch on its own. Every other invalidation
+        // in this file fires on a failure or after a purchase; the moment money is actually held had
+        // none, which is exactly when the buyer needs the balance (and its `held` block) to be right.
+        void qc.invalidateQueries({ queryKey: ['usd-balance'] })
         const lockedCredits = usdCentsToCredits(lockedCents)
         lk = { sale, credit, maxCreditedValue, usdCents: lockedCents, credits: lockedCredits }
         setLocked(lk)
@@ -1120,6 +1125,20 @@ export function BuyModal({
                   <M.Warning data-testid="mana-price-unavailable">
                     <WarningTriangleIcon />
                     <M.WarningText>{t('buyModal.manaPriceUnavailable')}</M.WarningText>
+                  </M.Warning>
+                ) : null}
+                {/* The buyer's OWN money, committed to a purchase they already started, is part of why the
+                    balance is short. Saying "you need to buy N more credits" without this is how a hold got
+                    read as the Shop taking them — and here it would be telling someone to pay twice. */}
+                {balance?.held ? (
+                  <M.Warning data-testid="nofunds-held">
+                    <WarningTriangleIcon />
+                    <M.WarningText>
+                      {t('buyModal.heldExplainer', {
+                        credits: balance.held.credits,
+                        currency: CURRENCY.name
+                      })}
+                    </M.WarningText>
                   </M.Warning>
                 ) : null}
                 <M.Warning>

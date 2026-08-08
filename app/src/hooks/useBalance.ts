@@ -9,6 +9,15 @@ export function useBalance(session: Session | null) {
     queryKey: ['usd-balance', session?.address],
     enabled: !!session,
     staleTime: 30_000,
+    /**
+     * Poll ONLY while some of the buyer's credits are held.
+     *
+     * Held dollars return on a server-side sweep — there is no client event behind it, so nothing else
+     * would ever notice, and the balance would sit stale behind its own 30s staleTime while the buyer
+     * stares at a number they know is wrong. The cadence matches the reconciler's own (15s), and it
+     * stops the moment `held` is gone, so an ordinary session never polls at all.
+     */
+    refetchInterval: query => (query.state.data?.held ? 15_000 : false),
     queryFn: async (): Promise<UsdBalance> => getUsdBalance(session!.address, session!.identity)
   })
 }

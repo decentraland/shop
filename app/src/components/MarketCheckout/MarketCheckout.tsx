@@ -244,6 +244,9 @@ export function MarketCheckout({
           return
         }
         reservedCreditIdRef.current = credit.id
+        // The dollars are committed as of this line — see the same note in BuyModal. Nothing else
+        // refetches at the moment a reservation is actually taken.
+        void qc.invalidateQueries({ queryKey: ['usd-balance'] })
         const credits = usdCentsToCredits(lockedCents)
         lk = { trade: quote.trade, credit, maxCreditedValue, usdCents: lockedCents, credits }
         setLocked(lk)

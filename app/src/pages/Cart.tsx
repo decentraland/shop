@@ -408,6 +408,9 @@ export function Cart() {
           throw authErr
         }
       }
+      // Every unit is reserved by here, so the cached balance is stale by the full cart total. One
+      // invalidation after the loop, not one per unit — see the same note in BuyModal.
+      if (reservations.length) void qc.invalidateQueries({ queryKey: ['usd-balance'] })
 
       step = 'submit'
       // All units authorized. From here it is one wallet prompt per GROUP, then one settlement each. A
@@ -968,6 +971,8 @@ export function Cart() {
         if (!gapAnchor.has(key)) gapAnchor.set(key, purchases.length)
         purchases.push(purchase)
       }
+      // Every unit that needed credits is reserved by here — see the same note in the credits-only path.
+      if (reservations.length) void qc.invalidateQueries({ queryKey: ['usd-balance'] })
       // A group sums maxCreditedValue across its purchases, so adding its gap to any ONE of them makes that
       // transaction's uncredited leg the gap (see buildUseCreditsArgs).
       for (const [key, gap] of gapByGroup) {

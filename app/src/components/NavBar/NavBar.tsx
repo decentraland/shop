@@ -15,6 +15,7 @@ import { useManaBalances } from '~/hooks/useManaBalance'
 import { manaWeiToNumber } from '~/lib/mana-format'
 import { useCart } from '~/store/cart'
 import { CartPopover } from '~/components/CartPopover'
+import { HeldCredits } from '~/components/HeldCredits'
 import { SearchDropdown } from '~/components/SearchDropdown'
 import { CURRENCY } from '~/lib/currency'
 import { isIapMode } from '~/lib/iap'
@@ -331,6 +332,10 @@ export function NavBar() {
         {/* Inside the iOS app's web view the app sells credits through In-App Purchase, so the Shop must
             not offer to sell them. This is the main entrance; the others are gated the same way (the
             checkout modals, and the /credits route itself for a direct hit). */}
+        {/* Sits beside GET CREDITS on purpose: the balance it explains is the one in the row above, and
+            this is the nearest surface the Shop owns (the chip itself is rendered by decentraland-ui2).
+            Renders nothing unless the buyer actually has credits held. */}
+        <HeldCredits held={balance?.held} />
         {isIapMode() ? null : (
           <S.Credits to="/credits">
             <S.CreditsIco />

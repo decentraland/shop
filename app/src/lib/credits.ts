@@ -17,8 +17,24 @@ export type ServerCredit = {
   creditSource?: string
 }
 
-// The USD balance block (present when the shop USD-credits feature flag is on).
-export type UsdBalance = { balanceCents: number; credits: number }
+/**
+ * Credits committed to a purchase that has not been proven to have happened, and which come back on
+ * their own. `balanceCents` has ALREADY subtracted these — this is why that number is smaller, not
+ * something to add to it.
+ */
+export type HeldCredits = {
+  cents: number
+  credits: number
+  /** Epoch SECONDS. The soonest ANY of it returns. The earliest — never render it as a promise. */
+  releasesAtSeconds: number
+  /** Epoch SECONDS. The point by which ALL of it must be back. This one is guaranteed. */
+  heldUntilSeconds: number
+  purchases: { credits: number; releasesAtSeconds: number; contractAddress: string | null; itemId: string | null }[]
+}
+
+// The USD balance block (present when the shop USD-credits feature flag is on). `held` is present only
+// when something is actually held, so its absence is the "nothing held" signal.
+export type UsdBalance = { balanceCents: number; credits: number; held?: HeldCredits }
 
 export type UserCreditsResponse = {
   credits: ServerCredit[]
