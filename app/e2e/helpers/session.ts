@@ -6,8 +6,11 @@ const USER_PK = '0x' + '11'.repeat(32)
 const CHAIN_ID = 80002
 const CHAIN_HEX = '0x' + CHAIN_ID.toString(16)
 // Canned 65-byte signature the mock wallet returns for any signTypedData/personal_sign. The mocked
-// servers never verify it, so a fixed value is fine (and keeps runs deterministic).
-const CANNED_SIG = '0x' + 'ab'.repeat(65)
+// servers never verify it, so a fixed value is fine (and keeps runs deterministic) — but it does have
+// to be a STRUCTURALLY valid secp256k1 signature, because the gasless path normalizes the recovery id
+// before relaying and rejects a malformed one. Hence r, then an s with its top bit clear (a high bit
+// means EIP-2098 compact encoding, which then disagrees with v), then v = 0x1b (27).
+const CANNED_SIG = '0x' + 'ab'.repeat(32) + '11'.repeat(32) + '1b'
 
 export type TestSession = { address: string; identityJson: string }
 

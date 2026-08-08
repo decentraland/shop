@@ -148,6 +148,16 @@ async function relay(
     // A contract wallet that can't personal-sign → fall back to normal (gas-paying) checkout.
     throw new GaslessUnavailableError(msg, 'contract-account')
   }
+  // Wallets disagree on the recovery id. Most return v as 27/28; some — several hardware-wallet and
+  // WalletConnect paths — return 0/1. The CreditsManager recovers with OpenZeppelin's ECDSA, which
+  // rejects anything outside {27,28} with ECDSAInvalidSignature(), so an unnormalized 0/1 fails gas
+  // estimation at the relayer and the purchase dies AFTER the buyer has already signed. It looks like
+  // a random failure because it depends entirely on which wallet the buyer uses.
+  //
+  // splitSignature accepts either form and normalizes the recovery id; joinSignature repacks the
+  // canonical 65 bytes. Cheap, and a no-op for a wallet that was already returning 27/28.
+  signature = ethers.utils.joinSignature(ethers.utils.splitSignature(signature))
+
   // Signature obtained (the wallet prompt is dismissed) — the purchase now settles on-chain. Callers
   // use this to flip the UI from "confirm in your wallet" to "completing transaction".
   onSigned?.()
