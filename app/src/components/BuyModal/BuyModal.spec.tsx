@@ -528,12 +528,39 @@ describe('when credits fall short but the buyer holds MANA', () => {
     balance.data = { balanceCents: 0, credits: 0 }
     manaBalance.data = 100n * ONE_MANA
     readTradeManaPriceWei.mockResolvedValue(ONE_MANA)
+    // Real packs, or `goNoFunds` throws reading `cover.id` off an empty catalogue and the modal lands in
+    // `error` — never reaching the pack picker these cases are about (see the fixture's own comment).
+    creditPacks.packs = [{ id: 'pack_5', credits: 40, usd: 5.99 }]
   })
 
   afterEach(() => {
     balance.data = { balanceCents: 100_000, credits: 10_000 }
     manaBalance.data = 0n
     readTradeManaPriceWei.mockResolvedValue(0n)
+    creditPacks.packs = []
+  })
+
+  /**
+   * The metric that was inflated: it fired for everyone short on credits, including everyone who could
+   * simply pay in MANA — so "users with no funds" counted people who had the money.
+   */
+  it('should not report a credits prompt to someone who can pay', async () => {
+    renderIdle()
+
+    // The oracle read proves the no-funds path actually ran — without it the assertion below would pass
+    // on a modal that never got there.
+    await waitFor(() => expect(readTradeManaPriceWei).toHaveBeenCalled())
+    expect(track).not.toHaveBeenCalledWith('Shop Buy Credits Prompted', expect.anything())
+  })
+
+  // The guard that moving this read onto the blocking path would have dropped: someone with no MANA has
+  // nothing to gain from the oracle and must not be made to wait for it.
+  it('should not ask the oracle at all when the buyer holds no MANA', async () => {
+    manaBalance.data = 0n
+    renderIdle()
+
+    expect(await screen.findByText(/insufficient funds/i)).toBeInTheDocument()
+    expect(readTradeManaPriceWei).not.toHaveBeenCalled()
   })
 
   /**
@@ -550,5 +577,22 @@ describe('when credits fall short but the buyer holds MANA', () => {
     await waitFor(() =>
       expect(captureError).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ step: 'mana_price' }))
     )
+  })
+
+  it('should tell the buyer the price could not be checked, rather than dropping the rail in silence', async () => {
+    readTradeManaPriceWei.mockRejectedValue(new Error('oracle down'))
+    renderIdle()
+
+    expect(await screen.findByTestId('mana-price-unavailable')).toBeInTheDocument()
+  })
+
+  // Not owed to someone with no MANA: nothing was asked of the oracle on their behalf.
+  it('should not claim the price is unavailable when it never asked', async () => {
+    manaBalance.data = 0n
+    readTradeManaPriceWei.mockRejectedValue(new Error('oracle down'))
+    renderIdle()
+
+    await waitFor(() => expect(track).toHaveBeenCalledWith('Shop Buy Credits Prompted', expect.anything()))
+    expect(screen.queryByTestId('mana-price-unavailable')).toBeNull()
   })
 })

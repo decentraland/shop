@@ -217,10 +217,18 @@ export function BuyModal({
      * DEV, so in production the option vanished with nobody the wiser.
      */
     const goNoFunds = async (credits: number, sale: PurchaseTarget, priceCents: number) => {
-      const manaWei = await manaPriceFor(sale)
+      // Only a buyer who HOLDS MANA can have a MANA rail, so only they are worth making wait. Everyone
+      // else reaches the pack picker with no oracle round-trip at all — the guard the old effect carried
+      // (`manaBalanceWei <= 0n → return`), which moving this read onto the blocking path would otherwise
+      // have dropped. A trade quote is three sequential RPC calls; charging them to the majority who
+      // cannot use the answer is a slower screen for nothing.
+      const holdsMana = (manaBalanceWei ?? 0n) > 0n
+      const manaWei = holdsMana ? await manaPriceFor(sale) : null
       if (cancelled) return
       if (manaWei != null) setManaPriceWei(manaWei)
-      else setManaPriceUnavailable(true)
+      // "Unavailable" is only true of a read that was ATTEMPTED. Someone with no MANA is not owed a notice
+      // about a price we never asked for.
+      else if (holdsMana) setManaPriceUnavailable(true)
 
       const rails = computePaymentOptions({
         priceCents,
