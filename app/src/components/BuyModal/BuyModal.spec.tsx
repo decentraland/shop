@@ -47,12 +47,14 @@ vi.mock('decentraland-transactions', () => ({
 // Mutable, defaulting to the plentiful balance every existing test here assumes — only the shortfall
 // (`nofunds`) cases lower it.
 const balance = { data: { balanceCents: 100_000, credits: 10_000 } }
+// The buyer's MANA, controllable: whether a MANA rail exists is exactly what decides the no-funds path.
+const manaBalance = { data: 0n }
 vi.mock('~/hooks/useBalance', () => ({ useBalance: () => balance }))
 
 // Mutable so both sides of the iOS web-view gate are reachable.
 const iap = { on: false }
 vi.mock('~/lib/iap', () => ({ isIapMode: () => iap.on }))
-vi.mock('~/hooks/useManaBalance', () => ({ useManaBalance: () => ({ data: 0n }) }))
+vi.mock('~/hooks/useManaBalance', () => ({ useManaBalance: () => manaBalance }))
 // Mutable and empty by default, as every test here had it. The shortfall cases need real packs: `goNoFunds`
 // picks a covering pack and reads `cover.id`, so an empty catalogue throws there and the modal lands in
 // `error` instead of the pack picker.
@@ -109,7 +111,8 @@ vi.mock('~/lib/api', async orig => ({
   resolveLiveTrade,
   fetchStoreMintState
 }))
-vi.mock('~/lib/mana', () => ({ readTradeManaPriceWei: vi.fn(async () => 0n) }))
+const { readTradeManaPriceWei } = vi.hoisted(() => ({ readTradeManaPriceWei: vi.fn(async () => 0n) }))
+vi.mock('~/lib/mana', () => ({ readTradeManaPriceWei }))
 vi.mock('~/lib/mana-rate', () => ({
   readManaUsdRate: vi.fn(async () => ({ rate: 50_000_000n, decimals: 8 })),
   manaWeiToUsdCents: () => 0
@@ -509,5 +512,120 @@ describe('when the item is a CollectionStore mint', () => {
 
     expect(await screen.findByTestId('buy-error')).toBeInTheDocument()
     expect(buyOneWithCredits).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * A buyer holding MANA and no credits used to be shown "Insufficient funds — buy credits" FIRST, because
+ * the MANA price was read by a later effect gated on the phase already being `nofunds`. The dead end was
+ * painted by construction and only became an offer once the oracle answered — long after they had read
+ * that they could not afford it.
+ */
+describe('when credits fall short but the buyer holds MANA', () => {
+  const ONE_MANA = 10n ** 18n
+
+  beforeEach(() => {
+    balance.data = { balanceCents: 0, credits: 0 }
+    manaBalance.data = 100n * ONE_MANA
+    readTradeManaPriceWei.mockResolvedValue(ONE_MANA)
+    // Real packs, or `goNoFunds` throws reading `cover.id` off an empty catalogue and the modal lands in
+    // `error` — never reaching the pack picker these cases are about (see the fixture's own comment).
+    creditPacks.packs = [{ id: 'pack_5', credits: 40, usd: 5.99 }]
+  })
+
+  afterEach(() => {
+    balance.data = { balanceCents: 100_000, credits: 10_000 }
+    manaBalance.data = 0n
+    readTradeManaPriceWei.mockResolvedValue(0n)
+    creditPacks.packs = []
+  })
+
+  /**
+   * The metric that was inflated: it fired for everyone short on credits, including everyone who could
+   * simply pay in MANA — so "users with no funds" counted people who had the money.
+   */
+  it('should not report a credits prompt to someone who can pay', async () => {
+    renderIdle()
+
+    // The oracle read proves the no-funds path actually ran — without it the assertion below would pass
+    // on a modal that never got there.
+    await waitFor(() => expect(readTradeManaPriceWei).toHaveBeenCalled())
+    expect(track).not.toHaveBeenCalledWith('Shop Buy Credits Prompted', expect.anything())
+  })
+
+  // The guard that moving this read onto the blocking path would have dropped: someone with no MANA has
+  // nothing to gain from the oracle and must not be made to wait for it.
+  it('should not ask the oracle at all when the buyer holds no MANA', async () => {
+    manaBalance.data = 0n
+    renderIdle()
+
+    expect(await screen.findByText(/insufficient funds/i)).toBeInTheDocument()
+    expect(readTradeManaPriceWei).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The oracle failing is not the same as the buyer being unable to pay, and it used to be
+   * indistinguishable: the catch only warned in DEV, so in production the MANA option disappeared with
+   * nobody the wiser — no log, no metric, no notice.
+   *
+   * Pins the REPORTING half. The buyer-facing notice this also adds is not covered here; see the PR.
+   */
+  it('should report a failed MANA price read instead of swallowing it', async () => {
+    readTradeManaPriceWei.mockRejectedValue(new Error('oracle down'))
+    renderIdle()
+
+    await waitFor(() =>
+      expect(captureError).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ step: 'mana_price' }))
+    )
+  })
+
+  it('should tell the buyer the price could not be checked, rather than dropping the rail in silence', async () => {
+    readTradeManaPriceWei.mockRejectedValue(new Error('oracle down'))
+    renderIdle()
+
+    expect(await screen.findByTestId('mana-price-unavailable')).toBeInTheDocument()
+  })
+
+  // Not owed to someone with no MANA: nothing was asked of the oracle on their behalf.
+  it('should not claim the price is unavailable when it never asked', async () => {
+    manaBalance.data = 0n
+    readTradeManaPriceWei.mockRejectedValue(new Error('oracle down'))
+    renderIdle()
+
+    await waitFor(() => expect(track).toHaveBeenCalledWith('Shop Buy Credits Prompted', expect.anything()))
+    expect(screen.queryByTestId('mana-price-unavailable')).toBeNull()
+  })
+})
+
+/**
+ * The warning is about a price we could not read. Once one HAS been read the sentence is simply false —
+ * and the MANA buttons are on screen beside it, so it contradicts what the buyer can see.
+ */
+describe('when the MANA price arrives after a failed read', () => {
+  const ONE_MANA = 10n ** 18n
+
+  beforeEach(() => {
+    balance.data = { balanceCents: 0, credits: 0 }
+    manaBalance.data = 100n * ONE_MANA
+    creditPacks.packs = [{ id: 'pack_5', credits: 40, usd: 5.99 }]
+    // Fails for goNoFunds, succeeds for the retry that follows it.
+    readTradeManaPriceWei.mockRejectedValueOnce(new Error('blip')).mockResolvedValue(ONE_MANA)
+  })
+
+  afterEach(() => {
+    balance.data = { balanceCents: 100_000, credits: 10_000 }
+    manaBalance.data = 0n
+    creditPacks.packs = []
+    readTradeManaPriceWei.mockReset().mockResolvedValue(0n)
+  })
+
+  // One outage is one report. The retry re-reads; it does not re-raise.
+  it('should not report the same outage twice', async () => {
+    readTradeManaPriceWei.mockReset().mockRejectedValue(new Error('down'))
+    renderIdle()
+
+    await waitFor(() => expect(readTradeManaPriceWei).toHaveBeenCalledTimes(2))
+    const reports = captureError.mock.calls.filter(c => (c[1] as { step?: string })?.step === 'mana_price')
+    expect(reports).toHaveLength(1)
   })
 })

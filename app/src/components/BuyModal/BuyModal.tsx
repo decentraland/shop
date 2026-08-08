@@ -62,6 +62,24 @@ type Phase = 'loading' | 'ready' | 'nofunds' | 'processing' | 'complete' | 'erro
 /** A mint's live price + remaining supply, re-read at checkout exactly as the cart re-reads it. */
 const resolveStore: StoreResolver = item => fetchStoreMintState(item.contractAddress, String(item.itemId))
 
+/**
+ * What this purchase costs in MANA, or null when it cannot be established.
+ *
+ * A mint is PRICED in MANA on-chain and the resolve already read it — that exact figure is what the store
+ * will verify, so there is nothing to ask the oracle and no failure mode. A trade has to be quoted, and
+ * that read can fail; null is "we do not know", never "no MANA rail".
+ */
+async function manaPriceFor(sale: PurchaseTarget, opts: { reportFailure?: boolean } = {}): Promise<bigint | null> {
+  if (sale.kind === 'store') return BigInt(sale.mint.item.priceWei)
+  try {
+    return await readTradeManaPriceWei(sale.trade)
+  } catch (err) {
+    // The retry passes false: one outage, one report.
+    if (opts.reportFailure !== false) captureError(err, { flow: 'buy', step: 'mana_price' })
+    return null
+  }
+}
+
 /** The trade a purchase is against, for the fields that only a trade-backed one has. */
 function tradeIdOf(sale: PurchaseTarget): string | undefined {
   return sale.kind === 'trade' ? sale.trade.id : undefined
@@ -145,6 +163,9 @@ export function BuyModal({
   // for a mint. Null until read (or if the read fails, in which case MANA simply isn't offered and the
   // credits path is unaffected).
   const [manaPriceWei, setManaPriceWei] = useState<bigint | null>(null)
+  // The oracle was asked and could not answer. Distinct from `manaPriceWei === null`, which is also the
+  // state before anything has been asked — only this one means the MANA option is missing for a REASON.
+  const [manaPriceUnavailable, setManaPriceUnavailable] = useState(false)
   // The resolved purchase + its USD price, kept even when the credits balance falls short. The MANA rails need
   // them in the 'nofunds' phase too — that's exactly where paying with MANA (alone or mixed) rescues a
   // purchase the credits alone can't cover, so we must not throw it away like the old flow did.
@@ -183,17 +204,54 @@ export function BuyModal({
       setError(t('buyModal.signInToCheckout'))
       return
     }
-    // Route to the no-funds (pack picker) state: reserve nothing, prompt a top-up.
-    const goNoFunds = (credits: number) => {
+    /**
+     * Route to the no-funds state — but only AFTER settling whether MANA could have paid.
+     *
+     * The MANA price used to be read by a later effect, gated on the phase already being `nofunds`. So a
+     * buyer holding MANA was shown "Insufficient funds — buy credits" first, by construction, and the
+     * screen only became a payment choice once the oracle answered. Nobody waits to see if a dead end
+     * turns into an offer: they have already read that they cannot afford it.
+     *
+     * Two things follow from resolving first. `Shop Buy Credits Prompted` no longer fires for buyers who
+     * could pay — it was inflating the "no funds" figure with people who had the money. And an oracle
+     * that fails is REPORTED rather than silently deleting the MANA rail: the old catch only warned in
+     * DEV, so in production the option vanished with nobody the wiser.
+     */
+    const goNoFunds = async (credits: number, sale: PurchaseTarget, priceCents: number) => {
+      // Only a buyer who HOLDS MANA can have a MANA rail, so only they are worth making wait. Everyone
+      // else reaches the pack picker with no oracle round-trip at all — the guard the old effect carried
+      // (`manaBalanceWei <= 0n → return`), which moving this read onto the blocking path would otherwise
+      // have dropped. A trade quote is three sequential RPC calls; charging them to the majority who
+      // cannot use the answer is a slower screen for nothing.
+      const holdsMana = (manaBalanceWei ?? 0n) > 0n
+      const manaWei = holdsMana ? await manaPriceFor(sale) : null
+      if (cancelled) return
+      if (manaWei != null) setManaPriceWei(manaWei)
+      // "Unavailable" is only true of a read that was ATTEMPTED. Someone with no MANA is not owed a notice
+      // about a price we never asked for.
+      else if (holdsMana) setManaPriceUnavailable(true)
+
+      const rails = computePaymentOptions({
+        priceCents,
+        priceManaWei: manaWei ?? 0n,
+        balanceCents: balance?.balanceCents ?? 0,
+        manaBalanceWei: manaBalanceWei ?? 0n
+      })
+      const canPayWithMana = rails.options.some(o => o.method === 'mana' || o.method === 'combined')
+
       const shortfall = credits - (balance?.credits ?? 0)
       const cover = OFFER_PACKS.find(p => p.credits >= shortfall) ?? OFFER_PACKS[OFFER_PACKS.length - 1]
       setSelectedPack(cover.id)
-      track('Shop Buy Credits Prompted', {
-        from: 'item_checkout',
-        credits_needed: credits,
-        credits_balance: balance?.credits ?? 0,
-        shortfall: Math.max(0, shortfall)
-      })
+      // Only a buyer with no way to pay is being prompted to top up. Tracking the rest is what made this
+      // number untrustworthy.
+      if (!canPayWithMana) {
+        track('Shop Buy Credits Prompted', {
+          from: 'item_checkout',
+          credits_needed: credits,
+          credits_balance: balance?.credits ?? 0,
+          shortfall: Math.max(0, shortfall)
+        })
+      }
       setPhase('nofunds')
     }
     void (async () => {
@@ -223,7 +281,7 @@ export function BuyModal({
         setPriceCents(usdCents)
         // Known-and-short → straight to the pack picker; don't reserve dollars we can't spend.
         if (balance != null && balance.credits < credits) {
-          goNoFunds(credits)
+          await goNoFunds(credits, sale, usdCents)
           return
         }
         // Enough (or balance unknown) → LOCK the price by authorizing the credit.
@@ -249,7 +307,7 @@ export function BuyModal({
           if (cancelled) return
           // Server said not enough credits → show the pack picker, not a bare error.
           if (isInsufficient(authErr)) {
-            goNoFunds(credits)
+            await goNoFunds(credits, sale, usdCents)
             return
           }
           throw authErr
@@ -283,24 +341,21 @@ export function BuyModal({
     if (phase !== 'ready' && phase !== 'nofunds') return
     if (manaBalanceWei == null || manaBalanceWei <= 0n) return
     if (manaPriceWei !== null) return
-    // A mint is PRICED in MANA on-chain and the resolve already read it — that exact figure is what the store
-    // will verify, so there is nothing to ask the oracle and no failure mode to degrade through.
-    if (sale.kind === 'store') {
-      setManaPriceWei(BigInt(sale.mint.item.priceWei))
-      return
-    }
     let cancelled = false
-    void readTradeManaPriceWei(sale.trade)
-      .then(wei => {
-        if (!cancelled) setManaPriceWei(wei)
-      })
-      .catch(err => {
-        if (import.meta.env.DEV) console.warn('[buyModal] mana price read failed', err)
-      })
+    /**
+     * Deliberately runs even after `goNoFunds` already tried and failed: a MANA/USD read is one RPC hop
+     * and a blip should not cost the buyer their MANA rail for the life of the modal. So this is the
+     * retry, not a duplicate — and `reportFailure: false` keeps a single outage from being reported twice.
+     */
+    void manaPriceFor(sale, { reportFailure: !manaPriceUnavailable }).then(wei => {
+      if (cancelled) return
+      if (wei != null) setManaPriceWei(wei)
+      else setManaPriceUnavailable(true)
+    })
     return () => {
       cancelled = true
     }
-  }, [phase, locked, resolvedSale, manaBalanceWei, manaPriceWei])
+  }, [phase, locked, resolvedSale, manaBalanceWei, manaPriceWei, manaPriceUnavailable])
 
   // Which rails the buyer's balances actually support (pure — see lib/payment-options). MANA rails
   // appear only once both the MANA balance and the MANA price are known; until then this is just the
@@ -820,6 +875,15 @@ export function BuyModal({
             {/* Not enough credits — insufficient warning + pack picker */}
             {phase === 'nofunds' && (
               <M.Body>
+                {/* The MANA rail is missing because the oracle could not be read, not because the buyer
+                    cannot afford it. Said out loud: without it they are told to buy credits for something
+                    their MANA may well have covered, and the reason is invisible. */}
+                {manaPriceUnavailable && manaPriceWei === null && (manaBalanceWei ?? 0n) > 0n ? (
+                  <M.Warning data-testid="mana-price-unavailable">
+                    <WarningTriangleIcon />
+                    <M.WarningText>{t('buyModal.manaPriceUnavailable')}</M.WarningText>
+                  </M.Warning>
+                ) : null}
                 <M.Warning>
                   <WarningTriangleIcon />
                   <M.WarningText>

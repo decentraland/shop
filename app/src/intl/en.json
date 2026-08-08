@@ -339,7 +339,8 @@
     "error": {
       "generic": "Couldn't complete the purchase — please try again.",
       "creditsCheckout": "Couldn't start the credits checkout — please try again."
-    }
+    },
+    "manaPriceUnavailable": "We couldn't check the MANA price right now, so paying with MANA isn't available for this purchase. Try again in a moment."
   },
   "cartCheckout": {
     "titleBuy": "Buy Items",
