@@ -4,7 +4,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 vi.mock('~/config', () => ({ config: { sentryDsn: '', sentryEnvironment: 'test', sentryRelease: 'shop@test' } }))
 vi.mock('~/store/wallet', () => ({ useWallet: { getState: () => ({ session: null }) } }))
 
-import { captureError, isLocalhost, redact, scrubEvent, setErrorForwarder } from '~/lib/monitoring'
+import * as Sentry from '@sentry/react'
+import {
+  captureError,
+  isLocalhost,
+  redact,
+  scrubEvent,
+  sentryForwarder,
+  setErrorForwarder,
+  tagsFrom
+} from '~/lib/monitoring'
 
 describe('isLocalhost', () => {
   it('is true for local hosts (so localhost never reports to Sentry)', () => {
@@ -58,6 +67,52 @@ describe('scrubEvent', () => {
     expect(out.tags.flow).toBe('buy') // safe context survives
     expect(out.extra.identity).toBeUndefined()
     expect(out.extra.step).toBe('submit')
+  })
+})
+
+/**
+ * `extra` is not indexed by Sentry — it cannot be searched, filtered or charted, only read once an event
+ * is open. Promoting `flow`/`step` to tags is what makes "how often does step X fail" answerable at all.
+ */
+describe('tagsFrom', () => {
+  it('promotes flow and step so they can be searched and charted', () => {
+    expect(tagsFrom({ flow: 'buy', step: 'mana_price' })).toEqual({ flow: 'buy', step: 'mana_price' })
+  })
+
+  it('promotes nothing else, whatever the context carries', () => {
+    // High-cardinality values (ids, addresses, amounts) would exhaust Sentry's tag budget and make the
+    // facet useless. They stay in `extra`, which is still attached.
+    const tags = tagsFrom({ flow: 'buy', creditId: '0xabc', address: '0xdead', usdCents: 1350 })
+    expect(tags).toEqual({ flow: 'buy' })
+  })
+
+  it('drops a non-string or empty value rather than coercing it to a label', () => {
+    expect(tagsFrom({ flow: 42, step: {} })).toEqual({})
+    expect(tagsFrom({ flow: '', step: 'submit' })).toEqual({ step: 'submit' })
+  })
+
+  it('returns no tags for an empty context', () => {
+    expect(tagsFrom({})).toEqual({})
+  })
+})
+
+/**
+ * The integration point. `tagsFrom` being correct is worth nothing if the sink does not pass its result
+ * to Sentry — and with the call inlined in `initSentry`, deleting `tags` there passed every other test
+ * in this file. This is the one that fails when the promotion is removed.
+ */
+describe('sentryForwarder', () => {
+  it('sends flow and step as TAGS, and the whole context as extra', () => {
+    const captureException = vi.spyOn(Sentry, 'captureException').mockImplementation(() => '')
+    const err = new Error('oracle down')
+
+    sentryForwarder(err, { flow: 'buy', step: 'mana_price', creditId: '0xabc' })
+
+    expect(captureException).toHaveBeenCalledWith(err, {
+      tags: { flow: 'buy', step: 'mana_price' },
+      extra: { flow: 'buy', step: 'mana_price', creditId: '0xabc' }
+    })
+    captureException.mockRestore()
   })
 })
 

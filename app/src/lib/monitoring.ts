@@ -74,6 +74,39 @@ export function scrubEvent(event: Sentry.Event): Sentry.Event {
   return event
 }
 
+/**
+ * The low-cardinality context fields worth INDEXING, promoted from `extra` to Sentry tags.
+ *
+ * Sentry does not index `extra`: it cannot be searched, filtered, grouped or charted — only read once
+ * an event is already open. So every `captureError(err, { flow, step })` in the shop was effectively
+ * invisible to search, and answering "how often does the MANA price read fail in prod" meant opening
+ * events one by one. `flow` and `step` are a closed set of short identifiers, which is what a tag is for.
+ *
+ * ONLY those two are promoted, never the whole context — the rest carries ids, addresses and amounts
+ * that would blow past Sentry's tag-cardinality limits and make the tag useless as a facet. Non-string
+ * values are dropped rather than coerced: a tag is a label, and `[object Object]` is not one.
+ *
+ * Both still travel in `extra` as well, so nothing that used to be readable stops being readable. And
+ * they are scrubbed on the way out either way — `scrubEvent` cleans `event.tags` exactly as it cleans
+ * `event.extra`.
+ */
+export function tagsFrom(context: ErrorContext): Record<string, string> {
+  const tags: Record<string, string> = {}
+  for (const key of ['flow', 'step'] as const) {
+    const value = context[key]
+    if (typeof value === 'string' && value !== '') tags[key] = value
+  }
+  return tags
+}
+
+/**
+ * The sink `initSentry` wires into the forwarder seam. Named and exported rather than inlined so the
+ * tag promotion is reachable from a test: inlined, deleting `tags` there passed every test in the file.
+ */
+export function sentryForwarder(error: unknown, context: ErrorContext): void {
+  Sentry.captureException(error, { tags: tagsFrom(context), extra: context })
+}
+
 let initialized = false
 
 /**
@@ -121,7 +154,7 @@ export function initSentry(): void {
   })
   const addr = safeAddress()
   if (addr) Sentry.setUser({ id: addr })
-  setErrorForwarder((error, context) => Sentry.captureException(error, { extra: context }))
+  setErrorForwarder(sentryForwarder)
 }
 
 /** Attach/detach the wallet as the Sentry user (address is public). Call on sign-in / disconnect. */
