@@ -11,6 +11,7 @@ import {
 import { AuthorizationKind, ensureAuthorization, metaTxProviderShim, readProvider } from '~/lib/authorizations'
 import { buyOneWithCredits, type AnyPurchase, type SpendableCredit } from '~/lib/buy'
 import { gaslessConfig } from '~/lib/gasless-config'
+import { captureError } from '~/lib/monitoring'
 import { requireChain } from '~/lib/network'
 import {
   amoyGasOverrides,
@@ -208,7 +209,11 @@ async function acceptPayingMana(opts: {
       // A revert is different: it consumed nothing, so retrying directly is right. Propagate the pending
       // one and let the caller surface it; an unknown outcome is not a failure to paper over.
       if (e instanceof MetaTxPendingError) throw e
-      console.warn('[buyWithMana] gasless meta-tx failed, falling back to a direct tx:', e)
+      // The fallback below is what makes a wrong-network refusal reachable AT ALL: the relayed rail works
+      // from any chain, so a buyer only ever meets `requireChain` because this relay already failed. Left
+      // as a console.warn, that first failure was invisible and every WrongNetworkError in Sentry was a
+      // symptom whose cause had no record.
+      captureError(e, { flow: 'buy_mana', step: 'gasless_fallback' })
     }
   }
 
@@ -269,7 +274,7 @@ async function mintPayingMana(opts: {
       // A pending relay must not be re-submitted directly — it may still mine, and minting twice charges
       // twice. Same rule as acceptPayingMana.
       if (e instanceof MetaTxPendingError) throw e
-      console.warn('[buyMintWithMana] gasless meta-tx failed, falling back to a direct tx:', e)
+      captureError(e, { flow: 'buy_mint_mana', step: 'gasless_fallback' })
     }
   }
 

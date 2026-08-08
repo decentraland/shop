@@ -112,11 +112,16 @@ function reportRelayerFailure(
   httpStatus?: number
 ) {
   captureError(new Error(`gasless relay ${reason}: ${message}`), {
-    reason,
+    // `flow`/`step` (and `http_status`) are the fields Sentry INDEXES as tags — see lib/monitoring's
+    // `tagsFrom`. Named anything else, these would land in `extra`, which cannot be searched, grouped or
+    // charted: the failure would be readable one event at a time and countable never. `reason` is the
+    // step here because "which way did the relay fail" is exactly the facet worth splitting on.
+    flow: 'gasless_relay',
+    step: reason,
     relayerMessage: message,
     buyer,
     target,
-    httpStatus
+    http_status: httpStatus
   })
 }
 
