@@ -117,3 +117,44 @@ describe('CartCheckoutModal — awaiting confirmation', () => {
     expect(screen.queryByText(/confirm/i)).not.toBeInTheDocument()
   })
 })
+
+/**
+ * A cart checkout that broadcast a group which then failed to settle leaves that group's reservation
+ * standing, so the balance is short until the reconciler resolves it. The panel used to report a plain
+ * failure and offer "Try again" — a retry that cannot succeed on a balance the buyer no longer has.
+ */
+describe('when a failed checkout left credits reserved', () => {
+  function renderHeld(heldCredits: boolean) {
+    return render(
+      <CartCheckoutModal
+        phase="error"
+        balanceCredits={200}
+        onClose={() => {}}
+        lines={[line]}
+        message="Couldn't complete the purchase — please try again."
+        heldCredits={heldCredits}
+      />
+    )
+  }
+
+  it('should tell the buyer the credits return on their own, and by when', () => {
+    renderHeld(true)
+
+    expect(screen.getByTestId('buy-error').textContent).toMatch(/return to your balance within 5.10 minutes/i)
+  })
+
+  it('should offer only an acknowledgement, since retrying would fail on the short balance', () => {
+    renderHeld(true)
+
+    // Queried by ROLE: the held copy itself ends with "you can try again once your credits are back",
+    // so a text query matches the paragraph and would pass with the button still on screen.
+    expect(screen.queryByRole('button', { name: /try again/i })).toBeNull()
+    expect(screen.getByRole('button', { name: /got it/i })).toBeTruthy()
+  })
+
+  it('should keep the retry action for a failure that reserved nothing', () => {
+    renderHeld(false)
+
+    expect(screen.getByRole('button', { name: /try again/i })).toBeTruthy()
+  })
+})

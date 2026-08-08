@@ -131,7 +131,9 @@ type ModalState =
       signatures?: { current: number; total: number }
     }
   | { phase: 'nofunds'; lines: CheckoutLine[]; shortfall: number }
-  | { phase: 'error'; message: string }
+  // `heldCredits` marks the one failure the buyer cannot act on: a group that BROADCAST but has not
+  // settled keeps its reservation, so that much of the balance is out until the reconciler resolves it.
+  | { phase: 'error'; message: string; heldCredits?: boolean }
 
 export function Cart() {
   useSeo({ title: t('nav.cart'), noindex: true })
@@ -565,6 +567,9 @@ export function Cart() {
         spent: spentSalts,
         settled: settledSalts
       })
+      // Left alone by partitionReservations above: broadcast, not reverted, not yet settled. Those credits
+      // are out of the balance until the reconciler catches up, which is what the buyer has to be told.
+      const heldCredits = [...spentSalts].some(salt => !settledSalts.has(salt))
       const boughtUnits = purchasedUnits.filter(u => boughtItemIds.includes(u.id))
       const unboughtCredits = purchasedUnits.filter(u => !boughtItemIds.includes(u.id))
       // Only the value that did NOT go through is a failure. Booking the whole basket here (and never emitting
@@ -618,7 +623,7 @@ export function Cart() {
         return
       }
 
-      setModal({ phase: 'error', message: friendlyError(e) })
+      setModal({ phase: 'error', message: friendlyError(e), heldCredits })
     }
   }
 
@@ -1498,6 +1503,7 @@ export function Cart() {
           onSelectPack={setSelectedPack}
           onBuyPacks={() => void buyCreditsAndItems()}
           message={modal.phase === 'error' ? modal.message : undefined}
+          heldCredits={modal.phase === 'error' && !!modal.heldCredits}
           onRetry={() => void checkout()}
         />
       ) : null}
