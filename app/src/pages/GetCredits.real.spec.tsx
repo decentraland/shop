@@ -206,6 +206,45 @@ describe('when returning from Stripe hosted Checkout on the real path', () => {
     expect(track.mock.calls.some(c => c[0] === 'Shop Buy Credits Pending')).toBe(true)
   })
 
+  /**
+   * THE CHARGED BUYER TOLD IT FAILED.
+   *
+   * 'crediting' means the money is in and the ledger write is under way. It was missing from the status
+   * union, so it fell through every branch into the hard-error screen: "couldn't add your credits", plus a
+   * Shop Buy Credits Failed event, in front of somebody whose card had already been charged.
+   */
+  it('should show the "on the way" state, never the error screen, when the grant is still in flight', async () => {
+    pollCreditGrant.mockResolvedValue({ status: 'crediting' })
+
+    const { invalidate } = renderPage('/?order=ord_crediting')
+
+    expect(await screen.findByTestId('credits-pending')).toBeInTheDocument()
+    expect(screen.getByText(/on the way/i)).toBeInTheDocument()
+    expect(screen.queryByText(/something went wrong/i)).not.toBeInTheDocument()
+    // The event matters as much as the screen: this buyer paid, so nothing about it is a failure.
+    expect(track.mock.calls.some(c => c[0] === 'Shop Buy Credits Failed')).toBe(false)
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['usd-balance'] })
+  })
+
+  /**
+   * …AND ITS MIRROR IMAGE. 'initiated' is the one status where nobody has paid, so routing it to the screen
+   * above would promise credits to a buyer who was never charged — which is exactly what the server split
+   * it out of 'processing' to stop us doing. It gets the packs back with the cancel note instead.
+   */
+  it('should not promise credits to a buyer who never paid', async () => {
+    pollCreditGrant.mockResolvedValue({ status: 'initiated' })
+
+    renderPage('/?order=ord_unpaid')
+
+    expect(await screen.findByText(/payment canceled/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /260 credits for \$29\.99/i })).toBeInTheDocument()
+    // Neither of the two wrong answers: not "your credits are on the way", not a hard error.
+    expect(screen.queryByTestId('credits-pending')).not.toBeInTheDocument()
+    expect(screen.queryByText(/on the way/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/something went wrong/i)).not.toBeInTheDocument()
+    expect(track.mock.calls.some(c => c[0] === 'Shop Buy Credits Failed')).toBe(false)
+  })
+
   it('should show the error state with a Try-again reset when the poll returns failed', async () => {
     const user = userEvent.setup()
     pollCreditGrant.mockResolvedValue({ status: 'failed', error: 'Your card was declined.' })

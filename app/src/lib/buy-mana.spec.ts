@@ -155,6 +155,33 @@ describe('buyWithMana (direct settlement)', () => {
     expect(acceptCalls).toHaveLength(1)
     expect(hash).toBe('0xmanahash')
   })
+
+  /**
+   * AN ALLOWANCE IS AN AMOUNT, AND THE GRANT HAS TO SAY SO.
+   *
+   * Asked as a flag, a leftover approval from a cheaper purchase answers "already approved" — so no approve
+   * goes out and accept() then reverts on transferFrom, after the buyer has confirmed. A managed wallet
+   * meets that with no approval step in front of it at all.
+   */
+  it('approves again when the leftover allowance is too small for THIS purchase', async () => {
+    allowanceWei = '1' // some allowance, nowhere near the 1 MANA this trade costs
+
+    await buyWithMana({ trade: fakeTrade(), buyer: BUYER, signer, manaWei: 10n ** 18n })
+
+    expect(approveCalls).toHaveLength(1)
+    expect(approveCalls[0].spender).toBe('0xmarket')
+    expect(acceptCalls).toHaveLength(1)
+  })
+
+  it('still skips the approval when the allowance covers the amount', async () => {
+    allowanceWei = '1000000000000000000000000'
+
+    await buyWithMana({ trade: fakeTrade(), buyer: BUYER, signer, manaWei: 10n ** 18n })
+
+    // Sizing the check must not make it ask for an approval the buyer does not need.
+    expect(approveCalls).toHaveLength(0)
+    expect(acceptCalls).toHaveLength(1)
+  })
 })
 
 const fakeMint = () => ({
@@ -198,6 +225,21 @@ describe('buyMintWithMana (direct settlement of a CollectionStore mint)', () => 
     await buyMintWithMana({ mint: fakeMint(), buyer: BUYER, signer })
 
     expect(approveCalls).toHaveLength(0)
+    expect(storeBuyCalls).toHaveLength(1)
+  })
+
+  /**
+   * No caller argument here on purpose: a mint carries the price the contract will verify, so the rail can
+   * size its own allowance check. The trade rail cannot (a USD-pegged order is priced by the oracle at
+   * settlement), which is why that one is told.
+   */
+  it('approves again when the leftover allowance is smaller than the mint price', async () => {
+    allowanceWei = '999999999999999999' // one wei short of the item's 1 MANA price
+
+    await buyMintWithMana({ mint: fakeMint(), buyer: BUYER, signer })
+
+    expect(approveCalls).toHaveLength(1)
+    expect(approveCalls[0].spender).toBe('0xstore')
     expect(storeBuyCalls).toHaveLength(1)
   })
 })
@@ -276,6 +318,24 @@ describe('buyWithCreditsAndMana (credits first, MANA covers the remainder)', () 
       manaGapWei: 600n
     })
     expect(approveCalls).toHaveLength(0)
+    expect(useCreditsCalls).toHaveLength(1)
+  })
+
+  // The gap is the amount the CreditsManager pulls, so an allowance below it is not an allowance for this
+  // purchase — useCredits reverts pulling the uncredited leg.
+  it('approves again when the leftover allowance is smaller than the MANA gap', async () => {
+    allowanceWei = '599'
+
+    await buyWithCreditsAndMana({
+      trade: fakeTrade(),
+      buyer: BUYER,
+      signer,
+      credits: [credit('400')],
+      manaGapWei: 600n
+    })
+
+    expect(approveCalls).toHaveLength(1)
+    expect(approveCalls[0].spender).toBe('0xcreditsmanager')
     expect(useCreditsCalls).toHaveLength(1)
   })
 
