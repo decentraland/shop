@@ -1,7 +1,7 @@
 import type { CatalogItem } from '~/lib/api'
 import type { CreditPack } from '~/lib/payments'
 import { isIapMode } from '~/lib/iap'
-import { formatCredits } from '~/lib/currency'
+import { CURRENCY, formatCredits } from '~/lib/currency'
 import { hrefFor } from '~/lib/routes'
 import { PaymentCtas } from '~/components/PaymentCtas'
 import { manaPerCredit, type PaymentMethod, type PaymentOption } from '~/lib/payment-options'
@@ -61,6 +61,12 @@ type Props = {
   totalCredits?: number
   // error
   message?: string | null
+  /**
+   * The failure left credits reserved: a group broadcast but has not settled, so that much of the balance
+   * is out until the reconciler resolves it. Retrying would only fail again on a short balance, so the
+   * panel explains the wait and offers a single acknowledge instead.
+   */
+  heldCredits?: boolean
   onRetry?: () => void
 }
 
@@ -154,17 +160,37 @@ export function CartCheckoutModal(props: Props) {
                 been spent and an item had already left the cart.
               */}
               <M.BuyErrorText>
-                <b>{t('cartCheckout.errorHeadline')}</b> {props.message ?? t('cartCheckout.errorBody')}
+                <b>{t('cartCheckout.errorHeadline')}</b>{' '}
+                {props.heldCredits ? (
+                  <>
+                    {props.message ? <>{props.message} </> : null}
+                    {t('cartCheckout.heldLead', { currency: CURRENCY.name })}
+                    <b>{t('cartCheckout.heldBold')}</b>
+                    {t('cartCheckout.heldTail', { currency: CURRENCY.name })}
+                  </>
+                ) : (
+                  (props.message ?? t('cartCheckout.errorBody'))
+                )}
               </M.BuyErrorText>
             </M.BuyError>
-            <M.Ctas>
-              <M.Btn data-variant="outline" onClick={onClose}>
-                {t('buyModal.cancel')}
-              </M.Btn>
-              <M.Btn data-variant="purple" onClick={props.onRetry ?? onClose}>
-                {t('cartCheckout.tryAgain')}
-              </M.Btn>
-            </M.Ctas>
+            {/* Nothing to retry WITH while the reservation is still unwinding — the copy above says to come
+                back once the balance is whole, so offering it here would only fail again. Mirrors BuyModal. */}
+            {props.heldCredits ? (
+              <M.Ctas>
+                <M.Btn data-variant="purple" data-full onClick={onClose}>
+                  {t('cartCheckout.gotIt')}
+                </M.Btn>
+              </M.Ctas>
+            ) : (
+              <M.Ctas>
+                <M.Btn data-variant="outline" onClick={onClose}>
+                  {t('buyModal.cancel')}
+                </M.Btn>
+                <M.Btn data-variant="purple" onClick={props.onRetry ?? onClose}>
+                  {t('cartCheckout.tryAgain')}
+                </M.Btn>
+              </M.Ctas>
+            )}
           </M.Body>
         )}
       </M.Card>

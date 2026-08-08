@@ -352,7 +352,7 @@
     "errorHeadline": "No pudimos completar tu compra esta vez.",
     "errorBody": "Tranquilo, tus créditos están a salvo. Inténtalo de nuevo en un momento.",
     "heldLead": "Tranquilo, tus {currency} están a salvo. No se usaron y ",
-    "heldBold": "volverán a tu balance en 5–10 minutos",
+    "heldBold": "volverán a tu balance en 5 a 15 minutos",
     "heldTail": " automáticamente. No tienes que hacer nada. Puedes intentarlo otra vez cuando vuelvan.",
     "gotIt": "Entendido",
     "tryAgain": "Reintentar",
