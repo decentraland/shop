@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Icon } from '~/components/Icon'
 import { t } from '~/intl/i18n'
 import { CURRENCY } from '~/lib/currency'
 import type { HeldCredits as Held } from '~/lib/credits'
@@ -62,6 +63,7 @@ export function HeldCredits({ held }: { held: Held | undefined }) {
   return (
     <S.Root ref={rootRef} data-testid="held-credits">
       <S.Trigger type="button" aria-expanded={open} data-testid="held-credits-trigger" onClick={() => setOpen(o => !o)}>
+        <Icon name="clock" size={13} data-held-clock aria-hidden />
         {t('heldCredits.badge', { credits: held.credits })}
       </S.Trigger>
 

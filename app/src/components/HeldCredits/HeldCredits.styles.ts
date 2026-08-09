@@ -1,4 +1,5 @@
 import styled from '@emotion/styled'
+import { keyframes } from '@emotion/react'
 import { theme } from '~/styles/theme'
 
 const { colors, radius, font } = theme
@@ -7,6 +8,13 @@ export const Root = styled.div`
   position: relative;
   display: flex;
   align-items: center;
+`
+
+/* Deliberately a pulse and not a spinner: a spinner promises a short, determinate wait, and this one can
+   run for as long as the chain takes. The chip has to catch the eye without implying something broke. */
+const breathe = keyframes`
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
 `
 
 export const Trigger = styled.button`
@@ -27,6 +35,19 @@ export const Trigger = styled.button`
 
   &:hover {
     filter: brightness(0.97);
+  }
+
+  /* Only the clock breathes. Animating the label would make the number hard to read at a glance, and the
+     number is the part the buyer actually needs. */
+  [data-held-clock] {
+    animation: ${breathe} 1.8s ease-in-out infinite;
+  }
+
+  /* Respect a reduced-motion preference — this is decoration, not information. */
+  @media (prefers-reduced-motion: reduce) {
+    [data-held-clock] {
+      animation: none;
+    }
   }
 `
 
