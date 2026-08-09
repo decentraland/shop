@@ -193,12 +193,17 @@ async function relay(
      * supported", a hardware wallet refusing eth_signTypedData_v4) and there was no way to see how,
      * because the message existed only in her browser.
      *
-     * `reason: 'contract-account'` is kept for the caller's fallback decision but is a misnomer here —
-     * a hardware wallet is not a contract account. The tag below records what actually happened so the
-     * two are distinguishable in Sentry; separating them in the type is a behaviour change and belongs
-     * in its own PR.
+     * `reason: 'contract-account'` is kept on the thrown error for the caller's fallback decision but is a
+     * misnomer here — a hardware wallet is not a contract account. The `step` below records what actually
+     * happened so the two are distinguishable in Sentry; separating them in the TYPE is a behaviour change
+     * and belongs in its own PR.
+     *
+     * Reported under `flow`/`step` like every other call here, and not under a name of its own: those are
+     * the two fields `tagsFrom` promotes to tags. Anything else lands in `extra`, which Sentry does not
+     * index — so the one failure that leaves no trace anywhere would also have been the one nobody could
+     * search for.
      */
-    captureError(e, { reason: 'signing-failed', walletMessage: msg, buyer, target: cm.address })
+    captureError(e, { flow: 'gasless_relay', step: 'signing_failed', walletMessage: msg, buyer, target: cm.address })
     throw new GaslessUnavailableError(msg, 'contract-account')
   }
   // Wallets disagree on the recovery id. Most return v as 27/28; some — several hardware-wallet and
