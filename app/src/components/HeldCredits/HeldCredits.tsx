@@ -19,20 +19,25 @@ function formatRemaining(seconds: number): string {
  * dead. Until now the only visible consequence was a balance that had quietly shrunk, which is exactly
  * what got reported to us as the Shop taking someone's credits. This is that missing explanation.
  *
- * What it must never do is promise a time. `releasesAtSeconds` is the EARLIEST the money can return, not
- * a commitment: a reservation the credits squid cannot yet vouch for is deliberately held past it rather
- * than handed back while a debit is still in flight. So the countdown runs to that figure, and on
- * reaching zero it says "any moment now" rather than claiming the credits are back. What actually makes
- * the badge disappear is a fresh balance, which `useBalance` polls for while anything is held.
+ * What it must never do is promise a time.
+ *
+ * Releasing is gated on the credits squid having processed past the credit's expiry — evidence, not a
+ * clock — so there are exactly two honest states. A reservation still inside its TTL has a date and gets
+ * a countdown. One that is already expired and STILL held is waiting on chain processing, and there is no
+ * date for that: `releasesAtSeconds` is null and the panel says so plainly instead of inventing a time or
+ * showing a timer that has run out. What makes the badge disappear is a fresh balance, which `useBalance`
+ * polls for while anything is held.
  */
 export function HeldCredits({ held }: { held: Held | undefined }) {
   const [open, setOpen] = useState(false)
   const [now, setNow] = useState(() => Math.floor(Date.now() / 1000))
   const rootRef = useRef<HTMLDivElement>(null)
 
-  const releasesAt = held?.releasesAtSeconds
-  const remaining = releasesAt == null ? 0 : releasesAt - now
-  const due = remaining <= 0
+  const releasesAt = held?.releasesAtSeconds ?? null
+  const remaining = releasesAt === null ? 0 : releasesAt - now
+  // No date at all, or a date that has already passed while the money is still held: both mean the same
+  // thing to the buyer — it is coming back, and we cannot say when.
+  const unknown = releasesAt === null || remaining <= 0
 
   // One ticker, alive only while something is actually held.
   useEffect(() => {
@@ -65,8 +70,8 @@ export function HeldCredits({ held }: { held: Held | undefined }) {
           <S.Title>{t('heldCredits.title', { credits: held.credits, currency: CURRENCY.name })}</S.Title>
           <S.Body>
             {t('heldCredits.body', { count: held.purchases.length })}{' '}
-            {due ? (
-              <S.Countdown data-testid="held-credits-due">{t('heldCredits.dueNow')}</S.Countdown>
+            {unknown ? (
+              <S.Countdown data-testid="held-credits-unknown">{t('heldCredits.noEstimate')}</S.Countdown>
             ) : (
               <span>
                 {t('heldCredits.backIn')}{' '}
@@ -74,8 +79,8 @@ export function HeldCredits({ held }: { held: Held | undefined }) {
               </span>
             )}
           </S.Body>
-          {/* The only honest guarantee in the whole panel, so it is stated rather than implied. */}
-          <S.Caveat>{t('heldCredits.caveat')}</S.Caveat>
+          {/* The reassurance is the point: nothing is lost and there is nothing for them to do. */}
+          <S.Caveat>{unknown ? t('heldCredits.caveatWaiting') : t('heldCredits.caveat')}</S.Caveat>
         </S.Panel>
       ) : null}
     </S.Root>

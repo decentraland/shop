@@ -7,20 +7,13 @@ import type { HeldCredits as Held } from '~/lib/credits'
 // A fixed "now" so the countdown is deterministic.
 const NOW_SECONDS = 1_800_000_000
 
-function heldAt(secondsFromNow: number, credits = 3): Held {
+function heldAt(secondsFromNow: number | null, credits = 3): Held {
+  const releasesAtSeconds = secondsFromNow === null ? null : NOW_SECONDS + secondsFromNow
   return {
     cents: credits * 10,
     credits,
-    releasesAtSeconds: NOW_SECONDS + secondsFromNow,
-    heldUntilSeconds: NOW_SECONDS + secondsFromNow + 3300,
-    purchases: [
-      {
-        credits,
-        releasesAtSeconds: NOW_SECONDS + secondsFromNow,
-        contractAddress: '0xabc',
-        itemId: '1'
-      }
-    ]
+    releasesAtSeconds,
+    purchases: [{ credits, releasesAtSeconds, contractAddress: '0xabc', itemId: '1' }]
   }
 }
 
@@ -97,10 +90,28 @@ describe('when credits are held', () => {
       await vi.advanceTimersByTimeAsync(10_000)
     })
 
-    await waitFor(() => expect(screen.getByTestId('held-credits-due')).toHaveTextContent('Back any moment now'))
+    await waitFor(() => expect(screen.getByTestId('held-credits-unknown')).toBeInTheDocument())
     expect(screen.queryByTestId('held-credits-countdown')).not.toBeInTheDocument()
     // Still on hold: the badge does not disappear on a clock alone, only on a fresh balance.
     expect(screen.getByTestId('held-credits-trigger')).toBeInTheDocument()
+  })
+
+  /**
+   * The server sends null when the release is gated on chain processing it cannot date. Rendering a
+   * countdown there would be inventing a deadline; rendering "0:00" would read as broken. The buyer gets
+   * told their money is safe and that there is nothing to do, which is all that is actually true.
+   */
+  it('should show no countdown at all when the server cannot estimate a return', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    renderBadge(heldAt(null))
+
+    await user.click(screen.getByTestId('held-credits-trigger'))
+
+    expect(screen.queryByTestId('held-credits-countdown')).not.toBeInTheDocument()
+    expect(screen.getByTestId('held-credits-unknown')).toBeInTheDocument()
+    expect(screen.getByTestId('held-credits-panel')).toHaveTextContent('Nothing is lost')
+    // The amount is still stated: what is held is known even when the timing is not.
+    expect(screen.getByTestId('held-credits-trigger')).toHaveTextContent('3 on hold')
   })
 
   it('should state the worst case rather than imply the countdown is a guarantee', async () => {
@@ -109,6 +120,6 @@ describe('when credits are held', () => {
 
     await user.click(screen.getByTestId('held-credits-trigger'))
 
-    expect(screen.getByTestId('held-credits-panel')).toHaveTextContent('can take up to an hour')
+    expect(screen.getByTestId('held-credits-panel')).toHaveTextContent('return on their own')
   })
 })

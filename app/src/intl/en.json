@@ -25,8 +25,9 @@
     "title": "{credits} {currency} on hold",
     "body": "{count, plural, one {A purchase you started is still using them.} other {Purchases you started are still using them.}}",
     "backIn": "Back in",
-    "dueNow": "Back any moment now",
-    "caveat": "They return on their own — you don't need to do anything. If the network is busy it can take up to an hour."
+    "caveat": "They return on their own — you don't need to do anything. If the network is busy it can take up to an hour.",
+    "noEstimate": "Coming back shortly",
+    "caveatWaiting": "They are safe and will return on their own once your purchase finishes processing on the blockchain. Nothing is lost and there is nothing for you to do."
   },
   "network": {
     "title": "Select a network",

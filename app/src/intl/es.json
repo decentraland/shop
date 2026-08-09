@@ -25,8 +25,9 @@
     "title": "{credits} {currency} retenidos",
     "body": "{count, plural, one {Una compra que empezaste todavía los está usando.} other {Compras que empezaste todavía los están usando.}}",
     "backIn": "Vuelven en",
-    "dueNow": "Vuelven en cualquier momento",
-    "caveat": "Vuelven solos, no tenés que hacer nada. Si la red está congestionada puede tardar hasta una hora."
+    "caveat": "Vuelven solos, no tenés que hacer nada. Si la red está congestionada puede tardar hasta una hora.",
+    "noEstimate": "Vuelven en breve",
+    "caveatWaiting": "Están a salvo y vuelven solos en cuanto tu compra termine de procesarse en la blockchain. No se pierde nada y no tenés que hacer nada."
   },
   "network": {
     "title": "Selecciona una red",

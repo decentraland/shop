@@ -25,11 +25,20 @@ export type ServerCredit = {
 export type HeldCredits = {
   cents: number
   credits: number
-  /** Epoch SECONDS. The soonest ANY of it returns. The earliest — never render it as a promise. */
-  releasesAtSeconds: number
-  /** Epoch SECONDS. The point by which ALL of it must be back. This one is guaranteed. */
-  heldUntilSeconds: number
-  purchases: { credits: number; releasesAtSeconds: number; contractAddress: string | null; itemId: string | null }[]
+  /**
+   * Epoch SECONDS, or NULL when there is no honest estimate.
+   *
+   * NULL is not an error and not "soon": the reservation is waiting on the chain being processed, and
+   * nobody can say when that finishes. It must be rendered as "no estimate", never as zero, never as a
+   * countdown that has run out.
+   */
+  releasesAtSeconds: number | null
+  purchases: {
+    credits: number
+    releasesAtSeconds: number | null
+    contractAddress: string | null
+    itemId: string | null
+  }[]
 }
 
 // The USD balance block (present when the shop USD-credits feature flag is on). `held` is present only
