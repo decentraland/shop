@@ -100,7 +100,7 @@ describe('when authorizing a USD credit for one purchase', () => {
     expect(url).toBe('https://credits.example/credits/authorize')
     expect(opts.method).toBe('POST')
     expect(opts.headers).toEqual({ 'Content-Type': 'application/json' })
-    expect(JSON.parse(opts.body)).toEqual({ usdPriceCents: 250, tradeId: 'trade-1' })
+    expect(JSON.parse(opts.body)).toEqual({ usdPriceCents: 250, tradeId: 'trade-1', source: 'website' })
   })
 
   it('should omit tradeId from the body when not provided', async () => {
@@ -109,7 +109,7 @@ describe('when authorizing a USD credit for one purchase', () => {
     await authorizeUsdCredit(IDENTITY, 100)
 
     const body = JSON.parse(signedFetch.mock.calls[0][1].body)
-    expect(body).toEqual({ usdPriceCents: 100 })
+    expect(body).toEqual({ usdPriceCents: 100, source: 'website' })
     expect('tradeId' in body).toBe(false)
   })
 
@@ -120,7 +120,7 @@ describe('when authorizing a USD credit for one purchase', () => {
     await authorizeUsdCredit(IDENTITY, 30, undefined, { contractAddress: '0xC0', itemId: '12' })
 
     const body = JSON.parse(signedFetch.mock.calls[0][1].body)
-    expect(body).toEqual({ usdPriceCents: 30, contractAddress: '0xC0', itemId: '12' })
+    expect(body).toEqual({ usdPriceCents: 30, contractAddress: '0xC0', itemId: '12', source: 'website' })
     expect('tradeId' in body).toBe(false)
   })
 
@@ -133,7 +133,8 @@ describe('when authorizing a USD credit for one purchase', () => {
       usdPriceCents: 30,
       tradeId: 'trade-1',
       contractAddress: '0xC0',
-      itemId: '12'
+      itemId: '12',
+      source: 'website'
     })
   })
 
