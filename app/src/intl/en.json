@@ -336,7 +336,9 @@
     "itemFallback": "Item",
     "error": {
       "generic": "Couldn't complete the purchase — please try again.",
-      "creditsCheckout": "Couldn't start the credits checkout — please try again."
+      "creditsCheckout": "Couldn't start the credits checkout — please try again.",
+      "relayDownNoRail": "We couldn't complete the purchase — please try again in a few minutes. Your credits weren't spent; any hold on them is released shortly.",
+      "switchAndRetry": "Switch to {network} and retry"
     },
     "manaPriceUnavailable": "We couldn't check the MANA price right now, so paying with MANA isn't available for this purchase. Try again in a moment.",
     "priceChanged": "The price for this item changed while you were here. Check the new amount and confirm to continue."

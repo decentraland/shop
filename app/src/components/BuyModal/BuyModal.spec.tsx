@@ -3,6 +3,7 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { CatalogItem } from '~/lib/api'
+import { WrongNetworkError } from '~/lib/network'
 
 /**
  * THE RESERVATION DECISIONS in the PDP buy flow — when a credit is minted, and when it is handed back.
@@ -60,6 +61,17 @@ vi.mock('~/hooks/useBalance', () => ({ useBalance: () => balance }))
 const iap = { on: false }
 vi.mock('~/lib/iap', () => ({ isIapMode: () => iap.on }))
 vi.mock('~/hooks/useManaBalance', () => ({ useManaBalance: () => manaBalance }))
+// Whether the buyer can take the gas-paying fallback is decided by lib/gas-rail (self-custody + funded);
+// the modal only has to obey it, so it is mocked here rather than re-derived.
+const { canOfferGasRail } = vi.hoisted(() => ({ canOfferGasRail: vi.fn() }))
+vi.mock('~/lib/gas-rail', () => ({ canOfferGasRail }))
+const { switchChain } = vi.hoisted(() => ({ switchChain: vi.fn() }))
+// Only the wallet-moving call is faked; WrongNetworkError and chainLabel stay real so the tests fail the
+// same way the app does.
+vi.mock('~/lib/network', async importOriginal => {
+  const actual = await importOriginal<typeof import('~/lib/network')>()
+  return { ...actual, switchChain }
+})
 // Mutable and empty by default, as every test here had it. The shortfall cases need real packs: `goNoFunds`
 // picks a covering pack and reads `cover.id`, so an empty catalogue throws there and the modal lands in
 // `error` instead of the pack picker.
@@ -663,7 +675,7 @@ describe('when the item is a CollectionStore mint', () => {
     const { purchase } = buyOneWithCredits.mock.calls[0][0]
     expect(purchase.kind).toBe('store')
     expect(purchase.item).toEqual({ collection: '0xcollection', itemId: '7', priceWei: TEN_MANA })
-    expect(purchase.credits).toEqual([{ id: 'credit-1' }])
+    expect(purchase.credits).toEqual([expect.objectContaining({ id: 'credit-1' })])
   })
 
   it('should authorize with no tradeId but WITH what is being bought', async () => {
@@ -805,5 +817,82 @@ describe('when the MANA price arrives after a failed read', () => {
     await waitFor(() => expect(readTradeManaPriceWei).toHaveBeenCalledTimes(2))
     const reports = captureError.mock.calls.filter(c => (c[1] as { step?: string })?.step === 'mana_price')
     expect(reports).toHaveLength(1)
+  })
+})
+
+/**
+ * The price lock is taken when the modal OPENS, not when the buyer confirms — so by the time they dismiss
+ * the wallet prompt, credits have already been held and their balance has visibly dropped. The catch then
+ * clears `reservedCreditIdRef` (so the unmount path cannot release twice), and clearing it also put the
+ * "they come back" sentence out of reach: a cancelled signature showed a balance tens of credits lower than
+ * a moment earlier with nothing on screen to account for it.
+ */
+describe('when a failure leaves a hold on its way back', () => {
+  const errorText = async () => (await screen.findByTestId('buy-error')).textContent ?? ''
+
+  it('should say the credits are coming back, ON TOP of why it failed', async () => {
+    buyOneWithCredits.mockRejectedValue(new Error('user rejected transaction'))
+
+    renderResuming()
+
+    // Both halves: the reason explains the screen, the hold explains the balance.
+    await waitFor(async () => expect(await errorText()).toContain('cancelled'))
+    expect(await errorText()).toContain('return to your balance')
+  })
+
+  it('should say nothing about a hold when none was taken', async () => {
+    // Nothing was ever reserved, so promising a return would be describing money we never held.
+    authorizeUsdCredit.mockRejectedValue(new Error('boom'))
+
+    renderResuming()
+
+    await screen.findByTestId('buy-error')
+    expect(await errorText()).not.toContain('return to your balance')
+  })
+
+  it('should NOT claim a return for a credit that may already be spent', async () => {
+    // Broadcast with no readable receipt: the guard keeps the credit, nothing is released, and telling the
+    // buyer it is coming back would be a lie told at the worst possible moment.
+    buyOneWithCredits.mockImplementation(async (opts: Record<string, any>) => {
+      opts.onBroadcast?.({ txHash: '0xbroadcast' })
+      throw new Error('receipt unavailable')
+    })
+
+    renderResuming()
+
+    await screen.findByTestId('buy-error')
+    expect(cancelUsdIntents).not.toHaveBeenCalled()
+    expect(await errorText()).not.toContain('return to your balance')
+  })
+})
+
+/**
+ * The gas-paying fallback is only reachable because a relayed rail already failed, so who is offered it is
+ * the whole question: a managed wallet cannot switch or hold POL, and network wording is what those users
+ * must never be shown at all.
+ */
+describe('when a wrong network stops the buy', () => {
+  const wrongNetwork = () => new WrongNetworkError(1, 80002)
+
+  beforeEach(() => {
+    canOfferGasRail.mockResolvedValue(true)
+    switchChain.mockResolvedValue(undefined)
+    buyOneWithCredits.mockRejectedValue(wrongNetwork())
+  })
+
+  it('should offer the switch to a buyer who can take it', async () => {
+    renderResuming()
+
+    expect(await screen.findByTestId('switch-and-retry')).toBeInTheDocument()
+  })
+
+  it('should NOT offer it to a managed wallet, and should hand the hold back instead', async () => {
+    canOfferGasRail.mockResolvedValue(false)
+
+    renderResuming()
+
+    await screen.findByTestId('buy-error')
+    await waitFor(() => expect(cancelUsdIntents).toHaveBeenCalledWith(session.identity, ['credit-1']))
+    expect(screen.queryByTestId('switch-and-retry')).toBeNull()
   })
 })
