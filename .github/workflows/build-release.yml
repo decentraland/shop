@@ -31,6 +31,9 @@ on:
 #      (https://www.npmjs.com/package/@dcl/shop/access).
 #   2. Repo secrets GITLAB_CDN_DEPLOYER_TOKEN + GITLAB_CDN_DEPLOYER_URL (CDN deploy).
 #   3. The `shop` site entry merged in decentraland/definitions.
+#   4. Repo secret SENTRY_AUTH_TOKEN, so the build can upload source maps (see the Build step).
+#      OPTIONAL: without it the release still builds and publishes exactly as before, and Sentry
+#      stack traces stay minified. Needs org:decentraland scope `project:releases`.
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest
@@ -70,6 +73,18 @@ jobs:
           # No VITE_* env config here: the build is env-agnostic. Per-environment config lives in
           # src/config/env/{dev,stg,prod}.json and is selected at RUNTIME by hostname (see src/config).
           # The SAME published artifact serves zone (dev/stg) and org (prod).
+          #
+          # Source maps for Sentry. THIS is the build that produces the bundle users run, so it is the
+          # only place the maps for that bundle can come from — without the token here, no build has ever
+          # uploaded any, and every production stack trace is minified frames like `O.makeError` and
+          # `ds`. vite.config gates the whole thing on the token: it turns `build.sourcemap` on, uploads
+          # under the same release name the runtime reports, then DELETES the .map files so they are
+          # never served from the CDN. An absent or empty secret restores exactly today's behaviour, so
+          # this cannot break the release — it just keeps producing unreadable stacks.
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          # Not secrets — the same org/project slugs that appear in every Sentry URL for this app.
+          SENTRY_ORG: decentraland
+          SENTRY_PROJECT: shop
 
       - name: Publish
         id: publish
