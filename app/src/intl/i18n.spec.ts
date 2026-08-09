@@ -114,11 +114,20 @@ describe('web2-first copy rule', () => {
     'newPricing.infoBody'
   ])
 
+  /**
+   * Scan what the BUYER reads, not what the developer wrote. `{network}` is the name of an interpolation
+   * slot — the reader only ever sees the value substituted into it ("Switch to Polygon and retry"), so
+   * flagging the slot is a false positive that would push clean copy onto the baseline and blunt the rule.
+   *
+   * A value CAN carry jargon, but no static scan can see it; that is the reviewer's job, not this test's.
+   */
+  const visibleCopy = (message: string) => message.replace(/\{[^}]*\}/g, ' ')
+
   function offencesIn(locale: 'en' | 'es'): Map<string, string> {
     const found = new Map<string, string>()
     for (const [key, message] of Object.entries(MESSAGES[locale])) {
       for (const [label, pattern] of BANNED) {
-        if (pattern.test(message)) found.set(key, `"${message}" (banned: ${label})`)
+        if (pattern.test(visibleCopy(message))) found.set(key, `"${message}" (banned: ${label})`)
       }
     }
     return found
