@@ -1025,7 +1025,20 @@ export function BuyModal({
             onBuy={method => void startPurchase(method)}
             onClose={onClose}
             busy={busy}
-            notice={priceChanged ? t('buyModal.priceChanged') : null}
+            /**
+             * A buyer holding MANA never reaches the no-funds screen — this step replaces it — so without
+             * this the one person who most needs the explanation is the only one who cannot get it: they
+             * see "Credits Balance: 2" against a 3-credit item with no hint that 3 more are their own,
+             * held by a purchase they already started. Price-change wins when both apply; it is about
+             * what they are about to be charged.
+             */
+            notice={
+              priceChanged
+                ? t('buyModal.priceChanged')
+                : balance?.held
+                  ? t('buyModal.heldExplainer', { credits: balance.held.credits, currency: CURRENCY.name })
+                  : null
+            }
           />
         ) : (
           <>

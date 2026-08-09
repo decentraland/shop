@@ -70,6 +70,15 @@ type Props = {
    */
   heldCredits?: boolean
   onRetry?: () => void
+  /**
+   * How many of the buyer's credits are held by a purchase they already started, if any.
+   *
+   * Distinct from `heldCredits` above, which is a boolean about THIS attempt on the error panel. This one
+   * is the standing amount, shown while the buyer is still deciding: both deciding phases display a
+   * balance and neither could explain why it is short. It bites hardest in the cart, where the shortfall
+   * is spread over several items and the buyer is least able to reconstruct it themselves.
+   */
+  heldCreditsCount?: number | null
 }
 
 export function CartCheckoutModal(props: Props) {
@@ -105,6 +114,11 @@ export function CartCheckoutModal(props: Props) {
             <M.BalanceIco />
             <M.BalanceValue>{formatCredits(balanceCredits)}</M.BalanceValue>
           </M.Balance>
+          {props.heldCreditsCount && (phase === 'choose' || phase === 'nofunds') ? (
+            <S.HeldNotice data-testid="cart-held-notice">
+              {t('buyModal.heldExplainer', { credits: props.heldCreditsCount, currency: CURRENCY.name })}
+            </S.HeldNotice>
+          ) : null}
         </M.Head>
 
         {phase === 'choose' && (

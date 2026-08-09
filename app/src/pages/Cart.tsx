@@ -1504,6 +1504,7 @@ export function Cart() {
         <CartCheckoutModal
           phase={modal.phase}
           balanceCredits={balanceCredits}
+          heldCreditsCount={balance?.held?.credits ?? null}
           onClose={closeModal}
           stage={modal.phase === 'processing' ? modal.stage : undefined}
           step={modal.phase === 'processing' ? modal.step : undefined}
