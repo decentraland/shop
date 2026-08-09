@@ -133,3 +133,43 @@ describe('when a held estimate is about to run out', () => {
     await waitFor(() => expect(getUsdBalance.mock.calls.length).toBeGreaterThan(1))
   })
 })
+
+/**
+ * The app disables focus refetching globally and react-query pauses `refetchInterval` while the window is
+ * blurred, so a buyer who switched tabs came back to a badge that had stopped asking — still claiming
+ * their money was committed long after it returned. Observed live: zero requests over 100s with the tab
+ * unfocused.
+ */
+describe('when the buyer comes back to the tab', () => {
+  const ADDRESS = '0xabc'
+  const identity = {} as never
+  const session = { address: ADDRESS, identity } as never
+
+  function refetchesOnFocusWith(data: unknown): boolean {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    )
+    renderHook(() => useBalance(session), { wrapper })
+    const query = client.getQueryCache().find({ queryKey: ['usd-balance', ADDRESS] })
+    // Driven directly with a known cache state: jsdom cannot raise a real focus event that react-query's
+    // focus manager observes, so the option itself is the testable surface.
+    const option = (query?.options as { refetchOnWindowFocus?: (q: unknown) => boolean }).refetchOnWindowFocus
+    return option!({ state: { data } })
+  }
+
+  beforeEach(() => {
+    getUsdBalance.mockReset()
+    getUsdBalance.mockResolvedValue({ balanceCents: 100, credits: 10 })
+  })
+
+  it('should ask again on focus while credits are held', () => {
+    const held = { cents: 30, credits: 3, releasesAtSeconds: null, purchases: [] }
+
+    expect(refetchesOnFocusWith({ balanceCents: 100, credits: 10, held })).toBe(true)
+  })
+
+  it('should not ask on focus when nothing is held, so ordinary browsing costs nothing', () => {
+    expect(refetchesOnFocusWith({ balanceCents: 100, credits: 10 })).toBe(false)
+  })
+})

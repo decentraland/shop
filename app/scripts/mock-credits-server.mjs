@@ -90,6 +90,7 @@ createServer((req, res) => {
   if (req.method === 'OPTIONS') return res.writeHead(204).end()
 
   const path = new URL(req.url, 'http://x').pathname
+  if (path.endsWith('/credits')) console.log(`[mock] ${new Date().toISOString().slice(11, 19)} GET ${path}`)
   const send = body => {
     // no-store, or the browser answers a reload from its own cache and the page shows a payload from
     // minutes ago — which looks exactly like a frozen UI and sends you hunting for a bug in the app.

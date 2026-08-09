@@ -26,6 +26,17 @@ export function useBalance(session: Session | null) {
      * estimate, or an estimate already gone by — falls back to the reconciler's own 15s cadence. Polling
      * stops entirely the moment `held` is absent, so an ordinary session never polls at all.
      */
+    /**
+     * Refresh the moment the buyer looks at the page again — but only while something is held.
+     *
+     * The app disables focus refetching globally, and `refetchInterval` does NOT run while the window is
+     * blurred (react-query pauses it unless `refetchIntervalInBackground` is set). Together those mean a
+     * buyer who switches tabs while credits are held comes back to a badge that stopped asking: it can
+     * claim their money is still committed long after it returned. Polling a hidden tab is the wrong fix
+     * — it burns requests nobody is reading. Asking once, on return, costs one request exactly when the
+     * answer is about to be looked at.
+     */
+    refetchOnWindowFocus: query => !!query.state.data?.held,
     refetchInterval: query => {
       const held = query.state.data?.held
       if (!held) return false
