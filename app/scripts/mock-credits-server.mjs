@@ -22,18 +22,22 @@ const PORT = Number(process.env.PORT ?? 5555)
 const now = () => Math.floor(Date.now() / 1000)
 
 /**
- * Pinned ONCE at startup, deliberately.
+ * Pinned on the FIRST REQUEST, not at startup.
  *
- * Recomputing the release time per request looks harmless but makes the countdown un-demonstrable: the
- * app refetches the balance every 15s while anything is held, so a per-request `now() + N` resets the
- * clock on every poll and it can never reach zero — which is exactly the transition worth watching. The
- * countdown moves because the component ticks every second, not because the server changes its answer.
+ * Two failure modes to avoid, and they pull in opposite directions:
+ *   - recomputing per request resets the clock on every poll (the app refetches while anything is held),
+ *     so the countdown can never reach zero — and that transition is the thing worth watching;
+ *   - pinning at startup burns the window between launching this stub and the browser actually asking,
+ *     so a short case is already expired by the time the page loads.
+ * Arming on the first request gives a full window from when the page asks, and holds it steady after.
+ * Restart the stub to rearm.
  */
-const STARTED_AT = now()
+let armedAt = null
+const startedAt = () => (armedAt ??= now())
 
 // 1 credit = 10 cents, everywhere.
 const heldBlock = (credits, releasesInSeconds) => {
-  const releasesAtSeconds = releasesInSeconds === null ? null : STARTED_AT + releasesInSeconds
+  const releasesAtSeconds = releasesInSeconds === null ? null : startedAt() + releasesInSeconds
   return {
     cents: credits * 10,
     credits,
