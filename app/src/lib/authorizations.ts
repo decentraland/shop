@@ -13,6 +13,7 @@ import { config } from '~/config'
 import { gaslessConfig } from '~/lib/gasless-config'
 import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import { confirmMetaTx } from '~/lib/tx-confirm'
+import { captureError } from '~/lib/monitoring'
 import { requireChain } from '~/lib/network'
 
 // The shop's on-chain approvals ("authorizations"). Mirrors the marketplace's decentraland-dapps
@@ -232,7 +233,7 @@ export async function setAuthorization(opts: {
       // calls this builds ASSIGN a fixed value — approve to MaxUint256 or 0, setApprovalForAll and
       // setMinters to a boolean — so a pending relay plus a direct re-submission lands on the same state
       // instead of applying the operation twice.
-      console.warn('[authorizations] gasless meta-tx failed, falling back to a direct tx:', e)
+      captureError(e, { flow: 'authorizations', step: 'gasless_fallback' })
     }
   }
 
