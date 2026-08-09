@@ -673,8 +673,9 @@ export function Cart() {
     setBusy(false)
   }
 
-  // Let the CreditsManager pull the MANA leg of a combined basket (gasless; no-op when already approved).
-  async function ensureCreditsManagerManaAllowance(signer: Session['signer'], chainId: number) {
+  // Let the CreditsManager pull the MANA leg of a combined basket. Sized to that leg (gasless; a no-op only
+  // when the allowance already covers it — a leftover one from a cheaper basket reverts the settlement).
+  async function ensureCreditsManagerManaAllowance(signer: Session['signer'], chainId: number, requiredWei: bigint) {
     const mana = getContract(ContractName.MANAToken, chainId)
     const creditsManager = getContract(ContractName.CreditsManager, chainId)
     await ensureAuthorization({
@@ -684,7 +685,8 @@ export function Cart() {
         spenderAddress: creditsManager.address,
         chainId
       },
-      signer
+      signer,
+      requiredWei
     })
   }
 
@@ -743,8 +745,11 @@ export function Cart() {
         void charge(lines)
         return
       }
-      await withManaApprovals(manaSpendersFor(picked, lines), railManaWei(options, picked), () =>
-        picked === 'mana' ? void chargeWithMana(lines) : void chargeCombined(lines, totalCents, manaWei)
+      const requiredManaWei = railManaWei(options, picked)
+      await withManaApprovals(manaSpendersFor(picked, lines), requiredManaWei, () =>
+        picked === 'mana'
+          ? void chargeWithMana(lines, requiredManaWei)
+          : void chargeCombined(lines, totalCents, manaWei)
       )
       return
     }
@@ -858,14 +863,15 @@ export function Cart() {
       void charge(lines)
       return
     }
-    void withManaApprovals(manaSpendersFor(method, lines), railManaWei(chooseOptions(modal), method), () =>
-      method === 'mana' ? void chargeWithMana(lines) : void chargeCombined(lines, totalCents, manaWei)
+    const requiredManaWei = railManaWei(chooseOptions(modal), method)
+    void withManaApprovals(manaSpendersFor(method, lines), requiredManaWei, () =>
+      method === 'mana' ? void chargeWithMana(lines, requiredManaWei) : void chargeCombined(lines, totalCents, manaWei)
     )
   }
 
   // MANA-only basket: no credits, so nothing is authorized or reserved — every trade settles in ONE
   // accept([...]) and every mint in ONE buy([...]), paid from the buyer's MANA (buyManyWithMana).
-  async function chargeWithMana(lines: ResolvedLine[]) {
+  async function chargeWithMana(lines: ResolvedLine[], requiredManaWei: bigint) {
     if (!session || lines.length === 0) return
     const units = toUnits(lines)
     const purchasedUnits = units.map(l => ({ ...l.item, priceCredits: l.priceCredits }))
@@ -880,7 +886,10 @@ export function Cart() {
         mints: mintsIn(units),
         buyer: session.address,
         signer: session.signer,
-        onSigned
+        onSigned,
+        // The same figure the approval step above was sized with, so the grant asks whether the allowance
+        // covers THIS basket rather than whether one exists at all.
+        manaWei: requiredManaWei
       })
       lines.forEach(l => remove(l.item.id))
       setReview(null)
@@ -969,7 +978,10 @@ export function Cart() {
           maxCreditedValue: (BigInt(purchases[at].maxCreditedValue) + gap).toString()
         }
       }
-      await ensureCreditsManagerManaAllowance(session.signer, targetChainId(targets[0]))
+      // The whole basket's MANA leg: every group's gap is pulled through the same allowance, so it has to
+      // cover their sum, not just the first transaction's.
+      const totalGapWei = [...gapByGroup.values()].reduce((sum, gap) => sum + gap, 0n)
+      await ensureCreditsManagerManaAllowance(session.signer, targetChainId(targets[0]), totalGapWei)
 
       const onSigned = () =>
         setModal({ phase: 'processing', stage: 'settling', step: units.length, total: units.length })

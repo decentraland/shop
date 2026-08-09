@@ -185,27 +185,24 @@ export function GetCredits() {
           } catch {
             /* ignore a malformed resume payload — the credits still landed */
           }
-        } else if (result.status === 'abandoned') {
-          // The checkout was retired without ever being paid — the buyer cancelled, or the session
-          // expired. Landing here means they came back to a success URL for a dead order (a stale
-          // link, or a cancel that raced this poll). No charge was made, so this is NOT the "couldn't
-          // add your credits" error screen below: send them back to the packs with the same gentle
-          // note a cancel gets.
+        } else if (result.status === 'abandoned' || result.status === 'initiated') {
+          // NOBODY PAID. 'abandoned' is a checkout retired without a payment (the buyer cancelled, or the
+          // Stripe session expired); 'initiated' is one the poll watched to its deadline and no payment was
+          // ever reported against. Landing here means a success URL for an order that never took money —
+          // a stale link, or a cancel that raced this poll.
           //
-          // The balance is refetched anyway. A LATE payment can still credit a retired order, and if
-          // that is what happened the buyer is reading "payment canceled" while the credits land —
-          // at least let the header show the truth.
+          // So this is neither the error screen below (nothing failed) nor the "on the way" one (nothing is
+          // coming): send them back to the packs with the same gentle note a cancel gets. Telling an unpaid
+          // buyer their credits are on the way is the mistake the server split 'initiated' out to prevent.
+          //
+          // The balance is refetched anyway. A LATE payment can still credit such an order, and if that is
+          // what happened the buyer is reading "payment canceled" while the credits land — at least let the
+          // header show the truth.
           track('Shop Buy Credits Cancelled', { order_id: orderId, provider: CREDITS_PROVIDER, step: 'grant' })
           void qc.invalidateQueries({ queryKey: ['usd-balance'] })
           setCanceledNote(true)
           setPhase('select')
-        } else if (result.status === 'pending') {
-          // Poll timed out but the payment isn't failed — the webhook can still grant the credits.
-          // Show an "on the way" state (not an error) and refetch the balance so it updates when it lands.
-          track('Shop Buy Credits Pending', { step: 'grant', pack_usd: selected?.usd ?? null })
-          void qc.invalidateQueries({ queryKey: ['usd-balance'] })
-          setPhase('pending')
-        } else {
+        } else if (result.status === 'failed') {
           track('Shop Buy Credits Failed', {
             step: 'grant',
             error_code: 'grant_failed',
@@ -213,6 +210,17 @@ export function GetCredits() {
           })
           setError(result.error ?? t('getCredits.errorGrant', { currency: CURRENCY.name }))
           setPhase('error')
+        } else {
+          // Everything left is MONEY IN with the credits not landed yet: 'pending' (the poll gave up),
+          // 'processing' / 'crediting' (the grant is still moving). Show the "on the way" state and refetch
+          // the balance so it updates when it lands.
+          //
+          // This is the catch-all on purpose, and only 'failed' above earns the error screen. Falling
+          // through to that screen instead is what told buyers who had been CHARGED that we could not add
+          // their credits, for the two statuses this union had never been told about.
+          track('Shop Buy Credits Pending', { step: 'grant', pack_usd: selected?.usd ?? null })
+          void qc.invalidateQueries({ queryKey: ['usd-balance'] })
+          setPhase('pending')
         }
       } catch (e) {
         captureError(e, { flow: 'get_credits', step: 'grant', order_id: orderId })

@@ -540,13 +540,16 @@ export function BuyModal({
     setPhase('processing')
     setError(null)
     try {
+      // What the rail will pull, so its allowance check asks "is it enough" rather than "is there any" — an
+      // allowance left over from a cheaper purchase otherwise skips the approve and reverts the sale.
+      const manaWei = findOption(paymentOptions, 'mana')?.manaWei
       // A listing settles against the marketplace, a mint against the CollectionStore. Same rail from the
       // buyer's side: no credits are spent either way, and lib/buy-mana relays both so a managed wallet
       // (which holds no POL) can take it.
       const txHash =
         sale.kind === 'trade'
-          ? await buyWithMana({ trade: sale.trade, buyer: session.address, signer: session.signer })
-          : await buyMintWithMana({ mint: sale.mint, buyer: session.address, signer: session.signer })
+          ? await buyWithMana({ trade: sale.trade, buyer: session.address, signer: session.signer, manaWei })
+          : await buyMintWithMana({ mint: sale.mint, buyer: session.address, signer: session.signer, manaWei })
       track('Shop Completed Purchase', {
         ...purchaseItemsProps([item]),
         payment_type: 'mana',

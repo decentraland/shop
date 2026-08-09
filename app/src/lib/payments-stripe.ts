@@ -20,8 +20,9 @@
 //           `${STRIPE_RETURN_URL}?order=${orderId}` (or `...&canceled=1`).
 //
 //   GET  /credits/orders/:orderId     (signed-fetch)
-//     res : { status: 'processing' | 'credited' | 'failed',
-//             creditsGranted?, newBalance?, error? }
+//     res : { status: CreditOrderStatus, creditsGranted?, newBalance?, error? }
+//           The full list lives in lib/credits (initiated | processing | crediting | credited | failed |
+//           abandoned) and OrderStatus derives from it — never restate it here.
 // ===========================================================================
 
 import signedFetch from 'decentraland-crypto-fetch'
@@ -69,14 +70,30 @@ export async function pollCreditGrantReal(
   while (true) {
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
     const status = await fetchOrderStatusReal(orderId, identity, signal)
-    if (status.status !== 'processing') return status
+    if (!stillWaiting(status.status)) return status
     if (Date.now() > deadline) {
+      // Still 'initiated' when we stop: no payment was ever reported, so there is nothing on its way.
+      // Returning 'pending' here would promise credits to somebody who has not been charged — the very
+      // thing the server split 'initiated' out of 'processing' to stop us saying.
+      if (status.status === 'initiated') return status
       // Not a failure: the payment may still settle via the verified webhook after we stop polling.
       // Surface a 'pending' so the UI shows an "on the way" state instead of an error (U7).
       return { status: 'pending' }
     }
     await delay(intervalMs, signal)
   }
+}
+
+/**
+ * Statuses the poll keeps waiting on.
+ *
+ * 'processing' and 'crediting' are both "the money arrived, the credits are not in the balance yet".
+ * 'initiated' is nobody has paid — it waits here only because the Stripe return can beat the webhook that
+ * moves the order off it, so giving up on the first read would tell a buyer who DID pay that they had not.
+ * Ending on it is a different question, answered at the deadline above.
+ */
+function stillWaiting(status: OrderStatus['status']): boolean {
+  return status === 'processing' || status === 'crediting' || status === 'initiated'
 }
 
 async function fetchOrderStatusReal(
