@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { launchApp, type App } from './helpers/app'
-import { clickByText, waitForText } from './helpers/dom'
+import { clickByText, clickWhenEnabled, waitForText } from './helpers/dom'
 import { COLLECTION, buyTrade, ownTrade } from './fixtures'
 
 // The BuyModal (PDP "Buy now") error phase: both the own-listing guard and a hard authorize failure
@@ -33,7 +33,8 @@ describe('buy modal error paths', () => {
 
   it('surfaces a generic error notice when authorize hard-fails (500) and never navigates to /success', async () => {
     // Force the credits-server authorize to 500 (a hard failure — NOT a 402 insufficient, which would
-    // route to the pack picker). The modal resolves the trade, authorizes → 500 → error phase.
+    // route to the pack picker). The modal resolves the trade and prices it; the authorize happens on the
+    // Buy click (nothing is reserved by merely opening), so it takes that click to reach the error phase.
     app = await launchApp({
       path: `/item/${COLLECTION}/1`,
       fixtures: { trade: buyTrade },
@@ -44,6 +45,7 @@ describe('buy modal error paths', () => {
     await waitForText(page, 'Nebula Jacket')
     await waitForText(page, 'Buy now')
     expect(await clickByText(page, 'button', /buy now/i)).toBe(true)
+    await clickWhenEnabled(page, 'button', /^buy$/i)
 
     // Error phase: the shared panel with the generic purchase-failed copy (never the raw 500 / server text).
     await page.waitForSelector('[data-testid="buy-error"]', { timeout: 20000 })

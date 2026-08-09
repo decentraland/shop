@@ -338,7 +338,8 @@
       "generic": "Couldn't complete the purchase — please try again.",
       "creditsCheckout": "Couldn't start the credits checkout — please try again."
     },
-    "manaPriceUnavailable": "We couldn't check the MANA price right now, so paying with MANA isn't available for this purchase. Try again in a moment."
+    "manaPriceUnavailable": "We couldn't check the MANA price right now, so paying with MANA isn't available for this purchase. Try again in a moment.",
+    "priceChanged": "The price for this item changed while you were here. Check the new amount and confirm to continue."
   },
   "cartCheckout": {
     "titleBuy": "Buy Items",
@@ -358,8 +359,8 @@
   },
   "marketCheckout": {
     "finalPrice": "Final price",
-    "lockedForPurchase": "Locked for this purchase",
     "todaysPrice": "Today’s price",
+    "checkingListing": "Checking this listing…",
     "lockingPrice": "Locking today’s price…",
     "yourBalance": "Your balance:",
     "needMore": "You’ll need a few more {currency} to buy this.",

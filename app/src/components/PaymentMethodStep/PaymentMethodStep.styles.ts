@@ -428,3 +428,19 @@ export const Detail = styled.span`
   line-height: 1.35;
   color: ${theme.colors.muted};
 `
+
+// Something the buyer has to read before confirming (currently: the reserved price differs from the one
+// this step was showing). Tinted like the buy modal's own warning so both surfaces flag it the same way.
+export const Notice = styled.p`
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 0;
+  background: rgba(255, 162, 90, 0.3);
+  border-radius: ${theme.radius.btn};
+  padding: 16px;
+  font-family: ${theme.font.sans};
+  font-size: 14px;
+  line-height: 1.334;
+  color: ${theme.colors.text2};
+`

@@ -5,16 +5,21 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { CatalogItem } from '~/lib/api'
 
 /**
- * THE RELEASE DECISION in the PDP buy flow.
+ * THE RESERVATION DECISIONS in the PDP buy flow — when a credit is minted, and when it is handed back.
  *
- * This modal releases its reservation from six different places, and three of them can run AFTER the
- * transaction has gone out. Releasing a credit that is consumed on-chain hands the buyer back money they have
- * already spent: the balance rises, the reconciler debits it again once the squid indexes the consumption, and
+ * WHEN: an ephemeral credit is signed and cannot be revoked, so it holds its dollars until it expires
+ * whatever the client does next. Reserving on OPEN therefore charged a buyer for looking. Nothing on
+ * screen needs it, so it happens on the Buy click.
+ *
+ * WHEN NOT: this modal releases from several places, and some of them can run AFTER the transaction has
+ * gone out. Releasing a credit that is consumed on-chain hands the buyer back money they have already
+ * spent: the balance rises, the reconciler debits it again once the squid indexes the consumption, and
  * anything they buy in that gap drives the balance negative.
  *
- * There was no spec for this component at all, which is how the defect survived — the equivalent bug in the
- * cart shipped twice for exactly that reason. The tests drive the real flow (`resume` auto-confirms after the
- * price lock) and assert on what `cancelUsdIntents` is called with, never on internals.
+ * There was no spec for this component at all, which is how the release defect survived — the equivalent
+ * bug in the cart shipped twice for exactly that reason. The tests drive the real flow (the Buy CTA, or
+ * `resume`, which auto-confirms) and assert on what `authorizeUsdCredit` and `cancelUsdIntents` are called
+ * with, never on internals.
  */
 
 const session = {
@@ -166,11 +171,16 @@ function renderModal({ resume, over }: { resume: boolean; over?: Partial<Catalog
   )
 }
 
-// resume=true confirms as soon as the price locks — the same call the Buy CTA makes.
+// resume=true confirms as soon as the purchase resolves — the same call the Buy CTA makes.
 const renderResuming = (over?: Partial<CatalogItem>) => renderModal({ resume: true, over })
-// resume=false locks the price and then waits for the buyer, which is the only way to reach the state the
-// unmount cleanup exists for: a reservation that was never submitted.
+// resume=false prices the purchase and then waits for the buyer, which is what an ordinary open looks like.
 const renderIdle = () => renderModal({ resume: false })
+
+// The Buy CTA — the only thing that reserves anything. Both the plain ready state and the payment-method
+// step label it "Buy", so this drives the modal from either.
+async function clickBuy() {
+  fireEvent.click(await screen.findByRole('button', { name: /^buy$/i }))
+}
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -182,14 +192,147 @@ beforeEach(() => {
     signer: '0xseller',
     received: [{ assetType: 2, amount: (2700n * 10n ** 16n).toString() }]
   })
-  authorizeUsdCredit.mockResolvedValue({
+  // ECHOES the requested price, rounded up to a whole credit — which is exactly what the credits-server
+  // does (`Math.ceil(rawPrice / 10) * 10`). A fixed number here would silently disagree with the price the
+  // modal resolved, which is a real condition the component now refuses to charge through.
+  authorizeUsdCredit.mockImplementation(async (_identity: unknown, usdPriceCents: number) => ({
     credit: { id: 'credit-1' },
     maxCreditedValue: '1000000000000000000',
-    usdCents: 2700
-  })
+    usdCents: Math.ceil(usdPriceCents / 10) * 10
+  }))
   buyOneWithCredits.mockResolvedValue('0xhash')
   gaslessOn.value = false
   waitForSettlement.mockResolvedValue(undefined)
+})
+
+/**
+ * WHEN THE DOLLARS ARE RESERVED — the money question this modal gets asked most.
+ *
+ * An ephemeral credit is SIGNED, and a signed credit cannot be revoked: it stays spendable until its own
+ * expiry whatever the client does afterwards, and the balance keeps subtracting it for that whole time.
+ * So a reservation made on open is not "released on close" — closing changes a row, not the credit's
+ * clock. Merely looking at an item froze its price out of the balance for minutes, and a buyer who opened
+ * two items a few times ran out of money she still had.
+ *
+ * The whole fix is WHERE the authorize happens, so that is what these pin.
+ */
+describe('when the modal is opened', () => {
+  it('should reserve nothing', async () => {
+    renderIdle()
+
+    // The ready state proves the open sequence RAN — asserting on the absence alone would pass on a modal
+    // that never got anywhere.
+    await screen.findByRole('button', { name: /^buy$/i })
+    expect(authorizeUsdCredit).not.toHaveBeenCalled()
+  })
+
+  it('should still show the price, which never needed a reservation to know', async () => {
+    // 2700¢ off the resolved trade → 270 credits. The authorize does not PRICE the purchase, it echoes
+    // what it is sent (rounded up to a whole credit — the same rounding this number already has), so the
+    // figure on screen is the figure that gets charged.
+    renderIdle()
+
+    expect(await screen.findByText('270')).toBeInTheDocument()
+    expect(authorizeUsdCredit).not.toHaveBeenCalled()
+  })
+
+  it('should reserve nothing however many times it is opened and closed', async () => {
+    for (let i = 0; i < 5; i++) {
+      const { unmount } = renderIdle()
+      await screen.findByRole('button', { name: /^buy$/i })
+      unmount()
+    }
+
+    expect(authorizeUsdCredit).not.toHaveBeenCalled()
+    expect(cancelUsdIntents).not.toHaveBeenCalled()
+  })
+})
+
+describe('when the buyer confirms', () => {
+  it('should reserve exactly once, then buy with what it reserved', async () => {
+    renderIdle()
+    await clickBuy()
+
+    await waitFor(() => expect(buyOneWithCredits).toHaveBeenCalled())
+    expect(authorizeUsdCredit).toHaveBeenCalledTimes(1)
+    expect(authorizeUsdCredit).toHaveBeenCalledWith(session.identity, 2700, 'trade-1', {
+      contractAddress: '0xcontract',
+      itemId: '1'
+    })
+    expect(buyOneWithCredits.mock.calls[0][0].purchase.credits).toEqual([{ id: 'credit-1' }])
+  })
+})
+
+/**
+ * The authorize is a signed round-trip and now runs on the click, so the buyer can leave while it is in
+ * flight — when there is no credit id yet for the unmount cleanup to release.
+ */
+describe('when the buyer leaves while the reservation is being made', () => {
+  it('should release it rather than buy on a modal that is gone', async () => {
+    let settle: (v: unknown) => void = () => undefined
+    authorizeUsdCredit.mockImplementationOnce(
+      () =>
+        new Promise(resolve => {
+          settle = resolve
+        })
+    )
+
+    const { unmount } = renderIdle()
+    await clickBuy()
+    await waitFor(() => expect(authorizeUsdCredit).toHaveBeenCalled())
+    unmount()
+    settle({ credit: { id: 'credit-1' }, maxCreditedValue: '1000000000000000000', usdCents: 2700 })
+
+    await waitFor(() => expect(cancelUsdIntents).toHaveBeenCalledWith(session.identity, ['credit-1']))
+    expect(buyOneWithCredits).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * The price the buyer agreed to is the price they get charged — enforced, not assumed.
+ *
+ * The credits-server hands back an EXISTING live credit for the same item rather than minting a second
+ * one, and that one was priced at an earlier oracle read. So the amount that comes back CAN differ from
+ * the amount on screen. Charging it anyway would be taking money for a number the buyer never saw.
+ */
+describe('when the reservation comes back at a different price', () => {
+  const AT_3300 = {
+    credit: { id: 'credit-1' },
+    maxCreditedValue: '1000000000000000000',
+    usdCents: 3300
+  }
+
+  it('should not buy anything', async () => {
+    authorizeUsdCredit.mockResolvedValueOnce(AT_3300)
+
+    renderIdle()
+    await clickBuy()
+
+    await waitFor(() => expect(authorizeUsdCredit).toHaveBeenCalled())
+    expect(buyOneWithCredits).not.toHaveBeenCalled()
+  })
+
+  it('should show the buyer the price they would actually pay, and say it changed', async () => {
+    authorizeUsdCredit.mockResolvedValueOnce(AT_3300)
+
+    renderIdle()
+    await clickBuy()
+
+    expect(await screen.findByTestId('price-changed')).toBeInTheDocument()
+    expect(screen.getByText('330')).toBeInTheDocument()
+  })
+
+  it('should spend the credit it already holds when the buyer agrees, not a second one', async () => {
+    authorizeUsdCredit.mockResolvedValueOnce(AT_3300)
+
+    renderIdle()
+    await clickBuy()
+    await screen.findByTestId('price-changed')
+    await clickBuy()
+
+    await waitFor(() => expect(buyOneWithCredits).toHaveBeenCalled())
+    expect(authorizeUsdCredit).toHaveBeenCalledTimes(1)
+  })
 })
 
 describe('when the buy fails after the transaction was broadcast', () => {
@@ -318,13 +461,20 @@ describe('when the modal unmounts with a transaction in flight', () => {
   })
 
   it('should release a reservation that was never submitted', async () => {
-    // Price locked, buyer walked away without pressing Buy. THE case the cleanup exists for — otherwise every
-    // abandoned modal strands that much of the balance for the whole TTL.
+    // A credit exists and nothing was ever sent with it. Reaching that state now takes the one path that
+    // holds a reservation without submitting: the authorize came back at a price the buyer had not agreed
+    // to, so the modal went back and asked. They closed instead — and those dollars must come back.
     //
-    // The previous version of this test used `resume`, which auto-confirms: it asserted a release while a
-    // submit was in flight, i.e. it codified the unsafe half of the very bug being fixed.
+    // Merely opening the modal can no longer reach here, because opening no longer reserves anything.
+    authorizeUsdCredit.mockResolvedValueOnce({
+      credit: { id: 'credit-1' },
+      maxCreditedValue: '1000000000000000000',
+      usdCents: 3300
+    })
+
     const { unmount } = renderIdle()
-    await waitFor(() => expect(authorizeUsdCredit).toHaveBeenCalled())
+    await clickBuy()
+    await waitFor(() => expect(authorizeUsdCredit).toHaveBeenCalledTimes(1))
     expect(buyOneWithCredits).not.toHaveBeenCalled()
     unmount()
 
@@ -429,6 +579,34 @@ describe('when the buyer is short on credits', () => {
     renderIdle()
 
     expect(await screen.findByTestId('credit-packs')).toBeInTheDocument()
+  })
+
+  // The shortfall is decided against the resolved price, which the open sequence already has. Reserving
+  // to find out would freeze dollars this buyer demonstrably cannot spend.
+  it('should reach the pack picker without reserving anything', async () => {
+    renderIdle()
+
+    await screen.findByTestId('credit-packs')
+    expect(authorizeUsdCredit).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The other half of the same answer: when our own balance read is stale or missing, the server is the
+   * one that says no — and it says so on the click, not on the open.
+   */
+  describe('and only the server knows the balance is short', () => {
+    beforeEach(() => {
+      balance.data = PLENTY.data
+      authorizeUsdCredit.mockRejectedValue(new Error('authorizeUsdCredit 402: Insufficient credits'))
+    })
+
+    it('should show the pack picker rather than a bare error', async () => {
+      renderIdle()
+      await clickBuy()
+
+      expect(await screen.findByTestId('credit-packs')).toBeInTheDocument()
+      expect(buyOneWithCredits).not.toHaveBeenCalled()
+    })
   })
 
   describe('and the shop is running in the iOS web view', () => {

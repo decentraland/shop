@@ -377,7 +377,16 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
       })
     if (/\/users\/.+\/credits$/.test(path)) return json(req, creditsWithTopup(F))
     if (/\/users\/.+\/purchases$/.test(path)) return json(req, F.purchases)
-    if (path === '/credits/authorize') return json(req, F.authorize)
+    if (path === '/credits/authorize') {
+      // The real handler ECHOES the requested price, rounded UP to a whole credit (10¢) — it never
+      // prices the item itself. Mirroring that matters now that the checkouts refuse to spend a
+      // reservation whose amount disagrees with the price they quoted: a fixed number here would
+      // reproduce that disagreement on every item whose price is not the fixture's.
+      const body = JSON.parse(req.postData() || '{}') as { usdPriceCents?: number }
+      const cents = Number(body.usdPriceCents ?? 0)
+      const authorized = F.authorize as Record<string, unknown>
+      return json(req, cents > 0 ? { ...authorized, usdCents: Math.ceil(cents / 10) * 10 } : authorized)
+    }
     if (path === '/credits/authorize/cancel') return json(req, { released: 0 })
     // Fire-and-forget submission report. The buy flows post here right after broadcasting, so it needs a
     // response even though nothing asserts on it — an unmocked POST in the middle of a checkout is noise

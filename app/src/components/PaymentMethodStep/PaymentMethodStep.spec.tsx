@@ -20,7 +20,12 @@ const PRICE_CENTS = 1000
 const PRICE_MANA = 500n * 10n ** 18n
 const mana = (n: number) => BigInt(n) * 10n ** 18n
 
-function setup(over: { balanceCents?: number; manaBalanceWei?: bigint; priceManaWei?: bigint }) {
+function setup(over: {
+  balanceCents?: number
+  manaBalanceWei?: bigint
+  priceManaWei?: bigint
+  notice?: string | null
+}) {
   const balanceCents = over.balanceCents ?? 0
   const manaBalanceWei = over.manaBalanceWei ?? 0n
   const priceManaWei = over.priceManaWei ?? PRICE_MANA
@@ -37,6 +42,7 @@ function setup(over: { balanceCents?: number; manaBalanceWei?: bigint; priceMana
       manaBalanceWei={manaBalanceWei}
       onBuy={onBuy}
       onClose={vi.fn()}
+      notice={over.notice}
     />
   )
   return { onBuy }
@@ -168,6 +174,22 @@ describe('PaymentMethodStep', () => {
 
       expect(screen.getByTestId('mana-shortfall-note').textContent).toMatch(/not enough mana/i)
       expect(document.body.textContent).not.toMatch(/worth about/i)
+    })
+  })
+
+  /**
+   * How the buy flow tells a buyer their price moved before they pay it. The step is the whole card in
+   * that state, so without a slot here the message would have nowhere to appear at all.
+   */
+  describe('a notice the buyer has to read', () => {
+    it('should render it above the confirm button', () => {
+      setup({ balanceCents: PRICE_CENTS, notice: 'The price changed.' })
+      expect(screen.getByTestId('price-changed').textContent).toBe('The price changed.')
+    })
+
+    it('should render nothing when there is none', () => {
+      setup({ balanceCents: PRICE_CENTS })
+      expect(screen.queryByTestId('price-changed')).toBeNull()
     })
   })
 })
