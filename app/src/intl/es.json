@@ -20,6 +20,15 @@
     "getCredits": "Comprar {currency}",
     "cart": "Carrito"
   },
+  "heldCredits": {
+    "badge": "{credits} retenidos",
+    "title": "{credits} {currency} retenidos",
+    "body": "{count, plural, one {Una compra que empezaste todavía los está usando.} other {Compras que empezaste todavía los están usando.}}",
+    "backIn": "Vuelven en",
+    "caveat": "Vuelven solos, no tenés que hacer nada. En algunos casos puede tardar hasta una hora.",
+    "noEstimate": "Vuelven en breve",
+    "caveatWaiting": "Están a salvo y vuelven solos en cuanto tu compra termine de procesarse. No se pierde nada y no tenés que hacer nada."
+  },
   "network": {
     "title": "Selecciona una red",
     "current": "Red: {network}",
@@ -341,7 +350,8 @@
       "switchAndRetry": "Cambiar a {network} y reintentar"
     },
     "manaPriceUnavailable": "No pudimos consultar el precio de MANA en este momento, así que pagar con MANA no está disponible para esta compra. Prueba de nuevo en un instante.",
-    "priceChanged": "El precio de este artículo cambió mientras estabas aquí. Revisa el nuevo importe y confirma para continuar."
+    "priceChanged": "El precio de este artículo cambió mientras estabas aquí. Revisa el nuevo importe y confirma para continuar.",
+    "heldExplainer": "{credits} de tus {currency} están retenidos por una compra que ya empezaste, así que ahora no están disponibles. Vuelven solos — mirá el indicador en la barra de menú."
   },
   "cartCheckout": {
     "titleBuy": "Comprar artículos",

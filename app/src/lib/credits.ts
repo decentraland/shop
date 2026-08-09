@@ -17,8 +17,33 @@ export type ServerCredit = {
   creditSource?: string
 }
 
-// The USD balance block (present when the shop USD-credits feature flag is on).
-export type UsdBalance = { balanceCents: number; credits: number }
+/**
+ * Credits committed to a purchase that has not been proven to have happened, and which come back on
+ * their own. `balanceCents` has ALREADY subtracted these — this is why that number is smaller, not
+ * something to add to it.
+ */
+export type HeldCredits = {
+  cents: number
+  credits: number
+  /**
+   * Epoch SECONDS, or NULL when there is no honest estimate.
+   *
+   * NULL is not an error and not "soon": the reservation is waiting on the chain being processed, and
+   * nobody can say when that finishes. It must be rendered as "no estimate", never as zero, never as a
+   * countdown that has run out.
+   */
+  releasesAtSeconds: number | null
+  purchases: {
+    credits: number
+    releasesAtSeconds: number | null
+    contractAddress: string | null
+    itemId: string | null
+  }[]
+}
+
+// The USD balance block (present when the shop USD-credits feature flag is on). `held` is present only
+// when something is actually held, so its absence is the "nothing held" signal.
+export type UsdBalance = { balanceCents: number; credits: number; held?: HeldCredits }
 
 export type UserCreditsResponse = {
   credits: ServerCredit[]

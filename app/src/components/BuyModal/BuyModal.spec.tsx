@@ -731,6 +731,24 @@ describe('when credits fall short but the buyer holds MANA', () => {
   })
 
   /**
+   * Holding MANA routes the buyer to the payment-method chooser INSTEAD of the no-funds screen, so the
+   * held-credits explanation has to live there too. Otherwise the person most likely to be confused —
+   * their balance is short only BECAUSE their own credits are held — is the one who never sees why, and
+   * is quietly asked to pay a second time for money they already committed.
+   */
+  it('should explain held credits on the payment-method chooser, not only on the no-funds screen', async () => {
+    balance.data = {
+      balanceCents: 0,
+      credits: 0,
+      held: { cents: 30, credits: 3, releasesAtSeconds: null, purchases: [] }
+    } as typeof balance.data
+
+    renderModal({ resume: false })
+
+    await waitFor(() => expect(screen.getByText(/on hold from a purchase you already started/i)).toBeInTheDocument())
+  })
+
+  /**
    * The metric that was inflated: it fired for everyone short on credits, including everyone who could
    * simply pay in MANA — so "users with no funds" counted people who had the money.
    */

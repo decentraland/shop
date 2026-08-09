@@ -20,6 +20,15 @@
     "getCredits": "Buy {currency}",
     "cart": "Cart"
   },
+  "heldCredits": {
+    "badge": "{credits} on hold",
+    "title": "{credits} {currency} on hold",
+    "body": "{count, plural, one {A purchase you started is still using them.} other {Purchases you started are still using them.}}",
+    "backIn": "Back in",
+    "caveat": "They return on their own — you don't need to do anything. It can occasionally take up to an hour.",
+    "noEstimate": "Coming back shortly",
+    "caveatWaiting": "They are safe and will return on their own once your purchase finishes processing. Nothing is lost and there is nothing for you to do."
+  },
   "network": {
     "title": "Select a network",
     "current": "Network: {network}",
@@ -341,7 +350,8 @@
       "switchAndRetry": "Switch to {network} and retry"
     },
     "manaPriceUnavailable": "We couldn't check the MANA price right now, so paying with MANA isn't available for this purchase. Try again in a moment.",
-    "priceChanged": "The price for this item changed while you were here. Check the new amount and confirm to continue."
+    "priceChanged": "The price for this item changed while you were here. Check the new amount and confirm to continue.",
+    "heldExplainer": "{credits} of your {currency} are on hold from a purchase you already started, so they aren't available right now. They come back on their own — check the badge in the menu bar."
   },
   "cartCheckout": {
     "titleBuy": "Buy Items",
