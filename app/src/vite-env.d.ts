@@ -1,5 +1,10 @@
 /// <reference types="vite/client" />
 
+// Baked into the bundle by vite's `define` (and by vitest's, for tests) — NOT an env var, on purpose:
+// it has to be the exact string the Sentry source-map upload used, and an env var is what let the two
+// drift. See `sentryRelease` in vite.config.ts.
+declare const __SENTRY_RELEASE__: string
+
 // Type the `VITE_*` vars the app reads from `import.meta.env`. Without this augmentation Vite's
 // default `[key: string]: any` fallback makes every `env.VITE_*` access `any`, which cascades into
 // no-unsafe-* lint errors wherever a config value flows into a typed API (e.g. ethers). All VITE_*

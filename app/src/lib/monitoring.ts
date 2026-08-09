@@ -20,14 +20,73 @@ export function setErrorForwarder(fn: ((error: unknown, context: ErrorContext) =
   forward = fn
 }
 
+/**
+ * A thrown value Sentry can put a NAME on, derived from one it cannot.
+ *
+ * Wallet and JSON-RPC failures arrive as plain objects — `{ code, message, data, stack }` — not Errors.
+ * Sentry cannot read a title off a plain object, so it falls back to the frame that captured it, which
+ * is its own minified `captureException`. That is how four separate production issues ended up titled
+ * `ds`, hiding eleven real purchase failures behind a name nobody would ever click: a Coinbase Wallet
+ * `-32603 Failed to fetch` mid-purchase, and a cart checkout rejected by the RPC with a 401.
+ *
+ * Errors pass through untouched. A plain object carrying a string `message` becomes an Error titled with
+ * it, plus its `code` when it has one — that code is what separates a dead RPC from a user rejection.
+ *
+ * The ORIGINAL STACK is transplanted when the object has one, and that is the load-bearing part: a fresh
+ * Error's stack points here, at monitoring.ts, so without it every wallet failure in the app would group
+ * into one meaningless issue — trading an unreadable title for unreadable grouping. The original object
+ * rides along as `cause`, and the caller's context still reaches Sentry untouched.
+ */
+export function toReportable(value: unknown): unknown {
+  if (value instanceof Error || !value || typeof value !== 'object') return value
+  const raw = value as { message?: unknown; code?: unknown; stack?: unknown }
+  if (typeof raw.message !== 'string' || raw.message === '') return value
+
+  const code = typeof raw.code === 'string' || typeof raw.code === 'number' ? ` (code ${raw.code})` : ''
+  const error = new Error(`${raw.message}${code}`)
+  // `cause` is assigned rather than passed to the constructor: that overload is ES2022 and this builds
+  // against ES2020.
+  ;(error as Error & { cause?: unknown }).cause = value
+  if (typeof raw.stack === 'string' && raw.stack !== '') error.stack = raw.stack
+  return error
+}
+
+/**
+ * The machine-readable facts inside a wallet/RPC failure, lifted into fields of OUR OWN naming.
+ *
+ * `toReportable` puts the provider's message in the title, which helps only while that message survives.
+ * It does not always: Sentry's server-side scrubbing returned `[Filtered]` for both the `message` and the
+ * `stack` of the cart checkout that a wallet rejected with a 401, leaving an event that said nothing at
+ * all. These two fields are numbers under names nothing scrubs, so they arrive whatever happens to the
+ * free text — which is the point, since the text is the part we do not control.
+ *
+ * They are also low-cardinality (a handful of RPC codes, a handful of HTTP statuses), so `tagsFrom`
+ * promotes them: "how many purchases died on a wallet 401 this week" becomes a question that can be
+ * asked. A message string could never answer it, scrubbed or not — free text does not aggregate.
+ */
+export function rpcFactsFrom(value: unknown): ErrorContext {
+  if (!value || typeof value !== 'object') return {}
+  const raw = value as { code?: unknown; data?: unknown }
+  const facts: ErrorContext = {}
+  if (typeof raw.code === 'number' || typeof raw.code === 'string') facts.rpc_code = raw.code
+  if (raw.data && typeof raw.data === 'object') {
+    const status = (raw.data as { httpStatus?: unknown }).httpStatus
+    if (typeof status === 'number' || typeof status === 'string') facts.http_status = status
+  }
+  return facts
+}
+
 /** Log an error to the console (always) and forward it to the reporter (if wired). Never throws. */
 export function captureError(error: unknown, context: ErrorContext = {}): void {
   const label = typeof context.flow === 'string' ? `error in ${context.flow}` : 'error'
+  // The caller's own context wins: these are a fallback read off the thrown value, never an override.
+  const enriched = { ...rpcFactsFrom(error), ...context }
 
-  console.error(`[shop] ${label}`, error, context)
+  // The console gets the value as thrown; only the report needs the nameable shape.
+  console.error(`[shop] ${label}`, error, enriched)
   if (forward) {
     try {
-      forward(error, context)
+      forward(toReportable(error), enriched)
     } catch {
       // reporting must never throw back into the caller's catch block
     }
@@ -92,9 +151,17 @@ export function scrubEvent(event: Sentry.Event): Sentry.Event {
  */
 export function tagsFrom(context: ErrorContext): Record<string, string> {
   const tags: Record<string, string> = {}
+  // Named by us and always strings.
   for (const key of ['flow', 'step'] as const) {
     const value = context[key]
     if (typeof value === 'string' && value !== '') tags[key] = value
+  }
+  // Read off the thrown value (see rpcFactsFrom), so a NUMBER is the normal case — `-32603`, `401`.
+  // Stringified because a Sentry tag value is a string; still a closed, tiny set either way.
+  for (const key of ['rpc_code', 'http_status'] as const) {
+    const value = context[key]
+    if (typeof value === 'number') tags[key] = String(value)
+    else if (typeof value === 'string' && value !== '') tags[key] = value
   }
   return tags
 }
