@@ -33,11 +33,27 @@ const now = () => Math.floor(Date.now() / 1000)
  * Restart the stub to rearm.
  */
 let armedAt = null
-const startedAt = () => (armedAt ??= now())
+
+/**
+ * Arms on the first ask, then REARMS once it has been expired for a while, so a timed case loops instead
+ * of being a one-shot you have to catch.
+ *
+ * Coordinating "restart the stub, now reload" does not work: the app polls every 15s, so an already-open
+ * tab arms the window before a human can reload into it. Looping removes the race — the transition comes
+ * around again on its own.
+ */
+const REARM_AFTER_EXPIRY_SECONDS = 25
+function startedAt(windowSeconds) {
+  const t = now()
+  if (armedAt === null || (windowSeconds !== null && t > armedAt + windowSeconds + REARM_AFTER_EXPIRY_SECONDS)) {
+    armedAt = t
+  }
+  return armedAt
+}
 
 // 1 credit = 10 cents, everywhere.
 const heldBlock = (credits, releasesInSeconds) => {
-  const releasesAtSeconds = releasesInSeconds === null ? null : startedAt() + releasesInSeconds
+  const releasesAtSeconds = releasesInSeconds === null ? null : startedAt(releasesInSeconds) + releasesInSeconds
   return {
     cents: credits * 10,
     credits,
@@ -75,7 +91,9 @@ createServer((req, res) => {
 
   const path = new URL(req.url, 'http://x').pathname
   const send = body => {
-    res.writeHead(200, { 'content-type': 'application/json' })
+    // no-store, or the browser answers a reload from its own cache and the page shows a payload from
+    // minutes ago — which looks exactly like a frozen UI and sends you hunting for a bug in the app.
+    res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' })
     res.end(JSON.stringify(body))
   }
 
