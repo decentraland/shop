@@ -806,7 +806,6 @@ export function BuyModal({
             onBuy={method => void startPurchase(method)}
             onClose={onClose}
             busy={busy}
-            shortfall={paymentOptions.manaShortfall}
           />
         ) : (
           <>
@@ -910,8 +909,8 @@ export function BuyModal({
                   <PaymentCtas
                     options={[]}
                     totalCents={priceCents}
-                    onPay={() => undefined}
                     shortfall={paymentOptions.manaShortfall}
+                    onPay={() => undefined}
                   />
                 ) : null}
                 {/* The pack picker, its running total and the Buy button are the actual sale of credits, so

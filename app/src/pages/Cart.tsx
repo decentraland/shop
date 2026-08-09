@@ -1506,6 +1506,7 @@ export function Cart() {
           isSelfCustody={showsWalletConfirmations(session?.providerType)}
           signatures={modal.phase === 'processing' ? modal.signatures : undefined}
           options={modal.phase === 'choose' ? chooseOptions(modal).options : undefined}
+          shortfall={modal.phase === 'choose' ? chooseOptions(modal).manaShortfall : undefined}
           onPay={confirmMethod}
           totalCents={modal.phase === 'choose' ? modal.totalCents : undefined}
           totalManaWei={modal.phase === 'choose' ? modal.manaWei : undefined}
