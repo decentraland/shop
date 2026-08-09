@@ -387,7 +387,9 @@ export function MarketCheckout({
             item_id: listing.itemId ?? null,
             contract_address: listing.contractAddress,
             token_id: null,
-            price_usd: reserved.usdCents / 100
+            price_usd: reserved.usdCents / 100,
+            category: listing.category,
+            is_smart: false
           }
         ],
         value_credits: reserved.credits,

@@ -14,7 +14,7 @@ import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import { Icon } from '~/components/Icon'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { formatCredits } from '~/lib/currency'
-import { track, errorCode, isUserRejection } from '~/lib/analytics'
+import { track, errorCode, isUserRejection, creditsToUsd } from '~/lib/analytics'
 import { config } from '~/config'
 import { t } from '~/intl/i18n'
 import loaderLogo from '~/assets/credits/loader-logo.svg'
@@ -123,10 +123,24 @@ export function NameBuyModal({
       // The money left the balance in both outcomes, so both refresh it and both count as a completed
       // purchase for analytics — what differs is only whether the NAME exists yet.
       track('Shop Completed Purchase', {
+        // Same shape as every other purchase event so a NAME lands in the same warehouse columns
+        // instead of being a special case that item-level and revenue cards silently drop.
+        items: [
+          {
+            item_id: null,
+            contract_address: null,
+            token_id: null,
+            price_usd: creditsToUsd(priceCredits ?? 0),
+            category: 'name',
+            is_smart: false
+          }
+        ],
         purchase_type: 'name',
         is_primary: true,
         payment_type: 'credits',
         value_credits: priceCredits ?? null,
+        value_usd: creditsToUsd(priceCredits ?? 0),
+        transaction_hash: result.originTxHash ?? null,
         settlement: result.status
       })
       void qc.invalidateQueries({ queryKey: ['usd-balance'] })
