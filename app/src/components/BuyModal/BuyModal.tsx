@@ -31,6 +31,8 @@ import { track, errorCode, isUserRejection, purchaseItemsProps } from '~/lib/ana
 import { captureError } from '~/lib/monitoring'
 import { createSpendGuard } from '~/lib/spend-guard'
 import { authorizeUsdCredit, cancelUsdIntents } from '~/lib/credits'
+import { canOfferGasRail } from '~/lib/gas-rail'
+import { chainLabel, isWrongNetworkError, switchChain } from '~/lib/network'
 import { buyOneWithCredits } from '~/lib/buy'
 import {
   buyMintWithCreditsAndMana,
@@ -155,6 +157,26 @@ export function BuyModal({
 
   const [phase, setPhase] = useState<Phase>('loading')
   const [error, setError] = useState<string | null>(null)
+  /**
+   * The chain to offer a switch to, or null for "do not offer it".
+   *
+   * Only ever set for a wrong-network refusal the buyer could actually act on. Reaching that refusal means a
+   * relayed rail already failed — the relayed ones work from any network — so who they are decides the honest
+   * answer: see lib/gas-rail. Everyone else is told their hold is released instead of being sent to a network
+   * where they still could not pay.
+   */
+  const [retryChain, setRetryChain] = useState<number | null>(null)
+  /**
+   * A hold WAS taken and has been sent back — which the error screen has to say out loud.
+   *
+   * Not the same question as `reservedCreditIdRef.current`, which every catch clears the instant it asks for
+   * the release so the unmount path cannot ask a second time. Clearing it also put the "your credits come
+   * back" sentence out of reach of any buy that failed AFTER the price lock — and that is every buy, because
+   * the reservation is taken when the buyer CONFIRMS, moments before the wallet prompt they then dismiss.
+   * A cancelled signature therefore showed a balance tens of credits lower than a moment earlier with
+   * nothing on screen to account for it.
+   */
+  const [holdReleased, setHoldReleased] = useState(false)
   // Bumped by the error state's TRY AGAIN to re-run the open sequence from scratch.
   const [attempt, setAttempt] = useState(0)
   const [selectedPack, setSelectedPack] = useState<string>('')
@@ -327,8 +349,7 @@ export function BuyModal({
           step: 'resolve',
           error_code: errorCode(e)
         })
-        setPhase('error')
-        setError(friendlyError(e, t('buyModal.error.generic'), { sale: true }))
+        failWith(e)
       }
     })()
     return () => {
@@ -524,15 +545,16 @@ export function BuyModal({
       // The submit is over: the decision now rests on what was actually reported.
       guardRef.current.submitFinished(lk.credit.id)
       if (!isUserRejection(e)) captureError(e, { flow: 'buy', step: 'submit', gasless: usedGasless })
-      void releaseReservation([lk.credit.id])
+      void releaseReservation([lk.credit.id]).then(released => {
+        if (released) setHoldReleased(true)
+      })
       reservedCreditIdRef.current = null
       track(isUserRejection(e) ? 'Shop Purchase Cancelled' : 'Shop Purchase Failed', {
         step: 'submit',
         error_code: errorCode(e)
       })
       void qc.invalidateQueries({ queryKey: ['usd-balance'] })
-      setError(friendlyError(e, t('buyModal.error.generic'), { sale: true }))
-      setPhase('error')
+      failWith(e)
       return
     }
     /**
@@ -571,13 +593,16 @@ export function BuyModal({
    * through one guarded helper is what makes "never release spent credits" a property of the component rather
    * than something each call site has to remember.
    */
-  function releaseReservation(ids: string[]): Promise<void> {
-    if (!session || ids.length === 0) return Promise.resolve()
+  function releaseReservation(ids: string[]): Promise<boolean> {
+    if (!session || ids.length === 0) return Promise.resolve(false)
     const safe = ids.filter(id => !guardRef.current.mayBeConsumed(id))
-    if (safe.length === 0) return Promise.resolve()
+    if (safe.length === 0) return Promise.resolve(false)
+    // Resolves TRUE for anything actually handed back — and only that. A credit the guard kept may be
+    // spent, so telling the buyer it is coming back would be a lie at the worst possible moment. The
+    // request's own fate is not the question: unconsumed credits return on the server's sweep either way.
     return cancelUsdIntents(session.identity, safe).then(
-      () => undefined,
-      () => undefined
+      () => true,
+      () => true
     )
   }
 
@@ -589,7 +614,7 @@ export function BuyModal({
    * when nothing has been reported yet. Releasing on "nothing broadcast" there hands back a credit the buyer
    * is about to spend. A modal abandoned before any submit still releases, which is the case it exists for.
    */
-  function releaseIfNotInFlight(ids: string[]): Promise<void> {
+  function releaseIfNotInFlight(ids: string[]): Promise<boolean> {
     return releaseReservation(ids.filter(id => !guardRef.current.isInFlight(id)))
   }
 
@@ -622,7 +647,11 @@ export function BuyModal({
     const sale = locked?.sale ?? resolvedSale
     if (!session || !sale) return
     if (reservedCreditIdRef.current) {
-      void releaseReservation([reservedCreditIdRef.current])
+      // Handed back because THIS rail spends MANA instead — and if the MANA leg then fails, the error
+      // screen still owes the buyer an explanation for the balance that just moved.
+      void releaseReservation([reservedCreditIdRef.current]).then(released => {
+        if (released) setHoldReleased(true)
+      })
       reservedCreditIdRef.current = null
     }
     setPhase('processing')
@@ -651,8 +680,7 @@ export function BuyModal({
         step: 'submit',
         error_code: errorCode(e)
       })
-      setError(friendlyError(e, t('buyModal.error.generic'), { sale: true }))
-      setPhase('error')
+      failWith(e)
     }
   }
 
@@ -672,7 +700,7 @@ export function BuyModal({
     // rather than minting a second. A release still in flight can therefore come straight back as the
     // full-price credit this just gave up — against a MANA gap computed for the partial one.
     if (reservedCreditIdRef.current) {
-      await releaseReservation([reservedCreditIdRef.current])
+      if (await releaseReservation([reservedCreditIdRef.current])) setHoldReleased(true)
       reservedCreditIdRef.current = null
     }
     let partialCreditId: string | null = null
@@ -707,15 +735,17 @@ export function BuyModal({
       if (partialCreditId) guardRef.current.submitFinished(partialCreditId)
       // The partial reservation never settled → release the dollars instead of stranding them. Guarded, so a
       // broadcast whose outcome is unknown is left alone.
-      if (partialCreditId) void releaseReservation([partialCreditId])
+      if (partialCreditId)
+        void releaseReservation([partialCreditId]).then(released => {
+          if (released) setHoldReleased(true)
+        })
       if (!isUserRejection(e)) captureError(e, { flow: 'buy_credits_and_mana', step: 'submit' })
       track(isUserRejection(e) ? 'Shop Purchase Cancelled' : 'Shop Purchase Failed', {
         step: 'submit',
         error_code: errorCode(e)
       })
       void qc.invalidateQueries({ queryKey: ['usd-balance'] })
-      setError(friendlyError(e, t('buyModal.error.generic'), { sale: true }))
-      setPhase('error')
+      failWith(e)
       return
     }
     // Bought — bookkeeping only, and outside the try for the same reason as confirm() above. The old
@@ -797,6 +827,62 @@ export function BuyModal({
     return getManaSpendingAuthorization(chainId, spender)
   }
 
+  /**
+   * Land in the error phase — and, for a wrong-network refusal, say something the buyer can act on.
+   *
+   * Reaching that refusal means a relayed rail ALREADY failed: the relayed ones work from any network, so
+   * nothing else puts a buyer in front of a chain requirement. From there the honest answer depends on who
+   * they are (see lib/gas-rail). A managed wallet cannot switch or hold POL, so "switch to Polygon" was
+   * advice it could not follow — and network wording is what those users must never be shown at all; a
+   * self-custody wallet with no POL would switch, sign, and revert on gas. Both are told their hold is
+   * released. Only a wallet that can really pay is offered the switch.
+   *
+   * The generic message is set SYNCHRONOUSLY first so the error phase is never briefly blank; the wallet
+   * check then refines it. For a managed wallet that check short-circuits without a network call.
+   */
+  function failWith(e: unknown) {
+    setError(friendlyError(e, t('buyModal.error.generic'), { sale: true }))
+    setPhase('error')
+    if (!isWrongNetworkError(e) || !session) return
+    const required = e.required
+    void (async () => {
+      if (await canOfferGasRail(session.providerType, session.address)) {
+        setRetryChain(required)
+        return
+      }
+      setError(t('buyModal.error.relayDownNoRail'))
+    })()
+  }
+
+  /**
+   * Switch the wallet, then resume the rail they chose — ONE action, from inside their own click.
+   *
+   * Both halves matter. The click is what makes the switch legal: a wallet refuses a `wallet_*` request it
+   * cannot attribute to a user gesture, with the `-32006` that used to reach Sentry dressed as a revert
+   * (see lib/network). And the retry is what makes it useful — the failed attempt already released its
+   * reservation, so a button that only changed networks would leave them staring at the same dead screen,
+   * with no sign that starting over was on them.
+   *
+   * The credits rail needs a FRESH credit: the one it locked was released on the way in here, so reusing it
+   * would spend an intent the server has already cancelled. The MANA rails hold no credit and resume as-is.
+   */
+  async function switchAndRetry(chainId: number) {
+    if (!session) return
+    setRetryChain(null)
+    try {
+      await switchChain(session.web3Provider, chainId)
+    } catch (switchErr) {
+      // Declining is an answer, not a failure to retry around — leave the offer standing, say nothing new.
+      if (!isUserRejection(switchErr)) captureError(switchErr, { flow: 'buy', step: 'switch_chain' })
+      setRetryChain(chainId)
+      return
+    }
+    // `retry` and not a resume: with the reservation now taken at confirm time, it clears `locked` on
+    // purpose (see there) — the price is re-resolved and re-locked, which is the only thing that can be
+    // said to be correct after the buyer moved networks.
+    retry()
+  }
+
   function runRail(rail: PaymentMethod) {
     if (rail === 'mana') void confirmMana()
     else if (rail === 'combined') void confirmCombined()
@@ -858,6 +944,7 @@ export function BuyModal({
     // made — the effect below re-resolves from scratch and `confirm` reserves again.
     setLocked(null)
     setPriceChanged(false)
+    setHoldReleased(false)
     setPhase('loading')
     setAttempt(a => a + 1)
   }
@@ -873,7 +960,11 @@ export function BuyModal({
    * Read from the ref rather than mirrored into state: entering the error phase is itself a re-render,
    * and the ref is only ever written in the same synchronous flows that set the phase.
    */
-  const heldCredits = phase === 'error' && !!reservedCreditIdRef.current
+  /**
+   * While a switch-and-retry is on offer the hold is NOT unwinding — it is waiting to be spent by that very
+   * retry — so promising its return would be the opposite of true.
+   */
+  const heldCredits = phase === 'error' && retryChain === null && (!!reservedCreditIdRef.current || holdReleased)
 
   const busy = phase === 'processing'
   const title =
@@ -966,20 +1057,41 @@ export function BuyModal({
                   <M.BuyErrorArt src={buyErrorAvatar} alt="" width={64} height={80} />
                   <M.BuyErrorText>
                     <b>{t('cartCheckout.errorHeadline')}</b>{' '}
+                    {/* The REASON first, then what became of the money. A cancelled signature needs both:
+                        "You cancelled the request" explains the screen, and the hold sentence explains the
+                        balance that dropped a second earlier. Showing only one of them is how a buyer ends
+                        up staring at credits they cannot account for. The generic body is skipped when the
+                        hold sentence is present — both say "your credits are safe", once is enough. */}
+                    {error ?? (heldCredits ? null : t('cartCheckout.errorBody'))}
                     {heldCredits ? (
                       <>
+                        {error ? ' ' : ''}
                         {t('cartCheckout.heldLead', { currency: CURRENCY.name })}
                         <b>{t('cartCheckout.heldBold')}</b>
                         {t('cartCheckout.heldTail', { currency: CURRENCY.name })}
                       </>
-                    ) : (
-                      (error ?? t('cartCheckout.errorBody'))
-                    )}
+                    ) : null}
                   </M.BuyErrorText>
                 </M.BuyError>
-                {/* Nothing to retry WITH while the reservation is still unwinding — the copy above says to
-                    come back once the balance is whole, so offering it here would only fail again. */}
-                {heldCredits ? (
+                {retryChain !== null ? (
+                  /* The relay failed and THIS buyer can actually take the gas-paying rail (self-custody,
+                     funded — see lib/gas-rail). One control, because switching without resuming would just
+                     leave them on the same dead screen. */
+                  <M.Ctas>
+                    <M.Btn data-variant="outline" onClick={onClose}>
+                      {t('buyModal.cancel')}
+                    </M.Btn>
+                    <M.Btn
+                      data-variant="purple"
+                      data-testid="switch-and-retry"
+                      onClick={() => void switchAndRetry(retryChain)}
+                    >
+                      {t('buyModal.error.switchAndRetry', { network: chainLabel(retryChain) })}
+                    </M.Btn>
+                  </M.Ctas>
+                ) : heldCredits ? (
+                  /* Nothing to retry WITH while the reservation is still unwinding — the copy above says to
+                     come back once the balance is whole, so offering it here would only fail again. */
                   <M.Ctas>
                     <M.Btn data-variant="purple" data-full onClick={onClose}>
                       {t('cartCheckout.gotIt')}

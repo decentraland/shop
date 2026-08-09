@@ -336,7 +336,9 @@
     "itemFallback": "Artículo",
     "error": {
       "generic": "No pudimos completar la compra. Inténtalo de nuevo.",
-      "creditsCheckout": "No pudimos iniciar el pago de créditos. Inténtalo de nuevo."
+      "creditsCheckout": "No pudimos iniciar el pago de créditos. Inténtalo de nuevo.",
+      "relayDownNoRail": "No pudimos completar la compra. Prueba de nuevo en unos minutos: no se gastaron tus créditos y la retención se libera en breve.",
+      "switchAndRetry": "Cambiar a {network} y reintentar"
     },
     "manaPriceUnavailable": "No pudimos consultar el precio de MANA en este momento, así que pagar con MANA no está disponible para esta compra. Prueba de nuevo en un instante.",
     "priceChanged": "El precio de este artículo cambió mientras estabas aquí. Revisa el nuevo importe y confirma para continuar."
