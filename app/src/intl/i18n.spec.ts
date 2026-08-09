@@ -90,8 +90,6 @@ describe('web2-first copy rule', () => {
     'buyModal.manaBalanceLabel',
     'buyModal.manaDetail',
     'buyModal.manaPriceUnavailable',
-    'buyModal.manaRate',
-    'buyModal.manaWorth',
     'buyModal.methodCombined',
     'buyModal.methodMana',
     'buyModal.notEnoughMana',
