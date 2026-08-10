@@ -27,7 +27,7 @@
     "caveat": "They return on their own — you don't need to do anything. It can occasionally take up to an hour.",
     "noEstimate": "Coming back shortly",
     "caveatWaiting": "They are safe and will return on their own once your purchase finishes processing. Nothing is lost and there is nothing for you to do.",
-    "badgeSuffix": "on hold"
+    "onHoldLabel": "on hold"
   },
   "network": {
     "title": "Select a network",

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type FocusEvent } from 'react'
 import { Icon } from '~/components/Icon'
 import { t } from '~/intl/i18n'
 import { CURRENCY } from '~/lib/currency'
@@ -40,6 +40,11 @@ export function HeldCredits({ held }: { held: Held | undefined }) {
   // this one is the buyer's only explanation for money missing from their balance.
   const show = () => setOpen(true)
   const hide = () => setOpen(false)
+  // Focus moving from the trigger INTO the panel is not leaving. The panel is informational today, so this
+  // changes nothing yet — it is what stops a link added to it later from closing the thing it sits in.
+  const hideUnlessFocusMovedInside = (e: FocusEvent<HTMLElement>) => {
+    if (!rootRef.current?.contains(e.relatedTarget)) hide()
+  }
   const [now, setNow] = useState(() => Math.floor(Date.now() / 1000))
   const rootRef = useRef<HTMLDivElement>(null)
 
@@ -79,12 +84,12 @@ export function HeldCredits({ held }: { held: Held | undefined }) {
         aria-describedby={open ? PANEL_ID : undefined}
         data-testid="held-credits-trigger"
         onFocus={show}
-        onBlur={hide}
+        onBlur={hideUnlessFocusMovedInside}
       >
         <Icon name="clock" size={13} data-held-clock aria-hidden />
         {formatCredits(held.credits)}
         <CurrencyIcon size={12} />
-        {t('heldCredits.badgeSuffix')}
+        {t('heldCredits.onHoldLabel')}
       </S.Trigger>
 
       {open ? (

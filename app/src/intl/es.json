@@ -27,7 +27,7 @@
     "caveat": "Vuelven solos, no tenés que hacer nada. En algunos casos puede tardar hasta una hora.",
     "noEstimate": "Vuelven en breve",
     "caveatWaiting": "Están a salvo y vuelven solos en cuanto tu compra termine de procesarse. No se pierde nada y no tenés que hacer nada.",
-    "badgeSuffix": "en espera"
+    "onHoldLabel": "en espera"
   },
   "network": {
     "title": "Selecciona una red",

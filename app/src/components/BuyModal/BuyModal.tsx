@@ -550,18 +550,7 @@ export function BuyModal({
       // The submit is over: the decision now rests on what was actually reported.
       guardRef.current.submitFinished(lk.credit.id)
       if (!isUserRejection(e)) captureError(e, { flow: 'buy', step: 'submit', gasless: usedGasless })
-      /**
-       * Said BEFORE the release round-trip, because the error screen paints synchronously below. Waiting on
-       * the release meant the buyer read "we couldn't complete your purchase" with no word about their money,
-       * and the reassurance arrived a beat later — after the moment it was needed.
-       *
-       * Corrected DOWN only: `false` from the release means the guard kept the credit because it may already
-       * be spent, and promising it back would be a lie at the worst possible moment.
-       */
-      setHoldReleased(true)
-      void releaseReservation([lk.credit.id]).then(released => {
-        if (!released) setHoldReleased(false)
-      })
+      releaseOptimistically([lk.credit.id])
       reservedCreditIdRef.current = null
       track(isUserRejection(e) ? 'Shop Purchase Cancelled' : 'Shop Purchase Failed', {
         step: 'submit',
@@ -621,6 +610,21 @@ export function BuyModal({
   }
 
   /**
+   * Release a reservation and SAY SO IMMEDIATELY.
+   *
+   * The error screen paints synchronously after every caller, so the reassurance cannot wait on the release
+   * round-trip — it would land after the buyer had already read that the purchase failed. The promise is made
+   * first and corrected DOWN only: `false` means the guard kept the credit because it may already be spent,
+   * and promising it back would be a lie at the worst possible moment.
+   */
+  function releaseOptimistically(ids: string[]): void {
+    setHoldReleased(true)
+    void releaseReservation(ids).then(released => {
+      if (!released) setHoldReleased(false)
+    })
+  }
+
+  /**
    * The unmount path, which needs a STRICTER rule than a buy's own catch.
    *
    * A catch runs after its submit settles, so it knows whether a transaction went out. This runs whenever the
@@ -663,10 +667,7 @@ export function BuyModal({
     if (reservedCreditIdRef.current) {
       // Handed back because THIS rail spends MANA instead — and if the MANA leg then fails, the error
       // screen still owes the buyer an explanation for the balance that just moved.
-      setHoldReleased(true)
-      void releaseReservation([reservedCreditIdRef.current]).then(released => {
-        if (!released) setHoldReleased(false)
-      })
+      releaseOptimistically([reservedCreditIdRef.current])
       reservedCreditIdRef.current = null
     }
     setPhase('processing')
@@ -750,12 +751,7 @@ export function BuyModal({
       if (partialCreditId) guardRef.current.submitFinished(partialCreditId)
       // The partial reservation never settled → release the dollars instead of stranding them. Guarded, so a
       // broadcast whose outcome is unknown is left alone.
-      if (partialCreditId) {
-        setHoldReleased(true)
-        void releaseReservation([partialCreditId]).then(released => {
-          if (!released) setHoldReleased(false)
-        })
-      }
+      if (partialCreditId) releaseOptimistically([partialCreditId])
       if (!isUserRejection(e)) captureError(e, { flow: 'buy_credits_and_mana', step: 'submit' })
       track(isUserRejection(e) ? 'Shop Purchase Cancelled' : 'Shop Purchase Failed', {
         step: 'submit',
