@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { CreatorName } from '~/components/CreatorName'
 import { Icon } from '~/components/Icon'
-import { CURRENCY, formatCredits } from '~/lib/currency'
+import { CURRENCY, formatCredits, usdCentsToCredits } from '~/lib/currency'
 import { formatMana } from '~/lib/mana-format'
-import { creditsFromCents, type PaymentMethod, type PaymentOption } from '~/lib/payment-options'
+import { type PaymentMethod, type PaymentOption } from '~/lib/payment-options'
 import { t } from '~/intl/i18n'
 import type { CatalogItem } from '~/lib/api'
 import creditsCoin from '~/assets/payment/credits-coin.webp'
@@ -112,7 +112,10 @@ export function PaymentMethodStep({
 
   // What each row charges. On the mixed rail the legs differ from the single-rail ones, so they come from
   // the option the CURRENT selection resolves to — each row states its own leg, never the full price twice.
-  const creditsLeg = method === 'combined' && combined ? combined.creditsCents : (credits?.creditsCents ?? priceCents)
+  // Taken from the option, which knows whether its cents are a price or a balance. The fallback is a PRICE
+  // — the only case with no option to read is the credits rail not being offered at all.
+  const creditsLegDisplay =
+    method === 'combined' && combined ? combined.credits : (credits?.credits ?? usdCentsToCredits(priceCents))
   const manaLeg = method === 'combined' && combined ? combined.manaWei : (mana?.manaWei ?? priceManaWei)
 
   function toggle(rail: 'credits' | 'mana') {
@@ -183,7 +186,7 @@ export function PaymentMethodStep({
             <S.PriceCol>
               <S.Price>
                 <CurrencyIcon />
-                <span>{formatCredits(creditsFromCents(creditsLeg))}</span>
+                <span>{formatCredits(creditsLegDisplay)}</span>
               </S.Price>
             </S.PriceCol>
           </S.Content>
