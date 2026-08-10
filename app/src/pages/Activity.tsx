@@ -25,6 +25,8 @@ import { formatCredits } from '~/lib/currency'
 import creditsProduct from '~/assets/credits-product.svg'
 import manaSymbol from '~/assets/mana-matic.svg'
 import { Icon } from '~/components/Icon'
+import { EmptyState } from '~/components/EmptyState'
+import salesEmptyIllustration from '~/assets/empty/sales-empty.svg'
 import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
 import { toast } from '~/store/toast'
@@ -418,23 +420,23 @@ function CreditPurchaseCard({ order }: { order: CreditOrder }) {
   )
 }
 
-function EmptyState({ filter }: { filter: ActivityFilter }) {
-  const copy = {
-    all: { icon: 'clock', title: t('activity.emptyAllTitle'), body: t('activity.emptyAllBody') },
-    purchases: { icon: 'cart', title: t('activity.emptyPurchasesTitle'), body: t('activity.emptyPurchasesBody') },
-    sales: { icon: 'offer', title: t('activity.emptySalesTitle'), body: t('activity.emptySalesBody') }
+function ActivityEmpty({ filter }: { filter: ActivityFilter }) {
+  // All three tabs share the design's sale-tag panel; only the body line differs per tab.
+  const body = {
+    all: t('activity.emptyAllBody'),
+    purchases: t('activity.emptyPurchasesBody'),
+    sales: t('activity.emptySalesBody')
   }[filter]
 
   return (
     <S.Empty>
-      <Icon name={copy.icon as 'cart'} size={40} color={theme.colors.muted2} />
-      <S.EmptyTitle>{copy.title}</S.EmptyTitle>
-      <S.EmptyBody>{copy.body}</S.EmptyBody>
-      {filter !== 'sales' ? (
-        <S.EmptyCta as={Link} to="/items" variant="white">
-          {t('notFound.cta')}
-        </S.EmptyCta>
-      ) : null}
+      <EmptyState
+        testId={`activity-empty-${filter}`}
+        icon={salesEmptyIllustration}
+        title={t('activity.emptyTitle')}
+        body={body}
+        cta={{ label: t('assets.empty.cta'), to: '/items' }}
+      />
     </S.Empty>
   )
 }
@@ -523,11 +525,11 @@ export function Activity() {
 
   if (!session) {
     return (
-      <S.Empty>
+      <S.Gate>
         <Icon name="clock" size={40} color={theme.colors.muted2} />
         <S.EmptyTitle>{t('activity.signInTitle')}</S.EmptyTitle>
         <S.EmptyBody>{t('activity.signInBody')}</S.EmptyBody>
-      </S.Empty>
+      </S.Gate>
     )
   }
 
@@ -629,7 +631,7 @@ export function Activity() {
           ))}
         </S.List>
       ) : feed.length === 0 ? (
-        <EmptyState filter={filter} />
+        <ActivityEmpty filter={filter} />
       ) : (
         <>
           <S.List>

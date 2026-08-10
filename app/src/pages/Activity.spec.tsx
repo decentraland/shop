@@ -188,7 +188,7 @@ describe('when the user is not signed in', () => {
 describe('when the user has no activity', () => {
   it('should show the empty state', async () => {
     renderPage()
-    expect(await screen.findByText('No activity yet')).toBeInTheDocument()
+    expect(await screen.findByTestId('activity-empty-all')).toBeInTheDocument()
   })
 })
 
@@ -408,7 +408,7 @@ describe('the migration chip', () => {
 
   it('should not render at all when the seller has no listings of any kind', async () => {
     renderPage()
-    await screen.findByText('No activity yet')
+    await screen.findByTestId('activity-empty-all')
 
     expect(screen.queryByTestId('activity-filter-migrate')).not.toBeInTheDocument()
     // Not even an unbadged chip: the row is the three filters and nothing else.
@@ -418,7 +418,7 @@ describe('the migration chip', () => {
   it('should render nothing while the count is still unknown', async () => {
     fetchImportable.mockReturnValue(new Promise(() => {}))
     renderPage()
-    await screen.findByText('No activity yet')
+    await screen.findByTestId('activity-empty-all')
 
     expect(screen.queryByTestId('activity-filter-migrate')).not.toBeInTheDocument()
     expect(screen.queryByTestId('activity-migrate-count')).not.toBeInTheDocument()
@@ -430,7 +430,7 @@ describe('the migration chip', () => {
     fetchImportable.mockResolvedValue({ creations: [importable()], owned: [] })
     fetchUnified.mockReturnValue(new Promise(() => {}))
     renderPage()
-    await screen.findByText('No activity yet')
+    await screen.findByTestId('activity-empty-all')
 
     expect(screen.queryByTestId('activity-filter-migrate')).not.toBeInTheDocument()
   })
@@ -487,7 +487,7 @@ describe('the migration chip', () => {
     fireEvent.click(await screen.findByTestId('activity-filter-migrate'))
 
     expect(await screen.findByTestId('import-panel')).toBeInTheDocument()
-    expect(screen.queryByText('No activity yet')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('activity-empty-all')).not.toBeInTheDocument()
     expect(screen.getByTestId('activity-filter-migrate')).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByTestId('activity-filter-all')).toHaveAttribute('aria-selected', 'false')
   })
