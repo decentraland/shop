@@ -8,6 +8,7 @@ function record(overrides: Partial<PurchaseRecord> = {}): PurchaseRecord {
     tradeId: 't-' + Math.random().toString(36).slice(2),
     contractAddress: null,
     itemId: null,
+    registeredName: null,
     usdCents: 100,
     credits: 10,
     status: 'SETTLED',

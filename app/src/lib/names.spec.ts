@@ -301,7 +301,9 @@ describe('registerNameWithUsdCredits', () => {
 
     expect(result).toEqual({ status: 'registered', originTxHash: '0xorigin', destinationTxHash: '0xdest' })
     // Sized to 100 MANA worth of cents (4000) and reserved with no tradeId.
-    expect(authorizeUsdCredit).toHaveBeenCalledWith(IDENTITY, 4000)
+    // The name travels with the reservation: it is the only identity the intent will ever carry, so the
+    // buyer's purchase history can name the line instead of showing a generic item.
+    expect(authorizeUsdCredit).toHaveBeenCalledWith(IDENTITY, 4000, undefined, undefined, 'my-name')
     // useCredits carried the ephemeral credit + the server's signed route external call.
     const submitted = sendUseCreditsGasless.mock.calls[0][0]
     expect(submitted.args.customExternalCallSignature).toBe('0xsig')

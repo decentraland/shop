@@ -398,7 +398,9 @@ export async function registerNameWithUsdCredits(opts: {
     })
 
     // 3) Reserve the dollars + get the ephemeral credit (PENDING intent keyed by the credit salt).
-    const authorized = await authorizeUsdCredit(identity, usdCents)
+    // The name is passed so the purchase can be named in the buyer's history: a NAME has no trade and no
+    // item, so it is the only identity the intent will ever carry.
+    const authorized = await authorizeUsdCredit(identity, usdCents, undefined, undefined, name)
     creditSalt = authorized.credit.id
     console.info('[names] step 3/6 credit authorized', {
       creditId: authorized.credit.id,

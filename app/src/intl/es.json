@@ -608,6 +608,7 @@
     "soldTo": "Vendido a {account}",
     "approxValue": "Valor aproximado en créditos",
     "itemFallback": "Artículo",
+    "nameRegistration": "NAME de Decentraland",
     "signInTitle": "Inicia sesión para ver tu actividad",
     "signInBody": "Tus compras y ventas aparecerán aquí cuando inicies sesión.",
     "emptyAllTitle": "Aún no tienes actividad",
