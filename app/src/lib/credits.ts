@@ -103,7 +103,9 @@ export async function authorizeUsdCredit(
     identity,
     metadata: {},
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ usdPriceCents, tradeId, ...(item ? item : {}) })
+    // `source` declares the surface this purchase comes from ('website' here, 'client' for the Explorer),
+    // so the server can tell the two apart in its records. Servers predating the field ignore it.
+    body: JSON.stringify({ usdPriceCents, tradeId, source: 'website', ...(item ? item : {}) })
   })
   if (!res.ok) throw new Error(`authorizeUsdCredit ${res.status}: ${await res.text()}`)
   return res.json() as Promise<AuthorizeResult>
