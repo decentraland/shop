@@ -1,7 +1,7 @@
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { formatCredits } from '~/lib/currency'
 import { formatMana } from '~/lib/mana-format'
-import { creditsFromCents, type ManaShortfall, type PaymentMethod, type PaymentOption } from '~/lib/payment-options'
+import { type ManaShortfall, type PaymentMethod, type PaymentOption } from '~/lib/payment-options'
 import { t } from '~/intl/i18n'
 import manaLight from '~/assets/mana-matic-light.svg'
 import * as S from './PaymentCtas.styles'
@@ -95,7 +95,7 @@ export function PaymentCtas({
               {showCreditsAmount ? (
                 <S.Amount>
                   <CurrencyIcon />
-                  <span>{formatCredits(creditsFromCents(option.creditsCents))}</span>
+                  <span>{formatCredits(option.credits)}</span>
                 </S.Amount>
               ) : null}
             </S.CreditsBtn>
@@ -133,7 +133,7 @@ export function PaymentCtas({
             <span>{t('buyModal.buyWith')}</span>
             <S.Amount>
               <CurrencyIcon />
-              <span>{formatCredits(creditsFromCents(option.creditsCents))}</span>
+              <span>{formatCredits(option.credits)}</span>
               <S.Plus>+</S.Plus>
               <S.ManaMark>
                 <img src={manaLight} alt="" aria-hidden />

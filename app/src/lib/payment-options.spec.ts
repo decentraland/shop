@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { usdCentsToCredits } from '~/lib/currency'
 import {
   computePaymentOptions,
   distributeCreditsAcrossUnits,
@@ -30,7 +31,12 @@ describe('computePaymentOptions', () => {
       const o = opts({ balanceCents: PRICE_CENTS })
       expect(methods(o)).toEqual(['credits'])
       expect(o.preferred).toBe('credits')
-      expect(findOption(o, 'credits')).toEqual({ method: 'credits', creditsCents: PRICE_CENTS, manaWei: 0n })
+      expect(findOption(o, 'credits')).toEqual({
+        method: 'credits',
+        creditsCents: PRICE_CENTS,
+        credits: PRICE_CENTS / 10,
+        manaWei: 0n
+      })
     })
 
     it('should offer nothing when credits fall short (caller falls back to the top-up flow)', () => {
@@ -46,7 +52,7 @@ describe('computePaymentOptions', () => {
       const o = opts({ manaBalanceWei: PRICE_MANA })
       expect(methods(o)).toEqual(['mana'])
       expect(o.preferred).toBe('mana')
-      expect(findOption(o, 'mana')).toEqual({ method: 'mana', creditsCents: 0, manaWei: PRICE_MANA })
+      expect(findOption(o, 'mana')).toEqual({ method: 'mana', creditsCents: 0, credits: 0, manaWei: PRICE_MANA })
     })
 
     it('should offer nothing when the MANA balance is one wei short', () => {
@@ -67,7 +73,12 @@ describe('computePaymentOptions', () => {
       // (400 MANA) covers that remainder but NOT the full 500-MANA price, so combined is the only rail.
       const o = opts({ balanceCents: 400, manaBalanceWei: mana(400) })
       expect(methods(o)).toEqual(['combined'])
-      expect(findOption(o, 'combined')).toEqual({ method: 'combined', creditsCents: 400, manaWei: mana(300) })
+      expect(findOption(o, 'combined')).toEqual({
+        method: 'combined',
+        creditsCents: 400,
+        credits: 40,
+        manaWei: mana(300)
+      })
       expect(o.preferred).toBe('combined')
     })
 
@@ -277,5 +288,52 @@ describe('manaShortfall — held MANA that cannot pay', () => {
     // 1 wei short of $2.00 worth must not round up to 200 cents.
     const o = computePaymentOptions({ ...price, balanceCents: 0, manaBalanceWei: 5n * 10n ** 18n - 1n })
     expect(o.manaShortfall?.manaCents).toBe(199)
+  })
+})
+
+/**
+ * The bug this exists for: the price line and the button under it disagreed about the SAME item.
+ *
+ * A 30 MANA legacy listing converts to 20.13 credits. The price line ceiled it to 21 (the shop charges
+ * whole credits); the credits button divided plainly and printed 20.1 — a quantity nobody can hold or
+ * spend. Two functions, both correct on their own terms, and nothing compared them.
+ *
+ * These pin the agreement rather than either rounding rule, because agreement is what broke.
+ */
+describe('what the buyer is shown', () => {
+  it('should quote the credits rail at the same figure as the item price', () => {
+    // 201 cents = the 30 MANA listing at the rate in the report.
+    const o = computePaymentOptions({ priceCents: 201, priceManaWei: 0n, balanceCents: 100_000, manaBalanceWei: 0n })
+
+    expect(findOption(o, 'credits')?.credits).toBe(usdCentsToCredits(201))
+    expect(findOption(o, 'credits')?.credits).toBe(21)
+  })
+
+  it('should never quote a fraction of a credit', () => {
+    for (const cents of [1, 7, 201, 999, 1234]) {
+      const o = computePaymentOptions({
+        priceCents: cents,
+        priceManaWei: 0n,
+        balanceCents: 1_000_000,
+        manaBalanceWei: 0n
+      })
+
+      expect(Number.isInteger(findOption(o, 'credits')?.credits ?? 0)).toBe(true)
+    }
+  })
+
+  /**
+   * The mixed rail's cents are a BALANCE, not a price, so it rounds the other way. Ceiling here would
+   * offer a credit the buyer does not hold — the same class of lie, pointing the other direction.
+   */
+  it('should floor the mixed rail, because that figure is what the buyer holds', () => {
+    const o = computePaymentOptions({
+      priceCents: 1000,
+      priceManaWei: mana(100),
+      balanceCents: 407,
+      manaBalanceWei: mana(1000)
+    })
+
+    expect(findOption(o, 'combined')?.credits).toBe(40)
   })
 })

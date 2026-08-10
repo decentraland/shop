@@ -16,15 +16,26 @@
 // testable. All USD amounts are integer CENTS (1 credit = 10 cents) and all MANA amounts are wei
 // bigints, so nothing here can drift through floats.
 
+import { usdCentsToCredits, usdCentsToCreditsFloor } from '~/lib/currency'
+
 export type PaymentMethod = 'credits' | 'mana' | 'combined'
 
+/**
+ * `credits` is the figure to SHOW and it is computed here, not at the render site.
+ *
+ * Cents round to credits two different ways and which one is right depends on what the cents MEAN: a price
+ * rounds UP (the shop charges whole credits, so $2.01 costs 21) and a balance rounds DOWN (never offer a
+ * credit the buyer cannot spend). A caller holding only `creditsCents` cannot know which it is looking at —
+ * and when one surface divided plainly while another ceiled, the same item read `21` on its price line and
+ * `20.1` on the button underneath it. Carrying the answer removes the question.
+ */
 export type PaymentOption =
-  /** Spend `creditsCents` of credits; no MANA. */
-  | { method: 'credits'; creditsCents: number; manaWei: 0n }
+  /** Spend `creditsCents` of credits; no MANA. `credits` is the PRICE, rounded up. */
+  | { method: 'credits'; creditsCents: number; credits: number; manaWei: 0n }
   /** Spend no credits; pay `manaWei` MANA. */
-  | { method: 'mana'; creditsCents: 0; manaWei: bigint }
-  /** Spend `creditsCents` (the whole credit balance) + `manaWei` MANA for the remainder. */
-  | { method: 'combined'; creditsCents: number; manaWei: bigint }
+  | { method: 'mana'; creditsCents: 0; credits: 0; manaWei: bigint }
+  /** Spend the whole credit balance + `manaWei` MANA for the remainder. `credits` is that BALANCE, floored. */
+  | { method: 'combined'; creditsCents: number; credits: number; manaWei: bigint }
 
 /**
  * Why no MANA rail is on the table for a buyer who DOES hold MANA — enough to say so on screen.
@@ -97,7 +108,7 @@ export function computePaymentOptions(input: {
 
   // 1. Credits alone.
   if (balanceCents >= priceCents) {
-    options.push({ method: 'credits', creditsCents: priceCents, manaWei: 0n })
+    options.push({ method: 'credits', creditsCents: priceCents, credits: usdCentsToCredits(priceCents), manaWei: 0n })
   }
 
   // 2. Credits + MANA. Only when credits exist AND fall short (with a full credit balance the
@@ -107,14 +118,20 @@ export function computePaymentOptions(input: {
     const remainderCents = priceCents - balanceCents
     const manaWei = manaForRemainder(remainderCents, priceCents, priceManaWei)
     if (manaBalanceWei >= manaWei) {
-      options.push({ method: 'combined', creditsCents: balanceCents, manaWei })
+      options.push({
+        method: 'combined',
+        creditsCents: balanceCents,
+        // The balance, so DOWN: showing a credit they cannot spend would overstate what this rail covers.
+        credits: usdCentsToCreditsFloor(balanceCents),
+        manaWei
+      })
     }
   }
 
   // 3. MANA alone (spends no credits) — offered whenever the MANA balance covers the whole price,
   //    even if the buyer also has enough credits: spending MANA instead of credits is their call.
   if (priceManaWei > 0n && manaBalanceWei >= priceManaWei) {
-    options.push({ method: 'mana', creditsCents: 0, manaWei: priceManaWei })
+    options.push({ method: 'mana', creditsCents: 0, credits: 0, manaWei: priceManaWei })
   }
 
   // Prefer the credits rail; then the mixed one (it still spends credits first); MANA last.
@@ -163,18 +180,6 @@ export function distributeCreditsAcrossUnits(unitCents: number[], balanceCents: 
     remaining -= take
     return take
   })
-}
-
-/**
- * Cents → credits (1 credit = 10 cents), for DISPLAY beside a MANA amount.
- *
- * NOT whole credits, despite reading like it: an odd cent value yields a fraction (15 → 1.5). That is
- * deliberate — a mixed payment's credit leg is sized to the buyer's balance, which need not land on a
- * whole credit, and `formatCredits` downstream renders the fraction. Never use this to decide what to
- * CHARGE; the cents are the money, this is the label.
- */
-export function creditsFromCents(cents: number): number {
-  return Number.isFinite(cents) ? Math.max(0, cents) / 10 : 0
 }
 
 /** Convenience: does the buyer have any way to pay for this item right now? */
