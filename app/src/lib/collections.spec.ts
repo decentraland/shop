@@ -7,7 +7,8 @@ import {
   fetchCollectionItems,
   fetchCatalogItems,
   fetchCreatorItems,
-  fetchCreatorCollections
+  fetchCreatorCollections,
+  sanitizeCollectionName
 } from '~/lib/collections'
 
 type RawItem = {
@@ -244,6 +245,14 @@ describe('when fetching a single collection by contract', () => {
 
     await expect(fetchCollection('0xabc')).rejects.toThrow('fetchCollection 500')
   })
+
+  it('should sanitize a dcl:// v1 collection name to a readable title', async () => {
+    mockFetchOk([{ contractAddress: '0xv1', name: 'dcl://cybermike_cybersoldier_set', creator: '0xartist' }])
+
+    const meta = await fetchCollection('0xv1')
+
+    expect(meta).toEqual({ contractAddress: '0xv1', name: 'Cybermike Cybersoldier Set', creator: '0xartist' })
+  })
 })
 
 describe('when fetching a creator’s published collections', () => {
@@ -307,6 +316,14 @@ describe('when fetching a creator’s published collections', () => {
     mockFetchNotOk(500)
 
     await expect(fetchCreatorCollections('0xartist')).rejects.toThrow('fetchCreatorCollections 500')
+  })
+
+  it('should sanitize dcl:// v1 collection names to readable titles', async () => {
+    mockFetchOk([{ contractAddress: '0xv1', name: 'dcl://rac_basics', creator: '0xartist', size: 5 }])
+
+    const { collections } = await fetchCreatorCollections('0xartist')
+
+    expect(collections[0].name).toBe('Rac Basics')
   })
 })
 
@@ -525,5 +542,27 @@ describe('when the catalog reports a store mint', () => {
 
     expect(items[0].manaWei).toBeUndefined()
     expect(items[0].priceCredits).toBe(11)
+  })
+})
+
+describe('sanitizeCollectionName', () => {
+  it('should convert a dcl:// URI to title-cased words', () => {
+    expect(sanitizeCollectionName('dcl://cybermike_cybersoldier_set')).toBe('Cybermike Cybersoldier Set')
+  })
+
+  it('should handle single-word slugs', () => {
+    expect(sanitizeCollectionName('dcl://atari')).toBe('Atari')
+  })
+
+  it('should handle multi-word slugs like dcl://rac_basics', () => {
+    expect(sanitizeCollectionName('dcl://rac_basics')).toBe('Rac Basics')
+  })
+
+  it('should leave non-dcl:// names unchanged', () => {
+    expect(sanitizeCollectionName('Cybermike Jump Jet Dunks')).toBe('Cybermike Jump Jet Dunks')
+  })
+
+  it('should leave empty string unchanged', () => {
+    expect(sanitizeCollectionName('')).toBe('')
   })
 })
