@@ -22,6 +22,10 @@ import { displayCredits } from '~/lib/mana-convert'
 import { useManaRate } from '~/hooks/useManaRate'
 import { t } from '~/intl/i18n'
 import { ErrorNotice } from '~/components/ErrorNotice'
+import { EmptyState } from '~/components/EmptyState'
+import collectionsEmptyIllustration from '~/assets/empty/collections-empty.svg'
+import itemsEmptyIllustration from '~/assets/empty/items-empty.svg'
+import searchEmptyIllustration from '~/assets/empty/search-empty.svg'
 import * as CP from '~/styles/collectionPage.styles'
 import * as A from './Assets.styles'
 import { Grid } from '~/styles/grid.styles'
@@ -340,9 +344,13 @@ export function Creator() {
               />
 
               {!collections.isLoading && !collections.error && collections.items.length === 0 ? (
-                <A.EmptyText>
-                  <A.EmptyBody>{t('creator.collectionsEmpty')}</A.EmptyBody>
-                </A.EmptyText>
+                <EmptyState
+                  testId="creator-collections-empty"
+                  icon={collectionsEmptyIllustration}
+                  title={t('creator.collectionsEmptyTitle')}
+                  body={t('creator.collectionsEmpty')}
+                  cta={{ label: t('assets.empty.cta'), to: '/items' }}
+                />
               ) : null}
             </>
           ) : (
@@ -388,21 +396,21 @@ export function Creator() {
               {emptyKind === 'error' ? (
                 <ErrorNotice message={t('creator.error')} testId="creator-empty-error" />
               ) : emptyKind === 'no-creations' ? (
-                <A.EmptyText>
-                  <A.EmptyBody data-testid="creator-empty-none">{t('creator.emptyNoCreations')}</A.EmptyBody>
-                </A.EmptyText>
+                <EmptyState
+                  testId="creator-empty-none"
+                  icon={itemsEmptyIllustration}
+                  title={t('creator.emptyNoCreationsTitle')}
+                  body={t('creator.emptyNoCreations')}
+                  cta={{ label: t('assets.empty.cta'), to: '/items' }}
+                />
               ) : emptyKind === 'filters' ? (
-                <A.EmptyState data-testid="creator-empty-filters">
-                  <A.EmptyText>
-                    <A.EmptyTitle>{t('creator.emptyFilters.title')}</A.EmptyTitle>
-                    <A.EmptyBody>{t('creator.emptyFilters.body', { count: baseline.data ?? 0 })}</A.EmptyBody>
-                  </A.EmptyText>
-                  <A.EmptyCta>
-                    <A.EmptyBtn type="button" onClick={clearFilters}>
-                      {t('filterBar.clearAll')}
-                    </A.EmptyBtn>
-                  </A.EmptyCta>
-                </A.EmptyState>
+                <EmptyState
+                  testId="creator-empty-filters"
+                  icon={searchEmptyIllustration}
+                  title={t('creator.emptyFilters.title')}
+                  body={t('creator.emptyFilters.body', { count: baseline.data ?? 0 })}
+                  cta={{ label: t('filterBar.clearAll'), onClick: clearFilters }}
+                />
               ) : null}
             </>
           )}

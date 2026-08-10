@@ -34,24 +34,27 @@ export const Sidebar = styled.aside`
   /* Desktop only (mobile is the off-canvas drawer below). Pin the filter column so it accompanies the
      grid's scroll, and let it scroll internally when every section is expanded instead of overflowing
      the page. The row's align-items: flex-start (Root) keeps this a content-height item, which is what
-     makes sticky able to move within the row. */
+     makes sticky able to move within the row.
+     data-static opts out (the collection storefront, whose column flows with the page). */
   ${theme.media.minWidth('lg')} {
-    position: sticky;
-    /* Sit flush below the fixed ui2 navbar (92px) + the sticky shop sub-nav (66px = its height) so the
-       sidebar tracks scroll without hiding under them or floating in a gap (see index.css). */
-    top: 158px;
-    /* Scroll inside the column when the expanded filters exceed the viewport; the 24px keeps the last
-       control clear of the screen edge. */
-    max-height: calc(100vh - 158px - 24px);
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    /* Scrollbar fully hidden (it used to fade in on hover, which read as a glitch on the dark theme).
-       Wheel/trackpad/keyboard scrolling still works; the column just never shows a bar. */
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-    &::-webkit-scrollbar {
-      width: 0;
-      display: none;
+    &:not([data-static]) {
+      position: sticky;
+      /* Sit flush below the fixed ui2 navbar (92px) + the sticky shop sub-nav (66px = its height) so
+         the sidebar tracks scroll without hiding under them or floating in a gap (see index.css). */
+      top: 158px;
+      /* Scroll inside the column when the expanded filters exceed the viewport; the 24px keeps the
+         last control clear of the screen edge. */
+      max-height: calc(100vh - 158px - 24px);
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      /* Scrollbar fully hidden (it used to fade in on hover, which read as a glitch on the dark
+         theme). Wheel/trackpad/keyboard scrolling still works; the column just never shows a bar. */
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+      &::-webkit-scrollbar {
+        width: 0;
+        display: none;
+      }
     }
   }
 
@@ -206,97 +209,5 @@ export const MarketBanner = styled.p`
   &[data-variant='warn'] {
     background: rgba(211, 51, 51, 0.1);
     color: ${theme.colors.err};
-  }
-`
-
-// Zero-results state for the grid (search/filters returned nothing) — a white rounded card centering
-// an illustration, the "Oops!" copy and an Explore Shop CTA.
-// Figma "EMpty states" (2103:412914): a translucent-black panel over the purple field, not a white
-// card — the page has no light surfaces, so a white block here read as a hole in the layout.
-export const EmptyState = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 24px;
-  padding: 48px 16px;
-  border-radius: 16px;
-  background: rgba(0, 0, 0, 0.2);
-  text-align: center;
-`
-
-export const EmptyIcon = styled.img`
-  width: 138px;
-  height: 138px;
-`
-
-export const EmptyText = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  padding-bottom: 16px;
-  color: ${theme.colors.softWhite};
-`
-
-export const EmptyTitle = styled.p`
-  margin: 0;
-  font-family: ${theme.font.sans};
-  font-weight: 700;
-  font-size: 20px;
-  line-height: 1.6;
-`
-
-export const EmptyBody = styled.p`
-  margin: 0;
-  max-width: 520px;
-  font-family: ${theme.font.sans};
-  font-weight: 400;
-  font-size: 16px;
-  line-height: 1.6;
-
-  b {
-    font-weight: 600;
-  }
-`
-
-export const EmptyCta = styled.div`
-  display: flex;
-  flex-direction: column;
-  width: 310px;
-  max-width: 100%;
-  padding-bottom: 16px;
-`
-
-export const EmptyBtn = styled.button`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  width: 100%;
-  height: 52px;
-  padding: 0 12px;
-  border: 0;
-  border-radius: 12px;
-  /* The design's own CTA here is a deeper translucent black on the panel, not a solid purple. */
-  background: rgba(0, 0, 0, 0.4);
-  color: ${theme.colors.softWhite};
-  font-family: ${theme.font.sans};
-  font-weight: 600;
-  font-size: 15px;
-  line-height: 24px;
-  letter-spacing: 0.46px;
-  text-transform: uppercase;
-  cursor: pointer;
-
-  &:hover {
-    background: rgba(0, 0, 0, 0.55);
-  }
-  &:active {
-    background: rgba(0, 0, 0, 0.65);
-  }
-  &:focus-visible {
-    outline: 2px solid ${theme.colors.softWhite};
-    outline-offset: 2px;
   }
 `

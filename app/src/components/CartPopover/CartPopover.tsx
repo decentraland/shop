@@ -2,6 +2,8 @@ import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Icon } from '~/components/Icon'
 import { CheckCircleIcon } from '~/components/Icons/CheckCircleIcon'
+import { EmptyState } from '~/components/EmptyState'
+import cartEmptyIllustration from '~/assets/empty/cart-empty.svg'
 import { useCart, type CartItem } from '~/store/cart'
 import { detailRouteFor } from '~/lib/routes'
 import type { CartNavState } from '~/pages/Cart'
@@ -159,15 +161,15 @@ export function CartPopover() {
 
         <S.Body>
           {isEmpty ? (
-            <S.Empty data-testid="cart-drawer-empty">
-              <Icon name="cart-plus" size={92} />
-              <S.EmptyText>
-                <S.EmptyTitle>{t('cart.empty.title')}</S.EmptyTitle>
-                <S.EmptyBody>{t('cart.empty.body')}</S.EmptyBody>
-              </S.EmptyText>
-              <S.EmptyCta to="/items" onClick={() => setOpen(false)}>
-                {t('cart.empty.cta')}
-              </S.EmptyCta>
+            <S.Empty>
+              <EmptyState
+                variant="light"
+                testId="cart-drawer-empty"
+                icon={cartEmptyIllustration}
+                title={t('cart.empty.title')}
+                body={t('cart.empty.body')}
+                cta={{ label: t('cart.empty.cta'), to: '/items', onClick: () => setOpen(false) }}
+              />
             </S.Empty>
           ) : null}
 

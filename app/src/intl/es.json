@@ -115,12 +115,14 @@
     "following": "Siguiendo",
     "followTitle": "Seguir al creador",
     "unfollowTitle": "Dejar de seguir al creador",
+    "emptyNoCreationsTitle": "Aquí no hay nada... ¡todavía!",
     "emptyNoCreations": "Este creador todavía no ha publicado nada.",
     "emptyFilters": {
       "title": "Ningún artículo coincide con estos filtros.",
       "body": "Este creador tiene {count, plural, one {# artículo} other {# artículos}}, pero ninguno coincide con los filtros que elegiste."
     },
     "collectionsCount": "{count, plural, one {# colección} other {# colecciones}}",
+    "collectionsEmptyTitle": "¡Aún no hay colecciones!",
     "collectionsEmpty": "Este creador todavía no ha publicado colecciones.",
     "error": "No pudimos cargar este creador. Prueba de nuevo.",
     "breadcrumbAria": "Ruta de navegación"
@@ -553,7 +555,7 @@
     "removing": "Quitando…",
     "removeListing": "Quitar de la venta",
     "putOnSale": "Poner a la venta",
-    "ownedEmpty": "Los artículos que tengas aparecerán aquí. Explora la tienda y empieza tu colección.",
+    "ownedEmpty": "Explora la Tienda y encuentra algo increíble para hacerlo tuyo.",
     "namesEmpty": "Reclama un NAME único para destacar en Decentraland — aparecerá aquí cuando sea tuyo.",
     "emptyOwnedTitle": "Todavía no hay nada aquí",
     "emptyNamesTitle": "Todavía no tienes NAMEs",

@@ -1,5 +1,4 @@
 import styled from '@emotion/styled'
-import { Link } from 'react-router-dom'
 import { Icon } from '~/components/Icon'
 import { ManaPricingBanner } from '~/components/ManaPricingBanner'
 import { noForward } from '~/styles/emotion'
@@ -203,87 +202,6 @@ export const Grid = styled.div`
   ${theme.media.maxWidth('sm')} {
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
     gap: 12px;
-  }
-`
-
-export const Empty = styled.p`
-  margin: 24px 0;
-  font-family: ${theme.font.sans};
-  font-size: 14px;
-  color: ${theme.colors.muted};
-`
-
-// Friendly empty state (centered card) shown when a section has no items.
-// The shared empty-state panel (Figma 2103:411675). This was the last one still on the light theme —
-// a near-black title and a light grey body on the purple field, in a violet-circle-plus-glyph shell
-// the design does not have.
-export const EmptyState = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 24px;
-  padding: 48px 16px;
-  border-radius: 16px;
-  background: ${theme.colors.overlayLight};
-  text-align: center;
-  color: ${theme.colors.softWhite};
-`
-export const EmptyIcon = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 138px;
-  height: 138px;
-  color: ${theme.colors.dclRed};
-`
-// Title and body are one block: 12px apart from each other, 24px from the icon and the CTA.
-export const EmptyCopy = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  padding-bottom: 16px;
-`
-
-export const EmptyTitle = styled.p`
-  margin: 0;
-  font-family: ${theme.font.sans};
-  font-size: 20px;
-  font-weight: 700;
-  line-height: 1.6;
-`
-export const EmptyText = styled.p`
-  margin: 0;
-  max-width: 520px;
-  font-family: ${theme.font.sans};
-  font-size: 16px;
-  font-weight: 400;
-  line-height: 1.6;
-`
-export const EmptyCta = styled(Link)`
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 310px;
-  max-width: 100%;
-  height: 52px;
-  padding: 0 12px;
-  border-radius: 12px;
-  background: ${theme.colors.overlay};
-  color: ${theme.colors.softWhite};
-  font-family: ${theme.font.sans};
-  font-size: 15px;
-  font-weight: 600;
-  line-height: 24px;
-  letter-spacing: 0.46px;
-  text-transform: uppercase;
-  text-decoration: none;
-  cursor: pointer;
-  transition: background 0.15s ease;
-
-  &:hover {
-    background: ${theme.colors.overlayHover};
   }
 `
 

@@ -35,6 +35,8 @@ import {
 import type { ChainId } from '@dcl/schemas'
 import { AuthorizeStep } from '~/components/AuthorizeStep'
 import manaLight from '~/assets/mana-matic-light.svg'
+import cartEmptyIllustration from '~/assets/empty/cart-empty.svg'
+import { EmptyState } from '~/components/EmptyState'
 import { ContractName, getContract, getContractName } from 'decentraland-transactions'
 import { resolveLiveTrade, fetchListings, fetchStoreMintState } from '~/lib/api'
 import { buyManyWithCredits, groupPurchases, type AnyPurchase } from '~/lib/buy'
@@ -1131,13 +1133,15 @@ export function Cart() {
             {t('nav.cart')}
           </S.Back>
 
-          <S.CartEmpty data-testid="cart-empty">
-            <Icon name="cart-plus" size={110} />
-            <S.CartEmptyText>
-              <S.CartEmptyTitle>{t('cart.empty.title')}</S.CartEmptyTitle>
-              <S.CartEmptyBody>{t('cart.empty.body')}</S.CartEmptyBody>
-            </S.CartEmptyText>
-            <S.CartEmptyCta to="/items">{t('cart.empty.cta')}</S.CartEmptyCta>
+          <S.CartEmpty>
+            <EmptyState
+              variant="light"
+              testId="cart-empty"
+              icon={cartEmptyIllustration}
+              title={t('cart.empty.title')}
+              body={t('cart.empty.body')}
+              cta={{ label: t('cart.empty.cta'), to: '/items' }}
+            />
           </S.CartEmpty>
         </S.Top>
       </S.Checkout>
