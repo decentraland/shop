@@ -914,3 +914,36 @@ describe('when a wrong network stops the buy', () => {
     expect(screen.queryByTestId('switch-and-retry')).toBeNull()
   })
 })
+
+/**
+ * Cancelling the signature has to say, on the SAME paint as the failure, that the money is coming back.
+ *
+ * It used to wait for the release round-trip: the ref was cleared synchronously and `holdReleased` only
+ * arrived when `cancelUsdIntents` resolved, so the error screen rendered with nothing but "we couldn't
+ * complete your purchase" — the reassurance landed a beat later, after the buyer had already read the bad
+ * news and, per the report, never seemed to arrive at all.
+ */
+describe('when the buyer cancels the signature', () => {
+  beforeEach(() => {
+    buyOneWithCredits.mockRejectedValue(Object.assign(new Error('User rejected the request'), { code: 4001 }))
+  })
+
+  it('should promise the credits back on the same paint as the failure', async () => {
+    // Never resolves: the release is still in flight when the error screen renders, which is exactly the
+    // window the buyer was seeing.
+    cancelUsdIntents.mockReturnValue(new Promise(() => {}))
+
+    renderResuming()
+
+    expect(await screen.findByText(/your credits are safe/i)).toBeInTheDocument()
+    expect(screen.getByText(/return to your balance/i)).toBeInTheDocument()
+  })
+
+  /**
+   * NOT covered here, and deliberately: the one case that must not promise anything is the guard
+   * withholding a credit that may already be spent. `releaseReservation` reports `true` whether the cancel
+   * request succeeds OR fails — on purpose, since an unconsumed credit returns on the server's sweep
+   * either way — so the only source of `false` is `guardRef.mayBeConsumed`, which needs a broadcast this
+   * harness cannot stage. The withdrawal path is pinned by lib/spend-guard's own specs.
+   */
+})

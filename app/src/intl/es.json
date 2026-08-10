@@ -21,13 +21,13 @@
     "cart": "Carrito"
   },
   "heldCredits": {
-    "badge": "{credits} retenidos",
     "title": "{credits} {currency} retenidos",
     "body": "{count, plural, one {Una compra que empezaste todavía los está usando.} other {Compras que empezaste todavía los están usando.}}",
     "backIn": "Vuelven en",
     "caveat": "Vuelven solos, no tenés que hacer nada. En algunos casos puede tardar hasta una hora.",
     "noEstimate": "Vuelven en breve",
-    "caveatWaiting": "Están a salvo y vuelven solos en cuanto tu compra termine de procesarse. No se pierde nada y no tenés que hacer nada."
+    "caveatWaiting": "Están a salvo y vuelven solos en cuanto tu compra termine de procesarse. No se pierde nada y no tenés que hacer nada.",
+    "onHoldLabel": "en espera"
   },
   "network": {
     "title": "Selecciona una red",
