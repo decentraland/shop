@@ -1,3 +1,4 @@
+import { ChainId, ChainName } from '@dcl/schemas'
 import { config } from '~/config'
 import type { CatalogItem } from '~/lib/api'
 
@@ -20,4 +21,32 @@ export function itemUrn(item: Pick<CatalogItem, 'contractAddress' | 'itemId' | '
 export function itemIdFromUrn(urn: string): string | null {
   const match = urn.match(/collections-v2:(0x[0-9a-fA-F]{40}):(\d+)$/)
   return match ? `${match[1].toLowerCase()}-${match[2]}` : null
+}
+
+/**
+ * WHICH NETWORK A LIST OF URNS BELONGS TO, and therefore which catalyst holds their content.
+ *
+ * An item URN names its own network, and it is not always the app's: a dev build reading the mainnet
+ * catalog (the outfit-seeds setup) lists matic items, and those live on the .org catalyst only — ask .zone
+ * for them and every one comes back missing. Off-chain URNs (base avatars, bodies) name no network and are
+ * served by both, so they never decide; the first item URN does, and the app's own chain is the fallback
+ * for a list that holds nothing but base wearables.
+ */
+export function urnNetwork(urns: string[]): ChainName.MATIC_AMOY | ChainName.MATIC_MAINNET {
+  for (const urn of urns) {
+    if (urn.includes(':amoy:')) return ChainName.MATIC_AMOY
+    if (urn.includes(':matic:')) return ChainName.MATIC_MAINNET
+  }
+  const chainId: ChainId = config.chainId
+  return chainId === ChainId.MATIC_AMOY ? ChainName.MATIC_AMOY : ChainName.MATIC_MAINNET
+}
+
+const PEER_URL_BY_NETWORK = {
+  [ChainName.MATIC_AMOY]: 'https://peer.decentraland.zone',
+  [ChainName.MATIC_MAINNET]: 'https://peer.decentraland.org'
+} as const
+
+/** The catalyst that holds the content for these urns — see `urnNetwork` for why it isn't `config.peerUrl`. */
+export function peerUrlFor(urns: string[]): string {
+  return PEER_URL_BY_NETWORK[urnNetwork(urns)]
 }

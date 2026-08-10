@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { PreviewRenderer } from '@dcl/schemas'
+import { PreviewEmote, PreviewUnityMode } from '@dcl/schemas'
 import { Button } from '~/components/Button'
 import { CreatorName } from '~/components/CreatorName'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
@@ -9,7 +9,7 @@ import { ErrorNotice } from '~/components/ErrorNotice'
 import { EmotePlaybackBar } from '~/components/EmotePlaybackBar'
 import { OutfitPreview } from '~/components/OutfitPreview'
 import { useProfile } from '~/hooks/useProfile'
-import { useTryOnAvatar } from '~/hooks/useTryOnAvatar'
+import { useOutfitAvatar } from '~/hooks/useOutfitAvatar'
 import { Icon } from '~/components/Icon'
 import { useOutfitCreatorAccess, useOutfitCart, useOutfitItems } from '~/hooks/useOutfits'
 import { useSeo } from '~/hooks/useSeo'
@@ -29,7 +29,7 @@ import {
   type Outfit,
   type OutfitItemState
 } from '~/lib/outfits'
-import { outfitPreviewUrns, playingEmote, slotOf } from '~/lib/outfit'
+import { outfitPreviewUrns, playingEmote } from '~/lib/outfit'
 import { itemUrn } from '~/lib/urn'
 import { t } from '~/intl/i18n'
 import { useCart } from '~/store/cart'
@@ -188,12 +188,11 @@ function OutfitContent({ outfit }: { outfit: Outfit }) {
     [outfit, resolution.byKey, address, cartKeys]
   )
 
-  // Preview: the whole set worn on the viewer's own avatar ('default' mannequin when signed out),
-  // regardless of purchasability — only unresolved pairs can't appear. Wait for the profile lookup
-  // so the iframe mounts once, with the final profile.
-  const { data: avatar, isFetched: profileFetched } = useProfile(address)
+  // Preview: the whole set worn with the viewer's own face and colours ('default' mannequin when signed
+  // out), regardless of purchasability — only unresolved pairs can't appear. Wait for the profile lookup
+  // so the iframe mounts once, with the final avatar.
+  const { isFetched: profileFetched } = useProfile(address)
   const profileResolved = !address || profileFetched
-  const hasAvatar = !!address && !!avatar
   const mannequinShape: BodyShapeUrn | undefined =
     outfit.bodyShape === 'female' ? BASE_FEMALE : outfit.bodyShape === 'male' ? BASE_MALE : undefined
 
@@ -205,16 +204,15 @@ function OutfitContent({ outfit }: { outfit: Outfit }) {
     const playing = playingEmote(resolvedItems)
     return playing ? itemUrn(playing) : null
   }, [resolvedItems])
-  // const _emote = playingUrn ?? PreviewEmote.FASHION
+  const emote = playingUrn ?? PreviewEmote.FASHION
   const hasEmote = !!playingUrn
-  // Unity's scene ships its own playback controls, so ours would double up. Assume Unity until the
-  // preview reports back, or the overlay flashes in before the Unity one takes over.
-  const [renderer, setRenderer] = useState<PreviewRenderer>(PreviewRenderer.UNITY)
-  const showControls = hasEmote && renderer === PreviewRenderer.BABYLON
-  // The same hide problem the fitting room had: worn on the viewer's own avatar, an equipped skin covers the
-  // outfit's body wearables and the preview shows the avatar unchanged. Composed here for the same reason.
-  const tryOnCategories = useMemo(() => resolvedItems.map(item => slotOf(item) ?? '').filter(Boolean), [resolvedItems])
-  const tryOn = useTryOnAvatar({ address, tryOnUrns: urns, tryOnCategories })
+  // Whichever renderer draws this preview, the playback bar is ours to provide: Unity ships controls of
+  // its own only in MARKETPLACE mode, and an outfit is previewed in BUILDER (see OutfitPreview).
+  const showControls = hasEmote
+  // An outfit is shown as its creator published it: the viewer's own face and colours, wearing the whole
+  // look and none of their own hat, hair or shoes (see `useOutfitAvatar`). That also settles the hide
+  // problem the fitting room has to compose around — nothing of the avatar is left to hide the outfit.
+  const tryOn = useOutfitAvatar({ address, outfitUrns: urns })
 
   const total = outfit.items.length
   const settled = !resolution.isLoading && !resolution.isError
@@ -243,14 +241,14 @@ function OutfitContent({ outfit }: { outfit: Outfit }) {
             <OutfitPreview
               id={PREVIEW_ID}
               profile={tryOn.profile}
-              bodyShape={tryOn.bodyShape ?? (hasAvatar ? undefined : mannequinShape)}
+              bodyShape={tryOn.bodyShape ?? mannequinShape}
               urns={tryOn.urns}
-              // emote={emote}
+              emote={emote}
+              unityMode={PreviewUnityMode.BUILDER}
               skin={tryOn.skin}
               hair={tryOn.hair}
               eyes={tryOn.eyes}
               enabled={profileResolved && !tryOn.isLoading && !resolution.isLoading}
-              onRenderer={setRenderer}
               controls={
                 showControls ? <EmotePlaybackBar previewId={PREVIEW_ID} testId="outfit-emote-controls" /> : null
               }
