@@ -27,7 +27,7 @@ import collectionsEmptyIllustration from '~/assets/empty/collections-empty.svg'
 import itemsEmptyIllustration from '~/assets/empty/items-empty.svg'
 import searchEmptyIllustration from '~/assets/empty/search-empty.svg'
 import * as CP from '~/styles/collectionPage.styles'
-import * as A from './Assets.styles'
+import * as A from '~/styles/browseLayout.styles'
 import { Grid } from '~/styles/grid.styles'
 import { TextSkeleton } from '~/styles/skeleton.styles'
 

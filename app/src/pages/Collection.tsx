@@ -21,7 +21,7 @@ import { useScrollTopOnChange } from '~/hooks/useScrollTopOnChange'
 import { SUBCAT_MAP } from '~/lib/categories'
 import { rarityLabel } from '~/lib/rarity'
 import * as CP from '~/styles/collectionPage.styles'
-import * as A from './Assets.styles'
+import * as A from '~/styles/browseLayout.styles'
 import { Grid } from '~/styles/grid.styles'
 import emptyIllustration from '~/assets/empty/search-empty.svg'
 

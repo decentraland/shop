@@ -58,7 +58,6 @@ import { Tooltip } from '~/components/Tooltip'
 import { ErrorNotice } from '~/components/ErrorNotice'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { Price } from '~/components/Price'
-import { formatCredits } from '~/lib/currency'
 import { Icon } from '~/components/Icon'
 import { rarityColor, rarityDescription } from '~/lib/rarity'
 import { categoryIcon, genderIcon } from '~/lib/itemIcons'
@@ -1432,7 +1431,7 @@ export function ItemDetail() {
                         {marketPriceCredits != null ? (
                           <S.CtaPrice aria-hidden>
                             <S.CtaDiamond />
-                            {formatCredits(marketPriceCredits)}
+                            <Price credits={marketPriceCredits} />
                           </S.CtaPrice>
                         ) : null}
                       </S.DetailCta>
@@ -1570,7 +1569,7 @@ export function ItemDetail() {
                             <span>{t('assetCard.buyNow')}</span>
                             <S.CtaPrice aria-hidden>
                               <S.CtaDiamond />
-                              {formatCredits(current.priceCredits)}
+                              <Price credits={current.priceCredits} />
                             </S.CtaPrice>
                           </S.DetailCta>
                         ) : null}
@@ -1593,7 +1592,7 @@ export function ItemDetail() {
                           <span>{t('assetCard.buyNow')}</span>
                           <S.CtaPrice aria-hidden>
                             <S.CtaDiamond />
-                            {formatCredits(cheapestResaleItem.priceCredits)}
+                            <Price credits={cheapestResaleItem.priceCredits} />
                           </S.CtaPrice>
                         </S.DetailCta>
                         <S.AddCart

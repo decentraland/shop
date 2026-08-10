@@ -33,7 +33,7 @@ import itemsEmptyIllustration from '~/assets/empty/items-empty.svg'
 import salesEmptyIllustration from '~/assets/empty/sales-empty.svg'
 import collectionsEmptyIllustration from '~/assets/empty/collections-empty.svg'
 import { dismissPrompt, isPromptDismissed, MANA_PRICING_PROMPT } from '~/lib/dismissed-prompts'
-import * as A from './Assets.styles'
+import * as A from '~/styles/browseLayout.styles'
 import * as F from '~/components/Filters/Filters.styles'
 import * as S from './MyAssets.styles'
 
