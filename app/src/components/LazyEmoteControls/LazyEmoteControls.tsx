@@ -1,4 +1,5 @@
 import { lazy, Suspense, type ComponentProps } from 'react'
+import * as Sentry from '@sentry/react'
 import type { EmoteControls as EmoteControlsComponent } from 'decentraland-ui2/dist/components/WearablePreview/EmoteControls'
 
 // Play/pause + sound + scrub controls for the emote preview. Lazy so it (and its decentraland-ui2
@@ -37,8 +38,10 @@ const EmoteControlsLazy = lazy(async () => {
 
 export function EmoteControls(props: ComponentProps<typeof EmoteControlsComponent>) {
   return (
-    <Suspense fallback={null}>
-      <EmoteControlsLazy {...props} />
-    </Suspense>
+    <Sentry.ErrorBoundary fallback={<></>}>
+      <Suspense fallback={null}>
+        <EmoteControlsLazy {...props} />
+      </Suspense>
+    </Sentry.ErrorBoundary>
   )
 }

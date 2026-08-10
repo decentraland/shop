@@ -57,13 +57,13 @@ export const Bar = styled.div`
     font-size: 20px;
     margin: 0;
   }
-  & .MuiBox-root > .MuiButtonBase-root:first-child {
+  & .MuiBox-root > .MuiButtonBase-root:first-of-type {
     width: 34px;
     height: 34px;
     background: ${colors.accent} !important;
     color: ${colors.white};
   }
-  & .MuiBox-root > .MuiButtonBase-root:first-child:hover {
+  & .MuiBox-root > .MuiButtonBase-root:first-of-type:hover {
     background: ${colors.text} !important;
   }
   & .MuiBox-root > input + .MuiButtonBase-root {
