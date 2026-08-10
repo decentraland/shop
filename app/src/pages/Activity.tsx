@@ -24,6 +24,7 @@ import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { formatCredits } from '~/lib/currency'
 import creditsProduct from '~/assets/credits-product.svg'
 import manaSymbol from '~/assets/mana-matic.svg'
+import nameGlyph from '~/assets/names/name-glyph.svg'
 import { Icon } from '~/components/Icon'
 import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
@@ -163,6 +164,33 @@ function OrderLine({ item }: { item: OrderLineItem }) {
   )
 }
 
+/**
+ * A NAME registration. Its own component rather than a branch inside OrderLine, because it resolves
+ * NOTHING: the intent carries the name itself, and there is no marketplace record to look up — a NAME is
+ * not a collection item, and it mints on Ethereum rather than the chain the credit settled on.
+ *
+ * Not a link either. The detail route builds from a collection contract plus an id, which a NAME has
+ * neither of, so there is nowhere for it to point.
+ */
+function NameOrderLine({ item }: { item: OrderLineItem }) {
+  const label = `@${item.registeredName}`
+
+  return (
+    <S.Line data-testid="activity-name-line">
+      <S.NameThumb>
+        <img src={nameGlyph} alt="" />
+      </S.NameThumb>
+      <S.LineInfo>
+        <S.LineName title={label}>{label}</S.LineName>
+        <S.LineMeta>{t('activity.nameRegistration')}</S.LineMeta>
+      </S.LineInfo>
+      <S.LinePrice>
+        <CurrencyIcon className="ccy-mark" /> {item.credits}
+      </S.LinePrice>
+    </S.Line>
+  )
+}
+
 function OrderCard({ order }: { order: PurchaseOrder }) {
   const lineItems = foldOrderLines(order.lines)
   const itemCount = lineItems.reduce((n, l) => n + l.quantity, 0)
@@ -191,9 +219,9 @@ function OrderCard({ order }: { order: PurchaseOrder }) {
           who cannot see that said so has no reason to believe it. */}
       {pill === 'FAILED' ? <S.FailedNote>{t('activity.purchaseFailedNote')}</S.FailedNote> : null}
       <S.Lines>
-        {lineItems.map(item => (
-          <OrderLine key={item.key} item={item} />
-        ))}
+        {lineItems.map(item =>
+          item.registeredName ? <NameOrderLine key={item.key} item={item} /> : <OrderLine key={item.key} item={item} />
+        )}
       </S.Lines>
     </S.Card>
   )

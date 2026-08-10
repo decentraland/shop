@@ -100,6 +100,7 @@ function record(overrides: Partial<PurchaseRecord> = {}): PurchaseRecord {
     tradeId: 't-' + Math.random().toString(36).slice(2),
     contractAddress: null,
     itemId: null,
+    registeredName: null,
     usdCents: 100,
     credits: 10,
     status: 'SETTLED',
@@ -208,6 +209,55 @@ describe('when the user has no activity', () => {
   it('should show the empty state', async () => {
     renderPage()
     expect(await screen.findByText('No activity yet')).toBeInTheDocument()
+  })
+})
+
+/**
+ * A NAME registration is the one purchase with no trade AND no item: it is not a collection item, and it
+ * mints on Ethereum rather than the chain the credit settled on. Until the intent carried the name itself
+ * there was nothing to resolve, and the feed showed a bare "Item" for the buyer's NAME.
+ */
+describe('when a NAME was registered', () => {
+  beforeEach(() => {
+    fetchUserPurchases.mockResolvedValue({
+      items: [record({ id: 'n1', tradeId: null, registeredName: 'mauri', credits: 66, txHash: '0xname' })],
+      total: 1
+    })
+  })
+
+  it('should name the NAME instead of falling back to a generic item', async () => {
+    renderPage()
+
+    expect(await screen.findByText('@mauri')).toBeInTheDocument()
+    expect(screen.queryByText('Item')).not.toBeInTheDocument()
+  })
+
+  it('should label the line as a NAME registration and show what it cost', async () => {
+    renderPage()
+    await screen.findByText('@mauri')
+
+    const line = screen.getByTestId('activity-name-line')
+    expect(line).toHaveTextContent('Decentraland NAME')
+    expect(line).toHaveTextContent('66')
+  })
+
+  // There is no marketplace record behind a NAME, so asking for one would be a guaranteed miss — and a
+  // pending lookup is what renders the skeleton the buyer would otherwise be left staring at.
+  it('should not attempt to resolve it against the marketplace', async () => {
+    renderPage()
+    await screen.findByText('@mauri')
+
+    expect(fetchTradeDisplay).not.toHaveBeenCalled()
+    expect(fetchAssetDisplay).not.toHaveBeenCalled()
+  })
+
+  // The detail route needs a collection contract plus an id; a NAME has neither, so a link would be dead.
+  it('should not link anywhere', async () => {
+    renderPage()
+    await screen.findByText('@mauri')
+
+    expect(screen.getByTestId('activity-name-line').querySelector('a')).toBeNull()
+    expect(screen.getByTestId('activity-name-line').closest('a')).toBeNull()
   })
 })
 

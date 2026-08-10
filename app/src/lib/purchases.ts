@@ -102,6 +102,7 @@ export type OrderLineItem = {
   tradeId: string | null
   contractAddress: string | null
   itemId: string | null
+  registeredName: string | null
   quantity: number
   credits: number
 }
@@ -125,6 +126,7 @@ export function foldOrderLines(lines: PurchaseRecord[]): OrderLineItem[] {
         tradeId: null,
         contractAddress: line.contractAddress ?? null,
         itemId: line.itemId ?? null,
+        registeredName: line.registeredName ?? null,
         quantity: 1,
         credits: line.credits
       })
@@ -141,6 +143,7 @@ export function foldOrderLines(lines: PurchaseRecord[]): OrderLineItem[] {
       tradeId: line.tradeId,
       contractAddress: line.contractAddress ?? null,
       itemId: line.itemId ?? null,
+      registeredName: line.registeredName ?? null,
       quantity: 1,
       credits: line.credits
     }

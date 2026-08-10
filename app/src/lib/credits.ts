@@ -95,7 +95,11 @@ export async function authorizeUsdCredit(
   // What is being bought, as opposed to how it settles. Recorded on the intent so the buyer's purchase
   // history can name it: a CollectionStore mint has no trade, so this is the only thing the Activity feed
   // can resolve a name and thumbnail from. The server accepts it only as a complete pair.
-  item?: { contractAddress: string; itemId: string }
+  item?: { contractAddress: string; itemId: string },
+  // The NAME a registration buys. Neither `tradeId` nor `item` can describe one — a NAME is not a
+  // collection item and does not mint on the chain the credit settles on — so without this the buyer's
+  // history has no identity for the line at all and shows a bare "Item".
+  registeredName?: string
 ): Promise<AuthorizeResult> {
   const url = `${config.creditsServerUrl}/credits/authorize`
   const res = await signedFetch(url, {
@@ -105,7 +109,13 @@ export async function authorizeUsdCredit(
     headers: { 'Content-Type': 'application/json' },
     // `source` declares the surface this purchase comes from ('website' here, 'client' for the Explorer),
     // so the server can tell the two apart in its records. Servers predating the field ignore it.
-    body: JSON.stringify({ usdPriceCents, tradeId, source: 'website', ...(item ? item : {}) })
+    body: JSON.stringify({
+      usdPriceCents,
+      tradeId,
+      source: 'website',
+      ...(item ? item : {}),
+      ...(registeredName ? { name: registeredName } : {})
+    })
   })
   if (!res.ok) throw new Error(`authorizeUsdCredit ${res.status}: ${await res.text()}`)
   return res.json() as Promise<AuthorizeResult>
@@ -125,6 +135,11 @@ export type PurchaseRecord = {
    */
   contractAddress: string | null
   itemId: string | null
+  /**
+   * The NAME this purchase registered, without the `.dcl.eth` suffix. Null for every other purchase, and
+   * for NAME rows recorded before the server stored it — those stay generic.
+   */
+  registeredName: string | null
   usdCents: number
   credits: number
   status: 'PENDING' | 'SETTLED' | 'EXPIRED'
@@ -177,6 +192,7 @@ export async function fetchUserPurchases(
     // absent-value to check instead of two.
     contractAddress: p.contractAddress ?? null,
     itemId: p.itemId ?? null,
+    registeredName: p.registeredName ?? null,
     // Absent against a server that predates the submission column. Null means "no attempt to show", which
     // is exactly how the feed treated every EXPIRED row before this existed — so an old server degrades to
     // the old behaviour instead of to a wrong one.

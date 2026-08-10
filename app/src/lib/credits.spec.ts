@@ -169,7 +169,16 @@ describe('when fetching the buyer purchase history', () => {
     // the payload), the item identity and the submission hash, all of which an older server omits entirely.
     // One absent-value for every consumer to check instead of both null and undefined.
     expect(result.items).toEqual([
-      { ...purchases[0], txHash: null, contractAddress: null, itemId: null, submittedTxHash: null }
+      {
+        ...purchases[0],
+        txHash: null,
+        contractAddress: null,
+        itemId: null,
+        // Absent against a server predating the column, normalised to null like the two above so every
+        // consumer has one absent-value to check.
+        registeredName: null,
+        submittedTxHash: null
+      }
     ])
     expect(signedFetch.mock.calls[0][0]).toBe('https://credits.example/users/0xabc/purchases')
   })
