@@ -86,9 +86,9 @@ export function HeldCredits({ held }: { held: Held | undefined }) {
         onFocus={show}
         onBlur={hideUnlessFocusMovedInside}
       >
-        <Icon name="clock" size={13} data-held-clock aria-hidden />
+        <Icon name="clock" size={15} data-held-clock aria-hidden />
         {formatCredits(held.credits)}
-        <CurrencyIcon size={12} />
+        <CurrencyIcon size={14} />
         {t('heldCredits.onHoldLabel')}
       </S.Trigger>
 
