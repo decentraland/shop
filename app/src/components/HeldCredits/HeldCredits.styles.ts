@@ -20,14 +20,18 @@ const breathe = keyframes`
 export const Trigger = styled.button`
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
+  gap: 8px;
+  /* Same 40px box and 0/16 padding as GET CREDITS and the search field it sits between: a control half the
+     height of its neighbours reads as a stray tag rather than part of the row — and at 13px the currency
+     mark beside the figure was too small to be legible as one. */
+  height: 40px;
+  padding: 0 16px;
   border: 0;
   border-radius: ${radius.pill};
   background: ${colors.promptAmber};
   color: ${colors.blackBtn};
   font-family: ${font.sans};
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   line-height: 1;
   cursor: pointer;
