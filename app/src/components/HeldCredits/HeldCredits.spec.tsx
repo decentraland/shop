@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, waitFor, act } from '@testing-library/react'
+import { render, screen, waitFor, act, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { HeldCredits } from './HeldCredits'
 import type { HeldCredits as Held } from '~/lib/credits'
@@ -51,14 +51,19 @@ describe('when credits are held', () => {
   it('should say how many, without the buyer having to open anything', () => {
     renderBadge(heldAt(300))
 
-    expect(screen.getByTestId('held-credits-trigger')).toHaveTextContent('3 on hold')
+    // The figure and its unit, then the label — "3 on hold" alone reads as three of something unstated,
+    // sitting next to a balance counted in credits.
+    expect(screen.getByTestId('held-credits-trigger')).toHaveTextContent(/3\s*on hold/)
+    // The unit is an icon span, not text — assert it is actually beside the figure rather than trusting
+    // the label alone.
+    expect(screen.getByTestId('held-credits-trigger').querySelectorAll('.ico').length).toBeGreaterThan(1)
   })
 
   it('should explain why and count down to the soonest they can return', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     renderBadge(heldAt(125))
 
-    await user.click(screen.getByTestId('held-credits-trigger'))
+    await user.hover(screen.getByTestId('held-credits-trigger'))
 
     expect(screen.getByTestId('held-credits-panel')).toHaveTextContent('A purchase you started is still using them.')
     expect(screen.getByTestId('held-credits-countdown')).toHaveTextContent('2:05')
@@ -67,7 +72,7 @@ describe('when credits are held', () => {
   it('should tick down as time passes', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     renderBadge(heldAt(125))
-    await user.click(screen.getByTestId('held-credits-trigger'))
+    await user.hover(screen.getByTestId('held-credits-trigger'))
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(5000)
@@ -84,7 +89,7 @@ describe('when credits are held', () => {
   it('should never claim the credits are back once the countdown runs out', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     renderBadge(heldAt(2))
-    await user.click(screen.getByTestId('held-credits-trigger'))
+    await user.hover(screen.getByTestId('held-credits-trigger'))
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(10_000)
@@ -105,21 +110,59 @@ describe('when credits are held', () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     renderBadge(heldAt(null))
 
-    await user.click(screen.getByTestId('held-credits-trigger'))
+    await user.hover(screen.getByTestId('held-credits-trigger'))
 
     expect(screen.queryByTestId('held-credits-countdown')).not.toBeInTheDocument()
     expect(screen.getByTestId('held-credits-unknown')).toBeInTheDocument()
     expect(screen.getByTestId('held-credits-panel')).toHaveTextContent('Nothing is lost')
     // The amount is still stated: what is held is known even when the timing is not.
-    expect(screen.getByTestId('held-credits-trigger')).toHaveTextContent('3 on hold')
+    expect(screen.getByTestId('held-credits-trigger')).toHaveTextContent(/3\s*on hold/)
   })
 
   it('should state the worst case rather than imply the countdown is a guarantee', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     renderBadge(heldAt(300))
 
-    await user.click(screen.getByTestId('held-credits-trigger'))
+    await user.hover(screen.getByTestId('held-credits-trigger'))
 
     expect(screen.getByTestId('held-credits-panel')).toHaveTextContent('return on their own')
+  })
+})
+
+/**
+ * It opens on HOVER. A click was one interaction too many for a badge whose whole job is to explain, at a
+ * glance, why the balance above it is short — and the panel says nothing a buyer has to act on.
+ */
+describe('how the panel opens', () => {
+  it('should open on hover and close on leave', async () => {
+    const user = userEvent.setup()
+    renderBadge(heldAt(300))
+    const trigger = screen.getByTestId('held-credits-trigger')
+
+    await user.hover(trigger)
+    expect(screen.getByTestId('held-credits-panel')).toBeInTheDocument()
+
+    await user.unhover(trigger)
+    expect(screen.queryByTestId('held-credits-panel')).toBeNull()
+  })
+
+  // Hover alone would put this out of reach of anyone navigating by keyboard, and it is the only place the
+  // missing credits are explained.
+  it('should open on keyboard focus too', async () => {
+    renderBadge(heldAt(300))
+
+    fireEvent.focus(screen.getByTestId('held-credits-trigger'))
+
+    expect(screen.getByTestId('held-credits-panel')).toBeInTheDocument()
+  })
+
+  it('should not open on click alone', async () => {
+    const user = userEvent.setup()
+    renderBadge(heldAt(300))
+
+    await user.click(screen.getByTestId('held-credits-trigger'))
+    await user.unhover(screen.getByTestId('held-credits-trigger'))
+
+    expect(screen.queryByTestId('held-credits-panel')).toBeNull()
   })
 })

@@ -550,8 +550,17 @@ export function BuyModal({
       // The submit is over: the decision now rests on what was actually reported.
       guardRef.current.submitFinished(lk.credit.id)
       if (!isUserRejection(e)) captureError(e, { flow: 'buy', step: 'submit', gasless: usedGasless })
+      /**
+       * Said BEFORE the release round-trip, because the error screen paints synchronously below. Waiting on
+       * the release meant the buyer read "we couldn't complete your purchase" with no word about their money,
+       * and the reassurance arrived a beat later — after the moment it was needed.
+       *
+       * Corrected DOWN only: `false` from the release means the guard kept the credit because it may already
+       * be spent, and promising it back would be a lie at the worst possible moment.
+       */
+      setHoldReleased(true)
       void releaseReservation([lk.credit.id]).then(released => {
-        if (released) setHoldReleased(true)
+        if (!released) setHoldReleased(false)
       })
       reservedCreditIdRef.current = null
       track(isUserRejection(e) ? 'Shop Purchase Cancelled' : 'Shop Purchase Failed', {
@@ -654,8 +663,9 @@ export function BuyModal({
     if (reservedCreditIdRef.current) {
       // Handed back because THIS rail spends MANA instead — and if the MANA leg then fails, the error
       // screen still owes the buyer an explanation for the balance that just moved.
+      setHoldReleased(true)
       void releaseReservation([reservedCreditIdRef.current]).then(released => {
-        if (released) setHoldReleased(true)
+        if (!released) setHoldReleased(false)
       })
       reservedCreditIdRef.current = null
     }
@@ -740,10 +750,12 @@ export function BuyModal({
       if (partialCreditId) guardRef.current.submitFinished(partialCreditId)
       // The partial reservation never settled → release the dollars instead of stranding them. Guarded, so a
       // broadcast whose outcome is unknown is left alone.
-      if (partialCreditId)
+      if (partialCreditId) {
+        setHoldReleased(true)
         void releaseReservation([partialCreditId]).then(released => {
-          if (released) setHoldReleased(true)
+          if (!released) setHoldReleased(false)
         })
+      }
       if (!isUserRejection(e)) captureError(e, { flow: 'buy_credits_and_mana', step: 'submit' })
       track(isUserRejection(e) ? 'Shop Purchase Cancelled' : 'Shop Purchase Failed', {
         step: 'submit',
