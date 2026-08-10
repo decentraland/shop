@@ -143,6 +143,8 @@ export type CatalogItemsFilters = {
   category?: string
   // One creator's whole body of work (their storefront grid).
   creator?: string
+  // One collection's items (the collection storefront grid).
+  contractAddress?: string
   rarities?: string[]
   wearableCategories?: string[]
   search?: string
@@ -162,6 +164,7 @@ export async function fetchCatalogItems({
   skip = 0,
   category,
   creator,
+  contractAddress,
   rarities,
   wearableCategories,
   search,
@@ -181,6 +184,7 @@ export async function fetchCatalogItems({
   // return the unfiltered feed, which reads as a broken filter.
   if (category === 'wearable' || category === 'emote') qs.set('category', category)
   if (creator) qs.set('creator', creator)
+  if (contractAddress) qs.set('contractAddress', contractAddress)
   rarities?.forEach(r => qs.append('rarity', r))
   wearableCategories?.forEach(c => qs.append('wearableCategory', c))
   if (search) qs.set('search', search)
