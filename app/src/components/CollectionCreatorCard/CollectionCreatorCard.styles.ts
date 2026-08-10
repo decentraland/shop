@@ -43,29 +43,6 @@ export const Name = styled.h2`
   white-space: nowrap;
 `
 
-// The short address with a copy icon; the whole chip is the copy button.
-export const Account = styled.button`
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 8px;
-  border: 0;
-  border-radius: ${radius.btn};
-  background: none;
-  color: ${colors.gray4};
-  font: inherit;
-  font-size: 14px;
-  cursor: pointer;
-  transition:
-    color 0.15s ease,
-    background 0.15s ease;
-
-  &:hover {
-    color: ${colors.white};
-    background: rgba(255, 255, 255, 0.12);
-  }
-`
-
 export const View = styled.a`
   display: inline-flex;
   align-items: center;

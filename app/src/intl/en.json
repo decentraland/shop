@@ -46,6 +46,10 @@
     "items": "Items",
     "byCreator": "By {name}"
   },
+  "common": {
+    "copy": "Copy",
+    "copied": "Copied"
+  },
   "collection": {
     "breadcrumb": "Collectibles",
     "fallbackTitle": "Collection",
