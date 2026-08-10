@@ -57,3 +57,34 @@ export async function fetchProfile(address: string): Promise<ProfileAvatar | und
   const profile = (await res.json()) as { avatars?: ProfileAvatar[] }
   return profile?.avatars?.[0]
 }
+
+/**
+ * Profiles for many addresses in ONE request (Catalyst lambdas `POST /lambdas/profiles`).
+ *
+ * The single-address GET above is right for a page about one creator; a ranking has to know something
+ * about every candidate before it can choose between them, and thirty sequential GETs to pick eight is
+ * not that. Missing profiles are simply absent from the response, so callers get a partial map rather
+ * than a hole per address.
+ *
+ * Keyed by LOWERCASED address: the Catalyst echoes `ethAddress` back in its own casing, and the caller's
+ * address comes from a different system entirely.
+ */
+export async function fetchProfiles(addresses: string[]): Promise<Map<string, ProfileAvatar>> {
+  const ids = addresses.map(address => address.toLowerCase())
+  const byAddress = new Map<string, ProfileAvatar>()
+  if (ids.length === 0) return byAddress
+
+  const res = await fetch(`${config.peerUrl}/lambdas/profiles`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids })
+  })
+  if (!res.ok) throw new Error(`fetchProfiles ${res.status}`)
+
+  const profiles = (await res.json()) as { avatars?: ProfileAvatar[] }[]
+  for (const profile of profiles ?? []) {
+    const avatar = profile?.avatars?.[0]
+    if (avatar?.ethAddress) byAddress.set(avatar.ethAddress.toLowerCase(), avatar)
+  }
+  return byAddress
+}

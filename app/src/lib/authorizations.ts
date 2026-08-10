@@ -13,6 +13,7 @@ import { config } from '~/config'
 import { gaslessConfig } from '~/lib/gasless-config'
 import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import { confirmMetaTx } from '~/lib/tx-confirm'
+import { captureError } from '~/lib/monitoring'
 import { requireChain } from '~/lib/network'
 
 // The shop's on-chain approvals ("authorizations"). Mirrors the marketplace's decentraland-dapps
@@ -76,13 +77,32 @@ export type ShopAuthorization = {
 // Read the current on-chain state of an authorization. For ALLOWANCE, "active" means a non-zero
 // allowance; for APPROVAL/MINTER it's the boolean operator flag. Reads go through the target-chain
 // RPC, never the wallet's current network.
-export async function getAuthorizationStatus(auth: ShopAuthorization, owner: string): Promise<boolean> {
+/**
+ * Is this authorization already in place?
+ *
+ * `requiredWei` matters for an ALLOWANCE, which is an amount and not a flag. Asked without it the answer is
+ * only "some allowance exists", and a leftover approval from a cheaper purchase passes — so the caller skips
+ * its approval step, and then the purchase prompts for one anyway when it finds the allowance too small.
+ * That is a buyer signing twice with only the second signature explained.
+ *
+ * A NON-POSITIVE amount falls back to that amountless question rather than being asked literally: `gte(0)`
+ * holds for every allowance, including none at all, so a caller that could not size the purchase would get
+ * a zero allowance reported as approved — weaker than asking nothing. No caller can defeat the check by
+ * passing 0.
+ */
+export async function getAuthorizationStatus(
+  auth: ShopAuthorization,
+  owner: string,
+  requiredWei?: bigint
+): Promise<boolean> {
   const provider = readProvider()
   switch (auth.kind) {
     case AuthorizationKind.Allowance: {
       const erc20 = new ethers.Contract(auth.contractAddress, ERC20_ABI, provider) as Erc20Contract
       const allowance = await erc20.allowance(owner, auth.spenderAddress)
-      return allowance.gt(0)
+      // No usable amount → the old question ("is there any?"), for callers with nothing to spend yet.
+      if (requiredWei == null || requiredWei <= 0n) return allowance.gt(0)
+      return allowance.gte(requiredWei.toString())
     }
     case AuthorizationKind.Approval: {
       const erc721 = new ethers.Contract(auth.contractAddress, ERC721_ABI, provider) as Erc721Contract
@@ -213,7 +233,7 @@ export async function setAuthorization(opts: {
       // calls this builds ASSIGN a fixed value — approve to MaxUint256 or 0, setApprovalForAll and
       // setMinters to a boolean — so a pending relay plus a direct re-submission lands on the same state
       // instead of applying the operation twice.
-      console.warn('[authorizations] gasless meta-tx failed, falling back to a direct tx:', e)
+      captureError(e, { flow: 'authorizations', step: 'gasless_fallback' })
     }
   }
 
@@ -253,9 +273,16 @@ export async function setAuthorization(opts: {
 export async function ensureAuthorization(opts: {
   auth: ShopAuthorization
   signer: ethers.providers.JsonRpcSigner
+  /**
+   * What the action is about to spend, for an ALLOWANCE. Without it this asks only whether SOME allowance
+   * exists, so one left over from a cheaper purchase passes, no approve is sent, and the marketplace
+   * `accept` / store `buy` then reverts on transferFrom. Managed wallets hit that with no approval step in
+   * front of it at all, so there is nothing for the buyer to read either.
+   */
+  requiredWei?: bigint
 }): Promise<void> {
   const owner = await opts.signer.getAddress()
-  const authorized = await getAuthorizationStatus(opts.auth, owner)
+  const authorized = await getAuthorizationStatus(opts.auth, owner, opts.requiredWei)
   if (authorized) return
   await setAuthorization({ auth: opts.auth, signer: opts.signer, active: true })
 }

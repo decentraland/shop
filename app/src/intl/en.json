@@ -20,6 +20,15 @@
     "getCredits": "Buy {currency}",
     "cart": "Cart"
   },
+  "heldCredits": {
+    "title": "{credits} {currency} on hold",
+    "body": "{count, plural, one {A purchase you started is still using them.} other {Purchases you started are still using them.}}",
+    "backIn": "Back in",
+    "caveat": "They return on their own — you don't need to do anything. It can occasionally take up to an hour.",
+    "noEstimate": "Coming back shortly",
+    "caveatWaiting": "They are safe and will return on their own once your purchase finishes processing. Nothing is lost and there is nothing for you to do.",
+    "onHoldLabel": "on hold"
+  },
   "network": {
     "title": "Select a network",
     "current": "Network: {network}",
@@ -191,8 +200,7 @@
     "allUnavailable": "None of these items are available anymore. Remove them to keep shopping.",
     "availability": {
       "soldOut": "Out of stock",
-      "unavailable": "No longer available",
-      "viewResales": "View Resales"
+      "unavailable": "No longer available"
     },
     "youMightAlsoLike": "You might also like",
     "error": {
@@ -227,13 +235,16 @@
     "creditsAdded": "Added to your account",
     "buyMore": "Buy more {currency}",
     "startShopping": "Start shopping",
-    "pendingTitle": "Your {currency} are on the way",
+    "pendingTitle": "Your {currency} are on the way!",
+    "goShopping": "Go shopping",
+    "gotIt": "Got it",
     "pendingBody": "Your payment went through. It’s taking a little longer than usual to confirm — your balance will update automatically as soon as it lands, no need to pay again.",
     "done": "Done",
     "errorTitle": "Something went wrong",
     "tryAgain": "Try again",
     "errorCanceled": "You cancelled the request.",
     "errorSignIn": "Sign in to get {currency}.",
+    "errorSignInAfterPay": "Your payment went through. Sign in with the same wallet to see your {currency}.",
     "errorTimeout": "This is taking longer than usual — your {currency} will appear shortly.",
     "errorGeneric": "Couldn’t complete your purchase — please try again.",
     "errorGrant": "Couldn’t add your {currency} — please try again."
@@ -302,7 +313,8 @@
     "manaReason": "Let the Shop use your MANA to pay for this purchase. This is a one-time approval — you won’t be asked again.",
     "note": "No gas fees, and you stay in control — you can turn this off anytime from Approvals.",
     "errorRejected": "You dismissed the approval. Click Authorize to try again.",
-    "errorGeneric": "Couldn’t complete the approval — please try again."
+    "errorGeneric": "Couldn’t complete the approval — please try again.",
+    "stepOf": "Approval {index} of {total}"
   },
   "buyModal": {
     "titleBuy": "Buy Item",
@@ -326,13 +338,11 @@
     "methodCombined": "Credits + MANA",
     "buyWithMana": "Buy with MANA",
     "buyWith": "Buy with",
-    "manaRate": "1 credit = {mana} MANA",
     "manaDetail": "Pays the full {credits} credits price with {mana} MANA",
     "combinedDetail": "{credits} of your credits + {mana} MANA for the remaining {remainder}",
     "creditsBalanceLabel": "Credits Balance:",
     "manaBalanceLabel": "Mana Balance:",
     "notEnoughMana": "Not enough MANA",
-    "manaWorth": "Your {mana} MANA is worth about {credits} {currency} — the {price} {currency} total needs more",
     "completingPurchase": "Completing Purchase…",
     "completingTransaction": "Completing your purchase…",
     "confirmToContinue": "Confirm to continue…",
@@ -342,8 +352,13 @@
     "itemFallback": "Item",
     "error": {
       "generic": "Couldn't complete the purchase — please try again.",
-      "creditsCheckout": "Couldn't start the credits checkout — please try again."
-    }
+      "creditsCheckout": "Couldn't start the credits checkout — please try again.",
+      "relayDownNoRail": "We couldn't complete the purchase — please try again in a few minutes. Your credits weren't spent; any hold on them is released shortly.",
+      "switchAndRetry": "Switch to {network} and retry"
+    },
+    "manaPriceUnavailable": "We couldn't check the MANA price right now, so paying with MANA isn't available for this purchase. Try again in a moment.",
+    "priceChanged": "The price for this item changed while you were here. Check the new amount and confirm to continue.",
+    "heldExplainer": "{credits} of your {currency} are on hold from a purchase you already started, so they aren't available right now. They come back on their own — check the badge in the menu bar."
   },
   "cartCheckout": {
     "titleBuy": "Buy Items",
@@ -354,13 +369,17 @@
     "errorTitle": "Oops! Something went wrong",
     "errorHeadline": "We couldn't complete your purchase this time.",
     "errorBody": "Don't worry, your credits are safe. Please try again in a moment.",
+    "heldLead": "Don't worry, your {currency} are safe. They weren't used and will automatically ",
+    "heldBold": "return to your balance within 5 to 15 minutes",
+    "heldTail": ". No action is needed. You can try again once your {currency} are back.",
+    "gotIt": "Got it",
     "tryAgain": "Try again",
     "confirmMultiple": "Confirm {current} of {total} approvals"
   },
   "marketCheckout": {
     "finalPrice": "Final price",
-    "lockedForPurchase": "Locked for this purchase",
     "todaysPrice": "Today’s price",
+    "checkingListing": "Checking this listing…",
     "lockingPrice": "Locking today’s price…",
     "yourBalance": "Your balance:",
     "needMore": "You’ll need a few more {currency} to buy this.",
@@ -561,14 +580,14 @@
     "putOnSale": "Put on sale",
     "ownedEmpty": "Explore the Shop and find something awesome to make it yours.",
     "namesEmpty": "Claim a unique NAME to stand out in Decentraland — it’ll appear here once it’s yours.",
-    "emptyOwnedTitle": "Nothing here yet",
+    "emptyOwnedTitle": "Nothing here... yet!",
     "emptyNamesTitle": "No NAMEs yet",
-    "emptyCreationsTitle": "No creations yet",
-    "emptyBrowse": "Browse Collectibles",
+    "emptyCreationsTitle": "No collections yet!",
+    "emptyBrowse": "Explore Shop",
     "creationsTitle": "Your creations",
     "creationsSub": "Items you made. Put them on sale in the Shop — set a price in {currency} and buyers pay with {currency}.",
     "collectionsError": "We couldn’t load your collections right now. Please try again in a moment.",
-    "nothingToPublish": "You don’t have any items to publish yet.",
+    "nothingToPublish": "Create your first collection and start organizing your favourite items.",
     "available": "{count, number} available",
     "assetsHeading": "Items",
     "sectionWearables": "Wearables",
@@ -595,6 +614,7 @@
     "soldTo": "Sold to {account}",
     "approxValue": "Approximate value in credits",
     "itemFallback": "Item",
+    "nameRegistration": "Decentraland NAME",
     "signInTitle": "Sign in to see your activity",
     "signInBody": "Your purchases and sales show up here once you sign in.",
     "emptyTitle": "Nothing here... yet!",
@@ -617,7 +637,9 @@
     "unfinished": "Unfinished",
     "resume": "Continue",
     "resuming": "Opening…",
-    "resumeExpired": "That checkout has expired — pick a pack to start again."
+    "resumeExpired": "That checkout has expired — pick a pack to start again.",
+    "resumePaid": "You already paid for this — your credits are on the way.",
+    "resumeUnavailable": "Couldn't open the payment page. Please try again."
   },
   "myFavorites": {
     "emptyTitle": "Nothing here... yet!",
@@ -675,7 +697,8 @@
     "bannerAdded": "successfully added to cart!",
     "total": "Total: {count, plural, one {# item} other {# items}}",
     "goToCart": "Go to cart",
-    "checkout": "Checkout"
+    "checkout": "Checkout",
+    "continueShopping": "Continue shopping"
   },
   "filterBar": {
     "sortNewest": "Newest",
@@ -827,7 +850,8 @@
     "title": "Meet Our Top Creators",
     "viewCreations": "View creations",
     "viewCreationsBy": "View creations by {name}",
-    "stats": "{collections, plural, one {# collection} other {# collections}} | {items, plural, one {# item} other {# items}}"
+    "catalogue": "{collections} Collections | {items} Items",
+    "totalSales": "Total sales: {sales}"
   },
   "loadMore": {
     "loading": "Loading…",
@@ -1073,7 +1097,8 @@
     "confirmBody": "You’ve selected {name}. Re-enter the NAME to confirm your selection and continue with your purchase.",
     "reenterAria": "Re-enter the NAME to confirm",
     "buyCta": "Buy NAME",
-    "completing": "Completing your purchase…",
+    "completing": "Completing transaction…",
+    "processingRegistering": "Registering your NAME on Ethereum — this can take a few minutes.",
     "confirming": "Confirm to continue…",
     "successHeaderTitle": "Purchase complete!",
     "successBannerBold": "Your purchase was successful!",

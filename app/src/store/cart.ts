@@ -115,6 +115,8 @@ export const useCart = create<CartState>()(
           contract_address: item.contractAddress,
           price_credits: item.priceCredits,
           price_usd: creditsToUsd(item.priceCredits),
+          category: item.category,
+          is_smart: item.isSmart ?? false,
           is_primary: isPrimary,
           source,
           cart_size: items.length,

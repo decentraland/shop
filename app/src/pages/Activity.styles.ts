@@ -501,3 +501,21 @@ export const EmptyBody = styled.p`
   margin: 0;
   color: ${theme.colors.softWhite};
 `
+
+/**
+ * The row thumbnail for a NAME, carrying the identity of the NAME card rather than a generic media box:
+ * the amethyst gradient and the glyph, so it reads as a NAME at a glance.
+ *
+ * The card's own name text is deliberately NOT reproduced inside. That tile is 137px with an 18px label;
+ * at this row's 52px the same proportion lands on 7px, which is decoration rather than information. The
+ * name is already beside it at full size, where it can actually be read.
+ */
+export const NameThumb = styled(Thumb)`
+  background: ${theme.gradients.amethyst};
+
+  img {
+    width: 26px;
+    height: 26px;
+    object-fit: contain;
+  }
+`

@@ -77,3 +77,15 @@ export const ChooseTotal = styled.div`
     color: ${colors.text};
   }
 `
+
+/* Same amber notice as the PDP's payment step — one explanation, one look, wherever the buyer meets it. */
+export const HeldNotice = styled.p`
+  margin: 12px 0 0;
+  background: rgba(255, 162, 90, 0.3);
+  border-radius: ${theme.radius.btn};
+  padding: 12px 16px;
+  font-family: ${theme.font.sans};
+  font-size: 14px;
+  line-height: 1.334;
+  color: ${theme.colors.text2};
+`

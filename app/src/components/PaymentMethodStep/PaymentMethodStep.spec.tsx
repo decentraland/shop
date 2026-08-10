@@ -20,7 +20,12 @@ const PRICE_CENTS = 1000
 const PRICE_MANA = 500n * 10n ** 18n
 const mana = (n: number) => BigInt(n) * 10n ** 18n
 
-function setup(over: { balanceCents?: number; manaBalanceWei?: bigint; priceManaWei?: bigint }) {
+function setup(over: {
+  balanceCents?: number
+  manaBalanceWei?: bigint
+  priceManaWei?: bigint
+  notice?: string | null
+}) {
   const balanceCents = over.balanceCents ?? 0
   const manaBalanceWei = over.manaBalanceWei ?? 0n
   const priceManaWei = over.priceManaWei ?? PRICE_MANA
@@ -35,9 +40,9 @@ function setup(over: { balanceCents?: number; manaBalanceWei?: bigint; priceMana
       priceManaWei={priceManaWei}
       balanceCredits={balanceCents / 10}
       manaBalanceWei={manaBalanceWei}
-      shortfall={computed.manaShortfall}
       onBuy={onBuy}
       onClose={vi.fn()}
+      notice={over.notice}
     />
   )
   return { onBuy }
@@ -146,24 +151,45 @@ describe('PaymentMethodStep', () => {
     })
   })
 
+  /**
+   * The rate is never shown. MANA is oracle-priced and the oracle differs per network, so a quoted
+   * "1 credit = N MANA" is a number the shop cannot stand behind between one read and the next — and a
+   * buyer who reads it as a promise is being misled. What the buyer is charged is on the button; the rate
+   * that produced it is not theirs to reconcile.
+   */
   describe('the exchange rate', () => {
-    it('should state how much MANA one credit is worth', () => {
-      // 500 MANA for 100 credits → 5 MANA per credit.
+    it('should never quote a MANA-per-credit rate', () => {
       setup({ balanceCents: PRICE_CENTS, manaBalanceWei: PRICE_MANA })
-      expect(screen.getByTestId('mana-rate-note').textContent).toMatch(/1 credit = 5 MANA/i)
-    })
 
-    it('should omit the rate when the MANA price is unknown', () => {
-      setup({ balanceCents: PRICE_CENTS, manaBalanceWei: PRICE_MANA, priceManaWei: 0n })
       expect(screen.queryByTestId('mana-rate-note')).toBeNull()
+      expect(document.body.textContent).not.toMatch(/1 credit =/i)
     })
   })
 
   describe('held MANA that cannot pay', () => {
-    it('should say what the balance is worth instead of leaving the row unexplained', () => {
-      // 1 MANA against a 500-MANA price: worth a fraction of a credit.
+    // The row still needs a reason — a silently unusable rail reads as a bug. The reason is the shortfall
+    // itself, never what the balance converts to.
+    it('should say the balance is short, without converting it to credits', () => {
       setup({ balanceCents: PRICE_CENTS, manaBalanceWei: mana(1) })
-      expect(screen.getByTestId('mana-shortfall-note').textContent).toMatch(/worth about/i)
+
+      expect(screen.getByTestId('mana-shortfall-note').textContent).toMatch(/not enough mana/i)
+      expect(document.body.textContent).not.toMatch(/worth about/i)
+    })
+  })
+
+  /**
+   * How the buy flow tells a buyer their price moved before they pay it. The step is the whole card in
+   * that state, so without a slot here the message would have nowhere to appear at all.
+   */
+  describe('a notice the buyer has to read', () => {
+    it('should render it above the confirm button', () => {
+      setup({ balanceCents: PRICE_CENTS, notice: 'The price changed.' })
+      expect(screen.getByTestId('price-changed').textContent).toBe('The price changed.')
+    })
+
+    it('should render nothing when there is none', () => {
+      setup({ balanceCents: PRICE_CENTS })
+      expect(screen.queryByTestId('price-changed')).toBeNull()
     })
   })
 })

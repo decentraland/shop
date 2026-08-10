@@ -127,6 +127,20 @@ describe('analytics wrapper', () => {
     expect(p.is_primary).toBe(false)
   })
 
+  it('purchaseItemsProps carries per-item category so a basket can be split by asset type', () => {
+    const p = purchaseItemsProps([item({ category: 'wearable', isSmart: true }), item({ id: 't2', category: 'emote' })])
+    const items = p.items as Array<{ category: string; is_smart: boolean }>
+    expect(items.map(i => i.category)).toEqual(['wearable', 'emote'])
+    expect(items[0].is_smart).toBe(true)
+    expect(items[1].is_smart).toBe(false)
+  })
+
+  it('itemProps carries category and is_smart', () => {
+    const p = itemProps(item({ category: 'emote' }))
+    expect(p.category).toBe('emote')
+    expect(p.is_smart).toBe(false)
+  })
+
   it('errorCode / isUserRejection bucket errors coarsely', () => {
     expect(errorCode({ code: 4001 })).toBe('user_rejected')
     expect(isUserRejection({ message: 'User denied the request' })).toBe(true)

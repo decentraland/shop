@@ -16,13 +16,14 @@
 
 import { ethers } from 'ethers'
 import { type Trade } from '@dcl/schemas'
-import { ContractName, ErrorCode, MetaTransactionError, getContract, getContractName } from 'decentraland-transactions'
+import { ContractName, ErrorCode, MetaTransactionError, getContract } from 'decentraland-transactions'
 import { config } from '~/config'
+import { captureError } from '~/lib/monitoring'
 import { gaslessConfig } from '~/lib/gasless-config'
-import { buildUseCreditsArgs, type SpendableCredit } from '~/lib/trade-encoding'
+import { type SpendableCredit } from '~/lib/trade-encoding'
 // The grouping and the per-group calldata live in ~/lib/buy so BOTH rails build the money call the same
 // way. buy.ts does not import this module, so the dependency runs one way only.
-import { buildGroupUseCreditsArgs, groupPurchases, type MixedPurchases } from '~/lib/buy'
+import { buildGroupUseCreditsArgs, groupPurchases, type AnyPurchase, type MixedPurchases } from '~/lib/buy'
 import { reportSubmittedTx } from '~/lib/purchase-report'
 
 const { Interface, hexZeroPad } = ethers.utils
@@ -86,6 +87,44 @@ function chainIdSalt(chainId: number): string {
   return hexZeroPad(ethers.utils.hexlify(chainId), 32)
 }
 
+/**
+ * Report a relayer failure to Sentry.
+ *
+ * This flow's highest-signal failure produced nothing at all in Sentry: a refusal is an HTTP 400 the
+ * caller turns into a typed error, never an uncaught exception, and the surrounding `ignoreErrors`
+ * drops anything matching /denied|reject|cancel/i. A buyer on a Ledger hit the same refusal four
+ * times in three minutes and the only trace anywhere was a 400 in the transactions-server's log; we
+ * found out because she told someone.
+ *
+ * The relayer's message carries the decoded gas-estimation failure — for that buyer it held the
+ * revert that identified the bug — so it is the single most useful field here.
+ *
+ * Both failure modes are reported, tagged with `reason`. `relayer-unreachable` is noisier — a flaky
+ * network or an offline buyer looks the same as a relayer outage from here — but it is also the mode
+ * where the meta-tx MAY have been broadcast before the connection died, so losing it is worse than
+ * the noise. Separate the two when alerting on `reason`, not by dropping one at the source.
+ */
+function reportRelayerFailure(
+  reason: 'relayer-rejected' | 'relayer-unreachable',
+  message: string,
+  buyer: string,
+  target: string,
+  httpStatus?: number
+) {
+  captureError(new Error(`gasless relay ${reason}: ${message}`), {
+    // `flow`/`step` (and `http_status`) are the fields Sentry INDEXES as tags — see lib/monitoring's
+    // `tagsFrom`. Named anything else, these would land in `extra`, which cannot be searched, grouped or
+    // charted: the failure would be readable one event at a time and countable never. `reason` is the
+    // step here because "which way did the relay fail" is exactly the facet worth splitting on.
+    flow: 'gasless_relay',
+    step: reason,
+    relayerMessage: message,
+    buyer,
+    target,
+    http_status: httpStatus
+  })
+}
+
 // executeMetaTransaction(address _userAddress, bytes _functionData, bytes _signature) calldata.
 function encodeExecuteMetaTransaction(
   cmAbi: unknown[],
@@ -145,9 +184,38 @@ async function relay(
     if (err?.code === 4001 || err?.code === 'ACTION_REJECTED' || /denied|reject|cancel/i.test(msg)) {
       throw new MetaTransactionError(msg, ErrorCode.USER_DENIED)
     }
-    // A contract wallet that can't personal-sign → fall back to normal (gas-paying) checkout.
+    /**
+     * The wallet could not sign, and it was not a cancellation.
+     *
+     * Reported because this is the one failure in the flow that leaves NO trace anywhere: it never
+     * reaches the relayer, so the transactions-server logs nothing, and the credits-server only ever
+     * sees the reservation quietly expire. A buyer hit exactly this ("the signing method wasn't
+     * supported", a hardware wallet refusing eth_signTypedData_v4) and there was no way to see how,
+     * because the message existed only in her browser.
+     *
+     * `reason: 'contract-account'` is kept on the thrown error for the caller's fallback decision but is a
+     * misnomer here — a hardware wallet is not a contract account. The `step` below records what actually
+     * happened so the two are distinguishable in Sentry; separating them in the TYPE is a behaviour change
+     * and belongs in its own PR.
+     *
+     * Reported under `flow`/`step` like every other call here, and not under a name of its own: those are
+     * the two fields `tagsFrom` promotes to tags. Anything else lands in `extra`, which Sentry does not
+     * index — so the one failure that leaves no trace anywhere would also have been the one nobody could
+     * search for.
+     */
+    captureError(e, { flow: 'gasless_relay', step: 'signing_failed', walletMessage: msg, buyer, target: cm.address })
     throw new GaslessUnavailableError(msg, 'contract-account')
   }
+  // Wallets disagree on the recovery id. Most return v as 27/28; some — several hardware-wallet and
+  // WalletConnect paths — return 0/1. The CreditsManager recovers with OpenZeppelin's ECDSA, which
+  // rejects anything outside {27,28} with ECDSAInvalidSignature(), so an unnormalized 0/1 fails gas
+  // estimation at the relayer and the purchase dies AFTER the buyer has already signed. It looks like
+  // a random failure because it depends entirely on which wallet the buyer uses.
+  //
+  // splitSignature accepts either form and normalizes the recovery id; joinSignature repacks the
+  // canonical 65 bytes. Cheap, and a no-op for a wallet that was already returning 27/28.
+  signature = ethers.utils.joinSignature(ethers.utils.splitSignature(signature))
+
   // Signature obtained (the wallet prompt is dismissed) — the purchase now settles on-chain. Callers
   // use this to flip the UI from "confirm in your wallet" to "completing transaction".
   onSigned?.()
@@ -165,14 +233,18 @@ async function relay(
     body = (await res.json()) as RelayerResponse
     if (!res.ok && body?.ok !== true && !body?.txHash) {
       // A parsed body with no hash: an answer, and the answer is no.
+      reportRelayerFailure('relayer-rejected', body?.message ?? `relayer ${res.status}`, buyer, cm.address, res.status)
       throw new GaslessUnavailableError(body?.message ?? `relayer ${res.status}`, 'relayer-rejected')
     }
   } catch (e) {
     if (e instanceof GaslessUnavailableError) throw e
     // No usable response — the request may have been submitted before this failed. Not the same as a refusal.
-    throw new GaslessUnavailableError((e as Error)?.message ?? 'relayer unreachable', 'relayer-unreachable')
+    const msg = (e as Error)?.message ?? 'relayer unreachable'
+    reportRelayerFailure('relayer-unreachable', msg, buyer, cm.address)
+    throw new GaslessUnavailableError(msg, 'relayer-unreachable')
   }
   if (body?.ok === false || !body?.txHash) {
+    reportRelayerFailure('relayer-rejected', body?.message ?? 'relayer rejected the transaction', buyer, cm.address)
     throw new GaslessUnavailableError(body?.message ?? 'relayer rejected the transaction', 'relayer-rejected')
   }
   return body.txHash
@@ -240,15 +312,29 @@ export async function buyGasless(opts: {
   credits: SpendableCredit[]
   maxCreditedValue: string
 }): Promise<string> {
-  if (!gaslessConfig.enabled) throw new GaslessUnavailableError('gasless checkout disabled', 'disabled')
   const { trade, buyer, signer, credits, maxCreditedValue } = opts
-  if (credits.length === 0) throw new Error('No credits to spend')
+  return buyOneGasless({ purchase: { kind: 'trade', trade, credits, maxCreditedValue }, buyer, signer })
+}
 
-  const marketplace = getContract(getContractName(trade.contract), trade.chainId)
-  const args = buildUseCreditsArgs(marketplace.address, marketplace.abi, [trade], buyer, credits, maxCreditedValue)
-  const cm = getContract(ContractName.CreditsManager, trade.chainId)
+/**
+ * Gasless single-purchase buy for EITHER rail — an offchain trade or a CollectionStore mint. The relayed
+ * counterpart to lib/buy's `buyOneWithCredits`, and the reason a mint can be bought from the item page
+ * without the buyer holding POL: `buildGroupUseCreditsArgs` builds both kinds of call, so the item page's
+ * Buy now reaches the relayer for a mint exactly as a cart containing one does.
+ */
+export async function buyOneGasless(opts: {
+  purchase: AnyPurchase
+  buyer: string
+  signer: ethers.Signer
+}): Promise<string> {
+  if (!gaslessConfig.enabled) throw new GaslessUnavailableError('gasless checkout disabled', 'disabled')
+  const { purchase, buyer, signer } = opts
+  if (purchase.credits.length === 0) throw new Error('No credits to spend')
+
+  const { args, chainId } = buildGroupUseCreditsArgs(groupPurchases([purchase])[0], buyer)
+  const cm = getContract(ContractName.CreditsManager, chainId)
   const functionData = new Interface(cm.abi).encodeFunctionData('useCredits', [args])
-  return relay(trade.chainId, buyer, functionData, signer)
+  return relay(chainId, buyer, functionData, signer)
 }
 
 /**

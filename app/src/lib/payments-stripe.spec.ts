@@ -89,6 +89,59 @@ describe('when polling a real credit grant', () => {
     expect(signedFetch).toHaveBeenCalledTimes(3)
   })
 
+  /**
+   * 'crediting' is the grant IN FLIGHT — the money is in, the ledger write has started. It reached this
+   * client as an unknown status: the poll returned it on the first read and every branch on the page fell
+   * through to "we couldn't add your credits", shown to somebody who had just been charged.
+   */
+  it('and the grant is in flight (crediting) it should keep polling rather than return it as a final answer', async () => {
+    signedFetch
+      .mockResolvedValueOnce(ok({ status: 'crediting' }))
+      .mockResolvedValueOnce(ok({ status: 'crediting' }))
+      .mockResolvedValueOnce(ok({ status: 'credited', creditsGranted: 100, newBalance: 100 }))
+
+    const result = await pollCreditGrantReal('ord_crediting', IDENTITY, { intervalMs: 1 })
+
+    expect(result.status).toBe('credited')
+    expect(signedFetch).toHaveBeenCalledTimes(3)
+  })
+
+  it('and the deadline passes while crediting it should return pending — the money is in and the grant can still land', async () => {
+    signedFetch.mockResolvedValueOnce(ok({ status: 'crediting' }))
+
+    const result = await pollCreditGrantReal('ord_crediting_slow', IDENTITY, { intervalMs: 1, timeoutMs: -1 })
+
+    expect(result).toEqual({ status: 'pending' })
+  })
+
+  /**
+   * 'initiated' is the opposite of the two above: NOBODY HAS PAID. It still has to be polled through,
+   * because the Stripe return can beat the webhook that moves the order off it — bailing on the first read
+   * would tell a buyer who did pay that they had not.
+   */
+  it('and the order is still initiated it should keep polling, because the return can beat the webhook', async () => {
+    signedFetch
+      .mockResolvedValueOnce(ok({ status: 'initiated' }))
+      .mockResolvedValueOnce(ok({ status: 'processing' }))
+      .mockResolvedValueOnce(ok({ status: 'credited', creditsGranted: 40, newBalance: 40 }))
+
+    const result = await pollCreditGrantReal('ord_initiated_race', IDENTITY, { intervalMs: 1 })
+
+    expect(result.status).toBe('credited')
+    expect(signedFetch).toHaveBeenCalledTimes(3)
+  })
+
+  it('and the deadline passes while still initiated it should NOT claim credits are on the way for an unpaid order', async () => {
+    signedFetch.mockResolvedValueOnce(ok({ status: 'initiated' }))
+
+    const result = await pollCreditGrantReal('ord_unpaid', IDENTITY, { intervalMs: 1, timeoutMs: -1 })
+
+    // 'pending' is the "your credits are on the way" answer. No payment was ever reported against this
+    // order, so promising credits here is the exact lie the server split 'initiated' out to prevent.
+    expect(result.status).not.toBe('pending')
+    expect(result.status).toBe('initiated')
+  })
+
   it('should return a failed status when the order reports failed', async () => {
     signedFetch.mockResolvedValueOnce(ok({ status: 'failed', error: 'charge failed' }))
 

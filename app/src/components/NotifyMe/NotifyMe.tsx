@@ -84,9 +84,9 @@ export function NotifyMe({ item }: { item: CatalogItem }) {
   if (!session) {
     return (
       <S.Root data-testid="notify">
-        <S.PurpleBtn type="button" data-full onClick={signIn} data-testid="notify-signin">
+        <S.NotifyBtn type="button" data-full onClick={signIn} data-testid="notify-signin">
           {t('notifyMe.signInCta')}
-        </S.PurpleBtn>
+        </S.NotifyBtn>
       </S.Root>
     )
   }
@@ -116,9 +116,9 @@ export function NotifyMe({ item }: { item: CatalogItem }) {
           onChange={e => setEmail(e.target.value)}
           data-testid="notify-email"
         />
-        <S.PurpleBtn type="submit" disabled={!isEmailish(email) || submitting} data-testid="notify-submit">
+        <S.NotifyBtn type="submit" disabled={!isEmailish(email) || submitting} data-testid="notify-submit">
           {submitting ? t('notifyMe.working') : t('notifyMe.cta')}
-        </S.PurpleBtn>
+        </S.NotifyBtn>
       </S.Row>
       <ErrorNotice message={error} />
     </S.Form>

@@ -337,47 +337,80 @@ export const PrimaryBtn = styled.button`
 `
 
 // Processing (completing) state.
+// Centred in the space the card gives it, logo above the label — the 32px is the gap Figma sets between
+// the mark and the text block, and the 8px inside StatusBlock is the one between the label and the bar.
 export const Processing = styled.div`
   display: flex;
+  flex: 1;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 20px;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
   padding: 32px 0 8px;
 `
 
 export const Logo = styled.img`
-  align-self: center;
-  width: 56px;
-  height: 56px;
+  width: 61px;
+  height: 61px;
+`
+
+export const StatusBlock = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
 `
 
 export const ProcessingText = styled.div`
   font-family: ${theme.font.sans};
   font-weight: 700;
-  font-size: 18px;
-  color: ${theme.colors.text};
+  font-size: 20px;
+  line-height: 1.6;
+  color: ${theme.colors.text2};
+  text-align: center;
+`
+
+// The long cross-chain leg is minutes, not seconds. Saying so is what stops a wait that is going exactly
+// to plan from reading as a purchase that hung — the label above stays on the step's own name.
+export const ProcessingNote = styled.p`
+  max-width: 400px;
+  font-family: ${theme.font.sans};
+  font-size: 14px;
+  line-height: 1.57;
+  color: ${theme.colors.muted};
+  text-align: center;
 `
 
 export const ProgressRow = styled.div`
   display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: center;
+  gap: 8px;
   width: 100%;
 `
 
+/**
+ * Indeterminate on purpose, despite the counter beside it.
+ *
+ * The counter says which step of the purchase this is; the bar says something is still happening. Neither
+ * step has a knowable duration — the registration leg is a bridge and an Ethereum mint — so a determinate
+ * fill would have to either sit frozen at a made-up percentage or creep on a timer that knows nothing.
+ */
 export const Progress = styled.div`
   flex: 1;
-  height: 8px;
-  border-radius: 999px;
-  background: ${theme.colors.chip};
+  max-width: 400px;
+  height: 10px;
+  border-radius: 100px;
+  background: rgba(0, 0, 0, 0.1);
   overflow: hidden;
 
   span {
     display: block;
     height: 100%;
-    width: 40%;
-    border-radius: 999px;
-    background: ${theme.gradients.amethyst};
+    width: 33%;
+    border-radius: 100px;
+    background: ${theme.gradients.buyBtn};
     animation: nameProgress 1.1s ease-in-out infinite;
   }
 
@@ -389,13 +422,21 @@ export const Progress = styled.div`
       transform: translateX(320%);
     }
   }
+
+  @media (prefers-reduced-motion: reduce) {
+    span {
+      width: 33%;
+      animation: none;
+    }
+  }
 `
 
 export const ProgressCount = styled.span`
   flex: none;
   font-family: ${theme.font.sans};
-  font-size: 14px;
-  color: ${theme.colors.muted};
+  font-size: 16px;
+  line-height: 22px;
+  color: ${theme.colors.text2};
 `
 
 // Success banner.

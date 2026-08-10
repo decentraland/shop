@@ -106,8 +106,11 @@ export const config = {
   // ENVIRONMENT field ('development' | 'staging' | 'production') — NOT chainId, since dev+stg both
   // run on 80002 and would collapse into a single tag.
   sentryEnvironment: env.VITE_SENTRY_ENVIRONMENT ?? base.get('ENVIRONMENT'),
-  // Release tag — MUST match the source-map upload's release (vite plugin / CI). e.g. "shop@1.2.3".
-  sentryRelease: env.VITE_SENTRY_RELEASE ?? `shop@${env.VITE_APP_VERSION ?? '0.0.0-dev'}`,
+  // Release tag — MUST match the source-map upload's release, so Sentry can apply the maps and show a
+  // readable stack. It now comes from the SAME const the vite plugin uploads under, injected at build
+  // time (`define` in vite.config). It used to read VITE_APP_VERSION, which no build ever set: every
+  // production event was stamped `shop@0.0.0-dev`, matched no uploaded map, and stayed minified.
+  sentryRelease: __SENTRY_RELEASE__,
   // Decentraland feature-flag service. Per-env (dev/stg → .zone, prod → .org) rather than the hardcoded
   // `.org` the decentraland-dapps helper uses, because the point of a flag here is enabling on Amoy while
   // prod stays off. See lib/featureFlags.ts.

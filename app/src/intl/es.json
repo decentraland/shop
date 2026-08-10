@@ -20,6 +20,15 @@
     "getCredits": "Comprar {currency}",
     "cart": "Carrito"
   },
+  "heldCredits": {
+    "title": "{credits} {currency} retenidos",
+    "body": "{count, plural, one {Una compra que empezaste todavía los está usando.} other {Compras que empezaste todavía los están usando.}}",
+    "backIn": "Vuelven en",
+    "caveat": "Vuelven solos, no tenés que hacer nada. En algunos casos puede tardar hasta una hora.",
+    "noEstimate": "Vuelven en breve",
+    "caveatWaiting": "Están a salvo y vuelven solos en cuanto tu compra termine de procesarse. No se pierde nada y no tenés que hacer nada.",
+    "onHoldLabel": "en espera"
+  },
   "network": {
     "title": "Selecciona una red",
     "current": "Red: {network}",
@@ -187,12 +196,11 @@
     "totalItems": "Total: {count, plural, one {# artículo} other {# artículos}}",
     "working": "Procesando…",
     "signInHint": "Te pediremos que inicies sesión primero.",
-    "priceChanged": "Los precios o la disponibilidad cambiaron desde que los agregaste. Revisa el total actualizado y confirma para comprar.",
+    "priceChanged": "Los precios o la disponibilidad cambiaron desde que los añadiste. Revisa el total actualizado y confirma para comprar.",
     "allUnavailable": "Ninguno de estos artículos está disponible. Elimínalos para seguir comprando.",
     "availability": {
       "soldOut": "Agotado",
-      "unavailable": "Ya no está disponible",
-      "viewResales": "Ver reventas"
+      "unavailable": "Ya no está disponible"
     },
     "youMightAlsoLike": "También te puede gustar",
     "error": {
@@ -227,13 +235,16 @@
     "creditsAdded": "Añadidos a tu cuenta",
     "buyMore": "Comprar más {currency}",
     "startShopping": "Empezar a comprar",
-    "pendingTitle": "Tus {currency} están en camino",
+    "pendingTitle": "¡Tus {currency} están en camino!",
+    "goShopping": "Ir a comprar",
+    "gotIt": "Entendido",
     "pendingBody": "Tu pago se procesó correctamente. Está tardando un poco más de lo habitual en confirmarse; tu saldo se actualizará automáticamente en cuanto llegue, no necesitas pagar de nuevo.",
     "done": "Listo",
     "errorTitle": "Algo salió mal",
     "tryAgain": "Intentar de nuevo",
     "errorCanceled": "Cancelaste la solicitud.",
     "errorSignIn": "Inicia sesión para conseguir {currency}.",
+    "errorSignInAfterPay": "Tu pago se procesó. Inicia sesión con la misma wallet para ver tus {currency}.",
     "errorTimeout": "Esto está tardando más de lo habitual; tus {currency} aparecerán en breve.",
     "errorGeneric": "No pudimos completar tu compra. Inténtalo de nuevo.",
     "errorGrant": "No pudimos añadir tus {currency}. Inténtalo de nuevo."
@@ -269,7 +280,7 @@
     "yourItem": "Tu artículo",
     "manage": "Gestionar",
     "inCart": "En el carrito",
-    "addToCart": "Agregar al carrito",
+    "addToCart": "Añadir al carrito",
     "notForSale": "No en venta",
     "view": "Ver"
   },
@@ -302,7 +313,8 @@
     "manaReason": "Permite que el Shop use tu MANA para pagar esta compra. Es una aprobación única — no te lo volveremos a pedir.",
     "note": "Sin comisiones de gas, y tú mantienes el control — puedes desactivarla cuando quieras desde Autorizaciones.",
     "errorRejected": "Descartaste la aprobación. Haz clic en Autorizar para intentarlo de nuevo.",
-    "errorGeneric": "No se pudo completar la aprobación. Inténtalo de nuevo."
+    "errorGeneric": "No se pudo completar la aprobación. Inténtalo de nuevo.",
+    "stepOf": "Aprobación {index} de {total}"
   },
   "buyModal": {
     "titleBuy": "Comprar artículo",
@@ -326,13 +338,11 @@
     "methodCombined": "Créditos + MANA",
     "buyWithMana": "Comprar con MANA",
     "buyWith": "Comprar con",
-    "manaRate": "1 crédito = {mana} MANA",
     "manaDetail": "Paga el precio completo de {credits} créditos con {mana} MANA",
     "combinedDetail": "{credits} de tus créditos + {mana} MANA por los {remainder} restantes",
     "creditsBalanceLabel": "Saldo de créditos:",
     "manaBalanceLabel": "Saldo de MANA:",
     "notEnoughMana": "MANA insuficiente",
-    "manaWorth": "Tus {mana} MANA valen unos {credits} {currency} — el total de {price} {currency} necesita más",
     "completingPurchase": "Completando la compra…",
     "completingTransaction": "Completando tu compra…",
     "confirmToContinue": "Confirma para continuar…",
@@ -342,8 +352,13 @@
     "itemFallback": "Artículo",
     "error": {
       "generic": "No pudimos completar la compra. Inténtalo de nuevo.",
-      "creditsCheckout": "No pudimos iniciar el pago de créditos. Inténtalo de nuevo."
-    }
+      "creditsCheckout": "No pudimos iniciar el pago de créditos. Inténtalo de nuevo.",
+      "relayDownNoRail": "No pudimos completar la compra. Prueba de nuevo en unos minutos: no se gastaron tus créditos y la retención se libera en breve.",
+      "switchAndRetry": "Cambiar a {network} y reintentar"
+    },
+    "manaPriceUnavailable": "No pudimos consultar el precio de MANA en este momento, así que pagar con MANA no está disponible para esta compra. Prueba de nuevo en un instante.",
+    "priceChanged": "El precio de este artículo cambió mientras estabas aquí. Revisa el nuevo importe y confirma para continuar.",
+    "heldExplainer": "{credits} de tus {currency} están retenidos por una compra que ya empezaste, así que ahora no están disponibles. Vuelven solos — mirá el indicador en la barra de menú."
   },
   "cartCheckout": {
     "titleBuy": "Comprar artículos",
@@ -354,13 +369,17 @@
     "errorTitle": "¡Ups! Algo salió mal",
     "errorHeadline": "No pudimos completar tu compra esta vez.",
     "errorBody": "Tranquilo, tus créditos están a salvo. Inténtalo de nuevo en un momento.",
+    "heldLead": "Tranquilo, tus {currency} están a salvo. No se usaron y ",
+    "heldBold": "volverán a tu balance en 5 a 15 minutos",
+    "heldTail": " automáticamente. No tienes que hacer nada. Puedes intentarlo otra vez cuando vuelvan.",
+    "gotIt": "Entendido",
     "tryAgain": "Reintentar",
     "confirmMultiple": "Confirma {current} de {total} aprobaciones"
   },
   "marketCheckout": {
     "finalPrice": "Precio final",
-    "lockedForPurchase": "Fijado para esta compra",
     "todaysPrice": "Precio de hoy",
+    "checkingListing": "Comprobando esta publicación…",
     "lockingPrice": "Fijando el precio de hoy…",
     "yourBalance": "Tu saldo:",
     "needMore": "Necesitarás algunos {currency} más para comprar esto.",
@@ -561,14 +580,14 @@
     "putOnSale": "Poner a la venta",
     "ownedEmpty": "Explora la Tienda y encuentra algo increíble para hacerlo tuyo.",
     "namesEmpty": "Reclama un NAME único para destacar en Decentraland — aparecerá aquí cuando sea tuyo.",
-    "emptyOwnedTitle": "Todavía no hay nada aquí",
+    "emptyOwnedTitle": "¡Todavía no hay nada aquí!",
     "emptyNamesTitle": "Todavía no tienes NAMEs",
-    "emptyCreationsTitle": "Todavía no hay creaciones",
-    "emptyBrowse": "Ver coleccionables",
+    "emptyCreationsTitle": "¡Aún no tienes colecciones!",
+    "emptyBrowse": "Explorar la Tienda",
     "creationsTitle": "Tus creaciones",
     "creationsSub": "Artículos que creaste. Ponlos a la venta en la tienda: fija un precio en {currency} y los compradores pagan con {currency}.",
     "collectionsError": "No pudimos cargar tus colecciones en este momento. Inténtalo de nuevo en un momento.",
-    "nothingToPublish": "Todavía no tienes artículos para publicar.",
+    "nothingToPublish": "Crea tu primera colección y empieza a organizar tus artículos favoritos.",
     "available": "{count, plural, one {# disponible} other {# disponibles}}",
     "assetsHeading": "Artículos",
     "sectionWearables": "Wearables",
@@ -595,6 +614,7 @@
     "soldTo": "Vendido a {account}",
     "approxValue": "Valor aproximado en créditos",
     "itemFallback": "Artículo",
+    "nameRegistration": "NAME de Decentraland",
     "signInTitle": "Inicia sesión para ver tu actividad",
     "signInBody": "Tus compras y ventas aparecerán aquí cuando inicies sesión.",
     "emptyTitle": "Aquí no hay nada... ¡todavía!",
@@ -617,7 +637,9 @@
     "unfinished": "Sin terminar",
     "resume": "Continuar",
     "resuming": "Abriendo…",
-    "resumeExpired": "Ese pago expiró: elige un paquete para empezar de nuevo."
+    "resumeExpired": "Ese pago expiró: elige un paquete para empezar de nuevo.",
+    "resumePaid": "Ya pagaste esto: tus créditos están en camino.",
+    "resumeUnavailable": "No pudimos abrir la página de pago. Inténtalo de nuevo."
   },
   "myFavorites": {
     "emptyTitle": "¡Aquí no hay nada... todavía!",
@@ -641,9 +663,9 @@
     "trendingProducts": "Productos en tendencia",
     "newCreations": "Nuevas creaciones",
     "readyToUseAvatars": "Avatares listos para usar",
-    "addLook": "Agregar al carrito",
-    "addLookLoading": "Agregando…",
-    "addLookDone": "Agregado",
+    "addLook": "Añadir al carrito",
+    "addLookLoading": "Añadiendo…",
+    "addLookDone": "Añadido",
     "promoEmotesAria": "Exprésate con estilo: explora los emotes",
     "promoEmotesAlt": "Exprésate con estilo",
     "expressWithStyle": "Exprésate\ncon estilo",
@@ -675,7 +697,8 @@
     "bannerAdded": "añadido al carrito correctamente.",
     "total": "Total: {count, plural, one {# artículo} other {# artículos}}",
     "goToCart": "Ir al carrito",
-    "checkout": "Finalizar compra"
+    "checkout": "Finalizar compra",
+    "continueShopping": "Seguir comprando"
   },
   "filterBar": {
     "sortNewest": "Más recientes",
@@ -746,7 +769,7 @@
       "maxItems": "Un outfit puede tener hasta 20 artículos.",
       "remove": "Quitar",
       "playsInPreview": "Se reproduce en la vista previa",
-      "needsWearable": "Agrega al menos una prenda para publicar.",
+      "needsWearable": "Añade al menos una prenda para publicar.",
       "pickerCategory": "Qué explorar",
       "searchWearables": "Busca prendas…",
       "searchEmotes": "Busca emotes…",
@@ -827,7 +850,8 @@
     "title": "Conoce a nuestros mejores creadores",
     "viewCreations": "Ver creaciones",
     "viewCreationsBy": "Ver las creaciones de {name}",
-    "stats": "{collections, plural, one {# colección} other {# colecciones}} | {items, plural, one {# artículo} other {# artículos}}"
+    "catalogue": "{collections} Colecciones | {items} Artículos",
+    "totalSales": "Ventas totales: {sales}"
   },
   "loadMore": {
     "loading": "Cargando…",
@@ -1073,7 +1097,8 @@
     "confirmBody": "Has elegido {name}. Vuelve a escribir el NAME para confirmar tu selección y continuar con la compra.",
     "reenterAria": "Vuelve a escribir el NAME para confirmar",
     "buyCta": "Comprar NAME",
-    "completing": "Completando tu compra…",
+    "completing": "Completando la transacción…",
+    "processingRegistering": "Registrando tu NAME en Ethereum: esto puede tardar unos minutos.",
     "confirming": "Confirma para continuar…",
     "successHeaderTitle": "¡Compra completada!",
     "successBannerBold": "¡Tu compra se realizó con éxito!",

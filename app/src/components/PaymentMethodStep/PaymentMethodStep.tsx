@@ -2,15 +2,9 @@ import { useEffect, useState } from 'react'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { CreatorName } from '~/components/CreatorName'
 import { Icon } from '~/components/Icon'
-import { CURRENCY, formatCredits } from '~/lib/currency'
+import { CURRENCY, formatCredits, usdCentsToCredits } from '~/lib/currency'
 import { formatMana } from '~/lib/mana-format'
-import {
-  creditsFromCents,
-  manaPerCredit,
-  type ManaShortfall,
-  type PaymentMethod,
-  type PaymentOption
-} from '~/lib/payment-options'
+import { type PaymentMethod, type PaymentOption } from '~/lib/payment-options'
 import { t } from '~/intl/i18n'
 import type { CatalogItem } from '~/lib/api'
 import creditsCoin from '~/assets/payment/credits-coin.webp'
@@ -33,8 +27,8 @@ export type { PaymentMethod }
  *   {credits, mana}  → 'combined'  — the credit balance first, MANA covers the remainder
  *
  * A rail that can't pay is shown DISABLED with the reason, never hidden: the balances are on screen, so a
- * silently missing option reads as a bug. `shortfall` is the same story for held MANA worth too little —
- * the row stays, captioned with what the balance is actually worth.
+ * silently missing option reads as a bug. The reason is always the shortfall itself — this app never
+ * quotes what a MANA balance is worth in credits.
  *
  * Confirm stays disabled until the ticked set is a rail that can settle, so nothing on screen can be
  * submitted into a failure.
@@ -50,7 +44,7 @@ export function PaymentMethodStep({
   onBuy,
   onClose,
   busy = false,
-  shortfall
+  notice
 }: {
   item: CatalogItem
   priceCredits: number
@@ -68,8 +62,8 @@ export function PaymentMethodStep({
   onBuy: (method: PaymentMethod) => void
   onClose: () => void
   busy?: boolean
-  /** Held MANA that can't pay for this item — keeps the MANA row, with what it is worth. */
-  shortfall?: ManaShortfall | null
+  /** Something the buyer must read before confirming — rendered above the confirm button. */
+  notice?: string | null
 }) {
   const credits = options.find(o => o.method === 'credits') ?? null
   const mana = options.find(o => o.method === 'mana') ?? null
@@ -116,13 +110,12 @@ export function PaymentMethodStep({
             : null
           : null
 
-  const rate = manaPerCredit(priceCents, priceManaWei)
-  const rateNote =
-    rate != null ? t('buyModal.manaRate', { mana: rate.toLocaleString('en', { maximumFractionDigits: 2 }) }) : null
-
   // What each row charges. On the mixed rail the legs differ from the single-rail ones, so they come from
   // the option the CURRENT selection resolves to — each row states its own leg, never the full price twice.
-  const creditsLeg = method === 'combined' && combined ? combined.creditsCents : (credits?.creditsCents ?? priceCents)
+  // Taken from the option, which knows whether its cents are a price or a balance. The fallback is a PRICE
+  // — the only case with no option to read is the credits rail not being offered at all.
+  const creditsLegDisplay =
+    method === 'combined' && combined ? combined.credits : (credits?.credits ?? usdCentsToCredits(priceCents))
   const manaLeg = method === 'combined' && combined ? combined.manaWei : (mana?.manaWei ?? priceManaWei)
 
   function toggle(rail: 'credits' | 'mana') {
@@ -193,7 +186,7 @@ export function PaymentMethodStep({
             <S.PriceCol>
               <S.Price>
                 <CurrencyIcon />
-                <span>{formatCredits(creditsFromCents(creditsLeg))}</span>
+                <span>{formatCredits(creditsLegDisplay)}</span>
               </S.Price>
             </S.PriceCol>
           </S.Content>
@@ -234,27 +227,23 @@ export function PaymentMethodStep({
                     <S.ManaPriceIco src={manaCoin} alt="" aria-hidden />
                     <span>{formatMana(manaLeg)}</span>
                   </S.Price>
-                  {rateNote ? <S.RateNote data-testid="mana-rate-note">{rateNote}</S.RateNote> : null}
                 </>
               ) : (
-                // Held MANA that buys nothing here: say what it is worth. MANA is oracle-priced, so a
-                // balance that looks large beside a credits price can be worth a fraction of it — that
-                // number IS the reason the row can't be used.
-                <S.Detail data-testid="mana-shortfall-note">
-                  {shortfall
-                    ? t('buyModal.manaWorth', {
-                        mana: formatMana(shortfall.manaWei),
-                        credits: formatCredits(creditsFromCents(shortfall.manaCents)),
-                        price: formatCredits(creditsFromCents(shortfall.priceCents)),
-                        currency: CURRENCY.name
-                      })
-                    : t('buyModal.notEnoughMana')}
-                </S.Detail>
+                // Held MANA that buys nothing here. Stated as the fact it is — the balance is short —
+                // and NOT as what it is worth in credits: this app does not quote a MANA/credits rate
+                // anywhere, so it must not quote one here either.
+                <S.Detail data-testid="mana-shortfall-note">{t('buyModal.notEnoughMana')}</S.Detail>
               )}
             </S.PriceCol>
           </S.Content>
         </S.OptionRow>
       </S.Options>
+
+      {notice ? (
+        <S.Notice data-testid="price-changed" role="status">
+          {notice}
+        </S.Notice>
+      ) : null}
 
       <S.BuyBtn
         type="button"

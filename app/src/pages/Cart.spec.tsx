@@ -110,19 +110,33 @@ vi.mock('~/lib/api', async orig => ({
   fetchListings: vi.fn().mockResolvedValue({ data: [] }),
   fetchStoreMintState: vi.fn()
 }))
+// What the basket costs in MANA. A dial rather than a constant 0n: at zero no MANA rail can exist, which is
+// right for most of this file but is exactly what the mint cases below have to be able to turn on.
+const { manaQuote } = vi.hoisted(() => ({ manaQuote: { wei: 0n } }))
 vi.mock('~/lib/mana-rate', () => ({
   readManaUsdRate: vi.fn(async () => ({ rate: 50_000_000n, decimals: 8 })),
-  usdCentsToManaWei: () => 0n,
+  usdCentsToManaWei: () => manaQuote.wei,
   manaWeiToUsdCents: () => 0,
   manaWeiToCredits: () => 0,
   manaWeiToUsdWei: () => 0n
 }))
-vi.mock('~/lib/buy-mana', () => ({ buyManyWithMana: vi.fn() }))
+// Only the submit is stubbed; the helpers that say which contract a purchase settles against are the real ones.
+const { buyManyWithMana } = vi.hoisted(() => ({ buyManyWithMana: vi.fn() }))
+vi.mock('~/lib/buy-mana', async orig => ({ ...(await orig<Record<string, unknown>>()), buyManyWithMana }))
+// Hoisted so a test can read what the page asked the GRANT path for — the amount is the whole point of it.
+const { ensureAuthorization } = vi.hoisted(() => ({ ensureAuthorization: vi.fn() }))
 vi.mock('~/lib/authorizations', () => ({
-  AuthorizationKind: { ManaSpending: 'mana' },
-  ensureAuthorization: vi.fn(),
-  getAuthorizationStatus: vi.fn(),
-  getManaSpendingAuthorization: vi.fn(),
+  AuthorizationKind: { ManaSpending: 'mana', Allowance: 'allowance' },
+  ensureAuthorization,
+  // Already approved, so the MANA rails run straight through: the approval STEP has its own specs, and a
+  // never-resolving stub here reads as "the rail is broken" instead.
+  getAuthorizationStatus: vi.fn(async () => true),
+  getManaSpendingAuthorization: vi.fn(() => ({
+    kind: 'mana',
+    contractAddress: '0xmana',
+    spenderAddress: '0xspender',
+    chainId: 80002
+  })),
   needsApprovalStep: () => false
 }))
 vi.mock('~/lib/after-purchase', () => ({ invalidateAfterPurchase: vi.fn() }))
@@ -135,6 +149,7 @@ vi.mock('~/lib/monitoring', () => ({ captureError }))
 // on the copy (rather than on a mocked sentinel) is what proves the message reaches the DOM at all — the modal
 // used to discard it.
 const GENERIC = /couldn't complete checkout/i
+const HELD = /return to your balance within 5 to 15 minutes/i
 const PARTIAL = /part of your purchase went through/i
 
 const navigate = vi.fn()
@@ -173,11 +188,12 @@ const line = (i: CatalogItem) => ({
   quantity: 1
 })
 
-// A resolved MINT line: no trade, minted from the CollectionStore, priced in MANA.
+// A resolved MINT line: no trade, minted from the CollectionStore at the live MANA price the store verifies.
+const ONE_MANA = (10n ** 18n).toString()
 const storeLine = (i: CatalogItem) => ({
   item: { ...i, quantity: 1, tradeId: undefined },
   acquisition: 'store' as const,
-  manaWei: '1000000000000000000',
+  priceWei: ONE_MANA,
   priceCredits: 20,
   usdCents: 200,
   quantity: 1
@@ -231,6 +247,7 @@ beforeEach(() => {
   useCart.setState({ items: [], open: false })
   balance.cents = 100_000
   mana.wei = 0n
+  manaQuote.wei = 0n
   stubAuthorize()
 })
 
@@ -382,7 +399,10 @@ describe('when a broadcast transaction never confirms', () => {
     renderCart([item('a')])
     await pay()
 
-    await waitFor(() => expect(screen.getByText(GENERIC)).toBeInTheDocument())
+    // The credits are stranded until the reconciler resolves them, so the panel says so instead of
+    // showing the generic failure with a retry that would fail on the short balance.
+    await waitFor(() => expect(screen.getByText(HELD)).toBeInTheDocument())
+    expect(screen.queryByText(GENERIC)).not.toBeInTheDocument()
     expect(cancelUsdIntents).not.toHaveBeenCalled()
     expect(useCart.getState().items.map(i => i.id)).toEqual(['a'])
   })
@@ -554,5 +574,82 @@ describe('when the basket contains a store mint', () => {
 
     // This buyer CAN pay the fee, so the fallback is a real route for them.
     await waitFor(() => expect(buyManyWithCredits).toHaveBeenCalled())
+  })
+})
+
+/**
+ * A MINT is paid for the same three ways a listing is.
+ *
+ * Both MANA rails used to be dropped from any basket holding a mint, because they could only build
+ * `accept([...trades])`. The buyer has no way to know which kind of listing a row is, so what that looked like
+ * was the shop taking their MANA away depending on what they had added to the cart.
+ */
+describe('when the basket holds a mint and the buyer has MANA', () => {
+  const mint = () => item('a', { acquisition: 'store', tradeId: undefined })
+
+  beforeEach(() => {
+    manaQuote.wei = 10n ** 18n // the basket costs 1 MANA
+    mana.wei = 5n * 10n ** 18n // and the buyer holds 5
+  })
+
+  it('should offer paying in MANA, exactly as it would for a listing', async () => {
+    renderCart([mint()], storeLine)
+
+    expect(await screen.findByTestId('pay-with-mana')).toBeInTheDocument()
+  })
+
+  it('should settle it through the store, at the price the contract verifies', async () => {
+    const user = userEvent.setup()
+    renderCart([mint()], storeLine)
+
+    await user.click(await screen.findByTestId('pay-with-mana'))
+
+    await waitFor(() => expect(buyManyWithMana).toHaveBeenCalled())
+    const args = buyManyWithMana.mock.calls[0][0]
+    // No trade to accept — the mint travels as a mint, and an empty `trades` is what proves it was not
+    // silently dropped from a call it could never have been part of.
+    expect(args.trades).toEqual([])
+    expect(args.mints).toEqual([
+      { item: { collection: '0xcontract', itemId: 'a', priceWei: ONE_MANA }, chainId: 80002 }
+    ])
+  })
+
+  // Handed on so the rail's own allowance check can ask whether the allowance covers THIS basket. Without
+  // it the rail only asks whether one exists, and a leftover from a cheaper basket reverts the settlement.
+  it('should tell the rail what the purchase will pull in MANA', async () => {
+    const user = userEvent.setup()
+    renderCart([mint()], storeLine)
+
+    await user.click(await screen.findByTestId('pay-with-mana'))
+
+    await waitFor(() => expect(buyManyWithMana).toHaveBeenCalled())
+    expect(buyManyWithMana.mock.calls[0][0].manaWei).toBe(10n ** 18n)
+  })
+})
+
+/**
+ * THE MIXED RAIL'S ALLOWANCE IS AN AMOUNT.
+ *
+ * The CreditsManager pulls the uncredited leg out of the buyer's MANA, so the grant guard has to be sized to
+ * that gap. Asked as a flag it passes on any leftover allowance, sends no approve, and `useCredits` reverts
+ * pulling the MANA — after the buyer has confirmed, and with nothing on screen that explains it.
+ */
+describe('when the basket is paid with credits plus MANA', () => {
+  beforeEach(() => {
+    balance.cents = 100 // half of the 200-cent basket
+    manaQuote.wei = 10n ** 18n // the whole basket is worth 1 MANA
+    mana.wei = 5n * 10n ** 18n
+    buyManyWithCredits.mockResolvedValue(['0xcombined'])
+  })
+
+  it('should size the MANA allowance to the gap the transaction actually pulls', async () => {
+    const user = userEvent.setup()
+    renderCart([item('a')])
+
+    await user.click(await screen.findByTestId('pay-with-combined'))
+
+    await waitFor(() => expect(ensureAuthorization).toHaveBeenCalled())
+    // Credits cover 100 of the 200 cents, so MANA covers the other half of a 1 MANA basket.
+    expect(ensureAuthorization.mock.calls[0][0]).toMatchObject({ requiredWei: 5n * 10n ** 17n })
   })
 })

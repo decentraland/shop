@@ -8,11 +8,9 @@ afterEach(async () => {
   app = undefined
 })
 
-// The migrate RUN itself stops short of its congrats screen under these mocks: taking the old listing
-// down needs a real cancelSignature tx, and the first item parks on it forever. This spec therefore
-// covers the tool and the hand-off into the modal, not the outcome of the run. (It previously appeared
-// to cover the outcome by waiting for "in the Shop", but that matched a section subtitle that was
-// permanently on the page, so the wait returned before any listing had moved.)
+// The migrate RUN completes under these mocks (every async op resolves instantly), so a response delay
+// on /v1/trades keeps the modal visible long enough to assert on its contents. This spec covers the tool
+// and the hand-off into the modal, not the outcome of the run.
 describe('move old listings', () => {
   it('reaches the tool from the Activity chip, badged with what is left to move', async () => {
     app = await launchApp({ path: '/activity' })
@@ -33,7 +31,9 @@ describe('move old listings', () => {
   it('lists every importable item and hands the selection to the migrate modal', async () => {
     // /import was the tool's own route for months (the My Items nudge still points at it), so it has
     // to keep landing on the tool — not on the feed, and not on a 404.
-    app = await launchApp({ path: '/import' })
+    // Delay /v1/trades so the MigrateModal stays visible while the cancel/re-list flow runs — without
+    // this, every mock resolves instantly and the modal auto-closes before the test can assert on it.
+    app = await launchApp({ path: '/import', delays: { '/v1/trades': 1500 } })
     const { page } = app
 
     await waitForText(page, 'Bring your listings into the new shop!')
@@ -65,9 +65,34 @@ describe('move old listings', () => {
     // List all → the migrate modal opens with both items queued at those prices.
     // By test id, not by label: the cta's copy carries the selected count, so a text matcher breaks
     // every time the wording around the number changes.
+    /**
+     * Record the modal as it runs instead of reading it once the run is over.
+     *
+     * A clean run ends by taking the modal down outright — MigrateModal renders null once it finishes
+     * with no failures — so "wait for the in-progress heading, then query the modal" is a race the
+     * runner loses whenever the mocked run beats the query: the element is simply gone by then, and the
+     * whole spec fails on a missing selector. The observer holds the last content seen while it WAS
+     * mounted, which is the state being asserted either way.
+     */
+    await page.evaluate(() => {
+      const w = window as unknown as { __migrateText?: string }
+      const grab = () => {
+        const el = document.querySelector('[data-testid="modal"]') as HTMLElement | null
+        if (el?.innerText) w.__migrateText = el.innerText
+      }
+      new MutationObserver(grab).observe(document.body, { childList: true, subtree: true, characterData: true })
+      grab()
+    })
+
     await clickWhenEnabled(page, '[data-testid="import-list-all"]', /./)
-    await waitForText(page, 'Listing your items')
-    const queued = await page.$eval('[data-testid="modal"]', el => (el as HTMLElement).innerText)
+    await page.waitForFunction(
+      () => {
+        const seen = (window as unknown as { __migrateText?: string }).__migrateText || ''
+        return /Listing your items/.test(seen) && /\d of 2/.test(seen)
+      },
+      { timeout: 20000 }
+    )
+    const queued = await page.evaluate(() => (window as unknown as { __migrateText?: string }).__migrateText as string)
     expect(queued).toMatch(/Galaxy Hat/)
     expect(queued).toMatch(/Nebula Jacket/)
     // The QUEUE SIZE, not which item is active: the run really advances now (it used to freeze on the
@@ -78,6 +103,7 @@ describe('move old listings', () => {
     // directions at once, with nothing to scroll: its own top ended up above the scroll origin, out of
     // reach. 300px is short enough for the progress card (~333px) to need the cap.
     await page.setViewport({ width: 1000, height: 300 })
+    await page.waitForSelector('[role="dialog"]', { timeout: 5000 })
     const fit = await page.evaluate(() => {
       const box = document.querySelector('[role="dialog"]')!.getBoundingClientRect()
       return { top: box.top, bottom: box.bottom, viewport: window.innerHeight }

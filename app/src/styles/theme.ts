@@ -63,6 +63,8 @@ const colors = {
   successBorder: '#34ce77', // success-banner border
   orange: '#ff7439', // the warm stop of `gradients.buyBtn` — input borders, accent details
   white: '#ffffff',
+  // Hairline on a translucent field over the purple — the search box and the notify-me email input.
+  fieldBorder: '#c6bcd7',
   // Translucent overlays for dark surfaces (dark-theme panels, card footers, empty-state shells).
   overlay: 'rgba(0, 0, 0, 0.4)',
   overlayLight: 'rgba(0, 0, 0, 0.2)',
@@ -118,6 +120,15 @@ const font = {
 // stacking context and must clear whatever overlay the trigger sits in.
 const z = {
   overlay: 10000,
+  /**
+   * A prompt that INTERRUPTS an overlay — the wallet-approval step, which opens over the checkout modal
+   * that asked for it.
+   *
+   * It needs its own tier because same-z ties are broken by DOM order, and the interrupting prompt is
+   * mounted BEFORE the modal it interrupts (see Cart / BuyModal), so it loses every tie and renders
+   * behind the thing it is blocking.
+   */
+  prompt: 10005,
   tooltip: 10010
 } as const
 

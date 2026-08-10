@@ -8,6 +8,14 @@ import { useHoverPreview } from '~/store/hoverPreview'
 import { useWallet } from '~/store/wallet'
 import { useProfile } from '~/hooks/useProfile'
 import { avatarShape, isCompatible } from '~/lib/bodyShape'
+import { RING_WIDTH } from '~/styles/card.styles'
+import { theme } from '~/styles/theme'
+
+// The corner left once the hover stroke has taken its bite out of the card's own radius.
+const INNER_RADIUS = Number.parseFloat(theme.radius.card) - RING_WIDTH
+if (process.env.NODE_ENV !== 'production' && Number.isNaN(INNER_RADIUS)) {
+  throw new Error(`INNER_RADIUS is NaN — theme.radius.card ("${theme.radius.card}") is not a numeric string`)
+}
 
 const Wrap = styled.div`
   & iframe {
@@ -152,10 +160,31 @@ export function HoverPreviewLayer() {
   const wrapStyle: CSSProperties = active
     ? {
         position: 'fixed',
-        left: rect.left,
-        top: rect.top,
-        width: rect.width,
-        height: rect.height,
+        /**
+         * Held INSIDE the card's hover stroke, and clipped to the shape that leaves.
+         *
+         * The anchor is the card's media band, which runs to the card's edge — exactly the strip the stroke
+         * covers on hover. This layer is position:fixed in the root stacking context, so the card's
+         * `overflow: hidden` never reaches it and it paints above everything: at the card's edge it laid its
+         * own antialiased boundary straight over the stroke. That is the pale sliver, and it is why the
+         * sliver appeared over the media and never over the footer — this is the only thing sitting over the
+         * media.
+         *
+         * Rounding it to the card's radius was not enough: that arc is concentric with the stroke's OUTER
+         * edge, so around the corner the layer still crossed the band. It has to stop at the stroke's inner
+         * edge — inset by the stroke's width on the three sides the stroke covers (the bottom meets the
+         * footer), with the matching inner radius.
+         *
+         * The offsets are whole pixels because `getBoundingClientRect` reports fractions (the grid divides
+         * the row by three), and a fixed box holding an iframe at a fractional offset gets its own
+         * composited layer whose edges Chrome antialiases — the same bright half-pixel, by another route.
+         */
+        left: Math.round(rect.left) + RING_WIDTH,
+        top: Math.round(rect.top) + RING_WIDTH,
+        width: Math.round(rect.width) - RING_WIDTH * 2,
+        height: Math.round(rect.height) - RING_WIDTH,
+        borderRadius: `${INNER_RADIUS}px ${INNER_RADIUS}px 0 0`,
+        overflow: 'hidden',
         zIndex: 5,
         pointerEvents: 'none',
         opacity: ready ? 1 : 0,

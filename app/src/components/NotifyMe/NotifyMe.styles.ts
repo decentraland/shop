@@ -27,13 +27,14 @@ export const Root = styled.div`
     gap: 16px;
     padding: 12px;
     border-radius: 16px;
-    background: rgba(193, 238, 207, 0.5);
+    background: #c1d8c9;
   }
 `
 
+// Gray 5 (Figma 1182:190110): this sits on the purple field, where the body colour is unreadable.
 export const Label = styled.label`
   font-size: 14px;
-  color: ${colors.text};
+  color: ${colors.softWhite};
 `
 
 // Email field + the NOTIFY ME button share one 42px row.
@@ -43,49 +44,53 @@ export const Row = styled.div`
   gap: 8px;
 `
 
+// Figma I1182:190120 — a translucent field with a lilac hairline, the same treatment the nav's search
+// box gets. It was solid white with a dark value, which is a light-theme field.
 export const Input = styled.input`
   flex: 1;
   min-width: 0;
   height: 42px;
   padding: 0 16px;
-  border: 1px solid ${colors.muted};
+  border: 1px solid ${colors.fieldBorder};
   border-radius: ${radius.btn};
-  background: ${colors.white};
+  background: rgba(255, 255, 255, 0.1);
   font-size: 16px;
-  color: ${colors.text};
+  color: ${colors.softWhite};
 
   &::placeholder {
-    color: ${colors.muted2};
+    color: ${colors.gray4};
   }
   &:focus-visible {
     outline: none;
-    border-color: ${colors.accent};
-    box-shadow: 0 0 0 1px ${colors.accent};
+    border-color: ${colors.white};
+    box-shadow: 0 0 0 1px ${colors.white};
   }
 `
 
-// The purple CTA, shared by the submit button and the guest sign-in prompt (data-full).
-export const PurpleBtn = styled.button`
+// Figma 1182:190121 — soft-white with a soft-black label, not the accent purple. Shared by the submit
+// button and the guest sign-in prompt (data-full).
+export const NotifyBtn = styled.button`
   flex-shrink: 0;
-  height: 42px;
-  padding: 0 16px;
+  height: 40px;
+  padding: 0 12px;
   border: 0;
-  border-radius: ${radius.btn};
-  background: ${colors.accent};
-  color: ${colors.softWhite};
+  border-radius: ${radius.card};
+  background: ${colors.softWhite};
+  color: ${colors.text};
   font-weight: 600;
   font-size: 15px;
+  line-height: 24px;
   text-transform: uppercase;
   letter-spacing: 0.46px;
   cursor: pointer;
-  transition: opacity 0.15s ease;
+  transition: background 0.15s ease;
 
   &[data-full] {
     width: 100%;
     flex-shrink: 1;
   }
   &:hover:not(:disabled) {
-    opacity: 0.9;
+    background: ${colors.white};
   }
   &:disabled {
     opacity: 0.5;

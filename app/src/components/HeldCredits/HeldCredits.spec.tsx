@@ -1,0 +1,168 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { render, screen, waitFor, act, fireEvent } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { HeldCredits } from './HeldCredits'
+import type { HeldCredits as Held } from '~/lib/credits'
+
+// A fixed "now" so the countdown is deterministic.
+const NOW_SECONDS = 1_800_000_000
+
+function heldAt(secondsFromNow: number | null, credits = 3): Held {
+  const releasesAtSeconds = secondsFromNow === null ? null : NOW_SECONDS + secondsFromNow
+  return {
+    cents: credits * 10,
+    credits,
+    releasesAtSeconds,
+    purchases: [{ credits, releasesAtSeconds, contractAddress: '0xabc', itemId: '1' }]
+  }
+}
+
+// Presentational on purpose: the refetch that eventually clears the badge lives in useBalance, so this
+// component needs no react-query context and the navbar can render it without one.
+function renderBadge(held: Held | undefined) {
+  return render(<HeldCredits held={held} />)
+}
+
+beforeEach(() => {
+  vi.useFakeTimers({ shouldAdvanceTime: true })
+  vi.setSystemTime(NOW_SECONDS * 1000)
+})
+
+afterEach(() => {
+  vi.useRealTimers()
+})
+
+describe('when nothing is held', () => {
+  it('should render nothing at all', () => {
+    const { container } = renderBadge(undefined)
+
+    expect(container).toBeEmptyDOMElement()
+  })
+
+  // The server omits the block entirely, but a zero must not render an empty badge either.
+  it('should render nothing when the held amount rounds to zero credits', () => {
+    const { container } = renderBadge({ ...heldAt(120), credits: 0, cents: 0 })
+
+    expect(container).toBeEmptyDOMElement()
+  })
+})
+
+describe('when credits are held', () => {
+  it('should say how many, without the buyer having to open anything', () => {
+    renderBadge(heldAt(300))
+
+    // The figure and its unit, then the label — "3 on hold" alone reads as three of something unstated,
+    // sitting next to a balance counted in credits.
+    expect(screen.getByTestId('held-credits-trigger')).toHaveTextContent(/3\s*on hold/)
+    // The unit is an icon span, not text — assert it is actually beside the figure rather than trusting
+    // the label alone.
+    expect(screen.getByTestId('held-credits-trigger').querySelectorAll('.ico').length).toBeGreaterThan(1)
+  })
+
+  it('should explain why and count down to the soonest they can return', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    renderBadge(heldAt(125))
+
+    await user.hover(screen.getByTestId('held-credits-trigger'))
+
+    expect(screen.getByTestId('held-credits-panel')).toHaveTextContent('A purchase you started is still using them.')
+    expect(screen.getByTestId('held-credits-countdown')).toHaveTextContent('2:05')
+  })
+
+  it('should tick down as time passes', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    renderBadge(heldAt(125))
+    await user.hover(screen.getByTestId('held-credits-trigger'))
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000)
+    })
+
+    await waitFor(() => expect(screen.getByTestId('held-credits-countdown')).toHaveTextContent('2:00'))
+  })
+
+  /**
+   * The whole reason this is a countdown to the EARLIEST rather than a promise. A reservation the credits
+   * squid cannot vouch for is deliberately held past it, so claiming the money is back — or showing a
+   * negative timer — would be wrong in exactly the case that already made a buyer think we took it.
+   */
+  it('should never claim the credits are back once the countdown runs out', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    renderBadge(heldAt(2))
+    await user.hover(screen.getByTestId('held-credits-trigger'))
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000)
+    })
+
+    await waitFor(() => expect(screen.getByTestId('held-credits-unknown')).toBeInTheDocument())
+    expect(screen.queryByTestId('held-credits-countdown')).not.toBeInTheDocument()
+    // Still on hold: the badge does not disappear on a clock alone, only on a fresh balance.
+    expect(screen.getByTestId('held-credits-trigger')).toBeInTheDocument()
+  })
+
+  /**
+   * The server sends null when the release is gated on chain processing it cannot date. Rendering a
+   * countdown there would be inventing a deadline; rendering "0:00" would read as broken. The buyer gets
+   * told their money is safe and that there is nothing to do, which is all that is actually true.
+   */
+  it('should show no countdown at all when the server cannot estimate a return', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    renderBadge(heldAt(null))
+
+    await user.hover(screen.getByTestId('held-credits-trigger'))
+
+    expect(screen.queryByTestId('held-credits-countdown')).not.toBeInTheDocument()
+    expect(screen.getByTestId('held-credits-unknown')).toBeInTheDocument()
+    expect(screen.getByTestId('held-credits-panel')).toHaveTextContent('Nothing is lost')
+    // The amount is still stated: what is held is known even when the timing is not.
+    expect(screen.getByTestId('held-credits-trigger')).toHaveTextContent(/3\s*on hold/)
+  })
+
+  it('should state the worst case rather than imply the countdown is a guarantee', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    renderBadge(heldAt(300))
+
+    await user.hover(screen.getByTestId('held-credits-trigger'))
+
+    expect(screen.getByTestId('held-credits-panel')).toHaveTextContent('return on their own')
+  })
+})
+
+/**
+ * It opens on HOVER. A click was one interaction too many for a badge whose whole job is to explain, at a
+ * glance, why the balance above it is short — and the panel says nothing a buyer has to act on.
+ */
+describe('how the panel opens', () => {
+  it('should open on hover and close on leave', async () => {
+    const user = userEvent.setup()
+    renderBadge(heldAt(300))
+    const trigger = screen.getByTestId('held-credits-trigger')
+
+    await user.hover(trigger)
+    expect(screen.getByTestId('held-credits-panel')).toBeInTheDocument()
+
+    await user.unhover(trigger)
+    expect(screen.queryByTestId('held-credits-panel')).toBeNull()
+  })
+
+  // Hover alone would put this out of reach of anyone navigating by keyboard, and it is the only place the
+  // missing credits are explained.
+  it('should open on keyboard focus too', async () => {
+    renderBadge(heldAt(300))
+
+    fireEvent.focus(screen.getByTestId('held-credits-trigger'))
+
+    expect(screen.getByTestId('held-credits-panel')).toBeInTheDocument()
+  })
+
+  it('should not open on click alone', async () => {
+    const user = userEvent.setup()
+    renderBadge(heldAt(300))
+
+    await user.click(screen.getByTestId('held-credits-trigger'))
+    await user.unhover(screen.getByTestId('held-credits-trigger'))
+
+    expect(screen.queryByTestId('held-credits-panel')).toBeNull()
+  })
+})

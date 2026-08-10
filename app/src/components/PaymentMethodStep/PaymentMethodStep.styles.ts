@@ -323,16 +323,6 @@ export const PriceCol = styled.div`
   gap: 2px;
 `
 
-/** "1 credit = X MANA" under the MANA amount (Figma 1646-367213). */
-export const RateNote = styled.span`
-  font-family: ${theme.font.sans};
-  font-weight: 400;
-  font-size: 12px;
-  line-height: 1;
-  color: ${theme.colors.muted};
-  white-space: nowrap;
-`
-
 export const BuyBtn = styled.button`
   width: 100%;
   height: 46px;
@@ -437,4 +427,20 @@ export const Detail = styled.span`
   font-size: 11px;
   line-height: 1.35;
   color: ${theme.colors.muted};
+`
+
+// Something the buyer has to read before confirming (currently: the reserved price differs from the one
+// this step was showing). Tinted like the buy modal's own warning so both surfaces flag it the same way.
+export const Notice = styled.p`
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 0;
+  background: rgba(255, 162, 90, 0.3);
+  border-radius: ${theme.radius.btn};
+  padding: 16px;
+  font-family: ${theme.font.sans};
+  font-size: 14px;
+  line-height: 1.334;
+  color: ${theme.colors.text2};
 `

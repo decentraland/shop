@@ -270,4 +270,45 @@ describe('useOutfitCart', () => {
 
     expect(useCart.getState().items).toHaveLength(0)
   })
+  /**
+   * A look's price and the basket it would build are different numbers, and one value used to serve
+   * both. On zone, "Other test" holds a 14-credit item the viewer created and a 1-credit item they did
+   * not, and the page reported "Total price 1" — the buyable remainder wearing the look's label.
+   */
+  describe("and one item in the look is the viewer's own primary listing", () => {
+    const OWN = { ...DISPLAY_ROW, id: `${CONTRACT}-1`, itemId: '1', creator: CREATOR, priceCredits: 14 } as CatalogItem
+    const THEIRS = { ...DISPLAY_ROW, id: `${CONTRACT}-2`, itemId: '2', creator: OTHER, priceCredits: 1 } as CatalogItem
+    const PAIR: Outfit = {
+      ...OUTFIT,
+      items: [
+        { contractAddress: CONTRACT, itemId: '1' },
+        { contractAddress: CONTRACT, itemId: '2' }
+      ]
+    }
+
+    function usePairHarness() {
+      const resolution = useOutfitItems(PAIR)
+      return { resolution, cart: useOutfitCart(PAIR, resolution) }
+    }
+
+    beforeEach(() => {
+      // Signed in AS the creator, so their own primary drops out of the basket.
+      useWallet.setState({ session: { address: CREATOR } as never, restored: true })
+      vi.mocked(fetchCatalogByIds).mockResolvedValue([OWN, THEIRS])
+    })
+
+    it('should price the look at every item it contains, including the one that cannot be bought', async () => {
+      const { result } = renderHook(usePairHarness, { wrapper })
+      await waitFor(() => expect(result.current.cart.split.ownListing).toHaveLength(1))
+
+      expect(result.current.cart.outfitCredits).toBe(15)
+    })
+
+    it('should still charge the CTA only for what it would add', async () => {
+      const { result } = renderHook(usePairHarness, { wrapper })
+      await waitFor(() => expect(result.current.cart.split.ownListing).toHaveLength(1))
+
+      expect(result.current.cart.totalCredits).toBe(1)
+    })
+  })
 })
