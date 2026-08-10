@@ -177,9 +177,9 @@ function NameOrderLine({ item }: { item: OrderLineItem }) {
 
   return (
     <S.Line data-testid="activity-name-line">
-      <S.Thumb>
+      <S.NameThumb>
         <img src={nameGlyph} alt="" />
-      </S.Thumb>
+      </S.NameThumb>
       <S.LineInfo>
         <S.LineName title={label}>{label}</S.LineName>
         <S.LineMeta>{t('activity.nameRegistration')}</S.LineMeta>
