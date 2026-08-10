@@ -8,6 +8,7 @@ import { MigrateModal, type MigrateEntry, type MigrateResult } from '~/component
 import { CURRENCY, creditsToUsd } from '~/lib/currency'
 import { CreditRate } from '~/components/CreditRate'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
+import { Price } from '~/components/Price'
 import { Faq, type FaqEntry } from '~/components/Faq'
 import { Icon } from '~/components/Icon'
 import { categoryIcon } from '~/lib/itemIcons'
@@ -366,7 +367,7 @@ export function ImportListings() {
             <S.DockTotal>
               {/* The outlined mark, in the bar's own ink — the filled gradient one belongs to the peg
                   line up top, where the currency is being explained rather than counted. */}
-              <CurrencyIcon /> {total.toLocaleString()}
+              <CurrencyIcon /> <Price credits={total} />
             </S.DockTotal>
             <S.DockSub>
               {t('importListings.selectedSummary', {

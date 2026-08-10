@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { Icon } from '~/components/Icon'
 import { LoadMore } from '~/components/LoadMore'
+import { Price } from '~/components/Price'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
 import { fetchShopItems, type CatalogItem } from '~/lib/api'
 import { t } from '~/intl/i18n'
@@ -131,7 +132,7 @@ export function OutfitItemPicker({
                 <S.Name>{item.name}</S.Name>
                 <S.Price>
                   <CurrencyIcon size={12} />
-                  {item.priceCredits.toLocaleString()}
+                  <Price credits={item.priceCredits} />
                 </S.Price>
                 {selected ? <S.Check name="check-rounded" size={18} /> : null}
               </S.Item>

@@ -139,8 +139,11 @@ describe('when the buyer has enough credits for the locked price', () => {
 
     renderModal()
 
-    // Locks $27.00 → ceil(2700 / 10) = 270 credits.
-    expect(await screen.findByText('270 credits')).toBeInTheDocument()
+    // Locks $27.00 → ceil(2700 / 10) = 270 credits. The amount and its unit are separate nodes (the
+    // number renders through <Price>), so match on the element's combined text.
+    expect(
+      await screen.findByText((_, el) => el?.textContent?.replace(/\s+/g, ' ').trim() === '270 credits')
+    ).toBeInTheDocument()
     expect(screen.getByText(/\$27\.00/)).toBeInTheDocument()
     // Enough balance → the primary action is Confirm, not the Get-credits bridge.
     expect(screen.getByRole('button', { name: /confirm purchase/i })).toBeInTheDocument()

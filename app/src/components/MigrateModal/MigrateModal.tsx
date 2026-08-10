@@ -7,6 +7,7 @@ import { importListing, RelistFailedError, type ImportItem } from '~/lib/import'
 import { CURRENCY, creditsToUsd } from '~/lib/currency'
 import { MY_CREATIONS } from '~/lib/routes'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
+import { Price } from '~/components/Price'
 import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import { track } from '~/lib/analytics'
 import { captureError } from '~/lib/monitoring'
@@ -267,7 +268,7 @@ export function MigrateModal({
               <S.Thumb>{entry.item.thumbnail ? <img src={entry.item.thumbnail} alt="" /> : null}</S.Thumb>
               <S.Name title={entry.item.name}>{entry.item.name || t('migrate.itemFallback')}</S.Name>
               <S.Price>
-                <CurrencyIcon className="ccy-mark" /> {entry.priceCredits.toLocaleString()}
+                <CurrencyIcon className="ccy-mark" /> <Price credits={entry.priceCredits} />
               </S.Price>
               <S.Status data-testid={statuses[i] === 'active' ? 'migrate-active-status' : undefined}>
                 {statuses[i] === 'active' ? (

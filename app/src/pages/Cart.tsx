@@ -55,6 +55,7 @@ import { gaslessEnabled } from '~/lib/gasless-config'
 import { useCartAvailability } from '~/hooks/useCartAvailability'
 import { isLineBuyable } from '~/lib/cart-availability'
 import { CURRENCY } from '~/lib/currency'
+import { Price } from '~/components/Price'
 import { createPackCheckout, MAX_OFFER_PACKS } from '~/lib/payments'
 import { useCreditPacks } from '~/hooks/useCreditPacks'
 import { CartCheckoutModal, type CheckoutLine } from '~/components/CartCheckoutModal'
@@ -1297,8 +1298,12 @@ export function Cart() {
                                 </S.Stepper>
                               ) : null}
                               <S.Price>
-                                <S.PriceIco /> {lineSubtotal}
-                                {changed ? <S.PriceWas>{item.priceCredits * qty}</S.PriceWas> : null}
+                                <S.PriceIco /> <Price credits={lineSubtotal} />
+                                {changed ? (
+                                  <S.PriceWas>
+                                    <Price credits={item.priceCredits * qty} />
+                                  </S.PriceWas>
+                                ) : null}
                               </S.Price>
                             </>
                           )}
@@ -1350,7 +1355,7 @@ export function Cart() {
                 <S.TotalLabel>{t('cart.totalItems', { count: buyableUnits })}</S.TotalLabel>
                 <S.TotalSide>
                   <S.TotalValue>
-                    <S.TotalIco /> {total}
+                    <S.TotalIco /> <Price credits={total} />
                   </S.TotalValue>
                 </S.TotalSide>
               </S.TotalLine>

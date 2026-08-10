@@ -7,7 +7,8 @@ import { useBalance, balanceLabel } from '~/hooks/useBalance'
 import { fetchTrade, type CatalogItem, type LegacyListing } from '~/lib/api'
 import { manaWeiToUsdCents, type ManaRate } from '~/lib/mana-rate'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
-import { CURRENCY, formatAmount, usdCentsToCredits } from '~/lib/currency'
+import { Price } from '~/components/Price'
+import { CURRENCY, creditsUnit, usdCentsToCredits } from '~/lib/currency'
 import { isIapMode } from '~/lib/iap'
 import { track, errorCode, isUserRejection } from '~/lib/analytics'
 import { authorizeUsdCredit, cancelUsdIntents } from '~/lib/credits'
@@ -375,7 +376,7 @@ export function MarketCheckout({
               <S.PriceLabel>{t('marketCheckout.finalPrice')}</S.PriceLabel>
               <S.PriceValue>
                 <S.Diamond />
-                {formatAmount(locked.credits)}
+                <Price credits={locked.credits} /> {creditsUnit(locked.credits)}
               </S.PriceValue>
               <S.PriceSub className="muted">
                 {t('marketCheckout.lockedForPurchase')} · ${(locked.usdCents / 100).toFixed(2)}
@@ -387,7 +388,7 @@ export function MarketCheckout({
               <S.PriceValue data-approx>
                 <S.Approx aria-hidden>≈</S.Approx>
                 <S.Diamond />
-                {formatAmount(approxCredits)}
+                <Price credits={approxCredits} /> {creditsUnit(approxCredits)}
               </S.PriceValue>
               <S.PriceSub className="muted">{status || t('marketCheckout.lockingPrice')}</S.PriceSub>
             </>

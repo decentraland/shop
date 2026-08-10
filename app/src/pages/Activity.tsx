@@ -21,6 +21,7 @@ import { useListingCount } from '~/hooks/useListingCount'
 import { LoadMore } from '~/components/LoadMore'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
+import { Price } from '~/components/Price'
 import { formatCredits } from '~/lib/currency'
 import creditsProduct from '~/assets/credits-product.svg'
 import manaSymbol from '~/assets/mana-matic.svg'
@@ -151,7 +152,7 @@ function OrderLine({ item }: { item: OrderLineItem }) {
         {item.quantity > 1 ? <S.LineMeta>{t('activity.quantity', { count: item.quantity })}</S.LineMeta> : null}
       </S.LineInfo>
       <S.LinePrice>
-        <CurrencyIcon className="ccy-mark" /> {item.credits}
+        <CurrencyIcon className="ccy-mark" /> <Price credits={item.credits} />
       </S.LinePrice>
     </>
   )
@@ -184,7 +185,7 @@ function OrderCard({ order }: { order: PurchaseOrder }) {
         <S.HeadRight>
           <S.Pill data-status={pill}>{pillLabel}</S.Pill>
           <S.Total>
-            <CurrencyIcon className="ccy-mark" /> {order.totalCredits}
+            <CurrencyIcon className="ccy-mark" /> <Price credits={order.totalCredits} />
           </S.Total>
         </S.HeadRight>
       </S.CardHead>
@@ -412,7 +413,7 @@ function CreditPurchaseCard({ order }: { order: CreditOrder }) {
           ) : null}
           <S.Pill data-status={pill}>{pillLabel}</S.Pill>
           <S.Total data-kind="income">
-            +<CurrencyIcon className="ccy-mark" /> {order.credits}
+            +<CurrencyIcon className="ccy-mark" /> <Price credits={order.credits} />
           </S.Total>
         </S.HeadRight>
       </S.CardHead>
