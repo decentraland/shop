@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { PreviewEmote, PreviewRenderer, PreviewType, PreviewUnityMode } from '@dcl/schemas'
+import { ChainName, PreviewEmote, PreviewRenderer, PreviewType, PreviewUnityMode } from '@dcl/schemas'
 import { WearablePreview } from '~/components/LazyWearablePreview'
 import { usePreviewActive } from '~/hooks/usePreviewActive'
+import { useEmoteBase64 } from '~/hooks/useEmoteBase64'
+import { isEmoteUrn } from '~/lib/emoteBase64'
+import { urnNetwork } from '~/lib/urn'
 import { disposePreview } from '~/lib/disposePreview'
-import { config } from '~/config'
 import { t } from '~/intl/i18n'
 import { useCart } from '~/store/cart'
 import type { BodyShapeUrn } from '~/lib/bodyShape'
@@ -26,6 +28,7 @@ export function OutfitPreview({
   skin,
   hair,
   eyes,
+  unityMode = PreviewUnityMode.BUILDER,
   controls,
   onRenderer
 }: {
@@ -43,6 +46,12 @@ export function OutfitPreview({
   emote?: PreviewEmote | string
   /** Caller gate — false while its inputs (profile lookup, catalog resolution) are settling. */
   enabled?: boolean
+  /**
+   * Which Unity mode renders it. BUILDER by default (see above) — and note that only MARKETPLACE gives
+   * the scene playback controls of its own, so a caller that changes this owns the question of whether
+   * to keep passing `controls` too.
+   */
+  unityMode?: PreviewUnityMode
   /** Avatar colors (hex, no '#') — the studio's session-only import extras. */
   skin?: string
   hair?: string
@@ -60,11 +69,20 @@ export function OutfitPreview({
 }) {
   const fittingOpen = useCart(s => s.fittingOpen)
   const { ref: viewportRef, active } = usePreviewActive<HTMLDivElement>()
-  const mounted = enabled && urns.length > 0 && active && !fittingOpen
+
+  // A published emote can't be named to the preview — it travels as its own definition (lib/emoteBase64).
+  // Resolve it BEFORE mounting, so the iframe is built once with the emote in hand instead of loading the
+  // avatar and reloading it a moment later. A lookup that fails just leaves the avatar still.
+  const emoteUrn = emote && isEmoteUrn(emote) ? emote : null
+  const { base64: emoteBase64, loop: emoteLoops, isLoading: emoteLoading } = useEmoteBase64(emoteUrn)
+
+  const mounted = enabled && urns.length > 0 && active && !fittingOpen && !emoteLoading
 
   // The preview must resolve the URNs on the chain THEY name — in a dev build reading the mainnet
-  // catalog (the seeds setup), the app chain says amoy while the outfit's items are matic.
-  const dev = urns.length > 0 ? urns[0].includes(':amoy:') : config.chainId === 80002
+  // catalog (the seeds setup), the app chain says amoy while the outfit's items are matic. It has to be
+  // the first urn that NAMES a network, not simply the first one: when the shopper's own avatar is
+  // composed in, the list opens with their base wearables, whose off-chain urns name none.
+  const dev = urnNetwork(urns) === ChainName.MATIC_AMOY
 
   // Mask every (re)load — changed urns reload the same iframe in place, so cover it until onLoad.
   const [ready, setReady] = useState(false)
@@ -120,10 +138,18 @@ export function OutfitPreview({
           hair={hair}
           eyes={eyes}
           type={PreviewType.AVATAR}
-          // An outfit's own emote is a URN, which the prop's PreviewEmote union doesn't cover — the
-          // preview takes either.
-          // emote={emote as PreviewEmote}
-          unityMode={PreviewUnityMode.BUILDER}
+          // A built-in animation is named; a published emote is sent whole. The urn stays in `urns` too,
+          // where Babylon can still find it if this lookup came back empty.
+          emote={emoteUrn ? undefined : (emote as PreviewEmote)}
+          base64s={emoteBase64 ? [emoteBase64] : undefined}
+          // The playback bar tracks time in JS and decides on its own whether to restart at the end, and
+          // the definition it would read that from is one the preview only builds for its single-item form
+          // (contract + item) — never from `base64s`. With no definition it falls back to the DEFAULT emote,
+          // which is idle, which loops: the bar looped a play-once emote forever while the avatar stood
+          // still. Turning the default off removes that fallback, leaving the bar to stop with the emote.
+          // A looping emote keeps the fallback, whose verdict happens to be the right one.
+          disableDefaultEmotes={!!emoteBase64 && !emoteLoops}
+          unityMode={unityMode}
           disableBackground
           disableFadeEffect
           dev={dev}

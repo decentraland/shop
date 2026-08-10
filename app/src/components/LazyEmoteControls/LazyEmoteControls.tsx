@@ -36,6 +36,10 @@ const EmoteControlsLazy = lazy(async () => {
   }
 })
 
+// Playback is chrome over a preview that renders fine without it, so nothing it can do may cost the
+// page: a lazy chunk that fails to arrive (a stale index after a deploy, a dev server re-optimizing
+// its deps) throws on import, and without this boundary that reaches the route and white-screens the
+// whole page. Same isolation the navbar gives its ui2 subtree.
 export function EmoteControls(props: ComponentProps<typeof EmoteControlsComponent>) {
   return (
     <Sentry.ErrorBoundary fallback={<></>}>

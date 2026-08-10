@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { ChainName } from '@dcl/schemas'
 import { itemIdFromUrn, peerUrlFor, urnNetwork } from './urn'
 
 const MATIC = 'urn:decentraland:matic:collections-v2:0x90f3d8780f8e32c0f1f937edfc0ad930b2e7347f:0'
@@ -7,8 +8,8 @@ const BASE = 'urn:decentraland:off-chain:base-avatars:cord_bracelet'
 
 describe('the network a list of urns belongs to', () => {
   it('comes from the items, whichever position they are in', () => {
-    expect(urnNetwork([MATIC])).toBe('Matic')
-    expect(urnNetwork([AMOY])).toBe('Amoy')
+    expect(urnNetwork([MATIC])).toBe(ChainName.MATIC_MAINNET)
+    expect(urnNetwork([AMOY])).toBe(ChainName.MATIC_AMOY)
   })
 
   /**
@@ -17,14 +18,14 @@ describe('the network a list of urns belongs to', () => {
    * the mainnet catalyst, where none of them exist.
    */
   it('ignores the off-chain base wearables the try-on composition puts first', () => {
-    expect(urnNetwork([BASE, BASE, AMOY, MATIC])).toBe('Amoy')
-    expect(urnNetwork([BASE, MATIC])).toBe('Matic')
+    expect(urnNetwork([BASE, BASE, AMOY, MATIC])).toBe(ChainName.MATIC_AMOY)
+    expect(urnNetwork([BASE, MATIC])).toBe(ChainName.MATIC_MAINNET)
   })
 
   it('falls back to the app chain when nothing names a network', () => {
     // Tests resolve the dev config, whose chain is amoy.
-    expect(urnNetwork([BASE])).toBe('Amoy')
-    expect(urnNetwork([])).toBe('Amoy')
+    expect(urnNetwork([BASE])).toBe(ChainName.MATIC_AMOY)
+    expect(urnNetwork([])).toBe(ChainName.MATIC_AMOY)
   })
 })
 
