@@ -48,6 +48,21 @@ export function shapeLabel(shape: BodyShapeUrn): string {
   return shape === BASE_FEMALE ? t('bodyShape.female') : t('bodyShape.male')
 }
 
+/**
+ * The ONE shape a whole set must be worn on, when the set leaves no choice: a male-only or female-only
+ * piece makes every other shape render it invisible, so it decides the body the set is previewed on.
+ *
+ * Null when the set imposes nothing — all unisex — or when gendered pieces disagree and no single shape
+ * can wear them all; the caller then picks the body on its own terms.
+ */
+export function requiredShape(items: ItemLike[]): BodyShapeUrn | null {
+  const shapes = items.reduce<BodyShapeUrn[]>(
+    (acc, item) => acc.filter(shape => itemShapes(item).includes(shape)),
+    [BASE_MALE, BASE_FEMALE]
+  )
+  return shapes.length === 1 ? shapes[0] : null
+}
+
 // The majority body shape among the gendered items in a set (ties → male); null when none are gendered
 // (all unisex/emotes). Used to pick a fitting-room target shape when no avatar is connected.
 export function dominantShape(items: ItemLike[]): BodyShapeUrn | null {

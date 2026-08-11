@@ -18,7 +18,7 @@ import { track } from '~/lib/analytics'
 import type { CatalogItem } from '~/lib/api'
 import { categoryIcon, genderIcon } from '~/lib/itemIcons'
 import { rarityColor, rarityDescription, rarityLabel } from '~/lib/rarity'
-import { BASE_FEMALE, BASE_MALE, type BodyShapeUrn } from '~/lib/bodyShape'
+import { BASE_FEMALE, BASE_MALE, requiredShape, type BodyShapeUrn } from '~/lib/bodyShape'
 import {
   classifyOutfitItem,
   fetchOutfit,
@@ -202,6 +202,10 @@ function OutfitContent({ outfit }: { outfit: Outfit }) {
 
   const resolvedItems = useMemo(() => rows.map(row => row.item).filter((item): item is CatalogItem => !!item), [rows])
   const urns = useMemo(() => outfitPreviewUrns(resolvedItems), [resolvedItems])
+  // A male-only or female-only piece OVERRIDES the shopper's own body shape: worn on the other body it
+  // renders as nothing, and a look with holes in it is not the look they clicked. Their face and colours
+  // still come along — the base face wearables have a representation for both bodies.
+  const forcedShape = useMemo(() => requiredShape(resolvedItems), [resolvedItems])
   // The outfit's own emote plays through the `emote` prop, not the worn list: Unity ignores an emote
   // it finds among the urns. Without one the avatar strikes the default fashion pose.
   const playingUrn = useMemo(() => {
@@ -245,7 +249,7 @@ function OutfitContent({ outfit }: { outfit: Outfit }) {
             <OutfitPreview
               id={PREVIEW_ID}
               profile={tryOn.profile}
-              bodyShape={tryOn.bodyShape ?? mannequinShape}
+              bodyShape={forcedShape ?? tryOn.bodyShape ?? mannequinShape}
               urns={tryOn.urns}
               emote={emote}
               unityMode={PreviewUnityMode.BUILDER}
