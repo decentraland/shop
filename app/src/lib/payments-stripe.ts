@@ -14,7 +14,7 @@
 //
 // ===== BACKEND CONTRACT (credits-server) =====================================
 //   POST /credits/checkout            (signed-fetch, ADR-44: caller == buyer)
-//     req : { packId: string }
+//     req : { packId: string, timezone?: string }
 //     res : { orderId: string, url: string }   // Stripe HOSTED Checkout Session URL
 //           The app redirects the browser to `url`; Stripe returns to
 //           `${STRIPE_RETURN_URL}?order=${orderId}` (or `...&canceled=1`).
@@ -38,16 +38,37 @@ function paymentsBaseUrl(): string {
 }
 
 /**
+ * The buyer's IANA zone, sent with the checkout so abandonment can be read by region.
+ *
+ * It travels on THIS request rather than as an analytics event on purpose: a third of the wallets that
+ * start a checkout emit no analytics at all (ad/privacy extensions), and those are exactly the buyers whose
+ * abandonment we cannot currently explain. A signed request the app already makes cannot be blocked
+ * selectively.
+ *
+ * A zone, not an IP or a location: coarse enough to be a region hint, and it identifies nobody. The server
+ * validates the shape and drops anything odd, so this stays best-effort — `undefined` when the runtime has
+ * no zone, which keeps the field out of the body entirely rather than sending a null.
+ */
+function buyerTimezone(): string | undefined {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || undefined
+  } catch {
+    return undefined
+  }
+}
+
+/**
  * Real checkout: POST /credits/checkout via signed-fetch so the server binds the order to
  * the authenticated buyer. Returns the Stripe HOSTED Checkout URL the app redirects to.
  */
 export async function createPackCheckoutReal(packId: string, identity: AuthIdentity): Promise<CheckoutSession> {
+  const timezone = buyerTimezone()
   const res = await signedFetch(`${paymentsBaseUrl()}/credits/checkout`, {
     method: 'POST',
     identity,
     metadata: {},
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ packId })
+    body: JSON.stringify(timezone ? { packId, timezone } : { packId })
   })
   if (!res.ok) throw new Error(`checkout ${res.status}: ${await res.text()}`)
   const { orderId, url } = (await res.json()) as { orderId: string; url: string }
