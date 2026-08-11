@@ -8,11 +8,11 @@ import { useHoverPreview } from '~/store/hoverPreview'
 import { useWallet } from '~/store/wallet'
 import { useProfile } from '~/hooks/useProfile'
 import { avatarShape, isCompatible } from '~/lib/bodyShape'
-import { RING_WIDTH } from '~/styles/card.styles'
+import { RING_INSET } from '~/styles/card.styles'
 import { theme } from '~/styles/theme'
 
 // The corner left once the hover stroke has taken its bite out of the card's own radius.
-const INNER_RADIUS = Number.parseFloat(theme.radius.card) - RING_WIDTH
+const INNER_RADIUS = Number.parseFloat(theme.radius.card) - RING_INSET
 if (process.env.NODE_ENV !== 'production' && Number.isNaN(INNER_RADIUS)) {
   throw new Error(`INNER_RADIUS is NaN — theme.radius.card ("${theme.radius.card}") is not a numeric string`)
 }
@@ -179,10 +179,10 @@ export function HoverPreviewLayer() {
          * the row by three), and a fixed box holding an iframe at a fractional offset gets its own
          * composited layer whose edges Chrome antialiases — the same bright half-pixel, by another route.
          */
-        left: Math.round(rect.left) + RING_WIDTH,
-        top: Math.round(rect.top) + RING_WIDTH,
-        width: Math.round(rect.width) - RING_WIDTH * 2,
-        height: Math.round(rect.height) - RING_WIDTH,
+        left: Math.round(rect.left) + RING_INSET,
+        top: Math.round(rect.top) + RING_INSET,
+        width: Math.round(rect.width) - RING_INSET * 2,
+        height: Math.round(rect.height) - RING_INSET,
         borderRadius: `${INNER_RADIUS}px ${INNER_RADIUS}px 0 0`,
         overflow: 'hidden',
         zIndex: 5,

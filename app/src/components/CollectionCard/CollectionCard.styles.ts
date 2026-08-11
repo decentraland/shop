@@ -6,16 +6,18 @@ import { CollectionMosaic } from '~/components/CollectionThumb'
 
 const { colors, radius, media } = theme
 
-// Inset overlay ring (shared with AssetCard): a 0.5px hairline at rest, the 2px cerise gradient + violet
-// glow when lit, swapped with no layout shift. On hover the "View collection" button takes the creator/count
-// row's place inside their shared slot, so nothing about the card's layout moves.
+// Inset overlay ring (shared with AssetCard): a hairline at rest, the cerise gradient + violet glow when
+// lit, swapped with no layout shift. On hover the "View collection" button takes the creator/count row's
+// place inside their shared slot, so nothing about the card's layout moves.
+//
+// No `overflow: hidden`, as on AssetCard — the lit ring sits outside the card box, so the mosaic and the
+// footer round their own corners.
 export const Card = styled.article`
   height: 300px;
   /* No fill of its own (Figma 922:183803): the mosaic covers the top and the footer paints its own
      translucent black, so the page field is what shows through the corners. */
   background: transparent;
   border-radius: ${radius.card};
-  overflow: hidden;
   position: relative;
   isolation: isolate;
   display: flex;
@@ -40,6 +42,9 @@ export const Card = styled.article`
   @media (hover: hover) {
     &:hover {
       ${ringLit};
+      /* No zoom, unlike AssetCard — the footer row already swaps, and scaling would nudge every label.
+         z-index still matters: the ring and glow paint outside the box, under the next card otherwise. */
+      z-index: 1;
     }
     &:hover::after {
       ${ringHover};
@@ -59,6 +64,7 @@ export const Media = styled.div`
   min-height: 0;
   background: ${colors.media};
   overflow: hidden;
+  border-radius: ${radius.card} ${radius.card} 0 0;
 `
 
 export const Img = styled.img`
@@ -88,6 +94,7 @@ export const Body = styled.div`
   flex-direction: column;
   gap: 8px;
   background: ${colors.overlay};
+  border-radius: 0 0 ${radius.card} ${radius.card};
 `
 
 export const Name = styled.h3`
