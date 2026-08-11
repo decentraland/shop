@@ -48,6 +48,12 @@ function paymentsBaseUrl(): string {
  * A zone, not an IP or a location: coarse enough to be a region hint, and it identifies nobody. The server
  * validates the shape and drops anything odd, so this stays best-effort — `undefined` when the runtime has
  * no zone, which keeps the field out of the body entirely rather than sending a null.
+ *
+ * `|| undefined` is unreachable on a compliant engine (ECMA-402 §11.1.2: `timeZone` is a non-empty string
+ * whenever the constructor succeeded, and it throws otherwise). It is kept for the ones that are not — old
+ * WebViews built without full ICU data have returned an empty string here, and the app runs inside the
+ * in-world client's browser as well as a desktop one. It is load-bearing given the caller relies on
+ * `undefined` to drop the key: an empty string would serialise as `"timezone":""`.
  */
 function buyerTimezone(): string | undefined {
   try {
@@ -62,13 +68,13 @@ function buyerTimezone(): string | undefined {
  * the authenticated buyer. Returns the Stripe HOSTED Checkout URL the app redirects to.
  */
 export async function createPackCheckoutReal(packId: string, identity: AuthIdentity): Promise<CheckoutSession> {
-  const timezone = buyerTimezone()
   const res = await signedFetch(`${paymentsBaseUrl()}/credits/checkout`, {
     method: 'POST',
     identity,
     metadata: {},
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(timezone ? { packId, timezone } : { packId })
+    // JSON.stringify drops an undefined value, so an absent zone leaves the body as `{ packId }`.
+    body: JSON.stringify({ packId, timezone: buyerTimezone() })
   })
   if (!res.ok) throw new Error(`checkout ${res.status}: ${await res.text()}`)
   const { orderId, url } = (await res.json()) as { orderId: string; url: string }

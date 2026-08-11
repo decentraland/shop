@@ -68,7 +68,7 @@ describe('when starting a real pack checkout', () => {
   // A runtime with no zone must still be able to buy: the field is a reporting hint, so it is omitted
   // rather than sent as null, and the checkout goes through untouched.
   it('should omit the timezone entirely when the runtime cannot report one', async () => {
-    const resolvedOptions = vi.spyOn(Intl.DateTimeFormat.prototype, 'resolvedOptions').mockImplementation(() => {
+    vi.spyOn(Intl.DateTimeFormat.prototype, 'resolvedOptions').mockImplementation(() => {
       throw new Error('no Intl data in this build')
     })
     signedFetch.mockResolvedValueOnce(ok({ orderId: 'ord_no_tz', url: 'https://checkout.stripe.com/c/pay/cs_n' }))
@@ -77,7 +77,20 @@ describe('when starting a real pack checkout', () => {
 
     expect(session.orderId).toBe('ord_no_tz')
     expect(JSON.parse(signedFetch.mock.calls[0][1].body)).toEqual({ packId: 'pack_5' })
-    resolvedOptions.mockRestore()
+  })
+
+  // An engine built without full ICU data can return an empty zone instead of throwing. It must be dropped
+  // like a missing one, not sent as `"timezone":""` — which is what makes the `|| undefined` guard in
+  // buyerTimezone() load-bearing now that the body no longer branches on the value.
+  it('should omit an empty timezone rather than sending a blank one', async () => {
+    vi.spyOn(Intl.DateTimeFormat.prototype, 'resolvedOptions').mockReturnValue({
+      timeZone: ''
+    } as Intl.ResolvedDateTimeFormatOptions)
+    signedFetch.mockResolvedValueOnce(ok({ orderId: 'ord_blank', url: 'https://checkout.stripe.com/c/pay/cs_b' }))
+
+    await createPackCheckoutReal('pack_5', IDENTITY)
+
+    expect(JSON.parse(signedFetch.mock.calls[0][1].body)).toEqual({ packId: 'pack_5' })
   })
 
   it('should hit the credits-server base url for the checkout (never shop-server) (G1)', async () => {
