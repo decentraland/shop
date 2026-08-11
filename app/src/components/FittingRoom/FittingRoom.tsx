@@ -170,7 +170,7 @@ export function FittingRoom() {
                 // the profile's outfit on, and ships no in-scene controls.
                 type={PreviewType.AVATAR}
                 emote={PreviewEmote.FASHION}
-                unityMode={PreviewUnityMode.BUILDER}
+                unityMode={tryOn.profile === 'default' ? PreviewUnityMode.BUILDER : PreviewUnityMode.MARKETPLACE}
                 disableBackground
                 disableFadeEffect
                 onLoad={() => setPreviewReady(true)}

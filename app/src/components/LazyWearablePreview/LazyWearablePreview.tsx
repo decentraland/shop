@@ -69,7 +69,6 @@ function Preview({
       <WearablePreviewLazy
         dev={chainId === ChainId.MATIC_AMOY}
         peerUrl={config.peerUrl}
-        baseUrl="https://wearable-preview-git-feat-update-aang-261-decentraland1.vercel.app"
         marketplaceServerUrl={config.marketplaceServerUrl}
         {...props}
         unity={shouldUseUnity}
