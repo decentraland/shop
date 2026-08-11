@@ -91,22 +91,6 @@ export default defineConfig({
       { find: /^@0xsquid\/sdk$/, replacement: fileURLToPath(new URL('./src/stubs/squid.ts', import.meta.url)) }
     ]
   },
-  optimizeDeps: {
-    // Pre-bundle what only the LAZY chunks import. Discovered on demand, these send the dev server into a
-    // re-optimize while the dynamic import is already in flight, and that import then fails ("Failed to
-    // fetch dynamically imported module") — the emote playback bar's deps hit this on every cold cache.
-    // Listing them here puts them in the first optimize pass instead. Dev only; the build bundles it all.
-    include: [
-      'decentraland-ui2/dist/components/WearablePreview/EmoteControls',
-      'decentraland-ui2/dist/theme',
-      '@mui/material/styles',
-      // Injected into every module by the polyfill plugin rather than imported by our source, so the
-      // scanner misses them too — and their re-optimize lands mid-load, blanking the first page view.
-      'vite-plugin-node-polyfills/shims/buffer',
-      'vite-plugin-node-polyfills/shims/global',
-      'vite-plugin-node-polyfills/shims/process'
-    ]
-  },
   build: {
     // Not the default 'assets': that collides with the app's /assets route, and on hosts that serve
     // the dist folder at the root (Vercel previews) a hard load of /assets hits the DIRECTORY before

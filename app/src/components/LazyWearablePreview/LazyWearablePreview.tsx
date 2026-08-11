@@ -60,8 +60,7 @@ function Preview({
   onRenderer,
   ...props
 }: Props) {
-  const [, setShouldUseUnity] = useState(() => resolveUnityRenderer(unity, props.id))
-  const shouldUseUnity: boolean = true
+  const [shouldUseUnity, setShouldUseUnity] = useState(() => resolveUnityRenderer(unity, props.id))
   const chainId: ChainId = config.chainId
 
   return (
