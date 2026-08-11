@@ -23,6 +23,7 @@ vi.mock('~/components/LazyWearablePreview', () => ({
 vi.mock('~/hooks/useProfile', () => ({ useProfile: () => ({ data: undefined }) }))
 
 import { HoverPreviewLayer } from './HoverPreviewLayer'
+import { useCart } from '~/store/cart'
 import { useHoverPreview } from '~/store/hoverPreview'
 import type { CatalogItem } from '~/lib/api'
 
@@ -46,11 +47,12 @@ function makeItem(overrides: Partial<CatalogItem> = {}): CatalogItem {
 }
 
 // The layer defers mounting the iframe to browser idle; jsdom has no requestIdleCallback, so it takes the
-// setTimeout path — run the timers to get it mounted.
-async function mountLayer() {
+// setTimeout path — run the timers to get it mounted. Defaults to a browse grid, the surface hover
+// previews exist for.
+async function mountLayer(path = '/items') {
   vi.useFakeTimers()
   const view = render(
-    <MemoryRouter initialEntries={['/items']}>
+    <MemoryRouter initialEntries={[path]}>
       <HoverPreviewLayer />
     </MemoryRouter>
   )
@@ -73,6 +75,39 @@ function lastUpdateOptions() {
 beforeEach(() => {
   sendMessage.mockClear()
   useHoverPreview.setState({ item: null, anchor: null, ready: false, token: 0 })
+  useCart.setState({ fittingOpen: false })
+})
+
+/**
+ * The warm engine is an optimisation for card hover, and it is only free where nothing else is rendering.
+ * Kept alive on top of a surface that mounts its own preview it becomes a second (with the Fitting Room,
+ * a third) live WebGL context on the same page, which is what pegged the GPU.
+ */
+describe('HoverPreviewLayer — when another surface owns the live preview', () => {
+  it.each([
+    ['the item detail page', '/item/0xc04528c14c8ffd84c7c1fb6719b4a89853035cdd/7'],
+    ['a secondary listing', '/token/0xc04528c14c8ffd84c7c1fb6719b4a89853035cdd/7'],
+    ['the outfit detail page', '/items/outfits/3f8e5acc-f952-4efc-8543-a3f6433d9190'],
+    ['the outfit studio', '/outfits/manage']
+  ])('should keep no engine warm on %s', async (_surface, path) => {
+    const { queryByTitle } = await mountLayer(path)
+
+    expect(queryByTitle('preview')).toBeNull()
+  })
+
+  it('should keep no engine warm while the fitting room is open', async () => {
+    useCart.setState({ fittingOpen: true })
+
+    const { queryByTitle } = await mountLayer()
+
+    expect(queryByTitle('preview')).toBeNull()
+  })
+
+  it('should keep one warm on a browse grid, where hover previews are used', async () => {
+    const { queryByTitle } = await mountLayer()
+
+    expect(queryByTitle('preview')).not.toBeNull()
+  })
 })
 
 /**

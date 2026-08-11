@@ -84,12 +84,15 @@ export function OutfitPreview({
   // composed in, the list opens with their base wearables, whose off-chain urns name none.
   const dev = urnNetwork(urns) === ChainName.MATIC_AMOY
 
-  // Mask every (re)load — changed urns reload the same iframe in place, so cover it until onLoad.
+  // Mask every (re)load — a changed input reloads the same iframe in place, so cover it until onLoad.
+  // The list below is every prop that goes into the iframe's src, `bodyShape` included: the studio
+  // switches shape with the profile and the urns held still, and without it here that reload ran with
+  // `ready` left true, blanking the mannequin behind no loader at all.
   const [ready, setReady] = useState(false)
   const urnsSig = urns.join(',')
   useEffect(() => {
     setReady(false)
-  }, [urnsSig, profile, emote, skin, hair, eyes])
+  }, [urnsSig, profile, bodyShape, emote, skin, hair, eyes])
   useEffect(() => {
     if (mounted) setReady(false)
   }, [mounted])
