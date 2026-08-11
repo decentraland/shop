@@ -1553,7 +1553,12 @@ export function ItemDetail() {
                         wallets. Shown alongside the primary CTAs whenever this item is still mintable
                         (published + remaining supply > 0 → publishableItem is present). Gasless. */}
                         {manageAsPrimary && publishableItem ? (
-                          <S.LinkCta type="button" onClick={() => setShowIssue(true)} disabled={managing !== null}>
+                          <S.LinkCta
+                            type="button"
+                            data-on-purple
+                            onClick={() => setShowIssue(true)}
+                            disabled={managing !== null}
+                          >
                             {t('itemDetail.manageIssue')}
                           </S.LinkCta>
                         ) : null}

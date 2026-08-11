@@ -790,6 +790,13 @@ export const LinkCta = styled.button`
   text-decoration: underline;
   cursor: pointer;
 
+  /* Opt-in for the uses that sit directly on the purple field, where the accent purple above is all
+     but invisible against it. Not a change to the shared colour: the other uses live inside
+     GaslessNotice, whose light fill is what that accent was picked for. */
+  &[data-on-purple] {
+    color: ${theme.colors.white};
+  }
+
   &:disabled {
     opacity: 0.5;
     cursor: default;
