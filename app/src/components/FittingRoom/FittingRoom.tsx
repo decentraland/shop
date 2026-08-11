@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { PreviewEmote, PreviewType } from '@dcl/schemas'
+import { PreviewEmote, PreviewType, PreviewUnityMode } from '@dcl/schemas'
 import { WearablePreview } from '~/components/LazyWearablePreview'
 import { useCart } from '~/store/cart'
 import { useWallet } from '~/store/wallet'
@@ -170,6 +170,7 @@ export function FittingRoom() {
                 // the profile's outfit on, and ships no in-scene controls.
                 type={PreviewType.AVATAR}
                 emote={PreviewEmote.FASHION}
+                unityMode={tryOn.profile === 'default' ? PreviewUnityMode.BUILDER : PreviewUnityMode.MARKETPLACE}
                 disableBackground
                 disableFadeEffect
                 onLoad={() => setPreviewReady(true)}

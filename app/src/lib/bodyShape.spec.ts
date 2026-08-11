@@ -6,6 +6,7 @@ import {
   avatarShape,
   isCompatible,
   dominantShape,
+  requiredShape,
   shapeLabel,
   BASE_MALE,
   BASE_FEMALE
@@ -46,6 +47,14 @@ describe('bodyShape helpers', () => {
     expect(dominantShape([w('male'), w('female')])).toBe(BASE_MALE) // tie
     expect(dominantShape([w('unisex'), emote])).toBeNull()
     expect(dominantShape([])).toBeNull()
+  })
+
+  it('requiredShape: a gendered item forces its shape; null when unconstrained or in conflict', () => {
+    expect(requiredShape([w('unisex'), w('female'), emote])).toBe(BASE_FEMALE)
+    expect(requiredShape([w('male'), w('male'), w(null)])).toBe(BASE_MALE)
+    expect(requiredShape([w('unisex'), w(null), emote])).toBeNull()
+    expect(requiredShape([w('male'), w('female')])).toBeNull() // no body can wear both
+    expect(requiredShape([])).toBeNull()
   })
 
   it('shapeLabel', () => {

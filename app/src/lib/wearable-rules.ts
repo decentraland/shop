@@ -1,3 +1,4 @@
+import { WearableCategory } from '@dcl/schemas'
 import { config } from '~/config'
 
 /**
@@ -13,7 +14,7 @@ import { config } from '~/config'
  */
 export type WearableRule = {
   urn: string
-  category: string
+  category: WearableCategory
   hides: string[]
   replaces: string[]
 }
@@ -41,7 +42,7 @@ const SKIN_COVERS = [
 // Everything a rule keeps off the avatar: what it declares, plus what its category implies.
 export function hiddenBy(rule: WearableRule): Set<string> {
   const out = new Set<string>([...rule.hides, ...rule.replaces])
-  if (rule.category === 'skin') for (const c of SKIN_COVERS) out.add(c)
+  if (rule.category === WearableCategory.SKIN) for (const c of SKIN_COVERS) out.add(c)
   return out
 }
 
@@ -65,9 +66,28 @@ export function keepEquipped(equipped: WearableRule[], tryOnCategories: string[]
     .map(r => r.urn)
 }
 
+// The shopper's face: the only part of their avatar an outfit preview borrows. Hair is NOT one of them —
+// the hair COLOR is kept (it is a colour, not a wearable), the hairstyle is not.
+const FACE_CATEGORIES = new Set([WearableCategory.EYES, WearableCategory.EYEBROWS, WearableCategory.MOUTH])
+
+/**
+ * The equipped urns an OUTFIT preview keeps: the shopper's eyes, eyebrows and mouth, and nothing else.
+ *
+ * An outfit is a complete look, and the thumbnail its creator published shows it on its own. Dressing it
+ * over the shopper's hat, hair and shoes gave a different look from the one they clicked, so the avatar
+ * contributes only its face (plus its skin/hair/eye colours, which travel separately) and the outfit
+ * fills everything else.
+ *
+ * Order is preserved, and the caller appends the outfit's urns AFTER these: the renderers resolve one
+ * wearable per category in list order, so an outfit that carries its own face item still wins the slot.
+ */
+export function faceOnly(equipped: WearableRule[]): string[] {
+  return equipped.filter(rule => FACE_CATEGORIES.has(rule.category)).map(r => r.urn)
+}
+
 type ActiveEntity = {
   pointers?: string[]
-  metadata?: { data?: { category?: string; hides?: string[]; replaces?: string[]; blockVrmExport?: boolean } }
+  metadata?: { data?: { category?: WearableCategory; hides?: string[]; replaces?: string[]; blockVrmExport?: boolean } }
 }
 
 // One POST for a batch of urns. The Catalyst holds the wearable's own definition, so both readers here come

@@ -135,24 +135,6 @@ export const Preview = styled.div`
     }
   }
 
-  & > [data-preview-controls] {
-    position: absolute;
-    bottom: 16px;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 2;
-    width: min(360px, 88%);
-    height: auto;
-    display: flex;
-    align-items: center;
-    background: rgba(255, 255, 255, 0.94);
-    backdrop-filter: blur(6px);
-    border: 1px solid ${colors.line};
-    border-radius: ${radius.pill};
-    padding: 6px 12px;
-    box-shadow: 0 2px 10px rgba(22, 21, 24, 0.12);
-  }
-
   & > [data-preview-note] {
     position: absolute;
     bottom: 14px;

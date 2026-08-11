@@ -6,12 +6,15 @@ import {
   fetchWearableRules,
   fetchVrmExportBlocked,
   keepEquipped,
+  faceOnly,
   hiddenBy,
   type WearableRule
 } from '~/lib/wearable-rules'
 
+// Categories stay plain strings at the call sites (they read as the Catalyst writes them); the cast is
+// the same trust the wire type takes.
 function rule(urn: string, category: string, hides: string[] = [], replaces: string[] = []): WearableRule {
-  return { urn, category, hides, replaces }
+  return { urn, category: category as WearableRule['category'], hides, replaces }
 }
 
 beforeEach(() => vi.stubGlobal('fetch', vi.fn()))
@@ -61,6 +64,35 @@ describe('when deciding which of the avatar’s wearables stay on', () => {
   it('should preserve the avatar’s own order', () => {
     const equipped = [rule('a', 'eyebrows'), rule('b', 'mouth'), rule('c', 'feet')]
     expect(keepEquipped(equipped, ['hat'])).toEqual(['a', 'b', 'c'])
+  })
+})
+
+describe('when deciding what an outfit preview borrows from the avatar', () => {
+  it('should keep the face and drop everything else', () => {
+    const equipped = [
+      rule('their-hat', 'hat'),
+      rule('their-eyes', 'eyes'),
+      rule('their-hair', 'hair'),
+      rule('their-brows', 'eyebrows'),
+      rule('their-shoes', 'feet'),
+      rule('their-mouth', 'mouth'),
+      rule('their-shirt', 'upper_body')
+    ]
+
+    expect(faceOnly(equipped)).toEqual(['their-eyes', 'their-brows', 'their-mouth'])
+  })
+
+  /** The hair COLOUR is kept (it travels with the other colours) — the hairstyle is a wearable, so it goes. */
+  it('should not treat hair or facial hair as part of the face', () => {
+    expect(faceOnly([rule('h', 'hair'), rule('b', 'facial_hair')])).toEqual([])
+  })
+
+  it('should preserve the avatar’s own order', () => {
+    expect(faceOnly([rule('m', 'mouth'), rule('e', 'eyes')])).toEqual(['m', 'e'])
+  })
+
+  it('should answer with nothing when the Catalyst told us nothing', () => {
+    expect(faceOnly([])).toEqual([])
   })
 })
 

@@ -1,5 +1,5 @@
 import { lazy, Suspense, useState, type ComponentProps } from 'react'
-import { PreviewRenderer, PreviewUnityMode } from '@dcl/schemas'
+import { ChainId, PreviewRenderer, PreviewUnityMode } from '@dcl/schemas'
 import type { WearablePreview as WearablePreviewComponent } from 'decentraland-ui2/dist/components/WearablePreview'
 import { pickRenderer } from '~/lib/pickRenderer'
 import { track } from '~/lib/analytics'
@@ -61,11 +61,12 @@ function Preview({
   ...props
 }: Props) {
   const [shouldUseUnity, setShouldUseUnity] = useState(() => resolveUnityRenderer(unity, props.id))
+  const chainId: ChainId = config.chainId
 
   return (
     <Suspense fallback={null}>
       <WearablePreviewLazy
-        dev={config.chainId === 80002}
+        dev={chainId === ChainId.MATIC_AMOY}
         peerUrl={config.peerUrl}
         marketplaceServerUrl={config.marketplaceServerUrl}
         {...props}
