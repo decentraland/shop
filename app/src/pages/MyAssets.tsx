@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Icon } from '~/components/Icon'
 import { config } from '~/config'
 import { useWallet } from '~/store/wallet'
 import {
@@ -28,12 +27,14 @@ import { useImportable } from '~/hooks/useImportable'
 import { t } from '~/intl/i18n'
 import { theme } from '~/styles/theme'
 import { ErrorNotice } from '~/components/ErrorNotice'
+import { EmptyState } from '~/components/EmptyState'
 import { NewPricingModal } from '~/components/NewPricingModal'
+import itemsEmptyIllustration from '~/assets/empty/items-empty.svg'
+import salesEmptyIllustration from '~/assets/empty/sales-empty.svg'
+import collectionsEmptyIllustration from '~/assets/empty/collections-empty.svg'
 import { dismissPrompt, isPromptDismissed, MANA_PRICING_PROMPT } from '~/lib/dismissed-prompts'
-import * as A from './Assets.styles'
+import * as A from '~/styles/browseLayout.styles'
 import * as F from '~/components/Filters/Filters.styles'
-import myItemsEmptyArt from '~/assets/error/my-items-empty.svg'
-import creationsEmptyArt from '~/assets/error/creations-empty.svg'
 import * as S from './MyAssets.styles'
 
 const PAGE_SIZE = 48
@@ -540,16 +541,12 @@ export function MyAssets() {
               )}
             </S.Grid>
             {!publishableLoading && creations.length === 0 ? (
-              <S.EmptyState data-testid="creations-empty">
-                <S.EmptyIcon>
-                  <S.EmptyArt src={creationsEmptyArt} alt="" />
-                </S.EmptyIcon>
-                <S.EmptyCopy>
-                  <S.EmptyTitle>{t('myAssets.emptyCreationsTitle')}</S.EmptyTitle>
-                  <S.EmptyText>{t('myAssets.nothingToPublish')}</S.EmptyText>
-                </S.EmptyCopy>
-                <S.EmptyCta to="/items">{t('myAssets.emptyBrowse')}</S.EmptyCta>
-              </S.EmptyState>
+              <EmptyState
+                testId="creations-empty"
+                icon={collectionsEmptyIllustration}
+                title={t('myAssets.emptyCreationsTitle')}
+                body={t('myAssets.nothingToPublish')}
+              />
             ) : null}
           </>
         ) : (
@@ -593,22 +590,14 @@ export function MyAssets() {
               />
             ) : null}
             {!ownedLoading && !isPlaceholderData && ownedAssets.length === 0 ? (
-              <S.EmptyState data-testid="owned-empty">
-                <S.EmptyIcon>
-                  {section === 'names' ? (
-                    <Icon name="website" size={96} aria-hidden />
-                  ) : (
-                    <S.EmptyArt data-inset src={myItemsEmptyArt} alt="" />
-                  )}
-                </S.EmptyIcon>
-                <S.EmptyCopy>
-                  <S.EmptyTitle>
-                    {section === 'names' ? t('myAssets.emptyNamesTitle') : t('myAssets.emptyOwnedTitle')}
-                  </S.EmptyTitle>
-                  <S.EmptyText>{section === 'names' ? t('myAssets.namesEmpty') : t('myAssets.ownedEmpty')}</S.EmptyText>
-                </S.EmptyCopy>
-                {section !== 'names' ? <S.EmptyCta to="/items">{t('myAssets.emptyBrowse')}</S.EmptyCta> : null}
-              </S.EmptyState>
+              <EmptyState
+                testId="owned-empty"
+                // A "nothing on sale" grid is a listings state, not an empty backpack.
+                icon={status === 'on_sale' ? salesEmptyIllustration : itemsEmptyIllustration}
+                title={section === 'names' ? t('myAssets.emptyNamesTitle') : t('myAssets.emptyOwnedTitle')}
+                body={section === 'names' ? t('myAssets.namesEmpty') : t('myAssets.ownedEmpty')}
+                cta={section !== 'names' ? { label: t('myAssets.emptyBrowse'), to: '/items' } : undefined}
+              />
             ) : null}
           </>
         )}

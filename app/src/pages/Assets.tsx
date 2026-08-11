@@ -20,9 +20,10 @@ import { rarityLabel } from '~/lib/rarity'
 import { track } from '~/lib/analytics'
 import { t } from '~/intl/i18n'
 import { ErrorNotice } from '~/components/ErrorNotice'
+import { EmptyState } from '~/components/EmptyState'
 import { NamesPage } from '~/pages/NamesPage'
 import { Grid } from '~/styles/grid.styles'
-import emptyIllustration from '~/assets/error/search-empty.svg'
+import emptyIllustration from '~/assets/empty/search-empty.svg'
 import * as S from './Assets.styles'
 
 // Items fetched per page (infinite scroll pages by cumulative offset — see useInfiniteGrid).
@@ -325,28 +326,23 @@ export function Assets() {
             {error ? <ErrorNotice message={t('assets.loadError')} testId="browse-error" /> : null}
 
             {!showGridSkeletons && items.length === 0 && !error ? (
-              <S.EmptyState data-testid="browse-empty">
-                <S.EmptyIcon src={emptyIllustration} alt="" />
-                <S.EmptyText>
-                  <S.EmptyTitle>{t('assets.empty.title')}</S.EmptyTitle>
-                  <S.EmptyBody>
-                    {rawQuery ? (
-                      <>
-                        {t('assets.empty.searchBefore')}
-                        <b>{rawQuery}</b>
-                        {t('assets.empty.searchAfter')}
-                      </>
-                    ) : (
-                      t('assets.empty.filters')
-                    )}
-                  </S.EmptyBody>
-                </S.EmptyText>
-                <S.EmptyCta>
-                  <S.EmptyBtn type="button" onClick={() => navigate('/overview')}>
-                    {t('assets.empty.cta')}
-                  </S.EmptyBtn>
-                </S.EmptyCta>
-              </S.EmptyState>
+              <EmptyState
+                testId="browse-empty"
+                icon={emptyIllustration}
+                title={t('assets.empty.title')}
+                body={
+                  rawQuery ? (
+                    <>
+                      {t('assets.empty.searchBefore')}
+                      <b>{rawQuery}</b>
+                      {t('assets.empty.searchAfter')}
+                    </>
+                  ) : (
+                    t('assets.empty.filters')
+                  )
+                }
+                cta={{ label: t('assets.empty.cta'), onClick: () => navigate('/overview') }}
+              />
             ) : (
               <>
                 <Grid data-testid="grid">

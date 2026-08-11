@@ -7,7 +7,8 @@ import { useBalance, balanceLabel } from '~/hooks/useBalance'
 import { fetchTrade, type CatalogItem, type LegacyListing } from '~/lib/api'
 import { manaWeiToUsdCents, type ManaRate } from '~/lib/mana-rate'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
-import { CURRENCY, creditsToUsd, formatAmount, usdCentsToCredits } from '~/lib/currency'
+import { Price } from '~/components/Price'
+import { CURRENCY, creditsToUsd, creditsUnit, usdCentsToCredits } from '~/lib/currency'
 import { isIapMode } from '~/lib/iap'
 import { track, errorCode, isUserRejection } from '~/lib/analytics'
 import { authorizeUsdCredit, cancelUsdIntents } from '~/lib/credits'
@@ -479,7 +480,7 @@ export function MarketCheckout({
               <S.PriceLabel>{t('marketCheckout.finalPrice')}</S.PriceLabel>
               <S.PriceValue>
                 <S.Diamond />
-                {formatAmount(quote.credits)}
+                <Price credits={quote.credits} /> {creditsUnit(quote.credits)}
               </S.PriceValue>
               {/* Derived from the CREDITS, not from `quote.usdCents`. The listing converts to cents at the
                   oracle and is then charged rounded up to a whole credit, so the raw figure understates
@@ -492,7 +493,7 @@ export function MarketCheckout({
               <S.PriceValue data-approx>
                 <S.Approx aria-hidden>≈</S.Approx>
                 <S.Diamond />
-                {formatAmount(approxCredits)}
+                <Price credits={approxCredits} /> {creditsUnit(approxCredits)}
               </S.PriceValue>
               <S.PriceSub className="muted">{status || t('marketCheckout.checkingListing')}</S.PriceSub>
             </>

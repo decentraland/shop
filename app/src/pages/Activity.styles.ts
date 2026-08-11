@@ -1,7 +1,6 @@
 import styled from '@emotion/styled'
 import { keyframes } from '@emotion/react'
 import { theme } from '~/styles/theme'
-import { Button } from '~/components/Button'
 
 // Activity — a chronological feed of the signed-in user's shop actions (purchases + secondary sales),
 // with type filters. Purchases render as ORDER cards (one card per checkout: header with date, status,
@@ -476,6 +475,13 @@ export const Empty = styled.div`
   display: flex;
   flex-direction: column;
   align-items: center;
+`
+
+// Sign-in gate — a plain centred column, not the illustrated empty-state panel.
+export const Gate = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   gap: 8px;
   text-align: center;
   padding: 90px 20px;
@@ -494,10 +500,6 @@ export const EmptyTitle = styled.p`
 export const EmptyBody = styled.p`
   margin: 0;
   color: ${theme.colors.softWhite};
-`
-
-export const EmptyCta = styled(Button)`
-  margin-top: 12px;
 `
 
 /**

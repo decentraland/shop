@@ -7,6 +7,7 @@ import { useManaRate } from '~/hooks/useManaRate'
 import { Icon } from '~/components/Icon'
 import { fetchCollectionSuggestions, fetchCreatorSuggestions, type CollectionHit, type CreatorHit } from '~/lib/search'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
+import { Price } from '~/components/Price'
 import { useProfile } from '~/hooks/useProfile'
 import { t } from '~/intl/i18n'
 import * as S from './SearchDropdown.styles'
@@ -182,7 +183,7 @@ export function SearchDropdown({
                         </S.Text>
                         {price == null ? null : (
                           <S.Price>
-                            <CurrencyIcon className="ccy-mark" /> {price}
+                            <CurrencyIcon className="ccy-mark" /> <Price credits={price} />
                           </S.Price>
                         )}
                       </S.Row>

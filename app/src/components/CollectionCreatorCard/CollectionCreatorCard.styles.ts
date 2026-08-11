@@ -15,7 +15,8 @@ export const Root = styled.div`
   /* Lift so the avatar half-overlaps the 24px-below cover hero (24px + half the 110px avatar). */
   margin-top: -79px;
   margin-bottom: 8px;
-  border-bottom: 1px solid ${colors.line};
+  /* Matches the dividers between the filter sections below it (Filters.styles Divider). */
+  border-bottom: 1px solid rgba(255, 255, 255, 0.25);
 `
 
 // Rendered as <img> (face snapshot) or <Ava as="span"> (placeholder); the per-user backdrop is inline.
@@ -42,31 +43,6 @@ export const Name = styled.h2`
   white-space: nowrap;
 `
 
-// The short address with a copy icon; the whole chip is the copy button.
-export const Account = styled.button`
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 8px;
-  border: 0;
-  border-radius: ${radius.btn};
-  background: none;
-  color: ${colors.gray4};
-  font: inherit;
-  font-size: 14px;
-  cursor: pointer;
-  transition:
-    color 0.15s ease,
-    background 0.15s ease;
-
-  &:hover {
-    color: ${colors.white};
-    background: rgba(255, 255, 255, 0.12);
-  }
-`
-
-// Full-width outlined pill CTA. Dark-theme test: white outline + label on the purple field (same
-// treatment as MakeOfferButton); fills white on hover.
 export const View = styled.a`
   display: inline-flex;
   align-items: center;
@@ -74,9 +50,8 @@ export const View = styled.a`
   width: 100%;
   height: 44px;
   padding: 0 20px;
-  border: 2px solid ${colors.softWhite};
   border-radius: ${radius.btn};
-  background: transparent;
+  background: ${colors.overlay};
   color: ${colors.softWhite};
   font-weight: 600;
   font-size: 13px;
@@ -88,7 +63,6 @@ export const View = styled.a`
     color 0.15s ease;
 
   &:hover {
-    background: ${colors.softWhite};
-    color: ${colors.text};
+    background: ${colors.blackBtn};
   }
 `

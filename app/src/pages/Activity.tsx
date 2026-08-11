@@ -21,11 +21,14 @@ import { useListingCount } from '~/hooks/useListingCount'
 import { LoadMore } from '~/components/LoadMore'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
+import { Price } from '~/components/Price'
 import { formatCredits } from '~/lib/currency'
 import creditsProduct from '~/assets/credits-product.svg'
 import manaSymbol from '~/assets/mana-matic.svg'
 import nameGlyph from '~/assets/names/name-glyph.svg'
 import { Icon } from '~/components/Icon'
+import { EmptyState } from '~/components/EmptyState'
+import salesEmptyIllustration from '~/assets/empty/sales-empty.svg'
 import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
 import { toast } from '~/store/toast'
@@ -150,7 +153,7 @@ function OrderLine({ item }: { item: OrderLineItem }) {
         {item.quantity > 1 ? <S.LineMeta>{t('activity.quantity', { count: item.quantity })}</S.LineMeta> : null}
       </S.LineInfo>
       <S.LinePrice>
-        <CurrencyIcon className="ccy-mark" /> {item.credits}
+        <CurrencyIcon className="ccy-mark" /> <Price credits={item.credits} />
       </S.LinePrice>
     </>
   )
@@ -210,7 +213,7 @@ function OrderCard({ order }: { order: PurchaseOrder }) {
         <S.HeadRight>
           <S.Pill data-status={pill}>{pillLabel}</S.Pill>
           <S.Total>
-            <CurrencyIcon className="ccy-mark" /> {order.totalCredits}
+            <CurrencyIcon className="ccy-mark" /> <Price credits={order.totalCredits} />
           </S.Total>
         </S.HeadRight>
       </S.CardHead>
@@ -472,7 +475,7 @@ function CreditPurchaseCard({ order }: { order: CreditOrder }) {
               stake, plainly, with no sign. */}
           <S.Total data-kind={pill === 'UNFINISHED' ? undefined : 'income'}>
             {pill === 'UNFINISHED' ? '' : '+'}
-            <CurrencyIcon className="ccy-mark" /> {order.credits}
+            <CurrencyIcon className="ccy-mark" /> <Price credits={order.credits} />
           </S.Total>
         </S.HeadRight>
       </S.CardHead>
@@ -480,23 +483,23 @@ function CreditPurchaseCard({ order }: { order: CreditOrder }) {
   )
 }
 
-function EmptyState({ filter }: { filter: ActivityFilter }) {
-  const copy = {
-    all: { icon: 'clock', title: t('activity.emptyAllTitle'), body: t('activity.emptyAllBody') },
-    purchases: { icon: 'cart', title: t('activity.emptyPurchasesTitle'), body: t('activity.emptyPurchasesBody') },
-    sales: { icon: 'offer', title: t('activity.emptySalesTitle'), body: t('activity.emptySalesBody') }
+function ActivityEmpty({ filter }: { filter: ActivityFilter }) {
+  // All three tabs share the design's sale-tag panel; only the body line differs per tab.
+  const body = {
+    all: t('activity.emptyAllBody'),
+    purchases: t('activity.emptyPurchasesBody'),
+    sales: t('activity.emptySalesBody')
   }[filter]
 
   return (
     <S.Empty>
-      <Icon name={copy.icon as 'cart'} size={40} color={theme.colors.muted2} />
-      <S.EmptyTitle>{copy.title}</S.EmptyTitle>
-      <S.EmptyBody>{copy.body}</S.EmptyBody>
-      {filter !== 'sales' ? (
-        <S.EmptyCta as={Link} to="/items" variant="white">
-          {t('notFound.cta')}
-        </S.EmptyCta>
-      ) : null}
+      <EmptyState
+        testId={`activity-empty-${filter}`}
+        icon={salesEmptyIllustration}
+        title={t('activity.emptyTitle')}
+        body={body}
+        cta={{ label: t('assets.empty.cta'), to: '/items' }}
+      />
     </S.Empty>
   )
 }
@@ -585,11 +588,11 @@ export function Activity() {
 
   if (!session) {
     return (
-      <S.Empty>
+      <S.Gate>
         <Icon name="clock" size={40} color={theme.colors.muted2} />
         <S.EmptyTitle>{t('activity.signInTitle')}</S.EmptyTitle>
         <S.EmptyBody>{t('activity.signInBody')}</S.EmptyBody>
-      </S.Empty>
+      </S.Gate>
     )
   }
 
@@ -691,7 +694,7 @@ export function Activity() {
           ))}
         </S.List>
       ) : feed.length === 0 ? (
-        <EmptyState filter={filter} />
+        <ActivityEmpty filter={filter} />
       ) : (
         <>
           <S.List>

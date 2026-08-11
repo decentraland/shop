@@ -4,7 +4,7 @@ import { t } from '~/intl/i18n'
 import { CURRENCY } from '~/lib/currency'
 import type { HeldCredits as Held } from '~/lib/credits'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
-import { formatCredits } from '~/lib/currency'
+import { Price } from '~/components/Price'
 import * as S from './HeldCredits.styles'
 
 // Ties the trigger to the panel for assistive tech; there is only ever one of these on screen.
@@ -87,7 +87,7 @@ export function HeldCredits({ held }: { held: Held | undefined }) {
         onBlur={hideUnlessFocusMovedInside}
       >
         <Icon name="clock" size={15} data-held-clock aria-hidden />
-        {formatCredits(held.credits)}
+        <Price credits={held.credits} />
         <CurrencyIcon size={14} />
         {t('heldCredits.onHoldLabel')}
       </S.Trigger>

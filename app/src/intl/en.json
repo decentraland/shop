@@ -55,6 +55,10 @@
     "items": "Items",
     "byCreator": "By {name}"
   },
+  "common": {
+    "copy": "Copy",
+    "copied": "Copied"
+  },
   "collection": {
     "breadcrumb": "Collectibles",
     "fallbackTitle": "Collection",
@@ -124,12 +128,14 @@
     "following": "Following",
     "followTitle": "Follow creator",
     "unfollowTitle": "Unfollow creator",
+    "emptyNoCreationsTitle": "Nothing here... yet!",
     "emptyNoCreations": "This creator hasn’t published anything yet.",
     "emptyFilters": {
       "title": "No items match these filters.",
       "body": "This creator has {count, plural, one {# item} other {# items}}, but none of them match your current filters."
     },
     "collectionsCount": "{count, plural, one {# collection} other {# collections}}",
+    "collectionsEmptyTitle": "No collections yet!",
     "collectionsEmpty": "This creator hasn’t published any collections yet.",
     "error": "Couldn’t load this creator — please try again.",
     "breadcrumbAria": "Breadcrumb"
@@ -611,11 +617,9 @@
     "nameRegistration": "Decentraland NAME",
     "signInTitle": "Sign in to see your activity",
     "signInBody": "Your purchases and sales show up here once you sign in.",
-    "emptyAllTitle": "No activity yet",
+    "emptyTitle": "Nothing here... yet!",
     "emptyAllBody": "Your purchases and sales will appear here.",
-    "emptyPurchasesTitle": "No purchases yet",
-    "emptyPurchasesBody": "When you buy something it’ll appear here.",
-    "emptySalesTitle": "No sales yet",
+    "emptyPurchasesBody": "Explore the Shop and find something awesome to make it yours.",
     "emptySalesBody": "When someone buys one of your items it’ll appear here.",
     "itemCount": "{count, plural, one {# item} other {# items}}",
     "quantity": "×{count}",

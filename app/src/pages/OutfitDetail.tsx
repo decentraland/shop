@@ -7,6 +7,7 @@ import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { ErrorNotice } from '~/components/ErrorNotice'
 import { EmoteControls } from '~/components/LazyEmoteControls'
 import { OutfitPreview } from '~/components/OutfitPreview'
+import { Price } from '~/components/Price'
 import { useProfile } from '~/hooks/useProfile'
 import { useTryOnAvatar } from '~/hooks/useTryOnAvatar'
 import { Icon } from '~/components/Icon'
@@ -288,7 +289,7 @@ function OutfitContent({ outfit }: { outfit: Outfit }) {
                               {row.state !== 'unavailable' ? (
                                 <S.ItemPrice>
                                   <CurrencyIcon size={15} />
-                                  {row.item.priceCredits.toLocaleString()}
+                                  <Price credits={row.item.priceCredits} />
                                 </S.ItemPrice>
                               ) : null}
                               {row.state === 'unavailable' ? (
@@ -336,7 +337,7 @@ function OutfitContent({ outfit }: { outfit: Outfit }) {
                     ) : (
                       <S.TotalValue>
                         <CurrencyIcon size={22} />
-                        {outfitCredits.toLocaleString()}
+                        <Price credits={outfitCredits} />
                       </S.TotalValue>
                     )}
                   </S.TotalRow>
@@ -362,7 +363,7 @@ function OutfitContent({ outfit }: { outfit: Outfit }) {
                     {!isAdding && purchasable > 0 ? (
                       <S.CtaPrice>
                         <CurrencyIcon size={16} />
-                        {totalCredits.toLocaleString()}
+                        <Price credits={totalCredits} />
                       </S.CtaPrice>
                     ) : null}
                   </S.Cta>

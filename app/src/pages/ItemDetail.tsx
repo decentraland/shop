@@ -57,6 +57,7 @@ import { isNotifyAvailable } from '~/lib/notify'
 import { Tooltip } from '~/components/Tooltip'
 import { ErrorNotice } from '~/components/ErrorNotice'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
+import { Price } from '~/components/Price'
 import { Icon } from '~/components/Icon'
 import { rarityColor, rarityDescription } from '~/lib/rarity'
 import { categoryIcon, genderIcon } from '~/lib/itemIcons'
@@ -1311,7 +1312,9 @@ export function ItemDetail() {
                           {t('itemDetail.originalPrice')}
                           <S.SoPrice>
                             <CurrencyIcon className="ico" />
-                            <S.SoValue>{current.priceCredits}</S.SoValue>
+                            <S.SoValue>
+                              <Price credits={current.priceCredits} />
+                            </S.SoValue>
                           </S.SoPrice>
                           <S.SoInfo aria-hidden>
                             <Icon name="info" size={12} />
@@ -1324,7 +1327,10 @@ export function ItemDetail() {
                           {t('itemDetail.resalePrice')}
                           <S.SoPrice>
                             <CurrencyIcon className="ico" />
-                            <S.SoValue>{lowestResale}</S.SoValue>
+                            <S.SoValue>
+                              {/* soldOutWithResale implies at least one resale, so a price exists. */}
+                              <Price credits={lowestResale!} />
+                            </S.SoValue>
                           </S.SoPrice>
                           <S.SoInfo aria-hidden>
                             <Icon name="info" size={12} />
@@ -1349,7 +1355,9 @@ export function ItemDetail() {
                                   <>
                                     <S.Approx aria-hidden>≈</S.Approx>
                                     <S.Diamond />
-                                    <S.PriceValue>{marketPriceCredits}</S.PriceValue>
+                                    <S.PriceValue>
+                                      <Price credits={marketPriceCredits} />
+                                    </S.PriceValue>
                                   </>
                                 )}
                               </S.Price>
@@ -1360,11 +1368,13 @@ export function ItemDetail() {
                               <S.Price data-variant="sale" data-testid="item-price">
                                 <S.Price>
                                   <S.Diamond />
-                                  <S.PriceValue>{current.priceCredits}</S.PriceValue>
+                                  <S.PriceValue>
+                                    <Price credits={current.priceCredits} />
+                                  </S.PriceValue>
                                 </S.Price>
                                 <S.PriceWas>
                                   <S.Diamond data-was />
-                                  {current.compareAtCredits}
+                                  <Price credits={current.compareAtCredits!} />
                                 </S.PriceWas>
                                 {saleDiscountPct(current.compareAtCredits!, current.priceCredits) > 0 ? (
                                   <S.SaleBadge>
@@ -1378,7 +1388,9 @@ export function ItemDetail() {
                             ) : (
                               <S.Price data-testid="item-price">
                                 <S.Diamond />
-                                <S.PriceValue>{current.priceCredits}</S.PriceValue>
+                                <S.PriceValue>
+                                  <Price credits={current.priceCredits} />
+                                </S.PriceValue>
                               </S.Price>
                             )
                           ) : manageListed && managePriceCredits ? (
@@ -1386,7 +1398,9 @@ export function ItemDetail() {
                             // instead of "Not for sale" while the public feed catches up to the MV refresh.
                             <S.Price data-testid="item-price">
                               <S.Diamond />
-                              <S.PriceValue>{managePriceCredits}</S.PriceValue>
+                              <S.PriceValue>
+                                <Price credits={managePriceCredits} />
+                              </S.PriceValue>
                             </S.Price>
                           ) : /* Owner/creator viewing their own UNLISTED asset: the manage CTAs below (Put up
                           for sale / Transfer) already convey the state, so the redundant "Not for sale" label
@@ -1430,7 +1444,7 @@ export function ItemDetail() {
                         {marketPriceCredits != null ? (
                           <S.CtaPrice aria-hidden>
                             <S.CtaDiamond />
-                            {marketPriceCredits}
+                            <Price credits={marketPriceCredits} />
                           </S.CtaPrice>
                         ) : null}
                       </S.DetailCta>
@@ -1563,7 +1577,7 @@ export function ItemDetail() {
                           <span>{t('assetCard.buyNow')}</span>
                           <S.CtaPrice aria-hidden>
                             <S.CtaDiamond />
-                            {current.priceCredits}
+                            <Price credits={current.priceCredits} />
                           </S.CtaPrice>
                         </S.DetailCta>
                         <S.AddCart
@@ -1585,7 +1599,7 @@ export function ItemDetail() {
                           <span>{t('assetCard.buyNow')}</span>
                           <S.CtaPrice aria-hidden>
                             <S.CtaDiamond />
-                            {cheapestResaleItem.priceCredits}
+                            <Price credits={cheapestResaleItem.priceCredits} />
                           </S.CtaPrice>
                         </S.DetailCta>
                         <S.AddCart
@@ -1621,7 +1635,9 @@ export function ItemDetail() {
                         <S.Lowest>
                           {t('itemDetail.lowestPrice')}
                           <CurrencyIcon className="ico" />
-                          <S.LowestValue>{lowestResale}</S.LowestValue>
+                          <S.LowestValue>
+                            <Price credits={lowestResale} />
+                          </S.LowestValue>
                         </S.Lowest>
                       ) : null}
                       <S.ResellersLink onClick={() => setShowResellers(true)} data-testid="view-resellers">

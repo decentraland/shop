@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useWallet } from '~/store/wallet'
 import { Confetti } from '~/components/Confetti'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
+import { Price } from '~/components/Price'
 import { Faq, type FaqEntry } from '~/components/Faq'
 import { Icon } from '~/components/Icon'
 import { CURRENCY, formatAmount } from '~/lib/currency'
@@ -561,7 +562,9 @@ function PackGrid({
               <S.PackHeading>
                 <S.PackAmountRow>
                   <CurrencyIcon />
-                  <S.PackAmount>{pack.credits}</S.PackAmount>
+                  <S.PackAmount>
+                    <Price credits={pack.credits} />
+                  </S.PackAmount>
                 </S.PackAmountRow>
                 <S.PackUnit>{t('getCredits.packUnit', { currency: CURRENCY.name })}</S.PackUnit>
                 {/* The struck-through baseline + "+N bonus" pill that used to sit here is gone: the redesign

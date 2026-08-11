@@ -1,6 +1,7 @@
 import type { MouseEvent } from 'react'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { Icon } from '~/components/Icon'
+import { Price } from '~/components/Price'
 import { useOutfitCart, type OutfitItemsResolution } from '~/hooks/useOutfits'
 import { outfitFade, outfitGradient, thumbnailUrl, type Outfit } from '~/lib/outfits'
 import { t } from '~/intl/i18n'
@@ -56,7 +57,7 @@ export function OutfitCard({ outfit, resolution }: { outfit: Outfit; resolution:
             </S.Price>
           ) : availability === 'full' || availability === 'partial' ? (
             <S.Price>
-              <CurrencyIcon size={16} /> {outfitCredits.toLocaleString()}
+              <CurrencyIcon size={16} /> <Price credits={outfitCredits} />
             </S.Price>
           ) : null}
         </S.TopRow>

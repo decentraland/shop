@@ -120,6 +120,12 @@ function renderModal() {
   )
 }
 
+// The amount and its unit are separate nodes (the number renders through <Price>), so the price reads
+// off an element's combined text rather than a single text node.
+function priceMatcher(expected: string) {
+  return (_: string, el: Element | null) => el?.textContent?.replace(/\s+/g, ' ').trim() === expected
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   fetchTrade.mockResolvedValue({ signer: '0xseller' })
@@ -144,7 +150,7 @@ describe('when the buyer has enough credits for the price', () => {
     renderModal()
 
     // $27.00 → ceil(2700 / 10) = 270 credits.
-    expect(await screen.findByText('270 credits')).toBeInTheDocument()
+    expect(await screen.findByText(priceMatcher('270 credits'))).toBeInTheDocument()
     expect(screen.getByText(/\$27\.00/)).toBeInTheDocument()
     // Enough balance → the primary action is Confirm, not the Get-credits bridge.
     expect(screen.getByRole('button', { name: /confirm purchase/i })).toBeInTheDocument()
@@ -175,7 +181,7 @@ describe('when the checkout is opened', () => {
 
     // The price is ours: the server charges what it is sent, rounded up to a whole credit — the same
     // rounding this figure already carries. Nothing about showing it needs a credit to be minted.
-    expect(screen.getByText('270 credits')).toBeInTheDocument()
+    expect(screen.getByText(priceMatcher('270 credits'))).toBeInTheDocument()
     expect(authorizeUsdCredit).not.toHaveBeenCalled()
   })
 
@@ -227,7 +233,7 @@ describe('when the reservation comes back at a different price', () => {
     await confirmOnce()
 
     expect(await screen.findByTestId('price-changed')).toBeInTheDocument()
-    expect(screen.getByText('330 credits')).toBeInTheDocument()
+    expect(screen.getByText(priceMatcher('330 credits'))).toBeInTheDocument()
     expect(buyWithCredits).not.toHaveBeenCalled()
   })
 
@@ -255,7 +261,7 @@ describe('when the listing converts to a fraction of a credit', () => {
 
     renderModal()
 
-    expect(await screen.findByText('274 credits')).toBeInTheDocument()
+    expect(await screen.findByText(priceMatcher('274 credits'))).toBeInTheDocument()
     expect(screen.getByText(/\$27\.40/)).toBeInTheDocument()
     expect(screen.queryByText(/\$27\.34/)).toBeNull()
   })

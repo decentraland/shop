@@ -55,6 +55,10 @@
     "items": "Artículos",
     "byCreator": "Por {name}"
   },
+  "common": {
+    "copy": "Copiar",
+    "copied": "Copiado"
+  },
   "collection": {
     "breadcrumb": "Coleccionables",
     "fallbackTitle": "Colección",
@@ -124,12 +128,14 @@
     "following": "Siguiendo",
     "followTitle": "Seguir al creador",
     "unfollowTitle": "Dejar de seguir al creador",
+    "emptyNoCreationsTitle": "Aquí no hay nada... ¡todavía!",
     "emptyNoCreations": "Este creador todavía no ha publicado nada.",
     "emptyFilters": {
       "title": "Ningún artículo coincide con estos filtros.",
       "body": "Este creador tiene {count, plural, one {# artículo} other {# artículos}}, pero ninguno coincide con los filtros que elegiste."
     },
     "collectionsCount": "{count, plural, one {# colección} other {# colecciones}}",
+    "collectionsEmptyTitle": "¡Aún no hay colecciones!",
     "collectionsEmpty": "Este creador todavía no ha publicado colecciones.",
     "error": "No pudimos cargar este creador. Prueba de nuevo.",
     "breadcrumbAria": "Ruta de navegación"
@@ -611,11 +617,9 @@
     "nameRegistration": "NAME de Decentraland",
     "signInTitle": "Inicia sesión para ver tu actividad",
     "signInBody": "Tus compras y ventas aparecerán aquí cuando inicies sesión.",
-    "emptyAllTitle": "Aún no tienes actividad",
+    "emptyTitle": "Aquí no hay nada... ¡todavía!",
     "emptyAllBody": "Tus compras y ventas aparecerán aquí.",
-    "emptyPurchasesTitle": "Aún no tienes compras",
-    "emptyPurchasesBody": "Cuando compres algo, aparecerá aquí.",
-    "emptySalesTitle": "Aún no tienes ventas",
+    "emptyPurchasesBody": "Explora la Tienda y encuentra algo increíble para hacerlo tuyo.",
     "emptySalesBody": "Cuando alguien compre uno de tus artículos, aparecerá aquí.",
     "itemCount": "{count, plural, one {# artículo} other {# artículos}}",
     "quantity": "×{count}",

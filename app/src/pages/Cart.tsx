@@ -36,6 +36,8 @@ import {
 import type { ChainId } from '@dcl/schemas'
 import { AuthorizeStep } from '~/components/AuthorizeStep'
 import manaLight from '~/assets/mana-matic-light.svg'
+import cartEmptyIllustration from '~/assets/empty/cart-empty.svg'
+import { EmptyState } from '~/components/EmptyState'
 import { ContractName, getContract } from 'decentraland-transactions'
 import { resolveLiveTrade, fetchListings, fetchStoreMintState } from '~/lib/api'
 import { buyManyWithCredits, groupPurchases, purchaseGroupKey, type AnyPurchase } from '~/lib/buy'
@@ -55,6 +57,7 @@ import { gaslessEnabled } from '~/lib/gasless-config'
 import { useCartAvailability } from '~/hooks/useCartAvailability'
 import { isLineBuyable } from '~/lib/cart-availability'
 import { CURRENCY } from '~/lib/currency'
+import { Price } from '~/components/Price'
 import { createPackCheckout, MAX_OFFER_PACKS } from '~/lib/payments'
 import { useCreditPacks } from '~/hooks/useCreditPacks'
 import { CartCheckoutModal, type CheckoutLine } from '~/components/CartCheckoutModal'
@@ -1216,13 +1219,15 @@ export function Cart() {
             {t('nav.cart')}
           </S.Back>
 
-          <S.CartEmpty data-testid="cart-empty">
-            <Icon name="cart-plus" size={110} />
-            <S.CartEmptyText>
-              <S.CartEmptyTitle>{t('cart.empty.title')}</S.CartEmptyTitle>
-              <S.CartEmptyBody>{t('cart.empty.body')}</S.CartEmptyBody>
-            </S.CartEmptyText>
-            <S.CartEmptyCta to="/items">{t('cart.empty.cta')}</S.CartEmptyCta>
+          <S.CartEmpty>
+            <EmptyState
+              variant="light"
+              testId="cart-empty"
+              icon={cartEmptyIllustration}
+              title={t('cart.empty.title')}
+              body={t('cart.empty.body')}
+              cta={{ label: t('cart.empty.cta'), to: '/items' }}
+            />
           </S.CartEmpty>
         </S.Top>
       </S.Checkout>
@@ -1371,8 +1376,12 @@ export function Cart() {
                                 </S.Stepper>
                               ) : null}
                               <S.Price>
-                                <S.PriceIco /> {lineSubtotal}
-                                {changed ? <S.PriceWas>{item.priceCredits * qty}</S.PriceWas> : null}
+                                <S.PriceIco /> <Price credits={lineSubtotal} />
+                                {changed ? (
+                                  <S.PriceWas>
+                                    <Price credits={item.priceCredits * qty} />
+                                  </S.PriceWas>
+                                ) : null}
                               </S.Price>
                             </>
                           )}
@@ -1424,7 +1433,7 @@ export function Cart() {
                 <S.TotalLabel>{t('cart.totalItems', { count: buyableUnits })}</S.TotalLabel>
                 <S.TotalSide>
                   <S.TotalValue>
-                    <S.TotalIco /> {total}
+                    <S.TotalIco /> <Price credits={total} />
                   </S.TotalValue>
                 </S.TotalSide>
               </S.TotalLine>
