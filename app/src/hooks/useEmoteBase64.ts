@@ -11,7 +11,7 @@ export function useEmoteBase64(urn: string | null) {
     enabled: !!urn,
     staleTime: 30 * 60_000,
     retry: false,
-    queryFn: () => fetchEmoteBase64(urn!)
+    queryFn: ({ signal }) => fetchEmoteBase64(urn!, undefined, signal)
   })
 
   return {

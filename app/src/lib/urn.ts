@@ -8,7 +8,9 @@ import type { CatalogItem } from '~/lib/api'
 //
 // The network comes from the ITEM's own chain, not the app's: a dev build pointed at the mainnet
 // catalog (the outfit-seeds setup) must still mint matic URNs, or the preview resolves nothing.
-export function itemUrn(item: Pick<CatalogItem, 'contractAddress' | 'itemId' | 'chainId'>): string | null {
+export function itemUrn(
+  item: Pick<CatalogItem, 'contractAddress' | 'itemId' | 'chainId'>
+): `urn:decentraland:${string}` | null {
   if (!item.itemId) return null
   const chainId = item.chainId ?? config.chainId
   const net = chainId === 80002 ? 'amoy' : 'matic'

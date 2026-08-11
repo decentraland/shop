@@ -57,6 +57,8 @@ export function useOutfitAvatar({
     queryFn: () => fetchWearableRules(equipped)
   })
 
+  const outfitKey = outfitUrns.join(',')
+
   return useMemo(() => {
     // Loading covers the WHOLE settling, including the gap between the profile arriving and the rules
     // query it enables reporting anything: a caller that mounts its preview in that gap gets the outfit
@@ -73,6 +75,5 @@ export function useOutfitAvatar({
       ...avatarColors(profile),
       isLoading
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [address, hasAvatar, profile, profileFetched, rules, rulesLoading, rulesFetched, wantsRules, outfitUrns.join(',')])
+  }, [address, hasAvatar, profile, profileFetched, rules, rulesLoading, rulesFetched, wantsRules, outfitKey])
 }

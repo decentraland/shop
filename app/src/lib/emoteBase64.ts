@@ -28,7 +28,7 @@ type EmoteMetadata = {
 }
 
 /** Whether a preview `emote` value names a published emote rather than one of the built-in animations. */
-export function isEmoteUrn(emote: string): boolean {
+export function isEmoteUrn(emote: string): emote is `urn:decentraland:${string}` {
   return emote.startsWith('urn:')
 }
 
@@ -78,15 +78,20 @@ function encode(definition: unknown): string {
  */
 export async function fetchEmoteBase64(
   urn: string,
-  peerUrl: string = peerUrlFor([urn])
+  peerUrl: string = peerUrlFor([urn]),
+  signal?: AbortSignal
 ): Promise<EmotePlayback | null> {
   try {
     const res = await fetch(`${peerUrl}/content/entities/active`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ pointers: [urn] })
+      body: JSON.stringify({ pointers: [urn] }),
+      signal
     })
-    if (!res.ok) return null
+    if (!res.ok) {
+      await res.body?.cancel()
+      return null
+    }
     const [entity] = (await res.json()) as ActiveEntity[]
     return entity ? toEmoteBase64(entity, peerUrl) : null
   } catch {

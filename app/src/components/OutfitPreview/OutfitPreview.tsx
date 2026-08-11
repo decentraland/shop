@@ -43,7 +43,7 @@ export function OutfitPreview({
    * The animation the avatar plays: a base emote, or the URN of the outfit's own emote. It travels
    * here rather than in `urns` because Unity ignores an emote it finds in the worn list.
    */
-  emote?: PreviewEmote | string
+  emote?: PreviewEmote | `urn:decentraland:${string}`
   /** Caller gate — false while its inputs (profile lookup, catalog resolution) are settling. */
   enabled?: boolean
   /**
@@ -140,7 +140,7 @@ export function OutfitPreview({
           type={PreviewType.AVATAR}
           // A built-in animation is named; a published emote is sent whole. The urn stays in `urns` too,
           // where Babylon can still find it if this lookup came back empty.
-          emote={emoteUrn ? undefined : (emote as PreviewEmote)}
+          emote={emoteUrn ? undefined : emote && !isEmoteUrn(emote) ? emote : undefined}
           base64s={emoteBase64 ? [emoteBase64] : undefined}
           // The playback bar tracks time in JS and decides on its own whether to restart at the end, and
           // the definition it would read that from is one the preview only builds for its single-item form
