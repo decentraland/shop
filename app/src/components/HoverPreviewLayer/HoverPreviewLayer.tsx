@@ -4,6 +4,7 @@ import { useLocation } from 'react-router-dom'
 import { PreviewEmote, PreviewType } from '@dcl/schemas'
 import { PreviewMessageType, sendMessage } from '@dcl/schemas/dist/dapps/preview'
 import { WearablePreview } from '~/components/LazyWearablePreview'
+import { useCart } from '~/store/cart'
 import { useHoverPreview } from '~/store/hoverPreview'
 import { useWallet } from '~/store/wallet'
 import { useProfile } from '~/hooks/useProfile'
@@ -39,13 +40,19 @@ const Wrap = styled.div`
 // cross-origin iframe never surfaces its internal content-URL tooltip.
 const IFRAME_ID = 'hover-preview'
 
+// Path prefixes of the surfaces that mount a heavy WearablePreview of their own: the item PDP
+// (/item/*, /token/*), the outfit detail page and the outfit studio. Prefixes rather than exact
+// routes, so anything nested under them counts too. None of these show card hover previews.
+const OWN_PREVIEW_PREFIXES = ['/item/', '/token/', '/items/outfits/', '/outfits/']
+
 export function HoverPreviewLayer() {
-  // The detail page (PDP) mounts its own heavy WearablePreview, so don't keep a SECOND engine warm
-  // off-screen while a PDP is open — that stacked two (sometimes three, with the Fitting Room) live
-  // WebGL contexts and pegged the GPU. Unmount the warm hover layer on /item/* and /token/* (it
-  // re-boots on idle when the shopper returns to a browse grid, where hover previews are used).
+  // Never keep a SECOND engine warm off-screen while another surface owns the live preview — that
+  // stacked two (sometimes three) live WebGL contexts and pegged the GPU. That means both the pages
+  // that mount their own preview AND the Fitting Room, which owns the single live avatar while it is
+  // open. The layer re-boots on idle once the shopper is back on a grid, where hover previews are used.
   const { pathname } = useLocation()
-  const onDetailPage = pathname.startsWith('/item/') || pathname.startsWith('/token/')
+  const fittingOpen = useCart(s => s.fittingOpen)
+  const suspended = fittingOpen || OWN_PREVIEW_PREFIXES.some(prefix => pathname.startsWith(prefix))
 
   const item = useHoverPreview(s => s.item)
   const anchor = useHoverPreview(s => s.anchor)
@@ -75,6 +82,16 @@ export function HoverPreviewLayer() {
     const id = window.setTimeout(() => setMounted(true), 1500)
     return () => window.clearTimeout(id)
   }, [])
+
+  // Being suspended tears the iframe down, so the next one boots a fresh engine. Forget the boot, or
+  // that engine's first LOAD — the default avatar — is read as the answer to a hover and reveals a bare
+  // mannequin under the card the mouse happens to be on.
+  useEffect(() => {
+    if (!suspended) return
+    bootedRef.current = false
+    loadingTokenRef.current = -1
+    setBooted(false)
+  }, [suspended])
 
   // Track the anchored card's on-screen rect; follow it on scroll/resize while a preview is active.
   useEffect(() => {
@@ -154,7 +171,7 @@ export function HoverPreviewLayer() {
     if (s.item && s.token === loadingTokenRef.current) setReady()
   }
 
-  if (!mounted || onDetailPage) return null
+  if (!mounted || suspended) return null
 
   const active = !!item && !!rect
   const wrapStyle: CSSProperties = active

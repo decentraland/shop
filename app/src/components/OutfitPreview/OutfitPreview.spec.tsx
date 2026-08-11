@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, waitFor } from '@testing-library/react'
+import { act, render, waitFor } from '@testing-library/react'
 import { PreviewEmote } from '@dcl/schemas'
 
 /**
@@ -30,6 +30,7 @@ vi.mock('~/hooks/useEmoteBase64', () => ({
 }))
 
 import { OutfitPreview } from './OutfitPreview'
+import { BASE_FEMALE, BASE_MALE } from '~/lib/bodyShape'
 
 const EMOTE_URN = 'urn:decentraland:matic:collections-v2:0xabc:0'
 const URNS = ['urn:decentraland:matic:collections-v2:0xdef:1']
@@ -99,5 +100,66 @@ describe('when the outfit plays a published emote', () => {
     await waitFor(() => expect(previewProps).toHaveBeenCalled())
     expect(lastProps().urns).toEqual(URNS)
     expect(lastProps().base64s).toBeUndefined()
+  })
+})
+
+/**
+ * Every prop that goes into the iframe's src reloads the scene in place when it changes, and the avatar is
+ * gone for the whole of that load. The loader is what covers it, so the reset has to name each of those
+ * props: `bodyShape` was missing, and the studio changes exactly that — its shape buttons move the mannequin
+ * with the profile and the urns held still, so the reload ran with no loader over it at all.
+ */
+describe('when a loaded preview reloads in place', () => {
+  function loader(container: HTMLElement) {
+    return container.querySelector('[aria-busy="true"]')
+  }
+
+  // The stub above never loads on its own, so land the preview's own onLoad to clear the loader.
+  async function land() {
+    await act(async () => {
+      ;(lastProps().onLoad as () => void)()
+    })
+  }
+
+  it('should show the loader until the first load lands', async () => {
+    const { container } = render(<OutfitPreview id="p" profile="default" urns={URNS} />)
+    expect(loader(container)).not.toBeNull()
+
+    await land()
+
+    expect(loader(container)).toBeNull()
+  })
+
+  it('should show the loader again when the body shape changes', async () => {
+    const { container, rerender } = render(<OutfitPreview id="p" profile="default" bodyShape={BASE_MALE} urns={URNS} />)
+    await land()
+    expect(loader(container)).toBeNull()
+
+    await act(async () => {
+      rerender(<OutfitPreview id="p" profile="default" bodyShape={BASE_FEMALE} urns={URNS} />)
+    })
+
+    expect(loader(container)).not.toBeNull()
+  })
+
+  it('should show the loader again when the worn urns change', async () => {
+    const { container, rerender } = render(<OutfitPreview id="p" profile="default" urns={URNS} />)
+    await land()
+    expect(loader(container)).toBeNull()
+
+    await act(async () => {
+      rerender(
+        <OutfitPreview id="p" profile="default" urns={[...URNS, 'urn:decentraland:off-chain:base-avatars:eyes_00']} />
+      )
+    })
+
+    expect(loader(container)).not.toBeNull()
+  })
+
+  it('should render nothing at all when there is nothing to wear', () => {
+    const { container } = render(<OutfitPreview id="p" profile="default" urns={[]} />)
+
+    expect(previewProps).not.toHaveBeenCalled()
+    expect(loader(container)).toBeNull()
   })
 })
