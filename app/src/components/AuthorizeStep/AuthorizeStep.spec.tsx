@@ -9,16 +9,18 @@ vi.mock('~/lib/authorizations', () => ({
 vi.mock('~/lib/monitoring', () => ({ captureError: vi.fn() }))
 
 import { AuthorizeStep } from '~/components/AuthorizeStep'
+import { theme } from '~/styles/theme'
 
 const auth = { kind: 'approval', contractAddress: '0xc', spenderAddress: '0xm', chainId: 80002 } as never
 const signer = { tag: 'signer' } as never
 
-function renderStep() {
+function renderStep(extra: { step?: { index: number; total: number } } = {}) {
   const onAuthorized = vi.fn()
   const onCancel = vi.fn()
   const onClose = vi.fn()
   render(
     <AuthorizeStep
+      {...extra}
       auth={auth}
       signer={signer}
       title="One quick approval first"
@@ -75,5 +77,48 @@ describe('AuthorizeStep', () => {
       await waitFor(() => expect(screen.getByText(/complete the approval/i)).toBeInTheDocument())
       expect(onAuthorized).not.toHaveBeenCalled()
     })
+  })
+})
+
+/**
+ * This step opens ON TOP of the checkout modal that asked for the approval, and it is mounted BEFORE that
+ * modal in both callers (Cart, BuyModal). Same-z ties break by DOM order, so while its scrim sat at the
+ * shared `overlay` tier it lost every tie and rendered BEHIND the modal it was blocking — a buyer looking
+ * at a checkout that had stopped responding, with the reason hidden underneath it.
+ */
+describe('where the approval step sits in the stack', () => {
+  it('should sit above the modal that asked for it, not level with it', () => {
+    renderStep()
+
+    const z = Number(getComputedStyle(screen.getByTestId('authorize-step-scrim')).zIndex)
+
+    expect(z).toBeGreaterThan(theme.z.overlay)
+    expect(z).toBeLessThan(theme.z.tooltip)
+  })
+})
+
+/**
+ * A purchase can need two allowances (the marketplace for a resale, the CollectionStore for a mint) and
+ * two spenders cannot be approved in one signature. The surprise CAN be removed: the count says on the
+ * FIRST screen that a second one is coming.
+ */
+describe('when a purchase needs more than one approval', () => {
+  it('should say which approval this is, from the first one', () => {
+    renderStep({ step: { index: 1, total: 2 } })
+
+    expect(screen.getByTestId('authorize-step-count').textContent).toMatch(/1 of 2/i)
+  })
+
+  // One approval is just "one quick approval first" — a "1 of 1" would invent a sequence.
+  it('should stay silent when there is only one', () => {
+    renderStep({ step: { index: 1, total: 1 } })
+
+    expect(screen.queryByTestId('authorize-step-count')).toBeNull()
+  })
+
+  it('should say nothing when the caller does not count them', () => {
+    renderStep()
+
+    expect(screen.queryByTestId('authorize-step-count')).toBeNull()
   })
 })

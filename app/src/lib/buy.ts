@@ -65,20 +65,37 @@ export type PurchaseGroup =
 export function groupPurchases(purchases: MixedPurchases): PurchaseGroup[] {
   const groups = new Map<string, PurchaseGroup>()
   for (const p of normalizePurchases(purchases)) {
+    const key = purchaseGroupKey(p)
+    const existing = groups.get(key)
     if (p.kind === 'store') {
-      const key = `store:${p.chainId}`
-      const existing = groups.get(key)
       if (existing && existing.kind === 'store') existing.purchases.push(p)
       else groups.set(key, { kind: 'store', chainId: p.chainId, purchases: [p] })
       continue
     }
-    const marketplace = p.trade.contract.toLowerCase()
-    const key = `trade:${p.trade.chainId}:${marketplace}`
-    const existing = groups.get(key)
     if (existing && existing.kind === 'trade') existing.purchases.push(p)
-    else groups.set(key, { kind: 'trade', chainId: p.trade.chainId, marketplace, purchases: [p] })
+    else
+      groups.set(key, {
+        kind: 'trade',
+        chainId: p.trade.chainId,
+        marketplace: p.trade.contract.toLowerCase(),
+        purchases: [p]
+      })
   }
   return [...groups.values()]
+}
+
+/**
+ * Which transaction a purchase will settle in — the identity `groupPurchases` groups by.
+ *
+ * Exported because a caller sometimes has to say something PER TRANSACTION before the groups exist: the cart's
+ * mixed-payment rail has to attach each transaction's MANA gap to a line inside that transaction, and a gap
+ * attached to the wrong one leaves its own group underfunded and reverts. Deriving the answer here means that
+ * split can never drift from the one the transactions are actually built from.
+ */
+export function purchaseGroupKey(purchase: AnyPurchase): string {
+  return purchase.kind === 'store'
+    ? `store:${purchase.chainId}`
+    : `trade:${purchase.trade.chainId}:${purchase.trade.contract.toLowerCase()}`
 }
 
 /**
@@ -445,6 +462,38 @@ export async function cancelListing(opts: {
   return receipt.transactionHash
 }
 
+/**
+ * Buy ONE thing with the buyer's credits — a listed trade OR a CollectionStore mint — in a single
+ * useCredits() call.
+ *
+ * The single-purchase counterpart to `buyManyWithCredits`, and what lets the item page's Buy now offer a mint:
+ * the calldata comes from `buildGroupUseCreditsArgs` rather than a hard-coded `accept([trade])`, so both rails
+ * settle here the same way they do in a cart. `buyWithCredits` below is this function with the trade shape.
+ */
+export async function buyOneWithCredits(opts: {
+  purchase: AnyPurchase
+  buyer: string
+  signer: ethers.Signer
+  /** See buyWithCredits — the broadcast is the point of no return for this purchase's credits. */
+  onBroadcast?: (info: { txHash: string }) => void
+  /** See buyWithCredits — a mined revert is the one post-broadcast failure whose credits are untouched. */
+  onReverted?: (info: { txHash: string | null }) => void
+}): Promise<string> {
+  const { purchase, buyer, signer, onBroadcast, onReverted } = opts
+  if (purchase.credits.length === 0) throw new Error('No credits to spend')
+  // One purchase is one group by construction, so this is the same builder the cart's batches go through.
+  const { args, chainId } = buildGroupUseCreditsArgs(groupPurchases([purchase])[0], buyer)
+  try {
+    return await sendUseCredits(chainId, args, signer, txHash => onBroadcast?.({ txHash }))
+  } catch (err) {
+    // The hash of the transaction that reverted, so the caller can tie the revert to the attempt it belongs
+    // to rather than to the credit as a whole. ethers attaches the receipt to the error; `null` if it somehow
+    // is not there, which a caller must read as "this attempt is unresolved".
+    if (isRevertedTxError(err)) onReverted?.({ txHash: revertedTxHash(err) })
+    throw err
+  }
+}
+
 /** Buy a listed NFT with the buyer's credits: builds + submits CreditsManager.useCredits(accept([trade])). */
 export async function buyWithCredits(opts: {
   trade: Trade
@@ -480,18 +529,14 @@ export async function buyWithCredits(opts: {
   const { trade, buyer, signer, credits, onBroadcast, onReverted } = opts
   if (credits.length === 0) throw new Error('No credits to spend')
 
-  const marketplace = getContract(getContractName(trade.contract), trade.chainId)
   const maxCreditedValue = opts.maxCreditedValue ?? (await tradeManaPriceWei(trade))
-  const args = buildUseCreditsArgs(marketplace.address, marketplace.abi, [trade], buyer, credits, maxCreditedValue)
-  try {
-    return await sendUseCredits(trade.chainId, args, signer, txHash => onBroadcast?.({ txHash }))
-  } catch (err) {
-    // The hash of the transaction that reverted, so the caller can tie the revert to the attempt it belongs
-    // to rather than to the credit as a whole. ethers attaches the receipt to the error; `null` if it somehow
-    // is not there, which a caller must read as "this attempt is unresolved".
-    if (isRevertedTxError(err)) onReverted?.({ txHash: revertedTxHash(err) })
-    throw err
-  }
+  return buyOneWithCredits({
+    purchase: { kind: 'trade', trade, credits, maxCreditedValue },
+    buyer,
+    signer,
+    onBroadcast,
+    onReverted
+  })
 }
 
 /**

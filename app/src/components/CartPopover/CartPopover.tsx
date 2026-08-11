@@ -2,9 +2,9 @@ import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { Icon } from '~/components/Icon'
 import { CheckCircleIcon } from '~/components/Icons/CheckCircleIcon'
+import { EmptyState } from '~/components/EmptyState'
+import cartEmptyIllustration from '~/assets/empty/cart-empty.svg'
 import { useCart, type CartItem } from '~/store/cart'
-import { detailRouteFor } from '~/lib/routes'
-import type { CartNavState } from '~/pages/Cart'
 import { t } from '~/intl/i18n'
 import { formatCredits, formatCreditsFull } from '~/lib/currency'
 import { useCartAvailability } from '~/hooks/useCartAvailability'
@@ -20,15 +20,13 @@ function CartRow({
   status,
   onRemove,
   onIncrement,
-  onDecrement,
-  onNavigate
+  onDecrement
 }: {
   item: CartItem
   status: CartLineAvailability
   onRemove: (id: string) => void
   onIncrement: (id: string) => void
   onDecrement: (id: string) => void
-  onNavigate: () => void
 }) {
   const isPrimary = !item.tokenId
   const qty = item.quantity
@@ -36,7 +34,6 @@ function CartRow({
   const subtotal = item.priceCredits * qty
   const unavailable = !isLineBuyable(status)
   const unavailableLabel = status === 'sold-out' ? t('cart.availability.soldOut') : t('cart.availability.unavailable')
-  const detailPath = detailRouteFor(item)
   return (
     <S.Card data-unavailable={unavailable || undefined}>
       <S.Thumb data-thumb>
@@ -52,19 +49,11 @@ function CartRow({
         </div>
         <S.RowBottom>
           {unavailable ? (
-            /* Warning + reason, plus a link to the item's resales. The trash button remains the
-               one-tap remove. */
-            <>
-              <S.Unavailable>
-                <S.Warn name="warning-fill" size={24} />
-                {unavailableLabel}
-              </S.Unavailable>
-              {detailPath ? (
-                <S.Resales to={detailPath} state={{ item, tradeId: item.tradeId }} onClick={onNavigate}>
-                  {t('cart.availability.viewResales')}
-                </S.Resales>
-              ) : null}
-            </>
+            /* Warning + reason. The trash button remains the one-tap remove. */
+            <S.Unavailable>
+              <S.Warn name="warning-fill" size={24} />
+              {unavailableLabel}
+            </S.Unavailable>
           ) : (
             <>
               {isPrimary ? (
@@ -159,15 +148,15 @@ export function CartPopover() {
 
         <S.Body>
           {isEmpty ? (
-            <S.Empty data-testid="cart-drawer-empty">
-              <Icon name="cart-plus" size={92} />
-              <S.EmptyText>
-                <S.EmptyTitle>{t('cart.empty.title')}</S.EmptyTitle>
-                <S.EmptyBody>{t('cart.empty.body')}</S.EmptyBody>
-              </S.EmptyText>
-              <S.EmptyCta to="/items" onClick={() => setOpen(false)}>
-                {t('cart.empty.cta')}
-              </S.EmptyCta>
+            <S.Empty>
+              <EmptyState
+                variant="light"
+                testId="cart-drawer-empty"
+                icon={cartEmptyIllustration}
+                title={t('cart.empty.title')}
+                body={t('cart.empty.body')}
+                cta={{ label: t('cart.empty.cta'), to: '/items', onClick: () => setOpen(false) }}
+              />
             </S.Empty>
           ) : null}
 
@@ -192,7 +181,6 @@ export function CartPopover() {
                 onRemove={remove}
                 onIncrement={increment}
                 onDecrement={decrement}
-                onNavigate={() => setOpen(false)}
               />
             ))}
           </S.List>
@@ -208,19 +196,21 @@ export function CartPopover() {
                 {formatCredits(total)}
               </S.TotalVal>
             </S.TotalRow>
-            {/* Review on the left, buy on the right: Checkout lands on /cart and starts the same charge the
-              cart's own CHECKOUT button runs. */}
+            {/*
+              Dismiss on the left, advance on the right — and advancing STOPS AT THE CART. Neither button
+              carries `startCheckout`, so nothing here can begin a charge: a popover that appears from a
+              hover is not a place to commit someone's money, and the cart has its own CHECKOUT for that,
+              where the buyer can see what they are buying first.
+
+              This was removed once (#300) and came back with a styling PR (#304) that overwrote the block.
+              The spec beside this file pins it now, so the next sweep cannot delete it in silence.
+            */}
             <S.Ctas>
-              <S.Cta data-variant="secondary" to="/cart" onClick={() => setOpen(false)}>
+              <S.CtaButton data-variant="secondary" type="button" onClick={() => setOpen(false)}>
+                {t('cartPopover.continueShopping')}
+              </S.CtaButton>
+              <S.Cta data-variant="primary" to="/cart" onClick={() => setOpen(false)}>
                 {t('cartPopover.goToCart')}
-              </S.Cta>
-              <S.Cta
-                data-variant="primary"
-                to="/cart"
-                state={{ startCheckout: true } satisfies CartNavState}
-                onClick={() => setOpen(false)}
-              >
-                {t('cartPopover.checkout')}
               </S.Cta>
             </S.Ctas>
           </S.Foot>

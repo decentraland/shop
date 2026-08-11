@@ -135,9 +135,10 @@ export const ListScroll = styled.div`
   min-height: 0;
   overflow-y: auto;
   /* Breathing room INSIDE the scroller (with the matching negative margin re-aligning the cards):
-     the hover zoom + ring + glow would otherwise be cropped by the overflow clip. */
-  padding: 8px 10px;
-  margin: -8px -10px;
+     the hover zoom + ring + glow would otherwise be cropped by the overflow clip. A row needs ~13px
+     vertically and ~15px horizontally — 2px of ring plus 10px of glow, times the 1.015 zoom. */
+  padding: 14px 16px;
+  margin: -14px -16px;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.35) transparent;
 
@@ -162,7 +163,8 @@ export const Items = styled.ul`
 // gradient it sits over — no border). The whole card is one link to the item (the absolutely-
 // positioned overlay), with the author link layered above it — nesting <a> inside <a> is invalid, so
 // the card link is a sibling, not a wrapper. Hover adds the AssetCard cerise ring on its own layer
-// (::before), FADING in over the slight zoom so the stroke and glow grow out of the card.
+// (::before), FADING in over the slight zoom so the stroke and glow grow out of the card. No
+// `overflow: hidden`: that ring sits partly outside the box, and the thumb already rounds itself.
 export const ItemCard = styled.li`
   position: relative;
   display: flex;
@@ -171,7 +173,6 @@ export const ItemCard = styled.li`
   border-radius: ${radius.card};
   background: rgba(0, 0, 0, 0.4);
   color: ${colors.softWhite};
-  overflow: hidden;
   isolation: isolate;
   transition:
     box-shadow 0.35s ease,
@@ -180,10 +181,8 @@ export const ItemCard = styled.li`
   &::before {
     content: '';
     position: absolute;
-    inset: 0;
     z-index: 5;
     pointer-events: none;
-    border-radius: inherit;
     ${ringHover};
     opacity: 0;
     transition: opacity 0.3s ease;
@@ -227,8 +226,8 @@ export const ItemOverlayLink = styled(Link)`
   z-index: 1;
 `
 
-// Rounded on all four corners (Figma): the outer two are cut again by the card's own radius, the inner
-// two show the dark shell behind them.
+// Rounded on all four corners (Figma): the outer two carry the card's corner (the row itself does not
+// clip), the inner two show the dark shell behind them.
 export const ItemThumb = styled.img`
   width: 96px;
   height: 96px;

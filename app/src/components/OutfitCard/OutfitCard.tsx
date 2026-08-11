@@ -1,6 +1,7 @@
 import type { MouseEvent } from 'react'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { Icon } from '~/components/Icon'
+import { Price } from '~/components/Price'
 import { useOutfitCart, type OutfitItemsResolution } from '~/hooks/useOutfits'
 import { outfitFade, outfitGradient, thumbnailUrl, type Outfit } from '~/lib/outfits'
 import { t } from '~/intl/i18n'
@@ -15,7 +16,7 @@ type Availability = 'full' | 'partial' | 'none' | 'resolving' | 'error'
 // catalog outage renders as "no total / no CTA", never as "no longer available" — an outage is not
 // a sell-out.
 export function OutfitCard({ outfit, resolution }: { outfit: Outfit; resolution: OutfitItemsResolution }) {
-  const { split, availableCount, totalCredits, addOutfit, isAdding } = useOutfitCart(outfit, resolution)
+  const { split, availableCount, outfitCredits, addOutfit, isAdding } = useOutfitCart(outfit, resolution)
   const total = outfit.items.length
   // Null on a draft with no thumbnail yet (the studio's live card preview) — the gradient frame
   // behind it is the whole card at that point, so there is simply nothing to lay over it.
@@ -56,7 +57,7 @@ export function OutfitCard({ outfit, resolution }: { outfit: Outfit; resolution:
             </S.Price>
           ) : availability === 'full' || availability === 'partial' ? (
             <S.Price>
-              <CurrencyIcon size={16} /> {totalCredits.toLocaleString()}
+              <CurrencyIcon size={16} /> <Price credits={outfitCredits} />
             </S.Price>
           ) : null}
         </S.TopRow>

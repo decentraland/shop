@@ -10,10 +10,11 @@ const spin = keyframes`
   to { transform: rotate(360deg); }
 `
 
+// Above the modal that asked for the approval, not level with it: this opens ON TOP of an open checkout.
 export const Scrim = styled.div`
   position: fixed;
   inset: 0;
-  z-index: 10000;
+  z-index: ${theme.z.prompt};
   display: flex;
   align-items: center;
   justify-content: center;
@@ -79,6 +80,16 @@ export const Close = styled.button`
 `
 
 // The row card describing what's being authorized — same footprint/tone as an Approvals-page Row.
+// Sits beside the heading: the buyer needs the count BEFORE they read what they are granting, so it goes
+// in the head rather than under the row.
+export const StepCount = styled.span`
+  margin-left: auto;
+  margin-right: 12px;
+  color: ${theme.colors.muted};
+  font-size: 14px;
+  white-space: nowrap;
+`
+
 export const Row = styled.div`
   display: grid;
   grid-template-columns: 44px 1fr;

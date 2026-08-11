@@ -1,6 +1,7 @@
 import styled from '@emotion/styled'
 import { Link } from 'react-router-dom'
 import { theme } from '~/styles/theme'
+import { railGutter } from '~/styles/card.styles'
 
 const { colors, media } = theme
 
@@ -49,9 +50,7 @@ export const ViewAll = styled(Link)`
 `
 
 // Paged variant of the rail: fixed N cards per view (matching the Overview carousels), hidden
-// scrollbar, mandatory snap. Same padding/negative-margin dance as Track below — the side padding
-// reserves room for the first/last card's outward hover glow, the negative margin re-aligns the
-// first card with the section title.
+// scrollbar, mandatory snap. Same railGutter as Track below.
 export const CarouselTrack = styled.div`
   display: grid;
   grid-auto-flow: column;
@@ -59,9 +58,7 @@ export const CarouselTrack = styled.div`
   gap: 16px;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 12px 14px;
-  margin-left: -14px;
-  scroll-padding-inline: 14px;
+  ${railGutter};
   scroll-snap-type: x mandatory;
   scrollbar-width: none;
   -ms-overflow-style: none;
@@ -171,19 +168,13 @@ export const Arrow = styled.button`
   }
 `
 
-// Cards have an OUTWARD hover glow; an overflow-x scroller also clips overflow-y, so the rail reserves
-// room for the glow with PADDING on all sides rather than a negative margin (which would re-clip it).
-// The matching negative margin-left then pulls the track back by that 14px so the FIRST card's edge
-// lines up with the section title and the page gutter instead of sitting inset — the glow simply
-// overflows into the gutter. `data-rail` lets a page scope an override of the flex rail (e.g. Overview
-// swaps it for a fixed-N-per-view grid).
+// `railGutter` reserves the room a card's lit state needs outside its own box. `data-rail` lets a page
+// scope an override of the flex rail (e.g. Overview swaps it for a fixed-N-per-view grid).
 export const Track = styled.div`
   display: flex;
   gap: 16px;
   overflow-x: auto;
-  padding: 12px 14px;
-  margin-left: -14px;
-  scroll-padding-inline: 14px;
+  ${railGutter};
   scroll-snap-type: x proximity;
 
   & > * {

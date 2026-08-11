@@ -3,18 +3,24 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { CatalogItem } from '~/lib/api'
+import { WrongNetworkError } from '~/lib/network'
 
 /**
- * THE RELEASE DECISION in the PDP buy flow.
+ * THE RESERVATION DECISIONS in the PDP buy flow — when a credit is minted, and when it is handed back.
  *
- * This modal releases its reservation from six different places, and three of them can run AFTER the
- * transaction has gone out. Releasing a credit that is consumed on-chain hands the buyer back money they have
- * already spent: the balance rises, the reconciler debits it again once the squid indexes the consumption, and
+ * WHEN: an ephemeral credit is signed and cannot be revoked, so it holds its dollars until it expires
+ * whatever the client does next. Reserving on OPEN therefore charged a buyer for looking. Nothing on
+ * screen needs it, so it happens on the Buy click.
+ *
+ * WHEN NOT: this modal releases from several places, and some of them can run AFTER the transaction has
+ * gone out. Releasing a credit that is consumed on-chain hands the buyer back money they have already
+ * spent: the balance rises, the reconciler debits it again once the squid indexes the consumption, and
  * anything they buy in that gap drives the balance negative.
  *
- * There was no spec for this component at all, which is how the defect survived — the equivalent bug in the
- * cart shipped twice for exactly that reason. The tests drive the real flow (`resume` auto-confirms after the
- * price lock) and assert on what `cancelUsdIntents` is called with, never on internals.
+ * There was no spec for this component at all, which is how the release defect survived — the equivalent
+ * bug in the cart shipped twice for exactly that reason. The tests drive the real flow (the Buy CTA, or
+ * `resume`, which auto-confirms) and assert on what `authorizeUsdCredit` and `cancelUsdIntents` are called
+ * with, never on internals.
  */
 
 const session = {
@@ -47,12 +53,25 @@ vi.mock('decentraland-transactions', () => ({
 // Mutable, defaulting to the plentiful balance every existing test here assumes — only the shortfall
 // (`nofunds`) cases lower it.
 const balance = { data: { balanceCents: 100_000, credits: 10_000 } }
+// The buyer's MANA, controllable: whether a MANA rail exists is exactly what decides the no-funds path.
+const manaBalance = { data: 0n }
 vi.mock('~/hooks/useBalance', () => ({ useBalance: () => balance }))
 
 // Mutable so both sides of the iOS web-view gate are reachable.
 const iap = { on: false }
 vi.mock('~/lib/iap', () => ({ isIapMode: () => iap.on }))
-vi.mock('~/hooks/useManaBalance', () => ({ useManaBalance: () => ({ data: 0n }) }))
+vi.mock('~/hooks/useManaBalance', () => ({ useManaBalance: () => manaBalance }))
+// Whether the buyer can take the gas-paying fallback is decided by lib/gas-rail (self-custody + funded);
+// the modal only has to obey it, so it is mocked here rather than re-derived.
+const { canOfferGasRail } = vi.hoisted(() => ({ canOfferGasRail: vi.fn() }))
+vi.mock('~/lib/gas-rail', () => ({ canOfferGasRail }))
+const { switchChain } = vi.hoisted(() => ({ switchChain: vi.fn() }))
+// Only the wallet-moving call is faked; WrongNetworkError and chainLabel stay real so the tests fail the
+// same way the app does.
+vi.mock('~/lib/network', async importOriginal => {
+  const actual = await importOriginal<typeof import('~/lib/network')>()
+  return { ...actual, switchChain }
+})
 // Mutable and empty by default, as every test here had it. The shortfall cases need real packs: `goNoFunds`
 // picks a covering pack and reads `cover.id`, so an empty catalogue throws there and the modal lands in
 // `error` instead of the pack picker.
@@ -66,12 +85,20 @@ const { authorizeUsdCredit, cancelUsdIntents } = vi.hoisted(() => ({
 vi.mock('~/lib/credits', () => ({ authorizeUsdCredit, cancelUsdIntents, getUsdBalance: vi.fn() }))
 
 // The seam under test: a driver that reports outcomes through the real callbacks.
-const { buyWithCredits } = vi.hoisted(() => ({ buyWithCredits: vi.fn() }))
-vi.mock('~/lib/buy', () => ({ buyWithCredits }))
-vi.mock('~/lib/buy-mana', () => ({ buyWithMana: vi.fn(), buyWithCreditsAndMana: vi.fn() }))
+const { buyOneWithCredits } = vi.hoisted(() => ({ buyOneWithCredits: vi.fn() }))
+vi.mock('~/lib/buy', () => ({ buyOneWithCredits }))
+// Only the SUBMIT functions are stubbed: the pure helpers that decide what a purchase settles as are the real
+// ones, so a test asserting on what reaches the buy rail is asserting on what production would build.
+vi.mock('~/lib/buy-mana', async orig => ({
+  ...(await orig<Record<string, unknown>>()),
+  buyWithMana: vi.fn(),
+  buyMintWithMana: vi.fn(),
+  buyWithCreditsAndMana: vi.fn(),
+  buyMintWithCreditsAndMana: vi.fn()
+}))
 // The gasless rail is the production default, so it has to be drivable rather than hard-mocked off.
-const { buyGasless, waitForSettlement, gaslessOn, GaslessUnavailable, SettlementPending } = vi.hoisted(() => ({
-  buyGasless: vi.fn(),
+const { buyOneGasless, waitForSettlement, gaslessOn, GaslessUnavailable, SettlementPending } = vi.hoisted(() => ({
+  buyOneGasless: vi.fn(),
   waitForSettlement: vi.fn(),
   gaslessOn: { value: false },
   GaslessUnavailable: class GaslessUnavailableError extends Error {
@@ -85,15 +112,24 @@ const { buyGasless, waitForSettlement, gaslessOn, GaslessUnavailable, Settlement
 }))
 vi.mock('~/lib/gasless-config', () => ({ gaslessEnabled: () => gaslessOn.value }))
 vi.mock('~/lib/buy-gasless', () => ({
-  buyGasless,
+  buyOneGasless,
   waitForSettlement,
   GaslessUnavailableError: GaslessUnavailable,
   SettlementPendingError: SettlementPending
 }))
 
-const { resolveLiveTrade } = vi.hoisted(() => ({ resolveLiveTrade: vi.fn() }))
-vi.mock('~/lib/api', async orig => ({ ...(await orig<Record<string, unknown>>()), resolveLiveTrade }))
-vi.mock('~/lib/mana', () => ({ readTradeManaPriceWei: vi.fn(async () => 0n) }))
+const { resolveLiveTrade, fetchStoreMintState } = vi.hoisted(() => ({
+  resolveLiveTrade: vi.fn(),
+  // The live mint read a store item resolves through, the counterpart to resolving a trade.
+  fetchStoreMintState: vi.fn()
+}))
+vi.mock('~/lib/api', async orig => ({
+  ...(await orig<Record<string, unknown>>()),
+  resolveLiveTrade,
+  fetchStoreMintState
+}))
+const { readTradeManaPriceWei } = vi.hoisted(() => ({ readTradeManaPriceWei: vi.fn(async () => 0n) }))
+vi.mock('~/lib/mana', () => ({ readTradeManaPriceWei }))
 vi.mock('~/lib/mana-rate', () => ({
   readManaUsdRate: vi.fn(async () => ({ rate: 50_000_000n, decimals: 8 })),
   manaWeiToUsdCents: () => 0
@@ -147,11 +183,16 @@ function renderModal({ resume, over }: { resume: boolean; over?: Partial<Catalog
   )
 }
 
-// resume=true confirms as soon as the price locks — the same call the Buy CTA makes.
+// resume=true confirms as soon as the purchase resolves — the same call the Buy CTA makes.
 const renderResuming = (over?: Partial<CatalogItem>) => renderModal({ resume: true, over })
-// resume=false locks the price and then waits for the buyer, which is the only way to reach the state the
-// unmount cleanup exists for: a reservation that was never submitted.
+// resume=false prices the purchase and then waits for the buyer, which is what an ordinary open looks like.
 const renderIdle = () => renderModal({ resume: false })
+
+// The Buy CTA — the only thing that reserves anything. Both the plain ready state and the payment-method
+// step label it "Buy", so this drives the modal from either.
+async function clickBuy() {
+  fireEvent.click(await screen.findByRole('button', { name: /^buy$/i }))
+}
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -163,21 +204,154 @@ beforeEach(() => {
     signer: '0xseller',
     received: [{ assetType: 2, amount: (2700n * 10n ** 16n).toString() }]
   })
-  authorizeUsdCredit.mockResolvedValue({
+  // ECHOES the requested price, rounded up to a whole credit — which is exactly what the credits-server
+  // does (`Math.ceil(rawPrice / 10) * 10`). A fixed number here would silently disagree with the price the
+  // modal resolved, which is a real condition the component now refuses to charge through.
+  authorizeUsdCredit.mockImplementation(async (_identity: unknown, usdPriceCents: number) => ({
     credit: { id: 'credit-1' },
     maxCreditedValue: '1000000000000000000',
-    usdCents: 2700
-  })
-  buyWithCredits.mockResolvedValue('0xhash')
+    usdCents: Math.ceil(usdPriceCents / 10) * 10
+  }))
+  buyOneWithCredits.mockResolvedValue('0xhash')
   gaslessOn.value = false
   waitForSettlement.mockResolvedValue(undefined)
+})
+
+/**
+ * WHEN THE DOLLARS ARE RESERVED — the money question this modal gets asked most.
+ *
+ * An ephemeral credit is SIGNED, and a signed credit cannot be revoked: it stays spendable until its own
+ * expiry whatever the client does afterwards, and the balance keeps subtracting it for that whole time.
+ * So a reservation made on open is not "released on close" — closing changes a row, not the credit's
+ * clock. Merely looking at an item froze its price out of the balance for minutes, and a buyer who opened
+ * two items a few times ran out of money she still had.
+ *
+ * The whole fix is WHERE the authorize happens, so that is what these pin.
+ */
+describe('when the modal is opened', () => {
+  it('should reserve nothing', async () => {
+    renderIdle()
+
+    // The ready state proves the open sequence RAN — asserting on the absence alone would pass on a modal
+    // that never got anywhere.
+    await screen.findByRole('button', { name: /^buy$/i })
+    expect(authorizeUsdCredit).not.toHaveBeenCalled()
+  })
+
+  it('should still show the price, which never needed a reservation to know', async () => {
+    // 2700¢ off the resolved trade → 270 credits. The authorize does not PRICE the purchase, it echoes
+    // what it is sent (rounded up to a whole credit — the same rounding this number already has), so the
+    // figure on screen is the figure that gets charged.
+    renderIdle()
+
+    expect(await screen.findByText('270')).toBeInTheDocument()
+    expect(authorizeUsdCredit).not.toHaveBeenCalled()
+  })
+
+  it('should reserve nothing however many times it is opened and closed', async () => {
+    for (let i = 0; i < 5; i++) {
+      const { unmount } = renderIdle()
+      await screen.findByRole('button', { name: /^buy$/i })
+      unmount()
+    }
+
+    expect(authorizeUsdCredit).not.toHaveBeenCalled()
+    expect(cancelUsdIntents).not.toHaveBeenCalled()
+  })
+})
+
+describe('when the buyer confirms', () => {
+  it('should reserve exactly once, then buy with what it reserved', async () => {
+    renderIdle()
+    await clickBuy()
+
+    await waitFor(() => expect(buyOneWithCredits).toHaveBeenCalled())
+    expect(authorizeUsdCredit).toHaveBeenCalledTimes(1)
+    expect(authorizeUsdCredit).toHaveBeenCalledWith(session.identity, 2700, 'trade-1', {
+      contractAddress: '0xcontract',
+      itemId: '1'
+    })
+    expect(buyOneWithCredits.mock.calls[0][0].purchase.credits).toEqual([{ id: 'credit-1' }])
+  })
+})
+
+/**
+ * The authorize is a signed round-trip and now runs on the click, so the buyer can leave while it is in
+ * flight — when there is no credit id yet for the unmount cleanup to release.
+ */
+describe('when the buyer leaves while the reservation is being made', () => {
+  it('should release it rather than buy on a modal that is gone', async () => {
+    let settle: (v: unknown) => void = () => undefined
+    authorizeUsdCredit.mockImplementationOnce(
+      () =>
+        new Promise(resolve => {
+          settle = resolve
+        })
+    )
+
+    const { unmount } = renderIdle()
+    await clickBuy()
+    await waitFor(() => expect(authorizeUsdCredit).toHaveBeenCalled())
+    unmount()
+    settle({ credit: { id: 'credit-1' }, maxCreditedValue: '1000000000000000000', usdCents: 2700 })
+
+    await waitFor(() => expect(cancelUsdIntents).toHaveBeenCalledWith(session.identity, ['credit-1']))
+    expect(buyOneWithCredits).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * The price the buyer agreed to is the price they get charged — enforced, not assumed.
+ *
+ * The credits-server hands back an EXISTING live credit for the same item rather than minting a second
+ * one, and that one was priced at an earlier oracle read. So the amount that comes back CAN differ from
+ * the amount on screen. Charging it anyway would be taking money for a number the buyer never saw.
+ */
+describe('when the reservation comes back at a different price', () => {
+  const AT_3300 = {
+    credit: { id: 'credit-1' },
+    maxCreditedValue: '1000000000000000000',
+    usdCents: 3300
+  }
+
+  it('should not buy anything', async () => {
+    authorizeUsdCredit.mockResolvedValueOnce(AT_3300)
+
+    renderIdle()
+    await clickBuy()
+
+    await waitFor(() => expect(authorizeUsdCredit).toHaveBeenCalled())
+    expect(buyOneWithCredits).not.toHaveBeenCalled()
+  })
+
+  it('should show the buyer the price they would actually pay, and say it changed', async () => {
+    authorizeUsdCredit.mockResolvedValueOnce(AT_3300)
+
+    renderIdle()
+    await clickBuy()
+
+    expect(await screen.findByTestId('price-changed')).toBeInTheDocument()
+    expect(screen.getByText('330')).toBeInTheDocument()
+  })
+
+  it('should spend the credit it already holds when the buyer agrees, not a second one', async () => {
+    authorizeUsdCredit.mockResolvedValueOnce(AT_3300)
+
+    renderIdle()
+    await clickBuy()
+    await screen.findByTestId('price-changed')
+    await clickBuy()
+
+    await waitFor(() => expect(buyOneWithCredits).toHaveBeenCalled())
+    expect(authorizeUsdCredit).toHaveBeenCalledTimes(1)
+  })
 })
 
 describe('when the buy fails after the transaction was broadcast', () => {
   it('should NOT release the reservation', async () => {
     // No receipt to read (a replaced or dropped transaction), so the outcome is unknown and the credit may
     // well be consumed. The pessimistic side is the only safe one.
-    buyWithCredits.mockImplementation(async (opts: Record<string, any>) => {
+    buyOneWithCredits.mockImplementation(async (opts: Record<string, any>) => {
       opts.onBroadcast?.({ txHash: '0xbroadcast' })
       throw new Error('transaction was replaced')
     })
@@ -189,7 +363,7 @@ describe('when the buy fails after the transaction was broadcast', () => {
   })
 
   it('should release when the transaction reverted, because nothing was consumed', async () => {
-    buyWithCredits.mockImplementation(async (opts: Record<string, any>) => {
+    buyOneWithCredits.mockImplementation(async (opts: Record<string, any>) => {
       opts.onBroadcast?.({ txHash: '0xbroadcast' })
       // The revert carries ITS hash: one credit can back more than one transaction, so "a revert happened" is
       // not the same statement as "this credit is untouched".
@@ -206,7 +380,7 @@ describe('when the buy fails after the transaction was broadcast', () => {
 
   it('should still release when nothing was broadcast', async () => {
     // The pre-existing behaviour, which must not regress: a rejected signature spends nothing.
-    buyWithCredits.mockRejectedValue(new Error('user rejected transaction'))
+    buyOneWithCredits.mockRejectedValue(new Error('user rejected transaction'))
 
     renderResuming()
 
@@ -221,7 +395,7 @@ describe('when the buy fails after the transaction was broadcast', () => {
  */
 describe('when post-purchase bookkeeping throws', () => {
   it('should keep the purchase complete and release nothing', async () => {
-    buyWithCredits.mockImplementation(async (opts: Record<string, any>) => {
+    buyOneWithCredits.mockImplementation(async (opts: Record<string, any>) => {
       opts.onBroadcast?.({ txHash: '0xbroadcast' })
       return '0xhash'
     })
@@ -269,7 +443,7 @@ describe('the post-purchase My Items CTA', () => {
  */
 describe('when the modal unmounts with a transaction in flight', () => {
   it('should not release a reservation whose transaction was broadcast', async () => {
-    buyWithCredits.mockImplementation(
+    buyOneWithCredits.mockImplementation(
       (opts: Record<string, any>) =>
         new Promise(() => {
           opts.onBroadcast?.({ txHash: '0xbroadcast' })
@@ -277,7 +451,7 @@ describe('when the modal unmounts with a transaction in flight', () => {
     )
 
     const { unmount } = renderResuming()
-    await waitFor(() => expect(buyWithCredits).toHaveBeenCalled())
+    await waitFor(() => expect(buyOneWithCredits).toHaveBeenCalled())
     unmount()
 
     expect(cancelUsdIntents).not.toHaveBeenCalled()
@@ -289,24 +463,31 @@ describe('when the modal unmounts with a transaction in flight', () => {
    * the same corruption, arrived at from the other side.
    */
   it('should not release while the submit is still in flight, before any broadcast', async () => {
-    buyWithCredits.mockImplementation(() => new Promise(() => {}))
+    buyOneWithCredits.mockImplementation(() => new Promise(() => {}))
 
     const { unmount } = renderResuming()
-    await waitFor(() => expect(buyWithCredits).toHaveBeenCalled())
+    await waitFor(() => expect(buyOneWithCredits).toHaveBeenCalled())
     unmount()
 
     expect(cancelUsdIntents).not.toHaveBeenCalled()
   })
 
   it('should release a reservation that was never submitted', async () => {
-    // Price locked, buyer walked away without pressing Buy. THE case the cleanup exists for — otherwise every
-    // abandoned modal strands that much of the balance for the whole TTL.
+    // A credit exists and nothing was ever sent with it. Reaching that state now takes the one path that
+    // holds a reservation without submitting: the authorize came back at a price the buyer had not agreed
+    // to, so the modal went back and asked. They closed instead — and those dollars must come back.
     //
-    // The previous version of this test used `resume`, which auto-confirms: it asserted a release while a
-    // submit was in flight, i.e. it codified the unsafe half of the very bug being fixed.
+    // Merely opening the modal can no longer reach here, because opening no longer reserves anything.
+    authorizeUsdCredit.mockResolvedValueOnce({
+      credit: { id: 'credit-1' },
+      maxCreditedValue: '1000000000000000000',
+      usdCents: 3300
+    })
+
     const { unmount } = renderIdle()
-    await waitFor(() => expect(authorizeUsdCredit).toHaveBeenCalled())
-    expect(buyWithCredits).not.toHaveBeenCalled()
+    await clickBuy()
+    await waitFor(() => expect(authorizeUsdCredit).toHaveBeenCalledTimes(1))
+    expect(buyOneWithCredits).not.toHaveBeenCalled()
     unmount()
 
     await waitFor(() => expect(cancelUsdIntents).toHaveBeenCalledWith(session.identity, ['credit-1']))
@@ -331,7 +512,7 @@ describe('when the modal unmounts with a transaction in flight', () => {
 describe('when buying through the relayer', () => {
   it('should NOT release while a relayed transaction may still land', async () => {
     gaslessOn.value = true
-    buyGasless.mockResolvedValue('0xrelayed')
+    buyOneGasless.mockResolvedValue('0xrelayed')
     waitForSettlement.mockRejectedValue(new SettlementPending('still pending'))
 
     renderResuming()
@@ -343,7 +524,7 @@ describe('when buying through the relayer', () => {
 
   it('should release when the relayed transaction reverted', async () => {
     gaslessOn.value = true
-    buyGasless.mockResolvedValue('0xrelayed')
+    buyOneGasless.mockResolvedValue('0xrelayed')
     // waitForSettlement throws a plain Error only for a status-0 receipt: nothing was consumed.
     waitForSettlement.mockRejectedValue(new Error('transaction reverted'))
 
@@ -355,11 +536,11 @@ describe('when buying through the relayer', () => {
   it('should fall back to the direct rail when the relayer REFUSED', async () => {
     gaslessOn.value = true
     // A parsed rejection proves nothing was relayed, so re-using the credit is safe.
-    buyGasless.mockRejectedValue(new GaslessUnavailable('relayer 400', 'relayer-rejected'))
+    buyOneGasless.mockRejectedValue(new GaslessUnavailable('relayer 400', 'relayer-rejected'))
 
     renderResuming()
 
-    await waitFor(() => expect(buyWithCredits).toHaveBeenCalled())
+    await waitFor(() => expect(buyOneWithCredits).toHaveBeenCalled())
     expect(await screen.findByText(/purchase complete/i)).toBeInTheDocument()
   })
 
@@ -370,12 +551,12 @@ describe('when buying through the relayer', () => {
    */
   it('should neither re-submit nor release when the relayer was unreachable', async () => {
     gaslessOn.value = true
-    buyGasless.mockRejectedValue(new GaslessUnavailable('ECONNRESET', 'relayer-unreachable'))
+    buyOneGasless.mockRejectedValue(new GaslessUnavailable('ECONNRESET', 'relayer-unreachable'))
 
     renderResuming()
 
     await waitFor(() => expect(track).toHaveBeenCalledWith('Shop Purchase Failed', expect.anything()))
-    expect(buyWithCredits).not.toHaveBeenCalled()
+    expect(buyOneWithCredits).not.toHaveBeenCalled()
     expect(cancelUsdIntents).not.toHaveBeenCalled()
   })
 })
@@ -412,6 +593,34 @@ describe('when the buyer is short on credits', () => {
     expect(await screen.findByTestId('credit-packs')).toBeInTheDocument()
   })
 
+  // The shortfall is decided against the resolved price, which the open sequence already has. Reserving
+  // to find out would freeze dollars this buyer demonstrably cannot spend.
+  it('should reach the pack picker without reserving anything', async () => {
+    renderIdle()
+
+    await screen.findByTestId('credit-packs')
+    expect(authorizeUsdCredit).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The other half of the same answer: when our own balance read is stale or missing, the server is the
+   * one that says no — and it says so on the click, not on the open.
+   */
+  describe('and only the server knows the balance is short', () => {
+    beforeEach(() => {
+      balance.data = PLENTY.data
+      authorizeUsdCredit.mockRejectedValue(new Error('authorizeUsdCredit 402: Insufficient credits'))
+    })
+
+    it('should show the pack picker rather than a bare error', async () => {
+      renderIdle()
+      await clickBuy()
+
+      expect(await screen.findByTestId('credit-packs')).toBeInTheDocument()
+      expect(buyOneWithCredits).not.toHaveBeenCalled()
+    })
+  })
+
   describe('and the shop is running in the iOS web view', () => {
     beforeEach(() => {
       iap.on = true
@@ -433,4 +642,308 @@ describe('when the buyer is short on credits', () => {
       expect(screen.getByRole('button', { name: /cancel/i })).toBeInTheDocument()
     })
   })
+})
+
+/**
+ * Buying a CollectionStore MINT through this modal.
+ *
+ * A mint has no trade and never gets one, so every step that used to assume `accept([trade])` had to learn the
+ * other rail. These pin that the modal reaches the STORE with the price the chain will verify, and that the
+ * purchase intent still records what was bought — a mint's only identity, since it has no tradeId to name.
+ */
+describe('when the item is a CollectionStore mint', () => {
+  const TEN_MANA = (10n * 10n ** 18n).toString()
+  const mintItem: Partial<CatalogItem> = {
+    acquisition: 'store',
+    tradeId: undefined,
+    contractAddress: '0xcollection',
+    itemId: '7',
+    available: 4
+  }
+
+  beforeEach(() => {
+    // 1 MANA = $0.50 at 8 decimals, so 10 MANA = $5.00 = 50 credits.
+    fetchStoreMintState.mockResolvedValue({ priceWei: TEN_MANA, available: 4 })
+    // The trade resolver must never be consulted for a mint — there is nothing to resolve.
+    resolveLiveTrade.mockRejectedValue(new Error('no trade for a mint'))
+  })
+
+  it('should settle through the store, at the live price the contract will verify', async () => {
+    renderResuming(mintItem)
+
+    await waitFor(() => expect(buyOneWithCredits).toHaveBeenCalled())
+    const { purchase } = buyOneWithCredits.mock.calls[0][0]
+    expect(purchase.kind).toBe('store')
+    expect(purchase.item).toEqual({ collection: '0xcollection', itemId: '7', priceWei: TEN_MANA })
+    expect(purchase.credits).toEqual([expect.objectContaining({ id: 'credit-1' })])
+  })
+
+  it('should authorize with no tradeId but WITH what is being bought', async () => {
+    renderResuming(mintItem)
+
+    await waitFor(() => expect(authorizeUsdCredit).toHaveBeenCalled())
+    // Priced off the live mint read (500 cents), not the catalogue row the page was showing.
+    expect(authorizeUsdCredit).toHaveBeenCalledWith(session.identity, 500, undefined, {
+      contractAddress: '0xcollection',
+      itemId: '7'
+    })
+  })
+
+  it('should complete the purchase like any other', async () => {
+    renderResuming(mintItem)
+
+    expect(await screen.findByText(/purchase complete/i)).toBeInTheDocument()
+  })
+
+  it('should report a sold-out mint as no longer available, not as a broken purchase', async () => {
+    fetchStoreMintState.mockResolvedValue({ priceWei: TEN_MANA, available: 0 })
+
+    renderResuming(mintItem)
+
+    expect(await screen.findByTestId('buy-error')).toBeInTheDocument()
+    expect(buyOneWithCredits).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * A buyer holding MANA and no credits used to be shown "Insufficient funds — buy credits" FIRST, because
+ * the MANA price was read by a later effect gated on the phase already being `nofunds`. The dead end was
+ * painted by construction and only became an offer once the oracle answered — long after they had read
+ * that they could not afford it.
+ */
+describe('when credits fall short but the buyer holds MANA', () => {
+  const ONE_MANA = 10n ** 18n
+
+  beforeEach(() => {
+    balance.data = { balanceCents: 0, credits: 0 }
+    manaBalance.data = 100n * ONE_MANA
+    readTradeManaPriceWei.mockResolvedValue(ONE_MANA)
+    // Real packs, or `goNoFunds` throws reading `cover.id` off an empty catalogue and the modal lands in
+    // `error` — never reaching the pack picker these cases are about (see the fixture's own comment).
+    creditPacks.packs = [{ id: 'pack_5', credits: 40, usd: 5.99 }]
+  })
+
+  afterEach(() => {
+    balance.data = { balanceCents: 100_000, credits: 10_000 }
+    manaBalance.data = 0n
+    readTradeManaPriceWei.mockResolvedValue(0n)
+    creditPacks.packs = []
+  })
+
+  /**
+   * Holding MANA routes the buyer to the payment-method chooser INSTEAD of the no-funds screen, so the
+   * held-credits explanation has to live there too. Otherwise the person most likely to be confused —
+   * their balance is short only BECAUSE their own credits are held — is the one who never sees why, and
+   * is quietly asked to pay a second time for money they already committed.
+   */
+  it('should explain held credits on the payment-method chooser, not only on the no-funds screen', async () => {
+    balance.data = {
+      balanceCents: 0,
+      credits: 0,
+      held: { cents: 30, credits: 3, releasesAtSeconds: null, purchases: [] }
+    } as typeof balance.data
+
+    renderModal({ resume: false })
+
+    await waitFor(() => expect(screen.getByText(/on hold from a purchase you already started/i)).toBeInTheDocument())
+  })
+
+  /**
+   * The metric that was inflated: it fired for everyone short on credits, including everyone who could
+   * simply pay in MANA — so "users with no funds" counted people who had the money.
+   */
+  it('should not report a credits prompt to someone who can pay', async () => {
+    renderIdle()
+
+    // The oracle read proves the no-funds path actually ran — without it the assertion below would pass
+    // on a modal that never got there.
+    await waitFor(() => expect(readTradeManaPriceWei).toHaveBeenCalled())
+    expect(track).not.toHaveBeenCalledWith('Shop Buy Credits Prompted', expect.anything())
+  })
+
+  // The guard that moving this read onto the blocking path would have dropped: someone with no MANA has
+  // nothing to gain from the oracle and must not be made to wait for it.
+  it('should not ask the oracle at all when the buyer holds no MANA', async () => {
+    manaBalance.data = 0n
+    renderIdle()
+
+    expect(await screen.findByText(/insufficient funds/i)).toBeInTheDocument()
+    expect(readTradeManaPriceWei).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The oracle failing is not the same as the buyer being unable to pay, and it used to be
+   * indistinguishable: the catch only warned in DEV, so in production the MANA option disappeared with
+   * nobody the wiser — no log, no metric, no notice.
+   *
+   * Pins the REPORTING half. The buyer-facing notice this also adds is not covered here; see the PR.
+   */
+  it('should report a failed MANA price read instead of swallowing it', async () => {
+    readTradeManaPriceWei.mockRejectedValue(new Error('oracle down'))
+    renderIdle()
+
+    await waitFor(() =>
+      expect(captureError).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ step: 'mana_price' }))
+    )
+  })
+
+  it('should tell the buyer the price could not be checked, rather than dropping the rail in silence', async () => {
+    readTradeManaPriceWei.mockRejectedValue(new Error('oracle down'))
+    renderIdle()
+
+    expect(await screen.findByTestId('mana-price-unavailable')).toBeInTheDocument()
+  })
+
+  // Not owed to someone with no MANA: nothing was asked of the oracle on their behalf.
+  it('should not claim the price is unavailable when it never asked', async () => {
+    manaBalance.data = 0n
+    readTradeManaPriceWei.mockRejectedValue(new Error('oracle down'))
+    renderIdle()
+
+    await waitFor(() => expect(track).toHaveBeenCalledWith('Shop Buy Credits Prompted', expect.anything()))
+    expect(screen.queryByTestId('mana-price-unavailable')).toBeNull()
+  })
+})
+
+/**
+ * The warning is about a price we could not read. Once one HAS been read the sentence is simply false —
+ * and the MANA buttons are on screen beside it, so it contradicts what the buyer can see.
+ */
+describe('when the MANA price arrives after a failed read', () => {
+  const ONE_MANA = 10n ** 18n
+
+  beforeEach(() => {
+    balance.data = { balanceCents: 0, credits: 0 }
+    manaBalance.data = 100n * ONE_MANA
+    creditPacks.packs = [{ id: 'pack_5', credits: 40, usd: 5.99 }]
+    // Fails for goNoFunds, succeeds for the retry that follows it.
+    readTradeManaPriceWei.mockRejectedValueOnce(new Error('blip')).mockResolvedValue(ONE_MANA)
+  })
+
+  afterEach(() => {
+    balance.data = { balanceCents: 100_000, credits: 10_000 }
+    manaBalance.data = 0n
+    creditPacks.packs = []
+    readTradeManaPriceWei.mockReset().mockResolvedValue(0n)
+  })
+
+  // One outage is one report. The retry re-reads; it does not re-raise.
+  it('should not report the same outage twice', async () => {
+    readTradeManaPriceWei.mockReset().mockRejectedValue(new Error('down'))
+    renderIdle()
+
+    await waitFor(() => expect(readTradeManaPriceWei).toHaveBeenCalledTimes(2))
+    const reports = captureError.mock.calls.filter(c => (c[1] as { step?: string })?.step === 'mana_price')
+    expect(reports).toHaveLength(1)
+  })
+})
+
+/**
+ * The price lock is taken when the modal OPENS, not when the buyer confirms — so by the time they dismiss
+ * the wallet prompt, credits have already been held and their balance has visibly dropped. The catch then
+ * clears `reservedCreditIdRef` (so the unmount path cannot release twice), and clearing it also put the
+ * "they come back" sentence out of reach: a cancelled signature showed a balance tens of credits lower than
+ * a moment earlier with nothing on screen to account for it.
+ */
+describe('when a failure leaves a hold on its way back', () => {
+  const errorText = async () => (await screen.findByTestId('buy-error')).textContent ?? ''
+
+  it('should say the credits are coming back, ON TOP of why it failed', async () => {
+    buyOneWithCredits.mockRejectedValue(new Error('user rejected transaction'))
+
+    renderResuming()
+
+    // Both halves: the reason explains the screen, the hold explains the balance.
+    await waitFor(async () => expect(await errorText()).toContain('cancelled'))
+    expect(await errorText()).toContain('return to your balance')
+  })
+
+  it('should say nothing about a hold when none was taken', async () => {
+    // Nothing was ever reserved, so promising a return would be describing money we never held.
+    authorizeUsdCredit.mockRejectedValue(new Error('boom'))
+
+    renderResuming()
+
+    await screen.findByTestId('buy-error')
+    expect(await errorText()).not.toContain('return to your balance')
+  })
+
+  it('should NOT claim a return for a credit that may already be spent', async () => {
+    // Broadcast with no readable receipt: the guard keeps the credit, nothing is released, and telling the
+    // buyer it is coming back would be a lie told at the worst possible moment.
+    buyOneWithCredits.mockImplementation(async (opts: Record<string, any>) => {
+      opts.onBroadcast?.({ txHash: '0xbroadcast' })
+      throw new Error('receipt unavailable')
+    })
+
+    renderResuming()
+
+    await screen.findByTestId('buy-error')
+    expect(cancelUsdIntents).not.toHaveBeenCalled()
+    expect(await errorText()).not.toContain('return to your balance')
+  })
+})
+
+/**
+ * The gas-paying fallback is only reachable because a relayed rail already failed, so who is offered it is
+ * the whole question: a managed wallet cannot switch or hold POL, and network wording is what those users
+ * must never be shown at all.
+ */
+describe('when a wrong network stops the buy', () => {
+  const wrongNetwork = () => new WrongNetworkError(1, 80002)
+
+  beforeEach(() => {
+    canOfferGasRail.mockResolvedValue(true)
+    switchChain.mockResolvedValue(undefined)
+    buyOneWithCredits.mockRejectedValue(wrongNetwork())
+  })
+
+  it('should offer the switch to a buyer who can take it', async () => {
+    renderResuming()
+
+    expect(await screen.findByTestId('switch-and-retry')).toBeInTheDocument()
+  })
+
+  it('should NOT offer it to a managed wallet, and should hand the hold back instead', async () => {
+    canOfferGasRail.mockResolvedValue(false)
+
+    renderResuming()
+
+    await screen.findByTestId('buy-error')
+    await waitFor(() => expect(cancelUsdIntents).toHaveBeenCalledWith(session.identity, ['credit-1']))
+    expect(screen.queryByTestId('switch-and-retry')).toBeNull()
+  })
+})
+
+/**
+ * Cancelling the signature has to say, on the SAME paint as the failure, that the money is coming back.
+ *
+ * It used to wait for the release round-trip: the ref was cleared synchronously and `holdReleased` only
+ * arrived when `cancelUsdIntents` resolved, so the error screen rendered with nothing but "we couldn't
+ * complete your purchase" — the reassurance landed a beat later, after the buyer had already read the bad
+ * news and, per the report, never seemed to arrive at all.
+ */
+describe('when the buyer cancels the signature', () => {
+  beforeEach(() => {
+    buyOneWithCredits.mockRejectedValue(Object.assign(new Error('User rejected the request'), { code: 4001 }))
+  })
+
+  it('should promise the credits back on the same paint as the failure', async () => {
+    // Never resolves: the release is still in flight when the error screen renders, which is exactly the
+    // window the buyer was seeing.
+    cancelUsdIntents.mockReturnValue(new Promise(() => {}))
+
+    renderResuming()
+
+    expect(await screen.findByText(/your credits are safe/i)).toBeInTheDocument()
+    expect(screen.getByText(/return to your balance/i)).toBeInTheDocument()
+  })
+
+  /**
+   * NOT covered here, and deliberately: the one case that must not promise anything is the guard
+   * withholding a credit that may already be spent. `releaseReservation` reports `true` whether the cancel
+   * request succeeds OR fails — on purpose, since an unconsumed credit returns on the server's sweep
+   * either way — so the only source of `false` is `guardRef.mayBeConsumed`, which needs a broadcast this
+   * harness cannot stage. The withdrawal path is pinned by lib/spend-guard's own specs.
+   */
 })

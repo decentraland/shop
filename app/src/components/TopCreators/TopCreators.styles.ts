@@ -7,8 +7,27 @@ const { colors, radius, media } = theme
 
 const AVATAR = 154
 const AVATAR_MOBILE = 155
-// The CTA's height plus the gap above it — the slot the panel reserves for it permanently (see Panel).
-const CTA_SLOT = 62
+// The CTA's height. Mobile shows it permanently at the shorter size the design gives that variant.
+// SHARED with the skeleton, which has to match the loaded card to the pixel — see SkeletonCta.
+const CTA_HEIGHT = 46
+const CTA_HEIGHT_MOBILE = 40
+
+/**
+ * What the panel leaves UNPAINTED for the hover CTA — the button's own height, and not the 16px gap above
+ * it, which the fill covers.
+ *
+ * The slot itself is permanent either way (see Panel): it is what stops the page below the row moving
+ * every time a pointer crosses a card. Painting the gap is the part of it that can be reclaimed for free.
+ */
+const CTA_SLOT = CTA_HEIGHT
+// The panel's own inline padding: what the CTA is inset by, which is NOT what the text is inset by.
+// Figma draws a 366px card with a 340px button and text 270px wide, so the two take different insets and
+// the difference lives on the text block (see TextBlock).
+const PANEL_INSET = 13
+const TEXT_INSET = 35
+// The panel starts just BELOW the avatar's midpoint, not exactly at it — the 4px gap Figma puts between
+// the card's top strip and the info panel.
+const PANEL_DROP = 4
 // The hover ring: its thickness and the clear space it leaves around the panel.
 const RING = 3
 const RING_GAP = 3
@@ -19,11 +38,11 @@ const HOVER_ROOM = 12
 const EASE = 'cubic-bezier(0.22, 0.61, 0.36, 1)'
 const DURATION = '0.28s'
 
-export { Root, Head, Title, Dots, Dot } from '~/styles/row.styles'
+export { Root, Head, Title, Dots, Dot, Viewport, Arrow } from '~/styles/row.styles'
 
-// Four cards fill the row exactly at desktop widths, so there is nothing to scroll and no dots. Below
-// the mobile breakpoint it becomes a one-card-per-page carousel with the next card peeking, which is
-// what tells a thumb the row scrolls. `align-items: start` keeps every card measuring its own height.
+// Four cards per view at desktop widths, so eight cards are two pages of arrows and dots. Below the
+// mobile breakpoint it becomes a one-card-per-page carousel with the next card peeking, which is what
+// tells a thumb the row scrolls. `align-items: start` keeps every card measuring its own height.
 //
 // An overflow-x scroller clips overflow-y too, so the room for the hover ring is PADDING on all sides
 // (the same dance styles/row.styles makes for the cards' outward glow); the matching negative margin
@@ -153,12 +172,12 @@ export const Panel = styled.span`
   flex-direction: column;
   align-items: center;
   width: 100%;
-  margin-top: -${AVATAR / 2}px;
-  padding: ${AVATAR / 2 + 7}px 24px 16px;
+  margin-top: -${AVATAR / 2 - PANEL_DROP}px;
+  padding: ${AVATAR / 2 + 7}px ${PANEL_INSET}px 16px;
 
   /* The offset is half the avatar, so it has to follow the mobile avatar up as well. */
   ${media.maxWidth('mobile')} {
-    margin-top: -${AVATAR_MOBILE / 2}px;
+    margin-top: -${AVATAR_MOBILE / 2 - PANEL_DROP}px;
     padding-top: ${AVATAR_MOBILE / 2 + 7}px;
   }
 
@@ -223,6 +242,16 @@ export const Panel = styled.span`
   }
 `
 
+// Name and blurb read as one block, gapless — the design sets no space between them, and the 1.6 line
+// heights already carry the rhythm.
+export const TextBlock = styled.span`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  padding: 0 ${TEXT_INSET}px;
+`
+
 export const Name = styled.span`
   max-width: 100%;
   overflow: hidden;
@@ -236,16 +265,14 @@ export const Name = styled.span`
 
 // Two lines, always: clamped so a long blurb can't make one card taller than its neighbours, and
 // floored at the same two lines so a short one doesn't make it shorter.
+// Two lines, always: the design gives the card two, and floored at that height so a creator missing one
+// of them cannot make their card shorter than its neighbours.
 export const Desc = styled.span`
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
   min-height: 3.2em;
-  margin-top: 4px;
-  overflow: hidden;
   color: ${colors.gray4};
   font-size: 16px;
   line-height: 1.6;
+  text-align: center;
 `
 
 // Keeps its box whether it is showing or not (see Panel) and only fades — revealed by the CARD rather
@@ -256,9 +283,9 @@ export const Cta = styled.span`
   align-items: center;
   justify-content: center;
   width: 100%;
-  height: 46px;
+  height: ${CTA_HEIGHT}px;
   margin-top: 16px;
-  border-radius: ${radius.card};
+  border-radius: 12px;
   background: rgba(0, 0, 0, 0.4);
   color: ${colors.softWhite};
   font-size: 13px;
@@ -285,7 +312,12 @@ export const Cta = styled.span`
   @media (hover: none) {
     opacity: 1;
   }
+  /* On mobile the button is the card's one affordance rather than a hover reveal, so it inverts to the
+     light fill the design gives that variant. */
   ${media.maxWidth('mobile')} {
+    height: ${CTA_HEIGHT_MOBILE}px;
+    background: ${colors.media};
+    color: ${colors.text};
     opacity: 1;
   }
 `
@@ -307,7 +339,6 @@ export const SkeletonDescBlock = styled.span`
   align-items: center;
   width: 100%;
   min-height: 3.2em;
-  margin-top: 4px;
   font-size: 16px;
 `
 
@@ -324,11 +355,16 @@ export const SkeletonDesc = styled.span`
   }
 `
 
-// The CTA's slot, which a loaded card always carries (see Panel) — without it the row would grow by
-// 56px the moment the ranking landed.
+// The CTA's slot, which a loaded card always carries (see Panel) — and at the SAME height, including the
+// shorter mobile one. A skeleton that is even a few pixels off its loaded card is a page that resizes the
+// moment the ranking lands, which is the whole thing these styles exist to prevent.
 export const SkeletonCta = styled.span`
   width: 100%;
-  height: 46px;
+  height: ${CTA_HEIGHT}px;
   margin-top: 16px;
-  border-radius: ${radius.card};
+  border-radius: 12px;
+
+  ${media.maxWidth('mobile')} {
+    height: ${CTA_HEIGHT_MOBILE}px;
+  }
 `

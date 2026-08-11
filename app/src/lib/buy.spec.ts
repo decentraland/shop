@@ -121,9 +121,11 @@ vi.mock('ethers', async importOriginal => {
 
 import {
   buyWithCredits,
+  buyOneWithCredits,
   buyManyWithCredits,
   cancelListing,
   groupPurchases,
+  purchaseGroupKey,
   type AnyPurchase,
   type CreditPurchase,
   type SpendableCredit
@@ -819,6 +821,99 @@ describe('when buying a single listing with credits', () => {
     })
 
     expect(useCreditsCalls[0].maxCreditedValue).toBe('2040000000000000000')
+  })
+})
+
+/**
+ * Buying ONE thing, whichever rail it is.
+ *
+ * The item page's Buy now settles a single purchase, and it used to be able to build only `accept([trade])` —
+ * which is why a mint had no Buy now at all. These pin that one purchase reaches the right contract either way,
+ * so the page can offer the same button for both kinds of listing.
+ */
+describe('when buying a single purchase of either kind', () => {
+  const COLLECTION = '0x' + '22'.repeat(20)
+  const mintPurchase = (cap: string): AnyPurchase => ({
+    kind: 'store',
+    item: { collection: COLLECTION, itemId: '9', priceWei: '1000' },
+    credits: [credit(B32('1'), cap)],
+    maxCreditedValue: cap,
+    chainId: 80002
+  })
+
+  beforeEach(() => {
+    useCreditsCalls.length = 0
+    useCreditsRejectsFrom = null
+    useCreditsRevertsAt = null
+    walletChainId = 80002
+    contractName = 'DecentralandMarketplacePolygon'
+  })
+
+  it('sends a mint to the CollectionStore', async () => {
+    const hash = await buyOneWithCredits({ purchase: mintPurchase('100'), buyer: BUYER, signer })
+
+    expect(hash).toBe('0xhash')
+    expect(useCreditsCalls).toHaveLength(1)
+    expect(useCreditsCalls[0].externalCall.target).toBe('0xstore')
+    // The server-sized cap verbatim, so nothing is left uncredited for the buyer's own MANA to cover.
+    expect(useCreditsCalls[0].maxCreditedValue).toBe('100')
+  })
+
+  it('sends a listing to the marketplace', async () => {
+    await buyOneWithCredits({
+      purchase: {
+        kind: 'trade',
+        trade: fakeTrade('0xmarket'),
+        credits: [credit(B32('1'), '100')],
+        maxCreditedValue: '100'
+      },
+      buyer: BUYER,
+      signer
+    })
+
+    expect(useCreditsCalls[0].externalCall.target).toBe('0xmarket')
+  })
+
+  it('refuses a purchase with no credits before touching the chain', async () => {
+    await expect(
+      buyOneWithCredits({ purchase: { ...mintPurchase('100'), credits: [] }, buyer: BUYER, signer })
+    ).rejects.toThrow('No credits to spend')
+    expect(useCreditsCalls).toHaveLength(0)
+  })
+
+  it('reports a mined revert, so the credit can be released rather than stranded', async () => {
+    useCreditsRevertsAt = 1
+    const reverted: Array<string | null> = []
+
+    await expect(
+      buyOneWithCredits({
+        purchase: mintPurchase('100'),
+        buyer: BUYER,
+        signer,
+        onReverted: ({ txHash }) => reverted.push(txHash)
+      })
+    ).rejects.toThrow()
+
+    // Reported once, for the attempt that reverted. (The hash is whatever the failed receipt carried — null
+    // here, since the mock's receipt has none; a caller must read that as "this attempt is unresolved".)
+    expect(reverted).toHaveLength(1)
+  })
+
+  it('refuses to submit a mint on the wrong chain, like any other purchase', async () => {
+    walletChainId = 1
+
+    await expect(buyOneWithCredits({ purchase: mintPurchase('100'), buyer: BUYER, signer })).rejects.toMatchObject({
+      name: 'WrongNetworkError'
+    })
+    expect(useCreditsCalls).toHaveLength(0)
+  })
+
+  it('keys a purchase by the transaction it will settle in', () => {
+    // What the cart's mixed-payment rail uses to attach each transaction's MANA gap to its own group.
+    expect(purchaseGroupKey(mintPurchase('100'))).toBe('store:80002')
+    expect(purchaseGroupKey({ kind: 'trade', trade: fakeTrade('0xMARKET'), credits: [], maxCreditedValue: '0' })).toBe(
+      'trade:80002:0xmarket'
+    )
   })
 })
 

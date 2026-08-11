@@ -8,6 +8,7 @@ import { Icon } from '~/components/Icon'
 import { OutfitCard } from '~/components/OutfitCard'
 import { OutfitItemPicker } from '~/components/OutfitItemPicker'
 import { OutfitPreview } from '~/components/OutfitPreview'
+import { Price } from '~/components/Price'
 import { invalidateOutfitQueries, useOutfitCreatorAccess, useOutfitItems } from '~/hooks/useOutfits'
 import { useSeo } from '~/hooks/useSeo'
 import { track } from '~/lib/analytics'
@@ -757,7 +758,7 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
                       {item ? (
                         <S.SelPrice>
                           <CurrencyIcon size={12} />
-                          {item.priceCredits.toLocaleString()}
+                          <Price credits={item.priceCredits} />
                         </S.SelPrice>
                       ) : null}
                       <S.SelRemove
@@ -778,7 +779,7 @@ function StudioEditor({ outfitId }: { outfitId: string | null }) {
                 <span>{t('outfits.detail.totalPrice')}</span>
                 <S.SelTotalValue>
                   <CurrencyIcon size={14} />
-                  {totalCredits.toLocaleString()}
+                  <Price credits={totalCredits} />
                 </S.SelTotalValue>
               </S.SelTotal>
             ) : null}

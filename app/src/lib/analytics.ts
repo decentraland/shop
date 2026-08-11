@@ -118,6 +118,8 @@ export function itemProps(item: CatalogItem): Props {
     price_usd: creditsToUsd(item.priceCredits),
     rarity: item.rarity,
     creator: item.creator || null,
+    category: item.category,
+    is_smart: item.isSmart ?? false,
     is_primary: isPrimaryItem(item)
   }
 }
@@ -133,7 +135,9 @@ export function purchaseItemsProps(items: CatalogItem[]): Props {
       item_id: i.itemId ?? null,
       contract_address: i.contractAddress,
       token_id: i.tokenId ?? null,
-      price_usd: creditsToUsd(i.priceCredits)
+      price_usd: creditsToUsd(i.priceCredits),
+      category: i.category,
+      is_smart: i.isSmart ?? false
     })),
     value_credits: valueCredits,
     value_usd: creditsToUsd(valueCredits),

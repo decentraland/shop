@@ -143,6 +143,8 @@ export type CatalogItemsFilters = {
   category?: string
   // One creator's whole body of work (their storefront grid).
   creator?: string
+  // One collection's items (the collection storefront grid).
+  contractAddress?: string
   rarities?: string[]
   wearableCategories?: string[]
   search?: string
@@ -162,6 +164,7 @@ export async function fetchCatalogItems({
   skip = 0,
   category,
   creator,
+  contractAddress,
   rarities,
   wearableCategories,
   search,
@@ -181,6 +184,7 @@ export async function fetchCatalogItems({
   // return the unfiltered feed, which reads as a broken filter.
   if (category === 'wearable' || category === 'emote') qs.set('category', category)
   if (creator) qs.set('creator', creator)
+  if (contractAddress) qs.set('contractAddress', contractAddress)
   rarities?.forEach(r => qs.append('rarity', r))
   wearableCategories?.forEach(c => qs.append('wearableCategory', c))
   if (search) qs.set('search', search)
@@ -214,6 +218,18 @@ type RawCollection = { contractAddress: string; name?: string; creator?: string;
 
 export type CollectionMeta = { contractAddress: string; name: string; creator: string }
 
+// V1 Ethereum collections store their name as a `dcl://` URI (e.g. `dcl://cybermike_cybersoldier_set`).
+// Convert to a human-readable title ("Cybermike Cybersoldier Set") so the shop doesn't display the
+// raw protocol identifier in collection badges, breadcrumbs, and hero headers.
+export function sanitizeCollectionName(name: string): string {
+  if (!name.startsWith('dcl://')) return name
+  return name
+    .slice('dcl://'.length)
+    .split('_')
+    .map(word => (word ? word.charAt(0).toUpperCase() + word.slice(1) : ''))
+    .join(' ')
+}
+
 // A collection summary for grids/cards: meta + its item count. The collections entity carries `size`
 // (the number of items), so the count comes back with the list — no per-collection items fetch needed.
 export type CollectionSummary = CollectionMeta & { itemCount: number }
@@ -238,7 +254,7 @@ export async function fetchCreatorCollections(
   const { data, total } = (await res.json()) as { data?: RawCollection[]; total?: number }
   const collections = (data ?? []).map(c => ({
     contractAddress: c.contractAddress,
-    name: c.name ?? '',
+    name: sanitizeCollectionName(c.name ?? ''),
     creator: c.creator ?? '',
     itemCount: c.size ?? 0
   }))
@@ -255,6 +271,6 @@ export async function fetchCollection(contractAddress: string): Promise<Collecti
   const { data } = (await res.json()) as { data?: RawCollection[] }
   const c = data?.[0]
   return c && c.contractAddress
-    ? { contractAddress: c.contractAddress, name: c.name ?? '', creator: c.creator ?? '' }
+    ? { contractAddress: c.contractAddress, name: sanitizeCollectionName(c.name ?? ''), creator: c.creator ?? '' }
     : null
 }

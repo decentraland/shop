@@ -21,6 +21,9 @@ export const TOP_GAP = 10
 // ring itself (a plain border can't take a gradient, and border-image ignores border-radius). Hover is
 // gated to hover-capable devices so a touch tap (which synthesizes :hover) never flashes it, and it
 // doubles as the action/chips reveal.
+//
+// No `overflow: hidden` here: the lit ring sits 2px outside the card box, so the media and footer round
+// their own corners instead. See ringHover.
 export const Card = styled.article`
   height: 300px;
   /* No fill of its own (Figma 619:5691): the media covers the top and the footer paints its own
@@ -33,7 +36,6 @@ export const Card = styled.article`
     height: 250px;
   }
   border-radius: ${radius.card};
-  overflow: hidden;
   position: relative;
   isolation: isolate;
   display: flex;
@@ -50,7 +52,8 @@ export const Card = styled.article`
     &:hover,
     &:focus-within {
       ${ringLit};
-      /* A gentle lift on hover; z-index keeps the scaled card above its neighbours in the rail. */
+      /* A gentle lift on hover; z-index keeps the scaled card, its ring and its glow above its
+         neighbours in the rail. */
       transform: scale(1.025);
       z-index: 1;
     }
@@ -110,8 +113,8 @@ export const Fav = styled.button`
 
   // The circle is 24px by design, which is under the comfortable tap size — an invisible ring around it
   // grows the hit area on touch without changing the visual. It stops FLUSH with the card on the two
-  // sides the disc is tucked into: the card clips (overflow: hidden), so anything past those edges was
-  // never tappable anyway, and it only showed up as phantom scrollable overflow on the card.
+  // sides the disc is tucked into: past those edges it would sit on the page and the hover ring rather
+  // than on the card, so it only grows inward.
   &::after {
     content: '';
     position: absolute;
@@ -180,6 +183,8 @@ export const Media = styled.div`
   min-height: 0;
   background: ${colors.media};
   overflow: hidden;
+  /* Its own top corners — the card doesn't clip. */
+  border-radius: ${radius.card} ${radius.card} 0 0;
   /* Centres the artwork, which no longer fills this box — see Img. The row is pinned to the band's own
      height: left to size itself it grows to the image's natural size, and Img's percentage height then
      resolves against THAT rather than against the band. */
@@ -308,6 +313,8 @@ export const Body = styled.div`
   /* The footer's own fill (Figma 619:5703), not the card's — the translucent black is what the
      secondary controls on it are drawn to sit against. */
   background: ${colors.overlay};
+  /* Its own bottom corners — the card doesn't clip. */
+  border-radius: 0 0 ${radius.card} ${radius.card};
 
   // Keyboard-focus reveal mirrors the hover reveal — desktop only (below sm the round + is the action).
   @media (hover: hover) and (min-width: 721px) {
@@ -320,7 +327,7 @@ export const Body = styled.div`
     }
   }
 
-  // data-name = a NAME card's footer: it hugs its single row (@name + NOT FOR SALE), and the @name tile
+  // data-name = a NAME card's footer: it hugs its single row (name + NOT FOR SALE), and the name tile
   // above keeps the height it gives back. The 16px inset already supplies the breathing room this used
   // to add on top of the old 8px base.
   &[data-name] {
@@ -631,11 +638,21 @@ const addRoundFill = css`
 `
 
 // Dark round stand-in for the VIEW button, on a card with nothing to buy.
+const viewRoundCss = compactRoundCss(css`
+  background: ${colors.blackBtn};
+  color: ${colors.softWhite};
+`)
+
 export const ViewRound = styled.span`
-  ${compactRoundCss(css`
-    background: ${colors.blackBtn};
-    color: ${colors.softWhite};
-  `)};
+  ${viewRoundCss};
+`
+
+// Both VIEW affordances sit at z-index 4, ABOVE the whole-card overlay link, so a click on them never
+// reached it and the thing that looks pressable did nothing. Where the card has a detail page they carry
+// the target themselves; `aria-hidden` + `tabIndex={-1}` in the component keeps them out of the a11y tree
+// and the tab order, since the overlay link is still the real, announced navigation.
+export const ViewRoundLink = styled(Link)`
+  ${viewRoundCss};
 `
 
 // Full-width action on an owned/created card: "List for sale" (dark) or, with data-ghost, "Remove from
@@ -753,15 +770,23 @@ export const Cart = styled.button`
 
 // VIEW as the card's action, wherever there is nothing to buy: the browse card's not-for-sale row and the
 // view-only ('All' / 'Not for Sale') card both put it where Add-to-cart would go, so it takes Add-to-cart's
-// treatment — hidden at rest, revealed on hover/focus via `data-reveal`. It carries no handler; the
-// whole-card overlay link navigates, which is why a plain span can stand in for the button.
-export const ViewCta = styled.span`
+// treatment — hidden at rest, revealed on hover/focus via `data-reveal`. See ViewRoundLink for why it needs
+// a target of its own; the span stands in on the cards that have no detail page (NAMEs).
+const viewCtaCss = css`
   ${cartCss};
 
   & .ico {
     width: 20px;
     height: 20px;
   }
+`
+
+export const ViewCta = styled.span`
+  ${viewCtaCss};
+`
+
+export const ViewCtaLink = styled(Link)`
+  ${viewCtaCss};
 `
 
 // Anchor variants: an owned NAME's MANAGE controls point off-app (the Builder), so they need real

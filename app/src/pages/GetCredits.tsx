@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useWallet } from '~/store/wallet'
 import { Confetti } from '~/components/Confetti'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
+import { Price } from '~/components/Price'
 import { Faq, type FaqEntry } from '~/components/Faq'
 import { Icon } from '~/components/Icon'
 import { CURRENCY, formatAmount } from '~/lib/currency'
@@ -84,7 +85,7 @@ function friendlyError(e: unknown): string {
 export function GetCredits() {
   useSeo({ title: t('nav.getCredits', { currency: CURRENCY.name }), noindex: true })
   const navigate = useNavigate()
-  const { session, signIn } = useWallet()
+  const { session, signIn, restored } = useWallet()
   const qc = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
   // Catalogue from the credits-server (single source of truth); falls back to the bundled packs.
@@ -185,13 +186,24 @@ export function GetCredits() {
           } catch {
             /* ignore a malformed resume payload — the credits still landed */
           }
-        } else if (result.status === 'pending') {
-          // Poll timed out but the payment isn't failed — the webhook can still grant the credits.
-          // Show an "on the way" state (not an error) and refetch the balance so it updates when it lands.
-          track('Shop Buy Credits Pending', { step: 'grant', pack_usd: selected?.usd ?? null })
+        } else if (result.status === 'abandoned' || result.status === 'initiated') {
+          // NOBODY PAID. 'abandoned' is a checkout retired without a payment (the buyer cancelled, or the
+          // Stripe session expired); 'initiated' is one the poll watched to its deadline and no payment was
+          // ever reported against. Landing here means a success URL for an order that never took money —
+          // a stale link, or a cancel that raced this poll.
+          //
+          // So this is neither the error screen below (nothing failed) nor the "on the way" one (nothing is
+          // coming): send them back to the packs with the same gentle note a cancel gets. Telling an unpaid
+          // buyer their credits are on the way is the mistake the server split 'initiated' out to prevent.
+          //
+          // The balance is refetched anyway. A LATE payment can still credit such an order, and if that is
+          // what happened the buyer is reading "payment canceled" while the credits land — at least let the
+          // header show the truth.
+          track('Shop Buy Credits Cancelled', { order_id: orderId, provider: CREDITS_PROVIDER, step: 'grant' })
           void qc.invalidateQueries({ queryKey: ['usd-balance'] })
-          setPhase('pending')
-        } else {
+          setCanceledNote(true)
+          setPhase('select')
+        } else if (result.status === 'failed') {
           track('Shop Buy Credits Failed', {
             step: 'grant',
             error_code: 'grant_failed',
@@ -199,6 +211,17 @@ export function GetCredits() {
           })
           setError(result.error ?? t('getCredits.errorGrant', { currency: CURRENCY.name }))
           setPhase('error')
+        } else {
+          // Everything left is MONEY IN with the credits not landed yet: 'pending' (the poll gave up),
+          // 'processing' / 'crediting' (the grant is still moving). Show the "on the way" state and refetch
+          // the balance so it updates when it lands.
+          //
+          // This is the catch-all on purpose, and only 'failed' above earns the error screen. Falling
+          // through to that screen instead is what told buyers who had been CHARGED that we could not add
+          // their credits, for the two statuses this union had never been told about.
+          track('Shop Buy Credits Pending', { step: 'grant', pack_usd: selected?.usd ?? null })
+          void qc.invalidateQueries({ queryKey: ['usd-balance'] })
+          setPhase('pending')
         }
       } catch (e) {
         captureError(e, { flow: 'get_credits', step: 'grant', order_id: orderId })
@@ -265,6 +288,18 @@ export function GetCredits() {
     const wasCanceled = searchParams.get('canceled') != null
 
     if (wasCanceled) {
+      // Returning from Stripe is a COLD BOOT of the app — we navigated away to the hosted page — so
+      // the wallet session is restored asynchronously and is null on this first run. Latching
+      // `returnHandled` here (as this used to) meant the cancel below was skipped and the re-run,
+      // once the identity arrived, bailed at the guard above: the call never fired at all, and the
+      // order sat in Activity looking live until Stripe aged the session out a day later.
+      //
+      // So wait for the restore before committing, exactly as the success branch below does. `restored`
+      // rather than `session` is what ends the wait: it is set on every exit path INCLUDING the ones
+      // that find no wallet, so a signed-out visitor still gets their cancelled note instead of
+      // hanging here forever.
+      if (orderId && !restored) return
+
       returnHandled.current = true
       // Buyer abandoned Stripe's hosted checkout (came back via `?canceled=1`). The single biggest
       // drop in a payments funnel — tracked so we can measure hosted-page abandonment.
@@ -284,13 +319,27 @@ export function GetCredits() {
     // We're on Stripe's success_url. Show the crediting state right away so the pack grid doesn't
     // flash, but the poll is a signed-fetch that needs the restored wallet identity — wait for it.
     setPhase('processing')
-    if (!session) return
+    // Restore finished and there is still no wallet — the identity expired while the buyer was on
+    // Stripe, or storage was cleared. This buyer WAS charged, and the 'processing' render is a
+    // spinner with no buttons and no timeout, so returning here would leave them on "adding your
+    // credits…" forever with no way out. Say what happened instead: the money is fine, the credits
+    // are on the order, and signing back in with the same wallet shows them.
+    if (!session) {
+      if (restored) {
+        track('Shop Buy Credits Failed', { step: 'grant', error_code: 'no_identity', pack_usd: selected?.usd ?? null })
+        setError(t('getCredits.errorSignInAfterPay', { currency: CURRENCY.name }))
+        setPhase('error')
+      }
+      return
+    }
 
     returnHandled.current = true
     clearReturnParams()
     void pollForGrant(orderId)
+    // `restored` is a dependency, not decoration: the cancel branch waits on it, so without it here
+    // the effect never re-runs once the silent session restore finishes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, session])
+  }, [searchParams, session, restored])
 
   function reset() {
     abortRef.current?.abort()
@@ -373,55 +422,67 @@ export function GetCredits() {
       )}
 
       {phase === 'success' && (
-        <S.Success role="status" aria-live="polite">
-          {/* Only here, never on the processing screen: the credits are really in the balance by this
+        <S.Outcome>
+          <S.Success role="status" aria-live="polite">
+            {/* Only here, never on the processing screen: the credits are really in the balance by this
               point. Same burst the item purchase fires, so buying credits and buying an item celebrate
               alike instead of one feeling like the lesser event. */}
-          <Confetti />
-          <S.Banner>
-            <S.BannerIcon src={checkCircle} alt="" width={60} height={60} />
-            <S.BannerText>
-              <strong>{t('getCredits.successTitle')}</strong> {t('getCredits.successBody', { currency: CURRENCY.name })}
-            </S.BannerText>
-          </S.Banner>
+            <Confetti />
+            <S.Banner>
+              <S.BannerIcon src={checkCircle} alt="" width={60} height={60} />
+              <S.BannerText>
+                <strong>{t('getCredits.successTitle')}</strong>{' '}
+                {t('getCredits.successBody', { currency: CURRENCY.name })}
+              </S.BannerText>
+            </S.Banner>
 
-          {granted != null && (
-            <S.CreditsPanel>
-              <S.CreditsRow>
-                <S.CreditsCoin src={grantedArt} alt="" width={93} height={93} />
-                <S.CreditsText>
-                  <CurrencyIcon />
-                  <span>
-                    <S.CreditsAmount>
-                      {t('getCredits.creditsAmount', { credits: granted, currency: CURRENCY.name })}
-                    </S.CreditsAmount>{' '}
-                    <S.CreditsAdded>{t('getCredits.creditsAdded')}</S.CreditsAdded>
-                  </span>
-                </S.CreditsText>
-              </S.CreditsRow>
-            </S.CreditsPanel>
-          )}
+            {granted != null && (
+              <S.CreditsPanel>
+                <S.CreditsRow>
+                  <S.CreditsCoin src={grantedArt} alt="" width={93} height={93} />
+                  <S.CreditsText>
+                    <CurrencyIcon />
+                    <span>
+                      <S.CreditsAmount>
+                        {t('getCredits.creditsAmount', { credits: granted, currency: CURRENCY.name })}
+                      </S.CreditsAmount>{' '}
+                      <S.CreditsAdded>{t('getCredits.creditsAdded')}</S.CreditsAdded>
+                    </span>
+                  </S.CreditsText>
+                </S.CreditsRow>
+              </S.CreditsPanel>
+            )}
 
-          <S.Actions>
-            <S.ActionButton data-variant="outline" onClick={reset}>
-              {t('getCredits.buyMore', { currency: CURRENCY.name })}
-            </S.ActionButton>
-            <S.ActionButton onClick={() => navigate('/items')}>{t('getCredits.startShopping')}</S.ActionButton>
-          </S.Actions>
-        </S.Success>
+            <S.Actions>
+              <S.ActionButton data-variant="outline" onClick={reset}>
+                {t('getCredits.buyMore', { currency: CURRENCY.name })}
+              </S.ActionButton>
+              <S.ActionButton onClick={() => navigate('/items')}>{t('getCredits.startShopping')}</S.ActionButton>
+            </S.Actions>
+          </S.Success>
+        </S.Outcome>
       )}
 
+      {/* The webhook has not landed yet. The money IS taken, so this reads as a success that is still
+          settling — same check mark as the credited state, never an error tone. */}
       {phase === 'pending' && (
-        <S.StatusPanel role="status" aria-live="polite">
-          <S.StatusTitle>{t('getCredits.pendingTitle', { currency: CURRENCY.name })}</S.StatusTitle>
-          <S.Muted>{t('getCredits.pendingBody')}</S.Muted>
-          <S.StatusActions>
-            <S.ActionButton onClick={() => navigate('/items')}>{t('getCredits.startShopping')}</S.ActionButton>
-            <S.ActionButton data-variant="outline" onClick={reset}>
-              {t('getCredits.done')}
-            </S.ActionButton>
-          </S.StatusActions>
-        </S.StatusPanel>
+        <S.Outcome>
+          <S.PendingCard role="status" aria-live="polite" data-testid="credits-pending">
+            <S.PendingHead>
+              <S.PendingIcon src={checkCircle} alt="" width={32} height={32} />
+              <S.PendingTitle>{t('getCredits.pendingTitle', { currency: CURRENCY.name })}</S.PendingTitle>
+            </S.PendingHead>
+            <S.PendingBody>{t('getCredits.pendingBody')}</S.PendingBody>
+            <S.PendingActions>
+              <S.ActionButton data-variant="outline" onClick={() => navigate('/items')}>
+                {t('getCredits.goShopping')}
+              </S.ActionButton>
+              <S.ActionButton data-variant="ruby" onClick={reset}>
+                {t('getCredits.gotIt')}
+              </S.ActionButton>
+            </S.PendingActions>
+          </S.PendingCard>
+        </S.Outcome>
       )}
 
       {phase === 'error' && (
@@ -501,7 +562,9 @@ function PackGrid({
               <S.PackHeading>
                 <S.PackAmountRow>
                   <CurrencyIcon />
-                  <S.PackAmount>{pack.credits}</S.PackAmount>
+                  <S.PackAmount>
+                    <Price credits={pack.credits} />
+                  </S.PackAmount>
                 </S.PackAmountRow>
                 <S.PackUnit>{t('getCredits.packUnit', { currency: CURRENCY.name })}</S.PackUnit>
                 {/* The struck-through baseline + "+N bonus" pill that used to sit here is gone: the redesign

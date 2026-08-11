@@ -1,5 +1,5 @@
 import { ethers } from 'ethers'
-import { type Trade } from '@dcl/schemas'
+import { type ChainId, type Trade } from '@dcl/schemas'
 import {
   ContractName,
   ErrorCode,
@@ -9,15 +9,42 @@ import {
   sendMetaTransaction
 } from 'decentraland-transactions'
 import { AuthorizationKind, ensureAuthorization, metaTxProviderShim, readProvider } from '~/lib/authorizations'
-import { buyWithCredits, type SpendableCredit } from '~/lib/buy'
+import { buyOneWithCredits, type AnyPurchase, type SpendableCredit } from '~/lib/buy'
 import { gaslessConfig } from '~/lib/gasless-config'
+import { captureError } from '~/lib/monitoring'
 import { requireChain } from '~/lib/network'
-import { amoyGasOverrides, getOnChainTrade } from '~/lib/trade-encoding'
+import {
+  amoyGasOverrides,
+  encodeStoreBuy,
+  getOnChainTrade,
+  itemsToBuyArg,
+  type StoreItemToBuy
+} from '~/lib/trade-encoding'
 import { confirmMetaTx, MetaTxPendingError } from '~/lib/tx-confirm'
 
 type MarketplaceAcceptContract = ethers.Contract & {
   accept(trades: unknown[], overrides?: ethers.Overrides): Promise<ethers.ContractTransaction>
 }
+
+type CollectionStoreContract = ethers.Contract & {
+  buy(items: unknown[], overrides?: ethers.Overrides): Promise<ethers.ContractTransaction>
+}
+
+/**
+ * A CollectionStore mint as the MANA rails need it: what to mint, at the price the contract will verify, on
+ * the chain that holds the collection. The mint counterpart to a `Trade` here — a mint has no signed order, so
+ * the chain id travels with it instead of coming off one.
+ */
+export type MintToBuy = {
+  item: StoreItemToBuy
+  chainId: number
+}
+
+/**
+ * What a purchase settles as, for the rails that accept either kind. A mint is not a trade and never gets one,
+ * so every function below that can be handed both branches on this rather than on a possibly-absent `trade`.
+ */
+export type PurchaseTarget = { kind: 'trade'; trade: Trade } | { kind: 'store'; mint: MintToBuy }
 
 /**
  * Buy a listed NFT by paying MANA DIRECTLY — the alternative to the credits rail for users who already
@@ -48,25 +75,60 @@ export async function buyWithMana(opts: {
   signer: ethers.providers.JsonRpcSigner
   /** Fired once the buyer confirms in their wallet, before on-chain settlement (UI: "completing…"). */
   onSigned?: () => void
+  /** The trade's MANA price — what the allowance must cover. See buyManyWithMana. */
+  manaWei?: bigint
 }): Promise<string> {
   const [hash] = await buyManyWithMana({ ...opts, trades: [opts.trade] })
   return hash
 }
 
 /**
- * Buy a whole CART with MANA — the MANA-only rail for a basket. Trades on the same marketplace settle
- * in ONE accept([...]) (one signature/tx), mirroring how buyManyWithCredits batches the credits rail;
- * trades on different marketplaces split into one tx each. No credits are spent, so nothing is
- * authorized or reserved. Returns the tx hash(es).
+ * Pay for a CollectionStore MINT in MANA — the mint's answer to `buyWithMana`, and the reason a mint offers
+ * the same payment choices a listing does.
+ *
+ * Same two steps, one contract over: approve the STORE to pull the buyer's MANA (the marketplace never sees a
+ * mint), then call `buy([item])` with the buyer as the beneficiary. The store re-validates the price against
+ * the item's live on-chain price, which is why `priceWei` is read as late as possible upstream.
  */
-export async function buyManyWithMana(opts: {
-  trades: Trade[]
+export async function buyMintWithMana(opts: {
+  mint: MintToBuy
   buyer: string
   signer: ethers.providers.JsonRpcSigner
   onSigned?: () => void
+  /** The mint's MANA price — what the allowance must cover. Derived from the item when omitted. */
+  manaWei?: bigint
+}): Promise<string> {
+  const [hash] = await buyManyWithMana({ ...opts, trades: [], mints: [opts.mint] })
+  return hash
+}
+
+/**
+ * Buy a whole CART with MANA — the MANA-only rail for a basket. Trades on the same marketplace settle
+ * in ONE accept([...]) (one signature/tx), mirroring how buyManyWithCredits batches the credits rail;
+ * trades on different marketplaces split into one tx each. CollectionStore mints collapse the same way,
+ * into one `buy([...])` per chain. No credits are spent, so nothing is authorized or reserved. Returns the
+ * tx hash(es).
+ *
+ * A basket mixing the two therefore costs one signature per kind, exactly as the credits rail does (see
+ * `groupPurchases`) — the two settle through different contracts and neither call can carry the other.
+ */
+export async function buyManyWithMana(opts: {
+  trades: Trade[]
+  /** CollectionStore mints in the basket. Absent for a trade-only one. */
+  mints?: MintToBuy[]
+  buyer: string
+  signer: ethers.providers.JsonRpcSigner
+  onSigned?: () => void
+  /**
+   * What this purchase will pull in MANA — the amount the allowance has to cover, and the same figure the
+   * UI announced its approval step with, so the grant can never disagree with what the buyer was told.
+   * Omitted, the allowance is only checked for EXISTENCE and one left over from a cheaper purchase lets
+   * settlement revert on transferFrom.
+   */
+  manaWei?: bigint
 }): Promise<string[]> {
-  const { trades, buyer, signer, onSigned } = opts
-  if (trades.length === 0) throw new Error('No items to buy')
+  const { trades, mints = [], buyer, signer, onSigned, manaWei } = opts
+  if (trades.length === 0 && mints.length === 0) throw new Error('No items to buy')
 
   // Group by (chain, marketplace) so each group is one accept([...]).
   const groups = new Map<string, Trade[]>()
@@ -77,9 +139,23 @@ export async function buyManyWithMana(opts: {
     else groups.set(key, [t])
   }
 
+  // Mints group by chain alone: one CollectionStore per chain, and its `buy` takes items across collections.
+  const mintGroups = new Map<number, MintToBuy[]>()
+  for (const m of mints) {
+    const g = mintGroups.get(m.chainId)
+    if (g) g.push(m)
+    else mintGroups.set(m.chainId, [m])
+  }
+
   const hashes: string[] = []
   for (const group of groups.values()) {
-    hashes.push(await acceptPayingMana({ trades: group, buyer, signer, onSigned }))
+    hashes.push(await acceptPayingMana({ trades: group, buyer, signer, onSigned, requiredManaWei: manaWei }))
+  }
+  for (const [chainId, group] of mintGroups) {
+    // A mint carries the price the contract will verify, so its allowance can be sized exactly even when
+    // the caller passes nothing — a trade's cannot (a USD-pegged one is priced by the oracle at settlement).
+    const requiredManaWei = manaWei ?? group.reduce((sum, m) => sum + BigInt(m.item.priceWei), 0n)
+    hashes.push(await mintPayingMana({ mints: group, chainId, buyer, signer, onSigned, requiredManaWei }))
   }
   return hashes
 }
@@ -91,13 +167,15 @@ async function acceptPayingMana(opts: {
   buyer: string
   signer: ethers.providers.JsonRpcSigner
   onSigned?: () => void
+  requiredManaWei?: bigint
 }): Promise<string> {
-  const { trades, buyer, signer, onSigned } = opts
+  const { trades, buyer, signer, onSigned, requiredManaWei } = opts
   const trade = trades[0] // same chain + marketplace across the group
   const marketplace = getContract(getContractName(trade.contract), trade.chainId)
   const mana = getContract(ContractName.MANAToken, trade.chainId)
 
-  // 1. Approve the marketplace to spend the buyer's MANA (gasless; no-op if already approved).
+  // 1. Approve the marketplace to spend the buyer's MANA (gasless; no-op when the allowance already covers
+  //    this purchase — sized to it, because a leftover allowance from a cheaper one reverts accept()).
   await ensureAuthorization({
     auth: {
       kind: AuthorizationKind.Allowance,
@@ -105,7 +183,8 @@ async function acceptPayingMana(opts: {
       spenderAddress: marketplace.address,
       chainId: trade.chainId
     },
-    signer
+    signer,
+    requiredWei: requiredManaWei
   })
 
   const onChainTrades = trades.map(t => getOnChainTrade(t, buyer))
@@ -130,7 +209,11 @@ async function acceptPayingMana(opts: {
       // A revert is different: it consumed nothing, so retrying directly is right. Propagate the pending
       // one and let the caller surface it; an unknown outcome is not a failure to paper over.
       if (e instanceof MetaTxPendingError) throw e
-      console.warn('[buyWithMana] gasless meta-tx failed, falling back to a direct tx:', e)
+      // The fallback below is what makes a wrong-network refusal reachable AT ALL: the relayed rail works
+      // from any chain, so a buyer only ever meets `requireChain` because this relay already failed. Left
+      // as a console.warn, that first failure was invisible and every WrongNetworkError in Sentry was a
+      // symptom whose cause had no record.
+      captureError(e, { flow: 'buy_mana', step: 'gasless_fallback' })
     }
   }
 
@@ -140,6 +223,64 @@ async function acceptPayingMana(opts: {
   await requireChain(signer.provider as ethers.providers.Web3Provider, trade.chainId)
   const contract = new ethers.Contract(marketplace.address, marketplace.abi, signer) as MarketplaceAcceptContract
   const tx = await contract.accept(onChainTrades, amoyGasOverrides(trade.chainId))
+  onSigned?.()
+  const receipt = await tx.wait()
+  return receipt.transactionHash
+}
+
+// One CollectionStore buy([...]) settled with the buyer's MANA. Step for step the same shape as
+// acceptPayingMana above — approve the spender, relay a meta-tx, fall back to a direct tx — with the STORE as
+// both the spender and the target, because a mint is not a listing and the marketplace has no part in it.
+async function mintPayingMana(opts: {
+  mints: MintToBuy[]
+  chainId: number
+  buyer: string
+  signer: ethers.providers.JsonRpcSigner
+  onSigned?: () => void
+  requiredManaWei?: bigint
+}): Promise<string> {
+  const { mints, chainId, buyer, signer, onSigned, requiredManaWei } = opts
+  const store = getContract(ContractName.CollectionStore, chainId)
+  const mana = getContract(ContractName.MANAToken, chainId)
+  const items = mints.map(m => m.item)
+
+  // 1. Approve the store to spend the buyer's MANA (gasless; no-op when the allowance already covers this
+  //    mint — sized to it, because a leftover allowance from a cheaper one reverts buy()).
+  await ensureAuthorization({
+    auth: {
+      kind: AuthorizationKind.Allowance,
+      contractAddress: mana.address,
+      spenderAddress: store.address,
+      chainId
+    },
+    signer,
+    requiredWei: requiredManaWei
+  })
+
+  // 2. Mint, paying MANA directly: CollectionStore.buy([...items]) with the buyer as the beneficiary.
+  if (gaslessConfig.enabled) {
+    try {
+      const functionData = encodeStoreBuy(items, buyer, store.abi)
+      const rpc = readProvider()
+      const provider = metaTxProviderShim(signer.provider as ethers.providers.Web3Provider, rpc)
+      const txHash = await sendMetaTransaction(provider, rpc, functionData, store, {
+        serverURL: gaslessConfig.relayerUrl
+      })
+      onSigned?.()
+      await confirmMetaTx(txHash, 'the MANA purchase')
+      return txHash
+    } catch (e) {
+      if (e instanceof MetaTransactionError && e.code === ErrorCode.USER_DENIED) throw e
+      // A pending relay must not be re-submitted directly — it may still mine, and minting twice charges
+      // twice. Same rule as acceptPayingMana.
+      if (e instanceof MetaTxPendingError) throw e
+      captureError(e, { flow: 'buy_mint_mana', step: 'gasless_fallback' })
+    }
+  }
+
+  await requireChain(signer.provider as ethers.providers.Web3Provider, chainId)
+  const contract = new ethers.Contract(store.address, store.abi, signer) as CollectionStoreContract
+  const tx = await contract.buy(itemsToBuyArg(items, buyer), amoyGasOverrides(chainId))
   onSigned?.()
   const receipt = await tx.wait()
   return receipt.transactionHash
@@ -166,6 +307,10 @@ async function acceptPayingMana(opts: {
  *
  * Note this rail CANNOT be used for a pure-MANA purchase: useCredits reverts with NoCredits() when
  * given an empty credits array, which is why buyWithMana exists.
+ *
+ * A MINT rides the exact same rail (`buyMintWithCreditsAndMana`): the external call inside `useCredits` is
+ * `buy([item])` instead of `accept([trade])`, and everything about the money — the allowance, the credit
+ * sizing, the uncredited leg — is unchanged.
  */
 export async function buyWithCreditsAndMana(opts: {
   trade: Trade
@@ -176,34 +321,103 @@ export async function buyWithCreditsAndMana(opts: {
   /** MANA (wei) the buyer covers out of pocket. MUST be <= their balance; unused MANA is refunded. */
   manaGapWei: bigint
   /**
-   * Forwarded to buyWithCredits, which settles this rail. The caller needs them for the same reason the
+   * Forwarded to the credits rail, which settles this one. The caller needs them for the same reason the
    * credits-only rail does: this spends an ephemeral credit through `useCredits`, so once the transaction is
    * broadcast that credit may be consumed and its reservation must not be released.
    */
   onBroadcast?: (info: { txHash: string }) => void
   onReverted?: (info: { txHash: string | null }) => void
 }): Promise<string> {
-  const { trade, buyer, signer, credits, manaGapWei, onBroadcast, onReverted } = opts
-  if (credits.length === 0) throw new Error('No credits to spend — use buyWithMana for a MANA-only purchase')
-  if (manaGapWei <= 0n) throw new Error('No MANA gap to cover — use buyWithCredits for a credits-only purchase')
+  const { trade, ...rest } = opts
+  return payGapWithMana({ target: { kind: 'trade', trade }, ...rest })
+}
 
-  const mana = getContract(ContractName.MANAToken, trade.chainId)
-  const creditsManager = getContract(ContractName.CreditsManager, trade.chainId)
+/** Pay for a MINT with credits first and MANA for the remainder — `buyWithCreditsAndMana` for a store item. */
+export async function buyMintWithCreditsAndMana(opts: {
+  mint: MintToBuy
+  buyer: string
+  signer: ethers.providers.JsonRpcSigner
+  credits: SpendableCredit[]
+  manaGapWei: bigint
+  onBroadcast?: (info: { txHash: string }) => void
+  onReverted?: (info: { txHash: string | null }) => void
+}): Promise<string> {
+  const { mint, ...rest } = opts
+  return payGapWithMana({ target: { kind: 'store', mint }, ...rest })
+}
 
-  // Let the CreditsManager pull the MANA leg (gasless; no-op when already approved).
+async function payGapWithMana(opts: {
+  target: PurchaseTarget
+  buyer: string
+  signer: ethers.providers.JsonRpcSigner
+  credits: SpendableCredit[]
+  manaGapWei: bigint
+  onBroadcast?: (info: { txHash: string }) => void
+  onReverted?: (info: { txHash: string | null }) => void
+}): Promise<string> {
+  const { target, buyer, signer, credits, manaGapWei, onBroadcast, onReverted } = opts
+  if (credits.length === 0) throw new Error('No credits to spend — use the MANA-only rail for that')
+  if (manaGapWei <= 0n) throw new Error('No MANA gap to cover — use the credits-only rail for that')
+
+  const chainId = targetChainId(target)
+  const mana = getContract(ContractName.MANAToken, chainId)
+  const creditsManager = getContract(ContractName.CreditsManager, chainId)
+
+  // Let the CreditsManager pull the MANA leg (gasless; no-op when the allowance already covers the gap).
   await ensureAuthorization({
     auth: {
       kind: AuthorizationKind.Allowance,
       contractAddress: mana.address,
       spenderAddress: creditsManager.address,
-      chainId: trade.chainId
+      chainId
     },
-    signer
+    signer,
+    requiredWei: manaGapWei
   })
 
   // maxCreditedValue = the credits' value + the MANA gap, so the contract's uncredited leg is the gap.
   const creditsValue = credits.reduce((acc, c) => acc + BigInt(c.availableAmount), 0n)
   const maxCreditedValue = (creditsValue + manaGapWei).toString()
 
-  return buyWithCredits({ trade, buyer, signer, credits, maxCreditedValue, onBroadcast, onReverted })
+  return buyOneWithCredits({
+    purchase: purchaseFor(target, credits, maxCreditedValue),
+    buyer,
+    signer,
+    onBroadcast,
+    onReverted
+  })
+}
+
+/** The chain a purchase settles on: a trade carries it, a mint carries it alongside the item. */
+export function targetChainId(target: PurchaseTarget): number {
+  return target.kind === 'trade' ? target.trade.chainId : target.mint.chainId
+}
+
+/** The credits-rail purchase for either kind of target, paid by the given credits. */
+export function purchaseFor(target: PurchaseTarget, credits: SpendableCredit[], maxCreditedValue: string): AnyPurchase {
+  return target.kind === 'trade'
+    ? { kind: 'trade', trade: target.trade, credits, maxCreditedValue }
+    : { kind: 'store', item: target.mint.item, chainId: target.mint.chainId, credits, maxCreditedValue }
+}
+
+/**
+ * Which contract has to be allowed to pull the buyer's MANA, per rail and per kind of purchase.
+ *
+ * Lives here, with the rails that spend it, because getting it wrong is an approval the buyer grants for
+ * nothing followed by a failed purchase: MANA-only settles against the seller's own contract (the marketplace
+ * for a listing, the store for a mint) while the mixed rail always settles through the CreditsManager. The UI
+ * reads this to TELL a self-custody buyer about the approval before it happens, so it must be the same answer
+ * the rail's own ensureAuthorization asks for.
+ */
+export function manaSpenderFor(
+  rail: 'mana' | 'combined',
+  target: PurchaseTarget
+): { spender: string; chainId: ChainId } {
+  const chainId = targetChainId(target)
+  if (rail === 'combined') return { spender: getContract(ContractName.CreditsManager, chainId).address, chainId }
+  const spender =
+    target.kind === 'trade'
+      ? getContract(getContractName(target.trade.contract), chainId).address
+      : getContract(ContractName.CollectionStore, chainId).address
+  return { spender, chainId }
 }

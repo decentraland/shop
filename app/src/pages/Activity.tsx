@@ -1,4 +1,4 @@
-import { lazy, Suspense, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -21,10 +21,14 @@ import { useListingCount } from '~/hooks/useListingCount'
 import { LoadMore } from '~/components/LoadMore'
 import { useInfiniteGrid } from '~/hooks/useInfiniteGrid'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
+import { Price } from '~/components/Price'
 import { formatCredits } from '~/lib/currency'
 import creditsProduct from '~/assets/credits-product.svg'
 import manaSymbol from '~/assets/mana-matic.svg'
+import nameGlyph from '~/assets/names/name-glyph.svg'
 import { Icon } from '~/components/Icon'
+import { EmptyState } from '~/components/EmptyState'
+import salesEmptyIllustration from '~/assets/empty/sales-empty.svg'
 import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
 import { toast } from '~/store/toast'
@@ -149,7 +153,7 @@ function OrderLine({ item }: { item: OrderLineItem }) {
         {item.quantity > 1 ? <S.LineMeta>{t('activity.quantity', { count: item.quantity })}</S.LineMeta> : null}
       </S.LineInfo>
       <S.LinePrice>
-        <CurrencyIcon className="ccy-mark" /> {item.credits}
+        <CurrencyIcon className="ccy-mark" /> <Price credits={item.credits} />
       </S.LinePrice>
     </>
   )
@@ -160,6 +164,33 @@ function OrderLine({ item }: { item: OrderLineItem }) {
     </LineLink>
   ) : (
     <S.Line>{body}</S.Line>
+  )
+}
+
+/**
+ * A NAME registration. Its own component rather than a branch inside OrderLine, because it resolves
+ * NOTHING: the intent carries the name itself, and there is no marketplace record to look up — a NAME is
+ * not a collection item, and it mints on Ethereum rather than the chain the credit settled on.
+ *
+ * Not a link either. The detail route builds from a collection contract plus an id, which a NAME has
+ * neither of, so there is nowhere for it to point.
+ */
+function NameOrderLine({ item }: { item: OrderLineItem }) {
+  const label = `@${item.registeredName}`
+
+  return (
+    <S.Line data-testid="activity-name-line">
+      <S.NameThumb>
+        <img src={nameGlyph} alt="" />
+      </S.NameThumb>
+      <S.LineInfo>
+        <S.LineName title={label}>{label}</S.LineName>
+        <S.LineMeta>{t('activity.nameRegistration')}</S.LineMeta>
+      </S.LineInfo>
+      <S.LinePrice>
+        <CurrencyIcon className="ccy-mark" /> {item.credits}
+      </S.LinePrice>
+    </S.Line>
   )
 }
 
@@ -182,7 +213,7 @@ function OrderCard({ order }: { order: PurchaseOrder }) {
         <S.HeadRight>
           <S.Pill data-status={pill}>{pillLabel}</S.Pill>
           <S.Total>
-            <CurrencyIcon className="ccy-mark" /> {order.totalCredits}
+            <CurrencyIcon className="ccy-mark" /> <Price credits={order.totalCredits} />
           </S.Total>
         </S.HeadRight>
       </S.CardHead>
@@ -191,9 +222,9 @@ function OrderCard({ order }: { order: PurchaseOrder }) {
           who cannot see that said so has no reason to believe it. */}
       {pill === 'FAILED' ? <S.FailedNote>{t('activity.purchaseFailedNote')}</S.FailedNote> : null}
       <S.Lines>
-        {lineItems.map(item => (
-          <OrderLine key={item.key} item={item} />
-        ))}
+        {lineItems.map(item =>
+          item.registeredName ? <NameOrderLine key={item.key} item={item} /> : <OrderLine key={item.key} item={item} />
+        )}
       </S.Lines>
     </S.Card>
   )
@@ -365,20 +396,49 @@ function CreditPurchaseCard({ order }: { order: CreditOrder }) {
   // is what settles it, and a session that turns out to be dead retires the order there and then.
   const canResume = order.status === 'initiated' && !!session
 
+  // Leaving for Stripe deliberately keeps `resuming` set so the button cannot be pressed twice on the
+  // way out. But pressing Back from Stripe is an ordinary thing to do, and bfcache restores this
+  // component with its state intact — the button would come back permanently disabled reading
+  // "Opening…" until a hard reload. `pageshow` fires on both a normal load and a bfcache restore, so
+  // clearing it there covers the return without weakening the guard on the way out.
+  useEffect(() => {
+    const clear = () => setResuming(false)
+    window.addEventListener('pageshow', clear)
+    return () => window.removeEventListener('pageshow', clear)
+  }, [])
+
   async function onResume() {
     if (!session || resuming) return
     setResuming(true)
     try {
-      const url = await resumeCreditOrder(order.id, session.identity)
-      if (url) {
-        window.location.href = url
-        return
+      const result = await resumeCreditOrder(order.id, session.identity)
+
+      if (result.kind === 'url') {
+        // Only ever a Stripe-hosted page. `location.href` will happily run a `javascript:` URL, and
+        // this string comes off the wire — the check costs nothing and means a compromised or
+        // misbehaving response cannot turn a button in the buyer's history into script execution.
+        if (/^https:\/\/([a-z0-9-]+\.)*stripe\.com\//i.test(result.url)) {
+          window.location.href = result.url
+          return // leave `resuming` set: the page is navigating away — see the pageshow reset below.
+        }
+        toast.error(t('activity.resumeUnavailable'))
+      } else if (result.kind === 'expired') {
+        // The checkout died while it sat in the feed. The server has already retired it, so refreshing
+        // the list is what tells the buyer — rather than an error about something they cannot act on.
+        toast.info(t('activity.resumeExpired'))
+        void queryClient.invalidateQueries({ queryKey: ['credit-orders'] })
+      } else if (result.kind === 'paid') {
+        // They paid and the grant is in flight. Telling this buyer to "start again" would be inviting
+        // a second charge for something already bought.
+        toast.success(t('activity.resumePaid'))
+        void queryClient.invalidateQueries({ queryKey: ['credit-orders'] })
+      } else {
+        // We could not find out. Say that, and leave the row exactly as it is — the checkout is very
+        // possibly still fine and a retry costs the buyer nothing.
+        toast.error(t('activity.resumeUnavailable'))
       }
-      // The checkout died while it sat in the feed. The server has already retired it, so refreshing
-      // the list is what tells the buyer — rather than an error about something they cannot act on.
-      toast.info(t('activity.resumeExpired'))
-      void queryClient.invalidateQueries({ queryKey: ['credit-orders'] })
-    } finally {
+      setResuming(false)
+    } catch {
       setResuming(false)
     }
   }
@@ -409,8 +469,13 @@ function CreditPurchaseCard({ order }: { order: CreditOrder }) {
             </S.ResumeButton>
           ) : null}
           <S.Pill data-status={pill}>{pillLabel}</S.Pill>
-          <S.Total data-kind="income">
-            +<CurrencyIcon className="ccy-mark" /> {order.credits}
+          {/* An unfinished checkout has gained the buyer nothing, so it does not get the income
+              treatment — a bold green "+50" beside a quiet grey pill still reads as credits received,
+              which is the exact misreading this whole change exists to remove. It shows the amount at
+              stake, plainly, with no sign. */}
+          <S.Total data-kind={pill === 'UNFINISHED' ? undefined : 'income'}>
+            {pill === 'UNFINISHED' ? '' : '+'}
+            <CurrencyIcon className="ccy-mark" /> <Price credits={order.credits} />
           </S.Total>
         </S.HeadRight>
       </S.CardHead>
@@ -418,23 +483,23 @@ function CreditPurchaseCard({ order }: { order: CreditOrder }) {
   )
 }
 
-function EmptyState({ filter }: { filter: ActivityFilter }) {
-  const copy = {
-    all: { icon: 'clock', title: t('activity.emptyAllTitle'), body: t('activity.emptyAllBody') },
-    purchases: { icon: 'cart', title: t('activity.emptyPurchasesTitle'), body: t('activity.emptyPurchasesBody') },
-    sales: { icon: 'offer', title: t('activity.emptySalesTitle'), body: t('activity.emptySalesBody') }
+function ActivityEmpty({ filter }: { filter: ActivityFilter }) {
+  // All three tabs share the design's sale-tag panel; only the body line differs per tab.
+  const body = {
+    all: t('activity.emptyAllBody'),
+    purchases: t('activity.emptyPurchasesBody'),
+    sales: t('activity.emptySalesBody')
   }[filter]
 
   return (
     <S.Empty>
-      <Icon name={copy.icon as 'cart'} size={40} color={theme.colors.muted2} />
-      <S.EmptyTitle>{copy.title}</S.EmptyTitle>
-      <S.EmptyBody>{copy.body}</S.EmptyBody>
-      {filter !== 'sales' ? (
-        <S.EmptyCta as={Link} to="/items" variant="white">
-          {t('notFound.cta')}
-        </S.EmptyCta>
-      ) : null}
+      <EmptyState
+        testId={`activity-empty-${filter}`}
+        icon={salesEmptyIllustration}
+        title={t('activity.emptyTitle')}
+        body={body}
+        cta={{ label: t('assets.empty.cta'), to: '/items' }}
+      />
     </S.Empty>
   )
 }
@@ -523,11 +588,11 @@ export function Activity() {
 
   if (!session) {
     return (
-      <S.Empty>
+      <S.Gate>
         <Icon name="clock" size={40} color={theme.colors.muted2} />
         <S.EmptyTitle>{t('activity.signInTitle')}</S.EmptyTitle>
         <S.EmptyBody>{t('activity.signInBody')}</S.EmptyBody>
-      </S.Empty>
+      </S.Gate>
     )
   }
 
@@ -629,7 +694,7 @@ export function Activity() {
           ))}
         </S.List>
       ) : feed.length === 0 ? (
-        <EmptyState filter={filter} />
+        <ActivityEmpty filter={filter} />
       ) : (
         <>
           <S.List>

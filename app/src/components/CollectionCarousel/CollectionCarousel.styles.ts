@@ -1,5 +1,6 @@
 import styled from '@emotion/styled'
 import { theme } from '~/styles/theme'
+import { railGutter } from '~/styles/card.styles'
 import { Icon } from '~/components/Icon'
 
 const { colors, media } = theme
@@ -103,12 +104,9 @@ export const Arrow = styled.button`
 `
 
 // A FIXED whole number of cards per view (5 desktop → 4 → 3 → 2, mirroring the Overview rail) so an
-// exact integer of cards fills the viewport and no partial card is ever cut off. `overflow-x: auto`
-// also clips overflow-y, so the padding reserves room on ALL sides for the cards' outward hover glow;
-// `scroll-padding-inline` keeps the snap points aligned to that gutter, and the negative margin-left
-// pulls the track back so the first card's edge lines up with the section title instead of sitting
-// inset. NOTE: this assumes >=14px of left padding on the container to overflow into (true for the PDP
-// and cart, which sit inside the page gutter). In a tighter container, scope the negative margin back.
+// exact integer of cards fills the viewport and no partial card is ever cut off. `railGutter` reserves
+// room on all sides for the cards' lit state and keeps the snap points aligned to it. In a container
+// tighter than the page gutter, scope its negative margin back.
 export const Track = styled.div`
   display: grid;
   grid-auto-flow: column;
@@ -116,9 +114,7 @@ export const Track = styled.div`
   gap: 16px;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 12px 14px;
-  margin-left: -14px;
-  scroll-padding-inline: 14px;
+  ${railGutter};
   scroll-snap-type: x mandatory;
   scrollbar-width: none;
 

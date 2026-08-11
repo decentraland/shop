@@ -100,7 +100,7 @@ describe('when authorizing a USD credit for one purchase', () => {
     expect(url).toBe('https://credits.example/credits/authorize')
     expect(opts.method).toBe('POST')
     expect(opts.headers).toEqual({ 'Content-Type': 'application/json' })
-    expect(JSON.parse(opts.body)).toEqual({ usdPriceCents: 250, tradeId: 'trade-1' })
+    expect(JSON.parse(opts.body)).toEqual({ usdPriceCents: 250, tradeId: 'trade-1', source: 'website' })
   })
 
   it('should omit tradeId from the body when not provided', async () => {
@@ -109,7 +109,7 @@ describe('when authorizing a USD credit for one purchase', () => {
     await authorizeUsdCredit(IDENTITY, 100)
 
     const body = JSON.parse(signedFetch.mock.calls[0][1].body)
-    expect(body).toEqual({ usdPriceCents: 100 })
+    expect(body).toEqual({ usdPriceCents: 100, source: 'website' })
     expect('tradeId' in body).toBe(false)
   })
 
@@ -120,7 +120,7 @@ describe('when authorizing a USD credit for one purchase', () => {
     await authorizeUsdCredit(IDENTITY, 30, undefined, { contractAddress: '0xC0', itemId: '12' })
 
     const body = JSON.parse(signedFetch.mock.calls[0][1].body)
-    expect(body).toEqual({ usdPriceCents: 30, contractAddress: '0xC0', itemId: '12' })
+    expect(body).toEqual({ usdPriceCents: 30, contractAddress: '0xC0', itemId: '12', source: 'website' })
     expect('tradeId' in body).toBe(false)
   })
 
@@ -133,7 +133,8 @@ describe('when authorizing a USD credit for one purchase', () => {
       usdPriceCents: 30,
       tradeId: 'trade-1',
       contractAddress: '0xC0',
-      itemId: '12'
+      itemId: '12',
+      source: 'website'
     })
   })
 
@@ -168,7 +169,16 @@ describe('when fetching the buyer purchase history', () => {
     // the payload), the item identity and the submission hash, all of which an older server omits entirely.
     // One absent-value for every consumer to check instead of both null and undefined.
     expect(result.items).toEqual([
-      { ...purchases[0], txHash: null, contractAddress: null, itemId: null, submittedTxHash: null }
+      {
+        ...purchases[0],
+        txHash: null,
+        contractAddress: null,
+        itemId: null,
+        // Absent against a server predating the column, normalised to null like the two above so every
+        // consumer has one absent-value to check.
+        registeredName: null,
+        submittedTxHash: null
+      }
     ])
     expect(signedFetch.mock.calls[0][0]).toBe('https://credits.example/users/0xabc/purchases')
   })
@@ -435,31 +445,49 @@ describe('cancelCreditOrder', () => {
   })
 })
 
-describe('resumeCreditOrder', () => {
-  it('should return the checkout URL the server hands back', async () => {
-    signedFetch.mockResolvedValue({ ok: true, status: 200, json: async () => ({ url: 'https://pay.test/s1' }) })
+describe('when reopening a checkout the buyer left', () => {
+  const IDENTITY = {} as AuthIdentity
+  const HOSTED = 'https://checkout.stripe.com/c/pay/cs_test_1'
 
-    await expect(resumeCreditOrder('order-1', IDENTITY)).resolves.toBe('https://pay.test/s1')
-    expect(String(signedFetch.mock.calls[0][0])).toContain('/credits/orders/order-1/resume')
+  beforeEach(() => {
+    signedFetch.mockReset()
   })
 
-  it('should return null when the response carries no URL, rather than an unusable value', async () => {
-    signedFetch.mockResolvedValue({ ok: true, status: 200, json: async () => ({}) })
+  it('should hand back the hosted page while the session is alive', async () => {
+    signedFetch.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ url: HOSTED }) })
 
-    await expect(resumeCreditOrder('order-1', IDENTITY)).resolves.toBeNull()
+    await expect(resumeCreditOrder('ord_1', IDENTITY)).resolves.toEqual({ kind: 'url', url: HOSTED })
   })
 
-  it('should return null and release the body on a non-ok response', async () => {
-    const cancel = vi.fn()
-    signedFetch.mockResolvedValue({ ok: false, status: 409, body: { cancel }, json: async () => ({}) })
+  it('should report an expired checkout as expired', async () => {
+    signedFetch.mockResolvedValueOnce({ ok: false, status: 409, json: async () => ({ status: 'abandoned' }) })
 
-    await expect(resumeCreditOrder('order-1', IDENTITY)).resolves.toBeNull()
-    expect(cancel).toHaveBeenCalled()
+    await expect(resumeCreditOrder('ord_1', IDENTITY)).resolves.toEqual({ kind: 'expired' })
   })
 
-  it('should return null when the request throws', async () => {
-    signedFetch.mockRejectedValue(new Error('network down'))
+  // The one that must never read as "expired": they paid, and telling them to start again invites a
+  // second charge for something already bought.
+  it('should report an already-paid checkout as paid', async () => {
+    signedFetch.mockResolvedValueOnce({ ok: false, status: 409, json: async () => ({ status: 'processing' }) })
 
-    await expect(resumeCreditOrder('order-1', IDENTITY)).resolves.toBeNull()
+    await expect(resumeCreditOrder('ord_1', IDENTITY)).resolves.toEqual({ kind: 'paid' })
+  })
+
+  it.each([502, 500, 404])('should report a %d as unavailable, NOT as expired', async status => {
+    signedFetch.mockResolvedValueOnce({ ok: false, status, body: { cancel: () => undefined }, json: async () => ({}) })
+
+    await expect(resumeCreditOrder('ord_1', IDENTITY)).resolves.toEqual({ kind: 'unavailable' })
+  })
+
+  it('should report a network failure as unavailable, so a blip never declares a live checkout dead', async () => {
+    signedFetch.mockRejectedValueOnce(new Error('offline'))
+
+    await expect(resumeCreditOrder('ord_1', IDENTITY)).resolves.toEqual({ kind: 'unavailable' })
+  })
+
+  it('should treat a 2xx with no url as unavailable rather than pretending to have a page', async () => {
+    signedFetch.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({}) })
+
+    await expect(resumeCreditOrder('ord_1', IDENTITY)).resolves.toEqual({ kind: 'unavailable' })
   })
 })

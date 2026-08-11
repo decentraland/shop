@@ -31,6 +31,9 @@ on:
 #      (https://www.npmjs.com/package/@dcl/shop/access).
 #   2. Repo secrets GITLAB_CDN_DEPLOYER_TOKEN + GITLAB_CDN_DEPLOYER_URL (CDN deploy).
 #   3. The `shop` site entry merged in decentraland/definitions.
+#   4. Repo secret SENTRY_AUTH_TOKEN, so the build can upload source maps (see the Build step).
+#      OPTIONAL: without it the release still builds and publishes exactly as before, and Sentry
+#      stack traces stay minified. Needs org:decentraland scope `project:releases`.
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest
@@ -49,7 +52,7 @@ jobs:
           node-version: 24
 
       - name: Set package.json version
-        uses: decentraland/oddish-action@0074f2d535c43b5c83f136525304a6277166d77f # master @ feat/support-npm-trusted-publishing
+        uses: decentraland/oddish-action@b6857320dc1ef81ecfee41d4095dc835f1a77c9f # master @ fix/wait-registry-new-version
         with:
           cwd: './app'
           deterministic-snapshot: true
@@ -70,11 +73,23 @@ jobs:
           # No VITE_* env config here: the build is env-agnostic. Per-environment config lives in
           # src/config/env/{dev,stg,prod}.json and is selected at RUNTIME by hostname (see src/config).
           # The SAME published artifact serves zone (dev/stg) and org (prod).
+          #
+          # Source maps for Sentry. THIS is the build that produces the bundle users run, so it is the
+          # only place the maps for that bundle can come from — without the token here, no build has ever
+          # uploaded any, and every production stack trace is minified frames like `O.makeError` and
+          # `ds`. vite.config gates the whole thing on the token: it turns `build.sourcemap` on, uploads
+          # under the same release name the runtime reports, then DELETES the .map files so they are
+          # never served from the CDN. An absent or empty secret restores exactly today's behaviour, so
+          # this cannot break the release — it just keeps producing unreadable stacks.
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          # Not secrets — the same org/project slugs that appear in every Sentry URL for this app.
+          SENTRY_ORG: decentraland
+          SENTRY_PROJECT: shop
 
       - name: Publish
         id: publish
         # Auth via npm Trusted Publishers (OIDC) — `id-token: write` is granted on this job.
-        uses: decentraland/oddish-action@0074f2d535c43b5c83f136525304a6277166d77f # master @ feat/support-npm-trusted-publishing
+        uses: decentraland/oddish-action@b6857320dc1ef81ecfee41d4095dc835f1a77c9f # master @ fix/wait-registry-new-version
         with:
           cwd: './app/dist'
           deterministic-snapshot: true

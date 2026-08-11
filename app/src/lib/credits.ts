@@ -17,8 +17,33 @@ export type ServerCredit = {
   creditSource?: string
 }
 
-// The USD balance block (present when the shop USD-credits feature flag is on).
-export type UsdBalance = { balanceCents: number; credits: number }
+/**
+ * Credits committed to a purchase that has not been proven to have happened, and which come back on
+ * their own. `balanceCents` has ALREADY subtracted these — this is why that number is smaller, not
+ * something to add to it.
+ */
+export type HeldCredits = {
+  cents: number
+  credits: number
+  /**
+   * Epoch SECONDS, or NULL when there is no honest estimate.
+   *
+   * NULL is not an error and not "soon": the reservation is waiting on the chain being processed, and
+   * nobody can say when that finishes. It must be rendered as "no estimate", never as zero, never as a
+   * countdown that has run out.
+   */
+  releasesAtSeconds: number | null
+  purchases: {
+    credits: number
+    releasesAtSeconds: number | null
+    contractAddress: string | null
+    itemId: string | null
+  }[]
+}
+
+// The USD balance block (present when the shop USD-credits feature flag is on). `held` is present only
+// when something is actually held, so its absence is the "nothing held" signal.
+export type UsdBalance = { balanceCents: number; credits: number; held?: HeldCredits }
 
 export type UserCreditsResponse = {
   credits: ServerCredit[]
@@ -70,7 +95,11 @@ export async function authorizeUsdCredit(
   // What is being bought, as opposed to how it settles. Recorded on the intent so the buyer's purchase
   // history can name it: a CollectionStore mint has no trade, so this is the only thing the Activity feed
   // can resolve a name and thumbnail from. The server accepts it only as a complete pair.
-  item?: { contractAddress: string; itemId: string }
+  item?: { contractAddress: string; itemId: string },
+  // The NAME a registration buys. Neither `tradeId` nor `item` can describe one — a NAME is not a
+  // collection item and does not mint on the chain the credit settles on — so without this the buyer's
+  // history has no identity for the line at all and shows a bare "Item".
+  registeredName?: string
 ): Promise<AuthorizeResult> {
   const url = `${config.creditsServerUrl}/credits/authorize`
   const res = await signedFetch(url, {
@@ -78,7 +107,15 @@ export async function authorizeUsdCredit(
     identity,
     metadata: {},
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ usdPriceCents, tradeId, ...(item ? item : {}) })
+    // `source` declares the surface this purchase comes from ('website' here, 'client' for the Explorer),
+    // so the server can tell the two apart in its records. Servers predating the field ignore it.
+    body: JSON.stringify({
+      usdPriceCents,
+      tradeId,
+      source: 'website',
+      ...(item ? item : {}),
+      ...(registeredName ? { name: registeredName } : {})
+    })
   })
   if (!res.ok) throw new Error(`authorizeUsdCredit ${res.status}: ${await res.text()}`)
   return res.json() as Promise<AuthorizeResult>
@@ -98,6 +135,11 @@ export type PurchaseRecord = {
    */
   contractAddress: string | null
   itemId: string | null
+  /**
+   * The NAME this purchase registered, without the `.dcl.eth` suffix. Null for every other purchase, and
+   * for NAME rows recorded before the server stored it — those stay generic.
+   */
+  registeredName: string | null
   usdCents: number
   credits: number
   status: 'PENDING' | 'SETTLED' | 'EXPIRED'
@@ -150,6 +192,7 @@ export async function fetchUserPurchases(
     // absent-value to check instead of two.
     contractAddress: p.contractAddress ?? null,
     itemId: p.itemId ?? null,
+    registeredName: p.registeredName ?? null,
     // Absent against a server that predates the submission column. Null means "no attempt to show", which
     // is exactly how the feed treated every EXPIRED row before this existed — so an old server degrades to
     // the old behaviour instead of to a wrong one.
@@ -273,24 +316,58 @@ export async function cancelCreditOrder(orderId: string, identity: AuthIdentity)
 }
 
 /**
- * The hosted page for a checkout the buyer left open, or null when it can no longer be paid.
+ * What became of an attempt to reopen a checkout the buyer left. These are four different things to
+ * SAY, which is why this is not `string | null`: collapsing them meant a transient network blip told
+ * a buyer their perfectly live checkout was dead and to start a new one, and — worse — so did the
+ * case where the money had already arrived.
+ */
+export type ResumeResult =
+  /** Still payable. Send the buyer back to this Stripe page. */
+  | { kind: 'url'; url: string }
+  /** The session is gone. The server has retired the order; the row will stop offering to resume. */
+  | { kind: 'expired' }
+  /** They already paid — the credits are on their way. Never tell this buyer to buy again. */
+  | { kind: 'paid' }
+  /** We could not find out (Stripe unreachable, our error, offline). The checkout may well be fine. */
+  | { kind: 'unavailable' }
+
+/**
+ * Reopens a checkout the buyer left, or explains why it cannot be.
  *
  * Asking costs a round trip to Stripe, so it happens on the click rather than while rendering the
- * feed. Null is a real answer, not an error: the session expired (the server retires the order as it
- * finds out) or the money already arrived. Either way there is nothing to go back to.
+ * feed. The server distinguishes the outcomes and returns the order's real `status` in the body of
+ * its 409 — this reads it rather than treating every non-2xx as "expired".
  */
-export async function resumeCreditOrder(orderId: string, identity: AuthIdentity): Promise<string | null> {
+export async function resumeCreditOrder(orderId: string, identity: AuthIdentity): Promise<ResumeResult> {
   try {
     const url = `${config.creditsServerUrl}/credits/orders/${encodeURIComponent(orderId)}/resume`
     const res = await signedFetch(url, { method: 'POST', identity, metadata: {} })
-    if (!res.ok) {
-      void res.body?.cancel()
-      return null
+
+    if (res.ok) {
+      const json = (await res.json()) as { url?: string }
+      return json.url ? { kind: 'url', url: json.url } : { kind: 'unavailable' }
     }
-    const json = (await res.json()) as { url?: string }
-    return json.url ?? null
+
+    // 409 is the server's considered answer and carries WHY. Anything else (502 upstream, 500, 404)
+    // means we did not get one, and the honest thing is to say so rather than declare the checkout
+    // dead on the buyer's behalf.
+    if (res.status !== 409) {
+      void res.body?.cancel()
+      return { kind: 'unavailable' }
+    }
+    const json = (await res.json().catch(() => null)) as { status?: string } | null
+    // 'processing' here means Stripe reported the session complete — the money arrived.
+    if (json?.status === 'processing' || json?.status === 'crediting' || json?.status === 'credited') {
+      return { kind: 'paid' }
+    }
+    // Everything else the server answers a 409 with — `abandoned` (retired), `failed` (a decline it
+    // will not reopen) — is a considered, PERMANENT refusal. Reporting those as `unavailable` was
+    // wrong twice over: it told the buyer to try again at something that can never succeed, and that
+    // branch deliberately skips the refetch, so the row kept its Continue button forever.
+    if (json?.status) return { kind: 'expired' }
+    return { kind: 'unavailable' }
   } catch {
-    return null
+    return { kind: 'unavailable' }
   }
 }
 

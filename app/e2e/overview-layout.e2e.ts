@@ -28,10 +28,11 @@ const BASE = `http://localhost:${PORT}`
 let server: ChildProcess | undefined
 
 // What each section reserves with. Six per carousel (one more than the five cards the widest tier shows,
-// so a loading rail is full at every breakpoint), six looks, four creator cards.
+// so a loading rail is full at every breakpoint), six looks, eight creator cards — the creators row is a
+// two-page carousel of four per view.
 const PER_RAIL = 6
 const OUTFIT_SKELETONS = 6
-const CREATOR_SKELETONS = 4
+const CREATOR_SKELETONS = 8
 
 // The last section heading on the page: everything above it has to hold its height for this to stay put.
 const LANDMARK = 'top creators'
@@ -44,7 +45,7 @@ const DELAYS = {
   // sample and the reserved state these specs are about never existed for it.
   '/v3/catalog/trending': 900,
   '/v1/outfits': 1200,
-  '/v1/rankings/': 1800,
+  '/v3/catalog/creators': 1800,
   '/v2/catalog': 600
 }
 
@@ -195,14 +196,10 @@ const fixtures = {
   // moment resolution lands and the whole section disappears after settling — which is precisely the
   // shift these specs exist to catch, reported as a fixture that never had a section to reserve.
   shopListings: { data: [listing(0), listing(1)], total: 2 },
+  // A full row: eight ranked creators, so the loaded section fills the same eight slots it reserved.
+  // The mock Catalyst gives each address a distinct claimed name, which is what the row filters on.
   rankings: {
-    data: [1, 2, 3, 4].map(i => ({
-      id: '0x' + String(i).repeat(40),
-      sales: 10 - i,
-      earned: '1000000000000000000',
-      collections: 3,
-      uniqueCollectors: 2
-    }))
+    data: [1, 2, 3, 4, 5, 6, 7, 8].map(i => ({ id: '0x' + String(i).repeat(40), sales: 20 - i }))
   }
 }
 

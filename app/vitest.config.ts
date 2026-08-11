@@ -5,6 +5,9 @@ import { fileURLToPath, URL } from 'node:url'
 // Separate from vite.config.ts: vitest bundles its own vite, so keeping plugin/type graphs apart
 // avoids dual-vite type conflicts. The react plugin is cast to bypass that nested-vite typing.
 export default defineConfig({
+  // `~/config` reads the release from a build-time constant rather than an env var (see vite.config.ts);
+  // without a value here every test that imports the config would blow up on an undefined global.
+  define: { __SENTRY_RELEASE__: JSON.stringify('shop@test') },
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   plugins: [react() as any],
   resolve: {

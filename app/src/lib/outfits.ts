@@ -112,13 +112,22 @@ export function isHexColor(value: string): boolean {
 }
 
 /**
- * The CSS backdrop for an outfit's thumbnail: a vertical two-stop gradient the transparent-background
- * thumbnail is composited over. Falls back to the brand gradient when either stop is missing or
- * malformed, so a half-filled draft never renders a broken `linear-gradient`.
+ * The CSS backdrop for an outfit's thumbnail: the two authored stops as a centred radial flare, which the
+ * transparent-background thumbnail is composited over. Falls back to the brand colours when either stop is
+ * missing or malformed, so a half-filled draft never renders a broken gradient.
+ *
+ * The geometry is Figma's (2090:402143), read off the `gradientTransform` on its radial fill: the centre
+ * lands dead centre of the card and the radii come out 224.16 x 156.52 on a 340.5 x 237.75 box — 65.83% of
+ * each side. The design draws five stops, but they are an exact linear interpolation between the two ends
+ * (the per-channel steps are constant), so two carry the same ramp.
+ *
+ * Colour order matches the design and `outfitRadialGradient`: the BOTTOM stop is the core, the top one the
+ * rim. This used to be a flat `linear-gradient(180deg, ...)`, which is why the cards read as a vertical
+ * band rather than a glow.
  */
 export function outfitGradient(outfit: Pick<Outfit, 'gradientFrom' | 'gradientTo'>): string {
   const { from, to } = outfitStops(outfit)
-  return `linear-gradient(180deg, ${from} 0%, ${to} 100%)`
+  return `radial-gradient(65.83% 65.83% at 50% 50%, ${to} 0%, ${from} 100%)`
 }
 
 /** The two stops actually used for rendering, each falling back to the brand color on its own. */

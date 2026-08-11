@@ -1,12 +1,13 @@
 import styled from '@emotion/styled'
-import { css, keyframes } from '@emotion/react'
+import { keyframes } from '@emotion/react'
 import { Link } from 'react-router-dom'
 import { theme } from '~/styles/theme'
+import { checkoutCtaCss } from '~/styles/cta.styles'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { CreatorBadge } from '~/components/CreatorBadge'
 import { Icon } from '~/components/Icon'
 
-const { colors, radius, gradients, font } = theme
+const { colors, radius, font } = theme
 
 const fade = keyframes`
   from { opacity: 0; }
@@ -104,52 +105,6 @@ export const Empty = styled.div`
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 24px;
-  padding: 24px 8px;
-  text-align: center;
-  color: ${colors.text};
-`
-
-export const EmptyText = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-`
-
-export const EmptyTitle = styled.p`
-  margin: 0;
-  font-size: 22px;
-  font-weight: 700;
-  line-height: 1.4;
-`
-
-export const EmptyBody = styled.p`
-  margin: 0;
-  font-size: 16px;
-  line-height: 1.5;
-`
-
-export const EmptyCta = styled(Link)`
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 280px;
-  max-width: 100%;
-  height: 52px;
-  padding: 0 12px;
-  border-radius: ${radius.card};
-  background: ${colors.accent};
-  color: ${colors.softWhite};
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: 0.46px;
-  text-transform: uppercase;
-  transition: background 0.15s ease;
-
-  &:hover {
-    background: ${colors.accentHover};
-  }
 `
 
 export const Banner = styled.div`
@@ -348,24 +303,6 @@ export const Warn = styled(Icon)`
   color: #f48221;
 `
 
-export const Resales = styled(Link)`
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 24px;
-  letter-spacing: 0.46px;
-  text-transform: uppercase;
-  text-decoration: underline;
-  color: ${colors.accent};
-
-  &:hover {
-    color: ${colors.accentHover};
-  }
-  &:focus-visible {
-    outline: 2px solid ${colors.accent};
-    outline-offset: 2px;
-  }
-`
-
 export const Del = styled.button`
   position: absolute;
   top: 9px;
@@ -438,46 +375,12 @@ export const Ctas = styled.div`
   }
 `
 
-// data-variant='primary' (filled accent Link) | 'secondary' (magenta-outline button).
-const ctaCss = css`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 46px;
-  border-radius: ${radius.card};
-  font-family: ${font.sans};
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 24px;
-  letter-spacing: 0.46px;
-  text-transform: uppercase;
-  text-decoration: none;
-  cursor: pointer;
-
-  /* The design system's pair (Figma 2187:453378/453391): the advancing action takes the primary
-     gradient on the right, the dismissing one a hairline soft-black outline on the left. */
-  &[data-variant='primary'] {
-    border: 0;
-    background: ${gradients.buyBtn};
-    color: ${colors.white};
-  }
-  &[data-variant='primary']:hover,
-  &[data-variant='primary']:active {
-    background-image: linear-gradient(${colors.dclRed}, ${colors.dclRed});
-  }
-  &[data-variant='secondary'] {
-    border: 0.5px solid ${colors.text};
-    background: ${colors.white};
-    color: ${colors.text};
-  }
-  /* Figma's outlined hover (738:53251): the fill inverts to soft-black-2 with a soft-white label. The
-     white-fill hover the dark-field buttons take would be invisible on this light drawer. */
-  &[data-variant='secondary']:hover {
-    background: ${colors.text2};
-    color: ${colors.softWhite};
-  }
+export const Cta = styled(Link)`
+  ${checkoutCtaCss};
 `
 
-export const Cta = styled(Link)`
-  ${ctaCss};
+// The dismiss half of the pair. A BUTTON, not a link: it goes nowhere — it just closes the popover — and a
+// link that navigates to nothing is a link that reads as broken to a keyboard or screen-reader user.
+export const CtaButton = styled.button`
+  ${checkoutCtaCss};
 `

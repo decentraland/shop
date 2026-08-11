@@ -57,6 +57,7 @@ import { isNotifyAvailable } from '~/lib/notify'
 import { Tooltip } from '~/components/Tooltip'
 import { ErrorNotice } from '~/components/ErrorNotice'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
+import { Price } from '~/components/Price'
 import { Icon } from '~/components/Icon'
 import { rarityColor, rarityDescription } from '~/lib/rarity'
 import { categoryIcon, genderIcon } from '~/lib/itemIcons'
@@ -231,11 +232,11 @@ export function ItemDetail() {
   // "Not for sale" on its own page while its card in the grid showed a price.
   // ITEM ROUTE ONLY: the token route hydrates from the specific token (ownedAsset / publicToken) and
   // must not be overwritten by the generic item listing (which carries no tokenId).
-  const needsPrimaryStock = current.available == null && !current.tokenId
   const { data: deepLinkItem, isLoading: deepLinkLoading } = useQuery({
     queryKey: ['shop-item', current.contractAddress, pageItemId],
-    enabled:
-      !isMarket && !isTokenRoute && !!current.contractAddress && !!pageItemId && (!state?.item || needsPrimaryStock),
+    // Runs even when the page was seeded from a card. Skipping it there was what let a stale grid price
+    // stand as this page's price, with a Buy button under it.
+    enabled: !isMarket && !isTokenRoute && !!current.contractAddress && !!pageItemId,
     // Money-sensitive: a 3rd party's listing/price/stock can change under us. Never serve the 30s-stale
     // default — revalidate on every (re)mount and tab refocus so a soft revisit re-checks availability.
     staleTime: 0,
@@ -246,14 +247,24 @@ export function ItemDetail() {
   useEffect(() => {
     if (!deepLinkItem) return
     setCurrent(prev => {
-      // Bare deep-link stub (no tradeId yet) → full hydrate from the authoritative listing.
-      if (!prev.tradeId) return { ...deepLinkItem }
-      // Seeded item (grid/sibling): keep its identity/price/name/tradeId, only backfill the
-      // authoritative fields it lacked (stock + wearableCategory) — never clobber the rest.
-      if (prev.available != null && prev.wearableCategory) return prev
+      // Bare deep-link stub (no tradeId yet) → hydrate from the authoritative listing, which wins on every
+      // field it reports — money included. The seed keeps only what the unified feed has no opinion on at
+      // all (urn, the emote flags) rather than being blanked on the way through.
+      if (!prev.tradeId) return { ...prev, ...deepLinkItem }
+      // A seeded item keeps its identity and presentation, but NOT its money. The price and tradeId it
+      // arrived with are a snapshot of the grid that linked here, and the trade they name may already be
+      // cancelled — the listing just fetched is the only authority on what this costs now.
       return {
         ...prev,
-        available: prev.available ?? deepLinkItem.available,
+        tradeId: deepLinkItem.tradeId,
+        priceCredits: deepLinkItem.priceCredits,
+        manaWei: deepLinkItem.manaWei,
+        available: deepLinkItem.available ?? prev.available,
+        // Which rail sells this, and so whether the page offers it at all: with no tradeId, `forSale` is
+        // `isStoreMint` alone, and that reads this field. It is optional on a seed and always set on a
+        // fetched listing, so the server's answer simply wins — a seed that lacks it would otherwise
+        // leave a store mint with stock reading "Not for Sale".
+        acquisition: deepLinkItem.acquisition,
         wearableCategory: prev.wearableCategory ?? deepLinkItem.wearableCategory
       }
     })
@@ -413,9 +424,9 @@ export function ItemDetail() {
    * NOT FOR SALE about an item the browse grid was selling from the same feed, at a price the grid showed
    * and this page did not (measured on production: `acquisition: 'store'`, 48 in stock, 20 MANA).
    *
-   * The cart already buys these end-to-end (lib/cart-availability, lib/cart-checkout route the store rail),
-   * which is why the CTA below offers Add to cart for them and keeps Buy now for trades — BuyModal resolves
-   * a live trade and has no store rail of its own.
+   * Both CTAs below serve it: the cart routes the store rail (lib/cart-availability, lib/cart-checkout) and so
+   * does Buy now (BuyModal resolves either kind through lib/cart-checkout's resolveLine and settles it through
+   * the store's own rails), so a mint and a listing offer the buyer exactly the same purchase.
    */
   const isStoreMint = current.acquisition === 'store' && (current.available ?? 0) > 0
   const forSale = !!buyableTradeId || isStoreMint
@@ -466,7 +477,7 @@ export function ItemDetail() {
 
   // Market (legacy) checkout: the live MANA→USD rate (read only in market mode) + the LegacyListing
   // projection MarketCheckout expects, built from the UnifiedListing the grid passed in router state.
-  // The price is only indicative until MarketCheckout locks it at authorize (see MarketCheckout).
+  // MarketCheckout re-derives the same amount from this rate; it does not get a different one.
   /**
    * A LEGACY (MANA-priced) listing is priced at the LIVE oracle rate, never at the server's snapshot.
    *
@@ -479,10 +490,13 @@ export function ItemDetail() {
   const listedManaWei = (current as Partial<UnifiedListing>).manaWei ?? null
   const { data: manaRate } = useManaRate(isMarket || !!listedManaWei)
   const liveLegacyCredits = listedManaWei && manaRate ? manaWeiToCredits(listedManaWei, manaRate) : null
+  // Also re-asserted when the price itself moves, not only when the rate does: hydration lands AFTER this
+  // effect has already agreed with the seeded card, and it brings the server's snapshot back with it. The
+  // setter is a no-op once they match, so re-running cannot loop.
   useEffect(() => {
     if (liveLegacyCredits == null) return
     setCurrent(prev => (prev.priceCredits === liveLegacyCredits ? prev : { ...prev, priceCredits: liveLegacyCredits }))
-  }, [liveLegacyCredits])
+  }, [liveLegacyCredits, current.priceCredits])
   const marketListing: LegacyListing | null = useMemo(() => {
     if (!isMarket || !state?.item) return null
     const it = state.item as UnifiedListing
@@ -1298,7 +1312,9 @@ export function ItemDetail() {
                           {t('itemDetail.originalPrice')}
                           <S.SoPrice>
                             <CurrencyIcon className="ico" />
-                            <S.SoValue>{current.priceCredits}</S.SoValue>
+                            <S.SoValue>
+                              <Price credits={current.priceCredits} />
+                            </S.SoValue>
                           </S.SoPrice>
                           <S.SoInfo aria-hidden>
                             <Icon name="info" size={12} />
@@ -1311,7 +1327,10 @@ export function ItemDetail() {
                           {t('itemDetail.resalePrice')}
                           <S.SoPrice>
                             <CurrencyIcon className="ico" />
-                            <S.SoValue>{lowestResale}</S.SoValue>
+                            <S.SoValue>
+                              {/* soldOutWithResale implies at least one resale, so a price exists. */}
+                              <Price credits={lowestResale!} />
+                            </S.SoValue>
                           </S.SoPrice>
                           <S.SoInfo aria-hidden>
                             <Icon name="info" size={12} />
@@ -1336,7 +1355,9 @@ export function ItemDetail() {
                                   <>
                                     <S.Approx aria-hidden>≈</S.Approx>
                                     <S.Diamond />
-                                    <S.PriceValue>{marketPriceCredits}</S.PriceValue>
+                                    <S.PriceValue>
+                                      <Price credits={marketPriceCredits} />
+                                    </S.PriceValue>
                                   </>
                                 )}
                               </S.Price>
@@ -1347,11 +1368,13 @@ export function ItemDetail() {
                               <S.Price data-variant="sale" data-testid="item-price">
                                 <S.Price>
                                   <S.Diamond />
-                                  <S.PriceValue>{current.priceCredits}</S.PriceValue>
+                                  <S.PriceValue>
+                                    <Price credits={current.priceCredits} />
+                                  </S.PriceValue>
                                 </S.Price>
                                 <S.PriceWas>
                                   <S.Diamond data-was />
-                                  {current.compareAtCredits}
+                                  <Price credits={current.compareAtCredits!} />
                                 </S.PriceWas>
                                 {saleDiscountPct(current.compareAtCredits!, current.priceCredits) > 0 ? (
                                   <S.SaleBadge>
@@ -1365,7 +1388,9 @@ export function ItemDetail() {
                             ) : (
                               <S.Price data-testid="item-price">
                                 <S.Diamond />
-                                <S.PriceValue>{current.priceCredits}</S.PriceValue>
+                                <S.PriceValue>
+                                  <Price credits={current.priceCredits} />
+                                </S.PriceValue>
                               </S.Price>
                             )
                           ) : manageListed && managePriceCredits ? (
@@ -1373,7 +1398,9 @@ export function ItemDetail() {
                             // instead of "Not for sale" while the public feed catches up to the MV refresh.
                             <S.Price data-testid="item-price">
                               <S.Diamond />
-                              <S.PriceValue>{managePriceCredits}</S.PriceValue>
+                              <S.PriceValue>
+                                <Price credits={managePriceCredits} />
+                              </S.PriceValue>
                             </S.Price>
                           ) : /* Owner/creator viewing their own UNLISTED asset: the manage CTAs below (Put up
                           for sale / Transfer) already convey the state, so the redundant "Not for sale" label
@@ -1417,7 +1444,7 @@ export function ItemDetail() {
                         {marketPriceCredits != null ? (
                           <S.CtaPrice aria-hidden>
                             <S.CtaDiamond />
-                            {marketPriceCredits}
+                            <Price credits={marketPriceCredits} />
                           </S.CtaPrice>
                         ) : null}
                       </S.DetailCta>
@@ -1546,19 +1573,13 @@ export function ItemDetail() {
                       </S.ManageActions>
                     ) : forSale ? (
                       <>
-                        {/* Buy now only where there IS a trade to resolve: BuyModal buys through
-                            resolveLiveTrade and has no collection-store rail, so a store mint would open a
-                            modal that cannot complete. The cart does route that rail, so the mint's path is
-                            Add to cart — which is why this button is conditional and the next one is not. */}
-                        {buyableTradeId ? (
-                          <S.DetailCta variant="purple" onClick={handleBuyNow} disabled={resolvingTrade}>
-                            <span>{t('assetCard.buyNow')}</span>
-                            <S.CtaPrice aria-hidden>
-                              <S.CtaDiamond />
-                              {current.priceCredits}
-                            </S.CtaPrice>
-                          </S.DetailCta>
-                        ) : null}
+                        <S.DetailCta variant="purple" onClick={handleBuyNow} disabled={resolvingTrade}>
+                          <span>{t('assetCard.buyNow')}</span>
+                          <S.CtaPrice aria-hidden>
+                            <S.CtaDiamond />
+                            <Price credits={current.priceCredits} />
+                          </S.CtaPrice>
+                        </S.DetailCta>
                         <S.AddCart
                           onClick={handleAddToCart}
                           disabled={resolvingTrade || (isPrimary ? atStockCap : inCart)}
@@ -1578,7 +1599,7 @@ export function ItemDetail() {
                           <span>{t('assetCard.buyNow')}</span>
                           <S.CtaPrice aria-hidden>
                             <S.CtaDiamond />
-                            {cheapestResaleItem.priceCredits}
+                            <Price credits={cheapestResaleItem.priceCredits} />
                           </S.CtaPrice>
                         </S.DetailCta>
                         <S.AddCart
@@ -1614,7 +1635,9 @@ export function ItemDetail() {
                         <S.Lowest>
                           {t('itemDetail.lowestPrice')}
                           <CurrencyIcon className="ico" />
-                          <S.LowestValue>{lowestResale}</S.LowestValue>
+                          <S.LowestValue>
+                            <Price credits={lowestResale} />
+                          </S.LowestValue>
                         </S.Lowest>
                       ) : null}
                       <S.ResellersLink onClick={() => setShowResellers(true)} data-testid="view-resellers">

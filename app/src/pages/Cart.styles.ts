@@ -151,81 +151,11 @@ export const Panel = styled.section`
   }
 `
 
-// Empty cart: the same white-card-on-gray shell as the populated cart (Panel), with a centered cart
-// glyph, message and a purple CTA.
-export const CartEmpty = styled(Panel)`
+// Empty cart: the panel is the empty-state card itself, sized to its content.
+export const CartEmpty = styled.div`
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 24px;
-  min-height: 420px;
-  padding: 48px 16px;
-  text-align: center;
-  color: ${colors.text};
-
-  ${theme.media.maxWidth('mobile')} {
-    min-height: 320px;
-    padding: 32px 16px;
-  }
-`
-
-export const CartEmptyText = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  padding-bottom: 16px;
-`
-
-export const CartEmptyTitle = styled.p`
-  margin: 0;
-  font-size: 24px;
-  font-weight: 700;
-  line-height: 1.6;
-
-  ${theme.media.maxWidth('mobile')} {
-    font-size: 20px;
-  }
-`
-
-export const CartEmptyBody = styled.p`
-  margin: 0;
-  font-size: 20px;
-  font-weight: 400;
-  line-height: 1.6;
-
-  ${theme.media.maxWidth('mobile')} {
-    font-size: 16px;
-  }
-`
-
-export const CartEmptyCta = styled(Link)`
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 310px;
-  max-width: 100%;
-  height: 56px;
-  padding: 0 12px;
-  border-radius: ${radius.card};
-  background: ${colors.accent};
-  color: ${colors.softWhite};
-  font-size: 15px;
-  font-weight: 600;
-  line-height: 24px;
-  letter-spacing: 0.46px;
-  text-transform: uppercase;
-  text-decoration: none;
-  transition: background 0.15s ease;
-
-  &:hover {
-    background: ${colors.accentHover};
-  }
-  &:focus-visible {
-    outline: 2px solid ${colors.accent};
-    outline-offset: 2px;
-  }
 `
 
 // Mobile-only chevron before the title.
@@ -553,24 +483,6 @@ export const Unavailable = styled.span`
 
 export const Warn = styled(Icon)`
   color: #f48221;
-`
-
-export const Resales = styled(Link)`
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 24px;
-  letter-spacing: 0.46px;
-  text-transform: uppercase;
-  text-decoration: underline;
-  color: ${colors.accent};
-
-  &:hover {
-    color: ${colors.accentHover};
-  }
-  &:focus-visible {
-    outline: 2px solid ${colors.accent};
-    outline-offset: 2px;
-  }
 `
 
 // "Creator" chip on a primary (mint) line — Figma "Tag-Creator".

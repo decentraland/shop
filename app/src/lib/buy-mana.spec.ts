@@ -5,13 +5,21 @@ import type { ethers as Ethers } from 'ethers'
 // Records the on-chain calls buyWithMana makes so we can assert the allowance-then-accept sequence.
 const approveCalls: Array<{ spender: string; amount: string }> = []
 const acceptCalls: Array<{ trades: unknown[] }> = []
-let allowanceWei = '0' // current MANA→marketplace allowance the mocked ERC20 reports
+const storeBuyCalls: Array<{ items: unknown[] }> = []
+let allowanceWei = '0' // current MANA→spender allowance the mocked ERC20 reports
 
 vi.mock('decentraland-transactions', () => ({
-  ContractName: { MANAToken: 'MANAToken', CreditsManager: 'CreditsManager' },
+  ContractName: { MANAToken: 'MANAToken', CreditsManager: 'CreditsManager', CollectionStore: 'CollectionStore' },
   getContractName: () => 'DecentralandMarketplacePolygon',
   getContract: (name: string) => ({
-    address: name === 'MANAToken' ? '0xmana' : name === 'CreditsManager' ? '0xcreditsmanager' : '0xmarket',
+    address:
+      name === 'MANAToken'
+        ? '0xmana'
+        : name === 'CreditsManager'
+          ? '0xcreditsmanager'
+          : name === 'CollectionStore'
+            ? '0xstore'
+            : '0xmarket',
     name,
     version: '1',
     abi: ['function accept(uint256[] x)']
@@ -45,6 +53,10 @@ vi.mock('ethers', async importOriginal => {
       acceptCalls.push({ trades })
       return { wait: async () => ({ transactionHash: '0xmanahash' }) }
     }
+    async buy(items: unknown[]) {
+      storeBuyCalls.push({ items })
+      return { wait: async () => ({ transactionHash: '0xminthash' }) }
+    }
   }
   class MockJsonRpcProvider {
     constructor(public url: string) {}
@@ -58,17 +70,19 @@ vi.mock('ethers', async importOriginal => {
   }
 })
 
-// The combined rail delegates settlement to buyWithCredits — capture its args to assert the money math
-// (maxCreditedValue must be credits + gap, which is how buildUseCreditsArgs derives the uncredited leg).
-const useCreditsCalls: Array<{ maxCreditedValue?: string; credits: unknown[] }> = []
+// The combined rail delegates settlement to the credits rail — capture the purchase it hands over to assert
+// the money math (maxCreditedValue must be credits + gap, which is how the useCredits envelope derives the
+// uncredited leg) and that the mint variant settles as a STORE purchase rather than a trade.
+type CapturedPurchase = { kind: string; maxCreditedValue: string; credits: unknown[] }
+const useCreditsCalls: CapturedPurchase[] = []
 vi.mock('~/lib/buy', () => ({
-  buyWithCredits: vi.fn(async (opts: { maxCreditedValue?: string; credits: unknown[] }) => {
-    useCreditsCalls.push({ maxCreditedValue: opts.maxCreditedValue, credits: opts.credits })
+  buyOneWithCredits: vi.fn(async (opts: { purchase: CapturedPurchase }) => {
+    useCreditsCalls.push(opts.purchase)
     return '0xcombinedhash'
   })
 }))
 
-import { buyWithMana, buyWithCreditsAndMana } from '~/lib/buy-mana'
+import { buyWithMana, buyMintWithMana, buyWithCreditsAndMana, buyMintWithCreditsAndMana } from '~/lib/buy-mana'
 
 const ADDR = (n: string) => '0x' + n.repeat(20)
 const BUYER = ADDR('44')
@@ -140,6 +154,93 @@ describe('buyWithMana (direct settlement)', () => {
     expect(approveCalls).toHaveLength(0)
     expect(acceptCalls).toHaveLength(1)
     expect(hash).toBe('0xmanahash')
+  })
+
+  /**
+   * AN ALLOWANCE IS AN AMOUNT, AND THE GRANT HAS TO SAY SO.
+   *
+   * Asked as a flag, a leftover approval from a cheaper purchase answers "already approved" — so no approve
+   * goes out and accept() then reverts on transferFrom, after the buyer has confirmed. A managed wallet
+   * meets that with no approval step in front of it at all.
+   */
+  it('approves again when the leftover allowance is too small for THIS purchase', async () => {
+    allowanceWei = '1' // some allowance, nowhere near the 1 MANA this trade costs
+
+    await buyWithMana({ trade: fakeTrade(), buyer: BUYER, signer, manaWei: 10n ** 18n })
+
+    expect(approveCalls).toHaveLength(1)
+    expect(approveCalls[0].spender).toBe('0xmarket')
+    expect(acceptCalls).toHaveLength(1)
+  })
+
+  it('still skips the approval when the allowance covers the amount', async () => {
+    allowanceWei = '1000000000000000000000000'
+
+    await buyWithMana({ trade: fakeTrade(), buyer: BUYER, signer, manaWei: 10n ** 18n })
+
+    // Sizing the check must not make it ask for an approval the buyer does not need.
+    expect(approveCalls).toHaveLength(0)
+    expect(acceptCalls).toHaveLength(1)
+  })
+})
+
+const fakeMint = () => ({
+  item: { collection: ADDR('66'), itemId: '7', priceWei: '1000000000000000000' },
+  chainId: 80002
+})
+
+/**
+ * The mint's MANA rail. Every assertion here is the mint's answer to one above it for a listing — same steps,
+ * same shape, different contract — because a buyer must not be able to tell the two purchases apart.
+ */
+describe('buyMintWithMana (direct settlement of a CollectionStore mint)', () => {
+  beforeEach(() => {
+    approveCalls.length = 0
+    acceptCalls.length = 0
+    storeBuyCalls.length = 0
+    allowanceWei = '0'
+  })
+
+  it('approves the STORE then mints with buy(), returning the tx hash', async () => {
+    const hash = await buyMintWithMana({ mint: fakeMint(), buyer: BUYER, signer })
+
+    expect(approveCalls).toHaveLength(1)
+    // The marketplace has no part in a mint, so it must never be the spender the buyer approves.
+    expect(approveCalls[0].spender).toBe('0xstore')
+    expect(storeBuyCalls).toHaveLength(1)
+    expect(acceptCalls).toHaveLength(0)
+    expect(hash).toBe('0xminthash')
+  })
+
+  it('names the BUYER as the beneficiary, so the minted item lands in their hands', async () => {
+    await buyMintWithMana({ mint: fakeMint(), buyer: BUYER, signer })
+
+    expect(storeBuyCalls[0].items).toEqual([
+      { collection: ADDR('66'), ids: ['7'], prices: ['1000000000000000000'], beneficiaries: [BUYER] }
+    ])
+  })
+
+  it('skips the approval when the store allowance is already set', async () => {
+    allowanceWei = '1000000000000000000000000'
+    await buyMintWithMana({ mint: fakeMint(), buyer: BUYER, signer })
+
+    expect(approveCalls).toHaveLength(0)
+    expect(storeBuyCalls).toHaveLength(1)
+  })
+
+  /**
+   * No caller argument here on purpose: a mint carries the price the contract will verify, so the rail can
+   * size its own allowance check. The trade rail cannot (a USD-pegged order is priced by the oracle at
+   * settlement), which is why that one is told.
+   */
+  it('approves again when the leftover allowance is smaller than the mint price', async () => {
+    allowanceWei = '999999999999999999' // one wei short of the item's 1 MANA price
+
+    await buyMintWithMana({ mint: fakeMint(), buyer: BUYER, signer })
+
+    expect(approveCalls).toHaveLength(1)
+    expect(approveCalls[0].spender).toBe('0xstore')
+    expect(storeBuyCalls).toHaveLength(1)
   })
 })
 
@@ -220,10 +321,28 @@ describe('buyWithCreditsAndMana (credits first, MANA covers the remainder)', () 
     expect(useCreditsCalls).toHaveLength(1)
   })
 
+  // The gap is the amount the CreditsManager pulls, so an allowance below it is not an allowance for this
+  // purchase — useCredits reverts pulling the uncredited leg.
+  it('approves again when the leftover allowance is smaller than the MANA gap', async () => {
+    allowanceWei = '599'
+
+    await buyWithCreditsAndMana({
+      trade: fakeTrade(),
+      buyer: BUYER,
+      signer,
+      credits: [credit('400')],
+      manaGapWei: 600n
+    })
+
+    expect(approveCalls).toHaveLength(1)
+    expect(approveCalls[0].spender).toBe('0xcreditsmanager')
+    expect(useCreditsCalls).toHaveLength(1)
+  })
+
   it('refuses a MANA-only purchase (useCredits reverts with NoCredits on an empty credits array)', async () => {
     await expect(
       buyWithCreditsAndMana({ trade: fakeTrade(), buyer: BUYER, signer, credits: [], manaGapWei: 600n })
-    ).rejects.toThrow(/buyWithMana/)
+    ).rejects.toThrow(/MANA-only rail/)
     expect(useCreditsCalls).toHaveLength(0)
     expect(approveCalls).toHaveLength(0)
   })
@@ -231,7 +350,45 @@ describe('buyWithCreditsAndMana (credits first, MANA covers the remainder)', () 
   it('refuses a zero gap (that is a credits-only purchase, no MANA needed)', async () => {
     await expect(
       buyWithCreditsAndMana({ trade: fakeTrade(), buyer: BUYER, signer, credits: [credit('400')], manaGapWei: 0n })
-    ).rejects.toThrow(/buyWithCredits/)
+    ).rejects.toThrow(/credits-only rail/)
     expect(useCreditsCalls).toHaveLength(0)
+  })
+})
+
+describe('buyMintWithCreditsAndMana (the same mixed rail, for a mint)', () => {
+  beforeEach(() => {
+    approveCalls.length = 0
+    storeBuyCalls.length = 0
+    useCreditsCalls.length = 0
+    allowanceWei = '0'
+  })
+
+  it('approves the CREDITSMANAGER — the mixed rail settles through it whatever is being bought', async () => {
+    await buyMintWithCreditsAndMana({
+      mint: fakeMint(),
+      buyer: BUYER,
+      signer,
+      credits: [credit('400')],
+      manaGapWei: 600n
+    })
+
+    expect(approveCalls).toHaveLength(1)
+    expect(approveCalls[0].spender).toBe('0xcreditsmanager')
+    // Never a direct store call: the CreditsManager makes it, with the MANA gap as its uncredited leg.
+    expect(storeBuyCalls).toHaveLength(0)
+  })
+
+  it('settles as a STORE purchase, with the same credits + gap cap a trade gets', async () => {
+    await buyMintWithCreditsAndMana({
+      mint: fakeMint(),
+      buyer: BUYER,
+      signer,
+      credits: [credit('400')],
+      manaGapWei: 600n
+    })
+
+    expect(useCreditsCalls).toHaveLength(1)
+    expect(useCreditsCalls[0].kind).toBe('store')
+    expect(useCreditsCalls[0].maxCreditedValue).toBe('1000')
   })
 })

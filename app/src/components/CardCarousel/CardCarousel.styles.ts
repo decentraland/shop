@@ -1,5 +1,6 @@
 import styled from '@emotion/styled'
 import { theme } from '~/styles/theme'
+import { railGutter } from '~/styles/card.styles'
 
 const { media } = theme
 
@@ -72,13 +73,8 @@ export const Track = styled.div`
   gap: 16px;
   overflow-x: auto;
   overflow-y: hidden;
-  // Horizontal padding reserves room for the first/last card's outward hover glow — an overflow-x
-  // scroller clips both axes, so 0 side padding cropped the ring. The matching negative margin-left
-  // pulls the track back so the first card lines up with the section title and the page gutter; the glow
-  // overflows into the gutter. (The arrows above are sized/positioned to keep an equal gap despite it.)
-  padding: 12px 14px;
-  margin-left: -14px;
-  scroll-padding-inline: 14px;
+  // The arrows above are sized/positioned to keep an equal gap despite railGutter's negative margin.
+  ${railGutter};
   scroll-snap-type: x mandatory;
   scrollbar-width: none;
   -ms-overflow-style: none;

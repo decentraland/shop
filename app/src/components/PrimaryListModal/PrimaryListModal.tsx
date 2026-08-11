@@ -11,6 +11,7 @@ import { toast } from '~/store/toast'
 import { config } from '~/config'
 import { CURRENCY, creditsToUsd } from '~/lib/currency'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
+import { Price } from '~/components/Price'
 import { Icon } from '~/components/Icon'
 import { isManagedWallet } from '~/lib/wallet'
 import { useProfile } from '~/hooks/useProfile'
@@ -191,7 +192,7 @@ export function PrimaryListModal({
             <S.SuccessDetail>
               {t('primaryList.listedFor')}{' '}
               <strong>
-                <CurrencyIcon className="ccy-mark" /> {listedCredits}
+                <CurrencyIcon className="ccy-mark" /> <Price credits={listedCredits} />
               </strong>{' '}
               {t('primaryList.dotAvailable', { count: item.remainingSupply })}
             </S.SuccessDetail>

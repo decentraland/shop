@@ -7,6 +7,7 @@ import { useWallet } from '~/store/wallet'
 import { useProfile } from '~/hooks/useProfile'
 import { useTryOnAvatar } from '~/hooks/useTryOnAvatar'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
+import { Price } from '~/components/Price'
 import { track } from '~/lib/analytics'
 import { isWearable, slotOf, slotRegion, defaultWorn, toggleWorn, conflictingIds, wornUrns } from '~/lib/outfit'
 import { avatarShape, dominantShape, itemShapes, shapeLabel, isCompatible, BASE_MALE } from '~/lib/bodyShape'
@@ -241,7 +242,7 @@ export function FittingRoom() {
                   </S.Info>
                   <S.Price>
                     <S.Diamond />
-                    {item.priceCredits}
+                    <Price credits={item.priceCredits} />
                   </S.Price>
                   <S.Remove
                     onClick={() => remove(item.id)}
@@ -257,16 +258,18 @@ export function FittingRoom() {
 
           <S.Foot>
             <S.Total>
-              {t('fittingRoom.itemCount', { count: items.length })} ·{' '}
+              <span>{t('fittingRoom.itemCount', { count: items.length })}</span>
               <strong>
                 {/* The credit mark, as every other total in the app draws it. This read `CURRENCY.symbol`,
                     which was the string '◈' — MANA's rhombus. It was the only consumer of that field, so
                     the field is gone too rather than left as the one wrong glyph in the currency token. */}
-                <CurrencyIcon /> {total}
+                <CurrencyIcon /> <Price credits={total} />
               </strong>
             </S.Total>
             <S.CheckoutBtn
-              variant="purple"
+              type="button"
+              data-variant="primary"
+              data-testid="fitting-checkout"
               onClick={() => {
                 setOpen(false)
                 navigate('/cart')

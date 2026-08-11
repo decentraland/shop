@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useWallet } from '~/store/wallet'
 import { useBalance, balanceLabel } from '~/hooks/useBalance'
 import {
+  type NameRegistrationStage,
   NameNotRegisteredError,
   NameRouteCostTooHighError,
   NameSettlementUnknownError,
@@ -13,7 +14,7 @@ import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import { Icon } from '~/components/Icon'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { formatCredits } from '~/lib/currency'
-import { track, errorCode, isUserRejection } from '~/lib/analytics'
+import { track, errorCode, isUserRejection, creditsToUsd } from '~/lib/analytics'
 import { config } from '~/config'
 import { t } from '~/intl/i18n'
 import loaderLogo from '~/assets/credits/loader-logo.svg'
@@ -58,6 +59,9 @@ export function NameBuyModal({
   // Whether the credit is spent or may be, which decides if a retry is offered at all. Retrying on either
   // buys a second one — for the unknown case while the first may still be in flight.
   const [retryUnsafe, setRetryUnsafe] = useState(false)
+  // What the purchase is currently doing, so the processing screen can stop asking for a confirmation the
+  // buyer already gave. Reset on every attempt, not just on mount.
+  const [stage, setStage] = useState<NameRegistrationStage>('preparing')
   const startedRef = useRef(false)
 
   const matches = reentry.trim().toLowerCase() === name.toLowerCase()
@@ -108,15 +112,35 @@ export function NameBuyModal({
     startedRef.current = true
     setPhase('completing')
     setError(null)
+    setStage('preparing')
     try {
-      const result = await registerNameWithUsdCredits({ name, identity: session.identity, signer: session.signer })
+      const result = await registerNameWithUsdCredits({
+        name,
+        identity: session.identity,
+        signer: session.signer,
+        onProgress: setStage
+      })
       // The money left the balance in both outcomes, so both refresh it and both count as a completed
       // purchase for analytics — what differs is only whether the NAME exists yet.
       track('Shop Completed Purchase', {
+        // Same shape as every other purchase event so a NAME lands in the same warehouse columns
+        // instead of being a special case that item-level and revenue cards silently drop.
+        items: [
+          {
+            item_id: null,
+            contract_address: null,
+            token_id: null,
+            price_usd: creditsToUsd(priceCredits ?? 0),
+            category: 'name',
+            is_smart: false
+          }
+        ],
         purchase_type: 'name',
         is_primary: true,
         payment_type: 'credits',
         value_credits: priceCredits ?? null,
+        value_usd: creditsToUsd(priceCredits ?? 0),
+        transaction_hash: result.originTxHash ?? null,
         settlement: result.status
       })
       void qc.invalidateQueries({ queryKey: ['usd-balance'] })
@@ -156,6 +180,32 @@ export function NameBuyModal({
 
   const showHead = phase !== 'success' && phase !== 'pending'
   const selfCustody = showsWalletConfirmations(session?.providerType)
+
+  /**
+   * How many steps this buyer's purchase has, and which one is on screen.
+   *
+   * Registering a NAME is ONE step — the design draws it as `1/1`, and that is the whole of it for a
+   * managed (web2) wallet, which signs without ever prompting its owner. A self-custody wallet has one
+   * thing more to do before that step can start, and it is a thing the BUYER does: approve in their
+   * wallet. Counting it makes the number honest for them without inventing a step for everyone else.
+   *
+   * Deliberately not one step per internal phase. `preparing` and `confirming` are ours, not theirs, and a
+   * counter that ticks through work the buyer cannot act on is just noise.
+   */
+  const totalSteps = selfCustody ? 2 : 1
+  const awaitingBuyer = selfCustody && (stage === 'preparing' || stage === 'awaiting-confirmation')
+  const currentStep = awaitingBuyer ? 1 : totalSteps
+
+  // The step's own name. The wallet prompt is the buyer's to act on; everything past it is the purchase
+  // completing, which is what the design says and all it needs to say.
+  const processingText = awaitingBuyer ? t('names.confirming') : t('names.completing')
+
+  /**
+   * The one thing the step name cannot carry: `registering` is the bridge and the Ethereum mint, and it
+   * runs for MINUTES. Left unsaid, a wait going exactly to plan reads as a purchase that hung — which is
+   * the bug this screen was opened to fix, and collapsing the phases into one label would bring it back.
+   */
+  const processingNote = stage === 'registering' ? t('names.processingRegistering') : null
 
   return (
     <S.Scrim onClick={busy ? undefined : onClose} role="presentation">
@@ -246,14 +296,17 @@ export function NameBuyModal({
 
         {phase === 'completing' && (
           <S.Processing>
-            <S.Logo src={loaderLogo} alt="" width={56} height={56} />
-            <S.ProcessingText>{selfCustody ? t('names.confirming') : t('names.completing')}</S.ProcessingText>
-            <S.ProgressRow>
-              <S.Progress aria-hidden>
-                <span />
-              </S.Progress>
-              <S.ProgressCount>1/1</S.ProgressCount>
-            </S.ProgressRow>
+            <S.Logo src={loaderLogo} alt="" width={61} height={61} />
+            <S.StatusBlock>
+              <S.ProcessingText>{processingText}</S.ProcessingText>
+              <S.ProgressRow>
+                <S.Progress aria-hidden>
+                  <span />
+                </S.Progress>
+                <S.ProgressCount data-testid="name-progress-count">{`${currentStep}/${totalSteps}`}</S.ProgressCount>
+              </S.ProgressRow>
+              {processingNote ? <S.ProcessingNote>{processingNote}</S.ProcessingNote> : null}
+            </S.StatusBlock>
           </S.Processing>
         )}
 

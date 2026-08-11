@@ -8,6 +8,7 @@ import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { ErrorNotice } from '~/components/ErrorNotice'
 import { EmotePlaybackBar } from '~/components/EmotePlaybackBar'
 import { OutfitPreview } from '~/components/OutfitPreview'
+import { Price } from '~/components/Price'
 import { useProfile } from '~/hooks/useProfile'
 import { useOutfitAvatar } from '~/hooks/useOutfitAvatar'
 import { Icon } from '~/components/Icon'
@@ -157,7 +158,10 @@ function ItemChips({ item }: { item: CatalogItem }) {
 
 function OutfitContent({ outfit }: { outfit: Outfit }) {
   const resolution = useOutfitItems(outfit)
-  const { split, availableCount, totalCredits, addOutfit, isAdding } = useOutfitCart(outfit, resolution)
+  // Two prices, deliberately: `outfitCredits` is what the LOOK costs and sits under "Total price";
+  // `totalCredits` is what the CTA would actually add, and rides the CTA. They differ whenever an item
+  // is excluded from the basket, and collapsing them is what made a 14 + 1 outfit read as 1.
+  const { split, availableCount, totalCredits, outfitCredits, addOutfit, isAdding } = useOutfitCart(outfit, resolution)
   const address = useWallet(s => s.session?.address)
   const cartItems = useCart(s => s.items)
   // Compared on the cross-feed identity, so an item added from the browse grid (keyed by trade id)
@@ -292,7 +296,7 @@ function OutfitContent({ outfit }: { outfit: Outfit }) {
                               {row.state !== 'unavailable' ? (
                                 <S.ItemPrice>
                                   <CurrencyIcon size={15} />
-                                  {row.item.priceCredits.toLocaleString()}
+                                  <Price credits={row.item.priceCredits} />
                                 </S.ItemPrice>
                               ) : null}
                               {row.state === 'unavailable' ? (
@@ -332,7 +336,7 @@ function OutfitContent({ outfit }: { outfit: Outfit }) {
 
               <S.CtaBar data-testid="outfit-detail-ctabar">
                 {settled && split.ownListing.length > 0 ? <S.Hint>{t('outfits.detail.yourListingHint')}</S.Hint> : null}
-                {purchasable > 0 && (
+                {resolvedItems.length > 0 && (
                   <S.TotalRow>
                     <S.TotalLabel>{t('outfits.detail.totalPrice')}</S.TotalLabel>
                     {resolution.isLoading ? (
@@ -340,7 +344,7 @@ function OutfitContent({ outfit }: { outfit: Outfit }) {
                     ) : (
                       <S.TotalValue>
                         <CurrencyIcon size={22} />
-                        {totalCredits.toLocaleString()}
+                        <Price credits={outfitCredits} />
                       </S.TotalValue>
                     )}
                   </S.TotalRow>
@@ -366,7 +370,7 @@ function OutfitContent({ outfit }: { outfit: Outfit }) {
                     {!isAdding && purchasable > 0 ? (
                       <S.CtaPrice>
                         <CurrencyIcon size={16} />
-                        {totalCredits.toLocaleString()}
+                        <Price credits={totalCredits} />
                       </S.CtaPrice>
                     ) : null}
                   </S.Cta>

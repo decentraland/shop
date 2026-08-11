@@ -263,7 +263,7 @@ export const Fav = styled.button`
   background: rgba(255, 255, 255, 0.16);
   display: grid;
   place-items: center;
-  color: ${colors.text};
+  color: ${colors.softWhite};
   cursor: pointer;
   transition:
     color 0.12s ease,
@@ -277,6 +277,7 @@ export const Fav = styled.button`
   }
 
   ${media.maxWidth('lg')} {
+    color: ${colors.text};
     &[data-fav-title] {
       display: none;
     }

@@ -1,5 +1,6 @@
 import styled from '@emotion/styled'
 import { theme } from '~/styles/theme'
+import { railGutter } from '~/styles/card.styles'
 import { Button } from '~/components/Button'
 
 const { colors, media } = theme
@@ -98,11 +99,8 @@ export const Overview = styled.div`
     display: grid;
     grid-auto-flow: column;
     grid-auto-columns: calc((100% - 64px) / 5);
-    // Same side-padding + negative-margin trick as the carousel Track: the scroller clips both axes, so
-    // without it the first card's hover ring/scale is cut at the rail's left edge.
-    padding: 12px 14px;
-    margin: 0 0 0 -14px;
-    scroll-padding-inline: 14px;
+    margin: 0;
+    ${railGutter};
     // Hide the native scrollbar so these discovery rails match the carousels above (which also hide
     // it) — otherwise the home page shows one rail with a grey scrollbar and the rest without.
     scrollbar-width: none;

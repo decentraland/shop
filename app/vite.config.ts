@@ -20,6 +20,19 @@ const base = process.env.DEPLOY_CDN === 'true' ? `https://cdn.decentraland.org/$
 // CI build-check have no token → no maps emitted, build behaves exactly as before.
 const sentryUpload = Boolean(process.env.SENTRY_AUTH_TOKEN)
 
+/**
+ * The ONE release identifier, used by the source-map upload AND baked into the bundle for the runtime.
+ *
+ * Sentry matches an uploaded source map to an incoming event by release name — if the name the plugin
+ * uploaded under and the name the browser reports are not the same string, no map is ever applied. They
+ * were not: the plugin uploaded `shop@<pkg.version>` while the app read `import.meta.env.VITE_APP_VERSION`,
+ * a variable no build ever sets, and fell back to `0.0.0-dev`. Every production event was therefore
+ * stamped `shop@0.0.0-dev` and every stack trace stayed minified (`ds`, `XP`, `_a`).
+ *
+ * Deriving both from this single const is what makes the two unable to drift again.
+ */
+const sentryRelease = process.env.VITE_SENTRY_RELEASE ?? `shop@${pkg.version}`
+
 // The app package.json is `private` and vite doesn't copy it, so emit a publishable package.json into
 // dist. That's the manifest npm/oddish publishes; the CDN serves this package at <name>/<version>/.
 function emitPackageJson() {
@@ -46,6 +59,9 @@ export default defineConfig({
   // page crashes. The e2e suite does exactly that: a shared server plus the outfits spec's own. Give
   // each a private cache dir via this env var (see e2e/helpers/app.ts `hermeticViteEnv`).
   cacheDir: process.env.VITE_CACHE_DIR || undefined,
+  // Baked in at build time rather than read from an env var, so the runtime reports exactly the release
+  // the source maps were uploaded under (see `sentryRelease` above). vitest defines its own.
+  define: { __SENTRY_RELEASE__: JSON.stringify(sentryRelease) },
   plugins: [
     react(),
     nodePolyfills({ globals: { Buffer: true, global: true, process: true } }),
@@ -56,7 +72,7 @@ export default defineConfig({
             org: process.env.SENTRY_ORG,
             project: process.env.SENTRY_PROJECT,
             authToken: process.env.SENTRY_AUTH_TOKEN,
-            release: { name: process.env.VITE_SENTRY_RELEASE ?? `shop@${pkg.version}` },
+            release: { name: sentryRelease },
             // Don't ship .map files to the CDN — upload then delete them.
             sourcemaps: { filesToDeleteAfterUpload: ['./dist/**/*.map'] }
           })

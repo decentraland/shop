@@ -883,10 +883,31 @@ export const ActionButton = styled.button`
     background: rgba(105, 31, 169, 0.06);
     filter: none;
   }
+  /* The buy gradient, same primary fill the rest of the shop's terminal CTAs carry. */
+  &[data-variant='ruby'] {
+    background: ${theme.gradients.buyBtn};
+    color: ${theme.colors.white};
+  }
   &:focus-visible {
     outline: 2px solid ${theme.colors.accent};
     outline-offset: 2px;
   }
+`
+
+/**
+ * Holds a terminal screen — bought, pending, failed — in the middle of the space the page gives it.
+ *
+ * These cards are short and the route is otherwise empty, so left on their own they sat against the
+ * sub-nav with a band of dead purple beneath them down to the footer. `min-height` is what does the
+ * centring: without a height to divide, `justify-content` has nothing to work with.
+ */
+export const Outcome = styled.section`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: min(62vh, 620px);
+  padding: 48px 16px;
 `
 
 export const StatusPanel = styled.div`
@@ -898,6 +919,64 @@ export const StatusPanel = styled.div`
   margin: 0 auto;
   padding: 48px 24px;
   text-align: center;
+`
+
+/**
+ * The "your credits are on the way" card, for when Stripe's webhook has not landed
+ * yet. A white card on the purple field, rather than bare text on it: the payment SUCCEEDED, and text
+ * floating on the page background read like an error next to the framed success state it follows.
+ */
+export const PendingCard = styled.div`
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 895px;
+  border-radius: 16px;
+  background: ${theme.colors.white};
+  overflow: hidden;
+`
+
+export const PendingHead = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 20px 24px;
+  border-bottom: 1px solid ${theme.colors.gray4};
+`
+
+export const PendingIcon = styled.img`
+  flex: none;
+  width: 32px;
+  height: 32px;
+`
+
+export const PendingTitle = styled.p`
+  margin: 0;
+  font-family: ${theme.font.sans};
+  font-size: 20px;
+  font-weight: 700;
+  color: ${theme.colors.text};
+`
+
+export const PendingBody = styled.p`
+  margin: 0;
+  padding: 24px;
+  font-family: ${theme.font.sans};
+  font-size: 16px;
+  line-height: 1.4;
+  text-align: center;
+  color: ${theme.colors.text};
+`
+
+export const PendingActions = styled.div`
+  display: flex;
+  gap: 12px;
+  padding: 0 16px 16px;
+
+  @media (max-width: 560px) {
+    flex-direction: column;
+  }
 `
 
 export const StatusTitle = styled.p`

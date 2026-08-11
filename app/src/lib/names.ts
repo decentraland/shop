@@ -312,6 +312,16 @@ export async function pollAcrossNameStatus(
 // Result of the orchestration. `registered` = filled + the register ran; `pending` = the origin tx or
 // the Across fill hasn't confirmed within our window (the reservation is KEPT and the credits-server
 // reconciler settles it against the indexed consumption — never released here).
+/**
+ * Where a registration has got to, for the screen watching it.
+ *
+ * These are not cosmetic increments — they last wildly different amounts of time. `awaiting-confirmation`
+ * ends the moment the buyer signs; `registering` is the cross-chain bridge and runs for MINUTES. Collapsing
+ * them into one message leaves "Confirm to continue" on screen long after the buyer confirmed, which reads
+ * as a stuck purchase.
+ */
+export type NameRegistrationStage = 'preparing' | 'awaiting-confirmation' | 'confirming' | 'registering'
+
 export type NameRegistrationResult =
   | { status: 'registered'; originTxHash: string; destinationTxHash: string | null }
   | { status: 'pending'; originTxHash: string }
@@ -342,8 +352,19 @@ export async function registerNameWithUsdCredits(opts: {
   provider?: NameRouteProvider
   // Test seam: shrink the Across poll so specs don't wait on real timers.
   acrossPoll?: { intervalMs?: number; maxAttempts?: number }
+  // Progress for the UI. See NameRegistrationStage — the phases differ by MINUTES, so a screen that cannot
+  // tell them apart ends up asking for a confirmation the buyer already gave, for the whole bridge wait.
+  onProgress?: (stage: NameRegistrationStage) => void
 }): Promise<NameRegistrationResult> {
   const { name, identity, signer } = opts
+  // Never let a caller's render break the money path: this is only for what the screen says.
+  const progress = (stage: NameRegistrationStage) => {
+    try {
+      opts.onProgress?.(stage)
+    } catch {
+      /* reporting progress must not abort a purchase */
+    }
+  }
   const chainId = opts.chainId ?? config.chainId
   const provider = opts.provider ?? 'across'
   const buyer = (opts.beneficiary ?? (await signer.getAddress())).toLowerCase()
@@ -360,6 +381,7 @@ export async function registerNameWithUsdCredits(opts: {
   let originState: 'unconfirmed' | 'confirmed' | 'unobservable' = 'unconfirmed'
 
   console.info('[names] register start', { name, buyer, chainId, provider })
+  progress('preparing')
   try {
     // 1) Size the USD reservation from the fixed name price at the live oracle rate.
     const rate = await readManaUsdRate(chainId)
@@ -376,7 +398,9 @@ export async function registerNameWithUsdCredits(opts: {
     })
 
     // 3) Reserve the dollars + get the ephemeral credit (PENDING intent keyed by the credit salt).
-    const authorized = await authorizeUsdCredit(identity, usdCents)
+    // The name is passed so the purchase can be named in the buyer's history: a NAME has no trade and no
+    // item, so it is the only identity the intent will ever carry.
+    const authorized = await authorizeUsdCredit(identity, usdCents, undefined, undefined, name)
     creditSalt = authorized.credit.id
     console.info('[names] step 3/6 credit authorized', {
       creditId: authorized.credit.id,
@@ -390,7 +414,9 @@ export async function registerNameWithUsdCredits(opts: {
       throw new Error('Credit under-sized for the name price')
     }
 
-    // 4) Submit useCredits — gasless (relayer pays) first, buyer-submitted fallback.
+    // 4) Submit useCredits — gasless (relayer pays) first, buyer-submitted fallback. A self-custody wallet
+    // prompts here, so this is where the buyer has something to do.
+    progress('awaiting-confirmation')
     const args = buildNameUseCreditsArgs(authorized.credit, route)
     let originTxHash: string
     try {
@@ -422,6 +448,8 @@ export async function registerNameWithUsdCredits(opts: {
     }
 
     console.info('[names] step 4/6 useCredits submitted (Polygon origin tx)', { originTxHash })
+    // Signed and broadcast: nothing left for the buyer to do, only the chain to catch up.
+    progress('confirming')
 
     // 5) Wait for the origin (Polygon) useCredits tx. Throws SettlementPendingError on timeout (keep
     // the reservation) or Error on revert (safe to release — no credit consumed).
@@ -431,6 +459,8 @@ export async function registerNameWithUsdCredits(opts: {
 
     // 6) Poll Across for the destination fill + register.
     if (provider === 'across') {
+      // The long one — the bridge and the Ethereum mint, minutes rather than seconds.
+      progress('registering')
       const across = await pollAcrossNameStatus(originTxHash, opts.acrossPoll)
       console.info('[names] step 6/6 across status', across)
       if (across.status === 'pending') {

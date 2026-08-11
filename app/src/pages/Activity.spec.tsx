@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -38,9 +38,28 @@ vi.mock('~/store/wallet', () => ({
 
 const fetchUserPurchases = vi.fn()
 const fetchUserCreditOrders = vi.fn()
-vi.mock('~/lib/credits', () => ({
-  fetchUserPurchases: (...args: unknown[]) => fetchUserPurchases(...args),
-  fetchUserCreditOrders: (...args: unknown[]) => fetchUserCreditOrders(...args)
+const resumeCreditOrder = vi.fn()
+// `creditOrderPill` is real: it is the mapping that decides what a row LOOKS like, and stubbing it
+// would let the resume tests below agree with a fiction about which rows offer to be continued.
+vi.mock('~/lib/credits', async importActual => {
+  const actual = await importActual<typeof import('~/lib/credits')>()
+  return {
+    creditOrderPill: actual.creditOrderPill,
+    fetchUserPurchases: (...args: unknown[]) => fetchUserPurchases(...args),
+    fetchUserCreditOrders: (...args: unknown[]) => fetchUserCreditOrders(...args),
+    resumeCreditOrder: (...args: unknown[]) => resumeCreditOrder(...args)
+  }
+})
+
+const toastError = vi.fn()
+const toastInfo = vi.fn()
+const toastSuccess = vi.fn()
+vi.mock('~/store/toast', () => ({
+  toast: {
+    error: (m: string) => toastError(m),
+    info: (m: string) => toastInfo(m),
+    success: (m: string) => toastSuccess(m)
+  }
 }))
 
 const fetchTradeDisplay = vi.fn()
@@ -81,6 +100,7 @@ function record(overrides: Partial<PurchaseRecord> = {}): PurchaseRecord {
     tradeId: 't-' + Math.random().toString(36).slice(2),
     contractAddress: null,
     itemId: null,
+    registeredName: null,
     usdCents: 100,
     credits: 10,
     status: 'SETTLED',
@@ -188,7 +208,56 @@ describe('when the user is not signed in', () => {
 describe('when the user has no activity', () => {
   it('should show the empty state', async () => {
     renderPage()
-    expect(await screen.findByText('No activity yet')).toBeInTheDocument()
+    expect(await screen.findByTestId('activity-empty-all')).toBeInTheDocument()
+  })
+})
+
+/**
+ * A NAME registration is the one purchase with no trade AND no item: it is not a collection item, and it
+ * mints on Ethereum rather than the chain the credit settled on. Until the intent carried the name itself
+ * there was nothing to resolve, and the feed showed a bare "Item" for the buyer's NAME.
+ */
+describe('when a NAME was registered', () => {
+  beforeEach(() => {
+    fetchUserPurchases.mockResolvedValue({
+      items: [record({ id: 'n1', tradeId: null, registeredName: 'mauri', credits: 66, txHash: '0xname' })],
+      total: 1
+    })
+  })
+
+  it('should name the NAME instead of falling back to a generic item', async () => {
+    renderPage()
+
+    expect(await screen.findByText('@mauri')).toBeInTheDocument()
+    expect(screen.queryByText('Item')).not.toBeInTheDocument()
+  })
+
+  it('should label the line as a NAME registration and show what it cost', async () => {
+    renderPage()
+    await screen.findByText('@mauri')
+
+    const line = screen.getByTestId('activity-name-line')
+    expect(line).toHaveTextContent('Decentraland NAME')
+    expect(line).toHaveTextContent('66')
+  })
+
+  // There is no marketplace record behind a NAME, so asking for one would be a guaranteed miss — and a
+  // pending lookup is what renders the skeleton the buyer would otherwise be left staring at.
+  it('should not attempt to resolve it against the marketplace', async () => {
+    renderPage()
+    await screen.findByText('@mauri')
+
+    expect(fetchTradeDisplay).not.toHaveBeenCalled()
+    expect(fetchAssetDisplay).not.toHaveBeenCalled()
+  })
+
+  // The detail route needs a collection contract plus an id; a NAME has neither, so a link would be dead.
+  it('should not link anywhere', async () => {
+    renderPage()
+    await screen.findByText('@mauri')
+
+    expect(screen.getByTestId('activity-name-line').querySelector('a')).toBeNull()
+    expect(screen.getByTestId('activity-name-line').closest('a')).toBeNull()
   })
 })
 
@@ -408,7 +477,7 @@ describe('the migration chip', () => {
 
   it('should not render at all when the seller has no listings of any kind', async () => {
     renderPage()
-    await screen.findByText('No activity yet')
+    await screen.findByTestId('activity-empty-all')
 
     expect(screen.queryByTestId('activity-filter-migrate')).not.toBeInTheDocument()
     // Not even an unbadged chip: the row is the three filters and nothing else.
@@ -418,7 +487,7 @@ describe('the migration chip', () => {
   it('should render nothing while the count is still unknown', async () => {
     fetchImportable.mockReturnValue(new Promise(() => {}))
     renderPage()
-    await screen.findByText('No activity yet')
+    await screen.findByTestId('activity-empty-all')
 
     expect(screen.queryByTestId('activity-filter-migrate')).not.toBeInTheDocument()
     expect(screen.queryByTestId('activity-migrate-count')).not.toBeInTheDocument()
@@ -430,7 +499,7 @@ describe('the migration chip', () => {
     fetchImportable.mockResolvedValue({ creations: [importable()], owned: [] })
     fetchUnified.mockReturnValue(new Promise(() => {}))
     renderPage()
-    await screen.findByText('No activity yet')
+    await screen.findByTestId('activity-empty-all')
 
     expect(screen.queryByTestId('activity-filter-migrate')).not.toBeInTheDocument()
   })
@@ -487,7 +556,7 @@ describe('the migration chip', () => {
     fireEvent.click(await screen.findByTestId('activity-filter-migrate'))
 
     expect(await screen.findByTestId('import-panel')).toBeInTheDocument()
-    expect(screen.queryByText('No activity yet')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('activity-empty-all')).not.toBeInTheDocument()
     expect(screen.getByTestId('activity-filter-migrate')).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByTestId('activity-filter-all')).toHaveAttribute('aria-selected', 'false')
   })
@@ -566,5 +635,112 @@ describe('the migration chip', () => {
 
     expect(fetchUserPurchases).not.toHaveBeenCalled()
     expect(fetchUserSales).not.toHaveBeenCalled()
+  })
+})
+
+// The Continue button on an unfinished checkout. It is a button on the money path whose every branch
+// either sends the buyer to a payment page or tells them something about a charge, so each answer the
+// server can give gets its own case.
+describe('when a checkout was left unfinished', () => {
+  const unfinished = {
+    id: 'ord_1',
+    credits: 50,
+    usdCents: 500,
+    status: 'initiated' as const,
+    createdAt: 1_700_000_000_000
+  }
+  const realLocation = window.location
+
+  beforeEach(() => {
+    fetchUserCreditOrders.mockResolvedValue({ items: [unfinished], total: 1 })
+    Object.defineProperty(window, 'location', { configurable: true, writable: true, value: { href: '' } })
+  })
+  afterAll(() => {
+    Object.defineProperty(window, 'location', { configurable: true, writable: true, value: realLocation })
+  })
+
+  async function clickResume() {
+    const button = await screen.findByTestId('resume-order')
+    fireEvent.click(button)
+    return button
+  }
+
+  it('should offer to continue it, and send the buyer back to the Stripe page', async () => {
+    resumeCreditOrder.mockResolvedValue({ kind: 'url', url: 'https://checkout.stripe.com/c/pay/cs_test' })
+    renderPage()
+
+    await clickResume()
+
+    await waitFor(() => expect(window.location.href).toBe('https://checkout.stripe.com/c/pay/cs_test'))
+  })
+
+  // `location.href` will happily run a `javascript:` URL, and this string comes off the wire. A
+  // response that is compromised or simply wrong must not turn a button in the buyer's own history
+  // into script execution.
+  it('should refuse a url that is not a Stripe page and go nowhere', async () => {
+    resumeCreditOrder.mockResolvedValue({ kind: 'url', url: 'https://stripe.com.evil.example/pay' })
+    renderPage()
+
+    await clickResume()
+
+    await waitFor(() => expect(toastError).toHaveBeenCalled())
+    expect(window.location.href).toBe('')
+  })
+
+  // The server retired it. Refreshing the feed is what tells the buyer — an error about something
+  // they cannot act on would not.
+  it('should refresh the feed when the checkout turned out to be dead', async () => {
+    resumeCreditOrder.mockResolvedValue({ kind: 'expired' })
+    fetchUserCreditOrders.mockResolvedValueOnce({ items: [unfinished], total: 1 })
+    renderPage()
+
+    await clickResume()
+
+    await waitFor(() =>
+      expect(toastInfo).toHaveBeenCalledWith('That checkout has expired — pick a pack to start again.')
+    )
+    await waitFor(() => expect(fetchUserCreditOrders.mock.calls.length).toBeGreaterThan(1))
+  })
+
+  // The one that matters most: telling a buyer who already paid to "start again" invites a second
+  // charge for something they own.
+  it('should never suggest starting over to someone who already paid', async () => {
+    resumeCreditOrder.mockResolvedValue({ kind: 'paid' })
+    renderPage()
+
+    await clickResume()
+
+    await waitFor(() =>
+      expect(toastSuccess).toHaveBeenCalledWith('You already paid for this — your credits are on the way.')
+    )
+    expect(window.location.href).toBe('')
+  })
+
+  it('should ask the server once even if the button is pressed twice', async () => {
+    let release: (v: unknown) => void = () => {}
+    resumeCreditOrder.mockReturnValue(new Promise(resolve => (release = resolve)))
+    renderPage()
+
+    const button = await clickResume()
+    fireEvent.click(button)
+
+    expect(resumeCreditOrder).toHaveBeenCalledTimes(1)
+    expect(button).toBeDisabled()
+    release({ kind: 'unavailable' })
+  })
+
+  // Leaving for Stripe deliberately keeps the button disabled on the way out. Pressing Back brings
+  // this component back from bfcache with that state intact, and without the reset the buyer returns
+  // to a Continue button stuck on "Opening…" until a hard reload.
+  it('should become pressable again when the buyer comes back from Stripe', async () => {
+    resumeCreditOrder.mockResolvedValue({ kind: 'url', url: 'https://checkout.stripe.com/c/pay/cs_test' })
+    renderPage()
+
+    const button = await clickResume()
+    await waitFor(() => expect(button).toBeDisabled())
+
+    window.dispatchEvent(new Event('pageshow'))
+
+    await waitFor(() => expect(button).not.toBeDisabled())
   })
 })

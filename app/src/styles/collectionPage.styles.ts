@@ -38,6 +38,19 @@ export const CrumbCurrent = styled.span`
   font-weight: 600;
 `
 
+// Left column of the collection storefront: the creator identity card (whose avatar overhangs
+// upward into the hero) above the filters. A collection holds few enough items that the column
+// doesn't need to stick or scroll on its own — it flows with the page, which also keeps the
+// avatar's overhang from being clipped by a scroll box.
+export const SidebarCol = styled.div`
+  flex: none;
+  width: 265px;
+
+  ${theme.media.maxWidth('lg')} {
+    width: 100%;
+  }
+`
+
 // Creator → Collections view: a count bar mirroring the item grid's FilterBar spacing.
 export const CollectionsBar = styled.div`
   display: flex;

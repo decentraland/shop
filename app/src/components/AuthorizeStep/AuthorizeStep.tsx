@@ -24,6 +24,7 @@ import * as S from './AuthorizeStep.styles'
 export function AuthorizeStep({
   auth,
   signer,
+  step,
   title,
   reason,
   name,
@@ -35,6 +36,12 @@ export function AuthorizeStep({
 }: {
   auth: ShopAuthorization
   signer: ethers.providers.JsonRpcSigner
+  /**
+   * Which approval this is, when a purchase needs more than one. Shown so a second prompt is announced on
+   * the FIRST screen rather than arriving unexplained — two spenders cannot be approved in one signature,
+   * but the buyer can at least be told there are two. Omitted when there is only ever one.
+   */
+  step?: { index: number; total: number }
   /** Short heading, e.g. "One quick approval first". */
   title: string
   /** Why this authorization is needed — the sentence under the row. */
@@ -72,10 +79,15 @@ export function AuthorizeStep({
   }
 
   return (
-    <S.Scrim onClick={busy ? undefined : onClose} role="presentation">
+    <S.Scrim onClick={busy ? undefined : onClose} role="presentation" data-testid="authorize-step-scrim">
       <S.Card onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={title}>
         <S.Head>
           <S.Title>{title}</S.Title>
+          {step && step.total > 1 ? (
+            <S.StepCount data-testid="authorize-step-count">
+              {t('authorizeStep.stepOf', { index: step.index, total: step.total })}
+            </S.StepCount>
+          ) : null}
           <S.Close onClick={onClose} disabled={busy} aria-label={t('authorizeStep.close')}>
             <Icon name="close" className="ico" />
           </S.Close>

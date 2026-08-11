@@ -9,8 +9,9 @@ import { displayCredits } from '~/lib/mana-convert'
 import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
 import { Grid } from '~/styles/grid.styles'
+import { EmptyState } from '~/components/EmptyState'
 import * as S from './MyFavorites.styles'
-import emptyIllustration from '~/assets/error/favorites-empty.svg'
+import emptyIllustration from '~/assets/empty/favorites-empty.svg'
 
 // Signed-in favorites hydrate from the marketplace favorites service (hence the skeleton/error
 // states); signed-out ones come straight from localStorage. Page the list so a long one doesn't
@@ -46,13 +47,14 @@ export function MyFavorites() {
 
   if (status === 'ready' && items.length === 0) {
     return (
-      <S.Empty data-testid="favorites-empty">
-        <S.EmptyIcon src={emptyIllustration} alt="" width={138} height={138} />
-        <S.EmptyText>
-          <S.EmptyTitle>{t('myFavorites.emptyTitle')}</S.EmptyTitle>
-          <S.EmptyBody>{t('myFavorites.emptyBody')}</S.EmptyBody>
-        </S.EmptyText>
-        <S.EmptyCta to="/items">{t('myFavorites.emptyCta')}</S.EmptyCta>
+      <S.Empty>
+        <EmptyState
+          testId="favorites-empty"
+          icon={emptyIllustration}
+          title={t('myFavorites.emptyTitle')}
+          body={t('myFavorites.emptyBody')}
+          cta={{ label: t('myFavorites.emptyCta'), to: '/items' }}
+        />
       </S.Empty>
     )
   }
