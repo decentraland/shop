@@ -162,4 +162,35 @@ export const NavbarViolet = styled.div`
       border-radius: 100px;
     }
   }
+
+  /* Inside the iOS app's web view (?view=mobile-iap, Figma 2703:399357) the bar is chrome the app already
+     provides: the app has its own menu and its own profile screen, so the shop's copies of them are either
+     dead ends or a second way into somewhere the buyer is already standing. None of this is ui2's to
+     configure — it takes no props for hiding the hamburger or for making the logo inert — so it is done
+     here, against the same aria-label contract the rest of this file uses.
+     ⚠️ Same caveat as above: validated against decentraland-ui2@3.19.0. */
+  &[data-iap] {
+    /* The app's own navigation replaces it. */
+    & nav button[aria-label='Open menu'],
+    & nav button[aria-label='Close menu'] {
+      display: none;
+    }
+
+    /* Logo and avatar stay VISIBLE but stop being doorways — the logo would leave the shop for
+       decentraland.org inside a web view with no way back, and the avatar opens a panel whose sign-out
+       would strand the session the app owns. Pointer-events is the whole of what CSS can do here: both
+       remain reachable by keyboard, which is a wart worth accepting over forking ui2 for a web view. */
+    & nav a[aria-label='Decentraland Home'],
+    & nav button[aria-label='User menu'] {
+      pointer-events: none;
+      cursor: default;
+    }
+
+    /* The balance is the one number this bar exists to carry here (the app sells the credits), so the
+       mark reads at 20px instead of ui2's default. */
+    & nav button[aria-label$=' shop credits'] svg {
+      width: 20px;
+      height: 20px;
+    }
+  }
 `

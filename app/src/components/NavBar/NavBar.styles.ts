@@ -189,6 +189,15 @@ export const Search = styled.div`
     /* Own row here — full width, so neither the desktop basis nor its cap may hold it back. */
     flex: 1 0 100%;
     max-width: none;
+
+    /* Inside the iOS web view the field moves UP into the top row, taking the slot the Buy Credits CTA
+       left when that was removed (Figma 2703:399357): search, favourites and cart on one line, the tabs
+       on their own below. Sharing the row is the whole point, so the 100% basis that forces a row break
+       has to go with it — it is what put the field on a line of its own in the first place. */
+    &[data-iap] {
+      order: 1;
+      flex: 1 1 auto;
+    }
   }
 
   ${mobile} {

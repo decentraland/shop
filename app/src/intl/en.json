@@ -531,8 +531,11 @@
     "useItInWorld": "Use it in-world",
     "bannerTitle": "Your purchase was successful!",
     "bannerBody": "You can find your item in the My Items tab.",
+    "bannerBodyIap": "You can find your items in your backpack.",
     "myAssets": "My Items",
-    "tryInWorld": "Try in World"
+    "tryInWorld": "Try in World",
+    "done": "Done",
+    "goToBackpack": "Go to backpack"
   },
   "itemPreview": {
     "loading": "Loading preview",

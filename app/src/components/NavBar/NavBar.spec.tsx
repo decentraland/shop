@@ -54,9 +54,9 @@ import { NavBar } from './NavBar'
 
 const CHAINS = [ChainId.ETHEREUM_MAINNET, ChainId.MATIC_MAINNET]
 
-function renderNav() {
+function renderNav(route = '/') {
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[route]}>
       <NavBar />
     </MemoryRouter>
   )
@@ -145,5 +145,94 @@ describe('the buy-credits entrance', () => {
 
     expect(container.querySelector('a[href="/my-favorites"]')).not.toBeNull()
     expect(container.querySelector('[data-testid="top-nav"]')).not.toBeNull()
+  })
+})
+
+/**
+ * The rest of the iOS web-view chrome (Figma 2703:399357).
+ *
+ * Everything here is about NOT duplicating what the app already owns: its own backpack, its own
+ * notifications, and — during checkout — its own way back. The hamburger, the logo and the avatar are
+ * ui2's and cannot be dropped from React, so those go through the `iap` prop and are asserted as wiring.
+ */
+describe('the iOS web-view chrome', () => {
+  beforeEach(() => {
+    iap.on = true
+    session = { address: '0xabc', providerType: 'magic' }
+    walletChain.mockReturnValue({ chainId: ChainId.MATIC_MAINNET, chains: CHAINS, switchTo: vi.fn() })
+  })
+
+  it('drops the My Items tab, which the app has as its backpack', () => {
+    const { container } = renderNav()
+
+    expect(container.querySelector('a[href="/my-items"]')).toBeNull()
+  })
+
+  it('keeps that tab on the web', () => {
+    iap.on = false
+
+    const { container } = renderNav()
+
+    expect(container.querySelector('a[href="/my-items"]')).not.toBeNull()
+  })
+
+  // The bell is a duplicate of the app's own notifications. Signed in, so the slot's OTHER condition is
+  // satisfied and this can only be failing for the reason under test.
+  it('mounts no notification bell', () => {
+    renderNav()
+
+    expect(lastProps().notificationSlot).toBeUndefined()
+  })
+
+  it('mounts one on the web', () => {
+    iap.on = false
+
+    renderNav()
+
+    expect(lastProps().notificationSlot).toBeDefined()
+  })
+
+  // The hamburger, logo and avatar are ui2's own markup, so what the shop controls is the flag.
+  it('tells the global bar it is in a web view', () => {
+    renderNav()
+
+    expect(lastProps().iap).toBe(true)
+  })
+
+  it('does not on the web', () => {
+    iap.on = false
+
+    renderNav()
+
+    expect(lastProps().iap).toBe(false)
+  })
+
+  // Checkout is a flow: the sub-nav's tabs, search and cart are all ways to abandon it, and the page's own
+  // back arrow is the way out the design keeps.
+  it('drops the sub-nav in the cart', () => {
+    const { container } = renderNav('/cart')
+
+    expect(container.querySelector('[data-testid="subnav"]')).toBeNull()
+  })
+
+  it('drops it on the success screen too', () => {
+    const { container } = renderNav('/success')
+
+    expect(container.querySelector('[data-testid="subnav"]')).toBeNull()
+  })
+
+  // The gate is the cart, not the web view: browsing keeps its sub-nav inside the app.
+  it('keeps the sub-nav everywhere else', () => {
+    const { container } = renderNav('/overview')
+
+    expect(container.querySelector('[data-testid="subnav"]')).not.toBeNull()
+  })
+
+  it('keeps it in the cart on the web', () => {
+    iap.on = false
+
+    const { container } = renderNav('/cart')
+
+    expect(container.querySelector('[data-testid="subnav"]')).not.toBeNull()
   })
 })
