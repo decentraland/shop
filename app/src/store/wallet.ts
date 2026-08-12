@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { logout, restoreSession, signInRedirect, type Session } from '~/lib/auth'
 import { track, identify, signInMethod, markAddressSeen, reset as resetAnalytics } from '~/lib/analytics'
-import { captureError } from '~/lib/monitoring'
+import { captureError, setMonitoringUser } from '~/lib/monitoring'
 import { useFavorites } from '~/store/favorites'
 import { useFollows } from '~/store/follows'
 import { useCart } from '~/store/cart'
@@ -60,6 +60,10 @@ export const useWallet = create<WalletState>(set => ({
     // device never inherits it: clear the Segment identity and swap favorites/follows to the
     // anonymous bucket.
     resetAnalytics()
+    // Detach the account from error reports too. This is not symmetry for its own sake: the Sentry user is
+    // global and outlives the session, so skipping it would attribute the next visitor's errors — anonymous
+    // or a different account on this device — to whoever signed out last.
+    setMonitoringUser(null)
     useFavorites.getState().reloadFor(null)
     useFollows.getState().reloadFor(null)
     useCart.getState().reloadFor(null)
@@ -95,6 +99,11 @@ export const useWallet = create<WalletState>(set => ({
       useFollows.getState().reloadFor(session.address)
       useCart.getState().reloadFor(session.address)
       identify(session.address, { sign_in_method: signInMethod(session.providerType) })
+      // Same address, same moment, as the Segment identify above — an error report that cannot say WHICH
+      // account hit it can only be counted, never followed. Without this the reports carry the visitor's
+      // IP, which over-counts one person across a rotating mobile address and under-counts a shared one,
+      // and shares no key with the purchase history, the funnel or the chain.
+      setMonitoringUser(session.address)
       // Only emit the funnel event for an actual sign-in, not every silent restore.
       let fresh = false
       try {

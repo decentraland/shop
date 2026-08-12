@@ -27,6 +27,16 @@ vi.mock('~/lib/analytics', () => ({
   markAddressSeen: (address: string) => markAddressSeen(address)
 }))
 
+// Error reports carry the signed-in account, so the store touches monitoring on both session
+// boundaries. captureError is mocked alongside it because the store reports restore/logout failures.
+const captureError = vi.fn()
+const setMonitoringUser = vi.fn()
+
+vi.mock('~/lib/monitoring', () => ({
+  captureError: (...args: unknown[]) => captureError(...args),
+  setMonitoringUser: (address: string | null) => setMonitoringUser(address)
+}))
+
 // Favorites/follows are namespaced per account; the wallet store swaps their buckets on every
 // session boundary. Mock both so we can assert the reloadFor wiring without touching localStorage.
 const favReloadFor = vi.fn()
@@ -101,6 +111,14 @@ describe('wallet store', () => {
       expect(followReloadFor).toHaveBeenCalledWith(null)
       expect(cartReloadFor).toHaveBeenCalledWith(null)
     })
+
+    it('detaches the account from error reports so the next visitor is not reported as this one', async () => {
+      useWallet.setState({ session: session() })
+
+      await useWallet.getState().disconnect()
+
+      expect(setMonitoringUser).toHaveBeenCalledWith(null)
+    })
   })
 
   describe('restore', () => {
@@ -111,6 +129,7 @@ describe('wallet store', () => {
 
       expect(useWallet.getState().session).toBeNull()
       expect(identify).not.toHaveBeenCalled()
+      expect(setMonitoringUser).not.toHaveBeenCalled()
       expect(track).not.toHaveBeenCalled()
       expect(favReloadFor).not.toHaveBeenCalled()
       expect(followReloadFor).not.toHaveBeenCalled()
@@ -126,6 +145,8 @@ describe('wallet store', () => {
 
       expect(useWallet.getState().session).toBe(s)
       expect(identify).toHaveBeenCalledWith('0xABC', { sign_in_method: 'magic' })
+      // same address to monitoring, so an error report from this session can be traced to the account
+      expect(setMonitoringUser).toHaveBeenCalledWith('0xABC')
       // favorites swap to this account's server-backed list (identity forwarded for signed fetch);
       // follows load this account's local bucket
       expect(favReloadFor).toHaveBeenCalledWith('0xABC', s.identity)
