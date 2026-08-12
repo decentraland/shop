@@ -162,9 +162,11 @@ describe('at phone width', () => {
    * hiding the CTA inside the iOS web view took the right alignment with it and both icons collapsed against
    * the left edge. jsdom has no layout, so no unit test can catch it — this is the assertion that can.
    *
-   * Measured against the SEARCH field's right edge rather than the viewport: both live in the same padded
-   * container, so they share a right edge by construction, and comparing to the viewport would just re-derive
-   * the padding here.
+   * Measured against the SUB-NAV's own content edge — its right border less its right padding. This used to
+   * measure against the search field, which shared that edge for free while the field had a row to itself.
+   * It no longer does: the field now sits IN this row (it took the hidden CTA's slot), with the favourites
+   * and the cart to its right, so the field's edge is ~109px short of the container's and says nothing about
+   * where the cart is. Reading the padding off the element keeps the breakpoint's value out of this file.
    */
   it('keeps the cart pinned right in the iOS web view, where the credits CTA is hidden', async () => {
     const page = await phone('/overview?view=mobile-iap', 'Trending Products')
@@ -174,13 +176,55 @@ describe('at phone width', () => {
 
     const drift = await page.evaluate(() => {
       const cart = document.querySelector('[data-testid="subnav-cart"]')
-      const field = document.querySelector('input[type="search"], input[placeholder]')
-      if (!cart || !field) return null
-      return Math.abs(cart.getBoundingClientRect().right - field.getBoundingClientRect().right)
+      const subnav = document.querySelector('[data-testid="subnav"]')
+      if (!cart || !subnav) return null
+      const padRight = parseFloat(getComputedStyle(subnav).paddingRight) || 0
+      return Math.abs(subnav.getBoundingClientRect().right - padRight - cart.getBoundingClientRect().right)
     })
 
     expect(drift).not.toBeNull()
     // A few px of slack for the icon button's own padding; the bug parked it hundreds of px away.
     expect(drift!).toBeLessThanOrEqual(24)
+  })
+
+  /**
+   * The search field takes the slot the credits CTA left, rather than keeping the row of its own it has on
+   * the web (Figma 2703:399357): search, favourites and cart on ONE line, tabs below.
+   *
+   * Sharing a row is a layout fact, so only a real viewport can assert it — hence a row-membership check
+   * (same vertical band as the cart) rather than a class or a style assertion, which would pass just as
+   * happily with the field still parked on its own line.
+   */
+  it('lifts the search field into the cart row inside the iOS web view', async () => {
+    const page = await phone('/overview?view=mobile-iap', 'Trending Products')
+
+    const sameRow = await page.evaluate(() => {
+      const cart = document.querySelector('[data-testid="subnav-cart"]')
+      const field = document.querySelector('[data-testid="subnav"] input[placeholder]')
+      if (!cart || !field) return null
+      const a = cart.getBoundingClientRect()
+      const b = field.getBoundingClientRect()
+      // Centres within half a row of each other — two stacked rows are a full row-height apart.
+      return Math.abs((a.top + a.bottom) / 2 - (b.top + b.bottom) / 2) < 20
+    })
+
+    expect(sameRow).toBe(true)
+  })
+
+  // The web keeps the field on its own row: the CTA is still there holding the top one, and this is the
+  // control that stops the rule above from leaking out of the web view.
+  it('leaves the search field on its own row on the web', async () => {
+    const page = await phone('/overview', 'Trending Products')
+
+    const sameRow = await page.evaluate(() => {
+      const cart = document.querySelector('[data-testid="subnav-cart"]')
+      const field = document.querySelector('[data-testid="subnav"] input[placeholder]')
+      if (!cart || !field) return null
+      const a = cart.getBoundingClientRect()
+      const b = field.getBoundingClientRect()
+      return Math.abs((a.top + a.bottom) / 2 - (b.top + b.bottom) / 2) < 20
+    })
+
+    expect(sameRow).toBe(false)
   })
 })
