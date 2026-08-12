@@ -16,6 +16,7 @@
     "authorizations": "Autorizaciones",
     "outfits": "Estudio de outfits",
     "searchPlaceholder": "Busca artículo, creador, colección, nombre...",
+    "searchPlaceholderIap": "Buscar artículos",
     "searchAria": "Buscar en la tienda",
     "getCredits": "Comprar {currency}",
     "cart": "Carrito"
@@ -531,8 +532,11 @@
     "useItInWorld": "Úsalo en el mundo",
     "bannerTitle": "¡Tu compra se realizó con éxito!",
     "bannerBody": "Puedes encontrar tu artículo en la pestaña Mis artículos.",
+    "bannerBodyIap": "Puedes encontrar tus artículos en tu mochila.",
     "myAssets": "Mis artículos",
-    "tryInWorld": "Probar en el mundo"
+    "tryInWorld": "Probar en el mundo",
+    "done": "Listo",
+    "goToBackpack": "Ir a la mochila"
   },
   "itemPreview": {
     "loading": "Cargando vista previa",

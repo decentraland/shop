@@ -10,6 +10,7 @@ import { showsWalletConfirmations } from '~/lib/wallet-kind'
 import { waitForSettlement, SettlementPendingError } from '~/lib/buy-gasless'
 import { fetchOwnsItem } from '~/lib/api'
 import { formatCredits, CURRENCY } from '~/lib/currency'
+import { isIapMode } from '~/lib/iap'
 import { myItemsRouteFor } from '~/lib/routes'
 import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
@@ -192,6 +193,20 @@ const JUMP_URL = config.chainId === 80002 ? 'https://decentraland.zone/jump' : '
 // explorers); managed/thirdweb users just get the in-app "View order". See lib/wallet-kind.ts.
 const EXPLORER_TX = config.chainId === 80002 ? 'https://amoy.polygonscan.com/tx/' : 'https://polygonscan.com/tx/'
 
+/**
+ * Hands the purchase back to the iOS app: the same deep link the Marketplace already uses for this
+ * (`decentraland://open?iap_enabled=true&urn=…`, see its SuccessPage), so the app opens the backpack on
+ * what was just bought rather than on whatever it last showed.
+ *
+ * The urn is best-effort — only some catalog feeds return it (see CatalogItem.urn) — and a basket has
+ * several items but the link carries one. First one wins: it is the anchor the backpack opens on, and the
+ * rest are in there with it. With no urn at all the link still opens the app, just without a landing spot.
+ */
+function backpackDeepLink(items: Array<CatalogItem & { quantity?: number }>): string {
+  const urn = items.find(i => i.urn)?.urn
+  return `decentraland://open?iap_enabled=true${urn ? `&urn=${encodeURIComponent(urn)}` : ''}`
+}
+
 export function Success() {
   const { state: navState, search } = useLocation() as { state?: SuccessNavState; search: string }
   // A real purchase always arrives with router state; `?demo=1` stands in for one on a dev build only
@@ -341,7 +356,9 @@ export function Success() {
             </svg>
           </S.BannerCheck>
           <S.BannerText>
-            <b>{t('success.bannerTitle')}</b> {t('success.bannerBody')}
+            {/* The web copy points at the My Items tab, which the web view does not render — it says
+                backpack there, which is where the app actually puts the item. */}
+            <b>{t('success.bannerTitle')}</b> {isIapMode() ? t('success.bannerBodyIap') : t('success.bannerBody')}
           </S.BannerText>
         </S.Banner>
 
@@ -396,15 +413,32 @@ export function Success() {
         {receiptLink ? <S.Links data-receipt>{receiptLink}</S.Links> : null}
 
         <S.Ctas>
-          <S.Cta data-variant="ghost" onClick={() => navigate(myItemsRouteFor(items.map(i => i.category)))}>
-            {t('success.myAssets')}
-          </S.Cta>
-          <S.CtaLink data-variant="ruby" href={JUMP_URL} target="_blank" rel="noreferrer">
-            {t('success.tryInWorld')}
-            <S.CtaJump aria-hidden>
-              <JumpInIcon />
-            </S.CtaJump>
-          </S.CtaLink>
+          {/* Inside the iOS web view both CTAs hand off to the app instead of navigating the web view:
+              MY ASSETS and TRY IN WORLD would open a shop page the app already covers and a launcher that
+              cannot run there. No target="_blank" on the deep link — a custom scheme in a new tab leaves an
+              orphaned blank one behind when the app takes over (Figma 2703:399357 Cart). */}
+          {isIapMode() ? (
+            <>
+              <S.Cta data-variant="ghost" onClick={() => navigate('/overview')}>
+                {t('success.done')}
+              </S.Cta>
+              <S.CtaLink data-variant="ruby" href={backpackDeepLink(items)}>
+                {t('success.goToBackpack')}
+              </S.CtaLink>
+            </>
+          ) : (
+            <>
+              <S.Cta data-variant="ghost" onClick={() => navigate(myItemsRouteFor(items.map(i => i.category)))}>
+                {t('success.myAssets')}
+              </S.Cta>
+              <S.CtaLink data-variant="ruby" href={JUMP_URL} target="_blank" rel="noreferrer">
+                {t('success.tryInWorld')}
+                <S.CtaJump aria-hidden>
+                  <JumpInIcon />
+                </S.CtaJump>
+              </S.CtaLink>
+            </>
+          )}
         </S.Ctas>
       </S.Done>
     </S.Root>

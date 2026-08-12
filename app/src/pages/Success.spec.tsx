@@ -21,6 +21,9 @@ vi.mock('~/lib/api', async orig => ({ ...(await orig<Record<string, unknown>>())
 // The confetti lazy-loads lottie-web, which drives real timers over a canvas — irrelevant here and noisy in
 // jsdom. The <Confetti/> wrapper (its reduced-motion decision and where it mounts) is what these assert.
 vi.mock('lottie-react', () => ({ default: () => <span data-testid="lottie" /> }))
+// Mutable so both sides of the iOS web-view gate are reachable — the difference between them is the point.
+const iap = { on: false }
+vi.mock('~/lib/iap', () => ({ isIapMode: () => iap.on }))
 
 import { Success } from '~/pages/Success'
 
@@ -44,11 +47,11 @@ const item = {
   gender: 'unisex'
 }
 
-function renderSuccess(txHash: string | undefined = '0xdeadbeef') {
+function renderSuccess(txHash: string | undefined = '0xdeadbeef', purchased: Record<string, unknown> = item) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={[{ pathname: '/success', state: { items: [item], txHash } }]}>
+      <MemoryRouter initialEntries={[{ pathname: '/success', state: { items: [purchased], txHash } }]}>
         <Routes>
           <Route path="/success" element={<Success />} />
           <Route path="/items" element={<div>Browse</div>} />
@@ -363,5 +366,77 @@ describe('Success settlement gating', () => {
     expect(screen.getByText(/view your activity/i)).toBeTruthy()
     expect(screen.queryByText(/it.s yours/i)).toBeNull()
     expect(screen.queryByText(/didn.t go through/i)).toBeNull()
+  })
+})
+
+/**
+ * What the confirmed screen offers next.
+ *
+ * On the web both CTAs stay inside the browser. Inside the iOS app's web view neither can: My Items is a
+ * page the app already covers with its backpack, and the launcher link cannot run there at all — so both
+ * are replaced by a hand-off to the app (Figma 2703:399357 Cart).
+ */
+describe('the confirmed-purchase CTAs', () => {
+  beforeEach(() => {
+    iap.on = false
+    waitForSettlement.mockReset()
+    fetchOwnsItem.mockReset()
+    waitForSettlement.mockResolvedValue(undefined)
+    fetchOwnsItem.mockResolvedValue(true)
+  })
+
+  it('keeps the web pair on the web', async () => {
+    renderSuccess()
+
+    expect(await screen.findByRole('button', { name: /my items/i })).toBeTruthy()
+    expect(screen.getByRole('link', { name: /try in world/i })).toBeTruthy()
+    expect(screen.queryByRole('link', { name: /go to backpack/i })).toBeNull()
+  })
+
+  it('hands off to the app inside the web view', async () => {
+    iap.on = true
+
+    renderSuccess()
+
+    expect(await screen.findByRole('link', { name: /go to backpack/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^done$/i })).toBeTruthy()
+    // The two it replaces must be GONE, not merely joined to: a launcher link cannot work in a web view,
+    // and My Items is a tab the web view does not render.
+    expect(screen.queryByRole('link', { name: /try in world/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /my items/i })).toBeNull()
+  })
+
+  // The banner tells the buyer where the item went, and in the app that is the backpack — pointing at a
+  // My Items tab the web view does not render is a dead end dressed as instructions.
+  it('points the banner at the backpack rather than at a tab that is not there', async () => {
+    iap.on = true
+
+    renderSuccess()
+
+    expect(await screen.findByText(/in your backpack/i)).toBeTruthy()
+    expect(screen.queryByText(/my items tab/i)).toBeNull()
+  })
+
+  // The link is the whole feature — a backpack CTA that opens the app on nothing in particular is the bug
+  // this is here to catch.
+  it('opens the app on the item that was just bought', async () => {
+    iap.on = true
+    const urn = 'urn:decentraland:matic:collections-v2:0x1ad432344191907029728f81382e6704d8e50623:3'
+
+    renderSuccess(undefined, { ...item, urn })
+
+    const cta = await screen.findByRole('link', { name: /go to backpack/i })
+    expect(cta.getAttribute('href')).toBe(`decentraland://open?iap_enabled=true&urn=${encodeURIComponent(urn)}`)
+  })
+
+  // Only some catalog feeds return a urn. Without one the hand-off still has to open the app — dropping the
+  // CTA (or emitting `urn=undefined`) would strand the buyer on a screen whose only other button is Done.
+  it('still opens the app when the feed carried no urn', async () => {
+    iap.on = true
+
+    renderSuccess()
+
+    const cta = await screen.findByRole('link', { name: /go to backpack/i })
+    expect(cta.getAttribute('href')).toBe('decentraland://open?iap_enabled=true')
   })
 })

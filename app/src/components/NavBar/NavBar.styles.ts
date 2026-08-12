@@ -189,6 +189,31 @@ export const Search = styled.div`
     /* Own row here — full width, so neither the desktop basis nor its cap may hold it back. */
     flex: 1 0 100%;
     max-width: none;
+
+    /**
+     * Inside the iOS web view the field moves UP into the top row, taking the slot the Buy Credits CTA
+     * left when that was removed (Figma 2699:386161): search, favourites and cart on one line, the tabs
+     * on their own below.
+     *
+     * FIXED WIDTH, and that is the shape of the design rather than an oversight. The field does not
+     * stretch to meet the icons the way it does on its own row — it holds 196px and the leftover falls
+     * BETWEEN it and the favourites, which is what the auto right margin places there. Left to grow, it
+     * runs the whole way across and the row loses the gap the design draws.
+     *
+     * The 100% basis that gave it a row to itself has to go with all this: it is what forced the break.
+     */
+    &[data-iap] {
+      order: 1;
+      flex: 0 0 196px;
+      margin-right: auto;
+
+      /* 12px is the design's, and 196px is sized for ITS placeholder ("Search items", ~66px) — not for
+         the web's long one, which needs 211px at this size and is why the web view carries its own
+         wording. Beats the mobile rule below on specificity, not on source order. */
+      & input {
+        font-size: 12px;
+      }
+    }
   }
 
   ${mobile} {

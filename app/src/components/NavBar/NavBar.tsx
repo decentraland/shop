@@ -71,6 +71,13 @@ export function NavBar() {
   // the global one searches the whole shop, so typing in the wrong box silently leaves the page. The page's
   // own field wins because it is the one that matches what the page shows.
   const hidesGlobalSearch = /^\/my-items(\/|$)/.test(pathname)
+  // Read once so every branch below decides off the same value (the module memoises it anyway).
+  const iap = isIapMode()
+  // Checkout is a flow, not a place to browse from: inside the iOS web view the cart and its success
+  // screen drop the shop's sub-nav entirely (Figma 2703:399357 Cart), leaving the back arrow the page
+  // already renders as the only way out. The global bar above stays — it carries the credits balance,
+  // which is exactly what a buyer looks at while checking out.
+  const hidesSubnav = iap && /^\/(cart|success)(\/|$)/.test(pathname)
   const urlQuery = searchParams.get('q') ?? ''
 
   // Balances for the global ui2 navbar. Credits: undefined while loading/on error (hides the chip —
@@ -226,6 +233,7 @@ export function NavBar() {
   return (
     <>
       <TopNav
+        iap={iap}
         activePage="shop"
         isSignedIn={!!session}
         isSigningIn={connecting}
@@ -237,7 +245,7 @@ export function NavBar() {
         shopCreditsBalance={shopCredits}
         // The balance chip in the global row is itself a doorway to the pack picker. Undefined inside the iOS
         // web view, so the number still shows (it is the buyer's own balance) without being a way to buy more.
-        onClickShopCredits={isIapMode() ? undefined : () => navigate('/credits')}
+        onClickShopCredits={iap ? undefined : () => navigate('/credits')}
         manaBalances={manaBalances}
         showManaBalancesInNavbar
         // The chain pill goes INSIDE the profile panel, which is where the marketplace has it and where
@@ -249,11 +257,12 @@ export function NavBar() {
         chains={chains}
         onSelectChain={chain => void switchTo(chain)}
         notificationSlot={
-          session ? (
+          // The app delivers its own notifications, so the bell is a duplicate the web view must not add.
+          session && !iap ? (
             <S.NavSlot>
               {/* A ui2 notification row can throw while rendering (e.g. one with an unparseable date →
-                  formatDistanceToNow "Invalid time value"). Isolate it so a bad item renders nothing
-                  instead of white-screening the whole navbar/app. */}
+                 formatDistanceToNow "Invalid time value"). Isolate it so a bad item renders nothing
+                 instead of white-screening the whole navbar/app. */}
               <Sentry.ErrorBoundary fallback={<></>}>
                 <CssVarsProvider theme={ui2Light} defaultMode="light">
                   <Suspense fallback={null}>
@@ -267,100 +276,108 @@ export function NavBar() {
       />
 
       {/* Shop sub-nav (sections + search + cart) — the row under the global DCL navbar. */}
-      <S.Subnav data-testid="subnav" data-scrolled={scrolled || undefined}>
-        <S.Tabs data-testid="subnav-tabs">
-          <NavLink to="/overview">{t('nav.overview')}</NavLink>
-          {/* Collectibles stays active across the item detail / collection / creator pages too (they're
-              all part of browsing collectibles), not just the /items grid. */}
-          <NavLink to="/items" className={() => (collectiblesActive ? 'active' : '')}>
-            {t('nav.collectibles')}
-          </NavLink>
-          <NavLink to="/my-items">{t('nav.myAssets')}</NavLink>
-          {session ? <NavLink to="/activity">{t('nav.activity')}</NavLink> : null}
-          {/* Approvals are only meaningful for self-custody wallets; managed (web2) users never see wallet
-              jargon (CONVENTIONS.md), so the entry point is hidden for them. */}
-          {session && showsWalletConfirmations(session.providerType) ? (
-            <NavLink to="/authorizations">{t('nav.authorizations')}</NavLink>
-          ) : null}
-          {/* Studio entry for the outfit team only — cosmetic gate, the server allowlist is the real one. */}
-          {isOutfitCreator ? (
-            <NavLink to="/outfits/manage" data-testid="nav-outfits">
-              {t('nav.outfits')}
+      {hidesSubnav ? null : (
+        <S.Subnav data-testid="subnav" data-iap={iap || undefined} data-scrolled={scrolled || undefined}>
+          <S.Tabs data-testid="subnav-tabs">
+            <NavLink to="/overview">{t('nav.overview')}</NavLink>
+            {/* Collectibles stays active across the item detail / collection / creator pages too (they're
+               all part of browsing collectibles), not just the /items grid. */}
+            <NavLink to="/items" className={() => (collectiblesActive ? 'active' : '')}>
+              {t('nav.collectibles')}
             </NavLink>
-          ) : null}
-        </S.Tabs>
-
-        <S.MobileDivider />
-
-        {/* Rendered as nothing rather than hidden with CSS: a visually-hidden input is still focusable and
-            still in the tab order, so on My Items the keyboard would land in a search box nobody can see. */}
-        {hidesGlobalSearch ? null : (
-          <S.Search ref={wrapRef}>
-            <Icon name="search" color={theme.colors.softWhite} />
-            <input
-              value={q}
-              aria-label={t('nav.searchAria')}
-              placeholder={t('nav.searchPlaceholder')}
-              onChange={e => onSearchChange(e.target.value)}
-              onFocus={openDropdown}
-              onKeyDown={onSearchKeyDown}
-            />
-            {q ? (
-              <S.SearchClear
-                type="button"
-                data-testid="subnav-search-clear"
-                aria-label={t('search.clear')}
-                onClick={clearSearch}
-              >
-                <Icon name="close" size={14} data-testid="subnav-search-clear-icon" />
-              </S.SearchClear>
+            {/* The app has the buyer's items in its own backpack, so the shop's copy is a second front door
+               to somewhere they are already standing. */}
+            {iap ? null : <NavLink to="/my-items">{t('nav.myAssets')}</NavLink>}
+            {session ? <NavLink to="/activity">{t('nav.activity')}</NavLink> : null}
+            {/* Approvals are only meaningful for self-custody wallets; managed (web2) users never see wallet
+               jargon (CONVENTIONS.md), so the entry point is hidden for them. */}
+            {session && showsWalletConfirmations(session.providerType) ? (
+              <NavLink to="/authorizations">{t('nav.authorizations')}</NavLink>
             ) : null}
-            {open ? (
-              <SearchDropdown
-                query={debounced}
-                recent={recent}
-                onSelectItem={onSelectItem}
-                onSelectCollection={onSelectCollection}
-                onSelectCreator={onSelectCreator}
-                onRunSearch={runSearch}
-                onRemoveRecent={removeRecent}
-                onClearRecent={clearRecent}
+            {/* Studio entry for the outfit team only — cosmetic gate, the server allowlist is the real one. */}
+            {isOutfitCreator ? (
+              <NavLink to="/outfits/manage" data-testid="nav-outfits">
+                {t('nav.outfits')}
+              </NavLink>
+            ) : null}
+          </S.Tabs>
+
+          <S.MobileDivider />
+
+          {/* Rendered as nothing rather than hidden with CSS: a visually-hidden input is still focusable and
+             still in the tab order, so on My Items the keyboard would land in a search box nobody can see. */}
+          {hidesGlobalSearch ? null : (
+            <S.Search ref={wrapRef} data-iap={iap || undefined}>
+              <Icon name="search" color={theme.colors.softWhite} />
+              <input
+                value={q}
+                aria-label={t('nav.searchAria')}
+                placeholder={
+                  // The web view's field is a third narrower (it shares its row), so the design gives it
+                  // wording to match rather than the web's list of everything that is searchable.
+                  iap ? t('nav.searchPlaceholderIap') : t('nav.searchPlaceholder')
+                }
+                onChange={e => onSearchChange(e.target.value)}
+                onFocus={openDropdown}
+                onKeyDown={onSearchKeyDown}
               />
-            ) : null}
-          </S.Search>
-        )}
-        {/* Inside the iOS app's web view the app sells credits through In-App Purchase, so the Shop must
-            not offer to sell them. This is the main entrance; the others are gated the same way (the
-            checkout modals, and the /credits route itself for a direct hit). */}
-        {/* Sits beside GET CREDITS on purpose: the balance it explains is the one in the row above, and
-            this is the nearest surface the Shop owns (the chip itself is rendered by decentraland-ui2).
-            Renders nothing unless the buyer actually has credits held. */}
-        <HeldCredits held={balance?.held} />
-        {isIapMode() ? null : (
-          <S.Credits to="/credits">
-            <S.CreditsIco />
-            {t('nav.getCredits', { currency: CURRENCY.name })}
-          </S.Credits>
-        )}
-        <S.Fav to="/my-favorites" aria-label={t('nav.myFavorites')}>
-          <S.FavIcons>
-            <S.FavOutline name="heart" size={28} aria-hidden />
-            <S.FavFill name="heart-solid" size={28} aria-hidden />
-          </S.FavIcons>
-        </S.Fav>
-        <S.CartWrap>
-          {/* Cart icon opens the cart drawer (open-on-icon) — including on an empty cart, which shows the
-              drawer's own empty state rather than navigating the shopper off the page they're browsing. */}
-          <S.Cart type="button" data-testid="subnav-cart" aria-label={t('nav.cart')} onClick={() => openCart(true)}>
-            <S.CartIcons data-filled={cartCount > 0 || undefined}>
-              <S.CartOutline name="cart" size={28} aria-hidden />
-              <S.CartFill name="cart-solid" size={28} aria-hidden />
-            </S.CartIcons>
-            {cartCount > 0 ? <S.CartBadge data-testid="subnav-cart-badge">{cartCount}</S.CartBadge> : null}
-          </S.Cart>
-          <CartPopover />
-        </S.CartWrap>
-      </S.Subnav>
+              {q ? (
+                <S.SearchClear
+                  type="button"
+                  data-testid="subnav-search-clear"
+                  aria-label={t('search.clear')}
+                  onClick={clearSearch}
+                >
+                  <Icon name="close" size={14} data-testid="subnav-search-clear-icon" />
+                </S.SearchClear>
+              ) : null}
+              {open ? (
+                <SearchDropdown
+                  query={debounced}
+                  recent={recent}
+                  onSelectItem={onSelectItem}
+                  onSelectCollection={onSelectCollection}
+                  onSelectCreator={onSelectCreator}
+                  onRunSearch={runSearch}
+                  onRemoveRecent={removeRecent}
+                  onClearRecent={clearRecent}
+                />
+              ) : null}
+            </S.Search>
+          )}
+          {/* Inside the iOS app's web view the app sells credits through In-App Purchase, so the Shop must
+             not offer to sell them. This is the main entrance; the others are gated the same way (the
+             checkout modals, and the /credits route itself for a direct hit). */}
+          {/* Sits beside GET CREDITS on purpose: the balance it explains is the one in the row above, and
+             this is the nearest surface the Shop owns (the chip itself is rendered by decentraland-ui2).
+             Renders nothing unless the buyer actually has credits held. */}
+          <HeldCredits held={balance?.held} />
+          {iap ? null : (
+            <S.Credits to="/credits">
+              <S.CreditsIco />
+              {t('nav.getCredits', { currency: CURRENCY.name })}
+            </S.Credits>
+          )}
+          <S.Fav to="/my-favorites" aria-label={t('nav.myFavorites')}>
+            <S.FavIcons>
+              <S.FavOutline name="heart" size={28} aria-hidden />
+              <S.FavFill name="heart-solid" size={28} aria-hidden />
+            </S.FavIcons>
+          </S.Fav>
+          <S.CartWrap>
+            {/* Cart icon opens the cart drawer (open-on-icon) — including on an empty cart, which shows the
+               drawer's own empty state rather than navigating the shopper off the page they're browsing. */}
+            <S.Cart type="button" data-testid="subnav-cart" aria-label={t('nav.cart')} onClick={() => openCart(true)}>
+              <S.CartIcons data-filled={cartCount > 0 || undefined}>
+                <S.CartOutline name="cart" size={28} aria-hidden />
+                <S.CartFill name="cart-solid" size={28} aria-hidden />
+              </S.CartIcons>
+              {cartCount > 0 ? <S.CartBadge data-testid="subnav-cart-badge">{cartCount}</S.CartBadge> : null}
+            </S.Cart>
+            <CartPopover />
+          </S.CartWrap>
+        </S.Subnav>
+      )}
     </>
   )
 }
