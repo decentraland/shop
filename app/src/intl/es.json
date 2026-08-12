@@ -16,6 +16,7 @@
     "authorizations": "Autorizaciones",
     "outfits": "Estudio de outfits",
     "searchPlaceholder": "Busca artículo, creador, colección, nombre...",
+    "searchPlaceholderIap": "Buscar artículos",
     "searchAria": "Buscar en la tienda",
     "getCredits": "Comprar {currency}",
     "cart": "Carrito"

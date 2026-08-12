@@ -212,11 +212,37 @@ describe('at phone width', () => {
   })
 
   /**
-   * The placeholder is the field's only label, so it has to READ (2699:386161 shows it whole).
+   * The field holds the design's 196px and does NOT stretch to meet the icons (2699:386161).
    *
-   * Sharing the row took the field's width down to where the string no longer fit and trailed off at
-   * "…collection, n". Nothing in jsdom can see that — a clipped placeholder has the same DOM as a shown
-   * one — so the guard is a measurement: the rendered string against the box it has to live in.
+   * Left to grow it runs the whole way across and swallows the gap the design draws between it and the
+   * favourites — which is what it did on the first pass here, and what made the row read as "not the
+   * design" even though every element was present and in the right order. Only a real viewport can tell
+   * a field that fills its row from one that stops.
+   */
+  it('holds the design width in the iOS web view instead of stretching to the icons', async () => {
+    const page = await phone('/overview?view=mobile-iap', 'Trending Products')
+
+    const box = await page.evaluate(() => {
+      const input = document.querySelector('[data-testid="subnav"] input[placeholder]') as HTMLInputElement | null
+      const fav = document.querySelector('a[href="/my-favorites"]')
+      if (!input?.parentElement || !fav) return null
+      const field = input.parentElement.getBoundingClientRect()
+      return { width: Math.round(field.width), slack: Math.round(fav.getBoundingClientRect().left - field.right) }
+    })
+
+    expect(box?.width).toBe(196)
+    // The gap is the visible half of "does not stretch": a grown field leaves only the row's own 8px.
+    expect(box!.slack).toBeGreaterThan(24)
+  })
+
+  /**
+   * The placeholder is the field's only label, so it has to READ, whole (2699:386161).
+   *
+   * The web's wording ("Search item, creator, collection, name…") needs 211px at this size and the field
+   * is 196 — it trailed off at "…collection, n" until the web view got the design's own shorter string.
+   * Nothing in jsdom can see that: a clipped placeholder has the same DOM as a shown one. So the guard is
+   * a measurement of the rendered string against the box, using the input's OWN computed font, which
+   * keeps it honest if either the size or the wording moves.
    */
   it('shows the whole placeholder in the iOS web view, at the narrowest phone', async () => {
     const page = await phone('/overview?view=mobile-iap', 'Trending Products')
@@ -224,7 +250,6 @@ describe('at phone width', () => {
     const fits = await page.evaluate(() => {
       const input = document.querySelector('[data-testid="subnav"] input[placeholder]') as HTMLInputElement | null
       if (!input) return null
-      // Measure with the input's OWN computed font, so a future size change is what this reacts to.
       const cs = getComputedStyle(input)
       const ctx = document.createElement('canvas').getContext('2d')!
       ctx.font = `${cs.fontSize} ${cs.fontFamily}`

@@ -312,7 +312,11 @@ export function NavBar() {
               <input
                 value={q}
                 aria-label={t('nav.searchAria')}
-                placeholder={t('nav.searchPlaceholder')}
+                placeholder={
+                  // The web view's field is a third narrower (it shares its row), so the design gives it
+                  // wording to match rather than the web's list of everything that is searchable.
+                  iap ? t('nav.searchPlaceholderIap') : t('nav.searchPlaceholder')
+                }
                 onChange={e => onSearchChange(e.target.value)}
                 onFocus={openDropdown}
                 onKeyDown={onSearchKeyDown}

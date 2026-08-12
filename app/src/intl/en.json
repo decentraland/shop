@@ -16,6 +16,7 @@
     "authorizations": "Approvals",
     "outfits": "Outfit Studio",
     "searchPlaceholder": "Search item, creator, collection, name...",
+    "searchPlaceholderIap": "Search items",
     "searchAria": "Search the shop",
     "getCredits": "Buy {currency}",
     "cart": "Cart"

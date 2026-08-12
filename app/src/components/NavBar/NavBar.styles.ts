@@ -47,14 +47,6 @@ export const Subnav = styled.div`
        the search and tab strips have their own full-width basis, so this only affects the top row. */
     gap: 12px 8px;
     padding: 12px 54px 0;
-
-    /* The iOS row is tighter around the two icons (2699:386161 measures ~5px, against the 8px this row
-       uses when the CTA is what sits beside them). Those pixels are not decoration: they are the only
-       slack left for the search field, which shares this row here and needs every one of them to show
-       its placeholder whole. */
-    &[data-iap] {
-      column-gap: 4px;
-    }
   }
 
   ${mobile} {
@@ -198,35 +190,28 @@ export const Search = styled.div`
     flex: 1 0 100%;
     max-width: none;
 
-    /* Inside the iOS web view the field moves UP into the top row, taking the slot the Buy Credits CTA
-       left when that was removed (Figma 2703:399357): search, favourites and cart on one line, the tabs
-       on their own below. Sharing the row is the whole point, so the 100% basis that forces a row break
-       has to go with it — it is what put the field on a line of its own in the first place. */
+    /**
+     * Inside the iOS web view the field moves UP into the top row, taking the slot the Buy Credits CTA
+     * left when that was removed (Figma 2699:386161): search, favourites and cart on one line, the tabs
+     * on their own below.
+     *
+     * FIXED WIDTH, and that is the shape of the design rather than an oversight. The field does not
+     * stretch to meet the icons the way it does on its own row — it holds 196px and the leftover falls
+     * BETWEEN it and the favourites, which is what the auto right margin places there. Left to grow, it
+     * runs the whole way across and the row loses the gap the design draws.
+     *
+     * The 100% basis that gave it a row to itself has to go with all this: it is what forced the break.
+     */
     &[data-iap] {
       order: 1;
-      flex: 1 1 auto;
+      flex: 0 0 196px;
+      margin-right: auto;
 
-      /**
-       * The placeholder has to READ, not trail off — it is the only label the field has, and the design
-       * (2699:386161) shows it whole.
-       *
-       * Sharing the row costs the field the width it had to itself, and at the row's 14px the string is
-       * 246px against ~206px of box: it clipped at "…collection, n". Measured off the design, the text
-       * spans ~77% of the pill — this string at 12px — so what was scaled there is the size, not the
-       * wording.
-       *
-       * 11px rather than that 12px, and the difference is the narrowest phone rather than a preference.
-       * The width available for the text is the viewport less ~176px of fixed chrome, and the string needs
-       * 17.6px per point of size: 12px fits a 390pt iPhone (211 into 214) and overruns a 375pt one (199).
-       * 11px (193px) clears both. A breakpoint between them is not an option — the theme's ladder starts
-       * at 720 and CLAUDE.md forbids inventing rungs — and of the two ends, a placeholder trailing off
-       * mid-word is the one that reads as broken.
-       *
-       * Beats the mobile rule below on specificity (attribute + element), not on source order, so the two
-       * can stay where each belongs.
-       */
+      /* 12px is the design's, and 196px is sized for ITS placeholder ("Search items", ~66px) — not for
+         the web's long one, which needs 211px at this size and is why the web view carries its own
+         wording. Beats the mobile rule below on specificity, not on source order. */
       & input {
-        font-size: 11px;
+        font-size: 12px;
       }
     }
   }
