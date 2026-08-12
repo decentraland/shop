@@ -14,7 +14,7 @@
 //
 // ===== BACKEND CONTRACT (credits-server) =====================================
 //   POST /credits/checkout            (signed-fetch, ADR-44: caller == buyer)
-//     req : { packId: string, timezone?: string }
+//     req : { packId: string, timezone?: string, source: 'website' }
 //     res : { orderId: string, url: string }   // Stripe HOSTED Checkout Session URL
 //           The app redirects the browser to `url`; Stripe returns to
 //           `${STRIPE_RETURN_URL}?order=${orderId}` (or `...&canceled=1`).
@@ -73,8 +73,11 @@ export async function createPackCheckoutReal(packId: string, identity: AuthIdent
     identity,
     metadata: {},
     headers: { 'Content-Type': 'application/json' },
-    // JSON.stringify drops an undefined value, so an absent zone leaves the body as `{ packId }`.
-    body: JSON.stringify({ packId, timezone: buyerTimezone() })
+    // `source` declares the surface, matching what the buy path already sends to /credits/authorize:
+    // the Explorer creates checkouts through this same endpoint, so without it every credit purchase
+    // looks alike and "how much revenue comes from in-world" has no answer.
+    // JSON.stringify drops an undefined value, so an absent zone leaves the body as `{ packId, source }`.
+    body: JSON.stringify({ packId, timezone: buyerTimezone(), source: 'website' })
   })
   if (!res.ok) throw new Error(`checkout ${res.status}: ${await res.text()}`)
   const { orderId, url } = (await res.json()) as { orderId: string; url: string }

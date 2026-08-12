@@ -54,7 +54,7 @@ describe('when starting a real pack checkout', () => {
     expect(opts.identity).toBe(IDENTITY)
     expect(opts.metadata).toEqual({})
     expect(opts.headers).toEqual({ 'Content-Type': 'application/json' })
-    expect(JSON.parse(opts.body)).toEqual({ packId: 'pack_25', timezone: PINNED_TIMEZONE })
+    expect(JSON.parse(opts.body)).toEqual({ packId: 'pack_25', timezone: PINNED_TIMEZONE, source: 'website' })
   })
 
   it('should send the buyer timezone so abandonment can be read by region', async () => {
@@ -76,7 +76,7 @@ describe('when starting a real pack checkout', () => {
     const session = await createPackCheckoutReal('pack_5', IDENTITY)
 
     expect(session.orderId).toBe('ord_no_tz')
-    expect(JSON.parse(signedFetch.mock.calls[0][1].body)).toEqual({ packId: 'pack_5' })
+    expect(JSON.parse(signedFetch.mock.calls[0][1].body)).toEqual({ packId: 'pack_5', source: 'website' })
   })
 
   // An engine built without full ICU data can return an empty zone instead of throwing. It must be dropped
@@ -90,7 +90,7 @@ describe('when starting a real pack checkout', () => {
 
     await createPackCheckoutReal('pack_5', IDENTITY)
 
-    expect(JSON.parse(signedFetch.mock.calls[0][1].body)).toEqual({ packId: 'pack_5' })
+    expect(JSON.parse(signedFetch.mock.calls[0][1].body)).toEqual({ packId: 'pack_5', source: 'website' })
   })
 
   it('should hit the credits-server base url for the checkout (never shop-server) (G1)', async () => {
