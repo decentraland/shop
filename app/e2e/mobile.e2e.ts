@@ -211,6 +211,29 @@ describe('at phone width', () => {
     expect(sameRow).toBe(true)
   })
 
+  /**
+   * The placeholder is the field's only label, so it has to READ (2699:386161 shows it whole).
+   *
+   * Sharing the row took the field's width down to where the string no longer fit and trailed off at
+   * "…collection, n". Nothing in jsdom can see that — a clipped placeholder has the same DOM as a shown
+   * one — so the guard is a measurement: the rendered string against the box it has to live in.
+   */
+  it('shows the whole placeholder in the iOS web view, at the narrowest phone', async () => {
+    const page = await phone('/overview?view=mobile-iap', 'Trending Products')
+
+    const fits = await page.evaluate(() => {
+      const input = document.querySelector('[data-testid="subnav"] input[placeholder]') as HTMLInputElement | null
+      if (!input) return null
+      // Measure with the input's OWN computed font, so a future size change is what this reacts to.
+      const cs = getComputedStyle(input)
+      const ctx = document.createElement('canvas').getContext('2d')!
+      ctx.font = `${cs.fontSize} ${cs.fontFamily}`
+      return ctx.measureText(input.placeholder).width <= input.getBoundingClientRect().width
+    })
+
+    expect(fits).toBe(true)
+  })
+
   // The web keeps the field on its own row: the CTA is still there holding the top one, and this is the
   // control that stops the rule above from leaking out of the web view.
   it('leaves the search field on its own row on the web', async () => {
