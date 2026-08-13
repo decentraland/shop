@@ -947,3 +947,35 @@ describe('when the buyer cancels the signature', () => {
    * harness cannot stage. The withdrawal path is pinned by lib/spend-guard's own specs.
    */
 })
+
+/**
+ * The cart's success page linked the launcher while this modal's identical-looking CTA only closed
+ * itself, so the same "Try in World" did different things depending on which door the purchase came
+ * through. This pins that it navigates.
+ */
+describe('when the purchase completes', () => {
+  const completePurchase = () => {
+    buyOneWithCredits.mockImplementation(async (opts: Record<string, any>) => {
+      opts.onBroadcast?.({ txHash: '0xbroadcast' })
+      return '0xhash'
+    })
+    renderResuming()
+  }
+
+  it('should point Try in World at the launcher deep-link', async () => {
+    completePurchase()
+    expect(await screen.findByText(/purchase complete/i)).toBeInTheDocument()
+
+    const cta = await screen.findByRole('link', { name: /try in world/i })
+    expect(cta.getAttribute('href')).toMatch(/decentraland\.(zone|org)\/jump/)
+  })
+
+  it('should open it outside the shop, so the purchase flow is not replaced', async () => {
+    completePurchase()
+    expect(await screen.findByText(/purchase complete/i)).toBeInTheDocument()
+
+    const cta = await screen.findByRole('link', { name: /try in world/i })
+    expect(cta.getAttribute('target')).toBe('_blank')
+    expect(cta.getAttribute('rel')).toContain('noreferrer')
+  })
+})

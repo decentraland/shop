@@ -56,6 +56,7 @@ import { CloseIcon } from '~/components/Icons/CloseIcon'
 import { WarningTriangleIcon } from '~/components/Icons/WarningTriangleIcon'
 import { SuccessCheckIcon } from '~/components/Icons/SuccessCheckIcon'
 import { JumpInIcon } from '~/components/Icons/JumpInIcon'
+import { JUMP_URL } from '~/lib/jump'
 import * as M from './modal.styles'
 import loaderLogo from '~/assets/credits/loader-logo.svg'
 
@@ -1278,10 +1279,13 @@ export function BuyModal({
                   <M.Btn data-variant="outline" onClick={() => navigate(myItemsRouteFor([item.category]))}>
                     {t('buyModal.myAssets')}
                   </M.Btn>
-                  <M.Btn data-variant="ruby" onClick={onClose}>
+                  {/* A LINK, not a button that closes: this used to only dismiss the modal, so the same
+                      "Try in World" opened the launcher from the cart's success page and did nothing from
+                      the PDP. Still closes behind itself — the purchase is finished either way. */}
+                  <M.BtnLink data-variant="ruby" href={JUMP_URL} target="_blank" rel="noreferrer" onClick={onClose}>
                     {t('buyModal.tryInWorld')}
                     <JumpInIcon />
-                  </M.Btn>
+                  </M.BtnLink>
                 </M.Ctas>
               </M.Body>
             )}

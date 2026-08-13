@@ -482,6 +482,13 @@ export const Btn = styled.button`
   }
 `
 
+/**
+ * The anchor twin of {@link Btn}, for a CTA that navigates instead of acting — the post-purchase
+ * "Try in World" opens the launcher deep-link. Same styling by construction (`Btn.withComponent`),
+ * so the two can never drift apart visually the way a hand-copied variant would.
+ */
+export const BtnLink = Btn.withComponent('a')
+
 export const Logo = styled.img`
   width: 61px;
   height: 61px;
