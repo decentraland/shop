@@ -11,10 +11,11 @@ import {
 } from 'decentraland-transactions'
 import { config } from '~/config'
 import { gaslessConfig } from '~/lib/gasless-config'
-import { showsWalletConfirmations } from '~/lib/wallet-kind'
+import { canPayGasItself, showsWalletConfirmations } from '~/lib/wallet-kind'
 import { confirmMetaTx } from '~/lib/tx-confirm'
 import { captureError } from '~/lib/monitoring'
-import { requireChain } from '~/lib/network'
+import { activeChainId, requireChain } from '~/lib/network'
+import { useWallet } from '~/store/wallet'
 
 // The shop's on-chain approvals ("authorizations"). Mirrors the marketplace's decentraland-dapps
 // authorization model, trimmed to what the shop's flows actually touch:
@@ -205,6 +206,36 @@ async function grantViaMetaTransaction(
   await confirmMetaTx(txHash, 'the authorization')
 }
 
+/**
+ * Who the current session signs with, read from the store rather than threaded through eight call sites.
+ *
+ * Same shape as `analytics`, `monitoring` and `purchase-report`, and for the same reason: `ensureAuthorization`
+ * is reached from the cart, both listing flows, the import tool, the MANA rails and the Authorizations page, and
+ * a parameter every one of them has to remember to pass is a parameter one of them will forget. Read
+ * defensively — an authorization can outlive the session that started it.
+ *
+ * Unknown answers `null`, which `canPayGasItself` reads as managed: the safe direction, since the failure this
+ * guards against is offering a gas-paying transaction to a wallet that holds no gas.
+ */
+function activeProviderType(): ProviderType | null {
+  try {
+    return useWallet.getState().session?.providerType ?? null
+  } catch {
+    return null
+  }
+}
+
+/** Is the wallet already on `chainId`? The question `requireChain` answers by throwing. */
+async function isOnChain(signer: ethers.providers.JsonRpcSigner, chainId: number): Promise<boolean> {
+  try {
+    return (await activeChainId(signer.provider as ethers.providers.Web3Provider)) === chainId
+  } catch {
+    // An unreadable chain answers "no": the direct rail cannot be offered on a guess, and the caller's
+    // fallback here is to surface the real cause, which is never worse than a wrong "yes".
+    return false
+  }
+}
+
 // Grant (active=true) or revoke (active=false) an authorization. GASLESS FOR EVERY WALLET: the wallet
 // signs an off-chain meta-transaction and DCL's relayer submits it and pays the gas, so nobody needs
 // POL — this mirrors how the marketplace relays Polygon actions. Managed (Magic/thirdweb) wallets hold
@@ -226,19 +257,48 @@ export async function setAuthorization(opts: {
     } catch (e) {
       // User dismissed the signature prompt → surface it, don't silently retry with a direct tx.
       if (e instanceof MetaTransactionError && e.code === ErrorCode.USER_DENIED) throw e
-      // Relayer down / contract account / flag off → fall through to a direct (gas-paying) tx. Log it
-      // so the fallback (and any managed wallet that then hits INSUFFICIENT_FUNDS) is diagnosable.
       //
       // Deliberately NO MetaTxPendingError guard here, unlike the purchase/transfer/mint paths: all three
       // calls this builds ASSIGN a fixed value — approve to MaxUint256 or 0, setApprovalForAll and
       // setMinters to a boolean — so a pending relay plus a direct re-submission lands on the same state
       // instead of applying the operation twice.
+      //
+      /**
+       * IS THE DIRECT RAIL A ROUTE THIS BUYER HAS? Asked BEFORE offering it, because reaching it and failing
+       * replaces the real cause with a symptom.
+       *
+       * What this cost: a wallet whose signing popup timed out got `MetaTransactionError(UNKNOWN)` —
+       * `sendMetaTransaction` classifies denials by matching the literal string "User denied message
+       * signature" and calls everything else UNKNOWN — so the guard above missed it, this fell through, and
+       * `requireChain` refused because that wallet was on Ethereum. The person was shown "your wallet is on
+       * Ethereum, this runs on Polygon" for a confirmation window that had closed. Two errors, and the one
+       * they saw was neither the cause nor actionable: the relayed rail signs off-chain and works from ANY
+       * network, so retrying it was the fix and switching networks was irrelevant advice.
+       *
+       * So both conditions are checked here rather than discovered downstream, and when either fails the
+       * ORIGINAL gasless error propagates — the one that says what actually happened.
+       */
+      const canPayGas = canPayGasItself(activeProviderType())
+      const onRightChain = canPayGas && (await isOnChain(signer, auth.chainId))
+      if (!canPayGas || !onRightChain) {
+        // Its own step: "the relay failed AND there was no second route" is a different event from "the
+        // relay failed and we fell back", and only one of them ends with the buyer unable to continue.
+        captureError(e, {
+          flow: 'authorizations',
+          step: 'gasless_no_fallback',
+          reason: canPayGas ? 'wrong-chain' : 'managed-wallet'
+        })
+        throw e
+      }
+      // Relayer down / contract account / flag off, and this buyer can actually take the gas rail.
       captureError(e, { flow: 'authorizations', step: 'gasless_fallback' })
     }
   }
 
   // Direct (gas-paying) fallback: the WALLET broadcasts this one, so it must already be on the right chain.
-  // We only check — moving it is the user's decision, made from the "switch network" control in the navbar.
+  // We only check — moving it is the user's decision, made from the navbar's network control. The check above
+  // has already established this passes when we get here from the relayed rail; it still guards the
+  // gasless-disabled path, and a wallet that switched networks mid-flight.
   await requireChain(signer.provider as ethers.providers.Web3Provider, auth.chainId)
   switch (auth.kind) {
     case AuthorizationKind.Allowance: {
