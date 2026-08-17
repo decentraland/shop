@@ -96,7 +96,7 @@ describe('LazyWearablePreview', () => {
   })
 
   it('never evaluates the gate, sends unity, or reports when unity is not requested', async () => {
-    renderPreview(<WearablePreview />)
+    renderPreview(<WearablePreview unity={false} />)
     await screen.findByTestId('wp')
     expect(pickRenderer).not.toHaveBeenCalled()
     expect(lastProps.unity).toBe(false)
