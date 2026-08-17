@@ -39,9 +39,9 @@ function resolveUnityRenderer(unity: boolean, id?: string): boolean {
  * Lazy-loaded wearable/avatar preview. `unity` is a BEST-EFFORT request: Unity is used only when the
  * shared `unity-wearable-preview` flag is on AND the runtime conditions are met (see `lib/pickRenderer`),
  * otherwise Babylon — and `unityMode=marketplace` is sent when Unity is used. Omitting `unity` (default)
- * always uses Babylon.
+ * requests Unity (best-effort — gated by the feature flag and runtime capability checks).
  */
-export function WearablePreview({ unity = false, ...props }: Props) {
+export function WearablePreview({ unity = true, ...props }: Props) {
   const flag = useUnityWearablePreview()
 
   // The renderer is decided once per mount (below), so rendering before the flag resolves would mean loading

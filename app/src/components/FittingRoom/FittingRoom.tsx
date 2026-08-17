@@ -94,8 +94,6 @@ export function FittingRoom() {
   const profileResolved = profileFetchedOrNone && !tryOn.isLoading
   const total = items.reduce((sum, i) => sum + i.priceCredits * i.quantity, 0)
 
-  // The WearablePreview iframe rebuilds its src (and reloads) whenever the equipped urns change, so
-  // mask each reload with the loading overlay instead of letting the avatar flash to empty and back.
   const outfitSig = tryOn.urns.join(',')
   useEffect(() => {
     setPreviewReady(false)
@@ -163,11 +161,6 @@ export function FittingRoom() {
                 skin={tryOn.skin}
                 hair={tryOn.hair}
                 eyes={tryOn.eyes}
-                // Babylon on purpose (no `unity`): the Unity/aang renderer runs this in `mode=marketplace`,
-                // which previews a SINGLE urn and opens on the item-alone view — it never reads `type`, it
-                // remembers the last view in its own storage, and it draws its own wearable/avatar switch
-                // inside the scene. Babylon honours type=AVATAR with the whole urn list, keeps the rest of
-                // the profile's outfit on, and ships no in-scene controls.
                 type={PreviewType.AVATAR}
                 emote={PreviewEmote.FASHION}
                 unityMode={tryOn.profile === 'default' ? PreviewUnityMode.BUILDER : PreviewUnityMode.MARKETPLACE}
