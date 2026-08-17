@@ -124,12 +124,27 @@ export function itemProps(item: CatalogItem): Props {
   }
 }
 
+/**
+ * Where a purchased unit came from, as carried on the cart line since it was added.
+ *
+ * Typed structurally instead of importing `CartProvenance` from `~/store/cart`: that module already
+ * imports this one, and pulling the type back the other way would close a cycle. Both halves are
+ * optional because a direct buy (BuyModal) never passes through the cart and has no provenance.
+ */
+export type PurchaseProvenance = { source?: string; outfitId?: string }
+
 // Purchase props for `Shop Completed Purchase` — carries the reconciliation keys (spec §6) so the
 // warehouse can join the funnel event to on-chain settlement. purchase_type is tagged EXPLICITLY
 // (never inferred): 'item' = primary (creator mint), 'nft_resale' = secondary.
-export function purchaseItemsProps(items: CatalogItem[]): Props {
+//
+// `outfit_ids` / `units_from_outfit` are what make an outfit sale countable: an outfit adds its pieces
+// as ordinary wearable lines, so without them a bought look is indistinguishable from unrelated items
+// and outfit revenue reads as zero. Event-level rather than per-item only, so counting outfit sales
+// does not require unnesting the items array.
+export function purchaseItemsProps(items: Array<CatalogItem & PurchaseProvenance>): Props {
   const valueCredits = items.reduce((n, i) => n + i.priceCredits, 0)
   const anyPrimary = items.some(isPrimaryItem)
+  const outfitIds = [...new Set(items.map(i => i.outfitId).filter((id): id is string => !!id))].sort()
   return {
     items: items.map(i => ({
       item_id: i.itemId ?? null,
@@ -137,12 +152,18 @@ export function purchaseItemsProps(items: CatalogItem[]): Props {
       token_id: i.tokenId ?? null,
       price_usd: creditsToUsd(i.priceCredits),
       category: i.category,
-      is_smart: i.isSmart ?? false
+      is_smart: i.isSmart ?? false,
+      source: i.source ?? null,
+      outfit_id: i.outfitId ?? null
     })),
     value_credits: valueCredits,
     value_usd: creditsToUsd(valueCredits),
     purchase_type: anyPrimary ? 'item' : 'nft_resale',
-    is_primary: anyPrimary
+    is_primary: anyPrimary,
+    // Null rather than [] so "no outfit involved" is one check in SQL, matching how the other
+    // never-happened props on these events read.
+    outfit_ids: outfitIds.length ? outfitIds : null,
+    units_from_outfit: items.filter(i => !!i.outfitId).length
   }
 }
 

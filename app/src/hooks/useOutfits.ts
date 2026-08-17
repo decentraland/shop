@@ -169,7 +169,7 @@ export function useOutfitCart(outfit: Outfit, resolution: OutfitItemsResolution)
         // re-filtering under it) must still deliver the basket the buyer asked for — only the local
         // isAdding state below has to care about the unmount.
         const items = [...live.values()]
-        items.forEach(item => add(item, 'outfit'))
+        items.forEach(item => add(item, 'outfit', outfit.id))
 
         const added = items.length
         // An item the card offered but the shop feed no longer sells (delisted or minted out between
