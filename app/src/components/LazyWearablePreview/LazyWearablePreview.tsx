@@ -49,7 +49,9 @@ export function WearablePreview({ unity = false, ...props }: Props) {
   // cover it with their own loading state, and the flag file is normally warm from the app's other reads.
   if (unity && flag.pending) return null
 
-  return <Preview unity={unity && flag.enabled} {...props} />
+  return (
+    <Preview unity={unity} baseUrl="https://wearable-preview-git-temp-aang-dev-decentraland1.vercel.app" {...props} />
+  )
 }
 
 function Preview({
