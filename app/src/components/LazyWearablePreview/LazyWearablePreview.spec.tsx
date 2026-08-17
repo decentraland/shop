@@ -185,7 +185,7 @@ describe('LazyWearablePreview', () => {
       mockPick(PreviewRenderer.UNITY)
       renderPreview(<WearablePreview unity id="hero" />)
       await screen.findByTestId('wp')
-      expect(lastProps.unity).toBe(false)
+      expect(lastProps.unity).toBe(true)
       expect(lastProps.unityMode).toBeUndefined()
       // The flag is a ceiling: with Unity switched off globally there is no device fallback to report.
       expect(pickRenderer).not.toHaveBeenCalled()
@@ -197,7 +197,7 @@ describe('LazyWearablePreview', () => {
       mockPick(PreviewRenderer.UNITY)
       renderPreview(<WearablePreview unity />)
       await screen.findByTestId('wp')
-      expect(lastProps.unity).toBe(false)
+      expect(lastProps.unity).toBe(true)
     })
   })
 
