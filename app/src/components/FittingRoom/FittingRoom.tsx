@@ -94,13 +94,6 @@ export function FittingRoom() {
   const profileResolved = profileFetchedOrNone && !tryOn.isLoading
   const total = items.reduce((sum, i) => sum + i.priceCredits * i.quantity, 0)
 
-  // The WearablePreview iframe rebuilds its src (and reloads) whenever the equipped urns change, so
-  // mask each reload with the loading overlay instead of letting the avatar flash to empty and back.
-  const outfitSig = tryOn.urns.join(',')
-  useEffect(() => {
-    setPreviewReady(false)
-  }, [outfitSig, profile])
-
   // Fire the funnel event once per open (deduped across re-renders).
   const trackedRef = useRef(false)
   useEffect(() => {
@@ -173,6 +166,7 @@ export function FittingRoom() {
                 unityMode={tryOn.profile === 'default' ? PreviewUnityMode.BUILDER : PreviewUnityMode.MARKETPLACE}
                 disableBackground
                 disableFadeEffect
+                onUpdate={() => setPreviewReady(false)}
                 onLoad={() => setPreviewReady(true)}
               />
               {!previewReady ? (

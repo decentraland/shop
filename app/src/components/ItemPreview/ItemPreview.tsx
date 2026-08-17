@@ -118,7 +118,6 @@ export function ItemPreview({ item }: { item: CatalogItem }) {
           disableBackground
           wheelZoom={isEmote ? 1.5 : undefined}
           wheelStart={isEmote ? 100 : undefined}
-          unity
           onRenderer={setRenderer}
           onLoad={() => {
             setPreviewLoading(false)

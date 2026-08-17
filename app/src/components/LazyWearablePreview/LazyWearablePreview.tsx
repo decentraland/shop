@@ -41,7 +41,7 @@ function resolveUnityRenderer(unity: boolean, id?: string): boolean {
  * otherwise Babylon — and `unityMode=marketplace` is sent when Unity is used. Omitting `unity` (default)
  * always uses Babylon.
  */
-export function WearablePreview({ unity = false, ...props }: Props) {
+export function WearablePreview({ unity = true, ...props }: Props) {
   const flag = useUnityWearablePreview()
 
   // The renderer is decided once per mount (below), so rendering before the flag resolves would mean loading

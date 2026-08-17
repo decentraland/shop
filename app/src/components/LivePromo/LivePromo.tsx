@@ -247,6 +247,7 @@ export function LivePromo({ id, to, urns, title, cta, ariaLabel, fallback, fallb
                  render on every env (the wrapper otherwise injects the app env's .zone peers, where
                  these urns don't exist). */
               dev={false}
+              unity={false}
               peerUrl="https://peer.decentraland.org"
               marketplaceServerUrl="https://marketplace-api.decentraland.org"
               onLoad={() => setReady(true)}
