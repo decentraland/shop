@@ -12,6 +12,7 @@ import { fetchOwnsItem } from '~/lib/api'
 import { formatCredits, CURRENCY } from '~/lib/currency'
 import { isIapMode } from '~/lib/iap'
 import { myItemsRouteFor } from '~/lib/routes'
+import { JUMP_URL } from '~/lib/jump'
 import { useSeo } from '~/hooks/useSeo'
 import { t } from '~/intl/i18n'
 import type { CatalogItem } from '~/lib/api'
@@ -186,9 +187,6 @@ function useSettlement(txHash: string | undefined, ownership: OwnershipCheck | n
   return state
 }
 
-// Modern in-world entry: the launcher deep-link handled by decentraland.org/jump (zone on testnet).
-// The old play.decentraland.* web client is deprecated. The item is already in the wardrobe.
-const JUMP_URL = config.chainId === 80002 ? 'https://decentraland.zone/jump' : 'https://decentraland.org/jump'
 // Block explorer for the settlement tx — shown ONLY to self-custody wallets (they understand
 // explorers); managed/thirdweb users just get the in-app "View order". See lib/wallet-kind.ts.
 const EXPLORER_TX = config.chainId === 80002 ? 'https://amoy.polygonscan.com/tx/' : 'https://polygonscan.com/tx/'
