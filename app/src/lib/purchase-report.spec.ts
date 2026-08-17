@@ -87,6 +87,70 @@ describe('when the session is gone', () => {
   })
 })
 
+/**
+ * Every one of these used to return in silence, and that is why a 7.5% record rate could sit unexplained for
+ * a week: the four ways of declining to send were indistinguishable from a purchase that never happened. What
+ * these tests pin is that each one now names itself on the way out — while still never throwing, and still
+ * never reaching the server.
+ */
+describe('when it gives up before reporting', () => {
+  it.each([
+    ['nothing to report', () => reportSubmittedTx({ txHash: TX_HASH, salts: [] })],
+    ['nothing to report', () => reportSubmittedTx({ txHash: '', salts: SALTS })]
+  ])('should name %s rather than returning silently', (reason, act) => {
+    act()
+
+    expect(reportIntentSubmission).not.toHaveBeenCalled()
+    expect(captureError).toHaveBeenCalledWith(expect.any(Error), expect.objectContaining({ reason }))
+  })
+
+  it('should name a missing identity, which is the leading suspect for the ones we never see', () => {
+    getState.mockReturnValue({ session: { identity: undefined } })
+
+    reportSubmittedTx({ txHash: TX_HASH, salts: SALTS })
+
+    expect(reportIntentSubmission).not.toHaveBeenCalled()
+    expect(captureError).toHaveBeenCalledWith(
+      expect.any(Error),
+      expect.objectContaining({ reason: 'no identity in the wallet store' })
+    )
+  })
+
+  it('should report a throwing store and still not throw', () => {
+    const boom = new Error('store exploded')
+    getState.mockImplementation(() => {
+      throw boom
+    })
+
+    expect(() => reportSubmittedTx({ txHash: TX_HASH, salts: SALTS })).not.toThrow()
+    expect(captureError).toHaveBeenCalledWith(boom, expect.objectContaining({ reason: 'wallet store threw' }))
+  })
+
+  // The nastiest of the four: a 200 whose `recorded: 0` means the salts matched no row of this wallet. The
+  // server says so quietly by design, so from here it looked exactly like success.
+  it('should report a 200 that stamped nothing', async () => {
+    reportIntentSubmission.mockResolvedValue(0)
+
+    reportSubmittedTx({ txHash: TX_HASH, salts: SALTS })
+
+    await vi.waitFor(() =>
+      expect(captureError).toHaveBeenCalledWith(
+        expect.any(Error),
+        expect.objectContaining({ reason: 'server recorded 0 rows' })
+      )
+    )
+  })
+
+  it('should stay quiet when rows were stamped', async () => {
+    reportIntentSubmission.mockResolvedValue(2)
+
+    reportSubmittedTx({ txHash: TX_HASH, salts: SALTS })
+
+    await vi.waitFor(() => expect(reportIntentSubmission).toHaveBeenCalled())
+    expect(captureError).not.toHaveBeenCalled()
+  })
+})
+
 describe('when the report itself fails', () => {
   // THE point of the module: the transaction is already on the chain. A failed report must be observable to
   // us and invisible to the buyer's checkout.
@@ -96,7 +160,12 @@ describe('when the report itself fails', () => {
 
     expect(() => reportSubmittedTx({ txHash: TX_HASH, salts: SALTS })).not.toThrow()
 
-    await vi.waitFor(() => expect(captureError).toHaveBeenCalledWith(failure, { flow: 'report-submitted-tx' }))
+    await vi.waitFor(() =>
+      expect(captureError).toHaveBeenCalledWith(failure, {
+        flow: 'report-submitted-tx',
+        reason: 'request failed'
+      })
+    )
   })
 
   it('should not leave the rejection unhandled', async () => {

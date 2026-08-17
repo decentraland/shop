@@ -19,21 +19,50 @@ import { useWallet } from '~/store/wallet'
  *
  * Reads the session from the store rather than taking an identity, so the tx libraries that call it do not
  * have to thread auth through every checkout path. Same shape as `analytics` and `monitoring`.
+ *
+ * SWALLOWED IS NOT THE SAME AS UNREPORTED. Every giving-up path below is now named on the way out, because
+ * without that this function is unfalsifiable: only 3 of 40 settled purchases carry a hash, the server logs
+ * no request at all for the ones that are missing, and each of the four ways this can decline to send looked
+ * identical from the outside — including a 200 whose `recorded: 0` means the salts matched nothing. The
+ * reports keep the fire-and-forget contract: they observe, they never throw, and they never gate a purchase.
  */
+function reportGaveUp(reason: string, context: Record<string, unknown> = {}): void {
+  captureError(new Error(`report-submitted-tx gave up: ${reason}`), {
+    flow: 'report-submitted-tx',
+    reason,
+    ...context
+  })
+}
+
 export function reportSubmittedTx(info: { txHash: string; salts: string[] }): void {
-  if (info.salts.length === 0 || !info.txHash) return
+  if (info.salts.length === 0 || !info.txHash) {
+    reportGaveUp('nothing to report', { salts: info.salts.length, hasTxHash: !!info.txHash })
+    return
+  }
 
   // Read the store defensively: a checkout can outlive the session it started in (a disconnect mid-flight),
   // and this must not be the thing that throws when it does.
   let identity: AuthIdentity | undefined
   try {
     identity = useWallet.getState().session?.identity
-  } catch {
+  } catch (error) {
+    captureError(error, { flow: 'report-submitted-tx', reason: 'wallet store threw' })
     return
   }
-  if (!identity) return
+  if (!identity) {
+    reportGaveUp('no identity in the wallet store', { salts: info.salts.length })
+    return
+  }
 
-  void reportIntentSubmission(identity, info.salts, info.txHash).catch(error => {
-    captureError(error, { flow: 'report-submitted-tx' })
-  })
+  void reportIntentSubmission(identity, info.salts, info.txHash)
+    .then(recorded => {
+      // A 200 that stamped nothing. The server treats it as "not my rows" and says so quietly; from here it
+      // is indistinguishable from success, which is how a systematic salt or address mismatch would hide.
+      if (recorded === 0) {
+        reportGaveUp('server recorded 0 rows', { salts: info.salts.length })
+      }
+    })
+    .catch(error => {
+      captureError(error, { flow: 'report-submitted-tx', reason: 'request failed' })
+    })
 }
