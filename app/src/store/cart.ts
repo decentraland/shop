@@ -4,7 +4,12 @@ import type { CatalogItem } from '~/lib/api'
 import { track, creditsToUsd } from '~/lib/analytics'
 
 // Where an add-to-cart happened (funnel attribution — see design/SHOP_TRACKING_SPEC.md §5.3).
-export type AddToCartSource = 'grid' | 'item_detail' | 'carousel' | 'upsell' | 'outfit'
+//
+// The home page's rails get their own values rather than folding into 'grid'. AssetCard used to hardcode
+// 'grid' wherever it was rendered, so an add from Trending was indistinguishable from one off the browse
+// grid and the rails' contribution read as zero. 'carousel' is NOT one of them — it belongs to the avatar
+// showcase's bulk add.
+export type AddToCartSource = 'grid' | 'item_detail' | 'carousel' | 'upsell' | 'outfit' | 'trending' | 'new_creations'
 
 /**
  * Where the line came from, stamped when it enters the cart and carried through to the purchase event.

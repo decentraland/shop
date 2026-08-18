@@ -544,3 +544,49 @@ describe('AssetCard rarity label', () => {
     expect(screen.getByText('Uncommon')).toBeInTheDocument()
   })
 })
+
+describe('AssetCard provenance (which surface the card was rendered on)', () => {
+  function renderOn(source?: 'trending' | 'new_creations', position?: number) {
+    const spy = vi.fn()
+    ;(window as unknown as { analytics?: unknown }).analytics = { track: spy, identify: vi.fn(), page: vi.fn() }
+    render(
+      <MemoryRouter>
+        <AssetCard item={makeItem()} source={source} position={position} />
+      </MemoryRouter>
+    )
+    return spy
+  }
+
+  afterEach(() => {
+    ;(window as unknown as { analytics?: unknown }).analytics = undefined
+  })
+
+  it('should name the rail on the click event, so a rail click-through is attributable', () => {
+    const spy = renderOn('trending', 2)
+
+    fireEvent.click(screen.getByTestId('card-link'))
+
+    const call = spy.mock.calls.find(([event]) => event === 'Shop Clicked Item')
+    expect(call).toBeDefined()
+    expect(call?.[1]).toMatchObject({ source: 'trending', position: 2, contract_address: '0xc' })
+  })
+
+  it('should stamp the rail on the cart line rather than reporting every card as the browse grid', () => {
+    renderOn('trending', 0)
+
+    fireEvent.click(screen.getByTestId('card-cart'))
+
+    expect(useCart.getState().items[0]).toMatchObject({ id: 't1', source: 'trending' })
+  })
+
+  it('should fall back to the browse grid when no surface is given', () => {
+    const spy = renderOn()
+
+    fireEvent.click(screen.getByTestId('card-cart'))
+    fireEvent.click(screen.getByTestId('card-link'))
+
+    expect(useCart.getState().items[0]).toMatchObject({ source: 'grid' })
+    const call = spy.mock.calls.find(([event]) => event === 'Shop Clicked Item')
+    expect(call?.[1]).toMatchObject({ source: 'grid', position: null })
+  })
+})
