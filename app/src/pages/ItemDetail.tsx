@@ -184,20 +184,34 @@ export function ItemDetail() {
   // instead of a dead-end. For a shop item we stash a resume so the buy modal reopens and completes on
   // return; a legacy/market item's mode lives in router state (lost on the full-page redirect), so it
   // just lands back here signed in.
+  /**
+   * Open the buy modal AND count the checkout. The two belong together: this page has two ways into the
+   * modal — a direct click, and the return from a sign-in round-trip — and the resume path reopens the
+   * modal without going back through `handleBuyNow`, so tracking only the click missed every buyer who
+   * was signed out when they pressed it. The cart gets this for free because its resume re-runs
+   * `checkout()`; here it has to be explicit.
+   *
+   * NO `has_sufficient_credits`, unlike the cart's event: the balance is not in scope on this page and
+   * the modal is what resolves funding. Nullable by design — see spec §5.3.
+   *
+   * The value is NULL rather than 0 when the item has not hydrated yet: the resume effect fires as soon
+   * as the session lands, which on a full-page sign-in redirect can beat the item's fetch. A zero there
+   * would be a wrong number in value-based analysis, where a null is merely an absent one.
+   */
+  function openBuy() {
+    const credits = current.priceCredits > 0 ? current.priceCredits : null
+    track('Shop Started Checkout', {
+      checkout_source: 'item_page',
+      cart_size: 1,
+      cart_value_credits: credits,
+      cart_value_usd: credits === null ? null : creditsToUsd(credits)
+    })
+    setShowBuy(true)
+  }
+
   function handleBuyNow() {
     if (session) {
-      // The SECOND way into checkout. `Shop Started Checkout` used to fire only from the cart, so the four
-      // buyers who came straight from an item page never entered the funnel and the cart's step read a
-      // 90% completion that was really a set overlap. `checkout_source` is what separates the two paths.
-      // NO `has_sufficient_credits` on this path, unlike the cart's: the balance is not in scope here, and
-      // the buy modal is what resolves funding. The field is nullable by design — see spec §5.3.
-      track('Shop Started Checkout', {
-        checkout_source: 'item_page',
-        cart_size: 1,
-        cart_value_credits: current.priceCredits,
-        cart_value_usd: creditsToUsd(current.priceCredits)
-      })
-      setShowBuy(true)
+      openBuy()
       return
     }
     if (!isMarket) stashResumeIntent({ type: 'item-buy', path: location.pathname })
@@ -213,7 +227,7 @@ export function ItemDetail() {
     if (!intent || intent.path !== location.pathname) return
     buyResumedRef.current = true
     setResumeBuy(true)
-    setShowBuy(true)
+    openBuy()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session])
 
@@ -933,11 +947,12 @@ export function ItemDetail() {
     // Funnel entry for a listing, PRIMARY or SECONDARY. The spec (§5.6) has always called for both; the
     // event was wired only to the secondary branch, so the primary flow — the one sellers actually use —
     // produced listings with no funnel entry at all and `Shop Started Listing` read zero.
-    if (!relist)
+    if (!relist) {
       track('Shop Started Listing', {
         listing_type: manageAsSecondary ? 'secondary' : 'primary',
         item_id: current.itemId ?? current.tokenId ?? null
       })
+    }
     if (manageAsSecondary) setShowSell(true)
     else setShowPrimary(true)
   }
