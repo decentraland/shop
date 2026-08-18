@@ -73,6 +73,25 @@ describe('when adding an item to the cart', () => {
     expect(trackMock.mock.calls[0][1]).toMatchObject({ source: 'grid' })
   })
 
+  it('should stamp the source and outfit id on the line, so the purchase event can name them', () => {
+    useCart.getState().add(item(), 'outfit', 'fit-1')
+    expect(useCart.getState().items[0]).toMatchObject({ source: 'outfit', outfitId: 'fit-1' })
+  })
+
+  it('should keep the first source when a primary line is added again (first touch wins)', () => {
+    useCart.getState().add(item(), 'outfit', 'fit-1')
+    useCart.getState().add(item(), 'grid')
+
+    const [line] = useCart.getState().items
+    expect(line.quantity).toBe(2)
+    expect(line).toMatchObject({ source: 'outfit', outfitId: 'fit-1' })
+  })
+
+  it('should leave outfitId unset for a line that did not come from an outfit', () => {
+    useCart.getState().add(item(), 'grid')
+    expect(useCart.getState().items[0].outfitId).toBeUndefined()
+  })
+
   it('should mark a secondary listing (has tokenId) as not primary and null item_id', () => {
     useCart.getState().add(item({ itemId: null, tokenId: '9' }))
     expect(trackMock.mock.calls[0][1]).toMatchObject({ is_primary: false, item_id: null })

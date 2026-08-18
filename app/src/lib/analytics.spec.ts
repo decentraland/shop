@@ -127,6 +127,35 @@ describe('analytics wrapper', () => {
     expect(p.is_primary).toBe(false)
   })
 
+  it('purchaseItemsProps counts the units an outfit contributed, so an outfit sale is countable', () => {
+    const p = purchaseItemsProps([
+      { ...item({ id: 'a' }), source: 'outfit', outfitId: 'fit-1' },
+      { ...item({ id: 'b' }), source: 'outfit', outfitId: 'fit-1' },
+      { ...item({ id: 'c' }), source: 'grid' }
+    ])
+    expect(p.units_from_outfit).toBe(2)
+    expect(p.outfit_ids).toEqual(['fit-1'])
+    const items = p.items as Array<{ source: string | null; outfit_id: string | null }>
+    expect(items.map(i => i.source)).toEqual(['outfit', 'outfit', 'grid'])
+    expect(items[2].outfit_id).toBeNull()
+  })
+
+  it('purchaseItemsProps dedupes and sorts outfit ids when a basket mixes two looks', () => {
+    const p = purchaseItemsProps([
+      { ...item({ id: 'a' }), source: 'outfit', outfitId: 'fit-b' },
+      { ...item({ id: 'b' }), source: 'outfit', outfitId: 'fit-a' },
+      { ...item({ id: 'c' }), source: 'outfit', outfitId: 'fit-b' }
+    ])
+    expect(p.outfit_ids).toEqual(['fit-a', 'fit-b'])
+    expect(p.units_from_outfit).toBe(3)
+  })
+
+  it('purchaseItemsProps reports no outfit as null, not an empty array', () => {
+    const p = purchaseItemsProps([item()])
+    expect(p.outfit_ids).toBeNull()
+    expect(p.units_from_outfit).toBe(0)
+  })
+
   it('purchaseItemsProps carries per-item category so a basket can be split by asset type', () => {
     const p = purchaseItemsProps([item({ category: 'wearable', isSmart: true }), item({ id: 't2', category: 'emote' })])
     const items = p.items as Array<{ category: string; is_smart: boolean }>

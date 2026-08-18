@@ -6,10 +6,23 @@ import { track, creditsToUsd } from '~/lib/analytics'
 // Where an add-to-cart happened (funnel attribution — see design/SHOP_TRACKING_SPEC.md §5.3).
 export type AddToCartSource = 'grid' | 'item_detail' | 'carousel' | 'upsell' | 'outfit'
 
+/**
+ * Where the line came from, stamped when it enters the cart and carried through to the purchase event.
+ *
+ * It lives ON the line rather than only in the add-to-cart event because that is the only way the
+ * purchase can name it: `Shop Added To Cart` knew the source and `Shop Completed Purchase` did not, so
+ * an outfit that was actually bought was indistinguishable from three unrelated wearables and outfit
+ * sales read as zero. Persisted with the cart, so it survives a reload or the return from a Stripe
+ * top-up.
+ *
+ * FIRST TOUCH WINS: a quantity bump on a line already in the cart keeps the original source.
+ */
+export type CartProvenance = { source?: AddToCartSource; outfitId?: string }
+
 // A cart line: a catalog item plus how many units of it the buyer wants. Quantity is meaningful ONLY
 // for PRIMARY (mint) lines — a buyer can mint N copies up to the remaining supply (`available`). A
 // SECONDARY line is a single unique token (tokenId), so it stays locked at quantity 1.
-export type CartItem = CatalogItem & { quantity: number }
+export type CartItem = CatalogItem & CartProvenance & { quantity: number }
 
 // Primary (mint) lines carry an itemId and no tokenId; secondary lines carry a specific tokenId.
 const isPrimaryLine = (item: { tokenId?: string }): boolean => !item.tokenId
@@ -30,7 +43,8 @@ type CartState = {
   justAddedCount: number
   /** Whether the fitting-room (try-on) modal is showing. */
   fittingOpen: boolean
-  add: (item: CatalogItem, source?: AddToCartSource) => void
+  /** `outfitId` is set only when source is 'outfit' — it is what makes an outfit sale countable. */
+  add: (item: CatalogItem, source?: AddToCartSource, outfitId?: string) => void
   remove: (id: string) => void
   /** Set an exact quantity for a PRIMARY line (clamped to 1..stock). No-op for secondary lines. */
   setQuantity: (id: string, quantity: number) => void
@@ -42,7 +56,7 @@ type CartState = {
   /** Point the cart at a session (address, or null when signed out) — see the action for the policy. */
   reloadFor: (address: string | null) => void
   /** Restore a cart snapshot (used to resume checkout after a Stripe top-up redirect wiped the store). */
-  restore: (items: Array<CatalogItem & { quantity?: number }>) => void
+  restore: (items: Array<CatalogItem & CartProvenance & { quantity?: number }>) => void
   setOpen: (open: boolean) => void
   setFittingOpen: (open: boolean) => void
 }
@@ -53,7 +67,7 @@ const cartValueUsd = (items: CartItem[]): number =>
 
 // Coerce a persisted/restored line to a valid CartItem: default a missing/invalid quantity to 1
 // (backward-compat with carts saved before quantity existed), and never let a secondary line exceed 1.
-const withQuantity = (item: CatalogItem & { quantity?: number }): CartItem => {
+const withQuantity = (item: CatalogItem & CartProvenance & { quantity?: number }): CartItem => {
   const raw = Math.floor(item.quantity ?? 1)
   const quantity = isPrimaryLine(item) ? Math.max(1, Number.isFinite(raw) ? raw : 1) : 1
   return { ...item, quantity }
@@ -76,7 +90,7 @@ export const useCart = create<CartState>()(
       // quantity (capped at stock); a SECONDARY line already in the cart is a no-op (a unique token —
       // only one can be bought). Every real add (new line OR a primary increment) bumps justAddedCount
       // for the success banner and tracks a funnel event; a no-op does neither.
-      add: (item, source = 'grid') => {
+      add: (item, source = 'grid', outfitId) => {
         const isPrimary = isPrimaryLine(item)
         const existing = get().items.find(i => i.id === item.id)
 
@@ -100,7 +114,7 @@ export const useCart = create<CartState>()(
                 justAddedCount: (s.open ? s.justAddedCount : 0) + 1
               }
             : {
-                items: [...s.items, withQuantity(item)],
+                items: [...s.items, withQuantity({ ...item, source, outfitId })],
                 open: true,
                 // The drawer is the surface an add raises; belt and braces so no path can leave the fitting
                 // room open over the page the buyer is actually looking at.

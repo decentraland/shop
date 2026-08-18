@@ -489,6 +489,17 @@ describe('resolveLine', () => {
     if (outcome.line.acquisition === 'store') expect(outcome.line.priceWei).toBe(TEN_MANA)
   })
 
+  it('should carry the cart line through untouched, so purchase analytics keep its provenance', async () => {
+    const line = { ...mint('a', 999), source: 'outfit' as const, outfitId: 'fit-1' }
+    const outcome = await resolveLine(line, BUYER, resolverFrom({}), RATE, liveMint)
+
+    expect(outcome.status).toBe('buyable')
+    if (outcome.status !== 'buyable') return
+    // Re-pricing must not rebuild the item: `Shop Completed Purchase` reads source/outfitId off this
+    // object, and losing them here is what made outfit sales read as zero.
+    expect(outcome.line.item).toMatchObject({ source: 'outfit', outfitId: 'fit-1' })
+  })
+
   it('should report a sold-out mint as gone rather than letting it revert on-chain', async () => {
     const outcome = await resolveLine(mint('a', 50), BUYER, resolverFrom({}), RATE, async () => ({
       priceWei: TEN_MANA,
