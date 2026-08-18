@@ -189,6 +189,8 @@ export function ItemDetail() {
       // The SECOND way into checkout. `Shop Started Checkout` used to fire only from the cart, so the four
       // buyers who came straight from an item page never entered the funnel and the cart's step read a
       // 90% completion that was really a set overlap. `checkout_source` is what separates the two paths.
+      // NO `has_sufficient_credits` on this path, unlike the cart's: the balance is not in scope here, and
+      // the buy modal is what resolves funding. The field is nullable by design — see spec §5.3.
       track('Shop Started Checkout', {
         checkout_source: 'item_page',
         cart_size: 1,
@@ -924,14 +926,18 @@ export function ItemDetail() {
     }
   }
 
-  function openListModal() {
+  // `relist` suppresses the funnel-entry event: updatePrice() takes the old listing down and reopens this
+  // modal to price it again, which is an EDIT, not a new listing. Counting it would inflate the funnel's
+  // entry by one per price change and make the listing conversion rate look worse than it is.
+  function openListModal({ relist = false }: { relist?: boolean } = {}) {
     // Funnel entry for a listing, PRIMARY or SECONDARY. The spec (§5.6) has always called for both; the
     // event was wired only to the secondary branch, so the primary flow — the one sellers actually use —
     // produced listings with no funnel entry at all and `Shop Started Listing` read zero.
-    track('Shop Started Listing', {
-      listing_type: manageAsSecondary ? 'secondary' : 'primary',
-      item_id: current.itemId ?? current.tokenId ?? null
-    })
+    if (!relist)
+      track('Shop Started Listing', {
+        listing_type: manageAsSecondary ? 'secondary' : 'primary',
+        item_id: current.itemId ?? current.tokenId ?? null
+      })
     if (manageAsSecondary) setShowSell(true)
     else setShowPrimary(true)
   }
@@ -944,7 +950,7 @@ export function ItemDetail() {
     setManaging('update')
     try {
       const ok = await takeDown({ silent: true, own: false })
-      if (ok) openListModal()
+      if (ok) openListModal({ relist: true })
     } finally {
       setManaging(null)
     }
@@ -1540,7 +1546,10 @@ export function ItemDetail() {
                             {/* Put up for sale (Figma 1527-302810): dark-solid primary. Absent when the
                             viewer may not sell — an owned token with secondary sales off. */}
                             {canPutOnSale ? (
-                              <S.DarkCta onClick={openListModal} disabled={managing !== null || !canOpenListModal}>
+                              <S.DarkCta
+                                onClick={() => openListModal()}
+                                disabled={managing !== null || !canOpenListModal}
+                              >
                                 <span>{t('itemDetail.manageList')}</span>
                               </S.DarkCta>
                             ) : null}
