@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { fetchShopItems, fetchTrendingItems, type CatalogItem } from '~/lib/api'
+import type { AddToCartSource } from '~/store/cart'
 import { isIapMode } from '~/lib/iap'
 import { AssetCard } from '~/components/AssetCard'
 import { SkeletonCards, SkeletonSettle } from '~/components/SkeletonCards'
@@ -36,7 +37,19 @@ const SKELETON_COUNT = 6
 // 16px gap — no partial card is ever cut off (matches the Figma). The JS just pages by one viewport
 // width and derives the dot count from the scroll extent, so it stays correct at every breakpoint
 // without duplicating the per-card width math.
-function Carousel({ title, items, loading }: { title: string; items: CatalogItem[]; loading: boolean }) {
+function Carousel({
+  title,
+  items,
+  loading,
+  source
+}: {
+  title: string
+  items: CatalogItem[]
+  loading: boolean
+  // Which rail this is, so the cards' click and add-to-cart events name it. Without it every card in
+  // every rail reported 'grid' and the rails could not be compared against the browse grid or each other.
+  source: AddToCartSource
+}) {
   const trackRef = useRef<HTMLDivElement>(null)
   const [pageCount, setPageCount] = useState(1)
   const [page, setPage] = useState(0)
@@ -107,7 +120,7 @@ function Carousel({ title, items, loading }: { title: string; items: CatalogItem
           {loading ? (
             <SkeletonCards count={SKELETON_COUNT} />
           ) : (
-            items.map(item => <AssetCard key={item.id} item={item} />)
+            items.map((item, i) => <AssetCard key={item.id} item={item} source={source} position={i} />)
           )}
         </S.Track>
         {/* The skeletons' exit: the same placeholder rail, laid over the cards that replaced it and
@@ -217,7 +230,12 @@ export function Overview() {
           no rail, so it disappears rather than falling back to something that is not trending. Gating it on
           the listings query instead would tie it to a different feed's emptiness. */}
       {trendingLoading || trendingItems.length > 0 ? (
-        <Carousel title={t('overview.trendingProducts')} items={trendingItems} loading={trendingLoading} />
+        <Carousel
+          title={t('overview.trendingProducts')}
+          items={trendingItems}
+          loading={trendingLoading}
+          source="trending"
+        />
       ) : null}
 
       {/* "Buy the Look" sits between the two listing rails, per the section order design settled on:
@@ -237,7 +255,12 @@ export function Overview() {
               everything under it (outfits, creators, the footer) down by a full 438px, the single biggest
               jump on this page. The enclosing branch is now the same condition — there is one listings
               rail left, so a second guard on it would always be true. */}
-          <Carousel title={t('overview.newCreations')} items={items.slice(0, 12)} loading={isLoading} />
+          <Carousel
+            title={t('overview.newCreations')}
+            items={items.slice(0, 12)}
+            loading={isLoading}
+            source="new_creations"
+          />
 
           {/* Live promo tiles: real avatars over the fitting room's animated backdrop — the monkey
               playing HOT SAX for emotes, the week's featured skin doing Catwalk & Twirls for outfits. */}

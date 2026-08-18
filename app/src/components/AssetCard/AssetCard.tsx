@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useCart } from '~/store/cart'
+import { useCart, type AddToCartSource } from '~/store/cart'
 import { useFavorite } from '~/store/favorites'
 import { useHoverPreview } from '~/store/hoverPreview'
 import { useWallet } from '~/store/wallet'
@@ -13,6 +13,7 @@ import { Icon } from '~/components/Icon'
 import { saleDiscountPct } from '~/lib/sale'
 import { formatCredits, formatCreditsFull } from '~/lib/currency'
 import { t } from '~/intl/i18n'
+import { track } from '~/lib/analytics'
 import { useSaleActive } from '~/hooks/useSaleActive'
 import type { CatalogItem } from '~/lib/api'
 import * as S from './AssetCard.styles'
@@ -41,21 +42,28 @@ const HOVER_DELAY_MS = 120
 //   reveal). For a wearable/emote it navigates to the item detail page (where List / Update price /
 //   Remove live, per token); for a NAME it's an external link to the Builder's name management page
 //   (`manageHref`). No inline listing happens from the My Assets card anymore.
-type AssetCardProps =
-  | { item: CatalogItem; mode?: 'shop' }
-  | { item: CatalogItem; mode: 'view' }
-  | {
-      item: CatalogItem
-      mode: 'manage'
-      listed: boolean
-      busy?: boolean
-      onList: (item: CatalogItem) => void
-      onUnlist: (item: CatalogItem) => void
-    }
-  | { item: CatalogItem; mode: 'manage-link'; manageHref?: string }
+// Where this card is rendered, and where in its row. Both flow into the click and add-to-cart events so a
+// rail's contribution is attributable — without them every card reported itself as the browse grid, which
+// is why Trending's CTR was unmeasurable. `position` is 0-based and only meaningful inside an ordered row.
+type AssetCardProvenance = { source?: AddToCartSource; position?: number }
+
+type AssetCardProps = AssetCardProvenance &
+  (
+    | { item: CatalogItem; mode?: 'shop' }
+    | { item: CatalogItem; mode: 'view' }
+    | {
+        item: CatalogItem
+        mode: 'manage'
+        listed: boolean
+        busy?: boolean
+        onList: (item: CatalogItem) => void
+        onUnlist: (item: CatalogItem) => void
+      }
+    | { item: CatalogItem; mode: 'manage-link'; manageHref?: string }
+  )
 
 export function AssetCard(props: AssetCardProps) {
-  const { item } = props
+  const { item, source = 'grid', position } = props
   const isView = props.mode === 'view'
   const isManage = props.mode === 'manage'
   const isManageLink = props.mode === 'manage-link'
@@ -295,6 +303,18 @@ export function AssetCard(props: AssetCardProps) {
         <S.CardLink
           data-testid="card-link"
           to={detailPath}
+          // Fired here rather than on the detail page's mount: `Shop Viewed Item` cannot say where the
+          // click came from, so a rail's click-through was invisible. Navigation is not blocked on it —
+          // `track` is fire-and-forget.
+          onClick={() =>
+            track('Shop Clicked Item', {
+              item_id: item.itemId ?? item.tokenId ?? null,
+              contract_address: item.contractAddress,
+              source,
+              position: position ?? null,
+              price_credits: item.priceCredits
+            })
+          }
           // Every card hands the detail page the same thing now: the item and its tradeId. There is no
           // longer a separate "market mode" for legacy listings — they are ordinary cart liquidity, priced
           // the same way and bought through the same path.
@@ -588,7 +608,7 @@ export function AssetCard(props: AssetCardProps) {
                 onClick={e => {
                   if (own) return goManage(e)
                   e.stopPropagation()
-                  add(item, 'grid')
+                  add(item, source)
                 }}
                 disabled={!own && cartFull}
                 aria-label={own ? t('assetCard.manage') : cartFull ? t('assetCard.inCart') : t('assetCard.addToCart')}
@@ -606,7 +626,7 @@ export function AssetCard(props: AssetCardProps) {
                 onClick={e => {
                   if (own) return goManage(e)
                   e.stopPropagation()
-                  add(item, 'grid')
+                  add(item, source)
                 }}
                 disabled={!own && cartFull}
               >

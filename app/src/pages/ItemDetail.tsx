@@ -63,7 +63,7 @@ import { rarityColor, rarityDescription } from '~/lib/rarity'
 import { categoryIcon, genderIcon } from '~/lib/itemIcons'
 import { saleDiscountPct } from '~/lib/sale'
 import { useSaleActive } from '~/hooks/useSaleActive'
-import { track, itemProps } from '~/lib/analytics'
+import { track, itemProps, creditsToUsd } from '~/lib/analytics'
 import { recordViewed } from '~/lib/recently-viewed'
 import { isOwnListing } from '~/lib/ownership'
 import * as S from './ItemDetail.styles'
@@ -186,6 +186,15 @@ export function ItemDetail() {
   // just lands back here signed in.
   function handleBuyNow() {
     if (session) {
+      // The SECOND way into checkout. `Shop Started Checkout` used to fire only from the cart, so the four
+      // buyers who came straight from an item page never entered the funnel and the cart's step read a
+      // 90% completion that was really a set overlap. `checkout_source` is what separates the two paths.
+      track('Shop Started Checkout', {
+        checkout_source: 'item_page',
+        cart_size: 1,
+        cart_value_credits: current.priceCredits,
+        cart_value_usd: creditsToUsd(current.priceCredits)
+      })
       setShowBuy(true)
       return
     }
@@ -916,6 +925,13 @@ export function ItemDetail() {
   }
 
   function openListModal() {
+    // Funnel entry for a listing, PRIMARY or SECONDARY. The spec (§5.6) has always called for both; the
+    // event was wired only to the secondary branch, so the primary flow — the one sellers actually use —
+    // produced listings with no funnel entry at all and `Shop Started Listing` read zero.
+    track('Shop Started Listing', {
+      listing_type: manageAsSecondary ? 'secondary' : 'primary',
+      item_id: current.itemId ?? current.tokenId ?? null
+    })
     if (manageAsSecondary) setShowSell(true)
     else setShowPrimary(true)
   }
@@ -1524,19 +1540,7 @@ export function ItemDetail() {
                             {/* Put up for sale (Figma 1527-302810): dark-solid primary. Absent when the
                             viewer may not sell — an owned token with secondary sales off. */}
                             {canPutOnSale ? (
-                              <S.DarkCta
-                                onClick={() => {
-                                  // Funnel-entry event for a secondary listing — this is the flow that moved off
-                                  // the My Assets card (its "put on sale" fired the same event) onto the PDP.
-                                  if (manageAsSecondary)
-                                    track('Shop Started Listing', {
-                                      listing_type: 'secondary',
-                                      item_id: current.itemId ?? current.tokenId ?? null
-                                    })
-                                  openListModal()
-                                }}
-                                disabled={managing !== null || !canOpenListModal}
-                              >
+                              <S.DarkCta onClick={openListModal} disabled={managing !== null || !canOpenListModal}>
                                 <span>{t('itemDetail.manageList')}</span>
                               </S.DarkCta>
                             ) : null}

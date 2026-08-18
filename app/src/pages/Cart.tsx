@@ -1066,6 +1066,7 @@ export function Cart() {
     setBusy(true)
     const cartCredits = cartItems.reduce((n, i) => n + i.priceCredits * i.quantity, 0)
     track('Shop Started Checkout', {
+      checkout_source: 'cart',
       cart_size: cartItems.length,
       cart_value_credits: cartCredits,
       cart_value_usd: creditsToUsd(cartCredits),
