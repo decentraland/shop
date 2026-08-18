@@ -1,4 +1,5 @@
 import styled from '@emotion/styled'
+import { Link } from 'react-router-dom'
 import { css } from '@emotion/react'
 import { theme } from '~/styles/theme'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
@@ -368,6 +369,32 @@ export const DetailChip = styled(Chip)`
   &[data-variant='blocked']:focus-visible {
     outline: 2px solid #ff7439;
     outline-offset: 2px;
+  }
+`
+
+/**
+ * The clickable twin of {@link DetailChip}, for the attributes the browse page can filter by.
+ *
+ * Built with `withComponent` rather than a copied style block so the two can never drift apart — a
+ * linked chip and a static one sit side by side in the same row and any visual difference between them
+ * would read as a bug. The only additions are the affordances a link needs: a pointer, no underline,
+ * and a lift on hover so it is discoverable without a second colour.
+ */
+export const DetailChipLink = styled(DetailChip.withComponent(Link))`
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.15s ease;
+
+  &:hover,
+  &:focus-visible {
+    background: rgba(255, 255, 255, 0.26);
+  }
+
+  /* The rarity chip carries its own colour inline, so a background hover would be overridden and the
+     chip would look inert. It gets a ring instead, which reads on any fill. */
+  &[data-variant='rarity']:hover,
+  &[data-variant='rarity']:focus-visible {
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.45);
   }
 `
 

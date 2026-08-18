@@ -256,6 +256,9 @@
     "statusAll": "Todos",
     "onSale": "En venta",
     "notForSale": "No en venta",
+    "browseByRarity": "Ver todos los items {rarity}",
+    "browseByCategory": "Ver todos los {category}",
+    "browseBySmart": "Ver todos los smart wearables",
     "smart": "Smart",
     "smartHint": "Los wearables Smart añaden utilidad interactiva en el mundo."
   },

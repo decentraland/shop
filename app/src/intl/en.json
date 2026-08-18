@@ -256,6 +256,9 @@
     "statusAll": "All",
     "onSale": "On Sale",
     "notForSale": "Not for Sale",
+    "browseByRarity": "Browse all {rarity} items",
+    "browseByCategory": "Browse all {category}",
+    "browseBySmart": "Browse all smart wearables",
     "smart": "Smart",
     "smartHint": "Smart wearables add interactive, in-world utility."
   },
