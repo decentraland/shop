@@ -383,7 +383,11 @@ export function MyAssets() {
 
   // ---------------- Sidebar (shared between desktop + mobile drawer) ----------------
   const sidebar = (
-    <>
+    // F.Root, not a bare fragment: it is what defines the 12px rhythm between a sidebar's blocks, and
+    // Collectibles gets it for free by rendering <Filters>, which wraps its own children in it. This page
+    // composes the same pieces by hand, so without it the last nav row sat flush against the divider
+    // below it. Reused rather than re-spaced here so the two sidebars cannot drift apart.
+    <F.Root>
       {/* Section nav = the SAME CategoryFilter as Collectibles (Wearables/Emotes expand to sub-cats),
           minus "Shop All" and with "My Creations" as the extra entry. */}
       <CategoryFilter
@@ -457,7 +461,7 @@ export function MyAssets() {
           </F.StatusRow>
         ))}
       </FilterSection>
-    </>
+    </F.Root>
   )
 
   return (
