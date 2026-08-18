@@ -59,6 +59,7 @@ import { ErrorNotice } from '~/components/ErrorNotice'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { Price } from '~/components/Price'
 import { Icon } from '~/components/Icon'
+import { categoryHref, rarityHref, smartHref } from '~/lib/chip-links'
 import { rarityColor, rarityDescription } from '~/lib/rarity'
 import { categoryIcon, genderIcon } from '~/lib/itemIcons'
 import { saleDiscountPct } from '~/lib/sale'
@@ -586,6 +587,10 @@ export function ItemDetail() {
   const gender = genderLabel(current.gender)
   const catIco = categoryIcon(current)
   const genderIco = genderIcon(current.gender)
+  // Null for an attribute the browse page cannot filter by, in which case the chip stays static rather
+  // than linking somewhere that would ignore it.
+  const rarityLink = rarityHref(current.rarity)
+  const categoryLink = categoryHref(current)
   const onSale = forSale && saleActive
   // Only a rail made up ENTIRELY of the collection's items can be titled after the collection and offer a
   // "View all" into it; the moment it is padded, both would be describing items that aren't there.
@@ -1134,17 +1139,43 @@ export function ItemDetail() {
               </S.InfoHead>
 
               <S.Chips>
-                <S.DetailChip
-                  data-variant="rarity"
-                  style={{ background: rarityColor(rarity) }}
-                  title={rarityDescription(current.rarity)}
-                >
-                  {current.rarity}
-                </S.DetailChip>
-                <S.DetailChip>
-                  {catIco ? <Icon name={catIco} size={18} /> : null}
-                  {categoryLabel(current)}
-                </S.DetailChip>
+                {/* The filterable attributes are LINKS to the browse page — clicking one shows everything
+                    that shares it. Only these three are linked because only these three are things the
+                    grid can filter by; see lib/chip-links. */}
+                {rarityLink ? (
+                  <S.DetailChipLink
+                    to={rarityLink}
+                    data-variant="rarity"
+                    data-testid="detail-rarity-link"
+                    style={{ background: rarityColor(rarity) }}
+                    title={t('itemDetail.browseByRarity', { rarity: current.rarity })}
+                  >
+                    {current.rarity}
+                  </S.DetailChipLink>
+                ) : (
+                  <S.DetailChip
+                    data-variant="rarity"
+                    style={{ background: rarityColor(rarity) }}
+                    title={rarityDescription(current.rarity)}
+                  >
+                    {current.rarity}
+                  </S.DetailChip>
+                )}
+                {categoryLink ? (
+                  <S.DetailChipLink
+                    to={categoryLink}
+                    data-testid="detail-category-link"
+                    title={t('itemDetail.browseByCategory', { category: categoryLabel(current) })}
+                  >
+                    {catIco ? <Icon name={catIco} size={18} /> : null}
+                    {categoryLabel(current)}
+                  </S.DetailChipLink>
+                ) : (
+                  <S.DetailChip>
+                    {catIco ? <Icon name={catIco} size={18} /> : null}
+                    {categoryLabel(current)}
+                  </S.DetailChip>
+                )}
                 {gender ? (
                   <S.DetailChip>
                     {genderIco ? <Icon name={genderIco} size={18} /> : null}
@@ -1160,10 +1191,10 @@ export function ItemDetail() {
                 {/* Smart wearable, and whether it unlocks something — the same two badges the marketplace
                     shows, from the same two fields (`data.wearable.isSmart` and `utility`). */}
                 {isSmart ? (
-                  <S.DetailChip data-testid="detail-smart">
+                  <S.DetailChipLink to={smartHref()} data-testid="detail-smart" title={t('itemDetail.browseBySmart')}>
                     <Icon name="smart" size={18} />
                     {t('itemDetail.smart')}
-                  </S.DetailChip>
+                  </S.DetailChipLink>
                 ) : null}
                 {/* Emote playback traits — the same three the marketplace's emote detail shows, from the same fields
                     (data.emote loop / hasSound / hasGeometry). loop is deliberately tri-state: false means play-once,
