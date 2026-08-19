@@ -14,7 +14,7 @@
 //
 // ===== BACKEND CONTRACT (credits-server) =====================================
 //   POST /credits/checkout            (signed-fetch, ADR-44: caller == buyer)
-//     req : { packId: string, timezone?: string }
+//     req : { packId: string, timezone?: string, source?: 'website' | 'client' }
 //     res : { orderId: string, url: string }   // Stripe HOSTED Checkout Session URL
 //           The app redirects the browser to `url`; Stripe returns to
 //           `${STRIPE_RETURN_URL}?order=${orderId}` (or `...&canceled=1`).
@@ -73,8 +73,12 @@ export async function createPackCheckoutReal(packId: string, identity: AuthIdent
     identity,
     metadata: {},
     headers: { 'Content-Type': 'application/json' },
-    // JSON.stringify drops an undefined value, so an absent zone leaves the body as `{ packId }`.
-    body: JSON.stringify({ packId, timezone: buyerTimezone() })
+    // `source` declares the surface this checkout comes from ('website' here, 'client' from the
+    // Explorer, which posts to the same endpoint). Without it the server stores NULL, and a NULL
+    // cannot be told apart from an Explorer purchase made by a build that predates the field — so
+    // an unlabelled web checkout would read as an in-world one. Servers predating the field ignore it.
+    // JSON.stringify drops an undefined value, so an absent zone leaves the body as `{ packId, source }`.
+    body: JSON.stringify({ packId, timezone: buyerTimezone(), source: 'website' })
   })
   if (!res.ok) throw new Error(`checkout ${res.status}: ${await res.text()}`)
   const { orderId, url } = (await res.json()) as { orderId: string; url: string }
