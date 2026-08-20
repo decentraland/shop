@@ -436,6 +436,35 @@ describe('when the gasless rail relays one group and another hard-reverts', () =
     expect(useCart.getState().items.map(i => i.id)).toEqual(['b'])
   })
 
+  /**
+   * The stall: one group is relayed, the nonce it consumed has not appeared on chain, and the next group is
+   * therefore never signed. That is a PARTIAL purchase and has to be accounted for as one — the earlier
+   * version threw past this logic, which left the paid line sitting in the cart with its credits already
+   * spent, so a retry would have bought it twice.
+   */
+  it('should account for a group that was relayed before the next one could be signed', async () => {
+    gaslessEnabled.mockReturnValue(true)
+    const { SettlementPendingError } = await import('~/lib/buy-gasless')
+    buyManyGasless.mockImplementation(async (opts: Record<string, any>) => {
+      opts.onBroadcast?.({ txHash: '0xrelayed1', salts: ['salt-1'] })
+      // The second group is never signed, so buyManyGasless stops instead of returning hashes.
+      throw new SettlementPendingError('0xrelayed1')
+    })
+    waitForSettlement.mockResolvedValue(undefined)
+
+    renderCart([item('a'), item('b')])
+    await pay()
+
+    // The relayed line settled, so it leaves the cart; the unsigned one keeps its place for a retry and its
+    // reservation is handed back. Nothing that was broadcast is released.
+    // The relayed line settled, so it is the buyer's and leaves the cart. The unsigned one keeps its place
+    // for a retry and its reservation is handed back — and nothing that was broadcast is released.
+    await waitFor(() => expect(cancelUsdIntents).toHaveBeenCalledWith(session.identity, ['salt-2']))
+    expect(useCart.getState().items.map(i => i.id)).toEqual(['b'])
+    // NOT a completed checkout: claiming the unsigned group was bought is what this must never do.
+    expect(navigate).not.toHaveBeenCalledWith('/success', expect.anything())
+  })
+
   it('should release nothing while a group may still land', async () => {
     gaslessEnabled.mockReturnValue(true)
     const { SettlementPendingError } = await import('~/lib/buy-gasless')

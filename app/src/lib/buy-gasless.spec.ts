@@ -768,6 +768,39 @@ describe('when batch buying gaslessly', () => {
     expect(signer._signTypedData).toHaveBeenCalledTimes(1)
   })
 
+  /**
+   * `config.rpcUrl` is a load-balanced gateway, so the read that builds the next signature can be answered
+   * by a node that has not seen the block yet — which would undo the wait and reproduce the original 400.
+   */
+  it('signs the next group against the highest nonce seen, not a node that answers from behind', async () => {
+    stubFetch({ txHash: '0xrelayed' })
+    const seen: unknown[] = []
+    const signer = makeSigner(async (_domain, _types, message) => {
+      seen.push(message)
+      return '0x' + 'aa'.repeat(32) + '11'.repeat(32) + '1b'
+    })
+    // group 1 reads 7 · the wait sees 8 · group 2's own read comes back STALE at 7
+    nonceMock.mockResolvedValueOnce(bnLike(7)).mockResolvedValueOnce(bnLike(8)).mockResolvedValue(bnLike(7))
+
+    await buyManyGasless({
+      purchases: [
+        {
+          kind: 'trade' as const,
+          trade: fakeTrade('0xmarket'),
+          credits: [credit(B32('1'), '100')],
+          maxCreditedValue: '100'
+        },
+        storePurchase('2')
+      ],
+      buyer: BUYER,
+      signer
+    })
+
+    expect((seen[0] as { nonce: string }).nonce).toBe('7')
+    // 8, not the 7 the lagging node reported: a nonce only grows, so a value already observed is a fact.
+    expect((seen[1] as { nonce: string }).nonce).toBe('8')
+  })
+
   it('reports settling progress between groups, and not after the last one', async () => {
     stubFetch({ txHash: '0xrelayed' })
     const signer = makeSigner(async () => '0x' + 'aa'.repeat(32) + '11'.repeat(32) + '1b')
@@ -797,9 +830,12 @@ describe('when waiting for a relayed group to consume its nonce', () => {
   it('resolves as soon as the contract has moved past the signed nonce', async () => {
     nonceMock.mockResolvedValue(bnLike(9))
 
-    await expect(waitForNonceAdvance({ chainId: 80002, buyer: BUYER, signedNonce: bnLike(8) as never })).resolves.toBe(
-      true
-    )
+    await expect(
+      waitForNonceAdvance({ chainId: 80002, buyer: BUYER, signedNonce: bnLike(8) as never })
+    ).resolves.toMatchObject({ toString: expect.any(Function) })
+    // The VALUE matters, not just the fact of an advance: the caller signs the next group against it.
+    const seen = await waitForNonceAdvance({ chainId: 80002, buyer: BUYER, signedNonce: bnLike(8) as never })
+    expect(seen?.toString()).toBe('9')
   })
 
   it('gives up rather than reporting an advance that did not happen', async () => {
@@ -807,7 +843,7 @@ describe('when waiting for a relayed group to consume its nonce', () => {
 
     await expect(
       waitForNonceAdvance({ chainId: 80002, buyer: BUYER, signedNonce: bnLike(8) as never, timeoutMs: 0 })
-    ).resolves.toBe(false)
+    ).resolves.toBeNull()
   })
 
   it('keeps waiting through a failed read, since an RPC hiccup is not an answer', async () => {
@@ -817,7 +853,7 @@ describe('when waiting for a relayed group to consume its nonce', () => {
     const waiting = waitForNonceAdvance({ chainId: 80002, buyer: BUYER, signedNonce: bnLike(8) as never })
     await vi.advanceTimersByTimeAsync(2_000)
 
-    await expect(waiting).resolves.toBe(true)
+    expect((await waiting)?.toString()).toBe('9')
   })
 })
 
