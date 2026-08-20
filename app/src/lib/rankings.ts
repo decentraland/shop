@@ -3,13 +3,24 @@ import { config } from '~/config'
 // The shop's creator ranking (marketplace-server GET /v3/catalog/creators). Powers the Overview's
 // "Meet Our Top Creators" row. Response is wrapped in `{ data: [...] }`.
 //
-// Ranked by SALES over a rolling window, attributed to whoever CREATED the item. Deliberately not
+// Ranked by REVENUE over a rolling window, attributed to whoever CREATED the item. Deliberately not
 // /v1/rankings/creators, which the row used to read: that one credits the SELLER, and a primary mint is
 // executed by the buyer against the store, so a creator who sells mostly primary barely registers in it.
+//
+// Revenue rather than the unit count it used to rank on, because the two disagree sharply: a creator
+// selling at four times the going rate placed second by revenue and twelfth by units over the same month.
 
 export type ShopCreatorRank = {
   id: string // wallet address
-  /** Sales in the requested window. What the ranking is ORDERED by. */
+  /**
+   * MANA taken in the window, in wei. What the ranking is ORDERED by — the row renders it nowhere, and
+   * reads it only to be able to explain its own order.
+   *
+   * A string because the sum is far past `Number.MAX_SAFE_INTEGER`; parse it with BigInt, never Number.
+   * Optional for the same deploy-skew reason as the figures below.
+   */
+  volumeWei?: string
+  /** Sales in the requested window. Not the sort key — the floor the sort key has to clear. */
   sales: number
   /**
    * Sales over all time, and what they have published. What the card SHOWS — a creator's standing, not

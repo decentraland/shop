@@ -10,14 +10,18 @@ import { selectTopCreators, type TopCreator } from '~/lib/topCreators'
 import carouselArrow from '~/assets/icons/carousel-arrow.svg'
 import * as S from './TopCreators.styles'
 
-// "Meet Our Top Creators" — eight cards for the creators whose work sold most over the last month, from
+// "Meet Our Top Creators" — eight cards for the creators whose work EARNED most over the last month, from
 // marketplace-server /v3/catalog/creators (see lib/rankings). Four per view on desktop, so the row is a
 // two-page carousel with arrows and dots, like every other rail on the home page; below the mobile
 // breakpoint it steps down to one card per page.
 //
 // The card introduces the creator with what they have published and what they have sold over all time.
-// The RANKING is still the last 30 days — recent activity is what earns a place on the row — but the
-// figures on the card are their standing, which is what a shopper is being asked to judge them on.
+// The RANKING is the last 30 days — recent trading is what earns a place on the row — but the figures on
+// the card are their standing, which is what a shopper is being asked to judge them on.
+//
+// So the card deliberately shows NEITHER of the numbers that ordered it. Revenue is the honest ranking
+// signal and a poor introduction: "sold 4,847 MANA last month" invites a shopper to price a creator
+// rather than to browse them, and the figure swings month to month in a way a card cannot caveat.
 //
 // States: eight skeleton cards while loading; on error OR an empty row the section renders nothing.
 
