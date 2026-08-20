@@ -141,23 +141,77 @@ function readProvider() {
   return new ethers.providers.JsonRpcProvider(config.rpcUrl)
 }
 
-// POST the wrapped meta-tx to the relayer (transactions-server shape). Returns the broadcast txHash.
+/**
+ * The buyer's CURRENT meta-transaction nonce, straight from the CreditsManager.
+ *
+ * Shared by the signing path and the wait below on purpose: the relayer validates against this exact
+ * getter, so anything that reasons about the nonce here has to read it the same way.
+ */
+async function readNonce(contractAddress: string, buyer: string): Promise<ethers.BigNumber> {
+  const reader = new ethers.Contract(
+    contractAddress,
+    ['function getNonce(address) view returns (uint256)'],
+    readProvider()
+  ) as ethers.Contract & { getNonce(address: string): Promise<ethers.BigNumber> }
+  return reader.getNonce(buyer)
+}
+
+/**
+ * Resolve once the CreditsManager has CONSUMED `signedNonce`, so the next group can be signed safely.
+ * Returns false if it has not happened inside the window — the caller must not sign anything after that.
+ *
+ * WHY THIS EXISTS. The meta-transaction nonce does not travel in the payload. This module reads it from
+ * the contract to build the signature, and the transactions-server reads it AGAIN, on its own RPC, to
+ * rebuild the digest and recover the signer — so the two reads have to agree. Signing a second group
+ * while the first is still in flight guarantees they do not: the digest the relayer rebuilds is not the
+ * one the buyer signed, ecrecover returns an unrelated address, and the relayer answers 400 claiming the
+ * signature belongs to somebody else. A basket of five mints plus two resales lost both resales exactly
+ * that way — the second group was signed 0.6s after the first was broadcast and 0.55s before it mined,
+ * and the buyer was never asked to confirm anything, because on this rail there is no prompt to confirm.
+ *
+ * Waiting on the NONCE instead of on the first transaction's receipt is deliberate. The relayer resubmits
+ * with a higher fee when the network is busy, so the hash it handed back frequently never appears on
+ * chain at all (measured — see confirmMetaTxByEffect in lib/tx-confirm), and a receipt wait would then
+ * time out on a purchase that actually succeeded. The nonce is hash-agnostic: it advances when ANY of
+ * those attempts lands, which is exactly the condition that makes the next signature verifiable.
+ */
+export async function waitForNonceAdvance(opts: {
+  chainId: number
+  buyer: string
+  signedNonce: ethers.BigNumber
+  timeoutMs?: number
+  pollMs?: number
+}): Promise<boolean> {
+  const { chainId, buyer, signedNonce, timeoutMs = 120_000 } = opts
+  // Floored so a caller passing 0 cannot turn this into a tight loop hammering the RPC.
+  const pollMs = Math.max(opts.pollMs ?? 1_500, 50)
+  const cm = getContract(ContractName.CreditsManager, chainId)
+  const startedAt = Date.now()
+
+  for (;;) {
+    try {
+      if ((await readNonce(cm.address, buyer)).gt(signedNonce)) return true
+    } catch {
+      // A failed read is not an answer — keep waiting rather than reporting either outcome.
+    }
+    if (Date.now() - startedAt >= timeoutMs) return false
+    await new Promise(resolve => setTimeout(resolve, pollMs))
+  }
+}
+
+// POST the wrapped meta-tx to the relayer (transactions-server shape). Returns the broadcast txHash and
+// the nonce it was signed against, which is what a caller has to see consumed before signing anything else.
 async function relay(
   chainId: number,
   buyer: string,
   functionData: string,
   signer: ethers.Signer,
   onSigned?: () => void
-): Promise<string> {
+): Promise<{ txHash: string; nonce: ethers.BigNumber }> {
   const cm = getContract(ContractName.CreditsManager, chainId) // Amoy 0x8052…fb3
 
   // 1) fresh nonce (replay protection) from the contract, via read-only RPC
-  const reader = new ethers.Contract(
-    cm.address,
-    ['function getNonce(address) view returns (uint256)'],
-    readProvider()
-  ) as ethers.Contract & { getNonce(address: string): Promise<ethers.BigNumber> }
-  const nonce = await reader.getNonce(buyer)
+  const nonce = await readNonce(cm.address, buyer)
 
   // 2) the useCredits calldata IS the meta-tx functionData
   const functionSignature = functionData
@@ -247,7 +301,7 @@ async function relay(
     reportRelayerFailure('relayer-rejected', body?.message ?? 'relayer rejected the transaction', buyer, cm.address)
     throw new GaslessUnavailableError(body?.message ?? 'relayer rejected the transaction', 'relayer-rejected')
   }
-  return body.txHash
+  return { txHash: body.txHash, nonce }
 }
 
 // Wait for the relayed tx to land (status===1) via the read-only RPC. Gives the UI immediate
@@ -294,7 +348,7 @@ export async function sendUseCreditsGasless(opts: {
   const { chainId, buyer, signer, args } = opts
   const cm = getContract(ContractName.CreditsManager, chainId)
   const functionData = new Interface(cm.abi).encodeFunctionData('useCredits', [args])
-  return relay(chainId, buyer, functionData, signer)
+  return (await relay(chainId, buyer, functionData, signer)).txHash
 }
 
 /**
@@ -334,7 +388,7 @@ export async function buyOneGasless(opts: {
   const { args, chainId } = buildGroupUseCreditsArgs(groupPurchases([purchase])[0], buyer)
   const cm = getContract(ContractName.CreditsManager, chainId)
   const functionData = new Interface(cm.abi).encodeFunctionData('useCredits', [args])
-  return relay(chainId, buyer, functionData, signer)
+  return (await relay(chainId, buyer, functionData, signer)).txHash
 }
 
 /**
@@ -365,22 +419,58 @@ export async function buyManyGasless(opts: {
    * pending, instead of having to treat a mixed outcome as all-or-nothing.
    */
   onBroadcast?: (info: { txHash: string; salts: string[] }) => void
+  /**
+   * Fired while a relayed group is being waited on, before the next group is signed.
+   *
+   * A mixed basket now spends real time between groups (one block, typically), and this rail asks for no
+   * confirmation — so without a signal the UI would sit on the same frame with nothing to say for it.
+   */
+  onGroupSettling?: (progress: { settled: number; total: number }) => void
 }): Promise<string[]> {
   if (!gaslessConfig.enabled) throw new GaslessUnavailableError('gasless checkout disabled', 'disabled')
-  const { purchases, buyer, signer, onSigned, onBroadcast } = opts
+  const { purchases, buyer, signer, onSigned, onBroadcast, onGroupSettling } = opts
   if (purchases.length === 0) throw new Error('No items to buy')
 
   const hashes: string[] = []
-  for (const group of groupPurchases(purchases)) {
+  const groups = groupPurchases(purchases)
+  for (const [index, group] of groups.entries()) {
     const { args, salts, chainId } = buildGroupUseCreditsArgs(group, buyer)
     const cm = getContract(ContractName.CreditsManager, chainId)
     const functionData = new Interface(cm.abi).encodeFunctionData('useCredits', [args])
-    const txHash = await relay(chainId, buyer, functionData, signer, onSigned)
+    const { txHash, nonce } = await relay(chainId, buyer, functionData, signer, onSigned)
     onBroadcast?.({ txHash, salts })
     // See the same call in buy.ts: reported once here, next to the broadcast, so no checkout path can omit
     // it. This rail needs it most — the relayed mint is where the expired-credit reverts came from.
     reportSubmittedTx({ txHash, salts })
     hashes.push(txHash)
+
+    // A mixed basket signs once per group, and each signature is only verifiable while the contract still
+    // holds the nonce it was built on — so the next one cannot be produced until this group has consumed
+    // it. See waitForNonceAdvance for what happens when it is signed too early. Nothing follows the last
+    // group, so there is nothing to wait for.
+    if (index === groups.length - 1) continue
+    onGroupSettling?.({ settled: index + 1, total: groups.length })
+    if (!(await waitForNonceAdvance({ chainId, buyer, signedNonce: nonce }))) {
+      /**
+       * The relayer took our transaction and it has not landed inside the window. Signing the next group
+       * now is the one thing we know produces an invalid signature, so this stops instead.
+       *
+       * SettlementPendingError and not GaslessUnavailableError, deliberately: this group IS broadcast, so
+       * the reserved credits must stay reserved (the credits-server reconciles them against the indexed
+       * CreditUsed event), and the caller must not retry the basket on the gas-paying rail — that would
+       * buy this group a second time.
+       */
+      captureError(new Error('nonce did not advance between cart groups'), {
+        flow: 'gasless_relay',
+        step: 'awaiting_nonce',
+        buyer,
+        target: cm.address,
+        txHash,
+        signedNonce: nonce.toString(),
+        groupsRelayed: `${index + 1}/${groups.length}`
+      })
+      throw new SettlementPendingError(txHash)
+    }
   }
   return hashes
 }

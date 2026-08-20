@@ -53,6 +53,19 @@ export function setManaAllowanceWei(wei: string | null) {
   manaAllowanceWei = wei
 }
 
+// The buyer's CreditsManager meta-tx nonce. Bumped by the relayer mock on every accepted meta-tx.
+let metaTxNonce = 0
+export function bumpMetaTxNonce() {
+  metaTxNonce += 1
+}
+export function resetMetaTxNonce() {
+  metaTxNonce = 0
+}
+// How many meta-transactions the relayer accepted — one per basket group.
+export function metaTxNonceValue() {
+  return metaTxNonce
+}
+
 function ethCall(params: any[], rpcPath = ''): string {
   const data: string = params?.[0]?.data ?? '0x'
   const s = data.slice(0, 10)
@@ -60,8 +73,11 @@ function ethCall(params: any[], rpcPath = ''): string {
   switch (s) {
     case SELECTORS.contractSignatureIndex:
     case SELECTORS.signerSignatureIndex:
-    case SELECTORS.getNonce:
       return abi.encode(['uint256'], [0])
+    case SELECTORS.getNonce:
+      // Advances as the relayer accepts meta-transactions, because that is what the chain does — and a
+      // multi-group basket waits for exactly this to move before signing its next group.
+      return abi.encode(['uint256'], [metaTxNonce])
     case SELECTORS.balanceOf:
       // Per chain, so the navbar's two MANA reads are answered independently.
       return abi.encode(['uint256'], [isEthereumRpc(rpcPath) ? ethereumManaBalanceWei : manaBalanceWei])

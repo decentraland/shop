@@ -1,7 +1,8 @@
 import { describe, it, expect, afterEach } from 'vitest'
-import { launchApp, type App } from './helpers/app'
+import { launchApp, BASE, type App } from './helpers/app'
+import { metaTxNonceValue } from './helpers/rpc'
 import { clickByAria, clickByText, startCartCheckout, waitForText } from './helpers/dom'
-import { COLLECTION, buyTrade, primaryTrade, creditsResponse } from './fixtures'
+import { COLLECTION, buyTrade, primaryTrade, creditsResponse, unifiedWithMint } from './fixtures'
 
 let app: App | undefined
 afterEach(async () => {
@@ -63,6 +64,50 @@ describe('cart checkout', () => {
     await page.waitForFunction(() => window.location.pathname === '/success', { timeout: 30000 })
     await waitForText(page, 'Your purchase was successful')
     expect(await page.evaluate(() => window.location.pathname)).toBe('/success')
+  })
+
+  /**
+   * A basket that spans BOTH rails, which is the shape that broke in production: a resale settles with
+   * accept([...]) and a mint with buy([...]), useCredits carries one external call, so this is two
+   * meta-transactions and two signatures. The second is now signed only after the first has consumed its
+   * nonce (buy-gasless's waitForNonceAdvance) — so this covers the flow completing across that wait
+   * instead of stalling on it.
+   */
+  it('checks out a MIXED basket (a resale and a mint) across two relayed groups', async () => {
+    app = await launchApp({
+      path: `/item/${COLLECTION}/1`,
+      fixtures: {
+        trade: buyTrade,
+        unifiedListings: unifiedWithMint,
+        credits: { ...creditsResponse, usd: { balanceCents: 100_000, credits: 1_000 } }
+      }
+    })
+    const { page } = app
+
+    await waitForText(page, 'Nebula Jacket')
+    await waitForText(page, 'Buy now')
+    expect(await clickByText(page, 'button', /add to cart/i)).toBe(true)
+    await waitForText(page, 'successfully added to cart')
+
+    // The mint line, from its own item page. A full reload is fine: the cart persists to localStorage
+    // precisely so it survives one.
+    await page.goto(`${BASE}/item/${COLLECTION}/3`, { waitUntil: 'networkidle2', timeout: 45000 })
+    await waitForText(page, 'Comet Boots')
+    await waitForText(page, 'Buy now')
+    expect(await clickByText(page, 'button', /add to cart/i)).toBe(true)
+    await waitForText(page, 'successfully added to cart')
+
+    expect(await clickByText(page, 'a', /go to cart/i)).toBe(true)
+    await waitForText(page, 'Nebula Jacket')
+    await waitForText(page, 'Comet Boots')
+    await startCartCheckout(page)
+
+    await page.waitForFunction(() => window.location.pathname === '/success', { timeout: 30000 })
+    await waitForText(page, 'Your purchase was successful')
+    // TWO accepted meta-transactions — the mint settles with CollectionStore.buy and the resale with
+    // accept(), and useCredits carries one external call each. The second could only be signed because the
+    // first had already consumed its nonce.
+    expect(metaTxNonceValue()).toBe(2)
   })
 
   it('shows the Buy Credits and Items (pack picker) state when funds are insufficient', async () => {

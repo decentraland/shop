@@ -450,22 +450,28 @@ export function Cart() {
       // has: they hold no POL and have never heard of Polygon. buyManyGasless now groups both kinds.
       if (gaslessEnabled()) {
         try {
-          // Relayed, so there are no per-group prompts to count: report every group as already confirmed so
-          // the modal goes straight to settling. Passing 0 here would instead re-arm "awaiting confirmation"
-          // for a rail that never asks for one.
+          // Relayed, so there are no per-group prompts to count: every group goes straight to settling rather
+          // than re-arming "awaiting confirmation" for a rail that never asks for one.
           // Relayed transactions are broadcast too, and this rail is the DEFAULT for a trade-only basket —
           // without this the catch below released credits that were already consumed on-chain, which is the
           // exact defect this whole change exists to fix, left live on the busiest path.
           const saltsByHash = new Map<string, string[]>()
+          // Which group is in flight. A mixed basket now waits for each relayed group to be consumed on
+          // chain before the next is signed (buy-gasless's waitForNonceAdvance), so the counter has to track
+          // the group actually being settled — reporting sigTotal from the first one made it read "2 of 2"
+          // for the whole checkout and then jump backwards the moment real progress arrived.
+          let relayed = 0
           hashes = await buyManyGasless({
             purchases,
             buyer: session.address,
             signer: session.signer,
-            onSigned: () => onSigned(sigTotal),
+            onSigned: () => processing('settling', Math.min(relayed + 1, sigTotal)),
             onBroadcast: ({ txHash, salts }) => {
+              relayed += 1
               saltsByHash.set(txHash, salts)
               salts.forEach(salt => broadcastSalts.add(salt))
-            }
+            },
+            onGroupSettling: ({ settled }) => processing('settling', settled)
           })
           // Once buyManyGasless returns, every group's meta-tx is BROADCAST. A group that's only
           // pending (unconfirmed within the window) may still land, so we must NOT release the
