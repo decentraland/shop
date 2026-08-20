@@ -40,10 +40,26 @@ vi.mock('decentraland-transactions', () => ({
       super(message)
     }
   },
-  ErrorCode: { USER_DENIED: 'user_denied' }
+  // UNKNOWN matters as much as USER_DENIED here: the library reports every signing failure it cannot
+  // name — a timed-out popup, a wallet that refuses eth_signTypedData_v4 — under it, and that is the
+  // code the fallback decision has to cope with.
+  ErrorCode: { USER_DENIED: 'user_denied', UNKNOWN: 'unknown' }
 }))
 
 vi.mock('~/config', () => ({ config: { rpcUrl: 'http://localhost:9999' } }))
+
+/**
+ * WHO the buyer is now decides whether the gas-paying fallback is offered at all, so the suites below have to
+ * say. Defaults to self-custody, which is what every fallback test here was written against — a managed wallet
+ * has no such route.
+ */
+const { walletSession } = vi.hoisted(() => {
+  const walletSession: { current: { providerType: string } | null } = { current: { providerType: 'injected' } }
+  return { walletSession }
+})
+vi.mock('~/store/wallet', () => ({
+  useWallet: { getState: () => ({ session: walletSession.current }) }
+}))
 vi.mock('~/lib/gasless-config', () => ({
   gaslessConfig: { enabled: true, relayerUrl: 'http://relayer.test/v1' },
   gaslessEnabled: () => true
@@ -153,6 +169,9 @@ function makeSigner(overrides: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // Self-custody by default — the wallet kind every fallback suite here was written against. A suite that
+  // needs a managed one says so, and cannot leak that choice into the next.
+  walletSession.current = { providerType: ProviderType.INJECTED }
 })
 
 describe('when reading an authorization status', () => {
@@ -309,8 +328,13 @@ describe('when the gasless relayer is unavailable (fallback to a direct tx)', ()
    * its own, so granting an approval could silently undo a network the user had just chosen — and because the
    * request arrives from a fallback rather than from their click, the wallet is entitled to refuse it
    * (-32006), which left the only remaining route dead exactly when the relayer was down.
+   *
+   * It now reports the RELAY's failure rather than a network one. This assertion used to read
+   * `WrongNetworkError`, and that was the defect: the relayed rail signs off-chain and works from any network,
+   * so a buyer on the wrong chain was being told to switch for a rail they never asked for, while the thing
+   * that actually broke — their signing popup, in production — went unnamed. Nothing is sent either way.
    */
-  it('should refuse the fallback instead of switching the wallet network, and send nothing', async () => {
+  it('should report the relay failure, not a network one, when the wallet is on the wrong chain', async () => {
     sendMetaTransactionMock.mockRejectedValue(new Error('relayer down'))
     approveMock.mockResolvedValue({ wait: vi.fn().mockResolvedValue(undefined) })
     const getNetwork = vi.fn().mockResolvedValue({ chainId: ChainId.ETHEREUM_MAINNET })
@@ -324,7 +348,7 @@ describe('when the gasless relayer is unavailable (fallback to a direct tx)', ()
         signer: makeSigner({ provider: { getNetwork, send } }),
         active: true
       })
-    ).rejects.toMatchObject({ name: 'WrongNetworkError', current: ChainId.ETHEREUM_MAINNET })
+    ).rejects.toThrow('relayer down')
 
     expect(send).not.toHaveBeenCalledWith('wallet_switchEthereumChain', expect.anything())
     expect(approveMock).not.toHaveBeenCalled()
@@ -338,6 +362,113 @@ describe('when the gasless relayer is unavailable (fallback to a direct tx)', ()
       /denied/i
     )
     expect(setApprovalForAllMock).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * WHO GETS THE GAS-PAYING FALLBACK.
+ *
+ * Reproduced from production: a signing popup timed out, `sendMetaTransaction` reported it as
+ * `MetaTransactionError(UNKNOWN)` — it recognises a denial only by matching the literal string "User denied
+ * message signature" — the USER_DENIED guard therefore missed it, this fell through to the direct rail, and
+ * `requireChain` refused because the wallet was on Ethereum. What the person saw was a network error for a
+ * confirmation window that had closed, on a rail whose relayed half works from any network.
+ *
+ * These cases pin both halves of the decision: a wallet that cannot pay gas is never sent down that rail, and
+ * a wallet that could pay but is on the wrong chain is told what actually failed.
+ */
+describe('when the relay fails and the fallback may not be a route', () => {
+  // Verbatim what production threw, with the code the library actually attached to it.
+  const POPUP_TIMEOUT = () => new MetaTransactionError('Confirmation popup timed out', ErrorCode.UNKNOWN)
+
+  const ethereumSigner = () =>
+    makeSigner({
+      provider: {
+        getNetwork: vi.fn().mockResolvedValue({ chainId: ChainId.ETHEREUM_MAINNET }),
+        send: vi.fn(async (method: string) =>
+          method === 'eth_chainId' ? hexChain(ChainId.ETHEREUM_MAINNET) : undefined
+        )
+      }
+    })
+
+  it('should surface the popup timeout, NOT a wrong-network error, for a wallet on the wrong chain', async () => {
+    walletSession.current = { providerType: ProviderType.INJECTED }
+    sendMetaTransactionMock.mockRejectedValue(POPUP_TIMEOUT())
+    approveMock.mockResolvedValue({ wait: vi.fn().mockResolvedValue(undefined) })
+
+    // The exact production failure, and the exact message that should reach the buyer instead.
+    await expect(setAuthorization({ auth: allowanceAuth, signer: ethereumSigner(), active: true })).rejects.toThrow(
+      'Confirmation popup timed out'
+    )
+    expect(approveMock).not.toHaveBeenCalled()
+  })
+
+  it('should refuse the gas rail to a managed wallet even when it IS on the right chain', async () => {
+    walletSession.current = { providerType: ProviderType.MAGIC }
+    sendMetaTransactionMock.mockRejectedValue(new Error('relayer down'))
+    approveMock.mockResolvedValue({ wait: vi.fn().mockResolvedValue(undefined) })
+
+    // A managed wallet holds no POL, so the direct rail ends in INSUFFICIENT_FUNDS after a prompt its owner
+    // cannot act on — and gas wording is what these users must never be shown.
+    await expect(setAuthorization({ auth: allowanceAuth, signer: makeSigner(), active: true })).rejects.toThrow(
+      'relayer down'
+    )
+    expect(approveMock).not.toHaveBeenCalled()
+  })
+
+  it('should treat an UNKNOWN session as managed, so a lost session cannot hand out a gas prompt', async () => {
+    walletSession.current = null
+    sendMetaTransactionMock.mockRejectedValue(new Error('relayer down'))
+    approveMock.mockResolvedValue({ wait: vi.fn().mockResolvedValue(undefined) })
+
+    await expect(setAuthorization({ auth: allowanceAuth, signer: makeSigner(), active: true })).rejects.toThrow(
+      'relayer down'
+    )
+    expect(approveMock).not.toHaveBeenCalled()
+  })
+
+  it('should still offer the fallback to a self-custody wallet on the right chain', async () => {
+    walletSession.current = { providerType: ProviderType.INJECTED }
+    sendMetaTransactionMock.mockRejectedValue(new Error('relayer down'))
+    approveMock.mockResolvedValue({ wait: vi.fn().mockResolvedValue(undefined) })
+
+    await setAuthorization({ auth: allowanceAuth, signer: makeSigner(), active: true })
+
+    // The one case where the gas rail is genuinely their route — it must not be taken away.
+    expect(approveMock).toHaveBeenCalledWith(CREDITS_MANAGER, ethers.constants.MaxUint256)
+  })
+
+  it('should refuse the fallback when the wallet chain cannot be read at all', async () => {
+    walletSession.current = { providerType: ProviderType.INJECTED }
+    sendMetaTransactionMock.mockRejectedValue(new Error('relayer down'))
+    approveMock.mockResolvedValue({ wait: vi.fn().mockResolvedValue(undefined) })
+    const unreadable = makeSigner({
+      provider: {
+        getNetwork: vi.fn().mockRejectedValue(new Error('no network')),
+        send: vi.fn(async () => {
+          throw new Error('no network')
+        })
+      }
+    })
+
+    // A rail cannot be offered on a guess: an unreadable chain answers "no".
+    await expect(setAuthorization({ auth: allowanceAuth, signer: unreadable, active: true })).rejects.toThrow(
+      'relayer down'
+    )
+    expect(approveMock).not.toHaveBeenCalled()
+  })
+
+  it('should keep propagating a user rejection ahead of every other check', async () => {
+    walletSession.current = { providerType: ProviderType.MAGIC }
+    sendMetaTransactionMock.mockRejectedValue(
+      new MetaTransactionError('User denied message signature', ErrorCode.USER_DENIED)
+    )
+
+    // A denial is an answer whoever the buyer is, and it must not be relabelled by the guards added above.
+    await expect(setAuthorization({ auth: allowanceAuth, signer: makeSigner(), active: true })).rejects.toThrow(
+      /denied/i
+    )
+    expect(approveMock).not.toHaveBeenCalled()
   })
 })
 
