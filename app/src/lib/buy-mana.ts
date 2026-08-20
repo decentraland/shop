@@ -1,5 +1,5 @@
 import { ethers } from 'ethers'
-import { type ChainId, type Trade } from '@dcl/schemas'
+import { type ChainId, type ProviderType, type Trade } from '@dcl/schemas'
 import {
   ContractName,
   ErrorCode,
@@ -10,9 +10,11 @@ import {
 } from 'decentraland-transactions'
 import { AuthorizationKind, ensureAuthorization, metaTxProviderShim, readProvider } from '~/lib/authorizations'
 import { buyOneWithCredits, type AnyPurchase, type SpendableCredit } from '~/lib/buy'
+import { buyOneGasless, waitForSettlement, GaslessUnavailableError, SettlementPendingError } from '~/lib/buy-gasless'
 import { gaslessConfig } from '~/lib/gasless-config'
 import { captureError } from '~/lib/monitoring'
 import { requireChain } from '~/lib/network'
+import { canPayGasItself } from '~/lib/wallet-kind'
 import {
   amoyGasOverrides,
   encodeStoreBuy,
@@ -321,12 +323,23 @@ export async function buyWithCreditsAndMana(opts: {
   /** MANA (wei) the buyer covers out of pocket. MUST be <= their balance; unused MANA is refunded. */
   manaGapWei: bigint
   /**
+   * Who the buyer signs with, and therefore whether the gas-paying fallback is a route they have at all.
+   * Omitted reads as managed — the safe default, since offering gas to a wallet that holds none is the
+   * failure this rail already produced.
+   */
+  providerType?: ProviderType | null
+  /**
    * Forwarded to the credits rail, which settles this one. The caller needs them for the same reason the
    * credits-only rail does: this spends an ephemeral credit through `useCredits`, so once the transaction is
    * broadcast that credit may be consumed and its reservation must not be released.
    */
   onBroadcast?: (info: { txHash: string }) => void
   onReverted?: (info: { txHash: string | null }) => void
+  /**
+   * The relayer gave no usable answer, so the meta-tx MAY have been broadcast. The reservation can never be
+   * released on this outcome — there is no hash to check it against.
+   */
+  onUnobservable?: () => void
 }): Promise<string> {
   const { trade, ...rest } = opts
   return payGapWithMana({ target: { kind: 'trade', trade }, ...rest })
@@ -339,8 +352,10 @@ export async function buyMintWithCreditsAndMana(opts: {
   signer: ethers.providers.JsonRpcSigner
   credits: SpendableCredit[]
   manaGapWei: bigint
+  providerType?: ProviderType | null
   onBroadcast?: (info: { txHash: string }) => void
   onReverted?: (info: { txHash: string | null }) => void
+  onUnobservable?: () => void
 }): Promise<string> {
   const { mint, ...rest } = opts
   return payGapWithMana({ target: { kind: 'store', mint }, ...rest })
@@ -352,10 +367,12 @@ async function payGapWithMana(opts: {
   signer: ethers.providers.JsonRpcSigner
   credits: SpendableCredit[]
   manaGapWei: bigint
+  providerType?: ProviderType | null
   onBroadcast?: (info: { txHash: string }) => void
   onReverted?: (info: { txHash: string | null }) => void
+  onUnobservable?: () => void
 }): Promise<string> {
-  const { target, buyer, signer, credits, manaGapWei, onBroadcast, onReverted } = opts
+  const { target, buyer, signer, credits, manaGapWei, providerType, onBroadcast, onReverted, onUnobservable } = opts
   if (credits.length === 0) throw new Error('No credits to spend — use the MANA-only rail for that')
   if (manaGapWei <= 0n) throw new Error('No MANA gap to cover — use the credits-only rail for that')
 
@@ -379,13 +396,58 @@ async function payGapWithMana(opts: {
   const creditsValue = credits.reduce((acc, c) => acc + BigInt(c.availableAmount), 0n)
   const maxCreditedValue = (creditsValue + manaGapWei).toString()
 
-  return buyOneWithCredits({
-    purchase: purchaseFor(target, credits, maxCreditedValue),
-    buyer,
-    signer,
-    onBroadcast,
-    onReverted
-  })
+  const purchase = purchaseFor(target, credits, maxCreditedValue)
+
+  /**
+   * RELAYED FIRST, like both sibling rails — this one used to go straight to the buyer's own transaction.
+   *
+   * `buyOneGasless` is the relayed counterpart of the `buyOneWithCredits` below and takes the same
+   * `AnyPurchase`, so this rail was the only one that never called it. The cost of that omission was paid by
+   * managed (web2) wallets, which hold no POL: their purchase reached `sendTransaction` and died with
+   * `insufficient funds ... balance 0` — the one outcome this shop exists to make impossible. It also made
+   * the direct rail's `requireChain` reachable on a rail that never needs it, so the same buyer met a
+   * wrong-network refusal for a transaction the relayer would have submitted from any network.
+   */
+  if (gaslessConfig.enabled) {
+    let relayedHash: string | undefined
+    try {
+      relayedHash = await buyOneGasless({ purchase, buyer, signer })
+      // The relayer has broadcast by the time this resolves, so the credits are spoken for from here.
+      onBroadcast?.({ txHash: relayedHash })
+      await waitForSettlement(relayedHash)
+      return relayedHash
+    } catch (e) {
+      // A dismissed signature is an answer, not a reason to ask again for gas (see setAuthorization).
+      if (e instanceof MetaTransactionError && e.code === ErrorCode.USER_DENIED) throw e
+      // No receipt YET is not a failure: the relayed transaction may still mine, and re-submitting would
+      // run the purchase twice. The caller keeps the reservation and lets the reconciler settle it.
+      if (e instanceof SettlementPendingError) throw e
+      if (!(e instanceof GaslessUnavailableError)) {
+        // Relayed, then mined a REVERT: nothing was consumed, so name the attempt that failed — without it
+        // the caller cannot tell this apart from an unresolved one and the reservation stays stranded.
+        if (relayedHash) onReverted?.({ txHash: relayedHash })
+        throw e
+      }
+      /**
+       * Only a REJECTION proves nothing was relayed. `relayer-unreachable` means there was no usable
+       * response, so the meta-tx may have been submitted before the connection died — re-submitting
+       * directly would spend the same credit twice. Record it as unobservable instead.
+       */
+      if (e.reason === 'relayer-unreachable') {
+        onUnobservable?.()
+        throw e
+      }
+      /**
+       * The gas-paying fallback is a route only a SELF-CUSTODY wallet has. A managed wallet holds no POL, so
+       * offering it produces `INSUFFICIENT_FUNDS` after a prompt the buyer cannot act on — and it is what put
+       * this bug in front of a real buyer twice.
+       */
+      if (!canPayGasItself(providerType)) throw e
+      captureError(e, { flow: 'buy_credits_and_mana', step: 'gasless_fallback' })
+    }
+  }
+
+  return buyOneWithCredits({ purchase, buyer, signer, onBroadcast, onReverted })
 }
 
 /** The chain a purchase settles on: a trade carries it, a mint carries it alongside the item. */
