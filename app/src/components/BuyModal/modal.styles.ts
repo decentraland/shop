@@ -415,6 +415,32 @@ export const Ctas = styled.div`
   margin-top: -8px;
   padding-top: 8px;
   background: ${colors.white};
+
+  /*
+   * data-stack — one CTA per row on a phone.
+   *
+   * OPT-IN rather than applied to every state, because it is only worth it where BOTH labels are long: on
+   * a 390px screen the purchase-complete pair wraps to "TRY IN / WORLD" beside "MY ITEMS", while the error
+   * states' CANCEL / TRY AGAIN still read fine side by side.
+   *
+   * column-REVERSE, so the primary sits on top without reordering the markup — which would move it off the
+   * right-hand side on desktop, where the secondary-then-primary reading order is what every other row in
+   * the flow uses.
+   */
+  ${theme.media.maxWidth('mobile')} {
+    &[data-stack] {
+      flex-direction: column-reverse;
+
+      /*
+       * The row sizes its CTAs with flex: 1. In a column that basis applies to the HEIGHT, so it would
+       * override the 46px and collapse both buttons to their min-content. Hand the sizing back over.
+       */
+      > * {
+        flex: none;
+        width: 100%;
+      }
+    }
+  }
 `
 
 export const Btn = styled.button`

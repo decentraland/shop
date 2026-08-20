@@ -1275,7 +1275,9 @@ export function BuyModal({
                     <b>{t('getCredits.successTitle')}</b> {t('buyModal.successBody')}
                   </M.SuccessText>
                 </M.Success>
-                <M.Ctas>
+                {/* Stacked on a phone (see M.Ctas): these two labels are the longest pair in the modal, and
+                    side by side "Try in world" wraps onto two lines inside the card's width. */}
+                <M.Ctas data-stack>
                   <M.Btn data-variant="outline" onClick={() => navigate(myItemsRouteFor([item.category]))}>
                     {t('buyModal.myAssets')}
                   </M.Btn>

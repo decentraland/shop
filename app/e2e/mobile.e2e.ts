@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { launchApp, type App } from './helpers/app'
-import { bodyText, waitForText } from './helpers/dom'
+import { bodyText, clickWhenEnabled, waitForText } from './helpers/dom'
 import { COLLECTION, CREATOR_ADDRESS, buyTrade } from './fixtures'
 
 /**
@@ -274,5 +274,56 @@ describe('at phone width', () => {
     })
 
     expect(sameRow).toBe(false)
+  })
+
+  /**
+   * The purchase-complete CTAs stack, primary on top.
+   *
+   * Geometry rather than a class or an attribute, because the interesting part is not that the container
+   * opts in — it is that the buttons come out one per row with the ruby one ABOVE, and `column-reverse`
+   * gets that from markup whose DOM order says the opposite. An assertion on `data-stack` would pass just
+   * as happily with the flex rule deleted.
+   *
+   * Also pins the height, which is the trap: the row sizes both CTAs with `flex: 1`, and in a column that
+   * basis applies to the height and collapses them unless it is overridden.
+   */
+  it('stacks the purchase-complete CTAs with try-in-world on top', async () => {
+    app = await launchApp({ path: `/item/${COLLECTION}/1`, fixtures: { trade: buyTrade } })
+    const { page } = app
+    await page.setViewport(PHONE)
+
+    await waitForText(page, 'Nebula Jacket')
+    await clickWhenEnabled(page, 'button', /buy now/i)
+    await waitForText(page, 'Buy Item')
+    await clickWhenEnabled(page, 'button', /^buy$/i)
+    await waitForText(page, 'Purchase complete!', 30000)
+
+    const box = await page.evaluate(() => {
+      // Scoped to the footer, NOT matched by text across the document: the navbar carries its own "My
+      // Items" link, and picking that one up compares the modal's CTA against something near the top of
+      // the page — which fails whatever the footer does.
+      const footer = document.querySelector('[data-stack]')
+      if (!footer) return null
+      const ctas = [...footer.children] as HTMLElement[]
+      const tryInWorld = ctas.find(el => /try in world/i.test(el.innerText))
+      const myItems = ctas.find(el => /my items/i.test(el.innerText))
+      if (!tryInWorld || !myItems || tryInWorld === myItems) return null
+      const a = tryInWorld.getBoundingClientRect()
+      const b = myItems.getBoundingClientRect()
+      return {
+        primaryIsAbove: a.bottom <= b.top + 1,
+        // One per row: no horizontal overlap is not enough — they must not share a row at all.
+        sharesARow: a.right > b.left && b.right > a.left && Math.abs(a.top - b.top) < 5,
+        primaryHeight: Math.round(a.height),
+        secondaryHeight: Math.round(b.height)
+      }
+    })
+
+    expect(box).not.toBeNull()
+    expect(box!.primaryIsAbove).toBe(true)
+    expect(box!.sharesARow).toBe(false)
+    // The 46px the row gives them, not the ~20px a collapsed flex basis would leave.
+    expect(box!.primaryHeight).toBeGreaterThanOrEqual(40)
+    expect(box!.secondaryHeight).toBeGreaterThanOrEqual(40)
   })
 })
