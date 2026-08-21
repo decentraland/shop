@@ -79,7 +79,7 @@ export const Row = styled.div`
 export const RowSkeleton = styled.div`
   height: 74px;
   border-radius: 16px;
-  background: linear-gradient(100deg, #efeef2 30%, #e2e0e7 50%, #efeef2 70%);
+  background: linear-gradient(100deg, var(--skeleton-lo) 30%, var(--skeleton-hi) 50%, var(--skeleton-lo) 70%);
   background-size: 200% 100%;
   animation: ${shimmer} 1.4s infinite linear;
 

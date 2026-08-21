@@ -431,6 +431,7 @@
     "ownItemSuffix": ".",
     "manageList": "Put up for sale",
     "manageTransfer": "Transfer",
+    "manageResell": "Resell item",
     "manageIssue": "Issue copies",
     "manageUpdatePrice": "Edit price",
     "manageRemove": "Remove from sale",
@@ -934,10 +935,18 @@
     "aria": "1 {unit} equals {usd} US dollars"
   },
   "manaPricingBanner": {
-    "lead": "{count, plural, one {# item is} other {# items are}} still using MANA pricing.",
+    "lead": "{count, plural, one {# item is} other {# items are}} still using <mana>MANA</mana> pricing.",
     "accent": "Switch to Credits",
     "trail": "to keep your prices stable.",
     "cta": "Update prices"
+  },
+  "marketplaceRedirect": {
+    "title": "Marketplace Redirect",
+    "close": "Close",
+    "heading": "Continue in the Legacy Marketplace",
+    "body": "Reselling is currently available in the Legacy Marketplace. You'll be redirected to complete your listing.",
+    "cancel": "Cancel",
+    "continue": "Continue"
   },
   "newPricing": {
     "title": "New Pricing",

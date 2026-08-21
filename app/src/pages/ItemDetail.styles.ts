@@ -834,6 +834,54 @@ export const LinkCta = styled.button`
 // button (Figma 718:40730): a hairline white outline on the purple field that FILLS with soft-white and
 // flips its label dark on hover/press. It used to carry a soft-black outline and label, which is a
 // light-theme pairing and read as a disabled control here.
+/**
+ * The owner's two manage CTAs, as the design draws them (Figma 1526:300998 and 1526:300789).
+ *
+ * Both are TINTS OF THE FIELD rather than opaque fills — a lift of white for the softer action, a scrim of
+ * black for the firmer one — so the purple behind reads through and the pair sits on the page instead of on
+ * top of it. That is also what orders them: on this field the lighter one advances (EDIT PRICE), the darker
+ * one is the heavier, more deliberate move (REMOVE FROM SALE, TRANSFER). The old pairing had those two
+ * inverted — an opaque near-black EDIT PRICE over a hollow outline — which read as the take-down being the
+ * lesser of the two.
+ *
+ * Geometry comes from `ctaBox`, which already matches the design exactly (48px, radius 16, 15/24 semibold,
+ * 0.46 tracking, uppercase); only the fill differs, so only the fill is stated here.
+ */
+export const SoftCta = styled(Button)`
+  ${ctaBox};
+  && {
+    background: rgba(255, 255, 255, 0.2);
+    color: ${colors.softWhite};
+    border: 0;
+
+    .ico {
+      width: 20px;
+      height: 20px;
+    }
+  }
+  &&:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.3);
+  }
+  &&:disabled {
+    opacity: 0.5;
+  }
+`
+
+export const ScrimCta = styled(Button)`
+  ${ctaBox};
+  && {
+    background: rgba(0, 0, 0, 0.4);
+    color: ${colors.white};
+    border: 0;
+  }
+  &&:hover:not(:disabled) {
+    background: rgba(0, 0, 0, 0.55);
+  }
+  &&:disabled {
+    opacity: 0.5;
+  }
+`
+
 export const OutlineCta = styled(Button)`
   ${ctaBox};
   && {
@@ -1308,7 +1356,7 @@ export const ManageResellers = styled.div`
 // occupies its eventual height — no reflow when the data lands.
 const skeletonFill = css`
   display: block;
-  background: linear-gradient(100deg, #efeef2 30%, #e2e0e7 50%, #efeef2 70%);
+  background: linear-gradient(100deg, var(--skeleton-lo) 30%, var(--skeleton-hi) 50%, var(--skeleton-lo) 70%);
   background-size: 200% 100%;
   animation: shimmer 1.4s infinite linear;
 

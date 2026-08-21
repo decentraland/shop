@@ -446,6 +446,10 @@ export const PriceWas = styled.span`
 `
 
 // The `shimmer` keyframe is global (index.css).
+//
+// The ONE skeleton that does not take the shared `--skeleton-lo/hi` stops, and must not be "unified" into
+// them: those are translucent WHITE, for the purple field every other skeleton sits on. This table's own
+// surface is white, where they would be invisible. Light greys on light, deliberately.
 export const SkeletonRow = styled.div`
   height: 101px;
   border: 1px solid transparent;

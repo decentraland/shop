@@ -1181,6 +1181,18 @@ export type ItemMeta = {
   utility: string | null
   /** The canonical asset urn, straight from the server — no need to rebuild one from contract + itemId. */
   urn: string | null
+  /**
+   * The on-chain slot (`upper_body`, `eyewear`, …) and who can wear it.
+   *
+   * Read here because this row is the only place a TOKEN page can get them: the owned-token lookup reports
+   * a token's `category` ('wearable') but neither its slot nor its body shapes, so a token page fell back to
+   * the generic "WEARABLE" chip with no gender chip at all — while the same asset's item page showed
+   * "UPPER BODY" and "UNISEX". Same asset, two different chip rows, depending on which URL you opened.
+   *
+   * Null for an emote (no slot, no body shapes) and for anything the row does not carry.
+   */
+  wearableCategory: string | null
+  gender: CatalogItem['gender']
 }
 
 export async function fetchItemMeta(contractAddress: string, itemId: string): Promise<ItemMeta | null> {
@@ -1193,7 +1205,7 @@ export async function fetchItemMeta(contractAddress: string, itemId: string): Pr
       thumbnail?: string
       utility?: string | null
       urn?: string
-      data?: { wearable?: { isSmart?: boolean } }
+      data?: { wearable?: { isSmart?: boolean; category?: string; bodyShapes?: string[] } }
     }>
   }
   const row = data?.[0]
@@ -1204,7 +1216,10 @@ export async function fetchItemMeta(contractAddress: string, itemId: string): Pr
     isSmart: !!row.data?.wearable?.isSmart,
     // Blank-but-present is the same as absent for rendering; normalise here so no caller has to trim.
     utility: row.utility?.trim() || null,
-    urn: row.urn ?? null
+    urn: row.urn ?? null,
+    wearableCategory: row.data?.wearable?.category ?? null,
+    // Same derivation the catalog uses, so the two never disagree about who can wear an item.
+    gender: toGender(row.data?.wearable?.bodyShapes)
   }
 }
 

@@ -6,17 +6,22 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { CatalogItem } from '~/lib/api'
 
 /**
- * ARRIVING AT A TOKEN PAGE FROM AN ITEM PAGE.
+ * ARRIVING AT A TOKEN PAGE HAVING SEEN THE ITEM PAGE.
  *
- * `/item/:contractAddress/:itemId` and `/token/:contractAddress/:tokenId` are two routes rendering ONE
- * component, so react-router swaps the params on the SAME mounted instance — the seeding `useState` never
- * runs again. The page's identity therefore has to be re-derived from the route, or the second page is
- * rendered with the first one's identity.
+ * One symptom, TWO independent mechanisms — a token the viewer OWNS rendered as the buyer view, "Not for
+ * sale" with a notify-me box and a STOCK count. Both leave the page on the token route holding an identity
+ * with no tokenId, which is what disables the owned-token lookup the owner actions depend on:
  *
- * The reported symptom was the expensive half of that: a token the viewer OWNS rendered as "Not for sale"
- * with a Notify-me box, because the owned-token lookup was gated on a `current.tokenId` that the item route
- * had pinned to `undefined`. A hard reload of the very same URL showed the owner view, which is what makes
- * this look like a caching problem rather than a mount-order one.
+ *  1. THE MOUNT. Both routes render ONE component, so react-router swaps the params on the SAME mounted
+ *     instance while the page seeds its identity in a `useState` initialiser that never runs again. Fixed
+ *     by keying the page on the path (ItemDetailRoute).
+ *
+ *  2. THE CACHE. The generic item listing is keyed on the itemId, and on the token route that id is DECODED
+ *     from the token — the same key. `enabled: false` stops the fetch but NOT the cache read, so having
+ *     opened the item page first left its row (no tokenId, with the mint's stock) there to be adopted.
+ *
+ * The second one is why a hard reload of the same URL was fine, and why this looked like a stale cache: it
+ * WAS one. The first is why it also happened with an empty cache.
  */
 
 vi.mock('decentraland-transactions', () => ({
@@ -34,8 +39,11 @@ vi.mock('decentraland-ui2', () => ({
 
 const CONTRACT = '0xanchor'
 const OWNER = '0xabc0000000000000000000000000000000000abc'
-const TOKEN_ID = '70'
-const ITEM_ID = '1'
+// From the report. The itemId is DECODED from the token (4), which is what makes the item page's cache
+// entry and the token page's cache key the same entry — the collision this file exists to pin.
+const TOKEN_ID = '421249166674228746791672110734681729275580381602196445017243910157'
+const ITEM_ID = '4'
+const ISSUED_ID = '13'
 
 const session = {
   address: OWNER,
@@ -64,13 +72,17 @@ vi.mock('~/lib/analytics', async importOriginal => ({
   track: vi.fn()
 }))
 
-const { fetchOwnedToken, fetchShopListingForItem } = vi.hoisted(() => ({
+const { fetchOwnedToken, fetchShopListingForItem, fetchItemMeta, fetchUnifiedListingForItem } = vi.hoisted(() => ({
   fetchOwnedToken: vi.fn(),
-  fetchShopListingForItem: vi.fn()
+  fetchShopListingForItem: vi.fn(),
+  fetchItemMeta: vi.fn(),
+  fetchUnifiedListingForItem: vi.fn()
 }))
 vi.mock('~/lib/api', () => ({
   fetchOwnedToken,
   fetchShopListingForItem,
+  fetchItemMeta,
+  fetchUnifiedListingForItem,
   fetchTradeForItem: vi.fn().mockResolvedValue(null),
   fetchTrade: vi.fn().mockResolvedValue(null),
   fetchItemResales: vi.fn().mockResolvedValue([]),
@@ -127,7 +139,7 @@ const ownedToken = {
   id: `${CONTRACT}-${TOKEN_ID}`,
   contractAddress: CONTRACT,
   tokenId: TOKEN_ID,
-  issuedId: TOKEN_ID,
+  issuedId: ISSUED_ID,
   itemId: ITEM_ID,
   name: 'Global Vibes Shorts',
   category: 'wearable',
@@ -146,11 +158,20 @@ function ToTokenPage() {
   return <button onClick={() => navigate(`/token/${CONTRACT}/${TOKEN_ID}`)}>go to token</button>
 }
 
-function renderApp(initialPath: string) {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+const newClient = () => new QueryClient({ defaultOptions: { queries: { retry: false } } })
+
+/**
+ * @param withState  Whether the entry carries a grid row in router state, as a click from a grid does.
+ *                   `false` is a DEEP LINK or a refresh: the page starts from its own stub, so every field
+ *                   has to be resolved. A seeded row already carries the slot and the body shapes, and a
+ *                   test that always seeds one cannot see whether the page can find them on its own.
+ * @param qc         Pass an existing client to keep a WARM cache across two renders — which is the only way
+ *                   to reproduce a second page adopting what the first one stored.
+ */
+function renderApp(initialPath: string, withState = true, qc: QueryClient = newClient()) {
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={[{ pathname: initialPath, state: { item: unlistedItem } }]}>
+      <MemoryRouter initialEntries={[{ pathname: initialPath, state: withState ? { item: unlistedItem } : null }]}>
         <ToTokenPage />
         <Routes>
           <Route path="/item/:contractAddress/:itemId" element={<ItemDetailRoute />} />
@@ -168,10 +189,27 @@ beforeEach(() => {
   vi.clearAllMocks()
   fetchShopListingForItem.mockResolvedValue(null)
   // Owned only as THIS token. The item route asks for no token, so a lookup keyed on the route can only
-  // ever be called with '70' — and a call with anything else means the page asked about the wrong thing.
+  // ever be called with the reported id — a call with anything else means the page asked about the wrong
+  // thing.
   fetchOwnedToken.mockImplementation(async (_owner: string, _contract: string, tokenId: string) =>
     tokenId === TOKEN_ID ? ownedToken : null
   )
+  // The item row: the ONLY source of the slot and the body shapes. Deliberately unlike `ownedToken`, which
+  // reports neither — that asymmetry is the whole point of the backfill.
+  fetchUnifiedListingForItem.mockResolvedValue({
+    ...unlistedItem,
+    tokenId: undefined,
+    available: 83
+  })
+  fetchItemMeta.mockResolvedValue({
+    name: 'Global Vibes Shorts',
+    thumbnail: '',
+    isSmart: false,
+    utility: null,
+    urn: null,
+    wearableCategory: 'upper_body',
+    gender: 'unisex'
+  })
 })
 
 describe('when the viewer reaches their own token page from the generic item page', () => {
@@ -214,6 +252,69 @@ describe('when the viewer reaches their own token page from the generic item pag
   }, 30000)
 })
 
+/**
+ * MECHANISM 2, on its own: the page MOUNTS fresh on the token route, and still adopts the item row.
+ *
+ * This is the path from the report — item page, away to My Items, then open the token — where the trip
+ * through another route unmounts the page, so nothing about the mount can explain it. What survives that
+ * trip is the QUERY CACHE, and the item listing's key is the decoded itemId: the same entry either route
+ * resolves to. Reading it on the token route replaces the identity with a row that has no tokenId.
+ *
+ * `STOCK` is the assertion rather than the absent TRANSFER, because it names the cause: that count is the
+ * MINT's remaining supply and it can only render when the page believes it has no token in hand.
+ */
+describe('when the viewer opened the item page earlier in the session', () => {
+  it('should not adopt the generic item row on the token page', async () => {
+    const qc = newClient()
+
+    // Fill the cache exactly as the item page does, through the page itself.
+    const first = renderApp(`/item/${CONTRACT}/${ITEM_ID}`, true, qc)
+    await waitFor(() => expect(notifyCta()).toBeInTheDocument())
+    await waitFor(() => expect(fetchUnifiedListingForItem).toHaveBeenCalled())
+    first.unmount()
+
+    // Now the token page, mounted fresh — but against a warm cache, on the same client the app uses.
+    renderApp(`/token/${CONTRACT}/${TOKEN_ID}`, false, qc)
+
+    await waitFor(() => expect(transferCta()).toBeInTheDocument())
+    expect(screen.queryByText(/^stock$/i)).not.toBeInTheDocument()
+    expect(notifyCta()).not.toBeInTheDocument()
+  }, 30000)
+})
+
+/**
+ * The owner's row on a token page: TRANSFER, and RESELL ITEM under it (Figma 1526:300789).
+ *
+ * Reselling is not built in the Shop yet, so the second one is a hand-off to the legacy Marketplace. It is
+ * on THIS page rather than in My Items because a token page is where an owner arrives to decide what to do
+ * with one specific copy.
+ */
+describe('when the viewer owns the token on the page', () => {
+  it('should offer to resell it, and hand off with that exact token', async () => {
+    renderApp(`/token/${CONTRACT}/${TOKEN_ID}`, false)
+    await waitFor(() => expect(transferCta()).toBeInTheDocument())
+
+    await userEvent.click(screen.getByTestId('resell-item'))
+
+    expect(screen.getByTestId('marketplace-redirect-modal')).toBeInTheDocument()
+    // The id in the hand-off URL comes from the ROUTE, so it is the copy the owner was looking at.
+    expect(screen.getByTestId('marketplace-redirect-continue').getAttribute('href')).toContain(
+      `/contracts/${CONTRACT}/tokens/${TOKEN_ID}`
+    )
+  }, 30000)
+
+  // A viewer who does not hold the token has nothing to resell, so the link must not be there at all —
+  // it would hand them to a marketplace page for someone else's asset.
+  it('should not offer to resell a token the viewer does not own', async () => {
+    fetchOwnedToken.mockResolvedValue(null)
+
+    renderApp(`/token/${CONTRACT}/${TOKEN_ID}`, false)
+
+    await waitFor(() => expect(fetchOwnedToken).toHaveBeenCalled())
+    expect(screen.queryByTestId('resell-item')).not.toBeInTheDocument()
+  }, 30000)
+})
+
 describe('when the viewer opens their own token page directly', () => {
   // The control. This path always worked — the seeding state runs on mount with the token route matched —
   // and it is what made the bug look like a cache problem: same URL, different outcome.
@@ -221,5 +322,24 @@ describe('when the viewer opens their own token page directly', () => {
     renderApp(`/token/${CONTRACT}/${TOKEN_ID}`)
 
     await waitFor(() => expect(transferCta()).toBeInTheDocument())
+  }, 30000)
+
+  /**
+   * The chip row, per the design (Figma 1527:301129): rarity, the SLOT, and who can wear it.
+   *
+   * A token page hydrates from the owned-token lookup, which carries the token's `category` ('wearable')
+   * but neither its slot nor its body shapes. So this row degraded to "LEGENDARY · WEARABLE" with no gender
+   * chip at all, while the same asset's item page showed the slot and the gender. Same asset, two chip rows.
+   */
+  it('should show the slot and the gender chips, not the generic category', async () => {
+    // NO router state: the owned-token lookup and the item row are the only sources, which is the case the
+    // backfill exists for. Seeded from a grid row the page already has both and proves nothing.
+    renderApp(`/token/${CONTRACT}/${TOKEN_ID}`, false)
+
+    // Lower-case in the DOM; the uppercasing is CSS.
+    await waitFor(() => expect(screen.getByText(/upper body/i)).toBeInTheDocument())
+    expect(screen.getByText(/unisex/i)).toBeInTheDocument()
+    // The generic fallback must be gone, not merely joined by the specific one.
+    expect(screen.queryByText(/^wearable$/i)).not.toBeInTheDocument()
   }, 30000)
 })
