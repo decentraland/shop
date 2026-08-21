@@ -41,14 +41,25 @@ export function MarketplaceRedirectModal({
 }) {
   const cardRef = useRef<HTMLDivElement>(null)
 
+  /**
+   * Read through a ref so the Escape listener is bound ONCE.
+   *
+   * Callers pass an inline arrow (`onClose={() => setShowResell(false)}`), which is a new function on every
+   * render of the page behind this modal — as a dependency it would tear the listener down and rebuild it
+   * on each of them. Holding it here keeps the effect independent of the caller's render cadence instead of
+   * asking every caller to remember a `useCallback`.
+   */
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
+
   useEffect(() => {
     cardRef.current?.focus()
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') onCloseRef.current()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
+  }, [])
 
   return (
     <S.Scrim role="presentation" onClick={onClose}>

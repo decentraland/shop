@@ -61,6 +61,10 @@ export function t(id: string, values?: Record<string, string | number>): string 
  *
  * Returns a ReactNode, so it is JSX-only; `t()` stays the answer everywhere a plain string is wanted (an
  * aria-label, a title, a document title) because a node cannot go in those.
+ *
+ * The cast is deliberate. `formatMessage` is overloaded on whether any value is a chunk function, and it
+ * infers that from the literal type of the values object — which a `Record` has already erased by the time
+ * it gets here. The runtime contract is react-intl's own and unaffected; only the inference is lost.
  */
 export function tNode(
   id: string,

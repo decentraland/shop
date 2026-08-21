@@ -794,14 +794,13 @@ export const DarkCta = styled(Button)`
   }
 `
 
-// Dark-outline CTA — the secondary manage action (Transfer / Remove from sale).
 /**
  * ISSUE COPIES is a text link, not a third button.
  *
- * It used to reuse OutlineCta, which made it visually identical to REMOVE FROM SALE directly above — two
- * outlined buttons of equal weight, so nothing said which was the ordinary action and which was the rare
- * one. The design ranks them: filled for Edit price, outlined for Remove from sale, and a plain underlined
- * link for issuing copies.
+ * It used to be a third outlined button, visually identical to REMOVE FROM SALE directly above — two of
+ * equal weight, so nothing said which was the ordinary action and which was the rare one. The design ranks
+ * them: a soft fill for Edit price, a scrim for Remove from sale, and a plain underlined link for issuing
+ * copies (SoftCta / ScrimCta above).
  */
 export const LinkCta = styled.button`
   align-self: center;
@@ -879,26 +878,6 @@ export const ScrimCta = styled(Button)`
   }
   &&:disabled {
     opacity: 0.5;
-  }
-`
-
-export const OutlineCta = styled(Button)`
-  ${ctaBox};
-  && {
-    background: transparent;
-    border: 0.5px solid ${colors.white};
-    color: ${colors.softWhite};
-    transition:
-      background 0.15s ease,
-      color 0.15s ease;
-  }
-  &&:hover:not(:disabled),
-  &&:active:not(:disabled) {
-    background: ${colors.softWhite};
-    color: ${colors.text};
-  }
-  &&:disabled {
-    opacity: 0.3;
   }
 `
 
