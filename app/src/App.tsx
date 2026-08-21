@@ -43,7 +43,7 @@ const PAGE_NAMES: Record<string, string> = {
 // Overview (home) stays eager for the fastest first paint; every other route is code-split so it
 // stays out of the initial bundle and loads on navigation (see vite manualChunks + LazyWearablePreview).
 const Assets = lazy(() => import('~/pages/Assets').then(m => ({ default: m.Assets })))
-const ItemDetail = lazy(() => import('~/pages/ItemDetail').then(m => ({ default: m.ItemDetail })))
+const ItemDetailRoute = lazy(() => import('~/pages/ItemDetail').then(m => ({ default: m.ItemDetailRoute })))
 const Collection = lazy(() => import('~/pages/Collection').then(m => ({ default: m.Collection })))
 const Creator = lazy(() => import('~/pages/Creator').then(m => ({ default: m.Creator })))
 const StoreSettings = lazy(() => import('~/pages/StoreSettings').then(m => ({ default: m.StoreSettings })))
@@ -174,8 +174,8 @@ export function App() {
               {/* Two detail routes so the id is never ambiguous (an itemId and a tokenId can collide —
                   item 0's tokens have small tokenIds). /item is the generic buy view; /token is a
                   specific owned/listed copy. Both render ItemDetail, which branches on the param. */}
-              <Route path="/item/:contractAddress/:itemId" element={<ItemDetail />} />
-              <Route path="/token/:contractAddress/:tokenId" element={<ItemDetail />} />
+              <Route path="/item/:contractAddress/:itemId" element={<ItemDetailRoute />} />
+              <Route path="/token/:contractAddress/:tokenId" element={<ItemDetailRoute />} />
               <Route path="/collection/:contractAddress" element={<Collection />} />
               <Route path="/items/creator/:address" element={<Creator />} />
               <Route path="/outfits/manage" element={<OutfitStudio />} />
