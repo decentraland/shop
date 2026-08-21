@@ -87,6 +87,31 @@ function categoryLabel(item: CatalogItem): string {
   return item.category === 'emote' ? t('itemDetail.categoryEmote') : t('itemDetail.categoryWearable')
 }
 
+/**
+ * What the ROUTER should mount — one ItemDetail instance PER ASSET.
+ *
+ * Both detail routes render this page, so react-router hands the SAME mounted instance a new set of params
+ * on a navigation between them, while the page seeds its identity (item id, token id, name, price, listing)
+ * in a `useState` initialiser that then never runs again. Every mount-only assumption below is therefore
+ * wrong from the second asset onwards. Keying on the path makes a different asset a different instance,
+ * which is what this page has always assumed it was.
+ *
+ * The reported symptom: reaching /token/:tokenId from /item/:itemId left the page pinned to the item route's
+ * identity, where the token id is deliberately `undefined`. That disabled the owned-token lookup, so a token
+ * the viewer OWNS rendered as the buyer view — "Not for sale" with a notify-me box — while a hard reload of
+ * the very same URL showed the owner actions. Which is exactly why it looked like a stale cache.
+ *
+ * Lives HERE rather than in App's route table so the page owns its own remount contract: a page that is only
+ * correct when some other file remembers to key it is a page that will break again.
+ *
+ * PATHNAME only, not the search or the router state: navigating to the SAME asset with new state (the
+ * buy-modal resume after a sign-in round-trip) must not throw the page away and reopen it.
+ */
+export function ItemDetailRoute() {
+  const { pathname } = useLocation()
+  return <ItemDetail key={pathname} />
+}
+
 export function ItemDetail() {
   // TWO routes render this page (see App.tsx): /item/:contractAddress/:itemId (generic buy view) and
   // /token/:contractAddress/:tokenId (a specific copy). react-router populates whichever param matched.
