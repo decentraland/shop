@@ -50,6 +50,27 @@
   --z-overlay: 10000;
   /* Tooltip tier — portalled to <body>, so it must clear whatever overlay its trigger sits in. */
   --z-tooltip: 10010;
+
+  /**
+   * The placeholder shimmer, as TWO STOPS rather than a finished gradient — one definition for every
+   * skeleton in the app.
+   *
+   * Translucent white, not an opaque grey: every skeleton in the Shop sits on the purple field (the browse
+   * grid, the item column, the rails, the outfit studio), and an opaque light grey read as white BLOCKS
+   * punched into it. The card skeletons were already doing this correctly and the shared `.skeleton` was
+   * not, so a loading item page and its loading card rail shimmered in two different colours.
+   *
+   * Stops rather than one gradient because the shapes differ in what they need it for — a flat fill, an
+   * ::after overlay — while the colour must not be allowed to drift between them again.
+   *
+   * A skeleton on a WHITE surface (the import table) cannot use these and defines its own; there is no
+   * single pair that works on both fields.
+   *
+   * No twin in theme.ts, unlike the palette above: every consumer reads them as `var(--…)`, including the
+   * styled defs, so a second copy would be a token nothing resolves through and one more thing to drift.
+   */
+  --skeleton-lo: rgba(255, 255, 255, 0.07);
+  --skeleton-hi: rgba(255, 255, 255, 0.16);
 }
 @media (max-width: 991px) {
   :root {
@@ -252,7 +273,7 @@ h2 {
    (balance chip, item-detail info column, …). Pair sized modifiers with it. */
 .skeleton {
   border-radius: 6px;
-  background: linear-gradient(100deg, #efeef2 30%, #e2e0e7 50%, #efeef2 70%);
+  background: linear-gradient(100deg, var(--skeleton-lo) 30%, var(--skeleton-hi) 50%, var(--skeleton-lo) 70%);
   background-size: 200% 100%;
   animation: shimmer 1.4s infinite linear;
 }

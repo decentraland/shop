@@ -10,6 +10,7 @@
   "CREDITS_SERVER_URL": "https://credits.decentraland.zone",
   "NOTIFICATIONS_SERVER_URL": "https://notifications.decentraland.zone",
   "BUILDER_SERVER_URL": "https://builder-api.decentraland.zone",
+  "MARKETPLACE_URL": "https://decentraland.zone/marketplace",
   "BUILDER_URL": "https://decentraland.zone/builder",
   "PEER_URL": "https://peer.decentraland.zone",
   "PROFILE_URL": "https://decentraland.zone/profile",

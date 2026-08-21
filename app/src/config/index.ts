@@ -93,6 +93,14 @@ export const config = {
   // Builder WEB app base (already includes the `/builder` path segment, marketplace-style) — used to
   // deep-link an owned NAME to its Builder management page (`${builderUrl}/names/<name>`).
   builderUrl: env.VITE_BUILDER_URL ?? base.get('BUILDER_URL'),
+  /**
+   * The legacy Marketplace WEB app, path segment included, same shape as `builderUrl`.
+   *
+   * Per-environment rather than the hardcoded `.org` the footer link carries: this one is a HANDOFF, so a
+   * seller sent from the `.zone` Shop has to land on the `.zone` Marketplace or their token is not there.
+   * Used to send a reseller to a token's page, where listing still lives (see MarketplaceRedirectModal).
+   */
+  marketplaceUrl: env.VITE_MARKETPLACE_URL ?? base.get('MARKETPLACE_URL'),
   peerUrl: env.VITE_PEER_URL ?? base.get('PEER_URL'),
   profileUrl: env.VITE_PROFILE_URL ?? base.get('PROFILE_URL'),
   shopServerUrl: env.VITE_SHOP_SERVER_URL ?? base.get('SHOP_SERVER_URL'),

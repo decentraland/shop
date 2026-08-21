@@ -8,13 +8,15 @@ const { radius, media } = theme
 export const SETTLE_MS = 250
 
 // The placeholder fill, shared by every skeleton shape here so a rail of cards and a rail of outfits
-// shimmer as one surface.
+// shimmer as one surface — and, through the two custom properties, as ONE surface with every `.skeleton`
+// elsewhere in the app too (styles/index.css). The values used to be written out here and again there,
+// with different colours, so a loading item page and its loading card rail did not match.
 const shimmerFill = `
   background: linear-gradient(
     100deg,
-    rgba(255, 255, 255, 0.07) 30%,
-    rgba(255, 255, 255, 0.16) 50%,
-    rgba(255, 255, 255, 0.07) 70%
+    var(--skeleton-lo) 30%,
+    var(--skeleton-hi) 50%,
+    var(--skeleton-lo) 70%
   );
   background-size: 200% 100%;
   animation: shimmer 1.4s infinite linear;

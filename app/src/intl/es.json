@@ -431,6 +431,7 @@
     "ownItemSuffix": ".",
     "manageList": "Poner a la venta",
     "manageTransfer": "Transferir",
+    "manageResell": "Revender ítem",
     "manageIssue": "Emitir copias",
     "manageUpdatePrice": "Editar precio",
     "manageRemove": "Quitar de la venta",
@@ -934,10 +935,18 @@
     "aria": "1 {unit} equivale a {usd} dólares estadounidenses"
   },
   "manaPricingBanner": {
-    "lead": "{count, plural, one {# artículo sigue usando} other {# artículos siguen usando}} precios en MANA.",
+    "lead": "{count, plural, one {# artículo sigue usando} other {# artículos siguen usando}} precios en <mana>MANA</mana>.",
     "accent": "Cambia a créditos",
     "trail": "para mantener tus precios estables.",
     "cta": "Actualizar precios"
+  },
+  "marketplaceRedirect": {
+    "title": "Redirección al Marketplace",
+    "close": "Cerrar",
+    "heading": "Continuá en el Marketplace anterior",
+    "body": "La reventa está disponible por ahora en el Marketplace anterior. Te vamos a redirigir para que completes la publicación.",
+    "cancel": "Cancelar",
+    "continue": "Continuar"
   },
   "newPricing": {
     "title": "Precios nuevos",

@@ -50,6 +50,7 @@ import { fetchCollection } from '~/lib/collections'
 import { ItemPreview } from '~/components/ItemPreview'
 import { CollectionCarousel } from '~/components/CollectionCarousel'
 import { ResellersModal } from '~/components/ResellersModal'
+import { MarketplaceRedirectModal } from '~/components/MarketplaceRedirectModal'
 import { useSecondarySales } from '~/hooks/useSecondarySales'
 import { NotifyMe } from '~/components/NotifyMe'
 import { isNotifyAvailable } from '~/lib/notify'
@@ -283,7 +284,7 @@ export function ItemDetail() {
   // "Not for sale" on its own page while its card in the grid showed a price.
   // ITEM ROUTE ONLY: the token route hydrates from the specific token (ownedAsset / publicToken) and
   // must not be overwritten by the generic item listing (which carries no tokenId).
-  const { data: deepLinkItem, isLoading: deepLinkLoading } = useQuery({
+  const { data: cachedItemListing, isLoading: deepLinkLoading } = useQuery({
     queryKey: ['shop-item', current.contractAddress, pageItemId],
     // Runs even when the page was seeded from a card. Skipping it there was what let a stale grid price
     // stand as this page's price, with a Buy button under it.
@@ -295,6 +296,24 @@ export function ItemDetail() {
     refetchOnWindowFocus: true,
     queryFn: () => fetchUnifiedListingForItem(current.contractAddress, pageItemId as string)
   })
+  /**
+   * ITEM ROUTE ONLY — and enforced HERE, on the value, not by the `enabled` flag above.
+   *
+   * `enabled: false` stops the FETCH. It does not stop the cache READ: react-query still hands back
+   * whatever is stored under the key, and on the token route this key resolves to the SAME entry, because
+   * `pageItemId` is the itemId DECODED from the token. So opening an item's page and then one of its
+   * tokens made the token page adopt the generic item row — which carries no tokenId and does carry the
+   * mint's remaining stock.
+   *
+   * What that looked like: a token the viewer OWNS rendered as the buyer view, "Not for sale" with a
+   * notify-me box and a STOCK count, because clearing `tokenId` also disabled the owned-token lookup that
+   * decides the owner actions. A hard reload of the same URL was fine — nothing in the cache to adopt yet.
+   *
+   * Gated once, at the source, because there are eight consumers below (including the one that decides
+   * whether to fall back to the public token lookup) and every one of them already assumes this is
+   * item-route-only. Leaving it to each of them is how it went wrong the first time.
+   */
+  const deepLinkItem = isTokenRoute ? undefined : cachedItemListing
   useEffect(() => {
     if (!deepLinkItem) return
     setCurrent(prev => {
@@ -414,6 +433,27 @@ export function ItemDetail() {
   const utility = itemTraits?.utility ?? null
 
   /**
+   * The chip row's asset, with the slot and body shapes BACKFILLED from the item row above.
+   *
+   * A token page hydrates `current` from the owned-token lookup, which reports the token's `category`
+   * ('wearable') but neither its slot nor its body shapes. So the same asset showed "LEGENDARY · UPPER BODY ·
+   * UNISEX" on its item page and "LEGENDARY · WEARABLE" — no gender chip — on its token page, which is not
+   * what the design asks for either (Figma 1527:301129).
+   *
+   * `current` still WINS where it has an answer: it is the more specific record for a route that carries one,
+   * and this must only ever fill a gap. A backfill that overrode it would let a stale item row rewrite the
+   * token in front of the viewer.
+   */
+  const chipItem: CatalogItem = useMemo(
+    () => ({
+      ...current,
+      wearableCategory: current.wearableCategory ?? itemTraits?.wearableCategory ?? undefined,
+      gender: current.gender ?? itemTraits?.gender ?? null
+    }),
+    [current, itemTraits?.wearableCategory, itemTraits?.gender]
+  )
+
+  /**
    * VRM export, when the creator blocked it. `blockVrmExport` lives on the wearable's Catalyst entity and on no
    * marketplace endpoint, so it costs its own lookup — worth it because it is a restriction the buyer inherits:
    * they will not be able to take this item out to a VRM avatar. Stated exactly as the marketplace states it,
@@ -525,6 +565,9 @@ export function ItemDetail() {
   }, [resales, current])
   const [buyResale, setBuyResale] = useState<CatalogItem | null>(null)
   const [showResellers, setShowResellers] = useState(false)
+  // The resale hand-off (see MarketplaceRedirectModal). Separate from `showResellers`, which is the BUYER's
+  // list of other people's resales — same word, opposite side of the trade.
+  const [showResell, setShowResell] = useState(false)
 
   // Market (legacy) checkout: the live MANA→USD rate (read only in market mode) + the LegacyListing
   // projection MarketCheckout expects, built from the UnifiedListing the grid passed in router state.
@@ -634,13 +677,13 @@ export function ItemDetail() {
   }
 
   const rarity: Rarity = isValidRarity(current.rarity) ? current.rarity : Rarity.COMMON
-  const gender = genderLabel(current.gender)
-  const catIco = categoryIcon(current)
-  const genderIco = genderIcon(current.gender)
+  const gender = genderLabel(chipItem.gender)
+  const catIco = categoryIcon(chipItem)
+  const genderIco = genderIcon(chipItem.gender)
   // Null for an attribute the browse page cannot filter by, in which case the chip stays static rather
   // than linking somewhere that would ignore it.
   const rarityLink = rarityHref(current.rarity)
-  const categoryLink = categoryHref(current)
+  const categoryLink = categoryHref(chipItem)
   const onSale = forSale && saleActive
   // Only a rail made up ENTIRELY of the collection's items can be titled after the collection and offer a
   // "View all" into it; the moment it is padded, both would be describing items that aren't there.
@@ -1108,7 +1151,7 @@ export function ItemDetail() {
               t('seo.item.fallbackDescription', {
                 name: current.name,
                 rarity: current.rarity,
-                category: categoryLabel(current),
+                category: categoryLabel(chipItem),
                 creator: shortAddress(current.creator)
               }),
             image: thumbAbsolute ? current.thumbnail : undefined,
@@ -1227,15 +1270,15 @@ export function ItemDetail() {
                   <S.DetailChipLink
                     to={categoryLink}
                     data-testid="detail-category-link"
-                    title={t('itemDetail.browseByCategory', { category: categoryLabel(current) })}
+                    title={t('itemDetail.browseByCategory', { category: categoryLabel(chipItem) })}
                   >
                     {catIco ? <Icon name={catIco} size={18} /> : null}
-                    {categoryLabel(current)}
+                    {categoryLabel(chipItem)}
                   </S.DetailChipLink>
                 ) : (
                   <S.DetailChip>
                     {catIco ? <Icon name={catIco} size={18} /> : null}
-                    {categoryLabel(current)}
+                    {categoryLabel(chipItem)}
                   </S.DetailChip>
                 )}
                 {gender ? (
@@ -1592,7 +1635,7 @@ export function ItemDetail() {
                             the viewer may not sell — re-pricing is a cancel plus a NEW listing, so it is an
                             entrance, not an exit. Remove stays below either way. */}
                             {canPutOnSale ? (
-                              <S.DarkCta
+                              <S.SoftCta
                                 onClick={() => void updatePrice()}
                                 disabled={managing !== null || !canOpenListModal}
                               >
@@ -1604,13 +1647,13 @@ export function ItemDetail() {
                                       : t('itemDetail.updateConfirmCancel')
                                     : t('itemDetail.manageUpdatePrice')}
                                 </span>
-                              </S.DarkCta>
+                              </S.SoftCta>
                             ) : null}
-                            <S.OutlineCta onClick={() => void takeDown()} disabled={managing !== null}>
+                            <S.ScrimCta onClick={() => void takeDown()} disabled={managing !== null}>
                               <span>
                                 {managing === 'remove' ? t('myAssets.removing') : t('itemDetail.manageRemove')}
                               </span>
-                            </S.OutlineCta>
+                            </S.ScrimCta>
                           </>
                         ) : (
                           <>
@@ -1627,9 +1670,24 @@ export function ItemDetail() {
                             {/* Transfer (Figma 1527-302810): only for a SECONDARY owned token you actually hold
                             (a primary/mint listing has no transferable token). Gasless via lib/buy. */}
                             {manageAsSecondary ? (
-                              <S.OutlineCta onClick={() => setShowTransfer(true)} disabled={managing !== null}>
-                                <span>{t('itemDetail.manageTransfer')}</span>
-                              </S.OutlineCta>
+                              <>
+                                <S.ScrimCta onClick={() => setShowTransfer(true)} disabled={managing !== null}>
+                                  <span>{t('itemDetail.manageTransfer')}</span>
+                                </S.ScrimCta>
+                                {/* RESELL ITEM (Figma 1526:300789): a text link under the CTA, not a third
+                                    button — it leads OFF this app, and the design gives that the lightest
+                                    weight on the row. Reselling is not built here yet, so it hands the
+                                    seller to the legacy Marketplace (see MarketplaceRedirectModal). */}
+                                <S.LinkCta
+                                  type="button"
+                                  data-on-purple
+                                  data-testid="resell-item"
+                                  onClick={() => setShowResell(true)}
+                                  disabled={managing !== null}
+                                >
+                                  {t('itemDetail.manageResell')}
+                                </S.LinkCta>
+                              </>
                             ) : null}
                           </>
                         )}
@@ -1792,6 +1850,16 @@ export function ItemDetail() {
 
       {secondarySales && showResellers && current.itemId ? (
         <ResellersModal item={current} onClose={() => setShowResellers(false)} />
+      ) : null}
+
+      {/* Gated on the ROUTE's token id, not `current.tokenId`: this hands a seller to another app, so the
+          id in that URL has to be the one they are looking at and nothing that hydrated into state. */}
+      {showResell && routeTokenId ? (
+        <MarketplaceRedirectModal
+          contractAddress={contractAddress ?? ''}
+          tokenId={routeTokenId}
+          onClose={() => setShowResell(false)}
+        />
       ) : null}
 
       {showSell && ownedAsset && session ? (

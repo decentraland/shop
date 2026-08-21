@@ -21,6 +21,7 @@ interface ImportMetaEnv {
   readonly VITE_ETHEREUM_RPC_URL?: string
   readonly VITE_GASLESS_CHECKOUT?: string
   readonly VITE_MARKETPLACE_SERVER_URL?: string
+  readonly VITE_MARKETPLACE_URL?: string
   readonly VITE_NOTIFICATIONS_SERVER_URL?: string
   readonly VITE_PEER_URL?: string
   readonly VITE_PROFILE_URL?: string

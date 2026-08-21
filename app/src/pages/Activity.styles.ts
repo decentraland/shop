@@ -400,7 +400,7 @@ export const ThumbSkeleton = styled.div`
   width: 52px;
   height: 52px;
   border-radius: 10px;
-  background: linear-gradient(100deg, ${theme.colors.media} 30%, ${theme.colors.panel} 50%, ${theme.colors.media} 70%);
+  background: linear-gradient(100deg, var(--skeleton-lo) 30%, var(--skeleton-hi) 50%, var(--skeleton-lo) 70%);
   background-size: 200% 100%;
   animation: ${shimmer} 1.3s infinite linear;
 
@@ -429,7 +429,7 @@ export const LineNamePlaceholder = styled.span`
   max-width: 60%;
   height: 12px;
   border-radius: 6px;
-  background: linear-gradient(100deg, ${theme.colors.media} 30%, ${theme.colors.panel} 50%, ${theme.colors.media} 70%);
+  background: linear-gradient(100deg, var(--skeleton-lo) 30%, var(--skeleton-hi) 50%, var(--skeleton-lo) 70%);
   background-size: 200% 100%;
   animation: ${shimmer} 1.3s infinite linear;
 
@@ -462,7 +462,7 @@ export const CardSkeleton = styled.div`
   height: 132px;
   border-radius: 16px;
   border: 1px solid transparent;
-  background: linear-gradient(100deg, ${theme.colors.media} 30%, ${theme.colors.panel} 50%, ${theme.colors.media} 70%);
+  background: linear-gradient(100deg, var(--skeleton-lo) 30%, var(--skeleton-hi) 50%, var(--skeleton-lo) 70%);
   background-size: 200% 100%;
   animation: ${shimmer} 1.3s infinite linear;
 

@@ -54,6 +54,22 @@ export const Accent = styled.strong`
   font-weight: 700;
 `
 
+/**
+ * The MANA mark, against the word MANA inside the sentence.
+ *
+ * `1em`, not a pixel size: it is a currency mark reading as part of the running text, so it has to track
+ * the sentence's font size rather than be set beside it. `-0.12em` puts its optical centre on the x-height
+ * — a mark aligned on the baseline sits visibly high next to lowercase letters.
+ *
+ * The nbsp lives in the JSX, not in a margin: a plain gap would let the line break between the mark and the
+ * word it belongs to, which is the one place this must never wrap.
+ */
+export const ManaMark = styled.img`
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.12em;
+`
+
 export const Cta = styled(Link)`
   flex: none;
   display: inline-flex;
