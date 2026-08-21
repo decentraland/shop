@@ -4,44 +4,63 @@ import type { ethers as Ethers } from 'ethers'
 
 // Mutable flag/relayer, ABIs and programmable on-chain read stubs. vi.hoisted lets the vi.mock
 // factories (hoisted to the top of the file) safely reference these shared handles.
-const { gasless, nonceMock, waitForTransactionMock, CM_ABI, MARKET_ABI, STORE_ABI, MetaTxError, ErrCode } = vi.hoisted(
-  () => {
-    // Minimal stand-ins for decentraland-transactions' MetaTransactionError / ErrorCode so buy-gasless's
-    // `new MetaTransactionError(msg, ErrorCode.USER_DENIED)` resolves against the mock.
-    class MetaTxError extends Error {
-      code: string
-      constructor(message: string, code: string) {
-        super(message)
-        this.name = 'MetaTransactionError'
-        this.code = code
-      }
-    }
-    return {
-      gasless: { enabled: true, relayerUrl: 'https://relayer.test/v1' },
-      MetaTxError,
-      ErrCode: { USER_DENIED: 'USER_DENIED' },
-      // getNonce(buyer) → a BigNumber-like value (only .toString() is read by the target).
-      nonceMock: vi.fn(async (_user: string): Promise<{ toString(): string }> => ({ toString: () => '7' })),
-      // waitForTransaction(hash, confirmations, timeout) → a receipt-like value (only .status is read).
-      waitForTransactionMock: vi.fn(async (..._args: unknown[]): Promise<{ status: number } | null> => ({ status: 1 })),
-      // A realistic CreditsManager ABI: enough for Interface.encodeFunctionData('useCredits') and
-      // ('executeMetaTransaction') to resolve real selectors + encode real bytes (real ethers utils).
-      CM_ABI: [
-        'function executeMetaTransaction(address userAddress, bytes functionData, bytes signature) returns (bytes)',
-        'function getNonce(address user) view returns (uint256)',
-        'function useCredits(tuple(tuple(uint256 value,uint256 expiresAt,bytes32 salt)[] credits, bytes[] creditsSignatures, tuple(address target, bytes4 selector, bytes data, uint256 expiresAt, bytes32 salt) externalCall, bytes customExternalCallSignature, uint256 maxUncreditedValue, uint256 maxCreditedValue) args)'
-      ],
-      // A minimal marketplace ABI with an `accept` fragment so buildAcceptCalldata resolves its selector.
-      MARKET_ABI: [
-        'function accept(tuple(address signer,bytes signature,tuple(uint256 uses,uint256 expiration,uint256 effective,bytes32 salt,uint256 contractSignatureIndex,uint256 signerSignatureIndex,bytes32 allowedRoot,bytes32[] allowedProof,tuple(address contractAddress,bytes4 selector,bytes value,bool required)[] externalChecks) checks,tuple(uint256 assetType,address contractAddress,uint256 value,address beneficiary,bytes extra)[] sent,tuple(uint256 assetType,address contractAddress,uint256 value,address beneficiary,bytes extra)[] received)[] trades)'
-      ],
-      // The CollectionStore's `buy` fragment, so a MINT's calldata encodes for real too.
-      STORE_ABI: [
-        'function buy(tuple(address collection,uint256[] ids,uint256[] prices,address[] beneficiaries)[] itemsToBuy)'
-      ]
+const {
+  gasless,
+  nonceMock,
+  nonceState,
+  bnLike,
+  waitForTransactionMock,
+  CM_ABI,
+  MARKET_ABI,
+  STORE_ABI,
+  MetaTxError,
+  ErrCode
+} = vi.hoisted(() => {
+  // Minimal stand-ins for decentraland-transactions' MetaTransactionError / ErrorCode so buy-gasless's
+  // `new MetaTransactionError(msg, ErrorCode.USER_DENIED)` resolves against the mock.
+  class MetaTxError extends Error {
+    code: string
+    constructor(message: string, code: string) {
+      super(message)
+      this.name = 'MetaTransactionError'
+      this.code = code
     }
   }
-)
+  const bnLike = (n: number) => ({
+    toString: () => String(n),
+    gt: (other: { toString(): string }) => n > Number(other.toString())
+  })
+  const nonceState = { next: 7 }
+  return {
+    gasless: { enabled: true, relayerUrl: 'https://relayer.test/v1' },
+    MetaTxError,
+    ErrCode: { USER_DENIED: 'USER_DENIED' },
+    // getNonce(buyer) → a BigNumber-like value: the target reads .toString() to sign and .gt() to
+    // check whether a relayed group has consumed the nonce it signed.
+    bnLike,
+    // The nonce ADVANCES on every read by default, because that is what the chain does once a relayed
+    // transaction lands. A constant would leave a multi-group basket waiting for a nonce that never moves.
+    nonceState,
+    nonceMock: vi.fn(async (_user: string) => bnLike(nonceState.next++)),
+    // waitForTransaction(hash, confirmations, timeout) → a receipt-like value (only .status is read).
+    waitForTransactionMock: vi.fn(async (..._args: unknown[]): Promise<{ status: number } | null> => ({ status: 1 })),
+    // A realistic CreditsManager ABI: enough for Interface.encodeFunctionData('useCredits') and
+    // ('executeMetaTransaction') to resolve real selectors + encode real bytes (real ethers utils).
+    CM_ABI: [
+      'function executeMetaTransaction(address userAddress, bytes functionData, bytes signature) returns (bytes)',
+      'function getNonce(address user) view returns (uint256)',
+      'function useCredits(tuple(tuple(uint256 value,uint256 expiresAt,bytes32 salt)[] credits, bytes[] creditsSignatures, tuple(address target, bytes4 selector, bytes data, uint256 expiresAt, bytes32 salt) externalCall, bytes customExternalCallSignature, uint256 maxUncreditedValue, uint256 maxCreditedValue) args)'
+    ],
+    // A minimal marketplace ABI with an `accept` fragment so buildAcceptCalldata resolves its selector.
+    MARKET_ABI: [
+      'function accept(tuple(address signer,bytes signature,tuple(uint256 uses,uint256 expiration,uint256 effective,bytes32 salt,uint256 contractSignatureIndex,uint256 signerSignatureIndex,bytes32 allowedRoot,bytes32[] allowedProof,tuple(address contractAddress,bytes4 selector,bytes value,bool required)[] externalChecks) checks,tuple(uint256 assetType,address contractAddress,uint256 value,address beneficiary,bytes extra)[] sent,tuple(uint256 assetType,address contractAddress,uint256 value,address beneficiary,bytes extra)[] received)[] trades)'
+    ],
+    // The CollectionStore's `buy` fragment, so a MINT's calldata encodes for real too.
+    STORE_ABI: [
+      'function buy(tuple(address collection,uint256[] ids,uint256[] prices,address[] beneficiaries)[] itemsToBuy)'
+    ]
+  }
+})
 
 vi.mock('~/lib/gasless-config', () => ({
   gaslessConfig: gasless,
@@ -97,7 +116,8 @@ import {
   buyGasless,
   buyOneGasless,
   buyManyGasless,
-  waitForSettlement
+  waitForSettlement,
+  waitForNonceAdvance
 } from '~/lib/buy-gasless'
 import type { CreditPurchase, SpendableCredit } from '~/lib/trade-encoding'
 
@@ -178,10 +198,14 @@ beforeEach(() => {
   gasless.enabled = true
   gasless.relayerUrl = 'https://relayer.test/v1'
   nonceMock.mockClear()
-  nonceMock.mockResolvedValue({ toString: () => '7' })
+  nonceState.next = 7
+  nonceMock.mockImplementation(async () => bnLike(nonceState.next++))
   waitForTransactionMock.mockClear()
   waitForTransactionMock.mockResolvedValue({ status: 1 })
   vi.unstubAllGlobals()
+  // The nonce wait sleeps between polls, so a few specs drive the clock themselves. Reset it here rather
+  // than in each of them, so a failure mid-test cannot leave fake timers installed for everything after.
+  vi.useRealTimers()
 })
 
 describe('when the gasless feature flag is off', () => {
@@ -645,6 +669,191 @@ describe('when batch buying gaslessly', () => {
     // Pairing hash -> salts is what lets the caller tell WHICH group is unresolved instead of releasing
     // reservations for credits that are already spent on-chain.
     expect(onBroadcast).toHaveBeenCalledWith({ txHash: '0xrelayed', salts: [B32('9')] })
+  })
+
+  /**
+   * The bug this pair of tests exists for.
+   *
+   * A basket of five mints plus two resales relayed the mints, signed the resales 0.6s later against the
+   * nonce the mints had not consumed yet, and the relayer answered 400 — it rebuilds the digest from the
+   * nonce IT reads, so a stale one recovers an unrelated address and the refusal reads as "signed by
+   * somebody else". Nobody could have confirmed their way out of it: this rail never prompts.
+   */
+  it('signs each group against its own nonce, so the relayer can verify the second one too', async () => {
+    stubFetch({ txHash: '0xrelayed' })
+    // The real sequence: 7 when the first group is signed, then 8 once the chain has consumed it — so the
+    // wait sees it move and the second group signs against 8.
+    nonceMock.mockResolvedValueOnce(bnLike(7)).mockResolvedValue(bnLike(8))
+    const seen: unknown[] = []
+    const signer = makeSigner(async (_domain, _types, message) => {
+      seen.push(message)
+      return '0x' + 'aa'.repeat(32) + '11'.repeat(32) + '1b'
+    })
+
+    await buyManyGasless({
+      purchases: [
+        {
+          kind: 'trade' as const,
+          trade: fakeTrade('0xmarket'),
+          credits: [credit(B32('1'), '100')],
+          maxCreditedValue: '100'
+        },
+        storePurchase('2')
+      ],
+      buyer: BUYER,
+      signer
+    })
+
+    expect(seen).toHaveLength(2)
+    expect((seen[0] as { nonce: string }).nonce).toBe('7')
+    // Not '7' again: the second signature is built after the contract has moved past the first.
+    expect((seen[1] as { nonce: string }).nonce).toBe('8')
+  })
+
+  it('waits for the relayed group to be consumed before signing the next one', async () => {
+    stubFetch({ txHash: '0xrelayed' })
+    const order: string[] = []
+    // Held at 7 for one poll, so the wait has to come back a second time before the next signature.
+    nonceMock.mockImplementation(async () => {
+      order.push('read')
+      return bnLike(nonceMock.mock.calls.length >= 3 ? 8 : 7)
+    })
+    const signer = makeSigner(async () => {
+      order.push('sign')
+      return '0x' + 'aa'.repeat(32) + '11'.repeat(32) + '1b'
+    })
+
+    const purchases = [
+      {
+        kind: 'trade' as const,
+        trade: fakeTrade('0xmarket'),
+        credits: [credit(B32('1'), '100')],
+        maxCreditedValue: '100'
+      },
+      storePurchase('2')
+    ]
+
+    vi.useFakeTimers()
+    const buying = buyManyGasless({ purchases, buyer: BUYER, signer })
+    await vi.advanceTimersByTimeAsync(2_000)
+    await buying
+
+    // read (group 1) → sign → read (not moved) → read (moved) → read (group 2's own) → sign
+    expect(order).toEqual(['read', 'sign', 'read', 'read', 'read', 'sign'])
+  })
+
+  it('stops instead of signing a doomed signature when the relayed group never lands', async () => {
+    stubFetch({ txHash: '0xstuck' })
+    nonceMock.mockResolvedValue(bnLike(7)) // never advances
+    const signer = makeSigner(async () => '0x' + 'aa'.repeat(32) + '11'.repeat(32) + '1b')
+    const purchases = [
+      {
+        kind: 'trade' as const,
+        trade: fakeTrade('0xmarket'),
+        credits: [credit(B32('1'), '100')],
+        maxCreditedValue: '100'
+      },
+      storePurchase('2')
+    ]
+
+    vi.useFakeTimers()
+    const settled = expect(buyManyGasless({ purchases, buyer: BUYER, signer })).rejects.toBeInstanceOf(
+      SettlementPendingError
+    )
+    await vi.advanceTimersByTimeAsync(121_000)
+    await settled
+
+    // SettlementPendingError and not GaslessUnavailableError: the first group IS broadcast, so its credits
+    // must stay reserved and the caller must not retry the basket on the gas-paying rail.
+    expect(signer._signTypedData).toHaveBeenCalledTimes(1)
+  })
+
+  /**
+   * `config.rpcUrl` is a load-balanced gateway, so the read that builds the next signature can be answered
+   * by a node that has not seen the block yet — which would undo the wait and reproduce the original 400.
+   */
+  it('signs the next group against the highest nonce seen, not a node that answers from behind', async () => {
+    stubFetch({ txHash: '0xrelayed' })
+    const seen: unknown[] = []
+    const signer = makeSigner(async (_domain, _types, message) => {
+      seen.push(message)
+      return '0x' + 'aa'.repeat(32) + '11'.repeat(32) + '1b'
+    })
+    // group 1 reads 7 · the wait sees 8 · group 2's own read comes back STALE at 7
+    nonceMock.mockResolvedValueOnce(bnLike(7)).mockResolvedValueOnce(bnLike(8)).mockResolvedValue(bnLike(7))
+
+    await buyManyGasless({
+      purchases: [
+        {
+          kind: 'trade' as const,
+          trade: fakeTrade('0xmarket'),
+          credits: [credit(B32('1'), '100')],
+          maxCreditedValue: '100'
+        },
+        storePurchase('2')
+      ],
+      buyer: BUYER,
+      signer
+    })
+
+    expect((seen[0] as { nonce: string }).nonce).toBe('7')
+    // 8, not the 7 the lagging node reported: a nonce only grows, so a value already observed is a fact.
+    expect((seen[1] as { nonce: string }).nonce).toBe('8')
+  })
+
+  it('reports settling progress between groups, and not after the last one', async () => {
+    stubFetch({ txHash: '0xrelayed' })
+    const signer = makeSigner(async () => '0x' + 'aa'.repeat(32) + '11'.repeat(32) + '1b')
+    const onGroupSettling = vi.fn()
+
+    await buyManyGasless({
+      purchases: [
+        {
+          kind: 'trade' as const,
+          trade: fakeTrade('0xmarket'),
+          credits: [credit(B32('1'), '100')],
+          maxCreditedValue: '100'
+        },
+        storePurchase('2')
+      ],
+      buyer: BUYER,
+      signer,
+      onGroupSettling
+    })
+
+    expect(onGroupSettling).toHaveBeenCalledTimes(1)
+    expect(onGroupSettling).toHaveBeenCalledWith({ settled: 1, total: 2 })
+  })
+})
+
+describe('when waiting for a relayed group to consume its nonce', () => {
+  it('resolves as soon as the contract has moved past the signed nonce', async () => {
+    nonceMock.mockResolvedValue(bnLike(9))
+
+    await expect(
+      waitForNonceAdvance({ chainId: 80002, buyer: BUYER, signedNonce: bnLike(8) as never })
+    ).resolves.toMatchObject({ toString: expect.any(Function) })
+    // The VALUE matters, not just the fact of an advance: the caller signs the next group against it.
+    const seen = await waitForNonceAdvance({ chainId: 80002, buyer: BUYER, signedNonce: bnLike(8) as never })
+    expect(seen?.toString()).toBe('9')
+  })
+
+  it('gives up rather than reporting an advance that did not happen', async () => {
+    nonceMock.mockResolvedValue(bnLike(8))
+
+    await expect(
+      waitForNonceAdvance({ chainId: 80002, buyer: BUYER, signedNonce: bnLike(8) as never, timeoutMs: 0 })
+    ).resolves.toBeNull()
+  })
+
+  it('keeps waiting through a failed read, since an RPC hiccup is not an answer', async () => {
+    nonceMock.mockRejectedValueOnce(new Error('rpc down')).mockResolvedValue(bnLike(9))
+
+    vi.useFakeTimers()
+    const waiting = waitForNonceAdvance({ chainId: 80002, buyer: BUYER, signedNonce: bnLike(8) as never })
+    await vi.advanceTimersByTimeAsync(2_000)
+
+    expect((await waiting)?.toString()).toBe('9')
   })
 })
 

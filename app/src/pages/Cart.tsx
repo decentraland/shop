@@ -445,67 +445,110 @@ export function Cart() {
 
       processing('awaiting-signature', 1)
       let hashes: string[] = []
+      // Hash -> the credits that hash spends, filled as each group is broadcast. Declared out here because
+      // a checkout that stops part-way still has to account for the groups that DID go out.
+      const saltsByHash = new Map<string, string[]>()
+
+      /**
+       * Wait for the given relayed hashes and record what each one did, returning the failures.
+       *
+       * Extracted because it now has two callers: the normal path, and the one where a later group was never
+       * signed. Skipping it in that second case is what left a paid line sitting in the cart — the lines that
+       * get removed are the SETTLED ones, so a group whose receipt was never fetched looked unbought while
+       * its credits were already spent, and a retry would have bought it twice.
+       */
+      const classifyRelayed = async (relayedHashes: string[]) => {
+        const settled = await Promise.allSettled(relayedHashes.map(h => waitForSettlement(h)))
+        // Per-group outcome, which the hash -> salts pairing is what makes possible. waitForSettlement draws
+        // exactly the distinction needed: it resolves on status 1, throws SettlementPendingError while a
+        // transaction may still land, and throws a plain Error on a hard revert (credits NOT consumed).
+        settled.forEach((r, i) => {
+          const salts = saltsByHash.get(relayedHashes[i]) ?? []
+          if (r.status === 'fulfilled') {
+            salts.forEach(salt => settledSalts.add(salt))
+            settledHashes.push(relayedHashes[i])
+          } else if (!(r.reason instanceof SettlementPendingError)) salts.forEach(salt => revertedSalts.add(salt))
+        })
+        return settled.flatMap(r => (r.status === 'rejected' ? [r.reason as unknown] : []))
+      }
       // Gasless is the rail for EVERY line — offchain trades and CollectionStore mints alike. A basket with a
       // mint used to be forced onto the buyer's own gas-paying transaction, which is not a route a web2 buyer
       // has: they hold no POL and have never heard of Polygon. buyManyGasless now groups both kinds.
       if (gaslessEnabled()) {
         try {
-          // Relayed, so there are no per-group prompts to count: report every group as already confirmed so
-          // the modal goes straight to settling. Passing 0 here would instead re-arm "awaiting confirmation"
-          // for a rail that never asks for one.
+          // Relayed, so there are no per-group prompts to count: every group goes straight to settling rather
+          // than re-arming "awaiting confirmation" for a rail that never asks for one.
           // Relayed transactions are broadcast too, and this rail is the DEFAULT for a trade-only basket —
           // without this the catch below released credits that were already consumed on-chain, which is the
           // exact defect this whole change exists to fix, left live on the busiest path.
-          const saltsByHash = new Map<string, string[]>()
+          // Which group is in flight. A mixed basket now waits for each relayed group to be consumed on
+          // chain before the next is signed (buy-gasless's waitForNonceAdvance), so the counter has to track
+          // the group actually being settled — reporting sigTotal from the first one made it read "2 of 2"
+          // for the whole checkout and then jump backwards the moment real progress arrived.
+          let relayed = 0
           hashes = await buyManyGasless({
             purchases,
             buyer: session.address,
             signer: session.signer,
-            onSigned: () => onSigned(sigTotal),
+            onSigned: () => processing('settling', Math.min(relayed + 1, sigTotal)),
             onBroadcast: ({ txHash, salts }) => {
+              relayed += 1
               saltsByHash.set(txHash, salts)
               salts.forEach(salt => broadcastSalts.add(salt))
-            }
+            },
+            onGroupSettling: ({ settled }) => processing('settling', settled)
           })
           // Once buyManyGasless returns, every group's meta-tx is BROADCAST. A group that's only
           // pending (unconfirmed within the window) may still land, so we must NOT release the
           // reservations — the credits-server reconciles those against the indexed CreditUsed event.
           // Release (rethrow) ONLY when every failure is a hard revert and none is still pending.
-          const settled = await Promise.allSettled(hashes.map(h => waitForSettlement(h)))
-          // Per-group outcome, which the hash -> salts pairing above is what makes possible. waitForSettlement
-          // draws exactly the distinction needed: it resolves on status 1, throws SettlementPendingError while
-          // a transaction may still land, and throws a plain Error on a hard revert (credits NOT consumed).
-          settled.forEach((r, i) => {
-            const salts = saltsByHash.get(hashes[i]) ?? []
-            if (r.status === 'fulfilled') {
-              salts.forEach(salt => settledSalts.add(salt))
-              settledHashes.push(hashes[i])
-            } else if (!(r.reason instanceof SettlementPendingError)) salts.forEach(salt => revertedSalts.add(salt))
-          })
-          const failures = settled.flatMap(r => (r.status === 'rejected' ? [r.reason as unknown] : []))
+          const failures = await classifyRelayed(hashes)
           if (failures.length && !failures.some(r => r instanceof SettlementPendingError)) {
             throw failures[0]
           }
           usedGasless = true
         } catch (gaslessErr) {
-          if (!(gaslessErr instanceof GaslessUnavailableError)) throw gaslessErr
-          // The gas-paying rail is only a route for a SELF-CUSTODY wallet. A managed (web2) wallet holds no
-          // POL, so submitting there reverts with INSUFFICIENT_FUNDS after a prompt the buyer cannot act on —
-          // and gas/network wording is exactly what these users must never be shown (CONVENTIONS.md). Better
-          // to surface the relayer being down as what it is: something to try again shortly.
-          if (!canPayGasItself(session.providerType)) throw gaslessErr
-          hashes = await buyManyWithCredits({
-            purchases,
-            buyer: session.address,
-            signer: session.signer,
-            onSigned,
-            onBroadcast: ({ salts }) => salts.forEach(salt => broadcastSalts.add(salt)),
-            onSettled: ({ txHash, salts }) => {
-              salts.forEach(salt => settledSalts.add(salt))
-              settledHashes.push(txHash)
-            },
-            onReverted: ({ salts }) => salts.forEach(salt => revertedSalts.add(salt))
-          })
+          /**
+           * A group was relayed and the next one was never signed, because the nonce it would have been
+           * signed against had not moved yet (buy-gasless's waitForNonceAdvance).
+           *
+           * That is a PARTIAL purchase, not a failed one, and it has to go through the same accounting as
+           * any other: what was broadcast keeps its reservation and, once settled, leaves the cart; what was
+           * never signed has its reservation released and stays in the cart for a retry. Rethrowing here
+           * instead skipped that accounting entirely and stranded a paid line in the cart.
+           */
+          if (gaslessErr instanceof SettlementPendingError) {
+            /**
+             * Record what DID go out, then let this propagate: the outer catch is where a partial purchase is
+             * accounted for (partitionReservations decides what to release and what the buyer now owns),
+             * while the success path below assumes the WHOLE basket settled and empties the cart.
+             *
+             * Both halves matter. Without the classification, the relayed group looks unbought while its
+             * credits are already spent, and its line stays in the cart for a retry that would buy it twice.
+             * Without the rethrow, the checkout claims the unsigned group was bought too.
+             */
+            await classifyRelayed([...saltsByHash.keys()])
+            throw gaslessErr
+          } else {
+            if (!(gaslessErr instanceof GaslessUnavailableError)) throw gaslessErr
+            // The gas-paying rail is only a route for a SELF-CUSTODY wallet. A managed (web2) wallet holds no
+            // POL, so submitting there reverts with INSUFFICIENT_FUNDS after a prompt the buyer cannot act on —
+            // and gas/network wording is exactly what these users must never be shown (CONVENTIONS.md). Better
+            // to surface the relayer being down as what it is: something to try again shortly.
+            if (!canPayGasItself(session.providerType)) throw gaslessErr
+            hashes = await buyManyWithCredits({
+              purchases,
+              buyer: session.address,
+              signer: session.signer,
+              onSigned,
+              onBroadcast: ({ salts }) => salts.forEach(salt => broadcastSalts.add(salt)),
+              onSettled: ({ txHash, salts }) => {
+                salts.forEach(salt => settledSalts.add(salt))
+                settledHashes.push(txHash)
+              },
+              onReverted: ({ salts }) => salts.forEach(salt => revertedSalts.add(salt))
+            })
+          }
         }
       } else {
         // Was missing `onSigned`, so with gasless off the modal sat on "awaiting confirmation" through

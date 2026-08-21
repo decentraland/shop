@@ -1,6 +1,14 @@
 import puppeteer, { type Browser, type HTTPRequest, type Page } from 'puppeteer'
 import { buildTestSession, sessionInitScript, type TestSession } from './session'
-import { handleRpc, setManaBalanceWei, setEthereumManaBalanceWei, setManaAllowanceWei, ORACLE_RATE } from './rpc'
+import {
+  handleRpc,
+  setManaBalanceWei,
+  setEthereumManaBalanceWei,
+  setManaAllowanceWei,
+  bumpMetaTxNonce,
+  resetMetaTxNonce,
+  ORACLE_RATE
+} from './rpc'
 import * as fx from '../fixtures'
 
 export const BASE = process.env.E2E_BASE_URL ?? 'http://localhost:5273'
@@ -287,6 +295,9 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
   // meta-tx here; the RPC mock then returns a status-1 receipt for the returned hash. Gasless is the
   // default checkout path, so the credit-buy flows exercise this.
   if (u.hostname.includes('transactions-api') && path.endsWith('/transactions')) {
+    // Consuming the nonce is part of accepting the meta-tx: a basket that spans two groups will not sign
+    // the second until it sees this move, the same way it waits on the real chain.
+    bumpMetaTxNonce()
     return json(req, { ok: true, txHash: '0x' + 'ab'.repeat(32) })
   }
   // WearablePreview iframe → a blank page that stands in for the external preview app. It can't run the
@@ -811,6 +822,7 @@ export async function launchApp(
   setManaBalanceWei(opts.manaBalanceWei ?? '0') // no MANA unless a test asks for it
   setEthereumManaBalanceWei(opts.ethereumManaBalanceWei ?? '0') // MANA lives on Polygon unless a test says otherwise
   setManaAllowanceWei(opts.manaAllowanceWei ?? null) // already approved unless a test asks otherwise
+  resetMetaTxNonce() // so a relayed purchase in one test cannot leave the next one's nonce ahead
   const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] })
   const page = await browser.newPage()
   // Default to a desktop viewport so the browse sidebar (Category/Price/Rarity) renders inline; below
