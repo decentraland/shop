@@ -16,7 +16,7 @@
 // testable. All USD amounts are integer CENTS (1 credit = 10 cents) and all MANA amounts are wei
 // bigints, so nothing here can drift through floats.
 
-import { usdCentsToCredits, usdCentsToCreditsFloor } from '~/lib/currency'
+import { USD_CENTS_PER_CREDIT, usdCentsToCredits, usdCentsToCreditsFloor } from '~/lib/currency'
 
 export type PaymentMethod = 'credits' | 'mana' | 'combined'
 
@@ -114,15 +114,34 @@ export function computePaymentOptions(input: {
   // 2. Credits + MANA. Only when credits exist AND fall short (with a full credit balance the
   //    remainder is 0 and this is just the credits option), and the MANA balance covers the gap.
   //    MANA rails need a known MANA price.
-  if (priceManaWei > 0n && balanceCents > 0 && balanceCents < priceCents) {
-    const remainderCents = priceCents - balanceCents
+  //
+  /**
+   * The credits leg is a WHOLE number of credits, not the raw balance — and that is what makes this rail
+   * reachable at all.
+   *
+   * `/credits/authorize` rounds every charge UP to a whole credit (Model B: never under-charge). That rule
+   * is written for an item PRICE, which can carry odd cents from the oracle. This rail sends a BALANCE, and
+   * rounding a balance up asks for money that by definition does not exist: a buyer holding 327¢ had the
+   * server ceil it to 330¢, compare it against the same 327¢, and refuse its own request with a 402. Any
+   * balance that was not already a whole number of credits could not use this rail — and odd cents are the
+   * norm, since every rounded-up purchase leaves some.
+   *
+   * Flooring here also makes `creditsCents` and `credits` agree, which they did not before: the buyer was
+   * shown 32 and charged 32.7.
+   *
+   * The remainder is derived from the FLOORED figure, so the MANA leg still covers the whole price. Those
+   * 0-9¢ are not lost — they stay in the balance and are paid in MANA instead, which is the only direction
+   * that keeps the two legs adding up to the price.
+   */
+  const creditsLegCents = usdCentsToCreditsFloor(balanceCents) * USD_CENTS_PER_CREDIT
+  if (priceManaWei > 0n && creditsLegCents > 0 && creditsLegCents < priceCents) {
+    const remainderCents = priceCents - creditsLegCents
     const manaWei = manaForRemainder(remainderCents, priceCents, priceManaWei)
     if (manaBalanceWei >= manaWei) {
       options.push({
         method: 'combined',
-        creditsCents: balanceCents,
-        // The balance, so DOWN: showing a credit they cannot spend would overstate what this rail covers.
-        credits: usdCentsToCreditsFloor(balanceCents),
+        creditsCents: creditsLegCents,
+        credits: usdCentsToCreditsFloor(creditsLegCents),
         manaWei
       })
     }
