@@ -25,7 +25,7 @@ export const Skeleton = styled.div`
 //
 // ⚠️ These structural selectors (`nav > div:first-of-type > …`) depend on decentraland-ui2's internal
 // DOM nesting, and the hamburger selectors on its English `aria-label`s ("Open menu" / "Close menu").
-// Validated against decentraland-ui2@3.18.0 — re-check on upgrade (a wrapper div added/removed, or a
+// Validated against decentraland-ui2@3.20.0 — re-check on upgrade (a wrapper div added/removed, or a
 // localized aria-label, would silently drop these overrides).
 export const NavbarViolet = styled.div`
   display: contents;
@@ -168,7 +168,7 @@ export const NavbarViolet = styled.div`
      dead ends or a second way into somewhere the buyer is already standing. None of this is ui2's to
      configure — it takes no props for hiding the hamburger or for making the logo inert — so it is done
      here, against the same aria-label contract the rest of this file uses.
-     ⚠️ Same caveat as above: validated against decentraland-ui2@3.19.0. */
+     ⚠️ Same caveat as above: validated against decentraland-ui2@3.20.0. */
   &[data-iap] {
     /* The app's own navigation replaces it. */
     & nav button[aria-label='Open menu'],
