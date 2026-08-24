@@ -53,14 +53,82 @@ export const CrumbCurrent = styled.span`
 
 // Two-column hero: preview left (1045), info right (514), 48px gap. Inset vs the full-width breadcrumb.
 export const Main = styled.div`
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1045fr) minmax(0, 514fr);
   gap: 48px;
   align-items: start;
 
+  /* The preview column's width, re-derived from the track sizes right above so the two cannot drift.
+     Used to pivot the avatar glow on the frame's centre. */
+  --preview-col-w: calc((100% - 48px) * 1045 / 1559);
+  /* How much bigger than the frame the glow's own box is. The glow is free to spill onto the page, so
+     the box has to be roomier than the frame it is centred on — and roomy enough that the gradient can
+     finish fading INSIDE it (see the radius note on &::before below). At 2.2 a 50% radius reaches 2.2x
+     the frame, which is the widest the glow can be asked to go. */
+  --glow-box: 2.2;
+
+  /* Avatar glow. Centred on the PREVIEW FRAME but deliberately NOT inside it: the frame clips
+     (overflow:hidden, for the rounded corners), and this is meant to reach past the frame onto the page.
+     So it hangs off the grid container instead, sized and placed from the track maths above.
+
+     Placement: left at half the preview column puts its centre on the frame's centre line. Vertically it
+     is pinned to the top and pulled back by half its own height, plus half the FRAME's height — which is
+     its own height divided by --glow-box, since both share the 1045/752 ratio. That way one number
+     (--glow-box) resizes the box without the centring drifting.
+
+     One colour in the middle, running out to nothing at the edge. The end stop is the SAME colour at
+     zero alpha rather than the keyword transparent, which is not the same thing: that keyword is
+     rgba(0,0,0,0), so interpolating to it drags the mix through black and leaves a dirty grey halo on
+     the way out. Same-colour-zero-alpha fades clean.
+
+     That end stop is fixed, not a dial, and that is half of what stops the bleed. A radial gradient
+     does not stop at its ending shape — it holds the final stop's colour out to fill the whole box — so
+     any end alpha above 0 would paint the entire box and show as a hard-edged rectangle over the page.
+
+     The other half is the RADII, and this is the easy one to get wrong: the two percentages are radii,
+     not diameters, and each is measured against the box's own width/height. So 62% does not mean "62%
+     of the box" — it means an ellipse 124% of the box wide, whose transparent end stop falls outside
+     the box entirely, leaving only the opaque middle visible. That renders as a solid rectangle no
+     matter what the end stop says. Anything at or under 50% finishes inside the box and fades cleanly,
+     which is why both radii are clamped with min(). The clamp lives HERE rather than only on the tweak
+     panel's sliders, because a stale value in that panel's localStorage sails straight past a slider max
+     and brings the rectangle back. --glow-box buys the range back: 50% of a 2.2x box is still a glow
+     2.2x the frame.
+
+     The failure is also asymmetric, which makes it easy to misread. The box is centred on the preview
+     column, which sits left of the page centre, so its left edge is off-screen and only the right one
+     shows — one visible hard edge, not two.
+
+     z-index -1 tucks it under the frame and the info column. It is above the body symbols layer (also
+     -1) purely by document order, which is the wanted stacking: glow over symbols, near the avatar. */
+  &::before {
+    content: '';
+    position: absolute;
+    z-index: -1;
+    pointer-events: none;
+    top: 0;
+    left: calc(var(--preview-col-w) / 2);
+    width: calc(var(--preview-col-w) * var(--glow-box));
+    aspect-ratio: 1045 / 752;
+    transform: translate(-50%, calc(50% / var(--glow-box) - 50%));
+    background: radial-gradient(
+      min(var(--tw-glow-w, 50%), 50%) min(var(--tw-glow-h, 50%), 50%) at 50% var(--tw-glow-y, 52%),
+      rgb(var(--tw-glow1-rgb, 41 230 255) / var(--tw-glow1-a, 0.56)) 0%,
+      var(--tw-glow-mid, 35%),
+      rgb(var(--tw-glow1-rgb, 41 230 255) / 0) 100%
+    );
+  }
+
   ${media.maxWidth('lg')} {
     grid-template-columns: 1fr;
     gap: 24px;
+
+    /* The track maths above describes the two-column desktop hero only — one column and a full-bleed
+       square frame put the pivot somewhere meaningless, so drop the glow rather than misplace it. */
+    &::before {
+      display: none;
+    }
   }
 `
 
@@ -72,8 +140,19 @@ export const Preview = styled.div`
   aspect-ratio: 1045 / 752;
   border-radius: ${radius.banner};
   overflow: hidden;
-  /* No fill: the iframe renders on transparent, so the page's violet field is the scene's backdrop. */
-  background: transparent;
+  /* The iframe renders on transparent, so the only thing painted here is the floor pool — a squashed,
+     soft-edged ellipse under the feet, so the avatar reads as standing on a lit surface rather than
+     floating. It belongs on the panel because it is small and must sit exactly under the feet; the
+     broader glow lives on Main::before instead, since that one needs to spill past this clip.
+
+     Two dials: the 86% is how far down the pool sits (match it to where the feet actually render — the
+     aang camera decides that, not CSS), and the alpha is how lit it looks. */
+  background: radial-gradient(
+    var(--tw-pool-w, 38%) var(--tw-pool-h, 11%) at 50% var(--tw-pool-y, 86%),
+    rgb(var(--tw-pool-rgb, 236 248 249) / var(--tw-pool-a, 0.15)) 0%,
+    rgb(var(--tw-pool-rgb, 236 248 249) / calc(var(--tw-pool-a, 0.15) * 0.4)) 45%,
+    transparent 78%
+  );
 
   /* Edge to edge once the page is a single column: the stage is the whole width there, so it cancels the
      shell's gutter instead of sitting inside it. No transform, which would make this the containing block
@@ -91,6 +170,51 @@ export const Preview = styled.div`
     height: 100%;
     border: 0;
     display: block;
+  }
+
+  /* Soft edges on the render itself, so anything that runs past the panel — legs and the cast shadow
+     once you zoom in — dissolves instead of being sliced off by the overflow clip.
+
+     On the IFRAME rather than on the panel: the panel also holds the zoom/toggle pills and the note,
+     and those must stay crisp. Two gradients intersected give a soft-edged rectangle; a single radial
+     would round the corners and eat the middle. Alpha is what a mask reads, so a transparent stop hides and
+     the black is only a carrier.
+
+     The bottom band is the widest because that is where the cut actually shows. The top and sides stay
+     narrow (3%) so they never reach the controls aang draws inside its own canvas, which sit ~40px in. */
+  & iframe {
+    -webkit-mask-image:
+      linear-gradient(
+        to bottom,
+        transparent 0%,
+        #000 var(--tw-fade-top, 3%),
+        #000 var(--tw-fade-bot, 92%),
+        transparent 100%
+      ),
+      linear-gradient(
+        to right,
+        transparent 0%,
+        #000 var(--tw-fade-side, 3%),
+        #000 calc(100% - var(--tw-fade-side, 3%)),
+        transparent 100%
+      );
+    -webkit-mask-composite: source-in;
+    mask-image:
+      linear-gradient(
+        to bottom,
+        transparent 0%,
+        #000 var(--tw-fade-top, 3%),
+        #000 var(--tw-fade-bot, 92%),
+        transparent 100%
+      ),
+      linear-gradient(
+        to right,
+        transparent 0%,
+        #000 var(--tw-fade-side, 3%),
+        #000 calc(100% - var(--tw-fade-side, 3%)),
+        transparent 100%
+      );
+    mask-composite: intersect;
   }
 
   /* Invisible viewport sentinel for the IntersectionObserver that pauses the preview off-screen.
