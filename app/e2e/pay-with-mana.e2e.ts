@@ -178,7 +178,7 @@ describe('paying with MANA in the buy flow', () => {
     await waitForText(page, 'Purchase complete!', 30000)
   })
 
-  it('keeps the top-up pack picker when the MANA held is too small for any rail, and says why', async () => {
+  it('keeps the top-up pack picker when the MANA held is too small for any rail, offering only packs that finish it', async () => {
     app = await launchApp({
       path: ITEM_PATH,
       fixtures: { trade: buyTrade, credits: PARTIAL_CREDITS },
@@ -193,17 +193,22 @@ describe('paying with MANA in the buy flow', () => {
     await waitForText(page, 'Buy Credits')
     expect(await has(page, 'pay-with-mana')).toBe(false)
     expect(await has(page, 'pay-with-combined')).toBe(false)
-    // ...but the MANA the buyer DOES hold is accounted for on screen, disabled, with its worth in
-    // credits. Silently dropping it is what made this state read as broken.
-    await page.waitForSelector('[data-testid="pay-with-mana-disabled"]', { timeout: 20000 })
-    expect(await page.$eval('[data-testid="pay-with-mana-disabled"]', el => (el as HTMLButtonElement).disabled)).toBe(
-      true
-    )
-    expect(await page.$eval('[data-testid="mana-shortfall-note"]', el => el.textContent ?? '')).toMatch(
-      /not enough mana/i
-    )
-    // The pack picker is still the way forward.
-    expect(await has(page, 'credit-packs')).toBe(true)
+
+    // ...and the MANA the buyer holds is NOT surfaced as a disabled button. This screen used to render a
+    // full-width "Buy with MANA <n>" in grey, where <n> was the buyer's BALANCE rather than a price, so a
+    // 135-credit item read as an offer to buy it for 1 MANA. A control that cannot be pressed and states
+    // a number that is not the price teaches the buyer nothing; the pack picker below is the way forward.
+    expect(await has(page, 'pay-with-mana-disabled')).toBe(false)
+    expect(await has(page, 'mana-shortfall-note')).toBe(false)
+
+    // Every pack offered has to FINISH the purchase, because this picker sits inside "Buy Credits and
+    // Item". Holding 40 of the 135 needed leaves 95 short, so the 40 pack is not an option — buying it
+    // would take the buyer's money and land them back on this same screen.
+    await page.waitForSelector('[data-testid="credit-packs"]', { timeout: 20000 })
+    const offered = await page.$eval('[data-testid="credit-packs"]', el => el.textContent ?? '')
+    expect(offered).toMatch(/100/)
+    expect(offered).toMatch(/260/)
+    expect(offered).not.toMatch(/\b40\b/)
   })
 })
 

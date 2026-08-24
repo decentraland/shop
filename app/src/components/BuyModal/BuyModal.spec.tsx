@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { CatalogItem } from '~/lib/api'
@@ -606,6 +606,77 @@ describe('when the buyer is short on credits', () => {
 
     await screen.findByTestId('credit-packs')
     expect(authorizeUsdCredit).not.toHaveBeenCalled()
+  })
+
+  /**
+   * ONLY PACKS THAT FINISH THE PURCHASE.
+   *
+   * This picker lives inside "Buy Credits and Item", so every pack in it is a promise that buying it
+   * completes the purchase. Reported from zone on this exact item: 270 credits against a balance of 73 is a
+   * 197 shortfall, and the picker offered 40 and 100 — either one leaves the buyer short, back on this same
+   * screen, having paid.
+   */
+  describe('and some packs cannot cover the shortfall', () => {
+    beforeEach(() => {
+      // The real balance from the report: 270 - 73 = 197 short. Three packs, not the real four, because
+      // MAX_OFFER_PACKS is mocked to 3 at the top of this file — a fourth would be sliced off before the
+      // filter ever sees it, and the test would be asserting the slice rather than the filter.
+      balance.data = { balanceCents: 730, credits: 73 }
+      creditPacks.packs = [
+        { id: 'pack_40', credits: 40, usd: 5.99 },
+        { id: 'pack_100', credits: 100, usd: 11.99 },
+        { id: 'pack_260', credits: 260, usd: 29.99 }
+      ]
+    })
+
+    it('should offer only the packs that clear the shortfall', async () => {
+      renderIdle()
+
+      const packs = await screen.findByTestId('credit-packs')
+      // 73 + 260 reaches 270; 73 + 40 and 73 + 100 do not. Exact-text queries, because
+      // `toHaveTextContent` matches substrings and '260' would satisfy an assertion about '60'.
+      expect(within(packs).getByText('260')).toBeInTheDocument()
+      expect(within(packs).queryByText('40')).not.toBeInTheDocument()
+      expect(within(packs).queryByText('100')).not.toBeInTheDocument()
+    })
+
+    it('should keep offering every pack when none of them is enough', async () => {
+      // An item dearer than the largest pack: an empty picker would be worse than an honest one.
+      balance.data = { balanceCents: 0, credits: 0 }
+      creditPacks.packs = [{ id: 'pack_40', credits: 40, usd: 5.99 }]
+      renderIdle()
+
+      expect(within(await screen.findByTestId('credit-packs')).getByText('40')).toBeInTheDocument()
+    })
+  })
+
+  /**
+   * The disabled MANA button is gone from this screen.
+   *
+   * It rendered "Buy with MANA <n>" in grey with "Not enough MANA" under it, where <n> was the buyer's
+   * BALANCE — `ManaShortfall.manaWei` is documented as the balance despite the type's name. So a 270-credit
+   * item showed "Buy with MANA 20" and read as an offer to buy it for 20 MANA. The way forward on this
+   * screen is the pack picker; a dead button above it competes with the thing that works.
+   */
+  describe('and the MANA they hold cannot cover it either', () => {
+    beforeEach(() => {
+      manaBalance.data = 20n * 10n ** 18n
+      readTradeManaPriceWei.mockResolvedValue(1000n * 10n ** 18n) // dearer than the balance → no MANA rail
+    })
+
+    // Restored here rather than left to the parent, which only resets the credit balance and the packs.
+    afterEach(() => {
+      manaBalance.data = 0n
+      readTradeManaPriceWei.mockResolvedValue(0n)
+    })
+
+    it('should not offer a disabled MANA button beside the pack picker', async () => {
+      renderIdle()
+
+      await screen.findByTestId('credit-packs')
+      expect(screen.queryByTestId('pay-with-mana-disabled')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('mana-shortfall-note')).not.toBeInTheDocument()
+    })
   })
 
   /**
