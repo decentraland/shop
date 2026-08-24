@@ -72,10 +72,8 @@ export const Preview = styled.div`
   aspect-ratio: 1045 / 752;
   border-radius: ${radius.banner};
   overflow: hidden;
-  /* Light surface, deliberately AGAINST the Figma's translucent black (1052:151284): the dark violet
-     backdrop muted every item, so the preview keeps the light stage. The iframe is transparent — this
-     is the scene's backdrop. */
-  background: ${colors.media};
+  /* No fill: the iframe renders on transparent, so the page's violet field is the scene's backdrop. */
+  background: transparent;
 
   /* Edge to edge once the page is a single column: the stage is the whole width there, so it cancels the
      shell's gutter instead of sitting inside it. No transform, which would make this the containing block
