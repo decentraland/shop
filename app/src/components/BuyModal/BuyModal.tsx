@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { CircularProgress } from 'decentraland-ui2'
 import { useQueryClient } from '@tanstack/react-query'
 import { useWallet } from '~/store/wallet'
 import { useBalance } from '~/hooks/useBalance'
@@ -14,7 +13,6 @@ import { hrefFor, myItemsRouteFor } from '~/lib/routes'
 import { readManaUsdRate, type ManaRate } from '~/lib/mana-rate'
 import { config } from '~/config'
 import { PaymentMethodStep } from '~/components/PaymentMethodStep'
-import { PaymentCtas } from '~/components/PaymentCtas'
 import { invalidateAfterPurchase } from '~/lib/after-purchase'
 import { AuthorizeStep } from '~/components/AuthorizeStep'
 import manaLight from '~/assets/mana-matic-light.svg'
@@ -208,6 +206,22 @@ export function BuyModal({
   const [attempt, setAttempt] = useState(0)
   const [selectedPack, setSelectedPack] = useState<string>('')
   const [itemCredits, setItemCredits] = useState(item.priceCredits)
+  /**
+   * Only the packs that can actually COMPLETE this purchase.
+   *
+   * This picker sits inside "Buy Credits and Item": every pack in it is a promise that buying it finishes
+   * the purchase. A pack smaller than the shortfall breaks that promise — a buyer 197 credits short was
+   * offered 40 and 100, either of which leaves them short and back on this same screen, having paid.
+   *
+   * Falls back to the whole list when NOTHING covers the shortfall (an item dearer than the largest pack):
+   * an empty picker is worse than an honest one, and buying the largest is still progress.
+   */
+  const shortfallCredits = Math.max(0, itemCredits - (balance?.credits ?? 0))
+  const COVERING_PACKS = (() => {
+    if (shortfallCredits <= 0) return OFFER_PACKS
+    const covering = OFFER_PACKS.filter(p => p.credits >= shortfallCredits)
+    return covering.length > 0 ? covering : OFFER_PACKS
+  })()
   // The MANA (wei) this purchase costs — from the oracle for a trade, from the store's own on-chain price
   // for a mint. Null until read (or if the read fails, in which case MANA simply isn't offered and the
   // credits path is unaffected).
@@ -1114,7 +1128,11 @@ export function BuyModal({
             {/* Loading (resolving + authorizing) */}
             {phase === 'loading' && (
               <M.Body data-processing>
-                <CircularProgress size={44} />
+                {/* The shop's own spinner, not MUI's — decentraland-ui2's CircularProgress paints in the
+                    MUI primary blue, which is not a colour this app uses anywhere. `.spinner` is the
+                    global utility every other loading state here already uses (App, MigrateModal, the
+                    outfit surfaces) and it takes its colour from --accent. */}
+                <span className="spinner" aria-hidden />
               </M.Body>
             )}
 
@@ -1223,14 +1241,14 @@ export function BuyModal({
                   </M.WarningText>
                 </M.Warning>
                 <AssetRow item={item} priceCredits={priceCredits} />
-                {paymentOptions.manaShortfall ? (
-                  <PaymentCtas
-                    options={[]}
-                    totalCents={priceCents}
-                    shortfall={paymentOptions.manaShortfall}
-                    onPay={() => undefined}
-                  />
-                ) : null}
+                {/* NO disabled MANA button here, deliberately.
+                    It used to render a full-width "Buy with MANA <balance>" in grey with "Not enough MANA"
+                    beneath it. The number was the buyer's BALANCE, not a price — `ManaShortfall.manaWei` is
+                    documented as "the buyer's MANA balance" despite the type's name — so a 270-credit item
+                    showed "Buy with MANA 20" and read as an offer to buy it for 20 MANA. On this screen the
+                    way forward is the pack picker below; a dead button above it competes with the thing that
+                    works. The Cart still shows the disabled row, where it sits BESIDE live CTAs and its
+                    "why is this off" job makes sense. */}
                 {/* The pack picker, its running total and the Buy button are the actual sale of credits, so
                     inside the iOS web view none of them render — the app sells credits through In-App
                     Purchase. The warning and the item row stay, so the buyer is told what they are short by
@@ -1238,7 +1256,7 @@ export function BuyModal({
                 {isIapMode() ? null : (
                   <>
                     <M.Packs data-testid="credit-packs">
-                      {OFFER_PACKS.map(p => {
+                      {COVERING_PACKS.map(p => {
                         const packCredits = p.credits
                         const on = p.id === selectedPack
                         return (
@@ -1253,9 +1271,9 @@ export function BuyModal({
                     <M.Total>
                       <M.TotalCredits>
                         <M.TotalIco />
-                        <span>{formatCredits(OFFER_PACKS.find(p => p.id === selectedPack)?.credits ?? 0)}</span>
+                        <span>{formatCredits(COVERING_PACKS.find(p => p.id === selectedPack)?.credits ?? 0)}</span>
                       </M.TotalCredits>
-                      <M.TotalUsd>${(OFFER_PACKS.find(p => p.id === selectedPack)?.usd ?? 0).toFixed(2)}</M.TotalUsd>
+                      <M.TotalUsd>${(COVERING_PACKS.find(p => p.id === selectedPack)?.usd ?? 0).toFixed(2)}</M.TotalUsd>
                     </M.Total>
                   </>
                 )}

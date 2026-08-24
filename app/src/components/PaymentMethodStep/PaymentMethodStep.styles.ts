@@ -146,28 +146,55 @@ export const Options = styled.div`
   gap: 12px;
 `
 
-// One selectable payment method. Selected → warm "Flare" gradient border (Figma) over the row's fill;
-// unselected → hairline gray border on white. Disabled (not enough MANA) → dimmed + not selectable.
+/**
+ * One selectable payment method. Selected → warm "Flare" gradient border (Figma) over the row's fill;
+ * unselected → 0.5px gray-2 hairline on white (Figma 1552:316954). Disabled → dimmed + not selectable.
+ *
+ * THE RING IS A PSEUDO-ELEMENT, and that is what lets the two states differ visually without moving
+ * anything. As a real `border` it has to be the same WIDTH in both states or the box changes: 0.5px → 3px
+ * pushes every child 2.5px inward and shifts the rows below, and equalising them at 3px matched Figma in
+ * neither state. Drawn on `::after` the ring is outside layout entirely, so each state gets the exact
+ * width Figma asks for and the row never shifts.
+ *
+ * `inset: 0` overlays the ring on the row's own 12px padding rather than adding to it, and `border-radius:
+ * inherit` keeps the 12px corners without border-image (which cannot clip them).
+ */
 export const OptionRow = styled.button`
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
   width: 100%;
   padding: 12px 12px 12px 0;
   border-radius: 12px;
-  border: 0.5px solid ${theme.colors.muted};
+  border: 0;
   background: ${theme.colors.white};
   cursor: pointer;
   text-align: left;
   font-family: ${theme.font.sans};
 
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    border: 0.5px solid ${theme.colors.muted};
+    pointer-events: none;
+  }
+
   &[data-selected='true'] {
-    /* Flare gradient border (melon → ruby) painted over the row fill via the border-box trick, so the
-       12px corners stay rounded (border-image can't clip them). Fill is gray-5 when selected. */
-    background:
-      linear-gradient(${theme.colors.media}, ${theme.colors.media}) padding-box,
-      ${theme.gradients.flare} border-box;
+    background: ${theme.colors.media};
+  }
+  /* The gradient is masked to the border band alone, so the ring paints over nothing: a padding-box fill
+     here would sit on top of the row's content, since this layer is above it. */
+  &[data-selected='true']::after {
     border: 3px solid transparent;
+    background: ${theme.gradients.flare} border-box;
+    -webkit-mask:
+      linear-gradient(#000 0 0) padding-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
   }
   &[data-disabled='true'] {
     cursor: not-allowed;

@@ -422,7 +422,7 @@ export function GetCredits() {
       )}
 
       {phase === 'success' && (
-        <S.Outcome>
+        <S.Outcome data-outcome="success">
           <S.Success role="status" aria-live="polite">
             {/* Only here, never on the processing screen: the credits are really in the balance by this
               point. Same burst the item purchase fires, so buying credits and buying an item celebrate

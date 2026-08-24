@@ -729,6 +729,12 @@ export const Success = styled.div`
   gap: 12px;
   max-width: 895px;
   margin: 0 auto;
+  /* The card the outcome sits in (Figma 2476:345761). Without it the banner and the credits panel floated
+     directly on the page's purple, which is not what the design draws — everything here belongs on white,
+     and the 12px inset is what separates the two panels from the card's own edge. */
+  padding: 12px;
+  border-radius: 24px;
+  background: ${theme.colors.white};
 `
 
 export const Banner = styled.div`
@@ -859,7 +865,9 @@ export const ActionButton = styled.button`
   padding: 0 12px;
   border: 0;
   border-radius: ${theme.radius.btn};
-  background: ${theme.colors.accent};
+  /* Ruby, not the accent purple these carried: the design's terminal CTA on this screen is the flat DCL
+     red (Figma 2476:347045). */
+  background: ${theme.colors.dclRed};
   font-family: ${theme.font.sans};
   font-size: 15px;
   font-weight: 600;
@@ -874,13 +882,15 @@ export const ActionButton = styled.button`
   &:hover {
     filter: brightness(1.08);
   }
+  /* A hairline dark outline on white (Figma 2476:347044), not a 2px purple one. The 0.5px border is inside
+     a fixed 48px height, so it does not change the row's geometry next to the primary. */
   &[data-variant='outline'] {
     background: ${theme.colors.white};
-    border: 2px solid ${theme.colors.accent};
-    color: ${theme.colors.accent};
+    border: 0.5px solid ${theme.colors.text};
+    color: ${theme.colors.text2};
   }
   &[data-variant='outline']:hover {
-    background: rgba(105, 31, 169, 0.06);
+    background: ${theme.colors.media};
     filter: none;
   }
   /* The buy gradient, same primary fill the rest of the shop's terminal CTAs carry. */
@@ -908,6 +918,41 @@ export const Outcome = styled.section`
   justify-content: center;
   min-height: min(62vh, 620px);
   padding: 48px 16px;
+
+  /**
+   * The SUCCESS screen sits on a light band (Figma 2476:346231 — gray-5, full width), not the page's
+   * purple field. Only that one: pending, failed and cancelled keep the purple, because the design draws
+   * the band for the completed purchase and changing the others is a redesign nobody asked for.
+   *
+   * Full-bleed through the same ::before trick Hero above uses, and for the same reason — a background
+   * on the section itself would stop at the .page container's gutters.
+   */
+  &[data-outcome='success'] {
+    position: relative;
+    isolation: isolate;
+
+    &::before {
+      content: '';
+      position: absolute;
+      z-index: -1;
+      /* Cancels the shell's own padding (.page is 28px/80px desktop, 16px/56px mobile) so the band runs
+         from the sub-nav to the footer. Without this it stopped at this section's box and left a purple
+         strip above and below — the same reason Hero pulls its band up by the top padding. */
+      top: -28px;
+      bottom: -80px;
+      left: 50%;
+      width: 100vw;
+      transform: translateX(-50%);
+      background: ${theme.colors.media};
+    }
+
+    ${theme.media.maxWidth('mobile')} {
+      &::before {
+        top: -16px;
+        bottom: -56px;
+      }
+    }
+  }
 `
 
 export const StatusPanel = styled.div`
