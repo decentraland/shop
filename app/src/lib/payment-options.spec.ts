@@ -101,6 +101,84 @@ describe('computePaymentOptions', () => {
     })
   })
 
+  /**
+   * A BALANCE WITH ODD CENTS. This rail was unusable for one, and odd cents are the norm.
+   *
+   * `/credits/authorize` rounds every charge UP to a whole credit — a rule written for an item PRICE, which
+   * carries odd cents from the oracle. This rail sends a BALANCE instead, and rounding a balance up asks for
+   * money that cannot exist: a buyer holding 327c had the server ceil the request to 330c, compare it against
+   * the same 327c, and refuse itself with a 402. Reproduced in production on a 41-credit item.
+   *
+   * So the leg is floored to a whole credit here, and the MANA remainder grows to match. The odd cents are
+   * not lost: they stay in the balance and are covered by MANA instead.
+   */
+  describe('when the credit balance is not a whole number of credits', () => {
+    it('should floor the credits leg to a whole credit so the server cannot round it above the balance', () => {
+      // 327c is 32.7 credits. The server would ceil 327 -> 330 and refuse; 320 survives that ceil untouched.
+      const o = opts({ balanceCents: 327, manaBalanceWei: PRICE_MANA })
+
+      expect(findOption(o, 'combined')?.creditsCents).toBe(320)
+    })
+
+    it('should charge exactly what it displays', () => {
+      const o = opts({ balanceCents: 327, manaBalanceWei: PRICE_MANA })
+      const combined = findOption(o, 'combined')
+
+      // The buyer used to be shown 32 and charged 32.7. Both halves now come from the same figure.
+      expect(combined?.credits).toBe(32)
+      expect(combined?.creditsCents).toBe(combined!.credits * 10)
+    })
+
+    it('should grow the MANA leg so the two legs still add up to the price', () => {
+      const o = opts({ balanceCents: 327, manaBalanceWei: PRICE_MANA })
+
+      // 1000 - 320 = 680c of remainder -> 680/1000 x 500 MANA. Flooring must not leave the price short.
+      expect(findOption(o, 'combined')?.manaWei).toBe(mana(340))
+    })
+
+    /**
+     * The honest cost of the fix: a bigger MANA leg needs more MANA. A buyer who could just cover the
+     * unfloored remainder may no longer qualify — and not offering a rail is strictly better than offering
+     * one whose authorize call is refused.
+     */
+    it('should NOT offer combined when the MANA balance only covered the unfloored remainder', () => {
+      // 673c of remainder needed 336.5 MANA; the floored 680c needs 340.
+      const o = opts({ balanceCents: 327, manaBalanceWei: mana(339) })
+
+      expect(methods(o)).not.toContain('combined')
+    })
+
+    it('should NOT offer combined when the balance is under a single credit', () => {
+      // 7c floors to zero credits, so there is no credits leg — that is a MANA-only purchase.
+      const o = opts({ balanceCents: 7, manaBalanceWei: PRICE_MANA })
+
+      expect(methods(o)).not.toContain('combined')
+    })
+
+    it('should still offer combined for a balance that is already whole', () => {
+      // The floor is a no-op here, so nothing about the existing behaviour may change.
+      const o = opts({ balanceCents: 320, manaBalanceWei: PRICE_MANA })
+
+      expect(findOption(o, 'combined')?.creditsCents).toBe(320)
+      expect(findOption(o, 'combined')?.manaWei).toBe(mana(340))
+    })
+
+    /** The production case, at its own price and rate: a 41-credit item against a 327c balance. */
+    it('should handle the reported case: a 41-credit item with a 32.7-credit balance', () => {
+      const o = computePaymentOptions({
+        priceCents: 410,
+        priceManaWei: 41n * 10n ** 18n, // 41 MANA for 410c, i.e. 0.1 MANA per cent
+        balanceCents: 327,
+        manaBalanceWei: 20n * 10n ** 18n // the 20 MANA the buyer actually held
+      })
+
+      const combined = findOption(o, 'combined')
+      expect(combined?.creditsCents).toBe(320)
+      // 410 - 320 = 90c of remainder -> 9 MANA, well inside the 20 the buyer had.
+      expect(combined?.manaWei).toBe(9n * 10n ** 18n)
+    })
+  })
+
   describe('when the buyer holds enough of both', () => {
     it('should offer credits and mana but NOT combined (a full credit balance leaves no remainder)', () => {
       const o = opts({ balanceCents: PRICE_CENTS, manaBalanceWei: PRICE_MANA })
