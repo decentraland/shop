@@ -54,7 +54,8 @@ vi.mock('decentraland-transactions', () => ({
 // (`nofunds`) cases lower it.
 const balance = { data: { balanceCents: 100_000, credits: 10_000 } }
 // The buyer's MANA, controllable: whether a MANA rail exists is exactly what decides the no-funds path.
-const manaBalance = { data: 0n }
+// `data` is undefined until the query answers — the state the race suite below depends on being modelable.
+const manaBalance: { data: bigint | undefined } = { data: 0n }
 vi.mock('~/hooks/useBalance', () => ({ useBalance: () => balance }))
 
 // Mutable so both sides of the iOS web-view gate are reachable.
@@ -128,8 +129,13 @@ vi.mock('~/lib/api', async orig => ({
   resolveLiveTrade,
   fetchStoreMintState
 }))
-const { readTradeManaPriceWei } = vi.hoisted(() => ({ readTradeManaPriceWei: vi.fn(async () => 0n) }))
-vi.mock('~/lib/mana', () => ({ readTradeManaPriceWei }))
+const { readTradeManaPriceWei, readManaBalanceWei } = vi.hoisted(() => ({
+  readTradeManaPriceWei: vi.fn(async () => 0n),
+  // Reached only when the hook's balance has not resolved yet — which is the whole point of the suite
+  // below, and was the bug: an unresolved balance used to read as "holds no MANA".
+  readManaBalanceWei: vi.fn(async () => 0n)
+}))
+vi.mock('~/lib/mana', () => ({ readTradeManaPriceWei, readManaBalanceWei }))
 vi.mock('~/lib/mana-rate', () => ({
   readManaUsdRate: vi.fn(async () => ({ rate: 50_000_000n, decimals: 8 })),
   manaWeiToUsdCents: () => 0
@@ -769,6 +775,66 @@ describe('when credits fall short but the buyer holds MANA', () => {
 
     expect(await screen.findByText(/insufficient funds/i)).toBeInTheDocument()
     expect(readTradeManaPriceWei).not.toHaveBeenCalled()
+  })
+
+  /**
+   * AN UNRESOLVED BALANCE IS NOT A ZERO BALANCE.
+   *
+   * `useManaBalance` is a react-query hook, so its `data` is `undefined` until it answers. The decision
+   * collapsed that into "holds no MANA" with `?? 0n`, so a buyer who opened this modal before the read
+   * landed was sent to the pack picker — and then watched the screen turn into a payment choice once the
+   * balance arrived. The effect that fills the MANA price kept the two apart (`== null || <= 0n`); the
+   * decision did not.
+   *
+   * Reported on zone, on a 41-credit item: "apenas toco buy now" showed the pack picker, then it changed
+   * by itself. The balance is now awaited through the same query key, so the first screen is the right one.
+   */
+  describe('and the MANA balance has not resolved yet', () => {
+    beforeEach(() => {
+      manaBalance.data = undefined
+      readManaBalanceWei.mockResolvedValue(100n * ONE_MANA)
+      readTradeManaPriceWei.mockResolvedValue(ONE_MANA)
+    })
+
+    it('should open straight on the payment choice, never flashing the pack picker', async () => {
+      renderIdle()
+
+      expect(await screen.findByTestId('confirm-payment')).toBeInTheDocument()
+      expect(screen.getByTestId('pay-with-mana')).toBeInTheDocument()
+      expect(screen.queryByTestId('credit-packs')).not.toBeInTheDocument()
+    })
+
+    it('should read the balance it was not handed, rather than assuming zero', async () => {
+      renderIdle()
+
+      await screen.findByTestId('confirm-payment')
+      // Assuming zero is what skipped the oracle and produced the wrong screen.
+      expect(readManaBalanceWei).toHaveBeenCalled()
+      expect(readTradeManaPriceWei).toHaveBeenCalled()
+    })
+
+    it('should not report a credits prompt for a buyer it had not finished measuring', async () => {
+      renderIdle()
+
+      await screen.findByTestId('confirm-payment')
+      // The same funnel inflation the resolved-balance case above guards, reintroduced by the race.
+      expect(track).not.toHaveBeenCalledWith('Shop Buy Credits Prompted', expect.anything())
+    })
+
+    it('should still reach the pack picker when the read says the buyer holds nothing', async () => {
+      readManaBalanceWei.mockResolvedValue(0n)
+      renderIdle()
+
+      expect(await screen.findByTestId('credit-packs')).toBeInTheDocument()
+    })
+
+    it('should fall back to the pack picker when the balance cannot be read', async () => {
+      readManaBalanceWei.mockRejectedValue(new Error('rpc down'))
+      renderIdle()
+
+      // An unreadable balance answers 0n: no MANA rail, which is what the buyer saw before any of this.
+      expect(await screen.findByTestId('credit-packs')).toBeInTheDocument()
+    })
   })
 
   /**

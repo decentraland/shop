@@ -8,7 +8,7 @@ import { useManaBalance } from '~/hooks/useManaBalance'
 import { fetchStoreMintState, resolveLiveTrade, type CatalogItem } from '~/lib/api'
 import { CURRENCY, formatCredits, usdCentsToCredits } from '~/lib/currency'
 import { isIapMode } from '~/lib/iap'
-import { readTradeManaPriceWei } from '~/lib/mana'
+import { readManaBalanceWei, readTradeManaPriceWei } from '~/lib/mana'
 import { purchaseTargetFor, resolveLine, type StoreResolver } from '~/lib/cart-checkout'
 import { hrefFor, myItemsRouteFor } from '~/lib/routes'
 import { readManaUsdRate, type ManaRate } from '~/lib/mana-rate'
@@ -150,6 +150,32 @@ export function BuyModal({
       return undefined
     }
   }
+  /**
+   * The buyer's spendable MANA, AWAITED rather than read from a possibly-unresolved query.
+   *
+   * Same reasoning as `ensureManaRate` above, and the same failure it exists to prevent: deciding off a
+   * value that has not arrived yet reports a rail the buyer has as a rail they do not. `useManaBalance` is a
+   * react-query hook, so `data` is `undefined` until it resolves — and a buyer who opened this modal before
+   * that answer landed was told to buy credits, then watched the screen turn into a payment choice once the
+   * balance appeared. Shares the hook's key and staleTime, so this is the same cache entry, not a second read.
+   *
+   * An unreadable balance answers 0n: no MANA rail, which is what the buyer already saw before this existed.
+   */
+  async function ensureManaBalance(): Promise<bigint> {
+    if (manaBalanceWei != null) return manaBalanceWei
+    if (!session) return 0n
+    try {
+      const wei = await qc.fetchQuery({
+        queryKey: ['mana-balance', session.address],
+        queryFn: () => readManaBalanceWei(session.address),
+        staleTime: 30_000
+      })
+      setFetchedManaBalanceWei(wei)
+      return wei
+    } catch {
+      return 0n
+    }
+  }
   // The top-up packs offered when the buyer is short on credits (all four the credits-server returns —
   // the modal is widened to fit them in one row, Figma 1179-182656). Sourced from the credits-server
   // catalogue (single source of truth); falls back to the bundled packs so this critical picker always
@@ -186,6 +212,19 @@ export function BuyModal({
   // for a mint. Null until read (or if the read fails, in which case MANA simply isn't offered and the
   // credits path is unaffected).
   const [manaPriceWei, setManaPriceWei] = useState<bigint | null>(null)
+  /**
+   * The MANA balance THIS modal resolved, for the window before the hook has it.
+   *
+   * `ensureManaBalance` fetches it to decide which screen to open on, but the render reads the hook — and
+   * until react-query settles, those two disagree. That gap is the bug in a second place: the decision said
+   * "offer the MANA rail" while the render still had no balance to build one from, so the pack picker was
+   * drawn anyway and replaced a moment later. Held here so both halves see the same number at the same time.
+   */
+  const [fetchedManaBalanceWei, setFetchedManaBalanceWei] = useState<bigint | null>(null)
+
+  // The hook's answer when it has one, ours otherwise. Never `?? 0n` on its own: zero and unknown are
+  // different states, and collapsing them is what drew the wrong screen.
+  const effectiveManaBalanceWei = manaBalanceWei ?? fetchedManaBalanceWei ?? 0n
   // The oracle was asked and could not answer. Distinct from `manaPriceWei === null`, which is also the
   // state before anything has been asked — only this one means the MANA option is missing for a REASON.
   const [manaPriceUnavailable, setManaPriceUnavailable] = useState(false)
@@ -260,7 +299,9 @@ export function BuyModal({
     // (`manaBalanceWei <= 0n → return`), which moving this read onto the blocking path would otherwise
     // have dropped. A trade quote is three sequential RPC calls; charging them to the majority who
     // cannot use the answer is a slower screen for nothing.
-    const holdsMana = (manaBalanceWei ?? 0n) > 0n
+    const heldManaWei = await ensureManaBalance()
+    if (cancelled?.()) return
+    const holdsMana = heldManaWei > 0n
     const manaWei = holdsMana ? await manaPriceFor(sale) : null
     if (cancelled?.()) return
     if (manaWei != null) setManaPriceWei(manaWei)
@@ -272,7 +313,7 @@ export function BuyModal({
       priceCents,
       priceManaWei: manaWei ?? 0n,
       balanceCents: balance?.balanceCents ?? 0,
-      manaBalanceWei: manaBalanceWei ?? 0n
+      manaBalanceWei: heldManaWei
     })
     const canPayWithMana = rails.options.some(o => o.method === 'mana' || o.method === 'combined')
 
@@ -370,7 +411,7 @@ export function BuyModal({
     const sale = locked?.sale ?? resolvedSale
     if (!sale) return
     if (phase !== 'ready' && phase !== 'nofunds') return
-    if (manaBalanceWei == null || manaBalanceWei <= 0n) return
+    if (effectiveManaBalanceWei <= 0n) return
     if (manaPriceWei !== null) return
     let cancelled = false
     /**
@@ -386,7 +427,7 @@ export function BuyModal({
     return () => {
       cancelled = true
     }
-  }, [phase, locked, resolvedSale, manaBalanceWei, manaPriceWei, manaPriceUnavailable])
+  }, [phase, locked, resolvedSale, effectiveManaBalanceWei, manaPriceWei, manaPriceUnavailable])
 
   // Which rails the buyer's balances actually support (pure — see lib/payment-options). MANA rails
   // appear only once both the MANA balance and the MANA price are known; until then this is just the
@@ -395,7 +436,7 @@ export function BuyModal({
     priceCents,
     priceManaWei: manaPriceWei ?? 0n,
     balanceCents: balance?.balanceCents ?? 0,
-    manaBalanceWei: manaBalanceWei ?? 0n
+    manaBalanceWei: effectiveManaBalanceWei
   })
 
   /**
@@ -1036,7 +1077,7 @@ export function BuyModal({
             options={paymentOptions.options}
             priceManaWei={manaPriceWei ?? 0n}
             balanceCredits={balanceCredits}
-            manaBalanceWei={manaBalanceWei ?? 0n}
+            manaBalanceWei={effectiveManaBalanceWei}
             onBuy={method => void startPurchase(method)}
             onClose={onClose}
             busy={busy}
@@ -1149,7 +1190,7 @@ export function BuyModal({
                 {/* The MANA rail is missing because the oracle could not be read, not because the buyer
                     cannot afford it. Said out loud: without it they are told to buy credits for something
                     their MANA may well have covered, and the reason is invisible. */}
-                {manaPriceUnavailable && manaPriceWei === null && (manaBalanceWei ?? 0n) > 0n ? (
+                {manaPriceUnavailable && manaPriceWei === null && effectiveManaBalanceWei > 0n ? (
                   <M.Warning data-testid="mana-price-unavailable">
                     <WarningTriangleIcon />
                     <M.WarningText>{t('buyModal.manaPriceUnavailable')}</M.WarningText>
