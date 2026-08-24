@@ -72,7 +72,9 @@ body {
   padding-top: var(--nav-h);
   /* Figma "New Shop 2026" page field, taken verbatim from the design's radial fill: ellipse
      1183.5x1279.9px centred at (960, 636.45) on the 1920x1168 artboard — i.e. 61.64% x 109.58% at
-     50% / 54.49% — with the design's exact five stops. */
+     50% / 54.49% — with the design's exact five stops. UNTOUCHED on purpose: the glow that lights the
+     avatar is a separate layer on the preview panel (pages/ItemDetail.styles.ts), so wherever that glow
+     has faded out, this is exactly the field the design specifies. */
   background: radial-gradient(
       61.64% 109.58% at 50% 54.49%,
       #952dc6 0%,
@@ -85,6 +87,40 @@ body {
   color: var(--text);
   font-family: var(--sans);
   -webkit-font-smoothing: antialiased;
+}
+/* DCL symbols drifting over the purple field — the same 1024x1024 sheet the auth screen and the fitting
+   room's AnimatedBackground use (images/background/DCL_LogoPattern.png).
+
+   It is a SEPARATE fixed layer rather than a second background-image on the body, because background
+   layers have no per-layer opacity and the sheet is 8-bit GRAYSCALE with no alpha — as a plain layer it
+   would paint flat grey over the gradient. A pseudo-element gives a literal opacity dial instead.
+
+   `fixed` to match the body gradient, so both stay put while the page scrolls. z-index -1 keeps it under
+   every #root descendant but above the body background (which propagates to the canvas, html carrying
+   none). pointer-events:none so it never eats a click.
+
+   The mask is an INVERSE vignette: transparent in the middle, opaque at the rim, so the symbols live
+   only in the periphery and the centre — where the item preview sits — stays clean purple. In a CSS
+   mask it is the ALPHA that counts, so `transparent` hides and any opaque colour shows; the black is
+   just a carrier. The element is fixed, so the gradient is measured against the VIEWPORT, not the page.
+
+   Three dials: `opacity` for strength, `background-size` for density, and the mask's first stop (25%)
+   for how wide the clean centre is. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: url("../images/background/DCL_LogoPattern.png") 0 0 repeat;
+  background-size: var(--tw-sym-size, 610px) var(--tw-sym-size, 610px);
+  opacity: var(--tw-sym-opacity, 0.03);
+  -webkit-mask-image: radial-gradient(
+    75% 70% at 50% 45%,
+    transparent var(--tw-sym-hole, 25%),
+    #000 var(--tw-sym-edge, 85%)
+  );
+  mask-image: radial-gradient(75% 70% at 50% 45%, transparent var(--tw-sym-hole, 25%), #000 var(--tw-sym-edge, 85%));
 }
 /* The cart is DELIBERATELY the one light surface on the dark theme (Figma "Cart" 1551:315390): white
    panels on a gray field, because a checkout reads as safer light than dark. The gray is a full-bleed
