@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { TradeAssetType, type Trade } from '@dcl/schemas'
+import { ProviderType, TradeAssetType, type Trade } from '@dcl/schemas'
 import type { ethers as Ethers } from 'ethers'
 
 // Records the on-chain calls buyWithMana makes so we can assert the allowance-then-accept sequence.
@@ -25,13 +25,28 @@ vi.mock('decentraland-transactions', () => ({
     abi: ['function accept(uint256[] x)']
   }),
   sendMetaTransaction: vi.fn(),
-  MetaTransactionError: class MetaTransactionError extends Error {},
+  // Carries `code` like the real one: the rails branch on it, so a stub that dropped it would let a
+  // dismissed signature fall through to the gas-paying fallback in the tests while failing in production.
+  MetaTransactionError: class MetaTransactionError extends Error {
+    code?: string
+    constructor(message: string, code?: string) {
+      super(message)
+      this.code = code
+    }
+  },
   ErrorCode: { USER_DENIED: 'USER_DENIED' }
 }))
 
 // Direct (gas-paying) path: keep the gasless relayer off so buyWithMana takes the accept() branch and
 // ensureAuthorization takes the direct approve() branch.
-vi.mock('~/lib/gasless-config', () => ({ gaslessConfig: { enabled: false, relayerUrl: '' } }))
+//
+// MUTABLE, because the mixed rail has to be exercised BOTH ways: the relayed path is now the default and the
+// direct one is only its fallback. Every describe below resets it, so a suite that forgets cannot inherit
+// the previous one's rail.
+// `vi.hoisted` because this module is pulled in through ~/lib/authorizations while the mock factories are
+// still being hoisted — a plain const is in its TDZ by then and the whole suite fails to collect.
+const { gaslessState } = vi.hoisted(() => ({ gaslessState: { enabled: false, relayerUrl: 'http://relayer' } }))
+vi.mock('~/lib/gasless-config', () => ({ gaslessConfig: gaslessState }))
 vi.mock('~/config', () => ({ config: { rpcUrl: 'http://localhost', chainId: 80002 } }))
 
 vi.mock('ethers', async importOriginal => {
@@ -82,6 +97,44 @@ vi.mock('~/lib/buy', () => ({
   })
 }))
 
+/**
+ * The relayed rail, hoisted for the same reason as the config above.
+ *
+ * The error CLASSES are real (not vi.fn) because the rail branches on `instanceof` — a plain object would
+ * take the wrong branch and every guard below would pass for the wrong reason.
+ */
+const { gaslessCalls, buyOneGasless, waitForSettlement, GaslessUnavailableError, SettlementPendingError } = vi.hoisted(
+  () => {
+    class GaslessUnavailableError extends Error {
+      reason: string
+      constructor(message: string, reason: string) {
+        super(message)
+        this.reason = reason
+      }
+    }
+    class SettlementPendingError extends Error {}
+    const gaslessCalls: Array<{ purchase: { kind: string; maxCreditedValue: string }; buyer: string }> = []
+    return {
+      gaslessCalls,
+      buyOneGasless: vi.fn(async (opts: { purchase: { kind: string; maxCreditedValue: string }; buyer: string }) => {
+        gaslessCalls.push(opts)
+        return '0xrelayedhash'
+      }),
+      waitForSettlement: vi.fn(async (_hash: string) => {}),
+      GaslessUnavailableError,
+      SettlementPendingError
+    }
+  }
+)
+vi.mock('~/lib/buy-gasless', () => ({
+  buyOneGasless,
+  waitForSettlement,
+  GaslessUnavailableError,
+  SettlementPendingError
+}))
+
+// From the mock above, so `instanceof` in the rail matches what these tests throw.
+import { ErrorCode, MetaTransactionError } from 'decentraland-transactions'
 import { buyWithMana, buyMintWithMana, buyWithCreditsAndMana, buyMintWithCreditsAndMana } from '~/lib/buy-mana'
 
 const ADDR = (n: string) => '0x' + n.repeat(20)
@@ -129,6 +182,21 @@ const signer = {
     send: async (method: string) => (method === 'eth_chainId' ? '0x13882' : undefined)
   }
 } as unknown as Ethers.providers.JsonRpcSigner
+
+// Every suite starts on the DIRECT rail; the relayed ones opt in. Reset here rather than per-suite so a new
+// describe cannot silently inherit whichever rail the previous one left switched on.
+beforeEach(() => {
+  gaslessState.enabled = false
+  gaslessCalls.length = 0
+  useCreditsCalls.length = 0
+  buyOneGasless.mockClear()
+  waitForSettlement.mockClear()
+  buyOneGasless.mockImplementation(async opts => {
+    gaslessCalls.push(opts)
+    return '0xrelayedhash'
+  })
+  waitForSettlement.mockImplementation(async () => {})
+})
 
 describe('buyWithMana (direct settlement)', () => {
   beforeEach(() => {
@@ -390,5 +458,188 @@ describe('buyMintWithCreditsAndMana (the same mixed rail, for a mint)', () => {
     expect(useCreditsCalls).toHaveLength(1)
     expect(useCreditsCalls[0].kind).toBe('store')
     expect(useCreditsCalls[0].maxCreditedValue).toBe('1000')
+  })
+})
+
+/**
+ * The mixed rail RELAYS, and what it does when the relay fails.
+ *
+ * This rail shipped without a relayed path at all — it went straight to the buyer's own transaction while
+ * both sibling rails relayed first. Two production failures came out of that in three days, from one buyer
+ * on a managed wallet: `insufficient funds ... balance 0` (there is no POL in a managed wallet, ever) and,
+ * two days later, a wrong-network refusal for a transaction the relayer would have submitted from any chain.
+ *
+ * So these cases pin the RAIL CHOICE, not the arithmetic the suites above cover: which path a purchase takes,
+ * and — for every way the relay can fail — whether falling back to the buyer's own gas is a route they have.
+ */
+describe('buyWithCreditsAndMana (relayed rail)', () => {
+  beforeEach(() => {
+    approveCalls.length = 0
+    allowanceWei = '999999999999999999999'
+    gaslessState.enabled = true
+  })
+
+  const args = (over: Record<string, unknown> = {}) => ({
+    trade: fakeTrade(),
+    buyer: BUYER,
+    signer,
+    credits: [credit('400')],
+    manaGapWei: 600n,
+    providerType: ProviderType.INJECTED,
+    ...over
+  })
+
+  it('relays the purchase instead of submitting it from the buyer wallet', async () => {
+    const hash = await buyWithCreditsAndMana(args())
+
+    expect(buyOneGasless).toHaveBeenCalledTimes(1)
+    expect(hash).toBe('0xrelayedhash')
+    // The direct rail is the fallback now, not the default — nothing should have reached it.
+    expect(useCreditsCalls).toHaveLength(0)
+  })
+
+  it('hands the relayed rail the same credits + gap cap the direct one gets', async () => {
+    await buyWithCreditsAndMana(args({ credits: [credit('400')], manaGapWei: 600n }))
+
+    expect(gaslessCalls[0].purchase.maxCreditedValue).toBe('1000')
+    expect(gaslessCalls[0].buyer).toBe(BUYER)
+  })
+
+  it('relays a MINT down the same rail', async () => {
+    const hash = await buyMintWithCreditsAndMana({
+      mint: fakeMint(),
+      buyer: BUYER,
+      signer,
+      credits: [credit('400')],
+      manaGapWei: 600n,
+      providerType: ProviderType.INJECTED
+    })
+
+    expect(hash).toBe('0xrelayedhash')
+    expect(gaslessCalls[0].purchase.kind).toBe('store')
+    expect(useCreditsCalls).toHaveLength(0)
+  })
+
+  it('reports the broadcast as soon as the relay resolves, and waits for settlement before returning', async () => {
+    const broadcast: string[] = []
+    const order: string[] = []
+    waitForSettlement.mockImplementation(async () => {
+      order.push('settled')
+    })
+
+    await buyWithCreditsAndMana(
+      args({
+        onBroadcast: ({ txHash }: { txHash: string }) => {
+          broadcast.push(txHash)
+          order.push('broadcast')
+        }
+      })
+    )
+
+    // The relayer has already transmitted, so the credits are spoken for before settlement is known.
+    expect(broadcast).toEqual(['0xrelayedhash'])
+    expect(order).toEqual(['broadcast', 'settled'])
+    expect(waitForSettlement).toHaveBeenCalledWith('0xrelayedhash')
+  })
+
+  it('still goes direct when gasless is switched off', async () => {
+    gaslessState.enabled = false
+
+    const hash = await buyWithCreditsAndMana(args())
+
+    expect(buyOneGasless).not.toHaveBeenCalled()
+    expect(hash).toBe('0xcombinedhash')
+  })
+})
+
+describe('buyWithCreditsAndMana (what happens when the relay fails)', () => {
+  beforeEach(() => {
+    approveCalls.length = 0
+    allowanceWei = '999999999999999999999'
+    gaslessState.enabled = true
+  })
+
+  const args = (over: Record<string, unknown> = {}) => ({
+    trade: fakeTrade(),
+    buyer: BUYER,
+    signer,
+    credits: [credit('400')],
+    manaGapWei: 600n,
+    providerType: ProviderType.INJECTED,
+    ...over
+  })
+
+  it('REFUSES the gas-paying fallback to a managed wallet — the failure that reached production', async () => {
+    buyOneGasless.mockRejectedValue(new GaslessUnavailableError('relayer said no', 'relayer-rejected'))
+
+    await expect(buyWithCreditsAndMana(args({ providerType: ProviderType.MAGIC }))).rejects.toThrow('relayer said no')
+    // Reaching the direct rail is what produced `insufficient funds ... balance 0`: a managed wallet holds
+    // no POL, so that transaction cannot succeed and the prompt cannot be acted on.
+    expect(useCreditsCalls).toHaveLength(0)
+  })
+
+  it('treats an ABSENT providerType as managed, so an un-threaded call site cannot reopen the hole', async () => {
+    buyOneGasless.mockRejectedValue(new GaslessUnavailableError('relayer said no', 'relayer-rejected'))
+
+    await expect(buyWithCreditsAndMana(args({ providerType: undefined }))).rejects.toThrow('relayer said no')
+    expect(useCreditsCalls).toHaveLength(0)
+  })
+
+  it('DOES offer the fallback to a self-custody wallet, which can actually pay the gas', async () => {
+    buyOneGasless.mockRejectedValue(new GaslessUnavailableError('relayer said no', 'relayer-rejected'))
+
+    const hash = await buyWithCreditsAndMana(args({ providerType: ProviderType.INJECTED }))
+
+    expect(hash).toBe('0xcombinedhash')
+    expect(useCreditsCalls).toHaveLength(1)
+  })
+
+  it('propagates a dismissed signature instead of asking again for gas', async () => {
+    buyOneGasless.mockRejectedValue(new MetaTransactionError('user denied', ErrorCode.USER_DENIED))
+
+    await expect(buyWithCreditsAndMana(args())).rejects.toThrow('user denied')
+    // A cancellation is an answer. Retrying it as a gas-paying transaction is the footgun #347 closed
+    // everywhere else.
+    expect(useCreditsCalls).toHaveLength(0)
+  })
+
+  it('never re-submits a relay whose receipt has not arrived — that would buy the item twice', async () => {
+    waitForSettlement.mockRejectedValue(new SettlementPendingError('still pending'))
+
+    await expect(buyWithCreditsAndMana(args())).rejects.toThrow('still pending')
+    expect(useCreditsCalls).toHaveLength(0)
+  })
+
+  it('marks an unreachable relayer UNOBSERVABLE and does not retry — it may have broadcast already', async () => {
+    buyOneGasless.mockRejectedValue(new GaslessUnavailableError('socket hang up', 'relayer-unreachable'))
+    const unobservable = vi.fn()
+
+    await expect(buyWithCreditsAndMana(args({ onUnobservable: unobservable }))).rejects.toThrow('socket hang up')
+    expect(unobservable).toHaveBeenCalledTimes(1)
+    // Even a self-custody wallet gets no fallback here: the same credit could be spent twice.
+    expect(useCreditsCalls).toHaveLength(0)
+  })
+
+  it('names the reverted attempt so its reservation can be released', async () => {
+    waitForSettlement.mockRejectedValue(new Error('transaction reverted'))
+    const reverted: Array<string | null> = []
+
+    await expect(
+      buyWithCreditsAndMana(args({ onReverted: ({ txHash }: { txHash: string | null }) => reverted.push(txHash) }))
+    ).rejects.toThrow('transaction reverted')
+
+    // A revert consumed nothing, so the caller may release — but only if it knows WHICH attempt failed.
+    expect(reverted).toEqual(['0xrelayedhash'])
+    expect(useCreditsCalls).toHaveLength(0)
+  })
+
+  it('does not report a broadcast that never happened', async () => {
+    buyOneGasless.mockRejectedValue(new GaslessUnavailableError('relayer said no', 'relayer-rejected'))
+    const broadcast: string[] = []
+
+    await buyWithCreditsAndMana(args({ onBroadcast: ({ txHash }: { txHash: string }) => broadcast.push(txHash) }))
+
+    // The relay refused, so the only broadcast is the direct rail's — which reports it itself.
+    expect(broadcast).toEqual([])
   })
 })

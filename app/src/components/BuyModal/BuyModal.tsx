@@ -736,12 +736,18 @@ export function BuyModal({
         signer: session.signer,
         credits: [credit],
         manaGapWei: combined.manaWei,
+        // Decides whether this buyer is offered the gas-paying fallback when the relay refuses — a managed
+        // wallet holds no POL, so for them the rail ends here rather than at INSUFFICIENT_FUNDS.
+        providerType: session.providerType,
         // Same rule as the credits-only rail, against THIS reservation: the partial credit, not the price lock
         // that was released above.
         onBroadcast: ({ txHash: h }: { txHash: string }) => guardRef.current.broadcast(credit.id, h),
         onReverted: ({ txHash: h }: { txHash: string | null }) => {
           if (h) guardRef.current.reverted(h)
-        }
+        },
+        // The relay may have broadcast before it went dark: no hash means the reservation can never be
+        // released, so mark it rather than let the catch below hand the money back.
+        onUnobservable: () => guardRef.current.unobservable(credit.id)
       }
       // Both kinds ride the CreditsManager's own mixed-payment rail — only the external call inside it differs.
       txHash =
