@@ -568,6 +568,9 @@ export function ItemDetail() {
   // The resale hand-off (see MarketplaceRedirectModal). Separate from `showResellers`, which is the BUYER's
   // list of other people's resales — same word, opposite side of the trade.
   const [showResell, setShowResell] = useState(false)
+  // The BUYER's hand-off to the same place: the Shop only sells primary, so a copy of an item with no
+  // primary left is bought over on the Marketplace.
+  const [showBuyResale, setShowBuyResale] = useState(false)
 
   // Market (legacy) checkout: the live MANA→USD rate (read only in market mode) + the LegacyListing
   // projection MarketCheckout expects, built from the UnifiedListing the grid passed in router state.
@@ -1763,11 +1766,18 @@ export function ItemDetail() {
                         </S.AddCart>
                       </>
                     ) : (
-                      // No buyable listing → hide buy/add-cart and offer "Notify me when available".
+                      // No buyable listing → hide buy/add-cart and offer "Notify me when available", plus
+                      // the way to actually get one today: a resale on the Marketplace (Figma 3037:446009).
+                      // Offered unconditionally rather than gated on known resales — the Shop reads only the
+                      // credit-buyable ones, so "no resale here" is not evidence of none over there, and the
+                      // Marketplace can also take an offer on an item nobody is currently reselling.
                       <>
                         <NotifyMe item={current} />
-                        {/* No secondary sales for now, so there is nothing to make an offer on. */}
-                        {/* <MakeOfferButton item={current} /> */}
+                        {current.itemId ? (
+                          <S.BuyResaleLink onClick={() => setShowBuyResale(true)} data-testid="buy-resale">
+                            {t('itemDetail.buyResale')}
+                          </S.BuyResaleLink>
+                        ) : null}
                       </>
                     )}
                   </S.Ctas>
@@ -1859,6 +1869,15 @@ export function ItemDetail() {
           contractAddress={contractAddress ?? ''}
           tokenId={routeTokenId}
           onClose={() => setShowResell(false)}
+        />
+      ) : null}
+
+      {showBuyResale && current.itemId ? (
+        <MarketplaceRedirectModal
+          variant="buy"
+          contractAddress={contractAddress ?? ''}
+          itemId={current.itemId}
+          onClose={() => setShowBuyResale(false)}
         />
       ) : null}
 

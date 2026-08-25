@@ -1223,6 +1223,15 @@ export const ResellersLink = styled.button`
   }
 `
 
+// The buyer's way out to the Marketplace when the Shop has no primary left to sell (Figma 3037:446009).
+// Same type ramp as ResellersLink — both are the design's `button/small` — but full width and centred,
+// because it sits under the notify-me form as that block's own last action rather than beside a price.
+export const BuyResaleLink = styled(ResellersLink)`
+  width: 100%;
+  height: 40px;
+  text-align: center;
+`
+
 // Sold-out price block: the exhausted primary's original price (struck) with a "SOLD OUT" tag, above the
 // cheapest resale price + how many copies are on the secondary market.
 export const SoldOutPricing = styled.div`

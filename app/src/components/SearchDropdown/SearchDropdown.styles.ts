@@ -148,13 +148,28 @@ export const Price = styled.span`
   white-space: nowrap;
 `
 
+/**
+ * Pinned to the bottom of the panel rather than sitting after the last result.
+ *
+ * The panel scrolls (see Pop), and this used to scroll with it — so on a query with many matches the one
+ * control that reaches the full result set was below the fold of a dropdown most people never scroll.
+ * `sticky` keeps it in flow (no height reserved when the list is short) while holding the bottom edge
+ * once the list overflows. The background has to be opaque: rows pass underneath it.
+ *
+ * The negative bottom margin cancels Pop's padding so the bar meets the panel edge instead of leaving an
+ * 8px strip of scrolling content below it, and the matching padding keeps the label where it was.
+ */
 export const SeeAll = styled.button`
+  position: sticky;
+  bottom: -8px;
+  z-index: 1;
   width: 100%;
   margin-top: 4px;
-  padding: 10px;
+  margin-bottom: -8px;
+  padding: 10px 10px 18px;
   border: 0;
   border-top: 1px solid ${colors.line};
-  background: none;
+  background: ${colors.white};
   color: ${colors.accent};
   font-weight: 700;
   font-size: 13px;

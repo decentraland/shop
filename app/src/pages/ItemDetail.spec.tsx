@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { CatalogItem } from '~/lib/api'
@@ -151,6 +152,36 @@ describe('ItemDetail — the not-for-sale CTA slot', () => {
     expect(await screen.findByTestId('item-price')).toHaveTextContent(/not for sale/i)
     expect(screen.queryByTestId('make-offer')).not.toBeInTheDocument()
     expect(screen.queryByText(/make an offer/i)).not.toBeInTheDocument()
+  })
+
+  /**
+   * The Shop sells primary only, so "not for sale" here means "not for sale HERE" — a resale may well be
+   * on offer at the Marketplace. Without this the state is a dead end: notify-me is the only action, and
+   * it asks the buyer to wait for something that may already be purchasable elsewhere.
+   */
+  it('should offer the resale hand-off for an item it cannot sell', async () => {
+    renderPdp()
+
+    expect(await screen.findByTestId('item-price')).toHaveTextContent(/not for sale/i)
+    expect(await screen.findByTestId('buy-resale')).toBeInTheDocument()
+  })
+
+  it('should hand the buyer to the item page on the marketplace, not to one arbitrary copy', async () => {
+    renderPdp()
+
+    await userEvent.click(await screen.findByTestId('buy-resale'))
+
+    const cta = await screen.findByTestId('marketplace-redirect-continue')
+    expect(cta.getAttribute('href')).toContain('/items/1')
+    expect(cta.getAttribute('href')).not.toContain('/tokens/')
+  })
+
+  it('should warn about the currency change before sending the buyer over', async () => {
+    renderPdp()
+
+    await userEvent.click(await screen.findByTestId('buy-resale'))
+
+    expect(await screen.findByTestId('marketplace-redirect-modal')).toHaveTextContent(/not made with credits/i)
   })
 })
 

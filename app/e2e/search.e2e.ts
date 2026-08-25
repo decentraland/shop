@@ -172,6 +172,67 @@ describe('search bar', () => {
     expect(right).toBeLessThanOrEqual(375)
   })
 
+  /**
+   * The one control that reaches the full result set has to be reachable without scrolling INSIDE the
+   * dropdown. It used to sit after the last suggestion in a panel that scrolls, so on a query with many
+   * matches it was below the fold of a menu most people never scroll — the results page was effectively
+   * unreachable from the suggestions.
+   */
+  it('keeps "See all results" in view without scrolling the suggestions', async () => {
+    // Enough suggestions to OVERFLOW the panel — the default fixture has one match, and with a single row
+    // the footer sits at the bottom whether or not it is pinned, so the assertions below would pass
+    // either way. Local to this spec: `unifiedListings` also feeds the browse grid, where extra rows
+    // change what other specs count.
+    const many = Array.from({ length: 20 }, (_, i) => ({
+      tradeId: `pinned-${i}`,
+      listingType: 'primary',
+      contractAddress: '0x0000000000000000000000000000000000000abc',
+      itemId: String(i),
+      tokenId: null,
+      name: `Nebula Cap ${i}`,
+      thumbnail: '',
+      rarity: 'epic',
+      category: 'wearable',
+      wearableCategory: 'hat',
+      creator: '0x0000000000000000000000000000000000000001',
+      priceCredits: 10 + i,
+      available: 5,
+      network: 'MATIC',
+      chainId: 80002,
+      source: 'native',
+      manaWei: null,
+      listingCount: 1
+    }))
+    app = await launchApp({ path: '/overview', fixtures: { unifiedListings: { data: many, total: many.length } } })
+    const { page } = app
+    // Short on purpose: the panel is capped at 70vh, which is what makes the capped suggestion list
+    // overflow it.
+    await page.setViewport({ width: 1280, height: 420 })
+
+    await page.waitForSelector(SEARCH)
+    await page.type(SEARCH, 'Nebula')
+    await page.waitForSelector('[data-testid="search-pop"]')
+    await page.waitForSelector('[data-testid="search-see-all"]')
+
+    const geometry = await page.evaluate(() => {
+      const popEl = document.querySelector('[data-testid="search-pop"]')!
+      const pop = popEl.getBoundingClientRect()
+      const seeAll = document.querySelector('[data-testid="search-see-all"]')!.getBoundingClientRect()
+      return {
+        overflows: popEl.scrollHeight > popEl.clientHeight + 1,
+        popBottom: pop.bottom,
+        seeAllTop: seeAll.top,
+        seeAllBottom: seeAll.bottom
+      }
+    })
+
+    // The premise: if the list does not overflow, this test proves nothing.
+    expect(geometry.overflows).toBe(true)
+    // Held at the panel's bottom edge instead of sitting somewhere down the scroll.
+    expect(geometry.seeAllBottom).toBeLessThanOrEqual(geometry.popBottom + 1)
+    expect(geometry.seeAllTop).toBeLessThan(geometry.popBottom)
+  })
+
   it('reflects the URL query in the input on a deep link', async () => {
     // Landing directly on a filtered URL must pre-fill the search box (previously it stayed blank).
     app = await launchApp({ path: '/items?q=Nebula' })

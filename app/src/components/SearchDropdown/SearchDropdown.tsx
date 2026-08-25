@@ -246,7 +246,7 @@ export function SearchDropdown({
           ) : null}
 
           {total > 0 ? (
-            <S.SeeAll type="button" onClick={() => onRunSearch(query)}>
+            <S.SeeAll type="button" data-testid="search-see-all" onClick={() => onRunSearch(query)}>
               {t('search.seeAll', { count: total.toLocaleString() })}
             </S.SeeAll>
           ) : null}
