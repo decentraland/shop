@@ -11,7 +11,7 @@ import { ScrollReset } from '~/components/ScrollReset'
 import { useAccountWatcher } from '~/hooks/useAccountWatcher'
 import { useShopPrelaunch } from '~/hooks/useShopPrelaunch'
 import { useWallet } from '~/store/wallet'
-import { trackPage } from '~/lib/analytics'
+import { usePageView } from '~/hooks/usePageView'
 import { isIapMode } from '~/lib/iap'
 import { Overview } from '~/pages/Overview'
 import * as OV from '~/pages/Overview.styles'
@@ -24,22 +24,6 @@ import { t } from '~/intl/i18n'
 // The NAMES are frozen even where the route was renamed: they are the `page` prop of `Shop Viewed Page`,
 // so 'assets'/'my_assets' are what every existing funnel and dashboard groups on. Renaming them to match
 // the new paths would silently split each series in two at the deploy.
-const PAGE_NAMES: Record<string, string> = {
-  '/overview': 'overview',
-  '/items': 'assets',
-  '/my-items': 'my_assets',
-  '/my-favorites': 'favorites',
-  '/activity': 'activity',
-  '/import': 'import',
-  '/store-settings': 'store_settings',
-  '/cart': 'cart',
-  '/credits': 'credits',
-  '/success': 'success',
-  '/authorizations': 'authorizations',
-  '/outfits/manage': 'outfit_studio',
-  '/outfits/new': 'outfit_studio'
-}
-
 // Overview (home) stays eager for the fastest first paint; every other route is code-split so it
 // stays out of the initial bundle and loads on navigation (see vite manualChunks + LazyWearablePreview).
 const Assets = lazy(() => import('~/pages/Assets').then(m => ({ default: m.Assets })))
@@ -111,23 +95,7 @@ export function App() {
   }, [restoreWallet])
 
   // Segment is loaded by the AnalyticsProvider in main.tsx; this only emits a page view per route.
-  useEffect(() => {
-    const path = location.pathname
-    const page =
-      PAGE_NAMES[path] ??
-      (path.startsWith('/item/') || path.startsWith('/token/')
-        ? 'item'
-        : path.startsWith('/collection/')
-          ? 'collection'
-          : path.startsWith('/items/creator/')
-            ? 'creator'
-            : path.startsWith('/items/outfits/')
-              ? 'outfit'
-              : path.startsWith('/outfits/')
-                ? 'outfit_studio'
-                : 'other')
-    trackPage(page)
-  }, [location.pathname])
+  usePageView()
 
   // The pre-launch curtain. Returned BEFORE the shell so no NavBar, footer or route is mounted: each of those
   // is a door into a Shop that is meant to be closed. Cosmetic only — what refuses a purchase is the same flag
