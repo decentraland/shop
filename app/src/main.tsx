@@ -1,8 +1,10 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { AnalyticsProvider } from '@dcl/hooks'
 import { BrowserRouter } from 'react-router-dom'
 import { App } from '~/App'
+import { config } from '~/config'
 import { I18nProvider } from '~/intl/I18nProvider'
 import { initSentry } from '~/lib/monitoring'
 import './styles/index.css'
@@ -22,12 +24,14 @@ const routerBasename = pathname === '/shop' || pathname.startsWith('/shop/') ? '
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <I18nProvider>
-        <BrowserRouter basename={routerBasename}>
-          <App />
-        </BrowserRouter>
-      </I18nProvider>
-    </QueryClientProvider>
+    <AnalyticsProvider writeKey={config.segmentWriteKey} cdnUrl={config.segmentCdnUrl} apiHost={config.segmentApiHost}>
+      <QueryClientProvider client={queryClient}>
+        <I18nProvider>
+          <BrowserRouter basename={routerBasename}>
+            <App />
+          </BrowserRouter>
+        </I18nProvider>
+      </QueryClientProvider>
+    </AnalyticsProvider>
   </React.StrictMode>
 )

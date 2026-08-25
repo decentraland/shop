@@ -11,7 +11,7 @@ import { ScrollReset } from '~/components/ScrollReset'
 import { useAccountWatcher } from '~/hooks/useAccountWatcher'
 import { useShopPrelaunch } from '~/hooks/useShopPrelaunch'
 import { useWallet } from '~/store/wallet'
-import { initAnalytics, trackPage } from '~/lib/analytics'
+import { trackPage } from '~/lib/analytics'
 import { isIapMode } from '~/lib/iap'
 import { Overview } from '~/pages/Overview'
 import * as OV from '~/pages/Overview.styles'
@@ -110,10 +110,7 @@ export function App() {
     void restoreWallet()
   }, [restoreWallet])
 
-  // Load Segment once (no-op without a write key), then emit a page view on each route change.
-  useEffect(() => {
-    initAnalytics()
-  }, [])
+  // Segment is loaded by the AnalyticsProvider in main.tsx; this only emits a page view per route.
   useEffect(() => {
     const path = location.pathname
     const page =

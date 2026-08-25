@@ -8,6 +8,10 @@ import { AssetCard } from './AssetCard'
 // The author line resolves the creator address → profile name via useProfile. Mock it so the tests
 // drive the resolved-name / short-address-fallback states directly (no real Catalyst fetch), and so
 // cards WITHOUT a creator (the default makeItem) never touch it.
+// Segment is reached through @dcl/hooks now, so that read is where a spy goes.
+const segment = vi.hoisted(() => ({ current: null as Record<string, unknown> | null }))
+vi.mock('@dcl/hooks', () => ({ getAnalytics: () => segment.current }))
+
 const { useProfile } = vi.hoisted(() => ({
   useProfile: vi.fn((): { data?: { name?: string } } => ({ data: undefined }))
 }))
@@ -548,7 +552,7 @@ describe('AssetCard rarity label', () => {
 describe('AssetCard provenance (which surface the card was rendered on)', () => {
   function renderOn(source?: 'trending' | 'new_creations', position?: number) {
     const spy = vi.fn()
-    ;(window as unknown as { analytics?: unknown }).analytics = { track: spy, identify: vi.fn(), page: vi.fn() }
+    segment.current = { track: spy, identify: vi.fn(), page: vi.fn() }
     render(
       <MemoryRouter>
         <AssetCard item={makeItem()} source={source} position={position} />
@@ -558,7 +562,7 @@ describe('AssetCard provenance (which surface the card was rendered on)', () => 
   }
 
   afterEach(() => {
-    ;(window as unknown as { analytics?: unknown }).analytics = undefined
+    segment.current = null
   })
 
   it('should name the rail on the click event, so a rail click-through is attributable', () => {
