@@ -105,6 +105,12 @@ export const config = {
   profileUrl: env.VITE_PROFILE_URL ?? base.get('PROFILE_URL'),
   shopServerUrl: env.VITE_SHOP_SERVER_URL ?? base.get('SHOP_SERVER_URL'),
   stripePublishableKey: env.VITE_STRIPE_PK ?? base.get('STRIPE_PUBLISHABLE_KEY'),
+  // Segment's own hosts are on every ad-blocker filter list, so those sessions load no analytics and
+  // send no events. Both proxy values are first party: the CDN one serves the settings and the remote
+  // plugin bundles, the API host takes the events. @dcl/hooks validates and drops a malformed value,
+  // which falls back to Segment's hosts rather than pointing the SDK somewhere untrusted.
+  segmentCdnUrl: env.VITE_SEGMENT_CDN_URL ?? base.get('SEGMENT_CDN_URL'),
+  segmentApiHost: env.VITE_SEGMENT_API_HOST ?? base.get('SEGMENT_API_HOST'),
   segmentWriteKey: env.VITE_SEGMENT_WRITE_KEY ?? base.get('SEGMENT_WRITE_KEY'),
   // Sentry error monitoring. Empty DSN → monitoring no-ops (errors only hit the console). The DSN is a
   // public ingest key (ships in the bundle), NEVER a secret — it lives in the per-env JSONs like the

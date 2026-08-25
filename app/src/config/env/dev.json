@@ -17,6 +17,8 @@
   "SHOP_SERVER_URL": "https://shop-api.decentraland.zone",
   "STRIPE_PUBLISHABLE_KEY": "pk_test_51TrffWCkrZDRnyXkMKFNuHx8wTYl1SOKCTFciKzpPdi2o0BB7HluwRaKgyz5Uj0hSFIbcfuiQiimqZs4jzaqnwiQ00LA5KCFnZ",
   "SEGMENT_WRITE_KEY": "Hip6yFNl1d8c82RMx0l5oWxesleuX6P6",
+  "SEGMENT_CDN_URL": "https://evs.e.decentraland.org",
+  "SEGMENT_API_HOST": "api.e.decentraland.org/v1",
   "SENTRY_DSN": "https://734376fbe845d08ef24e2b2d0481b3f4@o4504361728212992.ingest.us.sentry.io/4511789233209344",
   "FEATURE_FLAGS_URL": "https://feature-flags.decentraland.zone",
   "TREASURY_ADDRESS": "0x3EEdEceaFA4797D36819C1d9f8e3b0071285AD69"
