@@ -1784,7 +1784,11 @@ export function ItemDetail() {
                       <>
                         <NotifyMe item={current} />
                         {current.itemId ? (
-                          <S.BuyResaleLink onClick={() => setShowBuyResale(true)} data-testid="buy-resale">
+                          <S.BuyResaleLink
+                            onClick={() => setShowBuyResale(true)}
+                            data-testid="buy-resale"
+                            aria-haspopup="dialog"
+                          >
                             {t('itemDetail.buyResale')}
                           </S.BuyResaleLink>
                         ) : null}
@@ -1882,10 +1886,10 @@ export function ItemDetail() {
         />
       ) : null}
 
-      {showBuyResale && current.itemId ? (
+      {showBuyResale && current.itemId && contractAddress ? (
         <MarketplaceRedirectModal
           variant="buy"
-          contractAddress={contractAddress ?? ''}
+          contractAddress={contractAddress}
           itemId={current.itemId}
           onClose={() => setShowBuyResale(false)}
         />

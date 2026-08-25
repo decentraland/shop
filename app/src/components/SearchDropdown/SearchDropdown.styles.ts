@@ -148,7 +148,8 @@ export const Sub = styled.span`
  * The panel scrolls (see Pop), and this used to scroll with it — so on a query with many matches the one
  * control that reaches the full result set was below the fold of a dropdown most people never scroll.
  * `sticky` keeps it in flow (no height reserved when the list is short) while holding the bottom edge
- * once the list overflows. The background has to be opaque: rows pass underneath it.
+ * once the list overflows. The background has to be opaque, since rows pass underneath it, and has to be
+ * the same one Pop uses — the two are a single visual surface, so they change together.
  *
  * The negative bottom margin cancels Pop's padding so the bar meets the panel edge instead of leaving an
  * 8px strip of scrolling content below it, and the matching padding keeps the label where it was.
