@@ -612,3 +612,46 @@ describe('when the seeded stock is out of date', () => {
     await waitFor(() => expect(screen.getByTestId('item-price').textContent).toMatch(/99/))
   })
 })
+
+/**
+ * THE CREATOR ATTRIBUTION.
+ *
+ * Hidden entirely on Ethereum, where `creator` is the wallet that deployed the contract rather than whoever
+ * made the item (the rationale, with the numbers behind it, sits on `hidesCreator` in the page). The Polygon
+ * case is asserted alongside it on purpose: an absence test on its own would pass just as well if the block
+ * had stopped rendering for everyone. The L1 case anchors on the COLLECTION, which shares the same container
+ * — so it proves the page reached that block and chose to leave the creator out of it.
+ */
+describe('ItemDetail — the creator attribution', () => {
+  beforeEach(async () => {
+    // The describe above leaves a store-mint listing behind: `vi.clearAllMocks()` clears CALLS but not
+    // implementations, so that `mockResolvedValue` outlives its own test. The page hydrates `current` from
+    // it, and since that fixture is Polygon it overwrote the network under test here — the item rendered as
+    // L2 and the creator block came back. Restored to the module default so the fixture below is what runs.
+    const api = await import('~/lib/api')
+    vi.mocked(api.fetchUnifiedListingForItem).mockResolvedValue(null)
+  })
+
+  it('should credit nobody on an Ethereum item, while still naming its collection', async () => {
+    fetchCollectionItems.mockResolvedValue({
+      items: [item({ id: 'a', name: 'Anchor Hat', itemId: '1', network: 'ETHEREUM', chainId: 1 })],
+      total: 1
+    })
+
+    renderPdp()
+
+    expect(await screen.findByText('Solo Collection')).toBeInTheDocument()
+    expect(screen.queryByText('Creator')).not.toBeInTheDocument()
+  })
+
+  it('should credit the creator on a Polygon item, where the address is the one who published it', async () => {
+    fetchCollectionItems.mockResolvedValue({
+      items: [item({ id: 'a', name: 'Anchor Hat', itemId: '1' })],
+      total: 1
+    })
+
+    renderPdp()
+
+    expect(await screen.findByText('Creator')).toBeInTheDocument()
+  })
+})
