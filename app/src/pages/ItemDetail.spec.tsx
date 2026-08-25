@@ -166,6 +166,20 @@ describe('ItemDetail — the not-for-sale CTA slot', () => {
     expect(await screen.findByTestId('buy-resale')).toBeInTheDocument()
   })
 
+  /**
+   * The button's own geometry, which jsdom can resolve. The HOVER fill it carries (Figma 868:67246)
+   * cannot be asserted here — jsdom does not apply `:hover` — so that one is verified in the browser.
+   */
+  it('should render as a full-width button rather than an inline link', async () => {
+    renderPdp()
+
+    const button = await screen.findByTestId('buy-resale')
+    const styles = window.getComputedStyle(button)
+
+    expect(styles.borderRadius).toBe('12px')
+    expect(styles.width).toBe('100%')
+  })
+
   it('should hand the buyer to the item page on the marketplace, not to one arbitrary copy', async () => {
     renderPdp()
 

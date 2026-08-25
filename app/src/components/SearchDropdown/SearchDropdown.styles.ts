@@ -142,12 +142,6 @@ export const Sub = styled.span`
   white-space: nowrap;
 `
 
-export const Price = styled.span`
-  font-size: 13px;
-  font-weight: 700;
-  white-space: nowrap;
-`
-
 /**
  * Pinned to the bottom of the panel rather than sitting after the last result.
  *

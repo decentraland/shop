@@ -1230,6 +1230,15 @@ export const BuyResaleLink = styled(ResellersLink)`
   width: 100%;
   height: 40px;
   text-align: center;
+  border-radius: ${radius.card};
+
+  /* Hover is a translucent fill with the label left alone (Figma 868:67246), not the colour shift
+     ResellersLink uses. That one is an inline link sitting beside a price, where dimming the text is the
+     only surface there is; this is a full-width button, so the button itself is what should react. */
+  &:hover {
+    color: ${colors.softWhite};
+    background: ${colors.glass};
+  }
 `
 
 // Sold-out price block: the exhausted primary's original price (struck) with a "SOLD OUT" tag, above the
