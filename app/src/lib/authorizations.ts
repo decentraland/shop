@@ -9,6 +9,7 @@ import {
   type ContractData,
   type Provider
 } from 'decentraland-transactions'
+import { getLatestOffChainMarketplaceContract } from '~/lib/marketplace'
 import { config } from '~/config'
 import { gaslessConfig } from '~/lib/gasless-config'
 import { canPayGasItself, showsWalletConfirmations } from '~/lib/wallet-kind'
@@ -396,7 +397,7 @@ export function getCreditsAuthorization(chainId: ChainId): ShopAuthorizationDesc
  */
 export function getManaMarketplaceAuthorization(chainId: ChainId): ShopAuthorizationDescriptor {
   const mana = getContract(ContractName.MANAToken, chainId)
-  const market = getContract(ContractName.OffChainMarketplaceV2, chainId)
+  const market = getLatestOffChainMarketplaceContract(chainId)
   return {
     id: 'mana-marketplace',
     group: 'buying',
@@ -413,7 +414,7 @@ export function getCollectionSellingAuthorization(
   contractAddress: string,
   chainId: ChainId
 ): ShopAuthorizationDescriptor {
-  const market = getContract(ContractName.OffChainMarketplaceV2, chainId)
+  const market = getLatestOffChainMarketplaceContract(chainId)
   return {
     id: `selling:${contractAddress.toLowerCase()}`,
     group: 'selling',
@@ -432,7 +433,7 @@ export function getCollectionMintingAuthorization(
   contractAddress: string,
   chainId: ChainId
 ): ShopAuthorizationDescriptor {
-  const market = getContract(ContractName.OffChainMarketplaceV2, chainId)
+  const market = getLatestOffChainMarketplaceContract(chainId)
   return {
     id: `minting:${contractAddress.toLowerCase()}`,
     group: 'minting',

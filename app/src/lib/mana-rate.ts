@@ -1,5 +1,5 @@
 import { ethers } from 'ethers'
-import { ContractName, getContract } from 'decentraland-transactions'
+import { getLatestOffChainMarketplaceContract } from '~/lib/marketplace'
 import { config } from '~/config'
 import type { ManaRate } from '~/lib/mana-convert'
 
@@ -40,7 +40,7 @@ const MAX_STALENESS_SECONDS = 90000
 // wallet's network via the read-only RPC). Throws if the oracle is unreachable/stale/incomplete so
 // callers can disable Buy Now with a message instead of pricing off a bad rate.
 export async function readManaUsdRate(chainId: number = config.chainId): Promise<ManaRate> {
-  const market = getContract(ContractName.OffChainMarketplaceV2, chainId)
+  const market = getLatestOffChainMarketplaceContract(chainId)
   const provider = new ethers.providers.JsonRpcProvider(config.rpcUrl)
   const mkt = new ethers.Contract(
     market.address,
