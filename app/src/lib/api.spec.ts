@@ -9,6 +9,9 @@ vi.mock('~/config', () => ({
   }
 }))
 
+const captureErrorMock = vi.fn()
+vi.mock('~/lib/monitoring', () => ({ captureError: (...args: unknown[]) => captureErrorMock(...args) }))
+
 // postTrade dynamically imports TradeService only when creating a listing. Stub it so importing the
 // module (and calling postTrade) never drags in decentraland-dapps' ui2/@mui barrel.
 const addTradeMock = vi.fn(async () => ({ id: 'trade-created' }))
@@ -80,6 +83,7 @@ beforeEach(() => {
   fetchMock.mockReset()
   addTradeMock.mockClear()
   tradeServiceCtor.mockClear()
+  captureErrorMock.mockClear()
   vi.stubGlobal('fetch', fetchMock)
 })
 
@@ -293,6 +297,37 @@ describe('when hydrating catalog items by their marketplace item ids', () => {
     // Carries the MANA figure so the caller converts at the LIVE rate: the server's own 4 was computed
     // with its own rate read and drifts from what the grid shows.
     expect(item.manaWei).toBe('20000000000000000000')
+    // The server's figure is still carried, not discarded: `displayCredits` prefers manaWei for this row,
+    // but a consumer that only checks "is this priced at all" (the outfit and showcase filters) reads this.
+    expect(item.priceCredits).toBe(4)
+  })
+
+  /**
+   * Every consumer fails closed on a zero price — the card reads NOT FOR SALE, the outfit and showcase
+   * filters drop the row — so such an item goes quiet rather than free. This pins the report, because
+   * quiet is exactly what nobody would notice: stock would leave the storefront with no visible cause.
+   */
+  it('should report a trade row that carries no credit price, rather than let it go quiet', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonOk({ data: [{ ...row('0xb0d-0'), price: '6900000000000000000', tradeId: 'trade-1', isOnSale: true }] })
+    )
+    const [item] = await fetchCatalogByIds(['0xb0d-0'])
+
+    expect(item.priceCredits).toBe(0)
+    expect(item.manaWei).toBeNull()
+    expect(captureErrorMock).toHaveBeenCalledWith(
+      expect.any(Error),
+      expect.objectContaining({ flow: 'catalog', step: 'hydrate_by_ids', rows: 1, of: 1 })
+    )
+  })
+
+  it('should not report anything when every trade row is priced', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonOk({ data: [{ ...row('0xa-1'), price: '100', priceCredits: 7, tradeId: 'trade-1' }] })
+    )
+    await fetchCatalogByIds(['0xa-1'])
+
+    expect(captureErrorMock).not.toHaveBeenCalled()
   })
 
   it('should silently drop ids the catalog no longer knows', async () => {

@@ -2,6 +2,7 @@ import { ethers } from 'ethers'
 import type { AuthIdentity } from '@dcl/crypto'
 import { TradeAssetType, type Trade, type TradeCreation } from '@dcl/schemas'
 import { config } from '~/config'
+import { captureError } from '~/lib/monitoring'
 
 const NFT_V1 = `${config.marketplaceServerUrl}/v1`
 
@@ -251,6 +252,23 @@ export async function fetchCatalogByIds(
         throw new Error(`fetchCatalogByIds (${res.status})`)
       }
       const { data } = (await res.json()) as { data: RawCatalogItem[] }
+      /**
+       * A trade row with no `priceCredits` has no price this client can compute: `manaWei` is withheld
+       * (its `price` is USD, not MANA) and the credit figure is the server's to give. Every consumer
+       * already fails closed on a zero price — the card shows NOT FOR SALE, the outfit and showcase
+       * filters drop the row — so the item goes quiet rather than free. Quiet is the problem: were the
+       * feed to stop sending the field, stock would vanish from the storefront with nothing to show why.
+       */
+      const unpriced = data.filter(row => row.tradeId != null && row.priceCredits == null)
+      if (unpriced.length > 0) {
+        captureError(new Error('catalog rows sell through a trade but carry no credit price'), {
+          flow: 'catalog',
+          step: 'hydrate_by_ids',
+          rows: unpriced.length,
+          of: data.length,
+          sample: unpriced[0]?.id
+        })
+      }
       return data.map(toCatalogItem)
     })
   )
