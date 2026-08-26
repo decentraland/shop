@@ -59,11 +59,23 @@ describe('cart checkout', () => {
     await waitForText(page, '540') // qty-2 line subtotal + summary total
     await startCartCheckout(page)
 
-    // Checkout expands the qty-2 primary line into 2 per-unit authorizes + one accept([trade × 2]),
-    // then lands on the standalone /success page.
+    // Checkout expands the qty-2 primary line into 2 units that settle in ONE accept([trade × 2]), then
+    // lands on the standalone /success page.
     await page.waitForFunction(() => window.location.pathname === '/success', { timeout: 30000 })
     await waitForText(page, 'Your purchase was successful')
     expect(await page.evaluate(() => window.location.pathname)).toBe('/success')
+
+    /**
+     * ONE credit for both units, because both settle in one transaction.
+     *
+     * This is the behaviour the whole change exists for, and the page cannot show it: two per-unit credits
+     * and one group credit both reach this same success screen. `useCredits()` consumes a list of credits
+     * against one call's total cost until it is covered, and each credit carries headroom over its own
+     * unit — so with a list, the tail can go unconsumed while both units still ship. One credit has no
+     * tail. Asserting on the requests is the only way to pin it.
+     */
+    expect(app.posts.filter(p => p === '/credits/authorize/batch')).toHaveLength(1)
+    expect(app.posts.filter(p => p === '/credits/authorize')).toHaveLength(0)
   })
 
   /**
@@ -108,6 +120,10 @@ describe('cart checkout', () => {
     // accept(), and useCredits carries one external call each. The second could only be signed because the
     // first had already consumed its nonce.
     expect(metaTxNonceValue()).toBe(2)
+    // And exactly TWO credits: one per transaction, never one per line. A basket spanning both rails is the
+    // case where "one credit per checkout" would be wrong — each transaction needs its own — so the count
+    // has to follow the GROUPS, which is what makes this the counterpart to the qty-2 assertion above.
+    expect(app.posts.filter(p => p === '/credits/authorize/batch')).toHaveLength(2)
   })
 
   it('shows the Buy Credits and Items (pack picker) state when funds are insufficient', async () => {
@@ -117,7 +133,7 @@ describe('cart checkout', () => {
     app = await launchApp({
       path: `/item/${COLLECTION}/1`,
       fixtures: { trade: buyTrade },
-      errors: { '/credits/authorize': { status: 402, body: { error: 'insufficient funds' } } }
+      errors: { '/credits/authorize/batch': { status: 402, body: { error: 'insufficient funds' } } }
     })
     const { page } = app
 

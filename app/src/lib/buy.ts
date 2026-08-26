@@ -92,7 +92,13 @@ export function groupPurchases(purchases: MixedPurchases): PurchaseGroup[] {
  * attached to the wrong one leaves its own group underfunded and reverts. Deriving the answer here means that
  * split can never drift from the one the transactions are actually built from.
  */
-export function purchaseGroupKey(purchase: AnyPurchase): string {
+export function purchaseGroupKey(
+  // Structural rather than `AnyPurchase`: the cart has to know which transaction a line will settle in
+  // BEFORE it has a credit for it, because the credit is now authorized per group. The fields below are
+  // everything the key is made of, so a draft answers it exactly as a finished purchase does.
+  purchase:
+    AnyPurchase | { kind: 'store'; chainId: number } | { kind: 'trade'; trade: { chainId: number; contract: string } }
+): string {
   return purchase.kind === 'store'
     ? `store:${purchase.chainId}`
     : `trade:${purchase.trade.chainId}:${purchase.trade.contract.toLowerCase()}`
@@ -109,12 +115,40 @@ function normalizePurchases(purchases: MixedPurchases): AnyPurchase[] {
   return purchases.map(p => ('kind' in p ? p : { kind: 'trade' as const, ...p }))
 }
 
-// Total MANA a group may draw: the sum of what the SERVER sized per line at /credits/authorize. Never
-// re-derived from item or trade prices — see wrapInUseCredits for why that silently overcharges.
-function groupMaxCreditedValue(purchases: { maxCreditedValue: string }[]): string {
-  return purchases
-    .reduce((acc, p) => acc.add(ethers.BigNumber.from(p.maxCreditedValue)), ethers.BigNumber.from(0))
-    .toString()
+/**
+ * Total MANA a group may draw: what the SERVER sized for it. Never re-derived from item or trade prices —
+ * see wrapInUseCredits for why that silently overcharges.
+ *
+ * Summed ONCE PER CREDIT, not once per line. A checkout now authorizes one credit for a whole transaction
+ * group, so every line in that group carries the SAME `maxCreditedValue` — the group's — and adding it up
+ * per line would ask the contract for a multiple of the cap that was actually signed. Purchases holding
+ * distinct credits (a single-item buy, or anything authorized one credit at a time) still sum, because each
+ * contributes a different key.
+ */
+function groupMaxCreditedValue(purchases: { maxCreditedValue: string; credits: { id: string }[] }[]): string {
+  const counted = new Set<string>()
+  let total = ethers.BigNumber.from(0)
+  for (const purchase of purchases) {
+    const key = purchase.credits.map(credit => credit.id).join(',')
+    if (counted.has(key)) continue
+    counted.add(key)
+    total = total.add(ethers.BigNumber.from(purchase.maxCreditedValue))
+  }
+  return total.toString()
+}
+
+/**
+ * The credits a group spends, each appearing once.
+ *
+ * The lines of one transaction now share a single authorized credit, so flattening them yields the same
+ * credit repeated. Passing it twice would present the contract with two entries backed by one signature and
+ * one salt — at best redundant, at worst rejected — so identity is by `id`, which is the salt the server
+ * minted and the chain reports consumed.
+ */
+function dedupeCredits<T extends { id: string }>(credits: T[]): T[] {
+  const byId = new Map<string, T>()
+  for (const credit of credits) if (!byId.has(credit.id)) byId.set(credit.id, credit)
+  return [...byId.values()]
 }
 
 /**
@@ -129,7 +163,7 @@ export function buildGroupUseCreditsArgs(
   group: PurchaseGroup,
   buyer: string
 ): { args: unknown; salts: string[]; chainId: number } {
-  const credits = group.purchases.flatMap(p => p.credits)
+  const credits = dedupeCredits(group.purchases.flatMap(p => p.credits))
   const maxCreditedValue = groupMaxCreditedValue(group.purchases)
   const salts = credits.map(c => c.id)
   if (group.kind === 'store') {
