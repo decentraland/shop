@@ -195,10 +195,10 @@ function json(req: HTTPRequest, obj: unknown, status = 200) {
 // A forced error response, keyed by URL pathname (opt-in per run via launchApp({ errors })).
 type ErrorMap = Record<string, { status: number; body?: unknown }>
 
-// Map a shop listing (fixtures shape) → a catalog row, serving both /v3/catalog/items (where
-// lib/collections.ts reads the server-computed `priceCredits`) and /v2/catalog?id= (where the app reads
-// `price` as MANA and converts at the live rate). Emitting both keeps each consumer on the field it
-// really uses in production.
+// Map a shop listing (fixtures shape) → a catalog row for /v3/catalog/items, which every consumer now
+// reads: lib/collections for the grids and fetchCatalogByIds for favourites and outfits. The row carries
+// both the server's `priceCredits` and the MANA `price`, plus the `tradeId` that says which of the two
+// applies — the same discriminator the real feed sends.
 function toCatalogRow(l: any) {
   const priceCredits = Math.max(1, Math.round(l.priceCredits ?? 1))
   // The real /v2 catalog prices in MANA, and the app converts to credits at the live oracle rate. Emit
@@ -210,7 +210,12 @@ function toCatalogRow(l: any) {
   // Outfits' discovery row admits a look only while every item is still buyable from its creator, so a
   // fixture that is resale-only or out of stock has to be able to say so here.
   const isResale = l.listingType === 'secondary' || !!l.tokenId
+  // A trade-priced row reports `tradeId`, and that is what tells the app `price` is USD and not MANA.
+  // Without it here, a spec could not tell the two pricing paths apart — which is how a $6.90 item
+  // reached production showing 6 credits on the favourites grid.
+  const tradeId = l.tradeId ?? (isResale ? `trade-${l.contractAddress}-${l.tokenId ?? l.itemId ?? '0'}` : null)
   return {
+    tradeId,
     id: `${l.contractAddress}-${l.itemId ?? l.tokenId ?? '0'}`,
     name: l.name,
     creator: l.creator,
@@ -543,6 +548,10 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
       // collection handed it the first row's traits — a different item's isSmart / utility.
       const itemsItemId = u.searchParams.get('itemId')
       let rows = ((F.shopListings as { data: any[] }).data ?? []).map(toCatalogRow)
+      // Repeated `id` is how fetchCatalogByIds hydrates favourites and outfits. Answering it with the whole
+      // catalogue would make a favourites spec pass while showing rows nobody favourited.
+      const wantedIds = u.searchParams.getAll('id').map(id => id.toLowerCase())
+      if (wantedIds.length) rows = rows.filter(r => wantedIds.includes(String(r.id).toLowerCase()))
       if (ca) rows = rows.filter(r => String(r.contractAddress).toLowerCase() === ca.toLowerCase())
       if (itemsItemId) rows = rows.filter(r => String(r.itemId) === itemsItemId)
       if (creator) rows = rows.filter(r => String(r.creator).toLowerCase() === creator.toLowerCase())
