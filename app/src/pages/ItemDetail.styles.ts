@@ -1223,6 +1223,24 @@ export const ResellersLink = styled.button`
   }
 `
 
+// The buyer's way out to the Marketplace when the Shop has no primary left to sell (Figma 3037:446009).
+// Same type ramp as ResellersLink — both are the design's `button/small` — but full width and centred,
+// because it sits under the notify-me form as that block's own last action rather than beside a price.
+export const BuyResaleLink = styled(ResellersLink)`
+  width: 100%;
+  height: 40px;
+  text-align: center;
+  border-radius: ${radius.card};
+
+  /* Hover is a translucent fill with the label left alone (Figma 868:67246), not the colour shift
+     ResellersLink uses. That one is an inline link sitting beside a price, where dimming the text is the
+     only surface there is; this is a full-width button, so the button itself is what should react. */
+  &:hover {
+    color: ${colors.softWhite};
+    background: ${colors.glass};
+  }
+`
+
 // Sold-out price block: the exhausted primary's original price (struck) with a "SOLD OUT" tag, above the
 // cheapest resale price + how many copies are on the secondary market.
 export const SoldOutPricing = styled.div`

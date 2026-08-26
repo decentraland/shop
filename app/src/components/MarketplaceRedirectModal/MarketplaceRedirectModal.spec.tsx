@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MarketplaceRedirectModal, marketplaceTokenUrl } from './MarketplaceRedirectModal'
+import { MarketplaceRedirectModal, marketplaceItemUrl, marketplaceTokenUrl } from './MarketplaceRedirectModal'
 
 const CONTRACT = '0x8adb4affb6c79d9dc018b792fa08c6d1cc7f5f09'
 // A real one. These are 63-digit decimals, and anything that mangles one (a Number round-trip, a
@@ -72,5 +72,58 @@ describe('when a seller is handed off to the legacy marketplace to resell', () =
     expect(art).not.toBeNull()
     expect(art!.getAttribute('alt')).toBe('')
     expect(art!.getAttribute('aria-hidden')).toBe('true')
+  })
+})
+
+describe('when a buyer is handed off to the legacy marketplace to buy a resale', () => {
+  const ITEM_ID = '4'
+
+  function renderBuyModal(onClose = vi.fn()) {
+    render(<MarketplaceRedirectModal variant="buy" contractAddress={CONTRACT} itemId={ITEM_ID} onClose={onClose} />)
+    return onClose
+  }
+
+  it('should say they are completing a purchase, not a listing', () => {
+    renderBuyModal()
+    const modal = screen.getByTestId('marketplace-redirect-modal')
+
+    expect(modal).toHaveTextContent(/redirected there to complete your purchase/i)
+    expect(modal).not.toHaveTextContent(/complete your listing/i)
+  })
+
+  /**
+   * The currency changes across the hand-off. A buyer who has been paying in credits all session arrives
+   * at a MANA-priced listing, so the modal is the last place that can say so before they get there.
+   */
+  /**
+   * The design words this as "made with MANA". The repo's web2-first copy rule bans that term in NEW
+   * copy (src/intl/i18n.spec.ts, whose baseline may only shrink), so the warning is carried by what the
+   * buyer actually loses instead: credits do not spend over there.
+   */
+  it('should warn that credits do not pay for it', () => {
+    renderBuyModal()
+
+    expect(screen.getByTestId('marketplace-redirect-modal')).toHaveTextContent(/not made with credits/i)
+  })
+
+  /**
+   * The ITEM route, not the token route: the buyer has not picked a copy, and seeing the resales on offer
+   * is the whole point of the trip. A token URL would land them on one arbitrary copy.
+   */
+  it('should link to the item page on the marketplace for this environment', () => {
+    renderBuyModal()
+
+    const href = continueCta().getAttribute('href')
+    expect(href).toBe(marketplaceItemUrl(CONTRACT, ITEM_ID))
+    expect(href).toContain(`/contracts/${CONTRACT}/items/${ITEM_ID}`)
+    expect(href).not.toContain('/tokens/')
+  })
+
+  it('should keep the hand-off dismissable without leaving', async () => {
+    const onClose = renderBuyModal()
+
+    await userEvent.click(screen.getByTestId('marketplace-redirect-cancel'))
+
+    expect(onClose).toHaveBeenCalled()
   })
 })
