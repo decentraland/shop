@@ -404,9 +404,9 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
       return json(req, cents > 0 ? { ...authorized, usdCents: Math.ceil(cents / 10) * 10 } : authorized)
     }
     if (path === '/credits/authorize/batch') {
-      // ONE credit for the whole checkout, as the real handler does. Each line's charge rounds UP to a whole
-      // credit and the cap covers the group's total — so a spec can tell a per-group authorization from a
-      // per-line one by the number of credits that come back, not just by the number of calls.
+      // ONE credit for the whole checkout, mirroring the real handler: the cap covers the group's total, so
+      // a spec can tell a per-group authorization from a per-line one by the number of credits that come
+      // back, not just by the number of calls.
       const body = JSON.parse(req.postData() || '{}') as { items?: { usdPriceCents?: number }[] }
       const items = body.items ?? []
       const usdCents = items.reduce((sum, item) => sum + Math.ceil(Number(item.usdPriceCents ?? 0) / 10) * 10, 0)

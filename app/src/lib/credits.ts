@@ -97,7 +97,7 @@ export type CheckoutLine = {
 export type AuthorizeGroupResult = {
   credit: AuthorizedCredit
   maxCreditedValue: string // MANA wei the server sized for the WHOLE group
-  usdCents: number // what the group is debited, after each line rounds up to a whole credit
+  usdCents: number // what the group is debited, as the server computed it
   oracleRate: string
   lines: { usdCents: number; tradeId: string | null; contractAddress: string | null; itemId: string | null }[]
 }
