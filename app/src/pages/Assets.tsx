@@ -31,6 +31,21 @@ const PAGE_SIZE = 48
 
 const STATUSES: FilterStatus[] = ['all', 'on_sale', 'not_for_sale']
 
+/**
+ * A SEARCH LOOKS AT THE WHOLE CATALOGUE; BROWSING LOOKS AT THE SHOP.
+ *
+ * On Sale is right for a storefront and wrong for a search: it drops every item with no credit-buyable
+ * listing, so looking one up by name silently could not find it. Measured on production — "torso" returns
+ * 26 items against 8, "hat" 622 against 249, "glow" 345 against 221. The one that prompted this (an
+ * Ethereum wearable whose only order expired in 2025) was among the missing 18.
+ *
+ * A DEFAULT rather than an override, which is what lets an explicit choice still win: `useUrlFilters`
+ * writes a value to the URL only when it differs from its default, so with a query running, picking On
+ * Sale spells itself out and survives the next keystroke. Overriding the value after the fact could not
+ * tell that choice apart from the untouched default, and On Sale would be unpickable while searching.
+ */
+const defaultStatusFor = (searching: boolean): FilterStatus => (searching ? 'all' : 'on_sale')
+
 export function Assets() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
@@ -45,12 +60,13 @@ export function Assets() {
     description: t('seo.collectibles.description')
   })
 
+  const defaultStatus = defaultStatusFor(!!q)
   // EVERY filter lives in the URL, through one owner. A refresh, a shared link and the back button used
   // to keep only Category and Status; the rest was local state and vanished.
   const filterDefaults = useMemo(
     () => ({
       category: 'all',
-      status: 'on_sale',
+      status: defaultStatus,
       subCategory: null as string | null,
       rarities: [] as string[],
       priceMin: '',
@@ -58,15 +74,13 @@ export function Assets() {
       smart: false,
       sort: 'newest'
     }),
-    []
+    [defaultStatus]
   )
   const [filterState, setFilters] = useUrlFilters(filterDefaults)
   const { subCategory, rarities, priceMin, priceMax, smart, sort } = filterState
   const category = filterState.category
   // Validated on read: the URL is user-editable, and an unknown status must not reach the query.
-  const status: FilterStatus = STATUSES.includes(filterState.status as FilterStatus)
-    ? (filterState.status as FilterStatus)
-    : 'on_sale'
+  const status: FilterStatus = STATUSES.includes(filterState.status) ? filterState.status : defaultStatus
   // A category is a different set of items, not more of the same one — read it from the top.
   useScrollTopOnChange(`${category}:${subCategory ?? ''}`)
 
@@ -247,11 +261,13 @@ export function Assets() {
   for (const r of RARITIES)
     if (rarities.includes(r)) chips.push({ key: `rarity-${r}`, label: rarityLabel(r), onRemove: () => toggleRarity(r) })
   if (smart) chips.push({ key: 'smart', label: t('filter.smart'), onRemove: () => setFilters({ smart: false }) })
-  if (status !== 'on_sale')
+  // Against the default in force, not against the literal On Sale: while searching, All IS the default,
+  // and offering to "remove" the state the page is already in reads as a filter the reader never applied.
+  if (status !== defaultStatus)
     chips.push({
       key: 'status',
       label: status === 'all' ? t('filter.statusAll') : t('filter.notForSale'),
-      onRemove: () => setStatus('on_sale')
+      onRemove: () => setStatus(defaultStatus)
     })
 
   return (
