@@ -1,4 +1,4 @@
-import { describe, it, afterEach } from 'vitest'
+import { describe, it, expect, afterEach } from 'vitest'
 import { launchApp, type App } from './helpers/app'
 import { clickWhenEnabled, waitForText } from './helpers/dom'
 import { COLLECTION, buyTrade, unifiedWithMint } from './fixtures'
@@ -59,4 +59,46 @@ describe('buy a CollectionStore mint with credits', () => {
     await waitForText(page, 'Purchase complete!', 30000)
     await waitForText(page, 'was successful')
   })
+})
+
+/**
+ * The post-purchase CTA is RUBY, and stays ruby.
+ *
+ * It used to turn violet, which is what got reported from a phone. The cause was one unqualified selector:
+ * the purple variant's hover fill was written as `&:hover, &[data-variant='purple']:hover`, and that first
+ * half painted every variant with no hover of its own. Ruby was the only one.
+ *
+ * Asserted as a COLOUR rather than as an attribute, because the markup was already correct — the button
+ * carried data-variant="ruby" the whole time and still rendered violet. Only the computed fill could tell
+ * the two apart.
+ */
+describe('the colour of the post-purchase cta', () => {
+  it('stays ruby, hovered or not', async () => {
+    app = await launchApp({ path: `/item/${COLLECTION}/1`, fixtures: { trade: buyTrade } })
+    const { page } = app
+
+    await waitForText(page, 'Nebula Jacket')
+    await clickWhenEnabled(page, 'button', /buy now/i)
+    await waitForText(page, 'Buy Item')
+    await clickWhenEnabled(page, 'button', /^buy$/i)
+    await waitForText(page, 'Purchase complete!', 30000)
+
+    const RUBY = 'rgb(255, 45, 85)'
+    const fill = () =>
+      page.evaluate(() => {
+        const cta = [...document.querySelectorAll('a')].find(a => /try in world/i.test(a.textContent ?? ''))
+        return cta ? getComputedStyle(cta).backgroundColor : null
+      })
+
+    expect(await fill()).toBe(RUBY)
+
+    for (const a of await page.$$('a')) {
+      if (/try in world/i.test(await a.evaluate(n => n.textContent ?? ''))) {
+        await a.hover()
+        break
+      }
+    }
+    // The violet it used to become was rgb(122, 43, 191).
+    expect(await fill()).toBe(RUBY)
+  }, 120000)
 })
