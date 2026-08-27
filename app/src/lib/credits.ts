@@ -85,6 +85,53 @@ export type AuthorizeResult = {
   oracleRate: string
 }
 
+/** One line of a checkout: what is bought and what it is quoted at. The credit that pays for it is shared. */
+export type CheckoutLine = {
+  usdPriceCents: number
+  tradeId?: string
+  contractAddress?: string
+  itemId?: string
+  name?: string
+}
+
+export type AuthorizeGroupResult = {
+  credit: AuthorizedCredit
+  maxCreditedValue: string // MANA wei the server sized for the WHOLE group
+  usdCents: number // what the group is debited, as the server computed it
+  oracleRate: string
+  lines: { usdCents: number; tradeId: string | null; contractAddress: string | null; itemId: string | null }[]
+}
+
+/**
+ * Authorizes ONE transaction's worth of lines against a SINGLE ephemeral credit.
+ *
+ * WHY A GROUP AND NOT A LINE. `useCredits()` takes a LIST of credits and one external call, and consumes
+ * from that list, in order, until the call's cost is covered — it has no idea which credit was meant for
+ * which item. Every credit is signed for its line's price plus headroom, and that headroom accumulates down
+ * the list, so a long enough list is paid for before its last entries are reached. Those credits are never
+ * consumed, nothing on chain reports them, and the server cannot settle what the chain never mentions — while
+ * the items ship regardless, because they all rode the same atomic transaction.
+ *
+ * One credit per transaction has no tail to leave behind. Call this once per group from
+ * `purchaseGroupKey`, never once per item.
+ */
+export async function authorizeUsdCreditGroup(
+  identity: AuthIdentity,
+  lines: CheckoutLine[],
+  source: 'website' | 'client' = 'website'
+): Promise<AuthorizeGroupResult> {
+  const url = `${config.creditsServerUrl}/credits/authorize/batch`
+  const res = await signedFetch(url, {
+    method: 'POST',
+    identity,
+    metadata: {},
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ items: lines, source })
+  })
+  if (!res.ok) throw new Error(`authorizeUsdCreditGroup ${res.status}: ${await res.text()}`)
+  return res.json() as Promise<AuthorizeGroupResult>
+}
+
 // Authorizes ONE item purchase paid with USD credits: the server checks the balance, sizes the
 // MANA at the oracle, signs an ephemeral credit and reserves the dollars (PENDING intent). The
 // returned credit is submitted via CreditsManager.useCredits() (see lib/buy.ts).

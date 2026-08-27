@@ -403,6 +403,20 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
       const authorized = F.authorize as Record<string, unknown>
       return json(req, cents > 0 ? { ...authorized, usdCents: Math.ceil(cents / 10) * 10 } : authorized)
     }
+    if (path === '/credits/authorize/batch') {
+      // ONE credit for the whole checkout, mirroring the real handler: the cap covers the group's total, so
+      // a spec can tell a per-group authorization from a per-line one by the number of credits that come
+      // back, not just by the number of calls.
+      const body = JSON.parse(req.postData() || '{}') as { items?: { usdPriceCents?: number }[] }
+      const items = body.items ?? []
+      const usdCents = items.reduce((sum, item) => sum + Math.ceil(Number(item.usdPriceCents ?? 0) / 10) * 10, 0)
+      const authorized = F.authorize as Record<string, unknown>
+      return json(req, {
+        ...authorized,
+        usdCents,
+        lines: items.map(item => ({ usdCents: Math.ceil(Number(item.usdPriceCents ?? 0) / 10) * 10 }))
+      })
+    }
     if (path === '/credits/authorize/cancel') return json(req, { released: 0 })
     // Fire-and-forget submission report. The buy flows post here right after broadcasting, so it needs a
     // response even though nothing asserts on it — an unmocked POST in the middle of a checkout is noise
@@ -742,7 +756,19 @@ function route(req: HTTPRequest, F: Fixtures, errors: ErrorMap = {}, appBase: st
   return json(req, { data: [] })
 }
 
-export type App = { browser: Browser; page: Page; close: () => Promise<void> }
+export type App = {
+  browser: Browser
+  page: Page
+  close: () => Promise<void>
+  /**
+   * Pathnames of every POST the app made, in order.
+   *
+   * Some behaviour is only observable in the REQUESTS, not on the page: a checkout that authorizes one
+   * credit per transaction group and one that authorizes one per line reach the same success screen, and
+   * the difference between them is how many times they asked. Counting here is what makes that assertable.
+   */
+  posts: string[]
+}
 
 /**
  * Per-response delays, keyed by a URL pathname SUBSTRING (e.g. `{ '/v1/outfits': 800 }`).
@@ -845,7 +871,15 @@ export async function launchApp(
   if (opts.initScript) await page.evaluateOnNewDocument(opts.initScript)
   await page.setRequestInterception(true)
   const delays = opts.delays ?? {}
+  const posts: string[] = []
   page.on('request', req => {
+    if (req.method() === 'POST') {
+      try {
+        posts.push(new URL(req.url()).pathname)
+      } catch {
+        // A malformed URL is not worth failing a checkout over — the log is a diagnostic, not the test.
+      }
+    }
     const respond = () => {
       try {
         route(req, F, errors, appBase)
@@ -858,5 +892,5 @@ export async function launchApp(
     else respond()
   })
   await page.goto(`${appBase}${opts.path ?? '/'}`, { waitUntil: opts.waitUntil ?? 'networkidle2', timeout: 45000 })
-  return { browser, page, close: () => browser.close() }
+  return { browser, page, close: () => browser.close(), posts }
 }

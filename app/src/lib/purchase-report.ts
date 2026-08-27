@@ -34,20 +34,30 @@ function reportGaveUp(reason: string, context: Record<string, unknown> = {}): vo
   })
 }
 
-export function reportSubmittedTx(info: { txHash: string; salts: string[] }): void {
+export function reportSubmittedTx(info: { txHash: string; salts: string[]; identity?: AuthIdentity }): void {
   if (info.salts.length === 0 || !info.txHash) {
     reportGaveUp('nothing to report', { salts: info.salts.length, hasTxHash: !!info.txHash })
     return
   }
 
-  // Read the store defensively: a checkout can outlive the session it started in (a disconnect mid-flight),
-  // and this must not be the thing that throws when it does.
-  let identity: AuthIdentity | undefined
-  try {
-    identity = useWallet.getState().session?.identity
-  } catch (error) {
-    captureError(error, { flow: 'report-submitted-tx', reason: 'wallet store threw' })
-    return
+  /**
+   * The caller's identity first, the store only as a fallback.
+   *
+   * The store was the sole source, which made this report depend on session state OUTLIVING the checkout —
+   * a disconnect mid-flight, or any caller running outside a live session, loses the report entirely and the
+   * purchase is left with no record of which transaction carried its credits. Every checkout already holds
+   * the identity it authorized with, so passing it removes that dependency for the paths that do. The store
+   * fallback stays for callers that do not.
+   */
+  let identity: AuthIdentity | undefined = info.identity
+  if (!identity) {
+    // Read the store defensively: this must not be the thing that throws when the session is gone.
+    try {
+      identity = useWallet.getState().session?.identity
+    } catch (error) {
+      captureError(error, { flow: 'report-submitted-tx', reason: 'wallet store threw' })
+      return
+    }
   }
   if (!identity) {
     reportGaveUp('no identity in the wallet store', { salts: info.salts.length })

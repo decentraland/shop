@@ -38,6 +38,88 @@ export type ResolvedLine = {
   quantity: number // how many units of this line to buy (always 1 for a secondary token)
 } & LineSettlement
 
+/**
+ * The purchase a resolved line becomes, MINUS the credit that pays for it.
+ *
+ * Exists because of the order the checkout now runs in. A credit is authorized per TRANSACTION GROUP, so the
+ * groups have to be known before anything is authorized — and a group is decided by what the line settles as
+ * (`purchaseGroupKey`), which is exactly what this carries. Drafting first, grouping, then authorizing is the
+ * whole point: authorizing per line is what produced a list of credits with an unreachable tail.
+ */
+export type PurchaseDraft =
+  | { kind: 'store'; item: { collection: string; itemId: string; priceWei: string }; chainId: number }
+  | { kind: 'trade'; trade: Trade }
+
+/**
+ * Draft one resolved line into the purchase it will settle as.
+ *
+ * `priceWei` is the LIVE price the review re-read, which is what CollectionStore re-validates on chain — a
+ * mint carrying the cart's snapshot price reverts when the creator has re-priced since.
+ */
+export function draftPurchase(line: ResolvedLine): PurchaseDraft {
+  if (line.acquisition === 'store') {
+    return {
+      kind: 'store',
+      item: {
+        collection: line.item.contractAddress ?? '',
+        itemId: String(line.item.itemId ?? ''),
+        priceWei: line.priceWei
+      },
+      chainId: line.item.chainId
+    }
+  }
+  return { kind: 'trade', trade: line.trade }
+}
+
+/**
+ * What the server needs to authorize one line: the price, plus what is being bought.
+ *
+ * The item identity travels on every line, mint or trade. It is not how the charge settles — the credit's
+ * salt is — but without it the buyer's purchase history has nothing to name the line with and renders an
+ * anonymous "Item". A trade also sends its id, so support can tie the charge to the order it accepted.
+ */
+export function checkoutLineFor(line: ResolvedLine): {
+  usdPriceCents: number
+  tradeId?: string
+  contractAddress?: string
+  itemId?: string
+} {
+  const hasItem = !!line.item.contractAddress && line.item.itemId != null
+  return {
+    usdPriceCents: line.usdCents,
+    ...(line.acquisition === 'trade' ? { tradeId: line.trade.id } : {}),
+    ...(hasItem ? { contractAddress: line.item.contractAddress, itemId: String(line.item.itemId) } : {})
+  }
+}
+
+/**
+ * Split units into the groups that will each become ONE transaction — and therefore one credit.
+ *
+ * Keyed identically to `groupPurchases` (via `purchaseGroupKey`), so what gets authorized together is
+ * always what gets submitted together. If these two ever disagreed, a credit would be sized for a set of
+ * lines other than the ones spending it.
+ *
+ * Insertion-ordered: the buyer sees lines reserved in the order they appear in the cart.
+ */
+export function groupUnitsForAuthorization(
+  units: ResolvedLine[],
+  keyOf: (draft: PurchaseDraft) => string
+): { key: string; units: ResolvedLine[]; drafts: PurchaseDraft[] }[] {
+  const groups = new Map<string, { key: string; units: ResolvedLine[]; drafts: PurchaseDraft[] }>()
+  for (const unit of units) {
+    const draft = draftPurchase(unit)
+    const key = keyOf(draft)
+    const existing = groups.get(key)
+    if (existing) {
+      existing.units.push(unit)
+      existing.drafts.push(draft)
+    } else {
+      groups.set(key, { key, units: [unit], drafts: [draft] })
+    }
+  }
+  return [...groups.values()]
+}
+
 export type CartReview = {
   buyable: ResolvedLine[] // resolvable, not the buyer's own — safe to charge
   unavailable: CatalogItem[] // no live listing (sold / cancelled / never resolved)
@@ -298,7 +380,11 @@ export function partitionReservations(opts: {
   settled: ReadonlySet<string>
 }): { toRelease: string[]; boughtItemIds: string[] } {
   const { reservations, spent, settled } = opts
-  const toRelease = reservations.filter(r => !spent.has(r.salt)).map(r => r.salt)
+  // De-duplicated, like `boughtItemIds` below and for the same reason: one salt can back several lines. A
+  // quantity-2 line always could, and now every line of a transaction group shares its credit — so without
+  // this, releasing a three-item basket would send the same salt three times. Harmless at the server, which
+  // acts on it once, but it makes a partial failure unreadable in logs for no benefit.
+  const toRelease = [...new Set(reservations.filter(r => !spent.has(r.salt)).map(r => r.salt))]
   // De-duplicated: a quantity-2 line reserves two salts, and the cart holds one row for it.
   const boughtItemIds = [...new Set(reservations.filter(r => settled.has(r.salt)).map(r => r.itemId))]
   return { toRelease, boughtItemIds }
