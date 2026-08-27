@@ -357,4 +357,50 @@ describe('at phone width', () => {
     expect(box!.left).toBeGreaterThanOrEqual(0)
     expect(box!.right).toBeLessThanOrEqual(box!.viewport)
   })
+
+  /**
+   * The profile panel inside the web view: reachable, and trimmed to sign-out.
+   *
+   * The avatar used to be blocked outright, alongside the logo — which left the buyer unable to open their
+   * profile at all, and with no way to sign out of a device that may not be theirs. It opens again, but the
+   * four rows that NAVIGATE (View Profile, My Assets, Account Settings, Marketplace Authorizations) are
+   * links out to decentraland.org, the same one-way trip the logo is still blocked for.
+   *
+   * Clicked with a real tap rather than `element.click()`, because a JS click fires the handler even
+   * through `pointer-events: none` — it would pass against the bug this fixes.
+   */
+  it('lets the buyer sign out from the profile panel in the ios web view', async () => {
+    const page = await phone('/overview?view=mobile-iap', 'Trending')
+
+    await page.click('button[aria-label="User menu"]')
+    await page.waitForSelector('[data-mobile-user-card]', { timeout: 20000 })
+
+    const panel = await page.evaluate(() => {
+      const card = document.querySelector('[data-mobile-user-card]') as HTMLElement
+      const visible = (el: Element) => getComputedStyle(el).display !== 'none'
+      return {
+        outboundLinks: [...card.querySelectorAll('a')].filter(visible).length,
+        hasSignOut: [...card.querySelectorAll('button')].some(b => /log ?out|sign ?out/i.test(b.textContent ?? ''))
+      }
+    })
+
+    expect(panel.hasSignOut).toBe(true)
+    expect(panel.outboundLinks).toBe(0)
+  })
+
+  // The trim is the WEB VIEW's, not the Shop's: on the web the same panel keeps every row.
+  it('keeps the whole profile menu on the web', async () => {
+    const page = await phone('/overview', 'Trending')
+
+    await page.click('button[aria-label="User menu"]')
+    await page.waitForSelector('[data-mobile-user-card]', { timeout: 20000 })
+
+    const links = await page.evaluate(
+      () =>
+        [...document.querySelectorAll('[data-mobile-user-card] a')].filter(a => getComputedStyle(a).display !== 'none')
+          .length
+    )
+
+    expect(links).toBeGreaterThan(0)
+  })
 })

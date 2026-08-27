@@ -176,14 +176,24 @@ export const NavbarViolet = styled.div`
       display: none;
     }
 
-    /* Logo and avatar stay VISIBLE but stop being doorways — the logo would leave the shop for
-       decentraland.org inside a web view with no way back, and the avatar opens a panel whose sign-out
-       would strand the session the app owns. Pointer-events is the whole of what CSS can do here: both
-       remain reachable by keyboard, which is a wart worth accepting over forking ui2 for a web view. */
-    & nav a[aria-label='Decentraland Home'],
-    & nav button[aria-label='User menu'] {
+    /* The logo stays VISIBLE but stops being a doorway: inside a web view it would leave the shop for
+       decentraland.org with no way back. Pointer-events is the whole of what CSS can do here — it remains
+       reachable by keyboard, a wart worth accepting over forking ui2 for a web view. */
+    & nav a[aria-label='Decentraland Home'] {
       pointer-events: none;
       cursor: default;
+    }
+
+    /* The AVATAR is a doorway again, trimmed to the one thing that works in here.
+       It used to be blocked alongside the logo, which left the buyer with a profile they could not open at
+       all — and no way to sign out of a device that is not theirs.
+       What is hidden is every row that NAVIGATES: View Profile, My Assets, Account Settings and Marketplace
+       Authorizations are links out to decentraland.org, the same one-way trip the logo is blocked for. Sign
+       out is a button, so the anchor selector separates the two on their own semantics rather than on their
+       copy, which is translated.
+       ⚠️ Same version caveat as above: the panel's markup is ui2's (UserCardPanel). */
+    & [data-mobile-user-card] a {
+      display: none;
     }
 
     /* The balance is the one number this bar exists to carry here (the app sells the credits), so the
