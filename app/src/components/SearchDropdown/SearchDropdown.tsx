@@ -78,6 +78,8 @@ export function SearchDropdown({
   onClearRecent
 }: SearchDropdownProps) {
   const enabled = query.length >= MIN_QUERY_LEN
+  // Read once so both render paths decide off the same value, as NavBar does (the module memoises it anyway).
+  const iap = isIapMode()
   const secondarySales = useSecondarySales()
   // Mirror the default state of the grid this dropdown links into (see pages/Assets.tsx): on-sale
   // only, resales hidden unless the flag says otherwise, no category constraint.
@@ -114,12 +116,7 @@ export function SearchDropdown({
   if (!enabled) {
     if (recent.length === 0) return null
     return (
-      <S.Pop
-        data-iap={isIapMode() || undefined}
-        data-testid="search-pop"
-        role="listbox"
-        aria-label={t('search.suggestions')}
-      >
+      <S.Pop data-iap={iap || undefined} data-testid="search-pop" role="listbox" aria-label={t('search.suggestions')}>
         <S.SectionHead>
           <span>{t('search.recent')}</span>
           <S.Clear type="button" onClick={onClearRecent}>
@@ -150,12 +147,7 @@ export function SearchDropdown({
   const nothing = items.length === 0 && collections.length === 0 && creators.length === 0
 
   return (
-    <S.Pop
-      data-iap={isIapMode() || undefined}
-      data-testid="search-pop"
-      role="listbox"
-      aria-label={t('search.suggestions')}
-    >
+    <S.Pop data-iap={iap || undefined} data-testid="search-pop" role="listbox" aria-label={t('search.suggestions')}>
       {nothing ? (
         <S.Empty>{itemsFetching ? t('search.searching') : t('search.noResults', { query })}</S.Empty>
       ) : (
