@@ -4,6 +4,7 @@ import { useSecondarySales } from '~/hooks/useSecondarySales'
 import { Icon } from '~/components/Icon'
 import { fetchCollectionSuggestions, fetchCreatorSuggestions, type CollectionHit, type CreatorHit } from '~/lib/search'
 import { useProfile } from '~/hooks/useProfile'
+import { isIapMode } from '~/lib/iap'
 import { t } from '~/intl/i18n'
 import * as S from './SearchDropdown.styles'
 import { theme } from '~/styles/theme'
@@ -113,7 +114,12 @@ export function SearchDropdown({
   if (!enabled) {
     if (recent.length === 0) return null
     return (
-      <S.Pop data-testid="search-pop" role="listbox" aria-label={t('search.suggestions')}>
+      <S.Pop
+        data-iap={isIapMode() || undefined}
+        data-testid="search-pop"
+        role="listbox"
+        aria-label={t('search.suggestions')}
+      >
         <S.SectionHead>
           <span>{t('search.recent')}</span>
           <S.Clear type="button" onClick={onClearRecent}>
@@ -144,7 +150,12 @@ export function SearchDropdown({
   const nothing = items.length === 0 && collections.length === 0 && creators.length === 0
 
   return (
-    <S.Pop data-testid="search-pop" role="listbox" aria-label={t('search.suggestions')}>
+    <S.Pop
+      data-iap={isIapMode() || undefined}
+      data-testid="search-pop"
+      role="listbox"
+      aria-label={t('search.suggestions')}
+    >
       {nothing ? (
         <S.Empty>{itemsFetching ? t('search.searching') : t('search.noResults', { query })}</S.Empty>
       ) : (

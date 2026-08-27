@@ -30,6 +30,25 @@ export const Pop = styled.div`
     right: 0;
     width: calc(100vw - 24px);
     max-height: min(70vh, 480px);
+
+    /**
+     * The iOS web view anchors the other way round.
+     *
+     * That rule above grows the panel LEFTWARD from the field's right edge, which works on the web because
+     * the field has its own full-width row and its right edge is already at the viewport's. In the web view
+     * the field is 196px and sits at the START of the top row (see NavBar Search [data-iap]), so its right
+     * edge is mid-screen — and a panel a whole viewport wide grown leftward from there hangs 155px off the
+     * left of the screen, clipped, which is what this fixes.
+     *
+     * So: anchor to the field's LEFT edge and grow right instead. The field starts at the row's own 16px
+     * padding, so subtracting 32px of gutter leaves the panel sitting 16px from each edge — the same inset
+     * on both sides, at every width, without needing to know where the field is.
+     */
+    &[data-iap] {
+      left: 0;
+      right: auto;
+      width: calc(100vw - 32px);
+    }
   }
 `
 

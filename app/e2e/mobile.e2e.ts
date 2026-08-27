@@ -326,4 +326,35 @@ describe('at phone width', () => {
     expect(box!.primaryHeight).toBeGreaterThanOrEqual(40)
     expect(box!.secondaryHeight).toBeGreaterThanOrEqual(40)
   })
+
+  /**
+   * The search suggestions must land ON the screen inside the iOS web view.
+   *
+   * The panel grows LEFTWARD from the field's right edge, which is right on the web — the field owns a
+   * full-width row there. In the web view the field is 196px at the START of the top row, so a
+   * viewport-wide panel grown leftward from its right edge hung 155px off the left of the screen with the
+   * results clipped.
+   *
+   * Measured rather than asserted on a class: the bug was pure geometry, and the panel's own styles looked
+   * perfectly reasonable in isolation. Both edges are checked, because the fix flips the anchor and the way
+   * to get that wrong is to push it off the OTHER side.
+   */
+  it('keeps the search suggestions on screen inside the ios web view', async () => {
+    const page = await phone('/overview?view=mobile-iap', 'Trending')
+
+    await page.click('input[placeholder]')
+    await page.type('input[placeholder]', 'hat')
+    await page.waitForSelector('[data-testid="search-pop"]', { timeout: 20000 })
+
+    const box = await page.evaluate(() => {
+      const pop = document.querySelector('[data-testid="search-pop"]') as HTMLElement | null
+      if (!pop) return null
+      const r = pop.getBoundingClientRect()
+      return { left: Math.round(r.left), right: Math.round(r.right), viewport: window.innerWidth }
+    })
+
+    expect(box).not.toBeNull()
+    expect(box!.left).toBeGreaterThanOrEqual(0)
+    expect(box!.right).toBeLessThanOrEqual(box!.viewport)
+  })
 })

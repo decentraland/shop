@@ -54,7 +54,7 @@ import { CloseIcon } from '~/components/Icons/CloseIcon'
 import { WarningTriangleIcon } from '~/components/Icons/WarningTriangleIcon'
 import { SuccessCheckIcon } from '~/components/Icons/SuccessCheckIcon'
 import { JumpInIcon } from '~/components/Icons/JumpInIcon'
-import { JUMP_URL } from '~/lib/jump'
+import { JUMP_URL, backpackDeepLink } from '~/lib/jump'
 import * as M from './modal.styles'
 import loaderLogo from '~/assets/credits/loader-logo.svg'
 
@@ -1348,11 +1348,26 @@ export function BuyModal({
                   </M.Btn>
                   {/* A LINK, not a button that closes: this used to only dismiss the modal, so the same
                       "Try in World" opened the launcher from the cart's success page and did nothing from
-                      the PDP. Still closes behind itself — the purchase is finished either way. */}
-                  <M.BtnLink data-variant="ruby" href={JUMP_URL} target="_blank" rel="noreferrer" onClick={onClose}>
-                    {t('buyModal.tryInWorld')}
-                    <JumpInIcon />
-                  </M.BtnLink>
+                      the PDP. Still closes behind itself — the purchase is finished either way.
+
+                      INSIDE THE WEB VIEW it hands off to the app instead. "Try in World" opens the launcher
+                      page, which cannot run in there, so the buyer was left on a dead end after paying. The
+                      cart's success page already solved this with a deep link that opens the backpack on
+                      what was just bought (lib/jump), and the two post-purchase surfaces should not offer
+                      different hand-offs for the same purchase.
+
+                      No target="_blank" on the deep link: a custom scheme in a new tab leaves an orphaned
+                      blank one behind when the app takes over. */}
+                  {isIapMode() ? (
+                    <M.BtnLink data-variant="ruby" href={backpackDeepLink([item])} onClick={onClose}>
+                      {t('success.goToBackpack')}
+                    </M.BtnLink>
+                  ) : (
+                    <M.BtnLink data-variant="ruby" href={JUMP_URL} target="_blank" rel="noreferrer" onClick={onClose}>
+                      {t('buyModal.tryInWorld')}
+                      <JumpInIcon />
+                    </M.BtnLink>
+                  )}
                 </M.Ctas>
               </M.Body>
             )}
