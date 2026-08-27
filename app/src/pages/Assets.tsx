@@ -266,7 +266,11 @@ export function Assets() {
   if (status !== defaultStatus)
     chips.push({
       key: 'status',
-      label: status === 'all' ? t('filter.statusAll') : t('filter.notForSale'),
+      // All three, because the guard above now lets On Sale through: while searching it is no longer the
+      // default, so an explicit pick of it is a chip like any other — and a two-branch ternary labelled it
+      // "Not for Sale", the one flow this whole change exists to support.
+      label:
+        status === 'all' ? t('filter.statusAll') : status === 'on_sale' ? t('filter.onSale') : t('filter.notForSale'),
       onRemove: () => setStatus(defaultStatus)
     })
 

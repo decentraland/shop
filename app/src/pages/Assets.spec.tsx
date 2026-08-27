@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -360,6 +360,18 @@ describe('Assets — the status a search runs under', () => {
     expect(vi.mocked(fetchCatalogItems).mock.calls.at(-1)![0]).toMatchObject({ search: 'torso' })
     // The on-sale feed is the one that was dropping the item, so it must not be what a search reads.
     expect(fetchShopItems).not.toHaveBeenCalled()
+  })
+
+  it('should name the On Sale chip correctly, since a search is what lets that status become one', async () => {
+    renderAssets('/items?q=torso&status=on_sale')
+
+    await waitFor(() => expect(fetchShopItems).toHaveBeenCalled())
+    // Scoped to the chip row: "On Sale" also names a sidebar radio. The chip only exists because On Sale
+    // stopped being the default here, and labelling it off a two-branch ternary called it "Not for Sale" —
+    // the wrong filter, on the one flow this change exists to support.
+    const chips = await screen.findByTestId('filter-chips')
+    expect(within(chips).getByText('On Sale')).toBeInTheDocument()
+    expect(within(chips).queryByText('Not for Sale')).not.toBeInTheDocument()
   })
 
   it('should let an explicit On Sale survive a query, which is the pick the default would otherwise swallow', async () => {
