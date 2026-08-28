@@ -2,6 +2,7 @@ import styled from '@emotion/styled'
 import { Link } from 'react-router-dom'
 import { css } from '@emotion/react'
 import { theme } from '~/styles/theme'
+import { crumbGutter } from '~/styles/crumbs.styles'
 import { CurrencyIcon } from '~/components/CurrencyIcon'
 import { Button } from '~/components/Button'
 import { Icon } from '~/components/Icon'
@@ -28,6 +29,7 @@ export const Crumbs = styled.nav`
   font-size: 13px;
   color: ${colors.gray4};
   margin-bottom: 24px;
+  ${crumbGutter};
 `
 
 export const CrumbLink = styled.button`
