@@ -1,5 +1,6 @@
 import styled from '@emotion/styled'
 import { theme } from '~/styles/theme'
+import { crumbGutter } from '~/styles/crumbs.styles'
 
 const { colors } = theme
 
@@ -19,6 +20,7 @@ export const Crumbs = styled.nav`
   font-size: 13px;
   color: ${colors.gray4};
   margin-bottom: 18px;
+  ${crumbGutter};
 `
 
 export const CrumbLink = styled.button`
