@@ -127,18 +127,24 @@ describe('search bar', () => {
     await waitForText(page, 'Nebula Jacket')
   })
 
-  it('keeps a search result when Status widens from On Sale to All', async () => {
+  it('opens a search on every item, and keeps an explicit narrowing in the URL', async () => {
     app = await launchApp({ path: '/items?q=Nebula' })
     const { page } = app
 
     await waitForText(page, 'Nebula Jacket')
-    // Status radios, in order: All, On Sale, Not for Sale.
+    // Status radios, in order: All, On Sale, Not for Sale. A SEARCH opens on All: the storefront default
+    // reads the credit-buyable feed, which drops every item with no live listing — on production that was
+    // 8 of the 26 items matching "torso", the reported one among the missing.
     await page.waitForSelector('[data-testid="browse-sidebar"] input[type="radio"]')
-    await page.$$eval('[data-testid="browse-sidebar"] input[type="radio"]', els => (els[0] as HTMLElement).click())
+    const opened = await page.$$eval('[data-testid="browse-sidebar"] input[type="radio"]', els =>
+      els.map(el => (el as HTMLInputElement).checked)
+    )
+    expect(opened).toEqual([true, false, false])
 
-    // "All" must be a superset of "On Sale" — the item stays, and the choice lands in the URL so the
-    // view can be shared or refreshed.
-    await page.waitForFunction(() => /status=all/.test(location.search) && /q=Nebula/.test(location.search))
+    // Narrowing stays the reader's call, and it has to stick: On Sale differs from the default a query
+    // runs under, so it spells itself out in the URL rather than being swallowed by the next keystroke.
+    await page.$$eval('[data-testid="browse-sidebar"] input[type="radio"]', els => (els[1] as HTMLElement).click())
+    await page.waitForFunction(() => /status=on_sale/.test(location.search) && /q=Nebula/.test(location.search))
     await waitForText(page, 'Nebula Jacket')
   })
 

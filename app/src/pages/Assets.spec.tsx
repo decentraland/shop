@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -86,6 +86,13 @@ function renderAssets(entry = '/items') {
       </MemoryRouter>
     </QueryClientProvider>
   )
+}
+
+// The filter set the grid last asked the FULL-CATALOGUE endpoint for (status all / not for sale, and
+// every search — see `defaultStatusFor`).
+async function lastCatalogItemsCall() {
+  await waitFor(() => expect(fetchCatalogItems).toHaveBeenCalled())
+  return vi.mocked(fetchCatalogItems).mock.calls.at(-1)![0]
 }
 
 // The filter set the grid last asked the server for.
@@ -275,7 +282,7 @@ describe('Assets — filters survive a reload', () => {
 describe('Assets — category scope', () => {
   it('should search every category so emote matches are not silently dropped', async () => {
     renderAssets('/items?q=chapeau')
-    expect(await lastShopItemsCall()).toMatchObject({ category: 'all', search: 'chapeau', onSale: true })
+    expect(await lastCatalogItemsCall()).toMatchObject({ category: 'all', search: 'chapeau' })
   })
 
   // Shop All, not Wearables: the grid used to open on a category the visitor never picked, hiding every
@@ -287,7 +294,7 @@ describe('Assets — category scope', () => {
 
   it('should honour an explicit category from the URL', async () => {
     renderAssets('/items?q=chapeau&category=emote')
-    expect(await lastShopItemsCall()).toMatchObject({ category: 'emote', search: 'chapeau' })
+    expect(await lastCatalogItemsCall()).toMatchObject({ category: 'emote', search: 'chapeau' })
   })
 })
 
@@ -295,8 +302,8 @@ describe('Assets — status filter in the URL', () => {
   // Radio order in the Status section: All, On Sale, Not for Sale.
   const statusRadios = () => screen.getAllByRole('radio')
 
-  it('should default to the on-sale grid when the URL says nothing', async () => {
-    renderAssets('/items?q=chapeau')
+  it('should default to the on-sale grid when nothing is being searched for', async () => {
+    renderAssets('/items')
     await lastShopItemsCall()
     expect(fetchCatalogItems).not.toHaveBeenCalled()
   })
@@ -314,10 +321,11 @@ describe('Assets — status filter in the URL', () => {
     expect(vi.mocked(fetchCatalogItems).mock.calls.at(-1)![0]).toMatchObject({ search: 'chapeau', isOnSale: undefined })
   })
 
-  it('should fall back to on sale when the URL carries a status it does not recognise', async () => {
+  it('should fall back to the default in force when the URL carries a status it does not recognise', async () => {
+    // A query is running, so the default it falls back to is All — the same one an absent param gets.
     renderAssets('/items?q=chapeau&status=bogus')
-    await lastShopItemsCall()
-    expect(fetchCatalogItems).not.toHaveBeenCalled()
+    await lastCatalogItemsCall()
+    expect(fetchShopItems).not.toHaveBeenCalled()
   })
 
   it('should write the chosen status to the URL so the view can be shared', async () => {
@@ -328,8 +336,49 @@ describe('Assets — status filter in the URL', () => {
   })
 
   it('should drop the status param again when the default is reselected', async () => {
-    renderAssets('/items?q=chapeau&status=all')
-    await userEvent.click(statusRadios()[1])
+    // Under a query the default is All, so it is All — radio 0 — that leaves the URL clean again.
+    renderAssets('/items?q=chapeau&status=not_for_sale')
+    await userEvent.click(statusRadios()[0])
     await waitFor(() => expect(screen.getByTestId('location-search')).not.toHaveTextContent('status='))
+  })
+})
+
+/**
+ * SEARCHING IS NOT BROWSING.
+ *
+ * The Status filter defaults to On Sale, which is right for a storefront and wrong for a search: the grid
+ * reads the credit-buyable feed there, so an item with no live listing could not be found by name at all.
+ * Reported against an Ethereum wearable whose only order expired in 2025; on production "torso" returned
+ * 8 of its 26 items. So a query moves the DEFAULT to All — and because `useUrlFilters` only writes a value
+ * that differs from its default, an explicit pick still spells itself out in the URL and still wins.
+ */
+describe('Assets — the status a search runs under', () => {
+  it('should read the whole catalogue when a query is running, not just what is on sale', async () => {
+    renderAssets('/items?q=torso')
+
+    await waitFor(() => expect(fetchCatalogItems).toHaveBeenCalled())
+    expect(vi.mocked(fetchCatalogItems).mock.calls.at(-1)![0]).toMatchObject({ search: 'torso' })
+    // The on-sale feed is the one that was dropping the item, so it must not be what a search reads.
+    expect(fetchShopItems).not.toHaveBeenCalled()
+  })
+
+  it('should name the On Sale chip correctly, since a search is what lets that status become one', async () => {
+    renderAssets('/items?q=torso&status=on_sale')
+
+    await waitFor(() => expect(fetchShopItems).toHaveBeenCalled())
+    // Scoped to the chip row: "On Sale" also names a sidebar radio. The chip only exists because On Sale
+    // stopped being the default here, and labelling it off a two-branch ternary called it "Not for Sale" —
+    // the wrong filter, on the one flow this change exists to support.
+    const chips = await screen.findByTestId('filter-chips')
+    expect(within(chips).getByText('On Sale')).toBeInTheDocument()
+    expect(within(chips).queryByText('Not for Sale')).not.toBeInTheDocument()
+  })
+
+  it('should let an explicit On Sale survive a query, which is the pick the default would otherwise swallow', async () => {
+    renderAssets('/items?q=torso&status=on_sale')
+
+    await waitFor(() => expect(fetchShopItems).toHaveBeenCalled())
+    expect(vi.mocked(fetchShopItems).mock.calls.at(-1)![0]).toMatchObject({ search: 'torso' })
+    expect(fetchCatalogItems).not.toHaveBeenCalled()
   })
 })
