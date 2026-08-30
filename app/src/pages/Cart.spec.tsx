@@ -634,6 +634,31 @@ describe('when a cart line is a primary (mint) listing', () => {
   })
 })
 
+// The stepper's minus reaches zero: at quantity 1 it removes the line instead of parking disabled and
+// making the trash button the only way out.
+describe('the quantity stepper', () => {
+  it('should remove the line when minus is pressed at quantity 1', async () => {
+    const user = userEvent.setup()
+    renderCart([item('a')])
+
+    const minus = await screen.findByRole('button', { name: /decrease quantity of item a/i })
+    expect(minus).toBeEnabled()
+    await user.click(minus)
+
+    await waitFor(() => expect(useCart.getState().items).toHaveLength(0))
+  })
+
+  it('should still cap plus at the remaining stock', async () => {
+    const user = userEvent.setup()
+    renderCart([item('a', { available: 2 })])
+
+    const plus = await screen.findByRole('button', { name: /increase quantity/i })
+    await user.click(plus)
+    await waitFor(() => expect(useCart.getState().items[0].quantity).toBe(2))
+    expect(plus).toBeDisabled()
+  })
+})
+
 /**
  * EVERY line goes out gaslessly, mint included.
  *

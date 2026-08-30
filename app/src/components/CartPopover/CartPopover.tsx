@@ -12,9 +12,9 @@ import { isLineBuyable, type CartLineAvailability } from '~/lib/cart-availabilit
 import * as S from './CartPopover.styles'
 
 // A single cart line: thumbnail (+ in-cart check), name, creator, quantity stepper, price, delete.
-// PRIMARY (mint) lines support multiple copies — minus decrements (floored at 1), plus increments up to
-// remaining stock, and the price shows the line subtotal. SECONDARY lines are a single unique token, so
-// the stepper is hidden (qty is always 1). The trash button removes the whole line.
+// PRIMARY (mint) lines support multiple copies — minus decrements (and at 1 removes the line), plus
+// increments up to remaining stock, and the price shows the line subtotal. SECONDARY lines are a single
+// unique token, so the stepper is hidden (qty is always 1). The trash button removes the whole line.
 function CartRow({
   item,
   status,
@@ -60,7 +60,6 @@ function CartRow({
                 <S.Stepper>
                   <S.Step
                     onClick={() => onDecrement(item.id)}
-                    disabled={qty <= 1}
                     aria-label={t('cartPopover.decreaseQuantity', { name: item.name })}
                   >
                     <Icon name="minus" size={16} />
