@@ -314,7 +314,7 @@
     "manaTitle": "One quick approval first",
     "manaName": "Pay with your MANA",
     "manaReason": "Let the Shop use your MANA to pay for this purchase. This is a one-time approval — you won’t be asked again.",
-    "note": "No gas fees, and you stay in control — you can turn this off anytime from Approvals.",
+    "note": "No gas fees, and you stay in control — you can revoke this approval at any time.",
     "errorRejected": "You dismissed the approval. Click Authorize to try again.",
     "errorGeneric": "Couldn’t complete the approval — please try again.",
     "stepOf": "Approval {index} of {total}"

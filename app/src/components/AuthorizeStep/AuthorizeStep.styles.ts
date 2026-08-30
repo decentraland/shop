@@ -79,7 +79,7 @@ export const Close = styled.button`
   }
 `
 
-// The row card describing what's being authorized — same footprint/tone as an Approvals-page Row.
+// The row card describing what's being authorized.
 // Sits beside the heading: the buyer needs the count BEFORE they read what they are granting, so it goes
 // in the head rather than under the row.
 export const StepCount = styled.span`
@@ -141,7 +141,7 @@ export const RowDesc = styled.span`
   color: ${theme.colors.muted};
 `
 
-// Reassuring, jargon-light footnote (no gas, revocable from Approvals).
+// Reassuring, jargon-light footnote (no gas, revocable anytime).
 export const Note = styled.p`
   margin: 0;
   font-size: 12px;
