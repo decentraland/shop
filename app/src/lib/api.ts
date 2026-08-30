@@ -328,26 +328,6 @@ export async function fetchSecondarySaleState(
   return map
 }
 
-// Curated contract registry: every approved collection plus the marketplace's own contracts (LAND,
-// Estates, Names), keyed by LOWERCASED address → name. An NFT row carries the ITEM's name and never
-// its collection's, so this is the only place a collection address can be turned into a real name.
-// It is one request for the whole registry rather than a lookup per address, which is what makes it
-// usable for a list of collections; callers should cache it (it changes only when a collection is
-// approved).
-export type ContractRegistry = Map<string, string>
-
-export async function fetchContractRegistry(): Promise<ContractRegistry> {
-  const res = await fetch(`${NFT_V1}/contracts`)
-  if (!res.ok) throw new Error(`fetchContractRegistry ${res.status}`)
-  const { data } = (await res.json()) as { data?: Array<{ name?: string; address?: string }> }
-  const byAddress: ContractRegistry = new Map()
-  for (const contract of data ?? []) {
-    if (!contract.address || !contract.name) continue
-    byAddress.set(contract.address.toLowerCase(), contract.name)
-  }
-  return byAddress
-}
-
 type NftMeta = {
   name: string
   image: string

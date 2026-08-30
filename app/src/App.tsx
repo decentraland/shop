@@ -35,7 +35,6 @@ const PAGE_NAMES: Record<string, string> = {
   '/cart': 'cart',
   '/credits': 'credits',
   '/success': 'success',
-  '/authorizations': 'authorizations',
   '/outfits/manage': 'outfit_studio',
   '/outfits/new': 'outfit_studio'
 }
@@ -51,7 +50,6 @@ const MyAssets = lazy(() => import('~/pages/MyAssets').then(m => ({ default: m.M
 const MyFavorites = lazy(() => import('~/pages/MyFavorites').then(m => ({ default: m.MyFavorites })))
 const Activity = lazy(() => import('~/pages/Activity').then(m => ({ default: m.Activity })))
 const Cart = lazy(() => import('~/pages/Cart').then(m => ({ default: m.Cart })))
-const Authorizations = lazy(() => import('~/pages/Authorizations').then(m => ({ default: m.Authorizations })))
 const GetCredits = lazy(() => import('~/pages/GetCredits').then(m => ({ default: m.GetCredits })))
 const Success = lazy(() => import('~/pages/Success').then(m => ({ default: m.Success })))
 const NotFound = lazy(() => import('~/pages/NotFound').then(m => ({ default: m.NotFound })))
@@ -204,7 +202,10 @@ export function App() {
                   bookmarks — and the query is what lands on the tool rather than on the feed. */}
               <Route path="/import" element={<Navigate to="/activity?section=listings" replace />} />
               <Route path="/cart" element={<Cart />} />
-              <Route path="/authorizations" element={<Authorizations />} />
+              {/* Approvals are granted inline where they're needed (checkout, listing); there is no
+                  standalone management page. The path has lived in nav links and bookmarks, so keep it
+                  as a redirect rather than a 404. */}
+              <Route path="/authorizations" element={<Navigate to="/overview" replace />} />
               {/* Selling credits is the one thing the Shop cannot do inside the iOS app's web view — the
                   app sells them through In-App Purchase. Hiding the entrances is not enough on its own:
                   the route stays addressable, and a stale link or a back-navigation would land straight on

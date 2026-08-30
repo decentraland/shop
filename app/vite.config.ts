@@ -137,9 +137,9 @@ export default defineConfig({
     // Vercel previews need the same thing and get it from the rewrite in vercel.json — keep the two
     // in step, and note that neither applies to a real deploy, where /auth is genuinely same-origin.
     //
-    // The key is a REGEXP, not a plain prefix, and that matters: a plain '/auth' also matches
-    // /authorizations, so the Approvals page got proxied to decentraland.zone and a hard load (or a
-    // refresh, or a shared link) rendered that site's shell instead of the app — a blank page.
+    // The key is a REGEXP, not a plain prefix, and that matters: a plain '/auth' also matches any
+    // app route that merely starts with /auth, proxying it to decentraland.zone so a hard load (or a
+    // refresh, or a shared link) renders that site's shell instead of the app — a blank page.
     proxy: {
       '^/auth(/|$)': {
         target: 'https://decentraland.zone',

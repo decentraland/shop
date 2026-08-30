@@ -6,7 +6,7 @@
      Only INDEXABLE routes belong here. A URL whose page sets robots=noindex must not be listed: Search
      Console reports that combination as an error ("Submitted URL marked noindex") and it cannot ever
      produce an indexed result, so listing it only spends crawl budget on a guaranteed rejection. That
-     rules out /credits, /cart, /activity, /my-items, /my-favorites, /authorizations, /store-settings,
+     rules out /credits, /cart, /activity, /my-items, /my-favorites, /store-settings,
      /outfits/* and /success — every one of them calls useSeo({ noindex: true }). -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>

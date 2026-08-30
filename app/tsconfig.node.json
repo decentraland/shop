@@ -2,7 +2,7 @@
   "compilerOptions": {
     // tsc -b emits here, NOT next to vite.config.ts: vite resolves vite.config.js
     // BEFORE vite.config.ts, so a compiled sibling silently shadows the real config and
-    // every edit to it becomes a no-op (this cost us a blank /authorizations page).
+    // every edit to it becomes a no-op.
     "outDir": "./node_modules/.tmp/tsconfig-node",
     "composite": true,
     "skipLibCheck": true,
