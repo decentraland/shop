@@ -103,8 +103,9 @@ describe('cart-availability', () => {
       await expect(resolveLineAvailability(primary as CatalogItem)).resolves.toBe('available')
     })
 
-    it('maps a null resolution to sold-out for a primary line', async () => {
+    it('maps a null resolution to sold-out for a primary line that is not a mint either', async () => {
       resolveMock.mockResolvedValueOnce(null)
+      storeMock.mockResolvedValueOnce(null)
       await expect(resolveLineAvailability(primary as CatalogItem)).resolves.toBe('sold-out')
     })
 
@@ -136,6 +137,44 @@ describe('cart-availability', () => {
     it('propagates a store lookup failure so the caller can stay optimistic', async () => {
       storeMock.mockRejectedValueOnce(new Error('network down'))
       await expect(resolveLineAvailability(mint as CatalogItem)).rejects.toThrow('network down')
+    })
+
+    /**
+     * The store branch above is entered on `acquisition: 'store'`, and only some feeds report it:
+     * /v3/catalog/unified does, /v3/catalog/items — which the collection page and the browse grid add
+     * from — does not. Reproduced on production data: the same mint added from its detail page was
+     * buyable, added from a collection card it read "Out of stock" and left the cart showing "(0)".
+     * So the mint is consulted on the SHAPE of the line, not on a field its source may have dropped.
+     */
+    const mintWithoutAcquisition = { itemId: '0', contractAddress: '0xstore' } as Partial<CatalogItem>
+
+    it('still reaches the mint for a primary line whose source omitted the acquisition field', async () => {
+      resolveMock.mockResolvedValueOnce(null)
+      storeMock.mockResolvedValueOnce({ priceWei: '1000000000000000000', available: 872 })
+
+      await expect(resolveLineAvailability(mintWithoutAcquisition as CatalogItem)).resolves.toBe('available')
+      expect(storeMock).toHaveBeenCalledWith('0xstore', '0')
+    })
+
+    it('reaches the mint when the trade lookup throws not-found rather than resolving null', async () => {
+      resolveMock.mockRejectedValueOnce(new TradeNotFoundError('none'))
+      storeMock.mockResolvedValueOnce({ priceWei: '1000000000000000000', available: 872 })
+
+      await expect(resolveLineAvailability(mintWithoutAcquisition as CatalogItem)).resolves.toBe('available')
+    })
+
+    it('reports a genuinely sold-out mint as sold-out, so the fallback cannot mask an empty one', async () => {
+      resolveMock.mockResolvedValueOnce(null)
+      storeMock.mockResolvedValueOnce({ priceWei: '1000000000000000000', available: 0 })
+
+      await expect(resolveLineAvailability(mintWithoutAcquisition as CatalogItem)).resolves.toBe('sold-out')
+    })
+
+    it('does not ask the mint for a line it cannot address, and still reports sold-out', async () => {
+      resolveMock.mockResolvedValueOnce(null)
+
+      await expect(resolveLineAvailability({ contractAddress: '0xstore' } as CatalogItem)).resolves.toBe('sold-out')
+      expect(storeMock).not.toHaveBeenCalled()
     })
 
     it('treats a store line missing its contract/item as unavailable without a lookup', async () => {

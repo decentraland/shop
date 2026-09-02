@@ -127,18 +127,24 @@ describe('search bar', () => {
     await waitForText(page, 'Nebula Jacket')
   })
 
-  it('keeps a search result when Status widens from On Sale to All', async () => {
+  it('opens a search on every item, and keeps an explicit narrowing in the URL', async () => {
     app = await launchApp({ path: '/items?q=Nebula' })
     const { page } = app
 
     await waitForText(page, 'Nebula Jacket')
-    // Status radios, in order: All, On Sale, Not for Sale.
+    // Status radios, in order: All, On Sale, Not for Sale. A SEARCH opens on All: the storefront default
+    // reads the credit-buyable feed, which drops every item with no live listing — on production that was
+    // 8 of the 26 items matching "torso", the reported one among the missing.
     await page.waitForSelector('[data-testid="browse-sidebar"] input[type="radio"]')
-    await page.$$eval('[data-testid="browse-sidebar"] input[type="radio"]', els => (els[0] as HTMLElement).click())
+    const opened = await page.$$eval('[data-testid="browse-sidebar"] input[type="radio"]', els =>
+      els.map(el => (el as HTMLInputElement).checked)
+    )
+    expect(opened).toEqual([true, false, false])
 
-    // "All" must be a superset of "On Sale" — the item stays, and the choice lands in the URL so the
-    // view can be shared or refreshed.
-    await page.waitForFunction(() => /status=all/.test(location.search) && /q=Nebula/.test(location.search))
+    // Narrowing stays the reader's call, and it has to stick: On Sale differs from the default a query
+    // runs under, so it spells itself out in the URL rather than being swallowed by the next keystroke.
+    await page.$$eval('[data-testid="browse-sidebar"] input[type="radio"]', els => (els[1] as HTMLElement).click())
+    await page.waitForFunction(() => /status=on_sale/.test(location.search) && /q=Nebula/.test(location.search))
     await waitForText(page, 'Nebula Jacket')
   })
 
@@ -170,6 +176,67 @@ describe('search bar', () => {
     })
     expect(width).toBeGreaterThan(300)
     expect(right).toBeLessThanOrEqual(375)
+  })
+
+  /**
+   * The one control that reaches the full result set has to be reachable without scrolling INSIDE the
+   * dropdown. It used to sit after the last suggestion in a panel that scrolls, so on a query with many
+   * matches it was below the fold of a menu most people never scroll — the results page was effectively
+   * unreachable from the suggestions.
+   */
+  it('keeps "See all results" in view without scrolling the suggestions', async () => {
+    // Enough suggestions to OVERFLOW the panel — the default fixture has one match, and with a single row
+    // the footer sits at the bottom whether or not it is pinned, so the assertions below would pass
+    // either way. Local to this spec: `unifiedListings` also feeds the browse grid, where extra rows
+    // change what other specs count.
+    const many = Array.from({ length: 20 }, (_, i) => ({
+      tradeId: `pinned-${i}`,
+      listingType: 'primary',
+      contractAddress: '0x0000000000000000000000000000000000000abc',
+      itemId: String(i),
+      tokenId: null,
+      name: `Nebula Cap ${i}`,
+      thumbnail: '',
+      rarity: 'epic',
+      category: 'wearable',
+      wearableCategory: 'hat',
+      creator: '0x0000000000000000000000000000000000000001',
+      priceCredits: 10 + i,
+      available: 5,
+      network: 'MATIC',
+      chainId: 80002,
+      source: 'native',
+      manaWei: null,
+      listingCount: 1
+    }))
+    app = await launchApp({ path: '/overview', fixtures: { unifiedListings: { data: many, total: many.length } } })
+    const { page } = app
+    // Short on purpose: the panel is capped at 70vh, which is what makes the capped suggestion list
+    // overflow it.
+    await page.setViewport({ width: 1280, height: 420 })
+
+    await page.waitForSelector(SEARCH)
+    await page.type(SEARCH, 'Nebula')
+    await page.waitForSelector('[data-testid="search-pop"]')
+    await page.waitForSelector('[data-testid="search-see-all"]')
+
+    const geometry = await page.evaluate(() => {
+      const popEl = document.querySelector('[data-testid="search-pop"]')!
+      const pop = popEl.getBoundingClientRect()
+      const seeAll = document.querySelector('[data-testid="search-see-all"]')!.getBoundingClientRect()
+      return {
+        overflows: popEl.scrollHeight > popEl.clientHeight + 1,
+        popBottom: pop.bottom,
+        seeAllTop: seeAll.top,
+        seeAllBottom: seeAll.bottom
+      }
+    })
+
+    // The premise: if the list does not overflow, this test proves nothing.
+    expect(geometry.overflows).toBe(true)
+    // Held at the panel's bottom edge instead of sitting somewhere down the scroll.
+    expect(geometry.seeAllBottom).toBeLessThanOrEqual(geometry.popBottom + 1)
+    expect(geometry.seeAllTop).toBeLessThan(geometry.popBottom)
   })
 
   it('reflects the URL query in the input on a deep link', async () => {

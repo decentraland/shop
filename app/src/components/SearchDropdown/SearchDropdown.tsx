@@ -1,14 +1,10 @@
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
-import { fetchShopItems, type CatalogItem, type UnifiedListing } from '~/lib/api'
+import { fetchShopItems, type CatalogItem } from '~/lib/api'
 import { useSecondarySales } from '~/hooks/useSecondarySales'
-// The chain-free half of mana-rate — the NavBar is eager, so don't drag ethers into its chunk.
-import { manaWeiToCredits } from '~/lib/mana-convert'
-import { useManaRate } from '~/hooks/useManaRate'
 import { Icon } from '~/components/Icon'
 import { fetchCollectionSuggestions, fetchCreatorSuggestions, type CollectionHit, type CreatorHit } from '~/lib/search'
-import { CurrencyIcon } from '~/components/CurrencyIcon'
-import { Price } from '~/components/Price'
 import { useProfile } from '~/hooks/useProfile'
+import { isIapMode } from '~/lib/iap'
 import { t } from '~/intl/i18n'
 import * as S from './SearchDropdown.styles'
 import { theme } from '~/styles/theme'
@@ -82,8 +78,9 @@ export function SearchDropdown({
   onClearRecent
 }: SearchDropdownProps) {
   const enabled = query.length >= MIN_QUERY_LEN
+  // Read once so both render paths decide off the same value, as NavBar does (the module memoises it anyway).
+  const iap = isIapMode()
   const secondarySales = useSecondarySales()
-  const { data: rate } = useManaRate()
   // Mirror the default state of the grid this dropdown links into (see pages/Assets.tsx): on-sale
   // only, resales hidden unless the flag says otherwise, no category constraint.
   const listingType = secondarySales ? undefined : ('primary' as const)
@@ -116,15 +113,10 @@ export function SearchDropdown({
   const items = enabled ? (itemData?.items ?? []) : []
   const total = itemData?.total ?? 0
 
-  // Same price treatment as the grid (see pages/Assets.tsx): a legacy row is priced off the LIVE rate,
-  // never the server's snapshot, and shows no price at all when the oracle is unavailable.
-  const priceOf = (item: UnifiedListing): number | null =>
-    item.source === 'legacy' ? (rate && item.manaWei ? manaWeiToCredits(item.manaWei, rate) : null) : item.priceCredits
-
   if (!enabled) {
     if (recent.length === 0) return null
     return (
-      <S.Pop data-testid="search-pop" role="listbox" aria-label={t('search.suggestions')}>
+      <S.Pop data-iap={iap || undefined} data-testid="search-pop" role="listbox" aria-label={t('search.suggestions')}>
         <S.SectionHead>
           <span>{t('search.recent')}</span>
           <S.Clear type="button" onClick={onClearRecent}>
@@ -155,7 +147,7 @@ export function SearchDropdown({
   const nothing = items.length === 0 && collections.length === 0 && creators.length === 0
 
   return (
-    <S.Pop data-testid="search-pop" role="listbox" aria-label={t('search.suggestions')}>
+    <S.Pop data-iap={iap || undefined} data-testid="search-pop" role="listbox" aria-label={t('search.suggestions')}>
       {nothing ? (
         <S.Empty>{itemsFetching ? t('search.searching') : t('search.noResults', { query })}</S.Empty>
       ) : (
@@ -167,7 +159,6 @@ export function SearchDropdown({
               </S.SectionHead>
               <S.List>
                 {items.map(item => {
-                  const price = priceOf(item)
                   return (
                     <li key={item.id}>
                       <S.Row
@@ -181,11 +172,6 @@ export function SearchDropdown({
                           <S.Name title={item.name}>{item.name}</S.Name>
                           {item.creator ? <CreatorName address={item.creator} /> : null}
                         </S.Text>
-                        {price == null ? null : (
-                          <S.Price>
-                            <CurrencyIcon className="ccy-mark" /> <Price credits={price} />
-                          </S.Price>
-                        )}
                       </S.Row>
                     </li>
                   )
@@ -246,7 +232,7 @@ export function SearchDropdown({
           ) : null}
 
           {total > 0 ? (
-            <S.SeeAll type="button" onClick={() => onRunSearch(query)}>
+            <S.SeeAll type="button" data-testid="search-see-all" onClick={() => onRunSearch(query)}>
               {t('search.seeAll', { count: total.toLocaleString() })}
             </S.SeeAll>
           ) : null}

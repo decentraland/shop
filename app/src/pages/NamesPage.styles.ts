@@ -1,4 +1,5 @@
 import styled from '@emotion/styled'
+import { crumbGutter } from '~/styles/crumbs.styles'
 import { noForward } from '~/styles/emotion'
 import { theme } from '~/styles/theme'
 
@@ -22,6 +23,7 @@ export const Breadcrumb = styled.nav`
   font-size: 12px;
   line-height: 1;
   color: ${theme.colors.gray4};
+  ${crumbGutter};
 `
 
 export const CrumbLink = styled.button`

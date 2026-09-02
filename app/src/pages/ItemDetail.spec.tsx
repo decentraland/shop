@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { CatalogItem } from '~/lib/api'
@@ -151,6 +152,50 @@ describe('ItemDetail — the not-for-sale CTA slot', () => {
     expect(await screen.findByTestId('item-price')).toHaveTextContent(/not for sale/i)
     expect(screen.queryByTestId('make-offer')).not.toBeInTheDocument()
     expect(screen.queryByText(/make an offer/i)).not.toBeInTheDocument()
+  })
+
+  /**
+   * The Shop sells primary only, so "not for sale" here means "not for sale HERE" — a resale may well be
+   * on offer at the Marketplace. Without this the state is a dead end: notify-me is the only action, and
+   * it asks the buyer to wait for something that may already be purchasable elsewhere.
+   */
+  it('should offer the resale hand-off for an item it cannot sell', async () => {
+    renderPdp()
+
+    expect(await screen.findByTestId('item-price')).toHaveTextContent(/not for sale/i)
+    expect(await screen.findByTestId('buy-resale')).toBeInTheDocument()
+  })
+
+  /**
+   * The button's own geometry, which jsdom can resolve. The HOVER fill it carries (Figma 868:67246)
+   * cannot be asserted here — jsdom does not apply `:hover` — so that one is verified in the browser.
+   */
+  it('should render as a full-width button rather than an inline link', async () => {
+    renderPdp()
+
+    const button = await screen.findByTestId('buy-resale')
+    const styles = window.getComputedStyle(button)
+
+    expect(styles.borderRadius).toBe('12px')
+    expect(styles.width).toBe('100%')
+  })
+
+  it('should hand the buyer to the item page on the marketplace, not to one arbitrary copy', async () => {
+    renderPdp()
+
+    await userEvent.click(await screen.findByTestId('buy-resale'))
+
+    const cta = await screen.findByTestId('marketplace-redirect-continue')
+    expect(cta.getAttribute('href')).toContain('/items/1')
+    expect(cta.getAttribute('href')).not.toContain('/tokens/')
+  })
+
+  it('should warn about the currency change before sending the buyer over', async () => {
+    renderPdp()
+
+    await userEvent.click(await screen.findByTestId('buy-resale'))
+
+    expect(await screen.findByTestId('marketplace-redirect-modal')).toHaveTextContent(/not made with credits/i)
   })
 })
 
@@ -565,5 +610,48 @@ describe('when the seeded stock is out of date', () => {
     // covers both: the hydrate landed, AND the store mint is still on sale. Without the fix the page
     // settles on "Not for Sale" and this times out.
     await waitFor(() => expect(screen.getByTestId('item-price').textContent).toMatch(/99/))
+  })
+})
+
+/**
+ * THE CREATOR ATTRIBUTION.
+ *
+ * Hidden entirely on Ethereum, where `creator` is the wallet that deployed the contract rather than whoever
+ * made the item (the rationale, with the numbers behind it, sits on `hidesCreator` in the page). The Polygon
+ * case is asserted alongside it on purpose: an absence test on its own would pass just as well if the block
+ * had stopped rendering for everyone. The L1 case anchors on the COLLECTION, which shares the same container
+ * — so it proves the page reached that block and chose to leave the creator out of it.
+ */
+describe('ItemDetail — the creator attribution', () => {
+  beforeEach(async () => {
+    // The describe above leaves a store-mint listing behind: `vi.clearAllMocks()` clears CALLS but not
+    // implementations, so that `mockResolvedValue` outlives its own test. The page hydrates `current` from
+    // it, and since that fixture is Polygon it overwrote the network under test here — the item rendered as
+    // L2 and the creator block came back. Restored to the module default so the fixture below is what runs.
+    const api = await import('~/lib/api')
+    vi.mocked(api.fetchUnifiedListingForItem).mockResolvedValue(null)
+  })
+
+  it('should credit nobody on an Ethereum item, while still naming its collection', async () => {
+    fetchCollectionItems.mockResolvedValue({
+      items: [item({ id: 'a', name: 'Anchor Hat', itemId: '1', network: 'ETHEREUM', chainId: 1 })],
+      total: 1
+    })
+
+    renderPdp()
+
+    expect(await screen.findByText('Solo Collection')).toBeInTheDocument()
+    expect(screen.queryByText('Creator')).not.toBeInTheDocument()
+  })
+
+  it('should credit the creator on a Polygon item, where the address is the one who published it', async () => {
+    fetchCollectionItems.mockResolvedValue({
+      items: [item({ id: 'a', name: 'Anchor Hat', itemId: '1' })],
+      total: 1
+    })
+
+    renderPdp()
+
+    expect(await screen.findByText('Creator')).toBeInTheDocument()
   })
 })

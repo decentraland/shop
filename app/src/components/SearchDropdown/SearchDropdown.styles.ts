@@ -30,6 +30,25 @@ export const Pop = styled.div`
     right: 0;
     width: calc(100vw - 24px);
     max-height: min(70vh, 480px);
+
+    /**
+     * The iOS web view anchors the other way round.
+     *
+     * That rule above grows the panel LEFTWARD from the field's right edge, which works on the web because
+     * the field has its own full-width row and its right edge is already at the viewport's. In the web view
+     * the field is 196px and sits at the START of the top row (see NavBar Search [data-iap]), so its right
+     * edge is mid-screen — and a panel a whole viewport wide grown leftward from there hangs 155px off the
+     * left of the screen, clipped, which is what this fixes.
+     *
+     * So: anchor to the field's LEFT edge and grow right instead. The field starts at the row's own 16px
+     * padding, so subtracting 32px of gutter leaves the panel sitting 16px from each edge — the same inset
+     * on both sides, at every width, without needing to know where the field is.
+     */
+    &[data-iap] {
+      left: 0;
+      right: auto;
+      width: calc(100vw - 32px);
+    }
   }
 `
 
@@ -142,19 +161,29 @@ export const Sub = styled.span`
   white-space: nowrap;
 `
 
-export const Price = styled.span`
-  font-size: 13px;
-  font-weight: 700;
-  white-space: nowrap;
-`
-
+/**
+ * Pinned to the bottom of the panel rather than sitting after the last result.
+ *
+ * The panel scrolls (see Pop), and this used to scroll with it — so on a query with many matches the one
+ * control that reaches the full result set was below the fold of a dropdown most people never scroll.
+ * `sticky` keeps it in flow (no height reserved when the list is short) while holding the bottom edge
+ * once the list overflows. The background has to be opaque, since rows pass underneath it, and has to be
+ * the same one Pop uses — the two are a single visual surface, so they change together.
+ *
+ * The negative bottom margin cancels Pop's padding so the bar meets the panel edge instead of leaving an
+ * 8px strip of scrolling content below it, and the matching padding keeps the label where it was.
+ */
 export const SeeAll = styled.button`
+  position: sticky;
+  bottom: -8px;
+  z-index: 1;
   width: 100%;
   margin-top: 4px;
-  padding: 10px;
+  margin-bottom: -8px;
+  padding: 10px 10px 18px;
   border: 0;
   border-top: 1px solid ${colors.line};
-  background: none;
+  background: ${colors.white};
   color: ${colors.accent};
   font-weight: 700;
   font-size: 13px;

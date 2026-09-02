@@ -73,9 +73,29 @@ export async function resolveLineAvailability(
   }
   try {
     const trade = await resolveLiveTrade(item)
-    return classifyTrade(item, trade)
+    const status = classifyTrade(item, trade)
+    return status === 'sold-out' ? await mintFallback(item) : status
   } catch (e) {
-    if (e instanceof TradeNotFoundError) return item.tokenId ? 'unavailable' : 'sold-out'
+    if (e instanceof TradeNotFoundError) return item.tokenId ? 'unavailable' : await mintFallback(item)
     throw e
   }
+}
+
+/**
+ * Last word on a PRIMARY line that no trade explains: ask the mint before calling it sold out.
+ *
+ * The branch above only reaches `fetchStoreMintState` when the line says `acquisition: 'store'`, and not
+ * every surface reports that field. `/v3/catalog/unified` does; `/v3/catalog/items` — which feeds the
+ * collection page and the browse grid — does not, so a store mint added straight from one of those cards
+ * arrived without it, fell through to the trade path, found the trade a mint never has, and rendered
+ * "Out of stock" in the drawer while the very same item added from its detail page was buyable. It was
+ * also dropped from the item count and the total, so the cart read "(0)" with a line sitting in it.
+ *
+ * Keyed off the line's SHAPE (primary, and addressable by contract + item) rather than off a field the
+ * caller may not carry, so every surface reaches the same verdict. Only runs where the answer would have
+ * been 'sold-out' anyway, so a genuinely sold-out mint still reports one — it just costs one more read.
+ */
+async function mintFallback(item: Pick<CatalogItem, 'contractAddress' | 'itemId'>): Promise<CartLineAvailability> {
+  if (!item.contractAddress || !item.itemId) return 'sold-out'
+  return classifyStoreMint(await fetchStoreMintState(item.contractAddress, item.itemId))
 }

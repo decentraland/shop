@@ -9,6 +9,9 @@ vi.mock('~/config', () => ({
   }
 }))
 
+const captureErrorMock = vi.fn()
+vi.mock('~/lib/monitoring', () => ({ captureError: (...args: unknown[]) => captureErrorMock(...args) }))
+
 // postTrade dynamically imports TradeService only when creating a listing. Stub it so importing the
 // module (and calling postTrade) never drags in decentraland-dapps' ui2/@mui barrel.
 const addTradeMock = vi.fn(async () => ({ id: 'trade-created' }))
@@ -80,6 +83,7 @@ beforeEach(() => {
   fetchMock.mockReset()
   addTradeMock.mockClear()
   tradeServiceCtor.mockClear()
+  captureErrorMock.mockClear()
   vi.stubGlobal('fetch', fetchMock)
 })
 
@@ -249,17 +253,81 @@ describe('when hydrating catalog items by their marketplace item ids', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('should request the v2 catalog with repeated id params and return items in the ids order', async () => {
+  it('should request the v3 catalog with repeated id params and return items in the ids order', async () => {
     fetchMock.mockResolvedValueOnce(jsonOk({ data: [row('0xb-2'), row('0xa-1')] }))
     const items = await fetchCatalogByIds(['0xa-1', '0xb-2'])
     expect(items.map(i => i.id)).toEqual(['0xa-1', '0xb-2'])
     const url = lastUrl()
-    expect(url).toContain('https://market.test/v2/catalog?')
+    // v3 and not v2: only v3 reports `priceCredits` and `tradeId`, and without them a USD-pegged row
+    // cannot be told from a MANA one.
+    expect(url).toContain('https://market.test/v3/catalog/items?')
     expect(url).toContain('first=2')
     // The server reads the filter as a repeated `id` param, not `ids`.
     expect(url).toContain('id=0xa-1')
     expect(url).toContain('id=0xb-2')
     expect(url).not.toContain('ids=')
+  })
+
+  /**
+   * The bug: a trade-priced row carries USD in `price`, and pricing it as MANA divided it by the MANA rate.
+   * Bertwurst, from production — $6.90 (69 credits) — showed as 6 on the favourites grid and in the cart,
+   * while its own item page showed 69. Eleven times cheaper, on a page that offered an ADD TO CART.
+   */
+  it('should keep the server credit price for a row that sells through a trade', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonOk({
+        data: [
+          { ...row('0xb0d-0'), price: '6900000000000000000', priceCredits: 69, tradeId: 'trade-1', isOnSale: true }
+        ]
+      })
+    )
+    const [item] = await fetchCatalogByIds(['0xb0d-0'])
+
+    expect(item.priceCredits).toBe(69)
+    // No manaWei is the whole point: it is what stops displayCredits converting USD at the MANA rate.
+    expect(item.manaWei).toBeNull()
+  })
+
+  it('should still price a row with no trade in MANA, at the live rate', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonOk({ data: [{ ...row('0xa-1'), price: '20000000000000000000', priceCredits: 4, tradeId: null }] })
+    )
+    const [item] = await fetchCatalogByIds(['0xa-1'])
+
+    // Carries the MANA figure so the caller converts at the LIVE rate: the server's own 4 was computed
+    // with its own rate read and drifts from what the grid shows.
+    expect(item.manaWei).toBe('20000000000000000000')
+    // The server's figure is still carried, not discarded: `displayCredits` prefers manaWei for this row,
+    // but a consumer that only checks "is this priced at all" (the outfit and showcase filters) reads this.
+    expect(item.priceCredits).toBe(4)
+  })
+
+  /**
+   * Every consumer fails closed on a zero price — the card reads NOT FOR SALE, the outfit and showcase
+   * filters drop the row — so such an item goes quiet rather than free. This pins the report, because
+   * quiet is exactly what nobody would notice: stock would leave the storefront with no visible cause.
+   */
+  it('should report a trade row that carries no credit price, rather than let it go quiet', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonOk({ data: [{ ...row('0xb0d-0'), price: '6900000000000000000', tradeId: 'trade-1', isOnSale: true }] })
+    )
+    const [item] = await fetchCatalogByIds(['0xb0d-0'])
+
+    expect(item.priceCredits).toBe(0)
+    expect(item.manaWei).toBeNull()
+    expect(captureErrorMock).toHaveBeenCalledWith(
+      expect.any(Error),
+      expect.objectContaining({ flow: 'catalog', step: 'hydrate_by_ids', rows: 1, of: 1 })
+    )
+  })
+
+  it('should not report anything when every trade row is priced', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonOk({ data: [{ ...row('0xa-1'), price: '100', priceCredits: 7, tradeId: 'trade-1' }] })
+    )
+    await fetchCatalogByIds(['0xa-1'])
+
+    expect(captureErrorMock).not.toHaveBeenCalled()
   })
 
   it('should silently drop ids the catalog no longer knows', async () => {

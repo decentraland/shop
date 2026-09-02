@@ -326,4 +326,81 @@ describe('at phone width', () => {
     expect(box!.primaryHeight).toBeGreaterThanOrEqual(40)
     expect(box!.secondaryHeight).toBeGreaterThanOrEqual(40)
   })
+
+  /**
+   * The search suggestions must land ON the screen inside the iOS web view.
+   *
+   * The panel grows LEFTWARD from the field's right edge, which is right on the web — the field owns a
+   * full-width row there. In the web view the field is 196px at the START of the top row, so a
+   * viewport-wide panel grown leftward from its right edge hung 155px off the left of the screen with the
+   * results clipped.
+   *
+   * Measured rather than asserted on a class: the bug was pure geometry, and the panel's own styles looked
+   * perfectly reasonable in isolation. Both edges are checked, because the fix flips the anchor and the way
+   * to get that wrong is to push it off the OTHER side.
+   */
+  it('keeps the search suggestions on screen inside the ios web view', async () => {
+    const page = await phone('/overview?view=mobile-iap', 'Trending')
+
+    await page.click('input[placeholder]')
+    await page.type('input[placeholder]', 'hat')
+    await page.waitForSelector('[data-testid="search-pop"]', { timeout: 20000 })
+
+    const box = await page.evaluate(() => {
+      const pop = document.querySelector('[data-testid="search-pop"]') as HTMLElement | null
+      if (!pop) return null
+      const r = pop.getBoundingClientRect()
+      return { left: Math.round(r.left), right: Math.round(r.right), viewport: window.innerWidth }
+    })
+
+    expect(box).not.toBeNull()
+    expect(box!.left).toBeGreaterThanOrEqual(0)
+    expect(box!.right).toBeLessThanOrEqual(box!.viewport)
+  })
+
+  /**
+   * The profile panel inside the web view: reachable, and trimmed to sign-out.
+   *
+   * The avatar used to be blocked outright, alongside the logo — which left the buyer unable to open their
+   * profile at all, and with no way to sign out of a device that may not be theirs. It opens again, but the
+   * four rows that NAVIGATE (View Profile, My Assets, Account Settings, Marketplace Authorizations) are
+   * links out to decentraland.org, the same one-way trip the logo is still blocked for.
+   *
+   * Clicked with a real tap rather than `element.click()`, because a JS click fires the handler even
+   * through `pointer-events: none` — it would pass against the bug this fixes.
+   */
+  it('lets the buyer sign out from the profile panel in the ios web view', async () => {
+    const page = await phone('/overview?view=mobile-iap', 'Trending')
+
+    await page.click('button[aria-label="User menu"]')
+    await page.waitForSelector('[data-mobile-user-card]', { timeout: 20000 })
+
+    const panel = await page.evaluate(() => {
+      const card = document.querySelector('[data-mobile-user-card]') as HTMLElement
+      const visible = (el: Element) => getComputedStyle(el).display !== 'none'
+      return {
+        outboundLinks: [...card.querySelectorAll('a')].filter(visible).length,
+        hasSignOut: [...card.querySelectorAll('button')].some(b => /log ?out|sign ?out/i.test(b.textContent ?? ''))
+      }
+    })
+
+    expect(panel.hasSignOut).toBe(true)
+    expect(panel.outboundLinks).toBe(0)
+  })
+
+  // The trim is the WEB VIEW's, not the Shop's: on the web the same panel keeps every row.
+  it('keeps the whole profile menu on the web', async () => {
+    const page = await phone('/overview', 'Trending')
+
+    await page.click('button[aria-label="User menu"]')
+    await page.waitForSelector('[data-mobile-user-card]', { timeout: 20000 })
+
+    const links = await page.evaluate(
+      () =>
+        [...document.querySelectorAll('[data-mobile-user-card] a')].filter(a => getComputedStyle(a).display !== 'none')
+          .length
+    )
+
+    expect(links).toBeGreaterThan(0)
+  })
 })
