@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { config } from '~/config'
+import { SEGMENT_KILL_SWITCH_KEY } from '~/lib/analytics-proxy'
 import {
   FeatureFlag,
   getAddressListVariant,
@@ -23,6 +24,7 @@ function mockFlags(flags: Record<string, boolean>) {
 describe('featureFlags', () => {
   beforeEach(() => {
     resetFeatureFlagsCache()
+    localStorage.clear()
   })
   afterEach(() => {
     vi.unstubAllGlobals()
@@ -140,6 +142,48 @@ describe('featureFlags', () => {
       await expect(getIsProceedsToTreasuryEnabled()).resolves.toBe(false)
     })
   })
+  /**
+   * `seg-alt` is the only flag whose value is recorded rather than awaited: the analytics provider mounts at
+   * boot, long before a flag can be fetched, so each fresh snapshot leaves the answer behind for the next
+   * page load. See lib/analytics-proxy.
+   */
+  describe('the segment kill switch', () => {
+    it('should record it as on when the service lists the flag', async () => {
+      mockFlags({ 'dapps-seg-alt': true })
+
+      await getIsFeatureEnabled(FeatureFlag.PROCEEDS_TO_TREASURY)
+
+      expect(localStorage.getItem(SEGMENT_KILL_SWITCH_KEY)).toBe('1')
+    })
+
+    it('should record it as off when the service does not list it, since only enabled flags are published', async () => {
+      mockFlags({ 'dapps-something-else': true })
+
+      await getIsFeatureEnabled(FeatureFlag.PROCEEDS_TO_TREASURY)
+
+      expect(localStorage.getItem(SEGMENT_KILL_SWITCH_KEY)).toBe('0')
+    })
+
+    it('should record it without a fetch of its own, riding on whatever flag read happens first', async () => {
+      const fetchMock = mockFlags({ 'dapps-seg-alt': true })
+
+      await getIsFeatureEnabled(FeatureFlag.SHOP_NAMES)
+
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(localStorage.getItem(SEGMENT_KILL_SWITCH_KEY)).toBe('1')
+    })
+
+    it('should leave the last known value alone when the service is unreachable', async () => {
+      // A flag service outage must not be able to move analytics off the proxy, or onto it.
+      localStorage.setItem(SEGMENT_KILL_SWITCH_KEY, '1')
+      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')))
+
+      await getIsFeatureEnabled(FeatureFlag.PROCEEDS_TO_TREASURY)
+
+      expect(localStorage.getItem(SEGMENT_KILL_SWITCH_KEY)).toBe('1')
+    })
+  })
+
   /**
    * The dev override exists so a flag-gated flow can be exercised locally at all. These pin the two properties
    * that make it safe: it never reaches a production bundle, and a malformed entry does NOT silently force a
