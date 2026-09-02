@@ -72,3 +72,20 @@ export function myItemsRouteFor(categories: Array<string | null | undefined>): s
   const [only] = [...sections]
   return sections.size === 1 && only ? `/my-items?section=${only}` : '/my-items'
 }
+
+/**
+ * A route segment, with any query fragment that leaked into the path stripped off.
+ *
+ * The in-world client links to items with `&utm_source=client` appended to a URL that carries no `?`, so
+ * the `&` lands INSIDE the path: react-router hands back an itemId of `0&utm_source=client`, every lookup
+ * keyed on it misses, and the detail page renders a perfectly buyable mint as "Not for sale" with a
+ * Notify-me box and a hand-off to the Marketplace. Measured on production against two items — a legacy
+ * MANA mint at 15 (942 of 1,000 left) and a USD-pegged one — both lose Buy Now under the suffix and both
+ * are fine without it. It is not item-specific: it is every item opened from one of those links.
+ *
+ * Stripped on read rather than waiting for the link to be corrected, because those links are already out
+ * in the world and in people's history. `#` too, since a fragment lands in the same place.
+ */
+export function routeSegment(raw?: string): string | undefined {
+  return raw?.split(/[?&#]/)[0] || undefined
+}

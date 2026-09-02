@@ -22,6 +22,7 @@ import {
   type UnifiedListing
 } from '~/lib/api'
 import { itemIdFromTokenId } from '~/lib/token-id'
+import { routeSegment } from '~/lib/routes'
 import { liveTradeId, markListingCancelled } from '~/lib/dead-listings'
 import { patchManageCaches } from '~/lib/manage-cache'
 import { manaWeiToCredits } from '~/lib/mana-convert'
@@ -117,14 +118,19 @@ export function ItemDetail() {
   // TWO routes render this page (see App.tsx): /item/:contractAddress/:itemId (generic buy view) and
   // /token/:contractAddress/:tokenId (a specific copy). react-router populates whichever param matched.
   const {
-    contractAddress,
-    itemId: routeItemId,
-    tokenId: routeTokenId
+    contractAddress: rawContractAddress,
+    itemId: rawItemId,
+    tokenId: rawTokenId
   } = useParams<{
     contractAddress: string
     itemId?: string
     tokenId?: string
   }>()
+  // Sanitised once, here, because eight consumers below key their lookups off these three (see
+  // `routeSegment` for what the in-world client's links do to them).
+  const contractAddress = routeSegment(rawContractAddress)
+  const routeItemId = routeSegment(rawItemId)
+  const routeTokenId = routeSegment(rawTokenId)
   const isTokenRoute = !!routeTokenId
   // The itemId this page is about: the route itemId, or decoded from the token (itemId = tokenId >> 216).
   // Both routes fetch the generic item data (name, resales, siblings, description) by this itemId.

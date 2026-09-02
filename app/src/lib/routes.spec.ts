@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { hrefFor, itemRoute, tokenRoute, detailRouteFor, canManageToken, myItemsRouteFor } from './routes'
+import { hrefFor, itemRoute, tokenRoute, detailRouteFor, canManageToken, myItemsRouteFor, routeSegment } from './routes'
 
 describe('hrefFor', () => {
   beforeEach(() => {
     Object.defineProperty(window, 'location', {
       value: { pathname: '/' },
-      writable: true,
+      writable: true
     })
   })
 
@@ -106,5 +106,35 @@ describe('myItemsRouteFor', () => {
     expect(myItemsRouteFor([null])).toBe('/my-items')
     expect(myItemsRouteFor(['land'])).toBe('/my-items')
     expect(myItemsRouteFor([])).toBe('/my-items')
+  })
+})
+
+/**
+ * The in-world client appends `&utm_source=client` to a URL with no query string, so the `&` lands inside
+ * the path and the itemId arrives as `0&utm_source=client`. Every lookup keyed on it missed and the page
+ * called a buyable mint "Not for sale" — on production, with the suffix, an item selling at 15 MANA with
+ * 942 of 1,000 left offered BUY RESALE instead of Buy Now.
+ */
+describe('routeSegment', () => {
+  it('should drop a query fragment that leaked into the path', () => {
+    expect(routeSegment('0&utm_source=client')).toBe('0')
+    expect(routeSegment('12?utm_source=client')).toBe('12')
+    expect(routeSegment('7#section')).toBe('7')
+  })
+
+  it('should leave a clean segment exactly as it is, including a long token id', () => {
+    expect(routeSegment('0')).toBe('0')
+    expect(routeSegment('0xc2f737293a3b6da7c75ececc095265e76dc3f799')).toBe(
+      '0xc2f737293a3b6da7c75ececc095265e76dc3f799'
+    )
+    const tokenId = '105312291668557186697918027683670432318895095400549111254310977536'
+    expect(routeSegment(tokenId)).toBe(tokenId)
+  })
+
+  it('should report nothing for an absent or empty segment, so callers keep their own fallbacks', () => {
+    expect(routeSegment(undefined)).toBeUndefined()
+    expect(routeSegment('')).toBeUndefined()
+    // A segment that is ONLY the stray fragment leaves nothing to look up — better undefined than ''.
+    expect(routeSegment('&utm_source=client')).toBeUndefined()
   })
 })

@@ -111,11 +111,11 @@ function item(overrides: Partial<CatalogItem> & { id: string; name: string }): C
   }
 }
 
-function renderPdp() {
+function renderPdp(itemSegment = '1') {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={[`/item/${ANCHOR}/1`]}>
+      <MemoryRouter initialEntries={[`/item/${ANCHOR}/${itemSegment}`]}>
         <Routes>
           <Route path="/item/:contractAddress/:itemId" element={<ItemDetail />} />
         </Routes>
@@ -653,5 +653,36 @@ describe('ItemDetail — the creator attribution', () => {
     renderPdp()
 
     expect(await screen.findByText('Creator')).toBeInTheDocument()
+  })
+})
+
+/**
+ * A UTM GLUED ONTO THE ITEM ID.
+ *
+ * The in-world client links with `&utm_source=client` appended to a URL that has no `?`, so the `&` lands
+ * inside the path and react-router reports an itemId of `1&utm_source=client`. Every lookup keyed on it
+ * missed, and the page called a buyable mint "Not for sale": measured on production, the same item served
+ * Buy Now on the clean URL and BUY RESALE with the suffix, and it happened to every item, not one.
+ */
+describe('ItemDetail — an item id arriving with a query fragment stuck to it', () => {
+  beforeEach(async () => {
+    const api = await import('~/lib/api')
+    vi.mocked(api.fetchUnifiedListingForItem).mockResolvedValue(null)
+    fetchCollectionItems.mockResolvedValue({ items: [item({ id: 'a', name: 'Anchor Hat', itemId: '1' })], total: 1 })
+  })
+
+  it('should look the listing up by the item id alone, not by the id plus the tracking parameter', async () => {
+    const api = await import('~/lib/api')
+
+    renderPdp('1&utm_source=client')
+
+    await waitFor(() => expect(api.fetchUnifiedListingForItem).toHaveBeenCalled())
+    expect(api.fetchUnifiedListingForItem).toHaveBeenCalledWith(ANCHOR, '1')
+  })
+
+  it('should still hydrate the item, which is what made the broken link look like a genuine "Not for sale"', async () => {
+    renderPdp('1&utm_source=client')
+
+    expect(await screen.findByRole('heading', { name: 'Anchor Hat' })).toBeInTheDocument()
   })
 })
